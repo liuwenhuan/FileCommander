@@ -1,6 +1,8 @@
 #pragma once
 
 #include <QByteArray>
+#include <QKeySequence>
+#include <QMap>
 #include <QSettings>
 #include <QString>
 
@@ -29,6 +31,12 @@ public:
 
     QByteArray windowGeometry() const;
     void setWindowGeometry(const QByteArray &geometry);
+
+    // Per-action keyboard shortcut overrides, keyed by a stable action id
+    // (e.g. "copy", "newTab"). Returns defaultSeq if nothing was saved.
+    QKeySequence shortcut(const QString &actionId, const QKeySequence &defaultSeq) const;
+    void setShortcut(const QString &actionId, const QKeySequence &seq);
+    void clearShortcutOverrides();
 
 private:
     QSettings m_settings;

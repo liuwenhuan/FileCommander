@@ -1,6 +1,12 @@
 #pragma once
 
+#include <QKeySequence>
+#include <QList>
 #include <QMainWindow>
+#include <QMap>
+#include <QPair>
+#include <QString>
+#include <functional>
 
 #include "Settings.h"
 
@@ -9,6 +15,8 @@ class FunctionKeyBar;
 class StatusBarWidget;
 class OperationQueue;
 class OperationProgressDialog;
+class ThemeManager;
+class QShortcut;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -32,6 +40,9 @@ private slots:
     void renameCurrent(); // F2
     void compressSelected(); // Alt+F5
     void openSearch(); // Ctrl+F
+    void openShortcutsDialog();
+    void setTheme(Settings::Theme theme);
+    void setLanguage(const QString &language);
 
     void navigateBack();
     void navigateForward();
@@ -41,6 +52,8 @@ private slots:
 private:
     void setupMenuAndToolbar();
     void setupShortcuts();
+    void bindShortcut(const QString &id, const QString &label, const QKeySequence &defaultSeq,
+                       std::function<void()> handler);
     FilePanel *otherPanel(FilePanel *panel) const;
 
     FilePanel *m_leftPanel;
@@ -50,5 +63,10 @@ private:
     StatusBarWidget *m_statusBarWidget;
     OperationQueue *m_queue;
     OperationProgressDialog *m_progressDialog;
+    ThemeManager *m_themeManager;
     Settings m_settings;
+
+    QMap<QString, QShortcut *> m_shortcuts;
+    QMap<QString, QKeySequence> m_shortcutDefaults;
+    QList<QPair<QString, QString>> m_shortcutOrder; // id, human-readable label
 };

@@ -5,6 +5,8 @@
 #include <QLocale>
 #include <QtConcurrent/QtConcurrent>
 
+#include "IconCache.h"
+
 namespace {
 
 QVector<FileInfo> scanDirectory(const QString &path, bool showHidden) {
@@ -104,6 +106,8 @@ QVariant FileSystemModel::data(const QModelIndex &index, int role) const {
         return QVariant::fromValue(info.path());
     if (role == IsDirRole)
         return info.isDir();
+    if (role == Qt::DecorationRole && index.column() == NameColumn)
+        return IconCache::instance().iconFor(info);
 
     if (role == Qt::DisplayRole) {
         switch (index.column()) {

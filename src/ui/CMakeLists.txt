@@ -13,15 +13,23 @@ add_library(ui STATIC
     TabManager.cpp
     TabBar.h
     TabBar.cpp
+    theme/ThemeManager.h
+    theme/ThemeManager.cpp
+    i18n/TranslationManager.h
+    i18n/TranslationManager.cpp
     dialogs/OperationProgressDialog.h
     dialogs/OperationProgressDialog.cpp
     dialogs/OverwriteConfirmDialog.h
     dialogs/OverwriteConfirmDialog.cpp
+    dialogs/ShortcutsDialog.h
+    dialogs/ShortcutsDialog.cpp
 )
 
 target_include_directories(ui PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/theme
+    ${CMAKE_CURRENT_SOURCE_DIR}/i18n
 )
 
 target_link_libraries(ui PUBLIC

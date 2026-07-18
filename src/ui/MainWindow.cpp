@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 
 #include <QAction>
+#include <QActionGroup>
 #include <QApplication>
 #include <QCloseEvent>
 #include <QDir>
@@ -30,10 +31,12 @@
 #include "SessionManager.h"
 #include "Settings.h"
 #include "StatusBarWidget.h"
+#include "ThemeManager.h"
 #include "TextEditor.h"
 #include "TextViewer.h"
 #include "dialogs/OperationProgressDialog.h"
 #include "dialogs/OverwriteConfirmDialog.h"
+#include "dialogs/ShortcutsDialog.h"
 
 namespace {
 qint64 sumSizes(const QStringList &paths) {
@@ -54,6 +57,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     const QByteArray savedGeometry = m_settings.windowGeometry();
     if (!savedGeometry.isEmpty())
         restoreGeometry(savedGeometry);
+
+    m_themeManager = new ThemeManager(this);
+    m_themeManager->apply(m_settings.theme());
 
     auto *splitter = new QSplitter(this);
     m_leftPanel = new FilePanel(splitter);
@@ -155,17 +161,58 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
 void MainWindow::setupMenuAndToolbar() {
     QMenu *fileMenu = menuBar()->addMenu(tr("&File"));
-    QAction *exitAction = fileMenu->addAction(tr("E&xit"), this, &QWidget::close);
-    exitAction->setShortcut(QKeySequence(Qt::Key_F10));
+    fileMenu->addAction(tr("E&xit"), this, &QWidget::close);
 
     QMenu *commandsMenu = menuBar()->addMenu(tr("&Commands"));
-    QAction *refreshAction = commandsMenu->addAction(tr("&Refresh"), this,
-                                                       &MainWindow::refreshActivePanel);
-    refreshAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_R));
+    commandsMenu->addAction(tr("&Refresh"), this, &MainWindow::refreshActivePanel);
+    commandsMenu->addAction(tr("&Compress Selected..."), this, &MainWindow::compressSelected);
+    commandsMenu->addAction(tr("&Search Files..."), this, &MainWindow::openSearch);
+    commandsMenu->addSeparator();
+    commandsMenu->addAction(tr("&Keyboard Shortcuts..."), this,
+                             &MainWindow::openShortcutsDialog);
 
-    QAction *compressAction =
-        commandsMenu->addAction(tr("&Compress Selected..."), this, &MainWindow::compressSelected);
-    compressAction->setShortcut(QKeySequence(Qt::ALT | Qt::Key_F5));
+    QMenu *viewMenu = menuBar()->addMenu(tr("&View"));
+    QMenu *themeMenu = viewMenu->addMenu(tr("&Theme"));
+    auto *themeGroup = new QActionGroup(this);
+    themeGroup->setExclusive(true);
+    struct ThemeEntry {
+        Settings::Theme theme;
+        QString label;
+    };
+    const ThemeEntry themeEntries[] = {
+        {Settings::Theme::Auto, tr("Auto")},
+        {Settings::Theme::Light, tr("Light")},
+        {Settings::Theme::Dark, tr("Dark")},
+    };
+    for (const auto &entry : themeEntries) {
+        QAction *action = themeMenu->addAction(entry.label);
+        action->setCheckable(true);
+        action->setChecked(m_settings.theme() == entry.theme);
+        themeGroup->addAction(action);
+        connect(action, &QAction::triggered, this,
+                [this, theme = entry.theme]() { setTheme(theme); });
+    }
+
+    QMenu *languageMenu = viewMenu->addMenu(tr("&Language"));
+    auto *languageGroup = new QActionGroup(this);
+    languageGroup->setExclusive(true);
+    struct LanguageEntry {
+        QString code;
+        QString label;
+    };
+    const LanguageEntry languageEntries[] = {
+        {"auto", tr("Auto")},
+        {"en", tr("English")},
+        {"zh_CN", tr("Chinese (Simplified)")},
+    };
+    for (const auto &entry : languageEntries) {
+        QAction *action = languageMenu->addAction(entry.label);
+        action->setCheckable(true);
+        action->setChecked(m_settings.language() == entry.code);
+        languageGroup->addAction(action);
+        connect(action, &QAction::triggered, this,
+                [this, code = entry.code]() { setLanguage(code); });
+    }
 
     auto *toolbar = addToolBar(tr("Navigation"));
     toolbar->setFocusPolicy(Qt::NoFocus);
@@ -177,42 +224,87 @@ void MainWindow::setupMenuAndToolbar() {
         Q_UNUSED(a);
 }
 
+void MainWindow::bindShortcut(const QString &id, const QString &label,
+                               const QKeySequence &defaultSeq, std::function<void()> handler) {
+    m_shortcutDefaults[id] = defaultSeq;
+    m_shortcutOrder.append({id, label});
+
+    auto *sc = new QShortcut(m_settings.shortcut(id, defaultSeq), this);
+    sc->setContext(Qt::WindowShortcut);
+    connect(sc, &QShortcut::activated, this, handler);
+    m_shortcuts[id] = sc;
+}
+
 void MainWindow::setupShortcuts() {
-    auto bind = [this](QKeySequence seq, auto slot) {
-        auto *sc = new QShortcut(seq, this);
-        sc->setContext(Qt::WindowShortcut);
-        connect(sc, &QShortcut::activated, this, slot);
-    };
+    bindShortcut("view", tr("View"), QKeySequence(Qt::Key_F3), [this] { viewCurrent(); });
+    bindShortcut("edit", tr("Edit"), QKeySequence(Qt::Key_F4), [this] { editCurrent(); });
+    bindShortcut("copy", tr("Copy"), QKeySequence(Qt::Key_F5), [this] { copySelected(); });
+    bindShortcut("move", tr("Move"), QKeySequence(Qt::Key_F6), [this] { moveSelected(); });
+    bindShortcut("mkdir", tr("New Folder"), QKeySequence(Qt::Key_F7),
+                 [this] { makeDirectory(); });
+    bindShortcut("delete", tr("Delete (to trash)"), QKeySequence(Qt::Key_F8),
+                 [this] { deleteSelected(false); });
+    bindShortcut("deletePermanent", tr("Delete Permanently"),
+                 QKeySequence(Qt::SHIFT | Qt::Key_Delete), [this] { deleteSelected(true); });
+    bindShortcut("deleteAlt", tr("Delete (Del key)"), QKeySequence(Qt::Key_Delete),
+                 [this] { deleteSelected(false); });
+    bindShortcut("rename", tr("Rename"), QKeySequence(Qt::Key_F2), [this] { renameCurrent(); });
 
-    bind(QKeySequence(Qt::Key_F3), &MainWindow::viewCurrent);
-    bind(QKeySequence(Qt::Key_F4), &MainWindow::editCurrent);
-    bind(QKeySequence(Qt::Key_F5), &MainWindow::copySelected);
-    bind(QKeySequence(Qt::Key_F6), &MainWindow::moveSelected);
-    bind(QKeySequence(Qt::Key_F7), &MainWindow::makeDirectory);
-    bind(QKeySequence(Qt::Key_F8), [this]() { deleteSelected(false); });
-    bind(QKeySequence(Qt::SHIFT | Qt::Key_Delete), [this]() { deleteSelected(true); });
-    bind(QKeySequence(Qt::Key_Delete), [this]() { deleteSelected(false); });
-    bind(QKeySequence(Qt::Key_F2), &MainWindow::renameCurrent);
-
-    bind(QKeySequence(Qt::CTRL | Qt::Key_T), [this]() {
+    bindShortcut("newTab", tr("New Tab"), QKeySequence(Qt::CTRL | Qt::Key_T), [this] {
         if (m_activePanel)
             m_activePanel->newTab();
     });
-    bind(QKeySequence(Qt::CTRL | Qt::Key_W), [this]() {
+    bindShortcut("closeTab", tr("Close Tab"), QKeySequence(Qt::CTRL | Qt::Key_W), [this] {
         if (m_activePanel)
             m_activePanel->closeCurrentTab();
     });
-    bind(QKeySequence(Qt::CTRL | Qt::Key_Tab), [this]() {
+    bindShortcut("nextTab", tr("Next Tab"), QKeySequence(Qt::CTRL | Qt::Key_Tab), [this] {
         if (m_activePanel)
             m_activePanel->nextTab();
     });
-    bind(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Tab), [this]() {
-        if (m_activePanel)
-            m_activePanel->prevTab();
-    });
-    // Alt+F5 (compress) is registered via the Commands menu action instead
-    // of here, to avoid an ambiguous-shortcut warning from double binding.
-    bind(QKeySequence(Qt::CTRL | Qt::Key_F), &MainWindow::openSearch);
+    bindShortcut("prevTab", tr("Previous Tab"), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Tab),
+                 [this] {
+                     if (m_activePanel)
+                         m_activePanel->prevTab();
+                 });
+
+    bindShortcut("search", tr("Search Files"), QKeySequence(Qt::CTRL | Qt::Key_F),
+                 [this] { openSearch(); });
+    bindShortcut("compress", tr("Compress Selected"), QKeySequence(Qt::ALT | Qt::Key_F5),
+                 [this] { compressSelected(); });
+    bindShortcut("refresh", tr("Refresh"), QKeySequence(Qt::CTRL | Qt::Key_R),
+                 [this] { refreshActivePanel(); });
+    bindShortcut("exit", tr("Exit"), QKeySequence(Qt::Key_F10), [this] { close(); });
+}
+
+void MainWindow::openShortcutsDialog() {
+    QMap<QString, QKeySequence> current;
+    for (auto it = m_shortcuts.constBegin(); it != m_shortcuts.constEnd(); ++it)
+        current[it.key()] = it.value()->key();
+
+    ShortcutsDialog dlg(m_shortcutOrder, current, m_shortcutDefaults, this);
+    if (dlg.exec() != QDialog::Accepted)
+        return;
+
+    const auto updated = dlg.resultShortcuts();
+    for (auto it = updated.constBegin(); it != updated.constEnd(); ++it) {
+        if (!m_shortcuts.contains(it.key()))
+            continue;
+        m_shortcuts[it.key()]->setKey(it.value());
+        m_settings.setShortcut(it.key(), it.value());
+    }
+}
+
+void MainWindow::setTheme(Settings::Theme theme) {
+    m_settings.setTheme(theme);
+    m_themeManager->apply(theme);
+}
+
+void MainWindow::setLanguage(const QString &language) {
+    m_settings.setLanguage(language);
+    QMessageBox::information(this, tr("Language"),
+                              tr("Restart Total Commander for the language change to take "
+                                 "effect."));
 }
 
 FilePanel *MainWindow::otherPanel(FilePanel *panel) const {

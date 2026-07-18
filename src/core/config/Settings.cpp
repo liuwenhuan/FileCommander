@@ -62,3 +62,20 @@ QByteArray Settings::windowGeometry() const {
 void Settings::setWindowGeometry(const QByteArray &geometry) {
     m_settings.setValue("window/geometry", geometry);
 }
+
+QKeySequence Settings::shortcut(const QString &actionId, const QKeySequence &defaultSeq) const {
+    const QString key = QStringLiteral("shortcuts/") + actionId;
+    if (!m_settings.contains(key))
+        return defaultSeq;
+    return QKeySequence(m_settings.value(key).toString());
+}
+
+void Settings::setShortcut(const QString &actionId, const QKeySequence &seq) {
+    m_settings.setValue(QStringLiteral("shortcuts/") + actionId, seq.toString());
+}
+
+void Settings::clearShortcutOverrides() {
+    m_settings.beginGroup("shortcuts");
+    m_settings.remove("");
+    m_settings.endGroup();
+}

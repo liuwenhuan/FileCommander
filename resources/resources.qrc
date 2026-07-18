@@ -1,4 +1,9 @@
 <RCC>
-    <!-- Icons/themes/translations are added in later roadmap phases
-         (see docs/superpowers/... in total-commader for the reference spec). -->
+    <qresource prefix="/themes">
+        <file alias="light.qss">themes/light.qss</file>
+        <file alias="dark.qss">themes/dark.qss</file>
+    </qresource>
+    <qresource prefix="/translations">
+        <file alias="ttc_zh_CN.qm">translations/ttc_zh_CN.qm</file>
+    </qresource>
 </RCC>

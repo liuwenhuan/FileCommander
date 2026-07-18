@@ -3,6 +3,8 @@ add_library(core STATIC
     filesystem/FileInfo.cpp
     filesystem/FileSystemModel.h
     filesystem/FileSystemModel.cpp
+    filesystem/IconCache.h
+    filesystem/IconCache.cpp
     operations/FileOpTypes.h
     operations/FileOperations.h
     operations/FileOperations.cpp
@@ -23,5 +25,7 @@ target_include_directories(core PUBLIC
 
 target_link_libraries(core PUBLIC
     Qt5::Core
+    Qt5::Gui
+    Qt5::Widgets
     Qt5::Concurrent
 )

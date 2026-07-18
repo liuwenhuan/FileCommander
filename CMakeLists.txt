@@ -33,3 +33,4 @@ target_link_libraries(ttc PRIVATE
 )
 
 add_subdirectory(tests)
+add_subdirectory(bench)
