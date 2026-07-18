@@ -16,11 +16,15 @@
 #include <QToolBar>
 #include <QVBoxLayout>
 
+#include "ArchiveBrowserDialog.h"
+#include "ArchiveHandler.h"
 #include "FilePanel.h"
 #include "FileListView.h"
 #include "FunctionKeyBar.h"
+#include "ImageViewer.h"
 #include "OperationQueue.h"
 #include "StatusBarWidget.h"
+#include "TextEditor.h"
 #include "TextViewer.h"
 #include "dialogs/OperationProgressDialog.h"
 #include "dialogs/OverwriteConfirmDialog.h"
@@ -93,7 +97,21 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         connect(panel, &FilePanel::pathChanged, this, [this](const QString &) { updateStatusBar(); });
         connect(panel->view()->selectionModel(), &QItemSelectionModel::selectionChanged, this,
                 [this]() { updateStatusBar(); });
-        connect(panel, &FilePanel::openRequested, this, [this](const QString &path) {
+        connect(panel, &FilePanel::openRequested, this, [this, panel](const QString &path) {
+            if (ArchiveHandler::isSupportedArchive(path)) {
+                auto *dlg = new ArchiveBrowserDialog(path, otherPanel(panel)->currentPath(), this);
+                dlg->setAttribute(Qt::WA_DeleteOnClose);
+                dlg->show();
+                return;
+            }
+            if (ImageViewer::isImage(path)) {
+                auto *viewer = new ImageViewer();
+                if (viewer->loadImage(path))
+                    viewer->show();
+                else
+                    delete viewer;
+                return;
+            }
             auto *viewer = new TextViewer();
             if (viewer->loadFile(path)) {
                 viewer->resize(800, 600);
@@ -150,6 +168,23 @@ void MainWindow::setupShortcuts() {
     bind(QKeySequence(Qt::SHIFT | Qt::Key_Delete), [this]() { deleteSelected(true); });
     bind(QKeySequence(Qt::Key_Delete), [this]() { deleteSelected(false); });
     bind(QKeySequence(Qt::Key_F2), &MainWindow::renameCurrent);
+
+    bind(QKeySequence(Qt::CTRL | Qt::Key_T), [this]() {
+        if (m_activePanel)
+            m_activePanel->newTab();
+    });
+    bind(QKeySequence(Qt::CTRL | Qt::Key_W), [this]() {
+        if (m_activePanel)
+            m_activePanel->closeCurrentTab();
+    });
+    bind(QKeySequence(Qt::CTRL | Qt::Key_Tab), [this]() {
+        if (m_activePanel)
+            m_activePanel->nextTab();
+    });
+    bind(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Tab), [this]() {
+        if (m_activePanel)
+            m_activePanel->prevTab();
+    });
 }
 
 FilePanel *MainWindow::otherPanel(FilePanel *panel) const {
@@ -177,6 +212,24 @@ void MainWindow::viewCurrent() {
     const QString path = m_activePanel->currentEntryPath();
     if (path.isEmpty() || QFileInfo(path).isDir())
         return;
+
+    if (ArchiveHandler::isSupportedArchive(path)) {
+        auto *dlg =
+            new ArchiveBrowserDialog(path, otherPanel(m_activePanel)->currentPath(), this);
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
+        dlg->show();
+        return;
+    }
+
+    if (ImageViewer::isImage(path)) {
+        auto *viewer = new ImageViewer();
+        if (viewer->loadImage(path))
+            viewer->show();
+        else
+            delete viewer;
+        return;
+    }
+
     auto *viewer = new TextViewer();
     if (viewer->loadFile(path)) {
         viewer->resize(800, 600);
@@ -187,8 +240,25 @@ void MainWindow::viewCurrent() {
 }
 
 void MainWindow::editCurrent() {
-    // TextEditor lands in Phase 2; F3 view already covers reading files for now.
-    viewCurrent();
+    if (!m_activePanel)
+        return;
+    const QString path = m_activePanel->currentEntryPath();
+    if (path.isEmpty() || QFileInfo(path).isDir())
+        return;
+
+    if (ImageViewer::isImage(path)) {
+        QMessageBox::information(this, tr("Edit"),
+                                  tr("Image files can't be edited; use F3 to view."));
+        return;
+    }
+
+    auto *editor = new TextEditor();
+    if (editor->loadFile(path)) {
+        editor->resize(900, 700);
+        editor->show();
+    } else {
+        delete editor;
+    }
 }
 
 void MainWindow::copySelected() {

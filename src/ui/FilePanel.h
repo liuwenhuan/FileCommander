@@ -3,9 +3,11 @@
 #include <QWidget>
 
 #include "FileSystemModel.h"
+#include "TabManager.h"
 
 class QLineEdit;
 class FileListView;
+class TabBar;
 
 // One side of the dual-pane layout: address bar + file list + per-panel
 // back/forward history. Two of these live in MainWindow (left/right).
@@ -31,6 +33,11 @@ public:
     void deselectAll();
     void invertSelection();
 
+    void newTab();
+    void closeCurrentTab();
+    void nextTab();
+    void prevTab();
+
     FileSystemModel *model() const { return m_model; }
     FileListView *view() const { return m_view; }
 
@@ -46,13 +53,24 @@ protected:
 private slots:
     void onActivated(const QModelIndex &index);
     void onAddressBarEntered();
+    void onTabBarCurrentChanged(int index);
 
 private:
     void pushHistory(const QString &fromPath);
+    QString tabLabelFor(const QSharedPointer<TabState> &tab) const;
+    void syncTabBarFromManager();
+    void closeTabAt(int index);
+    void saveCurrentTabState();
+    void loadTabState(int index);
+    void updateActiveTabLabel();
 
     QLineEdit *m_addressBar;
     FileListView *m_view;
     FileSystemModel *m_model;
     QStringList m_backHistory;
     QStringList m_forwardHistory;
+
+    TabManager *m_tabManager;
+    TabBar *m_tabBar;
+    QStringList m_pendingSelection;
 };

@@ -1,14 +1,18 @@
 #include "FilePanel.h"
 
+#include <QClipboard>
 #include <QDir>
 #include <QEvent>
 #include <QFileInfo>
+#include <QGuiApplication>
 #include <QHBoxLayout>
+#include <QItemSelectionModel>
 #include <QLineEdit>
 #include <QShortcut>
 #include <QVBoxLayout>
 
 #include "FileListView.h"
+#include "TabBar.h"
 
 FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_model = new FileSystemModel(this);
@@ -16,12 +20,16 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_view->setModel(m_model);
     m_view->installEventFilter(this);
 
+    m_tabManager = new TabManager(this);
+    m_tabBar = new TabBar(this);
+
     m_addressBar = new QLineEdit(this);
     m_addressBar->setFocusPolicy(Qt::ClickFocus); // keep it out of the Tab chain
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(2);
+    layout->addWidget(m_tabBar);
     layout->addWidget(m_addressBar);
     layout->addWidget(m_view, 1);
 
@@ -29,9 +37,41 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     connect(m_addressBar, &QLineEdit::returnPressed, this, &FilePanel::onAddressBarEntered);
     connect(m_model, &FileSystemModel::loadFinished, this, [this](int) {
         m_addressBar->setText(m_model->rootPath());
-        if (m_view->model()->rowCount() > 0)
+        if (!m_pendingSelection.isEmpty()) {
+            QItemSelectionModel *sel = m_view->selectionModel();
+            for (int row = 0; row < m_model->rowCount(); ++row) {
+                if (m_pendingSelection.contains(m_model->fileInfoAt(row).path()))
+                    sel->select(m_model->index(row, 0),
+                                QItemSelectionModel::Select | QItemSelectionModel::Rows);
+            }
+            m_pendingSelection.clear();
+        }
+        if (m_view->model()->rowCount() > 0 && !m_view->currentIndex().isValid())
             m_view->setCurrentIndex(m_view->model()->index(0, 0));
     });
+
+    connect(m_tabBar, &QTabBar::currentChanged, this, &FilePanel::onTabBarCurrentChanged);
+    connect(m_tabBar, &TabBar::newTabRequested, this, &FilePanel::newTab);
+    connect(m_tabBar, &TabBar::closeTabRequested, this, &FilePanel::closeTabAt);
+    connect(m_tabBar, &TabBar::closeOthersRequested, this, [this](int idx) {
+        m_tabManager->closeOthers(idx);
+        syncTabBarFromManager();
+    });
+    connect(m_tabBar, &TabBar::closeToRightRequested, this, [this](int idx) {
+        m_tabManager->closeToRight(idx);
+        syncTabBarFromManager();
+    });
+    connect(m_tabBar, &TabBar::copyPathRequested, this, [this](int idx) {
+        if (auto tab = m_tabManager->tabAt(idx))
+            QGuiApplication::clipboard()->setText(tab->path);
+    });
+
+    const int firstTab = m_tabManager->addTab(QString());
+    m_tabBar->blockSignals(true);
+    m_tabBar->addTab(tr("New Tab"));
+    m_tabBar->setCurrentIndex(firstTab);
+    m_tabBar->blockSignals(false);
+    m_tabManager->setActiveIndex(firstTab);
 
     auto *upShortcut = new QShortcut(QKeySequence(Qt::Key_Backspace), this);
     upShortcut->setContext(Qt::WidgetWithChildrenShortcut);
@@ -81,6 +121,11 @@ void FilePanel::navigateTo(const QString &path) {
     m_forwardHistory.clear();
     m_model->setRootPath(cleaned);
     emit pathChanged(cleaned);
+
+    if (auto tab = m_tabManager->activeTab()) {
+        tab->path = cleaned;
+        updateActiveTabLabel();
+    }
 }
 
 void FilePanel::pushHistory(const QString &fromPath) {
@@ -165,4 +210,92 @@ void FilePanel::invertSelection() {
     QItemSelection full(m_model->index(0, 0),
                          m_model->index(m_model->rowCount() - 1, m_model->columnCount() - 1));
     m_view->selectionModel()->select(full, QItemSelectionModel::Toggle | QItemSelectionModel::Rows);
+}
+
+QString FilePanel::tabLabelFor(const QSharedPointer<TabState> &tab) const {
+    if (!tab || tab->path.isEmpty())
+        return tr("New Tab");
+    const QString name = QFileInfo(tab->path).fileName();
+    return name.isEmpty() ? tab->path : name; // root "/" has no file name
+}
+
+void FilePanel::updateActiveTabLabel() {
+    const int idx = m_tabManager->activeIndex();
+    if (auto tab = m_tabManager->tabAt(idx))
+        m_tabBar->setTabText(idx, tabLabelFor(tab));
+}
+
+void FilePanel::syncTabBarFromManager() {
+    m_tabBar->blockSignals(true);
+    while (m_tabBar->count() > 0)
+        m_tabBar->removeTab(0);
+    for (int i = 0; i < m_tabManager->count(); ++i)
+        m_tabBar->addTab(tabLabelFor(m_tabManager->tabAt(i)));
+    const int active = m_tabManager->activeIndex();
+    if (active >= 0 && active < m_tabBar->count())
+        m_tabBar->setCurrentIndex(active);
+    m_tabBar->blockSignals(false);
+    loadTabState(m_tabManager->activeIndex());
+}
+
+void FilePanel::saveCurrentTabState() {
+    auto tab = m_tabManager->activeTab();
+    if (!tab)
+        return;
+    tab->path = m_model->rootPath();
+    tab->selectedFiles = selectedPaths();
+}
+
+void FilePanel::loadTabState(int index) {
+    auto tab = m_tabManager->tabAt(index);
+    if (!tab)
+        return;
+    m_backHistory.clear();
+    m_forwardHistory.clear();
+    m_pendingSelection = tab->selectedFiles;
+    if (!tab->path.isEmpty())
+        m_model->setRootPath(tab->path);
+}
+
+void FilePanel::onTabBarCurrentChanged(int index) {
+    if (index < 0)
+        return;
+    saveCurrentTabState();
+    m_tabManager->setActiveIndex(index);
+    loadTabState(index);
+}
+
+void FilePanel::closeTabAt(int index) {
+    if (m_tabManager->count() <= 1)
+        return; // always keep at least one tab open
+    m_tabManager->closeTab(index);
+    syncTabBarFromManager();
+}
+
+void FilePanel::newTab() {
+    saveCurrentTabState();
+    const QString path = m_model->rootPath();
+    const int idx = m_tabManager->addTab(path);
+    m_tabBar->blockSignals(true);
+    m_tabBar->addTab(tabLabelFor(m_tabManager->tabAt(idx)));
+    m_tabBar->setCurrentIndex(idx);
+    m_tabBar->blockSignals(false);
+    m_tabManager->setActiveIndex(idx);
+    loadTabState(idx);
+}
+
+void FilePanel::closeCurrentTab() {
+    closeTabAt(m_tabBar->currentIndex());
+}
+
+void FilePanel::nextTab() {
+    const int count = m_tabBar->count();
+    if (count > 1)
+        m_tabBar->setCurrentIndex((m_tabBar->currentIndex() + 1) % count);
+}
+
+void FilePanel::prevTab() {
+    const int count = m_tabBar->count();
+    if (count > 1)
+        m_tabBar->setCurrentIndex((m_tabBar->currentIndex() - 1 + count) % count);
 }

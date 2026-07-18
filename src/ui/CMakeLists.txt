@@ -9,6 +9,10 @@ add_library(ui STATIC
     FunctionKeyBar.cpp
     StatusBarWidget.h
     StatusBarWidget.cpp
+    TabManager.h
+    TabManager.cpp
+    TabBar.h
+    TabBar.cpp
     dialogs/OperationProgressDialog.h
     dialogs/OperationProgressDialog.cpp
     dialogs/OverwriteConfirmDialog.h
@@ -23,6 +27,7 @@ target_include_directories(ui PUBLIC
 target_link_libraries(ui PUBLIC
     core
     viewer
+    archive
     Qt5::Widgets
     Qt5::Core
     Qt5::Gui
