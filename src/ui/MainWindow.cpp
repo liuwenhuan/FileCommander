@@ -1,6 +1,8 @@
 #include "MainWindow.h"
 
 #include <QAction>
+#include <QApplication>
+#include <QCloseEvent>
 #include <QDir>
 #include <QFileInfo>
 #include <QInputDialog>
@@ -18,11 +20,15 @@
 
 #include "ArchiveBrowserDialog.h"
 #include "ArchiveHandler.h"
+#include "CompressDialog.h"
 #include "FilePanel.h"
 #include "FileListView.h"
 #include "FunctionKeyBar.h"
 #include "ImageViewer.h"
 #include "OperationQueue.h"
+#include "SearchDialog.h"
+#include "SessionManager.h"
+#include "Settings.h"
 #include "StatusBarWidget.h"
 #include "TextEditor.h"
 #include "TextViewer.h"
@@ -44,6 +50,10 @@ qint64 sumSizes(const QStringList &paths) {
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     setWindowTitle(tr("Total Commander for Linux"));
     resize(1200, 700);
+
+    const QByteArray savedGeometry = m_settings.windowGeometry();
+    if (!savedGeometry.isEmpty())
+        restoreGeometry(savedGeometry);
 
     auto *splitter = new QSplitter(this);
     m_leftPanel = new FilePanel(splitter);
@@ -89,8 +99,19 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     });
 
     const QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
-    m_leftPanel->navigateTo(home);
-    m_rightPanel->navigateTo(home);
+    SessionPanelData leftSession, rightSession;
+    if (SessionManager::load(leftSession, rightSession)) {
+        QVector<QPair<QString, QStringList>> leftTabs, rightTabs;
+        for (const auto &t : leftSession.tabs)
+            leftTabs.append({t.path, t.selectedFiles});
+        for (const auto &t : rightSession.tabs)
+            rightTabs.append({t.path, t.selectedFiles});
+        m_leftPanel->restoreTabs(leftTabs, leftSession.activeTab);
+        m_rightPanel->restoreTabs(rightTabs, rightSession.activeTab);
+    } else {
+        m_leftPanel->navigateTo(home);
+        m_rightPanel->navigateTo(home);
+    }
 
     for (FilePanel *panel : {m_leftPanel, m_rightPanel}) {
         connect(panel, &FilePanel::panelActivated, this, &MainWindow::setActivePanel);
@@ -142,6 +163,10 @@ void MainWindow::setupMenuAndToolbar() {
                                                        &MainWindow::refreshActivePanel);
     refreshAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_R));
 
+    QAction *compressAction =
+        commandsMenu->addAction(tr("&Compress Selected..."), this, &MainWindow::compressSelected);
+    compressAction->setShortcut(QKeySequence(Qt::ALT | Qt::Key_F5));
+
     auto *toolbar = addToolBar(tr("Navigation"));
     toolbar->setFocusPolicy(Qt::NoFocus);
     QAction *backAction = toolbar->addAction(tr("←"), this, &MainWindow::navigateBack);
@@ -185,6 +210,9 @@ void MainWindow::setupShortcuts() {
         if (m_activePanel)
             m_activePanel->prevTab();
     });
+    // Alt+F5 (compress) is registered via the Commands menu action instead
+    // of here, to avoid an ambiguous-shortcut warning from double binding.
+    bind(QKeySequence(Qt::CTRL | Qt::Key_F), &MainWindow::openSearch);
 }
 
 FilePanel *MainWindow::otherPanel(FilePanel *panel) const {
@@ -309,6 +337,41 @@ void MainWindow::deleteSelected(bool permanent) {
     m_queue->enqueueDelete(paths, /*toTrash=*/!permanent);
 }
 
+void MainWindow::compressSelected() {
+    if (!m_activePanel)
+        return;
+    const QStringList sources = m_activePanel->selectedPaths();
+    if (sources.isEmpty())
+        return;
+
+    const QString destDir = otherPanel(m_activePanel)->currentPath();
+    const QString defaultName = QFileInfo(sources.first()).completeBaseName();
+
+    CompressDialog dlg(destDir, defaultName, this);
+    if (dlg.exec() != QDialog::Accepted)
+        return;
+
+    QString err;
+    if (!ArchiveHandler::create(dlg.archivePath(), sources, dlg.format(), &err)) {
+        QMessageBox::warning(this, tr("Compress"), tr("Compression failed: %1").arg(err));
+        return;
+    }
+    otherPanel(m_activePanel)->refresh();
+}
+
+void MainWindow::openSearch() {
+    if (!m_activePanel)
+        return;
+    auto *dlg = new SearchDialog(m_activePanel->currentPath(), this);
+    dlg->setAttribute(Qt::WA_DeleteOnClose);
+    FilePanel *panel = m_activePanel;
+    connect(dlg, &SearchDialog::navigateRequested, this, [panel](const QString &path) {
+        QFileInfo info(path);
+        panel->navigateTo(info.isDir() ? path : info.absolutePath());
+    });
+    dlg->show();
+}
+
 void MainWindow::renameCurrent() {
     if (!m_activePanel)
         return;
@@ -341,4 +404,26 @@ void MainWindow::navigateUp() {
 void MainWindow::refreshActivePanel() {
     if (m_activePanel)
         m_activePanel->refresh();
+}
+
+void MainWindow::closeEvent(QCloseEvent *event) {
+    m_settings.setWindowGeometry(saveGeometry());
+
+    SessionPanelData leftSession, rightSession;
+    for (const auto &t : m_leftPanel->tabSnapshot())
+        leftSession.tabs.append({t.first, t.second});
+    leftSession.activeTab = m_leftPanel->activeTabIndex();
+    for (const auto &t : m_rightPanel->tabSnapshot())
+        rightSession.tabs.append({t.first, t.second});
+    rightSession.activeTab = m_rightPanel->activeTabIndex();
+    SessionManager::save(leftSession, rightSession);
+
+    QMainWindow::closeEvent(event);
+
+    // MainWindow is the only window that should keep the app alive, but
+    // other top-level widgets exist (e.g. m_progressDialog, constructed up
+    // front and only shown conditionally) that can otherwise prevent Qt's
+    // quitOnLastWindowClosed from firing reliably. Quit explicitly rather
+    // than depend on that heuristic.
+    qApp->quit();
 }

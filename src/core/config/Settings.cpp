@@ -1,0 +1,64 @@
+#include "Settings.h"
+
+#include <QDir>
+#include <QStandardPaths>
+
+namespace {
+QString configFilePath() {
+    const QString configDir =
+        QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) +
+        QStringLiteral("/totalcommander");
+    QDir().mkpath(configDir);
+    return configDir + QStringLiteral("/config.ini");
+}
+} // namespace
+
+Settings::Settings() : m_settings(configFilePath(), QSettings::IniFormat) {}
+
+Settings::Theme Settings::theme() const {
+    return static_cast<Theme>(m_settings.value("appearance/theme", 0).toInt());
+}
+
+void Settings::setTheme(Theme theme) {
+    m_settings.setValue("appearance/theme", static_cast<int>(theme));
+}
+
+QString Settings::language() const {
+    return m_settings.value("appearance/language", "auto").toString();
+}
+
+void Settings::setLanguage(const QString &language) {
+    m_settings.setValue("appearance/language", language);
+}
+
+bool Settings::showHiddenFiles() const {
+    return m_settings.value("behavior/showHiddenFiles", false).toBool();
+}
+
+void Settings::setShowHiddenFiles(bool show) {
+    m_settings.setValue("behavior/showHiddenFiles", show);
+}
+
+bool Settings::confirmDelete() const {
+    return m_settings.value("behavior/confirmDelete", true).toBool();
+}
+
+void Settings::setConfirmDelete(bool confirm) {
+    m_settings.setValue("behavior/confirmDelete", confirm);
+}
+
+bool Settings::confirmOverwrite() const {
+    return m_settings.value("behavior/confirmOverwrite", true).toBool();
+}
+
+void Settings::setConfirmOverwrite(bool confirm) {
+    m_settings.setValue("behavior/confirmOverwrite", confirm);
+}
+
+QByteArray Settings::windowGeometry() const {
+    return m_settings.value("window/geometry").toByteArray();
+}
+
+void Settings::setWindowGeometry(const QByteArray &geometry) {
+    m_settings.setValue("window/geometry", geometry);
+}

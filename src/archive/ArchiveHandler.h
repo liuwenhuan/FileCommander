@@ -22,4 +22,10 @@ public:
     // the list extracts that directory and everything under it.
     static bool extract(const QString &archivePath, const QStringList &entryFullPaths,
                          const QString &destDir, QString *errorMessage = nullptr);
+
+    // format: one of "zip", "tar", "tar.gz", "tar.bz2", "tar.xz".
+    // Each entry in sourcePaths (file or directory) is added at the
+    // archive root under its own basename.
+    static bool create(const QString &archivePath, const QStringList &sourcePaths,
+                        const QString &format, QString *errorMessage = nullptr);
 };

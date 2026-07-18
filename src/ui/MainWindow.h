@@ -2,6 +2,8 @@
 
 #include <QMainWindow>
 
+#include "Settings.h"
+
 class FilePanel;
 class FunctionKeyBar;
 class StatusBarWidget;
@@ -14,6 +16,9 @@ class MainWindow : public QMainWindow {
 public:
     explicit MainWindow(QWidget *parent = nullptr);
 
+protected:
+    void closeEvent(QCloseEvent *event) override;
+
 private slots:
     void setActivePanel(FilePanel *panel);
     void updateStatusBar();
@@ -25,6 +30,8 @@ private slots:
     void makeDirectory();// F7
     void deleteSelected(bool permanent = false); // F8 / Shift+F8
     void renameCurrent(); // F2
+    void compressSelected(); // Alt+F5
+    void openSearch(); // Ctrl+F
 
     void navigateBack();
     void navigateForward();
@@ -43,4 +50,5 @@ private:
     StatusBarWidget *m_statusBarWidget;
     OperationQueue *m_queue;
     OperationProgressDialog *m_progressDialog;
+    Settings m_settings;
 };

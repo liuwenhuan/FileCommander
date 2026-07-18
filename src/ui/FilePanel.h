@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QPair>
+#include <QVector>
 #include <QWidget>
 
 #include "FileSystemModel.h"
@@ -37,6 +39,13 @@ public:
     void closeCurrentTab();
     void nextTab();
     void prevTab();
+
+    // Session persistence: plain Qt types (not TabState) so MainWindow can
+    // hand these to core/config's SessionManager without ui depending on
+    // it, or core depending on ui.
+    QVector<QPair<QString, QStringList>> tabSnapshot();
+    int activeTabIndex() const { return m_tabManager->activeIndex(); }
+    void restoreTabs(const QVector<QPair<QString, QStringList>> &tabs, int activeIndex);
 
     FileSystemModel *model() const { return m_model; }
     FileListView *view() const { return m_view; }

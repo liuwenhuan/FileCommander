@@ -57,6 +57,56 @@ int copyData(struct archive *ar, struct archive *aw) {
     }
 }
 
+bool addEntryRecursive(struct archive *a, const QString &fsPath, const QString &archivePath,
+                        QString *errorMessage) {
+    QFileInfo info(fsPath);
+    struct archive_entry *entry = archive_entry_new();
+    archive_entry_set_pathname(entry, archivePath.toUtf8().constData());
+    archive_entry_set_mtime(entry, info.lastModified().toSecsSinceEpoch(), 0);
+    archive_entry_set_perm(entry, info.isDir() ? 0755 : 0644);
+
+    if (info.isDir()) {
+        archive_entry_set_filetype(entry, AE_IFDIR);
+        archive_entry_set_size(entry, 0);
+        int wr = archive_write_header(a, entry);
+        archive_entry_free(entry);
+        if (wr < ARCHIVE_OK) {
+            if (errorMessage)
+                *errorMessage = QString::fromUtf8(archive_error_string(a));
+            return false;
+        }
+
+        const QFileInfoList children =
+            QDir(fsPath).entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QFileInfo &child : children) {
+            const QString childArchivePath = archivePath + QLatin1Char('/') + child.fileName();
+            if (!addEntryRecursive(a, child.absoluteFilePath(), childArchivePath, errorMessage))
+                return false;
+        }
+        return true;
+    }
+
+    QFile file(fsPath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        archive_entry_free(entry);
+        if (errorMessage)
+            *errorMessage = QObject::tr("Could not read %1").arg(fsPath);
+        return false;
+    }
+    const QByteArray content = file.readAll();
+    archive_entry_set_filetype(entry, AE_IFREG);
+    archive_entry_set_size(entry, content.size());
+    int wr = archive_write_header(a, entry);
+    archive_entry_free(entry);
+    if (wr < ARCHIVE_OK) {
+        if (errorMessage)
+            *errorMessage = QString::fromUtf8(archive_error_string(a));
+        return false;
+    }
+    archive_write_data(a, content.constData(), content.size());
+    return true;
+}
+
 } // namespace
 
 bool ArchiveHandler::isSupportedArchive(const QString &path) {
@@ -182,5 +232,43 @@ bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entr
     archive_read_free(a);
     archive_write_close(ext);
     archive_write_free(ext);
+    return ok;
+}
+
+bool ArchiveHandler::create(const QString &archivePath, const QStringList &sourcePaths,
+                             const QString &format, QString *errorMessage) {
+    struct archive *a = archive_write_new();
+
+    if (format == QLatin1String("zip")) {
+        archive_write_set_format_zip(a);
+    } else {
+        archive_write_set_format_pax_restricted(a);
+        if (format == QLatin1String("tar.gz"))
+            archive_write_add_filter_gzip(a);
+        else if (format == QLatin1String("tar.bz2"))
+            archive_write_add_filter_bzip2(a);
+        else if (format == QLatin1String("tar.xz"))
+            archive_write_add_filter_xz(a);
+        // "tar" falls through with no compression filter.
+    }
+
+    if (archive_write_open_filename(a, archivePath.toUtf8().constData()) != ARCHIVE_OK) {
+        if (errorMessage)
+            *errorMessage = QString::fromUtf8(archive_error_string(a));
+        archive_write_free(a);
+        return false;
+    }
+
+    bool ok = true;
+    for (const QString &source : sourcePaths) {
+        const QString baseName = QFileInfo(source).fileName();
+        if (!addEntryRecursive(a, source, baseName, errorMessage)) {
+            ok = false;
+            break;
+        }
+    }
+
+    archive_write_close(a);
+    archive_write_free(a);
     return ok;
 }

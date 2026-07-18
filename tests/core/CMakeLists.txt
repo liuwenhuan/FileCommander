@@ -1,6 +1,7 @@
 add_executable(core_tests
     filesystem/test_FileInfo.cpp
     operations/test_FileOperations.cpp
+    config/test_SessionManager.cpp
 )
 
 target_link_libraries(core_tests PRIVATE

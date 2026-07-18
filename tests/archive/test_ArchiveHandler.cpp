@@ -96,6 +96,51 @@ TEST(ArchiveHandlerTest, ExtractSpecificEntryWritesOnlyThatFile) {
     EXPECT_FALSE(QFile::exists(QDir(destDir.path()).filePath("sub/b.txt")));
 }
 
+TEST(ArchiveHandlerTest, CreateZipRoundTripsThroughExtract) {
+    QTemporaryDir srcDir, workDir, destDir;
+    ASSERT_TRUE(srcDir.isValid() && workDir.isValid() && destDir.isValid());
+    const QString filePath = writeFile(srcDir.path(), "greeting.txt", "hello zip");
+    writeFile(srcDir.path(), "folder/deep.txt", "deep content");
+
+    const QString archivePath = QDir(workDir.path()).filePath("out.zip");
+    QString err;
+    ASSERT_TRUE(ArchiveHandler::create(archivePath, {filePath, QDir(srcDir.path()).filePath("folder")},
+                                        "zip", &err))
+        << err.toStdString();
+    ASSERT_TRUE(QFile::exists(archivePath));
+
+    auto root = ArchiveHandler::buildTree(archivePath, &err);
+    ASSERT_TRUE(root) << err.toStdString();
+    EXPECT_TRUE(root->findChild("greeting.txt"));
+    auto folder = root->findChild("folder");
+    ASSERT_TRUE(folder);
+    EXPECT_TRUE(folder->findChild("deep.txt"));
+
+    ASSERT_TRUE(ArchiveHandler::extract(archivePath, {}, destDir.path(), &err))
+        << err.toStdString();
+    QFile extracted(QDir(destDir.path()).filePath("greeting.txt"));
+    ASSERT_TRUE(extracted.open(QIODevice::ReadOnly));
+    EXPECT_EQ(extracted.readAll(), QByteArray("hello zip"));
+    EXPECT_TRUE(QFile::exists(QDir(destDir.path()).filePath("folder/deep.txt")));
+}
+
+TEST(ArchiveHandlerTest, CreateTarGzRoundTripsThroughExtract) {
+    QTemporaryDir srcDir, workDir, destDir;
+    ASSERT_TRUE(srcDir.isValid() && workDir.isValid() && destDir.isValid());
+    const QString filePath = writeFile(srcDir.path(), "note.txt", "hello targz");
+
+    const QString archivePath = QDir(workDir.path()).filePath("out.tar.gz");
+    QString err;
+    ASSERT_TRUE(ArchiveHandler::create(archivePath, {filePath}, "tar.gz", &err))
+        << err.toStdString();
+
+    ASSERT_TRUE(ArchiveHandler::extract(archivePath, {}, destDir.path(), &err))
+        << err.toStdString();
+    QFile extracted(QDir(destDir.path()).filePath("note.txt"));
+    ASSERT_TRUE(extracted.open(QIODevice::ReadOnly));
+    EXPECT_EQ(extracted.readAll(), QByteArray("hello targz"));
+}
+
 TEST(ArchiveHandlerTest, BuildTreeFailsGracefullyOnMissingFile) {
     QString err;
     auto root = ArchiveHandler::buildTree("/nonexistent/path/does_not_exist.tar.gz", &err);

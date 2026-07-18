@@ -1,4 +1,14 @@
-# Filename/content search lands in Phase 3 of the roadmap. Placeholder
-# target so the root CMakeLists' target_link_libraries(ttc ... search ...)
-# resolves today.
-add_library(search INTERFACE)
+add_library(search STATIC
+    SearchEngine.h
+    SearchEngine.cpp
+    SearchDialog.h
+    SearchDialog.cpp
+)
+
+target_include_directories(search PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+target_link_libraries(search PUBLIC
+    Qt5::Widgets
+    Qt5::Core
+    Qt5::Concurrent
+)

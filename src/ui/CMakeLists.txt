@@ -28,6 +28,7 @@ target_link_libraries(ui PUBLIC
     core
     viewer
     archive
+    search
     Qt5::Widgets
     Qt5::Core
     Qt5::Gui

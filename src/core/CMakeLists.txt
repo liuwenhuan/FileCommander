@@ -8,12 +8,17 @@ add_library(core STATIC
     operations/FileOperations.cpp
     operations/OperationQueue.h
     operations/OperationQueue.cpp
+    config/Settings.h
+    config/Settings.cpp
+    config/SessionManager.h
+    config/SessionManager.cpp
 )
 
 target_include_directories(core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/filesystem
     ${CMAKE_CURRENT_SOURCE_DIR}/operations
+    ${CMAKE_CURRENT_SOURCE_DIR}/config
 )
 
 target_link_libraries(core PUBLIC

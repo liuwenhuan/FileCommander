@@ -7,6 +7,8 @@ if(TARGET LibArchive::LibArchive)
         ArchiveModel.cpp
         ArchiveBrowserDialog.h
         ArchiveBrowserDialog.cpp
+        CompressDialog.h
+        CompressDialog.cpp
     )
 
     target_include_directories(archive PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

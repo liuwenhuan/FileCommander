@@ -299,3 +299,33 @@ void FilePanel::prevTab() {
     if (count > 1)
         m_tabBar->setCurrentIndex((m_tabBar->currentIndex() - 1 + count) % count);
 }
+
+QVector<QPair<QString, QStringList>> FilePanel::tabSnapshot() {
+    saveCurrentTabState(); // flush the live view's path/selection into the active tab
+    QVector<QPair<QString, QStringList>> result;
+    for (int i = 0; i < m_tabManager->count(); ++i) {
+        auto tab = m_tabManager->tabAt(i);
+        result.append({tab->path, tab->selectedFiles});
+    }
+    return result;
+}
+
+void FilePanel::restoreTabs(const QVector<QPair<QString, QStringList>> &tabs, int activeIndex) {
+    if (tabs.isEmpty())
+        return;
+
+    // Reuse the single tab created in the constructor as tab 0 instead of
+    // adding a duplicate empty one.
+    auto tab0 = m_tabManager->tabAt(0);
+    tab0->path = tabs.at(0).first;
+    tab0->selectedFiles = tabs.at(0).second;
+
+    for (int i = 1; i < tabs.size(); ++i) {
+        const int idx = m_tabManager->addTab(tabs.at(i).first);
+        m_tabManager->tabAt(idx)->selectedFiles = tabs.at(i).second;
+    }
+
+    const int clamped = qBound(0, activeIndex, m_tabManager->count() - 1);
+    m_tabManager->setActiveIndex(clamped);
+    syncTabBarFromManager(); // rebuilds the tab bar and loads the (now correct) active tab
+}
