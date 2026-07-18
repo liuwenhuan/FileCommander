@@ -138,3 +138,39 @@ TEST(FileOperationsTest, CopyPathsCopiesDirectoryRecursively) {
 
     EXPECT_TRUE(QFile::exists(QDir(dstDir.path()).filePath("nested/inner.txt")));
 }
+
+TEST(FileOperationsTest, CreateSymlinksCreatesWorkingLink) {
+    QTemporaryDir srcDir, dstDir;
+    ASSERT_TRUE(srcDir.isValid() && dstDir.isValid());
+    const QString target = writeFile(srcDir.path(), "target.txt", "link content");
+
+    FileOperations ops;
+    QString err;
+    ASSERT_TRUE(ops.createSymlinks({target}, dstDir.path(), &err)) << err.toStdString();
+
+    const QString linkPath = QDir(dstDir.path()).filePath("target.txt");
+    QFileInfo linkInfo(linkPath);
+    EXPECT_TRUE(linkInfo.isSymLink());
+    QFile linkFile(linkPath);
+    ASSERT_TRUE(linkFile.open(QIODevice::ReadOnly));
+    EXPECT_EQ(linkFile.readAll(), QByteArray("link content"));
+}
+
+TEST(FileOperationsTest, CreateSymlinksRenamesOnNameConflict) {
+    QTemporaryDir srcDir, dstDir;
+    ASSERT_TRUE(srcDir.isValid() && dstDir.isValid());
+    const QString target = writeFile(srcDir.path(), "dup.txt", "original");
+    writeFile(dstDir.path(), "dup.txt", "unrelated existing file");
+
+    FileOperations ops;
+    QString err;
+    ASSERT_TRUE(ops.createSymlinks({target}, dstDir.path(), &err)) << err.toStdString();
+
+    // The pre-existing dup.txt must be untouched; the link gets a renamed path instead.
+    QFile existing(QDir(dstDir.path()).filePath("dup.txt"));
+    ASSERT_TRUE(existing.open(QIODevice::ReadOnly));
+    EXPECT_EQ(existing.readAll(), QByteArray("unrelated existing file"));
+
+    QFileInfo linkInfo(QDir(dstDir.path()).filePath("dup (1).txt"));
+    EXPECT_TRUE(linkInfo.isSymLink());
+}

@@ -245,3 +245,31 @@ bool FileOperations::renamePath(const QString &path, const QString &newName,
     }
     return ok;
 }
+
+bool FileOperations::createSymlinks(const QStringList &sources, const QString &destDir,
+                                     QString *errorMessage) {
+    m_cancelled = false;
+    const qint64 total = sources.size();
+    qint64 done = 0;
+    bool allOk = true;
+
+    for (const QString &source : sources) {
+        if (m_cancelled)
+            return false;
+
+        QFileInfo srcInfo(source);
+        QString destPath = QDir(destDir).filePath(srcInfo.fileName());
+        if (QFileInfo::exists(destPath))
+            destPath = QDir(destDir).filePath(uniqueDestination(destDir, srcInfo.fileName()));
+
+        if (!QFile::link(source, destPath)) {
+            const QString msg = tr("Failed to create link for %1").arg(source);
+            if (errorMessage)
+                *errorMessage = msg;
+            emit errorOccurred(msg);
+            allOk = false;
+        }
+        emit progress(++done, total, source);
+    }
+    return allOk;
+}

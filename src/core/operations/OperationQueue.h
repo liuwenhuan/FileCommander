@@ -29,6 +29,7 @@ public:
     void enqueueDelete(const QStringList &paths, bool toTrash);
     void enqueueMkdir(const QString &parentDir, const QString &name);
     void enqueueRename(const QString &path, const QString &newName);
+    void enqueueSymlink(const QStringList &sources, const QString &destDir);
 
     bool isBusy() const { return m_busy; }
 

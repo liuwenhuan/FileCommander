@@ -84,6 +84,16 @@ void OperationQueue::enqueueRename(const QString &path, const QString &newName) 
     maybeStartNext();
 }
 
+void OperationQueue::enqueueSymlink(const QStringList &sources, const QString &destDir) {
+    Job job;
+    job.description = tr("Linking %1 item(s) into %2").arg(sources.size()).arg(destDir);
+    job.run = [sources, destDir](FileOperations &ops, QString &err) {
+        return ops.createSymlinks(sources, destDir, &err);
+    };
+    m_queue.enqueue(job);
+    maybeStartNext();
+}
+
 void OperationQueue::maybeStartNext() {
     if (m_busy || m_queue.isEmpty())
         return;

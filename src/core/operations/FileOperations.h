@@ -24,6 +24,8 @@ public:
                         QString *errorMessage = nullptr);
     bool renamePath(const QString &path, const QString &newName,
                      QString *errorMessage = nullptr);
+    bool createSymlinks(const QStringList &sources, const QString &destDir,
+                         QString *errorMessage = nullptr);
 
     bool wasCancelled() const { return m_cancelled; }
 

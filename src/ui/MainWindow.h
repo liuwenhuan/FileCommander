@@ -8,6 +8,7 @@
 #include <QString>
 #include <functional>
 
+#include "FileListView.h"
 #include "Settings.h"
 
 class FilePanel;
@@ -49,12 +50,20 @@ private slots:
     void navigateUp();
     void refreshActivePanel();
 
+    void handleFilesDropped(const QStringList &sources, const QString &destDir,
+                             FileListView::DropActionKind kind);
+    void copySelectionToClipboard();
+    void cutSelectionToClipboard();
+    void pasteFromClipboard();
+
 private:
     void setupMenuAndToolbar();
     void setupShortcuts();
     void bindShortcut(const QString &id, const QString &label, const QKeySequence &defaultSeq,
                        std::function<void()> handler);
     FilePanel *otherPanel(FilePanel *panel) const;
+    void showFileContextMenu(FilePanel *panel, const QPoint &viewPos);
+    void showBlankContextMenu(FilePanel *panel, const QPoint &viewPos);
 
     FilePanel *m_leftPanel;
     FilePanel *m_rightPanel;

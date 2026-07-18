@@ -3,6 +3,7 @@
 #include <QAction>
 #include <QActionGroup>
 #include <QApplication>
+#include <QClipboard>
 #include <QCloseEvent>
 #include <QDir>
 #include <QFileInfo>
@@ -10,13 +11,16 @@
 #include <QItemSelectionModel>
 #include <QKeySequence>
 #include <QLineEdit>
+#include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QMimeData>
 #include <QShortcut>
 #include <QSplitter>
 #include <QStandardPaths>
 #include <QStatusBar>
 #include <QToolBar>
+#include <QUrl>
 #include <QVBoxLayout>
 
 #include "ArchiveBrowserDialog.h"
@@ -24,6 +28,7 @@
 #include "CompressDialog.h"
 #include "FilePanel.h"
 #include "FileListView.h"
+#include "FileSystemModel.h"
 #include "FunctionKeyBar.h"
 #include "ImageViewer.h"
 #include "OperationQueue.h"
@@ -47,6 +52,26 @@ qint64 sumSizes(const QStringList &paths) {
             total += fi.size();
     }
     return total;
+}
+
+// Builds clipboard data with both the plain text/uri-list format (read by
+// virtually everything) and the GNOME x-special/gnome-copied-files
+// convention (read by Nautilus/Dolphin/PCManFM) so cut vs. copy survives
+// round-tripping through those file managers, not just within ttc.
+QMimeData *buildFileClipboardData(const QStringList &paths, bool cut) {
+    QList<QUrl> urls;
+    for (const QString &path : paths)
+        urls.append(QUrl::fromLocalFile(path));
+
+    auto *mime = new QMimeData;
+    mime->setUrls(urls);
+
+    QByteArray gnomeFormat = cut ? "cut\n" : "copy\n";
+    for (const QUrl &url : urls)
+        gnomeFormat += url.toString().toUtf8() + "\n";
+    mime->setData(QStringLiteral("x-special/gnome-copied-files"), gnomeFormat);
+
+    return mime;
 }
 } // namespace
 
@@ -124,6 +149,20 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         connect(panel, &FilePanel::pathChanged, this, [this](const QString &) { updateStatusBar(); });
         connect(panel->view()->selectionModel(), &QItemSelectionModel::selectionChanged, this,
                 [this]() { updateStatusBar(); });
+        connect(panel->view(), &FileListView::filesDropped, this, &MainWindow::handleFilesDropped);
+        connect(panel->model(), &FileSystemModel::renameFailed, this, [this](const QString &msg) {
+            QMessageBox::warning(this, tr("Rename"), msg);
+        });
+
+        panel->view()->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(panel->view(), &QWidget::customContextMenuRequested, this,
+                [this, panel](const QPoint &pos) {
+                    setActivePanel(panel);
+                    if (panel->view()->indexAt(pos).isValid())
+                        showFileContextMenu(panel, pos);
+                    else
+                        showBlankContextMenu(panel, pos);
+                });
         connect(panel, &FilePanel::openRequested, this, [this, panel](const QString &path) {
             if (ArchiveHandler::isSupportedArchive(path)) {
                 auto *dlg = new ArchiveBrowserDialog(path, otherPanel(panel)->currentPath(), this);
@@ -275,6 +314,13 @@ void MainWindow::setupShortcuts() {
     bindShortcut("refresh", tr("Refresh"), QKeySequence(Qt::CTRL | Qt::Key_R),
                  [this] { refreshActivePanel(); });
     bindShortcut("exit", tr("Exit"), QKeySequence(Qt::Key_F10), [this] { close(); });
+
+    bindShortcut("cutClipboard", tr("Cut"), QKeySequence(Qt::CTRL | Qt::Key_X),
+                 [this] { cutSelectionToClipboard(); });
+    bindShortcut("copyClipboard", tr("Copy to Clipboard"), QKeySequence(Qt::CTRL | Qt::Key_C),
+                 [this] { copySelectionToClipboard(); });
+    bindShortcut("pasteClipboard", tr("Paste"), QKeySequence(Qt::CTRL | Qt::Key_V),
+                 [this] { pasteFromClipboard(); });
 }
 
 void MainWindow::openShortcutsDialog() {
@@ -309,6 +355,123 @@ void MainWindow::setLanguage(const QString &language) {
 
 FilePanel *MainWindow::otherPanel(FilePanel *panel) const {
     return panel == m_leftPanel ? m_rightPanel : m_leftPanel;
+}
+
+void MainWindow::handleFilesDropped(const QStringList &sources, const QString &destDir,
+                                     FileListView::DropActionKind kind) {
+    switch (kind) {
+    case FileListView::DropActionKind::Copy:
+        m_queue->enqueueCopy(sources, destDir);
+        break;
+    case FileListView::DropActionKind::Move:
+        m_queue->enqueueMove(sources, destDir);
+        break;
+    case FileListView::DropActionKind::Link:
+        m_queue->enqueueSymlink(sources, destDir);
+        break;
+    }
+}
+
+void MainWindow::copySelectionToClipboard() {
+    if (!m_activePanel)
+        return;
+    const QStringList paths = m_activePanel->selectedPaths();
+    if (paths.isEmpty())
+        return;
+    QGuiApplication::clipboard()->setMimeData(buildFileClipboardData(paths, /*cut=*/false));
+}
+
+void MainWindow::cutSelectionToClipboard() {
+    if (!m_activePanel)
+        return;
+    const QStringList paths = m_activePanel->selectedPaths();
+    if (paths.isEmpty())
+        return;
+    QGuiApplication::clipboard()->setMimeData(buildFileClipboardData(paths, /*cut=*/true));
+}
+
+void MainWindow::pasteFromClipboard() {
+    if (!m_activePanel)
+        return;
+    const QMimeData *mime = QGuiApplication::clipboard()->mimeData();
+    if (!mime)
+        return;
+
+    QStringList sources;
+    bool isCut = false;
+
+    if (mime->hasFormat(QStringLiteral("x-special/gnome-copied-files"))) {
+        const QByteArray data = mime->data(QStringLiteral("x-special/gnome-copied-files"));
+        const QList<QByteArray> lines = data.split('\n');
+        for (int i = 0; i < lines.size(); ++i) {
+            const QByteArray line = lines.at(i).trimmed();
+            if (line.isEmpty())
+                continue;
+            if (i == 0) {
+                isCut = (line == "cut");
+                continue;
+            }
+            const QUrl url(QString::fromUtf8(line));
+            if (url.isLocalFile())
+                sources.append(url.toLocalFile());
+        }
+    } else if (mime->hasUrls()) {
+        for (const QUrl &url : mime->urls()) {
+            if (url.isLocalFile())
+                sources.append(url.toLocalFile());
+        }
+    }
+
+    if (sources.isEmpty())
+        return;
+
+    const QString destDir = m_activePanel->currentPath();
+    if (isCut) {
+        m_queue->enqueueMove(sources, destDir);
+        QGuiApplication::clipboard()->clear();
+    } else {
+        m_queue->enqueueCopy(sources, destDir);
+    }
+}
+
+void MainWindow::showFileContextMenu(FilePanel *panel, const QPoint &viewPos) {
+    // Right-clicking a row that isn't already selected replaces the
+    // selection with just that row, matching Explorer/Nautilus/TC.
+    const QModelIndex idx = panel->view()->indexAt(viewPos);
+    if (idx.isValid() && !panel->view()->selectionModel()->isSelected(idx))
+        panel->view()->setCurrentIndex(idx);
+
+    QMenu menu(this);
+    menu.addAction(tr("View"), this, &MainWindow::viewCurrent);
+    menu.addAction(tr("Edit"), this, &MainWindow::editCurrent);
+    menu.addSeparator();
+    menu.addAction(tr("Copy"), this, &MainWindow::copySelected);
+    menu.addAction(tr("Move"), this, &MainWindow::moveSelected);
+    menu.addAction(tr("Rename"), this, &MainWindow::renameCurrent);
+    menu.addAction(tr("Delete"), this, [this]() { deleteSelected(false); });
+    menu.addSeparator();
+    menu.addAction(tr("Cut"), this, &MainWindow::cutSelectionToClipboard);
+    menu.addAction(tr("Copy"), this, &MainWindow::copySelectionToClipboard);
+    menu.addSeparator();
+    menu.addAction(tr("Compress Selected..."), this, &MainWindow::compressSelected);
+    menu.addSeparator();
+    menu.addAction(tr("Copy Path"), this, [panel]() {
+        const QStringList paths = panel->selectedPaths();
+        if (!paths.isEmpty())
+            QGuiApplication::clipboard()->setText(paths.join('\n'));
+    });
+    menu.exec(panel->view()->viewport()->mapToGlobal(viewPos));
+}
+
+void MainWindow::showBlankContextMenu(FilePanel *panel, const QPoint &viewPos) {
+    setActivePanel(panel);
+    QMenu menu(this);
+    menu.addAction(tr("Paste"), this, &MainWindow::pasteFromClipboard);
+    menu.addSeparator();
+    menu.addAction(tr("New Folder"), this, &MainWindow::makeDirectory);
+    menu.addSeparator();
+    menu.addAction(tr("Refresh"), this, &MainWindow::refreshActivePanel);
+    menu.exec(panel->view()->viewport()->mapToGlobal(viewPos));
 }
 
 void MainWindow::setActivePanel(FilePanel *panel) {
@@ -467,15 +630,15 @@ void MainWindow::openSearch() {
 void MainWindow::renameCurrent() {
     if (!m_activePanel)
         return;
-    const QString path = m_activePanel->currentEntryPath();
-    if (path.isEmpty())
-        return;
-    bool ok = false;
-    const QString newName = QInputDialog::getText(this, tr("Rename"), tr("New name:"),
-                                                    QLineEdit::Normal, QFileInfo(path).fileName(),
-                                                    &ok);
-    if (ok && !newName.isEmpty())
-        m_queue->enqueueRename(path, newName);
+    // In-place cell editing (like TC/Explorer/Nautilus) rather than a
+    // modal dialog: FileSystemModel::flags()/setData() do the actual
+    // rename synchronously when editing commits. NoEditTriggers stays set
+    // on the view globally, so only this explicit edit() call (never a
+    // stray click) can start it.
+    FileListView *view = m_activePanel->view();
+    const QModelIndex idx = view->currentIndex();
+    if (idx.isValid())
+        view->edit(idx.siblingAtColumn(FileSystemModel::NameColumn));
 }
 
 void MainWindow::navigateBack() {

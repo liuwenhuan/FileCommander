@@ -2,6 +2,7 @@
 
 #include <QCollator>
 #include <QDir>
+#include <QFileInfo>
 #include <QLocale>
 #include <QtConcurrent/QtConcurrent>
 
@@ -109,7 +110,7 @@ QVariant FileSystemModel::data(const QModelIndex &index, int role) const {
     if (role == Qt::DecorationRole && index.column() == NameColumn)
         return IconCache::instance().iconFor(info);
 
-    if (role == Qt::DisplayRole) {
+    if (role == Qt::DisplayRole || role == Qt::EditRole) {
         switch (index.column()) {
         case NameColumn:
             return info.name();
@@ -189,4 +190,44 @@ void FileSystemModel::sortEntries() {
             cmp = collator.compare(a.name(), b.name());
         return m_sortOrder == Qt::AscendingOrder ? cmp < 0 : cmp > 0;
     });
+}
+
+Qt::ItemFlags FileSystemModel::flags(const QModelIndex &index) const {
+    Qt::ItemFlags f = QAbstractTableModel::flags(index);
+    if (!index.isValid())
+        return f;
+    // Editing (F2 inline rename) is only offered on the Name cell of real
+    // entries -- never on "..". Views must still call edit() explicitly
+    // (see FileListView/MainWindow::renameCurrent): NoEditTriggers is set
+    // globally so a stray click/keystroke never starts a rename by
+    // accident.
+    if (index.column() == NameColumn && !isParentEntry(index.row()))
+        f |= Qt::ItemIsEditable;
+    return f;
+}
+
+bool FileSystemModel::setData(const QModelIndex &index, const QVariant &value, int role) {
+    if (role != Qt::EditRole || index.column() != NameColumn || isParentEntry(index.row()))
+        return false;
+
+    const QString newName = value.toString().trimmed();
+    if (newName.isEmpty())
+        return false;
+
+    const FileInfo info = fileInfoAt(index.row());
+    if (!info.isValid() || newName == info.name())
+        return false;
+
+    const QString destPath = QDir(m_rootPath).filePath(newName);
+    if (QFileInfo::exists(destPath)) {
+        emit renameFailed(tr("%1 already exists").arg(newName));
+        return false;
+    }
+    if (!QDir().rename(info.path(), destPath)) {
+        emit renameFailed(tr("Failed to rename %1").arg(info.name()));
+        return false;
+    }
+
+    setRootPath(m_rootPath); // reload to pick up the new name/sort position
+    return true;
 }
