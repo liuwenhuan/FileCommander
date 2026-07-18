@@ -1,0 +1,22 @@
+add_library(core STATIC
+    filesystem/FileInfo.h
+    filesystem/FileInfo.cpp
+    filesystem/FileSystemModel.h
+    filesystem/FileSystemModel.cpp
+    operations/FileOpTypes.h
+    operations/FileOperations.h
+    operations/FileOperations.cpp
+    operations/OperationQueue.h
+    operations/OperationQueue.cpp
+)
+
+target_include_directories(core PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/filesystem
+    ${CMAKE_CURRENT_SOURCE_DIR}/operations
+)
+
+target_link_libraries(core PUBLIC
+    Qt5::Core
+    Qt5::Concurrent
+)
