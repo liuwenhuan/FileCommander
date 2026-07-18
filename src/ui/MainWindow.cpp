@@ -39,9 +39,12 @@
 #include "ThemeManager.h"
 #include "TextEditor.h"
 #include "TextViewer.h"
+#include "dialogs/CompareDialog.h"
+#include "dialogs/MultiRenameDialog.h"
 #include "dialogs/OperationProgressDialog.h"
 #include "dialogs/OverwriteConfirmDialog.h"
 #include "dialogs/ShortcutsDialog.h"
+#include "dialogs/SyncDialog.h"
 
 namespace {
 qint64 sumSizes(const QStringList &paths) {
@@ -206,6 +209,12 @@ void MainWindow::setupMenuAndToolbar() {
     commandsMenu->addAction(tr("&Refresh"), this, &MainWindow::refreshActivePanel);
     commandsMenu->addAction(tr("&Compress Selected..."), this, &MainWindow::compressSelected);
     commandsMenu->addAction(tr("&Search Files..."), this, &MainWindow::openSearch);
+    commandsMenu->addAction(tr("&Multi-Rename Tool..."), this,
+                             &MainWindow::openMultiRenameDialog);
+    commandsMenu->addAction(tr("S&ynchronize Directories..."), this,
+                             &MainWindow::openSyncDialog);
+    commandsMenu->addAction(tr("Compar&e by Content..."), this,
+                             &MainWindow::compareSelectedFiles);
     commandsMenu->addSeparator();
     commandsMenu->addAction(tr("&Keyboard Shortcuts..."), this,
                              &MainWindow::openShortcutsDialog);
@@ -321,6 +330,8 @@ void MainWindow::setupShortcuts() {
                  [this] { copySelectionToClipboard(); });
     bindShortcut("pasteClipboard", tr("Paste"), QKeySequence(Qt::CTRL | Qt::Key_V),
                  [this] { pasteFromClipboard(); });
+    bindShortcut("multiRename", tr("Multi-Rename Tool"), QKeySequence(Qt::CTRL | Qt::Key_M),
+                 [this] { openMultiRenameDialog(); });
 }
 
 void MainWindow::openShortcutsDialog() {
@@ -339,6 +350,63 @@ void MainWindow::openShortcutsDialog() {
         m_shortcuts[it.key()]->setKey(it.value());
         m_settings.setShortcut(it.key(), it.value());
     }
+}
+
+void MainWindow::openMultiRenameDialog() {
+    if (!m_activePanel)
+        return;
+    const QStringList paths = m_activePanel->selectedPaths();
+    if (paths.isEmpty())
+        return;
+    MultiRenameDialog dlg(paths, this);
+    dlg.exec();
+    m_activePanel->refresh();
+}
+
+void MainWindow::openSyncDialog() {
+    SyncDialog dlg(m_leftPanel->currentPath(), m_rightPanel->currentPath(), this);
+    dlg.exec();
+    m_leftPanel->refresh();
+    m_rightPanel->refresh();
+}
+
+void MainWindow::compareSelectedFiles() {
+    if (!m_activePanel)
+        return;
+
+    auto onlyFiles = [](const QStringList &paths) {
+        QStringList files;
+        for (const QString &p : paths) {
+            if (QFileInfo(p).isFile())
+                files.append(p);
+        }
+        return files;
+    };
+
+    const QStringList activeFiles = onlyFiles(m_activePanel->selectedPaths());
+    QString leftPath, rightPath;
+
+    if (activeFiles.size() == 2) {
+        leftPath = activeFiles.at(0);
+        rightPath = activeFiles.at(1);
+    } else {
+        const QStringList otherFiles = onlyFiles(otherPanel(m_activePanel)->selectedPaths());
+        if (activeFiles.size() == 1 && otherFiles.size() == 1) {
+            leftPath = activeFiles.first();
+            rightPath = otherFiles.first();
+        }
+    }
+
+    if (leftPath.isEmpty() || rightPath.isEmpty()) {
+        QMessageBox::information(
+            this, tr("Compare by Content"),
+            tr("Select two files to compare: either two in one panel, or one in each panel."));
+        return;
+    }
+
+    auto *dlg = new CompareDialog(leftPath, rightPath, this);
+    dlg->setAttribute(Qt::WA_DeleteOnClose);
+    dlg->show();
 }
 
 void MainWindow::setTheme(Settings::Theme theme) {

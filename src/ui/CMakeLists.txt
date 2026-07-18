@@ -23,6 +23,12 @@ add_library(ui STATIC
     dialogs/OverwriteConfirmDialog.cpp
     dialogs/ShortcutsDialog.h
     dialogs/ShortcutsDialog.cpp
+    dialogs/MultiRenameDialog.h
+    dialogs/MultiRenameDialog.cpp
+    dialogs/SyncDialog.h
+    dialogs/SyncDialog.cpp
+    dialogs/CompareDialog.h
+    dialogs/CompareDialog.cpp
 )
 
 target_include_directories(ui PUBLIC

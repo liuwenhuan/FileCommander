@@ -44,6 +44,9 @@ private slots:
     void openShortcutsDialog();
     void setTheme(Settings::Theme theme);
     void setLanguage(const QString &language);
+    void openMultiRenameDialog(); // Ctrl+M
+    void openSyncDialog();
+    void compareSelectedFiles();
 
     void navigateBack();
     void navigateForward();

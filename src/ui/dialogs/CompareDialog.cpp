@@ -1,0 +1,165 @@
+#include "CompareDialog.h"
+
+#include <QFile>
+#include <QFileInfo>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QMessageBox>
+#include <QPlainTextEdit>
+#include <QScrollBar>
+#include <QTextBlock>
+#include <QTextStream>
+#include <QVBoxLayout>
+
+#include "TextDiff.h"
+
+namespace {
+QPlainTextEdit *makeReadOnlyEditor(QWidget *parent) {
+    auto *edit = new QPlainTextEdit(parent);
+    edit->setReadOnly(true);
+    edit->setLineWrapMode(QPlainTextEdit::NoWrap);
+    QFont font(QStringLiteral("monospace"));
+    edit->setFont(font);
+    return edit;
+}
+
+void colorLine(QPlainTextEdit *edit, int lineIndex, const QColor &color) {
+    QTextBlock block = edit->document()->findBlockByNumber(lineIndex);
+    if (!block.isValid())
+        return;
+    QTextCursor cursor(block);
+    cursor.select(QTextCursor::BlockUnderCursor);
+    QTextBlockFormat fmt = block.blockFormat();
+    fmt.setBackground(color);
+    cursor.setBlockFormat(fmt);
+}
+} // namespace
+
+CompareDialog::CompareDialog(const QString &leftPath, const QString &rightPath, QWidget *parent)
+    : QDialog(parent) {
+    setWindowTitle(tr("Compare: %1 vs %2")
+                        .arg(QFileInfo(leftPath).fileName(), QFileInfo(rightPath).fileName()));
+    resize(1100, 700);
+
+    m_leftEdit = makeReadOnlyEditor(this);
+    m_rightEdit = makeReadOnlyEditor(this);
+    m_summaryLabel = new QLabel(this);
+
+    auto *header = new QHBoxLayout;
+    header->addWidget(new QLabel(leftPath, this), 1);
+    header->addWidget(new QLabel(rightPath, this), 1);
+
+    auto *editors = new QHBoxLayout;
+    editors->addWidget(m_leftEdit);
+    editors->addWidget(m_rightEdit);
+
+    auto *layout = new QVBoxLayout(this);
+    layout->addLayout(header);
+    layout->addLayout(editors, 1);
+    layout->addWidget(m_summaryLabel);
+
+    connect(m_leftEdit->verticalScrollBar(), &QScrollBar::valueChanged, this, [this](int value) {
+        if (m_syncing)
+            return;
+        m_syncing = true;
+        m_rightEdit->verticalScrollBar()->setValue(value);
+        m_syncing = false;
+    });
+    connect(m_rightEdit->verticalScrollBar(), &QScrollBar::valueChanged, this, [this](int value) {
+        if (m_syncing)
+            return;
+        m_syncing = true;
+        m_leftEdit->verticalScrollBar()->setValue(value);
+        m_syncing = false;
+    });
+
+    QString error;
+    if (!loadAndCompare(leftPath, rightPath, &error))
+        QMessageBox::warning(this, tr("Compare"), error);
+}
+
+bool CompareDialog::loadAndCompare(const QString &leftPath, const QString &rightPath,
+                                    QString *errorMessage) {
+    for (const QString &path : {leftPath, rightPath}) {
+        if (QFileInfo(path).size() > kMaxCompareBytes) {
+            *errorMessage = tr("%1 is too large to compare (over 2 MB).")
+                                 .arg(QFileInfo(path).fileName());
+            return false;
+        }
+    }
+
+    auto readLines = [](const QString &path) -> QStringList {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+            return {};
+        QTextStream stream(&file);
+        return stream.readAll().split(QLatin1Char('\n'));
+    };
+
+    const QStringList leftLines = readLines(leftPath);
+    const QStringList rightLines = readLines(rightPath);
+    if (leftLines.size() > kMaxCompareLines || rightLines.size() > kMaxCompareLines) {
+        *errorMessage = tr("Files are too long to compare (over %1 lines).")
+                             .arg(kMaxCompareLines);
+        return false;
+    }
+
+    const QVector<DiffLine> diff = TextDiff::compare(leftLines, rightLines);
+
+    QStringList leftDisplay, rightDisplay;
+    QVector<int> leftColored, rightColored;
+    leftDisplay.reserve(diff.size());
+    rightDisplay.reserve(diff.size());
+
+    int addedCount = 0, removedCount = 0;
+    for (int i = 0; i < diff.size(); ++i) {
+        const DiffLine &line = diff.at(i);
+        switch (line.kind) {
+        case DiffLine::Kind::Same:
+            leftDisplay << line.leftText;
+            rightDisplay << line.rightText;
+            break;
+        case DiffLine::Kind::Removed:
+            leftDisplay << line.leftText;
+            rightDisplay << QString();
+            leftColored << i;
+            ++removedCount;
+            break;
+        case DiffLine::Kind::Added:
+            leftDisplay << QString();
+            rightDisplay << line.rightText;
+            rightColored << i;
+            ++addedCount;
+            break;
+        }
+    }
+
+    m_leftEdit->setPlainText(leftDisplay.join(QLatin1Char('\n')));
+    m_rightEdit->setPlainText(rightDisplay.join(QLatin1Char('\n')));
+
+    const QColor removedColor(255, 210, 210);
+    const QColor addedColor(210, 255, 210);
+    const QColor gapColor(235, 235, 235);
+
+    for (int i : leftColored)
+        colorLine(m_leftEdit, i, removedColor);
+    for (int i : rightColored)
+        colorLine(m_rightEdit, i, addedColor);
+    // Gaps: the line is blank on one side because the other side added or
+    // removed content there -- shade it so it reads as "nothing here",
+    // distinct from an actual blank line in the original file.
+    for (int i = 0; i < diff.size(); ++i) {
+        if (diff.at(i).kind == DiffLine::Kind::Removed)
+            colorLine(m_rightEdit, i, gapColor);
+        else if (diff.at(i).kind == DiffLine::Kind::Added)
+            colorLine(m_leftEdit, i, gapColor);
+    }
+
+    if (addedCount == 0 && removedCount == 0)
+        m_summaryLabel->setText(tr("Files are identical"));
+    else
+        m_summaryLabel->setText(
+            tr("%1 line(s) only in left, %2 line(s) only in right").arg(removedCount).arg(addedCount));
+
+    return true;
+}

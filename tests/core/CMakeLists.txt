@@ -5,6 +5,8 @@ add_executable(core_tests
     operations/test_FileOperations.cpp
     config/test_SessionManager.cpp
     config/test_Settings.cpp
+    sync/test_DirectorySync.cpp
+    compare/test_TextDiff.cpp
 )
 
 target_link_libraries(core_tests PRIVATE

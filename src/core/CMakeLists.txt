@@ -14,6 +14,10 @@ add_library(core STATIC
     config/Settings.cpp
     config/SessionManager.h
     config/SessionManager.cpp
+    sync/DirectorySync.h
+    sync/DirectorySync.cpp
+    compare/TextDiff.h
+    compare/TextDiff.cpp
 )
 
 target_include_directories(core PUBLIC
@@ -21,6 +25,8 @@ target_include_directories(core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/filesystem
     ${CMAKE_CURRENT_SOURCE_DIR}/operations
     ${CMAKE_CURRENT_SOURCE_DIR}/config
+    ${CMAKE_CURRENT_SOURCE_DIR}/sync
+    ${CMAKE_CURRENT_SOURCE_DIR}/compare
 )
 
 target_link_libraries(core PUBLIC
