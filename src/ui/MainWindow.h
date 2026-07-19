@@ -18,6 +18,9 @@ class OperationQueue;
 class OperationProgressDialog;
 class ThemeManager;
 class QShortcut;
+class QSplitter;
+class QTreeView;
+class QFileSystemModel;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -47,6 +50,8 @@ private slots:
     void openMultiRenameDialog(); // Ctrl+M
     void openSyncDialog();
     void compareSelectedFiles();
+    void openDirectoryHotlist(); // Ctrl+D
+    void toggleFolderTree();
 
     void navigateBack();
     void navigateForward();
@@ -77,6 +82,9 @@ private:
     OperationProgressDialog *m_progressDialog;
     ThemeManager *m_themeManager;
     Settings m_settings;
+    QSplitter *m_outerSplitter;
+    QTreeView *m_folderTree;
+    QFileSystemModel *m_folderTreeModel;
 
     QMap<QString, QShortcut *> m_shortcuts;
     QMap<QString, QKeySequence> m_shortcutDefaults;

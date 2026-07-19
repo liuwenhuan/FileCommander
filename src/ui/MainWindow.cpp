@@ -5,8 +5,10 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QCloseEvent>
+#include <QCursor>
 #include <QDir>
 #include <QFileInfo>
+#include <QFileSystemModel>
 #include <QInputDialog>
 #include <QItemSelectionModel>
 #include <QKeySequence>
@@ -20,6 +22,7 @@
 #include <QStandardPaths>
 #include <QStatusBar>
 #include <QToolBar>
+#include <QTreeView>
 #include <QUrl>
 #include <QVBoxLayout>
 
@@ -97,12 +100,33 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     splitter->setStretchFactor(0, 1);
     splitter->setStretchFactor(1, 1);
 
+    m_folderTreeModel = new QFileSystemModel(this);
+    m_folderTreeModel->setRootPath(QDir::rootPath());
+    m_folderTreeModel->setFilter(QDir::Dirs | QDir::NoDotAndDotDot);
+    m_folderTree = new QTreeView(this);
+    m_folderTree->setModel(m_folderTreeModel);
+    m_folderTree->setRootIndex(m_folderTreeModel->index(QDir::rootPath()));
+    for (int col = 1; col < m_folderTreeModel->columnCount(); ++col)
+        m_folderTree->hideColumn(col);
+    m_folderTree->setHeaderHidden(true);
+    m_folderTree->hide(); // hidden by default; toggled via View menu
+    connect(m_folderTree, &QTreeView::activated, this, [this](const QModelIndex &idx) {
+        if (m_activePanel)
+            m_activePanel->navigateTo(m_folderTreeModel->filePath(idx));
+    });
+
+    m_outerSplitter = new QSplitter(this);
+    m_outerSplitter->addWidget(m_folderTree);
+    m_outerSplitter->addWidget(splitter);
+    m_outerSplitter->setStretchFactor(0, 0);
+    m_outerSplitter->setStretchFactor(1, 1);
+
     m_functionKeyBar = new FunctionKeyBar(this);
 
     auto *central = new QWidget(this);
     auto *layout = new QVBoxLayout(central);
     layout->setContentsMargins(4, 4, 4, 0);
-    layout->addWidget(splitter, 1);
+    layout->addWidget(m_outerSplitter, 1);
     layout->addWidget(m_functionKeyBar);
     setCentralWidget(central);
 
@@ -149,7 +173,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
     for (FilePanel *panel : {m_leftPanel, m_rightPanel}) {
         connect(panel, &FilePanel::panelActivated, this, &MainWindow::setActivePanel);
-        connect(panel, &FilePanel::pathChanged, this, [this](const QString &) { updateStatusBar(); });
+        connect(panel, &FilePanel::pathChanged, this, [this, panel](const QString &path) {
+            updateStatusBar();
+            if (panel == m_activePanel && m_folderTree->isVisible()) {
+                const QModelIndex idx = m_folderTreeModel->index(path);
+                m_folderTree->setCurrentIndex(idx);
+                m_folderTree->scrollTo(idx);
+            }
+        });
         connect(panel->view()->selectionModel(), &QItemSelectionModel::selectionChanged, this,
                 [this]() { updateStatusBar(); });
         connect(panel->view(), &FileListView::filesDropped, this, &MainWindow::handleFilesDropped);
@@ -215,6 +246,8 @@ void MainWindow::setupMenuAndToolbar() {
                              &MainWindow::openSyncDialog);
     commandsMenu->addAction(tr("Compar&e by Content..."), this,
                              &MainWindow::compareSelectedFiles);
+    commandsMenu->addAction(tr("&Directory Hotlist..."), this,
+                             &MainWindow::openDirectoryHotlist);
     commandsMenu->addSeparator();
     commandsMenu->addAction(tr("&Keyboard Shortcuts..."), this,
                              &MainWindow::openShortcutsDialog);
@@ -261,6 +294,12 @@ void MainWindow::setupMenuAndToolbar() {
         connect(action, &QAction::triggered, this,
                 [this, code = entry.code]() { setLanguage(code); });
     }
+
+    viewMenu->addSeparator();
+    QAction *folderTreeAction = viewMenu->addAction(tr("&Folder Tree"), this,
+                                                      &MainWindow::toggleFolderTree);
+    folderTreeAction->setCheckable(true);
+    folderTreeAction->setChecked(false);
 
     auto *toolbar = addToolBar(tr("Navigation"));
     toolbar->setFocusPolicy(Qt::NoFocus);
@@ -332,6 +371,8 @@ void MainWindow::setupShortcuts() {
                  [this] { pasteFromClipboard(); });
     bindShortcut("multiRename", tr("Multi-Rename Tool"), QKeySequence(Qt::CTRL | Qt::Key_M),
                  [this] { openMultiRenameDialog(); });
+    bindShortcut("directoryHotlist", tr("Directory Hotlist"), QKeySequence(Qt::CTRL | Qt::Key_D),
+                 [this] { openDirectoryHotlist(); });
 }
 
 void MainWindow::openShortcutsDialog() {
@@ -407,6 +448,47 @@ void MainWindow::compareSelectedFiles() {
     auto *dlg = new CompareDialog(leftPath, rightPath, this);
     dlg->setAttribute(Qt::WA_DeleteOnClose);
     dlg->show();
+}
+
+void MainWindow::openDirectoryHotlist() {
+    if (!m_activePanel)
+        return;
+    FilePanel *panel = m_activePanel;
+    const QString currentPath = panel->currentPath();
+    const QStringList favorites = m_settings.favoriteDirectories();
+
+    QMenu menu(this);
+    if (favorites.isEmpty()) {
+        QAction *placeholder = menu.addAction(tr("(No favorites yet)"));
+        placeholder->setEnabled(false);
+    } else {
+        for (const QString &favPath : favorites) {
+            menu.addAction(favPath, this, [panel, favPath]() { panel->navigateTo(favPath); });
+        }
+    }
+    menu.addSeparator();
+
+    if (favorites.contains(currentPath)) {
+        menu.addAction(tr("Remove Current Directory"), this, [this, currentPath]() {
+            m_settings.removeFavoriteDirectory(currentPath);
+        });
+    } else {
+        menu.addAction(tr("Add Current Directory"), this, [this, currentPath]() {
+            m_settings.addFavoriteDirectory(currentPath);
+        });
+    }
+
+    menu.exec(QCursor::pos());
+}
+
+void MainWindow::toggleFolderTree() {
+    const bool nowVisible = !m_folderTree->isVisible();
+    m_folderTree->setVisible(nowVisible);
+    if (nowVisible && m_activePanel) {
+        const QModelIndex idx = m_folderTreeModel->index(m_activePanel->currentPath());
+        m_folderTree->setCurrentIndex(idx);
+        m_folderTree->scrollTo(idx);
+    }
 }
 
 void MainWindow::setTheme(Settings::Theme theme) {

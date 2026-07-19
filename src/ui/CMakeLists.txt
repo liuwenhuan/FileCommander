@@ -1,6 +1,8 @@
 add_library(ui STATIC
     MainWindow.h
     MainWindow.cpp
+    BreadcrumbBar.h
+    BreadcrumbBar.cpp
     FilePanel.h
     FilePanel.cpp
     FileListView.h

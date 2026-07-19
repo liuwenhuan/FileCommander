@@ -5,6 +5,7 @@
 #include <QMap>
 #include <QSettings>
 #include <QString>
+#include <QStringList>
 
 // Wraps QSettings at ~/.config/totalcommander/config.ini. Theme/language
 // are stored now and acted on starting in Phase 4 (theming/i18n).
@@ -37,6 +38,11 @@ public:
     QKeySequence shortcut(const QString &actionId, const QKeySequence &defaultSeq) const;
     void setShortcut(const QString &actionId, const QKeySequence &seq);
     void clearShortcutOverrides();
+
+    // Directory hotlist (Ctrl+D).
+    QStringList favoriteDirectories() const;
+    void addFavoriteDirectory(const QString &path);
+    void removeFavoriteDirectory(const QString &path);
 
 private:
     QSettings m_settings;

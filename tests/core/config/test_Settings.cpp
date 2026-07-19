@@ -45,3 +45,35 @@ TEST(SettingsTest, WindowGeometryRoundTrips) {
     settings.setWindowGeometry(blob);
     EXPECT_EQ(settings.windowGeometry(), blob);
 }
+
+TEST(SettingsTest, FavoriteDirectoriesStartsEmpty) {
+    IsolatedConfigDir isolated;
+    Settings settings;
+    EXPECT_TRUE(settings.favoriteDirectories().isEmpty());
+}
+
+TEST(SettingsTest, AddFavoriteDirectoryPersists) {
+    IsolatedConfigDir isolated;
+    Settings settings;
+    settings.addFavoriteDirectory("/home/user/projects");
+    settings.addFavoriteDirectory("/tmp");
+    EXPECT_EQ(settings.favoriteDirectories(),
+              QStringList({"/home/user/projects", "/tmp"}));
+}
+
+TEST(SettingsTest, AddFavoriteDirectoryDoesNotDuplicate) {
+    IsolatedConfigDir isolated;
+    Settings settings;
+    settings.addFavoriteDirectory("/tmp");
+    settings.addFavoriteDirectory("/tmp");
+    EXPECT_EQ(settings.favoriteDirectories().size(), 1);
+}
+
+TEST(SettingsTest, RemoveFavoriteDirectoryRemovesIt) {
+    IsolatedConfigDir isolated;
+    Settings settings;
+    settings.addFavoriteDirectory("/tmp");
+    settings.addFavoriteDirectory("/home");
+    settings.removeFavoriteDirectory("/tmp");
+    EXPECT_EQ(settings.favoriteDirectories(), QStringList({"/home"}));
+}

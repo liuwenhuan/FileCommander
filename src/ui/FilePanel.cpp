@@ -7,10 +7,10 @@
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QItemSelectionModel>
-#include <QLineEdit>
 #include <QShortcut>
 #include <QVBoxLayout>
 
+#include "BreadcrumbBar.h"
 #include "FileListView.h"
 #include "TabBar.h"
 
@@ -23,7 +23,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_tabManager = new TabManager(this);
     m_tabBar = new TabBar(this);
 
-    m_addressBar = new QLineEdit(this);
+    m_addressBar = new BreadcrumbBar(this);
     m_addressBar->setFocusPolicy(Qt::ClickFocus); // keep it out of the Tab chain
 
     auto *layout = new QVBoxLayout(this);
@@ -34,9 +34,9 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     layout->addWidget(m_view, 1);
 
     connect(m_view, &QAbstractItemView::activated, this, &FilePanel::onActivated);
-    connect(m_addressBar, &QLineEdit::returnPressed, this, &FilePanel::onAddressBarEntered);
+    connect(m_addressBar, &BreadcrumbBar::pathActivated, this, &FilePanel::onAddressBarEntered);
     connect(m_model, &FileSystemModel::loadFinished, this, [this](int) {
-        m_addressBar->setText(m_model->rootPath());
+        m_addressBar->setPath(m_model->rootPath());
         if (!m_pendingSelection.isEmpty()) {
             QItemSelectionModel *sel = m_view->selectionModel();
             for (int row = 0; row < m_model->rowCount(); ++row) {
@@ -171,8 +171,8 @@ void FilePanel::onActivated(const QModelIndex &index) {
         emit openRequested(info.path());
 }
 
-void FilePanel::onAddressBarEntered() {
-    navigateTo(m_addressBar->text());
+void FilePanel::onAddressBarEntered(const QString &path) {
+    navigateTo(path);
 }
 
 QString FilePanel::currentEntryPath() const {

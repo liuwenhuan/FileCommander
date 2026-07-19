@@ -79,3 +79,21 @@ void Settings::clearShortcutOverrides() {
     m_settings.remove("");
     m_settings.endGroup();
 }
+
+QStringList Settings::favoriteDirectories() const {
+    return m_settings.value("favorites/directories").toStringList();
+}
+
+void Settings::addFavoriteDirectory(const QString &path) {
+    QStringList favorites = favoriteDirectories();
+    if (!favorites.contains(path)) {
+        favorites.append(path);
+        m_settings.setValue("favorites/directories", favorites);
+    }
+}
+
+void Settings::removeFavoriteDirectory(const QString &path) {
+    QStringList favorites = favoriteDirectories();
+    if (favorites.removeAll(path) > 0)
+        m_settings.setValue("favorites/directories", favorites);
+}

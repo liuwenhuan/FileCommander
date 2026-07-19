@@ -7,7 +7,7 @@
 #include "FileSystemModel.h"
 #include "TabManager.h"
 
-class QLineEdit;
+class BreadcrumbBar;
 class FileListView;
 class TabBar;
 
@@ -61,7 +61,7 @@ protected:
 
 private slots:
     void onActivated(const QModelIndex &index);
-    void onAddressBarEntered();
+    void onAddressBarEntered(const QString &path);
     void onTabBarCurrentChanged(int index);
 
 private:
@@ -73,7 +73,7 @@ private:
     void loadTabState(int index);
     void updateActiveTabLabel();
 
-    QLineEdit *m_addressBar;
+    BreadcrumbBar *m_addressBar;
     FileListView *m_view;
     FileSystemModel *m_model;
     QStringList m_backHistory;
