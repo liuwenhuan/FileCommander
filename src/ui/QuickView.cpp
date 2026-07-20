@@ -10,6 +10,7 @@
 #include <QScrollBar>
 #include <QSizePolicy>
 #include <QStackedWidget>
+#include <QTimer>
 #include <QToolBar>
 #include <QVBoxLayout>
 #include <QWheelEvent>
@@ -31,6 +32,18 @@ QuickView::QuickView(QWidget *parent) : QWidget(parent) {
     m_info = new QLabel(tr("Select a file to preview"), this);
     m_info->setAlignment(Qt::AlignCenter);
     m_info->setWordWrap(true);
+
+    // Coalesce rapid resizes (e.g. dragging the panel divider) into a single
+    // smooth rescale so large images don't rescale on every pixel of the drag.
+    m_refitTimer = new QTimer(this);
+    m_refitTimer->setSingleShot(true);
+    m_refitTimer->setInterval(40);
+    connect(m_refitTimer, &QTimer::timeout, this, [this]() {
+        if (m_imageFitMode && !m_originalPixmap.isNull()) {
+            m_imageScale = fitScale();
+            applyImageScale();
+        }
+    });
 
     m_stack = new QStackedWidget(this);
     m_stack->addWidget(m_info);            // 0
@@ -160,11 +173,10 @@ bool QuickView::eventFilter(QObject *watched, QEvent *event) {
 
 void QuickView::resizeEvent(QResizeEvent *event) {
     QWidget::resizeEvent(event);
-    // While in fit mode, keep the image sized to the (now larger/smaller) pane.
-    if (m_imageFitMode && !m_originalPixmap.isNull() && m_stack->currentWidget() == m_imagePage) {
-        m_imageScale = fitScale();
-        applyImageScale();
-    }
+    // While in fit mode, keep the image sized to the pane, but debounce so a
+    // divider drag triggers one rescale at the end rather than one per pixel.
+    if (m_imageFitMode && !m_originalPixmap.isNull() && m_stack->currentWidget() == m_imagePage)
+        m_refitTimer->start();
 }
 
 void QuickView::showFile(const QString &path) {

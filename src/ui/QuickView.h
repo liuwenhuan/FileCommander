@@ -9,6 +9,7 @@ class QLabel;
 class QPlainTextEdit;
 class QScrollArea;
 class QStackedWidget;
+class QTimer;
 
 // Lightweight in-panel preview shown by Ctrl+Q: renders the file under the
 // cursor as a zoomable image, a text head, or a "no preview" note.
@@ -35,6 +36,7 @@ private:
     QScrollArea *m_imageScroll;
     QLabel *m_imageLabel;
     QCheckBox *m_lockZoomCheck; // when checked, keep the ratio for later images
+    QTimer *m_refitTimer;       // coalesces refits during interactive resize
     QPlainTextEdit *m_text;
     QLabel *m_info;
 

@@ -23,6 +23,7 @@
 #include <QShortcut>
 #include <QTimer>
 #include <QSplitter>
+#include <QSplitterHandle>
 #include <QStandardPaths>
 #include <QStatusBar>
 #include <QToolBar>
@@ -114,11 +115,17 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_quickView = new QuickView(this);
     m_quickView->hide(); // parked until Ctrl+Q swaps it into a panel slot
     // A visible divider that runs the full panel height -- tabs, breadcrumb,
-    // list and status bar -- clearly separating the two panels. A solid mid
-    // grey reads on both light and dark themes.
+    // list and status bar -- clearly separating the two panels. Style only the
+    // handle widget (via its palette) rather than the splitter's stylesheet:
+    // a stylesheet on the splitter cascades QStyleSheetStyle onto the two
+    // table views, making their repaints (and divider drags) noticeably slower.
     splitter->setHandleWidth(2);
-    splitter->setStyleSheet(
-        QStringLiteral("QSplitter::handle { background-color: #8a8a8a; }"));
+    if (QSplitterHandle *handle = splitter->handle(1)) {
+        handle->setAutoFillBackground(true);
+        QPalette pal = handle->palette();
+        pal.setColor(QPalette::Window, QColor(0x8a, 0x8a, 0x8a));
+        handle->setPalette(pal);
+    }
 
     m_folderTreeModel = new QFileSystemModel(this);
     m_folderTreeModel->setRootPath(QDir::rootPath());
