@@ -8,6 +8,31 @@
 
 FileOperations::FileOperations(QObject *parent) : QObject(parent) {}
 
+void FileOperations::requestCancel() {
+    m_cancelled.store(true);
+    // Wake a paused worker so it can observe the cancellation and unwind.
+    QMutexLocker lock(&m_pauseMutex);
+    m_paused = false;
+    m_pauseCond.wakeAll();
+}
+
+void FileOperations::requestPause() {
+    QMutexLocker lock(&m_pauseMutex);
+    m_paused = true;
+}
+
+void FileOperations::requestResume() {
+    QMutexLocker lock(&m_pauseMutex);
+    m_paused = false;
+    m_pauseCond.wakeAll();
+}
+
+void FileOperations::waitIfPaused() {
+    QMutexLocker lock(&m_pauseMutex);
+    while (m_paused && !m_cancelled.load())
+        m_pauseCond.wait(&m_pauseMutex);
+}
+
 qint64 FileOperations::countEntries(const QStringList &paths) {
     qint64 count = 0;
     for (const QString &path : paths) {
@@ -177,6 +202,7 @@ bool FileOperations::copyPaths(const QStringList &sources, const QString &destDi
     QDir().mkpath(destDir);
 
     for (const QString &source : sources) {
+        waitIfPaused();
         if (m_cancelled)
             return false;
         if (!copyOne(source, destDir, /*removeSource=*/false, resolver, batchAction,
@@ -253,6 +279,7 @@ bool FileOperations::movePaths(const QStringList &sources, const QString &destDi
     QDir().mkpath(destDir);
 
     for (const QString &source : sources) {
+        waitIfPaused();
         if (m_cancelled)
             return false;
 
@@ -305,6 +332,7 @@ bool FileOperations::deletePaths(const QStringList &paths, bool toTrash, QString
     }
 
     for (const QString &path : paths) {
+        waitIfPaused();
         if (m_cancelled)
             return false;
         QFileInfo info(path);
@@ -379,6 +407,7 @@ bool FileOperations::createSymlinks(const QStringList &sources, const QString &d
     bool allOk = true;
 
     for (const QString &source : sources) {
+        waitIfPaused();
         if (m_cancelled)
             return false;
 

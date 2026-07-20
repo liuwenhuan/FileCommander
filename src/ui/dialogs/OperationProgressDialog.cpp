@@ -3,6 +3,7 @@
 #include <QDialogButtonBox>
 #include <QLabel>
 #include <QProgressBar>
+#include <QPushButton>
 #include <QVBoxLayout>
 
 namespace {
@@ -38,10 +39,20 @@ OperationProgressDialog::OperationProgressDialog(QWidget *parent) : QDialog(pare
     m_statsLabel = new QLabel(this);
     m_fileLabel = new QLabel(this);
     m_fileLabel->setWordWrap(true);
+    m_queueLabel = new QLabel(this);
     m_progressBar = new QProgressBar(this);
     m_progressBar->setRange(0, 0); // indeterminate until we know a total
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Cancel, this);
+    m_pauseButton = buttons->addButton(tr("Pause"), QDialogButtonBox::ActionRole);
+    connect(m_pauseButton, &QPushButton::clicked, this, [this]() {
+        m_paused = !m_paused;
+        m_pauseButton->setText(m_paused ? tr("Resume") : tr("Pause"));
+        if (m_paused)
+            emit pauseRequested();
+        else
+            emit resumeRequested();
+    });
     connect(buttons, &QDialogButtonBox::rejected, this, &OperationProgressDialog::cancelRequested);
 
     auto *layout = new QVBoxLayout(this);
@@ -49,13 +60,20 @@ OperationProgressDialog::OperationProgressDialog(QWidget *parent) : QDialog(pare
     layout->addWidget(m_progressBar);
     layout->addWidget(m_statsLabel);
     layout->addWidget(m_fileLabel);
+    layout->addWidget(m_queueLabel);
     layout->addWidget(buttons);
+}
+
+void OperationProgressDialog::setQueuedCount(int pending) {
+    m_queueLabel->setText(pending > 0 ? tr("%1 operation(s) queued").arg(pending) : QString());
 }
 
 void OperationProgressDialog::setDescription(const QString &description) {
     m_descriptionLabel->setText(description);
     m_statsLabel->clear();
     m_fileLabel->clear();
+    m_paused = false;
+    m_pauseButton->setText(tr("Pause"));
     m_progressBar->setRange(0, 0);
     m_timer.start(); // reset the clock for throughput/ETA of this job
 }

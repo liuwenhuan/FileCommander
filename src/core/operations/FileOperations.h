@@ -2,8 +2,10 @@
 
 #include <atomic>
 
+#include <QMutex>
 #include <QObject>
 #include <QStringList>
+#include <QWaitCondition>
 
 #include "FileOpTypes.h"
 
@@ -39,7 +41,11 @@ public:
     // on the worker thread. The running loop polls m_cancelled between
     // entries and bails out at the next boundary (per-file granularity: an
     // in-flight single-file copy is not interrupted mid-write).
-    void requestCancel() { m_cancelled.store(true); }
+    void requestCancel();
+
+    // Pause/resume between entries (same per-file granularity as cancel).
+    void requestPause();
+    void requestResume();
 
     // Optional callback consulted when an entry fails to copy/delete. Without
     // it, failures are reported and skipped (the previous behaviour).
@@ -59,6 +65,7 @@ private:
                   QString *errorMessage);
     bool copyRecursively(const QString &sourceDir, const QString &destDir);
     void emitProgress(const QString &currentFile);
+    void waitIfPaused(); // blocks the worker while paused, until resume/cancel
     // Returns true if the caller should treat the failed entry as handled
     // (retried successfully is handled by the caller's loop; here Skip/SkipAll
     // return true, Retry signals retry, Cancel sets m_cancelled).
@@ -68,6 +75,9 @@ private:
     static QString uniqueDestination(const QString &destDir, const QString &name);
 
     std::atomic<bool> m_cancelled{false};
+    QMutex m_pauseMutex;
+    QWaitCondition m_pauseCond;
+    bool m_paused = false;
     ErrorResolver m_errorResolver;
     ErrorAction m_errorBatch = ErrorAction::Retry; // sentinel: ask each time
     qint64 m_totalItems = 0;

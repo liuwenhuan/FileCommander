@@ -40,11 +40,15 @@ public:
     // queued behind it. Safe to call from the GUI thread; the worker stops at
     // the next per-entry boundary.
     void cancelCurrent();
+    void pauseCurrent();
+    void resumeCurrent();
 
     bool isBusy() const { return m_busy; }
+    int queuedCount() const { return m_queue.size(); }
 
 signals:
     void started(const QString &description);
+    void queueChanged(int pendingCount); // pending jobs not yet started
     void progress(qint64 doneItems, qint64 totalItems, qint64 doneBytes, qint64 totalBytes,
                    const QString &currentFile);
     void errorOccurred(const QString &message);

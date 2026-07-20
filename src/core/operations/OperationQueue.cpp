@@ -128,24 +128,36 @@ void OperationQueue::cancelCurrent() {
     m_queue.clear();
     if (m_ops)
         m_ops->requestCancel();
+    emit queueChanged(m_queue.size());
+}
+
+void OperationQueue::pauseCurrent() {
+    if (m_ops)
+        m_ops->requestPause();
+}
+
+void OperationQueue::resumeCurrent() {
+    if (m_ops)
+        m_ops->requestResume();
 }
 
 void OperationQueue::maybeStartNext() {
-    if (m_busy || m_queue.isEmpty())
-        return;
-    m_busy = true;
-    Job job = m_queue.dequeue();
-    emit started(job.description);
+    if (!m_busy && !m_queue.isEmpty()) {
+        m_busy = true;
+        Job job = m_queue.dequeue();
+        emit started(job.description);
 
-    QMetaObject::invokeMethod(
-        m_ops,
-        [this, job]() {
-            QString err;
-            bool ok = job.run(*m_ops, err);
-            QMetaObject::invokeMethod(
-                this, [this, ok]() { onWorkerJobDone(ok); }, Qt::QueuedConnection);
-        },
-        Qt::QueuedConnection);
+        QMetaObject::invokeMethod(
+            m_ops,
+            [this, job]() {
+                QString err;
+                bool ok = job.run(*m_ops, err);
+                QMetaObject::invokeMethod(
+                    this, [this, ok]() { onWorkerJobDone(ok); }, Qt::QueuedConnection);
+            },
+            Qt::QueuedConnection);
+    }
+    emit queueChanged(m_queue.size());
 }
 
 void OperationQueue::onWorkerJobDone(bool ok) {

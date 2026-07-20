@@ -187,6 +187,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         // dialog. The finished handler hides it once the job unwinds.
         m_queue->cancelCurrent();
     });
+    connect(m_progressDialog, &OperationProgressDialog::pauseRequested, m_queue,
+            &OperationQueue::pauseCurrent);
+    connect(m_progressDialog, &OperationProgressDialog::resumeRequested, m_queue,
+            &OperationQueue::resumeCurrent);
+    connect(m_queue, &OperationQueue::queueChanged, m_progressDialog,
+            &OperationProgressDialog::setQueuedCount);
     connect(m_queue, &OperationQueue::finished, this, [this](bool) {
         m_progressDialog->hide();
         m_leftPanel->refresh();
