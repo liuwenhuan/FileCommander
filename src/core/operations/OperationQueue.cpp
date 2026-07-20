@@ -1,5 +1,7 @@
 #include "OperationQueue.h"
 
+#include <QFileInfo>
+
 #include "FileOperations.h"
 
 OperationQueue::OperationQueue(QObject *parent) : QObject(parent) {
@@ -36,6 +38,19 @@ void OperationQueue::enqueueCopy(const QStringList &sources, const QString &dest
     };
     job.run = [sources, destDir, resolver](FileOperations &ops, QString &err) {
         return ops.copyPaths(sources, destDir, resolver, &err);
+    };
+    m_queue.enqueue(job);
+    maybeStartNext();
+}
+
+void OperationQueue::enqueueCopyAs(const QString &source, const QString &destPath) {
+    Job job;
+    job.description = tr("Copying %1").arg(QFileInfo(source).fileName());
+    ConflictResolver resolver = [this](const QString &s, const QString &d) {
+        return askConflict(s, d);
+    };
+    job.run = [source, destPath, resolver](FileOperations &ops, QString &err) {
+        return ops.copyAs(source, destPath, resolver, &err);
     };
     m_queue.enqueue(job);
     maybeStartNext();

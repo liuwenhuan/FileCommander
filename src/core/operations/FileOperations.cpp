@@ -175,6 +175,56 @@ bool FileOperations::copyPaths(const QStringList &sources, const QString &destDi
     return true;
 }
 
+bool FileOperations::copyAs(const QString &source, const QString &destPath,
+                             const ConflictResolver &resolver, QString *errorMessage) {
+    m_cancelled = false;
+    m_totalItems = 1;
+    m_totalBytes = countBytes({source});
+    m_doneItems = 0;
+    m_doneBytes = 0;
+
+    QFileInfo srcInfo(source);
+    QString target = destPath;
+
+    if (QFileInfo::exists(target) && QDir::cleanPath(target) != QDir::cleanPath(source)) {
+        ErrorAction action = resolver ? resolver(source, target) : ErrorAction::Skip;
+        if (action == ErrorAction::Cancel) {
+            m_cancelled = true;
+            return false;
+        }
+        if (action == ErrorAction::Skip || action == ErrorAction::SkipAll)
+            return true;
+        if (action == ErrorAction::Rename) {
+            const QFileInfo ti(target);
+            target = QDir(ti.absolutePath()).filePath(uniqueDestination(ti.absolutePath(),
+                                                                         ti.fileName()));
+        }
+        // Overwrite / OverwriteAll: fall through and replace target as-is.
+    }
+
+    QDir().mkpath(QFileInfo(target).absolutePath());
+    bool ok;
+    if (srcInfo.isDir()) {
+        ok = copyRecursively(source, target);
+    } else {
+        QFile::remove(target);
+        ok = QFile::copy(source, target);
+        if (ok)
+            m_doneBytes += srcInfo.size();
+    }
+
+    if (!ok) {
+        const QString msg = tr("Failed to copy %1 to %2").arg(source, target);
+        if (errorMessage)
+            *errorMessage = msg;
+        emit errorOccurred(msg);
+        return false;
+    }
+    ++m_doneItems;
+    emitProgress(source);
+    return true;
+}
+
 bool FileOperations::movePaths(const QStringList &sources, const QString &destDir,
                                 const ConflictResolver &resolver, QString *errorMessage) {
     m_cancelled = false;

@@ -50,6 +50,18 @@
  /home/deepin/codework/ttc/tests/core/sync/test_DirectorySync.cpp
  /home/deepin/codework/ttc/tests/core/test_main.cpp
  /usr/bin/cmake
+ /home/deepin/codework/ttc/tests/core/CMakeLists.txt
+ /home/deepin/codework/ttc/tests/core/compare/test_TextDiff.cpp
+ /home/deepin/codework/ttc/tests/core/config/test_SessionManager.cpp
+ /home/deepin/codework/ttc/tests/core/config/test_Settings.cpp
+ /home/deepin/codework/ttc/tests/core/filesystem/test_FileInfo.cpp
+ /home/deepin/codework/ttc/tests/core/filesystem/test_FileSystemModel.cpp
+ /home/deepin/codework/ttc/tests/core/filesystem/test_IconCache.cpp
+ /home/deepin/codework/ttc/tests/core/operations/test_FileOperations.cpp
+ /home/deepin/codework/ttc/tests/core/operations/test_OperationQueue.cpp
+ /home/deepin/codework/ttc/tests/core/sync/test_DirectorySync.cpp
+ /home/deepin/codework/ttc/tests/core/test_main.cpp
+ /usr/bin/cmake
 
 tests/core/CMakeFiles/core_tests.dir/compare/test_TextDiff.cpp.o
  /home/deepin/codework/ttc/tests/core/compare/test_TextDiff.cpp
@@ -2062,6 +2074,7 @@ tests/core/CMakeFiles/core_tests.dir/filesystem/test_FileSystemModel.cpp.o
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QDir
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QFile
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QFutureWatcher
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/QHash
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QString
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QTemporaryDir
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QVector

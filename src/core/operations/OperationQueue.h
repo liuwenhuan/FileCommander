@@ -25,6 +25,7 @@ public:
     void setConflictHandler(ConflictResolver handler) { m_conflictHandler = std::move(handler); }
 
     void enqueueCopy(const QStringList &sources, const QString &destDir);
+    void enqueueCopyAs(const QString &source, const QString &destPath);
     void enqueueMove(const QStringList &sources, const QString &destDir);
     void enqueueDelete(const QStringList &paths, bool toTrash);
     void enqueueMkdir(const QString &parentDir, const QString &name);

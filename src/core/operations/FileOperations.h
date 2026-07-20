@@ -19,6 +19,10 @@ public:
 
     bool copyPaths(const QStringList &sources, const QString &destDir,
                     const ConflictResolver &resolver, QString *errorMessage = nullptr);
+    // Copies a single file/dir to an explicit destination path (used for
+    // "copy as" / same-directory copy under a new name).
+    bool copyAs(const QString &source, const QString &destPath,
+                 const ConflictResolver &resolver, QString *errorMessage = nullptr);
     bool movePaths(const QStringList &sources, const QString &destDir,
                     const ConflictResolver &resolver, QString *errorMessage = nullptr);
     bool deletePaths(const QStringList &paths, bool toTrash, QString *errorMessage = nullptr);

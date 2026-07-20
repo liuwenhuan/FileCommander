@@ -528,7 +528,11 @@ CMakeFiles/ttc.dir/src/main.cpp.o: src/main.cpp \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qvarlengtharray.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qvector.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qversiontagging.h \
+  /usr/include/x86_64-linux-gnu/qt5/QtGui/QColor \
+  /usr/include/x86_64-linux-gnu/qt5/QtGui/QIcon \
   /usr/include/x86_64-linux-gnu/qt5/QtGui/QKeySequence \
+  /usr/include/x86_64-linux-gnu/qt5/QtGui/QPainter \
+  /usr/include/x86_64-linux-gnu/qt5/QtGui/QPixmap \
   /usr/include/x86_64-linux-gnu/qt5/QtGui/qbrush.h \
   /usr/include/x86_64-linux-gnu/qt5/QtGui/qcolor.h \
   /usr/include/x86_64-linux-gnu/qt5/QtGui/qcursor.h \
@@ -542,13 +546,16 @@ CMakeFiles/ttc.dir/src/main.cpp.o: src/main.cpp \
   /usr/include/x86_64-linux-gnu/qt5/QtGui/qkeysequence.h \
   /usr/include/x86_64-linux-gnu/qt5/QtGui/qmatrix.h \
   /usr/include/x86_64-linux-gnu/qt5/QtGui/qpaintdevice.h \
+  /usr/include/x86_64-linux-gnu/qt5/QtGui/qpainter.h \
   /usr/include/x86_64-linux-gnu/qt5/QtGui/qpalette.h \
+  /usr/include/x86_64-linux-gnu/qt5/QtGui/qpen.h \
   /usr/include/x86_64-linux-gnu/qt5/QtGui/qpixelformat.h \
   /usr/include/x86_64-linux-gnu/qt5/QtGui/qpixmap.h \
   /usr/include/x86_64-linux-gnu/qt5/QtGui/qpolygon.h \
   /usr/include/x86_64-linux-gnu/qt5/QtGui/qregion.h \
   /usr/include/x86_64-linux-gnu/qt5/QtGui/qrgb.h \
   /usr/include/x86_64-linux-gnu/qt5/QtGui/qrgba64.h \
+  /usr/include/x86_64-linux-gnu/qt5/QtGui/qtextoption.h \
   /usr/include/x86_64-linux-gnu/qt5/QtGui/qtgui-config.h \
   /usr/include/x86_64-linux-gnu/qt5/QtGui/qtguiglobal.h \
   /usr/include/x86_64-linux-gnu/qt5/QtGui/qtransform.h \
@@ -681,9 +688,19 @@ CMakeFiles/ttc.dir/src/main.cpp.o:
 
 /lib64/ld-linux-x86-64.so.2:
 
+/lib/x86_64-linux-gnu/libzstd.so.1:
+
+/lib/x86_64-linux-gnu/libxml2.so.2:
+
+/lib/x86_64-linux-gnu/libpng16.so.16:
+
+/lib/x86_64-linux-gnu/libpcre2-8.so.0:
+
 /usr/include/c++/12/limits:
 
 /usr/include/x86_64-linux-gnu/bits/thread-shared-types.h:
+
+/usr/include/x86_64-linux-gnu/qt5/QtGui/qtextoption.h:
 
 /usr/include/c++/12/ext/numeric_traits.h:
 
@@ -708,8 +725,6 @@ CMakeFiles/ttc.dir/src/main.cpp.o:
 /usr/include/c++/12/bits/invoke.h:
 
 /usr/include/c++/12/bits/unordered_map.h:
-
-/usr/include/x86_64-linux-gnu/qt5/QtCore/qbasicatomic.h:
 
 /usr/include/x86_64-linux-gnu/qt5/QtCore/qstring.h:
 
@@ -791,8 +806,6 @@ CMakeFiles/ttc.dir/src/main.cpp.o:
 
 /usr/share/cmake-3.31/Modules/Compiler/SCO-DetermineCompiler.cmake:
 
-/lib/x86_64-linux-gnu/libzstd.so.1:
-
 /lib/x86_64-linux-gnu/libm.so.6:
 
 /usr/lib/x86_64-linux-gnu/libQt5Concurrent.so.5.15.8:
@@ -806,8 +819,6 @@ CMakeFiles/ttc.dir/src/main.cpp.o:
 /usr/include/c++/12/bits/cxxabi_init_exception.h:
 
 /usr/include/c++/12/bits/cxxabi_forced.h:
-
-/lib/x86_64-linux-gnu/libxml2.so.2:
 
 /usr/include/c++/12/bits/concept_check.h:
 
@@ -920,8 +931,6 @@ CMakeFiles/3.31.4/CMakeCXXCompiler.cmake:
 /usr/include/c++/12/cstdlib:
 
 /usr/include/x86_64-linux-gnu/bits/wchar.h:
-
-/lib/x86_64-linux-gnu/libpcre2-8.so.0:
 
 /usr/include/x86_64-linux-gnu/qt5/QtCore/qtcore-config.h:
 
@@ -1214,6 +1223,10 @@ src/ui/MainWindow.h:
 /usr/include/c++/12/ext/alloc_traits.h:
 
 /usr/share/cmake-3.31/Modules/Compiler/IBMCPP-CXX-DetermineVersionInternal.cmake:
+
+/usr/include/x86_64-linux-gnu/qt5/QtCore/qbasicatomic.h:
+
+/usr/include/x86_64-linux-gnu/qt5/QtGui/QColor:
 
 /usr/lib/x86_64-linux-gnu/cmake/Qt5Test/Qt5TestConfig.cmake:
 
@@ -1547,6 +1560,8 @@ CMakeFiles/3.31.4/CMakeSystem.cmake:
 
 /usr/include/x86_64-linux-gnu/c++/12/bits/c++allocator.h:
 
+/usr/include/x86_64-linux-gnu/qt5/QtGui/QPainter:
+
 /usr/include/x86_64-linux-gnu/c++/12/bits/c++config.h:
 
 /lib/x86_64-linux-gnu/libxxhash.so.0:
@@ -1679,7 +1694,11 @@ CMakeFiles/3.31.4/CMakeSystem.cmake:
 
 /usr/lib/gcc/x86_64-linux-gnu/12/include/stdarg.h:
 
+/usr/include/x86_64-linux-gnu/qt5/QtGui/QIcon:
+
 /usr/include/x86_64-linux-gnu/qt5/QtGui/QKeySequence:
+
+/usr/include/x86_64-linux-gnu/qt5/QtGui/QPixmap:
 
 /usr/include/x86_64-linux-gnu/qt5/QtGui/qbrush.h:
 
@@ -1708,6 +1727,10 @@ CMakeFiles/3.31.4/CMakeSystem.cmake:
 /usr/include/x86_64-linux-gnu/qt5/QtGui/qkeysequence.h:
 
 /usr/include/x86_64-linux-gnu/qt5/QtGui/qpolygon.h:
+
+/usr/include/x86_64-linux-gnu/qt5/QtGui/qpainter.h:
+
+/usr/include/x86_64-linux-gnu/qt5/QtGui/qpen.h:
 
 /usr/include/x86_64-linux-gnu/qt5/QtGui/qpixelformat.h:
 
@@ -1784,5 +1807,3 @@ ttc_autogen/mocs_compilation.cpp:
 /lib/x86_64-linux-gnu/libharfbuzz.so.0:
 
 /lib/x86_64-linux-gnu/liblzma.so.5:
-
-/lib/x86_64-linux-gnu/libpng16.so.16:

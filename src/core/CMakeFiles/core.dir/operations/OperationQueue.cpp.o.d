@@ -254,6 +254,13 @@ src/core/CMakeFiles/core.dir/operations/OperationQueue.cpp.o: \
  /usr/include/c++/12/bits/atomic_futex.h \
  /usr/include/c++/12/bits/std_thread.h \
  /home/deepin/codework/ttc/src/core/operations/FileOpTypes.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/QFileInfo \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qfileinfo.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qfile.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qfiledevice.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qiodevice.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qshareddata.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qhash.h \
  /home/deepin/codework/ttc/src/core/operations/FileOperations.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QStringList \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qstringlist.h

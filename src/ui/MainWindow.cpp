@@ -801,7 +801,22 @@ void MainWindow::copySelected() {
     const QStringList sources = m_activePanel->selectedPaths();
     if (sources.isEmpty())
         return;
-    m_queue->enqueueCopy(sources, otherPanel(m_activePanel)->currentPath());
+    const QString destDir = otherPanel(m_activePanel)->currentPath();
+
+    // Copying a single item into the same directory it lives in: ask for the
+    // new name (TC's F5-in-place behaviour) instead of silently duplicating.
+    if (sources.size() == 1 &&
+        QDir::cleanPath(destDir) == QDir::cleanPath(m_activePanel->currentPath())) {
+        const QFileInfo fi(sources.first());
+        bool ok = false;
+        const QString newName = QInputDialog::getText(this, tr("Copy"), tr("Copy to:"),
+                                                       QLineEdit::Normal, fi.fileName(), &ok);
+        if (!ok || newName.isEmpty())
+            return;
+        m_queue->enqueueCopyAs(sources.first(), QDir(destDir).filePath(newName));
+        return;
+    }
+    m_queue->enqueueCopy(sources, destDir);
 }
 
 void MainWindow::moveSelected() {

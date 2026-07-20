@@ -1,4 +1,4 @@
-core_tests 5 0.0125471
-ui_tests 5 0.00165201
-archive_tests 5 0.00314011
+core_tests 6 0.00964773
+ui_tests 6 0.00135134
+archive_tests 6 0.00255414
 ---

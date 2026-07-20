@@ -1,13 +1,13 @@
-Start testing: Jul 20 13:29 CST
+Start testing: Jul 20 16:19 CST
 ----------------------------------------------------------
 1/3 Testing: core_tests
 1/3 Test: core_tests
 Command: "/home/deepin/codework/ttc/tests/core/core_tests"
 Directory: /home/deepin/codework/ttc/tests/core
-"core_tests" start time: Jul 20 13:29 CST
+"core_tests" start time: Jul 20 16:19 CST
 Output:
 ----------------------------------------------------------
-[==========] Running 51 tests from 9 test suites.
+[==========] Running 55 tests from 10 test suites.
 [----------] Global test environment set-up.
 [----------] 5 tests from FileInfoTest
 [ RUN      ] FileInfoTest.MimeTypeIsComputedLazilyAndCorrectly
@@ -22,7 +22,7 @@ Output:
 [       OK ] FileInfoTest.DefaultConstructedIsInvalid (0 ms)
 [----------] 5 tests from FileInfoTest (0 ms total)
 
-[----------] 5 tests from FileSystemModelFilterTest
+[----------] 6 tests from FileSystemModelFilterTest
 [ RUN      ] FileSystemModelFilterTest.MatchesFilterIsCaseInsensitiveSubstring
 [       OK ] FileSystemModelFilterTest.MatchesFilterIsCaseInsensitiveSubstring (0 ms)
 [ RUN      ] FileSystemModelFilterTest.MatchesFilterEmptyMatchesEverything
@@ -31,22 +31,31 @@ Output:
 [       OK ] FileSystemModelFilterTest.MatchesFilterSupportsWildcards (0 ms)
 [ RUN      ] FileSystemModelFilterTest.SetNameFilterRestrictsVisibleRows
 [       OK ] FileSystemModelFilterTest.SetNameFilterRestrictsVisibleRows (0 ms)
+[ RUN      ] FileSystemModelFilterTest.PatternPicksExpectedEntriesAcrossRows
+[       OK ] FileSystemModelFilterTest.PatternPicksExpectedEntriesAcrossRows (0 ms)
 [ RUN      ] FileSystemModelFilterTest.ChangingDirectoryClearsFilter
 [       OK ] FileSystemModelFilterTest.ChangingDirectoryClearsFilter (0 ms)
-[----------] 5 tests from FileSystemModelFilterTest (1 ms total)
+[----------] 6 tests from FileSystemModelFilterTest (1 ms total)
+
+[----------] 2 tests from FileSystemModelSizeTest
+[ RUN      ] FileSystemModelSizeTest.DirectorySizeSumsRecursively
+[       OK ] FileSystemModelSizeTest.DirectorySizeSumsRecursively (0 ms)
+[ RUN      ] FileSystemModelSizeTest.ComputedSizeReplacesDirPlaceholderInSizeColumn
+[       OK ] FileSystemModelSizeTest.ComputedSizeReplacesDirPlaceholderInSizeColumn (0 ms)
+[----------] 2 tests from FileSystemModelSizeTest (0 ms total)
 
 [----------] 3 tests from IconCacheTest
 [ RUN      ] IconCacheTest.ReturnsNonNullIconForFile
-[       OK ] IconCacheTest.ReturnsNonNullIconForFile (13 ms)
+[       OK ] IconCacheTest.ReturnsNonNullIconForFile (15 ms)
 [ RUN      ] IconCacheTest.ReturnsNonNullIconForDirectory
 [       OK ] IconCacheTest.ReturnsNonNullIconForDirectory (0 ms)
 [ RUN      ] IconCacheTest.SameExtensionReusesCachedIcon
 [       OK ] IconCacheTest.SameExtensionReusesCachedIcon (0 ms)
-[----------] 3 tests from IconCacheTest (14 ms total)
+[----------] 3 tests from IconCacheTest (15 ms total)
 
-[----------] 15 tests from FileOperationsTest
+[----------] 16 tests from FileOperationsTest
 [ RUN      ] FileOperationsTest.CopyPathsCopiesFileWithoutRemovingSource
-[       OK ] FileOperationsTest.CopyPathsCopiesFileWithoutRemovingSource (9 ms)
+[       OK ] FileOperationsTest.CopyPathsCopiesFileWithoutRemovingSource (2 ms)
 [ RUN      ] FileOperationsTest.MovePathsRemovesSource
 [       OK ] FileOperationsTest.MovePathsRemovesSource (0 ms)
 [ RUN      ] FileOperationsTest.ConflictResolverSkipLeavesDestinationUntouched
@@ -57,6 +66,8 @@ Output:
 [       OK ] FileOperationsTest.CopyPathsOntoSelfKeepsOriginalAndMakesRenamedDuplicate (0 ms)
 [ RUN      ] FileOperationsTest.MovePathsOntoSelfIsNoOp
 [       OK ] FileOperationsTest.MovePathsOntoSelfIsNoOp (0 ms)
+[ RUN      ] FileOperationsTest.CopyAsWritesToExplicitTargetName
+[       OK ] FileOperationsTest.CopyAsWritesToExplicitTargetName (0 ms)
 [ RUN      ] FileOperationsTest.CopyReportsByteProgressToCompletion
 [       OK ] FileOperationsTest.CopyReportsByteProgressToCompletion (0 ms)
 [ RUN      ] FileOperationsTest.RequestCancelStopsRemainingEntries
@@ -75,7 +86,7 @@ Output:
 [       OK ] FileOperationsTest.CreateSymlinksCreatesWorkingLink (0 ms)
 [ RUN      ] FileOperationsTest.CreateSymlinksRenamesOnNameConflict
 [       OK ] FileOperationsTest.CreateSymlinksRenamesOnNameConflict (0 ms)
-[----------] 15 tests from FileOperationsTest (14 ms total)
+[----------] 16 tests from FileOperationsTest (6 ms total)
 
 [----------] 4 tests from OperationQueueTest
 [ RUN      ] OperationQueueTest.EnqueueCopyCompletesAndCopiesFile
@@ -86,7 +97,7 @@ Output:
 [       OK ] OperationQueueTest.ConflictHandlerRunsAndOverwriteAllApplies (1 ms)
 [ RUN      ] OperationQueueTest.EnqueueSymlinkCreatesLink
 [       OK ] OperationQueueTest.EnqueueSymlinkCreatesLink (0 ms)
-[----------] 4 tests from OperationQueueTest (2 ms total)
+[----------] 4 tests from OperationQueueTest (3 ms total)
 
 [----------] 2 tests from SessionManagerTest
 [ RUN      ] SessionManagerTest.LoadReturnsFalseWhenNothingSaved
@@ -139,13 +150,13 @@ Output:
 [----------] 5 tests from TextDiffTest (0 ms total)
 
 [----------] Global test environment tear-down
-[==========] 51 tests from 9 test suites ran. (43 ms total)
-[  PASSED  ] 51 tests.
+[==========] 55 tests from 10 test suites ran. (37 ms total)
+[  PASSED  ] 55 tests.
 <end of output>
 Test time =   0.06 sec
 ----------------------------------------------------------
 Test Passed.
-"core_tests" end time: Jul 20 13:29 CST
+"core_tests" end time: Jul 20 16:19 CST
 "core_tests" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -153,7 +164,7 @@ Test Passed.
 2/3 Test: ui_tests
 Command: "/home/deepin/codework/ttc/tests/ui/ui_tests"
 Directory: /home/deepin/codework/ttc/tests/ui
-"ui_tests" start time: Jul 20 13:29 CST
+"ui_tests" start time: Jul 20 16:19 CST
 Output:
 ----------------------------------------------------------
 Running main() from /usr/src/googletest/googletest/src/gtest_main.cc
@@ -205,7 +216,7 @@ Running main() from /usr/src/googletest/googletest/src/gtest_main.cc
 Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"ui_tests" end time: Jul 20 13:29 CST
+"ui_tests" end time: Jul 20 16:19 CST
 "ui_tests" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -213,7 +224,7 @@ Test Passed.
 3/3 Test: archive_tests
 Command: "/home/deepin/codework/ttc/tests/archive/archive_tests"
 Directory: /home/deepin/codework/ttc/tests/archive
-"archive_tests" start time: Jul 20 13:29 CST
+"archive_tests" start time: Jul 20 16:19 CST
 Output:
 ----------------------------------------------------------
 Running main() from /usr/src/googletest/googletest/src/gtest_main.cc
@@ -227,7 +238,7 @@ Running main() from /usr/src/googletest/googletest/src/gtest_main.cc
 [ RUN      ] ArchiveHandlerTest.ExtractAllWritesAllFiles
 [       OK ] ArchiveHandlerTest.ExtractAllWritesAllFiles (3 ms)
 [ RUN      ] ArchiveHandlerTest.ExtractSpecificEntryWritesOnlyThatFile
-[       OK ] ArchiveHandlerTest.ExtractSpecificEntryWritesOnlyThatFile (3 ms)
+[       OK ] ArchiveHandlerTest.ExtractSpecificEntryWritesOnlyThatFile (2 ms)
 [ RUN      ] ArchiveHandlerTest.CreateZipRoundTripsThroughExtract
 [       OK ] ArchiveHandlerTest.CreateZipRoundTripsThroughExtract (0 ms)
 [ RUN      ] ArchiveHandlerTest.CreateTarGzRoundTripsThroughExtract
@@ -243,8 +254,8 @@ Running main() from /usr/src/googletest/googletest/src/gtest_main.cc
 Test time =   0.02 sec
 ----------------------------------------------------------
 Test Passed.
-"archive_tests" end time: Jul 20 13:29 CST
+"archive_tests" end time: Jul 20 16:19 CST
 "archive_tests" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-End testing: Jul 20 13:29 CST
+End testing: Jul 20 16:19 CST

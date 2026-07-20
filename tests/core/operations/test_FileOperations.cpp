@@ -117,6 +117,22 @@ TEST(FileOperationsTest, MovePathsOntoSelfIsNoOp) {
     EXPECT_FALSE(QFile::exists(QDir(dir.path()).filePath("stay (1).txt")));
 }
 
+TEST(FileOperationsTest, CopyAsWritesToExplicitTargetName) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString source = writeFile(dir.path(), "orig.txt", "payload");
+
+    FileOperations ops;
+    QString err;
+    const QString target = QDir(dir.path()).filePath("copy.txt");
+    ASSERT_TRUE(ops.copyAs(source, target, nullptr, &err)) << err.toStdString();
+
+    EXPECT_TRUE(QFile::exists(source));
+    QFile out(target);
+    ASSERT_TRUE(out.open(QIODevice::ReadOnly));
+    EXPECT_EQ(out.readAll(), QByteArray("payload"));
+}
+
 TEST(FileOperationsTest, CopyReportsByteProgressToCompletion) {
     QTemporaryDir srcDir, dstDir;
     ASSERT_TRUE(srcDir.isValid() && dstDir.isValid());
