@@ -1194,8 +1194,12 @@ void MainWindow::showBlankContextMenu(FilePanel *panel, const QPoint &viewPos) {
 
 void MainWindow::setActivePanel(FilePanel *panel) {
     m_activePanel = panel;
-    if (panel)
+    if (panel) {
         m_commandBar->setDirectory(panel->currentPath());
+        panel->setActive(true);
+        if (FilePanel *other = otherPanel(panel))
+            other->setActive(false);
+    }
 }
 
 void MainWindow::viewCurrent() {

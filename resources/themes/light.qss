@@ -69,6 +69,12 @@ QTableView::item:selected {
     color: #ffffff;
 }
 
+/* Inactive panel: softer selection so the active panel's row stands out. */
+QTableView[panelActive="false"]::item:selected {
+    background-color: #c3d4f0;
+    color: #202020;
+}
+
 QHeaderView::section {
     background-color: #ececec;
     color: #202020;

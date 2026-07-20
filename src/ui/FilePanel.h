@@ -44,6 +44,10 @@ public:
     // listing doesn't snap back to the top.
     void selectPathAfterReload(const QString &path);
 
+    // Marks this panel as the active one (of the two). Softens the inactive
+    // panel's selection colour so the active panel's cursor row stands out.
+    void setActive(bool active);
+
     // Prompts for a wildcard mask (e.g. *.txt) and adds matching files to the
     // selection (select=true) or removes them (select=false).
     void selectByPattern(bool select);

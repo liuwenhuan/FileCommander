@@ -395,6 +395,10 @@ void FilePanel::selectPathAfterReload(const QString &path) {
         m_pendingSelection.append(path);
 }
 
+void FilePanel::setActive(bool active) {
+    m_view->setPanelActive(active);
+}
+
 void FilePanel::invertSelection() {
     QItemSelection full(m_model->index(0, 0),
                          m_model->index(m_model->rowCount() - 1, m_model->columnCount() - 1));

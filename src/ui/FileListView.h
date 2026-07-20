@@ -28,6 +28,11 @@ public:
     // is currently focused.
     void keyboardSearch(const QString &search) override;
 
+    // Marks the owning panel active/inactive. Drives the "panelActive" dynamic
+    // property that the theme QSS uses to soften the selection colour on the
+    // inactive panel, so the active panel's cursor row stands out.
+    void setPanelActive(bool active);
+
 signals:
     // kind is decided from live modifier keys at drop time (not drag
     // start): in-panel default=Move, Ctrl=Copy, Shift=Link; cross-panel

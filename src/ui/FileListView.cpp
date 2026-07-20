@@ -16,6 +16,7 @@
 #include <QPainter>
 #include <QPolygon>
 #include <QResizeEvent>
+#include <QStyle>
 #include <QTimer>
 #include <QUrl>
 #include <QVector>
@@ -191,6 +192,16 @@ void FileListView::stretchColumnsToFit() {
         header->resizeSection(cols.at(i), width);
     }
     m_adjustingColumns = false;
+}
+
+void FileListView::setPanelActive(bool active) {
+    if (property("panelActive").isValid() && property("panelActive").toBool() == active)
+        return;
+    setProperty("panelActive", active);
+    // Re-run the QSS attribute selector so the selection colour updates now.
+    style()->unpolish(this);
+    style()->polish(this);
+    viewport()->update();
 }
 
 void FileListView::keyboardSearch(const QString &search) {
