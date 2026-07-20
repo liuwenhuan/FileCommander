@@ -7,6 +7,8 @@
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QItemSelectionModel>
+#include <QKeyEvent>
+#include <QLineEdit>
 #include <QShortcut>
 #include <QVBoxLayout>
 
@@ -26,12 +28,22 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_addressBar = new BreadcrumbBar(this);
     m_addressBar->setFocusPolicy(Qt::ClickFocus); // keep it out of the Tab chain
 
+    m_filterBar = new QLineEdit(this);
+    m_filterBar->setClearButtonEnabled(true);
+    m_filterBar->setPlaceholderText(tr("Filter: type to narrow the list, Esc to clear"));
+    m_filterBar->hide(); // revealed on demand via showQuickFilter()
+    m_filterBar->installEventFilter(this);
+
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(2);
     layout->addWidget(m_tabBar);
     layout->addWidget(m_addressBar);
+    layout->addWidget(m_filterBar);
     layout->addWidget(m_view, 1);
+
+    connect(m_filterBar, &QLineEdit::textChanged, this,
+            [this](const QString &text) { m_model->setNameFilter(text); });
 
     connect(m_view, &QAbstractItemView::activated, this, &FilePanel::onActivated);
     connect(m_addressBar, &BreadcrumbBar::pathActivated, this, &FilePanel::onAddressBarEntered);
@@ -109,13 +121,48 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
 bool FilePanel::eventFilter(QObject *watched, QEvent *event) {
     if (watched == m_view && event->type() == QEvent::FocusIn)
         emit panelActivated(this);
+
+    if (watched == m_filterBar && event->type() == QEvent::KeyPress) {
+        auto *ke = static_cast<QKeyEvent *>(event);
+        if (ke->key() == Qt::Key_Escape) {
+            hideQuickFilter();
+            return true;
+        }
+        // Enter / Down hand control to the list without losing the filter.
+        if (ke->key() == Qt::Key_Return || ke->key() == Qt::Key_Enter ||
+            ke->key() == Qt::Key_Down) {
+            m_view->setFocus();
+            if (m_model->rowCount() > 0 && !m_view->currentIndex().isValid())
+                m_view->setCurrentIndex(m_model->index(0, 0));
+            return true;
+        }
+    }
     return QWidget::eventFilter(watched, event);
+}
+
+void FilePanel::showQuickFilter() {
+    m_filterBar->show();
+    m_filterBar->setFocus();
+    m_filterBar->selectAll();
+}
+
+void FilePanel::hideQuickFilter() {
+    m_filterBar->clear(); // textChanged -> setNameFilter("") restores full list
+    m_filterBar->hide();
+    m_view->setFocus();
 }
 
 void FilePanel::navigateTo(const QString &path) {
     const QString cleaned = QDir(path).absolutePath();
     if (!QFileInfo(cleaned).isDir())
         return;
+    if (m_filterBar->isVisible()) {
+        // setRootPath() clears the model filter; just tidy the (now stale) bar.
+        m_filterBar->blockSignals(true);
+        m_filterBar->clear();
+        m_filterBar->hide();
+        m_filterBar->blockSignals(false);
+    }
     if (!m_model->rootPath().isEmpty())
         pushHistory(m_model->rootPath());
     m_forwardHistory.clear();

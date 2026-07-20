@@ -34,6 +34,14 @@ public:
     bool showHiddenFiles() const { return m_showHidden; }
     void setShowHiddenFiles(bool show);
 
+    // Incremental "quick filter": restricts the visible listing to entries
+    // whose name matches (case-insensitive substring, or glob if the filter
+    // contains * / ?). Empty string shows everything. The ".." entry is never
+    // filtered out. Cleared automatically whenever the directory changes.
+    void setNameFilter(const QString &filter);
+    QString nameFilter() const { return m_nameFilter; }
+    static bool matchesFilter(const QString &name, const QString &filter);
+
     FileInfo fileInfoAt(int row) const;
     bool isParentEntry(int row) const;
 
@@ -55,10 +63,13 @@ private slots:
 
 private:
     void sortEntries();
+    void applyFilter();
 
     QString m_rootPath;
     bool m_showHidden = false;
-    QVector<FileInfo> m_entries;
+    QVector<FileInfo> m_allEntries; // full directory scan (source of truth)
+    QVector<FileInfo> m_entries;    // visible subset after quick filter
+    QString m_nameFilter;
     bool m_hasParentEntry = false;
     QFutureWatcher<QVector<FileInfo>> m_watcher;
     int m_sortColumn = NameColumn;

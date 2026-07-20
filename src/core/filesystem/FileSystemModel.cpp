@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QLocale>
+#include <QRegularExpression>
 #include <QtConcurrent/QtConcurrent>
 
 #include "IconCache.h"
@@ -46,6 +47,7 @@ FileSystemModel::FileSystemModel(QObject *parent) : QAbstractTableModel(parent) 
 
 void FileSystemModel::setRootPath(const QString &path) {
     m_rootPath = path;
+    m_nameFilter.clear(); // a fresh directory always starts unfiltered
     emit loadStarted();
     QFuture<QVector<FileInfo>> future =
         QtConcurrent::run(scanDirectory, path, m_showHidden);
@@ -62,12 +64,44 @@ void FileSystemModel::setShowHiddenFiles(bool show) {
 
 void FileSystemModel::onScanFinished() {
     beginResetModel();
-    m_entries = m_watcher.result();
+    m_allEntries = m_watcher.result();
     m_hasParentEntry = QDir(m_rootPath).absolutePath() != QDir(m_rootPath).rootPath() &&
                         QDir::cleanPath(m_rootPath) != QDir::rootPath();
-    sortEntries();
+    sortEntries(); // sorts m_allEntries and rebuilds the visible m_entries
     endResetModel();
     emit loadFinished(m_entries.size());
+}
+
+bool FileSystemModel::matchesFilter(const QString &name, const QString &filter) {
+    if (filter.isEmpty())
+        return true;
+    if (filter.contains(QLatin1Char('*')) || filter.contains(QLatin1Char('?'))) {
+        const QRegularExpression re(QRegularExpression::wildcardToRegularExpression(filter),
+                                     QRegularExpression::CaseInsensitiveOption);
+        return re.match(name).hasMatch();
+    }
+    return name.contains(filter, Qt::CaseInsensitive);
+}
+
+void FileSystemModel::applyFilter() {
+    if (m_nameFilter.isEmpty()) {
+        m_entries = m_allEntries;
+        return;
+    }
+    m_entries.clear();
+    m_entries.reserve(m_allEntries.size());
+    for (const FileInfo &entry : m_allEntries)
+        if (matchesFilter(entry.name(), m_nameFilter))
+            m_entries.append(entry);
+}
+
+void FileSystemModel::setNameFilter(const QString &filter) {
+    if (m_nameFilter == filter)
+        return;
+    beginResetModel();
+    m_nameFilter = filter;
+    applyFilter();
+    endResetModel();
 }
 
 bool FileSystemModel::isParentEntry(int row) const {
@@ -166,7 +200,7 @@ void FileSystemModel::sortEntries() {
     collator.setNumericMode(true);
     collator.setCaseSensitivity(Qt::CaseInsensitive);
 
-    std::sort(m_entries.begin(), m_entries.end(), [&](const FileInfo &a, const FileInfo &b) {
+    std::sort(m_allEntries.begin(), m_allEntries.end(), [&](const FileInfo &a, const FileInfo &b) {
         // Directories always sort before files, regardless of sort column.
         if (a.isDir() != b.isDir())
             return a.isDir();
@@ -190,6 +224,7 @@ void FileSystemModel::sortEntries() {
             cmp = collator.compare(a.name(), b.name());
         return m_sortOrder == Qt::AscendingOrder ? cmp < 0 : cmp > 0;
     });
+    applyFilter(); // keep the visible subset in sync with the sorted source
 }
 
 Qt::ItemFlags FileSystemModel::flags(const QModelIndex &index) const {

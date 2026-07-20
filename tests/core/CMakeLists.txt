@@ -1,6 +1,7 @@
 add_executable(core_tests
     test_main.cpp
     filesystem/test_FileInfo.cpp
+    filesystem/test_FileSystemModel.cpp
     filesystem/test_IconCache.cpp
     operations/test_FileOperations.cpp
     config/test_SessionManager.cpp
@@ -14,6 +15,7 @@ target_link_libraries(core_tests PRIVATE
     gtest
     Qt5::Widgets
     Qt5::Core
+    Qt5::Test
 )
 
 add_test(NAME core_tests COMMAND core_tests)

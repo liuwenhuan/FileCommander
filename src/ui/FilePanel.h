@@ -10,6 +10,7 @@
 class BreadcrumbBar;
 class FileListView;
 class TabBar;
+class QLineEdit;
 
 // One side of the dual-pane layout: address bar + file list + per-panel
 // back/forward history. Two of these live in MainWindow (left/right).
@@ -39,6 +40,11 @@ public:
     void closeCurrentTab();
     void nextTab();
     void prevTab();
+
+    // Reveals the quick-filter box and gives it focus. Esc (handled in the
+    // event filter) hides it and restores the full listing.
+    void showQuickFilter();
+    void hideQuickFilter();
 
     // Session persistence: plain Qt types (not TabState) so MainWindow can
     // hand these to core/config's SessionManager without ui depending on
@@ -74,6 +80,7 @@ private:
     void updateActiveTabLabel();
 
     BreadcrumbBar *m_addressBar;
+    QLineEdit *m_filterBar;
     FileListView *m_view;
     FileSystemModel *m_model;
     QStringList m_backHistory;

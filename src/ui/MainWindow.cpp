@@ -385,6 +385,10 @@ void MainWindow::setupShortcuts() {
                  [this] { openMultiRenameDialog(); });
     bindShortcut("directoryHotlist", tr("Directory Hotlist"), QKeySequence(Qt::CTRL | Qt::Key_D),
                  [this] { openDirectoryHotlist(); });
+    bindShortcut("quickFilter", tr("Quick Filter"), QKeySequence(Qt::CTRL | Qt::Key_S), [this] {
+        if (m_activePanel)
+            m_activePanel->showQuickFilter();
+    });
 }
 
 void MainWindow::openShortcutsDialog() {
