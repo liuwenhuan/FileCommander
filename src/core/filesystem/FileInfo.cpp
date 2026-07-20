@@ -14,11 +14,18 @@ FileInfo::FileInfo(const QString &path) {
     m_size = qfi.size();
     m_modified = qfi.lastModified();
     m_permissions = qfi.permissions();
+    // m_mimeType is intentionally left empty here; see mimeType() below.
+}
 
-    if (!m_isDir) {
+const QString &FileInfo::mimeType() const {
+    // Scanning a large directory constructs thousands of FileInfos; running
+    // MIME detection on each one there dominated the load time even though
+    // most listings never read it. Compute on demand instead, then cache.
+    if (m_mimeType.isNull() && !m_isDir && !m_path.isEmpty()) {
         static QMimeDatabase db;
-        m_mimeType = db.mimeTypeForFile(qfi).name();
+        m_mimeType = db.mimeTypeForFile(m_path).name();
     }
+    return m_mimeType;
 }
 
 FileInfo FileInfo::makeParentEntry(const QString &parentPath) {

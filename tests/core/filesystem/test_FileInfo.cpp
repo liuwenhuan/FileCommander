@@ -6,6 +6,23 @@
 
 #include "FileInfo.h"
 
+TEST(FileInfoTest, MimeTypeIsComputedLazilyAndCorrectly) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString path = dir.filePath("note.txt");
+    QFile file(path);
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    file.write("plain text content");
+    file.close();
+
+    // Deferred (not computed in the constructor), then resolved on first
+    // access and stable on subsequent calls.
+    FileInfo info(path);
+    const QString mime = info.mimeType();
+    EXPECT_EQ(mime.toStdString(), "text/plain");
+    EXPECT_EQ(info.mimeType().toStdString(), "text/plain");
+}
+
 TEST(FileInfoTest, ReadsRegularFileMetadata) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());

@@ -20,7 +20,9 @@ public:
     bool isDir() const { return m_isDir; }
     bool isSymLink() const { return m_isSymLink; }
     bool isParentEntry() const { return m_isParentEntry; }
-    const QString &mimeType() const { return m_mimeType; }
+    // Computed lazily on first access (MIME detection is relatively expensive
+    // and most listings never need it), then cached.
+    const QString &mimeType() const;
 
     QString permissionsString() const;
     bool isValid() const { return !m_path.isEmpty(); }
@@ -35,5 +37,5 @@ private:
     bool m_isDir = false;
     bool m_isSymLink = false;
     bool m_isParentEntry = false;
-    QString m_mimeType;
+    mutable QString m_mimeType; // lazily populated by mimeType()
 };
