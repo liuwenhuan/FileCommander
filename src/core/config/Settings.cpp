@@ -63,6 +63,14 @@ void Settings::setWindowGeometry(const QByteArray &geometry) {
     m_settings.setValue("window/geometry", geometry);
 }
 
+QByteArray Settings::viewHeaderState() const {
+    return m_settings.value("window/viewHeaderState").toByteArray();
+}
+
+void Settings::setViewHeaderState(const QByteArray &state) {
+    m_settings.setValue("window/viewHeaderState", state);
+}
+
 QKeySequence Settings::shortcut(const QString &actionId, const QKeySequence &defaultSeq) const {
     const QString key = QStringLiteral("shortcuts/") + actionId;
     if (!m_settings.contains(key))

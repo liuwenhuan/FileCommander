@@ -33,6 +33,11 @@ public:
     QByteArray windowGeometry() const;
     void setWindowGeometry(const QByteArray &geometry);
 
+    // File-list header layout (column widths + sort indicator), shared by both
+    // panels, from QHeaderView::saveState().
+    QByteArray viewHeaderState() const;
+    void setViewHeaderState(const QByteArray &state);
+
     // Per-action keyboard shortcut overrides, keyed by a stable action id
     // (e.g. "copy", "newTab"). Returns defaultSeq if nothing was saved.
     QKeySequence shortcut(const QString &actionId, const QKeySequence &defaultSeq) const;

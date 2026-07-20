@@ -24,6 +24,7 @@
 #include <QStandardPaths>
 #include <QStatusBar>
 #include <QToolBar>
+#include <QHeaderView>
 #include <QTreeView>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -186,6 +187,17 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     connect(m_queue, &OperationQueue::errorOccurred, this, [this](const QString &msg) {
         m_operationErrors.append(msg);
     });
+
+    // Restore persisted view state before the first scan so it takes effect
+    // immediately: hidden-files preference and the shared column layout/sort.
+    const bool showHidden = m_settings.showHiddenFiles();
+    m_leftPanel->model()->setShowHiddenFiles(showHidden);
+    m_rightPanel->model()->setShowHiddenFiles(showHidden);
+    const QByteArray headerState = m_settings.viewHeaderState();
+    if (!headerState.isEmpty()) {
+        m_leftPanel->view()->horizontalHeader()->restoreState(headerState);
+        m_rightPanel->view()->horizontalHeader()->restoreState(headerState);
+    }
 
     const QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
     SessionPanelData leftSession, rightSession;
@@ -437,8 +449,10 @@ void MainWindow::setupShortcuts() {
                  [this] { showProperties(); });
     bindShortcut("toggleHidden", tr("Show Hidden Files"), QKeySequence(Qt::CTRL | Qt::Key_H),
                  [this] {
-                     if (m_activePanel)
-                         m_activePanel->toggleHiddenFiles();
+                     if (!m_activePanel)
+                         return;
+                     m_activePanel->toggleHiddenFiles();
+                     m_settings.setShowHiddenFiles(m_activePanel->model()->showHiddenFiles());
                  });
     bindShortcut("calcSize", tr("Calculate Folder Size"),
                  QKeySequence(Qt::ALT | Qt::SHIFT | Qt::Key_Return), [this] { calculateSizes(); });
@@ -1035,6 +1049,8 @@ void MainWindow::refreshActivePanel() {
 
 void MainWindow::closeEvent(QCloseEvent *event) {
     m_settings.setWindowGeometry(saveGeometry());
+    // Persist the shared column layout + sort from the left panel's header.
+    m_settings.setViewHeaderState(m_leftPanel->view()->horizontalHeader()->saveState());
 
     SessionPanelData leftSession, rightSession;
     for (const auto &t : m_leftPanel->tabSnapshot())
