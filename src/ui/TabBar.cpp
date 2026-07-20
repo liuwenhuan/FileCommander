@@ -3,9 +3,11 @@
 #include <QAbstractButton>
 #include <QColor>
 #include <QContextMenuEvent>
+#include <QEvent>
 #include <QMenu>
 #include <QPaintEvent>
 #include <QPainter>
+#include <QToolButton>
 
 namespace {
 // A close button that paints its own "×" so the deepin (DTK) style can't
@@ -47,6 +49,59 @@ TabBar::TabBar(QWidget *parent) : QTabBar(parent) {
     setFocusPolicy(Qt::NoFocus);   // no dashed focus rectangle on the active tab
 
     connect(this, &QTabBar::tabCloseRequested, this, &TabBar::closeTabRequested);
+
+    // The left/right scroll buttons QTabBar creates for overflow are QToolButtons
+    // whose arrows the style draws too large. Flatten them and take over their
+    // painting (see eventFilter). They exist from construction, before any tab.
+    const auto scrollButtons = findChildren<QToolButton *>();
+    for (QToolButton *b : scrollButtons) {
+        b->setAutoRaise(true);
+        b->installEventFilter(this);
+    }
+}
+
+bool TabBar::eventFilter(QObject *watched, QEvent *event) {
+    if (event->type() == QEvent::Paint) {
+        if (auto *btn = qobject_cast<QToolButton *>(watched)) {
+            QPainter p(btn);
+            p.setRenderHint(QPainter::Antialiasing);
+            const QRect r = btn->rect();
+
+            // DTK paints its (oversized) scroller arrow onto the tab bar itself,
+            // beneath these transparent buttons -- so fill the button with the
+            // tab-bar background first to hide it, then draw only our chevron.
+            p.fillRect(r, palette().color(QPalette::Window));
+
+            // Subtle hover fill, theme-adaptive, echoing the flat tool buttons.
+            if (btn->isEnabled() && btn->underMouse()) {
+                QColor hover = palette().color(QPalette::WindowText);
+                hover.setAlpha(28);
+                p.setPen(Qt::NoPen);
+                p.setBrush(hover);
+                p.drawRoundedRect(r.adjusted(1, 1, -1, -1), 3, 3);
+            }
+
+            const QColor fg = btn->isEnabled() ? palette().color(QPalette::WindowText)
+                                               : palette().color(QPalette::Mid);
+            p.setPen(QPen(fg, 1.6));
+            p.setBrush(Qt::NoBrush);
+            const int cx = r.center().x();
+            const int cy = r.center().y();
+            const int aw = 3; // chevron half-width
+            const int ah = 5; // chevron half-height
+            // The style leaves arrowType() == NoArrow on these, so decide the
+            // direction from the well-known object names instead.
+            if (btn->objectName() == QLatin1String("ScrollLeftButton")) {
+                p.drawLine(cx + aw, cy - ah, cx - aw, cy);
+                p.drawLine(cx - aw, cy, cx + aw, cy + ah);
+            } else {
+                p.drawLine(cx - aw, cy - ah, cx + aw, cy);
+                p.drawLine(cx + aw, cy, cx - aw, cy + ah);
+            }
+            return true; // painted; skip the style's default arrow
+        }
+    }
+    return QTabBar::eventFilter(watched, event);
 }
 
 QAbstractButton *TabBar::createCloseButton() {

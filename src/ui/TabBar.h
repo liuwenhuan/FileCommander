@@ -23,6 +23,9 @@ protected:
     void contextMenuEvent(QContextMenuEvent *event) override;
     void tabInserted(int index) override;
     void paintEvent(QPaintEvent *event) override;
+    // Repaints the style's oversized tab-scroll arrows (shown when tabs
+    // overflow) as small flat chevrons matching the panel's other buttons.
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
     // Recolours the "×" buttons: the current tab's is white (its background is
