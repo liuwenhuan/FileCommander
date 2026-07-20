@@ -1,8 +1,43 @@
 #include "TabBar.h"
 
+#include <QAbstractButton>
+#include <QColor>
 #include <QContextMenuEvent>
 #include <QMenu>
-#include <QToolButton>
+#include <QPaintEvent>
+#include <QPainter>
+
+namespace {
+// A close button that paints its own "×" so the deepin (DTK) style can't
+// recolour it the way it recolours QToolButton icons/stylesheet text.
+class TabCloseButton : public QAbstractButton {
+public:
+    explicit TabCloseButton(QWidget *parent = nullptr) : QAbstractButton(parent) {
+        setCursor(Qt::ArrowCursor);
+        setFocusPolicy(Qt::NoFocus);
+    }
+    void setColour(const QColor &c) {
+        if (m_colour != c) {
+            m_colour = c;
+            update();
+        }
+    }
+    QSize sizeHint() const override { return QSize(18, 18); }
+
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing);
+        p.setPen(QPen(underMouse() ? QColor(0xe0, 0x4b, 0x4b) : m_colour, 1.6));
+        const int m = width() / 3;
+        p.drawLine(m, m, width() - m, height() - m);
+        p.drawLine(width() - m, m, m, height() - m);
+    }
+
+private:
+    QColor m_colour = Qt::black;
+};
+} // namespace
 
 TabBar::TabBar(QWidget *parent) : QTabBar(parent) {
     // Custom close buttons (see tabInserted) rather than the style's default,
@@ -12,20 +47,14 @@ TabBar::TabBar(QWidget *parent) : QTabBar(parent) {
     setFocusPolicy(Qt::NoFocus);   // no dashed focus rectangle on the active tab
 
     connect(this, &QTabBar::tabCloseRequested, this, &TabBar::closeTabRequested);
-    connect(this, &QTabBar::currentChanged, this, [this](int) { refreshCloseButtons(); });
 }
 
 void TabBar::tabInserted(int index) {
     QTabBar::tabInserted(index);
 
-    // A plain "×" glyph -- no circular button background. Colour is set by
-    // refreshCloseButtons() so it stays legible per tab state and theme.
-    auto *close = new QToolButton(this);
-    close->setText(QStringLiteral("×"));
-    close->setFocusPolicy(Qt::NoFocus);
-    close->setCursor(Qt::ArrowCursor);
+    auto *close = new TabCloseButton(this);
     close->setToolTip(tr("Close Tab"));
-    connect(close, &QToolButton::clicked, this, [this, close]() {
+    connect(close, &QAbstractButton::clicked, this, [this, close]() {
         for (int i = 0; i < count(); ++i) {
             if (tabButton(i, QTabBar::RightSide) == close) {
                 emit tabCloseRequested(i);
@@ -34,21 +63,27 @@ void TabBar::tabInserted(int index) {
         }
     });
     setTabButton(index, QTabBar::RightSide, close);
+}
+
+void TabBar::paintEvent(QPaintEvent *event) {
+    // Reconcile the close-button colours on every repaint: currentIndex() is
+    // always authoritative here, so this self-corrects even when a tab was
+    // added/switched with signals blocked. setColour() no-ops when unchanged,
+    // so a settled tab bar does no extra work.
     refreshCloseButtons();
+    QTabBar::paintEvent(event);
 }
 
 void TabBar::refreshCloseButtons() {
-    const QString normal = palette().color(QPalette::WindowText).name();
-    const QString active = palette().color(QPalette::HighlightedText).name();
+    // Selected tab is blue in both themes -> white ×. Others match the tab
+    // label colour (palette WindowText), so the × is as legible as the text.
+    const QColor normal = palette().color(QPalette::WindowText);
     for (int i = 0; i < count(); ++i) {
-        auto *btn = qobject_cast<QToolButton *>(tabButton(i, QTabBar::RightSide));
+        auto *btn = qobject_cast<QAbstractButton *>(tabButton(i, QTabBar::RightSide));
         if (!btn)
             continue;
-        const QString colour = (i == currentIndex()) ? active : normal;
-        btn->setStyleSheet(
-            QStringLiteral("QToolButton { border: none; background: transparent;"
-                           " padding: 0 3px; font-size: 15px; font-weight: bold; color: %1; }")
-                .arg(colour));
+        static_cast<TabCloseButton *>(btn)->setColour(i == currentIndex() ? QColor(Qt::white)
+                                                                          : normal);
     }
 }
 
