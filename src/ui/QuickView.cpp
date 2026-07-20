@@ -3,6 +3,7 @@
 #include <QCheckBox>
 #include <QFile>
 #include <QFileInfo>
+#include <QImageReader>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QPlainTextEdit>
@@ -75,6 +76,19 @@ QWidget *QuickView::buildImagePage() {
     m_lockZoomCheck->setToolTip(tr("Keep the current zoom ratio for the next images"));
     toolbar->addWidget(m_lockZoomCheck);
 
+    m_infoCheck = new QCheckBox(tr("Show info"), toolbar);
+    m_infoCheck->setToolTip(tr("Overlay basic image information"));
+    toolbar->addWidget(m_infoCheck);
+    connect(m_infoCheck, &QCheckBox::toggled, this, [this](bool on) {
+        // The overlay only makes sense over an actual image page.
+        if (on && m_stack->currentWidget() == m_imagePage && !m_originalPixmap.isNull()) {
+            m_infoOverlay->show();
+            positionInfoOverlay();
+        } else {
+            m_infoOverlay->hide();
+        }
+    });
+
     m_imageLabel = new QLabel(m_imagePage);
     m_imageLabel->setAlignment(Qt::AlignCenter);
     m_imageScroll = new QScrollArea(m_imagePage);
@@ -85,6 +99,15 @@ QWidget *QuickView::buildImagePage() {
     // and the empty viewport around it.
     m_imageLabel->installEventFilter(this);
     m_imageScroll->viewport()->installEventFilter(this);
+
+    // Floating metadata panel, parented to the viewport so it hovers over the
+    // image and does not scroll with it.
+    m_infoOverlay = new QLabel(m_imageScroll->viewport());
+    m_infoOverlay->setStyleSheet(
+        "background: rgba(0,0,0,160); color: white; padding: 6px; border-radius: 4px;");
+    m_infoOverlay->setTextFormat(Qt::RichText);
+    m_infoOverlay->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_infoOverlay->hide();
 
     auto *layout = new QVBoxLayout(m_imagePage);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -118,6 +141,16 @@ void QuickView::applyImageScale() {
     m_imageScroll->viewport()->setCursor(pannable ? Qt::OpenHandCursor : Qt::ArrowCursor);
 }
 
+void QuickView::positionInfoOverlay() {
+    if (!m_infoOverlay->isVisible())
+        return;
+    m_infoOverlay->adjustSize();
+    const int vw = m_imageScroll->viewport()->width();
+    const int x = qMax(8, vw - m_infoOverlay->width() - 8);
+    m_infoOverlay->move(x, 8);
+    m_infoOverlay->raise();
+}
+
 void QuickView::zoomImageBy(double factor) {
     m_imageFitMode = false;
     m_imageScale = qBound(kMinScale, m_imageScale * factor, kMaxScale);
@@ -127,6 +160,10 @@ void QuickView::zoomImageBy(double factor) {
 bool QuickView::eventFilter(QObject *watched, QEvent *event) {
     const bool onImage =
         watched == m_imageLabel || watched == m_imageScroll->viewport();
+    if (watched == m_imageScroll->viewport() && event->type() == QEvent::Resize) {
+        positionInfoOverlay(); // keep the panel pinned to the top-right corner
+        // fall through to default handling
+    }
     if (onImage) {
         switch (event->type()) {
         case QEvent::Wheel: {
@@ -182,16 +219,37 @@ void QuickView::resizeEvent(QResizeEvent *event) {
 void QuickView::showFile(const QString &path) {
     QFileInfo info(path);
     if (path.isEmpty() || !info.exists() || info.isDir()) {
+        m_infoOverlay->hide();
         m_info->setText(tr("Select a file to preview"));
         m_stack->setCurrentWidget(m_info);
         return;
     }
 
     if (ImageViewer::isImage(path)) {
+        QImageReader reader(path);
+        const QSize dim = reader.size();
+        const QString format = QString::fromLatin1(reader.format()).toUpper();
         QPixmap pm(path);
         if (!pm.isNull()) {
             m_originalPixmap = pm;
+
+            // Build the metadata panel from what QImageReader/QPixmap expose.
+            const QString text =
+                tr("<b>%1</b><br>%2 &times; %3<br>%4<br>%5 bpp")
+                    .arg(info.fileName().toHtmlEscaped())
+                    .arg(dim.isValid() ? dim.width() : pm.width())
+                    .arg(dim.isValid() ? dim.height() : pm.height())
+                    .arg(format.isEmpty() ? tr("Unknown format") : format)
+                    .arg(pm.depth());
+            m_infoOverlay->setText(text);
+
             m_stack->setCurrentWidget(m_imagePage);
+            if (m_infoCheck->isChecked()) {
+                m_infoOverlay->show();
+                positionInfoOverlay();
+            } else {
+                m_infoOverlay->hide();
+            }
             if (m_lockZoomCheck->isChecked()) {
                 // Reuse the ratio the user locked in; don't refit.
                 m_imageFitMode = false;
@@ -205,6 +263,7 @@ void QuickView::showFile(const QString &path) {
     }
 
     m_originalPixmap = QPixmap();
+    m_infoOverlay->hide(); // no image behind it on the text / no-preview pages
     QFile file(path);
     if (file.open(QIODevice::ReadOnly)) {
         const QByteArray head = file.read(kTextPreviewBytes);

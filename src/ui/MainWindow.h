@@ -9,6 +9,8 @@
 #include <QStringList>
 #include <functional>
 
+#include <QLabel>
+
 #include "FileListView.h"
 #include "Settings.h"
 
@@ -33,6 +35,8 @@ public:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    // Turns a click on the View-menu font-size label into a QInputDialog prompt.
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private slots:
     void setActivePanel(FilePanel *panel);
@@ -137,4 +141,8 @@ private:
     QMap<QString, QString> m_commandLabels;                  // id -> label (all commands)
     QList<QPair<QString, QString>> m_shortcutOrder; // id, label (keyed shortcuts only)
     QString m_fkeyCommands[6];  // command id per F3..F8 slot
+
+    // File-list font-size control living in the View menu.
+    QLabel *m_fontSizeLabel = nullptr;
+    std::function<void(int)> m_applyListFontSize;
 };

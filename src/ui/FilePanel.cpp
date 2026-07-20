@@ -4,6 +4,8 @@
 #include <QDir>
 #include <QEvent>
 #include <QFileInfo>
+#include <QFont>
+#include <QFontMetrics>
 #include <QFutureWatcher>
 #include <QGuiApplication>
 #include <QHBoxLayout>
@@ -394,6 +396,20 @@ QStringList FilePanel::selectedPaths() const {
             paths.append(cur);
     }
     return paths;
+}
+
+void FilePanel::setListFontSize(int pt) {
+    pt = qBound(7, pt, 24);
+    QFont f = m_view->font();
+    f.setPointSize(pt);
+    m_view->setFont(f);
+
+    // Re-derive the row / header height from the new metrics so the list grows
+    // (or shrinks) with the font instead of clipping rows. Mirrors the initial
+    // sizing in the constructor.
+    const int rowH = qMax(QFontMetrics(f).height(), 16) + 6;
+    m_view->verticalHeader()->setDefaultSectionSize(rowH);
+    m_view->horizontalHeader()->setFixedHeight(rowH);
 }
 
 void FilePanel::selectAll() {
