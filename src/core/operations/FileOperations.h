@@ -1,5 +1,7 @@
 #pragma once
 
+#include <atomic>
+
 #include <QObject>
 #include <QStringList>
 
@@ -27,7 +29,13 @@ public:
     bool createSymlinks(const QStringList &sources, const QString &destDir,
                          QString *errorMessage = nullptr);
 
-    bool wasCancelled() const { return m_cancelled; }
+    bool wasCancelled() const { return m_cancelled.load(); }
+
+    // Thread-safe: called from the GUI thread while a copy/move/delete runs
+    // on the worker thread. The running loop polls m_cancelled between
+    // entries and bails out at the next boundary (per-file granularity: an
+    // in-flight single-file copy is not interrupted mid-write).
+    void requestCancel() { m_cancelled.store(true); }
 
 signals:
     void progress(qint64 done, qint64 total, const QString &currentFile);
@@ -41,5 +49,5 @@ private:
     static qint64 countEntries(const QStringList &paths);
     static QString uniqueDestination(const QString &destDir, const QString &name);
 
-    bool m_cancelled = false;
+    std::atomic<bool> m_cancelled{false};
 };

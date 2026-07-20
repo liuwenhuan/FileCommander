@@ -139,21 +139,33 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     });
     m_progressDialog = new OperationProgressDialog(this);
     connect(m_queue, &OperationQueue::started, this, [this](const QString &desc) {
+        m_operationErrors.clear();
         m_progressDialog->setDescription(desc);
         m_progressDialog->show();
     });
     connect(m_queue, &OperationQueue::progress, m_progressDialog,
             &OperationProgressDialog::setProgress);
     connect(m_progressDialog, &OperationProgressDialog::cancelRequested, this, [this]() {
-        m_progressDialog->hide();
+        // Actually stop the worker (and drop queued jobs), not just hide the
+        // dialog. The finished handler hides it once the job unwinds.
+        m_queue->cancelCurrent();
     });
     connect(m_queue, &OperationQueue::finished, this, [this](bool) {
         m_progressDialog->hide();
         m_leftPanel->refresh();
         m_rightPanel->refresh();
+        // Report all per-file failures once, not one modal per error.
+        if (!m_operationErrors.isEmpty()) {
+            const int shown = qMin(m_operationErrors.size(), 20);
+            QString text = m_operationErrors.mid(0, shown).join(QLatin1Char('\n'));
+            if (m_operationErrors.size() > shown)
+                text += tr("\n... and %1 more.").arg(m_operationErrors.size() - shown);
+            QMessageBox::warning(this, tr("Operation Error"), text);
+            m_operationErrors.clear();
+        }
     });
     connect(m_queue, &OperationQueue::errorOccurred, this, [this](const QString &msg) {
-        QMessageBox::warning(this, tr("Operation Error"), msg);
+        m_operationErrors.append(msg);
     });
 
     const QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);

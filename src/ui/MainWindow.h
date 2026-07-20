@@ -6,6 +6,7 @@
 #include <QMap>
 #include <QPair>
 #include <QString>
+#include <QStringList>
 #include <functional>
 
 #include "FileListView.h"
@@ -80,6 +81,7 @@ private:
     StatusBarWidget *m_statusBarWidget;
     OperationQueue *m_queue;
     OperationProgressDialog *m_progressDialog;
+    QStringList m_operationErrors; // accumulated per-file errors for the running job
     ThemeManager *m_themeManager;
     Settings m_settings;
     QSplitter *m_outerSplitter;

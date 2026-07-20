@@ -70,7 +70,16 @@ bool FileOperations::copyOne(const QString &source, const QString &destDir, bool
     QString destName = srcInfo.fileName();
     QString destPath = QDir(destDir).filePath(destName);
 
-    if (QFileInfo::exists(destPath) && QDir::cleanPath(destPath) != QDir::cleanPath(source)) {
+    // Dropping/pasting an entry into the directory it already lives in.
+    // We must never run the remove+copy path below on this: destPath IS the
+    // source, so removing it would destroy the very file we're copying.
+    if (QDir::cleanPath(destPath) == QDir::cleanPath(source)) {
+        if (removeSource)
+            return true; // move onto itself: nothing to do
+        // Copy onto itself: produce "name (1).ext" and leave the original
+        // untouched, mirroring what Total Commander / file managers do.
+        destPath = QDir(destDir).filePath(uniqueDestination(destDir, destName));
+    } else if (QFileInfo::exists(destPath)) {
         ErrorAction action = batchAction;
         if (action != ErrorAction::OverwriteAll && action != ErrorAction::SkipAll)
             action = resolver ? resolver(source, destPath) : ErrorAction::Skip;

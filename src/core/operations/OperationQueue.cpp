@@ -94,6 +94,14 @@ void OperationQueue::enqueueSymlink(const QStringList &sources, const QString &d
     maybeStartNext();
 }
 
+void OperationQueue::cancelCurrent() {
+    // Drop everything not yet started so the queue doesn't keep going after
+    // the user cancels, then signal the in-flight job to stop.
+    m_queue.clear();
+    if (m_ops)
+        m_ops->requestCancel();
+}
+
 void OperationQueue::maybeStartNext() {
     if (m_busy || m_queue.isEmpty())
         return;

@@ -81,6 +81,62 @@ TEST(FileOperationsTest, ConflictResolverOverwriteReplacesDestination) {
     EXPECT_EQ(dest.readAll(), QByteArray("new"));
 }
 
+TEST(FileOperationsTest, CopyPathsOntoSelfKeepsOriginalAndMakesRenamedDuplicate) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString source = writeFile(dir.path(), "self.txt", "payload");
+
+    FileOperations ops;
+    QString err;
+    // Copying into the directory the file already lives in must not destroy it.
+    ASSERT_TRUE(ops.copyPaths({source}, dir.path(), nullptr, &err)) << err.toStdString();
+
+    QFile original(source);
+    ASSERT_TRUE(original.open(QIODevice::ReadOnly));
+    EXPECT_EQ(original.readAll(), QByteArray("payload"));
+
+    QFile duplicate(QDir(dir.path()).filePath("self (1).txt"));
+    ASSERT_TRUE(duplicate.open(QIODevice::ReadOnly));
+    EXPECT_EQ(duplicate.readAll(), QByteArray("payload"));
+}
+
+TEST(FileOperationsTest, MovePathsOntoSelfIsNoOp) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString source = writeFile(dir.path(), "stay.txt", "payload");
+
+    FileOperations ops;
+    QString err;
+    ASSERT_TRUE(ops.movePaths({source}, dir.path(), nullptr, &err)) << err.toStdString();
+
+    QFile original(source);
+    ASSERT_TRUE(original.open(QIODevice::ReadOnly));
+    EXPECT_EQ(original.readAll(), QByteArray("payload"));
+    // No spurious renamed duplicate left behind.
+    EXPECT_FALSE(QFile::exists(QDir(dir.path()).filePath("stay (1).txt")));
+}
+
+TEST(FileOperationsTest, RequestCancelStopsRemainingEntries) {
+    QTemporaryDir srcDir, dstDir;
+    ASSERT_TRUE(srcDir.isValid() && dstDir.isValid());
+    const QString a = writeFile(srcDir.path(), "a.txt");
+    const QString b = writeFile(srcDir.path(), "b.txt");
+    // Pre-create a conflict so the resolver runs for the first entry, where
+    // we trigger cancellation mid-batch.
+    writeFile(dstDir.path(), "a.txt", "existing");
+
+    FileOperations ops;
+    ConflictResolver resolver = [&ops](const QString &, const QString &) {
+        ops.requestCancel();
+        return ErrorAction::Skip;
+    };
+    QString err;
+    EXPECT_FALSE(ops.copyPaths({a, b}, dstDir.path(), resolver, &err));
+    EXPECT_TRUE(ops.wasCancelled());
+    // The second entry must never have been processed.
+    EXPECT_FALSE(QFile::exists(QDir(dstDir.path()).filePath("b.txt")));
+}
+
 TEST(FileOperationsTest, DeletePathsPermanentlyRemovesFile) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());

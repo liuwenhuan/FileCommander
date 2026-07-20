@@ -31,6 +31,11 @@ public:
     void enqueueRename(const QString &path, const QString &newName);
     void enqueueSymlink(const QStringList &sources, const QString &destDir);
 
+    // Requests cancellation of the running operation and drops any jobs still
+    // queued behind it. Safe to call from the GUI thread; the worker stops at
+    // the next per-entry boundary.
+    void cancelCurrent();
+
     bool isBusy() const { return m_busy; }
 
 signals:
