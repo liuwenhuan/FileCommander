@@ -20,6 +20,10 @@ MpvWidget::MpvWidget(QWidget *parent) : QOpenGLWidget(parent) {
     mpv_set_option_string(m_mpv, "input-vo-keyboard", "no");
     mpv_set_option_string(m_mpv, "keep-open", "yes"); // don't tear down at EOF
     mpv_set_option_string(m_mpv, "mute", "yes");      // default muted
+    // Render into our QOpenGLWidget via the render API instead of letting mpv
+    // spawn its own top-level window. Without this, mpv picks a windowed VO
+    // (gpu) and the video pops out in a separate "… - mpv" window.
+    mpv_set_option_string(m_mpv, "vo", "libmpv");
 
     if (mpv_initialize(m_mpv) < 0)
         throw std::runtime_error("could not initialize mpv");
@@ -58,12 +62,14 @@ void MpvWidget::initializeGL() {
     glInit.get_proc_address = &MpvWidget::getProcAddress;
     glInit.get_proc_address_ctx = this;
 
-    int advancedControl = 1;
+    // Plain (non-advanced) render mode: mpv decodes on its own clock and the
+    // update callback just asks us to repaint. Advanced control requires the
+    // render calls themselves to drive decoding, which left the frame black and
+    // video params unread when the timing wasn't perfectly wired.
     mpv_render_param params[]{
         {MPV_RENDER_PARAM_API_TYPE,
          const_cast<char *>(MPV_RENDER_API_TYPE_OPENGL)},
         {MPV_RENDER_PARAM_OPENGL_INIT_PARAMS, &glInit},
-        {MPV_RENDER_PARAM_ADVANCED_CONTROL, &advancedControl},
         {MPV_RENDER_PARAM_INVALID, nullptr},
     };
 
@@ -72,6 +78,13 @@ void MpvWidget::initializeGL() {
 
     mpv_render_context_set_update_callback(m_mpvGl,
                                            &MpvWidget::onMpvRenderUpdate, this);
+
+    // Now that the VO (render context) exists, play any file requested earlier.
+    if (!m_pendingLoad.isEmpty()) {
+        const QString path = m_pendingLoad;
+        m_pendingLoad.clear();
+        load(path);
+    }
 }
 
 void MpvWidget::paintGL() {
@@ -99,6 +112,11 @@ void MpvWidget::doUpdate() {
 void MpvWidget::load(const QString &path) {
     if (!m_mpv)
         return;
+    if (!m_mpvGl) {
+        // GL/render context not created yet; replay once initializeGL() runs.
+        m_pendingLoad = path;
+        return;
+    }
     const QByteArray file = path.toUtf8();
     const char *cmd[] = {"loadfile", file.constData(), nullptr};
     mpv_command_async(m_mpv, 0, cmd);

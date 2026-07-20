@@ -4,6 +4,8 @@
 #include <QPainter>
 #include <QPixmap>
 
+#include <clocale>
+
 #include "MainWindow.h"
 #include "Settings.h"
 #include "TranslationManager.h"
@@ -54,6 +56,11 @@ QIcon appIcon() {
 
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
+    // libmpv (video preview) refuses to create a context unless LC_NUMERIC is
+    // "C". Qt/system locale otherwise sets it to the user's locale, which makes
+    // mpv_create() throw. Reset just the numeric category (keeps the rest of the
+    // locale for translated text) right after QApplication has done its setup.
+    std::setlocale(LC_NUMERIC, "C");
     app.setApplicationName("ttc");
     app.setOrganizationName("ttc");
     // deepin's dxcb title bar resolves its icon from the matching .desktop

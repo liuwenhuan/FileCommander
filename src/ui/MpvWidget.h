@@ -57,4 +57,8 @@ private:
 
     mpv_handle *m_mpv = nullptr;
     mpv_render_context *m_mpvGl = nullptr;
+    // A load() requested before the GL/render context exists is deferred here
+    // and replayed from initializeGL(), so mpv always has a VO when it opens the
+    // file (otherwise the video track isn't decoded and the frame stays black).
+    QString m_pendingLoad;
 };
