@@ -18,6 +18,7 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMimeData>
+#include <QPainter>
 #include <QProcess>
 #include <QPushButton>
 #include <QShortcut>
@@ -62,6 +63,28 @@
 #include "dialogs/SyncDialog.h"
 
 namespace {
+// A splitter whose handle paints its own grey line across the full panel
+// height (tabs, breadcrumb, list, status bar). The deepin (DTK) style ignores
+// the handle's palette/autoFillBackground, so we paint it ourselves.
+class PaintedHandle : public QSplitterHandle {
+public:
+    PaintedHandle(Qt::Orientation o, QSplitter *parent) : QSplitterHandle(o, parent) {}
+
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter p(this);
+        p.fillRect(rect(), QColor(0x8a, 0x8a, 0x8a));
+    }
+};
+
+class PanelSplitter : public QSplitter {
+public:
+    explicit PanelSplitter(QWidget *parent) : QSplitter(Qt::Horizontal, parent) {}
+
+protected:
+    QSplitterHandle *createHandle() override { return new PaintedHandle(orientation(), this); }
+};
+
 qint64 sumSizes(const QStringList &paths) {
     qint64 total = 0;
     for (const QString &p : paths) {
@@ -104,7 +127,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_themeManager = new ThemeManager(this);
     m_themeManager->apply(m_settings.theme());
 
-    auto *splitter = new QSplitter(this);
+    // A self-painted splitter so the divider line runs the full panel height
+    // -- up through the breadcrumb and tab row -- clearly separating the two
+    // panels. (A stylesheet on the splitter would cascade onto the tables and
+    // slow their repaints, so we paint just the handle.)
+    auto *splitter = new PanelSplitter(this);
     m_panelSplitter = splitter;
     m_leftPanel = new FilePanel(splitter);
     m_rightPanel = new FilePanel(splitter);
@@ -112,20 +139,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     splitter->addWidget(m_rightPanel);
     splitter->setStretchFactor(0, 1);
     splitter->setStretchFactor(1, 1);
+    splitter->setHandleWidth(2);
     m_quickView = new QuickView(this);
     m_quickView->hide(); // parked until Ctrl+Q swaps it into a panel slot
-    // A visible divider that runs the full panel height -- tabs, breadcrumb,
-    // list and status bar -- clearly separating the two panels. Style only the
-    // handle widget (via its palette) rather than the splitter's stylesheet:
-    // a stylesheet on the splitter cascades QStyleSheetStyle onto the two
-    // table views, making their repaints (and divider drags) noticeably slower.
-    splitter->setHandleWidth(2);
-    if (QSplitterHandle *handle = splitter->handle(1)) {
-        handle->setAutoFillBackground(true);
-        QPalette pal = handle->palette();
-        pal.setColor(QPalette::Window, QColor(0x8a, 0x8a, 0x8a));
-        handle->setPalette(pal);
-    }
 
     m_folderTreeModel = new QFileSystemModel(this);
     m_folderTreeModel->setRootPath(QDir::rootPath());
