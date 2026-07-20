@@ -105,6 +105,7 @@ private:
     QToolButton *m_backButton;
     QToolButton *m_forwardButton;
     QToolButton *m_starButton;
+    QToolButton *m_addTabButton; // "+" at the right end of the tab strip
     QLineEdit *m_filterBar;
     FileListView *m_view;
     StatusBarWidget *m_statusBar;

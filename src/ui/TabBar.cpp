@@ -113,8 +113,6 @@ void TabBar::contextMenuEvent(QContextMenuEvent *event) {
     menu.addAction(tr("Close Tab"), this, [this, index]() { emit closeTabRequested(index); });
     menu.addAction(tr("Close Others"), this,
                     [this, index]() { emit closeOthersRequested(index); });
-    menu.addAction(tr("Close Tabs to the Right"), this,
-                    [this, index]() { emit closeToRightRequested(index); });
     menu.addSeparator();
     menu.addAction(tr("Copy Path"), this, [this, index]() { emit copyPathRequested(index); });
     menu.exec(event->globalPos());

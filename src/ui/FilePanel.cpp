@@ -32,6 +32,18 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_tabManager = new TabManager(this);
     m_tabBar = new TabBar(this);
 
+    // "+" at the far right of the tab strip opens a new tab in this panel,
+    // lined up directly above the address row's "✳" button.
+    m_addTabButton = new QToolButton(this);
+    m_addTabButton->setText(QStringLiteral("+"));
+    m_addTabButton->setAutoRaise(true);
+    m_addTabButton->setFocusPolicy(Qt::NoFocus);
+    m_addTabButton->setToolTip(tr("New Tab"));
+    connect(m_addTabButton, &QToolButton::clicked, this, [this]() {
+        emit panelActivated(this); // act on this panel
+        newTab();
+    });
+
     m_addressBar = new BreadcrumbBar(this);
     m_addressBar->setFocusPolicy(Qt::ClickFocus); // keep it out of the Tab chain
 
@@ -80,10 +92,19 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
 
     m_statusBar = new StatusBarWidget(this);
 
+    // Tab strip + trailing "+" button share one row; the tab bar takes the
+    // stretch so the "+" hugs the right edge (above the "✳" button below).
+    auto *tabRow = new QWidget(this);
+    auto *tabRowLayout = new QHBoxLayout(tabRow);
+    tabRowLayout->setContentsMargins(0, 0, 0, 0);
+    tabRowLayout->setSpacing(2);
+    tabRowLayout->addWidget(m_tabBar, 1);
+    tabRowLayout->addWidget(m_addTabButton, 0, Qt::AlignVCenter);
+
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(2);
-    layout->addWidget(m_tabBar);
+    layout->addWidget(tabRow);
     layout->addWidget(addressRow);
     layout->addWidget(m_filterBar);
     layout->addWidget(m_view, 1);
@@ -104,6 +125,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_backButton->setFixedSize(rowH, rowH);
     m_forwardButton->setFixedSize(rowH, rowH);
     m_starButton->setFixedSize(rowH, rowH);
+    m_addTabButton->setFixedWidth(rowH); // width matches "✳"; height follows the tab strip
     updateNavButtons();
 
     connect(m_filterBar, &QLineEdit::textChanged, this,
@@ -145,10 +167,6 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     connect(m_tabBar, &TabBar::closeTabRequested, this, &FilePanel::closeTabAt);
     connect(m_tabBar, &TabBar::closeOthersRequested, this, [this](int idx) {
         m_tabManager->closeOthers(idx);
-        syncTabBarFromManager();
-    });
-    connect(m_tabBar, &TabBar::closeToRightRequested, this, [this](int idx) {
-        m_tabManager->closeToRight(idx);
         syncTabBarFromManager();
     });
     connect(m_tabBar, &TabBar::copyPathRequested, this, [this](int idx) {
