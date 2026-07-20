@@ -18,6 +18,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/core.dir/filesystem/IconCache.cpp.o.d"
   "CMakeFiles/core.dir/operations/FileOperations.cpp.o"
   "CMakeFiles/core.dir/operations/FileOperations.cpp.o.d"
+  "CMakeFiles/core.dir/operations/FileSplitter.cpp.o"
+  "CMakeFiles/core.dir/operations/FileSplitter.cpp.o.d"
   "CMakeFiles/core.dir/operations/OperationQueue.cpp.o"
   "CMakeFiles/core.dir/operations/OperationQueue.cpp.o.d"
   "CMakeFiles/core.dir/sync/DirectorySync.cpp.o"

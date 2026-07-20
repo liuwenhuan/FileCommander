@@ -9,54 +9,7 @@ tests/core/core_tests_autogen/timestamp: tests/core/CMakeLists.txt \
   tests/core/filesystem/test_FileSystemModel.cpp \
   tests/core/filesystem/test_IconCache.cpp \
   tests/core/operations/test_FileOperations.cpp \
-  tests/core/operations/test_OperationQueue.cpp \
-  tests/core/sync/test_DirectorySync.cpp \
-  tests/core/test_main.cpp \
-  /usr/bin/cmake \
-  tests/core/CMakeLists.txt \
-  tests/core/compare/test_TextDiff.cpp \
-  tests/core/config/test_SessionManager.cpp \
-  tests/core/config/test_Settings.cpp \
-  tests/core/filesystem/test_FileInfo.cpp \
-  tests/core/filesystem/test_FileSystemModel.cpp \
-  tests/core/filesystem/test_IconCache.cpp \
-  tests/core/operations/test_FileOperations.cpp \
-  tests/core/operations/test_OperationQueue.cpp \
-  tests/core/sync/test_DirectorySync.cpp \
-  tests/core/test_main.cpp \
-  /usr/bin/cmake \
-  tests/core/CMakeLists.txt \
-  tests/core/compare/test_TextDiff.cpp \
-  tests/core/config/test_SessionManager.cpp \
-  tests/core/config/test_Settings.cpp \
-  tests/core/filesystem/test_FileInfo.cpp \
-  tests/core/filesystem/test_FileSystemModel.cpp \
-  tests/core/filesystem/test_IconCache.cpp \
-  tests/core/operations/test_FileOperations.cpp \
-  tests/core/operations/test_OperationQueue.cpp \
-  tests/core/sync/test_DirectorySync.cpp \
-  tests/core/test_main.cpp \
-  /usr/bin/cmake \
-  tests/core/CMakeLists.txt \
-  tests/core/compare/test_TextDiff.cpp \
-  tests/core/config/test_SessionManager.cpp \
-  tests/core/config/test_Settings.cpp \
-  tests/core/filesystem/test_FileInfo.cpp \
-  tests/core/filesystem/test_FileSystemModel.cpp \
-  tests/core/filesystem/test_IconCache.cpp \
-  tests/core/operations/test_FileOperations.cpp \
-  tests/core/operations/test_OperationQueue.cpp \
-  tests/core/sync/test_DirectorySync.cpp \
-  tests/core/test_main.cpp \
-  /usr/bin/cmake \
-  tests/core/CMakeLists.txt \
-  tests/core/compare/test_TextDiff.cpp \
-  tests/core/config/test_SessionManager.cpp \
-  tests/core/config/test_Settings.cpp \
-  tests/core/filesystem/test_FileInfo.cpp \
-  tests/core/filesystem/test_FileSystemModel.cpp \
-  tests/core/filesystem/test_IconCache.cpp \
-  tests/core/operations/test_FileOperations.cpp \
+  tests/core/operations/test_FileSplitter.cpp \
   tests/core/operations/test_OperationQueue.cpp \
   tests/core/sync/test_DirectorySync.cpp \
   tests/core/test_main.cpp \
@@ -4470,6 +4423,8 @@ tests/core/CMakeFiles/core_tests.dir/core_tests_autogen/mocs_compilation.cpp.o:
 
 /lib/x86_64-linux-gnu/libpcre2-16.so.0:
 
+/lib/x86_64-linux-gnu/libm.so.6:
+
 /usr/include/x86_64-linux-gnu/bits/sigstack.h:
 
 /usr/include/x86_64-linux-gnu/qt5/QtCore/qcache.h:
@@ -4832,8 +4787,6 @@ tests/core/operations/test_FileOperations.cpp:
 
 /usr/include/x86_64-linux-gnu/qt5/QtCore/qexception.h:
 
-/lib/x86_64-linux-gnu/libm.so.6:
-
 tests/core/filesystem/test_IconCache.cpp:
 
 /usr/include/c++/12/bits/quoted_string.h:
@@ -4864,13 +4817,9 @@ tests/core/filesystem/test_FileSystemModel.cpp:
 
 /usr/include/x86_64-linux-gnu/qt5/QtCore/QVector:
 
-/usr/include/x86_64-linux-gnu/bits/sigstksz.h:
+/usr/include/c++/12/bits/atomic_lockfree_defines.h:
 
 /usr/include/x86_64-linux-gnu/bits/cpu-set.h:
-
-/usr/include/x86_64-linux-gnu/qt5/QtCore/qsharedpointer.h:
-
-/usr/include/c++/12/bits/atomic_lockfree_defines.h:
 
 tests/core/operations/test_OperationQueue.cpp:
 
@@ -4938,6 +4887,8 @@ src/core/sync/DirectorySync.h:
 
 /usr/include/c++/12/array:
 
+tests/core/operations/test_FileSplitter.cpp:
+
 /usr/include/c++/12/bits/stl_algo.h:
 
 /usr/include/c++/12/atomic:
@@ -4955,6 +4906,8 @@ tests/core/CMakeFiles/core_tests.dir/filesystem/test_FileSystemModel.cpp.o:
 /usr/include/c++/12/bits/exception_defines.h:
 
 /usr/include/c++/12/bits/locale_classes.h:
+
+/usr/include/x86_64-linux-gnu/qt5/QtCore/qsharedpointer.h:
 
 /usr/include/c++/12/bits/list.tcc:
 
@@ -5036,6 +4989,16 @@ tests/core/CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.o:
 
 /usr/include/c++/12/bits/range_access.h:
 
+/usr/include/x86_64-linux-gnu/bits/time.h:
+
+/usr/include/c++/12/bit:
+
+/usr/include/x86_64-linux-gnu/qt5/QtCore/qconfig.h:
+
+/usr/include/c++/12/stdlib.h:
+
+/usr/include/c++/12/bits/refwrap.h:
+
 /usr/include/c++/12/pstl/glue_memory_defs.h:
 
 /usr/include/c++/12/bits/stl_construct.h:
@@ -5094,16 +5057,6 @@ src/core/config/Settings.h:
 
 /usr/include/c++/12/bits/stl_tempbuf.h:
 
-/usr/include/x86_64-linux-gnu/bits/time.h:
-
-/usr/include/c++/12/bit:
-
-/usr/include/x86_64-linux-gnu/qt5/QtCore/qconfig.h:
-
-/usr/include/c++/12/stdlib.h:
-
-/usr/include/c++/12/bits/refwrap.h:
-
 /usr/include/c++/12/vector:
 
 /usr/include/x86_64-linux-gnu/qt5/QtCore/qcoreevent.h:
@@ -5123,6 +5076,8 @@ src/core/config/Settings.h:
 /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qtwidgets-config.h:
 
 /usr/include/c++/12/cassert:
+
+/usr/include/x86_64-linux-gnu/bits/sigstksz.h:
 
 /usr/include/x86_64-linux-gnu/bits/ss_flags.h:
 

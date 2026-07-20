@@ -16,6 +16,8 @@ core_autogen/timestamp: \
 	/home/deepin/codework/ttc/src/core/operations/FileOpTypes.h \
 	/home/deepin/codework/ttc/src/core/operations/FileOperations.cpp \
 	/home/deepin/codework/ttc/src/core/operations/FileOperations.h \
+	/home/deepin/codework/ttc/src/core/operations/FileSplitter.cpp \
+	/home/deepin/codework/ttc/src/core/operations/FileSplitter.h \
 	/home/deepin/codework/ttc/src/core/operations/OperationQueue.cpp \
 	/home/deepin/codework/ttc/src/core/operations/OperationQueue.h \
 	/home/deepin/codework/ttc/src/core/sync/DirectorySync.cpp \

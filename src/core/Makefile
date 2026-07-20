@@ -405,6 +405,30 @@ operations/FileOperations.cpp.s:
 	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f src/core/CMakeFiles/core.dir/build.make src/core/CMakeFiles/core.dir/operations/FileOperations.cpp.s
 .PHONY : operations/FileOperations.cpp.s
 
+operations/FileSplitter.o: operations/FileSplitter.cpp.o
+.PHONY : operations/FileSplitter.o
+
+# target to build an object file
+operations/FileSplitter.cpp.o:
+	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f src/core/CMakeFiles/core.dir/build.make src/core/CMakeFiles/core.dir/operations/FileSplitter.cpp.o
+.PHONY : operations/FileSplitter.cpp.o
+
+operations/FileSplitter.i: operations/FileSplitter.cpp.i
+.PHONY : operations/FileSplitter.i
+
+# target to preprocess a source file
+operations/FileSplitter.cpp.i:
+	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f src/core/CMakeFiles/core.dir/build.make src/core/CMakeFiles/core.dir/operations/FileSplitter.cpp.i
+.PHONY : operations/FileSplitter.cpp.i
+
+operations/FileSplitter.s: operations/FileSplitter.cpp.s
+.PHONY : operations/FileSplitter.s
+
+# target to generate assembly for a file
+operations/FileSplitter.cpp.s:
+	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f src/core/CMakeFiles/core.dir/build.make src/core/CMakeFiles/core.dir/operations/FileSplitter.cpp.s
+.PHONY : operations/FileSplitter.cpp.s
+
 operations/OperationQueue.o: operations/OperationQueue.cpp.o
 .PHONY : operations/OperationQueue.o
 
@@ -493,6 +517,9 @@ help:
 	@echo "... operations/FileOperations.o"
 	@echo "... operations/FileOperations.i"
 	@echo "... operations/FileOperations.s"
+	@echo "... operations/FileSplitter.o"
+	@echo "... operations/FileSplitter.i"
+	@echo "... operations/FileSplitter.s"
 	@echo "... operations/OperationQueue.o"
 	@echo "... operations/OperationQueue.i"
 	@echo "... operations/OperationQueue.s"

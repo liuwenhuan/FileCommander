@@ -60,6 +60,12 @@
 			null
 		],
 		[
+			"/home/deepin/codework/ttc/src/core/operations/FileSplitter.h",
+			"MU",
+			"46JG67PTNS/moc_FileSplitter.cpp",
+			null
+		],
+		[
 			"/home/deepin/codework/ttc/src/core/operations/OperationQueue.h",
 			"MU",
 			"46JG67PTNS/moc_OperationQueue.cpp",
@@ -154,6 +160,11 @@
 		],
 		[
 			"/home/deepin/codework/ttc/src/core/operations/FileOperations.cpp",
+			"MU",
+			null
+		],
+		[
+			"/home/deepin/codework/ttc/src/core/operations/FileSplitter.cpp",
 			"MU",
 			null
 		],

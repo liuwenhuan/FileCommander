@@ -19,6 +19,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/core_tests.dir/filesystem/test_IconCache.cpp.o.d"
   "CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.o"
   "CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.o.d"
+  "CMakeFiles/core_tests.dir/operations/test_FileSplitter.cpp.o"
+  "CMakeFiles/core_tests.dir/operations/test_FileSplitter.cpp.o.d"
   "CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.o"
   "CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.o.d"
   "CMakeFiles/core_tests.dir/sync/test_DirectorySync.cpp.o"

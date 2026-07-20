@@ -9,6 +9,7 @@ core_tests: \
   CMakeFiles/core_tests.dir/filesystem/test_IconCache.cpp.o \
   CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.o \
   CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.o \
+  CMakeFiles/core_tests.dir/operations/test_FileSplitter.cpp.o \
   CMakeFiles/core_tests.dir/config/test_SessionManager.cpp.o \
   CMakeFiles/core_tests.dir/config/test_Settings.cpp.o \
   CMakeFiles/core_tests.dir/sync/test_DirectorySync.cpp.o \
@@ -91,6 +92,8 @@ CMakeFiles/core_tests.dir/filesystem/test_IconCache.cpp.o:
 CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.o:
 
 CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.o:
+
+CMakeFiles/core_tests.dir/operations/test_FileSplitter.cpp.o:
 
 CMakeFiles/core_tests.dir/config/test_SessionManager.cpp.o:
 

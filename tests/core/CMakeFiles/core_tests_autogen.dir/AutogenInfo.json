@@ -115,6 +115,11 @@
 			null
 		],
 		[
+			"/home/deepin/codework/ttc/tests/core/operations/test_FileSplitter.cpp",
+			"MU",
+			null
+		],
+		[
 			"/home/deepin/codework/ttc/tests/core/operations/test_OperationQueue.cpp",
 			"MU",
 			null

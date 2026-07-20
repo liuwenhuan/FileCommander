@@ -163,10 +163,24 @@ src/core/CMakeFiles/core.dir/operations/OperationQueue.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/core.dir/operations/OperationQueue.cpp.s"
 	cd /home/deepin/codework/ttc/src/core && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/deepin/codework/ttc/src/core/operations/OperationQueue.cpp -o CMakeFiles/core.dir/operations/OperationQueue.cpp.s
 
+src/core/CMakeFiles/core.dir/operations/FileSplitter.cpp.o: src/core/CMakeFiles/core.dir/flags.make
+src/core/CMakeFiles/core.dir/operations/FileSplitter.cpp.o: src/core/operations/FileSplitter.cpp
+src/core/CMakeFiles/core.dir/operations/FileSplitter.cpp.o: src/core/CMakeFiles/core.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object src/core/CMakeFiles/core.dir/operations/FileSplitter.cpp.o"
+	cd /home/deepin/codework/ttc/src/core && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT src/core/CMakeFiles/core.dir/operations/FileSplitter.cpp.o -MF CMakeFiles/core.dir/operations/FileSplitter.cpp.o.d -o CMakeFiles/core.dir/operations/FileSplitter.cpp.o -c /home/deepin/codework/ttc/src/core/operations/FileSplitter.cpp
+
+src/core/CMakeFiles/core.dir/operations/FileSplitter.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/core.dir/operations/FileSplitter.cpp.i"
+	cd /home/deepin/codework/ttc/src/core && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/deepin/codework/ttc/src/core/operations/FileSplitter.cpp > CMakeFiles/core.dir/operations/FileSplitter.cpp.i
+
+src/core/CMakeFiles/core.dir/operations/FileSplitter.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/core.dir/operations/FileSplitter.cpp.s"
+	cd /home/deepin/codework/ttc/src/core && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/deepin/codework/ttc/src/core/operations/FileSplitter.cpp -o CMakeFiles/core.dir/operations/FileSplitter.cpp.s
+
 src/core/CMakeFiles/core.dir/config/Settings.cpp.o: src/core/CMakeFiles/core.dir/flags.make
 src/core/CMakeFiles/core.dir/config/Settings.cpp.o: src/core/config/Settings.cpp
 src/core/CMakeFiles/core.dir/config/Settings.cpp.o: src/core/CMakeFiles/core.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object src/core/CMakeFiles/core.dir/config/Settings.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building CXX object src/core/CMakeFiles/core.dir/config/Settings.cpp.o"
 	cd /home/deepin/codework/ttc/src/core && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT src/core/CMakeFiles/core.dir/config/Settings.cpp.o -MF CMakeFiles/core.dir/config/Settings.cpp.o.d -o CMakeFiles/core.dir/config/Settings.cpp.o -c /home/deepin/codework/ttc/src/core/config/Settings.cpp
 
 src/core/CMakeFiles/core.dir/config/Settings.cpp.i: cmake_force
@@ -180,7 +194,7 @@ src/core/CMakeFiles/core.dir/config/Settings.cpp.s: cmake_force
 src/core/CMakeFiles/core.dir/config/SessionManager.cpp.o: src/core/CMakeFiles/core.dir/flags.make
 src/core/CMakeFiles/core.dir/config/SessionManager.cpp.o: src/core/config/SessionManager.cpp
 src/core/CMakeFiles/core.dir/config/SessionManager.cpp.o: src/core/CMakeFiles/core.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building CXX object src/core/CMakeFiles/core.dir/config/SessionManager.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object src/core/CMakeFiles/core.dir/config/SessionManager.cpp.o"
 	cd /home/deepin/codework/ttc/src/core && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT src/core/CMakeFiles/core.dir/config/SessionManager.cpp.o -MF CMakeFiles/core.dir/config/SessionManager.cpp.o.d -o CMakeFiles/core.dir/config/SessionManager.cpp.o -c /home/deepin/codework/ttc/src/core/config/SessionManager.cpp
 
 src/core/CMakeFiles/core.dir/config/SessionManager.cpp.i: cmake_force
@@ -194,7 +208,7 @@ src/core/CMakeFiles/core.dir/config/SessionManager.cpp.s: cmake_force
 src/core/CMakeFiles/core.dir/sync/DirectorySync.cpp.o: src/core/CMakeFiles/core.dir/flags.make
 src/core/CMakeFiles/core.dir/sync/DirectorySync.cpp.o: src/core/sync/DirectorySync.cpp
 src/core/CMakeFiles/core.dir/sync/DirectorySync.cpp.o: src/core/CMakeFiles/core.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object src/core/CMakeFiles/core.dir/sync/DirectorySync.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object src/core/CMakeFiles/core.dir/sync/DirectorySync.cpp.o"
 	cd /home/deepin/codework/ttc/src/core && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT src/core/CMakeFiles/core.dir/sync/DirectorySync.cpp.o -MF CMakeFiles/core.dir/sync/DirectorySync.cpp.o.d -o CMakeFiles/core.dir/sync/DirectorySync.cpp.o -c /home/deepin/codework/ttc/src/core/sync/DirectorySync.cpp
 
 src/core/CMakeFiles/core.dir/sync/DirectorySync.cpp.i: cmake_force
@@ -208,7 +222,7 @@ src/core/CMakeFiles/core.dir/sync/DirectorySync.cpp.s: cmake_force
 src/core/CMakeFiles/core.dir/compare/TextDiff.cpp.o: src/core/CMakeFiles/core.dir/flags.make
 src/core/CMakeFiles/core.dir/compare/TextDiff.cpp.o: src/core/compare/TextDiff.cpp
 src/core/CMakeFiles/core.dir/compare/TextDiff.cpp.o: src/core/CMakeFiles/core.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object src/core/CMakeFiles/core.dir/compare/TextDiff.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object src/core/CMakeFiles/core.dir/compare/TextDiff.cpp.o"
 	cd /home/deepin/codework/ttc/src/core && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT src/core/CMakeFiles/core.dir/compare/TextDiff.cpp.o -MF CMakeFiles/core.dir/compare/TextDiff.cpp.o.d -o CMakeFiles/core.dir/compare/TextDiff.cpp.o -c /home/deepin/codework/ttc/src/core/compare/TextDiff.cpp
 
 src/core/CMakeFiles/core.dir/compare/TextDiff.cpp.i: cmake_force
@@ -227,6 +241,7 @@ core_OBJECTS = \
 "CMakeFiles/core.dir/filesystem/IconCache.cpp.o" \
 "CMakeFiles/core.dir/operations/FileOperations.cpp.o" \
 "CMakeFiles/core.dir/operations/OperationQueue.cpp.o" \
+"CMakeFiles/core.dir/operations/FileSplitter.cpp.o" \
 "CMakeFiles/core.dir/config/Settings.cpp.o" \
 "CMakeFiles/core.dir/config/SessionManager.cpp.o" \
 "CMakeFiles/core.dir/sync/DirectorySync.cpp.o" \
@@ -241,13 +256,14 @@ src/core/libcore.a: src/core/CMakeFiles/core.dir/filesystem/FileSystemModel.cpp.
 src/core/libcore.a: src/core/CMakeFiles/core.dir/filesystem/IconCache.cpp.o
 src/core/libcore.a: src/core/CMakeFiles/core.dir/operations/FileOperations.cpp.o
 src/core/libcore.a: src/core/CMakeFiles/core.dir/operations/OperationQueue.cpp.o
+src/core/libcore.a: src/core/CMakeFiles/core.dir/operations/FileSplitter.cpp.o
 src/core/libcore.a: src/core/CMakeFiles/core.dir/config/Settings.cpp.o
 src/core/libcore.a: src/core/CMakeFiles/core.dir/config/SessionManager.cpp.o
 src/core/libcore.a: src/core/CMakeFiles/core.dir/sync/DirectorySync.cpp.o
 src/core/libcore.a: src/core/CMakeFiles/core.dir/compare/TextDiff.cpp.o
 src/core/libcore.a: src/core/CMakeFiles/core.dir/build.make
 src/core/libcore.a: src/core/CMakeFiles/core.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Linking CXX static library libcore.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Linking CXX static library libcore.a"
 	cd /home/deepin/codework/ttc/src/core && $(CMAKE_COMMAND) -P CMakeFiles/core.dir/cmake_clean_target.cmake
 	cd /home/deepin/codework/ttc/src/core && $(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/core.dir/link.txt --verbose=$(VERBOSE)
 

@@ -405,6 +405,30 @@ operations/test_FileOperations.cpp.s:
 	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f tests/core/CMakeFiles/core_tests.dir/build.make tests/core/CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.s
 .PHONY : operations/test_FileOperations.cpp.s
 
+operations/test_FileSplitter.o: operations/test_FileSplitter.cpp.o
+.PHONY : operations/test_FileSplitter.o
+
+# target to build an object file
+operations/test_FileSplitter.cpp.o:
+	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f tests/core/CMakeFiles/core_tests.dir/build.make tests/core/CMakeFiles/core_tests.dir/operations/test_FileSplitter.cpp.o
+.PHONY : operations/test_FileSplitter.cpp.o
+
+operations/test_FileSplitter.i: operations/test_FileSplitter.cpp.i
+.PHONY : operations/test_FileSplitter.i
+
+# target to preprocess a source file
+operations/test_FileSplitter.cpp.i:
+	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f tests/core/CMakeFiles/core_tests.dir/build.make tests/core/CMakeFiles/core_tests.dir/operations/test_FileSplitter.cpp.i
+.PHONY : operations/test_FileSplitter.cpp.i
+
+operations/test_FileSplitter.s: operations/test_FileSplitter.cpp.s
+.PHONY : operations/test_FileSplitter.s
+
+# target to generate assembly for a file
+operations/test_FileSplitter.cpp.s:
+	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f tests/core/CMakeFiles/core_tests.dir/build.make tests/core/CMakeFiles/core_tests.dir/operations/test_FileSplitter.cpp.s
+.PHONY : operations/test_FileSplitter.cpp.s
+
 operations/test_OperationQueue.o: operations/test_OperationQueue.cpp.o
 .PHONY : operations/test_OperationQueue.o
 
@@ -517,6 +541,9 @@ help:
 	@echo "... operations/test_FileOperations.o"
 	@echo "... operations/test_FileOperations.i"
 	@echo "... operations/test_FileOperations.s"
+	@echo "... operations/test_FileSplitter.o"
+	@echo "... operations/test_FileSplitter.i"
+	@echo "... operations/test_FileSplitter.s"
 	@echo "... operations/test_OperationQueue.o"
 	@echo "... operations/test_OperationQueue.i"
 	@echo "... operations/test_OperationQueue.s"

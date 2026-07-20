@@ -1,13 +1,13 @@
-Start testing: Jul 20 16:19 CST
+Start testing: Jul 20 16:25 CST
 ----------------------------------------------------------
 1/3 Testing: core_tests
 1/3 Test: core_tests
 Command: "/home/deepin/codework/ttc/tests/core/core_tests"
 Directory: /home/deepin/codework/ttc/tests/core
-"core_tests" start time: Jul 20 16:19 CST
+"core_tests" start time: Jul 20 16:25 CST
 Output:
 ----------------------------------------------------------
-[==========] Running 55 tests from 10 test suites.
+[==========] Running 58 tests from 11 test suites.
 [----------] Global test environment set-up.
 [----------] 5 tests from FileInfoTest
 [ RUN      ] FileInfoTest.MimeTypeIsComputedLazilyAndCorrectly
@@ -30,12 +30,12 @@ Output:
 [ RUN      ] FileSystemModelFilterTest.MatchesFilterSupportsWildcards
 [       OK ] FileSystemModelFilterTest.MatchesFilterSupportsWildcards (0 ms)
 [ RUN      ] FileSystemModelFilterTest.SetNameFilterRestrictsVisibleRows
-[       OK ] FileSystemModelFilterTest.SetNameFilterRestrictsVisibleRows (0 ms)
+[       OK ] FileSystemModelFilterTest.SetNameFilterRestrictsVisibleRows (1 ms)
 [ RUN      ] FileSystemModelFilterTest.PatternPicksExpectedEntriesAcrossRows
 [       OK ] FileSystemModelFilterTest.PatternPicksExpectedEntriesAcrossRows (0 ms)
 [ RUN      ] FileSystemModelFilterTest.ChangingDirectoryClearsFilter
 [       OK ] FileSystemModelFilterTest.ChangingDirectoryClearsFilter (0 ms)
-[----------] 6 tests from FileSystemModelFilterTest (1 ms total)
+[----------] 6 tests from FileSystemModelFilterTest (2 ms total)
 
 [----------] 2 tests from FileSystemModelSizeTest
 [ RUN      ] FileSystemModelSizeTest.DirectorySizeSumsRecursively
@@ -46,16 +46,16 @@ Output:
 
 [----------] 3 tests from IconCacheTest
 [ RUN      ] IconCacheTest.ReturnsNonNullIconForFile
-[       OK ] IconCacheTest.ReturnsNonNullIconForFile (15 ms)
+[       OK ] IconCacheTest.ReturnsNonNullIconForFile (13 ms)
 [ RUN      ] IconCacheTest.ReturnsNonNullIconForDirectory
 [       OK ] IconCacheTest.ReturnsNonNullIconForDirectory (0 ms)
 [ RUN      ] IconCacheTest.SameExtensionReusesCachedIcon
 [       OK ] IconCacheTest.SameExtensionReusesCachedIcon (0 ms)
-[----------] 3 tests from IconCacheTest (15 ms total)
+[----------] 3 tests from IconCacheTest (14 ms total)
 
 [----------] 16 tests from FileOperationsTest
 [ RUN      ] FileOperationsTest.CopyPathsCopiesFileWithoutRemovingSource
-[       OK ] FileOperationsTest.CopyPathsCopiesFileWithoutRemovingSource (2 ms)
+[       OK ] FileOperationsTest.CopyPathsCopiesFileWithoutRemovingSource (8 ms)
 [ RUN      ] FileOperationsTest.MovePathsRemovesSource
 [       OK ] FileOperationsTest.MovePathsRemovesSource (0 ms)
 [ RUN      ] FileOperationsTest.ConflictResolverSkipLeavesDestinationUntouched
@@ -86,7 +86,7 @@ Output:
 [       OK ] FileOperationsTest.CreateSymlinksCreatesWorkingLink (0 ms)
 [ RUN      ] FileOperationsTest.CreateSymlinksRenamesOnNameConflict
 [       OK ] FileOperationsTest.CreateSymlinksRenamesOnNameConflict (0 ms)
-[----------] 16 tests from FileOperationsTest (6 ms total)
+[----------] 16 tests from FileOperationsTest (12 ms total)
 
 [----------] 4 tests from OperationQueueTest
 [ RUN      ] OperationQueueTest.EnqueueCopyCompletesAndCopiesFile
@@ -94,10 +94,19 @@ Output:
 [ RUN      ] OperationQueueTest.EnqueueMoveRemovesSource
 [       OK ] OperationQueueTest.EnqueueMoveRemovesSource (0 ms)
 [ RUN      ] OperationQueueTest.ConflictHandlerRunsAndOverwriteAllApplies
-[       OK ] OperationQueueTest.ConflictHandlerRunsAndOverwriteAllApplies (1 ms)
+[       OK ] OperationQueueTest.ConflictHandlerRunsAndOverwriteAllApplies (0 ms)
 [ RUN      ] OperationQueueTest.EnqueueSymlinkCreatesLink
 [       OK ] OperationQueueTest.EnqueueSymlinkCreatesLink (0 ms)
-[----------] 4 tests from OperationQueueTest (3 ms total)
+[----------] 4 tests from OperationQueueTest (2 ms total)
+
+[----------] 3 tests from FileSplitterTest
+[ RUN      ] FileSplitterTest.SplitProducesCorrectlySizedParts
+[       OK ] FileSplitterTest.SplitProducesCorrectlySizedParts (0 ms)
+[ RUN      ] FileSplitterTest.SplitThenMergeRoundTrips
+[       OK ] FileSplitterTest.SplitThenMergeRoundTrips (0 ms)
+[ RUN      ] FileSplitterTest.BaseNameForPartStripsNumericSuffix
+[       OK ] FileSplitterTest.BaseNameForPartStripsNumericSuffix (0 ms)
+[----------] 3 tests from FileSplitterTest (0 ms total)
 
 [----------] 2 tests from SessionManagerTest
 [ RUN      ] SessionManagerTest.LoadReturnsFalseWhenNothingSaved
@@ -150,13 +159,13 @@ Output:
 [----------] 5 tests from TextDiffTest (0 ms total)
 
 [----------] Global test environment tear-down
-[==========] 55 tests from 10 test suites ran. (37 ms total)
-[  PASSED  ] 55 tests.
+[==========] 58 tests from 11 test suites ran. (43 ms total)
+[  PASSED  ] 58 tests.
 <end of output>
 Test time =   0.06 sec
 ----------------------------------------------------------
 Test Passed.
-"core_tests" end time: Jul 20 16:19 CST
+"core_tests" end time: Jul 20 16:25 CST
 "core_tests" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -164,7 +173,7 @@ Test Passed.
 2/3 Test: ui_tests
 Command: "/home/deepin/codework/ttc/tests/ui/ui_tests"
 Directory: /home/deepin/codework/ttc/tests/ui
-"ui_tests" start time: Jul 20 16:19 CST
+"ui_tests" start time: Jul 20 16:25 CST
 Output:
 ----------------------------------------------------------
 Running main() from /usr/src/googletest/googletest/src/gtest_main.cc
@@ -210,13 +219,13 @@ Running main() from /usr/src/googletest/googletest/src/gtest_main.cc
 [----------] 5 tests from CommandHistoryTest (0 ms total)
 
 [----------] Global test environment tear-down
-[==========] 15 tests from 3 test suites ran. (1 ms total)
+[==========] 15 tests from 3 test suites ran. (2 ms total)
 [  PASSED  ] 15 tests.
 <end of output>
 Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"ui_tests" end time: Jul 20 16:19 CST
+"ui_tests" end time: Jul 20 16:25 CST
 "ui_tests" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -224,7 +233,7 @@ Test Passed.
 3/3 Test: archive_tests
 Command: "/home/deepin/codework/ttc/tests/archive/archive_tests"
 Directory: /home/deepin/codework/ttc/tests/archive
-"archive_tests" start time: Jul 20 16:19 CST
+"archive_tests" start time: Jul 20 16:25 CST
 Output:
 ----------------------------------------------------------
 Running main() from /usr/src/googletest/googletest/src/gtest_main.cc
@@ -236,26 +245,26 @@ Running main() from /usr/src/googletest/googletest/src/gtest_main.cc
 [ RUN      ] ArchiveHandlerTest.BuildTreeParsesFilesAndDirectories
 [       OK ] ArchiveHandlerTest.BuildTreeParsesFilesAndDirectories (4 ms)
 [ RUN      ] ArchiveHandlerTest.ExtractAllWritesAllFiles
-[       OK ] ArchiveHandlerTest.ExtractAllWritesAllFiles (3 ms)
+[       OK ] ArchiveHandlerTest.ExtractAllWritesAllFiles (4 ms)
 [ RUN      ] ArchiveHandlerTest.ExtractSpecificEntryWritesOnlyThatFile
-[       OK ] ArchiveHandlerTest.ExtractSpecificEntryWritesOnlyThatFile (2 ms)
+[       OK ] ArchiveHandlerTest.ExtractSpecificEntryWritesOnlyThatFile (3 ms)
 [ RUN      ] ArchiveHandlerTest.CreateZipRoundTripsThroughExtract
-[       OK ] ArchiveHandlerTest.CreateZipRoundTripsThroughExtract (0 ms)
+[       OK ] ArchiveHandlerTest.CreateZipRoundTripsThroughExtract (1 ms)
 [ RUN      ] ArchiveHandlerTest.CreateTarGzRoundTripsThroughExtract
 [       OK ] ArchiveHandlerTest.CreateTarGzRoundTripsThroughExtract (0 ms)
 [ RUN      ] ArchiveHandlerTest.BuildTreeFailsGracefullyOnMissingFile
 [       OK ] ArchiveHandlerTest.BuildTreeFailsGracefullyOnMissingFile (0 ms)
-[----------] 7 tests from ArchiveHandlerTest (11 ms total)
+[----------] 7 tests from ArchiveHandlerTest (14 ms total)
 
 [----------] Global test environment tear-down
-[==========] 7 tests from 1 test suite ran. (11 ms total)
+[==========] 7 tests from 1 test suite ran. (14 ms total)
 [  PASSED  ] 7 tests.
 <end of output>
 Test time =   0.02 sec
 ----------------------------------------------------------
 Test Passed.
-"archive_tests" end time: Jul 20 16:19 CST
+"archive_tests" end time: Jul 20 16:25 CST
 "archive_tests" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-End testing: Jul 20 16:19 CST
+End testing: Jul 20 16:25 CST

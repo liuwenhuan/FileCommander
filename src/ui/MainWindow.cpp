@@ -28,11 +28,15 @@
 #include <QUrl>
 #include <QVBoxLayout>
 
+#include <QFutureWatcher>
+#include <QtConcurrent/QtConcurrent>
+
 #include "ArchiveBrowserDialog.h"
 #include "ArchiveHandler.h"
 #include "CommandBar.h"
 #include "CompressDialog.h"
 #include "FilePanel.h"
+#include "FileSplitter.h"
 #include "FileListView.h"
 #include "FileSystemModel.h"
 #include "FunctionKeyBar.h"
@@ -267,6 +271,8 @@ void MainWindow::setupMenuAndToolbar() {
     QMenu *commandsMenu = menuBar()->addMenu(tr("&Commands"));
     commandsMenu->addAction(tr("&Refresh"), this, &MainWindow::refreshActivePanel);
     commandsMenu->addAction(tr("&Compress Selected..."), this, &MainWindow::compressSelected);
+    commandsMenu->addAction(tr("S&plit File..."), this, &MainWindow::splitFile);
+    commandsMenu->addAction(tr("Com&bine Files..."), this, &MainWindow::combineFiles);
     commandsMenu->addAction(tr("&Search Files..."), this, &MainWindow::openSearch);
     commandsMenu->addAction(tr("&Multi-Rename Tool..."), this,
                              &MainWindow::openMultiRenameDialog);
@@ -462,6 +468,70 @@ void MainWindow::swapPanels() {
     const QString right = m_rightPanel->currentPath();
     m_leftPanel->navigateTo(right);
     m_rightPanel->navigateTo(left);
+}
+
+void MainWindow::splitFile() {
+    if (!m_activePanel)
+        return;
+    const QString source = m_activePanel->currentEntryPath();
+    if (source.isEmpty() || QFileInfo(source).isDir()) {
+        QMessageBox::information(this, tr("Split File"), tr("Select a file to split."));
+        return;
+    }
+    bool ok = false;
+    const int mb = QInputDialog::getInt(this, tr("Split File"), tr("Part size (MB):"), 100, 1,
+                                         1000000, 1, &ok);
+    if (!ok)
+        return;
+    const QString destDir = otherPanel(m_activePanel)->currentPath();
+    const qint64 partSize = static_cast<qint64>(mb) * 1024 * 1024;
+
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    auto *watcher = new QFutureWatcher<QStringList>(this);
+    connect(watcher, &QFutureWatcher<QStringList>::finished, this, [this, watcher]() {
+        QApplication::restoreOverrideCursor();
+        const QStringList parts = watcher->result();
+        m_leftPanel->refresh();
+        m_rightPanel->refresh();
+        if (parts.isEmpty())
+            QMessageBox::warning(this, tr("Split File"), tr("Failed to split the file."));
+        else
+            QMessageBox::information(this, tr("Split File"),
+                                     tr("Created %1 part(s).").arg(parts.size()));
+        watcher->deleteLater();
+    });
+    watcher->setFuture(QtConcurrent::run(&FileSplitter::split, source, partSize, destDir,
+                                          static_cast<QString *>(nullptr)));
+}
+
+void MainWindow::combineFiles() {
+    if (!m_activePanel)
+        return;
+    const QString first = m_activePanel->currentEntryPath();
+    if (first.isEmpty())
+        return;
+    const QString base = FileSplitter::baseNameForPart(first);
+    if (base.isEmpty()) {
+        QMessageBox::information(this, tr("Combine Files"),
+                                 tr("Select the first part (e.g. name.001) of a split file."));
+        return;
+    }
+    const QString destPath = QDir(otherPanel(m_activePanel)->currentPath()).filePath(base);
+
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    auto *watcher = new QFutureWatcher<bool>(this);
+    connect(watcher, &QFutureWatcher<bool>::finished, this, [this, watcher]() {
+        QApplication::restoreOverrideCursor();
+        m_leftPanel->refresh();
+        m_rightPanel->refresh();
+        if (!watcher->result())
+            QMessageBox::warning(this, tr("Combine Files"), tr("Failed to merge the parts."));
+        else
+            QMessageBox::information(this, tr("Combine Files"), tr("Parts merged."));
+        watcher->deleteLater();
+    });
+    watcher->setFuture(QtConcurrent::run(&FileSplitter::merge, first, destPath,
+                                          static_cast<QString *>(nullptr)));
 }
 
 void MainWindow::runCommand(const QString &command, const QString &directory) {

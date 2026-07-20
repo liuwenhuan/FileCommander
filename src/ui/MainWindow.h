@@ -55,6 +55,8 @@ private slots:
     void calculateSizes();
     void syncOtherPanelToActive();
     void swapPanels();
+    void splitFile();
+    void combineFiles();
     void runCommand(const QString &command, const QString &directory);
     void toggleFolderTree();
 

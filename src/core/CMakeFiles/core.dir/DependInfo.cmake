@@ -17,6 +17,7 @@ set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/home/deepin/codework/ttc/src/core/filesystem/FileSystemModel.cpp" "src/core/CMakeFiles/core.dir/filesystem/FileSystemModel.cpp.o" "gcc" "src/core/CMakeFiles/core.dir/filesystem/FileSystemModel.cpp.o.d"
   "/home/deepin/codework/ttc/src/core/filesystem/IconCache.cpp" "src/core/CMakeFiles/core.dir/filesystem/IconCache.cpp.o" "gcc" "src/core/CMakeFiles/core.dir/filesystem/IconCache.cpp.o.d"
   "/home/deepin/codework/ttc/src/core/operations/FileOperations.cpp" "src/core/CMakeFiles/core.dir/operations/FileOperations.cpp.o" "gcc" "src/core/CMakeFiles/core.dir/operations/FileOperations.cpp.o.d"
+  "/home/deepin/codework/ttc/src/core/operations/FileSplitter.cpp" "src/core/CMakeFiles/core.dir/operations/FileSplitter.cpp.o" "gcc" "src/core/CMakeFiles/core.dir/operations/FileSplitter.cpp.o.d"
   "/home/deepin/codework/ttc/src/core/operations/OperationQueue.cpp" "src/core/CMakeFiles/core.dir/operations/OperationQueue.cpp.o" "gcc" "src/core/CMakeFiles/core.dir/operations/OperationQueue.cpp.o.d"
   "/home/deepin/codework/ttc/src/core/sync/DirectorySync.cpp" "src/core/CMakeFiles/core.dir/sync/DirectorySync.cpp.o" "gcc" "src/core/CMakeFiles/core.dir/sync/DirectorySync.cpp.o.d"
   )
