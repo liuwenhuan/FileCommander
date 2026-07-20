@@ -49,9 +49,7 @@ TabBar::TabBar(QWidget *parent) : QTabBar(parent) {
     connect(this, &QTabBar::tabCloseRequested, this, &TabBar::closeTabRequested);
 }
 
-void TabBar::tabInserted(int index) {
-    QTabBar::tabInserted(index);
-
+QAbstractButton *TabBar::createCloseButton() {
     auto *close = new TabCloseButton(this);
     close->setToolTip(tr("Close Tab"));
     connect(close, &QAbstractButton::clicked, this, [this, close]() {
@@ -62,7 +60,12 @@ void TabBar::tabInserted(int index) {
             }
         }
     });
-    setTabButton(index, QTabBar::RightSide, close);
+    return close;
+}
+
+void TabBar::tabInserted(int index) {
+    QTabBar::tabInserted(index);
+    setTabButton(index, QTabBar::RightSide, createCloseButton());
 }
 
 void TabBar::paintEvent(QPaintEvent *event) {
@@ -75,15 +78,24 @@ void TabBar::paintEvent(QPaintEvent *event) {
 }
 
 void TabBar::refreshCloseButtons() {
-    // Selected tab is blue in both themes -> white ×. Others match the tab
-    // label colour (palette WindowText), so the × is as legible as the text.
+    // A lone tab can't be closed, so it shows no × at all. With 2+ tabs, the
+    // selected tab (blue in both themes) gets a white ×; others match the tab
+    // label colour (palette WindowText) so the × is as legible as the text.
+    const bool multiple = count() > 1;
     const QColor normal = palette().color(QPalette::WindowText);
     for (int i = 0; i < count(); ++i) {
-        auto *btn = qobject_cast<QAbstractButton *>(tabButton(i, QTabBar::RightSide));
-        if (!btn)
+        QWidget *existing = tabButton(i, QTabBar::RightSide);
+        if (!multiple) {
+            if (existing)
+                setTabButton(i, QTabBar::RightSide, nullptr); // drop the × entirely
             continue;
-        static_cast<TabCloseButton *>(btn)->setColour(i == currentIndex() ? QColor(Qt::white)
-                                                                          : normal);
+        }
+        if (!existing) {
+            setTabButton(i, QTabBar::RightSide, createCloseButton());
+            existing = tabButton(i, QTabBar::RightSide);
+        }
+        static_cast<TabCloseButton *>(existing)->setColour(i == currentIndex() ? QColor(Qt::white)
+                                                                              : normal);
     }
 }
 

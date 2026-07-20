@@ -2,6 +2,8 @@
 
 #include <QTabBar>
 
+class QAbstractButton;
+
 // Visual tab strip for one FilePanel. Thin wrapper around QTabBar adding
 // the TC-style right-click menu (new/close/close others/close right/copy
 // path). Tab state itself lives in TabManager, not here.
@@ -29,4 +31,5 @@ private:
     // Driven from paintEvent so it always sees the correct current index, even
     // when tabs are switched with signals blocked.
     void refreshCloseButtons();
+    QAbstractButton *createCloseButton();
 };
