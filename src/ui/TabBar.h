@@ -21,4 +21,10 @@ signals:
 protected:
     void contextMenuEvent(QContextMenuEvent *event) override;
     void tabInserted(int index) override;
+
+private:
+    // Recolours the "×" buttons: the current tab uses the highlighted-text
+    // colour, the others the normal text colour, so both stay legible in
+    // light and dark themes.
+    void refreshCloseButtons();
 };

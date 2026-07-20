@@ -85,7 +85,8 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_view->verticalHeader()->setDefaultSectionSize(rowH);
     m_view->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
     m_view->horizontalHeader()->setFixedHeight(rowH);
-    m_tabBar->setFixedHeight(rowH);
+    // The tab bar keeps its natural height so the style vertically centres the
+    // tab text; forcing it shorter left the text stuck at the bottom.
     m_addressBar->setFixedHeight(rowH);
     m_backButton->setFixedSize(rowH, rowH);
     m_forwardButton->setFixedSize(rowH, rowH);
