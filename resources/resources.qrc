@@ -5,5 +5,13 @@
     </qresource>
     <qresource prefix="/translations">
         <file alias="ttc_zh_CN.qm">translations/ttc_zh_CN.qm</file>
+        <file alias="ttc_zh_TW.qm">translations/ttc_zh_TW.qm</file>
+        <file alias="ttc_fr.qm">translations/ttc_fr.qm</file>
+        <file alias="ttc_de.qm">translations/ttc_de.qm</file>
+        <file alias="ttc_es.qm">translations/ttc_es.qm</file>
+        <file alias="ttc_ru.qm">translations/ttc_ru.qm</file>
+        <file alias="ttc_ja.qm">translations/ttc_ja.qm</file>
+        <file alias="ttc_ko.qm">translations/ttc_ko.qm</file>
+        <file alias="ttc_pt_BR.qm">translations/ttc_pt_BR.qm</file>
     </qresource>
 </RCC>

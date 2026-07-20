@@ -425,10 +425,21 @@ void MainWindow::setupMenuAndToolbar() {
         QString code;
         QString label;
     };
+    // Each language is listed under its own native name (the "en"/native label
+    // is intentionally not wrapped in tr() so it reads the same regardless of the
+    // active UI language); "Auto" follows the system locale.
     const LanguageEntry languageEntries[] = {
         {"auto", tr("Auto")},
-        {"en", tr("English")},
-        {"zh_CN", tr("Chinese (Simplified)")},
+        {"en", QStringLiteral("English")},
+        {"zh_CN", QStringLiteral("简体中文")},
+        {"zh_TW", QStringLiteral("繁體中文")},
+        {"fr", QStringLiteral("Français")},
+        {"de", QStringLiteral("Deutsch")},
+        {"es", QStringLiteral("Español")},
+        {"ru", QStringLiteral("Русский")},
+        {"ja", QStringLiteral("日本語")},
+        {"ko", QStringLiteral("한국어")},
+        {"pt_BR", QStringLiteral("Português (Brasil)")},
     };
     for (const auto &entry : languageEntries) {
         QAction *action = languageMenu->addAction(entry.label);
