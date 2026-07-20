@@ -22,8 +22,8 @@ QT_BEGIN_MOC_NAMESPACE
 QT_WARNING_PUSH
 QT_WARNING_DISABLE_DEPRECATED
 struct qt_meta_stringdata_FileOperations_t {
-    QByteArrayData data[8];
-    char stringdata0[70];
+    QByteArrayData data[10];
+    char stringdata0[101];
 };
 #define QT_MOC_LITERAL(idx, ofs, len) \
     Q_STATIC_BYTE_ARRAY_DATA_HEADER_INITIALIZER_WITH_OFFSET(len, \
@@ -35,14 +35,17 @@ static const qt_meta_stringdata_FileOperations_t qt_meta_stringdata_FileOperatio
 QT_MOC_LITERAL(0, 0, 14), // "FileOperations"
 QT_MOC_LITERAL(1, 15, 8), // "progress"
 QT_MOC_LITERAL(2, 24, 0), // ""
-QT_MOC_LITERAL(3, 25, 4), // "done"
-QT_MOC_LITERAL(4, 30, 5), // "total"
-QT_MOC_LITERAL(5, 36, 11), // "currentFile"
-QT_MOC_LITERAL(6, 48, 13), // "errorOccurred"
-QT_MOC_LITERAL(7, 62, 7) // "message"
+QT_MOC_LITERAL(3, 25, 9), // "doneItems"
+QT_MOC_LITERAL(4, 35, 10), // "totalItems"
+QT_MOC_LITERAL(5, 46, 9), // "doneBytes"
+QT_MOC_LITERAL(6, 56, 10), // "totalBytes"
+QT_MOC_LITERAL(7, 67, 11), // "currentFile"
+QT_MOC_LITERAL(8, 79, 13), // "errorOccurred"
+QT_MOC_LITERAL(9, 93, 7) // "message"
 
     },
-    "FileOperations\0progress\0\0done\0total\0"
+    "FileOperations\0progress\0\0doneItems\0"
+    "totalItems\0doneBytes\0totalBytes\0"
     "currentFile\0errorOccurred\0message"
 };
 #undef QT_MOC_LITERAL
@@ -61,12 +64,12 @@ static const uint qt_meta_data_FileOperations[] = {
        2,       // signalCount
 
  // signals: name, argc, parameters, tag, flags
-       1,    3,   24,    2, 0x06 /* Public */,
-       6,    1,   31,    2, 0x06 /* Public */,
+       1,    5,   24,    2, 0x06 /* Public */,
+       8,    1,   35,    2, 0x06 /* Public */,
 
  // signals: parameters
-    QMetaType::Void, QMetaType::LongLong, QMetaType::LongLong, QMetaType::QString,    3,    4,    5,
-    QMetaType::Void, QMetaType::QString,    7,
+    QMetaType::Void, QMetaType::LongLong, QMetaType::LongLong, QMetaType::LongLong, QMetaType::LongLong, QMetaType::QString,    3,    4,    5,    6,    7,
+    QMetaType::Void, QMetaType::QString,    9,
 
        0        // eod
 };
@@ -77,14 +80,14 @@ void FileOperations::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _
         auto *_t = static_cast<FileOperations *>(_o);
         (void)_t;
         switch (_id) {
-        case 0: _t->progress((*reinterpret_cast< qint64(*)>(_a[1])),(*reinterpret_cast< qint64(*)>(_a[2])),(*reinterpret_cast< const QString(*)>(_a[3]))); break;
+        case 0: _t->progress((*reinterpret_cast< qint64(*)>(_a[1])),(*reinterpret_cast< qint64(*)>(_a[2])),(*reinterpret_cast< qint64(*)>(_a[3])),(*reinterpret_cast< qint64(*)>(_a[4])),(*reinterpret_cast< const QString(*)>(_a[5]))); break;
         case 1: _t->errorOccurred((*reinterpret_cast< const QString(*)>(_a[1]))); break;
         default: ;
         }
     } else if (_c == QMetaObject::IndexOfMethod) {
         int *result = reinterpret_cast<int *>(_a[0]);
         {
-            using _t = void (FileOperations::*)(qint64 , qint64 , const QString & );
+            using _t = void (FileOperations::*)(qint64 , qint64 , qint64 , qint64 , const QString & );
             if (*reinterpret_cast<_t *>(_a[1]) == static_cast<_t>(&FileOperations::progress)) {
                 *result = 0;
                 return;
@@ -141,9 +144,9 @@ int FileOperations::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
 }
 
 // SIGNAL 0
-void FileOperations::progress(qint64 _t1, qint64 _t2, const QString & _t3)
+void FileOperations::progress(qint64 _t1, qint64 _t2, qint64 _t3, qint64 _t4, const QString & _t5)
 {
-    void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t2))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t3))) };
+    void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t2))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t3))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t4))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t5))) };
     QMetaObject::activate(this, &staticMetaObject, 0, _a);
 }
 

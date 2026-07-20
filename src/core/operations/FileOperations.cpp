@@ -27,6 +27,28 @@ qint64 FileOperations::countEntries(const QStringList &paths) {
     return count;
 }
 
+qint64 FileOperations::countBytes(const QStringList &paths) {
+    qint64 total = 0;
+    for (const QString &path : paths) {
+        QFileInfo info(path);
+        if (info.isDir()) {
+            QDirIterator it(path, QDir::Files | QDir::NoDotAndDotDot | QDir::Hidden,
+                             QDirIterator::Subdirectories);
+            while (it.hasNext()) {
+                it.next();
+                total += it.fileInfo().size();
+            }
+        } else {
+            total += info.size();
+        }
+    }
+    return total;
+}
+
+void FileOperations::emitProgress(const QString &currentFile) {
+    emit progress(m_doneItems, m_totalItems, m_doneBytes, m_totalBytes, currentFile);
+}
+
 QString FileOperations::uniqueDestination(const QString &destDir, const QString &name) {
     QFileInfo fi(name);
     const QString base = fi.completeBaseName();
@@ -55,8 +77,9 @@ bool FileOperations::copyRecursively(const QString &sourceDir, const QString &de
             QFile::remove(target);
             if (!QFile::copy(entry.filePath(), target))
                 return false;
+            m_doneBytes += entry.size();
         }
-        emit progress(0, 0, entry.filePath());
+        emitProgress(entry.filePath());
         if (m_cancelled)
             return false;
     }
@@ -104,6 +127,8 @@ bool FileOperations::copyOne(const QString &source, const QString &destDir, bool
     } else {
         QFile::remove(destPath);
         ok = QFile::copy(source, destPath);
+        if (ok)
+            m_doneBytes += srcInfo.size();
     }
 
     if (!ok) {
@@ -121,15 +146,17 @@ bool FileOperations::copyOne(const QString &source, const QString &destDir, bool
             QFile::remove(source);
     }
 
-    emit progress(0, 0, source);
+    emitProgress(source);
     return true;
 }
 
 bool FileOperations::copyPaths(const QStringList &sources, const QString &destDir,
                                 const ConflictResolver &resolver, QString *errorMessage) {
     m_cancelled = false;
-    const qint64 total = countEntries(sources);
-    qint64 done = 0;
+    m_totalItems = sources.size();
+    m_totalBytes = countBytes(sources);
+    m_doneItems = 0;
+    m_doneBytes = 0;
     ErrorAction batchAction = ErrorAction::Retry; // sentinel meaning "ask each time"
     QDir().mkpath(destDir);
 
@@ -142,8 +169,8 @@ bool FileOperations::copyPaths(const QStringList &sources, const QString &destDi
                 return false;
             // A per-file error was already reported; keep going with the rest.
         }
-        ++done;
-        emit progress(done, total, source);
+        ++m_doneItems;
+        emitProgress(source);
     }
     return true;
 }
@@ -151,8 +178,10 @@ bool FileOperations::copyPaths(const QStringList &sources, const QString &destDi
 bool FileOperations::movePaths(const QStringList &sources, const QString &destDir,
                                 const ConflictResolver &resolver, QString *errorMessage) {
     m_cancelled = false;
-    const qint64 total = countEntries(sources);
-    qint64 done = 0;
+    m_totalItems = sources.size();
+    m_totalBytes = countBytes(sources);
+    m_doneItems = 0;
+    m_doneBytes = 0;
     ErrorAction batchAction = ErrorAction::Retry;
     QDir().mkpath(destDir);
 
@@ -163,10 +192,17 @@ bool FileOperations::movePaths(const QStringList &sources, const QString &destDi
         QFileInfo srcInfo(source);
         const QString destPath = QDir(destDir).filePath(srcInfo.fileName());
 
-        // Fast path: same filesystem rename, no destination conflict.
-        if (!QFileInfo::exists(destPath) && QDir().rename(source, destPath)) {
-            emit progress(++done, total, source);
-            continue;
+        // Fast path: same filesystem rename, no destination conflict. Account
+        // the whole entry's bytes at once (computed before the rename, since
+        // the source disappears) so the byte bar still reaches 100%.
+        if (!QFileInfo::exists(destPath) && QDir::cleanPath(destPath) != QDir::cleanPath(source)) {
+            const qint64 bytes = srcInfo.isDir() ? countBytes({source}) : srcInfo.size();
+            if (QDir().rename(source, destPath)) {
+                m_doneBytes += bytes;
+                ++m_doneItems;
+                emitProgress(source);
+                continue;
+            }
         }
 
         if (!copyOne(source, destDir, /*removeSource=*/true, resolver, batchAction,
@@ -174,16 +210,18 @@ bool FileOperations::movePaths(const QStringList &sources, const QString &destDi
             if (m_cancelled)
                 return false;
         }
-        ++done;
-        emit progress(done, total, source);
+        ++m_doneItems;
+        emitProgress(source);
     }
     return true;
 }
 
 bool FileOperations::deletePaths(const QStringList &paths, bool toTrash, QString *errorMessage) {
     m_cancelled = false;
-    const qint64 total = countEntries(paths);
-    qint64 done = 0;
+    m_totalItems = paths.size();
+    m_totalBytes = 0; // bytes freed aren't a meaningful transfer measure
+    m_doneItems = 0;
+    m_doneBytes = 0;
 
     if (toTrash) {
         QStringList args = QStringList(QStringLiteral("trash")) + paths;
@@ -191,7 +229,8 @@ bool FileOperations::deletePaths(const QStringList &paths, bool toTrash, QString
         proc.start(QStringLiteral("gio"), args);
         proc.waitForFinished(-1);
         if (proc.exitStatus() == QProcess::NormalExit && proc.exitCode() == 0) {
-            emit progress(paths.size(), paths.size(), QString());
+            m_doneItems = paths.size();
+            emitProgress(QString());
             return true;
         }
         // gio trash unavailable or failed: fall through to permanent delete.
@@ -208,8 +247,8 @@ bool FileOperations::deletePaths(const QStringList &paths, bool toTrash, QString
                 *errorMessage = msg;
             emit errorOccurred(msg);
         }
-        ++done;
-        emit progress(done, total, path);
+        ++m_doneItems;
+        emitProgress(path);
     }
     return true;
 }
@@ -258,8 +297,10 @@ bool FileOperations::renamePath(const QString &path, const QString &newName,
 bool FileOperations::createSymlinks(const QStringList &sources, const QString &destDir,
                                      QString *errorMessage) {
     m_cancelled = false;
-    const qint64 total = sources.size();
-    qint64 done = 0;
+    m_totalItems = sources.size();
+    m_totalBytes = 0; // links carry no bytes
+    m_doneItems = 0;
+    m_doneBytes = 0;
     bool allOk = true;
 
     for (const QString &source : sources) {
@@ -278,7 +319,8 @@ bool FileOperations::createSymlinks(const QStringList &sources, const QString &d
             emit errorOccurred(msg);
             allOk = false;
         }
-        emit progress(++done, total, source);
+        ++m_doneItems;
+        emitProgress(source);
     }
     return allOk;
 }

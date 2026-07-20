@@ -280,6 +280,8 @@ src/ui/CMakeFiles/ui.dir/dialogs/OperationProgressDialog.cpp.o: \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qsizepolicy.h \
  /usr/include/x86_64-linux-gnu/qt5/QtGui/qcursor.h \
  /usr/include/x86_64-linux-gnu/qt5/QtGui/qkeysequence.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/QElapsedTimer \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qelapsedtimer.h \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QDialogButtonBox \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qdialogbuttonbox.h \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QLabel \

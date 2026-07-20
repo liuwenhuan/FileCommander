@@ -308,6 +308,7 @@ ui_autogen/timestamp: \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/QAbstractTableModel \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/QByteArray \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/QDateTime \
+	/usr/include/x86_64-linux-gnu/qt5/QtCore/QElapsedTimer \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/QFile \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/QFutureWatcher \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/QList \
@@ -336,6 +337,7 @@ ui_autogen/timestamp: \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/qdatastream.h \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/qdatetime.h \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/qdebug.h \
+	/usr/include/x86_64-linux-gnu/qt5/QtCore/qelapsedtimer.h \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/qexception.h \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/qfile.h \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/qfiledevice.h \

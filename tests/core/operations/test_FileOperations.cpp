@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QFile>
 #include <QTemporaryDir>
+#include <QtTest/QSignalSpy>
 
 #include "FileOperations.h"
 
@@ -114,6 +115,24 @@ TEST(FileOperationsTest, MovePathsOntoSelfIsNoOp) {
     EXPECT_EQ(original.readAll(), QByteArray("payload"));
     // No spurious renamed duplicate left behind.
     EXPECT_FALSE(QFile::exists(QDir(dir.path()).filePath("stay (1).txt")));
+}
+
+TEST(FileOperationsTest, CopyReportsByteProgressToCompletion) {
+    QTemporaryDir srcDir, dstDir;
+    ASSERT_TRUE(srcDir.isValid() && dstDir.isValid());
+    const QString source = writeFile(srcDir.path(), "big.bin", QByteArray(4096, 'z'));
+
+    FileOperations ops;
+    QSignalSpy spy(&ops, &FileOperations::progress);
+    QString err;
+    ASSERT_TRUE(ops.copyPaths({source}, dstDir.path(), nullptr, &err)) << err.toStdString();
+
+    ASSERT_FALSE(spy.isEmpty());
+    const QList<QVariant> last = spy.takeLast();
+    EXPECT_EQ(last.at(0).toLongLong(), 1);    // doneItems
+    EXPECT_EQ(last.at(1).toLongLong(), 1);    // totalItems
+    EXPECT_EQ(last.at(2).toLongLong(), 4096); // doneBytes
+    EXPECT_EQ(last.at(3).toLongLong(), 4096); // totalBytes
 }
 
 TEST(FileOperationsTest, RequestCancelStopsRemainingEntries) {

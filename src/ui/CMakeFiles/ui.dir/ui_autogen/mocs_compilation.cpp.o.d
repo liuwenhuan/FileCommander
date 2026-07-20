@@ -377,6 +377,8 @@ src/ui/CMakeFiles/ui.dir/ui_autogen/mocs_compilation.cpp.o: \
  /home/deepin/codework/ttc/src/ui/ui_autogen/2NRMJ5X7RK/../../dialogs/MultiRenameDialog.h \
  /home/deepin/codework/ttc/src/ui/ui_autogen/2NRMJ5X7RK/moc_OperationProgressDialog.cpp \
  /home/deepin/codework/ttc/src/ui/ui_autogen/2NRMJ5X7RK/../../dialogs/OperationProgressDialog.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/QElapsedTimer \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qelapsedtimer.h \
  /home/deepin/codework/ttc/src/ui/ui_autogen/2NRMJ5X7RK/moc_OverwriteConfirmDialog.cpp \
  /home/deepin/codework/ttc/src/ui/ui_autogen/2NRMJ5X7RK/../../dialogs/OverwriteConfirmDialog.h \
  /home/deepin/codework/ttc/src/core/operations/FileOpTypes.h \

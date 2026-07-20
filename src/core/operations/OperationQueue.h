@@ -40,7 +40,8 @@ public:
 
 signals:
     void started(const QString &description);
-    void progress(qint64 done, qint64 total, const QString &currentFile);
+    void progress(qint64 doneItems, qint64 totalItems, qint64 doneBytes, qint64 totalBytes,
+                   const QString &currentFile);
     void errorOccurred(const QString &message);
     void finished(bool ok);
 

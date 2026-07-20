@@ -38,7 +38,11 @@ public:
     void requestCancel() { m_cancelled.store(true); }
 
 signals:
-    void progress(qint64 done, qint64 total, const QString &currentFile);
+    // doneItems/totalItems count the top-level selected entries; doneBytes/
+    // totalBytes track transferred bytes (recursive) and are 0 for operations
+    // where bytes are not meaningful (delete, symlink).
+    void progress(qint64 doneItems, qint64 totalItems, qint64 doneBytes, qint64 totalBytes,
+                   const QString &currentFile);
     void errorOccurred(const QString &message);
 
 private:
@@ -46,8 +50,14 @@ private:
                   const ConflictResolver &resolver, ErrorAction &batchAction,
                   QString *errorMessage);
     bool copyRecursively(const QString &sourceDir, const QString &destDir);
+    void emitProgress(const QString &currentFile);
     static qint64 countEntries(const QStringList &paths);
+    static qint64 countBytes(const QStringList &paths);
     static QString uniqueDestination(const QString &destDir, const QString &name);
 
     std::atomic<bool> m_cancelled{false};
+    qint64 m_totalItems = 0;
+    qint64 m_doneItems = 0;
+    qint64 m_totalBytes = 0;
+    qint64 m_doneBytes = 0;
 };

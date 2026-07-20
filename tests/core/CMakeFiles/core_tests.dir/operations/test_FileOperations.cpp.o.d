@@ -349,6 +349,25 @@ tests/core/CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.o: \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QTemporaryDir \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qtemporarydir.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qdir.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtTest/QSignalSpy \
+ /usr/include/x86_64-linux-gnu/qt5/QtTest/qsignalspy.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qmetaobject.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qvariant.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qmap.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtTest/qtesteventloop.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtTest/qttestglobal.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtTest/qttestlib-config.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qcoreapplication.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qcoreevent.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qeventloop.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qpointer.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qsharedpointer.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qsharedpointer_impl.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qthread.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qdeadlinetimer.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qelapsedtimer.h \
+ /usr/include/c++/12/future /usr/include/c++/12/bits/atomic_futex.h \
+ /usr/include/c++/12/bits/std_thread.h \
  /home/deepin/codework/ttc/src/core/operations/FileOperations.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QObject \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qobject.h \

@@ -473,6 +473,8 @@ src/ui/CMakeFiles/ui.dir/MainWindow.cpp.o: \
  /home/deepin/codework/ttc/src/ui/dialogs/CompareDialog.h \
  /home/deepin/codework/ttc/src/ui/dialogs/MultiRenameDialog.h \
  /home/deepin/codework/ttc/src/ui/dialogs/OperationProgressDialog.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/QElapsedTimer \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qelapsedtimer.h \
  /home/deepin/codework/ttc/src/ui/dialogs/OverwriteConfirmDialog.h \
  /home/deepin/codework/ttc/src/ui/dialogs/PropertiesDialog.h \
  /home/deepin/codework/ttc/src/ui/dialogs/ShortcutsDialog.h \

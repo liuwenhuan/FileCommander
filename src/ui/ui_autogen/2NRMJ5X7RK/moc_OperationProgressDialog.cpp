@@ -22,8 +22,8 @@ QT_BEGIN_MOC_NAMESPACE
 QT_WARNING_PUSH
 QT_WARNING_DISABLE_DEPRECATED
 struct qt_meta_stringdata_OperationProgressDialog_t {
-    QByteArrayData data[9];
-    char stringdata0[103];
+    QByteArrayData data[11];
+    char stringdata0[134];
 };
 #define QT_MOC_LITERAL(idx, ofs, len) \
     Q_STATIC_BYTE_ARRAY_DATA_HEADER_INITIALIZER_WITH_OFFSET(len, \
@@ -38,14 +38,17 @@ QT_MOC_LITERAL(2, 40, 0), // ""
 QT_MOC_LITERAL(3, 41, 14), // "setDescription"
 QT_MOC_LITERAL(4, 56, 11), // "description"
 QT_MOC_LITERAL(5, 68, 11), // "setProgress"
-QT_MOC_LITERAL(6, 80, 4), // "done"
-QT_MOC_LITERAL(7, 85, 5), // "total"
-QT_MOC_LITERAL(8, 91, 11) // "currentFile"
+QT_MOC_LITERAL(6, 80, 9), // "doneItems"
+QT_MOC_LITERAL(7, 90, 10), // "totalItems"
+QT_MOC_LITERAL(8, 101, 9), // "doneBytes"
+QT_MOC_LITERAL(9, 111, 10), // "totalBytes"
+QT_MOC_LITERAL(10, 122, 11) // "currentFile"
 
     },
     "OperationProgressDialog\0cancelRequested\0"
     "\0setDescription\0description\0setProgress\0"
-    "done\0total\0currentFile"
+    "doneItems\0totalItems\0doneBytes\0"
+    "totalBytes\0currentFile"
 };
 #undef QT_MOC_LITERAL
 
@@ -67,14 +70,14 @@ static const uint qt_meta_data_OperationProgressDialog[] = {
 
  // slots: name, argc, parameters, tag, flags
        3,    1,   30,    2, 0x0a /* Public */,
-       5,    3,   33,    2, 0x0a /* Public */,
+       5,    5,   33,    2, 0x0a /* Public */,
 
  // signals: parameters
     QMetaType::Void,
 
  // slots: parameters
     QMetaType::Void, QMetaType::QString,    4,
-    QMetaType::Void, QMetaType::LongLong, QMetaType::LongLong, QMetaType::QString,    6,    7,    8,
+    QMetaType::Void, QMetaType::LongLong, QMetaType::LongLong, QMetaType::LongLong, QMetaType::LongLong, QMetaType::QString,    6,    7,    8,    9,   10,
 
        0        // eod
 };
@@ -87,7 +90,7 @@ void OperationProgressDialog::qt_static_metacall(QObject *_o, QMetaObject::Call 
         switch (_id) {
         case 0: _t->cancelRequested(); break;
         case 1: _t->setDescription((*reinterpret_cast< const QString(*)>(_a[1]))); break;
-        case 2: _t->setProgress((*reinterpret_cast< qint64(*)>(_a[1])),(*reinterpret_cast< qint64(*)>(_a[2])),(*reinterpret_cast< const QString(*)>(_a[3]))); break;
+        case 2: _t->setProgress((*reinterpret_cast< qint64(*)>(_a[1])),(*reinterpret_cast< qint64(*)>(_a[2])),(*reinterpret_cast< qint64(*)>(_a[3])),(*reinterpret_cast< qint64(*)>(_a[4])),(*reinterpret_cast< const QString(*)>(_a[5]))); break;
         default: ;
         }
     } else if (_c == QMetaObject::IndexOfMethod) {
