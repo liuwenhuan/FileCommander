@@ -74,6 +74,8 @@ signals:
     void openRequested(const QString &path);
     // Tab pressed in the list: caller should activate the other panel.
     void switchPanelRequested();
+    // The "*" button was clicked: caller should pop a shortcut menu at pos.
+    void shortcutMenuRequested(const QPoint &globalPos);
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -97,6 +99,7 @@ private:
     BreadcrumbBar *m_addressBar;
     QToolButton *m_backButton;
     QToolButton *m_forwardButton;
+    QToolButton *m_starButton;
     QLineEdit *m_filterBar;
     FileListView *m_view;
     StatusBarWidget *m_statusBar;

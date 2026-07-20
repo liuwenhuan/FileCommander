@@ -268,6 +268,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
             other->view()->setFocus();
             setActivePanel(other);
         });
+        connect(panel, &FilePanel::shortcutMenuRequested, this, &MainWindow::showShortcutMenu);
         connect(panel, &FilePanel::pathChanged, this, [this, panel](const QString &path) {
             if (panel == m_activePanel) {
                 m_commandBar->setDirectory(path);
@@ -433,11 +434,31 @@ void MainWindow::bindShortcut(const QString &id, const QString &label,
                                const QKeySequence &defaultSeq, std::function<void()> handler) {
     m_shortcutDefaults[id] = defaultSeq;
     m_shortcutOrder.append({id, label});
+    m_shortcutHandlers[id] = handler; // also invokable from the "*" menu
 
     auto *sc = new QShortcut(m_settings.shortcut(id, defaultSeq), this);
     sc->setContext(Qt::WindowShortcut);
     connect(sc, &QShortcut::activated, this, handler);
     m_shortcuts[id] = sc;
+}
+
+void MainWindow::showShortcutMenu(const QPoint &globalPos) {
+    QMenu menu(this);
+    for (const auto &entry : m_shortcutOrder) {
+        const QString &id = entry.first;
+        const QString &label = entry.second;
+        const QKeySequence seq =
+            m_shortcuts.value(id) ? m_shortcuts.value(id)->key() : m_shortcutDefaults.value(id);
+        // Label on the left, the key sequence right-aligned (via the tab).
+        QAction *action =
+            menu.addAction(label + QLatin1Char('\t') + seq.toString(QKeySequence::NativeText));
+        connect(action, &QAction::triggered, this, [this, id]() {
+            auto it = m_shortcutHandlers.constFind(id);
+            if (it != m_shortcutHandlers.constEnd() && it.value())
+                it.value()();
+        });
+    }
+    menu.exec(globalPos);
 }
 
 void MainWindow::setupShortcuts() {

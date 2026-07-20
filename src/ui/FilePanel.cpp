@@ -51,6 +51,18 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_forwardButton->setToolTip(tr("Forward"));
     connect(m_forwardButton, &QToolButton::clicked, this, &FilePanel::goForward);
 
+    // "*" opens a menu of all keyboard shortcuts (click a row to run it).
+    m_starButton = new QToolButton(this);
+    m_starButton->setText(QStringLiteral("✳"));
+    m_starButton->setAutoRaise(true);
+    m_starButton->setFocusPolicy(Qt::NoFocus);
+    m_starButton->setToolTip(tr("Commands / shortcuts"));
+    connect(m_starButton, &QToolButton::clicked, this, [this]() {
+        emit panelActivated(this); // act on this panel
+        emit shortcutMenuRequested(
+            m_starButton->mapToGlobal(QPoint(0, m_starButton->height())));
+    });
+
     auto *addressRow = new QWidget(this);
     auto *addressLayout = new QHBoxLayout(addressRow);
     addressLayout->setContentsMargins(0, 0, 0, 0);
@@ -58,6 +70,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     addressLayout->addWidget(m_backButton);
     addressLayout->addWidget(m_forwardButton);
     addressLayout->addWidget(m_addressBar, 1);
+    addressLayout->addWidget(m_starButton);
 
     m_filterBar = new QLineEdit(this);
     m_filterBar->setClearButtonEnabled(true);
@@ -90,6 +103,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_addressBar->setFixedHeight(rowH);
     m_backButton->setFixedSize(rowH, rowH);
     m_forwardButton->setFixedSize(rowH, rowH);
+    m_starButton->setFixedSize(rowH, rowH);
     updateNavButtons();
 
     connect(m_filterBar, &QLineEdit::textChanged, this,

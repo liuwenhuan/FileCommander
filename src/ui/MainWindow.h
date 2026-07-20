@@ -54,6 +54,7 @@ private slots:
     void compareDirectories();
     void openDirectoryHotlist(); // Ctrl+D
     void showProperties(); // F9
+    void showShortcutMenu(const QPoint &globalPos);
     void calculateSizes();
     void syncOtherPanelToActive();
     void swapPanels();
@@ -121,5 +122,6 @@ private:
 
     QMap<QString, QShortcut *> m_shortcuts;
     QMap<QString, QKeySequence> m_shortcutDefaults;
+    QMap<QString, std::function<void()>> m_shortcutHandlers; // id -> action
     QList<QPair<QString, QString>> m_shortcutOrder; // id, human-readable label
 };
