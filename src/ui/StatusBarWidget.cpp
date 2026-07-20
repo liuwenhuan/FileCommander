@@ -5,9 +5,12 @@
 
 StatusBarWidget::StatusBarWidget(QWidget *parent) : QWidget(parent) {
     m_label = new QLabel(this);
+    m_diskLabel = new QLabel(this);
     auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(6, 0, 6, 0);
     layout->addWidget(m_label);
+    layout->addStretch(1);
+    layout->addWidget(m_diskLabel);
 }
 
 namespace {
@@ -34,4 +37,13 @@ void StatusBarWidget::setSelectionInfo(int selectedCount, qint64 selectedBytes, 
                               .arg(totalCount)
                               .arg(humanSize(selectedBytes)));
     }
+}
+
+void StatusBarWidget::setDiskInfo(qint64 freeBytes, qint64 totalBytes) {
+    if (totalBytes <= 0) {
+        m_diskLabel->clear();
+        return;
+    }
+    m_diskLabel->setText(
+        QObject::tr("%1 free of %2").arg(humanSize(freeBytes), humanSize(totalBytes)));
 }

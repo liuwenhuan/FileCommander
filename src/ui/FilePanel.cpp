@@ -13,6 +13,7 @@
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QShortcut>
+#include <QStorageInfo>
 #include <QVBoxLayout>
 #include <QtConcurrent/QtConcurrent>
 
@@ -81,6 +82,8 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
         if (m_view->model()->rowCount() > 0 && !m_view->currentIndex().isValid())
             m_view->setCurrentIndex(m_view->model()->index(0, 0));
         updateStatus();
+        const QStorageInfo storage(m_model->rootPath());
+        m_statusBar->setDiskInfo(storage.bytesAvailable(), storage.bytesTotal());
     });
 
     connect(m_tabBar, &QTabBar::currentChanged, this, &FilePanel::onTabBarCurrentChanged);

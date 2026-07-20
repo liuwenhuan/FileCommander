@@ -12,7 +12,9 @@ public:
     explicit StatusBarWidget(QWidget *parent = nullptr);
 
     void setSelectionInfo(int selectedCount, qint64 selectedBytes, int totalCount);
+    void setDiskInfo(qint64 freeBytes, qint64 totalBytes);
 
 private:
     QLabel *m_label;
+    QLabel *m_diskLabel;
 };

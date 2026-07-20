@@ -2939,12 +2939,15 @@ tests/core/CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.o
  /usr/include/x86_64-linux-gnu/c++/12/bits/time_members.h
  /usr/include/x86_64-linux-gnu/gnu/stubs-64.h
  /usr/include/x86_64-linux-gnu/gnu/stubs.h
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/QDeadlineTimer
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QDir
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QFile
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/QMutex
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QObject
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QString
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QStringList
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QTemporaryDir
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/QWaitCondition
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qalgorithms.h
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qarraydata.h
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qatomic.h
@@ -2979,6 +2982,7 @@ tests/core/CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.o
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qmap.h
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qmetaobject.h
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qmetatype.h
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qmutex.h
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qnamespace.h
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qnumeric.h
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qobject.h
@@ -3010,6 +3014,7 @@ tests/core/CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.o
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qvarlengtharray.h
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qvector.h
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qversiontagging.h
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qwaitcondition.h
  /usr/include/x86_64-linux-gnu/qt5/QtTest/QSignalSpy
  /usr/include/x86_64-linux-gnu/qt5/QtTest/qsignalspy.h
  /usr/include/x86_64-linux-gnu/qt5/QtTest/qtesteventloop.h

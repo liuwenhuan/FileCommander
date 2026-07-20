@@ -381,6 +381,9 @@ src/ui/CMakeFiles/ui.dir/FilePanel.cpp.o: \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qlineedit.h \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QShortcut \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qshortcut.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/QStorageInfo \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qstorageinfo.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qdir.h \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QVBoxLayout \
  /usr/include/x86_64-linux-gnu/qt5/QtConcurrent/QtConcurrent \
  /usr/include/x86_64-linux-gnu/qt5/QtConcurrent/QtConcurrentDepends \
@@ -439,7 +442,6 @@ src/ui/CMakeFiles/ui.dir/FilePanel.cpp.o: \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qelapsedtimer.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qdebug.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qdiriterator.h \
- /usr/include/x86_64-linux-gnu/qt5/QtCore/qdir.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qeasingcurve.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qelapsedtimer.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qendian.h \
@@ -571,7 +573,6 @@ src/ui/CMakeFiles/ui.dir/FilePanel.cpp.o: \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qstate.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qstatemachine.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qstate.h \
- /usr/include/x86_64-linux-gnu/qt5/QtCore/qstorageinfo.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qstringalgorithms.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qstringbuilder.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qstringlistmodel.h \

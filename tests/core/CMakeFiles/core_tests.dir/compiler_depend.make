@@ -2930,12 +2930,15 @@ tests/core/CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.o: tests
   /usr/include/x86_64-linux-gnu/c++/12/bits/time_members.h \
   /usr/include/x86_64-linux-gnu/gnu/stubs-64.h \
   /usr/include/x86_64-linux-gnu/gnu/stubs.h \
+  /usr/include/x86_64-linux-gnu/qt5/QtCore/QDeadlineTimer \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/QDir \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/QFile \
+  /usr/include/x86_64-linux-gnu/qt5/QtCore/QMutex \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/QObject \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/QString \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/QStringList \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/QTemporaryDir \
+  /usr/include/x86_64-linux-gnu/qt5/QtCore/QWaitCondition \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qalgorithms.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qarraydata.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qatomic.h \
@@ -2970,6 +2973,7 @@ tests/core/CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.o: tests
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qmap.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qmetaobject.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qmetatype.h \
+  /usr/include/x86_64-linux-gnu/qt5/QtCore/qmutex.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qnamespace.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qnumeric.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qobject.h \
@@ -3001,6 +3005,7 @@ tests/core/CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.o: tests
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qvarlengtharray.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qvector.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qversiontagging.h \
+  /usr/include/x86_64-linux-gnu/qt5/QtCore/qwaitcondition.h \
   /usr/include/x86_64-linux-gnu/qt5/QtTest/QSignalSpy \
   /usr/include/x86_64-linux-gnu/qt5/QtTest/qsignalspy.h \
   /usr/include/x86_64-linux-gnu/qt5/QtTest/qtesteventloop.h \
@@ -4860,6 +4865,10 @@ tests/core/CMakeFiles/core_tests.dir/core_tests_autogen/mocs_compilation.cpp.o:
 
 /lib/x86_64-linux-gnu/libicuuc.so.74:
 
+/lib/x86_64-linux-gnu/libicui18n.so.74:
+
+/lib/x86_64-linux-gnu/libgraphite2.so.3:
+
 /usr/include/x86_64-linux-gnu/bits/sigstack.h:
 
 /usr/include/x86_64-linux-gnu/qt5/QtCore/qcache.h:
@@ -5264,6 +5273,8 @@ tests/core/operations/test_OperationQueue.cpp:
 
 tests/core/config/test_Settings.cpp:
 
+/usr/include/x86_64-linux-gnu/qt5/QtCore/QWaitCondition:
+
 /usr/include/c++/12/bits/functexcept.h:
 
 /usr/src/googletest/googletest/include/gtest/gtest-param-test.h:
@@ -5380,8 +5391,6 @@ tests/core/CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.o:
 
 /usr/include/c++/12/bits/stl_tree.h:
 
-/lib/x86_64-linux-gnu/libgraphite2.so.3:
-
 /usr/include/x86_64-linux-gnu/bits/posix1_lim.h:
 
 /usr/include/x86_64-linux-gnu/bits/locale.h:
@@ -5419,6 +5428,10 @@ tests/core/CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.o:
 /usr/lib/x86_64-linux-gnu/libQt5Core.so.5.15.8:
 
 /usr/include/c++/12/bits/range_access.h:
+
+/lib/x86_64-linux-gnu/libicudata.so.74:
+
+/usr/include/x86_64-linux-gnu/bits/select.h:
 
 /usr/include/x86_64-linux-gnu/bits/time.h:
 
@@ -5702,9 +5715,11 @@ src/core/compare/TextDiff.h:
 
 /usr/include/x86_64-linux-gnu/qt5/QtCore/qarraydata.h:
 
-/usr/include/x86_64-linux-gnu/bits/select.h:
+/usr/lib/gcc/x86_64-linux-gnu/12/libstdc++.so:
 
-/lib/x86_64-linux-gnu/libicudata.so.74:
+/lib/x86_64-linux-gnu/libharfbuzz.so.0:
+
+/usr/include/x86_64-linux-gnu/qt5/QtCore/qatomic.h:
 
 /usr/include/x86_64-linux-gnu/qt5/QtCore/qbytearray.h:
 
@@ -5922,9 +5937,15 @@ src/core/filesystem/FileInfo.h:
 
 /usr/include/x86_64-linux-gnu/qt5/QtGui/qregion.h:
 
+/usr/include/x86_64-linux-gnu/qt5/QtCore/QMutex:
+
 /usr/include/x86_64-linux-gnu/qt5/QtGui/qrgb.h:
 
 src/core/operations/FileOperations.h:
+
+/usr/include/x86_64-linux-gnu/qt5/QtCore/QDeadlineTimer:
+
+/usr/include/x86_64-linux-gnu/qt5/QtCore/qwaitcondition.h:
 
 /usr/include/x86_64-linux-gnu/qt5/QtCore/QQueue:
 
@@ -5961,11 +5982,3 @@ src/core/operations/FileOperations.h:
 /lib/x86_64-linux-gnu/libbz2.so.1.0:
 
 /lib/x86_64-linux-gnu/libglib-2.0.so.0:
-
-/usr/lib/gcc/x86_64-linux-gnu/12/libstdc++.so:
-
-/usr/include/x86_64-linux-gnu/qt5/QtCore/qatomic.h:
-
-/lib/x86_64-linux-gnu/libharfbuzz.so.0:
-
-/lib/x86_64-linux-gnu/libicui18n.so.74:
