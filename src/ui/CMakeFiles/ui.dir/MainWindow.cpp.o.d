@@ -390,6 +390,7 @@ src/ui/CMakeFiles/ui.dir/MainWindow.cpp.o: \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qbasictimer.h \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QSplitter \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qsplitter.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QSplitterHandle \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QStandardPaths \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qstandardpaths.h \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QStatusBar \
@@ -705,6 +706,7 @@ src/ui/CMakeFiles/ui.dir/MainWindow.cpp.o: \
  /home/deepin/codework/ttc/src/ui/QuickView.h \
  /usr/include/x86_64-linux-gnu/qt5/QtGui/QPixmap \
  /usr/include/x86_64-linux-gnu/qt5/QtGui/qpixmap.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/QPoint \
  /home/deepin/codework/ttc/src/ui/FunctionKeyBar.h \
  /home/deepin/codework/ttc/src/viewer/ImageViewer.h \
  /home/deepin/codework/ttc/src/core/operations/OperationQueue.h \

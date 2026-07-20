@@ -409,15 +409,8 @@ void MainWindow::setupMenuAndToolbar() {
                                                       &MainWindow::toggleFolderTree);
     folderTreeAction->setCheckable(true);
     folderTreeAction->setChecked(false);
-
-    auto *toolbar = addToolBar(tr("Navigation"));
-    toolbar->setFocusPolicy(Qt::NoFocus);
-    QAction *backAction = toolbar->addAction(tr("←"), this, &MainWindow::navigateBack);
-    QAction *fwdAction = toolbar->addAction(tr("→"), this, &MainWindow::navigateForward);
-    QAction *upAction = toolbar->addAction(tr("↑"), this, &MainWindow::navigateUp);
-    QAction *refreshBtn = toolbar->addAction(tr("↻"), this, &MainWindow::refreshActivePanel);
-    for (QAction *a : {backAction, fwdAction, upAction, refreshBtn})
-        Q_UNUSED(a);
+    // No navigation toolbar: Back/Forward now live inline in each panel's
+    // path row, Up is Backspace, Refresh is Ctrl+R / the Commands menu.
 }
 
 void MainWindow::bindShortcut(const QString &id, const QString &label,

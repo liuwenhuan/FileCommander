@@ -14,6 +14,7 @@
 #include <QLineEdit>
 #include <QShortcut>
 #include <QStorageInfo>
+#include <QToolButton>
 #include <QVBoxLayout>
 #include <QtConcurrent/QtConcurrent>
 
@@ -34,6 +35,30 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_addressBar = new BreadcrumbBar(this);
     m_addressBar->setFocusPolicy(Qt::ClickFocus); // keep it out of the Tab chain
 
+    // Back/Forward live inline at the head of the path row (no separate
+    // toolbar) to save a full row of vertical space.
+    m_backButton = new QToolButton(this);
+    m_backButton->setText(QStringLiteral("←"));
+    m_backButton->setAutoRaise(true);
+    m_backButton->setFocusPolicy(Qt::NoFocus);
+    m_backButton->setToolTip(tr("Back"));
+    connect(m_backButton, &QToolButton::clicked, this, &FilePanel::goBack);
+
+    m_forwardButton = new QToolButton(this);
+    m_forwardButton->setText(QStringLiteral("→"));
+    m_forwardButton->setAutoRaise(true);
+    m_forwardButton->setFocusPolicy(Qt::NoFocus);
+    m_forwardButton->setToolTip(tr("Forward"));
+    connect(m_forwardButton, &QToolButton::clicked, this, &FilePanel::goForward);
+
+    auto *addressRow = new QWidget(this);
+    auto *addressLayout = new QHBoxLayout(addressRow);
+    addressLayout->setContentsMargins(0, 0, 0, 0);
+    addressLayout->setSpacing(2);
+    addressLayout->addWidget(m_backButton);
+    addressLayout->addWidget(m_forwardButton);
+    addressLayout->addWidget(m_addressBar, 1);
+
     m_filterBar = new QLineEdit(this);
     m_filterBar->setClearButtonEnabled(true);
     m_filterBar->setPlaceholderText(tr("Filter: type to narrow the list, Esc to clear"));
@@ -46,7 +71,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(2);
     layout->addWidget(m_tabBar);
-    layout->addWidget(m_addressBar);
+    layout->addWidget(addressRow);
     layout->addWidget(m_filterBar);
     layout->addWidget(m_view, 1);
     layout->addWidget(m_statusBar);
@@ -62,6 +87,9 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_view->horizontalHeader()->setFixedHeight(rowH);
     m_tabBar->setFixedHeight(rowH);
     m_addressBar->setFixedHeight(rowH);
+    m_backButton->setFixedSize(rowH, rowH);
+    m_forwardButton->setFixedSize(rowH, rowH);
+    updateNavButtons();
 
     connect(m_filterBar, &QLineEdit::textChanged, this,
             [this](const QString &text) { m_model->setNameFilter(text); });
@@ -209,10 +237,16 @@ void FilePanel::navigateTo(const QString &path) {
         tab->path = cleaned;
         updateActiveTabLabel();
     }
+    updateNavButtons();
 }
 
 void FilePanel::pushHistory(const QString &fromPath) {
     m_backHistory.append(fromPath);
+}
+
+void FilePanel::updateNavButtons() {
+    m_backButton->setEnabled(!m_backHistory.isEmpty());
+    m_forwardButton->setEnabled(!m_forwardHistory.isEmpty());
 }
 
 void FilePanel::updateStatus() {
@@ -249,6 +283,7 @@ void FilePanel::goBack() {
     const QString path = m_backHistory.takeLast();
     m_model->setRootPath(path);
     emit pathChanged(path);
+    updateNavButtons();
 }
 
 void FilePanel::goForward() {
@@ -258,6 +293,7 @@ void FilePanel::goForward() {
     const QString path = m_forwardHistory.takeLast();
     m_model->setRootPath(path);
     emit pathChanged(path);
+    updateNavButtons();
 }
 
 void FilePanel::refresh() {
@@ -412,6 +448,7 @@ void FilePanel::loadTabState(int index) {
     m_backHistory.clear();
     m_forwardHistory.clear();
     m_pendingSelection = tab->selectedFiles;
+    updateNavButtons();
     if (!tab->path.isEmpty())
         m_model->setRootPath(tab->path);
 }

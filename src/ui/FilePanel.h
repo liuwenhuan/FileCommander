@@ -12,6 +12,7 @@ class FileListView;
 class StatusBarWidget;
 class TabBar;
 class QLineEdit;
+class QToolButton;
 
 // One side of the dual-pane layout: address bar + file list + per-panel
 // back/forward history. Two of these live in MainWindow (left/right).
@@ -85,6 +86,7 @@ private slots:
 private:
     void pushHistory(const QString &fromPath);
     void updateStatus();
+    void updateNavButtons();
     QString tabLabelFor(const QSharedPointer<TabState> &tab) const;
     void syncTabBarFromManager();
     void closeTabAt(int index);
@@ -93,6 +95,8 @@ private:
     void updateActiveTabLabel();
 
     BreadcrumbBar *m_addressBar;
+    QToolButton *m_backButton;
+    QToolButton *m_forwardButton;
     QLineEdit *m_filterBar;
     FileListView *m_view;
     StatusBarWidget *m_statusBar;

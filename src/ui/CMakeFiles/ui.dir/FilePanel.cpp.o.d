@@ -384,6 +384,9 @@ src/ui/CMakeFiles/ui.dir/FilePanel.cpp.o: \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QStorageInfo \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qstorageinfo.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qdir.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QToolButton \
+ /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qtoolbutton.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qabstractbutton.h \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QVBoxLayout \
  /usr/include/x86_64-linux-gnu/qt5/QtConcurrent/QtConcurrent \
  /usr/include/x86_64-linux-gnu/qt5/QtConcurrent/QtConcurrentDepends \

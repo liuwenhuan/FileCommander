@@ -318,6 +318,7 @@ ui_autogen/timestamp: \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/QMap \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/QObject \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/QPair \
+	/usr/include/x86_64-linux-gnu/qt5/QtCore/QPoint \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/QSettings \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/QSharedPointer \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/QString \
