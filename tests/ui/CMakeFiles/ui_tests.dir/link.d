@@ -5,6 +5,7 @@ ui_tests: \
   CMakeFiles/ui_tests.dir/ui_tests_autogen/mocs_compilation.cpp.o \
   CMakeFiles/ui_tests.dir/test_TabManager.cpp.o \
   CMakeFiles/ui_tests.dir/test_PropertiesDialog.cpp.o \
+  CMakeFiles/ui_tests.dir/test_CommandHistory.cpp.o \
   ../../src/ui/libui.a \
   ../../lib/libgtest.a \
   ../../lib/libgtest_main.a \
@@ -87,6 +88,8 @@ CMakeFiles/ui_tests.dir/ui_tests_autogen/mocs_compilation.cpp.o:
 CMakeFiles/ui_tests.dir/test_TabManager.cpp.o:
 
 CMakeFiles/ui_tests.dir/test_PropertiesDialog.cpp.o:
+
+CMakeFiles/ui_tests.dir/test_CommandHistory.cpp.o:
 
 ../../src/ui/libui.a:
 

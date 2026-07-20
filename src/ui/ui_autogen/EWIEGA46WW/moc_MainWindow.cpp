@@ -22,8 +22,8 @@ QT_BEGIN_MOC_NAMESPACE
 QT_WARNING_PUSH
 QT_WARNING_DISABLE_DEPRECATED
 struct qt_meta_stringdata_MainWindow_t {
-    QByteArrayData data[40];
-    char stringdata0[570];
+    QByteArrayData data[43];
+    char stringdata0[599];
 };
 #define QT_MOC_LITERAL(idx, ofs, len) \
     Q_STATIC_BYTE_ARRAY_DATA_HEADER_INITIALIZER_WITH_OFFSET(len, \
@@ -59,19 +59,22 @@ QT_MOC_LITERAL(23, 285, 14), // "openSyncDialog"
 QT_MOC_LITERAL(24, 300, 20), // "compareSelectedFiles"
 QT_MOC_LITERAL(25, 321, 20), // "openDirectoryHotlist"
 QT_MOC_LITERAL(26, 342, 14), // "showProperties"
-QT_MOC_LITERAL(27, 357, 16), // "toggleFolderTree"
-QT_MOC_LITERAL(28, 374, 12), // "navigateBack"
-QT_MOC_LITERAL(29, 387, 15), // "navigateForward"
-QT_MOC_LITERAL(30, 403, 10), // "navigateUp"
-QT_MOC_LITERAL(31, 414, 18), // "refreshActivePanel"
-QT_MOC_LITERAL(32, 433, 18), // "handleFilesDropped"
-QT_MOC_LITERAL(33, 452, 7), // "sources"
-QT_MOC_LITERAL(34, 460, 7), // "destDir"
-QT_MOC_LITERAL(35, 468, 28), // "FileListView::DropActionKind"
-QT_MOC_LITERAL(36, 497, 4), // "kind"
-QT_MOC_LITERAL(37, 502, 24), // "copySelectionToClipboard"
-QT_MOC_LITERAL(38, 527, 23), // "cutSelectionToClipboard"
-QT_MOC_LITERAL(39, 551, 18) // "pasteFromClipboard"
+QT_MOC_LITERAL(27, 357, 10), // "runCommand"
+QT_MOC_LITERAL(28, 368, 7), // "command"
+QT_MOC_LITERAL(29, 376, 9), // "directory"
+QT_MOC_LITERAL(30, 386, 16), // "toggleFolderTree"
+QT_MOC_LITERAL(31, 403, 12), // "navigateBack"
+QT_MOC_LITERAL(32, 416, 15), // "navigateForward"
+QT_MOC_LITERAL(33, 432, 10), // "navigateUp"
+QT_MOC_LITERAL(34, 443, 18), // "refreshActivePanel"
+QT_MOC_LITERAL(35, 462, 18), // "handleFilesDropped"
+QT_MOC_LITERAL(36, 481, 7), // "sources"
+QT_MOC_LITERAL(37, 489, 7), // "destDir"
+QT_MOC_LITERAL(38, 497, 28), // "FileListView::DropActionKind"
+QT_MOC_LITERAL(39, 526, 4), // "kind"
+QT_MOC_LITERAL(40, 531, 24), // "copySelectionToClipboard"
+QT_MOC_LITERAL(41, 556, 23), // "cutSelectionToClipboard"
+QT_MOC_LITERAL(42, 580, 18) // "pasteFromClipboard"
 
     },
     "MainWindow\0setActivePanel\0\0FilePanel*\0"
@@ -84,6 +87,7 @@ QT_MOC_LITERAL(39, 551, 18) // "pasteFromClipboard"
     "language\0openMultiRenameDialog\0"
     "openSyncDialog\0compareSelectedFiles\0"
     "openDirectoryHotlist\0showProperties\0"
+    "runCommand\0command\0directory\0"
     "toggleFolderTree\0navigateBack\0"
     "navigateForward\0navigateUp\0"
     "refreshActivePanel\0handleFilesDropped\0"
@@ -99,7 +103,7 @@ static const uint qt_meta_data_MainWindow[] = {
        8,       // revision
        0,       // classname
        0,    0, // classinfo
-      29,   14, // methods
+      30,   14, // methods
        0,    0, // properties
        0,    0, // enums/sets
        0,    0, // constructors
@@ -107,35 +111,36 @@ static const uint qt_meta_data_MainWindow[] = {
        0,       // signalCount
 
  // slots: name, argc, parameters, tag, flags
-       1,    1,  159,    2, 0x08 /* Private */,
-       5,    0,  162,    2, 0x08 /* Private */,
-       6,    0,  163,    2, 0x08 /* Private */,
-       7,    0,  164,    2, 0x08 /* Private */,
-       8,    0,  165,    2, 0x08 /* Private */,
-       9,    0,  166,    2, 0x08 /* Private */,
-      10,    0,  167,    2, 0x08 /* Private */,
-      11,    1,  168,    2, 0x08 /* Private */,
-      11,    0,  171,    2, 0x28 /* Private | MethodCloned */,
-      13,    0,  172,    2, 0x08 /* Private */,
-      14,    0,  173,    2, 0x08 /* Private */,
-      15,    0,  174,    2, 0x08 /* Private */,
-      16,    0,  175,    2, 0x08 /* Private */,
-      17,    1,  176,    2, 0x08 /* Private */,
-      20,    1,  179,    2, 0x08 /* Private */,
-      22,    0,  182,    2, 0x08 /* Private */,
-      23,    0,  183,    2, 0x08 /* Private */,
-      24,    0,  184,    2, 0x08 /* Private */,
-      25,    0,  185,    2, 0x08 /* Private */,
-      26,    0,  186,    2, 0x08 /* Private */,
-      27,    0,  187,    2, 0x08 /* Private */,
-      28,    0,  188,    2, 0x08 /* Private */,
-      29,    0,  189,    2, 0x08 /* Private */,
-      30,    0,  190,    2, 0x08 /* Private */,
-      31,    0,  191,    2, 0x08 /* Private */,
-      32,    3,  192,    2, 0x08 /* Private */,
-      37,    0,  199,    2, 0x08 /* Private */,
-      38,    0,  200,    2, 0x08 /* Private */,
-      39,    0,  201,    2, 0x08 /* Private */,
+       1,    1,  164,    2, 0x08 /* Private */,
+       5,    0,  167,    2, 0x08 /* Private */,
+       6,    0,  168,    2, 0x08 /* Private */,
+       7,    0,  169,    2, 0x08 /* Private */,
+       8,    0,  170,    2, 0x08 /* Private */,
+       9,    0,  171,    2, 0x08 /* Private */,
+      10,    0,  172,    2, 0x08 /* Private */,
+      11,    1,  173,    2, 0x08 /* Private */,
+      11,    0,  176,    2, 0x28 /* Private | MethodCloned */,
+      13,    0,  177,    2, 0x08 /* Private */,
+      14,    0,  178,    2, 0x08 /* Private */,
+      15,    0,  179,    2, 0x08 /* Private */,
+      16,    0,  180,    2, 0x08 /* Private */,
+      17,    1,  181,    2, 0x08 /* Private */,
+      20,    1,  184,    2, 0x08 /* Private */,
+      22,    0,  187,    2, 0x08 /* Private */,
+      23,    0,  188,    2, 0x08 /* Private */,
+      24,    0,  189,    2, 0x08 /* Private */,
+      25,    0,  190,    2, 0x08 /* Private */,
+      26,    0,  191,    2, 0x08 /* Private */,
+      27,    2,  192,    2, 0x08 /* Private */,
+      30,    0,  197,    2, 0x08 /* Private */,
+      31,    0,  198,    2, 0x08 /* Private */,
+      32,    0,  199,    2, 0x08 /* Private */,
+      33,    0,  200,    2, 0x08 /* Private */,
+      34,    0,  201,    2, 0x08 /* Private */,
+      35,    3,  202,    2, 0x08 /* Private */,
+      40,    0,  209,    2, 0x08 /* Private */,
+      41,    0,  210,    2, 0x08 /* Private */,
+      42,    0,  211,    2, 0x08 /* Private */,
 
  // slots: parameters
     QMetaType::Void, 0x80000000 | 3,    4,
@@ -158,12 +163,13 @@ static const uint qt_meta_data_MainWindow[] = {
     QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void,
+    QMetaType::Void, QMetaType::QString, QMetaType::QString,   28,   29,
     QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void,
-    QMetaType::Void, QMetaType::QStringList, QMetaType::QString, 0x80000000 | 35,   33,   34,   36,
+    QMetaType::Void, QMetaType::QStringList, QMetaType::QString, 0x80000000 | 38,   36,   37,   39,
     QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void,
@@ -197,15 +203,16 @@ void MainWindow::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, 
         case 17: _t->compareSelectedFiles(); break;
         case 18: _t->openDirectoryHotlist(); break;
         case 19: _t->showProperties(); break;
-        case 20: _t->toggleFolderTree(); break;
-        case 21: _t->navigateBack(); break;
-        case 22: _t->navigateForward(); break;
-        case 23: _t->navigateUp(); break;
-        case 24: _t->refreshActivePanel(); break;
-        case 25: _t->handleFilesDropped((*reinterpret_cast< const QStringList(*)>(_a[1])),(*reinterpret_cast< const QString(*)>(_a[2])),(*reinterpret_cast< FileListView::DropActionKind(*)>(_a[3]))); break;
-        case 26: _t->copySelectionToClipboard(); break;
-        case 27: _t->cutSelectionToClipboard(); break;
-        case 28: _t->pasteFromClipboard(); break;
+        case 20: _t->runCommand((*reinterpret_cast< const QString(*)>(_a[1])),(*reinterpret_cast< const QString(*)>(_a[2]))); break;
+        case 21: _t->toggleFolderTree(); break;
+        case 22: _t->navigateBack(); break;
+        case 23: _t->navigateForward(); break;
+        case 24: _t->navigateUp(); break;
+        case 25: _t->refreshActivePanel(); break;
+        case 26: _t->handleFilesDropped((*reinterpret_cast< const QStringList(*)>(_a[1])),(*reinterpret_cast< const QString(*)>(_a[2])),(*reinterpret_cast< FileListView::DropActionKind(*)>(_a[3]))); break;
+        case 27: _t->copySelectionToClipboard(); break;
+        case 28: _t->cutSelectionToClipboard(); break;
+        case 29: _t->pasteFromClipboard(); break;
         default: ;
         }
     }
@@ -240,13 +247,13 @@ int MainWindow::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 29)
+        if (_id < 30)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 29;
+        _id -= 30;
     } else if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 29)
+        if (_id < 30)
             *reinterpret_cast<int*>(_a[0]) = -1;
-        _id -= 29;
+        _id -= 30;
     }
     return _id;
 }

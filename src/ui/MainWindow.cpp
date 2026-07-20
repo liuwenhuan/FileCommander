@@ -17,7 +17,9 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMimeData>
+#include <QProcess>
 #include <QShortcut>
+#include <QTimer>
 #include <QSplitter>
 #include <QStandardPaths>
 #include <QStatusBar>
@@ -28,6 +30,7 @@
 
 #include "ArchiveBrowserDialog.h"
 #include "ArchiveHandler.h"
+#include "CommandBar.h"
 #include "CompressDialog.h"
 #include "FilePanel.h"
 #include "FileListView.h"
@@ -123,11 +126,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_outerSplitter->setStretchFactor(1, 1);
 
     m_functionKeyBar = new FunctionKeyBar(this);
+    m_commandBar = new CommandBar(this);
+    connect(m_commandBar, &CommandBar::commandSubmitted, this, &MainWindow::runCommand);
 
     auto *central = new QWidget(this);
     auto *layout = new QVBoxLayout(central);
     layout->setContentsMargins(4, 4, 4, 0);
     layout->addWidget(m_outerSplitter, 1);
+    layout->addWidget(m_commandBar);
     layout->addWidget(m_functionKeyBar);
     setCentralWidget(central);
 
@@ -188,10 +194,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         connect(panel, &FilePanel::panelActivated, this, &MainWindow::setActivePanel);
         connect(panel, &FilePanel::pathChanged, this, [this, panel](const QString &path) {
             updateStatusBar();
-            if (panel == m_activePanel && m_folderTree->isVisible()) {
-                const QModelIndex idx = m_folderTreeModel->index(path);
-                m_folderTree->setCurrentIndex(idx);
-                m_folderTree->scrollTo(idx);
+            if (panel == m_activePanel) {
+                m_commandBar->setDirectory(path);
+                if (m_folderTree->isVisible()) {
+                    const QModelIndex idx = m_folderTreeModel->index(path);
+                    m_folderTree->setCurrentIndex(idx);
+                    m_folderTree->scrollTo(idx);
+                }
             }
         });
         connect(panel->view()->selectionModel(), &QItemSelectionModel::selectionChanged, this,
@@ -403,6 +412,24 @@ void MainWindow::showProperties() {
     PropertiesDialog dlg(path, this);
     if (dlg.exec() == QDialog::Accepted)
         m_activePanel->refresh();
+}
+
+void MainWindow::runCommand(const QString &command, const QString &directory) {
+    // Run through a shell so pipes, globbing, and redirection work as typed.
+    const QString cwd = directory.isEmpty() && m_activePanel ? m_activePanel->currentPath()
+                                                             : directory;
+    if (!QProcess::startDetached(QStringLiteral("/bin/sh"),
+                                  {QStringLiteral("-c"), command}, cwd)) {
+        QMessageBox::warning(this, tr("Command"),
+                             tr("Failed to run: %1").arg(command));
+        return;
+    }
+    // A detached process finishes asynchronously; give quick commands (mkdir,
+    // touch, rm) a moment to land, then refresh so their effect shows up.
+    QTimer::singleShot(300, this, [this]() {
+        m_leftPanel->refresh();
+        m_rightPanel->refresh();
+    });
 }
 
 void MainWindow::openShortcutsDialog() {
@@ -658,6 +685,8 @@ void MainWindow::showBlankContextMenu(FilePanel *panel, const QPoint &viewPos) {
 
 void MainWindow::setActivePanel(FilePanel *panel) {
     m_activePanel = panel;
+    if (panel)
+        m_commandBar->setDirectory(panel->currentPath());
     updateStatusBar();
 }
 

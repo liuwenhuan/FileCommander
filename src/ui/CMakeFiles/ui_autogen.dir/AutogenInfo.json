@@ -18,6 +18,18 @@
 			null
 		],
 		[
+			"/home/deepin/codework/ttc/src/ui/CommandBar.h",
+			"MU",
+			"EWIEGA46WW/moc_CommandBar.cpp",
+			null
+		],
+		[
+			"/home/deepin/codework/ttc/src/ui/CommandHistory.h",
+			"MU",
+			"EWIEGA46WW/moc_CommandHistory.cpp",
+			null
+		],
+		[
 			"/home/deepin/codework/ttc/src/ui/FileListView.h",
 			"MU",
 			"EWIEGA46WW/moc_FileListView.cpp",
@@ -180,6 +192,8 @@
 	"SOURCES" : 
 	[
 		[ "/home/deepin/codework/ttc/src/ui/BreadcrumbBar.cpp", "MU", null ],
+		[ "/home/deepin/codework/ttc/src/ui/CommandBar.cpp", "MU", null ],
+		[ "/home/deepin/codework/ttc/src/ui/CommandHistory.cpp", "MU", null ],
 		[ "/home/deepin/codework/ttc/src/ui/FileListView.cpp", "MU", null ],
 		[ "/home/deepin/codework/ttc/src/ui/FilePanel.cpp", "MU", null ],
 		[ "/home/deepin/codework/ttc/src/ui/FunctionKeyBar.cpp", "MU", null ],

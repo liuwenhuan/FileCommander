@@ -10,6 +10,8 @@ set(CMAKE_DEPENDS_LANGUAGES
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "" "src/ui/ui_autogen/timestamp" "custom" "src/ui/ui_autogen/deps"
   "/home/deepin/codework/ttc/src/ui/BreadcrumbBar.cpp" "src/ui/CMakeFiles/ui.dir/BreadcrumbBar.cpp.o" "gcc" "src/ui/CMakeFiles/ui.dir/BreadcrumbBar.cpp.o.d"
+  "/home/deepin/codework/ttc/src/ui/CommandBar.cpp" "src/ui/CMakeFiles/ui.dir/CommandBar.cpp.o" "gcc" "src/ui/CMakeFiles/ui.dir/CommandBar.cpp.o.d"
+  "/home/deepin/codework/ttc/src/ui/CommandHistory.cpp" "src/ui/CMakeFiles/ui.dir/CommandHistory.cpp.o" "gcc" "src/ui/CMakeFiles/ui.dir/CommandHistory.cpp.o.d"
   "/home/deepin/codework/ttc/src/ui/FileListView.cpp" "src/ui/CMakeFiles/ui.dir/FileListView.cpp.o" "gcc" "src/ui/CMakeFiles/ui.dir/FileListView.cpp.o.d"
   "/home/deepin/codework/ttc/src/ui/FilePanel.cpp" "src/ui/CMakeFiles/ui.dir/FilePanel.cpp.o" "gcc" "src/ui/CMakeFiles/ui.dir/FilePanel.cpp.o.d"
   "/home/deepin/codework/ttc/src/ui/FunctionKeyBar.cpp" "src/ui/CMakeFiles/ui.dir/FunctionKeyBar.cpp.o" "gcc" "src/ui/CMakeFiles/ui.dir/FunctionKeyBar.cpp.o.d"

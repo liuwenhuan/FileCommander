@@ -1,6 +1,7 @@
 add_executable(ui_tests
     test_TabManager.cpp
     test_PropertiesDialog.cpp
+    test_CommandHistory.cpp
 )
 
 target_link_libraries(ui_tests PRIVATE

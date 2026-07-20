@@ -78,6 +78,11 @@
 	"SOURCES" : 
 	[
 		[
+			"/home/deepin/codework/ttc/tests/ui/test_CommandHistory.cpp",
+			"MU",
+			null
+		],
+		[
 			"/home/deepin/codework/ttc/tests/ui/test_PropertiesDialog.cpp",
 			"MU",
 			null

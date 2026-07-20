@@ -213,6 +213,30 @@ ui_tests_autogen/fast:
 	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f tests/ui/CMakeFiles/ui_tests_autogen.dir/build.make tests/ui/CMakeFiles/ui_tests_autogen.dir/build
 .PHONY : ui_tests_autogen/fast
 
+test_CommandHistory.o: test_CommandHistory.cpp.o
+.PHONY : test_CommandHistory.o
+
+# target to build an object file
+test_CommandHistory.cpp.o:
+	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f tests/ui/CMakeFiles/ui_tests.dir/build.make tests/ui/CMakeFiles/ui_tests.dir/test_CommandHistory.cpp.o
+.PHONY : test_CommandHistory.cpp.o
+
+test_CommandHistory.i: test_CommandHistory.cpp.i
+.PHONY : test_CommandHistory.i
+
+# target to preprocess a source file
+test_CommandHistory.cpp.i:
+	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f tests/ui/CMakeFiles/ui_tests.dir/build.make tests/ui/CMakeFiles/ui_tests.dir/test_CommandHistory.cpp.i
+.PHONY : test_CommandHistory.cpp.i
+
+test_CommandHistory.s: test_CommandHistory.cpp.s
+.PHONY : test_CommandHistory.s
+
+# target to generate assembly for a file
+test_CommandHistory.cpp.s:
+	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f tests/ui/CMakeFiles/ui_tests.dir/build.make tests/ui/CMakeFiles/ui_tests.dir/test_CommandHistory.cpp.s
+.PHONY : test_CommandHistory.cpp.s
+
 test_PropertiesDialog.o: test_PropertiesDialog.cpp.o
 .PHONY : test_PropertiesDialog.o
 
@@ -301,6 +325,9 @@ help:
 	@echo "... ui_tests_autogen"
 	@echo "... ui_tests_autogen_timestamp_deps"
 	@echo "... ui_tests"
+	@echo "... test_CommandHistory.o"
+	@echo "... test_CommandHistory.i"
+	@echo "... test_CommandHistory.s"
 	@echo "... test_PropertiesDialog.o"
 	@echo "... test_PropertiesDialog.i"
 	@echo "... test_PropertiesDialog.s"

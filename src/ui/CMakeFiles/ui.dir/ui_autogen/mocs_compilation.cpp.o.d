@@ -278,6 +278,13 @@ src/ui/CMakeFiles/ui.dir/ui_autogen/mocs_compilation.cpp.o: \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qsizepolicy.h \
  /usr/include/x86_64-linux-gnu/qt5/QtGui/qcursor.h \
  /usr/include/x86_64-linux-gnu/qt5/QtGui/qkeysequence.h \
+ /home/deepin/codework/ttc/src/ui/ui_autogen/EWIEGA46WW/moc_CommandBar.cpp \
+ /home/deepin/codework/ttc/src/ui/ui_autogen/EWIEGA46WW/../../CommandBar.h \
+ /home/deepin/codework/ttc/src/ui/ui_autogen/EWIEGA46WW/../../CommandHistory.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/QString \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qstring.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/QStringList \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qstringlist.h \
  /home/deepin/codework/ttc/src/ui/ui_autogen/EWIEGA46WW/moc_FileListView.cpp \
  /home/deepin/codework/ttc/src/ui/ui_autogen/EWIEGA46WW/../../FileListView.h \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QTableView \
@@ -333,15 +340,11 @@ src/ui/CMakeFiles/ui.dir/ui_autogen/mocs_compilation.cpp.o: \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QFile \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qfile.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qfiledevice.h \
- /usr/include/x86_64-linux-gnu/qt5/QtCore/QString \
- /usr/include/x86_64-linux-gnu/qt5/QtCore/qstring.h \
  /home/deepin/codework/ttc/src/ui/ui_autogen/EWIEGA46WW/../../TabManager.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QObject \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qobject.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QSharedPointer \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qsharedpointer.h \
- /usr/include/x86_64-linux-gnu/qt5/QtCore/QStringList \
- /usr/include/x86_64-linux-gnu/qt5/QtCore/qstringlist.h \
  /home/deepin/codework/ttc/src/ui/ui_autogen/EWIEGA46WW/moc_FunctionKeyBar.cpp \
  /home/deepin/codework/ttc/src/ui/ui_autogen/EWIEGA46WW/../../FunctionKeyBar.h \
  /home/deepin/codework/ttc/src/ui/ui_autogen/EWIEGA46WW/moc_MainWindow.cpp \

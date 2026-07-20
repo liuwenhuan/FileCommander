@@ -7,6 +7,10 @@ ui_autogen/timestamp: \
 	/home/deepin/codework/ttc/src/ui/BreadcrumbBar.cpp \
 	/home/deepin/codework/ttc/src/ui/BreadcrumbBar.h \
 	/home/deepin/codework/ttc/src/ui/CMakeLists.txt \
+	/home/deepin/codework/ttc/src/ui/CommandBar.cpp \
+	/home/deepin/codework/ttc/src/ui/CommandBar.h \
+	/home/deepin/codework/ttc/src/ui/CommandHistory.cpp \
+	/home/deepin/codework/ttc/src/ui/CommandHistory.h \
 	/home/deepin/codework/ttc/src/ui/FileListView.cpp \
 	/home/deepin/codework/ttc/src/ui/FileListView.h \
 	/home/deepin/codework/ttc/src/ui/FilePanel.cpp \

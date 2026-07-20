@@ -3,6 +3,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/ui_tests_autogen.dir/AutogenUsed.txt"
   "CMakeFiles/ui_tests_autogen.dir/ParseCache.txt"
   "ui_tests_autogen"
+  "CMakeFiles/ui_tests.dir/test_CommandHistory.cpp.o"
+  "CMakeFiles/ui_tests.dir/test_CommandHistory.cpp.o.d"
   "CMakeFiles/ui_tests.dir/test_PropertiesDialog.cpp.o"
   "CMakeFiles/ui_tests.dir/test_PropertiesDialog.cpp.o.d"
   "CMakeFiles/ui_tests.dir/test_TabManager.cpp.o"

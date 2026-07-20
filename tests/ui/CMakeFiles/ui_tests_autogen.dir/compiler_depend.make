@@ -3,10 +3,16 @@
 
 tests/ui/ui_tests_autogen/timestamp: tests/ui/CMakeLists.txt \
   tests/ui/test_TabManager.cpp \
+  /usr/bin/cmake \
+  tests/ui/CMakeLists.txt \
+  tests/ui/test_PropertiesDialog.cpp \
+  tests/ui/test_TabManager.cpp \
   /usr/bin/cmake
 
 
 /usr/bin/cmake:
+
+tests/ui/test_PropertiesDialog.cpp:
 
 tests/ui/test_TabManager.cpp:
 

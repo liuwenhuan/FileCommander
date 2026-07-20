@@ -7,6 +7,10 @@ add_library(ui STATIC
     FilePanel.cpp
     FileListView.h
     FileListView.cpp
+    CommandBar.h
+    CommandBar.cpp
+    CommandHistory.h
+    CommandHistory.cpp
     FunctionKeyBar.h
     FunctionKeyBar.cpp
     StatusBarWidget.h

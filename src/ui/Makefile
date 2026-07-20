@@ -237,6 +237,54 @@ BreadcrumbBar.cpp.s:
 	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f src/ui/CMakeFiles/ui.dir/build.make src/ui/CMakeFiles/ui.dir/BreadcrumbBar.cpp.s
 .PHONY : BreadcrumbBar.cpp.s
 
+CommandBar.o: CommandBar.cpp.o
+.PHONY : CommandBar.o
+
+# target to build an object file
+CommandBar.cpp.o:
+	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f src/ui/CMakeFiles/ui.dir/build.make src/ui/CMakeFiles/ui.dir/CommandBar.cpp.o
+.PHONY : CommandBar.cpp.o
+
+CommandBar.i: CommandBar.cpp.i
+.PHONY : CommandBar.i
+
+# target to preprocess a source file
+CommandBar.cpp.i:
+	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f src/ui/CMakeFiles/ui.dir/build.make src/ui/CMakeFiles/ui.dir/CommandBar.cpp.i
+.PHONY : CommandBar.cpp.i
+
+CommandBar.s: CommandBar.cpp.s
+.PHONY : CommandBar.s
+
+# target to generate assembly for a file
+CommandBar.cpp.s:
+	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f src/ui/CMakeFiles/ui.dir/build.make src/ui/CMakeFiles/ui.dir/CommandBar.cpp.s
+.PHONY : CommandBar.cpp.s
+
+CommandHistory.o: CommandHistory.cpp.o
+.PHONY : CommandHistory.o
+
+# target to build an object file
+CommandHistory.cpp.o:
+	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f src/ui/CMakeFiles/ui.dir/build.make src/ui/CMakeFiles/ui.dir/CommandHistory.cpp.o
+.PHONY : CommandHistory.cpp.o
+
+CommandHistory.i: CommandHistory.cpp.i
+.PHONY : CommandHistory.i
+
+# target to preprocess a source file
+CommandHistory.cpp.i:
+	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f src/ui/CMakeFiles/ui.dir/build.make src/ui/CMakeFiles/ui.dir/CommandHistory.cpp.i
+.PHONY : CommandHistory.cpp.i
+
+CommandHistory.s: CommandHistory.cpp.s
+.PHONY : CommandHistory.s
+
+# target to generate assembly for a file
+CommandHistory.cpp.s:
+	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f src/ui/CMakeFiles/ui.dir/build.make src/ui/CMakeFiles/ui.dir/CommandHistory.cpp.s
+.PHONY : CommandHistory.cpp.s
+
 FileListView.o: FileListView.cpp.o
 .PHONY : FileListView.o
 
@@ -664,6 +712,12 @@ help:
 	@echo "... BreadcrumbBar.o"
 	@echo "... BreadcrumbBar.i"
 	@echo "... BreadcrumbBar.s"
+	@echo "... CommandBar.o"
+	@echo "... CommandBar.i"
+	@echo "... CommandBar.s"
+	@echo "... CommandHistory.o"
+	@echo "... CommandHistory.i"
+	@echo "... CommandHistory.s"
 	@echo "... FileListView.o"
 	@echo "... FileListView.i"
 	@echo "... FileListView.s"

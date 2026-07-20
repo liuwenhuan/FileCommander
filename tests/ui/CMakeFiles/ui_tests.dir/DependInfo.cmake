@@ -9,6 +9,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "" "tests/ui/ui_tests_autogen/timestamp" "custom" "tests/ui/ui_tests_autogen/deps"
+  "/home/deepin/codework/ttc/tests/ui/test_CommandHistory.cpp" "tests/ui/CMakeFiles/ui_tests.dir/test_CommandHistory.cpp.o" "gcc" "tests/ui/CMakeFiles/ui_tests.dir/test_CommandHistory.cpp.o.d"
   "/home/deepin/codework/ttc/tests/ui/test_PropertiesDialog.cpp" "tests/ui/CMakeFiles/ui_tests.dir/test_PropertiesDialog.cpp.o" "gcc" "tests/ui/CMakeFiles/ui_tests.dir/test_PropertiesDialog.cpp.o.d"
   "/home/deepin/codework/ttc/tests/ui/test_TabManager.cpp" "tests/ui/CMakeFiles/ui_tests.dir/test_TabManager.cpp.o" "gcc" "tests/ui/CMakeFiles/ui_tests.dir/test_TabManager.cpp.o.d"
   "/home/deepin/codework/ttc/tests/ui/ui_tests_autogen/mocs_compilation.cpp" "tests/ui/CMakeFiles/ui_tests.dir/ui_tests_autogen/mocs_compilation.cpp.o" "gcc" "tests/ui/CMakeFiles/ui_tests.dir/ui_tests_autogen/mocs_compilation.cpp.o.d"

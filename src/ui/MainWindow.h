@@ -14,6 +14,7 @@
 
 class FilePanel;
 class FunctionKeyBar;
+class CommandBar;
 class StatusBarWidget;
 class OperationQueue;
 class OperationProgressDialog;
@@ -53,6 +54,7 @@ private slots:
     void compareSelectedFiles();
     void openDirectoryHotlist(); // Ctrl+D
     void showProperties(); // F9
+    void runCommand(const QString &command, const QString &directory);
     void toggleFolderTree();
 
     void navigateBack();
@@ -79,6 +81,7 @@ private:
     FilePanel *m_rightPanel;
     FilePanel *m_activePanel = nullptr;
     FunctionKeyBar *m_functionKeyBar;
+    CommandBar *m_commandBar;
     StatusBarWidget *m_statusBarWidget;
     OperationQueue *m_queue;
     OperationProgressDialog *m_progressDialog;

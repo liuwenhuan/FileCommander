@@ -149,10 +149,38 @@ src/ui/CMakeFiles/ui.dir/FileListView.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/ui.dir/FileListView.cpp.s"
 	cd /home/deepin/codework/ttc/src/ui && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/deepin/codework/ttc/src/ui/FileListView.cpp -o CMakeFiles/ui.dir/FileListView.cpp.s
 
+src/ui/CMakeFiles/ui.dir/CommandBar.cpp.o: src/ui/CMakeFiles/ui.dir/flags.make
+src/ui/CMakeFiles/ui.dir/CommandBar.cpp.o: src/ui/CommandBar.cpp
+src/ui/CMakeFiles/ui.dir/CommandBar.cpp.o: src/ui/CMakeFiles/ui.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object src/ui/CMakeFiles/ui.dir/CommandBar.cpp.o"
+	cd /home/deepin/codework/ttc/src/ui && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT src/ui/CMakeFiles/ui.dir/CommandBar.cpp.o -MF CMakeFiles/ui.dir/CommandBar.cpp.o.d -o CMakeFiles/ui.dir/CommandBar.cpp.o -c /home/deepin/codework/ttc/src/ui/CommandBar.cpp
+
+src/ui/CMakeFiles/ui.dir/CommandBar.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/ui.dir/CommandBar.cpp.i"
+	cd /home/deepin/codework/ttc/src/ui && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/deepin/codework/ttc/src/ui/CommandBar.cpp > CMakeFiles/ui.dir/CommandBar.cpp.i
+
+src/ui/CMakeFiles/ui.dir/CommandBar.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/ui.dir/CommandBar.cpp.s"
+	cd /home/deepin/codework/ttc/src/ui && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/deepin/codework/ttc/src/ui/CommandBar.cpp -o CMakeFiles/ui.dir/CommandBar.cpp.s
+
+src/ui/CMakeFiles/ui.dir/CommandHistory.cpp.o: src/ui/CMakeFiles/ui.dir/flags.make
+src/ui/CMakeFiles/ui.dir/CommandHistory.cpp.o: src/ui/CommandHistory.cpp
+src/ui/CMakeFiles/ui.dir/CommandHistory.cpp.o: src/ui/CMakeFiles/ui.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object src/ui/CMakeFiles/ui.dir/CommandHistory.cpp.o"
+	cd /home/deepin/codework/ttc/src/ui && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT src/ui/CMakeFiles/ui.dir/CommandHistory.cpp.o -MF CMakeFiles/ui.dir/CommandHistory.cpp.o.d -o CMakeFiles/ui.dir/CommandHistory.cpp.o -c /home/deepin/codework/ttc/src/ui/CommandHistory.cpp
+
+src/ui/CMakeFiles/ui.dir/CommandHistory.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/ui.dir/CommandHistory.cpp.i"
+	cd /home/deepin/codework/ttc/src/ui && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/deepin/codework/ttc/src/ui/CommandHistory.cpp > CMakeFiles/ui.dir/CommandHistory.cpp.i
+
+src/ui/CMakeFiles/ui.dir/CommandHistory.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/ui.dir/CommandHistory.cpp.s"
+	cd /home/deepin/codework/ttc/src/ui && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/deepin/codework/ttc/src/ui/CommandHistory.cpp -o CMakeFiles/ui.dir/CommandHistory.cpp.s
+
 src/ui/CMakeFiles/ui.dir/FunctionKeyBar.cpp.o: src/ui/CMakeFiles/ui.dir/flags.make
 src/ui/CMakeFiles/ui.dir/FunctionKeyBar.cpp.o: src/ui/FunctionKeyBar.cpp
 src/ui/CMakeFiles/ui.dir/FunctionKeyBar.cpp.o: src/ui/CMakeFiles/ui.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object src/ui/CMakeFiles/ui.dir/FunctionKeyBar.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building CXX object src/ui/CMakeFiles/ui.dir/FunctionKeyBar.cpp.o"
 	cd /home/deepin/codework/ttc/src/ui && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT src/ui/CMakeFiles/ui.dir/FunctionKeyBar.cpp.o -MF CMakeFiles/ui.dir/FunctionKeyBar.cpp.o.d -o CMakeFiles/ui.dir/FunctionKeyBar.cpp.o -c /home/deepin/codework/ttc/src/ui/FunctionKeyBar.cpp
 
 src/ui/CMakeFiles/ui.dir/FunctionKeyBar.cpp.i: cmake_force
@@ -166,7 +194,7 @@ src/ui/CMakeFiles/ui.dir/FunctionKeyBar.cpp.s: cmake_force
 src/ui/CMakeFiles/ui.dir/StatusBarWidget.cpp.o: src/ui/CMakeFiles/ui.dir/flags.make
 src/ui/CMakeFiles/ui.dir/StatusBarWidget.cpp.o: src/ui/StatusBarWidget.cpp
 src/ui/CMakeFiles/ui.dir/StatusBarWidget.cpp.o: src/ui/CMakeFiles/ui.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object src/ui/CMakeFiles/ui.dir/StatusBarWidget.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object src/ui/CMakeFiles/ui.dir/StatusBarWidget.cpp.o"
 	cd /home/deepin/codework/ttc/src/ui && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT src/ui/CMakeFiles/ui.dir/StatusBarWidget.cpp.o -MF CMakeFiles/ui.dir/StatusBarWidget.cpp.o.d -o CMakeFiles/ui.dir/StatusBarWidget.cpp.o -c /home/deepin/codework/ttc/src/ui/StatusBarWidget.cpp
 
 src/ui/CMakeFiles/ui.dir/StatusBarWidget.cpp.i: cmake_force
@@ -180,7 +208,7 @@ src/ui/CMakeFiles/ui.dir/StatusBarWidget.cpp.s: cmake_force
 src/ui/CMakeFiles/ui.dir/TabManager.cpp.o: src/ui/CMakeFiles/ui.dir/flags.make
 src/ui/CMakeFiles/ui.dir/TabManager.cpp.o: src/ui/TabManager.cpp
 src/ui/CMakeFiles/ui.dir/TabManager.cpp.o: src/ui/CMakeFiles/ui.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building CXX object src/ui/CMakeFiles/ui.dir/TabManager.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object src/ui/CMakeFiles/ui.dir/TabManager.cpp.o"
 	cd /home/deepin/codework/ttc/src/ui && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT src/ui/CMakeFiles/ui.dir/TabManager.cpp.o -MF CMakeFiles/ui.dir/TabManager.cpp.o.d -o CMakeFiles/ui.dir/TabManager.cpp.o -c /home/deepin/codework/ttc/src/ui/TabManager.cpp
 
 src/ui/CMakeFiles/ui.dir/TabManager.cpp.i: cmake_force
@@ -194,7 +222,7 @@ src/ui/CMakeFiles/ui.dir/TabManager.cpp.s: cmake_force
 src/ui/CMakeFiles/ui.dir/TabBar.cpp.o: src/ui/CMakeFiles/ui.dir/flags.make
 src/ui/CMakeFiles/ui.dir/TabBar.cpp.o: src/ui/TabBar.cpp
 src/ui/CMakeFiles/ui.dir/TabBar.cpp.o: src/ui/CMakeFiles/ui.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object src/ui/CMakeFiles/ui.dir/TabBar.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object src/ui/CMakeFiles/ui.dir/TabBar.cpp.o"
 	cd /home/deepin/codework/ttc/src/ui && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT src/ui/CMakeFiles/ui.dir/TabBar.cpp.o -MF CMakeFiles/ui.dir/TabBar.cpp.o.d -o CMakeFiles/ui.dir/TabBar.cpp.o -c /home/deepin/codework/ttc/src/ui/TabBar.cpp
 
 src/ui/CMakeFiles/ui.dir/TabBar.cpp.i: cmake_force
@@ -208,7 +236,7 @@ src/ui/CMakeFiles/ui.dir/TabBar.cpp.s: cmake_force
 src/ui/CMakeFiles/ui.dir/theme/ThemeManager.cpp.o: src/ui/CMakeFiles/ui.dir/flags.make
 src/ui/CMakeFiles/ui.dir/theme/ThemeManager.cpp.o: src/ui/theme/ThemeManager.cpp
 src/ui/CMakeFiles/ui.dir/theme/ThemeManager.cpp.o: src/ui/CMakeFiles/ui.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object src/ui/CMakeFiles/ui.dir/theme/ThemeManager.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Building CXX object src/ui/CMakeFiles/ui.dir/theme/ThemeManager.cpp.o"
 	cd /home/deepin/codework/ttc/src/ui && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT src/ui/CMakeFiles/ui.dir/theme/ThemeManager.cpp.o -MF CMakeFiles/ui.dir/theme/ThemeManager.cpp.o.d -o CMakeFiles/ui.dir/theme/ThemeManager.cpp.o -c /home/deepin/codework/ttc/src/ui/theme/ThemeManager.cpp
 
 src/ui/CMakeFiles/ui.dir/theme/ThemeManager.cpp.i: cmake_force
@@ -222,7 +250,7 @@ src/ui/CMakeFiles/ui.dir/theme/ThemeManager.cpp.s: cmake_force
 src/ui/CMakeFiles/ui.dir/i18n/TranslationManager.cpp.o: src/ui/CMakeFiles/ui.dir/flags.make
 src/ui/CMakeFiles/ui.dir/i18n/TranslationManager.cpp.o: src/ui/i18n/TranslationManager.cpp
 src/ui/CMakeFiles/ui.dir/i18n/TranslationManager.cpp.o: src/ui/CMakeFiles/ui.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object src/ui/CMakeFiles/ui.dir/i18n/TranslationManager.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_14) "Building CXX object src/ui/CMakeFiles/ui.dir/i18n/TranslationManager.cpp.o"
 	cd /home/deepin/codework/ttc/src/ui && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT src/ui/CMakeFiles/ui.dir/i18n/TranslationManager.cpp.o -MF CMakeFiles/ui.dir/i18n/TranslationManager.cpp.o.d -o CMakeFiles/ui.dir/i18n/TranslationManager.cpp.o -c /home/deepin/codework/ttc/src/ui/i18n/TranslationManager.cpp
 
 src/ui/CMakeFiles/ui.dir/i18n/TranslationManager.cpp.i: cmake_force
@@ -236,7 +264,7 @@ src/ui/CMakeFiles/ui.dir/i18n/TranslationManager.cpp.s: cmake_force
 src/ui/CMakeFiles/ui.dir/dialogs/OperationProgressDialog.cpp.o: src/ui/CMakeFiles/ui.dir/flags.make
 src/ui/CMakeFiles/ui.dir/dialogs/OperationProgressDialog.cpp.o: src/ui/dialogs/OperationProgressDialog.cpp
 src/ui/CMakeFiles/ui.dir/dialogs/OperationProgressDialog.cpp.o: src/ui/CMakeFiles/ui.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Building CXX object src/ui/CMakeFiles/ui.dir/dialogs/OperationProgressDialog.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building CXX object src/ui/CMakeFiles/ui.dir/dialogs/OperationProgressDialog.cpp.o"
 	cd /home/deepin/codework/ttc/src/ui && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT src/ui/CMakeFiles/ui.dir/dialogs/OperationProgressDialog.cpp.o -MF CMakeFiles/ui.dir/dialogs/OperationProgressDialog.cpp.o.d -o CMakeFiles/ui.dir/dialogs/OperationProgressDialog.cpp.o -c /home/deepin/codework/ttc/src/ui/dialogs/OperationProgressDialog.cpp
 
 src/ui/CMakeFiles/ui.dir/dialogs/OperationProgressDialog.cpp.i: cmake_force
@@ -250,7 +278,7 @@ src/ui/CMakeFiles/ui.dir/dialogs/OperationProgressDialog.cpp.s: cmake_force
 src/ui/CMakeFiles/ui.dir/dialogs/OverwriteConfirmDialog.cpp.o: src/ui/CMakeFiles/ui.dir/flags.make
 src/ui/CMakeFiles/ui.dir/dialogs/OverwriteConfirmDialog.cpp.o: src/ui/dialogs/OverwriteConfirmDialog.cpp
 src/ui/CMakeFiles/ui.dir/dialogs/OverwriteConfirmDialog.cpp.o: src/ui/CMakeFiles/ui.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_14) "Building CXX object src/ui/CMakeFiles/ui.dir/dialogs/OverwriteConfirmDialog.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Building CXX object src/ui/CMakeFiles/ui.dir/dialogs/OverwriteConfirmDialog.cpp.o"
 	cd /home/deepin/codework/ttc/src/ui && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT src/ui/CMakeFiles/ui.dir/dialogs/OverwriteConfirmDialog.cpp.o -MF CMakeFiles/ui.dir/dialogs/OverwriteConfirmDialog.cpp.o.d -o CMakeFiles/ui.dir/dialogs/OverwriteConfirmDialog.cpp.o -c /home/deepin/codework/ttc/src/ui/dialogs/OverwriteConfirmDialog.cpp
 
 src/ui/CMakeFiles/ui.dir/dialogs/OverwriteConfirmDialog.cpp.i: cmake_force
@@ -264,7 +292,7 @@ src/ui/CMakeFiles/ui.dir/dialogs/OverwriteConfirmDialog.cpp.s: cmake_force
 src/ui/CMakeFiles/ui.dir/dialogs/ShortcutsDialog.cpp.o: src/ui/CMakeFiles/ui.dir/flags.make
 src/ui/CMakeFiles/ui.dir/dialogs/ShortcutsDialog.cpp.o: src/ui/dialogs/ShortcutsDialog.cpp
 src/ui/CMakeFiles/ui.dir/dialogs/ShortcutsDialog.cpp.o: src/ui/CMakeFiles/ui.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building CXX object src/ui/CMakeFiles/ui.dir/dialogs/ShortcutsDialog.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Building CXX object src/ui/CMakeFiles/ui.dir/dialogs/ShortcutsDialog.cpp.o"
 	cd /home/deepin/codework/ttc/src/ui && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT src/ui/CMakeFiles/ui.dir/dialogs/ShortcutsDialog.cpp.o -MF CMakeFiles/ui.dir/dialogs/ShortcutsDialog.cpp.o.d -o CMakeFiles/ui.dir/dialogs/ShortcutsDialog.cpp.o -c /home/deepin/codework/ttc/src/ui/dialogs/ShortcutsDialog.cpp
 
 src/ui/CMakeFiles/ui.dir/dialogs/ShortcutsDialog.cpp.i: cmake_force
@@ -278,7 +306,7 @@ src/ui/CMakeFiles/ui.dir/dialogs/ShortcutsDialog.cpp.s: cmake_force
 src/ui/CMakeFiles/ui.dir/dialogs/MultiRenameDialog.cpp.o: src/ui/CMakeFiles/ui.dir/flags.make
 src/ui/CMakeFiles/ui.dir/dialogs/MultiRenameDialog.cpp.o: src/ui/dialogs/MultiRenameDialog.cpp
 src/ui/CMakeFiles/ui.dir/dialogs/MultiRenameDialog.cpp.o: src/ui/CMakeFiles/ui.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Building CXX object src/ui/CMakeFiles/ui.dir/dialogs/MultiRenameDialog.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_18) "Building CXX object src/ui/CMakeFiles/ui.dir/dialogs/MultiRenameDialog.cpp.o"
 	cd /home/deepin/codework/ttc/src/ui && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT src/ui/CMakeFiles/ui.dir/dialogs/MultiRenameDialog.cpp.o -MF CMakeFiles/ui.dir/dialogs/MultiRenameDialog.cpp.o.d -o CMakeFiles/ui.dir/dialogs/MultiRenameDialog.cpp.o -c /home/deepin/codework/ttc/src/ui/dialogs/MultiRenameDialog.cpp
 
 src/ui/CMakeFiles/ui.dir/dialogs/MultiRenameDialog.cpp.i: cmake_force
@@ -292,7 +320,7 @@ src/ui/CMakeFiles/ui.dir/dialogs/MultiRenameDialog.cpp.s: cmake_force
 src/ui/CMakeFiles/ui.dir/dialogs/SyncDialog.cpp.o: src/ui/CMakeFiles/ui.dir/flags.make
 src/ui/CMakeFiles/ui.dir/dialogs/SyncDialog.cpp.o: src/ui/dialogs/SyncDialog.cpp
 src/ui/CMakeFiles/ui.dir/dialogs/SyncDialog.cpp.o: src/ui/CMakeFiles/ui.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Building CXX object src/ui/CMakeFiles/ui.dir/dialogs/SyncDialog.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_19) "Building CXX object src/ui/CMakeFiles/ui.dir/dialogs/SyncDialog.cpp.o"
 	cd /home/deepin/codework/ttc/src/ui && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT src/ui/CMakeFiles/ui.dir/dialogs/SyncDialog.cpp.o -MF CMakeFiles/ui.dir/dialogs/SyncDialog.cpp.o.d -o CMakeFiles/ui.dir/dialogs/SyncDialog.cpp.o -c /home/deepin/codework/ttc/src/ui/dialogs/SyncDialog.cpp
 
 src/ui/CMakeFiles/ui.dir/dialogs/SyncDialog.cpp.i: cmake_force
@@ -306,7 +334,7 @@ src/ui/CMakeFiles/ui.dir/dialogs/SyncDialog.cpp.s: cmake_force
 src/ui/CMakeFiles/ui.dir/dialogs/CompareDialog.cpp.o: src/ui/CMakeFiles/ui.dir/flags.make
 src/ui/CMakeFiles/ui.dir/dialogs/CompareDialog.cpp.o: src/ui/dialogs/CompareDialog.cpp
 src/ui/CMakeFiles/ui.dir/dialogs/CompareDialog.cpp.o: src/ui/CMakeFiles/ui.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_18) "Building CXX object src/ui/CMakeFiles/ui.dir/dialogs/CompareDialog.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_20) "Building CXX object src/ui/CMakeFiles/ui.dir/dialogs/CompareDialog.cpp.o"
 	cd /home/deepin/codework/ttc/src/ui && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT src/ui/CMakeFiles/ui.dir/dialogs/CompareDialog.cpp.o -MF CMakeFiles/ui.dir/dialogs/CompareDialog.cpp.o.d -o CMakeFiles/ui.dir/dialogs/CompareDialog.cpp.o -c /home/deepin/codework/ttc/src/ui/dialogs/CompareDialog.cpp
 
 src/ui/CMakeFiles/ui.dir/dialogs/CompareDialog.cpp.i: cmake_force
@@ -320,7 +348,7 @@ src/ui/CMakeFiles/ui.dir/dialogs/CompareDialog.cpp.s: cmake_force
 src/ui/CMakeFiles/ui.dir/dialogs/PropertiesDialog.cpp.o: src/ui/CMakeFiles/ui.dir/flags.make
 src/ui/CMakeFiles/ui.dir/dialogs/PropertiesDialog.cpp.o: src/ui/dialogs/PropertiesDialog.cpp
 src/ui/CMakeFiles/ui.dir/dialogs/PropertiesDialog.cpp.o: src/ui/CMakeFiles/ui.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_19) "Building CXX object src/ui/CMakeFiles/ui.dir/dialogs/PropertiesDialog.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_21) "Building CXX object src/ui/CMakeFiles/ui.dir/dialogs/PropertiesDialog.cpp.o"
 	cd /home/deepin/codework/ttc/src/ui && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT src/ui/CMakeFiles/ui.dir/dialogs/PropertiesDialog.cpp.o -MF CMakeFiles/ui.dir/dialogs/PropertiesDialog.cpp.o.d -o CMakeFiles/ui.dir/dialogs/PropertiesDialog.cpp.o -c /home/deepin/codework/ttc/src/ui/dialogs/PropertiesDialog.cpp
 
 src/ui/CMakeFiles/ui.dir/dialogs/PropertiesDialog.cpp.i: cmake_force
@@ -338,6 +366,8 @@ ui_OBJECTS = \
 "CMakeFiles/ui.dir/BreadcrumbBar.cpp.o" \
 "CMakeFiles/ui.dir/FilePanel.cpp.o" \
 "CMakeFiles/ui.dir/FileListView.cpp.o" \
+"CMakeFiles/ui.dir/CommandBar.cpp.o" \
+"CMakeFiles/ui.dir/CommandHistory.cpp.o" \
 "CMakeFiles/ui.dir/FunctionKeyBar.cpp.o" \
 "CMakeFiles/ui.dir/StatusBarWidget.cpp.o" \
 "CMakeFiles/ui.dir/TabManager.cpp.o" \
@@ -360,6 +390,8 @@ src/ui/libui.a: src/ui/CMakeFiles/ui.dir/MainWindow.cpp.o
 src/ui/libui.a: src/ui/CMakeFiles/ui.dir/BreadcrumbBar.cpp.o
 src/ui/libui.a: src/ui/CMakeFiles/ui.dir/FilePanel.cpp.o
 src/ui/libui.a: src/ui/CMakeFiles/ui.dir/FileListView.cpp.o
+src/ui/libui.a: src/ui/CMakeFiles/ui.dir/CommandBar.cpp.o
+src/ui/libui.a: src/ui/CMakeFiles/ui.dir/CommandHistory.cpp.o
 src/ui/libui.a: src/ui/CMakeFiles/ui.dir/FunctionKeyBar.cpp.o
 src/ui/libui.a: src/ui/CMakeFiles/ui.dir/StatusBarWidget.cpp.o
 src/ui/libui.a: src/ui/CMakeFiles/ui.dir/TabManager.cpp.o
@@ -375,7 +407,7 @@ src/ui/libui.a: src/ui/CMakeFiles/ui.dir/dialogs/CompareDialog.cpp.o
 src/ui/libui.a: src/ui/CMakeFiles/ui.dir/dialogs/PropertiesDialog.cpp.o
 src/ui/libui.a: src/ui/CMakeFiles/ui.dir/build.make
 src/ui/libui.a: src/ui/CMakeFiles/ui.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_20) "Linking CXX static library libui.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_22) "Linking CXX static library libui.a"
 	cd /home/deepin/codework/ttc/src/ui && $(CMAKE_COMMAND) -P CMakeFiles/ui.dir/cmake_clean_target.cmake
 	cd /home/deepin/codework/ttc/src/ui && $(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/ui.dir/link.txt --verbose=$(VERBOSE)
 
