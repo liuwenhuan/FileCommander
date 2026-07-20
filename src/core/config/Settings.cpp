@@ -39,6 +39,14 @@ void Settings::setLanguage(const QString &language) {
     m_settings.setValue("appearance/language", language);
 }
 
+int Settings::listFontSize() const {
+    return m_settings.value("appearance/listFontSize", 10).toInt();
+}
+
+void Settings::setListFontSize(int pt) {
+    m_settings.setValue("appearance/listFontSize", qBound(7, pt, 24));
+}
+
 bool Settings::showHiddenFiles() const {
     return m_settings.value("behavior/showHiddenFiles", false).toBool();
 }

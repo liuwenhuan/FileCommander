@@ -34,6 +34,10 @@ public:
     QString currentEntryPath() const;
     QStringList selectedPaths() const;
 
+    // Sets the point size of the file-list font and rescales the row height /
+    // header height to match. Point size is clamped to 7..24.
+    void setListFontSize(int pt);
+
     void selectAll();
     void deselectAll();
     void invertSelection();

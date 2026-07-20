@@ -21,6 +21,11 @@ public:
     QString language() const;
     void setLanguage(const QString &language);
 
+    // Point size of the file-list font, shared by both panels. Clamped to
+    // 7..24 on write; defaults to 10.
+    int listFontSize() const;
+    void setListFontSize(int pt);
+
     bool showHiddenFiles() const;
     void setShowHiddenFiles(bool show);
 
