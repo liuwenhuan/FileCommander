@@ -78,6 +78,7 @@ QHeaderView::section {
     border: none;
     border-right: 1px solid #1a1a1a;
     border-bottom: 1px solid #1a1a1a;
+    font-weight: normal;
 }
 
 QLineEdit {

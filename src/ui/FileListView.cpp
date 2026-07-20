@@ -1,16 +1,70 @@
 #include "FileListView.h"
 
+#include <QAbstractItemModel>
 #include <QApplication>
+#include <QColor>
 #include <QDrag>
 #include <QDropEvent>
+#include <QFont>
 #include <QHeaderView>
 #include <QKeyEvent>
 #include <QMimeData>
+#include <QPainter>
+#include <QPolygon>
 #include <QResizeEvent>
-#include <QVector>
 #include <QUrl>
+#include <QVector>
 
 #include "FileSystemModel.h"
+
+namespace {
+// Header that paints its own (non-bold) section labels. The deepin (DTK)
+// style draws header text bold and ignores the widget font / qss font-weight,
+// so we bypass it here, matching the theme's section colours.
+class PlainHeaderView : public QHeaderView {
+public:
+    explicit PlainHeaderView(QWidget *parent = nullptr) : QHeaderView(Qt::Horizontal, parent) {}
+
+protected:
+    void paintSection(QPainter *painter, const QRect &rect, int logicalIndex) const override {
+        if (!rect.isValid() || !model())
+            return;
+        const bool light = palette().color(QPalette::Window).lightness() > 128;
+        const QColor bg = light ? QColor(0xec, 0xec, 0xec) : QColor(0x23, 0x23, 0x23);
+        const QColor fg = light ? QColor(0x20, 0x20, 0x20) : QColor(0xe0, 0xe0, 0xe0);
+        const QColor border = light ? QColor(0xd0, 0xd0, 0xd0) : QColor(0x1a, 0x1a, 0x1a);
+
+        painter->save();
+        painter->fillRect(rect, bg);
+        painter->setPen(border);
+        painter->drawLine(rect.topRight(), rect.bottomRight());
+        painter->drawLine(rect.bottomLeft(), rect.bottomRight());
+
+        QFont f = font();
+        f.setBold(false);
+        f.setWeight(QFont::Normal);
+        painter->setFont(f);
+        painter->setPen(fg);
+        const QString text =
+            model()->headerData(logicalIndex, Qt::Horizontal, Qt::DisplayRole).toString();
+        painter->drawText(rect.adjusted(8, 0, -20, 0), Qt::AlignVCenter | Qt::AlignHCenter, text);
+
+        if (isSortIndicatorShown() && sortIndicatorSection() == logicalIndex) {
+            const int cx = rect.right() - 12;
+            const int cy = rect.center().y();
+            QPolygon tri;
+            if (sortIndicatorOrder() == Qt::AscendingOrder)
+                tri << QPoint(cx - 4, cy + 2) << QPoint(cx + 4, cy + 2) << QPoint(cx, cy - 3);
+            else
+                tri << QPoint(cx - 4, cy - 2) << QPoint(cx + 4, cy - 2) << QPoint(cx, cy + 3);
+            painter->setBrush(fg);
+            painter->setPen(Qt::NoPen);
+            painter->drawPolygon(tri);
+        }
+        painter->restore();
+    }
+};
+} // namespace
 
 FileListView::FileListView(QWidget *parent) : QTableView(parent) {
     setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -20,6 +74,7 @@ FileListView::FileListView(QWidget *parent) : QTableView(parent) {
     setShowGrid(false);
     setWordWrap(false);
     verticalHeader()->hide();
+    setHorizontalHeader(new PlainHeaderView(this)); // non-bold, self-painted labels
     horizontalHeader()->setSortIndicatorShown(true);
     setSortingEnabled(true); // header clicks call FileSystemModel::sort() automatically
 
