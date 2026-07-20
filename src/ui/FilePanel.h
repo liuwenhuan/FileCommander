@@ -38,6 +38,10 @@ public:
     void invertSelection();
     void toggleHiddenFiles();
 
+    // Prompts for a wildcard mask (e.g. *.txt) and adds matching files to the
+    // selection (select=true) or removes them (select=false).
+    void selectByPattern(bool select);
+
     // Recursively computes the size of each selected directory (or the one
     // under the cursor) off the UI thread and shows it in the Size column.
     void calculateDirSizes();

@@ -8,6 +8,7 @@
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QInputDialog>
 #include <QItemSelectionModel>
 #include <QKeyEvent>
 #include <QLineEdit>
@@ -129,13 +130,15 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     invertShortcut->setContext(Qt::WidgetWithChildrenShortcut);
     connect(invertShortcut, &QShortcut::activated, this, &FilePanel::invertSelection);
 
+    // TC-style: gray +/- select/unselect by wildcard mask (Ctrl+A / Ctrl+Shift+A
+    // still select/deselect everything).
     auto *selectPlusShortcut = new QShortcut(QKeySequence(Qt::Key_Plus), this);
     selectPlusShortcut->setContext(Qt::WidgetWithChildrenShortcut);
-    connect(selectPlusShortcut, &QShortcut::activated, this, &FilePanel::selectAll);
+    connect(selectPlusShortcut, &QShortcut::activated, this, [this] { selectByPattern(true); });
 
     auto *selectMinusShortcut = new QShortcut(QKeySequence(Qt::Key_Minus), this);
     selectMinusShortcut->setContext(Qt::WidgetWithChildrenShortcut);
-    connect(selectMinusShortcut, &QShortcut::activated, this, &FilePanel::deselectAll);
+    connect(selectMinusShortcut, &QShortcut::activated, this, [this] { selectByPattern(false); });
 }
 
 bool FilePanel::eventFilter(QObject *watched, QEvent *event) {
@@ -303,6 +306,26 @@ void FilePanel::invertSelection() {
 void FilePanel::toggleHiddenFiles() {
     // Re-scans the current directory; loadFinished refreshes the status line.
     m_model->setShowHiddenFiles(!m_model->showHiddenFiles());
+}
+
+void FilePanel::selectByPattern(bool select) {
+    bool ok = false;
+    const QString mask = QInputDialog::getText(
+        this, select ? tr("Select by Pattern") : tr("Unselect by Pattern"),
+        tr("Wildcard mask (e.g. *.txt):"), QLineEdit::Normal, QStringLiteral("*"), &ok);
+    if (!ok || mask.isEmpty())
+        return;
+
+    QItemSelectionModel *sel = m_view->selectionModel();
+    const auto command = (select ? QItemSelectionModel::Select : QItemSelectionModel::Deselect) |
+                         QItemSelectionModel::Rows;
+    for (int row = 0; row < m_model->rowCount(); ++row) {
+        if (m_model->isParentEntry(row))
+            continue;
+        const FileInfo info = m_model->fileInfoAt(row);
+        if (info.isValid() && FileSystemModel::matchesFilter(info.name(), mask))
+            sel->select(m_model->index(row, 0), command);
+    }
 }
 
 void FilePanel::calculateDirSizes() {

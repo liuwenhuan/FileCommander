@@ -271,6 +271,16 @@ void MainWindow::setupMenuAndToolbar() {
                              &MainWindow::compareSelectedFiles);
     commandsMenu->addAction(tr("Calculate &Occupied Space"), this,
                              &MainWindow::calculateSizes);
+    commandsMenu->addSeparator();
+    commandsMenu->addAction(tr("&Select by Pattern..."), this, [this] {
+        if (m_activePanel)
+            m_activePanel->selectByPattern(true);
+    });
+    commandsMenu->addAction(tr("&Unselect by Pattern..."), this, [this] {
+        if (m_activePanel)
+            m_activePanel->selectByPattern(false);
+    });
+    commandsMenu->addSeparator();
     commandsMenu->addAction(tr("&Directory Hotlist..."), this,
                              &MainWindow::openDirectoryHotlist);
     commandsMenu->addSeparator();

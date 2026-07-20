@@ -78,6 +78,30 @@ TEST(FileSystemModelFilterTest, SetNameFilterRestrictsVisibleRows) {
     EXPECT_EQ(visibleFiles(model), 3);
 }
 
+TEST(FileSystemModelFilterTest, PatternPicksExpectedEntriesAcrossRows) {
+    // Mirrors FilePanel::selectByPattern: iterate the model's rows and match
+    // each name against a wildcard mask.
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    touch(dir.path(), "notes.txt");
+    touch(dir.path(), "todo.txt");
+    touch(dir.path(), "image.png");
+
+    FileSystemModel model;
+    ASSERT_TRUE(loadDir(model, dir.path()));
+
+    QStringList matched;
+    for (int r = 0; r < model.rowCount(); ++r) {
+        if (model.isParentEntry(r))
+            continue;
+        const QString name = model.fileInfoAt(r).name();
+        if (FileSystemModel::matchesFilter(name, "*.txt"))
+            matched << name;
+    }
+    matched.sort();
+    EXPECT_EQ(matched, (QStringList{"notes.txt", "todo.txt"}));
+}
+
 TEST(FileSystemModelSizeTest, DirectorySizeSumsRecursively) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
