@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QPixmap>
+#include <QPoint>
 #include <QWidget>
 
 class QLabel;
@@ -20,10 +21,12 @@ public:
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
     QWidget *buildImagePage();
     void applyImageScale();
+    void zoomImageBy(double factor);
     double fitScale() const;
 
     QStackedWidget *m_stack;
@@ -36,4 +39,10 @@ private:
     QPixmap m_originalPixmap;
     double m_imageScale = 1.0;
     bool m_imageFitMode = true; // re-fit on resize until the user zooms
+
+    // Left-drag panning state.
+    bool m_panning = false;
+    QPoint m_panStart;
+    int m_panHScroll = 0;
+    int m_panVScroll = 0;
 };

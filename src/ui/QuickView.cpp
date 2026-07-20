@@ -3,11 +3,14 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QLabel>
+#include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QStackedWidget>
 #include <QToolBar>
 #include <QVBoxLayout>
+#include <QWheelEvent>
 
 #include "ImageViewer.h"
 
@@ -41,16 +44,8 @@ QWidget *QuickView::buildImagePage() {
     m_imagePage = new QWidget(this);
 
     auto *toolbar = new QToolBar(m_imagePage);
-    toolbar->addAction(tr("Zoom In"), this, [this]() {
-        m_imageFitMode = false;
-        m_imageScale = qMin(m_imageScale * kZoomStep, kMaxScale);
-        applyImageScale();
-    });
-    toolbar->addAction(tr("Zoom Out"), this, [this]() {
-        m_imageFitMode = false;
-        m_imageScale = qMax(m_imageScale / kZoomStep, kMinScale);
-        applyImageScale();
-    });
+    toolbar->addAction(tr("Zoom In"), this, [this]() { zoomImageBy(kZoomStep); });
+    toolbar->addAction(tr("Zoom Out"), this, [this]() { zoomImageBy(1.0 / kZoomStep); });
     toolbar->addAction(tr("Fit"), this, [this]() {
         m_imageFitMode = true;
         m_imageScale = fitScale();
@@ -63,6 +58,10 @@ QWidget *QuickView::buildImagePage() {
     m_imageScroll->setWidget(m_imageLabel);
     m_imageScroll->setWidgetResizable(false);
     m_imageScroll->setAlignment(Qt::AlignCenter);
+    // Wheel to zoom, left-drag to pan: filter both the label (over the image)
+    // and the empty viewport around it.
+    m_imageLabel->installEventFilter(this);
+    m_imageScroll->viewport()->installEventFilter(this);
 
     auto *layout = new QVBoxLayout(m_imagePage);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -90,6 +89,63 @@ void QuickView::applyImageScale() {
     m_imageLabel->setPixmap(
         m_originalPixmap.scaled(target, Qt::KeepAspectRatio, Qt::SmoothTransformation));
     m_imageLabel->resize(target);
+    // Hint that the image can be dragged when it overflows the viewport.
+    const bool pannable = target.width() > m_imageScroll->viewport()->width() ||
+                          target.height() > m_imageScroll->viewport()->height();
+    m_imageScroll->viewport()->setCursor(pannable ? Qt::OpenHandCursor : Qt::ArrowCursor);
+}
+
+void QuickView::zoomImageBy(double factor) {
+    m_imageFitMode = false;
+    m_imageScale = qBound(kMinScale, m_imageScale * factor, kMaxScale);
+    applyImageScale();
+}
+
+bool QuickView::eventFilter(QObject *watched, QEvent *event) {
+    const bool onImage =
+        watched == m_imageLabel || watched == m_imageScroll->viewport();
+    if (onImage) {
+        switch (event->type()) {
+        case QEvent::Wheel: {
+            auto *we = static_cast<QWheelEvent *>(event);
+            zoomImageBy(we->angleDelta().y() > 0 ? kZoomStep : 1.0 / kZoomStep);
+            return true; // consume: wheel zooms rather than scrolls
+        }
+        case QEvent::MouseButtonPress: {
+            auto *me = static_cast<QMouseEvent *>(event);
+            if (me->button() == Qt::LeftButton) {
+                m_panning = true;
+                m_panStart = me->globalPos();
+                m_panHScroll = m_imageScroll->horizontalScrollBar()->value();
+                m_panVScroll = m_imageScroll->verticalScrollBar()->value();
+                m_imageScroll->viewport()->setCursor(Qt::ClosedHandCursor);
+                return true;
+            }
+            break;
+        }
+        case QEvent::MouseMove: {
+            if (m_panning) {
+                auto *me = static_cast<QMouseEvent *>(event);
+                const QPoint delta = me->globalPos() - m_panStart;
+                m_imageScroll->horizontalScrollBar()->setValue(m_panHScroll - delta.x());
+                m_imageScroll->verticalScrollBar()->setValue(m_panVScroll - delta.y());
+                return true;
+            }
+            break;
+        }
+        case QEvent::MouseButtonRelease: {
+            if (m_panning) {
+                m_panning = false;
+                applyImageScale(); // restores the open/arrow cursor
+                return true;
+            }
+            break;
+        }
+        default:
+            break;
+        }
+    }
+    return QWidget::eventFilter(watched, event);
 }
 
 void QuickView::resizeEvent(QResizeEvent *event) {
