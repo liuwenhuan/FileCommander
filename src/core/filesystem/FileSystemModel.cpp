@@ -203,6 +203,14 @@ Qt::ItemFlags FileSystemModel::flags(const QModelIndex &index) const {
     // accident.
     if (index.column() == NameColumn && !isParentEntry(index.row()))
         f |= Qt::ItemIsEditable;
+
+    // Without ItemIsDragEnabled, QAbstractItemView refuses to start a drag
+    // at all -- it never even calls the view's startDrag() override. ".."
+    // isn't a real draggable entry, so leave it out.
+    if (!isParentEntry(index.row()))
+        f |= Qt::ItemIsDragEnabled;
+    f |= Qt::ItemIsDropEnabled;
+
     return f;
 }
 

@@ -132,9 +132,9 @@ void FileListView::dropEvent(QDropEvent *event) {
         else
             kind = DropActionKind::Move;
     } else {
-        // Cross-panel or from outside the app: default copy, Shift=move.
+        // Cross-panel or from outside the app: default copy, Ctrl=move.
         Q_UNUSED(fromAnotherPanel);
-        kind = (modifiers & Qt::ShiftModifier) ? DropActionKind::Move : DropActionKind::Copy;
+        kind = (modifiers & Qt::ControlModifier) ? DropActionKind::Move : DropActionKind::Copy;
     }
 
     // Dropping a selection onto itself (same dir) is a no-op, not an error.
