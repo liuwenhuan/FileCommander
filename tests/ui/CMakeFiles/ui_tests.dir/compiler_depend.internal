@@ -6,6 +6,7 @@
  /home/deepin/codework/ttc/tests/ui/test_CommandHistory.cpp
  /home/deepin/codework/ttc/tests/ui/test_PropertiesDialog.cpp
  /home/deepin/codework/ttc/tests/ui/test_TabManager.cpp
+ /home/deepin/codework/ttc/tests/ui/test_TextViewer.cpp
  /usr/bin/cmake
 
 tests/ui/CMakeFiles/ui_tests.dir/test_CommandHistory.cpp.o

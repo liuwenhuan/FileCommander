@@ -9,6 +9,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/ui_tests.dir/test_PropertiesDialog.cpp.o.d"
   "CMakeFiles/ui_tests.dir/test_TabManager.cpp.o"
   "CMakeFiles/ui_tests.dir/test_TabManager.cpp.o.d"
+  "CMakeFiles/ui_tests.dir/test_TextViewer.cpp.o"
+  "CMakeFiles/ui_tests.dir/test_TextViewer.cpp.o.d"
   "CMakeFiles/ui_tests.dir/ui_tests_autogen/mocs_compilation.cpp.o"
   "CMakeFiles/ui_tests.dir/ui_tests_autogen/mocs_compilation.cpp.o.d"
   "ui_tests"

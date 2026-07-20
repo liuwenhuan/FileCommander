@@ -5,6 +5,7 @@ tests/ui/ui_tests_autogen/timestamp: tests/ui/CMakeLists.txt \
   tests/ui/test_CommandHistory.cpp \
   tests/ui/test_PropertiesDialog.cpp \
   tests/ui/test_TabManager.cpp \
+  tests/ui/test_TextViewer.cpp \
   /usr/bin/cmake
 
 tests/ui/CMakeFiles/ui_tests.dir/test_CommandHistory.cpp.o: tests/ui/test_CommandHistory.cpp \
@@ -1645,15 +1646,9 @@ src/ui/TabManager.h:
 
 /usr/include/x86_64-linux-gnu/bits/stdlib-float.h:
 
-/lib/x86_64-linux-gnu/libpcre2-8.so.0:
+/usr/include/x86_64-linux-gnu/bits/types/struct_timespec.h:
 
-/usr/include/x86_64-linux-gnu/bits/wchar.h:
-
-/usr/include/c++/12/cstdlib:
-
-/usr/include/x86_64-linux-gnu/bits/byteswap.h:
-
-/usr/include/x86_64-linux-gnu/bits/siginfo-consts-arch.h:
+/usr/include/x86_64-linux-gnu/bits/stdint-uintn.h:
 
 /usr/include/x86_64-linux-gnu/qt5/QtCore/qcontainerfwd.h:
 
@@ -1767,6 +1762,16 @@ tests/ui/test_PropertiesDialog.cpp:
 
 /usr/include/c++/12/bits/std_mutex.h:
 
+/lib/x86_64-linux-gnu/libpcre2-8.so.0:
+
+/usr/include/x86_64-linux-gnu/bits/wchar.h:
+
+/usr/include/c++/12/cstdlib:
+
+/usr/include/x86_64-linux-gnu/bits/byteswap.h:
+
+/usr/include/x86_64-linux-gnu/bits/siginfo-consts-arch.h:
+
 /usr/lib/x86_64-linux-gnu/libQt5Widgets.so.5.15.8:
 
 /usr/include/c++/12/bits/shared_ptr_atomic.h:
@@ -1821,6 +1826,18 @@ tests/ui/test_PropertiesDialog.cpp:
 
 /usr/include/x86_64-linux-gnu/bits/locale.h:
 
+/lib/x86_64-linux-gnu/libgraphite2.so.3:
+
+lib/libgtest_main.a:
+
+/usr/include/c++/12/bits/stl_tree.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/stack_t.h:
+
+/usr/include/c++/12/bits/locale_facets.tcc:
+
+/usr/include/x86_64-linux-gnu/bits/sched.h:
+
 /usr/include/c++/12/bits/atomic_lockfree_defines.h:
 
 /lib/x86_64-linux-gnu/libxcb.so.1:
@@ -1834,14 +1851,6 @@ tests/ui/test_PropertiesDialog.cpp:
 /usr/include/x86_64-linux-gnu/bits/sigstksz.h:
 
 /usr/bin/cmake:
-
-/usr/include/x86_64-linux-gnu/bits/wctype-wchar.h:
-
-/usr/include/c++/12/bits/align.h:
-
-/usr/include/c++/12/bits/allocator.h:
-
-/usr/include/c++/12/optional:
 
 /usr/include/c++/12/bits/list.tcc:
 
@@ -1870,10 +1879,6 @@ tests/ui/test_PropertiesDialog.cpp:
 /usr/include/sched.h:
 
 /usr/include/c++/12/array:
-
-/usr/include/c++/12/algorithm:
-
-/usr/include/c++/12/bits/hash_bytes.h:
 
 /usr/include/assert.h:
 
@@ -1911,6 +1916,10 @@ tests/ui/test_PropertiesDialog.cpp:
 
 /usr/include/x86_64-linux-gnu/bits/endian.h:
 
+/usr/include/c++/12/algorithm:
+
+/usr/include/c++/12/bits/hash_bytes.h:
+
 tests/ui/test_TabManager.cpp:
 
 /usr/include/c++/12/bits/localefwd.h:
@@ -1922,6 +1931,10 @@ tests/ui/test_TabManager.cpp:
 /usr/include/c++/12/bits/istream.tcc:
 
 /usr/include/asm-generic/errno.h:
+
+/lib/x86_64-linux-gnu/libxml2.so.2:
+
+/usr/include/c++/12/bits/cxxabi_forced.h:
 
 /usr/include/alloca.h:
 
@@ -1937,13 +1950,21 @@ tests/ui/test_TabManager.cpp:
 
 /usr/include/c++/12/bits/stl_set.h:
 
+/usr/include/c++/12/ios:
+
+/usr/include/c++/12/bits/stream_iterator.h:
+
+/usr/include/x86_64-linux-gnu/bits/wctype-wchar.h:
+
+/usr/include/c++/12/bits/align.h:
+
+/usr/include/c++/12/bits/allocator.h:
+
+/usr/include/c++/12/optional:
+
 /usr/include/c++/12/bits/cpp_type_traits.h:
 
 /usr/include/c++/12/bits/codecvt.h:
-
-/lib/x86_64-linux-gnu/libxml2.so.2:
-
-/usr/include/c++/12/bits/cxxabi_forced.h:
 
 /usr/include/c++/12/pstl/execution_defs.h:
 
@@ -2029,6 +2050,8 @@ src/core/libcore.a:
 
 /usr/include/c++/12/bits/shared_ptr_base.h:
 
+tests/ui/test_TextViewer.cpp:
+
 /usr/lib/x86_64-linux-gnu/libm.so:
 
 /usr/include/x86_64-linux-gnu/qt5/QtCore/qpoint.h:
@@ -2064,22 +2087,6 @@ src/core/libcore.a:
 /usr/include/c++/12/bits/locale_classes.h:
 
 /usr/include/c++/12/bits/stl_algobase.h:
-
-/lib/x86_64-linux-gnu/libgraphite2.so.3:
-
-lib/libgtest_main.a:
-
-/usr/include/c++/12/bits/stl_tree.h:
-
-/usr/include/c++/12/bits/stream_iterator.h:
-
-/usr/include/c++/12/ios:
-
-/usr/include/x86_64-linux-gnu/bits/types/stack_t.h:
-
-/usr/include/c++/12/bits/locale_facets.tcc:
-
-/usr/include/x86_64-linux-gnu/bits/sched.h:
 
 /usr/include/c++/12/cwchar:
 
@@ -2221,6 +2228,10 @@ src/archive/libarchive.a:
 
 /usr/include/c++/12/system_error:
 
+/usr/include/x86_64-linux-gnu/bits/local_lim.h:
+
+/usr/include/c++/12/type_traits:
+
 /lib/x86_64-linux-gnu/libdouble-conversion.so.3:
 
 /usr/include/c++/12/bits/locale_facets_nonio.h:
@@ -2323,10 +2334,6 @@ tests/ui/CMakeFiles/ui_tests.dir/test_PropertiesDialog.cpp.o:
 
 /usr/include/unistd.h:
 
-/usr/include/x86_64-linux-gnu/bits/types/struct_timespec.h:
-
-/usr/include/x86_64-linux-gnu/bits/stdint-uintn.h:
-
 /usr/include/wchar.h:
 
 /usr/include/x86_64-linux-gnu/bits/environments.h:
@@ -2336,10 +2343,6 @@ tests/ui/CMakeLists.txt:
 /usr/include/x86_64-linux-gnu/bits/floatn.h:
 
 /usr/include/x86_64-linux-gnu/bits/getopt_core.h:
-
-/usr/include/c++/12/type_traits:
-
-/usr/include/x86_64-linux-gnu/bits/local_lim.h:
 
 /usr/include/x86_64-linux-gnu/bits/long-double.h:
 

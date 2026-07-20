@@ -6,6 +6,7 @@ ui_tests: \
   CMakeFiles/ui_tests.dir/test_TabManager.cpp.o \
   CMakeFiles/ui_tests.dir/test_PropertiesDialog.cpp.o \
   CMakeFiles/ui_tests.dir/test_CommandHistory.cpp.o \
+  CMakeFiles/ui_tests.dir/test_TextViewer.cpp.o \
   ../../src/ui/libui.a \
   ../../lib/libgtest.a \
   ../../lib/libgtest_main.a \
@@ -90,6 +91,8 @@ CMakeFiles/ui_tests.dir/test_TabManager.cpp.o:
 CMakeFiles/ui_tests.dir/test_PropertiesDialog.cpp.o:
 
 CMakeFiles/ui_tests.dir/test_CommandHistory.cpp.o:
+
+CMakeFiles/ui_tests.dir/test_TextViewer.cpp.o:
 
 ../../src/ui/libui.a:
 

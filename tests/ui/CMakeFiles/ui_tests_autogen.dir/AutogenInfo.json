@@ -87,7 +87,8 @@
 			"MU",
 			null
 		],
-		[ "/home/deepin/codework/ttc/tests/ui/test_TabManager.cpp", "MU", null ]
+		[ "/home/deepin/codework/ttc/tests/ui/test_TabManager.cpp", "MU", null ],
+		[ "/home/deepin/codework/ttc/tests/ui/test_TextViewer.cpp", "MU", null ]
 	],
 	"UIC_OPTIONS" : [],
 	"UIC_SEARCH_PATHS" : [],

@@ -285,6 +285,30 @@ test_TabManager.cpp.s:
 	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f tests/ui/CMakeFiles/ui_tests.dir/build.make tests/ui/CMakeFiles/ui_tests.dir/test_TabManager.cpp.s
 .PHONY : test_TabManager.cpp.s
 
+test_TextViewer.o: test_TextViewer.cpp.o
+.PHONY : test_TextViewer.o
+
+# target to build an object file
+test_TextViewer.cpp.o:
+	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f tests/ui/CMakeFiles/ui_tests.dir/build.make tests/ui/CMakeFiles/ui_tests.dir/test_TextViewer.cpp.o
+.PHONY : test_TextViewer.cpp.o
+
+test_TextViewer.i: test_TextViewer.cpp.i
+.PHONY : test_TextViewer.i
+
+# target to preprocess a source file
+test_TextViewer.cpp.i:
+	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f tests/ui/CMakeFiles/ui_tests.dir/build.make tests/ui/CMakeFiles/ui_tests.dir/test_TextViewer.cpp.i
+.PHONY : test_TextViewer.cpp.i
+
+test_TextViewer.s: test_TextViewer.cpp.s
+.PHONY : test_TextViewer.s
+
+# target to generate assembly for a file
+test_TextViewer.cpp.s:
+	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f tests/ui/CMakeFiles/ui_tests.dir/build.make tests/ui/CMakeFiles/ui_tests.dir/test_TextViewer.cpp.s
+.PHONY : test_TextViewer.cpp.s
+
 ui_tests_autogen/mocs_compilation.o: ui_tests_autogen/mocs_compilation.cpp.o
 .PHONY : ui_tests_autogen/mocs_compilation.o
 
@@ -334,6 +358,9 @@ help:
 	@echo "... test_TabManager.o"
 	@echo "... test_TabManager.i"
 	@echo "... test_TabManager.s"
+	@echo "... test_TextViewer.o"
+	@echo "... test_TextViewer.i"
+	@echo "... test_TextViewer.s"
 	@echo "... ui_tests_autogen/mocs_compilation.o"
 	@echo "... ui_tests_autogen/mocs_compilation.i"
 	@echo "... ui_tests_autogen/mocs_compilation.s"
