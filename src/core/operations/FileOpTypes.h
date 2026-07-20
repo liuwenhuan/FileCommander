@@ -35,3 +35,8 @@ enum class OperationStatus {
 // *All or Cancel value short-circuits prompting for the rest of the batch.
 using ConflictResolver =
     std::function<ErrorAction(const QString &source, const QString &destination)>;
+
+// Called (on the GUI thread) when a copy/delete fails on a specific entry.
+// Retry re-attempts, Skip/SkipAll continue past it, Cancel aborts the batch.
+using ErrorResolver =
+    std::function<ErrorAction(const QString &path, const QString &error)>;

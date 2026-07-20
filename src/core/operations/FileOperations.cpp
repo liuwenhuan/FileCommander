@@ -49,6 +49,17 @@ void FileOperations::emitProgress(const QString &currentFile) {
     emit progress(m_doneItems, m_totalItems, m_doneBytes, m_totalBytes, currentFile);
 }
 
+ErrorAction FileOperations::resolveError(const QString &path, const QString &error) {
+    if (m_errorBatch == ErrorAction::SkipAll)
+        return ErrorAction::SkipAll; // "skip all" already chosen for this batch
+    const ErrorAction action = m_errorResolver ? m_errorResolver(path, error) : ErrorAction::Skip;
+    if (action == ErrorAction::SkipAll)
+        m_errorBatch = ErrorAction::SkipAll;
+    if (action == ErrorAction::Cancel)
+        m_cancelled = true;
+    return action;
+}
+
 QString FileOperations::uniqueDestination(const QString &destDir, const QString &name) {
     QFileInfo fi(name);
     const QString base = fi.completeBaseName();
@@ -121,22 +132,26 @@ bool FileOperations::copyOne(const QString &source, const QString &destDir, bool
         // Overwrite / OverwriteAll: fall through and replace destPath as-is.
     }
 
-    bool ok;
-    if (srcInfo.isDir()) {
-        ok = copyRecursively(source, destPath);
-    } else {
-        QFile::remove(destPath);
-        ok = QFile::copy(source, destPath);
+    while (true) {
+        bool ok;
+        if (srcInfo.isDir()) {
+            ok = copyRecursively(source, destPath);
+        } else {
+            QFile::remove(destPath);
+            ok = QFile::copy(source, destPath);
+            if (ok)
+                m_doneBytes += srcInfo.size();
+        }
         if (ok)
-            m_doneBytes += srcInfo.size();
-    }
+            break;
 
-    if (!ok) {
         const QString msg = tr("Failed to copy %1 to %2").arg(source, destPath);
+        if (resolveError(source, msg) == ErrorAction::Retry)
+            continue; // user asked to retry
         if (errorMessage)
             *errorMessage = msg;
         emit errorOccurred(msg);
-        return false;
+        return false; // skipped or cancelled (m_cancelled set by resolveError)
     }
 
     if (removeSource) {
@@ -157,6 +172,7 @@ bool FileOperations::copyPaths(const QStringList &sources, const QString &destDi
     m_totalBytes = countBytes(sources);
     m_doneItems = 0;
     m_doneBytes = 0;
+    m_errorBatch = ErrorAction::Retry;
     ErrorAction batchAction = ErrorAction::Retry; // sentinel meaning "ask each time"
     QDir().mkpath(destDir);
 
@@ -232,6 +248,7 @@ bool FileOperations::movePaths(const QStringList &sources, const QString &destDi
     m_totalBytes = countBytes(sources);
     m_doneItems = 0;
     m_doneBytes = 0;
+    m_errorBatch = ErrorAction::Retry;
     ErrorAction batchAction = ErrorAction::Retry;
     QDir().mkpath(destDir);
 
@@ -272,6 +289,7 @@ bool FileOperations::deletePaths(const QStringList &paths, bool toTrash, QString
     m_totalBytes = 0; // bytes freed aren't a meaningful transfer measure
     m_doneItems = 0;
     m_doneBytes = 0;
+    m_errorBatch = ErrorAction::Retry;
 
     if (toTrash) {
         QStringList args = QStringList(QStringLiteral("trash")) + paths;
@@ -290,13 +308,20 @@ bool FileOperations::deletePaths(const QStringList &paths, bool toTrash, QString
         if (m_cancelled)
             return false;
         QFileInfo info(path);
-        bool ok = info.isDir() ? QDir(path).removeRecursively() : QFile::remove(path);
-        if (!ok) {
+        while (true) {
+            const bool ok = info.isDir() ? QDir(path).removeRecursively() : QFile::remove(path);
+            if (ok)
+                break;
             const QString msg = tr("Failed to delete %1").arg(path);
+            if (resolveError(path, msg) == ErrorAction::Retry)
+                continue;
             if (errorMessage)
                 *errorMessage = msg;
             emit errorOccurred(msg);
+            break; // skipped or cancelled
         }
+        if (m_cancelled)
+            return false;
         ++m_doneItems;
         emitProgress(path);
     }

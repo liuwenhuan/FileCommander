@@ -24,6 +24,10 @@ public:
     // destination file; typically wired to OverwriteConfirmDialog::ask.
     void setConflictHandler(ConflictResolver handler) { m_conflictHandler = std::move(handler); }
 
+    // Invoked (on the GUI thread) when an entry fails to copy/delete; wire to
+    // a Retry/Skip/Skip-All/Cancel dialog.
+    void setErrorHandler(ErrorResolver handler) { m_errorHandler = std::move(handler); }
+
     void enqueueCopy(const QStringList &sources, const QString &destDir);
     void enqueueCopyAs(const QString &source, const QString &destPath);
     void enqueueMove(const QStringList &sources, const QString &destDir);
@@ -53,6 +57,7 @@ private:
     };
 
     ErrorAction askConflict(const QString &source, const QString &destination);
+    ErrorAction askError(const QString &path, const QString &error);
     void maybeStartNext();
     void onWorkerJobDone(bool ok);
 
@@ -61,4 +66,5 @@ private:
     QQueue<Job> m_queue;
     bool m_busy = false;
     ConflictResolver m_conflictHandler;
+    ErrorResolver m_errorHandler;
 };

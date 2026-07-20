@@ -172,6 +172,41 @@ TEST(FileOperationsTest, RequestCancelStopsRemainingEntries) {
     EXPECT_FALSE(QFile::exists(QDir(dstDir.path()).filePath("b.txt")));
 }
 
+TEST(FileOperationsTest, ErrorResolverSkipContinuesBatch) {
+    QTemporaryDir srcDir, dstDir;
+    ASSERT_TRUE(srcDir.isValid() && dstDir.isValid());
+    const QString missing = QDir(srcDir.path()).filePath("nope.txt"); // never created
+    const QString real = writeFile(srcDir.path(), "real.txt");
+
+    FileOperations ops;
+    int calls = 0;
+    ops.setErrorResolver([&calls](const QString &, const QString &) {
+        ++calls;
+        return ErrorAction::Skip;
+    });
+    QString err;
+    EXPECT_TRUE(ops.copyPaths({missing, real}, dstDir.path(), nullptr, &err));
+    EXPECT_GE(calls, 1); // the missing file triggered the resolver
+    // The batch carried on and still copied the good file.
+    EXPECT_TRUE(QFile::exists(QDir(dstDir.path()).filePath("real.txt")));
+}
+
+TEST(FileOperationsTest, ErrorResolverRetryReattemptsThenSkips) {
+    QTemporaryDir srcDir, dstDir;
+    ASSERT_TRUE(srcDir.isValid() && dstDir.isValid());
+    const QString missing = QDir(srcDir.path()).filePath("gone.txt");
+
+    FileOperations ops;
+    int calls = 0;
+    ops.setErrorResolver([&calls](const QString &, const QString &) {
+        ++calls;
+        return calls < 3 ? ErrorAction::Retry : ErrorAction::Skip;
+    });
+    QString err;
+    EXPECT_TRUE(ops.copyPaths({missing}, dstDir.path(), nullptr, &err));
+    EXPECT_EQ(calls, 3); // two retries, then skip
+}
+
 TEST(FileOperationsTest, DeletePathsPermanentlyRemovesFile) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());

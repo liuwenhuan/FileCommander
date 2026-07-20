@@ -41,6 +41,10 @@ public:
     // in-flight single-file copy is not interrupted mid-write).
     void requestCancel() { m_cancelled.store(true); }
 
+    // Optional callback consulted when an entry fails to copy/delete. Without
+    // it, failures are reported and skipped (the previous behaviour).
+    void setErrorResolver(ErrorResolver resolver) { m_errorResolver = std::move(resolver); }
+
 signals:
     // doneItems/totalItems count the top-level selected entries; doneBytes/
     // totalBytes track transferred bytes (recursive) and are 0 for operations
@@ -55,11 +59,17 @@ private:
                   QString *errorMessage);
     bool copyRecursively(const QString &sourceDir, const QString &destDir);
     void emitProgress(const QString &currentFile);
+    // Returns true if the caller should treat the failed entry as handled
+    // (retried successfully is handled by the caller's loop; here Skip/SkipAll
+    // return true, Retry signals retry, Cancel sets m_cancelled).
+    ErrorAction resolveError(const QString &path, const QString &error);
     static qint64 countEntries(const QStringList &paths);
     static qint64 countBytes(const QStringList &paths);
     static QString uniqueDestination(const QString &destDir, const QString &name);
 
     std::atomic<bool> m_cancelled{false};
+    ErrorResolver m_errorResolver;
+    ErrorAction m_errorBatch = ErrorAction::Retry; // sentinel: ask each time
     qint64 m_totalItems = 0;
     qint64 m_doneItems = 0;
     qint64 m_totalBytes = 0;

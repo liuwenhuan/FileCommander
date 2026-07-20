@@ -10,6 +10,8 @@ OperationQueue::OperationQueue(QObject *parent) : QObject(parent) {
     connect(&m_workerThread, &QThread::finished, m_ops, &QObject::deleteLater);
     connect(m_ops, &FileOperations::progress, this, &OperationQueue::progress);
     connect(m_ops, &FileOperations::errorOccurred, this, &OperationQueue::errorOccurred);
+    m_ops->setErrorResolver(
+        [this](const QString &path, const QString &error) { return askError(path, error); });
     m_workerThread.start();
 }
 
@@ -41,6 +43,17 @@ void OperationQueue::enqueueCopy(const QStringList &sources, const QString &dest
     };
     m_queue.enqueue(job);
     maybeStartNext();
+}
+
+ErrorAction OperationQueue::askError(const QString &path, const QString &error) {
+    ErrorAction result = ErrorAction::Skip;
+    QMetaObject::invokeMethod(
+        this,
+        [this, &path, &error, &result]() {
+            result = m_errorHandler ? m_errorHandler(path, error) : ErrorAction::Skip;
+        },
+        Qt::BlockingQueuedConnection);
+    return result;
 }
 
 void OperationQueue::enqueueCopyAs(const QString &source, const QString &destPath) {

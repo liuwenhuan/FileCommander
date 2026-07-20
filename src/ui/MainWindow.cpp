@@ -18,6 +18,7 @@
 #include <QMessageBox>
 #include <QMimeData>
 #include <QProcess>
+#include <QPushButton>
 #include <QShortcut>
 #include <QTimer>
 #include <QSplitter>
@@ -156,6 +157,22 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_queue = new OperationQueue(this);
     m_queue->setConflictHandler([this](const QString &src, const QString &dst) {
         return OverwriteConfirmDialog::ask(this, src, dst);
+    });
+    m_queue->setErrorHandler([this](const QString &path, const QString &error) {
+        QMessageBox box(QMessageBox::Warning, tr("Operation Error"),
+                        tr("%1\n\n%2").arg(error, path), QMessageBox::NoButton, this);
+        QPushButton *retry = box.addButton(tr("Retry"), QMessageBox::AcceptRole);
+        QPushButton *skip = box.addButton(tr("Skip"), QMessageBox::RejectRole);
+        QPushButton *skipAll = box.addButton(tr("Skip All"), QMessageBox::RejectRole);
+        box.addButton(tr("Cancel"), QMessageBox::DestructiveRole);
+        box.exec();
+        if (box.clickedButton() == retry)
+            return ErrorAction::Retry;
+        if (box.clickedButton() == skip)
+            return ErrorAction::Skip;
+        if (box.clickedButton() == skipAll)
+            return ErrorAction::SkipAll;
+        return ErrorAction::Cancel;
     });
     m_progressDialog = new OperationProgressDialog(this);
     connect(m_queue, &OperationQueue::started, this, [this](const QString &desc) {
