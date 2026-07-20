@@ -1,6 +1,6 @@
 #include "QuickView.h"
 
-#include <QAction>
+#include <QCheckBox>
 #include <QFile>
 #include <QFileInfo>
 #include <QLabel>
@@ -54,13 +54,13 @@ QWidget *QuickView::buildImagePage() {
         applyImageScale();
     });
 
-    // Push the lock toggle to the far right of the toolbar.
+    // Push the lock checkbox to the far right of the toolbar.
     auto *spacer = new QWidget(toolbar);
     spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     toolbar->addWidget(spacer);
-    m_lockZoomAction = toolbar->addAction(tr("Lock Zoom"));
-    m_lockZoomAction->setCheckable(true);
-    m_lockZoomAction->setToolTip(tr("Keep the current zoom ratio for the next images"));
+    m_lockZoomCheck = new QCheckBox(tr("Lock Zoom"), toolbar);
+    m_lockZoomCheck->setToolTip(tr("Keep the current zoom ratio for the next images"));
+    toolbar->addWidget(m_lockZoomCheck);
 
     m_imageLabel = new QLabel(m_imagePage);
     m_imageLabel->setAlignment(Qt::AlignCenter);
@@ -180,7 +180,7 @@ void QuickView::showFile(const QString &path) {
         if (!pm.isNull()) {
             m_originalPixmap = pm;
             m_stack->setCurrentWidget(m_imagePage);
-            if (m_lockZoomAction->isChecked()) {
+            if (m_lockZoomCheck->isChecked()) {
                 // Reuse the ratio the user locked in; don't refit.
                 m_imageFitMode = false;
             } else {

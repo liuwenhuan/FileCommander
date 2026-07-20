@@ -4,7 +4,7 @@
 #include <QPoint>
 #include <QWidget>
 
-class QAction;
+class QCheckBox;
 class QLabel;
 class QPlainTextEdit;
 class QScrollArea;
@@ -34,7 +34,7 @@ private:
     QWidget *m_imagePage;
     QScrollArea *m_imageScroll;
     QLabel *m_imageLabel;
-    QAction *m_lockZoomAction; // when checked, keep the ratio for later images
+    QCheckBox *m_lockZoomCheck; // when checked, keep the ratio for later images
     QPlainTextEdit *m_text;
     QLabel *m_info;
 
