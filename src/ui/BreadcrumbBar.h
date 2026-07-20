@@ -8,10 +8,10 @@ class QHBoxLayout;
 class QStackedLayout;
 
 // Compact clickable path: renders the current path as a normal-looking
-// backslash-separated string (e.g. /home\deepin) where each segment is a
-// link you can click to jump to that level. Clicking the blank area past
-// the path switches to a plain editable QLineEdit for typing a path
-// directly. Escape while editing reverts without navigating.
+// slash-separated string (e.g. /home/deepin) where each segment is a link
+// you can click to jump to that level. Clicking the blank area past the
+// path switches to a plain editable QLineEdit for typing a path directly.
+// Escape while editing reverts without navigating.
 class BreadcrumbBar : public QWidget {
     Q_OBJECT
 

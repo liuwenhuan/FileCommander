@@ -68,8 +68,8 @@ void BreadcrumbBar::rebuildSegments() {
     QString accumulated;
     for (int i = 0; i < parts.size(); ++i) {
         accumulated += QLatin1Char('/') + parts.at(i);
-        if (i > 0) // backslash between segments; root already ends in "/"
-            html += QLatin1Char('\\');
+        if (i > 0) // "/" between segments; the root segment already is "/"
+            html += QLatin1Char('/');
         html += segment(accumulated, parts.at(i));
     }
     m_pathLabel->setText(html);

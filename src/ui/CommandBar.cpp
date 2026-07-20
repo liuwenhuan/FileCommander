@@ -25,10 +25,8 @@ CommandBar::CommandBar(QWidget *parent) : QWidget(parent) {
 
 void CommandBar::setDirectory(const QString &dir) {
     m_directory = dir;
-    // Show a compact prompt: trailing folder name is enough context, full
-    // path is available on hover.
-    const QString shown = QDir(dir).dirName().isEmpty() ? dir : QDir(dir).dirName();
-    m_prompt->setText(QStringLiteral("%1 $").arg(shown));
+    // Show the full path as the prompt so it's clear where a command will run.
+    m_prompt->setText(QStringLiteral("%1 $").arg(dir));
     m_prompt->setToolTip(dir);
 }
 

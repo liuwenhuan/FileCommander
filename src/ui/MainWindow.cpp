@@ -102,6 +102,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     splitter->addWidget(m_rightPanel);
     splitter->setStretchFactor(0, 1);
     splitter->setStretchFactor(1, 1);
+    // A visible divider that runs the full panel height -- tabs, breadcrumb,
+    // list and status bar -- clearly separating the two panels. A solid mid
+    // grey reads on both light and dark themes.
+    splitter->setHandleWidth(2);
+    splitter->setStyleSheet(
+        QStringLiteral("QSplitter::handle { background-color: #8a8a8a; }"));
 
     m_folderTreeModel = new QFileSystemModel(this);
     m_folderTreeModel->setRootPath(QDir::rootPath());
