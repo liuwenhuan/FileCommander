@@ -9,6 +9,7 @@
 
 class BreadcrumbBar;
 class FileListView;
+class StatusBarWidget;
 class TabBar;
 class QLineEdit;
 
@@ -35,6 +36,7 @@ public:
     void selectAll();
     void deselectAll();
     void invertSelection();
+    void toggleHiddenFiles();
 
     void newTab();
     void closeCurrentTab();
@@ -72,6 +74,7 @@ private slots:
 
 private:
     void pushHistory(const QString &fromPath);
+    void updateStatus();
     QString tabLabelFor(const QSharedPointer<TabState> &tab) const;
     void syncTabBarFromManager();
     void closeTabAt(int index);
@@ -82,6 +85,7 @@ private:
     BreadcrumbBar *m_addressBar;
     QLineEdit *m_filterBar;
     FileListView *m_view;
+    StatusBarWidget *m_statusBar;
     FileSystemModel *m_model;
     QStringList m_backHistory;
     QStringList m_forwardHistory;

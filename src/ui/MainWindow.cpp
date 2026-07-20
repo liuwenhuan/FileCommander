@@ -41,7 +41,6 @@
 #include "SearchDialog.h"
 #include "SessionManager.h"
 #include "Settings.h"
-#include "StatusBarWidget.h"
 #include "ThemeManager.h"
 #include "TextEditor.h"
 #include "TextViewer.h"
@@ -136,9 +135,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     layout->addWidget(m_commandBar);
     layout->addWidget(m_functionKeyBar);
     setCentralWidget(central);
-
-    m_statusBarWidget = new StatusBarWidget(this);
-    statusBar()->addWidget(m_statusBarWidget, 1);
+    // No global status bar: each FilePanel carries its own status strip, so
+    // the function-key bar stays the bottom-most widget.
 
     m_queue = new OperationQueue(this);
     m_queue->setConflictHandler([this](const QString &src, const QString &dst) {
@@ -193,7 +191,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     for (FilePanel *panel : {m_leftPanel, m_rightPanel}) {
         connect(panel, &FilePanel::panelActivated, this, &MainWindow::setActivePanel);
         connect(panel, &FilePanel::pathChanged, this, [this, panel](const QString &path) {
-            updateStatusBar();
             if (panel == m_activePanel) {
                 m_commandBar->setDirectory(path);
                 if (m_folderTree->isVisible()) {
@@ -203,8 +200,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
                 }
             }
         });
-        connect(panel->view()->selectionModel(), &QItemSelectionModel::selectionChanged, this,
-                [this]() { updateStatusBar(); });
         connect(panel->view(), &FileListView::filesDropped, this, &MainWindow::handleFilesDropped);
         connect(panel->model(), &FileSystemModel::renameFailed, this, [this](const QString &msg) {
             QMessageBox::warning(this, tr("Rename"), msg);
@@ -401,6 +396,11 @@ void MainWindow::setupShortcuts() {
     });
     bindShortcut("properties", tr("Properties"), QKeySequence(Qt::Key_F9),
                  [this] { showProperties(); });
+    bindShortcut("toggleHidden", tr("Show Hidden Files"), QKeySequence(Qt::CTRL | Qt::Key_H),
+                 [this] {
+                     if (m_activePanel)
+                         m_activePanel->toggleHiddenFiles();
+                 });
 }
 
 void MainWindow::showProperties() {
@@ -687,17 +687,6 @@ void MainWindow::setActivePanel(FilePanel *panel) {
     m_activePanel = panel;
     if (panel)
         m_commandBar->setDirectory(panel->currentPath());
-    updateStatusBar();
-}
-
-void MainWindow::updateStatusBar() {
-    if (!m_activePanel)
-        return;
-    const QStringList selected = m_activePanel->view()->selectionModel()->hasSelection()
-                                      ? m_activePanel->selectedPaths()
-                                      : QStringList();
-    m_statusBarWidget->setSelectionInfo(selected.size(), sumSizes(selected),
-                                         m_activePanel->model()->rowCount());
 }
 
 void MainWindow::viewCurrent() {

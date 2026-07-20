@@ -15,7 +15,6 @@
 class FilePanel;
 class FunctionKeyBar;
 class CommandBar;
-class StatusBarWidget;
 class OperationQueue;
 class OperationProgressDialog;
 class ThemeManager;
@@ -35,7 +34,6 @@ protected:
 
 private slots:
     void setActivePanel(FilePanel *panel);
-    void updateStatusBar();
 
     void viewCurrent();  // F3
     void editCurrent();  // F4 (stub for now, Phase 2 adds TextEditor)
@@ -82,7 +80,6 @@ private:
     FilePanel *m_activePanel = nullptr;
     FunctionKeyBar *m_functionKeyBar;
     CommandBar *m_commandBar;
-    StatusBarWidget *m_statusBarWidget;
     OperationQueue *m_queue;
     OperationProgressDialog *m_progressDialog;
     QStringList m_operationErrors; // accumulated per-file errors for the running job

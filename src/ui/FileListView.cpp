@@ -30,11 +30,20 @@ FileListView::FileListView(QWidget *parent) : QTableView(parent) {
 
 void FileListView::setModel(QAbstractItemModel *model) {
     QTableView::setModel(model);
-    // Section 0 only exists once the header has picked up the model's
-    // column count, so this must run after setModel(), not in the ctor.
+    // Sections only exist once the header has the model's column count, so
+    // this must run after setModel(), not in the ctor.
     if (model && model->columnCount() > 0) {
-        horizontalHeader()->setStretchLastSection(false);
-        horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+        QHeaderView *header = horizontalHeader();
+        // Every column is user-resizable by dragging its edge, including
+        // Name. No stretch section, so no column is locked.
+        header->setStretchLastSection(false);
+        for (int col = 0; col < model->columnCount(); ++col)
+            header->setSectionResizeMode(col, QHeaderView::Interactive);
+
+        // Sensible starting widths; Name gets the lion's share.
+        const int defaults[FileSystemModel::ColumnCount] = {280, 70, 100, 150, 110};
+        for (int col = 0; col < model->columnCount() && col < FileSystemModel::ColumnCount; ++col)
+            header->resizeSection(col, defaults[col]);
     }
 }
 

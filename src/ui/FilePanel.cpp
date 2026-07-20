@@ -14,6 +14,7 @@
 
 #include "BreadcrumbBar.h"
 #include "FileListView.h"
+#include "StatusBarWidget.h"
 #include "TabBar.h"
 
 FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
@@ -34,6 +35,8 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_filterBar->hide(); // revealed on demand via showQuickFilter()
     m_filterBar->installEventFilter(this);
 
+    m_statusBar = new StatusBarWidget(this);
+
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(2);
@@ -41,6 +44,10 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     layout->addWidget(m_addressBar);
     layout->addWidget(m_filterBar);
     layout->addWidget(m_view, 1);
+    layout->addWidget(m_statusBar);
+
+    connect(m_view->selectionModel(), &QItemSelectionModel::selectionChanged, this,
+            [this] { updateStatus(); });
 
     connect(m_filterBar, &QLineEdit::textChanged, this,
             [this](const QString &text) { m_model->setNameFilter(text); });
@@ -60,6 +67,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
         }
         if (m_view->model()->rowCount() > 0 && !m_view->currentIndex().isValid())
             m_view->setCurrentIndex(m_view->model()->index(0, 0));
+        updateStatus();
     });
 
     connect(m_tabBar, &QTabBar::currentChanged, this, &FilePanel::onTabBarCurrentChanged);
@@ -179,6 +187,27 @@ void FilePanel::pushHistory(const QString &fromPath) {
     m_backHistory.append(fromPath);
 }
 
+void FilePanel::updateStatus() {
+    const QModelIndexList rows = m_view->selectionModel()->selectedRows();
+    int selectedCount = 0;
+    qint64 selectedBytes = 0;
+    for (const QModelIndex &idx : rows) {
+        if (m_model->isParentEntry(idx.row()))
+            continue;
+        const FileInfo info = m_model->fileInfoAt(idx.row());
+        if (!info.isValid())
+            continue;
+        ++selectedCount;
+        if (!info.isDir())
+            selectedBytes += info.size();
+    }
+    // Total objects excludes the synthesized ".." row.
+    int total = m_model->rowCount();
+    if (total > 0 && m_model->isParentEntry(0))
+        --total;
+    m_statusBar->setSelectionInfo(selectedCount, selectedBytes, total);
+}
+
 void FilePanel::navigateUp() {
     QDir dir(m_model->rootPath());
     if (dir.cdUp())
@@ -257,6 +286,11 @@ void FilePanel::invertSelection() {
     QItemSelection full(m_model->index(0, 0),
                          m_model->index(m_model->rowCount() - 1, m_model->columnCount() - 1));
     m_view->selectionModel()->select(full, QItemSelectionModel::Toggle | QItemSelectionModel::Rows);
+}
+
+void FilePanel::toggleHiddenFiles() {
+    // Re-scans the current directory; loadFinished refreshes the status line.
+    m_model->setShowHiddenFiles(!m_model->showHiddenFiles());
 }
 
 QString FilePanel::tabLabelFor(const QSharedPointer<TabState> &tab) const {
