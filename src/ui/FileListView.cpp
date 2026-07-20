@@ -6,6 +6,8 @@
 #include <QHeaderView>
 #include <QKeyEvent>
 #include <QMimeData>
+#include <QResizeEvent>
+#include <QVector>
 #include <QUrl>
 
 #include "FileSystemModel.h"
@@ -40,11 +42,54 @@ void FileListView::setModel(QAbstractItemModel *model) {
         for (int col = 0; col < model->columnCount(); ++col)
             header->setSectionResizeMode(col, QHeaderView::Interactive);
 
-        // Sensible starting widths; Name gets the lion's share.
+        // Starting proportions; stretchColumnsToFit() scales these to fill the
+        // panel. Name gets the lion's share.
         const int defaults[FileSystemModel::ColumnCount] = {280, 70, 100, 150, 110};
         for (int col = 0; col < model->columnCount() && col < FileSystemModel::ColumnCount; ++col)
             header->resizeSection(col, defaults[col]);
+        stretchColumnsToFit();
     }
+}
+
+void FileListView::resizeEvent(QResizeEvent *event) {
+    QTableView::resizeEvent(event);
+    stretchColumnsToFit();
+}
+
+void FileListView::stretchColumnsToFit() {
+    if (m_adjustingColumns)
+        return;
+    QHeaderView *header = horizontalHeader();
+    if (!header || header->count() == 0)
+        return;
+    const int avail = viewport()->width();
+    if (avail <= 0)
+        return;
+
+    QVector<int> cols;
+    int total = 0;
+    for (int c = 0; c < header->count(); ++c) {
+        if (!header->isSectionHidden(c)) {
+            cols.append(c);
+            total += header->sectionSize(c);
+        }
+    }
+    if (cols.isEmpty() || total <= 0)
+        return;
+
+    m_adjustingColumns = true;
+    const double factor = static_cast<double>(avail) / total;
+    int used = 0;
+    for (int i = 0; i < cols.size(); ++i) {
+        int width;
+        if (i == cols.size() - 1)
+            width = qMax(30, avail - used); // last column takes the remainder exactly
+        else
+            width = qMax(30, static_cast<int>(header->sectionSize(cols.at(i)) * factor));
+        used += width;
+        header->resizeSection(cols.at(i), width);
+    }
+    m_adjustingColumns = false;
 }
 
 void FileListView::keyboardSearch(const QString &search) {

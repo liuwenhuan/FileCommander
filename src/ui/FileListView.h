@@ -38,7 +38,13 @@ protected:
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dragMoveEvent(QDragMoveEvent *event) override;
     void dropEvent(QDropEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     QString destinationDirForDrop(const QPoint &pos) const;
+    // Scales the columns so they fill the viewport width, preserving their
+    // relative proportions (so a manual column drag is kept as a ratio).
+    void stretchColumnsToFit();
+
+    bool m_adjustingColumns = false; // guards against re-entrancy
 };
