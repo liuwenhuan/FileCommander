@@ -36,6 +36,18 @@ tests/core/core_tests_autogen/timestamp: tests/core/CMakeLists.txt \
   tests/core/operations/test_OperationQueue.cpp \
   tests/core/sync/test_DirectorySync.cpp \
   tests/core/test_main.cpp \
+  /usr/bin/cmake \
+  tests/core/CMakeLists.txt \
+  tests/core/compare/test_TextDiff.cpp \
+  tests/core/config/test_SessionManager.cpp \
+  tests/core/config/test_Settings.cpp \
+  tests/core/filesystem/test_FileInfo.cpp \
+  tests/core/filesystem/test_FileSystemModel.cpp \
+  tests/core/filesystem/test_IconCache.cpp \
+  tests/core/operations/test_FileOperations.cpp \
+  tests/core/operations/test_OperationQueue.cpp \
+  tests/core/sync/test_DirectorySync.cpp \
+  tests/core/test_main.cpp \
   /usr/bin/cmake
 
 tests/core/CMakeFiles/core_tests.dir/compare/test_TextDiff.cpp.o: tests/core/compare/test_TextDiff.cpp \
@@ -2634,6 +2646,7 @@ tests/core/CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.o: tests
   /usr/include/c++/12/bits/allocated_ptr.h \
   /usr/include/c++/12/bits/allocator.h \
   /usr/include/c++/12/bits/atomic_base.h \
+  /usr/include/c++/12/bits/atomic_futex.h \
   /usr/include/c++/12/bits/atomic_lockfree_defines.h \
   /usr/include/c++/12/bits/basic_ios.h \
   /usr/include/c++/12/bits/basic_ios.tcc \
@@ -2690,6 +2703,7 @@ tests/core/CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.o: tests
   /usr/include/c++/12/bits/std_abs.h \
   /usr/include/c++/12/bits/std_function.h \
   /usr/include/c++/12/bits/std_mutex.h \
+  /usr/include/c++/12/bits/std_thread.h \
   /usr/include/c++/12/bits/stl_algo.h \
   /usr/include/c++/12/bits/stl_algobase.h \
   /usr/include/c++/12/bits/stl_bvector.h \
@@ -2750,6 +2764,7 @@ tests/core/CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.o: tests
   /usr/include/c++/12/ext/string_conversions.h \
   /usr/include/c++/12/ext/type_traits.h \
   /usr/include/c++/12/functional \
+  /usr/include/c++/12/future \
   /usr/include/c++/12/initializer_list \
   /usr/include/c++/12/iomanip \
   /usr/include/c++/12/ios \
@@ -2954,7 +2969,12 @@ tests/core/CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.o: tests
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qconfig.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qcontainerfwd.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qcontainertools_impl.h \
+  /usr/include/x86_64-linux-gnu/qt5/QtCore/qcoreapplication.h \
+  /usr/include/x86_64-linux-gnu/qt5/QtCore/qcoreevent.h \
+  /usr/include/x86_64-linux-gnu/qt5/QtCore/qdeadlinetimer.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qdir.h \
+  /usr/include/x86_64-linux-gnu/qt5/QtCore/qelapsedtimer.h \
+  /usr/include/x86_64-linux-gnu/qt5/QtCore/qeventloop.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qfile.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qfiledevice.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qfileinfo.h \
@@ -2968,6 +2988,8 @@ tests/core/CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.o: tests
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qiterator.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qlist.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qlogging.h \
+  /usr/include/x86_64-linux-gnu/qt5/QtCore/qmap.h \
+  /usr/include/x86_64-linux-gnu/qt5/QtCore/qmetaobject.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qmetatype.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qnamespace.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qnumeric.h \
@@ -2976,11 +2998,14 @@ tests/core/CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.o: tests
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qobjectdefs.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qobjectdefs_impl.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qpair.h \
+  /usr/include/x86_64-linux-gnu/qt5/QtCore/qpointer.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qprocessordetection.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qrefcount.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qregexp.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qscopedpointer.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qshareddata.h \
+  /usr/include/x86_64-linux-gnu/qt5/QtCore/qsharedpointer.h \
+  /usr/include/x86_64-linux-gnu/qt5/QtCore/qsharedpointer_impl.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qstring.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qstringalgorithms.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qstringlist.h \
@@ -2991,10 +3016,17 @@ tests/core/CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.o: tests
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qsystemdetection.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qtcore-config.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qtemporarydir.h \
+  /usr/include/x86_64-linux-gnu/qt5/QtCore/qthread.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qtypeinfo.h \
+  /usr/include/x86_64-linux-gnu/qt5/QtCore/qvariant.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qvarlengtharray.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qvector.h \
   /usr/include/x86_64-linux-gnu/qt5/QtCore/qversiontagging.h \
+  /usr/include/x86_64-linux-gnu/qt5/QtTest/QSignalSpy \
+  /usr/include/x86_64-linux-gnu/qt5/QtTest/qsignalspy.h \
+  /usr/include/x86_64-linux-gnu/qt5/QtTest/qtesteventloop.h \
+  /usr/include/x86_64-linux-gnu/qt5/QtTest/qttestglobal.h \
+  /usr/include/x86_64-linux-gnu/qt5/QtTest/qttestlib-config.h \
   /usr/include/x86_64-linux-gnu/sys/cdefs.h \
   /usr/include/x86_64-linux-gnu/sys/select.h \
   /usr/include/x86_64-linux-gnu/sys/single_threaded.h \

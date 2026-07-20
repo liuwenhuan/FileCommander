@@ -433,6 +433,8 @@ src/ui/CMakeFiles/ui.dir/MainWindow.cpp.o: \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qcontiguouscache.h \
  /usr/include/c++/12/mutex /usr/include/c++/12/bits/std_mutex.h \
  /usr/include/c++/12/bits/unique_lock.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/QHash \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qhash.h \
  /home/deepin/codework/ttc/src/core/filesystem/FileInfo.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QFile \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qfile.h \
@@ -454,7 +456,6 @@ src/ui/CMakeFiles/ui.dir/MainWindow.cpp.o: \
  /home/deepin/codework/ttc/src/core/operations/FileOpTypes.h \
  /home/deepin/codework/ttc/src/search/SearchDialog.h \
  /home/deepin/codework/ttc/src/core/config/SessionManager.h \
- /home/deepin/codework/ttc/src/ui/StatusBarWidget.h \
  /home/deepin/codework/ttc/src/ui/theme/ThemeManager.h \
  /usr/include/x86_64-linux-gnu/qt5/QtGui/QPalette \
  /usr/include/x86_64-linux-gnu/qt5/QtGui/qpalette.h \

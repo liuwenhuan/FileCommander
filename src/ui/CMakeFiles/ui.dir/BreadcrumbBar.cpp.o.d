@@ -300,10 +300,12 @@ src/ui/CMakeFiles/ui.dir/BreadcrumbBar.cpp.o: \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qurl.h \
  /usr/include/x86_64-linux-gnu/qt5/QtGui/qvector2d.h \
  /usr/include/x86_64-linux-gnu/qt5/QtGui/qtouchdevice.h \
- /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QLineEdit \
- /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qlineedit.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QLabel \
+ /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qlabel.h \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qframe.h \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qwidget.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QLineEdit \
+ /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qlineedit.h \
  /usr/include/x86_64-linux-gnu/qt5/QtGui/qtextcursor.h \
  /usr/include/x86_64-linux-gnu/qt5/QtGui/qtextformat.h \
  /usr/include/x86_64-linux-gnu/qt5/QtGui/qpen.h \
@@ -311,8 +313,4 @@ src/ui/CMakeFiles/ui.dir/BreadcrumbBar.cpp.o: \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QShortcut \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qshortcut.h \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QStackedLayout \
- /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qstackedlayout.h \
- /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QToolButton \
- /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qtoolbutton.h \
- /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qabstractbutton.h \
- /usr/include/x86_64-linux-gnu/qt5/QtGui/qicon.h
+ /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qstackedlayout.h

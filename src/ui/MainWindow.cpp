@@ -439,10 +439,10 @@ void MainWindow::setupShortcuts() {
 void MainWindow::showProperties() {
     if (!m_activePanel)
         return;
-    const QString path = m_activePanel->currentEntryPath();
-    if (path.isEmpty())
+    const QStringList paths = m_activePanel->selectedPaths();
+    if (paths.isEmpty())
         return;
-    PropertiesDialog dlg(path, this);
+    PropertiesDialog dlg(paths, this);
     if (dlg.exec() == QDialog::Accepted)
         m_activePanel->refresh();
 }

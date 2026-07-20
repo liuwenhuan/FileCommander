@@ -267,6 +267,8 @@ src/core/CMakeFiles/core.dir/filesystem/FileSystemModel.cpp.o: \
  /usr/include/c++/12/pstl/glue_memory_defs.h /usr/include/c++/12/mutex \
  /usr/include/c++/12/bits/std_mutex.h \
  /usr/include/c++/12/bits/unique_lock.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/QHash \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qhash.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QVector \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qvector.h \
  /home/deepin/codework/ttc/src/core/filesystem/FileInfo.h \
@@ -283,6 +285,9 @@ src/core/CMakeFiles/core.dir/filesystem/FileSystemModel.cpp.o: \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qdir.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qfileinfo.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qfile.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/QDirIterator \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qdiriterator.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qdir.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QFileInfo \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qfileinfo.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QLocale \
@@ -351,8 +356,6 @@ src/core/CMakeFiles/core.dir/filesystem/FileSystemModel.cpp.o: \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qdeadlinetimer.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qelapsedtimer.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qdebug.h \
- /usr/include/x86_64-linux-gnu/qt5/QtCore/qdiriterator.h \
- /usr/include/x86_64-linux-gnu/qt5/QtCore/qdir.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qeasingcurve.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qelapsedtimer.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qendian.h \
@@ -376,7 +379,6 @@ src/core/CMakeFiles/core.dir/filesystem/FileSystemModel.cpp.o: \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qfuturesynchronizer.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qgenericatomic.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qglobalstatic.h \
- /usr/include/x86_64-linux-gnu/qt5/QtCore/qhash.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qhashfunctions.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qhistorystate.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qidentityproxymodel.h \
