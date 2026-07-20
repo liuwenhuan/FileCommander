@@ -262,5 +262,11 @@ src/core/CMakeFiles/core.dir/operations/OperationQueue.cpp.o: \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qshareddata.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qhash.h \
  /home/deepin/codework/ttc/src/core/operations/FileOperations.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/QMutex \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qmutex.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QStringList \
- /usr/include/x86_64-linux-gnu/qt5/QtCore/qstringlist.h
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qstringlist.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/QWaitCondition \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qwaitcondition.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/QDeadlineTimer \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qdeadlinetimer.h

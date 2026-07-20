@@ -6,6 +6,7 @@
 #include <QClipboard>
 #include <QCloseEvent>
 #include <QCursor>
+#include <QDesktopServices>
 #include <QDir>
 #include <QFileInfo>
 #include <QFileSystemModel>
@@ -318,6 +319,7 @@ void MainWindow::setupMenuAndToolbar() {
 
     QMenu *commandsMenu = menuBar()->addMenu(tr("&Commands"));
     commandsMenu->addAction(tr("&Refresh"), this, &MainWindow::refreshActivePanel);
+    commandsMenu->addAction(tr("Open &Terminal Here"), this, &MainWindow::openTerminalHere);
     commandsMenu->addAction(tr("&Compress Selected..."), this, &MainWindow::compressSelected);
     commandsMenu->addAction(tr("S&plit File..."), this, &MainWindow::splitFile);
     commandsMenu->addAction(tr("Com&bine Files..."), this, &MainWindow::combineFiles);
@@ -524,6 +526,47 @@ void MainWindow::swapPanels() {
     const QString right = m_rightPanel->currentPath();
     m_leftPanel->navigateTo(right);
     m_rightPanel->navigateTo(left);
+}
+
+void MainWindow::openTerminalHere() {
+    if (!m_activePanel)
+        return;
+    const QString cwd = m_activePanel->currentPath();
+    static const QStringList terminals = {QStringLiteral("deepin-terminal"),
+                                          QStringLiteral("x-terminal-emulator"),
+                                          QStringLiteral("gnome-terminal"),
+                                          QStringLiteral("konsole"),
+                                          QStringLiteral("xfce4-terminal"),
+                                          QStringLiteral("xterm")};
+    for (const QString &term : terminals) {
+        if (!QStandardPaths::findExecutable(term).isEmpty()) {
+            QProcess::startDetached(term, {}, cwd);
+            return;
+        }
+    }
+    QMessageBox::warning(this, tr("Open Terminal"), tr("No terminal emulator found."));
+}
+
+void MainWindow::openWithDefault() {
+    if (!m_activePanel)
+        return;
+    const QString path = m_activePanel->currentEntryPath();
+    if (!path.isEmpty())
+        QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+}
+
+void MainWindow::openWith() {
+    if (!m_activePanel)
+        return;
+    const QString path = m_activePanel->currentEntryPath();
+    if (path.isEmpty())
+        return;
+    bool ok = false;
+    const QString app = QInputDialog::getText(this, tr("Open With"),
+                                              tr("Application command:"), QLineEdit::Normal,
+                                              QString(), &ok);
+    if (ok && !app.isEmpty())
+        QProcess::startDetached(app, {path});
 }
 
 void MainWindow::compareDirectories() {
@@ -900,6 +943,9 @@ void MainWindow::showFileContextMenu(FilePanel *panel, const QPoint &viewPos) {
         panel->view()->setCurrentIndex(idx);
 
     QMenu menu(this);
+    menu.addAction(tr("Open"), this, &MainWindow::openWithDefault);
+    menu.addAction(tr("Open With..."), this, &MainWindow::openWith);
+    menu.addSeparator();
     menu.addAction(tr("View"), this, &MainWindow::viewCurrent);
     menu.addAction(tr("Edit"), this, &MainWindow::editCurrent);
     menu.addSeparator();
@@ -931,6 +977,7 @@ void MainWindow::showBlankContextMenu(FilePanel *panel, const QPoint &viewPos) {
     menu.addSeparator();
     menu.addAction(tr("New Folder"), this, &MainWindow::makeDirectory);
     menu.addSeparator();
+    menu.addAction(tr("Open Terminal Here"), this, &MainWindow::openTerminalHere);
     menu.addAction(tr("Refresh"), this, &MainWindow::refreshActivePanel);
     menu.exec(panel->view()->viewport()->mapToGlobal(viewPos));
 }

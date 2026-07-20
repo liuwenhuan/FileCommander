@@ -59,6 +59,9 @@ private slots:
     void swapPanels();
     void splitFile();
     void combineFiles();
+    void openTerminalHere();
+    void openWithDefault();
+    void openWith();
     void toggleQuickView(); // Ctrl+Q
     void updateQuickView();
     void undoLast(); // Ctrl+Z

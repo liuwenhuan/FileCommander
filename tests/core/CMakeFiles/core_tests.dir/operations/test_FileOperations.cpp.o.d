@@ -369,10 +369,16 @@ tests/core/CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.o: \
  /usr/include/c++/12/future /usr/include/c++/12/bits/atomic_futex.h \
  /usr/include/c++/12/bits/std_thread.h \
  /home/deepin/codework/ttc/src/core/operations/FileOperations.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/QMutex \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qmutex.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QObject \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qobject.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QStringList \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qstringlist.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/QWaitCondition \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qwaitcondition.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/QDeadlineTimer \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qdeadlinetimer.h \
  /home/deepin/codework/ttc/src/core/operations/FileOpTypes.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QString \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qstring.h

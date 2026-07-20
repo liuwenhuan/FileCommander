@@ -345,6 +345,9 @@ src/ui/CMakeFiles/ui.dir/MainWindow.cpp.o: \
  /usr/include/x86_64-linux-gnu/qt5/QtGui/qtouchdevice.h \
  /usr/include/x86_64-linux-gnu/qt5/QtGui/QCursor \
  /usr/include/x86_64-linux-gnu/qt5/QtGui/qcursor.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtGui/QDesktopServices \
+ /usr/include/x86_64-linux-gnu/qt5/QtGui/qdesktopservices.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qstandardpaths.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QDir \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qdir.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qfileinfo.h \

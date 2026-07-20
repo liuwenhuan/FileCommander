@@ -267,15 +267,18 @@ core_autogen/timestamp: \
 	/usr/include/x86_64-linux-gnu/gnu/stubs.h \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/QAbstractTableModel \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/QDateTime \
+	/usr/include/x86_64-linux-gnu/qt5/QtCore/QDeadlineTimer \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/QFile \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/QFutureWatcher \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/QHash \
+	/usr/include/x86_64-linux-gnu/qt5/QtCore/QMutex \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/QObject \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/QQueue \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/QString \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/QStringList \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/QThread \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/QVector \
+	/usr/include/x86_64-linux-gnu/qt5/QtCore/QWaitCondition \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/qabstractitemmodel.h \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/qalgorithms.h \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/qarraydata.h \
@@ -348,6 +351,7 @@ core_autogen/timestamp: \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/qvarlengtharray.h \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/qvector.h \
 	/usr/include/x86_64-linux-gnu/qt5/QtCore/qversiontagging.h \
+	/usr/include/x86_64-linux-gnu/qt5/QtCore/qwaitcondition.h \
 	/usr/include/x86_64-linux-gnu/sys/cdefs.h \
 	/usr/include/x86_64-linux-gnu/sys/syscall.h \
 	/usr/lib/gcc/x86_64-linux-gnu/12/include/limits.h \

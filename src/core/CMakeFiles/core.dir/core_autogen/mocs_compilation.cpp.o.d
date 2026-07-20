@@ -280,10 +280,17 @@ src/core/CMakeFiles/core.dir/core_autogen/mocs_compilation.cpp.o: \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qstring.h \
  /home/deepin/codework/ttc/src/core/core_autogen/46JG67PTNS/moc_FileOperations.cpp \
  /home/deepin/codework/ttc/src/core/core_autogen/46JG67PTNS/../../operations/FileOperations.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/QMutex \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qmutex.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QObject \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qobject.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QStringList \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qstringlist.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/QWaitCondition \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qwaitcondition.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/QDeadlineTimer \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qdeadlinetimer.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtCore/qelapsedtimer.h \
  /home/deepin/codework/ttc/src/core/core_autogen/46JG67PTNS/../../operations/FileOpTypes.h \
  /home/deepin/codework/ttc/src/core/core_autogen/46JG67PTNS/moc_OperationQueue.cpp \
  /home/deepin/codework/ttc/src/core/core_autogen/46JG67PTNS/../../operations/OperationQueue.h \
@@ -292,7 +299,6 @@ src/core/CMakeFiles/core.dir/core_autogen/mocs_compilation.cpp.o: \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QThread \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qthread.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qdeadlinetimer.h \
- /usr/include/x86_64-linux-gnu/qt5/QtCore/qelapsedtimer.h \
  /usr/include/c++/12/future /usr/include/c++/12/condition_variable \
  /usr/include/c++/12/bits/atomic_futex.h \
  /usr/include/c++/12/bits/std_thread.h
