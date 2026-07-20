@@ -163,10 +163,24 @@ tests/core/CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.s: cmake
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.s"
 	cd /home/deepin/codework/ttc/tests/core && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/deepin/codework/ttc/tests/core/operations/test_FileOperations.cpp -o CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.s
 
+tests/core/CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.o: tests/core/CMakeFiles/core_tests.dir/flags.make
+tests/core/CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.o: tests/core/operations/test_OperationQueue.cpp
+tests/core/CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.o: tests/core/CMakeFiles/core_tests.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object tests/core/CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.o"
+	cd /home/deepin/codework/ttc/tests/core && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT tests/core/CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.o -MF CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.o.d -o CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.o -c /home/deepin/codework/ttc/tests/core/operations/test_OperationQueue.cpp
+
+tests/core/CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.i"
+	cd /home/deepin/codework/ttc/tests/core && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/deepin/codework/ttc/tests/core/operations/test_OperationQueue.cpp > CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.i
+
+tests/core/CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.s"
+	cd /home/deepin/codework/ttc/tests/core && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/deepin/codework/ttc/tests/core/operations/test_OperationQueue.cpp -o CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.s
+
 tests/core/CMakeFiles/core_tests.dir/config/test_SessionManager.cpp.o: tests/core/CMakeFiles/core_tests.dir/flags.make
 tests/core/CMakeFiles/core_tests.dir/config/test_SessionManager.cpp.o: tests/core/config/test_SessionManager.cpp
 tests/core/CMakeFiles/core_tests.dir/config/test_SessionManager.cpp.o: tests/core/CMakeFiles/core_tests.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object tests/core/CMakeFiles/core_tests.dir/config/test_SessionManager.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building CXX object tests/core/CMakeFiles/core_tests.dir/config/test_SessionManager.cpp.o"
 	cd /home/deepin/codework/ttc/tests/core && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT tests/core/CMakeFiles/core_tests.dir/config/test_SessionManager.cpp.o -MF CMakeFiles/core_tests.dir/config/test_SessionManager.cpp.o.d -o CMakeFiles/core_tests.dir/config/test_SessionManager.cpp.o -c /home/deepin/codework/ttc/tests/core/config/test_SessionManager.cpp
 
 tests/core/CMakeFiles/core_tests.dir/config/test_SessionManager.cpp.i: cmake_force
@@ -180,7 +194,7 @@ tests/core/CMakeFiles/core_tests.dir/config/test_SessionManager.cpp.s: cmake_for
 tests/core/CMakeFiles/core_tests.dir/config/test_Settings.cpp.o: tests/core/CMakeFiles/core_tests.dir/flags.make
 tests/core/CMakeFiles/core_tests.dir/config/test_Settings.cpp.o: tests/core/config/test_Settings.cpp
 tests/core/CMakeFiles/core_tests.dir/config/test_Settings.cpp.o: tests/core/CMakeFiles/core_tests.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building CXX object tests/core/CMakeFiles/core_tests.dir/config/test_Settings.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object tests/core/CMakeFiles/core_tests.dir/config/test_Settings.cpp.o"
 	cd /home/deepin/codework/ttc/tests/core && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT tests/core/CMakeFiles/core_tests.dir/config/test_Settings.cpp.o -MF CMakeFiles/core_tests.dir/config/test_Settings.cpp.o.d -o CMakeFiles/core_tests.dir/config/test_Settings.cpp.o -c /home/deepin/codework/ttc/tests/core/config/test_Settings.cpp
 
 tests/core/CMakeFiles/core_tests.dir/config/test_Settings.cpp.i: cmake_force
@@ -194,7 +208,7 @@ tests/core/CMakeFiles/core_tests.dir/config/test_Settings.cpp.s: cmake_force
 tests/core/CMakeFiles/core_tests.dir/sync/test_DirectorySync.cpp.o: tests/core/CMakeFiles/core_tests.dir/flags.make
 tests/core/CMakeFiles/core_tests.dir/sync/test_DirectorySync.cpp.o: tests/core/sync/test_DirectorySync.cpp
 tests/core/CMakeFiles/core_tests.dir/sync/test_DirectorySync.cpp.o: tests/core/CMakeFiles/core_tests.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object tests/core/CMakeFiles/core_tests.dir/sync/test_DirectorySync.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object tests/core/CMakeFiles/core_tests.dir/sync/test_DirectorySync.cpp.o"
 	cd /home/deepin/codework/ttc/tests/core && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT tests/core/CMakeFiles/core_tests.dir/sync/test_DirectorySync.cpp.o -MF CMakeFiles/core_tests.dir/sync/test_DirectorySync.cpp.o.d -o CMakeFiles/core_tests.dir/sync/test_DirectorySync.cpp.o -c /home/deepin/codework/ttc/tests/core/sync/test_DirectorySync.cpp
 
 tests/core/CMakeFiles/core_tests.dir/sync/test_DirectorySync.cpp.i: cmake_force
@@ -208,7 +222,7 @@ tests/core/CMakeFiles/core_tests.dir/sync/test_DirectorySync.cpp.s: cmake_force
 tests/core/CMakeFiles/core_tests.dir/compare/test_TextDiff.cpp.o: tests/core/CMakeFiles/core_tests.dir/flags.make
 tests/core/CMakeFiles/core_tests.dir/compare/test_TextDiff.cpp.o: tests/core/compare/test_TextDiff.cpp
 tests/core/CMakeFiles/core_tests.dir/compare/test_TextDiff.cpp.o: tests/core/CMakeFiles/core_tests.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object tests/core/CMakeFiles/core_tests.dir/compare/test_TextDiff.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object tests/core/CMakeFiles/core_tests.dir/compare/test_TextDiff.cpp.o"
 	cd /home/deepin/codework/ttc/tests/core && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT tests/core/CMakeFiles/core_tests.dir/compare/test_TextDiff.cpp.o -MF CMakeFiles/core_tests.dir/compare/test_TextDiff.cpp.o.d -o CMakeFiles/core_tests.dir/compare/test_TextDiff.cpp.o -c /home/deepin/codework/ttc/tests/core/compare/test_TextDiff.cpp
 
 tests/core/CMakeFiles/core_tests.dir/compare/test_TextDiff.cpp.i: cmake_force
@@ -227,6 +241,7 @@ core_tests_OBJECTS = \
 "CMakeFiles/core_tests.dir/filesystem/test_FileSystemModel.cpp.o" \
 "CMakeFiles/core_tests.dir/filesystem/test_IconCache.cpp.o" \
 "CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.o" \
+"CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.o" \
 "CMakeFiles/core_tests.dir/config/test_SessionManager.cpp.o" \
 "CMakeFiles/core_tests.dir/config/test_Settings.cpp.o" \
 "CMakeFiles/core_tests.dir/sync/test_DirectorySync.cpp.o" \
@@ -241,6 +256,7 @@ tests/core/core_tests: tests/core/CMakeFiles/core_tests.dir/filesystem/test_File
 tests/core/core_tests: tests/core/CMakeFiles/core_tests.dir/filesystem/test_FileSystemModel.cpp.o
 tests/core/core_tests: tests/core/CMakeFiles/core_tests.dir/filesystem/test_IconCache.cpp.o
 tests/core/core_tests: tests/core/CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.o
+tests/core/core_tests: tests/core/CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.o
 tests/core/core_tests: tests/core/CMakeFiles/core_tests.dir/config/test_SessionManager.cpp.o
 tests/core/core_tests: tests/core/CMakeFiles/core_tests.dir/config/test_Settings.cpp.o
 tests/core/core_tests: tests/core/CMakeFiles/core_tests.dir/sync/test_DirectorySync.cpp.o
@@ -255,7 +271,7 @@ tests/core/core_tests: /usr/lib/x86_64-linux-gnu/libQt5Gui.so.5.15.8
 tests/core/core_tests: /usr/lib/x86_64-linux-gnu/libQt5Concurrent.so.5.15.8
 tests/core/core_tests: /usr/lib/x86_64-linux-gnu/libQt5Core.so.5.15.8
 tests/core/core_tests: tests/core/CMakeFiles/core_tests.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Linking CXX executable core_tests"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Linking CXX executable core_tests"
 	cd /home/deepin/codework/ttc/tests/core && $(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/core_tests.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.

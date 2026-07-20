@@ -416,7 +416,7 @@ CMakeFiles/ttc.dir/all: CMakeFiles/ttc_autogen.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/ttc.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 57
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 55
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/ttc.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : CMakeFiles/ttc.dir/rule
@@ -452,7 +452,7 @@ CMakeFiles/ttc_autogen_timestamp_deps.dir/all: src/search/CMakeFiles/search.dir/
 
 # Build rule for subdir invocation for target.
 CMakeFiles/ttc_autogen_timestamp_deps.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 51
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 49
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/ttc_autogen_timestamp_deps.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : CMakeFiles/ttc_autogen_timestamp_deps.dir/rule
@@ -484,7 +484,7 @@ CMakeFiles/ttc_autogen.dir/all: CMakeFiles/ttc_autogen_timestamp_deps.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/ttc_autogen.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 52
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 50
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/ttc_autogen.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : CMakeFiles/ttc_autogen.dir/rule
@@ -517,7 +517,7 @@ src/core/CMakeFiles/core.dir/all: src/core/CMakeFiles/core_autogen.dir/all
 
 # Build rule for subdir invocation for target.
 src/core/CMakeFiles/core.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 12
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 11
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 src/core/CMakeFiles/core.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : src/core/CMakeFiles/core.dir/rule
@@ -576,12 +576,12 @@ src/core/CMakeFiles/core_autogen_timestamp_deps.dir/clean:
 src/core/CMakeFiles/core_autogen.dir/all: src/core/CMakeFiles/core_autogen_timestamp_deps.dir/all
 	$(MAKE) $(MAKESILENT) -f src/core/CMakeFiles/core_autogen.dir/build.make src/core/CMakeFiles/core_autogen.dir/depend
 	$(MAKE) $(MAKESILENT) -f src/core/CMakeFiles/core_autogen.dir/build.make src/core/CMakeFiles/core_autogen.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=27 "Built target core_autogen"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num= "Built target core_autogen"
 .PHONY : src/core/CMakeFiles/core_autogen.dir/all
 
 # Build rule for subdir invocation for target.
 src/core/CMakeFiles/core_autogen.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 1
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 src/core/CMakeFiles/core_autogen.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : src/core/CMakeFiles/core_autogen.dir/rule
@@ -593,7 +593,7 @@ core_autogen: src/core/CMakeFiles/core_autogen.dir/rule
 # codegen rule for target.
 src/core/CMakeFiles/core_autogen.dir/codegen: src/core/CMakeFiles/core_autogen_timestamp_deps.dir/all
 	$(MAKE) $(MAKESILENT) -f src/core/CMakeFiles/core_autogen.dir/build.make src/core/CMakeFiles/core_autogen.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=27 "Finished codegen for target core_autogen"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num= "Finished codegen for target core_autogen"
 .PHONY : src/core/CMakeFiles/core_autogen.dir/codegen
 
 # clean rule for target.
@@ -618,7 +618,7 @@ src/ui/CMakeFiles/ui.dir/all: src/ui/CMakeFiles/ui_autogen.dir/all
 
 # Build rule for subdir invocation for target.
 src/ui/CMakeFiles/ui.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 51
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 49
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 src/ui/CMakeFiles/ui.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : src/ui/CMakeFiles/ui.dir/rule
@@ -653,7 +653,7 @@ src/ui/CMakeFiles/ui_autogen_timestamp_deps.dir/all: src/search/CMakeFiles/searc
 
 # Build rule for subdir invocation for target.
 src/ui/CMakeFiles/ui_autogen_timestamp_deps.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 31
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 29
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 src/ui/CMakeFiles/ui_autogen_timestamp_deps.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : src/ui/CMakeFiles/ui_autogen_timestamp_deps.dir/rule
@@ -685,7 +685,7 @@ src/ui/CMakeFiles/ui_autogen.dir/all: src/ui/CMakeFiles/ui_autogen_timestamp_dep
 
 # Build rule for subdir invocation for target.
 src/ui/CMakeFiles/ui_autogen.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 32
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 30
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 src/ui/CMakeFiles/ui_autogen.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : src/ui/CMakeFiles/ui_autogen.dir/rule
@@ -815,7 +815,7 @@ src/archive/CMakeFiles/archive.dir/all: src/archive/CMakeFiles/archive_autogen.d
 
 # Build rule for subdir invocation for target.
 src/archive/CMakeFiles/archive.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 7
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 6
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 src/archive/CMakeFiles/archive.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : src/archive/CMakeFiles/archive.dir/rule
@@ -874,12 +874,12 @@ src/archive/CMakeFiles/archive_autogen_timestamp_deps.dir/clean:
 src/archive/CMakeFiles/archive_autogen.dir/all: src/archive/CMakeFiles/archive_autogen_timestamp_deps.dir/all
 	$(MAKE) $(MAKESILENT) -f src/archive/CMakeFiles/archive_autogen.dir/build.make src/archive/CMakeFiles/archive_autogen.dir/depend
 	$(MAKE) $(MAKESILENT) -f src/archive/CMakeFiles/archive_autogen.dir/build.make src/archive/CMakeFiles/archive_autogen.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=7 "Built target archive_autogen"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num= "Built target archive_autogen"
 .PHONY : src/archive/CMakeFiles/archive_autogen.dir/all
 
 # Build rule for subdir invocation for target.
 src/archive/CMakeFiles/archive_autogen.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 1
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 src/archive/CMakeFiles/archive_autogen.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : src/archive/CMakeFiles/archive_autogen.dir/rule
@@ -891,7 +891,7 @@ archive_autogen: src/archive/CMakeFiles/archive_autogen.dir/rule
 # codegen rule for target.
 src/archive/CMakeFiles/archive_autogen.dir/codegen: src/archive/CMakeFiles/archive_autogen_timestamp_deps.dir/all
 	$(MAKE) $(MAKESILENT) -f src/archive/CMakeFiles/archive_autogen.dir/build.make src/archive/CMakeFiles/archive_autogen.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=7 "Finished codegen for target archive_autogen"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num= "Finished codegen for target archive_autogen"
 .PHONY : src/archive/CMakeFiles/archive_autogen.dir/codegen
 
 # clean rule for target.
@@ -1005,12 +1005,12 @@ googletest-build/googlemock/CMakeFiles/gmock.dir/all: googletest-build/googlemoc
 googletest-build/googlemock/CMakeFiles/gmock.dir/all: googletest-build/googlemock/CMakeFiles/gmock_autogen.dir/all
 	$(MAKE) $(MAKESILENT) -f googletest-build/googlemock/CMakeFiles/gmock.dir/build.make googletest-build/googlemock/CMakeFiles/gmock.dir/depend
 	$(MAKE) $(MAKESILENT) -f googletest-build/googlemock/CMakeFiles/gmock.dir/build.make googletest-build/googlemock/CMakeFiles/gmock.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=39,40,41,42 "Built target gmock"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=40,41,42 "Built target gmock"
 .PHONY : googletest-build/googlemock/CMakeFiles/gmock.dir/all
 
 # Build rule for subdir invocation for target.
 googletest-build/googlemock/CMakeFiles/gmock.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 8
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 9
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 googletest-build/googlemock/CMakeFiles/gmock.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : googletest-build/googlemock/CMakeFiles/gmock.dir/rule
@@ -1022,7 +1022,7 @@ gmock: googletest-build/googlemock/CMakeFiles/gmock.dir/rule
 # codegen rule for target.
 googletest-build/googlemock/CMakeFiles/gmock.dir/codegen: googletest-build/googlemock/CMakeFiles/gmock_autogen_timestamp_deps.dir/all
 	$(MAKE) $(MAKESILENT) -f googletest-build/googlemock/CMakeFiles/gmock.dir/build.make googletest-build/googlemock/CMakeFiles/gmock.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=39,40,41,42 "Finished codegen for target gmock"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=40,41,42 "Finished codegen for target gmock"
 .PHONY : googletest-build/googlemock/CMakeFiles/gmock.dir/codegen
 
 # clean rule for target.
@@ -1040,7 +1040,7 @@ googletest-build/googlemock/CMakeFiles/gmock_main.dir/all: googletest-build/goog
 googletest-build/googlemock/CMakeFiles/gmock_main.dir/all: googletest-build/googlemock/CMakeFiles/gmock_main_autogen.dir/all
 	$(MAKE) $(MAKESILENT) -f googletest-build/googlemock/CMakeFiles/gmock_main.dir/build.make googletest-build/googlemock/CMakeFiles/gmock_main.dir/depend
 	$(MAKE) $(MAKESILENT) -f googletest-build/googlemock/CMakeFiles/gmock_main.dir/build.make googletest-build/googlemock/CMakeFiles/gmock_main.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=43,44,45,46 "Built target gmock_main"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=44,45,46 "Built target gmock_main"
 .PHONY : googletest-build/googlemock/CMakeFiles/gmock_main.dir/all
 
 # Build rule for subdir invocation for target.
@@ -1057,7 +1057,7 @@ gmock_main: googletest-build/googlemock/CMakeFiles/gmock_main.dir/rule
 # codegen rule for target.
 googletest-build/googlemock/CMakeFiles/gmock_main.dir/codegen: googletest-build/googlemock/CMakeFiles/gmock_main_autogen_timestamp_deps.dir/all
 	$(MAKE) $(MAKESILENT) -f googletest-build/googlemock/CMakeFiles/gmock_main.dir/build.make googletest-build/googlemock/CMakeFiles/gmock_main.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=43,44,45,46 "Finished codegen for target gmock_main"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=44,45,46 "Finished codegen for target gmock_main"
 .PHONY : googletest-build/googlemock/CMakeFiles/gmock_main.dir/codegen
 
 # clean rule for target.
@@ -1077,7 +1077,7 @@ googletest-build/googlemock/CMakeFiles/gmock_autogen_timestamp_deps.dir/all: goo
 
 # Build rule for subdir invocation for target.
 googletest-build/googlemock/CMakeFiles/gmock_autogen_timestamp_deps.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 4
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 5
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 googletest-build/googlemock/CMakeFiles/gmock_autogen_timestamp_deps.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : googletest-build/googlemock/CMakeFiles/gmock_autogen_timestamp_deps.dir/rule
@@ -1104,12 +1104,12 @@ googletest-build/googlemock/CMakeFiles/gmock_autogen_timestamp_deps.dir/clean:
 googletest-build/googlemock/CMakeFiles/gmock_autogen.dir/all: googletest-build/googlemock/CMakeFiles/gmock_autogen_timestamp_deps.dir/all
 	$(MAKE) $(MAKESILENT) -f googletest-build/googlemock/CMakeFiles/gmock_autogen.dir/build.make googletest-build/googlemock/CMakeFiles/gmock_autogen.dir/depend
 	$(MAKE) $(MAKESILENT) -f googletest-build/googlemock/CMakeFiles/gmock_autogen.dir/build.make googletest-build/googlemock/CMakeFiles/gmock_autogen.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num= "Built target gmock_autogen"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=43 "Built target gmock_autogen"
 .PHONY : googletest-build/googlemock/CMakeFiles/gmock_autogen.dir/all
 
 # Build rule for subdir invocation for target.
 googletest-build/googlemock/CMakeFiles/gmock_autogen.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 4
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 6
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 googletest-build/googlemock/CMakeFiles/gmock_autogen.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : googletest-build/googlemock/CMakeFiles/gmock_autogen.dir/rule
@@ -1121,7 +1121,7 @@ gmock_autogen: googletest-build/googlemock/CMakeFiles/gmock_autogen.dir/rule
 # codegen rule for target.
 googletest-build/googlemock/CMakeFiles/gmock_autogen.dir/codegen: googletest-build/googlemock/CMakeFiles/gmock_autogen_timestamp_deps.dir/all
 	$(MAKE) $(MAKESILENT) -f googletest-build/googlemock/CMakeFiles/gmock_autogen.dir/build.make googletest-build/googlemock/CMakeFiles/gmock_autogen.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num= "Finished codegen for target gmock_autogen"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=43 "Finished codegen for target gmock_autogen"
 .PHONY : googletest-build/googlemock/CMakeFiles/gmock_autogen.dir/codegen
 
 # clean rule for target.
@@ -1141,7 +1141,7 @@ googletest-build/googlemock/CMakeFiles/gmock_main_autogen_timestamp_deps.dir/all
 
 # Build rule for subdir invocation for target.
 googletest-build/googlemock/CMakeFiles/gmock_main_autogen_timestamp_deps.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 8
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 9
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 googletest-build/googlemock/CMakeFiles/gmock_main_autogen_timestamp_deps.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : googletest-build/googlemock/CMakeFiles/gmock_main_autogen_timestamp_deps.dir/rule
@@ -1173,7 +1173,7 @@ googletest-build/googlemock/CMakeFiles/gmock_main_autogen.dir/all: googletest-bu
 
 # Build rule for subdir invocation for target.
 googletest-build/googlemock/CMakeFiles/gmock_main_autogen.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 9
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 10
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 googletest-build/googlemock/CMakeFiles/gmock_main_autogen.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : googletest-build/googlemock/CMakeFiles/gmock_main_autogen.dir/rule
@@ -1201,12 +1201,12 @@ googletest-build/googletest/CMakeFiles/gtest.dir/all: googletest-build/googletes
 googletest-build/googletest/CMakeFiles/gtest.dir/all: googletest-build/googletest/CMakeFiles/gtest_autogen.dir/all
 	$(MAKE) $(MAKESILENT) -f googletest-build/googletest/CMakeFiles/gtest.dir/build.make googletest-build/googletest/CMakeFiles/gtest.dir/depend
 	$(MAKE) $(MAKESILENT) -f googletest-build/googletest/CMakeFiles/gtest.dir/build.make googletest-build/googletest/CMakeFiles/gtest.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=48,49,50 "Built target gtest"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=48,49,50,51 "Built target gtest"
 .PHONY : googletest-build/googletest/CMakeFiles/gtest.dir/all
 
 # Build rule for subdir invocation for target.
 googletest-build/googletest/CMakeFiles/gtest.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 4
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 5
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 googletest-build/googletest/CMakeFiles/gtest.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : googletest-build/googletest/CMakeFiles/gtest.dir/rule
@@ -1218,7 +1218,7 @@ gtest: googletest-build/googletest/CMakeFiles/gtest.dir/rule
 # codegen rule for target.
 googletest-build/googletest/CMakeFiles/gtest.dir/codegen: googletest-build/googletest/CMakeFiles/gtest_autogen_timestamp_deps.dir/all
 	$(MAKE) $(MAKESILENT) -f googletest-build/googletest/CMakeFiles/gtest.dir/build.make googletest-build/googletest/CMakeFiles/gtest.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=48,49,50 "Finished codegen for target gtest"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=48,49,50,51 "Finished codegen for target gtest"
 .PHONY : googletest-build/googletest/CMakeFiles/gtest.dir/codegen
 
 # clean rule for target.
@@ -1235,7 +1235,7 @@ googletest-build/googletest/CMakeFiles/gtest_main.dir/all: googletest-build/goog
 googletest-build/googletest/CMakeFiles/gtest_main.dir/all: googletest-build/googletest/CMakeFiles/gtest_main_autogen.dir/all
 	$(MAKE) $(MAKESILENT) -f googletest-build/googletest/CMakeFiles/gtest_main.dir/build.make googletest-build/googletest/CMakeFiles/gtest_main.dir/depend
 	$(MAKE) $(MAKESILENT) -f googletest-build/googletest/CMakeFiles/gtest_main.dir/build.make googletest-build/googletest/CMakeFiles/gtest_main.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=52,53,54,55 "Built target gtest_main"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=53,54,55 "Built target gtest_main"
 .PHONY : googletest-build/googletest/CMakeFiles/gtest_main.dir/all
 
 # Build rule for subdir invocation for target.
@@ -1252,7 +1252,7 @@ gtest_main: googletest-build/googletest/CMakeFiles/gtest_main.dir/rule
 # codegen rule for target.
 googletest-build/googletest/CMakeFiles/gtest_main.dir/codegen: googletest-build/googletest/CMakeFiles/gtest_main_autogen_timestamp_deps.dir/all
 	$(MAKE) $(MAKESILENT) -f googletest-build/googletest/CMakeFiles/gtest_main.dir/build.make googletest-build/googletest/CMakeFiles/gtest_main.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=52,53,54,55 "Finished codegen for target gtest_main"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=53,54,55 "Finished codegen for target gtest_main"
 .PHONY : googletest-build/googletest/CMakeFiles/gtest_main.dir/codegen
 
 # clean rule for target.
@@ -1299,7 +1299,7 @@ googletest-build/googletest/CMakeFiles/gtest_autogen_timestamp_deps.dir/clean:
 googletest-build/googletest/CMakeFiles/gtest_autogen.dir/all: googletest-build/googletest/CMakeFiles/gtest_autogen_timestamp_deps.dir/all
 	$(MAKE) $(MAKESILENT) -f googletest-build/googletest/CMakeFiles/gtest_autogen.dir/build.make googletest-build/googletest/CMakeFiles/gtest_autogen.dir/depend
 	$(MAKE) $(MAKESILENT) -f googletest-build/googletest/CMakeFiles/gtest_autogen.dir/build.make googletest-build/googletest/CMakeFiles/gtest_autogen.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=51 "Built target gtest_autogen"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=52 "Built target gtest_autogen"
 .PHONY : googletest-build/googletest/CMakeFiles/gtest_autogen.dir/all
 
 # Build rule for subdir invocation for target.
@@ -1316,7 +1316,7 @@ gtest_autogen: googletest-build/googletest/CMakeFiles/gtest_autogen.dir/rule
 # codegen rule for target.
 googletest-build/googletest/CMakeFiles/gtest_autogen.dir/codegen: googletest-build/googletest/CMakeFiles/gtest_autogen_timestamp_deps.dir/all
 	$(MAKE) $(MAKESILENT) -f googletest-build/googletest/CMakeFiles/gtest_autogen.dir/build.make googletest-build/googletest/CMakeFiles/gtest_autogen.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=51 "Finished codegen for target gtest_autogen"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=52 "Finished codegen for target gtest_autogen"
 .PHONY : googletest-build/googletest/CMakeFiles/gtest_autogen.dir/codegen
 
 # clean rule for target.
@@ -1336,7 +1336,7 @@ googletest-build/googletest/CMakeFiles/gtest_main_autogen_timestamp_deps.dir/all
 
 # Build rule for subdir invocation for target.
 googletest-build/googletest/CMakeFiles/gtest_main_autogen_timestamp_deps.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 4
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 5
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 googletest-build/googletest/CMakeFiles/gtest_main_autogen_timestamp_deps.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : googletest-build/googletest/CMakeFiles/gtest_main_autogen_timestamp_deps.dir/rule
@@ -1368,7 +1368,7 @@ googletest-build/googletest/CMakeFiles/gtest_main_autogen.dir/all: googletest-bu
 
 # Build rule for subdir invocation for target.
 googletest-build/googletest/CMakeFiles/gtest_main_autogen.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 5
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 6
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 googletest-build/googletest/CMakeFiles/gtest_main_autogen.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : googletest-build/googletest/CMakeFiles/gtest_main_autogen.dir/rule
@@ -1398,12 +1398,12 @@ tests/core/CMakeFiles/core_tests.dir/all: tests/core/CMakeFiles/core_tests_autog
 tests/core/CMakeFiles/core_tests.dir/all: tests/core/CMakeFiles/core_tests_autogen.dir/all
 	$(MAKE) $(MAKESILENT) -f tests/core/CMakeFiles/core_tests.dir/build.make tests/core/CMakeFiles/core_tests.dir/depend
 	$(MAKE) $(MAKESILENT) -f tests/core/CMakeFiles/core_tests.dir/build.make tests/core/CMakeFiles/core_tests.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=28,29,30,31,32,33,34,35,36,37 "Built target core_tests"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=27,28,29,30,31,32,33,34,35,36,37,38 "Built target core_tests"
 .PHONY : tests/core/CMakeFiles/core_tests.dir/all
 
 # Build rule for subdir invocation for target.
 tests/core/CMakeFiles/core_tests.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 27
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 29
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tests/core/CMakeFiles/core_tests.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : tests/core/CMakeFiles/core_tests.dir/rule
@@ -1415,7 +1415,7 @@ core_tests: tests/core/CMakeFiles/core_tests.dir/rule
 # codegen rule for target.
 tests/core/CMakeFiles/core_tests.dir/codegen: tests/core/CMakeFiles/core_tests_autogen_timestamp_deps.dir/all
 	$(MAKE) $(MAKESILENT) -f tests/core/CMakeFiles/core_tests.dir/build.make tests/core/CMakeFiles/core_tests.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=28,29,30,31,32,33,34,35,36,37 "Finished codegen for target core_tests"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=27,28,29,30,31,32,33,34,35,36,37,38 "Finished codegen for target core_tests"
 .PHONY : tests/core/CMakeFiles/core_tests.dir/codegen
 
 # clean rule for target.
@@ -1463,7 +1463,7 @@ tests/core/CMakeFiles/core_tests_autogen_timestamp_deps.dir/clean:
 tests/core/CMakeFiles/core_tests_autogen.dir/all: tests/core/CMakeFiles/core_tests_autogen_timestamp_deps.dir/all
 	$(MAKE) $(MAKESILENT) -f tests/core/CMakeFiles/core_tests_autogen.dir/build.make tests/core/CMakeFiles/core_tests_autogen.dir/depend
 	$(MAKE) $(MAKESILENT) -f tests/core/CMakeFiles/core_tests_autogen.dir/build.make tests/core/CMakeFiles/core_tests_autogen.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=38 "Built target core_tests_autogen"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=39 "Built target core_tests_autogen"
 .PHONY : tests/core/CMakeFiles/core_tests_autogen.dir/all
 
 # Build rule for subdir invocation for target.
@@ -1480,7 +1480,7 @@ core_tests_autogen: tests/core/CMakeFiles/core_tests_autogen.dir/rule
 # codegen rule for target.
 tests/core/CMakeFiles/core_tests_autogen.dir/codegen: tests/core/CMakeFiles/core_tests_autogen_timestamp_deps.dir/all
 	$(MAKE) $(MAKESILENT) -f tests/core/CMakeFiles/core_tests_autogen.dir/build.make tests/core/CMakeFiles/core_tests_autogen.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=38 "Finished codegen for target core_tests_autogen"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=39 "Finished codegen for target core_tests_autogen"
 .PHONY : tests/core/CMakeFiles/core_tests_autogen.dir/codegen
 
 # clean rule for target.
@@ -1503,12 +1503,12 @@ tests/ui/CMakeFiles/ui_tests.dir/all: tests/ui/CMakeFiles/ui_tests_autogen_times
 tests/ui/CMakeFiles/ui_tests.dir/all: tests/ui/CMakeFiles/ui_tests_autogen.dir/all
 	$(MAKE) $(MAKESILENT) -f tests/ui/CMakeFiles/ui_tests.dir/build.make tests/ui/CMakeFiles/ui_tests.dir/depend
 	$(MAKE) $(MAKESILENT) -f tests/ui/CMakeFiles/ui_tests.dir/build.make tests/ui/CMakeFiles/ui_tests.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=88,89,90,91,92 "Built target ui_tests"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=88,89,90,91,92,93 "Built target ui_tests"
 .PHONY : tests/ui/CMakeFiles/ui_tests.dir/all
 
 # Build rule for subdir invocation for target.
 tests/ui/CMakeFiles/ui_tests.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 66
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 64
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tests/ui/CMakeFiles/ui_tests.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : tests/ui/CMakeFiles/ui_tests.dir/rule
@@ -1520,7 +1520,7 @@ ui_tests: tests/ui/CMakeFiles/ui_tests.dir/rule
 # codegen rule for target.
 tests/ui/CMakeFiles/ui_tests.dir/codegen: tests/ui/CMakeFiles/ui_tests_autogen_timestamp_deps.dir/all
 	$(MAKE) $(MAKESILENT) -f tests/ui/CMakeFiles/ui_tests.dir/build.make tests/ui/CMakeFiles/ui_tests.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=88,89,90,91,92 "Finished codegen for target ui_tests"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=88,89,90,91,92,93 "Finished codegen for target ui_tests"
 .PHONY : tests/ui/CMakeFiles/ui_tests.dir/codegen
 
 # clean rule for target.
@@ -1542,7 +1542,7 @@ tests/ui/CMakeFiles/ui_tests_autogen_timestamp_deps.dir/all: googletest-build/go
 
 # Build rule for subdir invocation for target.
 tests/ui/CMakeFiles/ui_tests_autogen_timestamp_deps.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 60
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 58
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tests/ui/CMakeFiles/ui_tests_autogen_timestamp_deps.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : tests/ui/CMakeFiles/ui_tests_autogen_timestamp_deps.dir/rule
@@ -1569,12 +1569,12 @@ tests/ui/CMakeFiles/ui_tests_autogen_timestamp_deps.dir/clean:
 tests/ui/CMakeFiles/ui_tests_autogen.dir/all: tests/ui/CMakeFiles/ui_tests_autogen_timestamp_deps.dir/all
 	$(MAKE) $(MAKESILENT) -f tests/ui/CMakeFiles/ui_tests_autogen.dir/build.make tests/ui/CMakeFiles/ui_tests_autogen.dir/depend
 	$(MAKE) $(MAKESILENT) -f tests/ui/CMakeFiles/ui_tests_autogen.dir/build.make tests/ui/CMakeFiles/ui_tests_autogen.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=93 "Built target ui_tests_autogen"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num= "Built target ui_tests_autogen"
 .PHONY : tests/ui/CMakeFiles/ui_tests_autogen.dir/all
 
 # Build rule for subdir invocation for target.
 tests/ui/CMakeFiles/ui_tests_autogen.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 61
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 58
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tests/ui/CMakeFiles/ui_tests_autogen.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : tests/ui/CMakeFiles/ui_tests_autogen.dir/rule
@@ -1586,7 +1586,7 @@ ui_tests_autogen: tests/ui/CMakeFiles/ui_tests_autogen.dir/rule
 # codegen rule for target.
 tests/ui/CMakeFiles/ui_tests_autogen.dir/codegen: tests/ui/CMakeFiles/ui_tests_autogen_timestamp_deps.dir/all
 	$(MAKE) $(MAKESILENT) -f tests/ui/CMakeFiles/ui_tests_autogen.dir/build.make tests/ui/CMakeFiles/ui_tests_autogen.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=93 "Finished codegen for target ui_tests_autogen"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num= "Finished codegen for target ui_tests_autogen"
 .PHONY : tests/ui/CMakeFiles/ui_tests_autogen.dir/codegen
 
 # clean rule for target.
@@ -1605,7 +1605,7 @@ tests/archive/CMakeFiles/archive_tests.dir/all: tests/archive/CMakeFiles/archive
 tests/archive/CMakeFiles/archive_tests.dir/all: tests/archive/CMakeFiles/archive_tests_autogen.dir/all
 	$(MAKE) $(MAKESILENT) -f tests/archive/CMakeFiles/archive_tests.dir/build.make tests/archive/CMakeFiles/archive_tests.dir/depend
 	$(MAKE) $(MAKESILENT) -f tests/archive/CMakeFiles/archive_tests.dir/build.make tests/archive/CMakeFiles/archive_tests.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=8,9,10 "Built target archive_tests"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=7,8,9,10 "Built target archive_tests"
 .PHONY : tests/archive/CMakeFiles/archive_tests.dir/all
 
 # Build rule for subdir invocation for target.
@@ -1622,7 +1622,7 @@ archive_tests: tests/archive/CMakeFiles/archive_tests.dir/rule
 # codegen rule for target.
 tests/archive/CMakeFiles/archive_tests.dir/codegen: tests/archive/CMakeFiles/archive_tests_autogen_timestamp_deps.dir/all
 	$(MAKE) $(MAKESILENT) -f tests/archive/CMakeFiles/archive_tests.dir/build.make tests/archive/CMakeFiles/archive_tests.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=8,9,10 "Finished codegen for target archive_tests"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deepin/codework/ttc/CMakeFiles --progress-num=7,8,9,10 "Finished codegen for target archive_tests"
 .PHONY : tests/archive/CMakeFiles/archive_tests.dir/codegen
 
 # clean rule for target.
@@ -1644,7 +1644,7 @@ tests/archive/CMakeFiles/archive_tests_autogen_timestamp_deps.dir/all: googletes
 
 # Build rule for subdir invocation for target.
 tests/archive/CMakeFiles/archive_tests_autogen_timestamp_deps.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 16
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 15
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tests/archive/CMakeFiles/archive_tests_autogen_timestamp_deps.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : tests/archive/CMakeFiles/archive_tests_autogen_timestamp_deps.dir/rule
@@ -1676,7 +1676,7 @@ tests/archive/CMakeFiles/archive_tests_autogen.dir/all: tests/archive/CMakeFiles
 
 # Build rule for subdir invocation for target.
 tests/archive/CMakeFiles/archive_tests_autogen.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 17
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 16
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tests/archive/CMakeFiles/archive_tests_autogen.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : tests/archive/CMakeFiles/archive_tests_autogen.dir/rule
@@ -1710,7 +1710,7 @@ bench/CMakeFiles/bench_dirlisting.dir/all: bench/CMakeFiles/bench_dirlisting_aut
 
 # Build rule for subdir invocation for target.
 bench/CMakeFiles/bench_dirlisting.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 16
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 15
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 bench/CMakeFiles/bench_dirlisting.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : bench/CMakeFiles/bench_dirlisting.dir/rule
@@ -1742,7 +1742,7 @@ bench/CMakeFiles/bench_dirlisting_autogen_timestamp_deps.dir/all: src/core/CMake
 
 # Build rule for subdir invocation for target.
 bench/CMakeFiles/bench_dirlisting_autogen_timestamp_deps.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 12
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 11
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 bench/CMakeFiles/bench_dirlisting_autogen_timestamp_deps.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : bench/CMakeFiles/bench_dirlisting_autogen_timestamp_deps.dir/rule
@@ -1774,7 +1774,7 @@ bench/CMakeFiles/bench_dirlisting_autogen.dir/all: bench/CMakeFiles/bench_dirlis
 
 # Build rule for subdir invocation for target.
 bench/CMakeFiles/bench_dirlisting_autogen.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 13
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 12
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 bench/CMakeFiles/bench_dirlisting_autogen.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deepin/codework/ttc/CMakeFiles 0
 .PHONY : bench/CMakeFiles/bench_dirlisting_autogen.dir/rule

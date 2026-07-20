@@ -115,6 +115,11 @@
 			null
 		],
 		[
+			"/home/deepin/codework/ttc/tests/core/operations/test_OperationQueue.cpp",
+			"MU",
+			null
+		],
+		[
 			"/home/deepin/codework/ttc/tests/core/sync/test_DirectorySync.cpp",
 			"MU",
 			null

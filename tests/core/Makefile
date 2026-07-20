@@ -405,6 +405,30 @@ operations/test_FileOperations.cpp.s:
 	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f tests/core/CMakeFiles/core_tests.dir/build.make tests/core/CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.s
 .PHONY : operations/test_FileOperations.cpp.s
 
+operations/test_OperationQueue.o: operations/test_OperationQueue.cpp.o
+.PHONY : operations/test_OperationQueue.o
+
+# target to build an object file
+operations/test_OperationQueue.cpp.o:
+	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f tests/core/CMakeFiles/core_tests.dir/build.make tests/core/CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.o
+.PHONY : operations/test_OperationQueue.cpp.o
+
+operations/test_OperationQueue.i: operations/test_OperationQueue.cpp.i
+.PHONY : operations/test_OperationQueue.i
+
+# target to preprocess a source file
+operations/test_OperationQueue.cpp.i:
+	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f tests/core/CMakeFiles/core_tests.dir/build.make tests/core/CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.i
+.PHONY : operations/test_OperationQueue.cpp.i
+
+operations/test_OperationQueue.s: operations/test_OperationQueue.cpp.s
+.PHONY : operations/test_OperationQueue.s
+
+# target to generate assembly for a file
+operations/test_OperationQueue.cpp.s:
+	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f tests/core/CMakeFiles/core_tests.dir/build.make tests/core/CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.s
+.PHONY : operations/test_OperationQueue.cpp.s
+
 sync/test_DirectorySync.o: sync/test_DirectorySync.cpp.o
 .PHONY : sync/test_DirectorySync.o
 
@@ -493,6 +517,9 @@ help:
 	@echo "... operations/test_FileOperations.o"
 	@echo "... operations/test_FileOperations.i"
 	@echo "... operations/test_FileOperations.s"
+	@echo "... operations/test_OperationQueue.o"
+	@echo "... operations/test_OperationQueue.i"
+	@echo "... operations/test_OperationQueue.s"
 	@echo "... sync/test_DirectorySync.o"
 	@echo "... sync/test_DirectorySync.i"
 	@echo "... sync/test_DirectorySync.s"

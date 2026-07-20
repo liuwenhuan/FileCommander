@@ -9,4 +9,9 @@
  /home/deepin/codework/ttc/tests/ui/test_PropertiesDialog.cpp
  /home/deepin/codework/ttc/tests/ui/test_TabManager.cpp
  /usr/bin/cmake
+ /home/deepin/codework/ttc/tests/ui/CMakeLists.txt
+ /home/deepin/codework/ttc/tests/ui/test_CommandHistory.cpp
+ /home/deepin/codework/ttc/tests/ui/test_PropertiesDialog.cpp
+ /home/deepin/codework/ttc/tests/ui/test_TabManager.cpp
+ /usr/bin/cmake
 

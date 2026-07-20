@@ -17,6 +17,7 @@ set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/home/deepin/codework/ttc/tests/core/filesystem/test_FileSystemModel.cpp" "tests/core/CMakeFiles/core_tests.dir/filesystem/test_FileSystemModel.cpp.o" "gcc" "tests/core/CMakeFiles/core_tests.dir/filesystem/test_FileSystemModel.cpp.o.d"
   "/home/deepin/codework/ttc/tests/core/filesystem/test_IconCache.cpp" "tests/core/CMakeFiles/core_tests.dir/filesystem/test_IconCache.cpp.o" "gcc" "tests/core/CMakeFiles/core_tests.dir/filesystem/test_IconCache.cpp.o.d"
   "/home/deepin/codework/ttc/tests/core/operations/test_FileOperations.cpp" "tests/core/CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.o" "gcc" "tests/core/CMakeFiles/core_tests.dir/operations/test_FileOperations.cpp.o.d"
+  "/home/deepin/codework/ttc/tests/core/operations/test_OperationQueue.cpp" "tests/core/CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.o" "gcc" "tests/core/CMakeFiles/core_tests.dir/operations/test_OperationQueue.cpp.o.d"
   "/home/deepin/codework/ttc/tests/core/sync/test_DirectorySync.cpp" "tests/core/CMakeFiles/core_tests.dir/sync/test_DirectorySync.cpp.o" "gcc" "tests/core/CMakeFiles/core_tests.dir/sync/test_DirectorySync.cpp.o.d"
   "/home/deepin/codework/ttc/tests/core/test_main.cpp" "tests/core/CMakeFiles/core_tests.dir/test_main.cpp.o" "gcc" "tests/core/CMakeFiles/core_tests.dir/test_main.cpp.o.d"
   "" "tests/core/core_tests" "gcc" "tests/core/CMakeFiles/core_tests.dir/link.d"

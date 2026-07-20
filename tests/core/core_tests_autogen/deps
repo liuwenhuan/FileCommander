@@ -7,6 +7,7 @@ core_tests_autogen/timestamp: \
 	/home/deepin/codework/ttc/tests/core/filesystem/test_FileSystemModel.cpp \
 	/home/deepin/codework/ttc/tests/core/filesystem/test_IconCache.cpp \
 	/home/deepin/codework/ttc/tests/core/operations/test_FileOperations.cpp \
+	/home/deepin/codework/ttc/tests/core/operations/test_OperationQueue.cpp \
 	/home/deepin/codework/ttc/tests/core/sync/test_DirectorySync.cpp \
 	/home/deepin/codework/ttc/tests/core/test_main.cpp \
 	/usr/bin/cmake

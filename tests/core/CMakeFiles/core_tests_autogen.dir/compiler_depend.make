@@ -11,6 +11,18 @@ tests/core/core_tests_autogen/timestamp: tests/core/CMakeLists.txt \
   tests/core/operations/test_FileOperations.cpp \
   tests/core/sync/test_DirectorySync.cpp \
   tests/core/test_main.cpp \
+  /usr/bin/cmake \
+  tests/core/CMakeLists.txt \
+  tests/core/compare/test_TextDiff.cpp \
+  tests/core/config/test_SessionManager.cpp \
+  tests/core/config/test_Settings.cpp \
+  tests/core/filesystem/test_FileInfo.cpp \
+  tests/core/filesystem/test_FileSystemModel.cpp \
+  tests/core/filesystem/test_IconCache.cpp \
+  tests/core/operations/test_FileOperations.cpp \
+  tests/core/operations/test_OperationQueue.cpp \
+  tests/core/sync/test_DirectorySync.cpp \
+  tests/core/test_main.cpp \
   /usr/bin/cmake
 
 
@@ -23,6 +35,8 @@ tests/core/operations/test_FileOperations.cpp:
 tests/core/filesystem/test_IconCache.cpp:
 
 tests/core/filesystem/test_FileSystemModel.cpp:
+
+tests/core/operations/test_OperationQueue.cpp:
 
 tests/core/config/test_Settings.cpp:
 
