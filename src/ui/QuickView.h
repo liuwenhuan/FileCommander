@@ -30,12 +30,15 @@ private:
     void applyImageScale();
     void zoomImageBy(double factor);
     double fitScale() const;
+    void positionInfoOverlay(); // keep the metadata panel pinned top-right
 
     QStackedWidget *m_stack;
     QWidget *m_imagePage;
     QScrollArea *m_imageScroll;
     QLabel *m_imageLabel;
     QCheckBox *m_lockZoomCheck; // when checked, keep the ratio for later images
+    QCheckBox *m_infoCheck;     // when checked, overlay image metadata
+    QLabel *m_infoOverlay;      // floating metadata panel over the image
     QTimer *m_refitTimer;       // coalesces refits during interactive resize
     QPlainTextEdit *m_text;
     QLabel *m_info;
