@@ -126,9 +126,11 @@ QTabBar::tab {
     border-top-right-radius: 4px;
 }
 
+/* Active tab is not highlighted by background; TabBar paints a thick accent
+   line along its top edge instead. Keep the same look as an inactive tab. */
 QTabBar::tab:selected {
-    background-color: #3d7deb;
-    color: #ffffff;
+    background-color: #3a3a3a;
+    color: #e0e0e0;
 }
 
 QStatusBar {

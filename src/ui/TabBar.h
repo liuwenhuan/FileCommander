@@ -28,10 +28,10 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
-    // Recolours the "×" buttons: the current tab's is white (its background is
-    // blue in both themes), the others contrast with the inactive-tab colour.
-    // Driven from paintEvent so it always sees the correct current index, even
-    // when tabs are switched with signals blocked.
+    // Keeps the "×" buttons in sync: they all use the tab label colour (palette
+    // WindowText) for legibility, and a lone tab shows none at all. Driven from
+    // paintEvent so it always sees the correct tab count, even when tabs are
+    // switched with signals blocked.
     void refreshCloseButtons();
     QAbstractButton *createCloseButton();
 };

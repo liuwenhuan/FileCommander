@@ -130,12 +130,26 @@ void TabBar::paintEvent(QPaintEvent *event) {
     // so a settled tab bar does no extra work.
     refreshCloseButtons();
     QTabBar::paintEvent(event);
+
+    // Mark the active tab with a thick accent line along its top edge, rather
+    // than a filled background, so its label reads the same as the other tabs.
+    const int current = currentIndex();
+    if (current >= 0) {
+        const QRect r = tabRect(current);
+        if (r.isValid()) {
+            QPainter p(this);
+            constexpr int thickness = 3;
+            p.fillRect(r.x(), r.y(), r.width(), thickness,
+                       palette().color(QPalette::Highlight));
+        }
+    }
 }
 
 void TabBar::refreshCloseButtons() {
-    // A lone tab can't be closed, so it shows no × at all. With 2+ tabs, the
-    // selected tab (blue in both themes) gets a white ×; others match the tab
-    // label colour (palette WindowText) so the × is as legible as the text.
+    // A lone tab can't be closed, so it shows no × at all. With 2+ tabs, every
+    // × matches the tab label colour (palette WindowText) so it is as legible
+    // as the text -- the active tab is no longer a blue fill, so it needs no
+    // special white ×.
     const bool multiple = count() > 1;
     const QColor normal = palette().color(QPalette::WindowText);
     for (int i = 0; i < count(); ++i) {
@@ -149,8 +163,7 @@ void TabBar::refreshCloseButtons() {
             setTabButton(i, QTabBar::RightSide, createCloseButton());
             existing = tabButton(i, QTabBar::RightSide);
         }
-        static_cast<TabCloseButton *>(existing)->setColour(i == currentIndex() ? QColor(Qt::white)
-                                                                              : normal);
+        static_cast<TabCloseButton *>(existing)->setColour(normal);
     }
 }
 
