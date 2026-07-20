@@ -11,6 +11,10 @@ class QCoreApplication;
 // retranslate() pass wired through every widget.
 class TranslationManager {
 public:
-    // language: "auto" (resolves via QLocale::system()), "en", or "zh_CN".
+    // language: "auto" (resolves via QLocale::system()), "en" (source
+    // language, no catalog), or a locale such as "zh_CN", "zh_TW", "fr",
+    // "de", "es", "ru", "ja", "ko", "pt_BR". Loads the matching
+    // ":/translations/ttc_<locale>.qm", falling back to the bare language
+    // code (e.g. "fr_FR" -> "fr") when the exact locale has no catalog.
     static void install(QCoreApplication &app, const QString &language);
 };
