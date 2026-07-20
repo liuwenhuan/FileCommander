@@ -8,12 +8,15 @@
 #include <QFont>
 #include <QHeaderView>
 #include <QAction>
+#include <QItemSelectionModel>
 #include <QKeyEvent>
 #include <QMenu>
 #include <QMimeData>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPolygon>
 #include <QResizeEvent>
+#include <QTimer>
 #include <QUrl>
 #include <QVector>
 
@@ -88,6 +91,17 @@ FileListView::FileListView(QWidget *parent) : QTableView(parent) {
     setDropIndicatorShown(true);
     setDragDropMode(QAbstractItemView::DragDrop);
     setDefaultDropAction(Qt::CopyAction);
+
+    m_renameClickTimer = new QTimer(this);
+    m_renameClickTimer->setSingleShot(true);
+    connect(m_renameClickTimer, &QTimer::timeout, this, [this]() {
+        const QModelIndex idx(m_renameClickIndex);
+        m_renameClickIndex = QModelIndex();
+        // Only if it's still the sole selection (nothing changed while we waited).
+        if (idx.isValid() && selectionModel() && selectionModel()->selectedRows().size() == 1
+            && selectionModel()->isRowSelected(idx.row(), QModelIndex()))
+            edit(idx);
+    });
 }
 
 void FileListView::setModel(QAbstractItemModel *model) {
@@ -204,7 +218,50 @@ void FileListView::keyPressEvent(QKeyEvent *event) {
     QTableView::keyPressEvent(event);
 }
 
+void FileListView::mousePressEvent(QMouseEvent *event) {
+    m_renameClickTimer->stop();
+    m_renameClickIndex = QModelIndex();
+
+    // Remember whether this press landed on the name/ext cell of a row that was
+    // already the sole selection -- that's the signal for "rename in place".
+    // Evaluate before the base class mutates the selection.
+    if (event->button() == Qt::LeftButton
+        && !(event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier))
+        && state() != QAbstractItemView::EditingState && model() && selectionModel()) {
+        const QModelIndex idx = indexAt(event->pos());
+        if (idx.isValid() && (idx.column() == FileSystemModel::NameColumn
+                              || idx.column() == FileSystemModel::ExtColumn)
+            && (model()->flags(idx) & Qt::ItemIsEditable)
+            && selectionModel()->isRowSelected(idx.row(), QModelIndex())
+            && selectionModel()->selectedRows().size() == 1)
+            m_renameClickIndex = idx;
+    }
+    QTableView::mousePressEvent(event);
+}
+
+void FileListView::mouseReleaseEvent(QMouseEvent *event) {
+    QTableView::mouseReleaseEvent(event);
+    // Start the rename only if the button came up on the same cell it went
+    // down on; defer by the double-click interval so a double-click (open)
+    // cancels it first (see mouseDoubleClickEvent).
+    if (m_renameClickIndex.isValid()
+        && indexAt(event->pos()) == QModelIndex(m_renameClickIndex))
+        m_renameClickTimer->start(QApplication::doubleClickInterval() + 10);
+    else
+        m_renameClickIndex = QModelIndex();
+}
+
+void FileListView::mouseDoubleClickEvent(QMouseEvent *event) {
+    // A double-click opens the file -- never renames.
+    m_renameClickTimer->stop();
+    m_renameClickIndex = QModelIndex();
+    QTableView::mouseDoubleClickEvent(event);
+}
+
 void FileListView::startDrag(Qt::DropActions supportedActions) {
+    m_renameClickTimer->stop();
+    m_renameClickIndex = QModelIndex();
+
     auto *fsModel = qobject_cast<FileSystemModel *>(model());
     if (!fsModel)
         return;

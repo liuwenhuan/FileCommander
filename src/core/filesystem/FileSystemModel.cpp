@@ -358,13 +358,17 @@ Qt::ItemFlags FileSystemModel::flags(const QModelIndex &index) const {
     Qt::ItemFlags f = QAbstractTableModel::flags(index);
     if (!index.isValid())
         return f;
-    // Editing (F2 inline rename) is only offered on the Name cell of real
-    // entries -- never on "..". Views must still call edit() explicitly
-    // (see FileListView/MainWindow::renameCurrent): NoEditTriggers is set
-    // globally so a stray click/keystroke never starts a rename by
-    // accident.
-    if (index.column() == NameColumn && !isParentEntry(index.row()))
-        f |= Qt::ItemIsEditable;
+    // Inline rename is offered on the Name cell of any real entry (never
+    // ".."), and on the Ext cell of real files (directories have no
+    // extension to edit). Views must still call edit() explicitly (see
+    // FileListView click-to-rename / MainWindow::renameCurrent): NoEditTriggers
+    // is set globally so a stray keystroke never starts a rename by accident.
+    if (!isParentEntry(index.row())) {
+        if (index.column() == NameColumn)
+            f |= Qt::ItemIsEditable;
+        else if (index.column() == ExtColumn && !fileInfoAt(index.row()).isDir())
+            f |= Qt::ItemIsEditable;
+    }
 
     // Without ItemIsDragEnabled, QAbstractItemView refuses to start a drag
     // at all -- it never even calls the view's startDrag() override. ".."
@@ -377,15 +381,32 @@ Qt::ItemFlags FileSystemModel::flags(const QModelIndex &index) const {
 }
 
 bool FileSystemModel::setData(const QModelIndex &index, const QVariant &value, int role) {
-    if (role != Qt::EditRole || index.column() != NameColumn || isParentEntry(index.row()))
+    if (role != Qt::EditRole || isParentEntry(index.row()))
         return false;
-
-    const QString newName = value.toString().trimmed();
-    if (newName.isEmpty())
+    const int col = index.column();
+    if (col != NameColumn && col != ExtColumn)
         return false;
 
     const FileInfo info = fileInfoAt(index.row());
-    if (!info.isValid() || newName == info.name())
+    if (!info.isValid())
+        return false;
+
+    QString newName;
+    if (col == NameColumn) {
+        newName = value.toString().trimmed();
+    } else { // ExtColumn: rebuild the file name with the edited suffix
+        if (info.isDir())
+            return false;
+        const QString newExt = value.toString().trimmed();
+        // Base name = current name without its trailing ".<suffix>".
+        QString base = info.name();
+        const QString suffix = info.suffix();
+        if (!suffix.isEmpty() && base.endsWith(QLatin1Char('.') + suffix))
+            base.chop(suffix.length() + 1);
+        newName = newExt.isEmpty() ? base : base + QLatin1Char('.') + newExt;
+    }
+
+    if (newName.isEmpty() || newName == info.name())
         return false;
 
     const QString destPath = QDir(m_rootPath).filePath(newName);

@@ -1,6 +1,9 @@
 #pragma once
 
+#include <QPersistentModelIndex>
 #include <QTableView>
+
+class QTimer;
 
 // QTableView with the header/selection behavior a file panel needs
 // (stretch the Name column, select whole rows, keyboard-driven), plus
@@ -34,6 +37,12 @@ signals:
 
 protected:
     void keyPressEvent(QKeyEvent *event) override;
+    // Click-on-already-selected-name/ext starts an inline rename, the way most
+    // file managers do -- deferred by the double-click interval so a
+    // double-click still opens the file instead of renaming it.
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+    void mouseDoubleClickEvent(QMouseEvent *event) override;
     void startDrag(Qt::DropActions supportedActions) override;
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dragMoveEvent(QDragMoveEvent *event) override;
@@ -49,4 +58,10 @@ private:
     void showColumnMenu(const QPoint &pos);
 
     bool m_adjustingColumns = false; // guards against re-entrancy
+
+    // Click-to-rename: the name/ext cell that was already the sole selection
+    // when the mouse went down, plus the timer that fires the edit once we're
+    // sure no double-click is following.
+    QPersistentModelIndex m_renameClickIndex;
+    QTimer *m_renameClickTimer = nullptr;
 };
