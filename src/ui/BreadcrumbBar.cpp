@@ -16,6 +16,7 @@ BreadcrumbBar::BreadcrumbBar(QWidget *parent) : QWidget(parent) {
     m_segmentsLayout->setSpacing(0);
 
     m_pathLabel = new QLabel(m_segmentsWidget);
+    m_pathLabel->installEventFilter(this); // double-click the text to edit the path
     m_pathLabel->setTextFormat(Qt::RichText);
     m_pathLabel->setTextInteractionFlags(Qt::LinksAccessibleByMouse |
                                           Qt::LinksAccessibleByKeyboard);
@@ -38,7 +39,10 @@ BreadcrumbBar::BreadcrumbBar(QWidget *parent) : QWidget(parent) {
 }
 
 bool BreadcrumbBar::eventFilter(QObject *watched, QEvent *event) {
-    if (watched == m_segmentsWidget && event->type() == QEvent::MouseButtonPress) {
+    // A single click navigates via the breadcrumb segments (label links); only
+    // a double-click switches to the editable path field.
+    if ((watched == m_segmentsWidget || watched == m_pathLabel) &&
+        event->type() == QEvent::MouseButtonDblClick) {
         enterEditMode();
         return true;
     }
