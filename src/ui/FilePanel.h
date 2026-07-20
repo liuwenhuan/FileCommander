@@ -39,6 +39,11 @@ public:
     void invertSelection();
     void toggleHiddenFiles();
 
+    // Queues a path to be selected, focused, and scrolled into view once the
+    // pending directory reload finishes -- used after an inline rename so the
+    // listing doesn't snap back to the top.
+    void selectPathAfterReload(const QString &path);
+
     // Prompts for a wildcard mask (e.g. *.txt) and adds matching files to the
     // selection (select=true) or removes them (select=false).
     void selectByPattern(bool select);

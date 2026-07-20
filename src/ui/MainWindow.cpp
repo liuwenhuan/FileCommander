@@ -290,11 +290,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
             QMessageBox::warning(this, tr("Rename"), msg);
         });
         connect(panel->model(), &FileSystemModel::renamed, this,
-                [this](const QString &oldPath, const QString &newPath) {
+                [this, panel](const QString &oldPath, const QString &newPath) {
                     m_lastUndo = UndoRecord{};
                     m_lastUndo.type = UndoRecord::Rename;
                     m_lastUndo.fromPath = newPath;
                     m_lastUndo.toName = QFileInfo(oldPath).fileName();
+                    // Keep the cursor on the renamed entry after the reload
+                    // (fired synchronously before the model's rescan starts).
+                    panel->selectPathAfterReload(newPath);
                 });
 
         panel->view()->setContextMenuPolicy(Qt::CustomContextMenu);

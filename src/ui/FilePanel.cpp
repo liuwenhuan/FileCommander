@@ -115,10 +115,21 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
         m_addressBar->setPath(m_model->rootPath());
         if (!m_pendingSelection.isEmpty()) {
             QItemSelectionModel *sel = m_view->selectionModel();
+            QModelIndex first;
             for (int row = 0; row < m_model->rowCount(); ++row) {
-                if (m_pendingSelection.contains(m_model->fileInfoAt(row).path()))
-                    sel->select(m_model->index(row, 0),
-                                QItemSelectionModel::Select | QItemSelectionModel::Rows);
+                if (m_pendingSelection.contains(m_model->fileInfoAt(row).path())) {
+                    const QModelIndex idx = m_model->index(row, 0);
+                    sel->select(idx, QItemSelectionModel::Select | QItemSelectionModel::Rows);
+                    if (!first.isValid())
+                        first = idx;
+                }
+            }
+            // Keep focus on (and scroll to) the first restored row -- e.g. the
+            // file just renamed -- rather than letting the reload jump to the
+            // top. NoUpdate leaves the selection above intact.
+            if (first.isValid()) {
+                sel->setCurrentIndex(first, QItemSelectionModel::NoUpdate);
+                m_view->scrollTo(first, QAbstractItemView::EnsureVisible);
             }
             m_pendingSelection.clear();
         }
@@ -359,6 +370,11 @@ void FilePanel::selectAll() {
 
 void FilePanel::deselectAll() {
     m_view->clearSelection();
+}
+
+void FilePanel::selectPathAfterReload(const QString &path) {
+    if (!path.isEmpty() && !m_pendingSelection.contains(path))
+        m_pendingSelection.append(path);
 }
 
 void FilePanel::invertSelection() {
