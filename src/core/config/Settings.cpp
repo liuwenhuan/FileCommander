@@ -13,7 +13,15 @@ QString configFilePath() {
 }
 } // namespace
 
-Settings::Settings() : m_settings(configFilePath(), QSettings::IniFormat) {}
+Settings::Settings() : m_settings(configFilePath(), QSettings::IniFormat) {
+    // First run: seed the favorites with the user's home directory. Guarded by
+    // a one-shot flag so clearing all favorites later doesn't re-add it.
+    if (!m_settings.contains(QStringLiteral("favorites/initialized"))) {
+        m_settings.setValue(QStringLiteral("favorites/directories"),
+                            QStringList{QDir::homePath()});
+        m_settings.setValue(QStringLiteral("favorites/initialized"), true);
+    }
+}
 
 Settings::Theme Settings::theme() const {
     return static_cast<Theme>(m_settings.value("appearance/theme", 0).toInt());

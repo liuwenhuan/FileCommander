@@ -63,6 +63,18 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_forwardButton->setToolTip(tr("Forward"));
     connect(m_forwardButton, &QToolButton::clicked, this, &FilePanel::goForward);
 
+    // "★" opens the directory favorites menu (bookmark current + jump list).
+    m_favButton = new QToolButton(this);
+    m_favButton->setText(QStringLiteral("★"));
+    m_favButton->setAutoRaise(true);
+    m_favButton->setFocusPolicy(Qt::NoFocus);
+    m_favButton->setToolTip(tr("Favorite directories"));
+    connect(m_favButton, &QToolButton::clicked, this, [this]() {
+        emit panelActivated(this); // act on this panel
+        emit favoritesMenuRequested(
+            m_favButton->mapToGlobal(QPoint(0, m_favButton->height())));
+    });
+
     // "*" opens a menu of all keyboard shortcuts (click a row to run it).
     m_starButton = new QToolButton(this);
     m_starButton->setText(QStringLiteral("✳"));
@@ -81,6 +93,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     addressLayout->setSpacing(2);
     addressLayout->addWidget(m_backButton);
     addressLayout->addWidget(m_forwardButton);
+    addressLayout->addWidget(m_favButton);
     addressLayout->addWidget(m_addressBar, 1);
     addressLayout->addWidget(m_starButton);
 
@@ -124,6 +137,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_addressBar->setFixedHeight(rowH);
     m_backButton->setFixedSize(rowH, rowH);
     m_forwardButton->setFixedSize(rowH, rowH);
+    m_favButton->setFixedSize(rowH, rowH);
     m_starButton->setFixedSize(rowH, rowH);
     m_addTabButton->setFixedWidth(rowH); // width matches "✳"; height follows the tab strip
     updateNavButtons();

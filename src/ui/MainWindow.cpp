@@ -273,6 +273,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
             setActivePanel(other);
         });
         connect(panel, &FilePanel::shortcutMenuRequested, this, &MainWindow::showShortcutMenu);
+        connect(panel, &FilePanel::favoritesMenuRequested, this, &MainWindow::showFavoritesMenu);
         connect(panel, &FilePanel::pathChanged, this, [this, panel](const QString &path) {
             if (panel == m_activePanel) {
                 m_commandBar->setDirectory(path);
@@ -1009,35 +1010,44 @@ void MainWindow::compareSelectedFiles() {
     dlg->show();
 }
 
-void MainWindow::openDirectoryHotlist() {
-    if (!m_activePanel)
-        return;
-    FilePanel *panel = m_activePanel;
+void MainWindow::populateFavoritesMenu(QMenu *menu, FilePanel *panel) {
     const QString currentPath = panel->currentPath();
     const QStringList favorites = m_settings.favoriteDirectories();
 
-    QMenu menu(this);
+    // 1) Bookmark / unbookmark the current directory (first item).
+    if (favorites.contains(currentPath)) {
+        menu->addAction(tr("Remove this directory from favorites"), this,
+                        [this, currentPath]() { m_settings.removeFavoriteDirectory(currentPath); });
+    } else {
+        menu->addAction(tr("Bookmark this directory"), this,
+                        [this, currentPath]() { m_settings.addFavoriteDirectory(currentPath); });
+    }
+    menu->addSeparator();
+
+    // 2) Saved favorites (full path); clicking jumps this panel there.
     if (favorites.isEmpty()) {
-        QAction *placeholder = menu.addAction(tr("(No favorites yet)"));
+        QAction *placeholder = menu->addAction(tr("(No favorites yet)"));
         placeholder->setEnabled(false);
     } else {
-        for (const QString &favPath : favorites) {
-            menu.addAction(favPath, this, [panel, favPath]() { panel->navigateTo(favPath); });
-        }
+        for (const QString &favPath : favorites)
+            menu->addAction(favPath, this, [panel, favPath]() { panel->navigateTo(favPath); });
     }
-    menu.addSeparator();
+}
 
-    if (favorites.contains(currentPath)) {
-        menu.addAction(tr("Remove Current Directory"), this, [this, currentPath]() {
-            m_settings.removeFavoriteDirectory(currentPath);
-        });
-    } else {
-        menu.addAction(tr("Add Current Directory"), this, [this, currentPath]() {
-            m_settings.addFavoriteDirectory(currentPath);
-        });
-    }
-
+void MainWindow::openDirectoryHotlist() {
+    if (!m_activePanel)
+        return;
+    QMenu menu(this);
+    populateFavoritesMenu(&menu, m_activePanel);
     menu.exec(QCursor::pos());
+}
+
+void MainWindow::showFavoritesMenu(const QPoint &globalPos) {
+    if (!m_activePanel)
+        return;
+    QMenu menu(this);
+    populateFavoritesMenu(&menu, m_activePanel);
+    menu.exec(globalPos);
 }
 
 void MainWindow::toggleFolderTree() {

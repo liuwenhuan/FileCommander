@@ -85,6 +85,8 @@ signals:
     void switchPanelRequested();
     // The "*" button was clicked: caller should pop a shortcut menu at pos.
     void shortcutMenuRequested(const QPoint &globalPos);
+    // The "★" button was clicked: caller should pop the favorites menu at pos.
+    void favoritesMenuRequested(const QPoint &globalPos);
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -108,6 +110,7 @@ private:
     BreadcrumbBar *m_addressBar;
     QToolButton *m_backButton;
     QToolButton *m_forwardButton;
+    QToolButton *m_favButton;  // "★" directory favorites, left of the address bar
     QToolButton *m_starButton;
     QToolButton *m_addTabButton; // "+" at the right end of the tab strip
     QLineEdit *m_filterBar;

@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <QDir>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 
@@ -46,15 +47,16 @@ TEST(SettingsTest, WindowGeometryRoundTrips) {
     EXPECT_EQ(settings.windowGeometry(), blob);
 }
 
-TEST(SettingsTest, FavoriteDirectoriesStartsEmpty) {
+TEST(SettingsTest, FavoriteDirectoriesDefaultToHomeOnFirstRun) {
     IsolatedConfigDir isolated;
     Settings settings;
-    EXPECT_TRUE(settings.favoriteDirectories().isEmpty());
+    EXPECT_EQ(settings.favoriteDirectories(), QStringList({QDir::homePath()}));
 }
 
 TEST(SettingsTest, AddFavoriteDirectoryPersists) {
     IsolatedConfigDir isolated;
     Settings settings;
+    settings.removeFavoriteDirectory(QDir::homePath()); // drop the first-run seed
     settings.addFavoriteDirectory("/home/user/projects");
     settings.addFavoriteDirectory("/tmp");
     EXPECT_EQ(settings.favoriteDirectories(),
@@ -64,6 +66,7 @@ TEST(SettingsTest, AddFavoriteDirectoryPersists) {
 TEST(SettingsTest, AddFavoriteDirectoryDoesNotDuplicate) {
     IsolatedConfigDir isolated;
     Settings settings;
+    settings.removeFavoriteDirectory(QDir::homePath()); // drop the first-run seed
     settings.addFavoriteDirectory("/tmp");
     settings.addFavoriteDirectory("/tmp");
     EXPECT_EQ(settings.favoriteDirectories().size(), 1);
@@ -72,6 +75,7 @@ TEST(SettingsTest, AddFavoriteDirectoryDoesNotDuplicate) {
 TEST(SettingsTest, RemoveFavoriteDirectoryRemovesIt) {
     IsolatedConfigDir isolated;
     Settings settings;
+    settings.removeFavoriteDirectory(QDir::homePath()); // drop the first-run seed
     settings.addFavoriteDirectory("/tmp");
     settings.addFavoriteDirectory("/home");
     settings.removeFavoriteDirectory("/tmp");

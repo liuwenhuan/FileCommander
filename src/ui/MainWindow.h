@@ -23,6 +23,7 @@ class QShortcut;
 class QSplitter;
 class QTreeView;
 class QFileSystemModel;
+class QMenu;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -55,6 +56,7 @@ private slots:
     void openDirectoryHotlist(); // Ctrl+D
     void showProperties(); // F9
     void showShortcutMenu(const QPoint &globalPos);
+    void showFavoritesMenu(const QPoint &globalPos); // "★" button in the address row
     void calculateSizes();
     void syncOtherPanelToActive();
     void swapPanels();
@@ -94,6 +96,9 @@ private:
     FilePanel *otherPanel(FilePanel *panel) const;
     void showFileContextMenu(FilePanel *panel, const QPoint &viewPos);
     void showBlankContextMenu(FilePanel *panel, const QPoint &viewPos);
+    // Fills a menu with "bookmark current" + separator + saved favorites,
+    // shared by Ctrl+D (openDirectoryHotlist) and the "★" address-row button.
+    void populateFavoritesMenu(QMenu *menu, FilePanel *panel);
     void recordMoveUndo(const QStringList &sources, const QString &destDir);
 
     // Last reversible operation, for Ctrl+Z. Best-effort: rename and move only.
