@@ -1,0 +1,4 @@
+archive_tests_autogen/timestamp: \
+	/home/deepin/codework/ttc/tests/archive/CMakeLists.txt \
+	/home/deepin/codework/ttc/tests/archive/test_ArchiveHandler.cpp \
+	/usr/bin/cmake

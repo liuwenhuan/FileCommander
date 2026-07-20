@@ -1,0 +1,2 @@
+/usr/bin/ar qc libcore.a CMakeFiles/core.dir/core_autogen/mocs_compilation.cpp.o CMakeFiles/core.dir/filesystem/FileInfo.cpp.o CMakeFiles/core.dir/filesystem/FileSystemModel.cpp.o CMakeFiles/core.dir/filesystem/IconCache.cpp.o CMakeFiles/core.dir/operations/FileOperations.cpp.o CMakeFiles/core.dir/operations/OperationQueue.cpp.o CMakeFiles/core.dir/config/Settings.cpp.o CMakeFiles/core.dir/config/SessionManager.cpp.o CMakeFiles/core.dir/sync/DirectorySync.cpp.o CMakeFiles/core.dir/compare/TextDiff.cpp.o
+/usr/bin/ranlib libcore.a

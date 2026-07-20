@@ -1,0 +1,27 @@
+{
+	"BUILD_DIR" : "/home/deepin/codework/ttc/ttc_autogen",
+	"CMAKE_BINARY_DIR" : "/home/deepin/codework/ttc",
+	"CMAKE_CURRENT_BINARY_DIR" : "/home/deepin/codework/ttc",
+	"CMAKE_CURRENT_SOURCE_DIR" : "/home/deepin/codework/ttc",
+	"CMAKE_SOURCE_DIR" : "/home/deepin/codework/ttc",
+	"CROSS_CONFIG" : false,
+	"GENERATOR" : "Unix Makefiles",
+	"INCLUDE_DIR" : "/home/deepin/codework/ttc/ttc_autogen/include",
+	"INPUTS" : 
+	[
+		"/home/deepin/codework/ttc/resources/themes/light.qss",
+		"/home/deepin/codework/ttc/resources/themes/dark.qss",
+		"/home/deepin/codework/ttc/resources/translations/ttc_zh_CN.qm"
+	],
+	"LOCK_FILE" : "/home/deepin/codework/ttc/CMakeFiles/ttc_autogen.dir/AutoRcc_resources_3YJK5W5UP7_Lock.lock",
+	"MULTI_CONFIG" : false,
+	"OPTIONS" : [ "-name", "resources" ],
+	"OUTPUT_CHECKSUM" : "3YJK5W5UP7",
+	"OUTPUT_NAME" : "qrc_resources.cpp",
+	"RCC_EXECUTABLE" : "/usr/lib/qt5/bin/rcc",
+	"RCC_LIST_OPTIONS" : [ "--list" ],
+	"SETTINGS_FILE" : "/home/deepin/codework/ttc/CMakeFiles/ttc_autogen.dir/AutoRcc_resources_3YJK5W5UP7_Used.txt",
+	"SOURCE" : "/home/deepin/codework/ttc/resources/resources.qrc",
+	"USE_BETTER_GRAPH" : false,
+	"VERBOSITY" : 0
+}

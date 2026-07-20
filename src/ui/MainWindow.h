@@ -52,6 +52,7 @@ private slots:
     void openSyncDialog();
     void compareSelectedFiles();
     void openDirectoryHotlist(); // Ctrl+D
+    void showProperties(); // F9
     void toggleFolderTree();
 
     void navigateBack();

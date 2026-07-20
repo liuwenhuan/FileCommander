@@ -1,0 +1,2 @@
+/usr/bin/ar qc libviewer.a CMakeFiles/viewer.dir/viewer_autogen/mocs_compilation.cpp.o CMakeFiles/viewer.dir/TextViewer.cpp.o CMakeFiles/viewer.dir/TextEditor.cpp.o CMakeFiles/viewer.dir/ImageViewer.cpp.o
+/usr/bin/ranlib libviewer.a

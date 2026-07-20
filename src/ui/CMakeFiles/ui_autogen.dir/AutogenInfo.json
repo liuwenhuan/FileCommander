@@ -1,0 +1,234 @@
+{
+	"BUILD_DIR" : "/home/deepin/codework/ttc/src/ui/ui_autogen",
+	"CMAKE_BINARY_DIR" : "/home/deepin/codework/ttc",
+	"CMAKE_CURRENT_BINARY_DIR" : "/home/deepin/codework/ttc/src/ui",
+	"CMAKE_CURRENT_SOURCE_DIR" : "/home/deepin/codework/ttc/src/ui",
+	"CMAKE_EXECUTABLE" : "/usr/bin/cmake",
+	"CMAKE_LIST_FILES" : [ "/home/deepin/codework/ttc/src/ui/CMakeLists.txt" ],
+	"CMAKE_SOURCE_DIR" : "/home/deepin/codework/ttc",
+	"CROSS_CONFIG" : false,
+	"DEP_FILE" : "/home/deepin/codework/ttc/src/ui/ui_autogen/deps",
+	"DEP_FILE_RULE_NAME" : "ui_autogen/timestamp",
+	"HEADERS" : 
+	[
+		[
+			"/home/deepin/codework/ttc/src/ui/BreadcrumbBar.h",
+			"MU",
+			"EWIEGA46WW/moc_BreadcrumbBar.cpp",
+			null
+		],
+		[
+			"/home/deepin/codework/ttc/src/ui/FileListView.h",
+			"MU",
+			"EWIEGA46WW/moc_FileListView.cpp",
+			null
+		],
+		[
+			"/home/deepin/codework/ttc/src/ui/FilePanel.h",
+			"MU",
+			"EWIEGA46WW/moc_FilePanel.cpp",
+			null
+		],
+		[
+			"/home/deepin/codework/ttc/src/ui/FunctionKeyBar.h",
+			"MU",
+			"EWIEGA46WW/moc_FunctionKeyBar.cpp",
+			null
+		],
+		[
+			"/home/deepin/codework/ttc/src/ui/MainWindow.h",
+			"MU",
+			"EWIEGA46WW/moc_MainWindow.cpp",
+			null
+		],
+		[
+			"/home/deepin/codework/ttc/src/ui/StatusBarWidget.h",
+			"MU",
+			"EWIEGA46WW/moc_StatusBarWidget.cpp",
+			null
+		],
+		[
+			"/home/deepin/codework/ttc/src/ui/TabBar.h",
+			"MU",
+			"EWIEGA46WW/moc_TabBar.cpp",
+			null
+		],
+		[
+			"/home/deepin/codework/ttc/src/ui/TabManager.h",
+			"MU",
+			"EWIEGA46WW/moc_TabManager.cpp",
+			null
+		],
+		[
+			"/home/deepin/codework/ttc/src/ui/dialogs/CompareDialog.h",
+			"MU",
+			"2NRMJ5X7RK/moc_CompareDialog.cpp",
+			null
+		],
+		[
+			"/home/deepin/codework/ttc/src/ui/dialogs/MultiRenameDialog.h",
+			"MU",
+			"2NRMJ5X7RK/moc_MultiRenameDialog.cpp",
+			null
+		],
+		[
+			"/home/deepin/codework/ttc/src/ui/dialogs/OperationProgressDialog.h",
+			"MU",
+			"2NRMJ5X7RK/moc_OperationProgressDialog.cpp",
+			null
+		],
+		[
+			"/home/deepin/codework/ttc/src/ui/dialogs/OverwriteConfirmDialog.h",
+			"MU",
+			"2NRMJ5X7RK/moc_OverwriteConfirmDialog.cpp",
+			null
+		],
+		[
+			"/home/deepin/codework/ttc/src/ui/dialogs/PropertiesDialog.h",
+			"MU",
+			"2NRMJ5X7RK/moc_PropertiesDialog.cpp",
+			null
+		],
+		[
+			"/home/deepin/codework/ttc/src/ui/dialogs/ShortcutsDialog.h",
+			"MU",
+			"2NRMJ5X7RK/moc_ShortcutsDialog.cpp",
+			null
+		],
+		[
+			"/home/deepin/codework/ttc/src/ui/dialogs/SyncDialog.h",
+			"MU",
+			"2NRMJ5X7RK/moc_SyncDialog.cpp",
+			null
+		],
+		[
+			"/home/deepin/codework/ttc/src/ui/i18n/TranslationManager.h",
+			"MU",
+			"O3VI4VFR3H/moc_TranslationManager.cpp",
+			null
+		],
+		[
+			"/home/deepin/codework/ttc/src/ui/theme/ThemeManager.h",
+			"MU",
+			"IIDL6TD4LX/moc_ThemeManager.cpp",
+			null
+		]
+	],
+	"HEADER_EXTENSIONS" : [ "h", "hh", "h++", "hm", "hpp", "hxx", "in", "txx" ],
+	"INCLUDE_DIR" : "/home/deepin/codework/ttc/src/ui/ui_autogen/include",
+	"MOC_COMPILATION_FILE" : "/home/deepin/codework/ttc/src/ui/ui_autogen/mocs_compilation.cpp",
+	"MOC_DEFINITIONS" : [ "QT_CONCURRENT_LIB", "QT_CORE_LIB", "QT_GUI_LIB", "QT_WIDGETS_LIB" ],
+	"MOC_DEPEND_FILTERS" : 
+	[
+		[
+			"Q_PLUGIN_METADATA",
+			"[\n][ \t]*Q_PLUGIN_METADATA[ \t]*\\([^\\)]*FILE[ \t]*\"([^\"]+)\""
+		]
+	],
+	"MOC_INCLUDES" : 
+	[
+		"/home/deepin/codework/ttc/src/ui",
+		"/home/deepin/codework/ttc/src/ui/dialogs",
+		"/home/deepin/codework/ttc/src/ui/theme",
+		"/home/deepin/codework/ttc/src/ui/i18n",
+		"/home/deepin/codework/ttc/src/core",
+		"/home/deepin/codework/ttc/src/core/filesystem",
+		"/home/deepin/codework/ttc/src/core/operations",
+		"/home/deepin/codework/ttc/src/core/config",
+		"/home/deepin/codework/ttc/src/core/sync",
+		"/home/deepin/codework/ttc/src/core/compare",
+		"/home/deepin/codework/ttc/src/viewer",
+		"/home/deepin/codework/ttc/src/archive",
+		"/home/deepin/codework/ttc/src/search",
+		"/usr/include/x86_64-linux-gnu/qt5",
+		"/usr/include/x86_64-linux-gnu/qt5/QtCore",
+		"/usr/lib/x86_64-linux-gnu/qt5/mkspecs/linux-g++",
+		"/usr/include/x86_64-linux-gnu/qt5/QtGui",
+		"/usr/include/x86_64-linux-gnu/qt5/QtWidgets",
+		"/usr/include/x86_64-linux-gnu/qt5/QtConcurrent",
+		"/usr/include",
+		"/usr/include/c++/12",
+		"/usr/include/x86_64-linux-gnu/c++/12",
+		"/usr/include/c++/12/backward",
+		"/usr/lib/gcc/x86_64-linux-gnu/12/include",
+		"/var/usrlocal/include",
+		"/usr/include/x86_64-linux-gnu"
+	],
+	"MOC_MACRO_NAMES" : [ "Q_OBJECT", "Q_GADGET", "Q_NAMESPACE", "Q_NAMESPACE_EXPORT" ],
+	"MOC_OPTIONS" : [],
+	"MOC_PATH_PREFIX" : false,
+	"MOC_PREDEFS_CMD" : 
+	[
+		"/usr/bin/c++",
+		"-std=gnu++17",
+		"-dM",
+		"-E",
+		"-c",
+		"/usr/share/cmake-3.31/Modules/CMakeCXXCompilerABI.cpp"
+	],
+	"MOC_PREDEFS_FILE" : "/home/deepin/codework/ttc/src/ui/ui_autogen/moc_predefs.h",
+	"MOC_RELAXED_MODE" : false,
+	"MOC_SKIP" : [],
+	"MULTI_CONFIG" : false,
+	"PARALLEL" : 16,
+	"PARSE_CACHE_FILE" : "/home/deepin/codework/ttc/src/ui/CMakeFiles/ui_autogen.dir/ParseCache.txt",
+	"QT_MOC_EXECUTABLE" : "/usr/lib/qt5/bin/moc",
+	"QT_UIC_EXECUTABLE" : "/usr/lib/qt5/bin/uic",
+	"QT_VERSION_MAJOR" : 5,
+	"QT_VERSION_MINOR" : 15,
+	"SETTINGS_FILE" : "/home/deepin/codework/ttc/src/ui/CMakeFiles/ui_autogen.dir/AutogenUsed.txt",
+	"SOURCES" : 
+	[
+		[ "/home/deepin/codework/ttc/src/ui/BreadcrumbBar.cpp", "MU", null ],
+		[ "/home/deepin/codework/ttc/src/ui/FileListView.cpp", "MU", null ],
+		[ "/home/deepin/codework/ttc/src/ui/FilePanel.cpp", "MU", null ],
+		[ "/home/deepin/codework/ttc/src/ui/FunctionKeyBar.cpp", "MU", null ],
+		[ "/home/deepin/codework/ttc/src/ui/MainWindow.cpp", "MU", null ],
+		[ "/home/deepin/codework/ttc/src/ui/StatusBarWidget.cpp", "MU", null ],
+		[ "/home/deepin/codework/ttc/src/ui/TabBar.cpp", "MU", null ],
+		[ "/home/deepin/codework/ttc/src/ui/TabManager.cpp", "MU", null ],
+		[
+			"/home/deepin/codework/ttc/src/ui/dialogs/CompareDialog.cpp",
+			"MU",
+			null
+		],
+		[
+			"/home/deepin/codework/ttc/src/ui/dialogs/MultiRenameDialog.cpp",
+			"MU",
+			null
+		],
+		[
+			"/home/deepin/codework/ttc/src/ui/dialogs/OperationProgressDialog.cpp",
+			"MU",
+			null
+		],
+		[
+			"/home/deepin/codework/ttc/src/ui/dialogs/OverwriteConfirmDialog.cpp",
+			"MU",
+			null
+		],
+		[
+			"/home/deepin/codework/ttc/src/ui/dialogs/PropertiesDialog.cpp",
+			"MU",
+			null
+		],
+		[
+			"/home/deepin/codework/ttc/src/ui/dialogs/ShortcutsDialog.cpp",
+			"MU",
+			null
+		],
+		[ "/home/deepin/codework/ttc/src/ui/dialogs/SyncDialog.cpp", "MU", null ],
+		[
+			"/home/deepin/codework/ttc/src/ui/i18n/TranslationManager.cpp",
+			"MU",
+			null
+		],
+		[ "/home/deepin/codework/ttc/src/ui/theme/ThemeManager.cpp", "MU", null ]
+	],
+	"UIC_OPTIONS" : [],
+	"UIC_SEARCH_PATHS" : [],
+	"UIC_SKIP" : [],
+	"UIC_UI_FILES" : [],
+	"USE_BETTER_GRAPH" : false,
+	"VERBOSITY" : 0
+}

@@ -46,6 +46,7 @@
 #include "dialogs/MultiRenameDialog.h"
 #include "dialogs/OperationProgressDialog.h"
 #include "dialogs/OverwriteConfirmDialog.h"
+#include "dialogs/PropertiesDialog.h"
 #include "dialogs/ShortcutsDialog.h"
 #include "dialogs/SyncDialog.h"
 
@@ -389,6 +390,19 @@ void MainWindow::setupShortcuts() {
         if (m_activePanel)
             m_activePanel->showQuickFilter();
     });
+    bindShortcut("properties", tr("Properties"), QKeySequence(Qt::Key_F9),
+                 [this] { showProperties(); });
+}
+
+void MainWindow::showProperties() {
+    if (!m_activePanel)
+        return;
+    const QString path = m_activePanel->currentEntryPath();
+    if (path.isEmpty())
+        return;
+    PropertiesDialog dlg(path, this);
+    if (dlg.exec() == QDialog::Accepted)
+        m_activePanel->refresh();
 }
 
 void MainWindow::openShortcutsDialog() {
@@ -626,6 +640,8 @@ void MainWindow::showFileContextMenu(FilePanel *panel, const QPoint &viewPos) {
         if (!paths.isEmpty())
             QGuiApplication::clipboard()->setText(paths.join('\n'));
     });
+    menu.addSeparator();
+    menu.addAction(tr("Properties..."), this, &MainWindow::showProperties);
     menu.exec(panel->view()->viewport()->mapToGlobal(viewPos));
 }
 

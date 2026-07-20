@@ -1,0 +1,222 @@
+Start testing: Jul 20 13:00 CST
+----------------------------------------------------------
+1/3 Testing: core_tests
+1/3 Test: core_tests
+Command: "/home/deepin/codework/ttc/tests/core/core_tests"
+Directory: /home/deepin/codework/ttc/tests/core
+"core_tests" start time: Jul 20 13:00 CST
+Output:
+----------------------------------------------------------
+[==========] Running 45 tests from 8 test suites.
+[----------] Global test environment set-up.
+[----------] 4 tests from FileInfoTest
+[ RUN      ] FileInfoTest.ReadsRegularFileMetadata
+[       OK ] FileInfoTest.ReadsRegularFileMetadata (0 ms)
+[ RUN      ] FileInfoTest.ReadsDirectoryMetadata
+[       OK ] FileInfoTest.ReadsDirectoryMetadata (0 ms)
+[ RUN      ] FileInfoTest.PermissionsStringHasTenCharacters
+[       OK ] FileInfoTest.PermissionsStringHasTenCharacters (0 ms)
+[ RUN      ] FileInfoTest.DefaultConstructedIsInvalid
+[       OK ] FileInfoTest.DefaultConstructedIsInvalid (0 ms)
+[----------] 4 tests from FileInfoTest (0 ms total)
+
+[----------] 5 tests from FileSystemModelFilterTest
+[ RUN      ] FileSystemModelFilterTest.MatchesFilterIsCaseInsensitiveSubstring
+[       OK ] FileSystemModelFilterTest.MatchesFilterIsCaseInsensitiveSubstring (0 ms)
+[ RUN      ] FileSystemModelFilterTest.MatchesFilterEmptyMatchesEverything
+[       OK ] FileSystemModelFilterTest.MatchesFilterEmptyMatchesEverything (0 ms)
+[ RUN      ] FileSystemModelFilterTest.MatchesFilterSupportsWildcards
+[       OK ] FileSystemModelFilterTest.MatchesFilterSupportsWildcards (0 ms)
+[ RUN      ] FileSystemModelFilterTest.SetNameFilterRestrictsVisibleRows
+[       OK ] FileSystemModelFilterTest.SetNameFilterRestrictsVisibleRows (0 ms)
+[ RUN      ] FileSystemModelFilterTest.ChangingDirectoryClearsFilter
+[       OK ] FileSystemModelFilterTest.ChangingDirectoryClearsFilter (0 ms)
+[----------] 5 tests from FileSystemModelFilterTest (1 ms total)
+
+[----------] 3 tests from IconCacheTest
+[ RUN      ] IconCacheTest.ReturnsNonNullIconForFile
+[       OK ] IconCacheTest.ReturnsNonNullIconForFile (64 ms)
+[ RUN      ] IconCacheTest.ReturnsNonNullIconForDirectory
+[       OK ] IconCacheTest.ReturnsNonNullIconForDirectory (0 ms)
+[ RUN      ] IconCacheTest.SameExtensionReusesCachedIcon
+[       OK ] IconCacheTest.SameExtensionReusesCachedIcon (0 ms)
+[----------] 3 tests from IconCacheTest (65 ms total)
+
+[----------] 14 tests from FileOperationsTest
+[ RUN      ] FileOperationsTest.CopyPathsCopiesFileWithoutRemovingSource
+[       OK ] FileOperationsTest.CopyPathsCopiesFileWithoutRemovingSource (2 ms)
+[ RUN      ] FileOperationsTest.MovePathsRemovesSource
+[       OK ] FileOperationsTest.MovePathsRemovesSource (0 ms)
+[ RUN      ] FileOperationsTest.ConflictResolverSkipLeavesDestinationUntouched
+[       OK ] FileOperationsTest.ConflictResolverSkipLeavesDestinationUntouched (0 ms)
+[ RUN      ] FileOperationsTest.ConflictResolverOverwriteReplacesDestination
+[       OK ] FileOperationsTest.ConflictResolverOverwriteReplacesDestination (2 ms)
+[ RUN      ] FileOperationsTest.CopyPathsOntoSelfKeepsOriginalAndMakesRenamedDuplicate
+[       OK ] FileOperationsTest.CopyPathsOntoSelfKeepsOriginalAndMakesRenamedDuplicate (0 ms)
+[ RUN      ] FileOperationsTest.MovePathsOntoSelfIsNoOp
+[       OK ] FileOperationsTest.MovePathsOntoSelfIsNoOp (0 ms)
+[ RUN      ] FileOperationsTest.RequestCancelStopsRemainingEntries
+[       OK ] FileOperationsTest.RequestCancelStopsRemainingEntries (0 ms)
+[ RUN      ] FileOperationsTest.DeletePathsPermanentlyRemovesFile
+[       OK ] FileOperationsTest.DeletePathsPermanentlyRemovesFile (0 ms)
+[ RUN      ] FileOperationsTest.MakeDirectoryCreatesNewFolder
+[       OK ] FileOperationsTest.MakeDirectoryCreatesNewFolder (0 ms)
+[ RUN      ] FileOperationsTest.MakeDirectoryFailsIfAlreadyExists
+[       OK ] FileOperationsTest.MakeDirectoryFailsIfAlreadyExists (0 ms)
+[ RUN      ] FileOperationsTest.RenamePathRenamesFile
+[       OK ] FileOperationsTest.RenamePathRenamesFile (0 ms)
+[ RUN      ] FileOperationsTest.CopyPathsCopiesDirectoryRecursively
+[       OK ] FileOperationsTest.CopyPathsCopiesDirectoryRecursively (0 ms)
+[ RUN      ] FileOperationsTest.CreateSymlinksCreatesWorkingLink
+[       OK ] FileOperationsTest.CreateSymlinksCreatesWorkingLink (0 ms)
+[ RUN      ] FileOperationsTest.CreateSymlinksRenamesOnNameConflict
+[       OK ] FileOperationsTest.CreateSymlinksRenamesOnNameConflict (0 ms)
+[----------] 14 tests from FileOperationsTest (8 ms total)
+
+[----------] 2 tests from SessionManagerTest
+[ RUN      ] SessionManagerTest.LoadReturnsFalseWhenNothingSaved
+[       OK ] SessionManagerTest.LoadReturnsFalseWhenNothingSaved (0 ms)
+[ RUN      ] SessionManagerTest.SaveThenLoadRoundTrips
+[       OK ] SessionManagerTest.SaveThenLoadRoundTrips (1 ms)
+[----------] 2 tests from SessionManagerTest (1 ms total)
+
+[----------] 8 tests from SettingsTest
+[ RUN      ] SettingsTest.ShortcutReturnsDefaultWhenUnset
+[       OK ] SettingsTest.ShortcutReturnsDefaultWhenUnset (0 ms)
+[ RUN      ] SettingsTest.SetShortcutOverridesDefault
+[       OK ] SettingsTest.SetShortcutOverridesDefault (1 ms)
+[ RUN      ] SettingsTest.ClearShortcutOverridesRestoresDefaults
+[       OK ] SettingsTest.ClearShortcutOverridesRestoresDefaults (0 ms)
+[ RUN      ] SettingsTest.WindowGeometryRoundTrips
+[       OK ] SettingsTest.WindowGeometryRoundTrips (1 ms)
+[ RUN      ] SettingsTest.FavoriteDirectoriesStartsEmpty
+[       OK ] SettingsTest.FavoriteDirectoriesStartsEmpty (0 ms)
+[ RUN      ] SettingsTest.AddFavoriteDirectoryPersists
+[       OK ] SettingsTest.AddFavoriteDirectoryPersists (1 ms)
+[ RUN      ] SettingsTest.AddFavoriteDirectoryDoesNotDuplicate
+[       OK ] SettingsTest.AddFavoriteDirectoryDoesNotDuplicate (1 ms)
+[ RUN      ] SettingsTest.RemoveFavoriteDirectoryRemovesIt
+[       OK ] SettingsTest.RemoveFavoriteDirectoryRemovesIt (1 ms)
+[----------] 8 tests from SettingsTest (6 ms total)
+
+[----------] 4 tests from DirectorySyncTest
+[ RUN      ] DirectorySyncTest.DetectsLeftOnlyAndRightOnly
+[       OK ] DirectorySyncTest.DetectsLeftOnlyAndRightOnly (0 ms)
+[ RUN      ] DirectorySyncTest.DetectsIdenticalFilesAsSame
+[       OK ] DirectorySyncTest.DetectsIdenticalFilesAsSame (0 ms)
+[ RUN      ] DirectorySyncTest.DetectsDifferentSizeAsDifferent
+[       OK ] DirectorySyncTest.DetectsDifferentSizeAsDifferent (0 ms)
+[ RUN      ] DirectorySyncTest.RecursiveFindsNestedFiles
+[       OK ] DirectorySyncTest.RecursiveFindsNestedFiles (0 ms)
+[----------] 4 tests from DirectorySyncTest (0 ms total)
+
+[----------] 5 tests from TextDiffTest
+[ RUN      ] TextDiffTest.IdenticalLinesAreAllSame
+[       OK ] TextDiffTest.IdenticalLinesAreAllSame (0 ms)
+[ RUN      ] TextDiffTest.DetectsAddedLine
+[       OK ] TextDiffTest.DetectsAddedLine (0 ms)
+[ RUN      ] TextDiffTest.DetectsRemovedLine
+[       OK ] TextDiffTest.DetectsRemovedLine (0 ms)
+[ RUN      ] TextDiffTest.EmptyInputsProduceEmptyDiff
+[       OK ] TextDiffTest.EmptyInputsProduceEmptyDiff (0 ms)
+[ RUN      ] TextDiffTest.CompletelyDifferentFilesShowAllRemovedThenAdded
+[       OK ] TextDiffTest.CompletelyDifferentFilesShowAllRemovedThenAdded (0 ms)
+[----------] 5 tests from TextDiffTest (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 45 tests from 8 test suites ran. (85 ms total)
+[  PASSED  ] 45 tests.
+<end of output>
+Test time =   0.11 sec
+----------------------------------------------------------
+Test Passed.
+"core_tests" end time: Jul 20 13:00 CST
+"core_tests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/3 Testing: ui_tests
+2/3 Test: ui_tests
+Command: "/home/deepin/codework/ttc/tests/ui/ui_tests"
+Directory: /home/deepin/codework/ttc/tests/ui
+"ui_tests" start time: Jul 20 13:00 CST
+Output:
+----------------------------------------------------------
+Running main() from /usr/src/googletest/googletest/src/gtest_main.cc
+[==========] Running 10 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 7 tests from TabManagerTest
+[ RUN      ] TabManagerTest.RepeatedCreatePopulateDestroyDoesNotCrash
+[       OK ] TabManagerTest.RepeatedCreatePopulateDestroyDoesNotCrash (1 ms)
+[ RUN      ] TabManagerTest.AddTabReturnsSequentialIndices
+[       OK ] TabManagerTest.AddTabReturnsSequentialIndices (0 ms)
+[ RUN      ] TabManagerTest.CloseTabRemovesCorrectEntry
+[       OK ] TabManagerTest.CloseTabRemovesCorrectEntry (0 ms)
+[ RUN      ] TabManagerTest.ActiveIndexClampsWhenTabsCloseFromTheEnd
+[       OK ] TabManagerTest.ActiveIndexClampsWhenTabsCloseFromTheEnd (0 ms)
+[ RUN      ] TabManagerTest.CloseOthersKeepsOnlyTargetTab
+[       OK ] TabManagerTest.CloseOthersKeepsOnlyTargetTab (0 ms)
+[ RUN      ] TabManagerTest.CloseToRightRemovesTrailingTabs
+[       OK ] TabManagerTest.CloseToRightRemovesTrailingTabs (0 ms)
+[ RUN      ] TabManagerTest.ActiveTabReflectsSetActiveIndex
+[       OK ] TabManagerTest.ActiveTabReflectsSetActiveIndex (0 ms)
+[----------] 7 tests from TabManagerTest (1 ms total)
+
+[----------] 3 tests from PropertiesDialogTest
+[ RUN      ] PropertiesDialogTest.ToOctalMapsStandardModes
+[       OK ] PropertiesDialogTest.ToOctalMapsStandardModes (0 ms)
+[ RUN      ] PropertiesDialogTest.FromOctalIsInverseOfToOctal
+[       OK ] PropertiesDialogTest.FromOctalIsInverseOfToOctal (0 ms)
+[ RUN      ] PropertiesDialogTest.FromOctalSetsExpectedFlags
+[       OK ] PropertiesDialogTest.FromOctalSetsExpectedFlags (0 ms)
+[----------] 3 tests from PropertiesDialogTest (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 10 tests from 2 test suites ran. (1 ms total)
+[  PASSED  ] 10 tests.
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"ui_tests" end time: Jul 20 13:00 CST
+"ui_tests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+3/3 Testing: archive_tests
+3/3 Test: archive_tests
+Command: "/home/deepin/codework/ttc/tests/archive/archive_tests"
+Directory: /home/deepin/codework/ttc/tests/archive
+"archive_tests" start time: Jul 20 13:00 CST
+Output:
+----------------------------------------------------------
+Running main() from /usr/src/googletest/googletest/src/gtest_main.cc
+[==========] Running 7 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 7 tests from ArchiveHandlerTest
+[ RUN      ] ArchiveHandlerTest.IsSupportedArchiveRecognizesKnownExtensions
+[       OK ] ArchiveHandlerTest.IsSupportedArchiveRecognizesKnownExtensions (0 ms)
+[ RUN      ] ArchiveHandlerTest.BuildTreeParsesFilesAndDirectories
+[       OK ] ArchiveHandlerTest.BuildTreeParsesFilesAndDirectories (5 ms)
+[ RUN      ] ArchiveHandlerTest.ExtractAllWritesAllFiles
+[       OK ] ArchiveHandlerTest.ExtractAllWritesAllFiles (3 ms)
+[ RUN      ] ArchiveHandlerTest.ExtractSpecificEntryWritesOnlyThatFile
+[       OK ] ArchiveHandlerTest.ExtractSpecificEntryWritesOnlyThatFile (3 ms)
+[ RUN      ] ArchiveHandlerTest.CreateZipRoundTripsThroughExtract
+[       OK ] ArchiveHandlerTest.CreateZipRoundTripsThroughExtract (0 ms)
+[ RUN      ] ArchiveHandlerTest.CreateTarGzRoundTripsThroughExtract
+[       OK ] ArchiveHandlerTest.CreateTarGzRoundTripsThroughExtract (0 ms)
+[ RUN      ] ArchiveHandlerTest.BuildTreeFailsGracefullyOnMissingFile
+[       OK ] ArchiveHandlerTest.BuildTreeFailsGracefullyOnMissingFile (0 ms)
+[----------] 7 tests from ArchiveHandlerTest (13 ms total)
+
+[----------] Global test environment tear-down
+[==========] 7 tests from 1 test suite ran. (13 ms total)
+[  PASSED  ] 7 tests.
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"archive_tests" end time: Jul 20 13:00 CST
+"archive_tests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Jul 20 13:00 CST

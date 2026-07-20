@@ -31,6 +31,8 @@ add_library(ui STATIC
     dialogs/SyncDialog.cpp
     dialogs/CompareDialog.h
     dialogs/CompareDialog.cpp
+    dialogs/PropertiesDialog.h
+    dialogs/PropertiesDialog.cpp
 )
 
 target_include_directories(ui PUBLIC

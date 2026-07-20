@@ -1,0 +1,2 @@
+/usr/bin/ar qc libarchive.a CMakeFiles/archive.dir/archive_autogen/mocs_compilation.cpp.o CMakeFiles/archive.dir/ArchiveHandler.cpp.o CMakeFiles/archive.dir/ArchiveModel.cpp.o CMakeFiles/archive.dir/ArchiveBrowserDialog.cpp.o CMakeFiles/archive.dir/CompressDialog.cpp.o
+/usr/bin/ranlib libarchive.a
