@@ -7,8 +7,12 @@
 #include <QCloseEvent>
 #include <QCursor>
 #include <QDesktopServices>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QFileInfo>
+#include <QLabel>
+#include <QListWidget>
 #include <QFileSystemModel>
 #include <QInputDialog>
 #include <QItemSelectionModel>
@@ -435,11 +439,69 @@ void MainWindow::bindShortcut(const QString &id, const QString &label,
     m_shortcutDefaults[id] = defaultSeq;
     m_shortcutOrder.append({id, label});
     m_shortcutHandlers[id] = handler; // also invokable from the "*" menu
+    m_commandLabels[id] = label;
 
     auto *sc = new QShortcut(m_settings.shortcut(id, defaultSeq), this);
     sc->setContext(Qt::WindowShortcut);
     connect(sc, &QShortcut::activated, this, handler);
     m_shortcuts[id] = sc;
+}
+
+void MainWindow::registerCommand(const QString &id, const QString &label,
+                                  std::function<void()> handler) {
+    m_shortcutHandlers[id] = handler;
+    m_commandLabels[id] = label;
+}
+
+void MainWindow::runFunctionKey(int index) {
+    if (index < 0 || index >= 6)
+        return;
+    auto it = m_shortcutHandlers.constFind(m_fkeyCommands[index]);
+    if (it != m_shortcutHandlers.constEnd() && it.value())
+        it.value()();
+}
+
+void MainWindow::updateFunctionKeyLabels() {
+    for (int i = 0; i < 6; ++i) {
+        const QString label = m_commandLabels.value(m_fkeyCommands[i], m_fkeyCommands[i]);
+        m_functionKeyBar->setLabel(i, QStringLiteral("F%1  %2").arg(3 + i).arg(label));
+    }
+}
+
+void MainWindow::changeFunctionKey(int index) {
+    if (index < 0 || index >= 6)
+        return;
+    // List every command by label so the user can pick a replacement.
+    QList<QPair<QString, QString>> commands; // (label, id)
+    for (auto it = m_commandLabels.constBegin(); it != m_commandLabels.constEnd(); ++it)
+        commands.append({it.value(), it.key()});
+    std::sort(commands.begin(), commands.end(),
+              [](const auto &a, const auto &b) { return a.first.localeAwareCompare(b.first) < 0; });
+
+    QDialog dlg(this);
+    dlg.setWindowTitle(tr("Change F%1 Function").arg(3 + index));
+    dlg.resize(340, 440);
+    auto *list = new QListWidget(&dlg);
+    for (const auto &c : commands) {
+        auto *item = new QListWidgetItem(c.first, list);
+        item->setData(Qt::UserRole, c.second);
+        if (c.second == m_fkeyCommands[index])
+            list->setCurrentItem(item);
+    }
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+    connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+    connect(list, &QListWidget::itemDoubleClicked, &dlg, &QDialog::accept);
+    auto *layout = new QVBoxLayout(&dlg);
+    layout->addWidget(new QLabel(tr("Choose the function for the F%1 key:").arg(3 + index), &dlg));
+    layout->addWidget(list);
+    layout->addWidget(buttons);
+
+    if (dlg.exec() == QDialog::Accepted && list->currentItem()) {
+        m_fkeyCommands[index] = list->currentItem()->data(Qt::UserRole).toString();
+        m_settings.setFunctionKeyCommand(index, m_fkeyCommands[index]);
+        updateFunctionKeyLabels();
+    }
 }
 
 void MainWindow::showShortcutMenu(const QPoint &globalPos) {
@@ -498,14 +560,14 @@ void MainWindow::showShortcutMenu(const QPoint &globalPos) {
 }
 
 void MainWindow::setupShortcuts() {
-    bindShortcut("view", tr("View"), QKeySequence(Qt::Key_F3), [this] { viewCurrent(); });
-    bindShortcut("edit", tr("Edit"), QKeySequence(Qt::Key_F4), [this] { editCurrent(); });
-    bindShortcut("copy", tr("Copy"), QKeySequence(Qt::Key_F5), [this] { copySelected(); });
-    bindShortcut("move", tr("Move"), QKeySequence(Qt::Key_F6), [this] { moveSelected(); });
-    bindShortcut("mkdir", tr("New Folder"), QKeySequence(Qt::Key_F7),
-                 [this] { makeDirectory(); });
-    bindShortcut("delete", tr("Delete (to trash)"), QKeySequence(Qt::Key_F8),
-                 [this] { deleteSelected(false); });
+    // The F3-F8 defaults are reassignable slots (see below), so register them
+    // as commands without a fixed key.
+    registerCommand("view", tr("View"), [this] { viewCurrent(); });
+    registerCommand("edit", tr("Edit"), [this] { editCurrent(); });
+    registerCommand("copy", tr("Copy"), [this] { copySelected(); });
+    registerCommand("move", tr("Move"), [this] { moveSelected(); });
+    registerCommand("mkdir", tr("New Folder"), [this] { makeDirectory(); });
+    registerCommand("delete", tr("Delete (to trash)"), [this] { deleteSelected(false); });
     bindShortcut("deletePermanent", tr("Delete Permanently"),
                  QKeySequence(Qt::SHIFT | Qt::Key_Delete), [this] { deleteSelected(true); });
     bindShortcut("deleteAlt", tr("Delete (Del key)"), QKeySequence(Qt::Key_Delete),
@@ -571,6 +633,21 @@ void MainWindow::setupShortcuts() {
                  [this] { toggleQuickView(); });
     bindShortcut("undo", tr("Undo Last Operation"), QKeySequence(Qt::CTRL | Qt::Key_Z),
                  [this] { undoLast(); });
+
+    // F3-F8 are reassignable slots: the key and the bottom-bar button both run
+    // whichever command the slot points at.
+    const char *fkeyDefaults[6] = {"view", "edit", "copy", "move", "mkdir", "delete"};
+    for (int i = 0; i < 6; ++i) {
+        m_fkeyCommands[i] =
+            m_settings.functionKeyCommand(i, QString::fromLatin1(fkeyDefaults[i]));
+        auto *sc = new QShortcut(QKeySequence(static_cast<int>(Qt::Key_F3) + i), this);
+        sc->setContext(Qt::WindowShortcut);
+        connect(sc, &QShortcut::activated, this, [this, i] { runFunctionKey(i); });
+    }
+    connect(m_functionKeyBar, &FunctionKeyBar::activated, this, &MainWindow::runFunctionKey);
+    connect(m_functionKeyBar, &FunctionKeyBar::changeRequested, this,
+            &MainWindow::changeFunctionKey);
+    updateFunctionKeyLabels();
 }
 
 void MainWindow::showProperties() {

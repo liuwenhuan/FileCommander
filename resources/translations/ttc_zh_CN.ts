@@ -116,34 +116,8 @@
 <context>
     <name>FunctionKeyBar</name>
     <message>
-        <location filename="../../src/ui/FunctionKeyBar.cpp" line="18"/>
-        <source>F3 View</source>
-        <translation>F3 查看</translation>
-    </message>
-    <message>
-        <location filename="../../src/ui/FunctionKeyBar.cpp" line="19"/>
-        <source>F4 Edit</source>
-        <translation>F4 编辑</translation>
-    </message>
-    <message>
-        <location filename="../../src/ui/FunctionKeyBar.cpp" line="20"/>
-        <source>F5 Copy</source>
-        <translation>F5 复制</translation>
-    </message>
-    <message>
-        <location filename="../../src/ui/FunctionKeyBar.cpp" line="21"/>
-        <source>F6 Move</source>
-        <translation>F6 移动</translation>
-    </message>
-    <message>
-        <location filename="../../src/ui/FunctionKeyBar.cpp" line="22"/>
-        <source>F7 MkDir</source>
-        <translation>F7 新建目录</translation>
-    </message>
-    <message>
-        <location filename="../../src/ui/FunctionKeyBar.cpp" line="23"/>
-        <source>F8 Delete</source>
-        <translation>F8 删除</translation>
+        <source>Change this key's function...</source>
+        <translation>更改此键的功能...</translation>
     </message>
 </context>
 <context>
@@ -233,6 +207,66 @@
     <message>
         <source>Unselect files by pattern</source>
         <translation>按模式取消选择</translation>
+    </message>
+    <message>
+        <source>Paste</source>
+        <translation>粘贴</translation>
+    </message>
+    <message>
+        <source>Cut</source>
+        <translation>剪切</translation>
+    </message>
+    <message>
+        <source>Copy to Clipboard</source>
+        <translation>复制到剪贴板</translation>
+    </message>
+    <message>
+        <source>Swap Panels</source>
+        <translation>左右栏互换</translation>
+    </message>
+    <message>
+        <source>Quick View</source>
+        <translation>快速预览</translation>
+    </message>
+    <message>
+        <source>Quick Filter</source>
+        <translation>快速过滤</translation>
+    </message>
+    <message>
+        <source>Same Directory in Other Panel</source>
+        <translation>另一栏切到本栏目录</translation>
+    </message>
+    <message>
+        <source>Calculate Folder Size</source>
+        <translation>计算文件夹大小</translation>
+    </message>
+    <message>
+        <source>Undo Last Operation</source>
+        <translation>撤销上一步操作</translation>
+    </message>
+    <message>
+        <source>Multi-Rename Tool</source>
+        <translation>批量重命名工具</translation>
+    </message>
+    <message>
+        <source>Directory Hotlist</source>
+        <translation>目录收藏夹</translation>
+    </message>
+    <message>
+        <source>Properties</source>
+        <translation>属性</translation>
+    </message>
+    <message>
+        <source>Show Hidden Files</source>
+        <translation>显示隐藏文件</translation>
+    </message>
+    <message>
+        <source>Change F%1 Function</source>
+        <translation>更改 F%1 功能</translation>
+    </message>
+    <message>
+        <source>Choose the function for the F%1 key:</source>
+        <translation>选择 F%1 键要执行的功能：</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="104"/>

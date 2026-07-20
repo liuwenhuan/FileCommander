@@ -63,6 +63,14 @@ void Settings::setWindowGeometry(const QByteArray &geometry) {
     m_settings.setValue("window/geometry", geometry);
 }
 
+QString Settings::functionKeyCommand(int index, const QString &defaultId) const {
+    return m_settings.value(QStringLiteral("functionKeys/f%1").arg(index), defaultId).toString();
+}
+
+void Settings::setFunctionKeyCommand(int index, const QString &id) {
+    m_settings.setValue(QStringLiteral("functionKeys/f%1").arg(index), id);
+}
+
 QByteArray Settings::viewHeaderState() const {
     return m_settings.value("window/viewHeaderState").toByteArray();
 }

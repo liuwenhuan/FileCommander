@@ -85,6 +85,12 @@ private:
     void setupShortcuts();
     void bindShortcut(const QString &id, const QString &label, const QKeySequence &defaultSeq,
                        std::function<void()> handler);
+    // Registers an invokable command (id -> label + handler) without a
+    // dedicated key -- used for the F-key slots and the "change function" list.
+    void registerCommand(const QString &id, const QString &label, std::function<void()> handler);
+    void runFunctionKey(int index);       // execute the command assigned to F(3+index)
+    void changeFunctionKey(int index);    // pick a new command for that key
+    void updateFunctionKeyLabels();
     FilePanel *otherPanel(FilePanel *panel) const;
     void showFileContextMenu(FilePanel *panel, const QPoint &viewPos);
     void showBlankContextMenu(FilePanel *panel, const QPoint &viewPos);
@@ -122,6 +128,8 @@ private:
 
     QMap<QString, QShortcut *> m_shortcuts;
     QMap<QString, QKeySequence> m_shortcutDefaults;
-    QMap<QString, std::function<void()>> m_shortcutHandlers; // id -> action
-    QList<QPair<QString, QString>> m_shortcutOrder; // id, human-readable label
+    QMap<QString, std::function<void()>> m_shortcutHandlers; // id -> action (all commands)
+    QMap<QString, QString> m_commandLabels;                  // id -> label (all commands)
+    QList<QPair<QString, QString>> m_shortcutOrder; // id, label (keyed shortcuts only)
+    QString m_fkeyCommands[6];  // command id per F3..F8 slot
 };

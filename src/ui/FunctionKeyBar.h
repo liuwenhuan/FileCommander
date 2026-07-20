@@ -2,19 +2,26 @@
 
 #include <QWidget>
 
+class QPushButton;
+
 // Bottom bar of F3-F8 buttons mirroring Total Commander's function-key row.
-// Clicking a button fires the same signal MainWindow's key shortcuts use.
+// Each button is a reassignable slot: left-click runs its function, and the
+// right-click menu lets the user change which function it runs. MainWindow
+// owns the slot->command mapping and sets the labels.
 class FunctionKeyBar : public QWidget {
     Q_OBJECT
 
 public:
     explicit FunctionKeyBar(QWidget *parent = nullptr);
 
+    static constexpr int Count = 6; // F3..F8
+
+    void setLabel(int index, const QString &text);
+
 signals:
-    void viewRequested();   // F3
-    void editRequested();   // F4
-    void copyRequested();   // F5
-    void moveRequested();   // F6
-    void mkdirRequested();  // F7
-    void deleteRequested(); // F8
+    void activated(int index);       // button clicked
+    void changeRequested(int index); // "change function" chosen from the menu
+
+private:
+    QPushButton *m_buttons[Count];
 };

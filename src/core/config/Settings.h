@@ -44,6 +44,10 @@ public:
     void setShortcut(const QString &actionId, const QKeySequence &seq);
     void clearShortcutOverrides();
 
+    // Which command each function key (F3..F8, index 0..5) runs.
+    QString functionKeyCommand(int index, const QString &defaultId) const;
+    void setFunctionKeyCommand(int index, const QString &id);
+
     // Directory hotlist (Ctrl+D).
     QStringList favoriteDirectories() const;
     void addFavoriteDirectory(const QString &path);
