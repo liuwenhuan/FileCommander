@@ -7,7 +7,9 @@
 #include <QDropEvent>
 #include <QFont>
 #include <QHeaderView>
+#include <QAction>
 #include <QKeyEvent>
+#include <QMenu>
 #include <QMimeData>
 #include <QPainter>
 #include <QPolygon>
@@ -77,6 +79,9 @@ FileListView::FileListView(QWidget *parent) : QTableView(parent) {
     setHorizontalHeader(new PlainHeaderView(this)); // non-bold, self-painted labels
     horizontalHeader()->setSortIndicatorShown(true);
     setSortingEnabled(true); // header clicks call FileSystemModel::sort() automatically
+    horizontalHeader()->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(horizontalHeader(), &QWidget::customContextMenuRequested, this,
+            [this](const QPoint &pos) { showColumnMenu(pos); });
 
     setDragEnabled(true);
     setAcceptDrops(true);
@@ -99,11 +104,38 @@ void FileListView::setModel(QAbstractItemModel *model) {
 
         // Starting proportions; stretchColumnsToFit() scales these to fill the
         // panel. Name gets the lion's share.
-        const int defaults[FileSystemModel::ColumnCount] = {280, 70, 100, 150, 110};
+        // Name, Ext, Size, Modified, Type, Created, Permissions
+        const int defaults[FileSystemModel::ColumnCount] = {280, 70, 100, 150, 90, 150, 110};
         for (int col = 0; col < model->columnCount() && col < FileSystemModel::ColumnCount; ++col)
             header->resizeSection(col, defaults[col]);
+
+        // Default view: hide Created and Permissions (a persisted header state,
+        // restored later by MainWindow, overrides this if the user changed it).
+        header->setSectionHidden(FileSystemModel::CreatedColumn, true);
+        header->setSectionHidden(FileSystemModel::PermissionsColumn, true);
+
         stretchColumnsToFit();
     }
+}
+
+void FileListView::showColumnMenu(const QPoint &pos) {
+    if (!model())
+        return;
+    QHeaderView *header = horizontalHeader();
+    QMenu menu(this);
+    for (int c = 0; c < model()->columnCount(); ++c) {
+        const QString label = model()->headerData(c, Qt::Horizontal, Qt::DisplayRole).toString();
+        QAction *action = menu.addAction(label);
+        action->setCheckable(true);
+        action->setChecked(!header->isSectionHidden(c));
+        if (c == FileSystemModel::NameColumn)
+            action->setEnabled(false); // the Name column can't be hidden
+        connect(action, &QAction::toggled, this, [this, c, header](bool on) {
+            header->setSectionHidden(c, !on);
+            stretchColumnsToFit();
+        });
+    }
+    menu.exec(header->mapToGlobal(pos));
 }
 
 void FileListView::resizeEvent(QResizeEvent *event) {

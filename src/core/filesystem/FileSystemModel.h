@@ -19,9 +19,15 @@ public:
         ExtColumn,
         SizeColumn,
         ModifiedColumn,
+        TypeColumn,
+        CreatedColumn,
         PermissionsColumn,
         ColumnCount
     };
+
+    // Human-readable file-type category (Folder/Image/Video/Archive/...), by
+    // extension. Static for reuse/testing.
+    static QString typeCategory(const FileInfo &info);
 
     enum Role {
         FileInfoRole = Qt::UserRole + 1,

@@ -13,6 +13,9 @@ FileInfo::FileInfo(const QString &path) {
     m_suffix = m_isDir ? QString() : qfi.suffix();
     m_size = qfi.size();
     m_modified = qfi.lastModified();
+    m_created = qfi.birthTime();
+    if (!m_created.isValid())
+        m_created = qfi.metadataChangeTime(); // birth time isn't always available
     m_permissions = qfi.permissions();
     // m_mimeType is intentionally left empty here; see mimeType() below.
 }

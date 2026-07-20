@@ -7,6 +7,7 @@
 #include <QFileInfo>
 #include <QLocale>
 #include <QRegularExpression>
+#include <QSet>
 #include <QtConcurrent/QtConcurrent>
 
 #include "IconCache.h"
@@ -215,6 +216,12 @@ QVariant FileSystemModel::data(const QModelIndex &index, int role) const {
             return humanSize(info.size());
         case ModifiedColumn:
             return info.modified().toString(QStringLiteral("yyyy-MM-dd HH:mm"));
+        case CreatedColumn:
+            return info.created().isValid()
+                       ? info.created().toString(QStringLiteral("yyyy-MM-dd HH:mm"))
+                       : QString();
+        case TypeColumn:
+            return typeCategory(info);
         case PermissionsColumn:
             return info.permissionsString();
         default:
@@ -252,11 +259,44 @@ QVariant FileSystemModel::headerData(int section, Qt::Orientation orientation, i
         return QObject::tr("Size");
     case ModifiedColumn:
         return QObject::tr("Modified");
+    case CreatedColumn:
+        return QObject::tr("Created");
+    case TypeColumn:
+        return QObject::tr("Type");
     case PermissionsColumn:
         return QObject::tr("Permissions");
     default:
         return {};
     }
+}
+
+QString FileSystemModel::typeCategory(const FileInfo &info) {
+    if (info.isDir())
+        return QObject::tr("Folder");
+    const QString ext = info.suffix().toLower();
+    if (ext.isEmpty())
+        return QObject::tr("File");
+
+    static const QSet<QString> images = {"jpg", "jpeg", "png",  "gif",  "bmp", "webp",
+                                          "svg", "tiff", "tif",  "ico",  "heic"};
+    static const QSet<QString> videos = {"mp4", "mkv",  "avi",  "mov", "wmv",
+                                          "flv", "webm", "m4v",  "mpg", "mpeg", "ts"};
+    static const QSet<QString> audios = {"mp3", "wav", "flac", "ogg", "aac", "m4a", "wma", "opus"};
+    static const QSet<QString> archives = {"zip", "rar", "7z",  "tar", "gz",
+                                            "bz2", "xz",  "tgz", "zst", "lz"};
+    static const QSet<QString> docs = {"doc", "docx", "pdf", "txt", "md",   "odt", "xls",
+                                        "xlsx", "ppt", "pptx", "rtf", "csv", "epub"};
+    if (images.contains(ext))
+        return QObject::tr("Image");
+    if (videos.contains(ext))
+        return QObject::tr("Video");
+    if (audios.contains(ext))
+        return QObject::tr("Audio");
+    if (archives.contains(ext))
+        return QObject::tr("Archive");
+    if (docs.contains(ext))
+        return QObject::tr("Document");
+    return ext.toUpper(); // e.g. "PY", "SH"
 }
 
 void FileSystemModel::sort(int column, Qt::SortOrder order) {
@@ -293,6 +333,12 @@ void FileSystemModel::sortEntries() {
         }
         case ModifiedColumn:
             cmp = a.modified() < b.modified() ? -1 : (a.modified() > b.modified() ? 1 : 0);
+            break;
+        case CreatedColumn:
+            cmp = a.created() < b.created() ? -1 : (a.created() > b.created() ? 1 : 0);
+            break;
+        case TypeColumn:
+            cmp = collator.compare(typeCategory(a), typeCategory(b));
             break;
         case ExtColumn:
             cmp = collator.compare(a.suffix(), b.suffix());

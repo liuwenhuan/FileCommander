@@ -45,6 +45,8 @@ private:
     // Scales the columns so they fill the viewport width, preserving their
     // relative proportions (so a manual column drag is kept as a ratio).
     void stretchColumnsToFit();
+    // Right-click on the header: toggle which columns are shown.
+    void showColumnMenu(const QPoint &pos);
 
     bool m_adjustingColumns = false; // guards against re-entrancy
 };

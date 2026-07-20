@@ -529,6 +529,42 @@ Destination: %4 (%5 bytes)</source>
         <translation>权限</translation>
     </message>
     <message>
+        <source>Type</source>
+        <translation>类型</translation>
+    </message>
+    <message>
+        <source>Created</source>
+        <translation>创建日期</translation>
+    </message>
+    <message>
+        <source>Folder</source>
+        <translation>目录</translation>
+    </message>
+    <message>
+        <source>File</source>
+        <translation>文件</translation>
+    </message>
+    <message>
+        <source>Image</source>
+        <translation>图片</translation>
+    </message>
+    <message>
+        <source>Video</source>
+        <translation>视频</translation>
+    </message>
+    <message>
+        <source>Audio</source>
+        <translation>音频</translation>
+    </message>
+    <message>
+        <source>Archive</source>
+        <translation>压缩</translation>
+    </message>
+    <message>
+        <source>Document</source>
+        <translation>文档</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/StatusBarWidget.cpp" line="30"/>
         <source>%1 object(s)</source>
         <translation>%1 个对象</translation>

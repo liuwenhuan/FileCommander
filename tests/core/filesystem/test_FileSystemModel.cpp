@@ -116,6 +116,29 @@ TEST(FileSystemModelCompareTest, ClassifiesUniqueNewerAndOlder) {
     EXPECT_FALSE(status.contains("elsewhere.txt")); // only classifies self's entries
 }
 
+TEST(FileSystemModelTypeTest, CategorizesByExtension) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    touch(dir.path(), "photo.PNG"); // case-insensitive
+    touch(dir.path(), "clip.mp4");
+    touch(dir.path(), "paper.pdf");
+    touch(dir.path(), "bundle.zip");
+    touch(dir.path(), "script.xyz");
+    ASSERT_TRUE(QDir(dir.path()).mkdir("folder"));
+
+    auto cat = [&](const QString &name) {
+        return FileSystemModel::typeCategory(FileInfo(QDir(dir.path()).filePath(name)))
+            .toStdString();
+    };
+    // English sources (no .qm loaded in the test).
+    EXPECT_EQ(cat("photo.PNG"), "Image");
+    EXPECT_EQ(cat("clip.mp4"), "Video");
+    EXPECT_EQ(cat("paper.pdf"), "Document");
+    EXPECT_EQ(cat("bundle.zip"), "Archive");
+    EXPECT_EQ(cat("folder"), "Folder");
+    EXPECT_EQ(cat("script.xyz"), "XYZ"); // unknown -> uppercased extension
+}
+
 TEST(FileSystemModelSizeTest, DirectorySizeSumsRecursively) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
