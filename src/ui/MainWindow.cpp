@@ -263,6 +263,8 @@ void MainWindow::setupMenuAndToolbar() {
                              &MainWindow::openSyncDialog);
     commandsMenu->addAction(tr("Compar&e by Content..."), this,
                              &MainWindow::compareSelectedFiles);
+    commandsMenu->addAction(tr("Calculate &Occupied Space"), this,
+                             &MainWindow::calculateSizes);
     commandsMenu->addAction(tr("&Directory Hotlist..."), this,
                              &MainWindow::openDirectoryHotlist);
     commandsMenu->addSeparator();
@@ -401,6 +403,8 @@ void MainWindow::setupShortcuts() {
                      if (m_activePanel)
                          m_activePanel->toggleHiddenFiles();
                  });
+    bindShortcut("calcSize", tr("Calculate Folder Size"),
+                 QKeySequence(Qt::ALT | Qt::SHIFT | Qt::Key_Return), [this] { calculateSizes(); });
 }
 
 void MainWindow::showProperties() {
@@ -412,6 +416,11 @@ void MainWindow::showProperties() {
     PropertiesDialog dlg(path, this);
     if (dlg.exec() == QDialog::Accepted)
         m_activePanel->refresh();
+}
+
+void MainWindow::calculateSizes() {
+    if (m_activePanel)
+        m_activePanel->calculateDirSizes();
 }
 
 void MainWindow::runCommand(const QString &command, const QString &directory) {
@@ -668,6 +677,7 @@ void MainWindow::showFileContextMenu(FilePanel *panel, const QPoint &viewPos) {
             QGuiApplication::clipboard()->setText(paths.join('\n'));
     });
     menu.addSeparator();
+    menu.addAction(tr("Calculate Folder Size"), this, &MainWindow::calculateSizes);
     menu.addAction(tr("Properties..."), this, &MainWindow::showProperties);
     menu.exec(panel->view()->viewport()->mapToGlobal(viewPos));
 }

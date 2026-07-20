@@ -2,6 +2,7 @@
 
 #include <QCollator>
 #include <QDir>
+#include <QDirIterator>
 #include <QFileInfo>
 #include <QLocale>
 #include <QRegularExpression>
@@ -48,6 +49,7 @@ FileSystemModel::FileSystemModel(QObject *parent) : QAbstractTableModel(parent) 
 void FileSystemModel::setRootPath(const QString &path) {
     m_rootPath = path;
     m_nameFilter.clear(); // a fresh directory always starts unfiltered
+    m_dirSizes.clear();   // computed folder sizes don't survive a rescan
     emit loadStarted();
     QFuture<QVector<FileInfo>> future =
         QtConcurrent::run(scanDirectory, path, m_showHidden);
@@ -104,6 +106,30 @@ void FileSystemModel::setNameFilter(const QString &filter) {
     endResetModel();
 }
 
+qint64 FileSystemModel::directorySize(const QString &path) {
+    qint64 total = 0;
+    QDirIterator it(path, QDir::Files | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System,
+                     QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        it.next();
+        total += it.fileInfo().size();
+    }
+    return total;
+}
+
+void FileSystemModel::setComputedDirSize(const QString &path, qint64 bytes) {
+    m_dirSizes.insert(path, bytes);
+    // Repaint the Size cell of the matching visible row, if it's shown.
+    for (int i = 0; i < m_entries.size(); ++i) {
+        if (m_entries.at(i).path() == path) {
+            const int row = m_hasParentEntry ? i + 1 : i;
+            const QModelIndex idx = index(row, SizeColumn);
+            emit dataChanged(idx, idx, {Qt::DisplayRole});
+            break;
+        }
+    }
+}
+
 bool FileSystemModel::isParentEntry(int row) const {
     return m_hasParentEntry && row == 0;
 }
@@ -151,7 +177,12 @@ QVariant FileSystemModel::data(const QModelIndex &index, int role) const {
         case ExtColumn:
             return info.isDir() ? QString() : info.suffix();
         case SizeColumn:
-            return info.isDir() ? QStringLiteral("<DIR>") : humanSize(info.size());
+            if (info.isDir()) {
+                auto it = m_dirSizes.constFind(info.path());
+                return it != m_dirSizes.constEnd() ? humanSize(it.value())
+                                                     : QStringLiteral("<DIR>");
+            }
+            return humanSize(info.size());
         case ModifiedColumn:
             return info.modified().toString(QStringLiteral("yyyy-MM-dd HH:mm"));
         case PermissionsColumn:

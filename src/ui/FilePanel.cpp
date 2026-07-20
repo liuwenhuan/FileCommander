@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QEvent>
 #include <QFileInfo>
+#include <QFutureWatcher>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QItemSelectionModel>
@@ -11,6 +12,7 @@
 #include <QLineEdit>
 #include <QShortcut>
 #include <QVBoxLayout>
+#include <QtConcurrent/QtConcurrent>
 
 #include "BreadcrumbBar.h"
 #include "FileListView.h"
@@ -291,6 +293,36 @@ void FilePanel::invertSelection() {
 void FilePanel::toggleHiddenFiles() {
     // Re-scans the current directory; loadFinished refreshes the status line.
     m_model->setShowHiddenFiles(!m_model->showHiddenFiles());
+}
+
+void FilePanel::calculateDirSizes() {
+    QStringList dirs;
+    const QModelIndexList rows = m_view->selectionModel()->selectedRows();
+    for (const QModelIndex &idx : rows) {
+        if (m_model->isParentEntry(idx.row()))
+            continue;
+        const FileInfo info = m_model->fileInfoAt(idx.row());
+        if (info.isValid() && info.isDir())
+            dirs << info.path();
+    }
+    if (dirs.isEmpty()) {
+        // Nothing selected: fall back to the directory under the cursor.
+        const QModelIndex cur = m_view->currentIndex();
+        if (cur.isValid() && !m_model->isParentEntry(cur.row())) {
+            const FileInfo info = m_model->fileInfoAt(cur.row());
+            if (info.isValid() && info.isDir())
+                dirs << info.path();
+        }
+    }
+
+    for (const QString &path : dirs) {
+        auto *watcher = new QFutureWatcher<qint64>(this);
+        connect(watcher, &QFutureWatcher<qint64>::finished, this, [this, watcher, path]() {
+            m_model->setComputedDirSize(path, watcher->result());
+            watcher->deleteLater();
+        });
+        watcher->setFuture(QtConcurrent::run(&FileSystemModel::directorySize, path));
+    }
 }
 
 QString FilePanel::tabLabelFor(const QSharedPointer<TabState> &tab) const {

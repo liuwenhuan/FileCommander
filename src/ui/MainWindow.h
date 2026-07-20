@@ -52,6 +52,7 @@ private slots:
     void compareSelectedFiles();
     void openDirectoryHotlist(); // Ctrl+D
     void showProperties(); // F9
+    void calculateSizes();
     void runCommand(const QString &command, const QString &directory);
     void toggleFolderTree();
 

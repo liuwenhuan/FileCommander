@@ -2,6 +2,7 @@
 
 #include <QAbstractTableModel>
 #include <QFutureWatcher>
+#include <QHash>
 #include <QVector>
 
 #include "FileInfo.h"
@@ -45,6 +46,12 @@ public:
     FileInfo fileInfoAt(int row) const;
     bool isParentEntry(int row) const;
 
+    // On-demand directory size: once computed (see directorySize()), the Size
+    // column shows the recursive byte total for that folder instead of
+    // "<DIR>". Cleared automatically when the directory is rescanned.
+    void setComputedDirSize(const QString &path, qint64 bytes);
+    static qint64 directorySize(const QString &path);
+
     int rowCount(const QModelIndex &parent = {}) const override;
     int columnCount(const QModelIndex &parent = {}) const override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
@@ -70,6 +77,7 @@ private:
     QVector<FileInfo> m_allEntries; // full directory scan (source of truth)
     QVector<FileInfo> m_entries;    // visible subset after quick filter
     QString m_nameFilter;
+    QHash<QString, qint64> m_dirSizes; // path -> computed recursive size
     bool m_hasParentEntry = false;
     QFutureWatcher<QVector<FileInfo>> m_watcher;
     int m_sortColumn = NameColumn;

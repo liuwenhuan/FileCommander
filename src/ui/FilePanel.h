@@ -38,6 +38,10 @@ public:
     void invertSelection();
     void toggleHiddenFiles();
 
+    // Recursively computes the size of each selected directory (or the one
+    // under the cursor) off the UI thread and shows it in the Size column.
+    void calculateDirSizes();
+
     void newTab();
     void closeCurrentTab();
     void nextTab();

@@ -16,6 +16,13 @@ void touch(const QString &dir, const QString &name) {
     f.close();
 }
 
+void writeBytes(const QString &path, int n) {
+    QFile f(path);
+    f.open(QIODevice::WriteOnly);
+    f.write(QByteArray(n, 'x'));
+    f.close();
+}
+
 // Drives the model's async scan to completion.
 bool loadDir(FileSystemModel &model, const QString &path) {
     QSignalSpy spy(&model, &FileSystemModel::loadFinished);
@@ -69,6 +76,42 @@ TEST(FileSystemModelFilterTest, SetNameFilterRestrictsVisibleRows) {
 
     model.setNameFilter("");
     EXPECT_EQ(visibleFiles(model), 3);
+}
+
+TEST(FileSystemModelSizeTest, DirectorySizeSumsRecursively) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    writeBytes(QDir(dir.path()).filePath("a.bin"), 100);
+    ASSERT_TRUE(QDir(dir.path()).mkdir("sub"));
+    writeBytes(QDir(dir.path()).filePath("sub/b.bin"), 200);
+
+    EXPECT_EQ(FileSystemModel::directorySize(dir.path()), 300);
+}
+
+TEST(FileSystemModelSizeTest, ComputedSizeReplacesDirPlaceholderInSizeColumn) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    ASSERT_TRUE(QDir(dir.path()).mkdir("folder"));
+    writeBytes(QDir(dir.path()).filePath("folder/inner.bin"), 2048);
+
+    FileSystemModel model;
+    ASSERT_TRUE(loadDir(model, dir.path()));
+
+    // Locate the row for "folder".
+    int folderRow = -1;
+    for (int r = 0; r < model.rowCount(); ++r) {
+        if (model.fileInfoAt(r).name() == "folder") {
+            folderRow = r;
+            break;
+        }
+    }
+    ASSERT_GE(folderRow, 0);
+
+    const QModelIndex sizeIdx = model.index(folderRow, FileSystemModel::SizeColumn);
+    EXPECT_EQ(model.data(sizeIdx).toString().toStdString(), "<DIR>");
+
+    model.setComputedDirSize(QDir(dir.path()).filePath("folder"), 2048);
+    EXPECT_EQ(model.data(sizeIdx).toString().toStdString(), "2.0 KB");
 }
 
 TEST(FileSystemModelFilterTest, ChangingDirectoryClearsFilter) {
