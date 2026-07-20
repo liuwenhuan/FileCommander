@@ -615,6 +615,10 @@ void MainWindow::undoLast() {
 }
 
 void MainWindow::toggleQuickView() {
+    // Preserve the left/right split ratio across the widget swap: replaceWidget
+    // otherwise redistributes space based on the new widget's size hint.
+    const QList<int> sizes = m_panelSplitter->sizes();
+
     if (m_quickViewActive) {
         // Put the previewed panel back where it was.
         m_panelSplitter->replaceWidget(m_quickViewIndex, m_quickViewPanel);
@@ -623,6 +627,7 @@ void MainWindow::toggleQuickView() {
         m_quickView->hide();
         m_quickViewActive = false;
         m_quickViewPanel = nullptr;
+        m_panelSplitter->setSizes(sizes);
         return;
     }
     if (!m_activePanel)
@@ -633,6 +638,7 @@ void MainWindow::toggleQuickView() {
     m_panelSplitter->replaceWidget(m_quickViewIndex, m_quickView);
     m_quickView->show();
     m_quickViewActive = true;
+    m_panelSplitter->setSizes(sizes);
     updateQuickView();
 }
 
