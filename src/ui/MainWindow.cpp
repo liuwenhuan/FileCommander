@@ -483,9 +483,16 @@ void MainWindow::changeFunctionKey(int index) {
     dlg.resize(340, 440);
     auto *list = new QListWidget(&dlg);
     for (const auto &c : commands) {
-        auto *item = new QListWidgetItem(c.first, list);
-        item->setData(Qt::UserRole, c.second);
-        if (c.second == m_fkeyCommands[index])
+        const QString &id = c.second;
+        // Show each function's shortcut: its dedicated key, else its default F-key.
+        QKeySequence key = m_shortcuts.value(id) ? m_shortcuts.value(id)->key()
+                                                  : m_shortcutDefaults.value(id);
+        const QString keyText = key.toString(QKeySequence::NativeText);
+        const QString text =
+            keyText.isEmpty() ? c.first : c.first + QStringLiteral("  —  ") + keyText;
+        auto *item = new QListWidgetItem(text, list);
+        item->setData(Qt::UserRole, id);
+        if (id == m_fkeyCommands[index])
             list->setCurrentItem(item);
     }
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
@@ -638,6 +645,9 @@ void MainWindow::setupShortcuts() {
     // whichever command the slot points at.
     const char *fkeyDefaults[6] = {"view", "edit", "copy", "move", "mkdir", "delete"};
     for (int i = 0; i < 6; ++i) {
+        // Record each command's default F-key so the change dialog can show it.
+        m_shortcutDefaults[QString::fromLatin1(fkeyDefaults[i])] =
+            QKeySequence(static_cast<int>(Qt::Key_F3) + i);
         m_fkeyCommands[i] =
             m_settings.functionKeyCommand(i, QString::fromLatin1(fkeyDefaults[i]));
         auto *sc = new QShortcut(QKeySequence(static_cast<int>(Qt::Key_F3) + i), this);
