@@ -12,7 +12,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QLabel>
-#include <QListWidget>
+#include <QTreeWidget>
 #include <QFileSystemModel>
 #include <QInputDialog>
 #include <QItemSelectionModel>
@@ -480,32 +480,46 @@ void MainWindow::changeFunctionKey(int index) {
 
     QDialog dlg(this);
     dlg.setWindowTitle(tr("Change F%1 Function").arg(3 + index));
-    dlg.resize(340, 440);
-    auto *list = new QListWidget(&dlg);
+    dlg.resize(420, 480);
+
+    // Two columns: function name (left) and its shortcut (right-aligned).
+    auto *tree = new QTreeWidget(&dlg);
+    tree->setColumnCount(2);
+    tree->setHeaderHidden(true);
+    tree->setRootIsDecorated(false);
+    tree->setIndentation(0);
+    tree->setUniformRowHeights(true);
+    QTreeWidgetItem *currentItem = nullptr;
     for (const auto &c : commands) {
         const QString &id = c.second;
-        // Show each function's shortcut: its dedicated key, else its default F-key.
         QKeySequence key = m_shortcuts.value(id) ? m_shortcuts.value(id)->key()
                                                   : m_shortcutDefaults.value(id);
-        const QString keyText = key.toString(QKeySequence::NativeText);
-        const QString text =
-            keyText.isEmpty() ? c.first : c.first + QStringLiteral("  —  ") + keyText;
-        auto *item = new QListWidgetItem(text, list);
-        item->setData(Qt::UserRole, id);
+        auto *item = new QTreeWidgetItem(tree);
+        item->setText(0, c.first);
+        // Trailing spaces keep the right-aligned key clear of the (overlay)
+        // scrollbar on the right.
+        item->setText(1, key.toString(QKeySequence::NativeText) + QStringLiteral("     "));
+        item->setTextAlignment(1, Qt::AlignRight | Qt::AlignVCenter);
+        item->setData(0, Qt::UserRole, id);
         if (id == m_fkeyCommands[index])
-            list->setCurrentItem(item);
+            currentItem = item;
     }
+    tree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    tree->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    if (currentItem)
+        tree->setCurrentItem(currentItem);
+
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
     connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
-    connect(list, &QListWidget::itemDoubleClicked, &dlg, &QDialog::accept);
+    connect(tree, &QTreeWidget::itemDoubleClicked, &dlg, &QDialog::accept);
     auto *layout = new QVBoxLayout(&dlg);
     layout->addWidget(new QLabel(tr("Choose the function for the F%1 key:").arg(3 + index), &dlg));
-    layout->addWidget(list);
+    layout->addWidget(tree);
     layout->addWidget(buttons);
 
-    if (dlg.exec() == QDialog::Accepted && list->currentItem()) {
-        m_fkeyCommands[index] = list->currentItem()->data(Qt::UserRole).toString();
+    if (dlg.exec() == QDialog::Accepted && tree->currentItem()) {
+        m_fkeyCommands[index] = tree->currentItem()->data(0, Qt::UserRole).toString();
         m_settings.setFunctionKeyCommand(index, m_fkeyCommands[index]);
         updateFunctionKeyLabels();
     }
