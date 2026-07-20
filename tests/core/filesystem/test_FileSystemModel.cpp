@@ -102,6 +102,20 @@ TEST(FileSystemModelFilterTest, PatternPicksExpectedEntriesAcrossRows) {
     EXPECT_EQ(matched, (QStringList{"notes.txt", "todo.txt"}));
 }
 
+TEST(FileSystemModelCompareTest, ClassifiesUniqueNewerAndOlder) {
+    const QDateTime t1 = QDateTime::fromSecsSinceEpoch(1000);
+    const QDateTime t2 = QDateTime::fromSecsSinceEpoch(2000);
+
+    QHash<QString, QDateTime> self{{"a.txt", t2}, {"b.txt", t1}, {"only.txt", t1}};
+    QHash<QString, QDateTime> other{{"a.txt", t1}, {"b.txt", t2}, {"elsewhere.txt", t1}};
+
+    const QHash<QString, int> status = FileSystemModel::compareStatuses(self, other);
+    EXPECT_EQ(status.value("a.txt"), FileSystemModel::CompareNewer);   // t2 > t1
+    EXPECT_EQ(status.value("b.txt"), FileSystemModel::CompareOlder);   // t1 < t2
+    EXPECT_EQ(status.value("only.txt"), FileSystemModel::CompareUnique);
+    EXPECT_FALSE(status.contains("elsewhere.txt")); // only classifies self's entries
+}
+
 TEST(FileSystemModelSizeTest, DirectorySizeSumsRecursively) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());

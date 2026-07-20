@@ -51,6 +51,7 @@ private slots:
     void openMultiRenameDialog(); // Ctrl+M
     void openSyncDialog();
     void compareSelectedFiles();
+    void compareDirectories();
     void openDirectoryHotlist(); // Ctrl+D
     void showProperties(); // F9
     void calculateSizes();

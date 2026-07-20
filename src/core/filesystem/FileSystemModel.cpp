@@ -1,6 +1,7 @@
 #include "FileSystemModel.h"
 
 #include <QCollator>
+#include <QColor>
 #include <QDir>
 #include <QDirIterator>
 #include <QFileInfo>
@@ -48,8 +49,9 @@ FileSystemModel::FileSystemModel(QObject *parent) : QAbstractTableModel(parent) 
 
 void FileSystemModel::setRootPath(const QString &path) {
     m_rootPath = path;
-    m_nameFilter.clear(); // a fresh directory always starts unfiltered
-    m_dirSizes.clear();   // computed folder sizes don't survive a rescan
+    m_nameFilter.clear();     // a fresh directory always starts unfiltered
+    m_dirSizes.clear();       // computed folder sizes don't survive a rescan
+    m_compareStatus.clear();  // comparison highlights are stale after a rescan
     emit loadStarted();
     QFuture<QVector<FileInfo>> future =
         QtConcurrent::run(scanDirectory, path, m_showHidden);
@@ -115,6 +117,34 @@ qint64 FileSystemModel::directorySize(const QString &path) {
         total += it.fileInfo().size();
     }
     return total;
+}
+
+void FileSystemModel::setCompareStatus(const QHash<QString, int> &statusByName) {
+    beginResetModel();
+    m_compareStatus = statusByName;
+    endResetModel();
+}
+
+QHash<QString, int> FileSystemModel::compareStatuses(const QHash<QString, QDateTime> &self,
+                                                      const QHash<QString, QDateTime> &other) {
+    QHash<QString, int> result;
+    for (auto it = self.constBegin(); it != self.constEnd(); ++it) {
+        if (!other.contains(it.key()))
+            result.insert(it.key(), CompareUnique);
+        else if (it.value() > other.value(it.key()))
+            result.insert(it.key(), CompareNewer);
+        else
+            result.insert(it.key(), CompareOlder);
+    }
+    return result;
+}
+
+void FileSystemModel::clearCompareStatus() {
+    if (m_compareStatus.isEmpty())
+        return;
+    beginResetModel();
+    m_compareStatus.clear();
+    endResetModel();
 }
 
 void FileSystemModel::setComputedDirSize(const QString &path, qint64 bytes) {
@@ -194,6 +224,17 @@ QVariant FileSystemModel::data(const QModelIndex &index, int role) const {
 
     if (role == Qt::TextAlignmentRole && index.column() == SizeColumn)
         return static_cast<int>(Qt::AlignRight | Qt::AlignVCenter);
+
+    if (role == Qt::ForegroundRole && !m_compareStatus.isEmpty()) {
+        switch (m_compareStatus.value(info.name(), CompareNone)) {
+        case CompareNewer:
+            return QColor(0xc0, 0x39, 0x2b); // red: newer than the other panel
+        case CompareUnique:
+            return QColor(0x27, 0x7a, 0x46); // green: only on this side
+        default:
+            break;
+        }
+    }
 
     return {};
 }

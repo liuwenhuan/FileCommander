@@ -322,6 +322,8 @@ void MainWindow::setupMenuAndToolbar() {
                              &MainWindow::openSyncDialog);
     commandsMenu->addAction(tr("Compar&e by Content..."), this,
                              &MainWindow::compareSelectedFiles);
+    commandsMenu->addAction(tr("Compare &Directories (by time)"), this,
+                             &MainWindow::compareDirectories);
     commandsMenu->addAction(tr("Calculate &Occupied Space"), this,
                              &MainWindow::calculateSizes);
     commandsMenu->addSeparator();
@@ -516,6 +518,26 @@ void MainWindow::swapPanels() {
     const QString right = m_rightPanel->currentPath();
     m_leftPanel->navigateTo(right);
     m_rightPanel->navigateTo(left);
+}
+
+void MainWindow::compareDirectories() {
+    auto gather = [](FileSystemModel *model) {
+        QHash<QString, QDateTime> map;
+        for (int r = 0; r < model->rowCount(); ++r) {
+            if (model->isParentEntry(r))
+                continue;
+            const FileInfo fi = model->fileInfoAt(r);
+            if (fi.isValid() && !fi.isDir()) // compare files by name+mtime
+                map.insert(fi.name(), fi.modified());
+        }
+        return map;
+    };
+    FileSystemModel *left = m_leftPanel->model();
+    FileSystemModel *right = m_rightPanel->model();
+    const QHash<QString, QDateTime> leftMap = gather(left);
+    const QHash<QString, QDateTime> rightMap = gather(right);
+    left->setCompareStatus(FileSystemModel::compareStatuses(leftMap, rightMap));
+    right->setCompareStatus(FileSystemModel::compareStatuses(rightMap, leftMap));
 }
 
 void MainWindow::recordMoveUndo(const QStringList &sources, const QString &destDir) {

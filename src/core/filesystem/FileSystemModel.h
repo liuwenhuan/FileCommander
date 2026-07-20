@@ -28,6 +28,9 @@ public:
         IsDirRole,
     };
 
+    // Result of a directory comparison, used to colour rows.
+    enum CompareStatus { CompareNone, CompareUnique, CompareNewer, CompareOlder };
+
     explicit FileSystemModel(QObject *parent = nullptr);
 
     void setRootPath(const QString &path);
@@ -51,6 +54,16 @@ public:
     // "<DIR>". Cleared automatically when the directory is rescanned.
     void setComputedDirSize(const QString &path, qint64 bytes);
     static qint64 directorySize(const QString &path);
+
+    // Colours rows per a name->CompareStatus map (from "Compare Directories").
+    // Cleared automatically on rescan.
+    void setCompareStatus(const QHash<QString, int> &statusByName);
+    void clearCompareStatus();
+
+    // Pure comparison: each name in `self` is Unique (absent from `other`),
+    // Newer, or Older based on modification times. Static for unit testing.
+    static QHash<QString, int> compareStatuses(const QHash<QString, QDateTime> &self,
+                                                const QHash<QString, QDateTime> &other);
 
     int rowCount(const QModelIndex &parent = {}) const override;
     int columnCount(const QModelIndex &parent = {}) const override;
@@ -78,7 +91,8 @@ private:
     QVector<FileInfo> m_allEntries; // full directory scan (source of truth)
     QVector<FileInfo> m_entries;    // visible subset after quick filter
     QString m_nameFilter;
-    QHash<QString, qint64> m_dirSizes; // path -> computed recursive size
+    QHash<QString, qint64> m_dirSizes;    // path -> computed recursive size
+    QHash<QString, int> m_compareStatus;  // name -> CompareStatus
     bool m_hasParentEntry = false;
     QFutureWatcher<QVector<FileInfo>> m_watcher;
     int m_sortColumn = NameColumn;
