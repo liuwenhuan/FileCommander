@@ -47,6 +47,16 @@ void FileListView::setModel(QAbstractItemModel *model) {
     }
 }
 
+void FileListView::keyboardSearch(const QString &search) {
+    // Qt's default matches against the current index's column; force column 0
+    // (Name) so typing always jumps by file name even after clicking a Size
+    // or Date cell.
+    const QModelIndex cur = currentIndex();
+    if (cur.isValid() && cur.column() != 0)
+        setCurrentIndex(cur.sibling(cur.row(), 0));
+    QTableView::keyboardSearch(search);
+}
+
 void FileListView::keyPressEvent(QKeyEvent *event) {
     if (event->key() == Qt::Key_Space) {
         const QModelIndex idx = currentIndex();

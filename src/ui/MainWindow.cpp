@@ -196,6 +196,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
     for (FilePanel *panel : {m_leftPanel, m_rightPanel}) {
         connect(panel, &FilePanel::panelActivated, this, &MainWindow::setActivePanel);
+        connect(panel, &FilePanel::switchPanelRequested, this, [this, panel]() {
+            FilePanel *other = otherPanel(panel);
+            other->view()->setFocus();
+            setActivePanel(other);
+        });
         connect(panel, &FilePanel::pathChanged, this, [this, panel](const QString &path) {
             if (panel == m_activePanel) {
                 m_commandBar->setDirectory(path);
@@ -280,6 +285,10 @@ void MainWindow::setupMenuAndToolbar() {
         if (m_activePanel)
             m_activePanel->selectByPattern(false);
     });
+    commandsMenu->addSeparator();
+    commandsMenu->addAction(tr("Same Directory in &Other Panel"), this,
+                             &MainWindow::syncOtherPanelToActive);
+    commandsMenu->addAction(tr("S&wap Panels"), this, &MainWindow::swapPanels);
     commandsMenu->addSeparator();
     commandsMenu->addAction(tr("&Directory Hotlist..."), this,
                              &MainWindow::openDirectoryHotlist);
@@ -421,6 +430,10 @@ void MainWindow::setupShortcuts() {
                  });
     bindShortcut("calcSize", tr("Calculate Folder Size"),
                  QKeySequence(Qt::ALT | Qt::SHIFT | Qt::Key_Return), [this] { calculateSizes(); });
+    bindShortcut("swapPanels", tr("Swap Panels"), QKeySequence(Qt::CTRL | Qt::Key_U),
+                 [this] { swapPanels(); });
+    bindShortcut("syncOther", tr("Same Directory in Other Panel"),
+                 QKeySequence(Qt::CTRL | Qt::Key_Right), [this] { syncOtherPanelToActive(); });
 }
 
 void MainWindow::showProperties() {
@@ -437,6 +450,18 @@ void MainWindow::showProperties() {
 void MainWindow::calculateSizes() {
     if (m_activePanel)
         m_activePanel->calculateDirSizes();
+}
+
+void MainWindow::syncOtherPanelToActive() {
+    if (m_activePanel)
+        otherPanel(m_activePanel)->navigateTo(m_activePanel->currentPath());
+}
+
+void MainWindow::swapPanels() {
+    const QString left = m_leftPanel->currentPath();
+    const QString right = m_rightPanel->currentPath();
+    m_leftPanel->navigateTo(right);
+    m_rightPanel->navigateTo(left);
 }
 
 void MainWindow::runCommand(const QString &command, const QString &directory) {

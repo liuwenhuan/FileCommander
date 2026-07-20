@@ -71,6 +71,8 @@ signals:
     void panelActivated(FilePanel *panel);
     // A file (not a directory) was double-clicked / Enter-pressed.
     void openRequested(const QString &path);
+    // Tab pressed in the list: caller should activate the other panel.
+    void switchPanelRequested();
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;

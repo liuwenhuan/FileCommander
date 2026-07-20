@@ -145,6 +145,16 @@ bool FilePanel::eventFilter(QObject *watched, QEvent *event) {
     if (watched == m_view && event->type() == QEvent::FocusIn)
         emit panelActivated(this);
 
+    // Plain Tab (not Ctrl+Tab, which cycles tabs) jumps to the other panel.
+    if (watched == m_view && event->type() == QEvent::KeyPress) {
+        auto *ke = static_cast<QKeyEvent *>(event);
+        if ((ke->key() == Qt::Key_Tab || ke->key() == Qt::Key_Backtab) &&
+            !(ke->modifiers() & Qt::ControlModifier)) {
+            emit switchPanelRequested();
+            return true;
+        }
+    }
+
     if (watched == m_filterBar && event->type() == QEvent::KeyPress) {
         auto *ke = static_cast<QKeyEvent *>(event);
         if (ke->key() == Qt::Key_Escape) {

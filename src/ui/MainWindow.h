@@ -53,6 +53,8 @@ private slots:
     void openDirectoryHotlist(); // Ctrl+D
     void showProperties(); // F9
     void calculateSizes();
+    void syncOtherPanelToActive();
+    void swapPanels();
     void runCommand(const QString &command, const QString &directory);
     void toggleFolderTree();
 

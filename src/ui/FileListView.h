@@ -21,6 +21,10 @@ public:
 
     void setModel(QAbstractItemModel *model) override;
 
+    // Type-to-jump always matches the Name column, regardless of which cell
+    // is currently focused.
+    void keyboardSearch(const QString &search) override;
+
 signals:
     // kind is decided from live modifier keys at drop time (not drag
     // start): in-panel default=Move, Ctrl=Copy, Shift=Link; cross-panel
