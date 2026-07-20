@@ -64,6 +64,7 @@ signals:
     void loadStarted();
     void loadFinished(int count);
     void renameFailed(const QString &message);
+    void renamed(const QString &oldPath, const QString &newPath);
 
 private slots:
     void onScanFinished();

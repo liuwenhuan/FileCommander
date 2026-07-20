@@ -60,6 +60,7 @@ private slots:
     void combineFiles();
     void toggleQuickView(); // Ctrl+Q
     void updateQuickView();
+    void undoLast(); // Ctrl+Z
     void runCommand(const QString &command, const QString &directory);
     void toggleFolderTree();
 
@@ -82,6 +83,17 @@ private:
     FilePanel *otherPanel(FilePanel *panel) const;
     void showFileContextMenu(FilePanel *panel, const QPoint &viewPos);
     void showBlankContextMenu(FilePanel *panel, const QPoint &viewPos);
+    void recordMoveUndo(const QStringList &sources, const QString &destDir);
+
+    // Last reversible operation, for Ctrl+Z. Best-effort: rename and move only.
+    struct UndoRecord {
+        enum Type { None, Rename, Move } type = None;
+        QString fromPath;      // Rename: current path to move back
+        QString toName;        // Rename: original name to restore
+        QStringList movedPaths;// Move: current paths at the destination
+        QString restoreDir;    // Move: original parent directory
+    };
+    UndoRecord m_lastUndo;
 
     FilePanel *m_leftPanel;
     FilePanel *m_rightPanel;

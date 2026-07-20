@@ -254,6 +254,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         connect(panel->model(), &FileSystemModel::renameFailed, this, [this](const QString &msg) {
             QMessageBox::warning(this, tr("Rename"), msg);
         });
+        connect(panel->model(), &FileSystemModel::renamed, this,
+                [this](const QString &oldPath, const QString &newPath) {
+                    m_lastUndo = UndoRecord{};
+                    m_lastUndo.type = UndoRecord::Rename;
+                    m_lastUndo.fromPath = newPath;
+                    m_lastUndo.toName = QFileInfo(oldPath).fileName();
+                });
 
         panel->view()->setContextMenuPolicy(Qt::CustomContextMenu);
         connect(panel->view(), &QWidget::customContextMenuRequested, this,
@@ -479,6 +486,8 @@ void MainWindow::setupShortcuts() {
                  QKeySequence(Qt::CTRL | Qt::Key_Right), [this] { syncOtherPanelToActive(); });
     bindShortcut("quickView", tr("Quick View"), QKeySequence(Qt::CTRL | Qt::Key_Q),
                  [this] { toggleQuickView(); });
+    bindShortcut("undo", tr("Undo Last Operation"), QKeySequence(Qt::CTRL | Qt::Key_Z),
+                 [this] { undoLast(); });
 }
 
 void MainWindow::showProperties() {
@@ -507,6 +516,31 @@ void MainWindow::swapPanels() {
     const QString right = m_rightPanel->currentPath();
     m_leftPanel->navigateTo(right);
     m_rightPanel->navigateTo(left);
+}
+
+void MainWindow::recordMoveUndo(const QStringList &sources, const QString &destDir) {
+    if (sources.isEmpty())
+        return;
+    m_lastUndo = UndoRecord{};
+    m_lastUndo.type = UndoRecord::Move;
+    m_lastUndo.restoreDir = QFileInfo(sources.first()).absolutePath();
+    for (const QString &s : sources)
+        m_lastUndo.movedPaths << QDir(destDir).filePath(QFileInfo(s).fileName());
+}
+
+void MainWindow::undoLast() {
+    const UndoRecord rec = m_lastUndo;
+    m_lastUndo = UndoRecord{}; // consume, so undo isn't itself undoable
+    switch (rec.type) {
+    case UndoRecord::Rename:
+        m_queue->enqueueRename(rec.fromPath, rec.toName);
+        break;
+    case UndoRecord::Move:
+        m_queue->enqueueMove(rec.movedPaths, rec.restoreDir);
+        break;
+    case UndoRecord::None:
+        break;
+    }
 }
 
 void MainWindow::toggleQuickView() {
@@ -758,6 +792,7 @@ void MainWindow::handleFilesDropped(const QStringList &sources, const QString &d
         m_queue->enqueueCopy(sources, destDir);
         break;
     case FileListView::DropActionKind::Move:
+        recordMoveUndo(sources, destDir);
         m_queue->enqueueMove(sources, destDir);
         break;
     case FileListView::DropActionKind::Link:
@@ -821,6 +856,7 @@ void MainWindow::pasteFromClipboard() {
 
     const QString destDir = m_activePanel->currentPath();
     if (isCut) {
+        recordMoveUndo(sources, destDir);
         m_queue->enqueueMove(sources, destDir);
         QGuiApplication::clipboard()->clear();
     } else {
@@ -962,7 +998,9 @@ void MainWindow::moveSelected() {
     const QStringList sources = m_activePanel->selectedPaths();
     if (sources.isEmpty())
         return;
-    m_queue->enqueueMove(sources, otherPanel(m_activePanel)->currentPath());
+    const QString destDir = otherPanel(m_activePanel)->currentPath();
+    recordMoveUndo(sources, destDir);
+    m_queue->enqueueMove(sources, destDir);
 }
 
 void MainWindow::makeDirectory() {

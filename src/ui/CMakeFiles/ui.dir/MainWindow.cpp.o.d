@@ -377,6 +377,9 @@ src/ui/CMakeFiles/ui.dir/MainWindow.cpp.o: \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qmimedata.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QProcess \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qprocess.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QPushButton \
+ /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qpushbutton.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qabstractbutton.h \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QShortcut \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qshortcut.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QTimer \
@@ -390,6 +393,8 @@ src/ui/CMakeFiles/ui.dir/MainWindow.cpp.o: \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qstatusbar.h \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QToolBar \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qtoolbar.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QHeaderView \
+ /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qheaderview.h \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QTreeView \
  /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qtreeview.h \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QUrl \

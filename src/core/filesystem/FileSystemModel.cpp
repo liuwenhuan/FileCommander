@@ -306,11 +306,13 @@ bool FileSystemModel::setData(const QModelIndex &index, const QVariant &value, i
         emit renameFailed(tr("%1 already exists").arg(newName));
         return false;
     }
-    if (!QDir().rename(info.path(), destPath)) {
+    const QString oldPath = info.path();
+    if (!QDir().rename(oldPath, destPath)) {
         emit renameFailed(tr("Failed to rename %1").arg(info.name()));
         return false;
     }
 
+    emit renamed(oldPath, destPath);
     setRootPath(m_rootPath); // reload to pick up the new name/sort position
     return true;
 }
