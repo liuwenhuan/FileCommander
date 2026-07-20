@@ -187,6 +187,54 @@
         <translation>Linux 版全能命令器</translation>
     </message>
     <message>
+        <source>Show / hide hidden files</source>
+        <translation>显示/隐藏 隐藏文件</translation>
+    </message>
+    <message>
+        <source>Filter the current panel (type to narrow)</source>
+        <translation>过滤当前栏（键入即筛选）</translation>
+    </message>
+    <message>
+        <source>Quick view (preview in the other panel)</source>
+        <translation>快速预览（在另一栏预览）</translation>
+    </message>
+    <message>
+        <source>Point the other panel at this directory</source>
+        <translation>另一栏切到本栏目录</translation>
+    </message>
+    <message>
+        <source>Swap the two panels</source>
+        <translation>左右栏互换</translation>
+    </message>
+    <message>
+        <source>Directory bookmarks</source>
+        <translation>目录收藏夹</translation>
+    </message>
+    <message>
+        <source>Calculate folder size</source>
+        <translation>计算文件夹大小</translation>
+    </message>
+    <message>
+        <source>Undo the last rename / move</source>
+        <translation>撤销上一步（重命名/移动）</translation>
+    </message>
+    <message>
+        <source>Multi-rename tool</source>
+        <translation>批量重命名工具</translation>
+    </message>
+    <message>
+        <source>Search files</source>
+        <translation>搜索文件</translation>
+    </message>
+    <message>
+        <source>Select files by pattern (e.g. *.zip)</source>
+        <translation>按模式选择文件（如 *.zip）</translation>
+    </message>
+    <message>
+        <source>Unselect files by pattern</source>
+        <translation>按模式取消选择</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/MainWindow.cpp" line="104"/>
         <source>Operation Error</source>
         <translation>操作错误</translation>

@@ -444,20 +444,56 @@ void MainWindow::bindShortcut(const QString &id, const QString &label,
 
 void MainWindow::showShortcutMenu(const QPoint &globalPos) {
     QMenu menu(this);
-    for (const auto &entry : m_shortcutOrder) {
-        const QString &id = entry.first;
-        const QString &label = entry.second;
+
+    auto addEntry = [&](const QString &label, const QString &keyText, std::function<void()> act) {
+        // Description on the left, key right-aligned via the tab.
+        QAction *action = menu.addAction(label + QLatin1Char('\t') + keyText);
+        connect(action, &QAction::triggered, this, [act]() {
+            if (act)
+                act();
+        });
+    };
+
+    // A curated set of useful-but-not-obvious, panel-scoped shortcuts (not the
+    // full list). Each references a registered shortcut by id for its key and
+    // action, but uses a clearer description here.
+    struct Item {
+        const char *id;
+        QString label;
+    };
+    const Item items[] = {
+        {"toggleHidden", tr("Show / hide hidden files")},
+        {"quickFilter", tr("Filter the current panel (type to narrow)")},
+        {"quickView", tr("Quick view (preview in the other panel)")},
+        {"syncOther", tr("Point the other panel at this directory")},
+        {"swapPanels", tr("Swap the two panels")},
+        {"directoryHotlist", tr("Directory bookmarks")},
+        {"calcSize", tr("Calculate folder size")},
+        {"undo", tr("Undo the last rename / move")},
+        {"multiRename", tr("Multi-rename tool")},
+        {"search", tr("Search files")},
+    };
+    for (const Item &item : items) {
+        const QString id = QString::fromLatin1(item.id);
+        auto handler = m_shortcutHandlers.constFind(id);
+        if (handler == m_shortcutHandlers.constEnd())
+            continue;
         const QKeySequence seq =
             m_shortcuts.value(id) ? m_shortcuts.value(id)->key() : m_shortcutDefaults.value(id);
-        // Label on the left, the key sequence right-aligned (via the tab).
-        QAction *action =
-            menu.addAction(label + QLatin1Char('\t') + seq.toString(QKeySequence::NativeText));
-        connect(action, &QAction::triggered, this, [this, id]() {
-            auto it = m_shortcutHandlers.constFind(id);
-            if (it != m_shortcutHandlers.constEnd() && it.value())
-                it.value()();
-        });
+        addEntry(item.label, seq.toString(QKeySequence::NativeText), handler.value());
     }
+
+    // Select/unselect by wildcard mask -- these live on the panel (+/-), not in
+    // the registered shortcut table, so wire them explicitly.
+    addEntry(tr("Select files by pattern (e.g. *.zip)"), QStringLiteral("+"), [this]() {
+        if (m_activePanel)
+            m_activePanel->selectByPattern(true);
+    });
+    addEntry(tr("Unselect files by pattern"), QStringLiteral("-"), [this]() {
+        if (m_activePanel)
+            m_activePanel->selectByPattern(false);
+    });
+
     menu.exec(globalPos);
 }
 
