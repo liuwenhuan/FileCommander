@@ -598,7 +598,16 @@ void MainWindow::showShortcutMenu(const QPoint &globalPos) {
             m_activePanel->selectByPattern(false);
     });
 
-    menu.exec(globalPos);
+    // Align the menu's right edge with the active panel's right edge -- for the
+    // left panel that's the splitter between the two panels -- instead of
+    // letting it open rightward from the button and spill past the divider.
+    QPoint pos = globalPos;
+    if (m_activePanel) {
+        const int menuWidth = menu.sizeHint().width();
+        const int rightEdge = m_activePanel->mapToGlobal(QPoint(m_activePanel->width(), 0)).x();
+        pos.setX(rightEdge - menuWidth);
+    }
+    menu.exec(pos);
 }
 
 void MainWindow::setupShortcuts() {
