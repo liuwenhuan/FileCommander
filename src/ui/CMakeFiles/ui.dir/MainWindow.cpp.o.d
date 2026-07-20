@@ -703,6 +703,8 @@ src/ui/CMakeFiles/ui.dir/MainWindow.cpp.o: \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/QObject \
  /home/deepin/codework/ttc/src/core/operations/FileSplitter.h \
  /home/deepin/codework/ttc/src/ui/QuickView.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtGui/QPixmap \
+ /usr/include/x86_64-linux-gnu/qt5/QtGui/qpixmap.h \
  /home/deepin/codework/ttc/src/ui/FunctionKeyBar.h \
  /home/deepin/codework/ttc/src/viewer/ImageViewer.h \
  /home/deepin/codework/ttc/src/core/operations/OperationQueue.h \

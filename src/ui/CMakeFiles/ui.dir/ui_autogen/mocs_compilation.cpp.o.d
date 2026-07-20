@@ -366,6 +366,8 @@ src/ui/CMakeFiles/ui.dir/ui_autogen/mocs_compilation.cpp.o: \
  /usr/include/x86_64-linux-gnu/qt5/QtCore/qsettings.h \
  /home/deepin/codework/ttc/src/ui/ui_autogen/EWIEGA46WW/moc_QuickView.cpp \
  /home/deepin/codework/ttc/src/ui/ui_autogen/EWIEGA46WW/../../QuickView.h \
+ /usr/include/x86_64-linux-gnu/qt5/QtGui/QPixmap \
+ /usr/include/x86_64-linux-gnu/qt5/QtGui/qpixmap.h \
  /home/deepin/codework/ttc/src/ui/ui_autogen/EWIEGA46WW/moc_StatusBarWidget.cpp \
  /home/deepin/codework/ttc/src/ui/ui_autogen/EWIEGA46WW/../../StatusBarWidget.h \
  /home/deepin/codework/ttc/src/ui/ui_autogen/EWIEGA46WW/moc_TabBar.cpp \
