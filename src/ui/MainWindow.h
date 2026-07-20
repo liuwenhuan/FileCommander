@@ -15,6 +15,7 @@
 class FilePanel;
 class FunctionKeyBar;
 class CommandBar;
+class QuickView;
 class OperationQueue;
 class OperationProgressDialog;
 class ThemeManager;
@@ -57,6 +58,8 @@ private slots:
     void swapPanels();
     void splitFile();
     void combineFiles();
+    void toggleQuickView(); // Ctrl+Q
+    void updateQuickView();
     void runCommand(const QString &command, const QString &directory);
     void toggleFolderTree();
 
@@ -91,8 +94,14 @@ private:
     ThemeManager *m_themeManager;
     Settings m_settings;
     QSplitter *m_outerSplitter;
+    QSplitter *m_panelSplitter;
     QTreeView *m_folderTree;
     QFileSystemModel *m_folderTreeModel;
+
+    QuickView *m_quickView = nullptr;
+    FilePanel *m_quickViewPanel = nullptr; // panel replaced by the preview
+    int m_quickViewIndex = -1;
+    bool m_quickViewActive = false;
 
     QMap<QString, QShortcut *> m_shortcuts;
     QMap<QString, QKeySequence> m_shortcutDefaults;

@@ -1,10 +1,10 @@
-Start testing: Jul 20 16:26 CST
+Start testing: Jul 20 16:30 CST
 ----------------------------------------------------------
 1/3 Testing: core_tests
 1/3 Test: core_tests
 Command: "/home/deepin/codework/ttc/tests/core/core_tests"
 Directory: /home/deepin/codework/ttc/tests/core
-"core_tests" start time: Jul 20 16:26 CST
+"core_tests" start time: Jul 20 16:30 CST
 Output:
 ----------------------------------------------------------
 [==========] Running 58 tests from 11 test suites.
@@ -86,7 +86,7 @@ Output:
 [       OK ] FileOperationsTest.CreateSymlinksCreatesWorkingLink (0 ms)
 [ RUN      ] FileOperationsTest.CreateSymlinksRenamesOnNameConflict
 [       OK ] FileOperationsTest.CreateSymlinksRenamesOnNameConflict (0 ms)
-[----------] 16 tests from FileOperationsTest (9 ms total)
+[----------] 16 tests from FileOperationsTest (8 ms total)
 
 [----------] 4 tests from OperationQueueTest
 [ RUN      ] OperationQueueTest.EnqueueCopyCompletesAndCopiesFile
@@ -94,7 +94,7 @@ Output:
 [ RUN      ] OperationQueueTest.EnqueueMoveRemovesSource
 [       OK ] OperationQueueTest.EnqueueMoveRemovesSource (0 ms)
 [ RUN      ] OperationQueueTest.ConflictHandlerRunsAndOverwriteAllApplies
-[       OK ] OperationQueueTest.ConflictHandlerRunsAndOverwriteAllApplies (1 ms)
+[       OK ] OperationQueueTest.ConflictHandlerRunsAndOverwriteAllApplies (0 ms)
 [ RUN      ] OperationQueueTest.EnqueueSymlinkCreatesLink
 [       OK ] OperationQueueTest.EnqueueSymlinkCreatesLink (0 ms)
 [----------] 4 tests from OperationQueueTest (2 ms total)
@@ -143,7 +143,7 @@ Output:
 [       OK ] DirectorySyncTest.DetectsDifferentSizeAsDifferent (0 ms)
 [ RUN      ] DirectorySyncTest.RecursiveFindsNestedFiles
 [       OK ] DirectorySyncTest.RecursiveFindsNestedFiles (0 ms)
-[----------] 4 tests from DirectorySyncTest (0 ms total)
+[----------] 4 tests from DirectorySyncTest (1 ms total)
 
 [----------] 5 tests from TextDiffTest
 [ RUN      ] TextDiffTest.IdenticalLinesAreAllSame
@@ -165,7 +165,7 @@ Output:
 Test time =   0.06 sec
 ----------------------------------------------------------
 Test Passed.
-"core_tests" end time: Jul 20 16:26 CST
+"core_tests" end time: Jul 20 16:30 CST
 "core_tests" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -173,7 +173,7 @@ Test Passed.
 2/3 Test: ui_tests
 Command: "/home/deepin/codework/ttc/tests/ui/ui_tests"
 Directory: /home/deepin/codework/ttc/tests/ui
-"ui_tests" start time: Jul 20 16:26 CST
+"ui_tests" start time: Jul 20 16:30 CST
 Output:
 ----------------------------------------------------------
 Running main() from /usr/src/googletest/googletest/src/gtest_main.cc
@@ -225,7 +225,7 @@ Running main() from /usr/src/googletest/googletest/src/gtest_main.cc
 Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"ui_tests" end time: Jul 20 16:26 CST
+"ui_tests" end time: Jul 20 16:30 CST
 "ui_tests" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -233,7 +233,7 @@ Test Passed.
 3/3 Test: archive_tests
 Command: "/home/deepin/codework/ttc/tests/archive/archive_tests"
 Directory: /home/deepin/codework/ttc/tests/archive
-"archive_tests" start time: Jul 20 16:26 CST
+"archive_tests" start time: Jul 20 16:30 CST
 Output:
 ----------------------------------------------------------
 Running main() from /usr/src/googletest/googletest/src/gtest_main.cc
@@ -243,28 +243,28 @@ Running main() from /usr/src/googletest/googletest/src/gtest_main.cc
 [ RUN      ] ArchiveHandlerTest.IsSupportedArchiveRecognizesKnownExtensions
 [       OK ] ArchiveHandlerTest.IsSupportedArchiveRecognizesKnownExtensions (0 ms)
 [ RUN      ] ArchiveHandlerTest.BuildTreeParsesFilesAndDirectories
-[       OK ] ArchiveHandlerTest.BuildTreeParsesFilesAndDirectories (5 ms)
+[       OK ] ArchiveHandlerTest.BuildTreeParsesFilesAndDirectories (3 ms)
 [ RUN      ] ArchiveHandlerTest.ExtractAllWritesAllFiles
-[       OK ] ArchiveHandlerTest.ExtractAllWritesAllFiles (3 ms)
+[       OK ] ArchiveHandlerTest.ExtractAllWritesAllFiles (5 ms)
 [ RUN      ] ArchiveHandlerTest.ExtractSpecificEntryWritesOnlyThatFile
-[       OK ] ArchiveHandlerTest.ExtractSpecificEntryWritesOnlyThatFile (3 ms)
+[       OK ] ArchiveHandlerTest.ExtractSpecificEntryWritesOnlyThatFile (2 ms)
 [ RUN      ] ArchiveHandlerTest.CreateZipRoundTripsThroughExtract
 [       OK ] ArchiveHandlerTest.CreateZipRoundTripsThroughExtract (0 ms)
 [ RUN      ] ArchiveHandlerTest.CreateTarGzRoundTripsThroughExtract
 [       OK ] ArchiveHandlerTest.CreateTarGzRoundTripsThroughExtract (0 ms)
 [ RUN      ] ArchiveHandlerTest.BuildTreeFailsGracefullyOnMissingFile
 [       OK ] ArchiveHandlerTest.BuildTreeFailsGracefullyOnMissingFile (0 ms)
-[----------] 7 tests from ArchiveHandlerTest (13 ms total)
+[----------] 7 tests from ArchiveHandlerTest (12 ms total)
 
 [----------] Global test environment tear-down
-[==========] 7 tests from 1 test suite ran. (13 ms total)
+[==========] 7 tests from 1 test suite ran. (12 ms total)
 [  PASSED  ] 7 tests.
 <end of output>
 Test time =   0.02 sec
 ----------------------------------------------------------
 Test Passed.
-"archive_tests" end time: Jul 20 16:26 CST
+"archive_tests" end time: Jul 20 16:30 CST
 "archive_tests" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-End testing: Jul 20 16:26 CST
+End testing: Jul 20 16:30 CST

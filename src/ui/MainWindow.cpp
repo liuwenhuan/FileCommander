@@ -37,6 +37,7 @@
 #include "CompressDialog.h"
 #include "FilePanel.h"
 #include "FileSplitter.h"
+#include "QuickView.h"
 #include "FileListView.h"
 #include "FileSystemModel.h"
 #include "FunctionKeyBar.h"
@@ -100,12 +101,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_themeManager->apply(m_settings.theme());
 
     auto *splitter = new QSplitter(this);
+    m_panelSplitter = splitter;
     m_leftPanel = new FilePanel(splitter);
     m_rightPanel = new FilePanel(splitter);
     splitter->addWidget(m_leftPanel);
     splitter->addWidget(m_rightPanel);
     splitter->setStretchFactor(0, 1);
     splitter->setStretchFactor(1, 1);
+    m_quickView = new QuickView(this);
+    m_quickView->hide(); // parked until Ctrl+Q swaps it into a panel slot
     // A visible divider that runs the full panel height -- tabs, breadcrumb,
     // list and status bar -- clearly separating the two panels. A solid mid
     // grey reads on both light and dark themes.
@@ -216,6 +220,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
             }
         });
         connect(panel->view(), &FileListView::filesDropped, this, &MainWindow::handleFilesDropped);
+        connect(panel->view()->selectionModel(), &QItemSelectionModel::currentRowChanged, this,
+                [this]() { updateQuickView(); });
         connect(panel->model(), &FileSystemModel::renameFailed, this, [this](const QString &msg) {
             QMessageBox::warning(this, tr("Rename"), msg);
         });
@@ -440,6 +446,8 @@ void MainWindow::setupShortcuts() {
                  [this] { swapPanels(); });
     bindShortcut("syncOther", tr("Same Directory in Other Panel"),
                  QKeySequence(Qt::CTRL | Qt::Key_Right), [this] { syncOtherPanelToActive(); });
+    bindShortcut("quickView", tr("Quick View"), QKeySequence(Qt::CTRL | Qt::Key_Q),
+                 [this] { toggleQuickView(); });
 }
 
 void MainWindow::showProperties() {
@@ -468,6 +476,34 @@ void MainWindow::swapPanels() {
     const QString right = m_rightPanel->currentPath();
     m_leftPanel->navigateTo(right);
     m_rightPanel->navigateTo(left);
+}
+
+void MainWindow::toggleQuickView() {
+    if (m_quickViewActive) {
+        // Put the previewed panel back where it was.
+        m_panelSplitter->replaceWidget(m_quickViewIndex, m_quickViewPanel);
+        m_quickViewPanel->show();
+        m_quickView->setParent(this);
+        m_quickView->hide();
+        m_quickViewActive = false;
+        m_quickViewPanel = nullptr;
+        return;
+    }
+    if (!m_activePanel)
+        return;
+    // Replace the *inactive* panel with the preview.
+    m_quickViewPanel = otherPanel(m_activePanel);
+    m_quickViewIndex = m_panelSplitter->indexOf(m_quickViewPanel);
+    m_panelSplitter->replaceWidget(m_quickViewIndex, m_quickView);
+    m_quickView->show();
+    m_quickViewActive = true;
+    updateQuickView();
+}
+
+void MainWindow::updateQuickView() {
+    if (!m_quickViewActive || !m_activePanel)
+        return;
+    m_quickView->showFile(m_activePanel->currentEntryPath());
 }
 
 void MainWindow::splitFile() {

@@ -5,6 +5,7 @@
 #include "EWIEGA46WW/moc_FilePanel.cpp"
 #include "EWIEGA46WW/moc_FunctionKeyBar.cpp"
 #include "EWIEGA46WW/moc_MainWindow.cpp"
+#include "EWIEGA46WW/moc_QuickView.cpp"
 #include "EWIEGA46WW/moc_StatusBarWidget.cpp"
 #include "EWIEGA46WW/moc_TabBar.cpp"
 #include "EWIEGA46WW/moc_TabManager.cpp"

@@ -22,6 +22,8 @@
  /home/deepin/codework/ttc/src/ui/FunctionKeyBar.h
  /home/deepin/codework/ttc/src/ui/MainWindow.cpp
  /home/deepin/codework/ttc/src/ui/MainWindow.h
+ /home/deepin/codework/ttc/src/ui/QuickView.cpp
+ /home/deepin/codework/ttc/src/ui/QuickView.h
  /home/deepin/codework/ttc/src/ui/StatusBarWidget.cpp
  /home/deepin/codework/ttc/src/ui/StatusBarWidget.h
  /home/deepin/codework/ttc/src/ui/TabBar.cpp

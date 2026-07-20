@@ -21,6 +21,8 @@ src/ui/ui_autogen/timestamp: src/core/config/Settings.h \
   src/ui/FunctionKeyBar.h \
   src/ui/MainWindow.cpp \
   src/ui/MainWindow.h \
+  src/ui/QuickView.cpp \
+  src/ui/QuickView.h \
   src/ui/StatusBarWidget.cpp \
   src/ui/StatusBarWidget.h \
   src/ui/TabBar.cpp \
@@ -8382,13 +8384,11 @@ src/archive/ArchiveBrowserDialog.h:
 
 /usr/include/x86_64-linux-gnu/bits/iscanonical.h:
 
-/usr/include/x86_64-linux-gnu/bits/time.h:
+/usr/include/x86_64-linux-gnu/qt5/QtCore/qmimetype.h:
 
-/usr/include/x86_64-linux-gnu/bits/select.h:
+/usr/include/x86_64-linux-gnu/bits/fp-logb.h:
 
-/usr/include/x86_64-linux-gnu/bits/thread-shared-types.h:
-
-/usr/include/x86_64-linux-gnu/qt5/QtGui/qtextoption.h:
+/usr/include/x86_64-linux-gnu/bits/fp-fast.h:
 
 /usr/include/x86_64-linux-gnu/bits/syscall.h:
 
@@ -8514,6 +8514,10 @@ src/core/operations/FileSplitter.h:
 
 /usr/include/x86_64-linux-gnu/qt5/QtCore/QMap:
 
+/usr/include/x86_64-linux-gnu/bits/thread-shared-types.h:
+
+/usr/include/x86_64-linux-gnu/qt5/QtGui/qtextoption.h:
+
 /usr/include/c++/12/new:
 
 /usr/include/limits.h:
@@ -8529,10 +8533,6 @@ src/core/operations/FileSplitter.h:
 /usr/include/x86_64-linux-gnu/bits/types/__locale_t.h:
 
 /usr/include/x86_64-linux-gnu/bits/struct_rwlock.h:
-
-/usr/include/x86_64-linux-gnu/qt5/QtCore/qconfig.h:
-
-/usr/include/c++/12/bit:
 
 /usr/include/x86_64-linux-gnu/qt5/QtCore/qstringlistmodel.h:
 
@@ -8630,9 +8630,13 @@ src/ui/dialogs/PropertiesDialog.h:
 
 /usr/include/c++/12/bits/stl_list.h:
 
-src/ui/FileListView.h:
+src/core/filesystem/FileSystemModel.h:
 
-/usr/include/x86_64-linux-gnu/qt5/QtWidgets/QDialog:
+/usr/include/c++/12/bits/stl_iterator_base_types.h:
+
+/usr/include/c++/12/bits/uses_allocator.h:
+
+/usr/include/x86_64-linux-gnu/qt5/QtWidgets/QMainWindow:
 
 src/ui/BreadcrumbBar.h:
 
@@ -8850,6 +8854,10 @@ src/ui/theme/ThemeManager.h:
 
 /usr/include/c++/12/pstl/pstl_config.h:
 
+src/ui/FileListView.h:
+
+/usr/include/x86_64-linux-gnu/qt5/QtWidgets/QDialog:
+
 /usr/include/c++/12/algorithm:
 
 src/search/SearchDialog.h:
@@ -8860,15 +8868,33 @@ src/search/SearchDialog.h:
 
 /usr/include/c++/12/backward/auto_ptr.h:
 
+/usr/include/x86_64-linux-gnu/qt5/QtGui/qpalette.h:
+
 src/ui/MainWindow.cpp:
 
 /usr/include/c++/12/ostream:
+
+/usr/include/x86_64-linux-gnu/qt5/QtWidgets/QMenu:
+
+/usr/include/c++/12/bits/ranges_base.h:
+
+/usr/include/x86_64-linux-gnu/qt5/QtCore/qtimer.h:
+
+/usr/include/x86_64-linux-gnu/qt5/QtCore/qdiriterator.h:
+
+/usr/include/c++/12/bits/stl_heap.h:
+
+src/ui/QuickView.h:
+
+src/ui/dialogs/MultiRenameDialog.cpp:
 
 src/ui/TabBar.h:
 
 /usr/include/c++/12/streambuf:
 
 /usr/include/x86_64-linux-gnu/sys/cdefs.h:
+
+src/ui/QuickView.cpp:
 
 /usr/include/c++/12/bits/ranges_uninitialized.h:
 
@@ -8889,8 +8915,6 @@ src/ui/TabBar.cpp:
 src/ui/TabManager.h:
 
 /usr/include/c++/12/bits/allocator.h:
-
-/usr/include/x86_64-linux-gnu/qt5/QtGui/qpalette.h:
 
 /usr/include/c++/12/bits/cpp_type_traits.h:
 
@@ -8923,8 +8947,6 @@ src/ui/FilePanel.cpp:
 /usr/include/c++/12/bits/align.h:
 
 /usr/include/x86_64-linux-gnu/bits/wctype-wchar.h:
-
-src/ui/dialogs/MultiRenameDialog.cpp:
 
 /usr/include/c++/12/bits/mofunc_impl.h:
 
@@ -8969,10 +8991,6 @@ src/ui/dialogs/MultiRenameDialog.h:
 /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qabstractbutton.h:
 
 /usr/include/c++/12/bits/cxxabi_forced.h:
-
-src/core/filesystem/FileSystemModel.h:
-
-/usr/include/c++/12/bits/stl_iterator_base_types.h:
 
 /usr/include/c++/12/bits/erase_if.h:
 
@@ -9078,16 +9096,6 @@ src/ui/ui_autogen/2NRMJ5X7RK/moc_OperationProgressDialog.cpp:
 
 /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qlayout.h:
 
-/usr/include/x86_64-linux-gnu/qt5/QtWidgets/QMenu:
-
-/usr/include/c++/12/bits/ranges_base.h:
-
-/usr/include/x86_64-linux-gnu/qt5/QtCore/qtimer.h:
-
-/usr/include/x86_64-linux-gnu/qt5/QtCore/qdiriterator.h:
-
-/usr/include/c++/12/bits/stl_heap.h:
-
 /usr/include/c++/12/bits/stl_function.h:
 
 /usr/include/c++/12/bits/std_function.h:
@@ -9099,6 +9107,14 @@ src/ui/ui_autogen/2NRMJ5X7RK/moc_OperationProgressDialog.cpp:
 /usr/include/x86_64-linux-gnu/bits/stdint-intn.h:
 
 /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qframe.h:
+
+/usr/include/x86_64-linux-gnu/bits/select.h:
+
+/usr/include/x86_64-linux-gnu/bits/time.h:
+
+/usr/include/c++/12/bit:
+
+/usr/include/x86_64-linux-gnu/qt5/QtCore/qconfig.h:
 
 /usr/include/c++/12/bits/refwrap.h:
 
@@ -9125,10 +9141,6 @@ src/ui/ui_autogen/2NRMJ5X7RK/moc_OperationProgressDialog.cpp:
 /usr/include/c++/12/bits/streambuf.tcc:
 
 /usr/include/c++/12/bits/stl_bvector.h:
-
-/usr/include/c++/12/bits/uses_allocator.h:
-
-/usr/include/x86_64-linux-gnu/qt5/QtWidgets/QMainWindow:
 
 /usr/include/x86_64-linux-gnu/bits/time64.h:
 
@@ -9274,9 +9286,9 @@ src/ui/ui_autogen/2NRMJ5X7RK/moc_PropertiesDialog.cpp:
 
 /usr/include/x86_64-linux-gnu/qt5/QtCore/QElapsedTimer:
 
-/usr/include/wchar.h:
-
 /usr/include/x86_64-linux-gnu/bits/stdlib-float.h:
+
+/usr/include/wchar.h:
 
 /usr/include/x86_64-linux-gnu/qt5/QtGui/QDrag:
 
@@ -9506,10 +9518,6 @@ src/core/filesystem/FileInfo.h:
 
 /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QTableView:
 
-/usr/include/x86_64-linux-gnu/qt5/QtCore/qmimetype.h:
-
-/usr/include/x86_64-linux-gnu/bits/fp-logb.h:
-
 /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qlayoutitem.h:
 
 /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qabstractitemview.h:
@@ -9653,5 +9661,3 @@ src/ui/theme/ThemeManager.cpp:
 /usr/include/c++/12/tr1/poly_hermite.tcc:
 
 /usr/include/x86_64-linux-gnu/bits/flt-eval-method.h:
-
-/usr/include/x86_64-linux-gnu/bits/fp-fast.h:

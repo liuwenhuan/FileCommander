@@ -16,6 +16,7 @@ set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/home/deepin/codework/ttc/src/ui/FilePanel.cpp" "src/ui/CMakeFiles/ui.dir/FilePanel.cpp.o" "gcc" "src/ui/CMakeFiles/ui.dir/FilePanel.cpp.o.d"
   "/home/deepin/codework/ttc/src/ui/FunctionKeyBar.cpp" "src/ui/CMakeFiles/ui.dir/FunctionKeyBar.cpp.o" "gcc" "src/ui/CMakeFiles/ui.dir/FunctionKeyBar.cpp.o.d"
   "/home/deepin/codework/ttc/src/ui/MainWindow.cpp" "src/ui/CMakeFiles/ui.dir/MainWindow.cpp.o" "gcc" "src/ui/CMakeFiles/ui.dir/MainWindow.cpp.o.d"
+  "/home/deepin/codework/ttc/src/ui/QuickView.cpp" "src/ui/CMakeFiles/ui.dir/QuickView.cpp.o" "gcc" "src/ui/CMakeFiles/ui.dir/QuickView.cpp.o.d"
   "/home/deepin/codework/ttc/src/ui/StatusBarWidget.cpp" "src/ui/CMakeFiles/ui.dir/StatusBarWidget.cpp.o" "gcc" "src/ui/CMakeFiles/ui.dir/StatusBarWidget.cpp.o.d"
   "/home/deepin/codework/ttc/src/ui/TabBar.cpp" "src/ui/CMakeFiles/ui.dir/TabBar.cpp.o" "gcc" "src/ui/CMakeFiles/ui.dir/TabBar.cpp.o.d"
   "/home/deepin/codework/ttc/src/ui/TabManager.cpp" "src/ui/CMakeFiles/ui.dir/TabManager.cpp.o" "gcc" "src/ui/CMakeFiles/ui.dir/TabManager.cpp.o.d"

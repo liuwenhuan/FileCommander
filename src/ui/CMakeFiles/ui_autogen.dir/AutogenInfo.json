@@ -54,6 +54,12 @@
 			null
 		],
 		[
+			"/home/deepin/codework/ttc/src/ui/QuickView.h",
+			"MU",
+			"EWIEGA46WW/moc_QuickView.cpp",
+			null
+		],
+		[
 			"/home/deepin/codework/ttc/src/ui/StatusBarWidget.h",
 			"MU",
 			"EWIEGA46WW/moc_StatusBarWidget.cpp",
@@ -198,6 +204,7 @@
 		[ "/home/deepin/codework/ttc/src/ui/FilePanel.cpp", "MU", null ],
 		[ "/home/deepin/codework/ttc/src/ui/FunctionKeyBar.cpp", "MU", null ],
 		[ "/home/deepin/codework/ttc/src/ui/MainWindow.cpp", "MU", null ],
+		[ "/home/deepin/codework/ttc/src/ui/QuickView.cpp", "MU", null ],
 		[ "/home/deepin/codework/ttc/src/ui/StatusBarWidget.cpp", "MU", null ],
 		[ "/home/deepin/codework/ttc/src/ui/TabBar.cpp", "MU", null ],
 		[ "/home/deepin/codework/ttc/src/ui/TabManager.cpp", "MU", null ],

@@ -381,6 +381,30 @@ MainWindow.cpp.s:
 	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f src/ui/CMakeFiles/ui.dir/build.make src/ui/CMakeFiles/ui.dir/MainWindow.cpp.s
 .PHONY : MainWindow.cpp.s
 
+QuickView.o: QuickView.cpp.o
+.PHONY : QuickView.o
+
+# target to build an object file
+QuickView.cpp.o:
+	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f src/ui/CMakeFiles/ui.dir/build.make src/ui/CMakeFiles/ui.dir/QuickView.cpp.o
+.PHONY : QuickView.cpp.o
+
+QuickView.i: QuickView.cpp.i
+.PHONY : QuickView.i
+
+# target to preprocess a source file
+QuickView.cpp.i:
+	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f src/ui/CMakeFiles/ui.dir/build.make src/ui/CMakeFiles/ui.dir/QuickView.cpp.i
+.PHONY : QuickView.cpp.i
+
+QuickView.s: QuickView.cpp.s
+.PHONY : QuickView.s
+
+# target to generate assembly for a file
+QuickView.cpp.s:
+	cd /home/deepin/codework/ttc && $(MAKE) $(MAKESILENT) -f src/ui/CMakeFiles/ui.dir/build.make src/ui/CMakeFiles/ui.dir/QuickView.cpp.s
+.PHONY : QuickView.cpp.s
+
 StatusBarWidget.o: StatusBarWidget.cpp.o
 .PHONY : StatusBarWidget.o
 
@@ -730,6 +754,9 @@ help:
 	@echo "... MainWindow.o"
 	@echo "... MainWindow.i"
 	@echo "... MainWindow.s"
+	@echo "... QuickView.o"
+	@echo "... QuickView.i"
+	@echo "... QuickView.s"
 	@echo "... StatusBarWidget.o"
 	@echo "... StatusBarWidget.i"
 	@echo "... StatusBarWidget.s"

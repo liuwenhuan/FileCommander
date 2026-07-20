@@ -16,6 +16,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/ui.dir/FunctionKeyBar.cpp.o.d"
   "CMakeFiles/ui.dir/MainWindow.cpp.o"
   "CMakeFiles/ui.dir/MainWindow.cpp.o.d"
+  "CMakeFiles/ui.dir/QuickView.cpp.o"
+  "CMakeFiles/ui.dir/QuickView.cpp.o.d"
   "CMakeFiles/ui.dir/StatusBarWidget.cpp.o"
   "CMakeFiles/ui.dir/StatusBarWidget.cpp.o.d"
   "CMakeFiles/ui.dir/TabBar.cpp.o"

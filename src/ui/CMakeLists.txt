@@ -11,6 +11,8 @@ add_library(ui STATIC
     CommandBar.cpp
     CommandHistory.h
     CommandHistory.cpp
+    QuickView.h
+    QuickView.cpp
     FunctionKeyBar.h
     FunctionKeyBar.cpp
     StatusBarWidget.h
