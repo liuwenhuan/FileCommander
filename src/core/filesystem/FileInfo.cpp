@@ -10,7 +10,11 @@ FileInfo::FileInfo(const QString &path) {
     m_path = qfi.absoluteFilePath();
     m_isDir = qfi.isDir();
     m_isSymLink = qfi.isSymLink();
+    // Directories are treated as having no extension: the whole name is the
+    // base. For files, split off the trailing suffix so the Name and Ext
+    // columns show complementary halves (e.g. "photo" + "jpg").
     m_suffix = m_isDir ? QString() : qfi.suffix();
+    m_baseName = m_isDir ? m_name : qfi.completeBaseName();
     m_size = qfi.size();
     m_modified = qfi.lastModified();
     m_created = qfi.birthTime();
@@ -34,6 +38,7 @@ const QString &FileInfo::mimeType() const {
 FileInfo FileInfo::makeParentEntry(const QString &parentPath) {
     FileInfo info(parentPath);
     info.m_name = QStringLiteral("..");
+    info.m_baseName = QStringLiteral("..");
     info.m_isParentEntry = true;
     return info;
 }

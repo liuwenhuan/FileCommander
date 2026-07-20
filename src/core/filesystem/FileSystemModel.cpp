@@ -204,7 +204,8 @@ QVariant FileSystemModel::data(const QModelIndex &index, int role) const {
     if (role == Qt::DisplayRole || role == Qt::EditRole) {
         switch (index.column()) {
         case NameColumn:
-            return info.name();
+            // Base name only; the extension lives in its own column.
+            return info.baseName();
         case ExtColumn:
             return info.isDir() ? QString() : info.suffix();
         case SizeColumn:
@@ -391,19 +392,22 @@ bool FileSystemModel::setData(const QModelIndex &index, const QVariant &value, i
     if (!info.isValid())
         return false;
 
+    // The Name column now shows the base name and the Ext column the suffix, so
+    // both edits just recombine the two halves into a full file name.
     QString newName;
     if (col == NameColumn) {
-        newName = value.toString().trimmed();
-    } else { // ExtColumn: rebuild the file name with the edited suffix
+        const QString newBase = value.toString().trimmed();
+        if (newBase.isEmpty())
+            return false; // an empty base name would turn "photo.jpg" into ".jpg"
+        // A directory (or an extension-less file) has no suffix to re-append.
+        newName = info.suffix().isEmpty() ? newBase
+                                          : newBase + QLatin1Char('.') + info.suffix();
+    } else { // ExtColumn
         if (info.isDir())
             return false;
         const QString newExt = value.toString().trimmed();
-        // Base name = current name without its trailing ".<suffix>".
-        QString base = info.name();
-        const QString suffix = info.suffix();
-        if (!suffix.isEmpty() && base.endsWith(QLatin1Char('.') + suffix))
-            base.chop(suffix.length() + 1);
-        newName = newExt.isEmpty() ? base : base + QLatin1Char('.') + newExt;
+        newName = newExt.isEmpty() ? info.baseName()
+                                   : info.baseName() + QLatin1Char('.') + newExt;
     }
 
     if (newName.isEmpty() || newName == info.name())

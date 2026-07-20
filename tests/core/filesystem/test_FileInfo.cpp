@@ -35,6 +35,7 @@ TEST(FileInfoTest, ReadsRegularFileMetadata) {
 
     FileInfo info(path);
     EXPECT_EQ(info.name().toStdString(), "hello.txt");
+    EXPECT_EQ(info.baseName().toStdString(), "hello");
     EXPECT_EQ(info.suffix().toStdString(), "txt");
     EXPECT_EQ(info.size(), 11);
     EXPECT_FALSE(info.isDir());
@@ -49,6 +50,7 @@ TEST(FileInfoTest, ReadsDirectoryMetadata) {
 
     FileInfo info(dir.filePath("subdir"));
     EXPECT_EQ(info.name().toStdString(), "subdir");
+    EXPECT_EQ(info.baseName().toStdString(), "subdir"); // dirs: whole name is the base
     EXPECT_TRUE(info.isDir());
     EXPECT_TRUE(info.suffix().isEmpty());
 }

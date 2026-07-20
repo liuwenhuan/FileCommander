@@ -11,7 +11,8 @@ public:
 
     static FileInfo makeParentEntry(const QString &parentPath);
 
-    const QString &name() const { return m_name; }
+    const QString &name() const { return m_name; }        // full file name, e.g. "photo.jpg"
+    const QString &baseName() const { return m_baseName; } // name without extension, e.g. "photo"
     const QString &path() const { return m_path; }
     const QString &suffix() const { return m_suffix; }
     qint64 size() const { return m_size; }
@@ -30,6 +31,7 @@ public:
 
 private:
     QString m_name;
+    QString m_baseName;
     QString m_path;
     QString m_suffix;
     qint64 m_size = 0;
