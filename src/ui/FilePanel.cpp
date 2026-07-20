@@ -7,6 +7,7 @@
 #include <QFutureWatcher>
 #include <QGuiApplication>
 #include <QHBoxLayout>
+#include <QHeaderView>
 #include <QItemSelectionModel>
 #include <QKeyEvent>
 #include <QLineEdit>
@@ -50,6 +51,15 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
 
     connect(m_view->selectionModel(), &QItemSelectionModel::selectionChanged, this,
             [this] { updateStatus(); });
+
+    // Keep the chrome (tabs, breadcrumb, column header) as short as one file
+    // row so the panel reads as a single dense list rather than stacked bars.
+    const int rowH = qMax(m_view->fontMetrics().height(), 16) + 6;
+    m_view->verticalHeader()->setDefaultSectionSize(rowH);
+    m_view->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+    m_view->horizontalHeader()->setFixedHeight(rowH);
+    m_tabBar->setFixedHeight(rowH);
+    m_addressBar->setFixedHeight(rowH);
 
     connect(m_filterBar, &QLineEdit::textChanged, this,
             [this](const QString &text) { m_model->setNameFilter(text); });

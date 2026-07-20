@@ -2,15 +2,16 @@
 
 #include <QWidget>
 
+class QLabel;
 class QLineEdit;
 class QHBoxLayout;
 class QStackedLayout;
 
-// Explorer/Nautilus-style clickable path breadcrumb: shows the current
-// path as a row of per-segment buttons (click one to jump to that
-// level); clicking blank space past the last segment switches to a
-// plain editable QLineEdit for typing a path directly, same as before
-// this widget existed. Escape while editing reverts without navigating.
+// Compact clickable path: renders the current path as a normal-looking
+// backslash-separated string (e.g. /home\deepin) where each segment is a
+// link you can click to jump to that level. Clicking the blank area past
+// the path switches to a plain editable QLineEdit for typing a path
+// directly. Escape while editing reverts without navigating.
 class BreadcrumbBar : public QWidget {
     Q_OBJECT
 
@@ -37,5 +38,6 @@ private:
     QStackedLayout *m_stack;
     QWidget *m_segmentsWidget;
     QHBoxLayout *m_segmentsLayout;
+    QLabel *m_pathLabel;
     QLineEdit *m_editLine;
 };
