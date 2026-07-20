@@ -238,9 +238,18 @@ void FileSystemModel::sortEntries() {
 
         int cmp = 0;
         switch (m_sortColumn) {
-        case SizeColumn:
-            cmp = (a.size() < b.size()) ? -1 : (a.size() > b.size() ? 1 : 0);
+        case SizeColumn: {
+            // Use a computed folder size where we have one, so sorting by size
+            // orders directories by their real footprint, not the tiny inode.
+            auto effectiveSize = [this](const FileInfo &fi) {
+                auto it = m_dirSizes.constFind(fi.path());
+                return it != m_dirSizes.constEnd() ? it.value() : fi.size();
+            };
+            const qint64 sa = effectiveSize(a);
+            const qint64 sb = effectiveSize(b);
+            cmp = (sa < sb) ? -1 : (sa > sb ? 1 : 0);
             break;
+        }
         case ModifiedColumn:
             cmp = a.modified() < b.modified() ? -1 : (a.modified() > b.modified() ? 1 : 0);
             break;
