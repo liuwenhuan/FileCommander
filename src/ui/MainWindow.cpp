@@ -489,6 +489,24 @@ void MainWindow::changeFunctionKey(int index) {
     tree->setRootIsDecorated(false);
     tree->setIndentation(0);
     tree->setUniformRowHeights(true);
+    // DTK's default hover fill is a dark gray that clashes with the dark row
+    // text in the light theme. Override hover/selection with palette-derived
+    // colors so the text stays legible in both themes.
+    {
+        const QColor hl = tree->palette().color(QPalette::Highlight);
+        const QColor hlText = tree->palette().color(QPalette::HighlightedText);
+        const QColor txt = tree->palette().color(QPalette::Text);
+        tree->setStyleSheet(
+            QStringLiteral("QTreeView::item:hover:!selected { background: rgba(%1,%2,%3,45); "
+                           "color: %4; }"
+                           "QTreeView::item:selected { background: %5; color: %6; }")
+                .arg(hl.red())
+                .arg(hl.green())
+                .arg(hl.blue())
+                .arg(txt.name())
+                .arg(hl.name())
+                .arg(hlText.name()));
+    }
     QTreeWidgetItem *currentItem = nullptr;
     for (const auto &c : commands) {
         const QString &id = c.second;
