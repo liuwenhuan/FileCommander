@@ -43,6 +43,8 @@ add_library(ui STATIC
     dialogs/CompareDialog.cpp
     dialogs/PropertiesDialog.h
     dialogs/PropertiesDialog.cpp
+    dialogs/ConnectDialog.h
+    dialogs/ConnectDialog.cpp
 )
 
 # libmpv (render API) for the QuickView video preview page.

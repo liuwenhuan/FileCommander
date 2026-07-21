@@ -20,6 +20,8 @@ add_library(core STATIC
     sync/DirectorySync.cpp
     compare/TextDiff.h
     compare/TextDiff.cpp
+    network/GvfsMounter.h
+    network/GvfsMounter.cpp
 )
 
 target_include_directories(core PUBLIC
@@ -29,6 +31,7 @@ target_include_directories(core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/config
     ${CMAKE_CURRENT_SOURCE_DIR}/sync
     ${CMAKE_CURRENT_SOURCE_DIR}/compare
+    ${CMAKE_CURRENT_SOURCE_DIR}/network
 )
 
 target_link_libraries(core PUBLIC

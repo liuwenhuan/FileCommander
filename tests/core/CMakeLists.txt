@@ -10,6 +10,7 @@ add_executable(core_tests
     config/test_Settings.cpp
     sync/test_DirectorySync.cpp
     compare/test_TextDiff.cpp
+    network/test_GvfsMounter.cpp
 )
 
 target_link_libraries(core_tests PRIVATE
