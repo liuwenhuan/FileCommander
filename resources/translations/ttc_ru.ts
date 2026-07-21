@@ -1785,171 +1785,176 @@ Destination: %4 (%5 bytes)</source>
 <context>
     <name>QuickView</name>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="57"/>
-        <location filename="../../src/ui/QuickView.cpp" line="626"/>
+        <location filename="../../src/ui/QuickView.cpp" line="58"/>
+        <location filename="../../src/ui/QuickView.cpp" line="642"/>
         <source>Select a file to preview</source>
         <translation>Выберите файл для просмотра</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="95"/>
-        <location filename="../../src/ui/QuickView.cpp" line="487"/>
+        <location filename="../../src/ui/QuickView.cpp" line="96"/>
+        <location filename="../../src/ui/QuickView.cpp" line="503"/>
         <source>Zoom In</source>
         <translation>Увеличить</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="96"/>
-        <location filename="../../src/ui/QuickView.cpp" line="493"/>
+        <location filename="../../src/ui/QuickView.cpp" line="97"/>
+        <location filename="../../src/ui/QuickView.cpp" line="509"/>
         <source>Zoom Out</source>
         <translation>Уменьшить</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="97"/>
+        <location filename="../../src/ui/QuickView.cpp" line="98"/>
         <source>Fit</source>
         <translation>Вписать</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="107"/>
+        <location filename="../../src/ui/QuickView.cpp" line="108"/>
         <source>Lock Zoom</source>
         <translation>Зафиксировать масштаб</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="108"/>
+        <location filename="../../src/ui/QuickView.cpp" line="109"/>
         <source>Keep the current zoom ratio for the next images</source>
         <translation>Сохранять текущий масштаб для следующих изображений</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="111"/>
-        <location filename="../../src/ui/QuickView.cpp" line="299"/>
+        <location filename="../../src/ui/QuickView.cpp" line="112"/>
+        <location filename="../../src/ui/QuickView.cpp" line="300"/>
         <source>Show info</source>
         <translation>Показать сведения</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="112"/>
+        <location filename="../../src/ui/QuickView.cpp" line="113"/>
         <source>Overlay basic image information</source>
         <translation>Показывать основные сведения об изображении</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="219"/>
-        <location filename="../../src/ui/QuickView.cpp" line="227"/>
-        <location filename="../../src/ui/QuickView.cpp" line="234"/>
-        <location filename="../../src/ui/QuickView.cpp" line="333"/>
+        <location filename="../../src/ui/QuickView.cpp" line="220"/>
+        <location filename="../../src/ui/QuickView.cpp" line="228"/>
+        <location filename="../../src/ui/QuickView.cpp" line="235"/>
+        <location filename="../../src/ui/QuickView.cpp" line="334"/>
         <source>Play</source>
         <translation>Воспроизвести</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="227"/>
-        <location filename="../../src/ui/QuickView.cpp" line="235"/>
-        <location filename="../../src/ui/QuickView.cpp" line="334"/>
-        <location filename="../../src/ui/QuickView.cpp" line="661"/>
+        <location filename="../../src/ui/QuickView.cpp" line="228"/>
+        <location filename="../../src/ui/QuickView.cpp" line="236"/>
+        <location filename="../../src/ui/QuickView.cpp" line="335"/>
+        <location filename="../../src/ui/QuickView.cpp" line="677"/>
         <source>Pause</source>
         <translation>Пауза</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="245"/>
+        <location filename="../../src/ui/QuickView.cpp" line="246"/>
         <source>1x</source>
         <translation>1x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="246"/>
+        <location filename="../../src/ui/QuickView.cpp" line="247"/>
         <source>1.5x</source>
         <translation>1.5x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="247"/>
+        <location filename="../../src/ui/QuickView.cpp" line="248"/>
         <source>2x</source>
         <translation>2x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="248"/>
+        <location filename="../../src/ui/QuickView.cpp" line="249"/>
         <source>3x</source>
         <translation>3x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="258"/>
+        <location filename="../../src/ui/QuickView.cpp" line="259"/>
         <source>Seek</source>
         <translation>Перемотка</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="269"/>
+        <location filename="../../src/ui/QuickView.cpp" line="270"/>
         <source>Mute / unmute</source>
         <translation>Звук вкл./выкл.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="285"/>
+        <location filename="../../src/ui/QuickView.cpp" line="286"/>
         <source>Vol</source>
         <translation>Громк.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="290"/>
+        <location filename="../../src/ui/QuickView.cpp" line="291"/>
         <source>Volume</source>
         <translation>Громкость</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="300"/>
+        <location filename="../../src/ui/QuickView.cpp" line="301"/>
         <source>Overlay basic video information</source>
         <translation>Показывать основные сведения о видео</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="371"/>
+        <location filename="../../src/ui/QuickView.cpp" line="372"/>
         <source>&lt;b&gt;Duration:&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;Resolution:&lt;/b&gt; %2 &amp;times; %3&lt;br&gt;&lt;b&gt;Codec:&lt;/b&gt; %4</source>
         <translation>&lt;b&gt;Длительность:&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;Разрешение:&lt;/b&gt; %2 &amp;times; %3&lt;br&gt;&lt;b&gt;Кодек:&lt;/b&gt; %4</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="373"/>
         <location filename="../../src/ui/QuickView.cpp" line="374"/>
+        <location filename="../../src/ui/QuickView.cpp" line="375"/>
         <source>?</source>
         <translation>?</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="375"/>
+        <location filename="../../src/ui/QuickView.cpp" line="376"/>
         <source>unknown</source>
         <translation>неизвестно</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="466"/>
+        <location filename="../../src/ui/QuickView.cpp" line="482"/>
         <source>Prev</source>
         <translation>Назад</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="472"/>
+        <location filename="../../src/ui/QuickView.cpp" line="488"/>
         <source>Next</source>
         <translation>Далее</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="526"/>
-        <location filename="../../src/ui/QuickView.cpp" line="533"/>
+        <location filename="../../src/ui/QuickView.cpp" line="542"/>
+        <location filename="../../src/ui/QuickView.cpp" line="549"/>
         <source>Failed to render page %1</source>
         <translation>Не удалось отобразить страницу %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="538"/>
+        <location filename="../../src/ui/QuickView.cpp" line="554"/>
         <source>Page %1 / %2</source>
         <translation>Страница %1 / %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="687"/>
+        <location filename="../../src/ui/QuickView.cpp" line="703"/>
         <source>Cannot open PDF: %1</source>
         <translation>Не удалось открыть PDF: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="727"/>
+        <location filename="../../src/ui/QuickView.cpp" line="746"/>
+        <source>“%1” is encrypted and cannot be previewed.</source>
+        <translation>«%1» зашифрован и не может быть просмотрен.</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="750"/>
         <source>Cannot preview %1:
 %2</source>
         <translation>Не удалось просмотреть %1:
 %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="758"/>
+        <location filename="../../src/ui/QuickView.cpp" line="781"/>
         <source>&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;%2 &amp;times; %3&lt;br&gt;%4&lt;br&gt;%5 bpp</source>
         <translation>&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;%2 &amp;times; %3&lt;br&gt;%4&lt;br&gt;%5 bpp</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="762"/>
+        <location filename="../../src/ui/QuickView.cpp" line="785"/>
         <source>Unknown format</source>
         <translation>Неизвестный формат</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="795"/>
+        <location filename="../../src/ui/QuickView.cpp" line="818"/>
         <source>No preview available for %1</source>
         <translation>Предпросмотр для %1 недоступен</translation>
     </message>

@@ -1785,171 +1785,176 @@ Destination: %4 (%5 bytes)</source>
 <context>
     <name>QuickView</name>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="57"/>
-        <location filename="../../src/ui/QuickView.cpp" line="626"/>
+        <location filename="../../src/ui/QuickView.cpp" line="58"/>
+        <location filename="../../src/ui/QuickView.cpp" line="642"/>
         <source>Select a file to preview</source>
         <translation>選取要預覽的檔案</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="95"/>
-        <location filename="../../src/ui/QuickView.cpp" line="487"/>
+        <location filename="../../src/ui/QuickView.cpp" line="96"/>
+        <location filename="../../src/ui/QuickView.cpp" line="503"/>
         <source>Zoom In</source>
         <translation>放大</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="96"/>
-        <location filename="../../src/ui/QuickView.cpp" line="493"/>
+        <location filename="../../src/ui/QuickView.cpp" line="97"/>
+        <location filename="../../src/ui/QuickView.cpp" line="509"/>
         <source>Zoom Out</source>
         <translation>縮小</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="97"/>
+        <location filename="../../src/ui/QuickView.cpp" line="98"/>
         <source>Fit</source>
         <translation>符合視窗</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="107"/>
+        <location filename="../../src/ui/QuickView.cpp" line="108"/>
         <source>Lock Zoom</source>
         <translation>鎖定縮放</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="108"/>
+        <location filename="../../src/ui/QuickView.cpp" line="109"/>
         <source>Keep the current zoom ratio for the next images</source>
         <translation>為後續圖片保留目前縮放比例</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="111"/>
-        <location filename="../../src/ui/QuickView.cpp" line="299"/>
+        <location filename="../../src/ui/QuickView.cpp" line="112"/>
+        <location filename="../../src/ui/QuickView.cpp" line="300"/>
         <source>Show info</source>
         <translation>顯示資訊</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="112"/>
+        <location filename="../../src/ui/QuickView.cpp" line="113"/>
         <source>Overlay basic image information</source>
         <translation>疊加顯示基本圖片資訊</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="219"/>
-        <location filename="../../src/ui/QuickView.cpp" line="227"/>
-        <location filename="../../src/ui/QuickView.cpp" line="234"/>
-        <location filename="../../src/ui/QuickView.cpp" line="333"/>
+        <location filename="../../src/ui/QuickView.cpp" line="220"/>
+        <location filename="../../src/ui/QuickView.cpp" line="228"/>
+        <location filename="../../src/ui/QuickView.cpp" line="235"/>
+        <location filename="../../src/ui/QuickView.cpp" line="334"/>
         <source>Play</source>
         <translation>播放</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="227"/>
-        <location filename="../../src/ui/QuickView.cpp" line="235"/>
-        <location filename="../../src/ui/QuickView.cpp" line="334"/>
-        <location filename="../../src/ui/QuickView.cpp" line="661"/>
+        <location filename="../../src/ui/QuickView.cpp" line="228"/>
+        <location filename="../../src/ui/QuickView.cpp" line="236"/>
+        <location filename="../../src/ui/QuickView.cpp" line="335"/>
+        <location filename="../../src/ui/QuickView.cpp" line="677"/>
         <source>Pause</source>
         <translation>暫停</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="245"/>
+        <location filename="../../src/ui/QuickView.cpp" line="246"/>
         <source>1x</source>
         <translation>1x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="246"/>
+        <location filename="../../src/ui/QuickView.cpp" line="247"/>
         <source>1.5x</source>
         <translation>1.5x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="247"/>
+        <location filename="../../src/ui/QuickView.cpp" line="248"/>
         <source>2x</source>
         <translation>2x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="248"/>
+        <location filename="../../src/ui/QuickView.cpp" line="249"/>
         <source>3x</source>
         <translation>3x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="258"/>
+        <location filename="../../src/ui/QuickView.cpp" line="259"/>
         <source>Seek</source>
         <translation>跳轉</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="269"/>
+        <location filename="../../src/ui/QuickView.cpp" line="270"/>
         <source>Mute / unmute</source>
         <translation>靜音/取消靜音</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="285"/>
+        <location filename="../../src/ui/QuickView.cpp" line="286"/>
         <source>Vol</source>
         <translation>音量</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="290"/>
+        <location filename="../../src/ui/QuickView.cpp" line="291"/>
         <source>Volume</source>
         <translation>音量</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="300"/>
+        <location filename="../../src/ui/QuickView.cpp" line="301"/>
         <source>Overlay basic video information</source>
         <translation>疊加顯示基本影片資訊</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="371"/>
+        <location filename="../../src/ui/QuickView.cpp" line="372"/>
         <source>&lt;b&gt;Duration:&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;Resolution:&lt;/b&gt; %2 &amp;times; %3&lt;br&gt;&lt;b&gt;Codec:&lt;/b&gt; %4</source>
         <translation>&lt;b&gt;片長：&lt;/b&gt;%1&lt;br&gt;&lt;b&gt;解析度：&lt;/b&gt;%2 &amp;times; %3&lt;br&gt;&lt;b&gt;編碼：&lt;/b&gt;%4</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="373"/>
         <location filename="../../src/ui/QuickView.cpp" line="374"/>
+        <location filename="../../src/ui/QuickView.cpp" line="375"/>
         <source>?</source>
         <translation>?</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="375"/>
+        <location filename="../../src/ui/QuickView.cpp" line="376"/>
         <source>unknown</source>
         <translation>未知</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="466"/>
+        <location filename="../../src/ui/QuickView.cpp" line="482"/>
         <source>Prev</source>
         <translation>上一個</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="472"/>
+        <location filename="../../src/ui/QuickView.cpp" line="488"/>
         <source>Next</source>
         <translation>下一個</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="526"/>
-        <location filename="../../src/ui/QuickView.cpp" line="533"/>
+        <location filename="../../src/ui/QuickView.cpp" line="542"/>
+        <location filename="../../src/ui/QuickView.cpp" line="549"/>
         <source>Failed to render page %1</source>
         <translation>轉譯第 %1 頁失敗</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="538"/>
+        <location filename="../../src/ui/QuickView.cpp" line="554"/>
         <source>Page %1 / %2</source>
         <translation>第 %1 / %2 頁</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="687"/>
+        <location filename="../../src/ui/QuickView.cpp" line="703"/>
         <source>Cannot open PDF: %1</source>
         <translation>無法開啟 PDF：%1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="727"/>
+        <location filename="../../src/ui/QuickView.cpp" line="746"/>
+        <source>“%1” is encrypted and cannot be previewed.</source>
+        <translation>「%1」已加密，無法預覽。</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="750"/>
         <source>Cannot preview %1:
 %2</source>
         <translation>無法預覽 %1：
 %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="758"/>
+        <location filename="../../src/ui/QuickView.cpp" line="781"/>
         <source>&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;%2 &amp;times; %3&lt;br&gt;%4&lt;br&gt;%5 bpp</source>
         <translation>&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;%2 &amp;times; %3&lt;br&gt;%4&lt;br&gt;%5 bpp</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="762"/>
+        <location filename="../../src/ui/QuickView.cpp" line="785"/>
         <source>Unknown format</source>
         <translation>未知格式</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="795"/>
+        <location filename="../../src/ui/QuickView.cpp" line="818"/>
         <source>No preview available for %1</source>
         <translation>無法預覽 %1</translation>
     </message>

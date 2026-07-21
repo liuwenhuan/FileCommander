@@ -1,6 +1,7 @@
 #include "OfficeConverter.h"
 
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QProcess>
 #include <QRegularExpression>
@@ -126,6 +127,13 @@ OfficeConverter::Result OfficeConverter::convert(const QString &path) {
         result.error = QStringLiteral("File does not exist: %1").arg(path);
         return result;
     }
+    // Encrypted OOXML is an OLE2 wrapper (detectable up front); office_oxide can't
+    // decrypt, so report it before even launching the CLI.
+    if (isEncrypted(path)) {
+        result.encrypted = true;
+        result.error = QStringLiteral("The document is encrypted.");
+        return result;
+    }
 
     const QString binary = resolveBinary();
     if (binary.isEmpty()) {
@@ -136,7 +144,30 @@ OfficeConverter::Result OfficeConverter::convert(const QString &path) {
         return result;
     }
 
-    return (result.kind == Kind::Document) ? convertDocument(binary, path) : convertSpreadsheet(binary, path);
+    Result r =
+        (result.kind == Kind::Document) ? convertDocument(binary, path) : convertSpreadsheet(binary, path);
+    // Legacy .doc/.xls encryption is detected by office_oxide (fEncrypted), which
+    // surfaces as an "... encrypted" error; flag it so the UI shows the right note.
+    if (!r.ok && r.error.contains(QStringLiteral("encrypt"), Qt::CaseInsensitive))
+        r.encrypted = true;
+    return r;
+}
+
+bool OfficeConverter::isEncrypted(const QString &path) {
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly))
+        return false;
+    const QByteArray head = f.read(8);
+    // OLE2 / Compound File Binary magic (encrypted OOXML is wrapped in one).
+    static const QByteArray kOle2 = QByteArray::fromHex(QByteArrayLiteral("d0cf11e0a1b11ae1"));
+    if (!head.startsWith(kOle2))
+        return false; // a zip-based OOXML or other file: not container-encrypted
+    // An OLE2 file with an OOXML extension is an encrypted package (a normal
+    // docx/xlsx/pptx is a zip). Legacy .doc/.xls/.ppt are OLE2 normally, so their
+    // encryption is left to office_oxide's fEncrypted detection.
+    const QString suffix = suffixLower(path);
+    return suffix == QLatin1String("docx") || suffix == QLatin1String("xlsx") ||
+           suffix == QLatin1String("pptx");
 }
 
 OfficeConverter::Result OfficeConverter::convertDocument(const QString &binary, const QString &path) {

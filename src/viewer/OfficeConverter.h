@@ -47,7 +47,13 @@ public:
         QString html;  // Document: HTML markup (render with QTextBrowser::setHtml)
         QString tsv;   // Spreadsheet: tab-separated cell text (one row per line)
         QString error; // human-readable message on failure
+        bool encrypted = false; // the file is password-protected / encrypted
     };
+
+    // True if the office file is encrypted (password-protected): an OOXML
+    // (docx/xlsx/pptx) whose container is an OLE2/CFB wrapper instead of a zip,
+    // or a legacy .doc whose FIB sets fEncrypted (office_oxide reports it).
+    static bool isEncrypted(const QString &path);
 
     // Runs the CLI synchronously (QProcess, ~30s timeout) and returns the
     // converted content. Never throws: every failure path sets ok=false and

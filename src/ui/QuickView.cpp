@@ -741,6 +741,12 @@ void QuickView::showFile(const QString &path) {
             m_stack->setCurrentWidget(m_officeTable);
             return;
         }
+        if (r.encrypted) {
+            m_info->setText(
+                tr("“%1” is encrypted and cannot be previewed.").arg(info.fileName()));
+            m_stack->setCurrentWidget(m_info);
+            return;
+        }
         m_info->setText(tr("Cannot preview %1:\n%2").arg(info.fileName(), r.error));
         m_stack->setCurrentWidget(m_info);
         return;
