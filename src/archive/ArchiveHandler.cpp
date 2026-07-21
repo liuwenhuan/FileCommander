@@ -112,8 +112,12 @@ bool addEntryRecursive(struct archive *a, const QString &fsPath, const QString &
 } // namespace
 
 bool ArchiveHandler::isSupportedArchive(const QString &path) {
+    // libarchive (archive_read_support_format_all in buildTree/extract) reads all
+    // of these, so listing/preview/extraction work uniformly. 7z, rar and iso are
+    // read-only here (creation still offers only the tar/zip family).
     static const QStringList kExtensions = {".zip",    ".tar",     ".tar.gz", ".tgz",
-                                             ".tar.bz2", ".tbz2",   ".tar.xz", ".txz"};
+                                             ".tar.bz2", ".tbz2",   ".tar.xz", ".txz",
+                                             ".7z",     ".rar",     ".iso"};
     const QString lower = path.toLower();
     for (const QString &ext : kExtensions) {
         if (lower.endsWith(ext))

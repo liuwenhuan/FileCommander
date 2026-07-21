@@ -46,8 +46,7 @@
 #include "config/Settings.h"
 
 namespace {
-constexpr qint64 kTextPreviewBytes = 64 * 1024;   // embedded text head cap: 64 KiB
-constexpr qint64 kTextWindowBytes = 5 * 1024 * 1024; // F3 window text cap: 5 MiB
+constexpr qint64 kTextWindowBytes = 5 * 1024 * 1024; // text preview cap: 5 MiB
 constexpr qint64 kMarkdownMaxBytes = 2 * 1024 * 1024; // cap markdown at 2 MiB
 
 // Selectable text encodings for the F3 window's text page. codec == nullptr
@@ -72,9 +71,10 @@ constexpr double kPdfMaxZoom = 6.0;
 
 QuickView::QuickView(Settings &settings, Context context, QWidget *parent)
     : QWidget(parent), m_settings(settings), m_context(context) {
-    // The F3 window reads up to 5 MiB (a real lister); the embedded pane keeps a
-    // light 64 KiB head since showFile runs on every cursor move.
-    m_textCap = (context == Context::Window) ? kTextWindowBytes : kTextPreviewBytes;
+    // Both contexts read up to 5 MiB and show the same toolbar, so the embedded
+    // Ctrl+Q pane and the F3 window preview text files identically.
+    Q_UNUSED(context);
+    m_textCap = kTextWindowBytes;
 
     m_info = new QLabel(tr("Select a file to preview"), this);
     m_info->setAlignment(Qt::AlignCenter);
@@ -246,9 +246,9 @@ QWidget *QuickView::buildTextPage() {
     m_text->setLineWrapMode(QPlainTextEdit::NoWrap);
     m_text->setFont(QFont(QStringLiteral("monospace")));
 
-    // The rich text controls only make sense in the standalone F3 viewer; the
-    // embedded Ctrl+Q pane shows a clean plaintext head.
-    m_textToolbar->setVisible(m_context == Context::Window);
+    // Shown in both contexts so the embedded Ctrl+Q pane and the F3 window are
+    // consistent for text files (same encoding/hex/wrap/find controls). The
+    // toolbar is added to the layout below and visible by default.
 
     auto *layout = new QVBoxLayout(m_textPage);
     layout->setContentsMargins(0, 0, 0, 0);
