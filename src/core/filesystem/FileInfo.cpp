@@ -35,6 +35,31 @@ const QString &FileInfo::mimeType() const {
     return m_mimeType;
 }
 
+FileInfo FileInfo::fromFields(const QString &path, const QString &name, qint64 size,
+                              const QDateTime &modified, bool isDir,
+                              QFile::Permissions permissions) {
+    FileInfo info;
+    info.m_name = name;
+    info.m_path = path;
+    info.m_isDir = isDir;
+    info.m_isSymLink = false;
+    // Match the local constructor's split rule: directories have no extension
+    // (the whole name is the base); files show base + trailing suffix.
+    if (isDir) {
+        info.m_suffix = QString();
+        info.m_baseName = name;
+    } else {
+        const QFileInfo qfi(name);
+        info.m_suffix = qfi.suffix();
+        info.m_baseName = qfi.completeBaseName();
+    }
+    info.m_size = size;
+    info.m_modified = modified;
+    // m_created intentionally left invalid: SFTP exposes no creation time.
+    info.m_permissions = permissions;
+    return info;
+}
+
 FileInfo FileInfo::makeParentEntry(const QString &parentPath) {
     FileInfo info(parentPath);
     info.m_name = QStringLiteral("..");
