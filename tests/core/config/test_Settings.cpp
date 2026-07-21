@@ -39,10 +39,10 @@ TEST(SettingsTest, ClearShortcutOverridesRestoresDefaults) {
               QKeySequence(Qt::Key_F5));
 }
 
-TEST(SettingsTest, ListFontSizeDefaultsToTen) {
+TEST(SettingsTest, ListFontSizeDefaultsToTwelve) {
     IsolatedConfigDir isolated;
     Settings settings;
-    EXPECT_EQ(settings.listFontSize(), 10);
+    EXPECT_EQ(settings.listFontSize(), 12);
 }
 
 TEST(SettingsTest, ListFontSizeRoundTrips) {
@@ -56,9 +56,9 @@ TEST(SettingsTest, ListFontSizeClampsToRange) {
     IsolatedConfigDir isolated;
     Settings settings;
     settings.setListFontSize(2);
-    EXPECT_EQ(settings.listFontSize(), 7);
+    EXPECT_EQ(settings.listFontSize(), 8);
     settings.setListFontSize(99);
-    EXPECT_EQ(settings.listFontSize(), 24);
+    EXPECT_EQ(settings.listFontSize(), 18);
 }
 
 TEST(SettingsTest, WindowGeometryRoundTrips) {
