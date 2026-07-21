@@ -107,7 +107,6 @@ private slots:
     void updateQuickView();
     void undoLast(); // Ctrl+Z
     void runCommand(const QString &command, const QString &directory);
-    void toggleFolderTree();
 
     void navigateBack();
     void navigateForward();
@@ -167,10 +166,7 @@ private:
     QStringList m_operationErrors; // accumulated per-file errors for the running job
     ThemeManager *m_themeManager;
     Settings m_settings;
-    QSplitter *m_outerSplitter;
     QSplitter *m_panelSplitter;
-    QTreeView *m_folderTree;
-    QFileSystemModel *m_folderTreeModel;
     QMenu *m_commandsMenu = nullptr; // owned; rebuilt on language change
     QMenu *m_viewMenu = nullptr;     // owned; rebuilt on language change
     bool m_shortcutsBuilt = false;   // one-shot guard for QShortcut creation

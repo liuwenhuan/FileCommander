@@ -15,6 +15,11 @@ class StatusBarWidget;
 class TabBar;
 class QLineEdit;
 class QToolButton;
+class QTreeView;
+class QFileSystemModel;
+class QSplitter;
+class QListView;
+class QStackedWidget;
 
 // One side of the dual-pane layout: address bar + file list + per-panel
 // back/forward history. Two of these live in MainWindow (left/right).
@@ -86,6 +91,11 @@ public:
     // MainWindow blocks write ops (delete/rename/mkdir/move-in/paste) here.
     bool isArchive() const { return m_archiveProvider != nullptr; }
 
+    // List <-> thumbnail (icon) view. The * menu offers the toggle with a label
+    // that depends on the current mode.
+    bool isThumbnailMode() const;
+    void toggleViewMode();
+
     // Re-applies translated text (the status-bar object/selection counts) after a
     // live UI-language change.
     void retranslate() { updateStatus(); }
@@ -117,15 +127,23 @@ private:
     QString tabLabelFor(const QSharedPointer<TabState> &tab) const;
     void syncTabBarFromManager();
     void closeTabAt(int index);
+    // Selects + scrolls the folder tree to `path` when the tree is visible.
+    void syncTreeToPath(const QString &path);
     void saveCurrentTabState();
     void loadTabState(int index);
     void updateActiveTabLabel();
 
     BreadcrumbBar *m_addressBar;
+    QToolButton *m_treeButton; // "🗀" toggles this panel's folder tree; first in the row
     QToolButton *m_backButton;
     QToolButton *m_forwardButton;
-    QToolButton *m_favButton;  // "★" directory favorites, left of the address bar
+    QToolButton *m_favButton;  // "★" directory favorites, now before the "✳" button
     QToolButton *m_starButton;
+    QTreeView *m_dirTree = nullptr;            // per-panel folder tree (hidden by default)
+    QFileSystemModel *m_dirTreeModel = nullptr;
+    QSplitter *m_bodySplitter = nullptr;       // [tree | body]
+    QListView *m_iconView = nullptr;           // thumbnail/icon mode (shares m_model)
+    QStackedWidget *m_bodyStack = nullptr;     // {list view, icon view}
     QToolButton *m_addTabButton; // "+" at the right end of the tab strip
     QLineEdit *m_filterBar;
     FileListView *m_view;

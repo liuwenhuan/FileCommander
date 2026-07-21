@@ -14,8 +14,13 @@
 #include <QItemSelectionModel>
 #include <QKeyEvent>
 #include <QLineEdit>
+#include <QStackedWidget>
+#include <QListView>
 #include <QShortcut>
 #include <QStorageInfo>
+#include <QTreeView>
+#include <QFileSystemModel>
+#include <QSplitter>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QtConcurrent/QtConcurrent>
@@ -50,6 +55,20 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
 
     m_addressBar = new BreadcrumbBar(this);
     m_addressBar->setFocusPolicy(Qt::ClickFocus); // keep it out of the Tab chain
+
+    // Folder-tree toggle: first item in the path row (before Back). Shows/hides
+    // this panel's own directory tree.
+    m_treeButton = new QToolButton(this);
+    m_treeButton->setText(QStringLiteral("🗀"));
+    m_treeButton->setAutoRaise(true);
+    m_treeButton->setCheckable(true);
+    m_treeButton->setFocusPolicy(Qt::NoFocus);
+    m_treeButton->setToolTip(tr("Folder tree"));
+    connect(m_treeButton, &QToolButton::toggled, this, [this](bool on) {
+        m_dirTree->setVisible(on);
+        if (on)
+            syncTreeToPath(m_model->rootPath());
+    });
 
     // Back/Forward live inline at the head of the path row (no separate
     // toolbar) to save a full row of vertical space.
@@ -95,10 +114,11 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     auto *addressLayout = new QHBoxLayout(addressRow);
     addressLayout->setContentsMargins(0, 0, 0, 0);
     addressLayout->setSpacing(2);
+    addressLayout->addWidget(m_treeButton);
     addressLayout->addWidget(m_backButton);
     addressLayout->addWidget(m_forwardButton);
-    addressLayout->addWidget(m_favButton);
     addressLayout->addWidget(m_addressBar, 1);
+    addressLayout->addWidget(m_favButton);
     addressLayout->addWidget(m_starButton);
 
     m_filterBar = new QLineEdit(this);
@@ -118,13 +138,59 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     tabRowLayout->addWidget(m_tabBar, 1);
     tabRowLayout->addWidget(m_addTabButton, 0, Qt::AlignVCenter);
 
+    // Per-panel folder tree, to the left of the list in a splitter. Hidden until
+    // the tree button is toggled on. Navigating it drives this panel.
+    m_dirTreeModel = new QFileSystemModel(this);
+    m_dirTreeModel->setRootPath(QDir::rootPath());
+    m_dirTreeModel->setFilter(QDir::Dirs | QDir::NoDotAndDotDot);
+    m_dirTree = new QTreeView(this);
+    m_dirTree->setModel(m_dirTreeModel);
+    m_dirTree->setRootIndex(m_dirTreeModel->index(QDir::rootPath()));
+    for (int col = 1; col < m_dirTreeModel->columnCount(); ++col)
+        m_dirTree->hideColumn(col);
+    m_dirTree->setHeaderHidden(true);
+    m_dirTree->setFocusPolicy(Qt::ClickFocus);
+    m_dirTree->hide();
+    connect(m_dirTree, &QTreeView::activated, this, [this](const QModelIndex &idx) {
+        navigateTo(m_dirTreeModel->filePath(idx));
+    });
+
+    // Thumbnail/icon view: shares the model and (below) the selection model with
+    // the list, so a mode switch keeps the current selection. Big icons come
+    // from the model's DecorationRole (IconCache).
+    m_iconView = new QListView(this);
+    m_iconView->setModel(m_model);
+    m_iconView->setModelColumn(0); // Name column carries the icon + label
+    m_iconView->setViewMode(QListView::IconMode);
+    m_iconView->setIconSize(QSize(64, 64));
+    m_iconView->setGridSize(QSize(110, 90));
+    m_iconView->setResizeMode(QListView::Adjust);
+    m_iconView->setMovement(QListView::Static);
+    m_iconView->setUniformItemSizes(true);
+    m_iconView->setWordWrap(true);
+    m_iconView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    m_iconView->setSelectionModel(m_view->selectionModel()); // shared: mode switch keeps selection
+    m_iconView->installEventFilter(this);
+    connect(m_iconView, &QAbstractItemView::activated, this, &FilePanel::onActivated);
+
+    m_bodyStack = new QStackedWidget(this);
+    m_bodyStack->addWidget(m_view);     // index 0: list
+    m_bodyStack->addWidget(m_iconView); // index 1: thumbnails
+
+    m_bodySplitter = new QSplitter(Qt::Horizontal, this);
+    m_bodySplitter->addWidget(m_dirTree);
+    m_bodySplitter->addWidget(m_bodyStack);
+    m_bodySplitter->setStretchFactor(0, 0);
+    m_bodySplitter->setStretchFactor(1, 1);
+    m_bodySplitter->setSizes({200, 600});
+
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(2);
     layout->addWidget(tabRow);
     layout->addWidget(addressRow);
     layout->addWidget(m_filterBar);
-    layout->addWidget(m_view, 1);
+    layout->addWidget(m_bodySplitter, 1);
     layout->addWidget(m_statusBar);
 
     connect(m_view->selectionModel(), &QItemSelectionModel::selectionChanged, this,
@@ -139,6 +205,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     // The tab bar keeps its natural height so the style vertically centres the
     // tab text; forcing it shorter left the text stuck at the bottom.
     m_addressBar->setFixedHeight(rowH);
+    m_treeButton->setFixedSize(rowH, rowH);
     m_backButton->setFixedSize(rowH, rowH);
     m_forwardButton->setFixedSize(rowH, rowH);
     m_favButton->setFixedSize(rowH, rowH);
@@ -153,6 +220,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     connect(m_addressBar, &BreadcrumbBar::pathActivated, this, &FilePanel::onAddressBarEntered);
     connect(m_model, &FileSystemModel::loadFinished, this, [this](int) {
         m_addressBar->setPath(m_model->rootPath());
+        syncTreeToPath(m_model->rootPath());
         if (!m_pendingSelection.isEmpty()) {
             QItemSelectionModel *sel = m_view->selectionModel();
             QModelIndex first;
@@ -364,6 +432,34 @@ void FilePanel::goForward() {
 void FilePanel::refresh() {
     if (!m_model->rootPath().isEmpty())
         m_model->setRootPath(m_model->rootPath());
+}
+
+bool FilePanel::isThumbnailMode() const {
+    return m_bodyStack && m_bodyStack->currentWidget() == m_iconView;
+}
+
+void FilePanel::toggleViewMode() {
+    if (!m_bodyStack)
+        return;
+    const bool toThumb = !isThumbnailMode();
+    m_bodyStack->setCurrentWidget(toThumb ? static_cast<QWidget *>(m_iconView)
+                                          : static_cast<QWidget *>(m_view));
+    // Carry the keyboard cursor across so arrow keys resume where they were.
+    if (const QModelIndex cur = m_view->currentIndex(); cur.isValid())
+        (toThumb ? static_cast<QAbstractItemView *>(m_iconView)
+                 : static_cast<QAbstractItemView *>(m_view))
+            ->setCurrentIndex(cur);
+    (toThumb ? static_cast<QWidget *>(m_iconView) : static_cast<QWidget *>(m_view))->setFocus();
+}
+
+void FilePanel::syncTreeToPath(const QString &path) {
+    if (!m_dirTree || !m_dirTree->isVisible() || path.isEmpty())
+        return;
+    const QModelIndex idx = m_dirTreeModel->index(path);
+    if (idx.isValid()) {
+        m_dirTree->setCurrentIndex(idx);
+        m_dirTree->scrollTo(idx);
+    }
 }
 
 void FilePanel::onActivated(const QModelIndex &index) {

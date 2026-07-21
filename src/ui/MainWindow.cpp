@@ -178,26 +178,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_quickView = new QuickView(m_settings, this);
     m_quickView->hide(); // parked until Ctrl+Q swaps it into a panel slot
 
-    m_folderTreeModel = new QFileSystemModel(this);
-    m_folderTreeModel->setRootPath(QDir::rootPath());
-    m_folderTreeModel->setFilter(QDir::Dirs | QDir::NoDotAndDotDot);
-    m_folderTree = new QTreeView(this);
-    m_folderTree->setModel(m_folderTreeModel);
-    m_folderTree->setRootIndex(m_folderTreeModel->index(QDir::rootPath()));
-    for (int col = 1; col < m_folderTreeModel->columnCount(); ++col)
-        m_folderTree->hideColumn(col);
-    m_folderTree->setHeaderHidden(true);
-    m_folderTree->hide(); // hidden by default; toggled via View menu
-    connect(m_folderTree, &QTreeView::activated, this, [this](const QModelIndex &idx) {
-        if (m_activePanel)
-            m_activePanel->navigateTo(m_folderTreeModel->filePath(idx));
-    });
-
-    m_outerSplitter = new QSplitter(this);
-    m_outerSplitter->addWidget(m_folderTree);
-    m_outerSplitter->addWidget(splitter);
-    m_outerSplitter->setStretchFactor(0, 0);
-    m_outerSplitter->setStretchFactor(1, 1);
+    // (Folder trees are now per-panel, inside each FilePanel.)
 
     m_functionKeyBar = new FunctionKeyBar(this);
     m_commandBar = new CommandBar(this);
@@ -206,7 +187,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     auto *central = new QWidget(this);
     auto *layout = new QVBoxLayout(central);
     layout->setContentsMargins(4, 4, 4, 0);
-    layout->addWidget(m_outerSplitter, 1);
+    layout->addWidget(splitter, 1);
     layout->addWidget(m_commandBar);
     layout->addWidget(m_functionKeyBar);
     setCentralWidget(central);
@@ -301,15 +282,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         m_rightPanel->view()->markColumnsManual();
     }
 
-    // Optional bars/panes + splitter layout. Applied before buildTitleBarMenus()
-    // so the View-menu checkmarks (which read the widgets' visibility) match.
+    // Optional bars + splitter layout. Applied before buildTitleBarMenus() so
+    // the View-menu checkmarks (which read the widgets' visibility) match.
     m_commandBar->setVisible(m_settings.showCommandBar());
     m_functionKeyBar->setVisible(m_settings.showFunctionKeyBar());
-    m_folderTree->setVisible(m_settings.showFolderTree());
     if (const QByteArray s = m_settings.panelSplitterState(); !s.isEmpty())
         m_panelSplitter->restoreState(s);
-    if (const QByteArray s = m_settings.outerSplitterState(); !s.isEmpty())
-        m_outerSplitter->restoreState(s);
 
     const QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
     SessionPanelData leftSession, rightSession;
@@ -336,14 +314,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         connect(panel, &FilePanel::shortcutMenuRequested, this, &MainWindow::showShortcutMenu);
         connect(panel, &FilePanel::favoritesMenuRequested, this, &MainWindow::showFavoritesMenu);
         connect(panel, &FilePanel::pathChanged, this, [this, panel](const QString &path) {
-            if (panel == m_activePanel) {
+            if (panel == m_activePanel)
                 m_commandBar->setDirectory(path);
-                if (m_folderTree->isVisible()) {
-                    const QModelIndex idx = m_folderTreeModel->index(path);
-                    m_folderTree->setCurrentIndex(idx);
-                    m_folderTree->scrollTo(idx);
-                }
-            }
         });
         connect(panel->view(), &FileListView::filesDropped, this, &MainWindow::handleFilesDropped);
         connect(panel->view()->selectionModel(), &QItemSelectionModel::currentRowChanged, this,
@@ -572,11 +544,8 @@ void MainWindow::buildTitleBarMenus() {
         m_settings.setShowFunctionKeyBar(on);
     });
 
-    viewMenu->addSeparator();
-    QAction *folderTreeAction = viewMenu->addAction(tr("&Folder Tree"), this,
-                                                      &MainWindow::toggleFolderTree);
-    folderTreeAction->setCheckable(true);
-    folderTreeAction->setChecked(!m_folderTree->isHidden());
+    // (Folder tree is per-panel now, toggled by the button in each panel's
+    // address row — no global View-menu entry.)
 
     // Embed the menus in our self-drawn title bar (app icon + menu buttons +
     // window buttons), placed where the menu bar would normally sit.
@@ -1033,6 +1002,14 @@ void MainWindow::showShortcutMenu(const QPoint &globalPos) {
         if (m_activePanel)
             m_activePanel->invertSelection();
     });
+    if (m_activePanel) {
+        const QString label = m_activePanel->isThumbnailMode() ? tr("Switch to list view")
+                                                               : tr("Switch to thumbnail view");
+        addEntry(label, QString(), [this]() {
+            if (m_activePanel)
+                m_activePanel->toggleViewMode();
+        });
+    }
 
     // Align the menu's right edge with the active panel's right edge -- for the
     // left panel that's the splitter between the two panels -- instead of
@@ -1509,16 +1486,6 @@ void MainWindow::showFavoritesMenu(const QPoint &globalPos) {
     menu.exec(globalPos);
 }
 
-void MainWindow::toggleFolderTree() {
-    const bool nowVisible = !m_folderTree->isVisible();
-    m_folderTree->setVisible(nowVisible);
-    m_settings.setShowFolderTree(nowVisible);
-    if (nowVisible && m_activePanel) {
-        const QModelIndex idx = m_folderTreeModel->index(m_activePanel->currentPath());
-        m_folderTree->setCurrentIndex(idx);
-        m_folderTree->scrollTo(idx);
-    }
-}
 
 void MainWindow::setTheme(Settings::Theme theme) {
     m_settings.setTheme(theme);
@@ -1933,9 +1900,8 @@ void MainWindow::closeEvent(QCloseEvent *event) {
     m_settings.setWindowGeometry(saveGeometry());
     // Persist the shared column layout + sort from the left panel's header.
     m_settings.setViewHeaderState(m_leftPanel->view()->horizontalHeader()->saveState());
-    // Persist the divider positions (panel split + folder-tree split).
+    // Persist the panel divider position.
     m_settings.setPanelSplitterState(m_panelSplitter->saveState());
-    m_settings.setOuterSplitterState(m_outerSplitter->saveState());
 
     SessionPanelData leftSession, rightSession;
     for (const auto &t : m_leftPanel->tabSnapshot())
