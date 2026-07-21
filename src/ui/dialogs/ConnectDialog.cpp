@@ -8,8 +8,12 @@
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFormLayout>
+#include <QGroupBox>
+#include <QHBoxLayout>
+#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSpinBox>
@@ -32,6 +36,14 @@ const ProtocolChoice kProtocols[] = {
     {"WebDAV (HTTPS)", GvfsMounter::Protocol::WebDavs},
     {"FTP", GvfsMounter::Protocol::Ftp},
 };
+
+// Maps a stored GvfsMounter::Protocol value to its combo index (0 if unknown).
+int protocolToIndex(int protocol) {
+    for (int i = 0; i < static_cast<int>(std::size(kProtocols)); ++i)
+        if (static_cast<int>(kProtocols[i].protocol) == protocol)
+            return i;
+    return 0;
+}
 
 } // namespace
 
@@ -72,7 +84,26 @@ ConnectDialog::ConnectDialog(QWidget *parent) : QDialog(parent) {
         new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     m_buttons->button(QDialogButtonBox::Ok)->setText(tr("Connect"));
 
+    // Saved-connections panel: a list of bookmarks with Save / Delete buttons.
+    // Selecting one fills the form (and pulls its password from the keyring).
+    m_savedList = new QListWidget(this);
+    m_savedList->setMaximumHeight(120);
+    m_saveButton = new QPushButton(tr("Save"), this);
+    m_deleteButton = new QPushButton(tr("Delete"), this);
+    m_deleteButton->setEnabled(false);
+
+    auto *savedButtons = new QHBoxLayout;
+    savedButtons->addWidget(m_saveButton);
+    savedButtons->addWidget(m_deleteButton);
+    savedButtons->addStretch();
+
+    auto *savedBox = new QGroupBox(tr("Saved connections"), this);
+    auto *savedLayout = new QVBoxLayout(savedBox);
+    savedLayout->addWidget(m_savedList);
+    savedLayout->addLayout(savedButtons);
+
     auto *layout = new QVBoxLayout(this);
+    layout->addWidget(savedBox);
     layout->addLayout(form);
     auto *hint = new QLabel(
         tr("The server is mounted via GVfs and opened as a local folder."), this);
@@ -86,8 +117,118 @@ ConnectDialog::ConnectDialog(QWidget *parent) : QDialog(parent) {
             &ConnectDialog::onProtocolChanged);
     connect(m_anonymousCheck, &QCheckBox::toggled, this,
             &ConnectDialog::onAnonymousToggled);
+    connect(m_savedList, &QListWidget::itemSelectionChanged, this,
+            &ConnectDialog::onSavedSelectionChanged);
+    connect(m_saveButton, &QPushButton::clicked, this, &ConnectDialog::onSaveConnection);
+    connect(m_deleteButton, &QPushButton::clicked, this, &ConnectDialog::onDeleteConnection);
 
     onProtocolChanged(0); // seed default port
+    reloadSavedList();
+}
+
+void ConnectDialog::reloadSavedList() {
+    m_saved = ConnectionStore::loadAll();
+    m_savedList->clear();
+    for (const SavedConnection &c : m_saved) {
+        const QString label = c.name.isEmpty() ? c.host : c.name;
+        m_savedList->addItem(label);
+    }
+    m_deleteButton->setEnabled(false);
+}
+
+void ConnectDialog::fillForm(const SavedConnection &conn) {
+    m_protocolCombo->setCurrentIndex(protocolToIndex(conn.protocol));
+    m_hostEdit->setText(conn.host);
+    if (conn.port > 0)
+        m_portSpin->setValue(conn.port);
+    m_userEdit->setText(conn.user);
+    m_pathEdit->setText(conn.remotePath.isEmpty() ? QStringLiteral("/") : conn.remotePath);
+    m_anonymousCheck->setChecked(conn.anonymous);
+    // Password lives in the keyring, not the INI.
+    m_passwordEdit->setText(ConnectionStore::loadPassword(conn.id));
+}
+
+SavedConnection ConnectDialog::currentFormAsConnection() const {
+    SavedConnection c;
+    const int index = m_protocolCombo->currentIndex();
+    if (index >= 0 && index < static_cast<int>(std::size(kProtocols)))
+        c.protocol = static_cast<int>(kProtocols[index].protocol);
+    c.host = m_hostEdit->text().trimmed();
+    c.port = m_portSpin->value();
+    c.anonymous = m_anonymousCheck->isChecked();
+    c.user = c.anonymous ? QString() : m_userEdit->text().trimmed();
+    const QString p = m_pathEdit->text().trimmed();
+    c.remotePath = p.isEmpty() ? QStringLiteral("/") : p;
+    return c;
+}
+
+void ConnectDialog::onSavedSelectionChanged() {
+    const int row = m_savedList->currentRow();
+    if (row < 0 || row >= m_saved.size()) {
+        m_deleteButton->setEnabled(false);
+        return;
+    }
+    m_currentId = m_saved[row].id;
+    m_deleteButton->setEnabled(true);
+    fillForm(m_saved[row]);
+}
+
+void ConnectDialog::onSaveConnection() {
+    SavedConnection c = currentFormAsConnection();
+    if (c.host.isEmpty()) {
+        QMessageBox::warning(this, tr("Save Connection"),
+                             tr("Please enter a server address first."));
+        return;
+    }
+
+    // Reuse the selected bookmark's id (update in place) or start a new one.
+    c.id = m_currentId;
+    const SavedConnection existing =
+        c.id.isEmpty() ? SavedConnection{} : ConnectionStore::load(c.id);
+    const QString suggested =
+        !existing.name.isEmpty() ? existing.name : c.host;
+
+    bool ok = false;
+    const QString name = QInputDialog::getText(
+        this, tr("Save Connection"), tr("Name for this connection:"),
+        QLineEdit::Normal, suggested, &ok);
+    if (!ok)
+        return;
+    c.name = name.trimmed().isEmpty() ? c.host : name.trimmed();
+
+    const QString id = ConnectionStore::save(c);
+    // Store the password (or clear it) in the keyring alongside the metadata.
+    const QString password = c.anonymous ? QString() : m_passwordEdit->text();
+    if (password.isEmpty())
+        ConnectionStore::clearPassword(id);
+    else
+        ConnectionStore::storePassword(id, password);
+
+    m_currentId = id;
+    reloadSavedList();
+    // Reselect the just-saved bookmark.
+    for (int i = 0; i < m_saved.size(); ++i) {
+        if (m_saved[i].id == id) {
+            m_savedList->setCurrentRow(i);
+            break;
+        }
+    }
+}
+
+void ConnectDialog::onDeleteConnection() {
+    const int row = m_savedList->currentRow();
+    if (row < 0 || row >= m_saved.size())
+        return;
+    const SavedConnection &c = m_saved[row];
+    const QString label = c.name.isEmpty() ? c.host : c.name;
+    if (QMessageBox::question(this, tr("Delete Connection"),
+                              tr("Remove the saved connection \"%1\"?").arg(label)) !=
+        QMessageBox::Yes)
+        return;
+    ConnectionStore::remove(c.id);
+    if (m_currentId == c.id)
+        m_currentId.clear();
+    reloadSavedList();
 }
 
 void ConnectDialog::onProtocolChanged(int index) {

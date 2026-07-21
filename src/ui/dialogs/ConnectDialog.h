@@ -6,12 +6,15 @@
 #include <memory>
 
 #include "FileProvider.h"
+#include "network/ConnectionStore.h"
 
 class QComboBox;
 class QLineEdit;
 class QSpinBox;
 class QCheckBox;
 class QDialogButtonBox;
+class QListWidget;
+class QPushButton;
 
 // Commands > Connect to Server… — collects remote connection parameters,
 // mounts the target through GvfsMounter (GVfs), and exposes the resulting local
@@ -49,9 +52,25 @@ public:
 private slots:
     void onProtocolChanged(int index);
     void onAnonymousToggled(bool anonymous);
+    void onSavedSelectionChanged();
+    void onSaveConnection();
+    void onDeleteConnection();
 
 private:
     void accept() override; // performs the mount; keeps dialog open on failure
+
+    // Rebuilds the saved-connections list widget from ConnectionStore.
+    void reloadSavedList();
+    // Populates the form fields from a bookmark (and its keyring password).
+    void fillForm(const SavedConnection &conn);
+    // Reads the current form into a bookmark (id left empty for a new one).
+    SavedConnection currentFormAsConnection() const;
+
+    QListWidget *m_savedList;
+    QPushButton *m_saveButton;
+    QPushButton *m_deleteButton;
+    QVector<SavedConnection> m_saved; // parallel to m_savedList rows
+    QString m_currentId;              // id of the loaded bookmark, empty if new
 
     QComboBox *m_protocolCombo;
     QLineEdit *m_hostEdit;
