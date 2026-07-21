@@ -55,6 +55,13 @@ QIcon appIcon() {
 } // namespace
 
 int main(int argc, char *argv[]) {
+    // Use the native Qt xcb platform rather than deepin's dxcb: the app draws its
+    // own frameless chrome (title bar, rounded corners, shadow) and relies on no
+    // DTK/deepin platform behaviour, so it looks and works the same on any X11
+    // desktop. Respect an explicit QT_QPA_PLATFORM override if the user set one.
+    if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM"))
+        qputenv("QT_QPA_PLATFORM", "xcb");
+
     QApplication app(argc, argv);
     // libmpv (video preview) refuses to create a context unless LC_NUMERIC is
     // "C". Qt/system locale otherwise sets it to the user's locale, which makes

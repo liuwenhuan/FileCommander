@@ -6,6 +6,7 @@
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QToolButton>
 #include <QWindow>
 
@@ -86,6 +87,9 @@ private:
 TitleBar::TitleBar(QWidget *window, const QList<QMenu *> &menus, QWidget *parent)
     : QWidget(parent), m_window(window) {
     setAutoFillBackground(false);
+    // Translucent so the rounded top corners reveal the window's shadow/rounded
+    // background behind them (the window is frameless, xcb; see MainWindow).
+    setAttribute(Qt::WA_TranslucentBackground);
 
     auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(8, 0, 0, 0);
@@ -180,9 +184,27 @@ void TitleBar::mouseDoubleClickEvent(QMouseEvent *event) {
 
 void TitleBar::paintEvent(QPaintEvent *) {
     // Theme-following background: the window colour, a touch lighter/darker than
-    // the panels so the bar reads as chrome.
+    // the panels so the bar reads as chrome. The top corners are rounded to
+    // match the frameless window (radius 8, kept in sync with MainWindow's
+    // kCornerRadius); a maximized window is square.
     QPainter p(this);
-    p.fillRect(rect(), palette().color(QPalette::Window));
+    p.setRenderHint(QPainter::Antialiasing);
+    const QColor bg = palette().color(QPalette::Window);
+    if (m_window && m_window->isMaximized()) {
+        p.fillRect(rect(), bg);
+    } else {
+        constexpr int radius = 8;
+        QPainterPath path;
+        // Rounded top-left / top-right, square bottom (the body continues below).
+        path.moveTo(0, height());
+        path.lineTo(0, radius);
+        path.arcTo(0, 0, 2 * radius, 2 * radius, 180, -90);
+        path.lineTo(width() - radius, 0);
+        path.arcTo(width() - 2 * radius, 0, 2 * radius, 2 * radius, 90, -90);
+        path.lineTo(width(), height());
+        path.closeSubpath();
+        p.fillPath(path, bg);
+    }
 
     // Centred application name, dimmed so it reads as chrome rather than a
     // control. Centred on the full bar width; the menu buttons on the left and

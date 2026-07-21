@@ -27,6 +27,9 @@
 #include <QMessageBox>
 #include <QMimeData>
 #include <QPainter>
+#include <QResizeEvent>
+#include <QRegion>
+#include <QPainterPath>
 #include <QProcess>
 #include <QPushButton>
 #include <QShortcut>
@@ -128,11 +131,19 @@ QMimeData *buildFileClipboardData(const QStringList &paths, bool cut) {
 
     return mime;
 }
+
+// Frameless-window chrome metrics (see paintEvent / event / changeEvent).
+constexpr int kShadowMargin = 16; // translucent margin: drop shadow + resize band
+constexpr int kCornerRadius = 8;  // rounded window-corner radius
+constexpr int kResizeGrab = 8;    // edge-resize grab band, straddling the content edge
 } // namespace
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
-    // Frameless: we draw our own title bar (see setupMenuAndToolbar / TitleBar).
+    // Frameless: we draw our own title bar (see setupMenuAndToolbar / TitleBar)
+    // plus a rounded background and soft shadow in paintEvent. The window is
+    // translucent so the shadow can fade into nothing at its edges.
     setWindowFlag(Qt::FramelessWindowHint);
+    setAttribute(Qt::WA_TranslucentBackground);
     setWindowTitle(tr("Total Commander for Linux"));
     resize(1200, 700);
 
@@ -191,10 +202,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     layout->addWidget(m_commandBar);
     layout->addWidget(m_functionKeyBar);
     setCentralWidget(central);
-    // A thin resize border around the content (left/right/bottom) that the
-    // frameless window uses for WM-driven edge resizing (see event()).
+    // Transparent margin around the content: the drop shadow is painted here,
+    // and it doubles as the WM-driven edge-resize band (see event()). Collapsed
+    // to 0 when maximized (changeEvent).
     setMouseTracking(true);
-    setContentsMargins(6, 0, 6, 6);
+    setContentsMargins(kShadowMargin, kShadowMargin, kShadowMargin, kShadowMargin);
     // No global status bar: each FilePanel carries its own status strip, so
     // the function-key bar stays the bottom-most widget.
 
@@ -582,17 +594,17 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
 }
 
 namespace {
-constexpr int kResizeMargin = 6;
-
-Qt::Edges edgesAt(const QRect &r, const QPoint &p) {
+// Edges whose grab band (straddling the visible content rectangle's edge)
+// contains p. `content` is the window rect inset by the shadow margin.
+Qt::Edges edgesAt(const QRect &content, const QPoint &p) {
     Qt::Edges e;
-    if (p.x() <= kResizeMargin)
+    if (qAbs(p.x() - content.left()) <= kResizeGrab)
         e |= Qt::LeftEdge;
-    else if (p.x() >= r.width() - kResizeMargin)
+    else if (qAbs(p.x() - content.right()) <= kResizeGrab)
         e |= Qt::RightEdge;
-    if (p.y() <= kResizeMargin)
+    if (qAbs(p.y() - content.top()) <= kResizeGrab)
         e |= Qt::TopEdge;
-    else if (p.y() >= r.height() - kResizeMargin)
+    else if (qAbs(p.y() - content.bottom()) <= kResizeGrab)
         e |= Qt::BottomEdge;
     return e;
 }
@@ -617,9 +629,11 @@ void MainWindow::changeEvent(QEvent *event) {
     if (event->type() == QEvent::WindowStateChange) {
         if (m_titleBar)
             m_titleBar->syncWindowState();
-        // A maximized/full window has no draggable resize border.
-        const int m = isMaximized() ? 0 : kResizeMargin;
-        setContentsMargins(m, 0, m, m);
+        // A maximized window fills the screen: drop the shadow margin (and its
+        // rounded corners) so no transparent gap shows at the screen edges.
+        const int m = isMaximized() ? 0 : kShadowMargin;
+        setContentsMargins(m, m, m, m);
+        update();
     }
 }
 
@@ -630,7 +644,9 @@ bool MainWindow::event(QEvent *event) {
     if (!isMaximized() &&
         (event->type() == QEvent::MouseMove || event->type() == QEvent::MouseButtonPress)) {
         auto *me = static_cast<QMouseEvent *>(event);
-        const Qt::Edges edges = edgesAt(rect(), me->pos());
+        const QRect content = rect().adjusted(kShadowMargin, kShadowMargin,
+                                              -kShadowMargin, -kShadowMargin);
+        const Qt::Edges edges = edgesAt(content, me->pos());
         if (event->type() == QEvent::MouseMove) {
             if (me->buttons() == Qt::NoButton)
                 setCursor(cursorForEdges(edges));
@@ -642,6 +658,60 @@ bool MainWindow::event(QEvent *event) {
         }
     }
     return QMainWindow::event(event);
+}
+
+void MainWindow::paintEvent(QPaintEvent *) {
+    QPainter p(this);
+    p.setRenderHint(QPainter::Antialiasing);
+
+    // Maximized: fill the whole rect square (no shadow, no rounding).
+    if (isMaximized() || contentsMargins().left() == 0) {
+        p.fillRect(rect(), palette().color(QPalette::Window));
+        return;
+    }
+
+    const QRect content =
+        rect().adjusted(kShadowMargin, kShadowMargin, -kShadowMargin, -kShadowMargin);
+
+    // Soft drop shadow: concentric rounded rects, darkest next to the content
+    // and fading to nothing at the window edge. Drawn largest-first so the more
+    // opaque inner rings paint on top.
+    p.setPen(Qt::NoPen);
+    for (int i = kShadowMargin; i >= 1; --i) {
+        const int alpha = 46 * (kShadowMargin - i + 1) / kShadowMargin;
+        p.setBrush(QColor(0, 0, 0, alpha));
+        p.drawRoundedRect(QRectF(content).adjusted(-i, -i + 1, i, i + 1),
+                          kCornerRadius + i, kCornerRadius + i);
+    }
+
+    // Opaque rounded window background over the shadow's inner area.
+    p.setBrush(palette().color(QPalette::Window));
+    p.drawRoundedRect(content, kCornerRadius, kCornerRadius);
+}
+
+void MainWindow::resizeEvent(QResizeEvent *event) {
+    QMainWindow::resizeEvent(event);
+    QWidget *c = centralWidget();
+    if (!c)
+        return;
+    // Maximized: no rounding, so drop any mask (square, full-bleed).
+    if (isMaximized() || contentsMargins().left() == 0) {
+        c->clearMask();
+        return;
+    }
+    // Round only the bottom corners (the title bar covers the top ones); this
+    // clips the bottom-most bar so the window's rounded silhouette shows.
+    const int w = c->width(), h = c->height();
+    const int r = kCornerRadius;
+    QPainterPath path;
+    path.moveTo(0, 0);
+    path.lineTo(w, 0);
+    path.lineTo(w, h - r);
+    path.arcTo(w - 2 * r, h - 2 * r, 2 * r, 2 * r, 0, -90);
+    path.lineTo(r, h);
+    path.arcTo(0, h - 2 * r, 2 * r, 2 * r, 270, -90);
+    path.closeSubpath();
+    c->setMask(QRegion(path.toFillPolygon().toPolygon()));
 }
 
 void MainWindow::bindShortcut(const QString &id, const QString &label,

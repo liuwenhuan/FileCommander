@@ -42,6 +42,12 @@ protected:
     // and drives frameless edge-resize hit testing.
     void changeEvent(QEvent *event) override;
     bool event(QEvent *event) override;
+    // Paints the rounded window background + soft drop shadow into the
+    // translucent margin (the frameless window has no WM decoration/shadow).
+    void paintEvent(QPaintEvent *event) override;
+    // Clips the central widget's bottom corners to match the rounded window
+    // (the title bar rounds the top corners itself).
+    void resizeEvent(QResizeEvent *event) override;
 
 private slots:
     void setActivePanel(FilePanel *panel);
