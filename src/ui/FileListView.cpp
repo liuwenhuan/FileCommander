@@ -179,6 +179,14 @@ FileListView::FileListView(QWidget *parent) : QTableView(parent) {
     horizontalHeader()->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(horizontalHeader(), &QWidget::customContextMenuRequested, this,
             [this](const QPoint &pos) { showColumnMenu(pos); });
+    // A user drag of a column edge (not one of our programmatic resizes, which
+    // set m_adjustingColumns) switches the panel to manual mode: from then on we
+    // keep the user's widths and don't auto-fit to content on directory change.
+    connect(horizontalHeader(), &QHeaderView::sectionResized, this,
+            [this](int, int, int) {
+                if (!m_adjustingColumns)
+                    m_columnsManual = true;
+            });
 
     setDragEnabled(true);
     setAcceptDrops(true);
@@ -245,6 +253,14 @@ void FileListView::setModel(QAbstractItemModel *model) {
         setSortingEnabled(false);
         horizontalHeader()->setSortIndicatorShown(true);
         horizontalHeader()->setSectionsClickable(true);
+
+        // On each directory load (the model resets), size the columns to their
+        // content and scale to the viewport — unless the user has taken manual
+        // control of the widths this session.
+        connect(model, &QAbstractItemModel::modelReset, this, [this]() {
+            if (!m_columnsManual)
+                fitColumnsToContents();
+        });
     }
 }
 
@@ -328,6 +344,47 @@ void FileListView::stretchLastColumnOnly() {
 
     m_adjustingColumns = true;
     header->resizeSection(last, qMax(30, avail - othersTotal));
+    m_adjustingColumns = false;
+}
+
+void FileListView::fitColumnsToContents() {
+    if (m_adjustingColumns)
+        return;
+    QHeaderView *header = horizontalHeader();
+    if (!header || header->count() == 0 || !model())
+        return;
+    const int avail = viewport()->width();
+    if (avail <= 0)
+        return;
+
+    // Desired width per visible column = max(content, header label) + padding.
+    QVector<int> cols;
+    QVector<int> want;
+    int total = 0;
+    for (int c = 0; c < header->count(); ++c) {
+        if (header->isSectionHidden(c))
+            continue;
+        const int content = sizeHintForColumn(c);              // samples visible rows
+        const int head = header->sectionSizeHint(c);           // header text width
+        const int w = qMax(30, qMax(content, head) + 14);      // breathing room
+        cols.append(c);
+        want.append(w);
+        total += w;
+    }
+    if (cols.isEmpty() || total <= 0)
+        return;
+
+    // Scale the desired widths to fill the viewport exactly (shrink if content
+    // overflows -> no horizontal scrollbar; grow to use the extra space).
+    m_adjustingColumns = true;
+    const double factor = static_cast<double>(avail) / total;
+    int used = 0;
+    for (int i = 0; i < cols.size(); ++i) {
+        const int w = (i == cols.size() - 1) ? qMax(30, avail - used)
+                                             : qMax(30, static_cast<int>(want.at(i) * factor));
+        used += w;
+        header->resizeSection(cols.at(i), w);
+    }
     m_adjustingColumns = false;
 }
 

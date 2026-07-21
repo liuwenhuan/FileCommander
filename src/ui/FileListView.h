@@ -38,6 +38,11 @@ public:
     // header view on a section click, since the DTK style swallows sectionClicked.
     void sortByHeaderSection(int column);
 
+    // Marks the columns as user-controlled (e.g. a persisted header layout was
+    // restored), so auto-fit-to-content on directory load is suppressed and the
+    // widths are left exactly as they are.
+    void markColumnsManual() { m_columnsManual = true; }
+
 signals:
     // kind is decided from live modifier keys at drop time (not drag
     // start): in-panel default=Move, Ctrl=Copy, Shift=Link; cross-panel
@@ -64,6 +69,10 @@ private:
     // Scales the columns so they fill the viewport width, preserving their
     // relative proportions (so a manual column drag is kept as a ratio).
     void stretchColumnsToFit();
+    // Sizes each column to its content (+ header), then scales the set to fill
+    // the viewport exactly (never overflows -> no horizontal scrollbar). Used on
+    // directory load while the user hasn't manually adjusted the columns.
+    void fitColumnsToContents();
     // Cheap per-step variant used mid-resize: only the last visible column
     // absorbs the width delta (one resizeSection instead of one per column).
     void stretchLastColumnOnly();
@@ -71,6 +80,7 @@ private:
     void showColumnMenu(const QPoint &pos);
 
     bool m_adjustingColumns = false; // guards against re-entrancy
+    bool m_columnsManual = false;    // user (or restore) set widths -> no auto-fit
     QTimer *m_refitTimer = nullptr;  // debounces the full refit during resizes
     // Column proportions captured at the start of a resize burst. The per-step
     // last-column-only stretch skews the live ratios, so the settled refit

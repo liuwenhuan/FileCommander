@@ -296,6 +296,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     if (!headerState.isEmpty()) {
         m_leftPanel->view()->horizontalHeader()->restoreState(headerState);
         m_rightPanel->view()->horizontalHeader()->restoreState(headerState);
+        // A restored layout is the user's saved choice: keep it, don't auto-fit.
+        m_leftPanel->view()->markColumnsManual();
+        m_rightPanel->view()->markColumnsManual();
     }
 
     // Optional bars/panes + splitter layout. Applied before buildTitleBarMenus()
