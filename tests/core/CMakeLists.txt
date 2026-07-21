@@ -11,6 +11,7 @@ add_executable(core_tests
     sync/test_DirectorySync.cpp
     compare/test_TextDiff.cpp
     network/test_GvfsMounter.cpp
+    network/test_SftpProvider.cpp
 )
 
 target_link_libraries(core_tests PRIVATE

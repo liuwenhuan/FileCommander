@@ -71,3 +71,28 @@ TEST(FileInfoTest, DefaultConstructedIsInvalid) {
     FileInfo info;
     EXPECT_FALSE(info.isValid());
 }
+
+TEST(FileInfoTest, FromFieldsSplitsFileNameAndKeepsMetadata) {
+    const QDateTime mtime = QDateTime::fromSecsSinceEpoch(1600000000);
+    const FileInfo info = FileInfo::fromFields(
+        "/remote/dir/photo.jpg", "photo.jpg", 2048, mtime, /*isDir=*/false,
+        QFile::ReadOwner | QFile::WriteOwner);
+    EXPECT_EQ(info.name().toStdString(), "photo.jpg");
+    EXPECT_EQ(info.baseName().toStdString(), "photo");
+    EXPECT_EQ(info.suffix().toStdString(), "jpg");
+    EXPECT_EQ(info.path().toStdString(), "/remote/dir/photo.jpg");
+    EXPECT_EQ(info.size(), 2048);
+    EXPECT_EQ(info.modified(), mtime);
+    EXPECT_FALSE(info.isDir());
+    EXPECT_FALSE(info.isSymLink());
+    EXPECT_TRUE(info.isValid());
+    EXPECT_FALSE(info.created().isValid()); // SFTP has no creation time
+}
+
+TEST(FileInfoTest, FromFieldsTreatsDirectoryNameAsWholeBase) {
+    const FileInfo info = FileInfo::fromFields(
+        "/remote/my.data", "my.data", 0, QDateTime(), /*isDir=*/true, QFile::ReadOwner);
+    EXPECT_EQ(info.baseName().toStdString(), "my.data"); // dirs: no suffix split
+    EXPECT_TRUE(info.suffix().isEmpty());
+    EXPECT_TRUE(info.isDir());
+}

@@ -25,7 +25,13 @@ add_library(core STATIC
     compare/TextDiff.cpp
     network/GvfsMounter.h
     network/GvfsMounter.cpp
+    network/SftpProvider.h
+    network/SftpProvider.cpp
 )
+
+# libssh2 powers the SFTP file backend (network/SftpProvider).
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBSSH2 REQUIRED libssh2)
 
 target_include_directories(core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -35,6 +41,7 @@ target_include_directories(core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/sync
     ${CMAKE_CURRENT_SOURCE_DIR}/compare
     ${CMAKE_CURRENT_SOURCE_DIR}/network
+    ${LIBSSH2_INCLUDE_DIRS}
 )
 
 target_link_libraries(core PUBLIC
@@ -42,4 +49,5 @@ target_link_libraries(core PUBLIC
     Qt5::Gui
     Qt5::Widgets
     Qt5::Concurrent
+    ${LIBSSH2_LIBRARIES}
 )

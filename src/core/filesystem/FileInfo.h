@@ -11,6 +11,14 @@ public:
 
     static FileInfo makeParentEntry(const QString &parentPath);
 
+    // Builds a FileInfo from pre-fetched stat fields rather than probing the
+    // local filesystem. Used by remote backends (e.g. SFTP) where a QFileInfo
+    // over `path` would be meaningless. `created` is left invalid (SFTP has no
+    // creation time) and isSymLink defaults to false.
+    static FileInfo fromFields(const QString &path, const QString &name, qint64 size,
+                               const QDateTime &modified, bool isDir,
+                               QFile::Permissions permissions);
+
     const QString &name() const { return m_name; }        // full file name, e.g. "photo.jpg"
     const QString &baseName() const { return m_baseName; } // name without extension, e.g. "photo"
     const QString &path() const { return m_path; }
