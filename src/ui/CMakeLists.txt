@@ -45,7 +45,13 @@ add_library(ui STATIC
     dialogs/PropertiesDialog.cpp
     dialogs/ConnectDialog.h
     dialogs/ConnectDialog.cpp
+    dialogs/ChecksumDialog.h
+    dialogs/ChecksumDialog.cpp
 )
+
+# zlib provides crc32() for the checksum dialog. It is already pulled in
+# transitively (libarchive/Qt) but link it explicitly so <zlib.h> resolves.
+find_package(ZLIB REQUIRED)
 
 # libmpv (render API) for the QuickView video preview page.
 find_package(PkgConfig REQUIRED)
@@ -85,5 +91,5 @@ target_link_libraries(ui PUBLIC
     Qt5::OpenGL
 )
 target_link_libraries(ui PRIVATE ${MPV_LIBRARIES} ${POPPLER_QT5_LIBRARIES}
-    Qt5::X11Extras ${XCB_LIBRARIES})
+    Qt5::X11Extras ${XCB_LIBRARIES} ZLIB::ZLIB)
 target_compile_options(ui PRIVATE ${MPV_CFLAGS_OTHER} ${POPPLER_QT5_CFLAGS_OTHER})
