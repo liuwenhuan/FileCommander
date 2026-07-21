@@ -1,18 +1,11 @@
 #include "OfficeConverter.h"
 
-#include <archive.h>
-#include <archive_entry.h>
-
-#include <QByteArray>
 #include <QDir>
 #include <QFileInfo>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QStandardPaths>
 #include <QStringList>
-#include <QVector>
-
-#include <algorithm>
 
 namespace {
 
@@ -61,110 +54,13 @@ ProcResult runOfficeOxide(const QString &binary, const QStringList &args, int ti
     return r;
 }
 
-// One embedded image pulled from an OOXML media folder. `mime` is empty for
-// formats QTextBrowser can't render (emf/wmf); such slots are kept so injection
-// stays position-aligned with the HTML's <img> tags, but emit nothing.
-struct MediaImage {
-    QString mime;
-    QByteArray data;
-};
-
-// Returns the browser-friendly MIME type for a media file name, or "" if it's a
-// vector/metafile format Qt can't display inline.
-QString mimeForImage(const QString &lowerName) {
-    if (lowerName.endsWith(QLatin1String(".png")))
-        return QStringLiteral("image/png");
-    if (lowerName.endsWith(QLatin1String(".jpg")) || lowerName.endsWith(QLatin1String(".jpeg")))
-        return QStringLiteral("image/jpeg");
-    if (lowerName.endsWith(QLatin1String(".gif")))
-        return QStringLiteral("image/gif");
-    if (lowerName.endsWith(QLatin1String(".bmp")))
-        return QStringLiteral("image/bmp");
-    if (lowerName.endsWith(QLatin1String(".webp")))
-        return QStringLiteral("image/webp");
-    if (lowerName.endsWith(QLatin1String(".tif")) || lowerName.endsWith(QLatin1String(".tiff")))
-        return QStringLiteral("image/tiff");
-    return QString(); // emf / wmf / svg-as-vector / unknown
-}
-
-// Trailing integer of a media file's base name, e.g. "word/media/image10.png" →
-// 10. OOXML numbers media in insertion (document) order, so sorting by this
-// yields the same order office_oxide renders the corresponding <img> tags.
-int mediaNumber(const QString &path) {
-    const QString base = path.section(QLatin1Char('/'), -1).section(QLatin1Char('.'), 0, 0);
-    const QRegularExpression re(QStringLiteral("([0-9]+)$"));
-    const QRegularExpressionMatch m = re.match(base);
-    return m.hasMatch() ? m.captured(1).toInt() : 0;
-}
-
-// Extracts embedded raster images from an OOXML file (docx/pptx/xlsx are zip
-// containers with a <part>/media/ folder), ordered to line up with the HTML's
-// <img> tags. Empty for legacy binary .doc/.ppt/.xls (not zips -- office_oxide
-// recognises their images but exports no bytes) or for a non-zip/unreadable file.
-QVector<MediaImage> extractOoxmlMediaImages(const QString &officePath) {
-    QVector<MediaImage> result;
-
-    struct archive *a = archive_read_new();
-    archive_read_support_format_zip(a);
-    if (archive_read_open_filename(a, officePath.toUtf8().constData(), 65536) != ARCHIVE_OK) {
-        archive_read_free(a);
-        return result;
-    }
-
-    struct Named {
-        QString name;
-        QString mime;
-        QByteArray data;
-    };
-    QVector<Named> found;
-    struct archive_entry *entry = nullptr;
-    while (archive_read_next_header(a, &entry) == ARCHIVE_OK) {
-        const QString name = QString::fromUtf8(archive_entry_pathname(entry));
-        const QString lower = name.toLower();
-        if (!lower.contains(QStringLiteral("/media/"))) {
-            archive_read_data_skip(a);
-            continue;
-        }
-        const QString mime = mimeForImage(lower);
-        QByteArray buf;
-        const la_int64_t size = archive_entry_size(entry);
-        if (size > 0 && size < (64LL << 20)) { // cap a single image at 64 MiB
-            buf.resize(int(size));
-            const la_ssize_t n = archive_read_data(a, buf.data(), size_t(size));
-            buf.truncate(n > 0 ? int(n) : 0);
-        }
-        found.push_back({name, mime, buf});
-    }
-    archive_read_free(a);
-
-    std::sort(found.begin(), found.end(),
-              [](const Named &x, const Named &y) { return mediaNumber(x.name) < mediaNumber(y.name); });
-    for (const Named &f : found)
-        result.push_back({f.mime, f.mime.isEmpty() ? QByteArray() : f.data});
-    return result;
-}
-
-// Replaces office_oxide's empty <img .../> placeholders with the extracted
-// media images, in order, as self-contained base64 data URIs. Placeholders past
-// the available images (or for unrenderable formats) are dropped.
-QString inlineImages(const QString &html, const QVector<MediaImage> &images) {
-    const QRegularExpression imgRe(QStringLiteral("<img\\b[^>]*>"));
-    QString out;
-    int last = 0;
-    int idx = 0;
-    QRegularExpressionMatchIterator it = imgRe.globalMatch(html);
-    while (it.hasNext()) {
-        const QRegularExpressionMatch m = it.next();
-        out += html.mid(last, m.capturedStart() - last);
-        if (idx < images.size() && !images.at(idx).data.isEmpty()) {
-            out += QStringLiteral("<img src=\"data:%1;base64,%2\" />")
-                       .arg(images.at(idx).mime,
-                            QString::fromLatin1(images.at(idx).data.toBase64()));
-        }
-        last = m.capturedEnd();
-        ++idx;
-    }
-    out += html.mid(last);
+// Removes all <img> tags from HTML. office_oxide (our patched build) already
+// inlines embedded images as data: URIs, but PowerPoint places pictures by slide
+// geometry rather than text order, so they don't line up with the flattened text
+// preview -- pptx/ppt drop them.
+QString stripImgTags(const QString &html) {
+    QString out = html;
+    out.remove(QRegularExpression(QStringLiteral("<img\\b[^>]*>")));
     return out;
 }
 
@@ -263,18 +159,16 @@ OfficeConverter::Result OfficeConverter::convertDocument(const QString &binary, 
         return result;
     }
 
-    // Inline embedded images only for Word documents: docx images sit inline in
-    // the text flow, so pulling them from word/media/ and mapping them 1:1 onto
-    // the <img> placeholders (in document order) is reliable. PowerPoint decks
-    // place images by slide geometry, not text order, so the flat media list
-    // doesn't line up with office_oxide's flattened <img> stream -- inlining
-    // them just scatters mismatched pictures through the text, so ppt(x) keeps
-    // the placeholders dropped. Legacy .doc isn't a zip → no media either way.
+    // Our patched office_oxide already inlines embedded images as data: URIs
+    // (docx/doc from word/media & the .doc Data-stream BLIPs alike), so Word
+    // documents just pass the HTML through. PowerPoint images are positioned by
+    // slide geometry, not text order, so they don't line up with the flattened
+    // text preview -- pptx/ppt strip them.
     const QString suffix = suffixLower(path);
-    const bool isWord = (suffix == QLatin1String("doc") || suffix == QLatin1String("docx"));
+    const bool isPresentation =
+        (suffix == QLatin1String("ppt") || suffix == QLatin1String("pptx"));
     result.ok = true;
-    result.html = isWord ? inlineImages(run.stdOut, extractOoxmlMediaImages(path))
-                         : inlineImages(run.stdOut, {}); // pptx/ppt: drop <img> placeholders
+    result.html = isPresentation ? stripImgTags(run.stdOut) : run.stdOut;
     return result;
 }
 
