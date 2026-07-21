@@ -221,7 +221,9 @@ QString ArchiveProvider::cleanPath(const QString &path) const { return toVirtual
 QString ArchiveProvider::parentPath(const QString &path) const {
     const QString clean = toVirtual(path);
     if (clean == QStringLiteral("/"))
-        return QString(); // already at the archive root
+        // The archive root's "parent" is the local directory the archive lives
+        // in, so the panel shows a ".." that exits the archive back to disk.
+        return QFileInfo(m_archivePath).absolutePath();
     const int slash = clean.lastIndexOf(QLatin1Char('/'));
     if (slash <= 0)
         return QStringLiteral("/");

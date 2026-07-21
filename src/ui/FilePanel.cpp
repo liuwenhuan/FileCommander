@@ -23,6 +23,7 @@
 #include "BreadcrumbBar.h"
 #include "FileListView.h"
 #include "FileProvider.h"
+#include "ArchiveProvider.h"
 #include "StatusBarWidget.h"
 #include "TabBar.h"
 
@@ -369,10 +370,38 @@ void FilePanel::onActivated(const QModelIndex &index) {
     const FileInfo info = m_model->fileInfoAt(index.row());
     if (!info.isValid())
         return;
-    if (info.isDir() || info.isParentEntry())
+
+    // Exiting an archive: ".." at the archive root (its provider reports the
+    // parent as a local dir it can't itself descend) switches back to the local
+    // filesystem at the directory the archive lives in.
+    if (info.isParentEntry() && m_archiveProvider && !m_model->provider()->isDir(info.path())) {
+        const QString exitDir = info.path();
+        m_archiveProvider.reset();
+        m_model->setProvider(nullptr); // back to the local provider
+        navigateTo(exitDir);
+        return;
+    }
+
+    if (info.isDir() || info.isParentEntry()) {
         navigateTo(info.path());
-    else
-        emit openRequested(info.path());
+        return;
+    }
+
+    // Entering an archive: only from the local filesystem (no nested-archive
+    // browse yet). Read-only smart browse via ArchiveProvider.
+    if (!m_archiveProvider && ArchiveProvider::isArchivePath(info.path())) {
+        QString error;
+        auto provider = std::make_shared<ArchiveProvider>(info.path(), &error);
+        if (provider->isValid()) {
+            m_archiveProvider = provider;
+            m_model->setProvider(provider);
+            navigateTo(QStringLiteral("/")); // archive virtual root
+            return;
+        }
+        // Not a usable archive (or unreadable): fall through to opening it.
+    }
+
+    emit openRequested(info.path());
 }
 
 void FilePanel::onAddressBarEntered(const QString &path) {

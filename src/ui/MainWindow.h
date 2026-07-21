@@ -95,6 +95,7 @@ private slots:
     void showShortcutMenu(const QPoint &globalPos);
     void showFavoritesMenu(const QPoint &globalPos); // "★" button in the address row
     void calculateSizes();
+    void calculateChecksums(); // MD5 / CRC32 / SHA1 of the selected files
     void syncOtherPanelToActive();
     void swapPanels();
     void splitFile();
@@ -136,6 +137,9 @@ private:
     void changeFunctionKey(int index);    // pick a new command for that key
     void updateFunctionKeyLabels();
     FilePanel *otherPanel(FilePanel *panel) const;
+    // If `panel` is browsing a (read-only) archive, warn and return true so the
+    // caller aborts the write op. Null panel → false.
+    bool blockArchiveWrite(FilePanel *panel);
     void showFileContextMenu(FilePanel *panel, const QPoint &viewPos);
     void showBlankContextMenu(FilePanel *panel, const QPoint &viewPos);
     // Fills a menu with "bookmark current" + separator + saved favorites,

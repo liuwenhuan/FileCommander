@@ -4,6 +4,8 @@
 #include <QVector>
 #include <QWidget>
 
+#include <memory>
+
 #include "FileSystemModel.h"
 #include "TabManager.h"
 
@@ -80,6 +82,10 @@ public:
     FileSystemModel *model() const { return m_model; }
     FileListView *view() const { return m_view; }
 
+    // True while browsing inside an archive: the backend is read-only, so
+    // MainWindow blocks write ops (delete/rename/mkdir/move-in/paste) here.
+    bool isArchive() const { return m_archiveProvider != nullptr; }
+
     // Re-applies translated text (the status-bar object/selection counts) after a
     // live UI-language change.
     void retranslate() { updateStatus(); }
@@ -131,4 +137,8 @@ private:
     TabManager *m_tabManager;
     TabBar *m_tabBar;
     QStringList m_pendingSelection;
+
+    // Non-null while this panel is browsing inside an archive (read-only). Held
+    // so the ArchiveProvider outlives the model's use of it; cleared on exit.
+    std::shared_ptr<FileProvider> m_archiveProvider;
 };

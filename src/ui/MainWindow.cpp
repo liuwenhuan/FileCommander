@@ -71,6 +71,7 @@
 #include "SearchDialog.h"
 #include "SessionManager.h"
 #include "TitleBar.h"
+#include "dialogs/ChecksumDialog.h"
 #include "dialogs/ConnectDialog.h"
 
 #include <unistd.h> // getuid() for the gvfs mount path
@@ -424,6 +425,8 @@ void MainWindow::buildTitleBarMenus() {
     commandsMenu->addAction(tr("&Compress Selected..."), this, &MainWindow::compressSelected);
     commandsMenu->addAction(tr("S&plit File..."), this, &MainWindow::splitFile);
     commandsMenu->addAction(tr("Com&bine Files..."), this, &MainWindow::combineFiles);
+    commandsMenu->addAction(tr("Calculate &Checksums (MD5 / CRC32 / SHA1)..."), this,
+                            &MainWindow::calculateChecksums);
     commandsMenu->addAction(tr("&Search Files..."), this, &MainWindow::openSearch);
     commandsMenu->addAction(tr("&Multi-Rename Tool..."), this,
                              &MainWindow::openMultiRenameDialog);
@@ -1155,6 +1158,25 @@ void MainWindow::calculateSizes() {
         m_activePanel->calculateDirSizes();
 }
 
+void MainWindow::calculateChecksums() {
+    if (!m_activePanel)
+        return;
+    // Files only (checksums of a directory are meaningless).
+    QStringList files;
+    for (const QString &p : m_activePanel->selectedPaths())
+        if (QFileInfo(p).isFile())
+            files.append(p);
+    if (files.isEmpty()) {
+        QMessageBox::information(this, tr("Checksums"),
+                                 tr("Select one or more files first."));
+        return;
+    }
+    // Non-modal: hashing runs on a background thread inside the dialog.
+    auto *dlg = new ChecksumDialog(files, this);
+    dlg->setAttribute(Qt::WA_DeleteOnClose);
+    dlg->show();
+}
+
 void MainWindow::syncOtherPanelToActive() {
     if (m_activePanel)
         otherPanel(m_activePanel)->navigateTo(m_activePanel->currentPath());
@@ -1569,6 +1591,8 @@ void MainWindow::cutSelectionToClipboard() {
 void MainWindow::pasteFromClipboard() {
     if (!m_activePanel)
         return;
+    if (blockArchiveWrite(m_activePanel))
+        return;
     const QMimeData *mime = QGuiApplication::clipboard()->mimeData();
     if (!mime)
         return;
@@ -1723,6 +1747,15 @@ void MainWindow::editCurrent() {
     }
 }
 
+bool MainWindow::blockArchiveWrite(FilePanel *panel) {
+    if (!panel || !panel->isArchive())
+        return false;
+    QMessageBox::information(this, tr("Read-only"),
+                             tr("This archive is read-only. Copy files out to a folder to "
+                                "modify them."));
+    return true;
+}
+
 void MainWindow::copySelected() {
     if (!m_activePanel)
         return;
@@ -1730,6 +1763,9 @@ void MainWindow::copySelected() {
     if (sources.isEmpty())
         return;
     FilePanel *dest = otherPanel(m_activePanel);
+    // Copying OUT of an archive is fine; copying INTO one is not (read-only).
+    if (blockArchiveWrite(dest))
+        return;
     const QString destDir = dest->currentPath();
 
     // When either panel is backed by a remote provider (e.g. SFTP), stream the
@@ -1762,6 +1798,10 @@ void MainWindow::copySelected() {
 void MainWindow::moveSelected() {
     if (!m_activePanel)
         return;
+    // Move = copy + delete-source; neither source nor dest may be a read-only
+    // archive.
+    if (blockArchiveWrite(m_activePanel) || blockArchiveWrite(otherPanel(m_activePanel)))
+        return;
     const QStringList sources = m_activePanel->selectedPaths();
     if (sources.isEmpty())
         return;
@@ -1784,6 +1824,8 @@ void MainWindow::moveSelected() {
 void MainWindow::makeDirectory() {
     if (!m_activePanel)
         return;
+    if (blockArchiveWrite(m_activePanel))
+        return;
     bool ok = false;
     const QString name =
         QInputDialog::getText(this, tr("New Folder"), tr("Folder name:"), QLineEdit::Normal,
@@ -1794,6 +1836,8 @@ void MainWindow::makeDirectory() {
 
 void MainWindow::deleteSelected(bool permanent) {
     if (!m_activePanel)
+        return;
+    if (blockArchiveWrite(m_activePanel))
         return;
     const QStringList paths = m_activePanel->selectedPaths();
     if (paths.isEmpty())
@@ -1848,6 +1892,8 @@ void MainWindow::openSearch() {
 
 void MainWindow::renameCurrent() {
     if (!m_activePanel)
+        return;
+    if (blockArchiveWrite(m_activePanel))
         return;
     // In-place cell editing (like TC/Explorer/Nautilus) rather than a
     // modal dialog: FileSystemModel::flags()/setData() do the actual
