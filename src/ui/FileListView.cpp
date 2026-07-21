@@ -99,6 +99,13 @@ FileListView::FileListView(QWidget *parent) : QTableView(parent) {
     setAlternatingRowColors(true);
     setShowGrid(false);
     setWordWrap(false);
+    // Always reserve the vertical scrollbar's space. Panels share one view whose
+    // model swaps on tab switch; with an auto-hiding scrollbar the viewport width
+    // would jump by ~15px between a tab that needs the bar and one that doesn't,
+    // and stretchColumnsToFit() (which fits columns to viewport()->width()) would
+    // reflow the columns on every switch. Keeping the bar always-on holds the
+    // viewport width constant so column widths stay put.
+    setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
     verticalHeader()->hide();
     setHorizontalHeader(new PlainHeaderView(this)); // non-bold, self-painted labels
     horizontalHeader()->setSortIndicatorShown(true);
