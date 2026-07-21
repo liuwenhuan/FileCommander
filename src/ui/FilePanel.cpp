@@ -120,6 +120,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     addressLayout->addWidget(m_backButton);
     addressLayout->addWidget(m_forwardButton);
     addressLayout->addWidget(m_addressBar, 1);
+    addressLayout->addWidget(m_favButton);  // ★ favorites, just before the ✳ menu
     addressLayout->addWidget(m_starButton);
 
     m_filterBar = new QLineEdit(this);
@@ -130,15 +131,14 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
 
     m_statusBar = new StatusBarWidget(this);
 
-    // Tab row: [tree][★ favorites] at the head, then the tab strip (stretch), then
-    // the trailing "+". The tree + favorites buttons lead this row per the layout
-    // spec; Back/Forward and the ✳ menu stay in the address row below.
+    // Tab row: [tree] at the head, then the tab strip (stretch), then the
+    // trailing "+". Back/Forward, the ★ favorites button and the ✳ menu live in
+    // the address row below.
     auto *tabRow = new QWidget(this);
     auto *tabRowLayout = new QHBoxLayout(tabRow);
     tabRowLayout->setContentsMargins(0, 0, 0, 0);
     tabRowLayout->setSpacing(2);
     tabRowLayout->addWidget(m_treeButton, 0, Qt::AlignVCenter);
-    tabRowLayout->addWidget(m_favButton, 0, Qt::AlignVCenter);
     tabRowLayout->addWidget(m_tabBar, 1);
     tabRowLayout->addWidget(m_addTabButton, 0, Qt::AlignVCenter);
 

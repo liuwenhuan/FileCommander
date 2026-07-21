@@ -62,7 +62,6 @@
 #include "CompressDialog.h"
 #include "FilePanel.h"
 #include "FileSplitter.h"
-#include "OfficeConverter.h"
 #include "QuickView.h"
 #include "FileListView.h"
 #include "FileSystemModel.h"
@@ -75,6 +74,7 @@
 #include "TitleBar.h"
 #include "dialogs/ChecksumDialog.h"
 #include "dialogs/ConnectDialog.h"
+#include "dialogs/SecureWipeDialog.h"
 
 #include <unistd.h> // getuid() for the gvfs mount path
 #include "Settings.h"
@@ -331,29 +331,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
                     else
                         showBlankContextMenu(panel, pos);
                 });
-        connect(panel, &FilePanel::openRequested, this, [this, panel](const QString &path) {
-            if (ArchiveHandler::isSupportedArchive(path)) {
-                auto *dlg = new ArchiveBrowserDialog(path, otherPanel(panel)->currentPath(), this);
-                dlg->setAttribute(Qt::WA_DeleteOnClose);
-                dlg->show();
-                return;
-            }
-            if (ImageViewer::isImage(path)) {
-                auto *viewer = new ImageViewer();
-                if (viewer->loadImage(path))
-                    viewer->show();
-                else
-                    delete viewer;
-                return;
-            }
-            auto *viewer = new TextViewer();
-            if (viewer->loadFile(path)) {
-                viewer->resize(800, 600);
-                viewer->show();
-            } else {
-                delete viewer;
-                QMessageBox::warning(this, tr("View"), tr("Could not open %1").arg(path));
-            }
+        connect(panel, &FilePanel::openRequested, this, [this](const QString &path) {
+            // Double-click opens with the system's MIME-associated application.
+            // (Directories and local archives are handled earlier in
+            // FilePanel::onActivated and never reach here; F3 is the in-app
+            // viewer.)
+            if (!QDesktopServices::openUrl(QUrl::fromLocalFile(path)))
+                QMessageBox::warning(this, tr("Open"),
+                                     tr("No application is associated with %1").arg(path));
         });
     }
 
@@ -375,51 +360,31 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 void MainWindow::buildTitleBarMenus() {
     // Re-runnable (called again on a live language change): drop the previous
     // menus so we don't leak them. setMenuWidget() deletes the old title bar.
-    delete m_commandsMenu;
+    delete m_toolsMenu;
+    delete m_configMenu;
     delete m_viewMenu;
 
-    // Standalone menus shown as buttons in the frameless title bar. No File
-    // menu -- only Commands and View (Exit lives on the title bar's close
-    // button).
-    auto *commandsMenu = new QMenu(tr("&Commands"), this);
-    m_commandsMenu = commandsMenu;
-    commandsMenu->addAction(tr("&Refresh"), this, &MainWindow::refreshActivePanel);
-    commandsMenu->addAction(tr("Open &Terminal Here"), this, &MainWindow::openTerminalHere);
-    commandsMenu->addAction(tr("&Compress Selected..."), this, &MainWindow::compressSelected);
-    commandsMenu->addAction(tr("S&plit File..."), this, &MainWindow::splitFile);
-    commandsMenu->addAction(tr("Com&bine Files..."), this, &MainWindow::combineFiles);
-    commandsMenu->addAction(tr("Calculate &Checksums (MD5 / CRC32 / SHA1)..."), this,
-                            &MainWindow::calculateChecksums);
-    commandsMenu->addAction(tr("&Search Files..."), this, &MainWindow::openSearch);
-    commandsMenu->addAction(tr("&Multi-Rename Tool..."), this,
-                             &MainWindow::openMultiRenameDialog);
-    commandsMenu->addAction(tr("S&ynchronize Directories..."), this,
-                             &MainWindow::openSyncDialog);
-    commandsMenu->addAction(tr("Compar&e by Content..."), this,
-                             &MainWindow::compareSelectedFiles);
-    commandsMenu->addAction(tr("Compare &Directories (by time)"), this,
-                             &MainWindow::compareDirectories);
-    commandsMenu->addAction(tr("Calculate &Occupied Space"), this,
-                             &MainWindow::calculateSizes);
-    commandsMenu->addSeparator();
-    commandsMenu->addAction(tr("&Select by Pattern..."), this, [this] {
-        if (m_activePanel)
-            m_activePanel->selectByPattern(true);
-    });
-    commandsMenu->addAction(tr("&Unselect by Pattern..."), this, [this] {
-        if (m_activePanel)
-            m_activePanel->selectByPattern(false);
-    });
-    commandsMenu->addSeparator();
-    commandsMenu->addAction(tr("Same Directory in &Other Panel"), this,
-                             &MainWindow::syncOtherPanelToActive);
-    commandsMenu->addAction(tr("S&wap Panels"), this, &MainWindow::swapPanels);
-    commandsMenu->addSeparator();
-    commandsMenu->addAction(tr("&Directory Hotlist..."), this,
-                             &MainWindow::openDirectoryHotlist);
-    commandsMenu->addSeparator();
-    // Network (GVfs): connect to a server, or browse the network neighborhood.
-    commandsMenu->addAction(tr("Connect to &Server..."), this, [this] {
+    // Standalone menus shown as buttons in the frameless title bar: Tools,
+    // Config and View (Exit lives on the title bar's close button).
+    auto *toolsMenu = new QMenu(tr("&Tools"), this);
+    m_toolsMenu = toolsMenu;
+    toolsMenu->addAction(tr("Open &Terminal Here"), this, &MainWindow::openTerminalHere);
+    toolsMenu->addAction(tr("Calculate &Checksums..."), this, &MainWindow::calculateChecksums);
+    toolsMenu->addAction(tr("Com&bine Files..."), this, &MainWindow::combineFiles);
+    toolsMenu->addAction(tr("S&plit File..."), this, &MainWindow::splitFile);
+    toolsMenu->addAction(tr("Compar&e Files..."), this, &MainWindow::compareSelectedFiles);
+    toolsMenu->addAction(tr("&Compress Selected..."), this, &MainWindow::compressSelected);
+    toolsMenu->addAction(tr("&Wipe Files (secure erase)..."), this,
+                         &MainWindow::secureWipeSelected);
+
+    // Config menu: shortcuts, server connection, the delete-confirmation
+    // preference, plus the commands that previously lived only in the Commands
+    // menu and have no shortcut of their own (so they stay reachable).
+    auto *configMenu = new QMenu(tr("Con&fig"), this);
+    m_configMenu = configMenu;
+    configMenu->addAction(tr("Configure &Keyboard Shortcuts..."), this,
+                          &MainWindow::openShortcutsDialog);
+    configMenu->addAction(tr("Connect to &Server..."), this, [this] {
         ConnectDialog dlg(this);
         if (dlg.exec() != QDialog::Accepted || !m_activePanel)
             return;
@@ -432,17 +397,29 @@ void MainWindow::buildTitleBarMenus() {
             m_activePanel->navigateTo(dlg.mountedLocalPath());
         }
     });
-    commandsMenu->addAction(tr("&Network Neighborhood"), this, [this] {
+    {
+        // Skip the "Delete N items?" prompt for trash deletes when checked.
+        // (Permanent Shift+Del always confirms regardless -- see deleteSelected.)
+        QAction *noConfirm = configMenu->addAction(tr("&Delete to Trash Without Confirmation"));
+        noConfirm->setCheckable(true);
+        noConfirm->setChecked(!m_settings.confirmDelete());
+        connect(noConfirm, &QAction::toggled, this,
+                [this](bool on) { m_settings.setConfirmDelete(!on); });
+    }
+    configMenu->addSeparator();
+    // Relocated here (previously in Commands, no shortcut of their own).
+    configMenu->addAction(tr("S&ynchronize Directories..."), this, &MainWindow::openSyncDialog);
+    configMenu->addAction(tr("Compare &Directories (by time)"), this,
+                          &MainWindow::compareDirectories);
+    configMenu->addAction(tr("&Network Neighborhood"), this, [this] {
         if (m_activePanel)
-            m_activePanel->navigateTo(
-                QStringLiteral("/run/user/%1/gvfs").arg(getuid()));
+            m_activePanel->navigateTo(QStringLiteral("/run/user/%1/gvfs").arg(getuid()));
     });
-    commandsMenu->addSeparator();
-    commandsMenu->addAction(tr("&Keyboard Shortcuts..."), this,
-                             &MainWindow::openShortcutsDialog);
 
     auto *viewMenu = new QMenu(tr("&View"), this);
     m_viewMenu = viewMenu;
+    viewMenu->addAction(tr("&Refresh"), this, &MainWindow::refreshActivePanel);
+    viewMenu->addSeparator();
     QMenu *themeMenu = viewMenu->addMenu(tr("&Theme"));
     auto *themeGroup = new QActionGroup(this);
     themeGroup->setExclusive(true);
@@ -558,26 +535,13 @@ void MainWindow::buildTitleBarMenus() {
         m_settings.setShowFunctionKeyBar(on);
     });
 
-    viewMenu->addSeparator();
-    // Optional "plugin": Office document preview (docx/xls/ppt ...) via the
-    // external office_oxide CLI. Off by default; the label notes when the CLI is
-    // missing so the toggle doesn't look broken.
-    const bool officeReady = OfficeConverter::isAvailable();
-    QAction *officePreview = viewMenu->addAction(
-        officeReady ? tr("Office &Document Preview")
-                    : tr("Office &Document Preview (install office_oxide)"));
-    officePreview->setCheckable(true);
-    officePreview->setEnabled(officeReady);
-    officePreview->setChecked(officeReady && m_settings.officePreviewEnabled());
-    connect(officePreview, &QAction::toggled, this,
-            [this](bool on) { m_settings.setOfficePreviewEnabled(on); });
-
     // (Folder tree is per-panel now, toggled by the button in each panel's
-    // address row — no global View-menu entry.)
+    // address row — no global View-menu entry. Office document preview is an
+    // always-on integrated feature now, so it has no toggle here.)
 
     // Embed the menus in our self-drawn title bar (app icon + menu buttons +
     // window buttons), placed where the menu bar would normally sit.
-    m_titleBar = new TitleBar(this, {commandsMenu, viewMenu});
+    m_titleBar = new TitleBar(this, {toolsMenu, configMenu, viewMenu});
     m_titleBar->setCursor(Qt::ArrowCursor); // don't inherit the window resize cursor
     setMenuWidget(m_titleBar);
 }
@@ -1182,6 +1146,37 @@ void MainWindow::calculateChecksums() {
     // Non-modal: hashing runs on a background thread inside the dialog.
     auto *dlg = new ChecksumDialog(files, this);
     dlg->setAttribute(Qt::WA_DeleteOnClose);
+    dlg->show();
+}
+
+void MainWindow::secureWipeSelected() {
+    if (!m_activePanel)
+        return;
+    if (blockArchiveWrite(m_activePanel))
+        return;
+    const QStringList paths = m_activePanel->selectedPaths();
+    if (paths.isEmpty())
+        return;
+
+    const qint64 total = sumSizes(paths);
+    const auto answer = QMessageBox::warning(
+        this, tr("Secure Wipe"),
+        tr("Securely erase %1 item(s) (%2 bytes)?\n\n"
+           "Their contents will be overwritten on disk and then deleted. This is "
+           "IRREVERSIBLE: the files do NOT go to the trash and cannot be recovered.")
+            .arg(paths.size())
+            .arg(total),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (answer != QMessageBox::Yes)
+        return;
+
+    // Non-modal: overwriting runs on a background thread inside the dialog.
+    auto *dlg = new SecureWipeDialog(paths, this);
+    dlg->setAttribute(Qt::WA_DeleteOnClose);
+    connect(dlg, &SecureWipeDialog::filesChanged, this, [this] {
+        m_leftPanel->refresh();
+        m_rightPanel->refresh();
+    });
     dlg->show();
 }
 
@@ -1903,15 +1898,21 @@ void MainWindow::deleteSelected(bool permanent) {
     if (paths.isEmpty())
         return;
 
-    const qint64 total = sumSizes(paths);
-    const auto answer = QMessageBox::question(
-        this, tr("Confirm Delete"),
-        tr("Delete %1 item(s) (%2 bytes)?%3")
-            .arg(paths.size())
-            .arg(total)
-            .arg(permanent ? tr("\nThis is permanent and will NOT go to the trash.") : QString()));
-    if (answer != QMessageBox::Yes)
-        return;
+    // Trash deletes can skip the prompt when the user turned confirmation off
+    // (Config menu). Permanent deletes (Shift+Del) always confirm -- they can't
+    // be undone from the trash.
+    if (permanent || m_settings.confirmDelete()) {
+        const qint64 total = sumSizes(paths);
+        const auto answer = QMessageBox::question(
+            this, tr("Confirm Delete"),
+            tr("Delete %1 item(s) (%2 bytes)?%3")
+                .arg(paths.size())
+                .arg(total)
+                .arg(permanent ? tr("\nThis is permanent and will NOT go to the trash.")
+                               : QString()));
+        if (answer != QMessageBox::Yes)
+            return;
+    }
     m_queue->enqueueDelete(paths, /*toTrash=*/!permanent);
 }
 

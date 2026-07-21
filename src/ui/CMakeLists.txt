@@ -51,6 +51,8 @@ add_library(ui STATIC
     dialogs/ConnectDialog.cpp
     dialogs/ChecksumDialog.h
     dialogs/ChecksumDialog.cpp
+    dialogs/SecureWipeDialog.h
+    dialogs/SecureWipeDialog.cpp
     dialogs/TransferProgressDialog.h
     dialogs/TransferProgressDialog.cpp
 )

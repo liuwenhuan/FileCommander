@@ -98,6 +98,7 @@ private slots:
     void showFavoritesMenu(const QPoint &globalPos); // "★" button in the address row
     void calculateSizes();
     void calculateChecksums(); // MD5 / CRC32 / SHA1 of the selected files
+    void secureWipeSelected(); // overwrite on-disk bytes (HDD 1x / SSD 3x DoD) then delete
     void syncOtherPanelToActive();
     void swapPanels();
     void splitFile();
@@ -172,7 +173,8 @@ private:
     ThemeManager *m_themeManager;
     Settings m_settings;
     QSplitter *m_panelSplitter;
-    QMenu *m_commandsMenu = nullptr; // owned; rebuilt on language change
+    QMenu *m_toolsMenu = nullptr;    // owned; rebuilt on language change
+    QMenu *m_configMenu = nullptr;   // owned; rebuilt on language change
     QMenu *m_viewMenu = nullptr;     // owned; rebuilt on language change
     bool m_shortcutsBuilt = false;   // one-shot guard for QShortcut creation
 

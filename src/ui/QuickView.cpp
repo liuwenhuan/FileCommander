@@ -782,11 +782,10 @@ void QuickView::showFile(const QString &path) {
     // we don't hold a large PDF in memory behind an image/text/markdown preview.
     closePdf();
 
-    // Office documents (opt-in "plugin"): docx/doc/pptx/ppt render as Markdown,
-    // xlsx/xls as a grid, via the external office_oxide CLI. Silently skipped when
-    // the toggle is off or the CLI isn't installed.
-    if (m_settings.officePreviewEnabled() && OfficeConverter::isOfficeFile(path) &&
-        OfficeConverter::isAvailable()) {
+    // Office documents (integrated, always-on): docx/doc/pptx/ppt render as
+    // Markdown, xlsx/xls as a grid, via the external office_oxide CLI. Silently
+    // skipped only when the CLI isn't installed.
+    if (OfficeConverter::isOfficeFile(path) && OfficeConverter::isAvailable()) {
         m_infoOverlay->hide();
         const OfficeConverter::Result r = OfficeConverter::convert(path);
         if (r.ok && r.kind == OfficeConverter::Kind::Document) {
