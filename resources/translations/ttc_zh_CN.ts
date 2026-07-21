@@ -795,4 +795,11 @@ Destination: %4 (%5 bytes)</source>
         <translation>是否保存对 %1 的更改？</translation>
     </message>
 </context>
+<context>
+    <name>TitleBar</name>
+    <message>
+        <source>File Commander</source>
+        <translation>FileCommander-文件指挥官</translation>
+    </message>
+</context>
 </TS>

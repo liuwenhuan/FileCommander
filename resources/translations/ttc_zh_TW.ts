@@ -670,4 +670,11 @@ Destination: %4 (%5 bytes)</source>
         <translation>是否儲存對 %1 的變更？</translation>
     </message>
 </context>
+<context>
+    <name>TitleBar</name>
+    <message>
+        <source>File Commander</source>
+        <translation>FileCommander-檔案指揮官</translation>
+    </message>
+</context>
 </TS>
