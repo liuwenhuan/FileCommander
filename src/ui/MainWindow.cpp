@@ -54,6 +54,7 @@
 #include "QuickView.h"
 #include "FileListView.h"
 #include "FileSystemModel.h"
+#include "LocalFileProvider.h"
 #include "FunctionKeyBar.h"
 #include "ImageViewer.h"
 #include "OperationQueue.h"
@@ -1478,7 +1479,19 @@ void MainWindow::copySelected() {
     const QStringList sources = m_activePanel->selectedPaths();
     if (sources.isEmpty())
         return;
-    const QString destDir = otherPanel(m_activePanel)->currentPath();
+    FilePanel *dest = otherPanel(m_activePanel);
+    const QString destDir = dest->currentPath();
+
+    // When either panel is backed by a remote provider (e.g. SFTP), stream the
+    // transfer through the provider engine (handles resume + progress) rather
+    // than the local QFile path, which only understands the local filesystem.
+    FileProvider *srcProv = m_activePanel->model()->provider();
+    FileProvider *dstProv = dest->model()->provider();
+    LocalFileProvider *local = LocalFileProvider::instance();
+    if (srcProv != local || dstProv != local) {
+        m_queue->enqueueProviderCopy(srcProv, sources, dstProv, destDir);
+        return;
+    }
 
     // Copying a single item into the same directory it lives in: ask for the
     // new name (TC's F5-in-place behaviour) instead of silently duplicating.
@@ -1502,7 +1515,18 @@ void MainWindow::moveSelected() {
     const QStringList sources = m_activePanel->selectedPaths();
     if (sources.isEmpty())
         return;
-    const QString destDir = otherPanel(m_activePanel)->currentPath();
+    FilePanel *dest = otherPanel(m_activePanel);
+    const QString destDir = dest->currentPath();
+
+    FileProvider *srcProv = m_activePanel->model()->provider();
+    FileProvider *dstProv = dest->model()->provider();
+    LocalFileProvider *local = LocalFileProvider::instance();
+    if (srcProv != local || dstProv != local) {
+        // Cross-provider move (copy + delete source); local undo doesn't apply.
+        m_queue->enqueueProviderMove(srcProv, sources, dstProv, destDir);
+        return;
+    }
+
     recordMoveUndo(sources, destDir);
     m_queue->enqueueMove(sources, destDir);
 }
