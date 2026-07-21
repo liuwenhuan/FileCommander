@@ -856,6 +856,15 @@ void MainWindow::updateOpaqueRegion() {
 
 void MainWindow::showEvent(QShowEvent *event) {
     QMainWindow::showEvent(event);
+    // A window restored maximized only reports isMaximized() reliably once it's
+    // mapped; the constructor's setContentsMargins ran before that and left the
+    // shadow margin in place, showing a blank ring around a maximized window.
+    // Reconcile the margin + corner mask with the real state now.
+    const int m = isMaximized() ? 0 : kShadowMargin;
+    if (contentsMargins().left() != m) {
+        setContentsMargins(m, m, m, m);
+        applyRoundedMask();
+    }
     // The native X window now exists: publish the opaque region for the first
     // time. resizeEvent / changeEvent keep it in sync from here on.
     updateOpaqueRegion();

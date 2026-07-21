@@ -51,7 +51,10 @@ protected:
     // Clips the central widget's bottom corners to match the rounded window
     // (the title bar rounds the top corners itself).
     void resizeEvent(QResizeEvent *event) override;
-    // Sets the initial _NET_WM_OPAQUE_REGION once the native window exists.
+    // Sets the initial _NET_WM_OPAQUE_REGION once the native window exists, and
+    // syncs the shadow margin + corner mask to the actual maximized state (which
+    // may be unknown during construction, so a window restored maximized would
+    // otherwise keep the shadow-margin ring).
     void showEvent(QShowEvent *event) override;
 
 private:
