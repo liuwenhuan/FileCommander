@@ -59,13 +59,20 @@ pkg_check_modules(POPPLER_QT5 REQUIRED poppler-qt5)
 # not request it, so pull it in here (bundled with qtbase5-dev).
 find_package(Qt5 COMPONENTS OpenGL REQUIRED)
 
+# Qt5::X11Extras (QX11Info) + libxcb: MainWindow sets the _NET_WM_OPAQUE_REGION
+# property directly on its X window so the compositor can skip alpha-blending
+# the opaque interior of the translucent (shadowed) frameless window.
+find_package(Qt5 COMPONENTS X11Extras REQUIRED)
+pkg_check_modules(XCB REQUIRED xcb)
+
 target_include_directories(ui PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/dialogs
     ${CMAKE_CURRENT_SOURCE_DIR}/theme
     ${CMAKE_CURRENT_SOURCE_DIR}/i18n
 )
-target_include_directories(ui PRIVATE ${MPV_INCLUDE_DIRS} ${POPPLER_QT5_INCLUDE_DIRS})
+target_include_directories(ui PRIVATE ${MPV_INCLUDE_DIRS} ${POPPLER_QT5_INCLUDE_DIRS}
+    ${XCB_INCLUDE_DIRS})
 
 target_link_libraries(ui PUBLIC
     core
@@ -77,5 +84,6 @@ target_link_libraries(ui PUBLIC
     Qt5::Gui
     Qt5::OpenGL
 )
-target_link_libraries(ui PRIVATE ${MPV_LIBRARIES} ${POPPLER_QT5_LIBRARIES})
+target_link_libraries(ui PRIVATE ${MPV_LIBRARIES} ${POPPLER_QT5_LIBRARIES}
+    Qt5::X11Extras ${XCB_LIBRARIES})
 target_compile_options(ui PRIVATE ${MPV_CFLAGS_OTHER} ${POPPLER_QT5_CFLAGS_OTHER})

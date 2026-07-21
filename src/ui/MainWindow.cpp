@@ -29,6 +29,7 @@
 #include <QPainter>
 #include <QResizeEvent>
 #include <QRegion>
+#include <QShowEvent>
 #include <QPainterPath>
 #include <QProcess>
 #include <QPushButton>
@@ -47,6 +48,10 @@
 
 #include <QFutureWatcher>
 #include <QtConcurrent/QtConcurrent>
+
+#include <QX11Info>     // Qt5::X11Extras: xcb connection for the opaque-region hint
+#include <xcb/xcb.h>
+#include <cstdlib>      // free() for xcb replies
 
 #include "ArchiveBrowserDialog.h"
 #include "ArchiveHandler.h"
@@ -653,6 +658,7 @@ void MainWindow::changeEvent(QEvent *event) {
         if (m_maskTimer)
             m_maskTimer->stop();
         applyRoundedMask();
+        updateOpaqueRegion(); // margin (hence opaque area) just changed
         update();
     }
 }
@@ -781,6 +787,73 @@ void MainWindow::applyRoundedMask() {
     c->setMask(QRegion(path.toFillPolygon().toPolygon()));
 }
 
+void MainWindow::updateOpaqueRegion() {
+    // The property is an X11/NETWM hint; off X11 there's no connection to set it
+    // on (QX11Info::connection() would be null), so bail.
+    if (!QX11Info::isPlatformX11())
+        return;
+    QWindow *win = windowHandle();
+    if (!win)
+        return; // native window not created yet (before first show)
+    xcb_connection_t *conn = QX11Info::connection();
+    if (!conn)
+        return;
+
+    // Intern the atom once; its value is stable for the connection's lifetime.
+    static xcb_atom_t opaqueAtom = XCB_ATOM_NONE;
+    if (opaqueAtom == XCB_ATOM_NONE) {
+        static const char kName[] = "_NET_WM_OPAQUE_REGION";
+        xcb_intern_atom_cookie_t cookie =
+            xcb_intern_atom(conn, 0, sizeof(kName) - 1, kName);
+        xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(conn, cookie, nullptr);
+        if (!reply)
+            return;
+        opaqueAtom = reply->atom;
+        free(reply);
+    }
+
+    // Opaque interior = visible content rect (window minus the translucent
+    // shadow margin), minus the rounded corners. Maximized: the whole window is
+    // opaque and square. The property is a flat list of (x, y, w, h) CARDINALs
+    // in *device* pixels, so scale logical geometry by the device pixel ratio.
+    const int m = (isMaximized() || contentsMargins().left() == 0) ? 0 : kShadowMargin;
+    const int radius = (m == 0) ? 0 : kCornerRadius;
+    const int x = m, y = m, w = width() - 2 * m, h = height() - 2 * m;
+    if (w <= 0 || h <= 0)
+        return;
+
+    const qreal dpr = devicePixelRatioF();
+    auto px = [dpr](int v) { return static_cast<uint32_t>(qRound(v * dpr)); };
+
+    QVector<uint32_t> region;
+    if (radius <= 0) {
+        region = {px(x), px(y), px(w), px(h)};
+    } else {
+        // Two rectangles forming a "plus": a full-width band inset top/bottom by
+        // the radius, plus a full-height band inset left/right. Their union is
+        // the content rect with the four corner squares removed, so the
+        // compositor keeps blending the (transparent, mask-clipped) corners
+        // rather than smearing opaque pixels into them.
+        region = {
+            px(x),          px(y + radius), px(w),              px(h - 2 * radius),
+            px(x + radius), px(y),          px(w - 2 * radius), px(h),
+        };
+    }
+
+    xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
+                        static_cast<xcb_window_t>(win->winId()), opaqueAtom,
+                        XCB_ATOM_CARDINAL, 32,
+                        static_cast<uint32_t>(region.size()), region.constData());
+    xcb_flush(conn);
+}
+
+void MainWindow::showEvent(QShowEvent *event) {
+    QMainWindow::showEvent(event);
+    // The native X window now exists: publish the opaque region for the first
+    // time. resizeEvent / changeEvent keep it in sync from here on.
+    updateOpaqueRegion();
+}
+
 void MainWindow::resizeEvent(QResizeEvent *event) {
     QMainWindow::resizeEvent(event);
     // Recomputing + applying an XShape mask per resize step is expensive and
@@ -791,6 +864,9 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
         m_maskTimer->start();
     else
         applyRoundedMask();
+    // The opaque region tracks the window size; one async xcb request per step
+    // is cheap (no round-trip), so keep it exact rather than deferring it.
+    updateOpaqueRegion();
 }
 
 void MainWindow::bindShortcut(const QString &id, const QString &label,

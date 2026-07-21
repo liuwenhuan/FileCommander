@@ -60,22 +60,22 @@ QToolBar QToolButton:hover {
 
 QTableView {
     background-color: #232323;
+    color: #e0e0e0;
     /* No zebra striping in dark mode: every row uses the same dark background. */
     alternate-background-color: #232323;
     gridline-color: #3a3a3a;
     border: 1px solid #1a1a1a;
-    color: #e0e0e0;
-}
-
-QTableView::item:selected {
-    background-color: #3d7deb;
-    color: #ffffff;
+    /* Selection colours on the widget (not a ::item rule) so they fold into the
+       palette; FileItemDelegate paints cells directly from it on the fast path
+       instead of the slow per-cell CSS box model. See light.qss for the why. */
+    selection-background-color: #3d7deb;
+    selection-color: #ffffff;
 }
 
 /* Inactive panel: softer selection so the active panel's row stands out. */
-QTableView[panelActive="false"]::item:selected {
-    background-color: #37455f;
-    color: #c8c8c8;
+QTableView[panelActive="false"] {
+    selection-background-color: #37455f;
+    selection-color: #c8c8c8;
 }
 
 QHeaderView::section {

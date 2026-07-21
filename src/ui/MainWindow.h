@@ -51,6 +51,8 @@ protected:
     // Clips the central widget's bottom corners to match the rounded window
     // (the title bar rounds the top corners itself).
     void resizeEvent(QResizeEvent *event) override;
+    // Sets the initial _NET_WM_OPAQUE_REGION once the native window exists.
+    void showEvent(QShowEvent *event) override;
 
 private:
     // Rebuilds m_frameCache (the pre-rendered shadow + rounded frame) if the
@@ -61,6 +63,10 @@ private:
     // via m_maskTimer so a drag-resize coalesces to one XShape update instead
     // of one per pixel.
     void applyRoundedMask();
+    // Publishes the opaque interior (window minus the translucent shadow margin
+    // and rounded corners) as _NET_WM_OPAQUE_REGION so the compositor skips
+    // alpha-blending it. No-op off X11. Coordinates are in device pixels.
+    void updateOpaqueRegion();
 
 private slots:
     void setActivePanel(FilePanel *panel);

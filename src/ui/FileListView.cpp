@@ -15,6 +15,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPolygon>
+#include <QStyledItemDelegate>
 #include <QResizeEvent>
 #include <QStyle>
 #include <QTimer>
@@ -90,6 +91,68 @@ private:
     int m_pressIndex = -1;
     QPoint m_pressPos;
 };
+
+// Paints file-list cells directly (background, icon, text) with a QPainter
+// instead of letting the item go through QStyleSheetStyle. The app sets a global
+// stylesheet for theming, which otherwise routes every cell through the CSS
+// item box-model machinery -- cheap once, but during an interactive column /
+// splitter resize the whole viewport of BOTH panels repaints per mouse step,
+// and the per-cell CSS cost is what visibly lagged the drag. All colours come
+// from the (theme-populated) palette, so light/dark and the active/inactive
+// selection tint still work; the model's ForegroundRole (compare-by-time
+// red/green) is honoured too.
+class FileItemDelegate : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+
+    void paint(QPainter *painter, const QStyleOptionViewItem &option,
+               const QModelIndex &index) const override {
+        QStyleOptionViewItem opt(option);
+        initStyleOption(&opt, index); // fills text, icon, font, displayAlignment
+
+        const bool selected = opt.state & QStyle::State_Selected;
+        const QPalette &pal = opt.palette;
+
+        painter->save();
+        painter->setClipRect(opt.rect);
+
+        // Row background. Selected rows use palette Highlight, which the
+        // [panelActive] stylesheet rule swaps between the active/inactive tint;
+        // everything else uses the base colour.
+        painter->fillRect(opt.rect, selected ? pal.highlight() : pal.base());
+
+        QRect r = opt.rect.adjusted(4, 0, -4, 0);
+
+        // Decoration (only the Name column carries an icon).
+        if (!opt.icon.isNull()) {
+            const int sz = opt.decorationSize.height() > 0 ? opt.decorationSize.height() : 16;
+            const QRect ir(r.left(), r.top() + (r.height() - sz) / 2, sz, sz);
+            opt.icon.paint(painter, ir, Qt::AlignCenter,
+                           selected ? QIcon::Selected : QIcon::Normal);
+            r.setLeft(ir.right() + 4);
+        }
+
+        if (r.width() > 0 && !opt.text.isEmpty()) {
+            // Text colour: selected text, else the model's ForegroundRole
+            // (compare red/green), else the normal text colour.
+            QColor fg = pal.text().color();
+            if (selected) {
+                fg = pal.highlightedText().color();
+            } else {
+                const QVariant v = index.data(Qt::ForegroundRole);
+                if (v.canConvert<QColor>())
+                    fg = qvariant_cast<QColor>(v);
+            }
+            painter->setPen(fg);
+            painter->setFont(opt.font);
+            const QString text =
+                opt.fontMetrics.elidedText(opt.text, Qt::ElideRight, r.width());
+            painter->drawText(r, opt.displayAlignment, text);
+        }
+
+        painter->restore();
+    }
+};
 } // namespace
 
 FileListView::FileListView(QWidget *parent) : QTableView(parent) {
@@ -99,6 +162,9 @@ FileListView::FileListView(QWidget *parent) : QTableView(parent) {
     setAlternatingRowColors(true);
     setShowGrid(false);
     setWordWrap(false);
+    // Direct-painting delegate: keeps cells off QStyleSheetStyle's slow per-cell
+    // CSS path so an interactive column/splitter resize stays smooth.
+    setItemDelegate(new FileItemDelegate(this));
     // Always reserve the vertical scrollbar's space. Panels share one view whose
     // model swaps on tab switch; with an auto-hiding scrollbar the viewport width
     // would jump by ~15px between a tab that needs the bar and one that doesn't,

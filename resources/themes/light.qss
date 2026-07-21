@@ -59,21 +59,26 @@ QToolBar QToolButton:hover {
 
 QTableView {
     background-color: #ffffff;
+    color: #202020;
     /* No zebra striping: every row uses the same background (matches dark mode). */
     alternate-background-color: #ffffff;
     gridline-color: #e0e0e0;
     border: 1px solid #d0d0d0;
+    /* Selection colours are set on the widget (not via a ::item pseudo-element)
+       so QStyleSheetStyle folds them into the palette. FileItemDelegate then
+       paints cells directly from the palette on the fast native path, instead
+       of routing every cell through the slow per-cell CSS box model -- which
+       was what made an interactive column/splitter resize lag. */
+    selection-background-color: #3d7deb;
+    selection-color: #ffffff;
 }
 
-QTableView::item:selected {
-    background-color: #3d7deb;
-    color: #ffffff;
-}
-
-/* Inactive panel: softer selection so the active panel's row stands out. */
-QTableView[panelActive="false"]::item:selected {
-    background-color: #c3d4f0;
-    color: #202020;
+/* Inactive panel: softer selection so the active panel's row stands out. The
+   [panelActive] property is toggled (+re-polished) in FileListView, which swaps
+   the palette Highlight the delegate reads. */
+QTableView[panelActive="false"] {
+    selection-background-color: #c3d4f0;
+    selection-color: #202020;
 }
 
 QHeaderView::section {

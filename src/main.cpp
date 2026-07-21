@@ -1,5 +1,6 @@
 #include <QApplication>
 #include <QColor>
+#include <QGuiApplication>
 #include <QIcon>
 #include <QPainter>
 #include <QPixmap>
@@ -61,6 +62,22 @@ int main(int argc, char *argv[]) {
     // desktop. Respect an explicit QT_QPA_PLATFORM override if the user set one.
     if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM"))
         qputenv("QT_QPA_PLATFORM", "xcb");
+
+    // High-DPI support. Qt 5 leaves per-screen scaling off by default, so on a
+    // HiDPI display the window would render at 1x and the compositor would
+    // upscale it (blurry + extra work). Enable device-pixel scaling and @2x
+    // pixmaps. Honour the desktop's fractional factor verbatim (deepin commonly
+    // uses 1.25/1.5) instead of rounding to an integer, so ttc matches the size
+    // of native apps. AA_ShareOpenGLContexts lets the mpv QOpenGLWidget keep its
+    // GL resources across reparenting (the Ctrl+Q preview swap). All of these
+    // must be set before the QApplication is constructed.
+#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
+    QGuiApplication::setHighDpiScaleFactorRoundingPolicy(
+        Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
+#endif
+    QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+    QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
+    QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 
     QApplication app(argc, argv);
     // libmpv (video preview) refuses to create a context unless LC_NUMERIC is
