@@ -5,11 +5,14 @@
 #include <QMainWindow>
 #include <QMap>
 #include <QPair>
+#include <QPixmap>
 #include <QString>
 #include <QStringList>
 #include <functional>
 
 #include <QLabel>
+
+class QTimer;
 
 #include "FileListView.h"
 #include "Settings.h"
@@ -48,6 +51,16 @@ protected:
     // Clips the central widget's bottom corners to match the rounded window
     // (the title bar rounds the top corners itself).
     void resizeEvent(QResizeEvent *event) override;
+
+private:
+    // Rebuilds m_frameCache (the pre-rendered shadow + rounded frame) if the
+    // theme colour changed; paintEvent blits it 9-patch style instead of
+    // rasterizing 17 anti-aliased rounded rects on every repaint.
+    void ensureFrameCache();
+    // Applies the rounded-bottom-corner mask to the central widget. Invoked
+    // via m_maskTimer so a drag-resize coalesces to one XShape update instead
+    // of one per pixel.
+    void applyRoundedMask();
 
 private slots:
     void setActivePanel(FilePanel *panel);
@@ -148,6 +161,12 @@ private:
     QMenu *m_commandsMenu = nullptr; // owned; rebuilt on language change
     QMenu *m_viewMenu = nullptr;     // owned; rebuilt on language change
     bool m_shortcutsBuilt = false;   // one-shot guard for QShortcut creation
+
+    // Frameless-chrome paint cache: the shadow + rounded frame rendered once at
+    // a small canonical size and blitted 9-patch style at any window size.
+    QPixmap m_frameCache;
+    QColor m_frameCacheColor;     // window colour the cache was rendered with
+    QTimer *m_maskTimer = nullptr; // coalesces rounded-corner mask updates
 
     QuickView *m_quickView = nullptr;
     FilePanel *m_quickViewPanel = nullptr; // panel replaced by the preview

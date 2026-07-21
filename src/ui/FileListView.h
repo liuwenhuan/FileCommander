@@ -2,6 +2,7 @@
 
 #include <QPersistentModelIndex>
 #include <QTableView>
+#include <QVector>
 
 class QTimer;
 
@@ -63,10 +64,18 @@ private:
     // Scales the columns so they fill the viewport width, preserving their
     // relative proportions (so a manual column drag is kept as a ratio).
     void stretchColumnsToFit();
+    // Cheap per-step variant used mid-resize: only the last visible column
+    // absorbs the width delta (one resizeSection instead of one per column).
+    void stretchLastColumnOnly();
     // Right-click on the header: toggle which columns are shown.
     void showColumnMenu(const QPoint &pos);
 
     bool m_adjustingColumns = false; // guards against re-entrancy
+    QTimer *m_refitTimer = nullptr;  // debounces the full refit during resizes
+    // Column proportions captured at the start of a resize burst. The per-step
+    // last-column-only stretch skews the live ratios, so the settled refit
+    // restores these instead of scaling the mutated ones.
+    QVector<int> m_resizeBaseSizes;
 
     // Click-to-rename: the name/ext cell that was already the sole selection
     // when the mouse went down, plus the timer that fires the edit once we're

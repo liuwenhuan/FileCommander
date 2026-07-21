@@ -120,6 +120,13 @@ FileListView::FileListView(QWidget *parent) : QTableView(parent) {
     setDragDropMode(QAbstractItemView::DragDrop);
     setDefaultDropAction(Qt::CopyAction);
 
+    // Debounces the full proportional column refit while a resize is in
+    // flight; resizeEvent() does the cheap last-column-only variant per step.
+    m_refitTimer = new QTimer(this);
+    m_refitTimer->setSingleShot(true);
+    m_refitTimer->setInterval(60);
+    connect(m_refitTimer, &QTimer::timeout, this, [this] { stretchColumnsToFit(); });
+
     m_renameClickTimer = new QTimer(this);
     m_renameClickTimer->setSingleShot(true);
     connect(m_renameClickTimer, &QTimer::timeout, this, [this]() {
@@ -209,7 +216,53 @@ void FileListView::showColumnMenu(const QPoint &pos) {
 
 void FileListView::resizeEvent(QResizeEvent *event) {
     QTableView::resizeEvent(event);
-    stretchColumnsToFit();
+    // During an interactive resize (window edge or splitter drag) this fires
+    // per mouse step. A full proportional refit resizes every column — each
+    // resizeSection triggering header/viewport relayout — which visibly lags
+    // the drag. So per step only the last column absorbs the delta (one
+    // section resize), and the full proportional refit runs once, shortly
+    // after the size settles. The refit scales from the proportions captured
+    // at the start of the burst (m_resizeBaseSizes), since the per-step
+    // stretch skews the live last-column ratio.
+    if (m_refitTimer) {
+        if (!m_refitTimer->isActive()) {
+            // First step of a burst: remember the current column proportions.
+            m_resizeBaseSizes.clear();
+            if (QHeaderView *header = horizontalHeader()) {
+                m_resizeBaseSizes.reserve(header->count());
+                for (int c = 0; c < header->count(); ++c)
+                    m_resizeBaseSizes.append(header->sectionSize(c));
+            }
+        }
+        m_refitTimer->start();
+    }
+    stretchLastColumnOnly();
+}
+
+void FileListView::stretchLastColumnOnly() {
+    if (m_adjustingColumns)
+        return;
+    QHeaderView *header = horizontalHeader();
+    if (!header || header->count() == 0)
+        return;
+    const int avail = viewport()->width();
+    if (avail <= 0)
+        return;
+
+    int last = -1, othersTotal = 0;
+    for (int c = 0; c < header->count(); ++c) {
+        if (header->isSectionHidden(c))
+            continue;
+        if (last >= 0)
+            othersTotal += header->sectionSize(last);
+        last = c;
+    }
+    if (last < 0)
+        return;
+
+    m_adjustingColumns = true;
+    header->resizeSection(last, qMax(30, avail - othersTotal));
+    m_adjustingColumns = false;
 }
 
 void FileListView::stretchColumnsToFit() {
@@ -222,12 +275,20 @@ void FileListView::stretchColumnsToFit() {
     if (avail <= 0)
         return;
 
+    // Prefer the proportions captured before the resize burst (see
+    // resizeEvent); the live sizes have the last column skewed by the per-step
+    // stretch. Outside a burst the vector is empty and live sizes are used.
+    const bool useBase = m_resizeBaseSizes.size() == header->count();
+    auto sizeOf = [&](int c) {
+        return useBase ? m_resizeBaseSizes.at(c) : header->sectionSize(c);
+    };
+
     QVector<int> cols;
     int total = 0;
     for (int c = 0; c < header->count(); ++c) {
         if (!header->isSectionHidden(c)) {
             cols.append(c);
-            total += header->sectionSize(c);
+            total += sizeOf(c);
         }
     }
     if (cols.isEmpty() || total <= 0)
@@ -241,11 +302,12 @@ void FileListView::stretchColumnsToFit() {
         if (i == cols.size() - 1)
             width = qMax(30, avail - used); // last column takes the remainder exactly
         else
-            width = qMax(30, static_cast<int>(header->sectionSize(cols.at(i)) * factor));
+            width = qMax(30, static_cast<int>(sizeOf(cols.at(i)) * factor));
         used += width;
         header->resizeSection(cols.at(i), width);
     }
     m_adjustingColumns = false;
+    m_resizeBaseSizes.clear(); // burst finished; next one recaptures
 }
 
 void FileListView::setPanelActive(bool active) {

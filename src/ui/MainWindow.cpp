@@ -208,6 +208,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     // to 0 when maximized (changeEvent).
     setMouseTracking(true);
     setContentsMargins(kShadowMargin, kShadowMargin, kShadowMargin, kShadowMargin);
+    // Coalesces per-step mask updates during an interactive resize into one
+    // final XShape call (see resizeEvent / applyRoundedMask).
+    m_maskTimer = new QTimer(this);
+    m_maskTimer->setSingleShot(true);
+    m_maskTimer->setInterval(50);
+    connect(m_maskTimer, &QTimer::timeout, this, &MainWindow::applyRoundedMask);
     // No global status bar: each FilePanel carries its own status strip, so
     // the function-key bar stays the bottom-most widget.
 
@@ -642,6 +648,11 @@ void MainWindow::changeEvent(QEvent *event) {
         // rounded corners) so no transparent gap shows at the screen edges.
         const int m = isMaximized() ? 0 : kShadowMargin;
         setContentsMargins(m, m, m, m);
+        // State flips are single events (not a drag): apply the mask now so the
+        // corners are correct the moment the window lands.
+        if (m_maskTimer)
+            m_maskTimer->stop();
+        applyRoundedMask();
         update();
     }
 }
@@ -669,22 +680,29 @@ bool MainWindow::event(QEvent *event) {
     return QMainWindow::event(event);
 }
 
-void MainWindow::paintEvent(QPaintEvent *) {
-    QPainter p(this);
-    p.setRenderHint(QPainter::Antialiasing);
-
-    // Maximized: fill the whole rect square (no shadow, no rounding).
-    if (isMaximized() || contentsMargins().left() == 0) {
-        p.fillRect(rect(), palette().color(QPalette::Window));
+void MainWindow::ensureFrameCache() {
+    const QColor bg = palette().color(QPalette::Window);
+    if (!m_frameCache.isNull() && m_frameCacheColor == bg)
         return;
-    }
+    m_frameCacheColor = bg;
 
-    const QRect content =
-        rect().adjusted(kShadowMargin, kShadowMargin, -kShadowMargin, -kShadowMargin);
+    // Render the shadow + rounded frame ONCE at the smallest size whose corners
+    // and edges are fully representative; paintEvent then blits it 9-patch
+    // style. The old path re-rasterized 17 anti-aliased rounded rects over the
+    // whole window on every repaint, which made interactive resizing crawl.
+    // Corner tiles must span the shadow margin + corner radius; one extra pixel
+    // row/column in the middle stretches cleanly (all mid-frame rows are
+    // identical).
+    const int corner = kShadowMargin + kCornerRadius + 1;
+    const int size = corner * 2 + 2;
+    m_frameCache = QPixmap(size, size);
+    m_frameCache.fill(Qt::transparent);
 
-    // Soft drop shadow: concentric rounded rects, darkest next to the content
-    // and fading to nothing at the window edge. Drawn largest-first so the more
-    // opaque inner rings paint on top.
+    QPainter p(&m_frameCache);
+    p.setRenderHint(QPainter::Antialiasing);
+    const QRect content = QRect(0, 0, size, size)
+                              .adjusted(kShadowMargin, kShadowMargin, -kShadowMargin,
+                                        -kShadowMargin);
     p.setPen(Qt::NoPen);
     for (int i = kShadowMargin; i >= 1; --i) {
         const int alpha = 46 * (kShadowMargin - i + 1) / kShadowMargin;
@@ -692,14 +710,42 @@ void MainWindow::paintEvent(QPaintEvent *) {
         p.drawRoundedRect(QRectF(content).adjusted(-i, -i + 1, i, i + 1),
                           kCornerRadius + i, kCornerRadius + i);
     }
-
-    // Opaque rounded window background over the shadow's inner area.
-    p.setBrush(palette().color(QPalette::Window));
+    p.setBrush(bg);
     p.drawRoundedRect(content, kCornerRadius, kCornerRadius);
 }
 
-void MainWindow::resizeEvent(QResizeEvent *event) {
-    QMainWindow::resizeEvent(event);
+void MainWindow::paintEvent(QPaintEvent *) {
+    QPainter p(this);
+
+    // Maximized: fill the whole rect square (no shadow, no rounding).
+    if (isMaximized() || contentsMargins().left() == 0) {
+        p.fillRect(rect(), palette().color(QPalette::Window));
+        return;
+    }
+
+    ensureFrameCache();
+    // 9-patch blit: four corners at 1:1, edges stretched along one axis, the
+    // centre stretched both ways (it's a solid fill, so stretching is exact).
+    const int c = kShadowMargin + kCornerRadius + 1; // corner tile edge
+    const int sw = m_frameCache.width();
+    const int w = width(), h = height();
+    const QPixmap &src = m_frameCache;
+
+    // Corners.
+    p.drawPixmap(0, 0, src, 0, 0, c, c);
+    p.drawPixmap(w - c, 0, src, sw - c, 0, c, c);
+    p.drawPixmap(0, h - c, src, 0, sw - c, c, c);
+    p.drawPixmap(w - c, h - c, src, sw - c, sw - c, c, c);
+    // Edges (stretched along their length).
+    p.drawPixmap(QRect(c, 0, w - 2 * c, c), src, QRect(c, 0, sw - 2 * c, c));
+    p.drawPixmap(QRect(c, h - c, w - 2 * c, c), src, QRect(c, sw - c, sw - 2 * c, c));
+    p.drawPixmap(QRect(0, c, c, h - 2 * c), src, QRect(0, c, c, sw - 2 * c));
+    p.drawPixmap(QRect(w - c, c, c, h - 2 * c), src, QRect(sw - c, c, c, sw - 2 * c));
+    // Centre (solid window colour; fillRect is cheaper than a stretched blit).
+    p.fillRect(QRect(c, c, w - 2 * c, h - 2 * c), m_frameCacheColor);
+}
+
+void MainWindow::applyRoundedMask() {
     QWidget *c = centralWidget();
     if (!c)
         return;
@@ -721,6 +767,18 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
     path.arcTo(0, h - 2 * r, 2 * r, 2 * r, 270, -90);
     path.closeSubpath();
     c->setMask(QRegion(path.toFillPolygon().toPolygon()));
+}
+
+void MainWindow::resizeEvent(QResizeEvent *event) {
+    QMainWindow::resizeEvent(event);
+    // Recomputing + applying an XShape mask per resize step is expensive and
+    // forces extra full repaints, so during an interactive drag we defer it:
+    // one mask update ~50ms after the last step. The corners are briefly square
+    // mid-drag, which is imperceptible while the window is in motion.
+    if (m_maskTimer)
+        m_maskTimer->start();
+    else
+        applyRoundedMask();
 }
 
 void MainWindow::bindShortcut(const QString &id, const QString &label,
