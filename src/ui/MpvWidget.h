@@ -33,6 +33,8 @@ public:
     double durationSeconds() const;
     double positionSeconds() const;
     bool paused() const;
+    bool eofReached() const; // at end-of-file
+    bool ended() const;      // playback finished / core is idle (no active file)
     int videoWidth() const;
     int videoHeight() const;
     QString videoCodec() const;
@@ -40,9 +42,12 @@ public:
 signals:
     // Emitted (queued) from mpv's render thread to request a repaint.
     void updateRequested();
+    // Emitted (queued) from mpv's thread when core events are pending.
+    void mpvEvents();
 
 private slots:
     void doUpdate();
+    void onMpvEvents(); // drains the mpv event queue on the GUI thread
 
 protected:
     void initializeGL() override;
@@ -51,9 +56,11 @@ protected:
 private:
     double getDouble(const char *prop) const;
     long long getInt(const char *prop) const;
+    bool getFlag(const char *prop) const; // reads a boolean/flag mpv property
 
     static void *getProcAddress(void *ctx, const char *name);
     static void onMpvRenderUpdate(void *ctx);
+    static void onMpvWakeup(void *ctx);
 
     mpv_handle *m_mpv = nullptr;
     mpv_render_context *m_mpvGl = nullptr;
@@ -61,4 +68,10 @@ private:
     // and replayed from initializeGL(), so mpv always has a VO when it opens the
     // file (otherwise the video track isn't decoded and the frame stays black).
     QString m_pendingLoad;
+    // The most recently loaded file, so playPause() can restart it after EOF.
+    QString m_currentPath;
+    // Set from the mpv END_FILE(EOF) event, cleared on START_FILE / load(). The
+    // authoritative "playback finished" signal (property polling is unreliable
+    // without draining the event queue).
+    bool m_ended = false;
 };

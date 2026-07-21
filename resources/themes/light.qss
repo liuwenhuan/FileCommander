@@ -59,7 +59,8 @@ QToolBar QToolButton:hover {
 
 QTableView {
     background-color: #ffffff;
-    alternate-background-color: #f0f4fb;
+    /* No zebra striping: every row uses the same background (matches dark mode). */
+    alternate-background-color: #ffffff;
     gridline-color: #e0e0e0;
     border: 1px solid #d0d0d0;
 }

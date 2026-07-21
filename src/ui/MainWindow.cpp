@@ -156,7 +156,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     splitter->setStretchFactor(0, 1);
     splitter->setStretchFactor(1, 1);
     splitter->setHandleWidth(2);
-    m_quickView = new QuickView(this);
+    m_quickView = new QuickView(m_settings, this);
     m_quickView->hide(); // parked until Ctrl+Q swaps it into a panel slot
 
     m_folderTreeModel = new QFileSystemModel(this);

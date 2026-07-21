@@ -183,4 +183,12 @@ void TitleBar::paintEvent(QPaintEvent *) {
     // the panels so the bar reads as chrome.
     QPainter p(this);
     p.fillRect(rect(), palette().color(QPalette::Window));
+
+    // Centred application name, dimmed so it reads as chrome rather than a
+    // control. Centred on the full bar width; the menu buttons on the left and
+    // window buttons on the right are short enough not to overlap it.
+    QColor fg = palette().color(QPalette::WindowText);
+    fg.setAlpha(150);
+    p.setPen(fg);
+    p.drawText(rect(), Qt::AlignCenter, tr("File Commander"));
 }

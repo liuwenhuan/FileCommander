@@ -47,6 +47,30 @@ void Settings::setListFontSize(int pt) {
     m_settings.setValue("appearance/listFontSize", qBound(7, pt, 24));
 }
 
+double Settings::videoSpeed() const {
+    return m_settings.value("video/speed", 1.0).toDouble();
+}
+
+void Settings::setVideoSpeed(double speed) {
+    m_settings.setValue("video/speed", speed);
+}
+
+int Settings::videoVolume() const {
+    return m_settings.value("video/volume", 70).toInt();
+}
+
+void Settings::setVideoVolume(int volume) {
+    m_settings.setValue("video/volume", qBound(0, volume, 100));
+}
+
+bool Settings::videoMuted() const {
+    return m_settings.value("video/muted", true).toBool();
+}
+
+void Settings::setVideoMuted(bool muted) {
+    m_settings.setValue("video/muted", muted);
+}
+
 bool Settings::showHiddenFiles() const {
     return m_settings.value("behavior/showHiddenFiles", false).toBool();
 }

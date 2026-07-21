@@ -16,6 +16,7 @@
 #include <QSizePolicy>
 #include <QSlider>
 #include <QStackedWidget>
+#include <QStyle>
 #include <QTimer>
 #include <QToolBar>
 #include <QVBoxLayout>
@@ -23,6 +24,7 @@
 
 #include "ImageViewer.h"
 #include "MpvWidget.h"
+#include "config/Settings.h"
 
 namespace {
 constexpr qint64 kTextPreviewBytes = 64 * 1024; // cap text previews at 64 KiB
@@ -31,7 +33,8 @@ constexpr double kMinScale = 0.05;
 constexpr double kMaxScale = 20.0;
 } // namespace
 
-QuickView::QuickView(QWidget *parent) : QWidget(parent) {
+QuickView::QuickView(Settings &settings, QWidget *parent)
+    : QWidget(parent), m_settings(settings) {
     m_text = new QPlainTextEdit(this);
     m_text->setReadOnly(true);
     m_text->setLineWrapMode(QPlainTextEdit::NoWrap);
@@ -187,7 +190,8 @@ QWidget *QuickView::buildVideoPage() {
         m_mpv->playPause();
         // Reflect the resulting state; playPause is async so query after a beat.
         QTimer::singleShot(50, this, [this]() {
-            m_playButton->setText(m_mpv->paused() ? tr("Play") : tr("Pause"));
+            m_playButton->setText((m_mpv->paused() || m_mpv->ended()) ? tr("Play")
+                                                                           : tr("Pause"));
         });
     });
 
@@ -197,7 +201,11 @@ QWidget *QuickView::buildVideoPage() {
     m_speedCombo->addItem(tr("2x"), 2.0);
     m_speedCombo->addItem(tr("3x"), 3.0);
     connect(m_speedCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-            [this](int index) { m_mpv->setSpeed(m_speedCombo->itemData(index).toDouble()); });
+            [this](int index) {
+                const double speed = m_speedCombo->itemData(index).toDouble();
+                m_mpv->setSpeed(speed);
+                m_settings.setVideoSpeed(speed); // persist for later previews
+            });
 
     m_progressSlider = new QSlider(Qt::Horizontal, m_videoPage);
     m_progressSlider->setRange(0, 1000);
@@ -208,16 +216,34 @@ QWidget *QuickView::buildVideoPage() {
         m_seeking = false;
     });
 
+    // Mute toggle: checkable, checked == muted. The icon reflects the state so a
+    // muted clip reads as muted at a glance.
+    m_muteButton = new QPushButton(m_videoPage);
+    m_muteButton->setCheckable(true);
+    m_muteButton->setToolTip(tr("Mute / unmute"));
+    auto syncMuteIcon = [this]() {
+        m_muteButton->setIcon(style()->standardIcon(
+            m_muteButton->isChecked() ? QStyle::SP_MediaVolumeMuted : QStyle::SP_MediaVolume));
+    };
+    syncMuteIcon();
+    connect(m_muteButton, &QPushButton::toggled, this, [this, syncMuteIcon](bool muted) {
+        m_mpv->setMute(muted);
+        m_settings.setVideoMuted(muted);
+        syncMuteIcon();
+    });
+
     auto *volumeLabel = new QLabel(tr("Vol"), m_videoPage);
     m_volumeSlider = new QSlider(Qt::Horizontal, m_videoPage);
     m_volumeSlider->setRange(0, 100);
     m_volumeSlider->setValue(70);
     m_volumeSlider->setFixedWidth(90);
-    m_volumeSlider->setToolTip(tr("Volume (starts muted)"));
+    m_volumeSlider->setToolTip(tr("Volume"));
     connect(m_volumeSlider, &QSlider::valueChanged, this, [this](int value) {
         m_mpv->setVolume(value);
-        // Any deliberate volume change lifts the initial mute.
-        m_mpv->setMute(value == 0);
+        m_settings.setVideoVolume(value); // persist for later previews
+        // Dragging the volume up is an intent to hear it: lift the mute.
+        if (value > 0 && m_muteButton->isChecked())
+            m_muteButton->setChecked(false); // its toggle handler unmutes + persists
     });
 
     m_videoInfoCheck = new QCheckBox(tr("Show info"), m_videoPage);
@@ -237,6 +263,7 @@ QWidget *QuickView::buildVideoPage() {
     controls->addWidget(m_playButton);
     controls->addWidget(m_speedCombo);
     controls->addWidget(m_progressSlider, 1);
+    controls->addWidget(m_muteButton);
     controls->addWidget(volumeLabel);
     controls->addWidget(m_volumeSlider);
     controls->addWidget(m_videoInfoCheck);
@@ -251,6 +278,10 @@ QWidget *QuickView::buildVideoPage() {
     m_videoTimer = new QTimer(this);
     m_videoTimer->setInterval(250);
     connect(m_videoTimer, &QTimer::timeout, this, [this]() {
+        // Keep the play/pause label in sync with the core: a clip that's paused
+        // or sitting at EOF shows "Play" (clicking replays/resumes).
+        m_playButton->setText((m_mpv->paused() || m_mpv->ended()) ? tr("Play")
+                                                                       : tr("Pause"));
         if (m_seeking)
             return;
         const double dur = m_mpv->durationSeconds();
@@ -386,13 +417,34 @@ void QuickView::showFile(const QString &path) {
 
     if (isVideo(path)) {
         m_infoOverlay->hide(); // image overlay belongs to another page
-        m_mpv->setMute(true);  // default muted on every new clip
+
+        // Apply the persisted preview preferences to both the core and controls
+        // (block signals so seeding them doesn't re-persist or fight the core).
+        const int savedVolume = m_settings.videoVolume();
+        const bool savedMuted = m_settings.videoMuted();
+        const double savedSpeed = m_settings.videoSpeed();
+
         m_volumeSlider->blockSignals(true);
-        m_volumeSlider->setValue(70);
+        m_volumeSlider->setValue(savedVolume);
         m_volumeSlider->blockSignals(false);
+        m_mpv->setVolume(savedVolume);
+
+        m_muteButton->blockSignals(true);
+        m_muteButton->setChecked(savedMuted);
+        m_muteButton->setIcon(style()->standardIcon(
+            savedMuted ? QStyle::SP_MediaVolumeMuted : QStyle::SP_MediaVolume));
+        m_muteButton->blockSignals(false);
+        m_mpv->setMute(savedMuted);
+
+        int speedIndex = m_speedCombo->findData(savedSpeed);
+        if (speedIndex < 0)
+            speedIndex = 0; // unknown saved speed → fall back to 1x
+        m_speedCombo->blockSignals(true);
+        m_speedCombo->setCurrentIndex(speedIndex);
+        m_speedCombo->blockSignals(false);
+        m_mpv->setSpeed(m_speedCombo->itemData(speedIndex).toDouble());
+
         m_progressSlider->setValue(0);
-        m_speedCombo->setCurrentIndex(0);
-        m_mpv->setSpeed(1.0);
         m_playButton->setText(tr("Pause")); // loadfile starts playing
         m_mpv->load(path);
         m_stack->setCurrentWidget(m_videoPage);

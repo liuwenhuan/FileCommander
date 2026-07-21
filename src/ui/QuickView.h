@@ -14,6 +14,7 @@ class QSlider;
 class QStackedWidget;
 class QTimer;
 class MpvWidget;
+class Settings;
 
 // Lightweight in-panel preview shown by Ctrl+Q: renders the file under the
 // cursor as a zoomable image, a text head, or a "no preview" note.
@@ -21,7 +22,7 @@ class QuickView : public QWidget {
     Q_OBJECT
 
 public:
-    explicit QuickView(QWidget *parent = nullptr);
+    explicit QuickView(Settings &settings, QWidget *parent = nullptr);
 
     void showFile(const QString &path);
 
@@ -57,6 +58,7 @@ private:
     QWidget *m_videoPage = nullptr;
     MpvWidget *m_mpv = nullptr;
     QPushButton *m_playButton = nullptr;
+    QPushButton *m_muteButton = nullptr; // checkable: checked == muted
     QComboBox *m_speedCombo = nullptr;
     QSlider *m_progressSlider = nullptr;
     QSlider *m_volumeSlider = nullptr;
@@ -64,6 +66,8 @@ private:
     QLabel *m_videoInfoOverlay = nullptr;
     QTimer *m_videoTimer = nullptr; // polls position while playing
     bool m_seeking = false;         // suppress timer updates while dragging
+
+    Settings &m_settings; // persisted video speed / volume / mute
 
     QPixmap m_originalPixmap;
     double m_imageScale = 1.0;
