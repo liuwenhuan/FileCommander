@@ -404,46 +404,16 @@ QWidget *QuickView::buildOfficeTablePage() {
     return m_officeTable;
 }
 
-void QuickView::populateCsvTable(const QString &csv) {
+void QuickView::populateCsvTable(const QString &tsv) {
     m_officeTable->clear();
-    // Minimal RFC-4180 CSV parse: honour quoted fields (with "" escapes and
-    // embedded newlines/commas). Good enough for a spreadsheet preview.
-    QVector<QVector<QString>> rows;
-    QVector<QString> row;
-    QString field;
-    bool inQuotes = false;
-    for (int i = 0; i < csv.size(); ++i) {
-        const QChar c = csv.at(i);
-        if (inQuotes) {
-            if (c == '"') {
-                if (i + 1 < csv.size() && csv.at(i + 1) == '"') {
-                    field += '"';
-                    ++i;
-                } else {
-                    inQuotes = false;
-                }
-            } else {
-                field += c;
-            }
-        } else if (c == '"') {
-            inQuotes = true;
-        } else if (c == ',') {
-            row.append(field);
-            field.clear();
-        } else if (c == '\n' || c == '\r') {
-            if (c == '\r' && i + 1 < csv.size() && csv.at(i + 1) == '\n')
-                ++i; // swallow CRLF
-            row.append(field);
-            field.clear();
-            rows.append(row);
-            row.clear();
-        } else {
-            field += c;
-        }
-    }
-    if (!field.isEmpty() || !row.isEmpty()) {
-        row.append(field);
-        rows.append(row);
+    // office-oxide's `text` output is tab-separated: one row per line, cells
+    // split on '\t' (commas are literal, so no quote handling needed).
+    const QStringList lines = tsv.split(QLatin1Char('\n'));
+    QVector<QStringList> rows;
+    for (const QString &line : lines) {
+        if (line.isEmpty() && &line == &lines.last())
+            continue; // drop a trailing empty line from the final newline
+        rows.append(line.split(QLatin1Char('\t')));
     }
 
     int cols = 0;
@@ -712,15 +682,12 @@ void QuickView::showFile(const QString &path) {
         m_infoOverlay->hide();
         const OfficeConverter::Result r = OfficeConverter::convert(path);
         if (r.ok && r.kind == OfficeConverter::Kind::Document) {
-            if (!r.workDir.isEmpty())
-                m_markdown->setSearchPaths({r.workDir}); // resolve extracted images
-            m_markdown->document()->setMarkdown(r.markdown,
-                                                QTextDocument::MarkdownDialectGitHub);
+            m_markdown->setHtml(r.html); // office_oxide HTML: headings, tables, bold
             m_stack->setCurrentWidget(m_markdown);
             return;
         }
         if (r.ok && r.kind == OfficeConverter::Kind::Spreadsheet) {
-            populateCsvTable(r.csv);
+            populateCsvTable(r.tsv);
             m_stack->setCurrentWidget(m_officeTable);
             return;
         }

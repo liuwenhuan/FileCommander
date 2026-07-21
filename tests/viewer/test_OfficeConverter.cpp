@@ -63,10 +63,17 @@ protected:
         m_hadPath = qEnvironmentVariableIsSet("PATH");
         if (m_hadPath)
             m_previousPath = qgetenv("PATH");
+        m_hadHome = qEnvironmentVariableIsSet("HOME");
+        if (m_hadHome)
+            m_previousHome = qgetenv("HOME");
 
         ASSERT_TRUE(m_emptyDir.isValid());
         qputenv("TTC_OFFICE_OXIDE", QByteArray("/nonexistent/does-not-exist/office_oxide"));
         qputenv("PATH", m_emptyDir.path().toUtf8());
+        // resolveBinary() also probes ~/.local/bin and ~/.cargo/bin, so point
+        // HOME at the empty dir too -- otherwise a real office-oxide installed
+        // under the developer's home would make these "unavailable" tests flaky.
+        qputenv("HOME", m_emptyDir.path().toUtf8());
     }
 
     void TearDown() override {
@@ -74,6 +81,10 @@ protected:
             qputenv("TTC_OFFICE_OXIDE", m_previousOverride);
         else
             qunsetenv("TTC_OFFICE_OXIDE");
+        if (m_hadHome)
+            qputenv("HOME", m_previousHome);
+        else
+            qunsetenv("HOME");
         if (m_hadPath)
             qputenv("PATH", m_previousPath);
         else
@@ -85,6 +96,8 @@ protected:
     QByteArray m_previousOverride;
     bool m_hadPath = false;
     QByteArray m_previousPath;
+    bool m_hadHome = false;
+    QByteArray m_previousHome;
 };
 
 TEST_F(OfficeConverterUnavailableTest, IsAvailableIsFalseWhenBinaryCannotBeResolved) {

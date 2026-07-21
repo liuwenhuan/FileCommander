@@ -3,31 +3,21 @@
 #include <QString>
 
 // Wraps the `office_oxide` command-line tool
-// (https://github.com/yfedoseev/office_oxide, docs at https://office.oxide.fyi)
-// as a subprocess to convert Office documents for read-only preview:
-//   docx/doc/pptx/ppt -> Markdown text + images extracted into a temp dir
-//   xlsx/xls          -> CSV text (rendered as a table by the caller)
+// (https://github.com/yfedoseev/office_oxide) as a subprocess to convert
+// Office documents for read-only preview:
+//   docx/doc/pptx/ppt -> HTML  (headings, bold/italic, paragraphs, tables)
+//   xlsx/xls          -> TSV   (rendered as a grid by the caller)
 //
-// office_oxide is a Rust CLI installed via `cargo install office_oxide_cli`
-// (binary name `office-oxide`). It is NOT installed in the environment this
-// module was written in, so the exact invocations below are built
-// defensively from the *documented* CLI surface rather than tested against
-// a real binary:
-//   office-oxide text <file>       -- plain text
-//   office-oxide markdown <file>   -- markdown
-//   office-oxide html <file>       -- html
-//   office-oxide info <file>       -- metadata
-//   office-oxide ir <file>         -- JSON IR dump
-//
-// Two things this module needs are NOT present in that documented surface:
-// a dedicated image-extraction option for `markdown` (the IR only carries
-// image alt text, not bytes, over the CLI), and a `csv` subcommand (the
-// underlying library has RFC-4180 CSV support internally, but the CLI does
-// not expose it in the README/source as of this writing). convert() tries
-// the most plausible flag/subcommand first and transparently falls back to
-// a safe, documented invocation if the CLI rejects it as unrecognized. See
-// the ASSUMPTION comments in OfficeConverter.cpp -- re-check them against
-// `office-oxide --help` once the binary is actually installed.
+// office_oxide is a Rust CLI (binary name `office-oxide`), the `office_oxide_cli`
+// workspace member of that repo:
+//   cargo install --git https://github.com/yfedoseev/office_oxide office_oxide_cli
+// Its subcommands each take a single file path (no flags): text, markdown, html,
+// info, ir. We use `html` for word/presentation files because its output is
+// block-structured (proper <h1>/<p>/<strong>/<table>), which QTextBrowser renders
+// faithfully -- `markdown` collapses list items and loses table blocks for lack
+// of blank-line separators. Spreadsheets use `text`, which yields clean TSV that
+// maps 1:1 to grid cells. office_oxide does NOT export embedded images (it emits
+// empty <img> / broken ![](rIdN) placeholders), so those are stripped.
 class OfficeConverter {
 public:
     enum class Kind { None, Document, Spreadsheet };
@@ -52,10 +42,9 @@ public:
     struct Result {
         bool ok = false;
         Kind kind = Kind::None;
-        QString markdown; // Document: markdown text; image links resolve inside workDir
-        QString csv;      // Spreadsheet: CSV text
-        QString workDir;  // temp dir holding extracted images; empty if none. Caller owns cleanup.
-        QString error;    // human-readable message on failure
+        QString html;  // Document: HTML markup (render with QTextBrowser::setHtml)
+        QString tsv;   // Spreadsheet: tab-separated cell text (one row per line)
+        QString error; // human-readable message on failure
     };
 
     // Runs the CLI synchronously (QProcess, ~30s timeout) and returns the

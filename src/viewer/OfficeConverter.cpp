@@ -3,9 +3,9 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QProcess>
+#include <QRegularExpression>
 #include <QStandardPaths>
 #include <QStringList>
-#include <QTemporaryDir>
 
 namespace {
 
@@ -52,19 +52,6 @@ ProcResult runOfficeOxide(const QString &binary, const QStringList &args, int ti
     r.stdOut = QString::fromUtf8(proc.readAllStandardOutput());
     r.stdErr = QString::fromUtf8(proc.readAllStandardError()).trimmed();
     return r;
-}
-
-// Heuristic: does this stderr look like a clap "you gave me an argument I
-// don't understand" error, as opposed to a real conversion failure? Used to
-// decide whether a speculative flag/subcommand should be retried without it.
-bool looksLikeUsageError(const QString &stdErrText) {
-    const QString s = stdErrText.toLower();
-    return s.contains(QStringLiteral("unexpected argument")) ||
-           s.contains(QStringLiteral("unrecognized subcommand")) ||
-           s.contains(QStringLiteral("found argument")) ||
-           s.contains(QStringLiteral("invalid value")) ||
-           s.contains(QStringLiteral("unknown option")) ||
-           s.contains(QStringLiteral("error: unknown"));
 }
 
 } // namespace
@@ -133,7 +120,8 @@ OfficeConverter::Result OfficeConverter::convert(const QString &path) {
     const QString binary = resolveBinary();
     if (binary.isEmpty()) {
         result.error = QStringLiteral(
-            "office_oxide CLI not found. Install it with `cargo install office_oxide_cli`, "
+            "office_oxide CLI not found. Install it with "
+            "`cargo install --git https://github.com/yfedoseev/office_oxide office_oxide_cli`, "
             "ensure the `office-oxide` binary is on PATH, or set TTC_OFFICE_OXIDE to its full path.");
         return result;
     }
@@ -145,52 +133,26 @@ OfficeConverter::Result OfficeConverter::convertDocument(const QString &binary, 
     Result result;
     result.kind = Kind::Document;
 
-    // Directory to receive extracted images. Created eagerly (with a unique
-    // name) so it exists whether or not the CLI ends up writing into it. We
-    // disable auto-removal: the caller owns cleanup once it has read the
-    // markdown and resolved the image links against this path.
-    QTemporaryDir workDir(QDir::tempPath() + QStringLiteral("/ttc-office-oxide-XXXXXX"));
-    if (!workDir.isValid()) {
-        result.error = QStringLiteral("could not create a temp directory for extracted images");
-        return result;
-    }
-    workDir.setAutoRemove(false);
-
-    // ASSUMPTION (unverified -- see header comment): the documented CLI has
-    // no dedicated image-extraction flag for `markdown`. We speculatively
-    // pass `--images-dir <dir>`, the most common naming convention for this
-    // kind of option in comparable tools (e.g. pandoc's `--extract-media`),
-    // and fall back to a plain `markdown <file>` call (text only, no images)
-    // if the installed CLI rejects it as an unknown argument.
-    ProcResult run = runOfficeOxide(
-        binary, {QStringLiteral("markdown"), path, QStringLiteral("--images-dir"), workDir.path()}, kTimeoutMs);
-    bool imagesRequested = true;
-
-    if (run.started && !run.timedOut && run.exitCode != 0 && looksLikeUsageError(run.stdErr)) {
-        imagesRequested = false;
-        run = runOfficeOxide(binary, {QStringLiteral("markdown"), path}, kTimeoutMs);
-    }
-
+    // Word / PowerPoint → HTML (`office-oxide html <file>`): block-structured
+    // (<h1>/<p>/<strong>/<table>), which QTextBrowser renders faithfully.
+    // office_oxide does not export embedded images -- it emits empty `<img>`
+    // tags -- so strip them rather than show broken-image icons.
+    const ProcResult run = runOfficeOxide(binary, {QStringLiteral("html"), path}, kTimeoutMs);
     if (!run.started || run.timedOut) {
         result.error = run.stdErr;
-        QDir(workDir.path()).removeRecursively();
         return result;
     }
     if (run.exitCode != 0) {
-        result.error = run.stdErr.isEmpty() ? QStringLiteral("office_oxide exited with code %1").arg(run.exitCode)
-                                             : run.stdErr;
-        QDir(workDir.path()).removeRecursively();
+        result.error = run.stdErr.isEmpty()
+                           ? QStringLiteral("office_oxide exited with code %1").arg(run.exitCode)
+                           : run.stdErr;
         return result;
     }
 
+    QString html = run.stdOut;
+    html.remove(QRegularExpression(QStringLiteral("<img\\b[^>]*>"))); // drop empty image tags
     result.ok = true;
-    result.markdown = run.stdOut;
-    if (imagesRequested) {
-        result.workDir = workDir.path();
-    } else {
-        // Nothing was ever written into it; don't leave an orphaned empty dir.
-        QDir(workDir.path()).removeRecursively();
-    }
+    result.html = html;
     return result;
 }
 
@@ -198,29 +160,24 @@ OfficeConverter::Result OfficeConverter::convertSpreadsheet(const QString &binar
     Result result;
     result.kind = Kind::Spreadsheet;
 
-    // ASSUMPTION (unverified -- see header comment): the documented
-    // subcommand set (`text`, `markdown`, `html`, `info`, `ir`) has no `csv`
-    // subcommand, even though the underlying library supports RFC-4180 CSV
-    // output internally. We speculatively try `csv <file>`, mirroring the
-    // naming of the other subcommands, and fall back to `text <file>` --
-    // which at least yields readable cell text -- if the CLI rejects it.
-    ProcResult run = runOfficeOxide(binary, {QStringLiteral("csv"), path}, kTimeoutMs);
-
-    if (run.started && !run.timedOut && run.exitCode != 0 && looksLikeUsageError(run.stdErr)) {
-        run = runOfficeOxide(binary, {QStringLiteral("text"), path}, kTimeoutMs);
-    }
-
+    // Excel → tab-separated cell text (`office-oxide text <file>`). The CLI has
+    // no CSV subcommand, but `text` yields clean TSV (one row per line, cells
+    // separated by tabs, commas kept literal) which the viewer renders as a
+    // grid. (`markdown` would give a titled table too, but TSV maps 1:1 to
+    // cells without any table-syntax parsing.)
+    const ProcResult run = runOfficeOxide(binary, {QStringLiteral("text"), path}, kTimeoutMs);
     if (!run.started || run.timedOut) {
         result.error = run.stdErr;
         return result;
     }
     if (run.exitCode != 0) {
-        result.error = run.stdErr.isEmpty() ? QStringLiteral("office_oxide exited with code %1").arg(run.exitCode)
-                                             : run.stdErr;
+        result.error = run.stdErr.isEmpty()
+                           ? QStringLiteral("office_oxide exited with code %1").arg(run.exitCode)
+                           : run.stdErr;
         return result;
     }
 
     result.ok = true;
-    result.csv = run.stdOut;
+    result.tsv = run.stdOut; // tab-separated
     return result;
 }
