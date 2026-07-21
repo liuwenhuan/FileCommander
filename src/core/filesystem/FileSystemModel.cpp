@@ -10,23 +10,11 @@
 #include <QSet>
 #include <QtConcurrent/QtConcurrent>
 
+#include "FileProvider.h"
 #include "IconCache.h"
+#include "LocalFileProvider.h"
 
 namespace {
-
-QVector<FileInfo> scanDirectory(const QString &path, bool showHidden) {
-    QVector<FileInfo> result;
-    QDir dir(path);
-    QDir::Filters filters = QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot;
-    if (showHidden)
-        filters |= QDir::Hidden;
-
-    const QFileInfoList entries = dir.entryInfoList(filters);
-    result.reserve(entries.size());
-    for (const QFileInfo &qfi : entries)
-        result.append(FileInfo(qfi.absoluteFilePath()));
-    return result;
-}
 
 QString humanSize(qint64 bytes) {
     static const char *units[] = {"B", "KB", "MB", "GB", "TB"};
@@ -44,8 +32,13 @@ QString humanSize(qint64 bytes) {
 } // namespace
 
 FileSystemModel::FileSystemModel(QObject *parent) : QAbstractTableModel(parent) {
+    m_provider = LocalFileProvider::instance();
     connect(&m_watcher, &QFutureWatcher<QVector<FileInfo>>::finished, this,
             &FileSystemModel::onScanFinished);
+}
+
+void FileSystemModel::setProvider(FileProvider *provider) {
+    m_provider = provider ? provider : LocalFileProvider::instance();
 }
 
 void FileSystemModel::setRootPath(const QString &path) {
@@ -54,8 +47,10 @@ void FileSystemModel::setRootPath(const QString &path) {
     m_dirSizes.clear();       // computed folder sizes don't survive a rescan
     m_compareStatus.clear();  // comparison highlights are stale after a rescan
     emit loadStarted();
+    FileProvider *provider = m_provider;
+    const bool showHidden = m_showHidden;
     QFuture<QVector<FileInfo>> future =
-        QtConcurrent::run(scanDirectory, path, m_showHidden);
+        QtConcurrent::run([provider, path, showHidden] { return provider->list(path, showHidden); });
     m_watcher.setFuture(future);
 }
 
@@ -70,8 +65,7 @@ void FileSystemModel::setShowHiddenFiles(bool show) {
 void FileSystemModel::onScanFinished() {
     beginResetModel();
     m_allEntries = m_watcher.result();
-    m_hasParentEntry = QDir(m_rootPath).absolutePath() != QDir(m_rootPath).rootPath() &&
-                        QDir::cleanPath(m_rootPath) != QDir::rootPath();
+    m_hasParentEntry = !m_provider->parentPath(m_rootPath).isEmpty();
     sortEntries(); // sorts m_allEntries and rebuilds the visible m_entries
     endResetModel();
     emit loadFinished(m_entries.size());
@@ -167,7 +161,7 @@ bool FileSystemModel::isParentEntry(int row) const {
 
 FileInfo FileSystemModel::fileInfoAt(int row) const {
     if (isParentEntry(row))
-        return FileInfo::makeParentEntry(QDir(m_rootPath).absoluteFilePath(".."));
+        return FileInfo::makeParentEntry(m_provider->parentPath(m_rootPath));
     int idx = m_hasParentEntry ? row - 1 : row;
     if (idx < 0 || idx >= m_entries.size())
         return FileInfo();
@@ -413,18 +407,20 @@ bool FileSystemModel::setData(const QModelIndex &index, const QVariant &value, i
     if (newName.isEmpty() || newName == info.name())
         return false;
 
-    const QString destPath = QDir(m_rootPath).filePath(newName);
-    if (QFileInfo::exists(destPath)) {
+    const QString oldPath = info.path();
+    QString newPath;
+    switch (m_provider->rename(oldPath, newName, &newPath)) {
+    case FileProvider::RenameResult::AlreadyExists:
         emit renameFailed(tr("%1 already exists").arg(newName));
         return false;
-    }
-    const QString oldPath = info.path();
-    if (!QDir().rename(oldPath, destPath)) {
+    case FileProvider::RenameResult::Failed:
         emit renameFailed(tr("Failed to rename %1").arg(info.name()));
         return false;
+    case FileProvider::RenameResult::Ok:
+        break;
     }
 
-    emit renamed(oldPath, destPath);
+    emit renamed(oldPath, newPath);
     setRootPath(m_rootPath); // reload to pick up the new name/sort position
     return true;
 }

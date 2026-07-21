@@ -7,6 +7,8 @@
 
 #include "FileInfo.h"
 
+class FileProvider;
+
 // Flat listing of a single directory's contents (not a recursive tree) --
 // this backs one FilePanel's file list. Loads asynchronously so opening a
 // large directory never blocks the UI thread.
@@ -41,6 +43,11 @@ public:
 
     void setRootPath(const QString &path);
     QString rootPath() const { return m_rootPath; }
+
+    // The backend this model reads through. Defaults to the local filesystem;
+    // MainWindow/FilePanel swap in a remote provider when navigating there.
+    void setProvider(FileProvider *provider);
+    FileProvider *provider() const { return m_provider; }
     bool showHiddenFiles() const { return m_showHidden; }
     void setShowHiddenFiles(bool show);
 
@@ -92,6 +99,7 @@ private:
     void sortEntries();
     void applyFilter();
 
+    FileProvider *m_provider; // backend (local by default); never null
     QString m_rootPath;
     bool m_showHidden = false;
     QVector<FileInfo> m_allEntries; // full directory scan (source of truth)

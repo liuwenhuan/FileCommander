@@ -3,6 +3,9 @@ add_library(core STATIC
     filesystem/FileInfo.cpp
     filesystem/FileSystemModel.h
     filesystem/FileSystemModel.cpp
+    filesystem/FileProvider.h
+    filesystem/LocalFileProvider.h
+    filesystem/LocalFileProvider.cpp
     filesystem/IconCache.h
     filesystem/IconCache.cpp
     operations/FileOpTypes.h
