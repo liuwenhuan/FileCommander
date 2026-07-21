@@ -67,7 +67,7 @@ Extract it too?</source>
         <translation>Le résultat contient une seule archive :
 %1
 
-L'extraire aussi ?</translation>
+L&apos;extraire aussi ?</translation>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveBrowserDialog.cpp" line="141"/>
@@ -205,8 +205,8 @@ L'extraire aussi ?</translation>
     <name>ConnectDialog</name>
     <message>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="53"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="259"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="344"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="260"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="345"/>
         <source>Connect to Server</source>
         <translation>Se connecter au serveur</translation>
     </message>
@@ -243,7 +243,7 @@ L'extraire aussi ?</translation>
     <message>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="80"/>
         <source>User name:</source>
-        <translation>Nom d'utilisateur :</translation>
+        <translation>Nom d&apos;utilisateur :</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="81"/>
@@ -277,53 +277,57 @@ L'extraire aussi ?</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="111"/>
-        <source>The server is mounted via GVfs and opened as a local folder.</source>
-        <translation>Le serveur est monté via GVfs et ouvert comme un dossier local.</translation>
+        <source>SFTP, FTP and WebDAV connect through a built-in client; SMB is mounted via GVfs.</source>
+        <translation>SFTP, FTP et WebDAV se connectent via un client intégré ; SMB est monté via GVfs.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="181"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="195"/>
+        <source>The server is mounted via GVfs and opened as a local folder.</source>
+        <translation type="vanished">Le serveur est monté via GVfs et ouvert comme un dossier local.</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="182"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="196"/>
         <source>Save Connection</source>
         <translation>Enregistrer la connexion</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="182"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="183"/>
         <source>Please enter a server address first.</source>
-        <translation>Veuillez d'abord saisir une adresse de serveur.</translation>
+        <translation>Veuillez d&apos;abord saisir une adresse de serveur.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="195"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="196"/>
         <source>Name for this connection:</source>
         <translation>Nom de cette connexion :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="226"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="227"/>
         <source>Delete Connection</source>
         <translation>Supprimer la connexion</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="227"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="228"/>
         <source>Remove the saved connection &quot;%1&quot;?</source>
         <translation>Supprimer la connexion enregistrée « %1 » ?</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="260"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="261"/>
         <source>Please enter a server address.</source>
         <translation>Veuillez saisir une adresse de serveur.</translation>
-    </message>
-    <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="281"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="305"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="330"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="358"/>
-        <source>Connection Failed</source>
-        <translation>Échec de la connexion</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="282"/>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="306"/>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="331"/>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="359"/>
+        <source>Connection Failed</source>
+        <translation>Échec de la connexion</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="283"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="307"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="332"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="360"/>
         <source>Could not connect to %1.
 
 %2</source>
@@ -332,7 +336,7 @@ L'extraire aussi ?</translation>
 %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="345"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="346"/>
         <source>Could not build a connection URI.</source>
         <translation>Impossible de construire une URI de connexion.</translation>
     </message>
@@ -374,12 +378,12 @@ L'extraire aussi ?</translation>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="522"/>
         <source>Failed to open %1 for reading</source>
-        <translation>Échec de l'ouverture de %1 en lecture</translation>
+        <translation>Échec de l&apos;ouverture de %1 en lecture</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="528"/>
         <source>Failed to open %1 for writing</source>
-        <translation>Échec de l'ouverture de %1 en écriture</translation>
+        <translation>Échec de l&apos;ouverture de %1 en écriture</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="537"/>
@@ -394,12 +398,12 @@ L'extraire aussi ?</translation>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="570"/>
         <source>Write error on %1</source>
-        <translation>Erreur d'écriture sur %1</translation>
+        <translation>Erreur d&apos;écriture sur %1</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="702"/>
         <source>This transfer is not supported by the backend</source>
-        <translation>Ce transfert n'est pas pris en charge par le backend</translation>
+        <translation>Ce transfert n&apos;est pas pris en charge par le backend</translation>
     </message>
 </context>
 <context>
@@ -886,7 +890,7 @@ L'extraire aussi ?</translation>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="402"/>
         <source>Calculate &amp;Occupied Space</source>
-        <translation>Calculer l'&amp;espace occupé</translation>
+        <translation>Calculer l&apos;&amp;espace occupé</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="405"/>
@@ -901,7 +905,7 @@ L'extraire aussi ?</translation>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="414"/>
         <source>Same Directory in &amp;Other Panel</source>
-        <translation>Même dossier dans l'&amp;autre panneau</translation>
+        <translation>Même dossier dans l&apos;&amp;autre panneau</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="416"/>
@@ -1017,7 +1021,7 @@ L'extraire aussi ?</translation>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1179"/>
         <source>Select one or more files first.</source>
-        <translation>Sélectionnez d'abord un ou plusieurs fichiers.</translation>
+        <translation>Sélectionnez d&apos;abord un ou plusieurs fichiers.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1216"/>
@@ -1037,7 +1041,7 @@ L'extraire aussi ?</translation>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1235"/>
         <source>Application command:</source>
-        <translation>Commande de l'application :</translation>
+        <translation>Commande de l&apos;application :</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1327"/>
@@ -1077,7 +1081,7 @@ L'extraire aussi ?</translation>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1365"/>
         <source>Select the first part (e.g. name.001) of a split file.</source>
-        <translation>Sélectionnez la première partie (ex. nom.001) d'un fichier divisé.</translation>
+        <translation>Sélectionnez la première partie (ex. nom.001) d&apos;un fichier divisé.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1377"/>
@@ -1097,7 +1101,7 @@ L'extraire aussi ?</translation>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1393"/>
         <source>Failed to run: %1</source>
-        <translation>Échec de l'exécution : %1</translation>
+        <translation>Échec de l&apos;exécution : %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1469"/>
@@ -1122,7 +1126,7 @@ L'extraire aussi ?</translation>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1495"/>
         <source>(No favorites yet)</source>
-        <translation>(Aucun favori pour l'instant)</translation>
+        <translation>(Aucun favori pour l&apos;instant)</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1646"/>
@@ -1178,7 +1182,7 @@ L'extraire aussi ?</translation>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1742"/>
         <source>Extraction failed: %1</source>
-        <translation>Échec de l'extraction : %1</translation>
+        <translation>Échec de l&apos;extraction : %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1749"/>
@@ -1194,7 +1198,7 @@ Extract it too?</source>
         <translation>Le résultat contient une seule archive :
 %1
 
-L'extraire aussi ?</translation>
+L&apos;extraire aussi ?</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1764"/>
@@ -1273,7 +1277,7 @@ Cette action est définitive et NE passera PAS par la corbeille.</translation>
     <message>
         <location filename="../../src/ui/dialogs/MultiRenameDialog.cpp" line="30"/>
         <source>Original Name</source>
-        <translation>Nom d'origine</translation>
+        <translation>Nom d&apos;origine</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/MultiRenameDialog.cpp" line="30"/>
@@ -1288,7 +1292,7 @@ Cette action est définitive et NE passera PAS par la corbeille.</translation>
     <message>
         <location filename="../../src/ui/dialogs/MultiRenameDialog.cpp" line="46"/>
         <source>Search &amp;&amp; Replace (applied to the name, not extension)</source>
-        <translation>Rechercher &amp;&amp; remplacer (appliqué au nom, pas à l'extension)</translation>
+        <translation>Rechercher &amp;&amp; remplacer (appliqué au nom, pas à l&apos;extension)</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/MultiRenameDialog.cpp" line="49"/>
@@ -1323,7 +1327,7 @@ Cette action est définitive et NE passera PAS par la corbeille.</translation>
     <message>
         <location filename="../../src/ui/dialogs/MultiRenameDialog.cpp" line="70"/>
         <source>Name Mask (%1 = search/replace result, %2 = counter, %3 = original extension)</source>
-        <translation>Masque de nom (%1 = résultat rechercher/remplacer, %2 = compteur, %3 = extension d'origine)</translation>
+        <translation>Masque de nom (%1 = résultat rechercher/remplacer, %2 = compteur, %3 = extension d&apos;origine)</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/MultiRenameDialog.cpp" line="75"/>
@@ -1379,7 +1383,7 @@ Cette action est définitive et NE passera PAS par la corbeille.</translation>
         <location filename="../../src/ui/dialogs/MultiRenameDialog.cpp" line="233"/>
         <source>Some files could not be renamed:
 %1</source>
-        <translation>Certains fichiers n'ont pas pu être renommés :
+        <translation>Certains fichiers n&apos;ont pas pu être renommés :
 %1</translation>
     </message>
 </context>
@@ -1405,7 +1409,7 @@ Cette action est définitive et NE passera PAS par la corbeille.</translation>
     <message>
         <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="68"/>
         <source>%1 operation(s) queued</source>
-        <translation>%1 opération(s) en file d'attente</translation>
+        <translation>%1 opération(s) en file d&apos;attente</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="95"/>
@@ -1822,7 +1826,7 @@ Destination : %4 (%5 octets)</translation>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="112"/>
         <source>Overlay basic image information</source>
-        <translation>Superposer les informations de base de l'image</translation>
+        <translation>Superposer les informations de base de l&apos;image</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="219"/>
@@ -1925,7 +1929,7 @@ Destination : %4 (%5 octets)</translation>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="687"/>
         <source>Cannot open PDF: %1</source>
-        <translation>Impossible d'ouvrir le PDF : %1</translation>
+        <translation>Impossible d&apos;ouvrir le PDF : %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="727"/>
@@ -2236,7 +2240,7 @@ Droite : %2</translation>
     <message>
         <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="148"/>
         <source>%1 operation(s) queued</source>
-        <translation>%1 opération(s) en file d'attente</translation>
+        <translation>%1 opération(s) en file d&apos;attente</translation>
     </message>
 </context>
 </TS>

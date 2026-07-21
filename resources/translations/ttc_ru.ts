@@ -205,8 +205,8 @@ Extract it too?</source>
     <name>ConnectDialog</name>
     <message>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="53"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="259"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="344"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="260"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="345"/>
         <source>Connect to Server</source>
         <translation>Подключиться к серверу</translation>
     </message>
@@ -277,53 +277,57 @@ Extract it too?</source>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="111"/>
-        <source>The server is mounted via GVfs and opened as a local folder.</source>
-        <translation>Сервер смонтирован через GVfs и открыт как локальная папка.</translation>
+        <source>SFTP, FTP and WebDAV connect through a built-in client; SMB is mounted via GVfs.</source>
+        <translation>SFTP, FTP и WebDAV подключаются через встроенный клиент; SMB монтируется через GVfs.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="181"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="195"/>
+        <source>The server is mounted via GVfs and opened as a local folder.</source>
+        <translation type="vanished">Сервер смонтирован через GVfs и открыт как локальная папка.</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="182"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="196"/>
         <source>Save Connection</source>
         <translation>Сохранить подключение</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="182"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="183"/>
         <source>Please enter a server address first.</source>
         <translation>Сначала введите адрес сервера.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="195"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="196"/>
         <source>Name for this connection:</source>
         <translation>Имя для этого подключения:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="226"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="227"/>
         <source>Delete Connection</source>
         <translation>Удалить подключение</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="227"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="228"/>
         <source>Remove the saved connection &quot;%1&quot;?</source>
         <translation>Удалить сохранённое подключение «%1»?</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="260"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="261"/>
         <source>Please enter a server address.</source>
         <translation>Введите адрес сервера.</translation>
-    </message>
-    <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="281"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="305"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="330"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="358"/>
-        <source>Connection Failed</source>
-        <translation>Ошибка подключения</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="282"/>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="306"/>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="331"/>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="359"/>
+        <source>Connection Failed</source>
+        <translation>Ошибка подключения</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="283"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="307"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="332"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="360"/>
         <source>Could not connect to %1.
 
 %2</source>
@@ -332,7 +336,7 @@ Extract it too?</source>
 %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="345"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="346"/>
         <source>Could not build a connection URI.</source>
         <translation>Не удалось построить URI подключения.</translation>
     </message>
