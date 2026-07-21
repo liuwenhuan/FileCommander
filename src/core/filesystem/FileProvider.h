@@ -13,6 +13,13 @@
 // list() runs on a worker thread (the directory scan goes through
 // QtConcurrent), so implementations must be safe to call off the GUI thread and
 // must outlive any in-flight scan.
+// Opaque streaming file handle. Each provider returns its own subclass from
+// openRead/openWrite and operates on it via read/write/seek/closeHandle.
+class FileHandle {
+public:
+    virtual ~FileHandle() = default;
+};
+
 class FileProvider {
 public:
     enum class RenameResult { Ok, AlreadyExists, Failed };
@@ -38,4 +45,31 @@ public:
     // writes the resulting full path to *newPath (if non-null).
     virtual RenameResult rename(const QString &path, const QString &newName,
                                 QString *newPath) = 0;
+
+    // --- Streaming I/O for cross-provider transfers (copy/move between a local
+    // and a remote provider, with resume). Providers that can't stream leave the
+    // defaults (openRead/openWrite return nullptr → transfer unsupported). The
+    // caller owns the returned handle and must pass it to closeHandle().
+    virtual FileHandle *openRead(const QString & /*path*/) { return nullptr; }
+    // truncate=false opens/creates for resume (append at seek position).
+    virtual FileHandle *openWrite(const QString & /*path*/, bool /*truncate*/) { return nullptr; }
+    virtual qint64 read(FileHandle * /*handle*/, char * /*buffer*/, qint64 /*maxSize*/) {
+        return -1;
+    }
+    virtual qint64 write(FileHandle * /*handle*/, const char * /*buffer*/, qint64 /*size*/) {
+        return -1;
+    }
+    virtual bool seek(FileHandle * /*handle*/, qint64 /*offset*/) { return false; }
+    // Size in bytes of an open handle's file, or -1 if unknown (used for resume).
+    virtual qint64 handleSize(FileHandle * /*handle*/) { return -1; }
+    virtual void closeHandle(FileHandle *handle) { delete handle; }
+
+    // Capability probe: whether this provider supports the streaming I/O above.
+    virtual bool canStream() const { return false; }
+
+    // Removes a single file or empty dir (used by move = copy+remove). Providers
+    // that support writes should implement it; default fails.
+    virtual bool remove(const QString & /*path*/) { return false; }
+    // Creates a directory (including parents where the backend allows). Default fails.
+    virtual bool mkdir(const QString & /*path*/) { return false; }
 };
