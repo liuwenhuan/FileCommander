@@ -31,6 +31,7 @@
 #include "ArchiveProvider.h"
 #include "StatusBarWidget.h"
 #include "TabBar.h"
+#include "ThumbnailDelegate.h"
 
 FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_model = new FileSystemModel(this);
@@ -178,6 +179,13 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_iconView->setSelectionModel(m_view->selectionModel()); // shared: mode switch keeps selection
     m_iconView->installEventFilter(this);
     connect(m_iconView, &QAbstractItemView::activated, this, &FilePanel::onActivated);
+    // Real image/video thumbnails (with a generic-icon fallback), generated + disk
+    // cached off-thread. The delegate's icon/text sizes track the View-menu font.
+    m_thumbnailDelegate = new ThumbnailDelegate(m_iconView);
+    m_thumbnailDelegate->setView(m_iconView);
+    m_thumbnailDelegate->setIconSize(64);
+    m_thumbnailDelegate->setFontPointSize(m_iconView->font().pointSize());
+    m_iconView->setItemDelegate(m_thumbnailDelegate);
 
     m_bodyStack = new QStackedWidget(this);
     m_bodyStack->addWidget(m_view);     // index 0: list
@@ -607,6 +615,11 @@ void FilePanel::applyThumbnailFontSize(int pt) {
     m_iconView->setIconSize(QSize(iconPx, iconPx));
     const int textH = QFontMetrics(m_iconView->font()).height() * 2 + 8;
     m_iconView->setGridSize(QSize(iconPx + 44, iconPx + textH));
+    if (m_thumbnailDelegate) {
+        m_thumbnailDelegate->setIconSize(iconPx);
+        m_thumbnailDelegate->setFontPointSize(pt);
+        m_iconView->doItemsLayout();
+    }
 }
 
 void FilePanel::selectAll() {

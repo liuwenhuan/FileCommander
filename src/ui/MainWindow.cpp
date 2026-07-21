@@ -62,6 +62,7 @@
 #include "CompressDialog.h"
 #include "FilePanel.h"
 #include "FileSplitter.h"
+#include "OfficeConverter.h"
 #include "QuickView.h"
 #include "FileListView.h"
 #include "FileSystemModel.h"
@@ -570,6 +571,20 @@ void MainWindow::buildTitleBarMenus() {
         m_functionKeyBar->setVisible(on);
         m_settings.setShowFunctionKeyBar(on);
     });
+
+    viewMenu->addSeparator();
+    // Optional "plugin": Office document preview (docx/xls/ppt ...) via the
+    // external office_oxide CLI. Off by default; the label notes when the CLI is
+    // missing so the toggle doesn't look broken.
+    const bool officeReady = OfficeConverter::isAvailable();
+    QAction *officePreview = viewMenu->addAction(
+        officeReady ? tr("Office &Document Preview")
+                    : tr("Office &Document Preview (install office_oxide)"));
+    officePreview->setCheckable(true);
+    officePreview->setEnabled(officeReady);
+    officePreview->setChecked(officeReady && m_settings.officePreviewEnabled());
+    connect(officePreview, &QAction::toggled, this,
+            [this](bool on) { m_settings.setOfficePreviewEnabled(on); });
 
     // (Folder tree is per-panel now, toggled by the button in each panel's
     // address row — no global View-menu entry.)

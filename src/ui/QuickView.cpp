@@ -6,6 +6,7 @@
 #include <QFileInfo>
 #include <QFontMetrics>
 #include <QHBoxLayout>
+#include <QHeaderView>
 #include <QImageReader>
 #include <QLabel>
 #include <QMouseEvent>
@@ -19,6 +20,7 @@
 #include <QSlider>
 #include <QStackedWidget>
 #include <QStyle>
+#include <QTableWidget>
 #include <QTextBrowser>
 #include <QTextDocument>
 #include <QTimer>
@@ -30,6 +32,7 @@
 
 #include "ImageViewer.h"
 #include "MpvWidget.h"
+#include "OfficeConverter.h"
 #include "config/Settings.h"
 
 namespace {
@@ -72,8 +75,9 @@ QuickView::QuickView(Settings &settings, QWidget *parent)
     m_stack->addWidget(buildImagePage());    // 1
     m_stack->addWidget(m_text);              // 2
     m_stack->addWidget(buildVideoPage());    // 3
-    m_stack->addWidget(buildMarkdownPage()); // 4
-    m_stack->addWidget(buildPdfPage());      // 5
+    m_stack->addWidget(buildMarkdownPage());   // 4
+    m_stack->addWidget(buildPdfPage());        // 5
+    m_stack->addWidget(buildOfficeTablePage()); // 6
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -391,6 +395,68 @@ QWidget *QuickView::buildMarkdownPage() {
     return m_markdown;
 }
 
+QWidget *QuickView::buildOfficeTablePage() {
+    m_officeTable = new QTableWidget(this);
+    m_officeTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_officeTable->setSelectionMode(QAbstractItemView::NoSelection);
+    m_officeTable->horizontalHeader()->setVisible(false);
+    m_officeTable->verticalHeader()->setVisible(false);
+    return m_officeTable;
+}
+
+void QuickView::populateCsvTable(const QString &csv) {
+    m_officeTable->clear();
+    // Minimal RFC-4180 CSV parse: honour quoted fields (with "" escapes and
+    // embedded newlines/commas). Good enough for a spreadsheet preview.
+    QVector<QVector<QString>> rows;
+    QVector<QString> row;
+    QString field;
+    bool inQuotes = false;
+    for (int i = 0; i < csv.size(); ++i) {
+        const QChar c = csv.at(i);
+        if (inQuotes) {
+            if (c == '"') {
+                if (i + 1 < csv.size() && csv.at(i + 1) == '"') {
+                    field += '"';
+                    ++i;
+                } else {
+                    inQuotes = false;
+                }
+            } else {
+                field += c;
+            }
+        } else if (c == '"') {
+            inQuotes = true;
+        } else if (c == ',') {
+            row.append(field);
+            field.clear();
+        } else if (c == '\n' || c == '\r') {
+            if (c == '\r' && i + 1 < csv.size() && csv.at(i + 1) == '\n')
+                ++i; // swallow CRLF
+            row.append(field);
+            field.clear();
+            rows.append(row);
+            row.clear();
+        } else {
+            field += c;
+        }
+    }
+    if (!field.isEmpty() || !row.isEmpty()) {
+        row.append(field);
+        rows.append(row);
+    }
+
+    int cols = 0;
+    for (const auto &r : rows)
+        cols = qMax(cols, r.size());
+    m_officeTable->setRowCount(rows.size());
+    m_officeTable->setColumnCount(cols);
+    for (int r = 0; r < rows.size(); ++r)
+        for (int c = 0; c < rows.at(r).size(); ++c)
+            m_officeTable->setItem(r, c, new QTableWidgetItem(rows.at(r).at(c)));
+    m_officeTable->resizeColumnsToContents();
+}
+
 QWidget *QuickView::buildPdfPage() {
     m_pdfPage = new QWidget(this);
 
@@ -637,6 +703,31 @@ void QuickView::showFile(const QString &path) {
     // Reaching here means the target is not a PDF: release any loaded document so
     // we don't hold a large PDF in memory behind an image/text/markdown preview.
     closePdf();
+
+    // Office documents (opt-in "plugin"): docx/doc/pptx/ppt render as Markdown,
+    // xlsx/xls as a grid, via the external office_oxide CLI. Silently skipped when
+    // the toggle is off or the CLI isn't installed.
+    if (m_settings.officePreviewEnabled() && OfficeConverter::isOfficeFile(path) &&
+        OfficeConverter::isAvailable()) {
+        m_infoOverlay->hide();
+        const OfficeConverter::Result r = OfficeConverter::convert(path);
+        if (r.ok && r.kind == OfficeConverter::Kind::Document) {
+            if (!r.workDir.isEmpty())
+                m_markdown->setSearchPaths({r.workDir}); // resolve extracted images
+            m_markdown->document()->setMarkdown(r.markdown,
+                                                QTextDocument::MarkdownDialectGitHub);
+            m_stack->setCurrentWidget(m_markdown);
+            return;
+        }
+        if (r.ok && r.kind == OfficeConverter::Kind::Spreadsheet) {
+            populateCsvTable(r.csv);
+            m_stack->setCurrentWidget(m_officeTable);
+            return;
+        }
+        m_info->setText(tr("Cannot preview %1:\n%2").arg(info.fileName(), r.error));
+        m_stack->setCurrentWidget(m_info);
+        return;
+    }
 
     if (isMarkdown(path)) {
         m_infoOverlay->hide();

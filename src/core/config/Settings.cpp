@@ -145,6 +145,14 @@ void Settings::setShowFolderTree(bool show) {
     m_settings.setValue("view/showFolderTree", show);
 }
 
+bool Settings::officePreviewEnabled() const {
+    return m_settings.value("view/officePreviewEnabled", false).toBool();
+}
+
+void Settings::setOfficePreviewEnabled(bool on) {
+    m_settings.setValue("view/officePreviewEnabled", on);
+}
+
 QByteArray Settings::panelSplitterState() const {
     return m_settings.value("window/panelSplitterState").toByteArray();
 }

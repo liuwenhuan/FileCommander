@@ -14,6 +14,7 @@ class QPushButton;
 class QScrollArea;
 class QSlider;
 class QStackedWidget;
+class QTableWidget;
 class QTextBrowser;
 class QTimer;
 class MpvWidget;
@@ -52,6 +53,8 @@ private:
     QWidget *buildVideoPage();
     QWidget *buildMarkdownPage();
     QWidget *buildPdfPage();
+    QWidget *buildOfficeTablePage();       // spreadsheet (xls/xlsx) preview as a grid
+    void populateCsvTable(const QString &csv); // fill the office table from CSV text
     void renderPdfPage(); // (re)render the current PDF page at the current zoom
     void closePdf();      // release any loaded document + reset PDF UI state
     void applyImageScale();
@@ -76,6 +79,10 @@ private:
     // Markdown page (m_stack index 4): a rich-text browser that renders the
     // file via QTextDocument's bundled MD4C support (Qt 5.14+), no extra deps.
     QTextBrowser *m_markdown = nullptr;
+
+    // Office spreadsheet page: a read-only grid populated from office_oxide's CSV
+    // output. Word/PowerPoint documents reuse the markdown page above.
+    QTableWidget *m_officeTable = nullptr;
 
     // PDF page (m_stack index 5): a single rendered page in a scroll area with
     // prev/next + zoom controls. Poppler renders each page to a QImage on demand.

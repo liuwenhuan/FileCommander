@@ -20,6 +20,7 @@ class QFileSystemModel;
 class QSplitter;
 class QListView;
 class QStackedWidget;
+class ThumbnailDelegate;
 
 // One side of the dual-pane layout: address bar + file list + per-panel
 // back/forward history. Two of these live in MainWindow (left/right).
@@ -156,6 +157,7 @@ private:
     QFileSystemModel *m_dirTreeModel = nullptr;
     QSplitter *m_bodySplitter = nullptr;       // [tree | body]
     QListView *m_iconView = nullptr;           // thumbnail/icon mode (shares m_model)
+    ThumbnailDelegate *m_thumbnailDelegate = nullptr; // image/video thumbnails in icon mode
     QStackedWidget *m_bodyStack = nullptr;     // {list view, icon view}
     QToolButton *m_addTabButton; // "+" at the right end of the tab strip
     QLineEdit *m_filterBar;
