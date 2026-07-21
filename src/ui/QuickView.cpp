@@ -17,20 +17,30 @@
 #include <QSlider>
 #include <QStackedWidget>
 #include <QStyle>
+#include <QTextBrowser>
+#include <QTextDocument>
 #include <QTimer>
 #include <QToolBar>
 #include <QVBoxLayout>
 #include <QWheelEvent>
+
+#include <poppler-qt5.h>
 
 #include "ImageViewer.h"
 #include "MpvWidget.h"
 #include "config/Settings.h"
 
 namespace {
-constexpr qint64 kTextPreviewBytes = 64 * 1024; // cap text previews at 64 KiB
+constexpr qint64 kTextPreviewBytes = 64 * 1024;   // cap text previews at 64 KiB
+constexpr qint64 kMarkdownMaxBytes = 2 * 1024 * 1024; // cap markdown at 2 MiB
 constexpr double kZoomStep = 1.25;
 constexpr double kMinScale = 0.05;
 constexpr double kMaxScale = 20.0;
+// PDF rendering: Poppler's renderToImage takes dpi; 72 dpi renders a page at
+// its native point size (1.0 zoom). We scale that base by the zoom factor.
+constexpr double kPdfBaseDpi = 72.0;
+constexpr double kPdfMinZoom = 0.25;
+constexpr double kPdfMaxZoom = 6.0;
 } // namespace
 
 QuickView::QuickView(Settings &settings, QWidget *parent)
@@ -56,15 +66,21 @@ QuickView::QuickView(Settings &settings, QWidget *parent)
     });
 
     m_stack = new QStackedWidget(this);
-    m_stack->addWidget(m_info);            // 0
-    m_stack->addWidget(buildImagePage());  // 1
-    m_stack->addWidget(m_text);            // 2
-    m_stack->addWidget(buildVideoPage());  // 3
+    m_stack->addWidget(m_info);              // 0
+    m_stack->addWidget(buildImagePage());    // 1
+    m_stack->addWidget(m_text);              // 2
+    m_stack->addWidget(buildVideoPage());    // 3
+    m_stack->addWidget(buildMarkdownPage()); // 4
+    m_stack->addWidget(buildPdfPage());      // 5
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(m_stack);
 }
+
+// Defined here (not defaulted in the header) so the unique_ptr<Poppler::Document>
+// member is destroyed where the complete Poppler type is visible.
+QuickView::~QuickView() = default;
 
 QWidget *QuickView::buildImagePage() {
     m_imagePage = new QWidget(this);
@@ -166,6 +182,15 @@ bool QuickView::isVideo(const QString &path) {
         "mp4", "mkv", "avi",  "mov", "webm", "flv", "wmv",
         "m4v", "mpg", "mpeg", "ts",  "m2ts", "3gp", "ogv"};
     return kVideoSuffixes.contains(QFileInfo(path).suffix().toLower());
+}
+
+bool QuickView::isMarkdown(const QString &path) {
+    static const QSet<QString> kMarkdownSuffixes = {"md", "markdown", "mkd", "mdown"};
+    return kMarkdownSuffixes.contains(QFileInfo(path).suffix().toLower());
+}
+
+bool QuickView::isPdf(const QString &path) {
+    return QFileInfo(path).suffix().toLower() == QLatin1String("pdf");
 }
 
 QWidget *QuickView::buildVideoPage() {
@@ -336,6 +361,106 @@ void QuickView::stopVideo() {
     m_videoInfoOverlay->hide();
 }
 
+QWidget *QuickView::buildMarkdownPage() {
+    // A read-only rich-text browser. Qt renders Markdown through its bundled
+    // MD4C parser (QTextDocument::setMarkdown), so no external md4c is linked.
+    // Open links in the user's browser rather than trying to navigate in-panel.
+    m_markdown = new QTextBrowser(this);
+    m_markdown->setOpenExternalLinks(true);
+    return m_markdown;
+}
+
+QWidget *QuickView::buildPdfPage() {
+    m_pdfPage = new QWidget(this);
+
+    // A toolbar mirroring the image page: page navigation on the left, zoom on
+    // the right, with the "page N / M" label between them.
+    auto *toolbar = new QToolBar(m_pdfPage);
+    toolbar->addAction(tr("Prev"), this, [this]() {
+        if (m_pdfDoc && m_pdfPageIndex > 0) {
+            --m_pdfPageIndex;
+            renderPdfPage();
+        }
+    });
+    toolbar->addAction(tr("Next"), this, [this]() {
+        if (m_pdfDoc && m_pdfPageIndex + 1 < m_pdfDoc->numPages()) {
+            ++m_pdfPageIndex;
+            renderPdfPage();
+        }
+    });
+
+    m_pdfPageInfo = new QLabel(m_pdfPage);
+    m_pdfPageInfo->setContentsMargins(8, 0, 8, 0);
+    toolbar->addWidget(m_pdfPageInfo);
+
+    auto *spacer = new QWidget(toolbar);
+    spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    toolbar->addWidget(spacer);
+
+    toolbar->addAction(tr("Zoom In"), this, [this]() {
+        if (!m_pdfDoc)
+            return;
+        m_pdfZoom = qBound(kPdfMinZoom, m_pdfZoom * kZoomStep, kPdfMaxZoom);
+        renderPdfPage();
+    });
+    toolbar->addAction(tr("Zoom Out"), this, [this]() {
+        if (!m_pdfDoc)
+            return;
+        m_pdfZoom = qBound(kPdfMinZoom, m_pdfZoom / kZoomStep, kPdfMaxZoom);
+        renderPdfPage();
+    });
+
+    m_pdfLabel = new QLabel(m_pdfPage);
+    m_pdfLabel->setAlignment(Qt::AlignCenter);
+    m_pdfScroll = new QScrollArea(m_pdfPage);
+    m_pdfScroll->setWidget(m_pdfLabel);
+    m_pdfScroll->setWidgetResizable(false);
+    m_pdfScroll->setAlignment(Qt::AlignCenter);
+
+    auto *layout = new QVBoxLayout(m_pdfPage);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(toolbar);
+    layout->addWidget(m_pdfScroll, 1);
+    return m_pdfPage;
+}
+
+void QuickView::renderPdfPage() {
+    if (!m_pdfDoc)
+        return;
+    const int pageCount = m_pdfDoc->numPages();
+    if (pageCount <= 0)
+        return;
+    m_pdfPageIndex = qBound(0, m_pdfPageIndex, pageCount - 1);
+
+    // Poppler::Document::page returns an owning pointer; wrap it so it frees on
+    // every path out of this function.
+    std::unique_ptr<Poppler::Page> page(m_pdfDoc->page(m_pdfPageIndex));
+    if (!page) {
+        m_pdfLabel->setText(tr("Failed to render page %1").arg(m_pdfPageIndex + 1));
+        return;
+    }
+
+    const double dpi = kPdfBaseDpi * m_pdfZoom;
+    const QImage image = page->renderToImage(dpi, dpi);
+    if (image.isNull()) {
+        m_pdfLabel->setText(tr("Failed to render page %1").arg(m_pdfPageIndex + 1));
+        return;
+    }
+    m_pdfLabel->setPixmap(QPixmap::fromImage(image));
+    m_pdfLabel->resize(image.size());
+    m_pdfPageInfo->setText(tr("Page %1 / %2").arg(m_pdfPageIndex + 1).arg(pageCount));
+}
+
+void QuickView::closePdf() {
+    // Releasing the unique_ptr frees the Poppler document; reset the view state
+    // so a later PDF starts clean and no stale page lingers.
+    m_pdfDoc.reset();
+    m_pdfPageIndex = 0;
+    m_pdfZoom = 1.0;
+    if (m_pdfLabel)
+        m_pdfLabel->clear();
+}
+
 void QuickView::zoomImageBy(double factor) {
     m_imageFitMode = false;
     m_imageScale = qBound(kMinScale, m_imageScale * factor, kMaxScale);
@@ -409,6 +534,7 @@ void QuickView::showFile(const QString &path) {
     QFileInfo info(path);
     if (path.isEmpty() || !info.exists() || info.isDir()) {
         stopVideo();
+        closePdf(); // don't keep a document loaded behind the "no preview" note
         m_infoOverlay->hide();
         m_info->setText(tr("Select a file to preview"));
         m_stack->setCurrentWidget(m_info);
@@ -461,6 +587,51 @@ void QuickView::showFile(const QString &path) {
 
     // Any non-video target: make sure playback is not left running in the back.
     stopVideo();
+
+    if (isPdf(path)) {
+        m_infoOverlay->hide(); // image overlay belongs to another page
+        closePdf();            // drop any prior document before loading the new one
+
+        // Poppler::Document::load returns an owning pointer (nullptr on failure).
+        std::unique_ptr<Poppler::Document> doc(Poppler::Document::load(path));
+        if (!doc || doc->isLocked()) {
+            // Encrypted or unreadable PDFs fall back to the info page rather than
+            // showing a blank pane.
+            m_info->setText(tr("Cannot open PDF: %1").arg(info.fileName()));
+            m_stack->setCurrentWidget(m_info);
+            return;
+        }
+        // Smooth glyph/vector edges; cheap and greatly improves legibility.
+        doc->setRenderHint(Poppler::Document::Antialiasing, true);
+        doc->setRenderHint(Poppler::Document::TextAntialiasing, true);
+
+        m_pdfDoc = std::move(doc);
+        m_pdfPageIndex = 0;
+        m_pdfZoom = 1.0;
+        renderPdfPage();
+        m_stack->setCurrentWidget(m_pdfPage);
+        return;
+    }
+
+    // Reaching here means the target is not a PDF: release any loaded document so
+    // we don't hold a large PDF in memory behind an image/text/markdown preview.
+    closePdf();
+
+    if (isMarkdown(path)) {
+        m_infoOverlay->hide();
+        QFile mdFile(path);
+        if (mdFile.open(QIODevice::ReadOnly)) {
+            // Cap the read so a pathologically large .md can't stall the render.
+            const QByteArray data = mdFile.read(kMarkdownMaxBytes);
+            // QTextEdit::setMarkdown takes no dialect argument; go through the
+            // document to request the GitHub dialect (tables, task lists, ...).
+            m_markdown->document()->setMarkdown(QString::fromUtf8(data),
+                                                QTextDocument::MarkdownDialectGitHub);
+            m_stack->setCurrentWidget(m_markdown);
+            return;
+        }
+        // Unreadable: fall through to the generic text/no-preview handling below.
+    }
 
     if (ImageViewer::isImage(path)) {
         QImageReader reader(path);

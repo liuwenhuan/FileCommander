@@ -4,6 +4,8 @@
 #include <QPoint>
 #include <QWidget>
 
+#include <memory>
+
 class QCheckBox;
 class QComboBox;
 class QLabel;
@@ -12,9 +14,16 @@ class QPushButton;
 class QScrollArea;
 class QSlider;
 class QStackedWidget;
+class QTextBrowser;
 class QTimer;
 class MpvWidget;
 class Settings;
+
+// Poppler's document type is only referenced through a unique_ptr member, so a
+// forward declaration keeps the heavy poppler-qt5.h out of this header.
+namespace Poppler {
+class Document;
+}
 
 // Lightweight in-panel preview shown by Ctrl+Q: renders the file under the
 // cursor as a zoomable image, a text head, or a "no preview" note.
@@ -23,6 +32,10 @@ class QuickView : public QWidget {
 
 public:
     explicit QuickView(Settings &settings, QWidget *parent = nullptr);
+    // Out-of-line so the unique_ptr<Poppler::Document> member can be destroyed
+    // where the complete Poppler type is visible (it is only forward-declared
+    // above).
+    ~QuickView() override;
 
     void showFile(const QString &path);
 
@@ -31,10 +44,16 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
     static bool isVideo(const QString &path);
+    static bool isMarkdown(const QString &path);
+    static bool isPdf(const QString &path);
 
 private:
     QWidget *buildImagePage();
     QWidget *buildVideoPage();
+    QWidget *buildMarkdownPage();
+    QWidget *buildPdfPage();
+    void renderPdfPage(); // (re)render the current PDF page at the current zoom
+    void closePdf();      // release any loaded document + reset PDF UI state
     void applyImageScale();
     void zoomImageBy(double factor);
     double fitScale() const;
@@ -53,6 +72,20 @@ private:
     QTimer *m_refitTimer;       // coalesces refits during interactive resize
     QPlainTextEdit *m_text;
     QLabel *m_info;
+
+    // Markdown page (m_stack index 4): a rich-text browser that renders the
+    // file via QTextDocument's bundled MD4C support (Qt 5.14+), no extra deps.
+    QTextBrowser *m_markdown = nullptr;
+
+    // PDF page (m_stack index 5): a single rendered page in a scroll area with
+    // prev/next + zoom controls. Poppler renders each page to a QImage on demand.
+    QWidget *m_pdfPage = nullptr;
+    QScrollArea *m_pdfScroll = nullptr;
+    QLabel *m_pdfLabel = nullptr;
+    QLabel *m_pdfPageInfo = nullptr;           // "page N / M"
+    std::unique_ptr<Poppler::Document> m_pdfDoc; // currently loaded document
+    int m_pdfPageIndex = 0;                    // 0-based page currently shown
+    double m_pdfZoom = 1.0;                     // render scale; 1.0 == 72 dpi
 
     // Video page (m_stack index 3).
     QWidget *m_videoPage = nullptr;
