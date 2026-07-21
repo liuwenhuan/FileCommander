@@ -208,6 +208,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     layout->addWidget(m_commandBar);
     layout->addWidget(m_functionKeyBar);
     setCentralWidget(central);
+    // Give the content its own cursor so it does NOT inherit the window's cursor.
+    // The frameless edge-resize sets a resize cursor on the window (below), but
+    // the window only receives mouse-moves over its own margin — not over child
+    // widgets — so without this the resize cursor set at an edge would persist
+    // (inherited) once the pointer moved into the content and never reset.
+    central->setCursor(Qt::ArrowCursor);
     // Transparent margin around the content: the drop shadow is painted here,
     // and it doubles as the WM-driven edge-resize band (see event()). Collapsed
     // to 0 when maximized (changeEvent).
@@ -590,6 +596,7 @@ void MainWindow::buildTitleBarMenus() {
     // Embed the menus in our self-drawn title bar (app icon + menu buttons +
     // window buttons), placed where the menu bar would normally sit.
     m_titleBar = new TitleBar(this, {commandsMenu, viewMenu});
+    m_titleBar->setCursor(Qt::ArrowCursor); // don't inherit the window resize cursor
     setMenuWidget(m_titleBar);
 }
 
