@@ -16,6 +16,13 @@
 
 namespace {
 
+// Wraps a libssh2 SFTP file handle so it can travel through the opaque
+// FileHandle interface. Opened by openRead/openWrite, closed by closeHandle.
+struct SftpHandle : FileHandle {
+    LIBSSH2_SFTP_HANDLE *handle = nullptr;
+    explicit SftpHandle(LIBSSH2_SFTP_HANDLE *h) : handle(h) {}
+};
+
 // Global one-time libssh2_init(0). libssh2 requires a single init before any
 // session is created and a matching exit at teardown; a function-local static
 // gives us thread-safe once-only init for the process lifetime.
@@ -338,4 +345,114 @@ QString SftpProvider::parentPath(const QString &path) const {
     if (slash <= 0)
         return QStringLiteral("/");
     return clean.left(slash);
+}
+
+FileHandle *SftpProvider::openRead(const QString &path) {
+    const QString clean = cleanPath(path);
+    QMutexLocker locker(&m_mutex);
+    if (!m_sftp)
+        return nullptr;
+    const QByteArray pathUtf8 = clean.toUtf8();
+    LIBSSH2_SFTP_HANDLE *h =
+        libssh2_sftp_open(m_sftp, pathUtf8.constData(), LIBSSH2_FXF_READ, 0);
+    if (!h)
+        return nullptr;
+    return new SftpHandle(h);
+}
+
+FileHandle *SftpProvider::openWrite(const QString &path, bool truncate) {
+    const QString clean = cleanPath(path);
+    QMutexLocker locker(&m_mutex);
+    if (!m_sftp)
+        return nullptr;
+    // truncate=false (resume) keeps existing bytes so the caller can seek to the
+    // append point; TRUNC is only added for a fresh/overwrite write.
+    unsigned long flags = LIBSSH2_FXF_WRITE | LIBSSH2_FXF_CREAT;
+    if (truncate)
+        flags |= LIBSSH2_FXF_TRUNC;
+    const long mode = LIBSSH2_SFTP_S_IRUSR | LIBSSH2_SFTP_S_IWUSR | LIBSSH2_SFTP_S_IRGRP |
+                      LIBSSH2_SFTP_S_IROTH; // 0644
+    const QByteArray pathUtf8 = clean.toUtf8();
+    LIBSSH2_SFTP_HANDLE *h = libssh2_sftp_open(m_sftp, pathUtf8.constData(), flags, mode);
+    if (!h)
+        return nullptr;
+    return new SftpHandle(h);
+}
+
+qint64 SftpProvider::read(FileHandle *handle, char *buffer, qint64 maxSize) {
+    auto *h = static_cast<SftpHandle *>(handle);
+    if (!h || !h->handle)
+        return -1;
+    QMutexLocker locker(&m_mutex);
+    const ssize_t n = libssh2_sftp_read(h->handle, buffer, static_cast<size_t>(maxSize));
+    return n < 0 ? -1 : static_cast<qint64>(n);
+}
+
+qint64 SftpProvider::write(FileHandle *handle, const char *buffer, qint64 size) {
+    auto *h = static_cast<SftpHandle *>(handle);
+    if (!h || !h->handle)
+        return -1;
+    QMutexLocker locker(&m_mutex);
+    // libssh2 may accept fewer bytes than offered; return the true count and let
+    // the caller loop over the remainder.
+    const ssize_t n = libssh2_sftp_write(h->handle, buffer, static_cast<size_t>(size));
+    return n < 0 ? -1 : static_cast<qint64>(n);
+}
+
+bool SftpProvider::seek(FileHandle *handle, qint64 offset) {
+    auto *h = static_cast<SftpHandle *>(handle);
+    if (!h || !h->handle)
+        return false;
+    QMutexLocker locker(&m_mutex);
+    libssh2_sftp_seek64(h->handle, static_cast<libssh2_uint64_t>(offset));
+    return true;
+}
+
+qint64 SftpProvider::handleSize(FileHandle *handle) {
+    auto *h = static_cast<SftpHandle *>(handle);
+    if (!h || !h->handle)
+        return -1;
+    QMutexLocker locker(&m_mutex);
+    LIBSSH2_SFTP_ATTRIBUTES attrs;
+    if (libssh2_sftp_fstat(h->handle, &attrs) != 0)
+        return -1;
+    if (!(attrs.flags & LIBSSH2_SFTP_ATTR_SIZE))
+        return -1;
+    return static_cast<qint64>(attrs.filesize);
+}
+
+void SftpProvider::closeHandle(FileHandle *handle) {
+    auto *h = static_cast<SftpHandle *>(handle);
+    if (!h)
+        return;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (h->handle)
+            libssh2_sftp_close(h->handle);
+    }
+    delete h;
+}
+
+bool SftpProvider::remove(const QString &path) {
+    const QString clean = cleanPath(path);
+    // isDir() locks m_mutex itself, so query the type *before* taking the lock
+    // here to avoid a self-deadlock.
+    const bool dir = isDir(clean);
+
+    QMutexLocker locker(&m_mutex);
+    if (!m_sftp)
+        return false;
+    const QByteArray pathUtf8 = clean.toUtf8();
+    if (dir)
+        return libssh2_sftp_rmdir(m_sftp, pathUtf8.constData()) == 0;
+    return libssh2_sftp_unlink(m_sftp, pathUtf8.constData()) == 0;
+}
+
+bool SftpProvider::mkdir(const QString &path) {
+    const QString clean = cleanPath(path);
+    QMutexLocker locker(&m_mutex);
+    if (!m_sftp)
+        return false;
+    const QByteArray pathUtf8 = clean.toUtf8();
+    return libssh2_sftp_mkdir(m_sftp, pathUtf8.constData(), 0755) == 0;
 }

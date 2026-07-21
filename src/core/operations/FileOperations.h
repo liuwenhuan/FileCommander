@@ -9,6 +9,8 @@
 
 #include "FileOpTypes.h"
 
+class FileProvider;
+
 // Performs the actual filesystem I/O for copy/move/delete/mkdir/rename.
 // Methods here are blocking and meant to be invoked from a background
 // thread (see OperationQueue); they report progress via signals, which Qt
@@ -34,6 +36,16 @@ public:
                      QString *errorMessage = nullptr);
     bool createSymlinks(const QStringList &sources, const QString &destDir,
                          QString *errorMessage = nullptr);
+
+    // Cross-provider copy/move (local<->remote) with resume (断点续传). Streams
+    // every file through a fixed buffer so arbitrarily large files transfer
+    // without buffering the whole thing, honouring pause/cancel at each chunk
+    // boundary. When a destination already holds a partial copy the transfer
+    // picks up where it left off. removeSource=true performs a move (the source
+    // entry is removed only after its bytes land at the destination).
+    bool copyAcrossProviders(FileProvider *src, const QStringList &sources,
+                             FileProvider *dst, const QString &destDir, bool removeSource,
+                             const ConflictResolver &resolver, QString *errorMessage = nullptr);
 
     bool wasCancelled() const { return m_cancelled.load(); }
 
@@ -73,6 +85,30 @@ private:
     static qint64 countEntries(const QStringList &paths);
     static qint64 countBytes(const QStringList &paths);
     static QString uniqueDestination(const QString &destDir, const QString &name);
+
+    // --- Cross-provider transfer internals (see copyAcrossProviders). ---
+    // Per-file outcome so a move only removes the source when the copy landed.
+    enum class FileResult { Done, Skipped, Failed };
+    // Copies (recursing into directories) one source entry to destPath.
+    bool transferEntry(FileProvider *src, const QString &srcPath, FileProvider *dst,
+                       const QString &destPath, bool removeSource,
+                       const ConflictResolver &resolver, ErrorAction &batchAction,
+                       QString *errorMessage);
+    // Copies a single regular file, applying conflict resolution and resume.
+    FileResult transferFile(FileProvider *src, const QString &srcPath, FileProvider *dst,
+                            const QString &destPath, const ConflictResolver &resolver,
+                            ErrorAction &batchAction, QString *errorMessage);
+    // Streams one file's bytes; startOffset>0 resumes an interrupted transfer.
+    bool streamCopy(FileProvider *src, const QString &srcPath, FileProvider *dst,
+                    const QString &destPath, bool truncate, qint64 startOffset,
+                    QString *failMsg);
+    // Recursively totals the byte size of a source tree via list()/handle sizes.
+    static qint64 countProviderBytes(FileProvider *src, const QStringList &paths);
+    static qint64 providerTreeBytes(FileProvider *src, const QString &path);
+    static qint64 providerFileSize(FileProvider *provider, const QString &path);
+    static QString uniqueProviderDestination(FileProvider *dst, const QString &destPath);
+    static QString joinPath(const QString &dir, const QString &name);
+    static QString lastComponent(const QString &path);
 
     std::atomic<bool> m_cancelled{false};
     QMutex m_pauseMutex;

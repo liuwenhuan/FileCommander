@@ -43,6 +43,22 @@ public:
     bool exists(const QString &path) const override;
     RenameResult rename(const QString &path, const QString &newName, QString *newPath) override;
 
+    // Streaming I/O over the SFTP subsystem so cross-provider transfers can read
+    // from / write to the remote host (with resume). Every call serialises on
+    // m_mutex just like list()/isDir(), because the libssh2 session is shared
+    // and not thread-safe and a directory scan may run concurrently.
+    FileHandle *openRead(const QString &path) override;
+    FileHandle *openWrite(const QString &path, bool truncate) override;
+    qint64 read(FileHandle *handle, char *buffer, qint64 maxSize) override;
+    qint64 write(FileHandle *handle, const char *buffer, qint64 size) override;
+    bool seek(FileHandle *handle, qint64 offset) override;
+    qint64 handleSize(FileHandle *handle) override;
+    void closeHandle(FileHandle *handle) override;
+    bool canStream() const override { return true; }
+
+    bool remove(const QString &path) override;
+    bool mkdir(const QString &path) override;
+
 private:
     // Serialises every access to the session/sftp handles.
     mutable QMutex m_mutex;

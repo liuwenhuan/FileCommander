@@ -9,6 +9,7 @@
 #include "FileOpTypes.h"
 
 class FileOperations;
+class FileProvider;
 
 // Runs one filesystem operation at a time on a background thread so the UI
 // never blocks. Conflict prompts (overwrite dialogs) are resolved by asking
@@ -35,6 +36,15 @@ public:
     void enqueueMkdir(const QString &parentDir, const QString &name);
     void enqueueRename(const QString &path, const QString &newName);
     void enqueueSymlink(const QStringList &sources, const QString &destDir);
+
+    // Cross-provider transfers (local<->remote) that stream through the
+    // FileProvider interface with resume support. The providers are borrowed
+    // (owned by the models); the queue captures the raw pointers and must not
+    // outlive them.
+    void enqueueProviderCopy(FileProvider *src, const QStringList &sources, FileProvider *dst,
+                             const QString &destDir);
+    void enqueueProviderMove(FileProvider *src, const QStringList &sources, FileProvider *dst,
+                             const QString &destDir);
 
     // Requests cancellation of the running operation and drops any jobs still
     // queued behind it. Safe to call from the GUI thread; the worker stops at

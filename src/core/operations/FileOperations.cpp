@@ -6,6 +6,8 @@
 #include <QFileInfo>
 #include <QProcess>
 
+#include "FileProvider.h"
+
 FileOperations::FileOperations(QObject *parent) : QObject(parent) {}
 
 void FileOperations::requestCancel() {
@@ -427,4 +429,300 @@ bool FileOperations::createSymlinks(const QStringList &sources, const QString &d
         emitProgress(source);
     }
     return allOk;
+}
+
+// --- Cross-provider transfer (local<->remote) with resume ------------------
+
+QString FileOperations::joinPath(const QString &dir, const QString &name) {
+    // Both the local and SFTP providers speak '/'-separated paths, so a single
+    // join works for either side of the transfer.
+    if (dir.endsWith(QLatin1Char('/')))
+        return dir + name;
+    return dir + QLatin1Char('/') + name;
+}
+
+QString FileOperations::lastComponent(const QString &path) {
+    QString p = path;
+    while (p.size() > 1 && p.endsWith(QLatin1Char('/')))
+        p.chop(1);
+    const int slash = p.lastIndexOf(QLatin1Char('/'));
+    return slash < 0 ? p : p.mid(slash + 1);
+}
+
+qint64 FileOperations::providerFileSize(FileProvider *provider, const QString &path) {
+    // Read-open the file purely to learn its size, then release the handle. Used
+    // for the top-level file (which has no cached FileInfo) and for probing a
+    // partial destination before a resume.
+    FileHandle *handle = provider->openRead(path);
+    if (!handle)
+        return -1;
+    const qint64 size = provider->handleSize(handle);
+    provider->closeHandle(handle);
+    return size;
+}
+
+qint64 FileOperations::providerTreeBytes(FileProvider *src, const QString &path) {
+    if (!src->isDir(path))
+        return qMax<qint64>(0, providerFileSize(src, path));
+
+    qint64 total = 0;
+    // A directory listing already carries each child's size, so we only open a
+    // handle for the (single) top-level file case above — not for every leaf.
+    const QVector<FileInfo> entries = src->list(path, /*showHidden=*/true);
+    for (const FileInfo &entry : entries) {
+        if (entry.isDir())
+            total += providerTreeBytes(src, entry.path());
+        else
+            total += qMax<qint64>(0, entry.size());
+    }
+    return total;
+}
+
+qint64 FileOperations::countProviderBytes(FileProvider *src, const QStringList &paths) {
+    qint64 total = 0;
+    for (const QString &path : paths)
+        total += providerTreeBytes(src, path);
+    return total;
+}
+
+QString FileOperations::uniqueProviderDestination(FileProvider *dst, const QString &destPath) {
+    if (!dst->exists(destPath))
+        return destPath;
+
+    const QString parent = dst->parentPath(destPath);
+    const QString dir = parent.isEmpty() ? QStringLiteral("/") : parent;
+    const QString name = lastComponent(destPath);
+    const int dot = name.lastIndexOf(QLatin1Char('.'));
+    const QString base = dot > 0 ? name.left(dot) : name;
+    const QString suffix = dot > 0 ? name.mid(dot + 1) : QString();
+
+    int n = 1;
+    QString candidate;
+    do {
+        const QString newName = suffix.isEmpty() ? QStringLiteral("%1 (%2)").arg(base).arg(n)
+                                                 : QStringLiteral("%1 (%2).%3")
+                                                       .arg(base)
+                                                       .arg(n)
+                                                       .arg(suffix);
+        candidate = joinPath(dir, newName);
+        ++n;
+    } while (dst->exists(candidate));
+    return candidate;
+}
+
+bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileProvider *dst,
+                                const QString &destPath, bool truncate, qint64 startOffset,
+                                QString *failMsg) {
+    // Roll back progress accounting if the attempt fails so a retry starts from
+    // a clean byte count rather than double-counting.
+    const qint64 doneBytesAtStart = m_doneBytes;
+
+    FileHandle *in = src->openRead(srcPath);
+    if (!in) {
+        *failMsg = tr("Failed to open %1 for reading").arg(srcPath);
+        return false;
+    }
+    FileHandle *out = dst->openWrite(destPath, truncate);
+    if (!out) {
+        src->closeHandle(in);
+        *failMsg = tr("Failed to open %1 for writing").arg(destPath);
+        return false;
+    }
+
+    bool ok = true;
+    if (startOffset > 0) {
+        // Resume: line both handles up at the byte where the last run stopped.
+        if (!src->seek(in, startOffset) || !dst->seek(out, startOffset)) {
+            ok = false;
+            *failMsg = tr("Failed to resume transfer of %1").arg(destPath);
+        } else {
+            m_doneBytes += startOffset;
+            emitProgress(srcPath);
+        }
+    }
+
+    char buffer[64 * 1024];
+    while (ok) {
+        // Pause/cancel are honoured mid-file (not just per file) so a large
+        // remote transfer can be interrupted promptly.
+        waitIfPaused();
+        if (m_cancelled) {
+            ok = false;
+            break;
+        }
+
+        const qint64 got = src->read(in, buffer, sizeof(buffer));
+        if (got < 0) {
+            ok = false;
+            *failMsg = tr("Read error on %1").arg(srcPath);
+            break;
+        }
+        if (got == 0)
+            break; // EOF
+
+        // A single write may accept fewer bytes than offered (common on SFTP),
+        // so loop until the whole chunk is out.
+        qint64 written = 0;
+        while (written < got) {
+            const qint64 w = dst->write(out, buffer + written, got - written);
+            if (w <= 0) {
+                ok = false;
+                *failMsg = tr("Write error on %1").arg(destPath);
+                break;
+            }
+            written += w;
+        }
+        if (!ok)
+            break;
+        m_doneBytes += got;
+        emitProgress(srcPath);
+    }
+
+    src->closeHandle(in);
+    dst->closeHandle(out);
+    if (!ok)
+        m_doneBytes = doneBytesAtStart;
+    return ok;
+}
+
+FileOperations::FileResult
+FileOperations::transferFile(FileProvider *src, const QString &srcPath, FileProvider *dst,
+                             const QString &destPath, const ConflictResolver &resolver,
+                             ErrorAction &batchAction, QString *errorMessage) {
+    QString target = destPath;
+
+    while (true) {
+        bool truncate = true;    // overwrite from scratch unless resuming
+        qint64 startOffset = 0;  // resume point
+
+        if (dst->exists(target)) {
+            const qint64 srcSize = providerFileSize(src, srcPath);
+            const qint64 dstSize = providerFileSize(dst, target);
+
+            if (dstSize >= 0 && srcSize >= 0 && dstSize == srcSize) {
+                // Destination already holds the whole file: treat as complete.
+                m_doneBytes += qMax<qint64>(0, srcSize);
+                emitProgress(srcPath);
+                return FileResult::Done;
+            }
+            if (dstSize > 0 && srcSize > 0 && dstSize < srcSize) {
+                // A partial copy is present: resume from its end rather than
+                // restarting (断点续传).
+                truncate = false;
+                startOffset = dstSize;
+            } else {
+                // The destination is unrelated (larger than, or a zero-length
+                // stand-in for, the source): fall back to conflict resolution.
+                ErrorAction action = batchAction;
+                if (action != ErrorAction::OverwriteAll && action != ErrorAction::SkipAll)
+                    action = resolver ? resolver(srcPath, target) : ErrorAction::Skip;
+                if (action == ErrorAction::OverwriteAll || action == ErrorAction::SkipAll)
+                    batchAction = action;
+
+                if (action == ErrorAction::Cancel) {
+                    m_cancelled = true;
+                    return FileResult::Failed;
+                }
+                if (action == ErrorAction::Skip || action == ErrorAction::SkipAll)
+                    return FileResult::Skipped;
+                if (action == ErrorAction::Rename) {
+                    target = uniqueProviderDestination(dst, target);
+                    truncate = true;
+                    startOffset = 0;
+                }
+                // Overwrite / OverwriteAll: truncate stays true.
+            }
+        }
+
+        QString failMsg;
+        if (streamCopy(src, srcPath, dst, target, truncate, startOffset, &failMsg))
+            return FileResult::Done;
+        if (m_cancelled)
+            return FileResult::Failed;
+
+        if (resolveError(srcPath, failMsg) == ErrorAction::Retry)
+            continue; // user asked to retry the whole file
+        if (errorMessage)
+            *errorMessage = failMsg;
+        emit errorOccurred(failMsg);
+        return FileResult::Failed;
+    }
+}
+
+bool FileOperations::transferEntry(FileProvider *src, const QString &srcPath, FileProvider *dst,
+                                   const QString &destPath, bool removeSource,
+                                   const ConflictResolver &resolver, ErrorAction &batchAction,
+                                   QString *errorMessage) {
+    waitIfPaused();
+    if (m_cancelled)
+        return false;
+
+    if (src->isDir(srcPath)) {
+        // Recreate the directory on the destination, then recurse its entries.
+        dst->mkdir(destPath);
+        const QVector<FileInfo> entries = src->list(srcPath, /*showHidden=*/true);
+        for (const FileInfo &entry : entries) {
+            if (m_cancelled)
+                return false;
+            const QString childDest = joinPath(destPath, entry.name());
+            if (!transferEntry(src, entry.path(), dst, childDest, removeSource, resolver,
+                               batchAction, errorMessage))
+                return false;
+        }
+        // A move removes the (now-empty) source directory once its contents have
+        // all been transferred.
+        if (removeSource)
+            src->remove(srcPath);
+        emitProgress(srcPath);
+        return true;
+    }
+
+    const FileResult result =
+        transferFile(src, srcPath, dst, destPath, resolver, batchAction, errorMessage);
+    if (result == FileResult::Failed)
+        return false;
+    // Only drop the source for a genuine transfer, never for a skipped file.
+    if (removeSource && result == FileResult::Done)
+        src->remove(srcPath);
+    return true;
+}
+
+bool FileOperations::copyAcrossProviders(FileProvider *src, const QStringList &sources,
+                                         FileProvider *dst, const QString &destDir,
+                                         bool removeSource, const ConflictResolver &resolver,
+                                         QString *errorMessage) {
+    m_cancelled = false;
+    m_totalItems = sources.size();
+    m_doneItems = 0;
+    m_doneBytes = 0;
+    m_errorBatch = ErrorAction::Retry;
+    ErrorAction batchAction = ErrorAction::Retry; // sentinel: ask each time
+
+    if (!src || !dst || !src->canStream() || !dst->canStream()) {
+        const QString msg = tr("This transfer is not supported by the backend");
+        if (errorMessage)
+            *errorMessage = msg;
+        emit errorOccurred(msg);
+        return false;
+    }
+
+    m_totalBytes = countProviderBytes(src, sources);
+    dst->mkdir(destDir);
+
+    for (const QString &source : sources) {
+        waitIfPaused();
+        if (m_cancelled)
+            return false;
+
+        const QString destPath = joinPath(destDir, lastComponent(source));
+        if (!transferEntry(src, source, dst, destPath, removeSource, resolver, batchAction,
+                           errorMessage)) {
+            if (m_cancelled)
+                return false;
+            // A per-entry error was already reported; carry on with the rest.
+        }
+        ++m_doneItems;
+        emitProgress(source);
+    }
+    return true;
 }
