@@ -1,16 +1,13 @@
 #include "SessionManager.h"
 
-#include <QDir>
-#include <QStandardPaths>
+#include "Settings.h"
 
 namespace {
 
+// Session state lives in its own file (it changes on every tab move, unlike the
+// stable config.ini) but shares the config directory — one source of truth.
 QString sessionFilePath() {
-    const QString configDir =
-        QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) +
-        QStringLiteral("/totalcommander");
-    QDir().mkpath(configDir);
-    return configDir + QStringLiteral("/session.ini");
+    return Settings::configDir() + QStringLiteral("/session.ini");
 }
 
 void savePanel(QSettings &settings, const QString &group, const SessionPanelData &panel) {

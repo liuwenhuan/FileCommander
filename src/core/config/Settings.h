@@ -15,6 +15,12 @@ public:
 
     Settings();
 
+    // Single source of truth for where configuration lives, so every store
+    // (Settings, ConnectionStore, SessionManager) agrees on the directory
+    // instead of each duplicating the path logic.
+    static QString configDir();       // ~/.config/totalcommander (created if missing)
+    static QString configFilePath();  // <configDir>/config.ini
+
     Theme theme() const;
     void setTheme(Theme theme);
 
@@ -52,6 +58,22 @@ public:
     // panels, from QHeaderView::saveState().
     QByteArray viewHeaderState() const;
     void setViewHeaderState(const QByteArray &state);
+
+    // Visibility of the optional UI bars/panes (View menu toggles). The command
+    // line and function-key bar default on; the folder tree defaults off.
+    bool showCommandBar() const;
+    void setShowCommandBar(bool show);
+    bool showFunctionKeyBar() const;
+    void setShowFunctionKeyBar(bool show);
+    bool showFolderTree() const;
+    void setShowFolderTree(bool show);
+
+    // QSplitter::saveState() blobs for the panel divider and the folder-tree /
+    // panels divider, so the layout survives a restart.
+    QByteArray panelSplitterState() const;
+    void setPanelSplitterState(const QByteArray &state);
+    QByteArray outerSplitterState() const;
+    void setOuterSplitterState(const QByteArray &state);
 
     // Per-action keyboard shortcut overrides, keyed by a stable action id
     // (e.g. "copy", "newTab"). Returns defaultSeq if nothing was saved.

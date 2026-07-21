@@ -3,15 +3,17 @@
 #include <QDir>
 #include <QStandardPaths>
 
-namespace {
-QString configFilePath() {
-    const QString configDir =
+QString Settings::configDir() {
+    const QString dir =
         QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) +
         QStringLiteral("/totalcommander");
-    QDir().mkpath(configDir);
-    return configDir + QStringLiteral("/config.ini");
+    QDir().mkpath(dir);
+    return dir;
 }
-} // namespace
+
+QString Settings::configFilePath() {
+    return configDir() + QStringLiteral("/config.ini");
+}
 
 Settings::Settings() : m_settings(configFilePath(), QSettings::IniFormat) {
     // First run: seed the favorites with the user's home directory. Guarded by
@@ -117,6 +119,46 @@ QByteArray Settings::viewHeaderState() const {
 
 void Settings::setViewHeaderState(const QByteArray &state) {
     m_settings.setValue("window/viewHeaderState", state);
+}
+
+bool Settings::showCommandBar() const {
+    return m_settings.value("view/showCommandBar", true).toBool();
+}
+
+void Settings::setShowCommandBar(bool show) {
+    m_settings.setValue("view/showCommandBar", show);
+}
+
+bool Settings::showFunctionKeyBar() const {
+    return m_settings.value("view/showFunctionKeyBar", true).toBool();
+}
+
+void Settings::setShowFunctionKeyBar(bool show) {
+    m_settings.setValue("view/showFunctionKeyBar", show);
+}
+
+bool Settings::showFolderTree() const {
+    return m_settings.value("view/showFolderTree", false).toBool();
+}
+
+void Settings::setShowFolderTree(bool show) {
+    m_settings.setValue("view/showFolderTree", show);
+}
+
+QByteArray Settings::panelSplitterState() const {
+    return m_settings.value("window/panelSplitterState").toByteArray();
+}
+
+void Settings::setPanelSplitterState(const QByteArray &state) {
+    m_settings.setValue("window/panelSplitterState", state);
+}
+
+QByteArray Settings::outerSplitterState() const {
+    return m_settings.value("window/outerSplitterState").toByteArray();
+}
+
+void Settings::setOuterSplitterState(const QByteArray &state) {
+    m_settings.setValue("window/outerSplitterState", state);
 }
 
 QKeySequence Settings::shortcut(const QString &actionId, const QKeySequence &defaultSeq) const {

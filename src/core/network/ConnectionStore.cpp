@@ -1,9 +1,9 @@
 #include "ConnectionStore.h"
 
-#include <QDir>
 #include <QSettings>
-#include <QStandardPaths>
 #include <QUuid>
+
+#include "config/Settings.h"
 
 // libsecret pulls in glib/gio headers that use `signals`/`slots` as ordinary
 // identifiers, which collide with Qt's keyword macros. This translation unit
@@ -14,18 +14,10 @@
 
 namespace {
 
-// Same INI file Settings writes to, so bookmarks live alongside the rest of the
-// configuration.
-QString configFilePath() {
-    const QString configDir =
-        QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) +
-        QStringLiteral("/totalcommander");
-    QDir().mkpath(configDir);
-    return configDir + QStringLiteral("/config.ini");
-}
-
+// Bookmarks live in the same INI as the rest of the configuration (shared path
+// via Settings, so there's one source of truth for where config lives).
 QSettings settings() {
-    return QSettings(configFilePath(), QSettings::IniFormat);
+    return QSettings(Settings::configFilePath(), QSettings::IniFormat);
 }
 
 // libsecret schema for our passwords. A single "id" attribute keys each secret

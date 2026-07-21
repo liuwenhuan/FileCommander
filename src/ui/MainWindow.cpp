@@ -279,6 +279,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         m_rightPanel->view()->horizontalHeader()->restoreState(headerState);
     }
 
+    // Optional bars/panes + splitter layout. Applied before buildTitleBarMenus()
+    // so the View-menu checkmarks (which read the widgets' visibility) match.
+    m_commandBar->setVisible(m_settings.showCommandBar());
+    m_functionKeyBar->setVisible(m_settings.showFunctionKeyBar());
+    m_folderTree->setVisible(m_settings.showFolderTree());
+    if (const QByteArray s = m_settings.panelSplitterState(); !s.isEmpty())
+        m_panelSplitter->restoreState(s);
+    if (const QByteArray s = m_settings.outerSplitterState(); !s.isEmpty())
+        m_outerSplitter->restoreState(s);
+
     const QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
     SessionPanelData leftSession, rightSession;
     if (SessionManager::load(leftSession, rightSession)) {
@@ -548,13 +558,17 @@ void MainWindow::buildTitleBarMenus() {
     QAction *showCmdBar = viewMenu->addAction(tr("Command &Line"));
     showCmdBar->setCheckable(true);
     showCmdBar->setChecked(!m_commandBar->isHidden());
-    connect(showCmdBar, &QAction::toggled, this,
-            [this](bool on) { m_commandBar->setVisible(on); });
+    connect(showCmdBar, &QAction::toggled, this, [this](bool on) {
+        m_commandBar->setVisible(on);
+        m_settings.setShowCommandBar(on);
+    });
     QAction *showFnBar = viewMenu->addAction(tr("Function &Key Bar"));
     showFnBar->setCheckable(true);
     showFnBar->setChecked(!m_functionKeyBar->isHidden());
-    connect(showFnBar, &QAction::toggled, this,
-            [this](bool on) { m_functionKeyBar->setVisible(on); });
+    connect(showFnBar, &QAction::toggled, this, [this](bool on) {
+        m_functionKeyBar->setVisible(on);
+        m_settings.setShowFunctionKeyBar(on);
+    });
 
     viewMenu->addSeparator();
     QAction *folderTreeAction = viewMenu->addAction(tr("&Folder Tree"), this,
@@ -1341,6 +1355,7 @@ void MainWindow::showFavoritesMenu(const QPoint &globalPos) {
 void MainWindow::toggleFolderTree() {
     const bool nowVisible = !m_folderTree->isVisible();
     m_folderTree->setVisible(nowVisible);
+    m_settings.setShowFolderTree(nowVisible);
     if (nowVisible && m_activePanel) {
         const QModelIndex idx = m_folderTreeModel->index(m_activePanel->currentPath());
         m_folderTree->setCurrentIndex(idx);
@@ -1737,6 +1752,9 @@ void MainWindow::closeEvent(QCloseEvent *event) {
     m_settings.setWindowGeometry(saveGeometry());
     // Persist the shared column layout + sort from the left panel's header.
     m_settings.setViewHeaderState(m_leftPanel->view()->horizontalHeader()->saveState());
+    // Persist the divider positions (panel split + folder-tree split).
+    m_settings.setPanelSplitterState(m_panelSplitter->saveState());
+    m_settings.setOuterSplitterState(m_outerSplitter->saveState());
 
     SessionPanelData leftSession, rightSession;
     for (const auto &t : m_leftPanel->tabSnapshot())
