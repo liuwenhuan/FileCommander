@@ -41,6 +41,13 @@ public:
     QString currentEntryPath() const;
     QStringList selectedPaths() const;
 
+    // A real, on-disk path for the current entry suitable for the preview
+    // viewers. For a normal directory this is just currentEntryPath(); inside an
+    // archive it extracts the entry to a temp file (and prefetches its
+    // neighbours) so Ctrl+Q previews archived files like local ones. Returns ""
+    // for a directory / unpreviewable entry.
+    QString currentPreviewPath();
+
     // Sets the point size of the file-list font and rescales the row height /
     // header height to match. Point size is clamped to 7..24.
     void setListFontSize(int pt);
@@ -129,6 +136,12 @@ private:
     void closeTabAt(int index);
     // Selects + scrolls the folder tree to `path` when the tree is visible.
     void syncTreeToPath(const QString &path);
+    // Scales the thumbnail-view cell (icon + label) to the given font size so the
+    // grid grows/shrinks with the View-menu font setting.
+    void applyThumbnailFontSize(int pt);
+    // Extracts the archive entries immediately before/after the current one in
+    // the background, so stepping through archived files previews instantly.
+    void prefetchArchiveNeighbors();
     void saveCurrentTabState();
     void loadTabState(int index);
     void updateActiveTabLabel();
@@ -159,4 +172,8 @@ private:
     // Non-null while this panel is browsing inside an archive (read-only). Held
     // so the ArchiveProvider outlives the model's use of it; cleared on exit.
     std::shared_ptr<FileProvider> m_archiveProvider;
+    // File name (with extension) of the archive currently browsed as a folder;
+    // used as the tab label in place of the "/" virtual root. Empty when not in
+    // an archive.
+    QString m_archiveName;
 };

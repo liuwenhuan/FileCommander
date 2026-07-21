@@ -56,10 +56,12 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_addressBar = new BreadcrumbBar(this);
     m_addressBar->setFocusPolicy(Qt::ClickFocus); // keep it out of the Tab chain
 
-    // Folder-tree toggle: first item in the path row (before Back). Shows/hides
-    // this panel's own directory tree.
+    // Folder-tree toggle: first item in the tab row. Shows/hides this panel's
+    // own directory tree. A monochrome BMP glyph (not the 🗀 emoji, which some
+    // fonts render in a fixed colour that clashes with the other chrome icons in
+    // dark mode) so it follows the palette like ← → ★ ✳.
     m_treeButton = new QToolButton(this);
-    m_treeButton->setText(QStringLiteral("🗀"));
+    m_treeButton->setText(QStringLiteral("☰"));
     m_treeButton->setAutoRaise(true);
     m_treeButton->setCheckable(true);
     m_treeButton->setFocusPolicy(Qt::NoFocus);
@@ -114,11 +116,9 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     auto *addressLayout = new QHBoxLayout(addressRow);
     addressLayout->setContentsMargins(0, 0, 0, 0);
     addressLayout->setSpacing(2);
-    addressLayout->addWidget(m_treeButton);
     addressLayout->addWidget(m_backButton);
     addressLayout->addWidget(m_forwardButton);
     addressLayout->addWidget(m_addressBar, 1);
-    addressLayout->addWidget(m_favButton);
     addressLayout->addWidget(m_starButton);
 
     m_filterBar = new QLineEdit(this);
@@ -129,12 +129,15 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
 
     m_statusBar = new StatusBarWidget(this);
 
-    // Tab strip + trailing "+" button share one row; the tab bar takes the
-    // stretch so the "+" hugs the right edge (above the "✳" button below).
+    // Tab row: [tree][★ favorites] at the head, then the tab strip (stretch), then
+    // the trailing "+". The tree + favorites buttons lead this row per the layout
+    // spec; Back/Forward and the ✳ menu stay in the address row below.
     auto *tabRow = new QWidget(this);
     auto *tabRowLayout = new QHBoxLayout(tabRow);
     tabRowLayout->setContentsMargins(0, 0, 0, 0);
     tabRowLayout->setSpacing(2);
+    tabRowLayout->addWidget(m_treeButton, 0, Qt::AlignVCenter);
+    tabRowLayout->addWidget(m_favButton, 0, Qt::AlignVCenter);
     tabRowLayout->addWidget(m_tabBar, 1);
     tabRowLayout->addWidget(m_addTabButton, 0, Qt::AlignVCenter);
 
@@ -169,6 +172,9 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_iconView->setUniformItemSizes(true);
     m_iconView->setWordWrap(true);
     m_iconView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    // No inline rename on double-click: like the list view, double-click / Enter
+    // must activate (enter dir / open file). Rename stays on F2.
+    m_iconView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_iconView->setSelectionModel(m_view->selectionModel()); // shared: mode switch keeps selection
     m_iconView->installEventFilter(this);
     connect(m_iconView, &QAbstractItemView::activated, this, &FilePanel::onActivated);
@@ -473,6 +479,7 @@ void FilePanel::onActivated(const QModelIndex &index) {
     if (info.isParentEntry() && m_archiveProvider && !m_model->provider()->isDir(info.path())) {
         const QString exitDir = info.path();
         m_archiveProvider.reset();
+        m_archiveName.clear();
         m_model->setProvider(nullptr); // back to the local provider
         navigateTo(exitDir);
         return;
@@ -490,6 +497,7 @@ void FilePanel::onActivated(const QModelIndex &index) {
         auto provider = std::make_shared<ArchiveProvider>(info.path(), &error);
         if (provider->isValid()) {
             m_archiveProvider = provider;
+            m_archiveName = QFileInfo(info.path()).fileName();
             m_model->setProvider(provider);
             navigateTo(QStringLiteral("/")); // archive virtual root
             return;
@@ -527,18 +535,78 @@ QStringList FilePanel::selectedPaths() const {
     return paths;
 }
 
+QString FilePanel::currentPreviewPath() {
+    const QString entry = currentEntryPath();
+    if (entry.isEmpty() || !isArchive())
+        return entry; // local filesystem: the path is already real
+    // Inside an archive: directories aren't previewable; files are extracted to
+    // a temp file (name + extension preserved) so the viewers see a real path.
+    if (m_model->provider()->isDir(entry))
+        return {};
+    auto *ap = static_cast<ArchiveProvider *>(m_archiveProvider.get());
+    const QString real = ap->materialize(entry);
+    prefetchArchiveNeighbors();
+    return real.isEmpty() ? QString() : real;
+}
+
+void FilePanel::prefetchArchiveNeighbors() {
+    if (!m_archiveProvider)
+        return;
+    const QModelIndex cur = m_view->currentIndex();
+    if (!cur.isValid())
+        return;
+    const int row = cur.row();
+    // Keep the provider alive for the duration of the async extraction even if
+    // the user exits the archive in the meantime.
+    auto prov = m_archiveProvider;
+    for (int r : {row - 1, row + 1}) {
+        if (r < 0 || r >= m_model->rowCount())
+            continue;
+        const FileInfo fi = m_model->fileInfoAt(r);
+        if (!fi.isValid() || fi.isDir() || fi.isParentEntry())
+            continue;
+        const QString p = fi.path();
+        QtConcurrent::run(
+            [prov, p]() { static_cast<ArchiveProvider *>(prov.get())->materialize(p); });
+    }
+}
+
 void FilePanel::setListFontSize(int pt) {
     pt = qBound(7, pt, 24);
     QFont f = m_view->font();
     f.setPointSize(pt);
     m_view->setFont(f);
 
-    // Re-derive the row / header height from the new metrics so the list grows
-    // (or shrinks) with the font instead of clipping rows. Mirrors the initial
-    // sizing in the constructor.
-    const int rowH = qMax(QFontMetrics(f).height(), 16) + 6;
+    // Scale the row icons with the font so a larger font doesn't leave tiny
+    // icons stranded in tall rows. The delegate honours the view's iconSize
+    // (decorationSize); the row height tracks whichever of icon/text is taller.
+    const QFontMetrics fm(f);
+    const int fontH = fm.height();
+    const int iconPx = qBound(16, fontH + 4, 48);
+    m_view->setIconSize(QSize(iconPx, iconPx));
+    const int rowH = qMax(qMax(fontH, iconPx), 16) + 6;
     m_view->verticalHeader()->setDefaultSectionSize(rowH);
     m_view->horizontalHeader()->setFixedHeight(rowH);
+
+    // Thumbnail (icon) view follows the same font; its grid icon size and the
+    // delegate's text point size are set when the thumbnail delegate is wired.
+    if (m_iconView) {
+        QFont gf = m_iconView->font();
+        gf.setPointSize(pt);
+        m_iconView->setFont(gf);
+        applyThumbnailFontSize(pt);
+    }
+}
+
+void FilePanel::applyThumbnailFontSize(int pt) {
+    if (!m_iconView)
+        return;
+    // Grow the thumbnail cell with the font: icon scales from a 64px baseline at
+    // 12pt; the grid reserves room for the icon plus a two-line elided label.
+    const int iconPx = qBound(48, 64 * pt / 12, 160);
+    m_iconView->setIconSize(QSize(iconPx, iconPx));
+    const int textH = QFontMetrics(m_iconView->font()).height() * 2 + 8;
+    m_iconView->setGridSize(QSize(iconPx + 44, iconPx + textH));
 }
 
 void FilePanel::selectAll() {
@@ -623,7 +691,13 @@ QString FilePanel::tabLabelFor(const QSharedPointer<TabState> &tab) const {
     if (!tab || tab->path.isEmpty())
         return tr("New Tab");
     const QString name = QFileInfo(tab->path).fileName();
-    return name.isEmpty() ? tab->path : name; // root "/" has no file name
+    if (!name.isEmpty())
+        return name;
+    // The archive virtual root is "/" (no file name): label the active tab with
+    // the archive's own file name instead of a bare "/".
+    if (!m_archiveName.isEmpty() && tab == m_tabManager->tabAt(m_tabManager->activeIndex()))
+        return m_archiveName;
+    return tab->path; // real root "/"
 }
 
 void FilePanel::updateActiveTabLabel() {

@@ -298,6 +298,34 @@ void ArchiveProvider::closeHandle(FileHandle *handle) {
     delete static_cast<ArchiveReadHandle *>(handle);
 }
 
+QString ArchiveProvider::materialize(const QString &virtualPath) {
+    const QString key = toVirtual(virtualPath);
+    const auto it = m_entries.constFind(key);
+    if (it == m_entries.constEnd() || it.value().isDir || it.value().realPath.isEmpty())
+        return QString();
+    const QString realPath = it.value().realPath;
+
+    QMutexLocker locker(&m_mutex);
+    if (!m_tempDir) {
+        m_tempDir.reset(new QTemporaryDir);
+        if (!m_tempDir->isValid())
+            return QString();
+    }
+    if (m_extractAll) {
+        if (!m_wholeExtracted && !extractWhole())
+            return QString();
+        return tempFilePath(realPath);
+    }
+    QString filePath = m_extractedFiles.value(key);
+    if (filePath.isEmpty()) {
+        filePath = extractSingle(realPath);
+        if (filePath.isEmpty())
+            return QString();
+        m_extractedFiles.insert(key, filePath);
+    }
+    return filePath;
+}
+
 // --- Extraction ------------------------------------------------------------
 // Both routines assume m_mutex is held and m_tempDir is valid.
 

@@ -35,7 +35,7 @@
 #include <QProcess>
 #include <QPushButton>
 #include <QShortcut>
-#include <QSpinBox>
+#include <QIntValidator>
 #include <QTimer>
 #include <QSplitter>
 #include <QSplitterHandle>
@@ -494,35 +494,58 @@ void MainWindow::buildTitleBarMenus() {
 
     viewMenu->addSeparator();
 
-    // File-list font size: caption + an inline spin box (8..18). The number is
-    // edited in place (type or use the arrows) — no popup dialog.
+    // File-list font size: caption + "[−] <number> [+]". The number field is
+    // edited directly in place; the − / + buttons step it. Range 8..18.
     {
         auto *fontWidget = new QWidget(viewMenu);
         auto *fontLayout = new QHBoxLayout(fontWidget);
         fontLayout->setContentsMargins(20, 2, 12, 2);
         fontLayout->setSpacing(4);
 
-        auto *caption = new QLabel(tr("List font size:"), fontWidget);
-        auto *sizeSpin = new QSpinBox(fontWidget);
-        sizeSpin->setRange(8, 18);
-        sizeSpin->setValue(m_settings.listFontSize());
-        sizeSpin->setToolTip(tr("Type or use the arrows (8-18)"));
-        // Wide enough for two digits plus the arrows so "12" isn't clipped.
-        sizeSpin->setMinimumWidth(72);
-        sizeSpin->setAlignment(Qt::AlignCenter);
-        // Let the box take keyboard focus while the menu is open so it can be
-        // typed into directly.
-        sizeSpin->setFocusPolicy(Qt::StrongFocus);
+        auto *caption = new QLabel(tr("Font size:"), fontWidget);
+
+        auto *minusBtn = new QToolButton(fontWidget);
+        minusBtn->setText(QStringLiteral("−"));
+        minusBtn->setAutoRaise(true);
+        minusBtn->setFocusPolicy(Qt::NoFocus);
+
+        auto *sizeEdit = new QLineEdit(fontWidget);
+        sizeEdit->setValidator(new QIntValidator(8, 18, sizeEdit));
+        sizeEdit->setAlignment(Qt::AlignCenter);
+        sizeEdit->setFixedWidth(36);
+        sizeEdit->setText(QString::number(m_settings.listFontSize()));
+        sizeEdit->setToolTip(tr("Type a size, or use − / + (8-18)"));
+
+        auto *plusBtn = new QToolButton(fontWidget);
+        plusBtn->setText(QStringLiteral("+"));
+        plusBtn->setAutoRaise(true);
+        plusBtn->setFocusPolicy(Qt::NoFocus);
 
         fontLayout->addWidget(caption);
         fontLayout->addStretch(1);
-        fontLayout->addWidget(sizeSpin);
+        fontLayout->addWidget(minusBtn);
+        fontLayout->addWidget(sizeEdit);
+        fontLayout->addWidget(plusBtn);
 
-        connect(sizeSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int pt) {
-            m_settings.setListFontSize(pt);
-            m_leftPanel->setListFontSize(pt);
-            m_rightPanel->setListFontSize(pt);
-        });
+        // Applies a clamped size to settings + both panels and reflects it back
+        // into the field (so an out-of-range typed value snaps into view).
+        auto apply = [this, sizeEdit](int pt) {
+            pt = qBound(8, pt, 18);
+            if (pt != m_settings.listFontSize()) {
+                m_settings.setListFontSize(pt);
+                m_leftPanel->setListFontSize(pt);
+                m_rightPanel->setListFontSize(pt);
+            }
+            const QString s = QString::number(pt);
+            if (sizeEdit->text() != s)
+                sizeEdit->setText(s);
+        };
+        connect(minusBtn, &QToolButton::clicked, this,
+                [this, apply]() { apply(m_settings.listFontSize() - 1); });
+        connect(plusBtn, &QToolButton::clicked, this,
+                [this, apply]() { apply(m_settings.listFontSize() + 1); });
+        connect(sizeEdit, &QLineEdit::textEdited, this,
+                [apply](const QString &t) { if (!t.isEmpty()) apply(t.toInt()); });
 
         auto *fontAction = new QWidgetAction(viewMenu);
         fontAction->setDefaultWidget(fontWidget);
@@ -1290,7 +1313,9 @@ void MainWindow::toggleQuickView() {
 void MainWindow::updateQuickView() {
     if (!m_quickViewActive || !m_activePanel)
         return;
-    m_quickView->showFile(m_activePanel->currentEntryPath());
+    // currentPreviewPath() extracts an archived entry to a real temp file (and
+    // prefetches neighbours) so archived files preview like local ones.
+    m_quickView->showFile(m_activePanel->currentPreviewPath());
 }
 
 void MainWindow::splitFile() {

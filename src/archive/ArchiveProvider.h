@@ -49,6 +49,13 @@ public:
     // Progress for the extract-all-on-first-read pass. Bytes done / bytes total.
     void setProgressCallback(std::function<void(qint64 done, qint64 total)> cb);
 
+    // Extracts the file at `virtualPath` to a real temp file (keeping its name +
+    // extension) and returns the local path, or "" for a directory / missing
+    // entry / failure. Cached, so repeated / neighbour-prefetch calls are cheap.
+    // Thread-safe (serialised on m_mutex); used to preview archived files with
+    // the normal viewers.
+    QString materialize(const QString &virtualPath);
+
     // FileProvider overrides. Paths are POSIX-style virtual archive paths rooted
     // at "/" (the archive root). An absolute path that begins with the archive's
     // own file path is also accepted and mapped to the virtual root.
