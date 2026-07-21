@@ -25,6 +25,12 @@
 #include "FileSystemModel.h"
 
 namespace {
+// Baseline column proportions (Name, Ext, Size, Modified, Type, Created,
+// Permissions). Used as the initial layout and as a per-column floor for the
+// content-aware auto-fit so no column ever collapses.
+constexpr int kDefaultColWidths[FileSystemModel::ColumnCount] = {280, 70, 100, 150,
+                                                                 90,  150, 110};
+
 // Header that paints its own (non-bold) section labels. The deepin (DTK)
 // style draws header text bold and ignores the widget font / qss font-weight,
 // so we bypass it here, matching the theme's section colours.
@@ -227,10 +233,8 @@ void FileListView::setModel(QAbstractItemModel *model) {
 
         // Starting proportions; stretchColumnsToFit() scales these to fill the
         // panel. Name gets the lion's share.
-        // Name, Ext, Size, Modified, Type, Created, Permissions
-        const int defaults[FileSystemModel::ColumnCount] = {280, 70, 100, 150, 90, 150, 110};
         for (int col = 0; col < model->columnCount() && col < FileSystemModel::ColumnCount; ++col)
-            header->resizeSection(col, defaults[col]);
+            header->resizeSection(col, kDefaultColWidths[col]);
 
         // Default view: hide Created and Permissions (a persisted header state,
         // restored later by MainWindow, overrides this if the user changed it).
@@ -357,16 +361,20 @@ void FileListView::fitColumnsToContents() {
     if (avail <= 0)
         return;
 
-    // Desired width per visible column = max(content, header label) + padding.
+    // Desired width per visible column: content (+ header), but floored at the
+    // column's baseline proportion so nothing collapses, and capped so one long
+    // value can't swallow the row.
     QVector<int> cols;
     QVector<int> want;
     int total = 0;
     for (int c = 0; c < header->count(); ++c) {
         if (header->isSectionHidden(c))
             continue;
-        const int content = sizeHintForColumn(c);              // samples visible rows
-        const int head = header->sectionSizeHint(c);           // header text width
-        const int w = qMax(30, qMax(content, head) + 14);      // breathing room
+        const int content = sizeHintForColumn(c);    // samples visible rows
+        const int head = header->sectionSizeHint(c); // header text width
+        const int def = (c < FileSystemModel::ColumnCount) ? kDefaultColWidths[c] : 100;
+        int w = qMax(def, qMax(content, head) + 14);
+        w = qMin(w, def * 3); // cap growth so a long value doesn't dominate
         cols.append(c);
         want.append(w);
         total += w;
