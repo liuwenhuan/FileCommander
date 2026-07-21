@@ -108,7 +108,8 @@ ConnectDialog::ConnectDialog(QWidget *parent) : QDialog(parent) {
     layout->addWidget(savedBox);
     layout->addLayout(form);
     auto *hint = new QLabel(
-        tr("The server is mounted via GVfs and opened as a local folder."), this);
+        tr("SFTP, FTP and WebDAV connect through a built-in client; SMB is mounted via GVfs."),
+        this);
     hint->setWordWrap(true);
     layout->addWidget(hint);
     layout->addWidget(m_buttons);
