@@ -22,6 +22,7 @@
 
 #include "BreadcrumbBar.h"
 #include "FileListView.h"
+#include "FileProvider.h"
 #include "StatusBarWidget.h"
 #include "TabBar.h"
 
@@ -277,8 +278,11 @@ void FilePanel::hideQuickFilter() {
 }
 
 void FilePanel::navigateTo(const QString &path) {
-    const QString cleaned = QDir(path).absolutePath();
-    if (!QFileInfo(cleaned).isDir())
+    // Go through the model's provider so this works for remote backends too;
+    // for the local provider these are the same QDir/QFileInfo calls as before.
+    FileProvider *provider = m_model->provider();
+    const QString cleaned = provider->cleanPath(path);
+    if (!provider->isDir(cleaned))
         return;
     if (m_filterBar->isVisible()) {
         // setRootPath() clears the model filter; just tidy the (now stale) bar.
