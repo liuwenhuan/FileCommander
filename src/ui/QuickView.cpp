@@ -9,6 +9,8 @@
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QImageReader>
+#include <QInputDialog>
+#include <QMessageBox>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QPlainTextEdit>
@@ -22,6 +24,7 @@
 #include <QStackedWidget>
 #include <QStyle>
 #include <QTableWidget>
+#include <QTemporaryDir>
 #include <QTextBrowser>
 #include <QTextDocument>
 #include <QTimer>
@@ -78,7 +81,8 @@ QuickView::QuickView(Settings &settings, QWidget *parent)
     m_stack->addWidget(buildVideoPage());    // 3
     m_stack->addWidget(buildMarkdownPage());   // 4
     m_stack->addWidget(buildPdfPage());        // 5
-    m_stack->addWidget(buildOfficeTablePage()); // 6
+    m_stack->addWidget(buildOfficeTablePage());  // 6
+    m_stack->addWidget(buildEncryptedPage());    // 7
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -450,6 +454,64 @@ QWidget *QuickView::buildOfficeTablePage() {
     return m_officeTable;
 }
 
+QWidget *QuickView::buildEncryptedPage() {
+    m_encryptedPage = new QWidget(this);
+    auto *layout = new QVBoxLayout(m_encryptedPage);
+    layout->addStretch(1);
+    m_encryptedLabel = new QLabel(m_encryptedPage);
+    m_encryptedLabel->setAlignment(Qt::AlignCenter);
+    m_encryptedLabel->setWordWrap(true);
+    layout->addWidget(m_encryptedLabel);
+    m_unlockButton = new QPushButton(tr("Unlock with password…"), m_encryptedPage);
+    m_unlockButton->setFixedWidth(200);
+    layout->addWidget(m_unlockButton, 0, Qt::AlignHCenter);
+    layout->addStretch(1);
+    connect(m_unlockButton, &QPushButton::clicked, this, &QuickView::promptAndDecrypt);
+    return m_encryptedPage;
+}
+
+void QuickView::promptAndDecrypt() {
+    if (m_encryptedPath.isEmpty())
+        return;
+    bool ok = false;
+    const QString password = QInputDialog::getText(
+        this, tr("Password required"),
+        tr("Enter the password for “%1”:").arg(QFileInfo(m_encryptedPath).fileName()),
+        QLineEdit::Password, QString(), &ok);
+    if (!ok)
+        return;
+
+    // Decrypt into a fresh temp dir (auto-removed with this view), keeping the
+    // original file name so the extension still drives the preview type.
+    m_decryptDir = std::make_unique<QTemporaryDir>();
+    if (!m_decryptDir->isValid()) {
+        QMessageBox::warning(this, tr("Decrypt"), tr("Could not create a temporary file."));
+        return;
+    }
+    const QString out = QDir(m_decryptDir->path()).filePath(QFileInfo(m_encryptedPath).fileName());
+    QString error;
+    const OfficeConverter::DecryptStatus st =
+        OfficeConverter::decrypt(m_encryptedPath, password, out, &error);
+    switch (st) {
+    case OfficeConverter::DecryptStatus::Ok:
+        showFile(out); // preview the decrypted copy
+        break;
+    case OfficeConverter::DecryptStatus::WrongPassword:
+        QMessageBox::warning(this, tr("Decrypt"), tr("Incorrect password."));
+        break;
+    case OfficeConverter::DecryptStatus::Unavailable:
+        QMessageBox::warning(
+            this, tr("Decrypt"),
+            tr("Decryption needs python3 with the msoffcrypto module:\n"
+               "pip install --user msoffcrypto-tool"));
+        break;
+    case OfficeConverter::DecryptStatus::Failed:
+        QMessageBox::warning(this, tr("Decrypt"),
+                             tr("Decryption failed: %1").arg(error));
+        break;
+    }
+}
+
 void QuickView::populateCsvTable(const QString &tsv) {
     m_officeTable->clear();
     // office-oxide's `text` output is tab-separated: one row per line, cells
@@ -742,9 +804,14 @@ void QuickView::showFile(const QString &path) {
             return;
         }
         if (r.encrypted) {
-            m_info->setText(
-                tr("“%1” is encrypted and cannot be previewed.").arg(info.fileName()));
-            m_stack->setCurrentWidget(m_info);
+            m_encryptedPath = path;
+            const bool canDec = OfficeConverter::canDecrypt();
+            m_encryptedLabel->setText(canDec
+                                          ? tr("“%1” is encrypted.").arg(info.fileName())
+                                          : tr("“%1” is encrypted and cannot be previewed.")
+                                                .arg(info.fileName()));
+            m_unlockButton->setVisible(canDec);
+            m_stack->setCurrentWidget(m_encryptedPage);
             return;
         }
         m_info->setText(tr("Cannot preview %1:\n%2").arg(info.fileName(), r.error));

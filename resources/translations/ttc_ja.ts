@@ -441,7 +441,7 @@ Extract it too?</source>
         <translation>コマンド / ショートカット</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="127"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="128"/>
         <source>Filter: type to narrow the list, Esc to clear</source>
         <translation>フィルター: 入力で絞り込み、Esc でクリア</translation>
     </message>
@@ -518,33 +518,33 @@ Extract it too?</source>
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="157"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1537"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="158"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1538"/>
         <source>Total Commander for Linux</source>
         <translation>Total Commander for Linux</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="999"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1000"/>
         <source>Show / hide hidden files</source>
         <translation>隠しファイルの表示/非表示</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1000"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1001"/>
         <source>Filter the current panel (type to narrow)</source>
         <translation>現在のパネルを絞り込む（入力で絞り込み）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1001"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1002"/>
         <source>Quick view (preview in the other panel)</source>
         <translation>クイックビュー（別パネルでプレビュー）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1002"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1003"/>
         <source>Point the other panel at this directory</source>
         <translation>このディレクトリを別パネルで開く</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1003"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1004"/>
         <source>Swap the two panels</source>
         <translation>2つのパネルを入れ替え</translation>
     </message>
@@ -553,128 +553,128 @@ Extract it too?</source>
         <translation type="vanished">ディレクトリのブックマーク</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1004"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1005"/>
         <source>Calculate folder size</source>
         <translation>フォルダーサイズを計算</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1005"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1006"/>
         <source>Undo the last rename / move</source>
         <translation>直前の名前変更/移動を元に戻す</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1006"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1007"/>
         <source>Multi-rename tool</source>
         <translation>一括リネームツール</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1007"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1008"/>
         <source>Search files</source>
         <translation>ファイル検索</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1021"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1022"/>
         <source>Select files by pattern (e.g. *.zip)</source>
         <translation>パターンで選択（例: *.zip）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1025"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1026"/>
         <source>Unselect files by pattern</source>
         <translation>パターンで選択解除</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1099"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1682"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1100"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1683"/>
         <source>Paste</source>
         <translation>貼り付け</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1095"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1657"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1096"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1658"/>
         <source>Cut</source>
         <translation>切り取り</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1097"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1098"/>
         <source>Copy to Clipboard</source>
         <translation>クリップボードにコピー</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1120"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1121"/>
         <source>Swap Panels</source>
         <translation>パネルを入れ替え</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1124"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1125"/>
         <source>Quick View</source>
         <translation>クイックビュー</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1105"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1106"/>
         <source>Quick Filter</source>
         <translation>クイックフィルター</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1122"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1123"/>
         <source>Same Directory in Other Panel</source>
         <translation>別パネルに同じディレクトリ</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1118"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1674"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1119"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1675"/>
         <source>Calculate Folder Size</source>
         <translation>フォルダーサイズを計算</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1126"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1127"/>
         <source>Undo Last Operation</source>
         <translation>直前の操作を元に戻す</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1101"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1102"/>
         <source>Multi-Rename Tool</source>
         <translation>一括リネームツール</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1103"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1104"/>
         <source>Directory Hotlist</source>
         <translation>ディレクトリ一覧</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1109"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1110"/>
         <source>Properties</source>
         <translation>プロパティ</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1111"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1112"/>
         <source>Show Hidden Files</source>
         <translation>隠しファイルを表示</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="915"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="916"/>
         <source>Change F%1 Function</source>
         <translation>F%1 の機能を変更</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="968"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="969"/>
         <source>Choose the function for the F%1 key:</source>
         <translation>F%1 キーの機能を選択:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="221"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="251"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="222"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="252"/>
         <source>Operation Error</source>
         <translation>操作エラー</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="355"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1057"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1649"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="356"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1058"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1650"/>
         <source>View</source>
         <translation>表示</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="355"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="356"/>
         <source>Could not open %1</source>
         <translation>%1 を開けませんでした</translation>
     </message>
@@ -687,57 +687,57 @@ Extract it too?</source>
         <translation type="vanished">終了(&amp;X)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="384"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="385"/>
         <source>&amp;Commands</source>
         <translation>コマンド(&amp;C)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="386"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="387"/>
         <source>&amp;Refresh</source>
         <translation>更新(&amp;R)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="388"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="389"/>
         <source>&amp;Compress Selected...</source>
         <translation>選択項目を圧縮(&amp;C)...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="393"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="394"/>
         <source>&amp;Search Files...</source>
         <translation>ファイル検索(&amp;S)...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="441"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="442"/>
         <source>&amp;Keyboard Shortcuts...</source>
         <translation>キーボードショートカット(&amp;K)...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="444"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="445"/>
         <source>&amp;View</source>
         <translation>表示(&amp;V)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="446"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="447"/>
         <source>&amp;Theme</source>
         <translation>テーマ(&amp;T)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="467"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="468"/>
         <source>&amp;Language</source>
         <translation>言語(&amp;L)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="454"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="455"/>
         <source>Auto</source>
         <translation>自動</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="455"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="456"/>
         <source>Light</source>
         <translation>ライト</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="456"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="457"/>
         <source>Dark</source>
         <translation>ダーク</translation>
     </message>
@@ -762,57 +762,57 @@ Extract it too?</source>
         <translation type="vanished">↻</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1058"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1650"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1796"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1059"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1651"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1797"/>
         <source>Edit</source>
         <translation>編集</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1059"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1652"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1658"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1848"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1060"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1653"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1659"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1849"/>
         <source>Copy</source>
         <translation>コピー</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1060"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1653"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1061"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1654"/>
         <source>Move</source>
         <translation>移動</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1061"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1684"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1891"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1062"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1685"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1892"/>
         <source>New Folder</source>
         <translation>新しいフォルダー</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1062"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1063"/>
         <source>Delete (to trash)</source>
         <translation>削除（ごみ箱へ）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1063"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1064"/>
         <source>Delete Permanently</source>
         <translation>完全に削除</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1065"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1066"/>
         <source>Delete (Del key)</source>
         <translation>削除（Del キー）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="312"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1067"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1654"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="313"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1068"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1655"/>
         <source>Rename</source>
         <translation>名前の変更</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="222"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="223"/>
         <source>%1
 
 %2</source>
@@ -821,376 +821,376 @@ Extract it too?</source>
 %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="223"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="224"/>
         <source>Retry</source>
         <translation>再試行</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="224"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="225"/>
         <source>Skip</source>
         <translation>スキップ</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="225"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="226"/>
         <source>Skip All</source>
         <translation>すべてスキップ</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="226"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="227"/>
         <source>Cancel</source>
         <translation>キャンセル</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="250"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="251"/>
         <source>
 ... and %1 more.</source>
         <translation>
 ... 他 %1 件。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="387"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="388"/>
         <source>Open &amp;Terminal Here</source>
         <translation>ここでターミナルを開く(&amp;T)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="389"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="390"/>
         <source>S&amp;plit File...</source>
         <translation>ファイルを分割(&amp;P)...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="390"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="391"/>
         <source>Com&amp;bine Files...</source>
         <translation>ファイルを結合(&amp;B)...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="391"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="392"/>
         <source>Calculate &amp;Checksums (MD5 / CRC32 / SHA1)...</source>
         <translation>チェックサムを計算(&amp;C)（MD5 / CRC32 / SHA1）...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="394"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="395"/>
         <source>&amp;Multi-Rename Tool...</source>
         <translation>一括リネームツール(&amp;M)...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="396"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="397"/>
         <source>S&amp;ynchronize Directories...</source>
         <translation>ディレクトリを同期(&amp;Y)...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="398"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="399"/>
         <source>Compar&amp;e by Content...</source>
         <translation>内容で比較(&amp;E)...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="400"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="401"/>
         <source>Compare &amp;Directories (by time)</source>
         <translation>ディレクトリを比較(&amp;D)（時刻で）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="402"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="403"/>
         <source>Calculate &amp;Occupied Space</source>
         <translation>使用領域を計算(&amp;O)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="405"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="406"/>
         <source>&amp;Select by Pattern...</source>
         <translation>パターンで選択(&amp;S)...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="409"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="410"/>
         <source>&amp;Unselect by Pattern...</source>
         <translation>パターンで選択解除(&amp;U)...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="414"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="415"/>
         <source>Same Directory in &amp;Other Panel</source>
         <translation>別パネルに同じディレクトリ(&amp;O)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="416"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="417"/>
         <source>S&amp;wap Panels</source>
         <translation>パネルを入れ替え(&amp;W)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="418"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="419"/>
         <source>&amp;Directory Hotlist...</source>
         <translation>ディレクトリ一覧(&amp;D)...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="422"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="423"/>
         <source>Connect to &amp;Server...</source>
         <translation>サーバーに接続(&amp;S)...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="435"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="436"/>
         <source>&amp;Network Neighborhood</source>
         <translation>ネットワークコンピューター(&amp;N)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="492"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="493"/>
         <source>Font size:</source>
         <translation>フォントサイズ:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="504"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="505"/>
         <source>Type a size, or use − / + (8-18)</source>
         <translation>サイズを入力するか、− / + を使用（8〜18）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="546"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="547"/>
         <source>Command &amp;Line</source>
         <translation>コマンドライン(&amp;L)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="553"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="554"/>
         <source>Function &amp;Key Bar</source>
         <translation>ファンクションキーバー(&amp;K)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="567"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="568"/>
         <source>Office &amp;Document Preview</source>
         <translation>Officeドキュメントプレビュー(&amp;D)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="568"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="569"/>
         <source>Office &amp;Document Preview (install office_oxide)</source>
         <translation>Officeドキュメントプレビュー(&amp;D)（office_oxide をインストール）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1029"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1030"/>
         <source>Invert selection</source>
         <translation>選択を反転</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1034"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1035"/>
         <source>Switch to list view</source>
         <translation>一覧表示に切り替え</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1035"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1036"/>
         <source>Switch to thumbnail view</source>
         <translation>サムネイル表示に切り替え</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1069"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1070"/>
         <source>New Tab</source>
         <translation>新しいタブ</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1073"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1074"/>
         <source>Close Tab</source>
         <translation>タブを閉じる</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1077"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1078"/>
         <source>Next Tab</source>
         <translation>次のタブ</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1081"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1082"/>
         <source>Previous Tab</source>
         <translation>前のタブ</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1087"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1088"/>
         <source>Search Files</source>
         <translation>ファイル検索</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1089"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1090"/>
         <source>Compress Selected</source>
         <translation>選択項目を圧縮</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1091"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1687"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1092"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1688"/>
         <source>Refresh</source>
         <translation>更新</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1093"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1094"/>
         <source>Exit</source>
         <translation>終了</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1178"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1179"/>
         <source>Checksums</source>
         <translation>チェックサム</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1179"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1180"/>
         <source>Select one or more files first.</source>
         <translation>先に1つ以上のファイルを選択してください。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1216"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1217"/>
         <source>Open Terminal</source>
         <translation>ターミナルを開く</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1216"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1217"/>
         <source>No terminal emulator found.</source>
         <translation>ターミナルエミュレーターが見つかりません。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1234"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1235"/>
         <source>Open With</source>
         <translation>アプリケーションで開く</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1235"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1236"/>
         <source>Application command:</source>
         <translation>アプリケーションコマンド:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1327"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1331"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1346"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1348"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1328"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1332"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1347"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1349"/>
         <source>Split File</source>
         <translation>ファイルを分割</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1327"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1328"/>
         <source>Select a file to split.</source>
         <translation>分割するファイルを選択してください。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1331"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1332"/>
         <source>Part size (MB):</source>
         <translation>分割サイズ（MB）:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1346"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1347"/>
         <source>Failed to split the file.</source>
         <translation>ファイルの分割に失敗しました。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1349"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1350"/>
         <source>Created %1 part(s).</source>
         <translation>%1 個のパートを作成しました。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1364"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1377"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1379"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1365"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1378"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1380"/>
         <source>Combine Files</source>
         <translation>ファイルを結合</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1365"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1366"/>
         <source>Select the first part (e.g. name.001) of a split file.</source>
         <translation>分割ファイルの最初のパート（例: name.001）を選択してください。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1377"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1378"/>
         <source>Failed to merge the parts.</source>
         <translation>パートの結合に失敗しました。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1379"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1380"/>
         <source>Parts merged.</source>
         <translation>パートを結合しました。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1392"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1393"/>
         <source>Command</source>
         <translation>コマンド</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1393"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1394"/>
         <source>Failed to run: %1</source>
         <translation>実行に失敗しました: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1469"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1470"/>
         <source>Compare by Content</source>
         <translation>内容で比較</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1470"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1471"/>
         <source>Select two files to compare: either two in one panel, or one in each panel.</source>
         <translation>比較する2つのファイルを選択してください: 片方のパネルで2つ、または各パネルで1つずつ。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1485"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1486"/>
         <source>Remove this directory from favorites</source>
         <translation>このディレクトリをお気に入りから削除</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1488"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1489"/>
         <source>Bookmark this directory</source>
         <translation>このディレクトリをお気に入りに追加</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1495"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1496"/>
         <source>(No favorites yet)</source>
         <translation>（お気に入りはまだありません）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1646"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1647"/>
         <source>Open</source>
         <translation>開く</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1647"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1648"/>
         <source>Open With...</source>
         <translation>アプリケーションで開く...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1655"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1656"/>
         <source>Delete</source>
         <translation>削除</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1660"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1661"/>
         <source>Compress Selected...</source>
         <translation>選択項目を圧縮...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1664"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1665"/>
         <source>Extract Here</source>
         <translation>ここに展開</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1665"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1666"/>
         <source>Extract To...</source>
         <translation>展開先...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1668"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1669"/>
         <source>Copy Path</source>
         <translation>パスをコピー</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1675"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1676"/>
         <source>Properties...</source>
         <translation>プロパティ...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1686"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1687"/>
         <source>Open Terminal Here</source>
         <translation>ここでターミナルを開く</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1742"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1764"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1743"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1765"/>
         <source>Extract</source>
         <translation>展開</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1742"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1743"/>
         <source>Extraction failed: %1</source>
         <translation>展開に失敗しました: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1749"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1750"/>
         <source>Nested archive</source>
         <translation>ネストされたアーカイブ</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1750"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1751"/>
         <source>The result contains a single archive:
 %1
 
@@ -1201,64 +1201,64 @@ Extract it too?</source>
 これも展開しますか？</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1764"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1765"/>
         <source>Extracted archive to %1</source>
         <translation>アーカイブを %1 に展開しました</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1783"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1784"/>
         <source>Extract to</source>
         <translation>展開先</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1797"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1798"/>
         <source>Image files can&apos;t be edited; use F3 to view.</source>
         <translation>画像ファイルは編集できません。F3 で表示してください。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1813"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1814"/>
         <source>Read-only</source>
         <translation>読み取り専用</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1814"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1815"/>
         <source>This archive is read-only. Copy files out to a folder to modify them.</source>
         <translation>このアーカイブは読み取り専用です。変更するにはファイルをフォルダーにコピーしてください。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1848"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1849"/>
         <source>Copy to:</source>
         <translation>コピー先:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1891"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1892"/>
         <source>Folder name:</source>
         <translation>フォルダー名:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1908"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1909"/>
         <source>Confirm Delete</source>
         <translation>削除の確認</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1909"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1910"/>
         <source>Delete %1 item(s) (%2 bytes)?%3</source>
         <translation>%1 個の項目（%2 バイト）を削除しますか？%3</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1912"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1913"/>
         <source>
 This is permanent and will NOT go to the trash.</source>
         <translation>
 この操作は取り消せず、ごみ箱には移動されません。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1934"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1935"/>
         <source>Compress</source>
         <translation>圧縮</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1934"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1935"/>
         <source>Compression failed: %1</source>
         <translation>圧縮に失敗しました: %1</translation>
     </message>
@@ -1785,176 +1785,226 @@ Destination: %4 (%5 bytes)</source>
 <context>
     <name>QuickView</name>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="58"/>
-        <location filename="../../src/ui/QuickView.cpp" line="642"/>
+        <location filename="../../src/ui/QuickView.cpp" line="61"/>
+        <location filename="../../src/ui/QuickView.cpp" line="704"/>
         <source>Select a file to preview</source>
         <translation>プレビューするファイルを選択</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="96"/>
-        <location filename="../../src/ui/QuickView.cpp" line="503"/>
+        <location filename="../../src/ui/QuickView.cpp" line="100"/>
+        <location filename="../../src/ui/QuickView.cpp" line="565"/>
         <source>Zoom In</source>
         <translation>拡大</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="97"/>
-        <location filename="../../src/ui/QuickView.cpp" line="509"/>
+        <location filename="../../src/ui/QuickView.cpp" line="101"/>
+        <location filename="../../src/ui/QuickView.cpp" line="571"/>
         <source>Zoom Out</source>
         <translation>縮小</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="98"/>
+        <location filename="../../src/ui/QuickView.cpp" line="102"/>
         <source>Fit</source>
         <translation>全体表示</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="108"/>
+        <location filename="../../src/ui/QuickView.cpp" line="112"/>
         <source>Lock Zoom</source>
         <translation>ズームを固定</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="109"/>
+        <location filename="../../src/ui/QuickView.cpp" line="113"/>
         <source>Keep the current zoom ratio for the next images</source>
         <translation>次の画像も現在のズーム倍率を維持</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="112"/>
-        <location filename="../../src/ui/QuickView.cpp" line="300"/>
+        <location filename="../../src/ui/QuickView.cpp" line="116"/>
+        <location filename="../../src/ui/QuickView.cpp" line="304"/>
         <source>Show info</source>
         <translation>情報を表示</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="113"/>
+        <location filename="../../src/ui/QuickView.cpp" line="117"/>
         <source>Overlay basic image information</source>
         <translation>基本的な画像情報を重ねて表示</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="220"/>
-        <location filename="../../src/ui/QuickView.cpp" line="228"/>
-        <location filename="../../src/ui/QuickView.cpp" line="235"/>
-        <location filename="../../src/ui/QuickView.cpp" line="334"/>
+        <location filename="../../src/ui/QuickView.cpp" line="224"/>
+        <location filename="../../src/ui/QuickView.cpp" line="232"/>
+        <location filename="../../src/ui/QuickView.cpp" line="239"/>
+        <location filename="../../src/ui/QuickView.cpp" line="338"/>
         <source>Play</source>
         <translation>再生</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="228"/>
-        <location filename="../../src/ui/QuickView.cpp" line="236"/>
-        <location filename="../../src/ui/QuickView.cpp" line="335"/>
-        <location filename="../../src/ui/QuickView.cpp" line="677"/>
+        <location filename="../../src/ui/QuickView.cpp" line="232"/>
+        <location filename="../../src/ui/QuickView.cpp" line="240"/>
+        <location filename="../../src/ui/QuickView.cpp" line="339"/>
+        <location filename="../../src/ui/QuickView.cpp" line="739"/>
         <source>Pause</source>
         <translation>一時停止</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="246"/>
+        <location filename="../../src/ui/QuickView.cpp" line="250"/>
         <source>1x</source>
         <translation>1x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="247"/>
+        <location filename="../../src/ui/QuickView.cpp" line="251"/>
         <source>1.5x</source>
         <translation>1.5x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="248"/>
+        <location filename="../../src/ui/QuickView.cpp" line="252"/>
         <source>2x</source>
         <translation>2x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="249"/>
+        <location filename="../../src/ui/QuickView.cpp" line="253"/>
         <source>3x</source>
         <translation>3x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="259"/>
+        <location filename="../../src/ui/QuickView.cpp" line="263"/>
         <source>Seek</source>
         <translation>シーク</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="270"/>
+        <location filename="../../src/ui/QuickView.cpp" line="274"/>
         <source>Mute / unmute</source>
         <translation>ミュート / ミュート解除</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="286"/>
+        <location filename="../../src/ui/QuickView.cpp" line="290"/>
         <source>Vol</source>
         <translation>音量</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="291"/>
+        <location filename="../../src/ui/QuickView.cpp" line="295"/>
         <source>Volume</source>
         <translation>音量</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="301"/>
+        <location filename="../../src/ui/QuickView.cpp" line="305"/>
         <source>Overlay basic video information</source>
         <translation>基本的な動画情報を重ねて表示</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="372"/>
+        <location filename="../../src/ui/QuickView.cpp" line="376"/>
         <source>&lt;b&gt;Duration:&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;Resolution:&lt;/b&gt; %2 &amp;times; %3&lt;br&gt;&lt;b&gt;Codec:&lt;/b&gt; %4</source>
         <translation>&lt;b&gt;再生時間：&lt;/b&gt;%1&lt;br&gt;&lt;b&gt;解像度：&lt;/b&gt;%2 &amp;times; %3&lt;br&gt;&lt;b&gt;コーデック：&lt;/b&gt;%4</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="374"/>
-        <location filename="../../src/ui/QuickView.cpp" line="375"/>
+        <location filename="../../src/ui/QuickView.cpp" line="378"/>
+        <location filename="../../src/ui/QuickView.cpp" line="379"/>
         <source>?</source>
         <translation>?</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="376"/>
+        <location filename="../../src/ui/QuickView.cpp" line="380"/>
         <source>unknown</source>
         <translation>不明</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="482"/>
+        <location filename="../../src/ui/QuickView.cpp" line="465"/>
+        <source>Unlock with password…</source>
+        <translation>パスワードで解除…</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="478"/>
+        <source>Password required</source>
+        <translation>パスワードが必要です</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="479"/>
+        <source>Enter the password for “%1”:</source>
+        <translation>「%1」のパスワードを入力してください：</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="488"/>
+        <location filename="../../src/ui/QuickView.cpp" line="500"/>
+        <location filename="../../src/ui/QuickView.cpp" line="504"/>
+        <location filename="../../src/ui/QuickView.cpp" line="509"/>
+        <source>Decrypt</source>
+        <translation>復号</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="488"/>
+        <source>Could not create a temporary file.</source>
+        <translation>一時ファイルを作成できませんでした。</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="500"/>
+        <source>Incorrect password.</source>
+        <translation>パスワードが正しくありません。</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="505"/>
+        <source>Decryption needs python3 with the msoffcrypto module:
+pip install --user msoffcrypto-tool</source>
+        <translation>復号には msoffcrypto モジュールを含む python3 が必要です：
+pip install --user msoffcrypto-tool</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="510"/>
+        <source>Decryption failed: %1</source>
+        <translation>復号に失敗しました：%1</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="544"/>
         <source>Prev</source>
         <translation>前へ</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="488"/>
+        <location filename="../../src/ui/QuickView.cpp" line="550"/>
         <source>Next</source>
         <translation>次へ</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="542"/>
-        <location filename="../../src/ui/QuickView.cpp" line="549"/>
+        <location filename="../../src/ui/QuickView.cpp" line="604"/>
+        <location filename="../../src/ui/QuickView.cpp" line="611"/>
         <source>Failed to render page %1</source>
         <translation>ページ %1 のレンダリングに失敗しました</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="554"/>
+        <location filename="../../src/ui/QuickView.cpp" line="616"/>
         <source>Page %1 / %2</source>
         <translation>ページ %1 / %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="703"/>
+        <location filename="../../src/ui/QuickView.cpp" line="765"/>
         <source>Cannot open PDF: %1</source>
         <translation>PDF を開けません: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="746"/>
+        <location filename="../../src/ui/QuickView.cpp" line="810"/>
+        <source>“%1” is encrypted.</source>
+        <translation>「%1」は暗号化されています。</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="811"/>
         <source>“%1” is encrypted and cannot be previewed.</source>
         <translation>「%1」は暗号化されているためプレビューできません。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="750"/>
+        <location filename="../../src/ui/QuickView.cpp" line="817"/>
         <source>Cannot preview %1:
 %2</source>
         <translation>%1 をプレビューできません:
 %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="781"/>
+        <location filename="../../src/ui/QuickView.cpp" line="848"/>
         <source>&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;%2 &amp;times; %3&lt;br&gt;%4&lt;br&gt;%5 bpp</source>
         <translation>&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;%2 &amp;times; %3&lt;br&gt;%4&lt;br&gt;%5 bpp</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="785"/>
+        <location filename="../../src/ui/QuickView.cpp" line="852"/>
         <source>Unknown format</source>
         <translation>不明な形式</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="818"/>
+        <location filename="../../src/ui/QuickView.cpp" line="885"/>
         <source>No preview available for %1</source>
         <translation>%1 のプレビューはありません</translation>
     </message>
@@ -2005,6 +2055,34 @@ Destination: %4 (%5 bytes)</source>
         <location filename="../../src/search/SearchDialog.cpp" line="87"/>
         <source>Cancelling...</source>
         <translation>キャンセル中...</translation>
+    </message>
+</context>
+<context>
+    <name>SecureWipeDialog</name>
+    <message>
+        <location filename="../../src/ui/dialogs/SecureWipeDialog.cpp" line="231"/>
+        <source>Secure Wipe</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/SecureWipeDialog.cpp" line="236"/>
+        <source>Overwriting and deleting %1 item(s)…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/SecureWipeDialog.cpp" line="239"/>
+        <source>File</source>
+        <translation type="unfinished">ファイル</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/SecureWipeDialog.cpp" line="239"/>
+        <source>Status</source>
+        <translation type="unfinished">状態</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/SecureWipeDialog.cpp" line="249"/>
+        <source>…</source>
+        <translation type="unfinished">…</translation>
     </message>
 </context>
 <context>
@@ -2246,6 +2324,19 @@ Right: %2</source>
         <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="148"/>
         <source>%1 operation(s) queued</source>
         <translation>%1 個の操作がキューに追加されました</translation>
+    </message>
+</context>
+<context>
+    <name>WipeWorker</name>
+    <message>
+        <location filename="../../src/ui/dialogs/SecureWipeDialog.cpp" line="189"/>
+        <source>Wiped</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/SecureWipeDialog.cpp" line="189"/>
+        <source>Failed</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 </TS>

@@ -4,6 +4,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QProcess>
+#include <QProcessEnvironment>
 #include <QRegularExpression>
 #include <QStandardPaths>
 #include <QStringList>
@@ -168,6 +169,86 @@ bool OfficeConverter::isEncrypted(const QString &path) {
     const QString suffix = suffixLower(path);
     return suffix == QLatin1String("docx") || suffix == QLatin1String("xlsx") ||
            suffix == QLatin1String("pptx");
+}
+
+namespace {
+// Self-contained decryption helper (msoffcrypto). Handles OOXML (agile/standard)
+// and legacy .doc/.xls/.ppt. Includes a monkeypatch for an olefile bug that
+// crashes when rewriting a zero-length stream (e.g. an empty Data stream in a
+// .doc). Reads the password from $TTC_OFFICE_PASSWORD; in/out are argv 1/2.
+const char *kDecryptScript = R"PY(
+import sys, os, olefile
+_orig = olefile.OleFileIO._write_mini_stream
+def _patched(self, entry, data_to_write):
+    if getattr(entry, 'sect_chain', None) is None:
+        entry.sect_chain = []
+    return _orig(self, entry, data_to_write)
+olefile.OleFileIO._write_mini_stream = _patched
+import msoffcrypto
+try:
+    with open(sys.argv[1], 'rb') as f:
+        of = msoffcrypto.OfficeFile(f)
+        of.load_key(password=os.environ.get('TTC_OFFICE_PASSWORD', ''))
+        with open(sys.argv[2], 'wb') as o:
+            of.decrypt(o)
+except msoffcrypto.exceptions.InvalidKeyError:
+    sys.stderr.write('incorrect password'); sys.exit(2)
+except Exception as e:
+    sys.stderr.write(str(e)); sys.exit(1)
+)PY";
+} // namespace
+
+bool OfficeConverter::canDecrypt() {
+    const QString py = QStandardPaths::findExecutable(QStringLiteral("python3"));
+    if (py.isEmpty())
+        return false;
+    QProcess proc;
+    proc.start(py, {QStringLiteral("-c"), QStringLiteral("import msoffcrypto, olefile")});
+    if (!proc.waitForFinished(5000))
+        return false;
+    return proc.exitStatus() == QProcess::NormalExit && proc.exitCode() == 0;
+}
+
+OfficeConverter::DecryptStatus OfficeConverter::decrypt(const QString &inPath,
+                                                        const QString &password,
+                                                        const QString &outPath, QString *error) {
+    const QString py = QStandardPaths::findExecutable(QStringLiteral("python3"));
+    if (py.isEmpty()) {
+        if (error)
+            *error = QStringLiteral("python3 not found");
+        return DecryptStatus::Unavailable;
+    }
+    QProcess proc;
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    env.insert(QStringLiteral("TTC_OFFICE_PASSWORD"), password); // never on the command line
+    proc.setProcessEnvironment(env);
+    proc.start(py, {QStringLiteral("-c"), QString::fromUtf8(kDecryptScript), inPath, outPath});
+    if (!proc.waitForStarted(kTimeoutMs)) {
+        if (error)
+            *error = QStringLiteral("failed to start python3");
+        return DecryptStatus::Unavailable;
+    }
+    if (!proc.waitForFinished(kTimeoutMs)) {
+        proc.kill();
+        proc.waitForFinished(2000);
+        if (error)
+            *error = QStringLiteral("decryption timed out");
+        return DecryptStatus::Failed;
+    }
+    const int code = proc.exitCode();
+    if (code == 0)
+        return DecryptStatus::Ok;
+    if (code == 2)
+        return DecryptStatus::WrongPassword;
+    if (error) {
+        const QString msg = QString::fromUtf8(proc.readAllStandardError()).trimmed();
+        // A missing module (import error) means the helper isn't usable at all.
+        if (msg.contains(QStringLiteral("ModuleNotFoundError")) ||
+            msg.contains(QStringLiteral("No module named")))
+            return DecryptStatus::Unavailable;
+        *error = msg.isEmpty() ? QStringLiteral("decryption failed") : msg;
+    }
+    return DecryptStatus::Failed;
 }
 
 OfficeConverter::Result OfficeConverter::convertDocument(const QString &binary, const QString &path) {

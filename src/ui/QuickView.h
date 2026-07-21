@@ -15,6 +15,7 @@ class QScrollArea;
 class QSlider;
 class QStackedWidget;
 class QTableWidget;
+class QTemporaryDir;
 class QTextBrowser;
 class QTimer;
 class MpvWidget;
@@ -54,7 +55,11 @@ private:
     QWidget *buildMarkdownPage();
     QWidget *buildPdfPage();
     QWidget *buildOfficeTablePage();       // spreadsheet (xls/xlsx) preview as a grid
+    QWidget *buildEncryptedPage();         // "encrypted" note + an unlock button
     void populateCsvTable(const QString &csv); // fill the office table from CSV text
+    // Prompts for a password and, on success, decrypts m_encryptedPath to a temp
+    // file and previews the decrypted result. Wired to the unlock button.
+    void promptAndDecrypt();
     // Adds width/height attributes to office HTML <img> tags whose natural width
     // exceeds maxWidth, so large embedded images fit the preview pane instead of
     // overflowing (QTextBrowser ignores CSS max-width).
@@ -87,6 +92,14 @@ private:
     // Office spreadsheet page: a read-only grid populated from office_oxide's CSV
     // output. Word/PowerPoint documents reuse the markdown page above.
     QTableWidget *m_officeTable = nullptr;
+
+    // Encrypted-office page: a note plus an "unlock" button that prompts for the
+    // password and previews the decrypted copy.
+    QWidget *m_encryptedPage = nullptr;
+    QLabel *m_encryptedLabel = nullptr;
+    QPushButton *m_unlockButton = nullptr;
+    QString m_encryptedPath;                      // file awaiting a password
+    std::unique_ptr<QTemporaryDir> m_decryptDir;  // holds the decrypted temp file
 
     // PDF page (m_stack index 5): a single rendered page in a scroll area with
     // prev/next + zoom controls. Poppler renders each page to a QImage on demand.

@@ -55,6 +55,17 @@ public:
     // or a legacy .doc whose FIB sets fEncrypted (office_oxide reports it).
     static bool isEncrypted(const QString &path);
 
+    // Password decryption via the msoffcrypto Python helper (covers OOXML +
+    // legacy .doc/.xls/.ppt); office_oxide itself can't decrypt.
+    static bool canDecrypt(); // python3 + the msoffcrypto module are available
+    enum class DecryptStatus { Ok, WrongPassword, Unavailable, Failed };
+    // Decrypts `inPath` with `password` into `outPath` (caller should keep the
+    // original extension so kindFor() still recognises the result). The password
+    // is passed to the helper via an environment variable, never on the command
+    // line.
+    static DecryptStatus decrypt(const QString &inPath, const QString &password,
+                                 const QString &outPath, QString *error = nullptr);
+
     // Runs the CLI synchronously (QProcess, ~30s timeout) and returns the
     // converted content. Never throws: every failure path sets ok=false and
     // fills in `error` with a message suitable for display to the user.
