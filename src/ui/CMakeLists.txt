@@ -51,6 +51,10 @@ add_library(ui STATIC
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(MPV REQUIRED mpv)
 
+# poppler-qt5 for the QuickView PDF preview page. The .pc exposes
+# -I/usr/include/poppler/qt5 so <poppler-qt5.h> resolves directly.
+pkg_check_modules(POPPLER_QT5 REQUIRED poppler-qt5)
+
 # QOpenGLWidget lives in the Qt5::OpenGL module; the top-level find_package does
 # not request it, so pull it in here (bundled with qtbase5-dev).
 find_package(Qt5 COMPONENTS OpenGL REQUIRED)
@@ -61,7 +65,7 @@ target_include_directories(ui PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/theme
     ${CMAKE_CURRENT_SOURCE_DIR}/i18n
 )
-target_include_directories(ui PRIVATE ${MPV_INCLUDE_DIRS})
+target_include_directories(ui PRIVATE ${MPV_INCLUDE_DIRS} ${POPPLER_QT5_INCLUDE_DIRS})
 
 target_link_libraries(ui PUBLIC
     core
@@ -73,5 +77,5 @@ target_link_libraries(ui PUBLIC
     Qt5::Gui
     Qt5::OpenGL
 )
-target_link_libraries(ui PRIVATE ${MPV_LIBRARIES})
-target_compile_options(ui PRIVATE ${MPV_CFLAGS_OTHER})
+target_link_libraries(ui PRIVATE ${MPV_LIBRARIES} ${POPPLER_QT5_LIBRARIES})
+target_compile_options(ui PRIVATE ${MPV_CFLAGS_OTHER} ${POPPLER_QT5_CFLAGS_OTHER})
