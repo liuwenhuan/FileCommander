@@ -1,5 +1,6 @@
 #include "QuickView.h"
 
+#include <QAbstractItemView>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QFile>
@@ -23,6 +24,7 @@
 #include <QSlider>
 #include <QStackedWidget>
 #include <QStyle>
+#include <QTableView>
 #include <QTableWidget>
 #include <QTemporaryDir>
 #include <QTextBrowser>
@@ -34,6 +36,8 @@
 
 #include <poppler-qt5.h>
 
+#include "ArchiveHandler.h"
+#include "ArchiveModel.h"
 #include "ImageViewer.h"
 #include "MpvWidget.h"
 #include "OfficeConverter.h"
@@ -52,8 +56,8 @@ constexpr double kPdfMinZoom = 0.25;
 constexpr double kPdfMaxZoom = 6.0;
 } // namespace
 
-QuickView::QuickView(Settings &settings, QWidget *parent)
-    : QWidget(parent), m_settings(settings) {
+QuickView::QuickView(Settings &settings, Context context, QWidget *parent)
+    : QWidget(parent), m_settings(settings), m_context(context) {
     m_text = new QPlainTextEdit(this);
     m_text->setReadOnly(true);
     m_text->setLineWrapMode(QPlainTextEdit::NoWrap);
@@ -83,6 +87,7 @@ QuickView::QuickView(Settings &settings, QWidget *parent)
     m_stack->addWidget(buildPdfPage());        // 5
     m_stack->addWidget(buildOfficeTablePage());  // 6
     m_stack->addWidget(buildEncryptedPage());    // 7
+    m_stack->addWidget(buildArchivePage());      // 8
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -512,6 +517,55 @@ void QuickView::promptAndDecrypt() {
     }
 }
 
+QWidget *QuickView::buildArchivePage() {
+    m_archivePage = new QWidget(this);
+    m_archiveModel = new ArchiveModel(this);
+
+    auto *toolbar = new QToolBar(m_archivePage);
+    toolbar->addAction(tr("Up"), this, &QuickView::navigateArchiveUp);
+    m_archivePathLabel = new QLabel(m_archivePage);
+    m_archivePathLabel->setContentsMargins(8, 0, 8, 0);
+    toolbar->addWidget(m_archivePathLabel);
+
+    m_archiveView = new QTableView(m_archivePage);
+    m_archiveView->setModel(m_archiveModel);
+    m_archiveView->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_archiveView->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_archiveView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_archiveView->verticalHeader()->hide();
+    m_archiveView->horizontalHeader()->setStretchLastSection(false);
+    m_archiveView->horizontalHeader()->setSectionResizeMode(ArchiveModel::NameColumn,
+                                                            QHeaderView::Stretch);
+    connect(m_archiveView, &QAbstractItemView::activated, this, &QuickView::onArchiveActivated);
+
+    auto *layout = new QVBoxLayout(m_archivePage);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(toolbar);
+    layout->addWidget(m_archiveView, 1);
+    return m_archivePage;
+}
+
+void QuickView::onArchiveActivated(const QModelIndex &index) {
+    if (m_archiveModel->isParentEntry(index.row())) {
+        navigateArchiveUp();
+        return;
+    }
+    const auto node = m_archiveModel->nodeAt(index.row());
+    if (node && node->isDir) {
+        m_archiveModel->enterDirectory(node->fullPath);
+        updateArchivePathLabel();
+    }
+}
+
+void QuickView::navigateArchiveUp() {
+    if (m_archiveModel->navigateUp())
+        updateArchivePathLabel();
+}
+
+void QuickView::updateArchivePathLabel() {
+    m_archivePathLabel->setText(QStringLiteral("/%1").arg(m_archiveModel->currentPath()));
+}
+
 void QuickView::populateCsvTable(const QString &tsv) {
     m_officeTable->clear();
     // office-oxide's `text` output is tab-separated: one row per line, cells
@@ -703,6 +757,24 @@ void QuickView::showFile(const QString &path) {
         m_infoOverlay->hide();
         m_info->setText(tr("Select a file to preview"));
         m_stack->setCurrentWidget(m_info);
+        return;
+    }
+
+    // Archives: a read-only listing of their contents (a pure header scan, no
+    // extraction). Checked first so an archive under the cursor shows its file
+    // tree instead of falling through to a garbage text head.
+    if (ArchiveHandler::isSupportedArchive(path)) {
+        stopVideo();
+        closePdf();
+        m_infoOverlay->hide();
+        QString err;
+        if (m_archiveModel->loadArchive(path, &err)) {
+            updateArchivePathLabel();
+            m_stack->setCurrentWidget(m_archivePage);
+        } else {
+            m_info->setText(tr("Cannot open archive: %1").arg(info.fileName()));
+            m_stack->setCurrentWidget(m_info);
+        }
         return;
     }
 

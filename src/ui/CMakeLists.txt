@@ -17,6 +17,8 @@ add_library(ui STATIC
     CommandHistory.cpp
     QuickView.h
     QuickView.cpp
+    ViewerWindow.h
+    ViewerWindow.cpp
     MpvWidget.h
     MpvWidget.cpp
     FunctionKeyBar.h

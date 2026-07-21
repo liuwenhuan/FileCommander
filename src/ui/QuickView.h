@@ -9,15 +9,18 @@
 class QCheckBox;
 class QComboBox;
 class QLabel;
+class QModelIndex;
 class QPlainTextEdit;
 class QPushButton;
 class QScrollArea;
 class QSlider;
 class QStackedWidget;
+class QTableView;
 class QTableWidget;
 class QTemporaryDir;
 class QTextBrowser;
 class QTimer;
+class ArchiveModel;
 class MpvWidget;
 class Settings;
 
@@ -27,13 +30,19 @@ namespace Poppler {
 class Document;
 }
 
-// Lightweight in-panel preview shown by Ctrl+Q: renders the file under the
-// cursor as a zoomable image, a text head, or a "no preview" note.
+// Multi-page file preview: images (zoom/pan), text, video, PDF, markdown,
+// office documents, and archive listings. Used both as the embedded Ctrl+Q
+// pane (Context::Embedded) and as the content of the top-level F3 ViewerWindow
+// (Context::Window); the context tunes the text read cap and which controls
+// show, so both surfaces share one implementation.
 class QuickView : public QWidget {
     Q_OBJECT
 
 public:
-    explicit QuickView(Settings &settings, QWidget *parent = nullptr);
+    enum class Context { Embedded, Window };
+
+    explicit QuickView(Settings &settings, Context context = Context::Embedded,
+                       QWidget *parent = nullptr);
     // Out-of-line so the unique_ptr<Poppler::Document> member can be destroyed
     // where the complete Poppler type is visible (it is only forward-declared
     // above).
@@ -56,6 +65,10 @@ private:
     QWidget *buildPdfPage();
     QWidget *buildOfficeTablePage();       // spreadsheet (xls/xlsx) preview as a grid
     QWidget *buildEncryptedPage();         // "encrypted" note + an unlock button
+    QWidget *buildArchivePage();           // read-only archive listing (no extraction)
+    void onArchiveActivated(const QModelIndex &index); // enter dir / go up
+    void navigateArchiveUp();
+    void updateArchivePathLabel();
     void populateCsvTable(const QString &csv); // fill the office table from CSV text
     // Prompts for a password and, on success, decrypts m_encryptedPath to a temp
     // file and previews the decrypted result. Wired to the unlock button.
@@ -101,6 +114,14 @@ private:
     QString m_encryptedPath;                      // file awaiting a password
     std::unique_ptr<QTemporaryDir> m_decryptDir;  // holds the decrypted temp file
 
+    // Archive page: a read-only listing of an archive's entries (a pure header
+    // scan via ArchiveModel -- nothing is extracted). Activate-to-navigate like
+    // the file panels; "Up" climbs out of a subdirectory.
+    QWidget *m_archivePage = nullptr;
+    QTableView *m_archiveView = nullptr;
+    ArchiveModel *m_archiveModel = nullptr;
+    QLabel *m_archivePathLabel = nullptr;
+
     // PDF page (m_stack index 5): a single rendered page in a scroll area with
     // prev/next + zoom controls. Poppler renders each page to a QImage on demand.
     QWidget *m_pdfPage = nullptr;
@@ -125,6 +146,7 @@ private:
     bool m_seeking = false;         // suppress timer updates while dragging
 
     Settings &m_settings; // persisted video speed / volume / mute
+    Context m_context;    // Embedded (Ctrl+Q pane) vs Window (F3 viewer)
 
     QPixmap m_originalPixmap;
     double m_imageScale = 1.0;

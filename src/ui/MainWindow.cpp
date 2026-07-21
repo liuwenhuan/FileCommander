@@ -63,6 +63,7 @@
 #include "FilePanel.h"
 #include "FileSplitter.h"
 #include "QuickView.h"
+#include "ViewerWindow.h"
 #include "FileListView.h"
 #include "FileSystemModel.h"
 #include "LocalFileProvider.h"
@@ -177,7 +178,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     splitter->setStretchFactor(0, 1);
     splitter->setStretchFactor(1, 1);
     splitter->setHandleWidth(2);
-    m_quickView = new QuickView(m_settings, this);
+    m_quickView = new QuickView(m_settings, QuickView::Context::Embedded, this);
     m_quickView->hide(); // parked until Ctrl+Q swaps it into a panel slot
 
     // (Folder trees are now per-panel, inside each FilePanel.)
@@ -1309,9 +1310,15 @@ void MainWindow::toggleQuickView() {
 void MainWindow::updateQuickView() {
     if (!m_quickViewActive || !m_activePanel)
         return;
-    // currentPreviewPath() extracts an archived entry to a real temp file (and
-    // prefetches neighbours) so archived files preview like local ones.
-    m_quickView->showFile(m_activePanel->currentPreviewPath());
+    // An archive under the cursor previews from its raw path (a header scan);
+    // any other target goes through currentPreviewPath(), which extracts an
+    // archived entry to a real temp file (and prefetches neighbours) so archived
+    // files preview like local ones.
+    const QString entry = m_activePanel->currentEntryPath();
+    if (ArchiveHandler::isSupportedArchive(entry))
+        m_quickView->showFile(entry);
+    else
+        m_quickView->showFile(m_activePanel->currentPreviewPath());
 }
 
 void MainWindow::splitFile() {
@@ -1699,31 +1706,12 @@ void MainWindow::viewCurrent() {
     const QString path = m_activePanel->currentEntryPath();
     if (path.isEmpty() || QFileInfo(path).isDir())
         return;
-
-    if (ArchiveHandler::isSupportedArchive(path)) {
-        auto *dlg =
-            new ArchiveBrowserDialog(path, otherPanel(m_activePanel)->currentPath(), this);
-        dlg->setAttribute(Qt::WA_DeleteOnClose);
-        dlg->show();
-        return;
-    }
-
-    if (ImageViewer::isImage(path)) {
-        auto *viewer = new ImageViewer();
-        if (viewer->loadImage(path))
-            viewer->show();
-        else
-            delete viewer;
-        return;
-    }
-
-    auto *viewer = new TextViewer();
-    if (viewer->loadFile(path)) {
-        viewer->resize(800, 600);
-        viewer->show();
-    } else {
-        delete viewer;
-    }
+    // F3 opens the shared preview widget in a top-level window -- same UI and
+    // capabilities as the Ctrl+Q pane (image/text/video/PDF/markdown/office,
+    // and a read-only archive listing). The extract-capable ArchiveBrowserDialog
+    // stays reachable from the context menu.
+    auto *w = new ViewerWindow(m_settings, path, this);
+    w->show();
 }
 
 void MainWindow::smartExtractArchive(const QString &archivePath, const QString &destDir) {
