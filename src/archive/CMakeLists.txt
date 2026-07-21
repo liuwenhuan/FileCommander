@@ -5,6 +5,10 @@ if(TARGET LibArchive::LibArchive)
         ArchiveHandler.cpp
         ArchiveModel.h
         ArchiveModel.cpp
+        ArchiveLayout.h
+        ArchiveLayout.cpp
+        ArchiveProvider.h
+        ArchiveProvider.cpp
         ArchiveBrowserDialog.h
         ArchiveBrowserDialog.cpp
         CompressDialog.h
@@ -14,6 +18,7 @@ if(TARGET LibArchive::LibArchive)
     target_include_directories(archive PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
     target_link_libraries(archive PUBLIC
+        core
         Qt5::Widgets
         Qt5::Core
         LibArchive::LibArchive
