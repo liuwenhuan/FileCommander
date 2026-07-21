@@ -9,15 +9,17 @@
 //   xlsx/xls          -> TSV   (rendered as a grid by the caller)
 //
 // office_oxide is a Rust CLI (binary name `office-oxide`), the `office_oxide_cli`
-// workspace member of that repo:
-//   cargo install --git https://github.com/yfedoseev/office_oxide office_oxide_cli
+// workspace member of that repo. NOTE: this expects our patched fork
+// (codework/office_oxide-fork), which inlines embedded images into the HTML as
+// base64 data: URIs -- upstream emits empty <img> placeholders. Build/install:
+//   cargo install --path crates/office_oxide_cli --root ~/.local --force
 // Its subcommands each take a single file path (no flags): text, markdown, html,
 // info, ir. We use `html` for word/presentation files because its output is
 // block-structured (proper <h1>/<p>/<strong>/<table>), which QTextBrowser renders
 // faithfully -- `markdown` collapses list items and loses table blocks for lack
 // of blank-line separators. Spreadsheets use `text`, which yields clean TSV that
-// maps 1:1 to grid cells. office_oxide does NOT export embedded images (it emits
-// empty <img> / broken ![](rIdN) placeholders), so those are stripped.
+// maps 1:1 to grid cells. Word docs keep the fork's inlined images; PowerPoint
+// strips them (slide-positioned, don't line up with the flattened text preview).
 class OfficeConverter {
 public:
     enum class Kind { None, Document, Spreadsheet };
