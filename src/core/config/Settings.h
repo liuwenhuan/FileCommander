@@ -94,6 +94,12 @@ public:
     void addFavoriteDirectory(const QString &path);
     void removeFavoriteDirectory(const QString &path);
 
+    // Number of provider (SFTP/FTP/WebDAV) transfers OperationQueue may run
+    // concurrently. Clamped to 1..8; defaults to 2. Local filesystem
+    // operations are unaffected by this setting and always run one at a time.
+    int maxConcurrentTransfers() const;
+    void setMaxConcurrentTransfers(int count);
+
 private:
     QSettings m_settings;
 };

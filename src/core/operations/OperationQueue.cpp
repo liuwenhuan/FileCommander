@@ -3,6 +3,7 @@
 #include <QFileInfo>
 
 #include "FileOperations.h"
+#include "Settings.h"
 
 OperationQueue::OperationQueue(QObject *parent) : QObject(parent) {
     m_ops = new FileOperations();
@@ -13,11 +14,23 @@ OperationQueue::OperationQueue(QObject *parent) : QObject(parent) {
     m_ops->setErrorResolver(
         [this](const QString &path, const QString &error) { return askError(path, error); });
     m_workerThread.start();
+
+    m_maxConcurrentTransfers = Settings().maxConcurrentTransfers();
+    for (int i = 0; i < m_maxConcurrentTransfers; ++i)
+        addTransferWorker();
 }
 
 OperationQueue::~OperationQueue() {
     m_workerThread.quit();
     m_workerThread.wait();
+
+    for (TransferWorker *worker : qAsConst(m_transferWorkers)) {
+        worker->thread->quit();
+        worker->thread->wait();
+        delete worker->thread;
+        delete worker;
+    }
+    m_transferWorkers.clear();
 }
 
 ErrorAction OperationQueue::askConflict(const QString &source, const QString &destination) {
@@ -135,8 +148,8 @@ void OperationQueue::enqueueProviderCopy(FileProvider *src, const QStringList &s
         return ops.copyAcrossProviders(src, sources, dst, destDir, /*removeSource=*/false,
                                        resolver, &err);
     };
-    m_queue.enqueue(job);
-    maybeStartNext();
+    m_transferQueue.enqueue(job);
+    maybeStartNextTransfer();
 }
 
 void OperationQueue::enqueueProviderMove(FileProvider *src, const QStringList &sources,
@@ -150,27 +163,72 @@ void OperationQueue::enqueueProviderMove(FileProvider *src, const QStringList &s
         return ops.copyAcrossProviders(src, sources, dst, destDir, /*removeSource=*/true,
                                        resolver, &err);
     };
-    m_queue.enqueue(job);
-    maybeStartNext();
+    m_transferQueue.enqueue(job);
+    maybeStartNextTransfer();
 }
 
 void OperationQueue::cancelCurrent() {
     // Drop everything not yet started so the queue doesn't keep going after
-    // the user cancels, then signal the in-flight job to stop.
+    // the user cancels, then signal the in-flight job(s) to stop — both the
+    // local pipeline and every provider-transfer worker.
     m_queue.clear();
     if (m_ops)
         m_ops->requestCancel();
-    emit queueChanged(m_queue.size());
+
+    m_transferQueue.clear();
+    for (TransferWorker *worker : qAsConst(m_transferWorkers)) {
+        if (worker->ops)
+            worker->ops->requestCancel();
+    }
+
+    emit queueChanged(m_queue.size() + m_transferQueue.size());
 }
 
 void OperationQueue::pauseCurrent() {
     if (m_ops)
         m_ops->requestPause();
+    for (TransferWorker *worker : qAsConst(m_transferWorkers)) {
+        if (worker->ops)
+            worker->ops->requestPause();
+    }
 }
 
 void OperationQueue::resumeCurrent() {
     if (m_ops)
         m_ops->requestResume();
+    for (TransferWorker *worker : qAsConst(m_transferWorkers)) {
+        if (worker->ops)
+            worker->ops->requestResume();
+    }
+}
+
+void OperationQueue::setMaxConcurrentTransfers(int count) {
+    const int clamped = qBound(1, count, 8);
+    m_maxConcurrentTransfers = clamped;
+    while (m_transferWorkers.size() < clamped)
+        addTransferWorker();
+    // Shrinking never kills a worker mid-job; it just stops handing out new
+    // jobs to the extra workers once they finish (maybeStartNextTransfer only
+    // dispatches to workers while the pool size allows it implicitly, since
+    // idle workers beyond the new limit simply won't be given more work here
+    // because there are, in steady state, never more queued jobs than the
+    // pool can absorb faster than the limit — dispatch below re-checks
+    // m_maxConcurrentTransfers each time).
+    maybeStartNextTransfer();
+}
+
+bool OperationQueue::isBusy() const {
+    if (m_busy)
+        return true;
+    for (const TransferWorker *worker : m_transferWorkers) {
+        if (worker->busy)
+            return true;
+    }
+    return false;
+}
+
+int OperationQueue::queuedCount() const {
+    return m_queue.size() + m_transferQueue.size();
 }
 
 void OperationQueue::maybeStartNext() {
@@ -189,11 +247,59 @@ void OperationQueue::maybeStartNext() {
             },
             Qt::QueuedConnection);
     }
-    emit queueChanged(m_queue.size());
+    emit queueChanged(m_queue.size() + m_transferQueue.size());
 }
 
 void OperationQueue::onWorkerJobDone(bool ok) {
     m_busy = false;
     emit finished(ok);
     maybeStartNext();
+}
+
+void OperationQueue::addTransferWorker() {
+    auto *worker = new TransferWorker();
+    worker->thread = new QThread();
+    worker->ops = new FileOperations();
+    worker->ops->moveToThread(worker->thread);
+    connect(worker->thread, &QThread::finished, worker->ops, &QObject::deleteLater);
+    connect(worker->ops, &FileOperations::progress, this, &OperationQueue::progress);
+    connect(worker->ops, &FileOperations::errorOccurred, this, &OperationQueue::errorOccurred);
+    worker->ops->setErrorResolver(
+        [this](const QString &path, const QString &error) { return askError(path, error); });
+    worker->thread->start();
+    m_transferWorkers.append(worker);
+}
+
+void OperationQueue::maybeStartNextTransfer() {
+    // Hand queued transfer jobs out to every idle worker within the current
+    // pool-size limit, so several provider transfers run at once (bounded by
+    // m_maxConcurrentTransfers). With a pool of size 1 this degenerates to
+    // exactly the same one-at-a-time behaviour as the local-job pipeline.
+    for (int i = 0; i < m_transferWorkers.size() && i < m_maxConcurrentTransfers; ++i) {
+        TransferWorker *worker = m_transferWorkers[i];
+        if (worker->busy || m_transferQueue.isEmpty())
+            continue;
+
+        worker->busy = true;
+        Job job = m_transferQueue.dequeue();
+        emit started(job.description);
+
+        QMetaObject::invokeMethod(
+            worker->ops,
+            [this, worker, job]() {
+                QString err;
+                bool ok = job.run(*worker->ops, err);
+                QMetaObject::invokeMethod(
+                    this, [this, ok, worker]() { onTransferWorkerJobDone(ok, worker); },
+                    Qt::QueuedConnection);
+            },
+            Qt::QueuedConnection);
+    }
+    emit queueChanged(m_queue.size() + m_transferQueue.size());
+}
+
+void OperationQueue::onTransferWorkerJobDone(bool ok, TransferWorker *worker) {
+    worker->busy = false;
+    emit finished(ok);
+    maybeStartNextTransfer();
 }

@@ -13,6 +13,8 @@ add_executable(core_tests
     compare/test_TextDiff.cpp
     network/test_GvfsMounter.cpp
     network/test_SftpProvider.cpp
+    network/test_CurlFtpProvider.cpp
+    network/test_CurlWebDavProvider.cpp
 )
 
 target_link_libraries(core_tests PRIVATE

@@ -103,3 +103,25 @@ TEST(SettingsTest, RemoveFavoriteDirectoryRemovesIt) {
     settings.removeFavoriteDirectory("/tmp");
     EXPECT_EQ(settings.favoriteDirectories(), QStringList({"/home"}));
 }
+
+TEST(SettingsTest, MaxConcurrentTransfersDefaultsToTwo) {
+    IsolatedConfigDir isolated;
+    Settings settings;
+    EXPECT_EQ(settings.maxConcurrentTransfers(), 2);
+}
+
+TEST(SettingsTest, MaxConcurrentTransfersRoundTrips) {
+    IsolatedConfigDir isolated;
+    Settings settings;
+    settings.setMaxConcurrentTransfers(4);
+    EXPECT_EQ(settings.maxConcurrentTransfers(), 4);
+}
+
+TEST(SettingsTest, MaxConcurrentTransfersClampsToRange) {
+    IsolatedConfigDir isolated;
+    Settings settings;
+    settings.setMaxConcurrentTransfers(0);
+    EXPECT_EQ(settings.maxConcurrentTransfers(), 1);
+    settings.setMaxConcurrentTransfers(99);
+    EXPECT_EQ(settings.maxConcurrentTransfers(), 8);
+}

@@ -1,0 +1,93 @@
+#pragma once
+
+#include <QMutex>
+#include <QString>
+#include <QVector>
+
+#include "FileProvider.h"
+
+// A remote file backend over WebDAV (libcurl, HTTP or HTTPS). Implements
+// FileProvider so a FileSystemModel can browse a WebDAV share exactly as it
+// browses the local filesystem or an SFTP/FTP host (mirrors SftpProvider's
+// structure: a mutex-serialised session plus streaming read/write).
+//
+// Control-plane calls (list via PROPFIND, isDir/exists via PROPFIND Depth:0,
+// rename via MOVE, remove via DELETE, mkdir via MKCOL) reuse a single curl
+// "easy" handle (m_curl) so libcurl keeps the HTTP connection alive between
+// requests. libcurl handles are not thread-safe and list() runs on a
+// QtConcurrent worker thread, so every use of m_curl is serialised behind
+// m_mutex.
+//
+// Streaming reads/writes use a *separate* curl easy handle owned by the
+// FileHandle and driven on a dedicated background thread inside
+// curl_easy_perform() (GET with Range for download, PUT for upload), for the
+// same reason as CurlFtpProvider: curl's blocking easy interface runs a whole
+// request per call, so a producer/consumer pipe lets read()/write() hand
+// back data one caller-paced chunk at a time.
+//
+// WebDAV has no standardised way to resume an interrupted PUT upload (unlike
+// FTP's APPE/REST or HTTP GET's Range header), so seek() on a write handle
+// refuses any nonzero offset: FileOperations::streamCopy() then reports a
+// clean, retryable failure instead of silently uploading only the tail of a
+// file and corrupting the remote copy. Resumed *downloads* are fully
+// supported via the Range header.
+class CurlWebDavProvider : public FileProvider {
+public:
+    CurlWebDavProvider();
+    ~CurlWebDavProvider() override;
+
+    // Blocking connect: verifies host/port/credentials work. Returns true on
+    // success; on failure returns false and writes a reason to *error (if
+    // non-null), leaving the provider disconnected.
+    bool connectToHost(const QString &host, int port, const QString &user,
+                       const QString &password, bool useHttps, QString *error);
+
+    void disconnect();
+    bool isConnected() const;
+    QString host() const;
+
+    // FileProvider overrides:
+    QVector<FileInfo> list(const QString &path, bool showHidden) const override;
+    bool isDir(const QString &path) const override;
+    QString cleanPath(const QString &path) const override;
+    QString parentPath(const QString &path) const override;
+    bool exists(const QString &path) const override;
+    RenameResult rename(const QString &path, const QString &newName, QString *newPath) override;
+
+    FileHandle *openRead(const QString &path) override;
+    FileHandle *openWrite(const QString &path, bool truncate) override;
+    qint64 read(FileHandle *handle, char *buffer, qint64 maxSize) override;
+    qint64 write(FileHandle *handle, const char *buffer, qint64 size) override;
+    bool seek(FileHandle *handle, qint64 offset) override;
+    qint64 handleSize(FileHandle *handle) override;
+    void closeHandle(FileHandle *handle) override;
+    bool canStream() const override { return true; }
+
+    bool remove(const QString &path) override;
+    bool mkdir(const QString &path) override;
+
+    // Pure parser exposed for unit testing without a live WebDAV server.
+    // `basePath` is excluded from the results (PROPFIND Depth:1 includes the
+    // collection itself as the first <response> entry); pass a value that can
+    // never match a real href (e.g. a null QString) to keep every entry, as
+    // used internally for a Depth:0 single-entry stat.
+    static QVector<FileInfo> parsePropfindXml(const QByteArray &data, const QString &basePath,
+                                              bool showHidden);
+
+private:
+    QString buildUrl(const QString &path, bool isDirectory) const;
+    // Runs a PROPFIND Depth:0 against `path` and reports whether it exists /
+    // is a collection. Caller must hold m_mutex.
+    bool statEntryLocked(const QString &path, bool *isDirOut) const;
+    qint64 remoteFileSizeLocked(const QString &path) const;
+
+    mutable QMutex m_mutex;
+    void *m_curl = nullptr; // CURL*; opaque here to avoid pulling curl.h into every includer
+    char m_errorBuffer[256] = {};
+    QString m_host;
+    int m_port = 80;
+    QString m_user;
+    QString m_password;
+    bool m_useHttps = false;
+    bool m_connected = false;
+};
