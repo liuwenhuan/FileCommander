@@ -122,6 +122,38 @@ void OperationQueue::enqueueSymlink(const QStringList &sources, const QString &d
     maybeStartNext();
 }
 
+void OperationQueue::enqueueProviderCopy(FileProvider *src, const QStringList &sources,
+                                         FileProvider *dst, const QString &destDir) {
+    Job job;
+    job.description = tr("Copying %1 item(s) to %2").arg(sources.size()).arg(destDir);
+    ConflictResolver resolver = [this](const QString &s, const QString &d) {
+        return askConflict(s, d);
+    };
+    // Capture the borrowed provider pointers by value (raw pointer copy) — the
+    // models own them; the job must not take ownership.
+    job.run = [src, sources, dst, destDir, resolver](FileOperations &ops, QString &err) {
+        return ops.copyAcrossProviders(src, sources, dst, destDir, /*removeSource=*/false,
+                                       resolver, &err);
+    };
+    m_queue.enqueue(job);
+    maybeStartNext();
+}
+
+void OperationQueue::enqueueProviderMove(FileProvider *src, const QStringList &sources,
+                                         FileProvider *dst, const QString &destDir) {
+    Job job;
+    job.description = tr("Moving %1 item(s) to %2").arg(sources.size()).arg(destDir);
+    ConflictResolver resolver = [this](const QString &s, const QString &d) {
+        return askConflict(s, d);
+    };
+    job.run = [src, sources, dst, destDir, resolver](FileOperations &ops, QString &err) {
+        return ops.copyAcrossProviders(src, sources, dst, destDir, /*removeSource=*/true,
+                                       resolver, &err);
+    };
+    m_queue.enqueue(job);
+    maybeStartNext();
+}
+
 void OperationQueue::cancelCurrent() {
     // Drop everything not yet started so the queue doesn't keep going after
     // the user cancels, then signal the in-flight job to stop.
