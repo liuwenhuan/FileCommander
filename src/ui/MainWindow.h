@@ -98,7 +98,12 @@ private slots:
     void pasteFromClipboard();
 
 private:
-    void setupMenuAndToolbar();
+    // (Re)builds the Commands/View menus and the title bar that hosts them.
+    // Safe to call again on a language change (deletes the previous menus/bar).
+    void buildTitleBarMenus();
+    // Re-applies every translatable string in the persistent UI after a live
+    // language switch (menus, title bar, function keys, column headers, ...).
+    void retranslateUi();
     void setupShortcuts();
     void bindShortcut(const QString &id, const QString &label, const QKeySequence &defaultSeq,
                        std::function<void()> handler);
@@ -140,6 +145,9 @@ private:
     QSplitter *m_panelSplitter;
     QTreeView *m_folderTree;
     QFileSystemModel *m_folderTreeModel;
+    QMenu *m_commandsMenu = nullptr; // owned; rebuilt on language change
+    QMenu *m_viewMenu = nullptr;     // owned; rebuilt on language change
+    bool m_shortcutsBuilt = false;   // one-shot guard for QShortcut creation
 
     QuickView *m_quickView = nullptr;
     FilePanel *m_quickViewPanel = nullptr; // panel replaced by the preview

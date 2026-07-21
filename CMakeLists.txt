@@ -34,3 +34,41 @@ target_link_libraries(ttc PRIVATE
 
 add_subdirectory(tests)
 add_subdirectory(bench)
+
+# --- Translations -----------------------------------------------------------
+# Contributor workflow (see resources/translations/README.md):
+#   cmake --build build --target update-translations   # refresh .ts from source
+#   <edit ttc_<lang>.ts in Qt Linguist>
+#   cmake --build build --target release-translations   # compile .ts -> .qm
+# The .qm are bundled via resources.qrc; a translator can also drop a compiled
+# ttc_<lang>.qm into ~/.config/totalcommander/translations/ to add a language
+# without rebuilding.
+file(GLOB TS_FILES ${CMAKE_SOURCE_DIR}/resources/translations/ttc_*.ts)
+# Resolve lupdate/lrelease. Prefer Qt5's LinguistTools cmake package; otherwise
+# probe the versioned Qt bin dirs directly (the bare /usr/bin/lrelease is a
+# qtchooser stub that can't find a default Qt). Qt6's tools read/write Qt5 .ts
+# files fine, so they're an acceptable fallback.
+find_package(Qt5 QUIET COMPONENTS LinguistTools)
+if(Qt5LinguistTools_FOUND)
+    set(LUPDATE_CMD Qt5::lupdate)
+    set(LRELEASE_CMD Qt5::lrelease)
+else()
+    find_program(LUPDATE_CMD NAMES lupdate lupdate-qt5
+        PATHS /usr/lib/qt5/bin /usr/lib/qt6/bin /usr/lib/qt5/libexec /usr/lib/qt6/libexec
+        NO_DEFAULT_PATH)
+    find_program(LRELEASE_CMD NAMES lrelease lrelease-qt5
+        PATHS /usr/lib/qt5/bin /usr/lib/qt6/bin /usr/lib/qt5/libexec /usr/lib/qt6/libexec
+        NO_DEFAULT_PATH)
+endif()
+if(LUPDATE_CMD AND LRELEASE_CMD)
+    add_custom_target(update-translations
+        COMMAND ${LUPDATE_CMD} -recursive ${CMAKE_SOURCE_DIR}/src -ts ${TS_FILES}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "lupdate: extracting translatable strings into .ts files"
+        VERBATIM)
+    add_custom_target(release-translations
+        COMMAND ${LRELEASE_CMD} ${TS_FILES}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "lrelease: compiling .ts files into .qm"
+        VERBATIM)
+endif()

@@ -1,33 +1,115 @@
 #include "TranslationManager.h"
 
 #include <QCoreApplication>
+#include <QDir>
+#include <QFileInfo>
 #include <QLocale>
+#include <QMap>
+#include <QStandardPaths>
 #include <QStringList>
 #include <QTranslator>
 
-void TranslationManager::install(QCoreApplication &app, const QString &language) {
+namespace {
+
+// The currently installed app translator (owned by the QCoreApplication). Kept
+// so switchTo() can remove/replace it. Null when the UI is in the "en" source
+// language (no catalog).
+QTranslator *g_current = nullptr;
+
+// External catalogs live alongside the config file so translators can drop in a
+// .qm without rebuilding.
+QString externalDir() {
+    return QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) +
+           QStringLiteral("/totalcommander/translations");
+}
+
+// Native language names shown in the menu (kept out of tr() so each reads the
+// same regardless of the active UI language). Codes without an entry here fall
+// back to the bare code.
+QString nativeName(const QString &code) {
+    static const QMap<QString, QString> kNames = {
+        {"en", QStringLiteral("English")},        {"zh_CN", QStringLiteral("简体中文")},
+        {"zh_TW", QStringLiteral("繁體中文")},    {"fr", QStringLiteral("Français")},
+        {"de", QStringLiteral("Deutsch")},        {"es", QStringLiteral("Español")},
+        {"ru", QStringLiteral("Русский")},        {"ja", QStringLiteral("日本語")},
+        {"ko", QStringLiteral("한국어")},         {"pt_BR", QStringLiteral("Português (Brasil)")},
+    };
+    return kNames.value(code, code);
+}
+
+// Resolves a language setting to the catalog codes to try, in order. "auto"
+// follows the system locale; a region locale falls back to its base language.
+QStringList candidatesFor(const QString &language) {
     QString effective = language;
     if (effective.isEmpty() || effective == QStringLiteral("auto"))
-        effective = QLocale::system().name(); // e.g. "zh_CN", "fr_FR", "en_US"
-
-    if (effective.startsWith(QStringLiteral("en")))
-        return; // English is the tr() source language; nothing to load
-
-    // Try the full locale first (e.g. "zh_CN", "pt_BR"), then fall back to the
-    // bare language code (e.g. "fr_FR" -> "fr") so a system locale we don't ship
-    // a region-specific catalog for still resolves to the base translation.
+        effective = QLocale::system().name(); // e.g. "zh_CN", "fr_FR"
     QStringList candidates;
     candidates << effective;
     const int sep = effective.indexOf(QLatin1Char('_'));
     if (sep > 0)
         candidates << effective.left(sep);
+    return candidates;
+}
 
-    for (const QString &code : candidates) {
-        auto *translator = new QTranslator(&app);
-        if (translator->load(QStringLiteral(":/translations/ttc_%1.qm").arg(code))) {
+} // namespace
+
+bool TranslationManager::loadCatalog(QTranslator *t, const QString &code) {
+    // External dir wins, so a hand-supplied catalog overrides the bundled one.
+    const QString external = externalDir() + QStringLiteral("/ttc_%1.qm").arg(code);
+    if (QFileInfo::exists(external) && t->load(external))
+        return true;
+    return t->load(QStringLiteral(":/translations/ttc_%1.qm").arg(code));
+}
+
+void TranslationManager::install(QCoreApplication &app, const QString &language) {
+    switchTo(app, language);
+}
+
+void TranslationManager::switchTo(QCoreApplication &app, const QString &language) {
+    // Drop whatever is installed now.
+    if (g_current) {
+        app.removeTranslator(g_current);
+        delete g_current;
+        g_current = nullptr;
+    }
+
+    // English is the tr() source language: no catalog, leave it removed.
+    QString effective = language;
+    if (effective.isEmpty() || effective == QStringLiteral("auto"))
+        effective = QLocale::system().name();
+    if (effective.startsWith(QStringLiteral("en")))
+        return;
+
+    auto *translator = new QTranslator(&app);
+    for (const QString &code : candidatesFor(language)) {
+        if (loadCatalog(translator, code)) {
             app.installTranslator(translator);
+            g_current = translator;
             return;
         }
-        delete translator;
     }
+    delete translator; // nothing matched; stay in the source language
+}
+
+QVector<std::pair<QString, QString>> TranslationManager::available() {
+    QVector<std::pair<QString, QString>> result;
+    result.append({QStringLiteral("auto"), QObject::tr("Auto")});
+    result.append({QStringLiteral("en"), nativeName(QStringLiteral("en"))});
+
+    QStringList seen{QStringLiteral("en")};
+    // Bundled catalogs, then any extra external ones.
+    for (const QString &base : {QStringLiteral(":/translations"), externalDir()}) {
+        QDir dir(base);
+        const QStringList files = dir.entryList({QStringLiteral("ttc_*.qm")}, QDir::Files);
+        for (const QString &file : files) {
+            // "ttc_zh_CN.qm" -> "zh_CN"
+            QString code = QFileInfo(file).completeBaseName();
+            code.remove(0, QStringLiteral("ttc_").size());
+            if (code.isEmpty() || seen.contains(code))
+                continue;
+            seen << code;
+            result.append({code, nativeName(code)});
+        }
+    }
+    return result;
 }

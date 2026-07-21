@@ -251,6 +251,15 @@ QVariant FileSystemModel::data(const QModelIndex &index, int role) const {
     return {};
 }
 
+void FileSystemModel::retranslate() {
+    // Column titles are tr()'d in headerData(); the type column's text is tr()'d
+    // in data(). Re-emit so the views re-query both in the new language.
+    emit headerDataChanged(Qt::Horizontal, 0, columnCount() - 1);
+    if (!m_entries.isEmpty())
+        emit dataChanged(index(0, 0), index(m_entries.size() - 1, columnCount() - 1),
+                         {Qt::DisplayRole});
+}
+
 QVariant FileSystemModel::headerData(int section, Qt::Orientation orientation, int role) const {
     if (orientation != Qt::Horizontal || role != Qt::DisplayRole)
         return QAbstractTableModel::headerData(section, orientation, role);

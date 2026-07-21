@@ -75,6 +75,10 @@ public:
     void setCompareStatus(const QHash<QString, int> &statusByName);
     void clearCompareStatus();
 
+    // Re-emits header + cell change signals so views re-query tr()'d text (column
+    // titles, the type column) after a live UI-language switch. No rescan.
+    void retranslate();
+
     // Pure comparison: each name in `self` is Unique (absent from `other`),
     // Newer, or Older based on modification times. Static for unit testing.
     static QHash<QString, int> compareStatuses(const QHash<QString, QDateTime> &self,

@@ -19,6 +19,8 @@ public:
 
     void setDirectory(const QString &dir);
     void focusInput();
+    // Re-applies translated text (the input placeholder) after a language change.
+    void retranslate();
 
 signals:
     void commandSubmitted(const QString &command, const QString &directory);

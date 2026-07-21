@@ -51,6 +51,7 @@
 #include "ArchiveBrowserDialog.h"
 #include "ArchiveHandler.h"
 #include "CommandBar.h"
+#include "TranslationManager.h"
 #include "CompressDialog.h"
 #include "FilePanel.h"
 #include "FileSplitter.h"
@@ -369,7 +370,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     setTabOrder(m_leftPanel->view(), m_rightPanel->view());
     setTabOrder(m_rightPanel->view(), m_leftPanel->view());
 
-    setupMenuAndToolbar();
+    buildTitleBarMenus();
     setupShortcuts();
 
     // Apply the persisted file-list font size now that both panels and the
@@ -379,11 +380,17 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_rightPanel->setListFontSize(listFont);
 }
 
-void MainWindow::setupMenuAndToolbar() {
+void MainWindow::buildTitleBarMenus() {
+    // Re-runnable (called again on a live language change): drop the previous
+    // menus so we don't leak them. setMenuWidget() deletes the old title bar.
+    delete m_commandsMenu;
+    delete m_viewMenu;
+
     // Standalone menus shown as buttons in the frameless title bar. No File
     // menu -- only Commands and View (Exit lives on the title bar's close
     // button).
     auto *commandsMenu = new QMenu(tr("&Commands"), this);
+    m_commandsMenu = commandsMenu;
     commandsMenu->addAction(tr("&Refresh"), this, &MainWindow::refreshActivePanel);
     commandsMenu->addAction(tr("Open &Terminal Here"), this, &MainWindow::openTerminalHere);
     commandsMenu->addAction(tr("&Compress Selected..."), this, &MainWindow::compressSelected);
@@ -441,6 +448,7 @@ void MainWindow::setupMenuAndToolbar() {
                              &MainWindow::openShortcutsDialog);
 
     auto *viewMenu = new QMenu(tr("&View"), this);
+    m_viewMenu = viewMenu;
     QMenu *themeMenu = viewMenu->addMenu(tr("&Theme"));
     auto *themeGroup = new QActionGroup(this);
     themeGroup->setExclusive(true);
@@ -465,33 +473,16 @@ void MainWindow::setupMenuAndToolbar() {
     QMenu *languageMenu = viewMenu->addMenu(tr("&Language"));
     auto *languageGroup = new QActionGroup(this);
     languageGroup->setExclusive(true);
-    struct LanguageEntry {
-        QString code;
-        QString label;
-    };
-    // Each language is listed under its own native name (the "en"/native label
-    // is intentionally not wrapped in tr() so it reads the same regardless of the
-    // active UI language); "Auto" follows the system locale.
-    const LanguageEntry languageEntries[] = {
-        {"auto", tr("Auto")},
-        {"en", QStringLiteral("English")},
-        {"zh_CN", QStringLiteral("简体中文")},
-        {"zh_TW", QStringLiteral("繁體中文")},
-        {"fr", QStringLiteral("Français")},
-        {"de", QStringLiteral("Deutsch")},
-        {"es", QStringLiteral("Español")},
-        {"ru", QStringLiteral("Русский")},
-        {"ja", QStringLiteral("日本語")},
-        {"ko", QStringLiteral("한국어")},
-        {"pt_BR", QStringLiteral("Português (Brasil)")},
-    };
-    for (const auto &entry : languageEntries) {
-        QAction *action = languageMenu->addAction(entry.label);
+    // Discovered from the bundled catalogs plus the user's external translations
+    // dir, so a dropped-in ttc_<code>.qm shows up here without any code change.
+    // Each is listed under its own native name; "Auto" follows the system locale.
+    for (const auto &entry : TranslationManager::available()) {
+        QAction *action = languageMenu->addAction(entry.second);
         action->setCheckable(true);
-        action->setChecked(m_settings.language() == entry.code);
+        action->setChecked(m_settings.language() == entry.first);
         languageGroup->addAction(action);
         connect(action, &QAction::triggered, this,
-                [this, code = entry.code]() { setLanguage(code); });
+                [this, code = entry.first]() { setLanguage(code); });
     }
 
     viewMenu->addSeparator();
@@ -551,17 +542,17 @@ void MainWindow::setupMenuAndToolbar() {
     }
 
     viewMenu->addSeparator();
-    // Show / hide the command line and the function-key bar.
-    // Both bars are shown by default; setupMenuAndToolbar() runs before show(),
-    // so isVisible() would be false here -- hardcode the initial checked state.
+    // Show / hide the command line and the function-key bar. Both default
+    // visible; use isHidden() (false until explicitly hidden) so the checkbox is
+    // right on first build (before show()) and preserved across a rebuild.
     QAction *showCmdBar = viewMenu->addAction(tr("Command &Line"));
     showCmdBar->setCheckable(true);
-    showCmdBar->setChecked(true);
+    showCmdBar->setChecked(!m_commandBar->isHidden());
     connect(showCmdBar, &QAction::toggled, this,
             [this](bool on) { m_commandBar->setVisible(on); });
     QAction *showFnBar = viewMenu->addAction(tr("Function &Key Bar"));
     showFnBar->setCheckable(true);
-    showFnBar->setChecked(true);
+    showFnBar->setChecked(!m_functionKeyBar->isHidden());
     connect(showFnBar, &QAction::toggled, this,
             [this](bool on) { m_functionKeyBar->setVisible(on); });
 
@@ -569,7 +560,7 @@ void MainWindow::setupMenuAndToolbar() {
     QAction *folderTreeAction = viewMenu->addAction(tr("&Folder Tree"), this,
                                                       &MainWindow::toggleFolderTree);
     folderTreeAction->setCheckable(true);
-    folderTreeAction->setChecked(false);
+    folderTreeAction->setChecked(!m_folderTree->isHidden());
 
     // Embed the menus in our self-drawn title bar (app icon + menu buttons +
     // window buttons), placed where the menu bar would normally sit.
@@ -626,6 +617,10 @@ Qt::CursorShape cursorForEdges(Qt::Edges e) {
 
 void MainWindow::changeEvent(QEvent *event) {
     QMainWindow::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange) {
+        retranslateUi();
+        return;
+    }
     if (event->type() == QEvent::WindowStateChange) {
         if (m_titleBar)
             m_titleBar->syncWindowState();
@@ -716,10 +711,21 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
 
 void MainWindow::bindShortcut(const QString &id, const QString &label,
                                const QKeySequence &defaultSeq, std::function<void()> handler) {
+    // The label is refreshed every call so a language-change re-run picks up the
+    // new tr(); the QShortcut itself is created only once (re-running would
+    // duplicate it and double-fire).
+    m_commandLabels[id] = label;
+    if (m_shortcuts.contains(id)) {
+        for (auto &entry : m_shortcutOrder)
+            if (entry.first == id) {
+                entry.second = label;
+                break;
+            }
+        return;
+    }
     m_shortcutDefaults[id] = defaultSeq;
     m_shortcutOrder.append({id, label});
     m_shortcutHandlers[id] = handler; // also invokable from the "*" menu
-    m_commandLabels[id] = label;
 
     auto *sc = new QShortcut(m_settings.shortcut(id, defaultSeq), this);
     sc->setContext(Qt::WindowShortcut);
@@ -729,8 +735,9 @@ void MainWindow::bindShortcut(const QString &id, const QString &label,
 
 void MainWindow::registerCommand(const QString &id, const QString &label,
                                   std::function<void()> handler) {
-    m_shortcutHandlers[id] = handler;
-    m_commandLabels[id] = label;
+    m_commandLabels[id] = label; // refreshed on a language-change re-run
+    if (!m_shortcutHandlers.contains(id))
+        m_shortcutHandlers[id] = handler;
 }
 
 void MainWindow::runFunctionKey(int index) {
@@ -971,13 +978,18 @@ void MainWindow::setupShortcuts() {
             QKeySequence(static_cast<int>(Qt::Key_F3) + i);
         m_fkeyCommands[i] =
             m_settings.functionKeyCommand(i, QString::fromLatin1(fkeyDefaults[i]));
-        auto *sc = new QShortcut(QKeySequence(static_cast<int>(Qt::Key_F3) + i), this);
-        sc->setContext(Qt::WindowShortcut);
-        connect(sc, &QShortcut::activated, this, [this, i] { runFunctionKey(i); });
+        if (!m_shortcutsBuilt) {
+            auto *sc = new QShortcut(QKeySequence(static_cast<int>(Qt::Key_F3) + i), this);
+            sc->setContext(Qt::WindowShortcut);
+            connect(sc, &QShortcut::activated, this, [this, i] { runFunctionKey(i); });
+        }
     }
-    connect(m_functionKeyBar, &FunctionKeyBar::activated, this, &MainWindow::runFunctionKey);
-    connect(m_functionKeyBar, &FunctionKeyBar::changeRequested, this,
-            &MainWindow::changeFunctionKey);
+    if (!m_shortcutsBuilt) {
+        connect(m_functionKeyBar, &FunctionKeyBar::activated, this, &MainWindow::runFunctionKey);
+        connect(m_functionKeyBar, &FunctionKeyBar::changeRequested, this,
+                &MainWindow::changeFunctionKey);
+        m_shortcutsBuilt = true;
+    }
     updateFunctionKeyLabels();
 }
 
@@ -1343,9 +1355,30 @@ void MainWindow::setTheme(Settings::Theme theme) {
 
 void MainWindow::setLanguage(const QString &language) {
     m_settings.setLanguage(language);
-    QMessageBox::information(this, tr("Language"),
-                              tr("Restart Total Commander for the language change to take "
-                                 "effect."));
+    // Swap the catalog live; Qt posts QEvent::LanguageChange to this window,
+    // which retranslates the UI in changeEvent(). No restart needed.
+    TranslationManager::switchTo(*qApp, language);
+}
+
+void MainWindow::retranslateUi() {
+    // Command labels first (fresh tr()), then everything that displays them.
+    setupShortcuts();       // re-run is label-only now (shortcuts already built)
+    buildTitleBarMenus();   // rebuilds Commands/View + the title bar app name
+    updateFunctionKeyLabels();
+    setWindowTitle(tr("Total Commander for Linux"));
+    if (m_commandBar)
+        m_commandBar->retranslate();
+
+    // Column headers (and any tr()'d cell text like the type column) come from
+    // the models; ask each panel to re-emit headers/cells and refresh its
+    // status-bar counts.
+    for (FilePanel *panel : {m_leftPanel, m_rightPanel}) {
+        if (!panel)
+            continue;
+        if (panel->model())
+            panel->model()->retranslate();
+        panel->retranslate();
+    }
 }
 
 FilePanel *MainWindow::otherPanel(FilePanel *panel) const {

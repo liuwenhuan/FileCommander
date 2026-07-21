@@ -23,6 +23,10 @@ CommandBar::CommandBar(QWidget *parent) : QWidget(parent) {
     connect(m_input, &QLineEdit::returnPressed, this, &CommandBar::submit);
 }
 
+void CommandBar::retranslate() {
+    m_input->setPlaceholderText(tr("Run a command in the current directory…"));
+}
+
 void CommandBar::setDirectory(const QString &dir) {
     m_directory = dir;
     // Show the full path as the prompt so it's clear where a command will run.

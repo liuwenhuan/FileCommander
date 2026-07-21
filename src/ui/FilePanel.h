@@ -80,6 +80,10 @@ public:
     FileSystemModel *model() const { return m_model; }
     FileListView *view() const { return m_view; }
 
+    // Re-applies translated text (the status-bar object/selection counts) after a
+    // live UI-language change.
+    void retranslate() { updateStatus(); }
+
 signals:
     void pathChanged(const QString &path);
     void panelActivated(FilePanel *panel);

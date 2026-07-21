@@ -1,20 +1,33 @@
 #pragma once
 
 #include <QString>
+#include <QVector>
+#include <utility>
 
 class QCoreApplication;
 
-// Installs the UI translation for the app's language setting. Per the
-// reference design spec, language changes take effect on next launch
-// (not live) -- this keeps every widget's already-constructed text
-// (menus, dialogs, buttons) correct without needing a LanguageChange
-// retranslate() pass wired through every widget.
+// Loads and (live-)switches the UI translation.
+//
+// Catalogs are looked up first in the user's external translations directory
+// (~/.config/totalcommander/translations/ttc_<code>.qm) and then in the bundled
+// resources (:/translations/...). The external dir lets translators drop in a
+// new/updated .qm without recompiling — see resources/translations/README.
 class TranslationManager {
 public:
-    // language: "auto" (resolves via QLocale::system()), "en" (source
-    // language, no catalog), or a locale such as "zh_CN", "zh_TW", "fr",
-    // "de", "es", "ru", "ja", "ko", "pt_BR". Loads the matching
-    // ":/translations/ttc_<locale>.qm", falling back to the bare language
-    // code (e.g. "fr_FR" -> "fr") when the exact locale has no catalog.
+    // Startup install for the saved language ("auto"/"en"/locale like "zh_CN").
     static void install(QCoreApplication &app, const QString &language);
+
+    // Runtime switch: removes the current catalog and installs the new one. Qt
+    // then posts QEvent::LanguageChange to every top-level widget, which drives
+    // each widget's retranslate. No restart required.
+    static void switchTo(QCoreApplication &app, const QString &language);
+
+    // (code, native label) for every language that has a loadable catalog,
+    // bundled or external. Always includes "auto" and "en". Used to populate the
+    // View > Language menu so a dropped-in .qm appears without code changes.
+    static QVector<std::pair<QString, QString>> available();
+
+private:
+    // Loads ttc_<code>.qm into `t` (external dir first, then resources).
+    static bool loadCatalog(class QTranslator *t, const QString &code);
 };
