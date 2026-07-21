@@ -60,6 +60,9 @@
 #include "SearchDialog.h"
 #include "SessionManager.h"
 #include "TitleBar.h"
+#include "dialogs/ConnectDialog.h"
+
+#include <unistd.h> // getuid() for the gvfs mount path
 #include "Settings.h"
 #include "ThemeManager.h"
 #include "TextEditor.h"
@@ -400,6 +403,18 @@ void MainWindow::setupMenuAndToolbar() {
     commandsMenu->addSeparator();
     commandsMenu->addAction(tr("&Directory Hotlist..."), this,
                              &MainWindow::openDirectoryHotlist);
+    commandsMenu->addSeparator();
+    // Network (GVfs): connect to a server, or browse the network neighborhood.
+    commandsMenu->addAction(tr("Connect to &Server..."), this, [this] {
+        const QString local = ConnectDialog::runAndMount(this);
+        if (!local.isEmpty() && m_activePanel)
+            m_activePanel->navigateTo(local);
+    });
+    commandsMenu->addAction(tr("&Network Neighborhood"), this, [this] {
+        if (m_activePanel)
+            m_activePanel->navigateTo(
+                QStringLiteral("/run/user/%1/gvfs").arg(getuid()));
+    });
     commandsMenu->addSeparator();
     commandsMenu->addAction(tr("&Keyboard Shortcuts..."), this,
                              &MainWindow::openShortcutsDialog);
