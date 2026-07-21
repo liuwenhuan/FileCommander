@@ -668,11 +668,23 @@ bool MainWindow::event(QEvent *event) {
                                               -kShadowMargin, -kShadowMargin);
         const Qt::Edges edges = edgesAt(content, me->pos());
         if (event->type() == QEvent::MouseMove) {
-            if (me->buttons() == Qt::NoButton)
-                setCursor(cursorForEdges(edges));
+            if (me->buttons() == Qt::NoButton) {
+                // setCursor() on the window is inherited by every child that has
+                // no cursor of its own, so off the edge we must UNSET it (not
+                // force Arrow) — otherwise it overrides a child's own cursor
+                // (e.g. the header's column-resize cursor).
+                if (edges != Qt::Edges())
+                    setCursor(cursorForEdges(edges));
+                else
+                    unsetCursor();
+            }
         } else if (edges != Qt::Edges() && me->button() == Qt::LeftButton) {
             if (QWindow *handle = windowHandle()) {
                 handle->startSystemResize(edges);
+                // The WM drives the cursor during the drag; drop our override so
+                // it doesn't stay stuck as a resize shape (and get inherited by
+                // every child) once the resize ends.
+                unsetCursor();
                 return true;
             }
         }
