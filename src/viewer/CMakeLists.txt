@@ -1,6 +1,4 @@
 add_library(viewer STATIC
-    TextViewer.h
-    TextViewer.cpp
     TextEditor.h
     TextEditor.cpp
     ImageViewer.h

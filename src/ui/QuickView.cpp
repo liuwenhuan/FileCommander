@@ -1,8 +1,10 @@
 #include "QuickView.h"
 
 #include <QAbstractItemView>
+#include <QAction>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QFontMetrics>
@@ -13,6 +15,7 @@
 #include <QInputDialog>
 #include <QMessageBox>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -28,6 +31,8 @@
 #include <QTableWidget>
 #include <QTemporaryDir>
 #include <QTextBrowser>
+#include <QTextCodec>
+#include <QTextCursor>
 #include <QTextDocument>
 #include <QTimer>
 #include <QToolBar>
@@ -44,8 +49,20 @@
 #include "config/Settings.h"
 
 namespace {
-constexpr qint64 kTextPreviewBytes = 64 * 1024;   // cap text previews at 64 KiB
+constexpr qint64 kTextPreviewBytes = 64 * 1024;   // embedded text head cap: 64 KiB
+constexpr qint64 kTextWindowBytes = 5 * 1024 * 1024; // F3 window text cap: 5 MiB
 constexpr qint64 kMarkdownMaxBytes = 2 * 1024 * 1024; // cap markdown at 2 MiB
+
+// Selectable text encodings for the F3 window's text page. codec == nullptr
+// means "use the locale codec".
+struct TextEncoding {
+    const char *label;
+    const char *codec;
+};
+const TextEncoding kTextEncodings[] = {
+    {"UTF-8", "UTF-8"},       {"UTF-16", "UTF-16"},             {"ISO-8859-1", "ISO-8859-1"},
+    {"GB18030", "GB18030"},   {"Windows-1252", "Windows-1252"}, {"System", nullptr},
+};
 constexpr double kZoomStep = 1.25;
 constexpr double kMinScale = 0.05;
 constexpr double kMaxScale = 20.0;
@@ -58,9 +75,9 @@ constexpr double kPdfMaxZoom = 6.0;
 
 QuickView::QuickView(Settings &settings, Context context, QWidget *parent)
     : QWidget(parent), m_settings(settings), m_context(context) {
-    m_text = new QPlainTextEdit(this);
-    m_text->setReadOnly(true);
-    m_text->setLineWrapMode(QPlainTextEdit::NoWrap);
+    // The F3 window reads up to 5 MiB (a real lister); the embedded pane keeps a
+    // light 64 KiB head since showFile runs on every cursor move.
+    m_textCap = (context == Context::Window) ? kTextWindowBytes : kTextPreviewBytes;
 
     m_info = new QLabel(tr("Select a file to preview"), this);
     m_info->setAlignment(Qt::AlignCenter);
@@ -81,7 +98,7 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent)
     m_stack = new QStackedWidget(this);
     m_stack->addWidget(m_info);              // 0
     m_stack->addWidget(buildImagePage());    // 1
-    m_stack->addWidget(m_text);              // 2
+    m_stack->addWidget(buildTextPage());     // 2
     m_stack->addWidget(buildVideoPage());    // 3
     m_stack->addWidget(buildMarkdownPage());   // 4
     m_stack->addWidget(buildPdfPage());        // 5
@@ -109,6 +126,8 @@ QWidget *QuickView::buildImagePage() {
         m_imageScale = fitScale();
         applyImageScale();
     });
+    toolbar->addAction(tr("< Prev"), this, [this]() { showPrevSibling(); });
+    toolbar->addAction(tr("Next >"), this, [this]() { showNextSibling(); });
 
     // Push the lock checkbox to the far right of the toolbar.
     auto *spacer = new QWidget(toolbar);
@@ -191,6 +210,129 @@ void QuickView::positionInfoOverlay() {
     const int x = qMax(8, vw - m_infoOverlay->width() - 8);
     m_infoOverlay->move(x, 8);
     m_infoOverlay->raise();
+}
+
+QWidget *QuickView::buildTextPage() {
+    m_textPage = new QWidget(this);
+    m_textToolbar = new QToolBar(m_textPage);
+
+    m_textEncoding = new QComboBox(m_textToolbar);
+    for (const TextEncoding &e : kTextEncodings)
+        m_textEncoding->addItem(QString::fromLatin1(e.label));
+    m_textToolbar->addWidget(m_textEncoding);
+    connect(m_textEncoding, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            [this](int) { renderText(); });
+
+    QAction *wrap = m_textToolbar->addAction(tr("Wrap"));
+    wrap->setCheckable(true);
+    connect(wrap, &QAction::toggled, this, [this](bool on) {
+        m_text->setLineWrapMode(on ? QPlainTextEdit::WidgetWidth : QPlainTextEdit::NoWrap);
+    });
+
+    QAction *hex = m_textToolbar->addAction(tr("Hex"));
+    hex->setCheckable(true);
+    connect(hex, &QAction::toggled, this, [this](bool on) {
+        m_textHex = on;
+        m_textEncoding->setEnabled(!on); // encoding is meaningless in hex mode
+        renderText();
+    });
+
+    m_textToolbar->addSeparator();
+    m_textFind = new QLineEdit(m_textToolbar);
+    m_textFind->setPlaceholderText(tr("Find… (Enter / F3)"));
+    m_textFind->setClearButtonEnabled(true);
+    m_textToolbar->addWidget(m_textFind);
+    connect(m_textFind, &QLineEdit::returnPressed, this, &QuickView::findNext);
+
+    m_text = new QPlainTextEdit(m_textPage);
+    m_text->setReadOnly(true);
+    m_text->setLineWrapMode(QPlainTextEdit::NoWrap);
+    m_text->setFont(QFont(QStringLiteral("monospace")));
+
+    // The rich text controls only make sense in the standalone F3 viewer; the
+    // embedded Ctrl+Q pane shows a clean plaintext head.
+    m_textToolbar->setVisible(m_context == Context::Window);
+
+    auto *layout = new QVBoxLayout(m_textPage);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(m_textToolbar);
+    layout->addWidget(m_text, 1);
+    return m_textPage;
+}
+
+QString QuickView::toHexDump(const QByteArray &data) {
+    QString out;
+    out.reserve(data.size() * 4);
+    for (int offset = 0; offset < data.size(); offset += 16) {
+        out += QStringLiteral("%1  ").arg(offset, 8, 16, QLatin1Char('0'));
+        QString ascii;
+        for (int i = 0; i < 16; ++i) {
+            if (offset + i < data.size()) {
+                const uchar b = static_cast<uchar>(data.at(offset + i));
+                out += QStringLiteral("%1 ").arg(b, 2, 16, QLatin1Char('0'));
+                ascii += (b >= 0x20 && b < 0x7f) ? QChar(b) : QLatin1Char('.');
+            } else {
+                out += QStringLiteral("   ");
+            }
+        }
+        out += QLatin1Char(' ') + ascii + QLatin1Char('\n');
+    }
+    return out;
+}
+
+void QuickView::renderText() {
+    QString content;
+    if (m_textHex) {
+        content = toHexDump(m_textRaw);
+    } else {
+        const char *codecName = kTextEncodings[m_textEncoding->currentIndex()].codec;
+        QTextCodec *codec =
+            codecName ? QTextCodec::codecForName(codecName) : QTextCodec::codecForLocale();
+        if (!codec)
+            codec = QTextCodec::codecForName("UTF-8");
+        content = codec->toUnicode(m_textRaw);
+    }
+    if (m_textTruncated)
+        content += tr("\n\n[... truncated ...]");
+    m_text->setPlainText(content);
+}
+
+void QuickView::findNext() {
+    if (m_stack->currentWidget() != m_textPage || !m_textFind)
+        return;
+    const QString needle = m_textFind->text();
+    if (needle.isEmpty())
+        return;
+    if (!m_text->find(needle)) {
+        m_text->moveCursor(QTextCursor::Start); // wrap around
+        m_text->find(needle);
+    }
+}
+
+void QuickView::loadImageSiblings() {
+    const QDir dir(QFileInfo(m_imagePath).absolutePath());
+    const QFileInfoList entries =
+        dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot, QDir::Name);
+    m_imageSiblings.clear();
+    for (const QFileInfo &fi : entries)
+        if (ImageViewer::isImage(fi.absoluteFilePath()))
+            m_imageSiblings.append(fi.absoluteFilePath());
+    m_imageSiblingIndex = m_imageSiblings.indexOf(QFileInfo(m_imagePath).absoluteFilePath());
+}
+
+void QuickView::showNextSibling() {
+    if (m_stack->currentWidget() != m_imagePage || m_imageSiblings.isEmpty() ||
+        m_imageSiblingIndex < 0)
+        return;
+    showFile(m_imageSiblings.at((m_imageSiblingIndex + 1) % m_imageSiblings.size()));
+}
+
+void QuickView::showPrevSibling() {
+    if (m_stack->currentWidget() != m_imagePage || m_imageSiblings.isEmpty() ||
+        m_imageSiblingIndex < 0)
+        return;
+    const int prev = (m_imageSiblingIndex - 1 + m_imageSiblings.size()) % m_imageSiblings.size();
+    showFile(m_imageSiblings.at(prev));
 }
 
 bool QuickView::isVideo(const QString &path) {
@@ -913,6 +1055,8 @@ void QuickView::showFile(const QString &path) {
         QPixmap pm(path);
         if (!pm.isNull()) {
             m_originalPixmap = pm;
+            m_imagePath = path;
+            loadImageSiblings(); // enable prev/next among sibling images
 
             // Build the metadata panel from what QImageReader/QPixmap expose.
             const QString text =
@@ -947,9 +1091,10 @@ void QuickView::showFile(const QString &path) {
     m_infoOverlay->hide(); // no image behind it on the text / no-preview pages
     QFile file(path);
     if (file.open(QIODevice::ReadOnly)) {
-        const QByteArray head = file.read(kTextPreviewBytes);
-        m_text->setPlainText(QString::fromUtf8(head));
-        m_stack->setCurrentWidget(m_text);
+        m_textRaw = file.read(m_textCap);
+        m_textTruncated = !file.atEnd();
+        renderText();
+        m_stack->setCurrentWidget(m_textPage);
         return;
     }
 

@@ -1,7 +1,9 @@
 #pragma once
 
+#include <QByteArray>
 #include <QPixmap>
 #include <QPoint>
+#include <QStringList>
 #include <QWidget>
 
 #include <memory>
@@ -9,6 +11,7 @@
 class QCheckBox;
 class QComboBox;
 class QLabel;
+class QLineEdit;
 class QModelIndex;
 class QPlainTextEdit;
 class QPushButton;
@@ -16,6 +19,7 @@ class QScrollArea;
 class QSlider;
 class QStackedWidget;
 class QTableView;
+class QToolBar;
 class QTableWidget;
 class QTemporaryDir;
 class QTextBrowser;
@@ -50,6 +54,16 @@ public:
 
     void showFile(const QString &path);
 
+    // Formats raw bytes as an offset/hex/ascii dump (the Hex toggle). Static so
+    // it can be unit-tested without a widget.
+    static QString toHexDump(const QByteArray &data);
+
+    // Driven by the F3 ViewerWindow's host-level shortcuts; no-ops unless the
+    // relevant page is current.
+    void findNext();          // F3: next match in the text page
+    void showPrevSibling();   // Left: previous image in the same directory
+    void showNextSibling();   // Right: next image in the same directory
+
 protected:
     void resizeEvent(QResizeEvent *event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -60,6 +74,9 @@ protected:
 
 private:
     QWidget *buildImagePage();
+    QWidget *buildTextPage();     // toolbar (encoding/hex/wrap/find) + the editor
+    void renderText();            // (re)render m_textRaw per the encoding/hex toggle
+    void loadImageSiblings();     // list sibling images in the current dir
     QWidget *buildVideoPage();
     QWidget *buildMarkdownPage();
     QWidget *buildPdfPage();
@@ -97,6 +114,22 @@ private:
     QTimer *m_refitTimer;       // coalesces refits during interactive resize
     QPlainTextEdit *m_text;
     QLabel *m_info;
+
+    // Text page extras. The encoding/hex/wrap/find toolbar shows only in the F3
+    // Window context; the embedded pane keeps a clean plaintext head.
+    QWidget *m_textPage = nullptr;
+    QToolBar *m_textToolbar = nullptr;
+    QComboBox *m_textEncoding = nullptr;
+    QLineEdit *m_textFind = nullptr;
+    QByteArray m_textRaw;              // raw bytes of the current text file
+    bool m_textHex = false;           // hex-dump mode
+    bool m_textTruncated = false;     // the read hit the cap
+    qint64 m_textCap = 0;             // max bytes read (context-dependent)
+
+    // Image sibling navigation (prev/next among images in the same directory).
+    QString m_imagePath;
+    QStringList m_imageSiblings;
+    int m_imageSiblingIndex = -1;
 
     // Markdown page (m_stack index 4): a rich-text browser that renders the
     // file via QTextDocument's bundled MD4C support (Qt 5.14+), no extra deps.

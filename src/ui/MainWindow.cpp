@@ -55,7 +55,6 @@
 #include <xcb/xcb.h>
 #include <cstdlib>      // free() for xcb replies
 
-#include "ArchiveBrowserDialog.h"
 #include "ArchiveHandler.h"
 #include "CommandBar.h"
 #include "TranslationManager.h"
@@ -81,7 +80,6 @@
 #include "Settings.h"
 #include "ThemeManager.h"
 #include "TextEditor.h"
-#include "TextViewer.h"
 #include "dialogs/CompareDialog.h"
 #include "dialogs/MultiRenameDialog.h"
 #include "dialogs/TransferProgressDialog.h"
@@ -1708,8 +1706,8 @@ void MainWindow::viewCurrent() {
         return;
     // F3 opens the shared preview widget in a top-level window -- same UI and
     // capabilities as the Ctrl+Q pane (image/text/video/PDF/markdown/office,
-    // and a read-only archive listing). The extract-capable ArchiveBrowserDialog
-    // stays reachable from the context menu.
+    // and a read-only archive listing). Archives are still browsed in-panel by
+    // double-clicking into them, and extracted from the context menu.
     auto *w = new ViewerWindow(m_settings, path, this);
     w->show();
 }

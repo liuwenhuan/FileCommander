@@ -67,10 +67,6 @@ public:
     void setShowFunctionKeyBar(bool show);
     bool showFolderTree() const;
     void setShowFolderTree(bool show);
-    // Office document preview (docx/xls/ppt ... via the optional office_oxide
-    // CLI). Off by default: it's an opt-in "plugin" that needs the external tool.
-    bool officePreviewEnabled() const;
-    void setOfficePreviewEnabled(bool on);
 
     // QSplitter::saveState() blobs for the panel divider and the folder-tree /
     // panels divider, so the layout survives a restart.

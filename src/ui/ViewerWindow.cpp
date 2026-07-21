@@ -19,9 +19,17 @@ ViewerWindow::ViewerWindow(Settings &settings, const QString &path, QWidget *par
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(m_preview);
 
-    // Esc closes the viewer (matches the old TextViewer/ImageViewer behaviour).
+    // Host-level shortcuts (kept out of the embedded pane so they don't steal
+    // keys from the file list): Esc closes; F3 finds the next text match;
+    // Left/Right step through sibling images.
     auto *esc = new QShortcut(QKeySequence(Qt::Key_Escape), this);
     connect(esc, &QShortcut::activated, this, &QWidget::close);
+    auto *findNext = new QShortcut(QKeySequence(Qt::Key_F3), this);
+    connect(findNext, &QShortcut::activated, m_preview, &QuickView::findNext);
+    auto *prev = new QShortcut(QKeySequence(Qt::Key_Left), this);
+    connect(prev, &QShortcut::activated, m_preview, &QuickView::showPrevSibling);
+    auto *next = new QShortcut(QKeySequence(Qt::Key_Right), this);
+    connect(next, &QShortcut::activated, m_preview, &QuickView::showNextSibling);
 
     m_preview->showFile(path);
 }
