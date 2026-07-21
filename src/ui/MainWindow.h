@@ -22,7 +22,7 @@ class FunctionKeyBar;
 class CommandBar;
 class QuickView;
 class OperationQueue;
-class OperationProgressDialog;
+class TransferProgressDialog;
 class ThemeManager;
 class QShortcut;
 class QSplitter;
@@ -167,7 +167,7 @@ private:
     FunctionKeyBar *m_functionKeyBar;
     CommandBar *m_commandBar;
     OperationQueue *m_queue;
-    OperationProgressDialog *m_progressDialog;
+    TransferProgressDialog *m_progressDialog;
     QStringList m_operationErrors; // accumulated per-file errors for the running job
     ThemeManager *m_themeManager;
     Settings m_settings;

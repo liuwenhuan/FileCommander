@@ -83,7 +83,7 @@
 #include "TextViewer.h"
 #include "dialogs/CompareDialog.h"
 #include "dialogs/MultiRenameDialog.h"
-#include "dialogs/OperationProgressDialog.h"
+#include "dialogs/TransferProgressDialog.h"
 #include "dialogs/OverwriteConfirmDialog.h"
 #include "dialogs/PropertiesDialog.h"
 #include "dialogs/ShortcutsDialog.h"
@@ -233,27 +233,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
             return ErrorAction::SkipAll;
         return ErrorAction::Cancel;
     });
-    m_progressDialog = new OperationProgressDialog(this);
-    connect(m_queue, &OperationQueue::started, this, [this](const QString &desc) {
-        m_operationErrors.clear();
-        m_progressDialog->setDescription(desc);
-        m_progressDialog->show();
-    });
-    connect(m_queue, &OperationQueue::progress, m_progressDialog,
-            &OperationProgressDialog::setProgress);
-    connect(m_progressDialog, &OperationProgressDialog::cancelRequested, this, [this]() {
-        // Actually stop the worker (and drop queued jobs), not just hide the
-        // dialog. The finished handler hides it once the job unwinds.
-        m_queue->cancelCurrent();
-    });
-    connect(m_progressDialog, &OperationProgressDialog::pauseRequested, m_queue,
-            &OperationQueue::pauseCurrent);
-    connect(m_progressDialog, &OperationProgressDialog::resumeRequested, m_queue,
-            &OperationQueue::resumeCurrent);
-    connect(m_queue, &OperationQueue::queueChanged, m_progressDialog,
-            &OperationProgressDialog::setQueuedCount);
+    // Self-wiring progress dialog: shows itself on started, tracks bytes/speed/ETA
+    // + queue depth, and drives cancel/pause/resume. It covers local operations
+    // and (with speed/ETA) large remote SFTP/FTP/WebDAV transfers.
+    m_progressDialog = new TransferProgressDialog(m_queue, this);
+    connect(m_queue, &OperationQueue::started, this,
+            [this](const QString &) { m_operationErrors.clear(); });
     connect(m_queue, &OperationQueue::finished, this, [this](bool) {
-        m_progressDialog->hide();
         m_leftPanel->refresh();
         m_rightPanel->refresh();
         // Report all per-file failures once, not one modal per error.
