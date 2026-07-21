@@ -42,11 +42,11 @@ void Settings::setLanguage(const QString &language) {
 }
 
 int Settings::listFontSize() const {
-    return m_settings.value("appearance/listFontSize", 10).toInt();
+    return qBound(8, m_settings.value("appearance/listFontSize", 12).toInt(), 18);
 }
 
 void Settings::setListFontSize(int pt) {
-    m_settings.setValue("appearance/listFontSize", qBound(7, pt, 24));
+    m_settings.setValue("appearance/listFontSize", qBound(8, pt, 18));
 }
 
 double Settings::videoSpeed() const {

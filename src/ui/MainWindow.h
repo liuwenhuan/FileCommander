@@ -189,9 +189,5 @@ private:
     QList<QPair<QString, QString>> m_shortcutOrder; // id, label (keyed shortcuts only)
     QString m_fkeyCommands[6];  // command id per F3..F8 slot
 
-    // File-list font-size control living in the View menu.
-    QLabel *m_fontSizeLabel = nullptr;
-    std::function<void(int)> m_applyListFontSize;
-
     TitleBar *m_titleBar = nullptr; // self-drawn frameless title bar
 };

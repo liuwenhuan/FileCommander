@@ -34,6 +34,7 @@
 #include <QProcess>
 #include <QPushButton>
 #include <QShortcut>
+#include <QSpinBox>
 #include <QTimer>
 #include <QSplitter>
 #include <QSplitterHandle>
@@ -514,8 +515,8 @@ void MainWindow::buildTitleBarMenus() {
 
     viewMenu->addSeparator();
 
-    // File-list font size: [-] [12] [+] embedded in the menu. The label doubles
-    // as a click target that pops a QInputDialog for typing an exact size.
+    // File-list font size: caption + an inline spin box (8..18). The number is
+    // edited in place (type or use the arrows) — no popup dialog.
     {
         auto *fontWidget = new QWidget(viewMenu);
         auto *fontLayout = new QHBoxLayout(fontWidget);
@@ -523,45 +524,23 @@ void MainWindow::buildTitleBarMenus() {
         fontLayout->setSpacing(4);
 
         auto *caption = new QLabel(tr("List font size:"), fontWidget);
-        auto *minusButton = new QToolButton(fontWidget);
-        minusButton->setText(QStringLiteral("−"));
-        minusButton->setAutoRaise(true);
-        auto *sizeLabel = new QLabel(fontWidget);
-        sizeLabel->setAlignment(Qt::AlignCenter);
-        sizeLabel->setMinimumWidth(28);
-        sizeLabel->setCursor(Qt::PointingHandCursor);
-        sizeLabel->setToolTip(tr("Click to enter a size"));
-        auto *plusButton = new QToolButton(fontWidget);
-        plusButton->setText(QStringLiteral("+"));
-        plusButton->setAutoRaise(true);
+        auto *sizeSpin = new QSpinBox(fontWidget);
+        sizeSpin->setRange(8, 18);
+        sizeSpin->setValue(m_settings.listFontSize());
+        sizeSpin->setToolTip(tr("Type or use the arrows (8-18)"));
+        // Let the box take keyboard focus while the menu is open so it can be
+        // typed into directly.
+        sizeSpin->setFocusPolicy(Qt::StrongFocus);
 
         fontLayout->addWidget(caption);
         fontLayout->addStretch(1);
-        fontLayout->addWidget(minusButton);
-        fontLayout->addWidget(sizeLabel);
-        fontLayout->addWidget(plusButton);
+        fontLayout->addWidget(sizeSpin);
 
-        // Applies a clamped size everywhere: persist, refresh the label, and
-        // update both panels live.
-        auto applySize = [this, sizeLabel](int pt) {
-            pt = qBound(7, pt, 24);
+        connect(sizeSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int pt) {
             m_settings.setListFontSize(pt);
-            sizeLabel->setText(QString::number(pt));
             m_leftPanel->setListFontSize(pt);
             m_rightPanel->setListFontSize(pt);
-        };
-        sizeLabel->setText(QString::number(m_settings.listFontSize()));
-
-        connect(minusButton, &QToolButton::clicked, this,
-                [this, applySize] { applySize(m_settings.listFontSize() - 1); });
-        connect(plusButton, &QToolButton::clicked, this,
-                [this, applySize] { applySize(m_settings.listFontSize() + 1); });
-
-        // A clickable label needs its own event handling; simplest is a tiny
-        // event filter that pops the input dialog on mouse release.
-        sizeLabel->installEventFilter(this);
-        m_fontSizeLabel = sizeLabel;
-        m_applyListFontSize = applySize;
+        });
 
         auto *fontAction = new QWidgetAction(viewMenu);
         fontAction->setDefaultWidget(fontWidget);
@@ -601,18 +580,6 @@ void MainWindow::buildTitleBarMenus() {
 }
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
-    if (watched == m_fontSizeLabel && event->type() == QEvent::MouseButtonRelease) {
-        auto *me = static_cast<QMouseEvent *>(event);
-        if (me->button() == Qt::LeftButton) {
-            bool ok = false;
-            const int pt = QInputDialog::getInt(this, tr("List Font Size"),
-                                                tr("Point size:"),
-                                                m_settings.listFontSize(), 7, 24, 1, &ok);
-            if (ok && m_applyListFontSize)
-                m_applyListFontSize(pt);
-            return true;
-        }
-    }
     return QMainWindow::eventFilter(watched, event);
 }
 
@@ -1031,7 +998,6 @@ void MainWindow::showShortcutMenu(const QPoint &globalPos) {
         {"quickView", tr("Quick view (preview in the other panel)")},
         {"syncOther", tr("Point the other panel at this directory")},
         {"swapPanels", tr("Swap the two panels")},
-        {"directoryHotlist", tr("Directory bookmarks")},
         {"calcSize", tr("Calculate folder size")},
         {"undo", tr("Undo the last rename / move")},
         {"multiRename", tr("Multi-rename tool")},
@@ -1056,6 +1022,10 @@ void MainWindow::showShortcutMenu(const QPoint &globalPos) {
     addEntry(tr("Unselect files by pattern"), QStringLiteral("-"), [this]() {
         if (m_activePanel)
             m_activePanel->selectByPattern(false);
+    });
+    addEntry(tr("Invert selection"), QStringLiteral("*"), [this]() {
+        if (m_activePanel)
+            m_activePanel->invertSelection();
     });
 
     // Align the menu's right edge with the active panel's right edge -- for the

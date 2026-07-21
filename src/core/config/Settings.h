@@ -28,7 +28,7 @@ public:
     void setLanguage(const QString &language);
 
     // Point size of the file-list font, shared by both panels. Clamped to
-    // 7..24 on write; defaults to 10.
+    // 8..18; defaults to 12.
     int listFontSize() const;
     void setListFontSize(int pt);
 
