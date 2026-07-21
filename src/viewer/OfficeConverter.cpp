@@ -250,10 +250,7 @@ OfficeConverter::Result OfficeConverter::convertDocument(const QString &binary, 
     // Word / PowerPoint → HTML (`office-oxide html <file>`): block-structured
     // (<h1>/<p>/<strong>/<table>), which QTextBrowser renders faithfully.
     // office_oxide emits empty `<img>` placeholders (it doesn't export image
-    // bytes over the CLI); for OOXML files we pull the embedded images straight
-    // out of the zip container and inline them as base64 data URIs, in document
-    // order. Legacy .doc/.ppt (not zips) have no extractable media, so their
-    // placeholders are simply dropped.
+    // bytes over the CLI).
     const ProcResult run = runOfficeOxide(binary, {QStringLiteral("html"), path}, kTimeoutMs);
     if (!run.started || run.timedOut) {
         result.error = run.stdErr;
@@ -266,8 +263,18 @@ OfficeConverter::Result OfficeConverter::convertDocument(const QString &binary, 
         return result;
     }
 
+    // Inline embedded images only for Word documents: docx images sit inline in
+    // the text flow, so pulling them from word/media/ and mapping them 1:1 onto
+    // the <img> placeholders (in document order) is reliable. PowerPoint decks
+    // place images by slide geometry, not text order, so the flat media list
+    // doesn't line up with office_oxide's flattened <img> stream -- inlining
+    // them just scatters mismatched pictures through the text, so ppt(x) keeps
+    // the placeholders dropped. Legacy .doc isn't a zip → no media either way.
+    const QString suffix = suffixLower(path);
+    const bool isWord = (suffix == QLatin1String("doc") || suffix == QLatin1String("docx"));
     result.ok = true;
-    result.html = inlineImages(run.stdOut, extractOoxmlMediaImages(path));
+    result.html = isWord ? inlineImages(run.stdOut, extractOoxmlMediaImages(path))
+                         : inlineImages(run.stdOut, {}); // pptx/ppt: drop <img> placeholders
     return result;
 }
 
