@@ -23,6 +23,23 @@ public:
     static bool extract(const QString &archivePath, const QStringList &entryFullPaths,
                          const QString &destDir, QString *errorMessage = nullptr);
 
+    // Outcome of a Bandizip-style "smart" whole-archive extraction.
+    struct SmartResult {
+        bool ok = false;
+        QString finalDir;          // directory the contents actually landed in
+        QString nestedArchivePath; // set iff the result is a single inner archive
+    };
+
+    // Extracts the whole archive into `baseDestDir`, applying Bandizip's layout
+    // rules (see ArchiveLayout): a single top-level folder is extracted as-is
+    // (no double nesting); multiple top-level items are wrapped in a folder named
+    // after the archive. A colliding target folder is disambiguated with a " (n)"
+    // suffix so an extraction never clobbers existing files. If the extracted
+    // result is itself a single archive, its path is reported in
+    // `nestedArchivePath` so the caller may offer recursive extraction.
+    static SmartResult smartExtract(const QString &archivePath, const QString &baseDestDir,
+                                    QString *errorMessage = nullptr);
+
     // format: one of "zip", "tar", "tar.gz", "tar.bz2", "tar.xz".
     // Each entry in sourcePaths (file or directory) is added at the
     // archive root under its own basename.

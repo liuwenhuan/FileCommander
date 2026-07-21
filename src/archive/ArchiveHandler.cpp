@@ -6,6 +6,8 @@
 #include <QDir>
 #include <QFileInfo>
 
+#include "ArchiveLayout.h"
+
 namespace {
 
 QString lastArchiveError(struct archive *a) {
@@ -233,6 +235,77 @@ bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entr
     archive_write_close(ext);
     archive_write_free(ext);
     return ok;
+}
+
+namespace {
+
+// Flattens the archive tree into the full-path list ArchiveLayout::analyze wants
+// (directories keep a trailing '/', matching the archive's own convention).
+void collectEntryPaths(const QSharedPointer<ArchiveNode> &node, QStringList &out) {
+    for (const auto &child : node->children) {
+        out.append(child->isDir ? child->fullPath + QLatin1Char('/') : child->fullPath);
+        if (child->isDir)
+            collectEntryPaths(child, out);
+    }
+}
+
+// Returns `dir` if it doesn't yet exist, otherwise "dir (2)", "dir (3)", ... so a
+// smart extraction never overwrites an existing folder.
+QString uniqueDir(const QString &dir) {
+    if (!QFileInfo::exists(dir))
+        return dir;
+    for (int n = 2; n < 10000; ++n) {
+        const QString candidate = QStringLiteral("%1 (%2)").arg(dir).arg(n);
+        if (!QFileInfo::exists(candidate))
+            return candidate;
+    }
+    return dir;
+}
+
+} // namespace
+
+ArchiveHandler::SmartResult ArchiveHandler::smartExtract(const QString &archivePath,
+                                                          const QString &baseDestDir,
+                                                          QString *errorMessage) {
+    SmartResult result;
+
+    QString err;
+    const QSharedPointer<ArchiveNode> root = buildTree(archivePath, &err);
+    if (!root) {
+        if (errorMessage)
+            *errorMessage = err;
+        return result;
+    }
+
+    QStringList entryPaths;
+    collectEntryPaths(root, entryPaths);
+
+    const QString base = QFileInfo(archivePath).completeBaseName();
+    const ArchiveLayout::Result layout = ArchiveLayout::analyze(entryPaths, base);
+
+    // Multiple top-level items get wrapped in an archive-named folder; a single
+    // top-level folder (or file) extracts straight into the destination.
+    QString finalDir = baseDestDir;
+    if (layout.wrapInArchiveNamedFolder)
+        finalDir = uniqueDir(QDir(baseDestDir).filePath(base));
+
+    if (!extract(archivePath, {}, finalDir, errorMessage))
+        return result;
+
+    result.ok = true;
+    result.finalDir = finalDir;
+
+    // Detection only: if the extracted payload is a single archive, tell the
+    // caller where it landed so it can offer to unwrap it too.
+    if (layout.resultIsSingleArchive && !layout.innerArchiveName.isEmpty()) {
+        const QString stripped =
+            layout.stripSingleRoot ? QDir(finalDir).filePath(layout.strippedPrefix) : finalDir;
+        const QString nested = QDir(stripped).filePath(layout.innerArchiveName);
+        if (QFileInfo::exists(nested))
+            result.nestedArchivePath = nested;
+    }
+
+    return result;
 }
 
 bool ArchiveHandler::create(const QString &archivePath, const QStringList &sourcePaths,

@@ -82,6 +82,8 @@ private slots:
     void deleteSelected(bool permanent = false); // F8 / Shift+F8
     void renameCurrent(); // F2
     void compressSelected(); // Alt+F5
+    void extractArchiveHere();  // Bandizip-style smart extract into the current dir
+    void extractArchiveToDir(); // ... into a chosen directory
     void openSearch(); // Ctrl+F
     void openShortcutsDialog();
     void setTheme(Settings::Theme theme);
@@ -139,6 +141,9 @@ private:
     // If `panel` is browsing a (read-only) archive, warn and return true so the
     // caller aborts the write op. Null panel → false.
     bool blockArchiveWrite(FilePanel *panel);
+    // Smart-extracts `archivePath` into `destDir`, prompting to recurse into a
+    // single nested archive. Shared by the "Extract Here/To..." context actions.
+    void smartExtractArchive(const QString &archivePath, const QString &destDir);
     void showFileContextMenu(FilePanel *panel, const QPoint &viewPos);
     void showBlankContextMenu(FilePanel *panel, const QPoint &viewPos);
     // Fills a menu with "bookmark current" + separator + saved favorites,

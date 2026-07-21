@@ -97,16 +97,49 @@ QStringList ArchiveBrowserDialog::selectedEntryPaths() const {
 
 bool ArchiveBrowserDialog::doExtract(const QString &destDir) {
     const QStringList entries = selectedEntryPaths();
-    QString err;
-    const bool ok = ArchiveHandler::extract(m_model->archivePath(), entries, destDir, &err);
-    if (!ok)
-        QMessageBox::warning(this, tr("Extract"), tr("Extraction failed: %1").arg(err));
-    else
-        QMessageBox::information(
-            this, tr("Extract"),
-            entries.isEmpty() ? tr("Extracted entire archive to %1").arg(destDir)
-                               : tr("Extracted %1 item(s) to %2").arg(entries.size()).arg(destDir));
-    return ok;
+
+    // Selected entries: plain extraction, preserving their in-archive paths.
+    if (!entries.isEmpty()) {
+        QString err;
+        const bool ok = ArchiveHandler::extract(m_model->archivePath(), entries, destDir, &err);
+        if (!ok)
+            QMessageBox::warning(this, tr("Extract"), tr("Extraction failed: %1").arg(err));
+        else
+            QMessageBox::information(
+                this, tr("Extract"),
+                tr("Extracted %1 item(s) to %2").arg(entries.size()).arg(destDir));
+        return ok;
+    }
+
+    // Whole archive: Bandizip-style smart layout, then offer to unwrap any single
+    // nested archive recursively.
+    QString source = m_model->archivePath();
+    QString base = destDir;
+    QString finalDir;
+    for (;;) {
+        QString err;
+        const ArchiveHandler::SmartResult res = ArchiveHandler::smartExtract(source, base, &err);
+        if (!res.ok) {
+            QMessageBox::warning(this, tr("Extract"), tr("Extraction failed: %1").arg(err));
+            return false;
+        }
+        finalDir = res.finalDir;
+        if (res.nestedArchivePath.isEmpty())
+            break;
+        const auto answer = QMessageBox::question(
+            this, tr("Nested archive"),
+            tr("The result contains a single archive:\n%1\n\nExtract it too?")
+                .arg(QFileInfo(res.nestedArchivePath).fileName()),
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+        if (answer != QMessageBox::Yes)
+            break;
+        source = res.nestedArchivePath;
+        base = QFileInfo(res.nestedArchivePath).absolutePath();
+    }
+
+    QMessageBox::information(this, tr("Extract"),
+                             tr("Extracted archive to %1").arg(finalDir));
+    return true;
 }
 
 void ArchiveBrowserDialog::extractSelectedToDefault() {

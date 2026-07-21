@@ -17,6 +17,7 @@
 #include <QToolButton>
 #include <QWidgetAction>
 #include <QTreeWidget>
+#include <QFileDialog>
 #include <QFileSystemModel>
 #include <QInputDialog>
 #include <QItemSelectionModel>
@@ -506,6 +507,9 @@ void MainWindow::buildTitleBarMenus() {
         sizeSpin->setRange(8, 18);
         sizeSpin->setValue(m_settings.listFontSize());
         sizeSpin->setToolTip(tr("Type or use the arrows (8-18)"));
+        // Wide enough for two digits plus the arrows so "12" isn't clipped.
+        sizeSpin->setMinimumWidth(72);
+        sizeSpin->setAlignment(Qt::AlignCenter);
         // Let the box take keyboard focus while the menu is open so it can be
         // typed into directly.
         sizeSpin->setFocusPolicy(Qt::StrongFocus);
@@ -1628,6 +1632,12 @@ void MainWindow::showFileContextMenu(FilePanel *panel, const QPoint &viewPos) {
     menu.addAction(tr("Copy"), this, &MainWindow::copySelectionToClipboard);
     menu.addSeparator();
     menu.addAction(tr("Compress Selected..."), this, &MainWindow::compressSelected);
+    // Smart (Bandizip-style) extraction, offered only for a single archive row.
+    const QString cursorPath = panel->currentEntryPath();
+    if (!cursorPath.isEmpty() && ArchiveHandler::isSupportedArchive(cursorPath)) {
+        menu.addAction(tr("Extract Here"), this, &MainWindow::extractArchiveHere);
+        menu.addAction(tr("Extract To..."), this, &MainWindow::extractArchiveToDir);
+    }
     menu.addSeparator();
     menu.addAction(tr("Copy Path"), this, [panel]() {
         const QStringList paths = panel->selectedPaths();
@@ -1693,6 +1703,60 @@ void MainWindow::viewCurrent() {
     } else {
         delete viewer;
     }
+}
+
+void MainWindow::smartExtractArchive(const QString &archivePath, const QString &destDir) {
+    QString source = archivePath;
+    QString base = destDir;
+    QString finalDir;
+    for (;;) {
+        QString err;
+        const ArchiveHandler::SmartResult res = ArchiveHandler::smartExtract(source, base, &err);
+        if (!res.ok) {
+            QMessageBox::warning(this, tr("Extract"), tr("Extraction failed: %1").arg(err));
+            return;
+        }
+        finalDir = res.finalDir;
+        if (res.nestedArchivePath.isEmpty())
+            break;
+        const auto answer = QMessageBox::question(
+            this, tr("Nested archive"),
+            tr("The result contains a single archive:\n%1\n\nExtract it too?")
+                .arg(QFileInfo(res.nestedArchivePath).fileName()),
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+        if (answer != QMessageBox::Yes)
+            break;
+        source = res.nestedArchivePath;
+        base = QFileInfo(res.nestedArchivePath).absolutePath();
+    }
+
+    // Refresh whichever panel is showing the destination so the new files appear.
+    for (FilePanel *panel : {m_leftPanel, m_rightPanel}) {
+        if (panel && panel->currentPath() == destDir)
+            panel->refresh();
+    }
+    QMessageBox::information(this, tr("Extract"), tr("Extracted archive to %1").arg(finalDir));
+}
+
+void MainWindow::extractArchiveHere() {
+    if (!m_activePanel)
+        return;
+    const QString path = m_activePanel->currentEntryPath();
+    if (path.isEmpty() || !ArchiveHandler::isSupportedArchive(path))
+        return;
+    smartExtractArchive(path, m_activePanel->currentPath());
+}
+
+void MainWindow::extractArchiveToDir() {
+    if (!m_activePanel)
+        return;
+    const QString path = m_activePanel->currentEntryPath();
+    if (path.isEmpty() || !ArchiveHandler::isSupportedArchive(path))
+        return;
+    const QString dir = QFileDialog::getExistingDirectory(
+        this, tr("Extract to"), otherPanel(m_activePanel)->currentPath());
+    if (!dir.isEmpty())
+        smartExtractArchive(path, dir);
 }
 
 void MainWindow::editCurrent() {
