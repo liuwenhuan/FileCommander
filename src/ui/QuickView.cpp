@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QFontMetrics>
+#include <QBuffer>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QImageReader>
@@ -395,6 +396,45 @@ QWidget *QuickView::buildMarkdownPage() {
     return m_markdown;
 }
 
+QString QuickView::fitImagesToWidth(const QString &html, int maxWidth) const {
+    if (maxWidth <= 0)
+        return html;
+    static const QRegularExpression imgRe(QStringLiteral("<img\\b[^>]*>"));
+    static const QRegularExpression srcRe(
+        QStringLiteral("src=\"data:image/[^;]+;base64,([^\"]+)\""));
+    QString out;
+    int last = 0;
+    QRegularExpressionMatchIterator it = imgRe.globalMatch(html);
+    while (it.hasNext()) {
+        const QRegularExpressionMatch m = it.next();
+        out += html.mid(last, m.capturedStart() - last);
+        QString tag = m.captured(0);
+        // Only size tags that carry a data: URI and don't already declare a width.
+        if (!tag.contains(QStringLiteral("width="))) {
+            const QRegularExpressionMatch sm = srcRe.match(tag);
+            if (sm.hasMatch()) {
+                QByteArray data = QByteArray::fromBase64(sm.captured(1).toLatin1());
+                QBuffer buf(&data);
+                buf.open(QIODevice::ReadOnly);
+                QImageReader reader(&buf);
+                const QSize sz = reader.size();
+                if (sz.isValid() && sz.width() > maxWidth) {
+                    const int w = maxWidth;
+                    const int h = int(static_cast<qint64>(sz.height()) * maxWidth / sz.width());
+                    int insertAt = tag.lastIndexOf(QLatin1Char('>'));
+                    if (insertAt > 0 && tag.at(insertAt - 1) == QLatin1Char('/'))
+                        --insertAt;
+                    tag.insert(insertAt, QStringLiteral(" width=\"%1\" height=\"%2\"").arg(w).arg(h));
+                }
+            }
+        }
+        out += tag;
+        last = m.capturedEnd();
+    }
+    out += html.mid(last);
+    return out;
+}
+
 QWidget *QuickView::buildOfficeTablePage() {
     m_officeTable = new QTableWidget(this);
     m_officeTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -682,7 +722,11 @@ void QuickView::showFile(const QString &path) {
         m_infoOverlay->hide();
         const OfficeConverter::Result r = OfficeConverter::convert(path);
         if (r.ok && r.kind == OfficeConverter::Kind::Document) {
-            m_markdown->setHtml(r.html); // office_oxide HTML: headings, tables, bold
+            // Fit large embedded images to the preview width. Use the stack's
+            // width (the actual pane width) rather than m_markdown's, which may
+            // still be stale until it's shown as the current page below.
+            const int avail = qMax(200, m_stack->width() - 32);
+            m_markdown->setHtml(fitImagesToWidth(r.html, avail));
             m_stack->setCurrentWidget(m_markdown);
             return;
         }

@@ -55,6 +55,10 @@ private:
     QWidget *buildPdfPage();
     QWidget *buildOfficeTablePage();       // spreadsheet (xls/xlsx) preview as a grid
     void populateCsvTable(const QString &csv); // fill the office table from CSV text
+    // Adds width/height attributes to office HTML <img> tags whose natural width
+    // exceeds maxWidth, so large embedded images fit the preview pane instead of
+    // overflowing (QTextBrowser ignores CSS max-width).
+    QString fitImagesToWidth(const QString &html, int maxWidth) const;
     void renderPdfPage(); // (re)render the current PDF page at the current zoom
     void closePdf();      // release any loaded document + reset PDF UI state
     void applyImageScale();
