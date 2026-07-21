@@ -40,6 +40,7 @@
 #include <QTreeView>
 #include <QUrl>
 #include <QVBoxLayout>
+#include <QWindow>
 
 #include <QFutureWatcher>
 #include <QtConcurrent/QtConcurrent>
@@ -58,6 +59,7 @@
 #include "OperationQueue.h"
 #include "SearchDialog.h"
 #include "SessionManager.h"
+#include "TitleBar.h"
 #include "Settings.h"
 #include "ThemeManager.h"
 #include "TextEditor.h"
@@ -125,6 +127,8 @@ QMimeData *buildFileClipboardData(const QStringList &paths, bool cut) {
 } // namespace
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
+    // Frameless: we draw our own title bar (see setupMenuAndToolbar / TitleBar).
+    setWindowFlag(Qt::FramelessWindowHint);
     setWindowTitle(tr("Total Commander for Linux"));
     resize(1200, 700);
 
@@ -183,6 +187,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     layout->addWidget(m_commandBar);
     layout->addWidget(m_functionKeyBar);
     setCentralWidget(central);
+    // A thin resize border around the content (left/right/bottom) that the
+    // frameless window uses for WM-driven edge resizing (see event()).
+    setMouseTracking(true);
+    setContentsMargins(6, 0, 6, 6);
     // No global status bar: each FilePanel carries its own status strip, so
     // the function-key bar stays the bottom-most widget.
 
@@ -356,10 +364,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 }
 
 void MainWindow::setupMenuAndToolbar() {
-    QMenu *fileMenu = menuBar()->addMenu(tr("&File"));
-    fileMenu->addAction(tr("E&xit"), this, &QWidget::close);
-
-    QMenu *commandsMenu = menuBar()->addMenu(tr("&Commands"));
+    // Standalone menus shown as buttons in the frameless title bar. No File
+    // menu -- only Commands and View (Exit lives on the title bar's close
+    // button).
+    auto *commandsMenu = new QMenu(tr("&Commands"), this);
     commandsMenu->addAction(tr("&Refresh"), this, &MainWindow::refreshActivePanel);
     commandsMenu->addAction(tr("Open &Terminal Here"), this, &MainWindow::openTerminalHere);
     commandsMenu->addAction(tr("&Compress Selected..."), this, &MainWindow::compressSelected);
@@ -396,7 +404,7 @@ void MainWindow::setupMenuAndToolbar() {
     commandsMenu->addAction(tr("&Keyboard Shortcuts..."), this,
                              &MainWindow::openShortcutsDialog);
 
-    QMenu *viewMenu = menuBar()->addMenu(tr("&View"));
+    auto *viewMenu = new QMenu(tr("&View"), this);
     QMenu *themeMenu = viewMenu->addMenu(tr("&Theme"));
     auto *themeGroup = new QActionGroup(this);
     themeGroup->setExclusive(true);
@@ -507,12 +515,30 @@ void MainWindow::setupMenuAndToolbar() {
     }
 
     viewMenu->addSeparator();
+    // Show / hide the command line and the function-key bar.
+    // Both bars are shown by default; setupMenuAndToolbar() runs before show(),
+    // so isVisible() would be false here -- hardcode the initial checked state.
+    QAction *showCmdBar = viewMenu->addAction(tr("Command &Line"));
+    showCmdBar->setCheckable(true);
+    showCmdBar->setChecked(true);
+    connect(showCmdBar, &QAction::toggled, this,
+            [this](bool on) { m_commandBar->setVisible(on); });
+    QAction *showFnBar = viewMenu->addAction(tr("Function &Key Bar"));
+    showFnBar->setCheckable(true);
+    showFnBar->setChecked(true);
+    connect(showFnBar, &QAction::toggled, this,
+            [this](bool on) { m_functionKeyBar->setVisible(on); });
+
+    viewMenu->addSeparator();
     QAction *folderTreeAction = viewMenu->addAction(tr("&Folder Tree"), this,
                                                       &MainWindow::toggleFolderTree);
     folderTreeAction->setCheckable(true);
     folderTreeAction->setChecked(false);
-    // No navigation toolbar: Back/Forward now live inline in each panel's
-    // path row, Up is Backspace, Refresh is Ctrl+R / the Commands menu.
+
+    // Embed the menus in our self-drawn title bar (app icon + menu buttons +
+    // window buttons), placed where the menu bar would normally sit.
+    m_titleBar = new TitleBar(this, {commandsMenu, viewMenu});
+    setMenuWidget(m_titleBar);
 }
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
@@ -529,6 +555,69 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
         }
     }
     return QMainWindow::eventFilter(watched, event);
+}
+
+namespace {
+constexpr int kResizeMargin = 6;
+
+Qt::Edges edgesAt(const QRect &r, const QPoint &p) {
+    Qt::Edges e;
+    if (p.x() <= kResizeMargin)
+        e |= Qt::LeftEdge;
+    else if (p.x() >= r.width() - kResizeMargin)
+        e |= Qt::RightEdge;
+    if (p.y() <= kResizeMargin)
+        e |= Qt::TopEdge;
+    else if (p.y() >= r.height() - kResizeMargin)
+        e |= Qt::BottomEdge;
+    return e;
+}
+
+Qt::CursorShape cursorForEdges(Qt::Edges e) {
+    const bool l = e & Qt::LeftEdge, r = e & Qt::RightEdge;
+    const bool t = e & Qt::TopEdge, b = e & Qt::BottomEdge;
+    if ((l && t) || (r && b))
+        return Qt::SizeFDiagCursor;
+    if ((r && t) || (l && b))
+        return Qt::SizeBDiagCursor;
+    if (l || r)
+        return Qt::SizeHorCursor;
+    if (t || b)
+        return Qt::SizeVerCursor;
+    return Qt::ArrowCursor;
+}
+} // namespace
+
+void MainWindow::changeEvent(QEvent *event) {
+    QMainWindow::changeEvent(event);
+    if (event->type() == QEvent::WindowStateChange) {
+        if (m_titleBar)
+            m_titleBar->syncWindowState();
+        // A maximized/full window has no draggable resize border.
+        const int m = isMaximized() ? 0 : kResizeMargin;
+        setContentsMargins(m, 0, m, m);
+    }
+}
+
+bool MainWindow::event(QEvent *event) {
+    // Frameless edge resize: the thin border around the content (not covered by
+    // the central widget) reaches this handler. Show the resize cursor on hover
+    // and hand off to the window manager on press.
+    if (!isMaximized() &&
+        (event->type() == QEvent::MouseMove || event->type() == QEvent::MouseButtonPress)) {
+        auto *me = static_cast<QMouseEvent *>(event);
+        const Qt::Edges edges = edgesAt(rect(), me->pos());
+        if (event->type() == QEvent::MouseMove) {
+            if (me->buttons() == Qt::NoButton)
+                setCursor(cursorForEdges(edges));
+        } else if (edges != Qt::Edges() && me->button() == Qt::LeftButton) {
+            if (QWindow *handle = windowHandle()) {
+                handle->startSystemResize(edges);
+                return true;
+            }
+        }
+    }
+    return QMainWindow::event(event);
 }
 
 void MainWindow::bindShortcut(const QString &id, const QString &label,

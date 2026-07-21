@@ -23,6 +23,8 @@ add_library(ui STATIC
     TabManager.cpp
     TabBar.h
     TabBar.cpp
+    TitleBar.h
+    TitleBar.cpp
     theme/ThemeManager.h
     theme/ThemeManager.cpp
     i18n/TranslationManager.h

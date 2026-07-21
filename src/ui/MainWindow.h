@@ -26,6 +26,7 @@ class QSplitter;
 class QTreeView;
 class QFileSystemModel;
 class QMenu;
+class TitleBar;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -37,6 +38,10 @@ protected:
     void closeEvent(QCloseEvent *event) override;
     // Turns a click on the View-menu font-size label into a QInputDialog prompt.
     bool eventFilter(QObject *watched, QEvent *event) override;
+    // Keeps the title bar's maximize/restore glyph in sync with window state,
+    // and drives frameless edge-resize hit testing.
+    void changeEvent(QEvent *event) override;
+    bool event(QEvent *event) override;
 
 private slots:
     void setActivePanel(FilePanel *panel);
@@ -145,4 +150,6 @@ private:
     // File-list font-size control living in the View menu.
     QLabel *m_fontSizeLabel = nullptr;
     std::function<void(int)> m_applyListFontSize;
+
+    TitleBar *m_titleBar = nullptr; // self-drawn frameless title bar
 };
