@@ -4,6 +4,7 @@
 #include <QComboBox>
 #include <QFile>
 #include <QFileInfo>
+#include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QImageReader>
 #include <QLabel>
@@ -13,6 +14,7 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSet>
+#include <QSize>
 #include <QSizePolicy>
 #include <QSlider>
 #include <QStackedWidget>
@@ -211,6 +213,16 @@ QWidget *QuickView::buildVideoPage() {
 
     // Control bar: play/pause, speed, progress, volume (muted by default), info.
     m_playButton = new QPushButton(tr("Play"), m_videoPage);
+    // Pin a fixed width so toggling the label between "Play"/"Pause" (whose
+    // translations differ in width, e.g. 播放/暂停) doesn't resize the button and
+    // jitter the whole control row. Derive it from the metrics of both strings so
+    // any language fits, rather than hardcoding a language-specific pixel value.
+    {
+        const QFontMetrics fm = m_playButton->fontMetrics();
+        const int textWidth =
+            qMax(fm.horizontalAdvance(tr("Play")), fm.horizontalAdvance(tr("Pause")));
+        m_playButton->setFixedWidth(textWidth + 24); // + padding for button chrome
+    }
     connect(m_playButton, &QPushButton::clicked, this, [this]() {
         m_mpv->playPause();
         // Reflect the resulting state; playPause is async so query after a beat.
@@ -221,6 +233,11 @@ QWidget *QuickView::buildVideoPage() {
     });
 
     m_speedCombo = new QComboBox(m_videoPage);
+    // Drop the combo's outer frame so it reads as a flat control alongside the
+    // play button instead of drawing an extra boxed outline. Keep the drop-down
+    // sub-control (arrow) untouched so it stays a usable dropdown.
+    m_speedCombo->setStyleSheet(
+        "QComboBox { border: none; padding: 2px 4px; }");
     m_speedCombo->addItem(tr("1x"), 1.0);
     m_speedCombo->addItem(tr("1.5x"), 1.5);
     m_speedCombo->addItem(tr("2x"), 2.0);
@@ -246,6 +263,10 @@ QWidget *QuickView::buildVideoPage() {
     m_muteButton = new QPushButton(m_videoPage);
     m_muteButton->setCheckable(true);
     m_muteButton->setToolTip(tr("Mute / unmute"));
+    // Bump the icon size so the speaker glyph is proportionate to the button
+    // instead of a tiny centred dot. This applies to every icon set on the
+    // button (initial, toggle, and showFile), so it only needs setting once.
+    m_muteButton->setIconSize(QSize(18, 18));
     auto syncMuteIcon = [this]() {
         m_muteButton->setIcon(style()->standardIcon(
             m_muteButton->isChecked() ? QStyle::SP_MediaVolumeMuted : QStyle::SP_MediaVolume));
