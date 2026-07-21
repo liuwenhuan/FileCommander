@@ -1,7 +1,6 @@
 #include "OfficeConverter.h"
 
 #include <QDir>
-#include <QFile>
 #include <QFileInfo>
 #include <QProcess>
 #include <QProcessEnvironment>
@@ -33,9 +32,17 @@ struct ProcResult {
     QString stdErr;
 };
 
-ProcResult runOfficeOxide(const QString &binary, const QStringList &args, int timeoutMs) {
+ProcResult runOfficeOxide(const QString &binary, const QStringList &args, int timeoutMs,
+                          const QString &password) {
     ProcResult r;
     QProcess proc;
+    // Hand the password to office_oxide out-of-band (never on argv, where it would
+    // show up in the process list). Empty means "no password supplied".
+    if (!password.isEmpty()) {
+        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+        env.insert(QStringLiteral("OFFICE_OXIDE_PASSWORD"), password);
+        proc.setProcessEnvironment(env);
+    }
     proc.start(binary, args);
     if (!proc.waitForStarted(timeoutMs)) {
         r.stdErr = QStringLiteral("failed to start `%1`").arg(binary);
@@ -117,7 +124,22 @@ bool OfficeConverter::isAvailable() {
     return !resolveBinary().isEmpty();
 }
 
-OfficeConverter::Result OfficeConverter::convert(const QString &path) {
+namespace {
+// Maps office_oxide's encryption error strings (see its OfficeError Display impl)
+// onto our Encryption states. Returns None for any non-encryption failure.
+OfficeConverter::Encryption classifyEncryption(const QString &stderrText) {
+    if (stderrText.contains(QStringLiteral("incorrect password"), Qt::CaseInsensitive))
+        return OfficeConverter::Encryption::WrongPassword;
+    if (stderrText.contains(QStringLiteral("format not supported"), Qt::CaseInsensitive))
+        return OfficeConverter::Encryption::Unsupported;
+    if (stderrText.contains(QStringLiteral("document is encrypted"), Qt::CaseInsensitive) ||
+        stderrText.contains(QStringLiteral("encrypted"), Qt::CaseInsensitive))
+        return OfficeConverter::Encryption::NeedsPassword;
+    return OfficeConverter::Encryption::None;
+}
+} // namespace
+
+OfficeConverter::Result OfficeConverter::convert(const QString &path, const QString &password) {
     Result result;
     result.kind = kindFor(path);
     if (result.kind == Kind::None) {
@@ -126,13 +148,6 @@ OfficeConverter::Result OfficeConverter::convert(const QString &path) {
     }
     if (!QFileInfo::exists(path)) {
         result.error = QStringLiteral("File does not exist: %1").arg(path);
-        return result;
-    }
-    // Encrypted OOXML is an OLE2 wrapper (detectable up front); office_oxide can't
-    // decrypt, so report it before even launching the CLI.
-    if (isEncrypted(path)) {
-        result.encrypted = true;
-        result.error = QStringLiteral("The document is encrypted.");
         return result;
     }
 
@@ -145,113 +160,18 @@ OfficeConverter::Result OfficeConverter::convert(const QString &path) {
         return result;
     }
 
-    Result r =
-        (result.kind == Kind::Document) ? convertDocument(binary, path) : convertSpreadsheet(binary, path);
-    // Legacy .doc/.xls encryption is detected by office_oxide (fEncrypted), which
-    // surfaces as an "... encrypted" error; flag it so the UI shows the right note.
-    if (!r.ok && r.error.contains(QStringLiteral("encrypt"), Qt::CaseInsensitive))
-        r.encrypted = true;
+    Result r = (result.kind == Kind::Document) ? convertDocument(binary, path, password)
+                                               : convertSpreadsheet(binary, path, password);
+    // office_oxide reports encryption (OOXML wrappers and legacy .doc fEncrypted
+    // alike) through its exit error text; classify it so the UI can prompt for a
+    // password inline or report a wrong one.
+    if (!r.ok)
+        r.encryption = classifyEncryption(r.error);
     return r;
 }
 
-bool OfficeConverter::isEncrypted(const QString &path) {
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly))
-        return false;
-    const QByteArray head = f.read(8);
-    // OLE2 / Compound File Binary magic (encrypted OOXML is wrapped in one).
-    static const QByteArray kOle2 = QByteArray::fromHex(QByteArrayLiteral("d0cf11e0a1b11ae1"));
-    if (!head.startsWith(kOle2))
-        return false; // a zip-based OOXML or other file: not container-encrypted
-    // An OLE2 file with an OOXML extension is an encrypted package (a normal
-    // docx/xlsx/pptx is a zip). Legacy .doc/.xls/.ppt are OLE2 normally, so their
-    // encryption is left to office_oxide's fEncrypted detection.
-    const QString suffix = suffixLower(path);
-    return suffix == QLatin1String("docx") || suffix == QLatin1String("xlsx") ||
-           suffix == QLatin1String("pptx");
-}
-
-namespace {
-// Self-contained decryption helper (msoffcrypto). Handles OOXML (agile/standard)
-// and legacy .doc/.xls/.ppt. Includes a monkeypatch for an olefile bug that
-// crashes when rewriting a zero-length stream (e.g. an empty Data stream in a
-// .doc). Reads the password from $TTC_OFFICE_PASSWORD; in/out are argv 1/2.
-const char *kDecryptScript = R"PY(
-import sys, os, olefile
-_orig = olefile.OleFileIO._write_mini_stream
-def _patched(self, entry, data_to_write):
-    if getattr(entry, 'sect_chain', None) is None:
-        entry.sect_chain = []
-    return _orig(self, entry, data_to_write)
-olefile.OleFileIO._write_mini_stream = _patched
-import msoffcrypto
-try:
-    with open(sys.argv[1], 'rb') as f:
-        of = msoffcrypto.OfficeFile(f)
-        of.load_key(password=os.environ.get('TTC_OFFICE_PASSWORD', ''))
-        with open(sys.argv[2], 'wb') as o:
-            of.decrypt(o)
-except msoffcrypto.exceptions.InvalidKeyError:
-    sys.stderr.write('incorrect password'); sys.exit(2)
-except Exception as e:
-    sys.stderr.write(str(e)); sys.exit(1)
-)PY";
-} // namespace
-
-bool OfficeConverter::canDecrypt() {
-    const QString py = QStandardPaths::findExecutable(QStringLiteral("python3"));
-    if (py.isEmpty())
-        return false;
-    QProcess proc;
-    proc.start(py, {QStringLiteral("-c"), QStringLiteral("import msoffcrypto, olefile")});
-    if (!proc.waitForFinished(5000))
-        return false;
-    return proc.exitStatus() == QProcess::NormalExit && proc.exitCode() == 0;
-}
-
-OfficeConverter::DecryptStatus OfficeConverter::decrypt(const QString &inPath,
-                                                        const QString &password,
-                                                        const QString &outPath, QString *error) {
-    const QString py = QStandardPaths::findExecutable(QStringLiteral("python3"));
-    if (py.isEmpty()) {
-        if (error)
-            *error = QStringLiteral("python3 not found");
-        return DecryptStatus::Unavailable;
-    }
-    QProcess proc;
-    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-    env.insert(QStringLiteral("TTC_OFFICE_PASSWORD"), password); // never on the command line
-    proc.setProcessEnvironment(env);
-    proc.start(py, {QStringLiteral("-c"), QString::fromUtf8(kDecryptScript), inPath, outPath});
-    if (!proc.waitForStarted(kTimeoutMs)) {
-        if (error)
-            *error = QStringLiteral("failed to start python3");
-        return DecryptStatus::Unavailable;
-    }
-    if (!proc.waitForFinished(kTimeoutMs)) {
-        proc.kill();
-        proc.waitForFinished(2000);
-        if (error)
-            *error = QStringLiteral("decryption timed out");
-        return DecryptStatus::Failed;
-    }
-    const int code = proc.exitCode();
-    if (code == 0)
-        return DecryptStatus::Ok;
-    if (code == 2)
-        return DecryptStatus::WrongPassword;
-    if (error) {
-        const QString msg = QString::fromUtf8(proc.readAllStandardError()).trimmed();
-        // A missing module (import error) means the helper isn't usable at all.
-        if (msg.contains(QStringLiteral("ModuleNotFoundError")) ||
-            msg.contains(QStringLiteral("No module named")))
-            return DecryptStatus::Unavailable;
-        *error = msg.isEmpty() ? QStringLiteral("decryption failed") : msg;
-    }
-    return DecryptStatus::Failed;
-}
-
-OfficeConverter::Result OfficeConverter::convertDocument(const QString &binary, const QString &path) {
+OfficeConverter::Result OfficeConverter::convertDocument(const QString &binary, const QString &path,
+                                                         const QString &password) {
     Result result;
     result.kind = Kind::Document;
 
@@ -259,7 +179,7 @@ OfficeConverter::Result OfficeConverter::convertDocument(const QString &binary, 
     // (<h1>/<p>/<strong>/<table>), which QTextBrowser renders faithfully.
     // office_oxide emits empty `<img>` placeholders (it doesn't export image
     // bytes over the CLI).
-    const ProcResult run = runOfficeOxide(binary, {QStringLiteral("html"), path}, kTimeoutMs);
+    const ProcResult run = runOfficeOxide(binary, {QStringLiteral("html"), path}, kTimeoutMs, password);
     if (!run.started || run.timedOut) {
         result.error = run.stdErr;
         return result;
@@ -284,7 +204,8 @@ OfficeConverter::Result OfficeConverter::convertDocument(const QString &binary, 
     return result;
 }
 
-OfficeConverter::Result OfficeConverter::convertSpreadsheet(const QString &binary, const QString &path) {
+OfficeConverter::Result OfficeConverter::convertSpreadsheet(const QString &binary, const QString &path,
+                                                            const QString &password) {
     Result result;
     result.kind = Kind::Spreadsheet;
 
@@ -293,7 +214,7 @@ OfficeConverter::Result OfficeConverter::convertSpreadsheet(const QString &binar
     // separated by tabs, commas kept literal) which the viewer renders as a
     // grid. (`markdown` would give a titled table too, but TSV maps 1:1 to
     // cells without any table-syntax parsing.)
-    const ProcResult run = runOfficeOxide(binary, {QStringLiteral("text"), path}, kTimeoutMs);
+    const ProcResult run = runOfficeOxide(binary, {QStringLiteral("text"), path}, kTimeoutMs, password);
     if (!run.started || run.timedOut) {
         result.error = run.stdErr;
         return result;

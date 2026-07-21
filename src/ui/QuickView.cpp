@@ -12,8 +12,6 @@
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QImageReader>
-#include <QInputDialog>
-#include <QMessageBox>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMouseEvent>
@@ -29,7 +27,6 @@
 #include <QStyle>
 #include <QTableView>
 #include <QTableWidget>
-#include <QTemporaryDir>
 #include <QTextBrowser>
 #include <QTextCodec>
 #include <QTextCursor>
@@ -603,60 +600,112 @@ QWidget *QuickView::buildOfficeTablePage() {
 
 QWidget *QuickView::buildEncryptedPage() {
     m_encryptedPage = new QWidget(this);
-    auto *layout = new QVBoxLayout(m_encryptedPage);
-    layout->addStretch(1);
+    auto *outer = new QVBoxLayout(m_encryptedPage);
+    outer->addStretch(1);
+
+    // A narrow centered column: prompt, password field, unlock button, feedback.
+    auto *column = new QVBoxLayout;
+    column->setSpacing(10);
+
     m_encryptedLabel = new QLabel(m_encryptedPage);
     m_encryptedLabel->setAlignment(Qt::AlignCenter);
     m_encryptedLabel->setWordWrap(true);
-    layout->addWidget(m_encryptedLabel);
-    m_unlockButton = new QPushButton(tr("Unlock with password…"), m_encryptedPage);
-    m_unlockButton->setFixedWidth(200);
-    layout->addWidget(m_unlockButton, 0, Qt::AlignHCenter);
-    layout->addStretch(1);
-    connect(m_unlockButton, &QPushButton::clicked, this, &QuickView::promptAndDecrypt);
+    column->addWidget(m_encryptedLabel);
+
+    m_passwordEdit = new QLineEdit(m_encryptedPage);
+    m_passwordEdit->setEchoMode(QLineEdit::Password);
+    m_passwordEdit->setPlaceholderText(tr("Password"));
+    m_passwordEdit->setFixedWidth(240);
+    column->addWidget(m_passwordEdit, 0, Qt::AlignHCenter);
+
+    m_unlockButton = new QPushButton(tr("Unlock"), m_encryptedPage);
+    m_unlockButton->setFixedWidth(240);
+    column->addWidget(m_unlockButton, 0, Qt::AlignHCenter);
+
+    m_encryptedFeedback = new QLabel(m_encryptedPage);
+    m_encryptedFeedback->setAlignment(Qt::AlignCenter);
+    m_encryptedFeedback->setWordWrap(true);
+    m_encryptedFeedback->setStyleSheet(QStringLiteral("color: #d33;"));
+    column->addWidget(m_encryptedFeedback);
+
+    outer->addLayout(column);
+    outer->addStretch(1);
+
+    // Enter in the field or the button both attempt to unlock.
+    connect(m_unlockButton, &QPushButton::clicked, this, &QuickView::tryUnlock);
+    connect(m_passwordEdit, &QLineEdit::returnPressed, this, &QuickView::tryUnlock);
     return m_encryptedPage;
 }
 
-void QuickView::promptAndDecrypt() {
+void QuickView::tryUnlock() {
     if (m_encryptedPath.isEmpty())
         return;
-    bool ok = false;
-    const QString password = QInputDialog::getText(
-        this, tr("Password required"),
-        tr("Enter the password for “%1”:").arg(QFileInfo(m_encryptedPath).fileName()),
-        QLineEdit::Password, QString(), &ok);
-    if (!ok)
+    const QString password = m_passwordEdit->text();
+    if (password.isEmpty()) {
+        m_encryptedFeedback->setText(tr("Enter a password."));
         return;
+    }
+    // office_oxide decrypts in-process and renders directly; renderOffice() shows
+    // the document on success or refreshes this page's feedback on a wrong password.
+    renderOffice(m_encryptedPath, password);
+}
 
-    // Decrypt into a fresh temp dir (auto-removed with this view), keeping the
-    // original file name so the extension still drives the preview type.
-    m_decryptDir = std::make_unique<QTemporaryDir>();
-    if (!m_decryptDir->isValid()) {
-        QMessageBox::warning(this, tr("Decrypt"), tr("Could not create a temporary file."));
+void QuickView::renderOffice(const QString &path, const QString &password) {
+    const QFileInfo info(path);
+    const OfficeConverter::Result r = OfficeConverter::convert(path, password);
+
+    if (r.ok && r.kind == OfficeConverter::Kind::Document) {
+        // Fit large embedded images to the preview width. Use the stack's width
+        // (the actual pane width) rather than m_markdown's, which may still be
+        // stale until it's shown as the current page below.
+        const int avail = qMax(200, m_stack->width() - 32);
+        m_markdown->setHtml(fitImagesToWidth(r.html, avail));
+        m_stack->setCurrentWidget(m_markdown);
         return;
     }
-    const QString out = QDir(m_decryptDir->path()).filePath(QFileInfo(m_encryptedPath).fileName());
-    QString error;
-    const OfficeConverter::DecryptStatus st =
-        OfficeConverter::decrypt(m_encryptedPath, password, out, &error);
-    switch (st) {
-    case OfficeConverter::DecryptStatus::Ok:
-        showFile(out); // preview the decrypted copy
-        break;
-    case OfficeConverter::DecryptStatus::WrongPassword:
-        QMessageBox::warning(this, tr("Decrypt"), tr("Incorrect password."));
-        break;
-    case OfficeConverter::DecryptStatus::Unavailable:
-        QMessageBox::warning(
-            this, tr("Decrypt"),
-            tr("Decryption needs python3 with the msoffcrypto module:\n"
-               "pip install --user msoffcrypto-tool"));
-        break;
-    case OfficeConverter::DecryptStatus::Failed:
-        QMessageBox::warning(this, tr("Decrypt"),
-                             tr("Decryption failed: %1").arg(error));
+    if (r.ok && r.kind == OfficeConverter::Kind::Spreadsheet) {
+        populateCsvTable(r.tsv);
+        m_stack->setCurrentWidget(m_officeTable);
+        return;
+    }
+
+    switch (r.encryption) {
+    case OfficeConverter::Encryption::NeedsPassword:
+        // First encounter: show the inline field, cleared and focused.
+        m_encryptedPath = path;
+        m_encryptedLabel->setText(
+            tr("“%1” is encrypted. Enter the password to preview it:").arg(info.fileName()));
+        m_encryptedFeedback->clear();
+        m_passwordEdit->clear();
+        m_passwordEdit->show();
+        m_unlockButton->show();
+        m_stack->setCurrentWidget(m_encryptedPage);
+        m_passwordEdit->setFocus();
+        return;
+    case OfficeConverter::Encryption::WrongPassword:
+        // Stay on the page and report in place; let the user retype.
+        m_encryptedPath = path;
+        m_encryptedFeedback->setText(tr("Incorrect password. Try again."));
+        m_passwordEdit->selectAll();
+        m_passwordEdit->setFocus();
+        m_stack->setCurrentWidget(m_encryptedPage);
+        return;
+    case OfficeConverter::Encryption::Unsupported:
+        // No password can help (legacy .xls/.ppt): note it, hide the field.
+        m_encryptedPath.clear();
+        m_encryptedLabel->setText(
+            tr("“%1” is encrypted in a format that can't be previewed.").arg(info.fileName()));
+        m_encryptedFeedback->clear();
+        m_passwordEdit->hide();
+        m_unlockButton->hide();
+        m_stack->setCurrentWidget(m_encryptedPage);
+        return;
+    case OfficeConverter::Encryption::None:
         break;
     }
+
+    m_info->setText(tr("Cannot preview %1:\n%2").arg(info.fileName(), r.error));
+    m_stack->setCurrentWidget(m_info);
 }
 
 QWidget *QuickView::buildArchivePage() {
@@ -1001,34 +1050,7 @@ void QuickView::showFile(const QString &path) {
     // skipped only when the CLI isn't installed.
     if (OfficeConverter::isOfficeFile(path) && OfficeConverter::isAvailable()) {
         m_infoOverlay->hide();
-        const OfficeConverter::Result r = OfficeConverter::convert(path);
-        if (r.ok && r.kind == OfficeConverter::Kind::Document) {
-            // Fit large embedded images to the preview width. Use the stack's
-            // width (the actual pane width) rather than m_markdown's, which may
-            // still be stale until it's shown as the current page below.
-            const int avail = qMax(200, m_stack->width() - 32);
-            m_markdown->setHtml(fitImagesToWidth(r.html, avail));
-            m_stack->setCurrentWidget(m_markdown);
-            return;
-        }
-        if (r.ok && r.kind == OfficeConverter::Kind::Spreadsheet) {
-            populateCsvTable(r.tsv);
-            m_stack->setCurrentWidget(m_officeTable);
-            return;
-        }
-        if (r.encrypted) {
-            m_encryptedPath = path;
-            const bool canDec = OfficeConverter::canDecrypt();
-            m_encryptedLabel->setText(canDec
-                                          ? tr("“%1” is encrypted.").arg(info.fileName())
-                                          : tr("“%1” is encrypted and cannot be previewed.")
-                                                .arg(info.fileName()));
-            m_unlockButton->setVisible(canDec);
-            m_stack->setCurrentWidget(m_encryptedPage);
-            return;
-        }
-        m_info->setText(tr("Cannot preview %1:\n%2").arg(info.fileName(), r.error));
-        m_stack->setCurrentWidget(m_info);
+        renderOffice(path, QString()); // no password yet; prompts inline if needed
         return;
     }
 

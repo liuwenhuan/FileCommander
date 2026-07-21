@@ -21,7 +21,6 @@ class QStackedWidget;
 class QTableView;
 class QToolBar;
 class QTableWidget;
-class QTemporaryDir;
 class QTextBrowser;
 class QTimer;
 class ArchiveModel;
@@ -87,9 +86,15 @@ private:
     void navigateArchiveUp();
     void updateArchivePathLabel();
     void populateCsvTable(const QString &csv); // fill the office table from CSV text
-    // Prompts for a password and, on success, decrypts m_encryptedPath to a temp
-    // file and previews the decrypted result. Wired to the unlock button.
-    void promptAndDecrypt();
+    // Converts an office file (optionally with a password) and shows the result:
+    // the rendered document/grid, the inline password page (encrypted / wrong
+    // password / unsupported), or an error. Called with an empty password from
+    // showFile() and with the typed password from tryUnlock().
+    void renderOffice(const QString &path, const QString &password);
+    // Reads the inline password field and re-renders m_encryptedPath with it,
+    // giving feedback in place on a wrong password. Wired to the unlock button and
+    // the field's returnPressed.
+    void tryUnlock();
     // Adds width/height attributes to office HTML <img> tags whose natural width
     // exceeds maxWidth, so large embedded images fit the preview pane instead of
     // overflowing (QTextBrowser ignores CSS max-width).
@@ -139,13 +144,15 @@ private:
     // output. Word/PowerPoint documents reuse the markdown page above.
     QTableWidget *m_officeTable = nullptr;
 
-    // Encrypted-office page: a note plus an "unlock" button that prompts for the
-    // password and previews the decrypted copy.
+    // Encrypted-office page: an inline password field (no popup) with feedback
+    // shown in place. office_oxide decrypts in-process, so a correct password
+    // renders the document directly; a wrong one just updates the feedback label.
     QWidget *m_encryptedPage = nullptr;
-    QLabel *m_encryptedLabel = nullptr;
-    QPushButton *m_unlockButton = nullptr;
-    QString m_encryptedPath;                      // file awaiting a password
-    std::unique_ptr<QTemporaryDir> m_decryptDir;  // holds the decrypted temp file
+    QLabel *m_encryptedLabel = nullptr;       // "“file” is encrypted. Enter password:"
+    QLineEdit *m_passwordEdit = nullptr;      // inline password entry
+    QPushButton *m_unlockButton = nullptr;    // triggers tryUnlock()
+    QLabel *m_encryptedFeedback = nullptr;    // wrong-password / error note, in place
+    QString m_encryptedPath;                  // file awaiting a password
 
     // Archive page: a read-only listing of an archive's entries (a pure header
     // scan via ArchiveModel -- nothing is extracted). Activate-to-navigate like
