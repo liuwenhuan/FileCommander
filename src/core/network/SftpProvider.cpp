@@ -122,8 +122,29 @@ bool SftpProvider::connectToHost(const QString &host, int port, const QString &u
     }
 
     const QByteArray userUtf8 = user.toUtf8();
-    const QByteArray passUtf8 = password.toUtf8();
-    if (libssh2_userauth_password(session, userUtf8.constData(), passUtf8.constData()) != 0) {
+    bool authed = false;
+    // Password auth first when a password was supplied.
+    if (!password.isEmpty()) {
+        const QByteArray passUtf8 = password.toUtf8();
+        authed = libssh2_userauth_password(session, userUtf8.constData(),
+                                           passUtf8.constData()) == 0;
+    }
+    // Fall back to public-key auth from the usual ~/.ssh keys (also lets a
+    // password-less connection work when a key is set up).
+    if (!authed) {
+        const QByteArray home = qgetenv("HOME");
+        for (const char *keyName : {"id_ed25519", "id_rsa", "id_ecdsa"}) {
+            const QByteArray priv = home + "/.ssh/" + keyName;
+            const QByteArray pub = priv + ".pub";
+            if (libssh2_userauth_publickey_fromfile(session, userUtf8.constData(),
+                                                    pub.constData(), priv.constData(),
+                                                    nullptr) == 0) {
+                authed = true;
+                break;
+            }
+        }
+    }
+    if (!authed) {
         if (error)
             *error = sessionError(session, QStringLiteral("Authentication failed"));
         libssh2_session_disconnect(session, "auth failed");

@@ -3,6 +3,10 @@
 #include <QDialog>
 #include <QString>
 
+#include <memory>
+
+#include "FileProvider.h"
+
 class QComboBox;
 class QLineEdit;
 class QSpinBox;
@@ -31,6 +35,12 @@ public:
     // The URI that was mounted (useful for a later unmount). Empty on failure.
     QString mountedUri() const { return m_mountedUri; }
 
+    // For a native SFTP connection: the connected provider and the initial
+    // remote path to open. Null / empty for the gvfs-mounted protocols (in that
+    // case use mountedLocalPath()).
+    std::shared_ptr<FileProvider> remoteProvider() const { return m_remoteProvider; }
+    QString remotePath() const { return m_remotePath; }
+
     // Convenience: run the dialog modally and, on a successful mount, return the
     // local mount path. Returns an empty string if the user cancelled or the
     // mount failed. This is the recommended entry point for menu actions.
@@ -54,4 +64,6 @@ private:
 
     QString m_mountedLocalPath;
     QString m_mountedUri;
+    std::shared_ptr<FileProvider> m_remoteProvider; // set for native SFTP
+    QString m_remotePath;
 };

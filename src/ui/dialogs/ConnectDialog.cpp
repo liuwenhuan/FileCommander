@@ -1,6 +1,7 @@
 #include "ConnectDialog.h"
 
 #include "network/GvfsMounter.h"
+#include "network/SftpProvider.h"
 
 #include <QApplication>
 #include <QCheckBox>
@@ -120,6 +121,30 @@ void ConnectDialog::accept() {
     const bool anonymous = m_anonymousCheck->isChecked();
     const QString user = anonymous ? QString() : m_userEdit->text().trimmed();
     const QString password = anonymous ? QString() : m_passwordEdit->text();
+
+    // SFTP uses the native libssh2 backend (SftpProvider) rather than a gvfs
+    // mount: connect and, on success, hand the connected provider + initial
+    // path back to the caller, which swaps it into the panel's model.
+    if (protocol == GvfsMounter::Protocol::Sftp) {
+        auto provider = std::make_shared<SftpProvider>();
+        QString error;
+        setEnabled(false);
+        QApplication::setOverrideCursor(Qt::WaitCursor);
+        const bool ok =
+            provider->connectToHost(host, m_portSpin->value(), user, password, &error);
+        QApplication::restoreOverrideCursor();
+        setEnabled(true);
+        if (!ok) {
+            QMessageBox::critical(this, tr("Connection Failed"),
+                                  tr("Could not connect to %1.\n\n%2").arg(host, error));
+            return;
+        }
+        m_remoteProvider = provider;
+        const QString p = m_pathEdit->text().trimmed();
+        m_remotePath = p.isEmpty() ? QStringLiteral("/") : p;
+        QDialog::accept();
+        return;
+    }
 
     const QString uri = GvfsMounter::buildUri(protocol, host, m_portSpin->value(),
                                               user, m_pathEdit->text());

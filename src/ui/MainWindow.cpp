@@ -406,9 +406,17 @@ void MainWindow::setupMenuAndToolbar() {
     commandsMenu->addSeparator();
     // Network (GVfs): connect to a server, or browse the network neighborhood.
     commandsMenu->addAction(tr("Connect to &Server..."), this, [this] {
-        const QString local = ConnectDialog::runAndMount(this);
-        if (!local.isEmpty() && m_activePanel)
-            m_activePanel->navigateTo(local);
+        ConnectDialog dlg(this);
+        if (dlg.exec() != QDialog::Accepted || !m_activePanel)
+            return;
+        if (auto provider = dlg.remoteProvider()) {
+            // Native SFTP: swap the connected provider into the panel's model.
+            m_activePanel->model()->setProvider(provider);
+            m_activePanel->navigateTo(dlg.remotePath());
+        } else if (!dlg.mountedLocalPath().isEmpty()) {
+            // gvfs-mounted protocols look like a local directory.
+            m_activePanel->navigateTo(dlg.mountedLocalPath());
+        }
     });
     commandsMenu->addAction(tr("&Network Neighborhood"), this, [this] {
         if (m_activePanel)

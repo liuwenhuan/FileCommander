@@ -5,6 +5,8 @@
 #include <QHash>
 #include <QVector>
 
+#include <memory>
+
 #include "FileInfo.h"
 
 class FileProvider;
@@ -46,8 +48,8 @@ public:
 
     // The backend this model reads through. Defaults to the local filesystem;
     // MainWindow/FilePanel swap in a remote provider when navigating there.
-    void setProvider(FileProvider *provider);
-    FileProvider *provider() const { return m_provider; }
+    void setProvider(std::shared_ptr<FileProvider> provider);
+    FileProvider *provider() const { return m_provider.get(); }
     bool showHiddenFiles() const { return m_showHidden; }
     void setShowHiddenFiles(bool show);
 
@@ -99,7 +101,7 @@ private:
     void sortEntries();
     void applyFilter();
 
-    FileProvider *m_provider; // backend (local by default); never null
+    std::shared_ptr<FileProvider> m_provider; // backend (local by default); never null
     QString m_rootPath;
     bool m_showHidden = false;
     QVector<FileInfo> m_allEntries; // full directory scan (source of truth)

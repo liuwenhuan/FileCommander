@@ -31,14 +31,22 @@ QString humanSize(qint64 bytes) {
 
 } // namespace
 
+namespace {
+// The local provider is a process-wide singleton; wrap it in a shared_ptr with
+// a no-op deleter so the model can hold every provider uniformly by shared_ptr.
+std::shared_ptr<FileProvider> localProviderPtr() {
+    return std::shared_ptr<FileProvider>(LocalFileProvider::instance(), [](FileProvider *) {});
+}
+} // namespace
+
 FileSystemModel::FileSystemModel(QObject *parent) : QAbstractTableModel(parent) {
-    m_provider = LocalFileProvider::instance();
+    m_provider = localProviderPtr();
     connect(&m_watcher, &QFutureWatcher<QVector<FileInfo>>::finished, this,
             &FileSystemModel::onScanFinished);
 }
 
-void FileSystemModel::setProvider(FileProvider *provider) {
-    m_provider = provider ? provider : LocalFileProvider::instance();
+void FileSystemModel::setProvider(std::shared_ptr<FileProvider> provider) {
+    m_provider = provider ? std::move(provider) : localProviderPtr();
 }
 
 void FileSystemModel::setRootPath(const QString &path) {
@@ -47,7 +55,9 @@ void FileSystemModel::setRootPath(const QString &path) {
     m_dirSizes.clear();       // computed folder sizes don't survive a rescan
     m_compareStatus.clear();  // comparison highlights are stale after a rescan
     emit loadStarted();
-    FileProvider *provider = m_provider;
+    // Capture a shared_ptr copy so the provider outlives this worker-thread scan
+    // even if the model switches to another provider meanwhile.
+    std::shared_ptr<FileProvider> provider = m_provider;
     const bool showHidden = m_showHidden;
     QFuture<QVector<FileInfo>> future =
         QtConcurrent::run([provider, path, showHidden] { return provider->list(path, showHidden); });
