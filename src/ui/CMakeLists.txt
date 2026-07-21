@@ -47,6 +47,8 @@ add_library(ui STATIC
     dialogs/ConnectDialog.cpp
     dialogs/ChecksumDialog.h
     dialogs/ChecksumDialog.cpp
+    dialogs/TransferProgressDialog.h
+    dialogs/TransferProgressDialog.cpp
 )
 
 # zlib provides crc32() for the checksum dialog. It is already pulled in

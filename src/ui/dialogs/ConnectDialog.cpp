@@ -1,5 +1,7 @@
 #include "ConnectDialog.h"
 
+#include "network/CurlFtpProvider.h"
+#include "network/CurlWebDavProvider.h"
 #include "network/GvfsMounter.h"
 #include "network/SftpProvider.h"
 
@@ -273,6 +275,55 @@ void ConnectDialog::accept() {
         QApplication::setOverrideCursor(Qt::WaitCursor);
         const bool ok =
             provider->connectToHost(host, m_portSpin->value(), user, password, &error);
+        QApplication::restoreOverrideCursor();
+        setEnabled(true);
+        if (!ok) {
+            QMessageBox::critical(this, tr("Connection Failed"),
+                                  tr("Could not connect to %1.\n\n%2").arg(host, error));
+            return;
+        }
+        m_remoteProvider = provider;
+        const QString p = m_pathEdit->text().trimmed();
+        m_remotePath = p.isEmpty() ? QStringLiteral("/") : p;
+        QDialog::accept();
+        return;
+    }
+
+    // FTP uses the native libcurl backend (CurlFtpProvider) rather than a gvfs
+    // mount, mirroring the SFTP branch above: connect and, on success, hand
+    // the connected provider + initial path back to the caller.
+    if (protocol == GvfsMounter::Protocol::Ftp) {
+        auto provider = std::make_shared<CurlFtpProvider>();
+        QString error;
+        setEnabled(false);
+        QApplication::setOverrideCursor(Qt::WaitCursor);
+        const bool ok =
+            provider->connectToHost(host, m_portSpin->value(), user, password, &error);
+        QApplication::restoreOverrideCursor();
+        setEnabled(true);
+        if (!ok) {
+            QMessageBox::critical(this, tr("Connection Failed"),
+                                  tr("Could not connect to %1.\n\n%2").arg(host, error));
+            return;
+        }
+        m_remoteProvider = provider;
+        const QString p = m_pathEdit->text().trimmed();
+        m_remotePath = p.isEmpty() ? QStringLiteral("/") : p;
+        QDialog::accept();
+        return;
+    }
+
+    // WebDAV (HTTP/HTTPS) likewise uses the native libcurl backend
+    // (CurlWebDavProvider), same mechanism as SFTP/FTP above.
+    if (protocol == GvfsMounter::Protocol::WebDav ||
+        protocol == GvfsMounter::Protocol::WebDavs) {
+        const bool useHttps = protocol == GvfsMounter::Protocol::WebDavs;
+        auto provider = std::make_shared<CurlWebDavProvider>();
+        QString error;
+        setEnabled(false);
+        QApplication::setOverrideCursor(Qt::WaitCursor);
+        const bool ok = provider->connectToHost(host, m_portSpin->value(), user, password,
+                                                useHttps, &error);
         QApplication::restoreOverrideCursor();
         setEnabled(true);
         if (!ok) {

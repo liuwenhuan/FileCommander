@@ -195,3 +195,11 @@ void Settings::removeFavoriteDirectory(const QString &path) {
     if (favorites.removeAll(path) > 0)
         m_settings.setValue("favorites/directories", favorites);
 }
+
+int Settings::maxConcurrentTransfers() const {
+    return qBound(1, m_settings.value("network/maxConcurrentTransfers", 2).toInt(), 8);
+}
+
+void Settings::setMaxConcurrentTransfers(int count) {
+    m_settings.setValue("network/maxConcurrentTransfers", qBound(1, count, 8));
+}
