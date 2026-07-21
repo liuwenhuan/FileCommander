@@ -32,6 +32,22 @@ public:
     explicit PlainHeaderView(QWidget *parent = nullptr) : QHeaderView(Qt::Horizontal, parent) {}
 
 protected:
+    void mousePressEvent(QMouseEvent *e) override {
+        m_pressIndex = logicalIndexAt(e->pos().x());
+        m_pressPos = e->pos();
+        QHeaderView::mousePressEvent(e);
+    }
+    void mouseReleaseEvent(QMouseEvent *e) override {
+        QHeaderView::mouseReleaseEvent(e);
+        // The DTK style doesn't emit sectionClicked, so trigger the sort here on
+        // a genuine click: same section, negligible drag (not a resize/reorder).
+        if (e->button() == Qt::LeftButton && m_pressIndex >= 0 &&
+            logicalIndexAt(e->pos().x()) == m_pressIndex &&
+            (e->pos() - m_pressPos).manhattanLength() < 4) {
+            if (auto *view = qobject_cast<FileListView *>(parentWidget()))
+                view->sortByHeaderSection(m_pressIndex);
+        }
+    }
     void paintSection(QPainter *painter, const QRect &rect, int logicalIndex) const override {
         if (!rect.isValid() || !model())
             return;
@@ -69,6 +85,10 @@ protected:
         }
         painter->restore();
     }
+
+private:
+    int m_pressIndex = -1;
+    QPoint m_pressPos;
 };
 } // namespace
 
@@ -130,7 +150,34 @@ void FileListView::setModel(QAbstractItemModel *model) {
         header->setSectionHidden(FileSystemModel::PermissionsColumn, true);
 
         stretchColumnsToFit();
+
+        // Re-arm click-to-sort after the model is set. setSortingEnabled(true)
+        // alone left the header's sectionsClickable off (the replaced
+        // PlainHeaderView / DTK style doesn't get it from setSortingEnabled), so
+        // header clicks never reached FileSystemModel::sort(); set it explicitly.
+        // Drive sorting from the header's own sectionClicked signal instead of
+        // QTableView's internal sortIndicatorChanged wiring, which the DTK style
+        // / replaced PlainHeaderView leaves disconnected (header clicks never
+        // reached the model). Keep the indicator shown and sections clickable.
+        // The header drives sorting itself (see PlainHeaderView::mouseRelease),
+        // since the DTK style never emits sectionClicked. Disable QTableView's
+        // own sort wiring to avoid double handling; keep the indicator shown.
+        setSortingEnabled(false);
+        horizontalHeader()->setSortIndicatorShown(true);
+        horizontalHeader()->setSectionsClickable(true);
     }
+}
+
+void FileListView::sortByHeaderSection(int column) {
+    QHeaderView *header = horizontalHeader();
+    // Toggle direction when re-clicking the current sort column.
+    Qt::SortOrder order = Qt::AscendingOrder;
+    if (header->sortIndicatorSection() == column &&
+        header->sortIndicatorOrder() == Qt::AscendingOrder)
+        order = Qt::DescendingOrder;
+    header->setSortIndicator(column, order);
+    if (model())
+        model()->sort(column, order);
 }
 
 void FileListView::showColumnMenu(const QPoint &pos) {

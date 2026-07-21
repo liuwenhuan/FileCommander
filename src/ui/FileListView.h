@@ -33,6 +33,10 @@ public:
     // inactive panel, so the active panel's cursor row stands out.
     void setPanelActive(bool active);
 
+    // Sorts by a header column (toggles direction on re-click). Called by the
+    // header view on a section click, since the DTK style swallows sectionClicked.
+    void sortByHeaderSection(int column);
+
 signals:
     // kind is decided from live modifier keys at drop time (not drag
     // start): in-panel default=Move, Ctrl=Copy, Shift=Link; cross-panel
