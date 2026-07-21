@@ -393,6 +393,12 @@ QWidget *QuickView::buildMarkdownPage() {
     // Open links in the user's browser rather than trying to navigate in-panel.
     m_markdown = new QTextBrowser(this);
     m_markdown->setOpenExternalLinks(true);
+    // office_oxide (and Markdown) tables carry no cell borders; QTextDocument
+    // draws none by default. A default stylesheet gives every table cell a thin
+    // border so Word/Excel/Markdown tables are legible as grids.
+    m_markdown->document()->setDefaultStyleSheet(
+        QStringLiteral("table { border-collapse: collapse; } "
+                       "td, th { border: 1px solid #808080; padding: 2px 6px; }"));
     return m_markdown;
 }
 
