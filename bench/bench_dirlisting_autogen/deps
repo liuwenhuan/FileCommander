@@ -1,4 +1,0 @@
-bench_dirlisting_autogen/timestamp: \
-	/home/deepin/codework/ttc/bench/CMakeLists.txt \
-	/home/deepin/codework/ttc/bench/bench_dirlisting.cpp \
-	/usr/bin/cmake

@@ -1,4 +1,30 @@
+# Build directories
 build/
+
+# In-source CMake build artifacts (a stray `cmake .` at the repo root)
+/CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+Makefile
+DartConfiguration.tcl
+compile_commands.json
+_deps/
+
+# Qt meta-object / resource / uic output
+*_autogen/
+
+# FetchContent'd GoogleTest
+/googletest-src/
+/googletest-build/
+
+# Compiled objects / archives / the built binary
 *.o
 *.a
+/ttc
+
+# Editor / tooling
 .claude/
+
+# CTest output
+Testing/

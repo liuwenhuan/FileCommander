@@ -1,4 +1,0 @@
-core_tests 15 0.00743229
-ui_tests 15 0.000743989
-archive_tests 15 0.00129924
----

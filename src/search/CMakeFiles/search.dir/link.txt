@@ -1,2 +1,0 @@
-/usr/bin/ar qc libsearch.a CMakeFiles/search.dir/search_autogen/mocs_compilation.cpp.o CMakeFiles/search.dir/SearchEngine.cpp.o CMakeFiles/search.dir/SearchDialog.cpp.o
-/usr/bin/ranlib libsearch.a
