@@ -11,6 +11,7 @@
 #include <QGraphicsPixmapItem>
 #include <QGraphicsRectItem>
 #include <QGraphicsTextItem>
+#include <QHash>
 #include <QImage>
 #include <QLineF>
 #include <QPainterPath>
@@ -25,6 +26,8 @@
 #include <QTextOption>
 #include <QVector>
 #include <QXmlStreamReader>
+
+#include <algorithm>
 
 namespace SlideScene {
 namespace {
@@ -336,8 +339,19 @@ void addImage(const QXmlStreamAttributes &attrs, QGraphicsItem *page) {
 // by its top-left, so top = baseline - ascent and the anchor shifts x by the
 // measured text width. Returns the item's text (appended by the caller to the
 // slide's plain-text accumulation).
+//
+// One text item created per <text> (a source paragraph). Its data-box id (shared
+// by paragraphs in the same PowerPoint text box) and the item are recorded in
+// `entries` so buildSlidePage can reflow same-box paragraphs afterwards -- a
+// paragraph that word-wraps taller must push the following same-box paragraphs
+// down instead of overlapping them.
+struct TextEntry {
+    int box;                 // data-box id (-1 == none; excluded from reflow)
+    QGraphicsTextItem *item;
+};
+
 void addText(const QXmlStreamAttributes &attrs, const QString &text, QGraphicsItem *page,
-             QString *outText) {
+             QString *outText, QVector<TextEntry> *entries) {
     if (text.trimmed().isEmpty())
         return;
     const double x = attrNum(attrs, "x") * S;
@@ -413,6 +427,48 @@ void addText(const QXmlStreamAttributes &attrs, const QString &text, QGraphicsIt
             outText->append('\n');
         outText->append(text);
     }
+
+    if (entries) {
+        bool hasBox = false;
+        const int box = attrs.value(QLatin1String("data-box")).toInt(&hasBox);
+        entries->push_back({hasBox ? box : -1, item});
+    }
+}
+
+// Push same-box paragraphs down so a word-wrapped (taller) paragraph never
+// overlaps the next paragraph in the same PowerPoint text box. oxide positions
+// each paragraph's baseline assuming it does not wrap, so wrapping steals vertical
+// space from whatever follows in the box. For each data-box group (in original
+// top order) we track how much each paragraph overran the gap oxide reserved for
+// it and shift every later paragraph down by that cumulative overflow -- so a box
+// with no wrapping is left exactly as authored, and one with wrapping expands only
+// as much as the wrap required. Different boxes are independent.
+void reflowTextBoxes(const QVector<TextEntry> &entries) {
+    QHash<int, QVector<QGraphicsTextItem *>> groups;
+    for (const TextEntry &e : entries) {
+        if (e.box >= 0)
+            groups[e.box].push_back(e.item);
+    }
+    for (auto it = groups.begin(); it != groups.end(); ++it) {
+        QVector<QGraphicsTextItem *> &items = it.value();
+        if (items.size() < 2)
+            continue;
+        std::sort(items.begin(), items.end(),
+                  [](QGraphicsTextItem *a, QGraphicsTextItem *b) { return a->y() < b->y(); });
+        // Capture the authored tops before moving anything.
+        QVector<double> origTop;
+        origTop.reserve(items.size());
+        for (QGraphicsTextItem *it2 : items)
+            origTop.push_back(it2->y());
+
+        double shift = 0.0;
+        for (int i = 1; i < items.size(); ++i) {
+            const double reserved = origTop[i] - origTop[i - 1]; // space oxide gave prev
+            const double actual = items[i - 1]->boundingRect().height();
+            shift += qMax(0.0, actual - reserved); // only when prev overran its slot
+            items[i]->setY(origTop[i] + shift);
+        }
+    }
 }
 
 } // namespace
@@ -424,6 +480,7 @@ QGraphicsItem *buildSlidePage(const QByteArray &svg, QSizeF *outSizeScene, QStri
     // other element is parented to it (its local space is the slide's EMU/100).
     QGraphicsRectItem *page = nullptr;
     QSizeF sizeScene(960 * S, 540 * S);
+    QVector<TextEntry> textEntries; // for post-parse same-box paragraph reflow
 
     while (!xml.atEnd()) {
         const auto tok = xml.readNext();
@@ -476,7 +533,7 @@ QGraphicsItem *buildSlidePage(const QByteArray &svg, QSizeF *outSizeScene, QStri
         else if (name == QLatin1String("image"))
             addImage(attrs, page);
         else if (name == QLatin1String("text"))
-            addText(attrs, xml.readElementText(), page, outText);
+            addText(attrs, xml.readElementText(), page, outText, &textEntries);
         // Unknown elements: ignored (graceful degradation).
     }
 
@@ -484,6 +541,9 @@ QGraphicsItem *buildSlidePage(const QByteArray &svg, QSizeF *outSizeScene, QStri
         // Structurally broken SVG with no usable page: let the caller degrade.
         return nullptr;
     }
+    // Now that every paragraph's wrapped height is known, cascade same-box
+    // paragraphs downward so wrapping never overlaps the next paragraph.
+    reflowTextBoxes(textEntries);
     if (outSizeScene)
         *outSizeScene = sizeScene;
     return page;
