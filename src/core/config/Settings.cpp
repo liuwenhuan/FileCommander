@@ -129,6 +129,14 @@ void Settings::setShowCommandBar(bool show) {
     m_settings.setValue("view/showCommandBar", show);
 }
 
+bool Settings::archiveAsFolder() const {
+    return m_settings.value("view/archiveAsFolder", true).toBool();
+}
+
+void Settings::setArchiveAsFolder(bool on) {
+    m_settings.setValue("view/archiveAsFolder", on);
+}
+
 bool Settings::showFunctionKeyBar() const {
     return m_settings.value("view/showFunctionKeyBar", true).toBool();
 }

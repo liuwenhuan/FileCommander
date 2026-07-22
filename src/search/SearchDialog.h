@@ -28,6 +28,9 @@ signals:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    // Put keyboard focus on the name-pattern field (not the directory field)
+    // whenever the dialog is shown, so the user can type a filename immediately.
+    void showEvent(QShowEvent *event) override;
 
 private slots:
     void startSearch();

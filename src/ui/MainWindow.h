@@ -20,6 +20,7 @@ class QTimer;
 class FilePanel;
 class FunctionKeyBar;
 class CommandBar;
+class CommandOutputDialog;
 class QuickView;
 class OperationQueue;
 class TransferProgressDialog;
@@ -167,6 +168,7 @@ private:
     FilePanel *m_activePanel = nullptr;
     FunctionKeyBar *m_functionKeyBar;
     CommandBar *m_commandBar;
+    CommandOutputDialog *m_commandOutput = nullptr; // lazily created on first command
     OperationQueue *m_queue;
     TransferProgressDialog *m_progressDialog;
     QStringList m_operationErrors; // accumulated per-file errors for the running job

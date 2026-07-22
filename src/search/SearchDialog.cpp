@@ -2,6 +2,7 @@
 
 #include <QCheckBox>
 #include <QCloseEvent>
+#include <QShowEvent>
 #include <QFormLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -94,6 +95,15 @@ void SearchDialog::feedToPanel() {
         paths.append(m_resultsList->item(i)->text());
     if (!paths.isEmpty())
         emit feedToPanelRequested(paths);
+}
+
+void SearchDialog::showEvent(QShowEvent *event) {
+    QDialog::showEvent(event);
+    // The name pattern is what the user almost always edits first; the directory
+    // is prefilled from the active panel. Focus + select the pattern so typing
+    // replaces the "*" placeholder straight away.
+    m_patternEdit->setFocus();
+    m_patternEdit->selectAll();
 }
 
 void SearchDialog::closeEvent(QCloseEvent *event) {

@@ -5,7 +5,9 @@
 #include <QPixmap>
 #include <QPoint>
 #include <QPointer>
+#include <QSizeF>
 #include <QStringList>
+#include <QVector>
 #include <QWidget>
 
 #include <memory>
@@ -126,8 +128,12 @@ private:
     // exceeds maxWidth, so large embedded images fit the preview pane instead of
     // overflowing (QTextBrowser ignores CSS max-width).
     QString fitImagesToWidth(const QString &html, int maxWidth) const;
-    void renderPdfPage(); // (re)render the current PDF page at the current zoom
-    void closePdf();      // release any loaded document + reset PDF UI state
+    // Continuous PDF preview: all pages stack vertically in one scroll area,
+    // fit-to-width by default and rendered lazily (only pages near the viewport).
+    void loadPdfPages();          // build one placeholder label per page of m_pdfDoc
+    void relayoutPdfPages();      // recompute every label's fitted size, force re-render
+    void renderVisiblePdfPages(); // render pixmaps for on-screen pages, free far ones
+    void closePdf();              // release any loaded document + reset PDF UI state
     void applyImageScale();
     void zoomImageBy(double factor);
     // Rotates the shown image by +/-90 degrees, then persists it losslessly back
@@ -222,15 +228,20 @@ private:
     QHash<QString, CachedArchive> m_archiveCache;
     QStringList m_archiveCacheOrder;                    // FIFO eviction order
 
-    // PDF page (m_stack index 5): a single rendered page in a scroll area with
-    // prev/next + zoom controls. Poppler renders each page to a QImage on demand.
+    // PDF page (m_stack index 5): every page stacks vertically in one scroll area
+    // and the whole document scrolls continuously. Pages fit the viewport width by
+    // default; Zoom In/Out multiply that fit. Pixmaps are rendered lazily (only
+    // pages near the viewport) so a 500-page PDF opens without hitching.
     QWidget *m_pdfPage = nullptr;
     QScrollArea *m_pdfScroll = nullptr;
-    QLabel *m_pdfLabel = nullptr;
-    QLabel *m_pdfPageInfo = nullptr;           // "page N / M"
+    QWidget *m_pdfContainer = nullptr;           // scroll widget: a QVBoxLayout of page labels
+    QLabel *m_pdfPageInfo = nullptr;             // "page N / M" per scroll position
+    QVector<QLabel *> m_pdfPageLabels;           // one placeholder/label per page
+    QVector<QSizeF> m_pdfPageSizes;              // native page sizes in points (== px @ 72 dpi)
+    QVector<int> m_pdfRenderedWidth;             // px width each label was rendered at (-1 == placeholder)
+    QTimer *m_pdfRelayoutTimer = nullptr;        // debounce viewport resizes before re-fitting
     std::unique_ptr<Poppler::Document> m_pdfDoc; // currently loaded document
-    int m_pdfPageIndex = 0;                    // 0-based page currently shown
-    double m_pdfZoom = 1.0;                     // render scale; 1.0 == 72 dpi
+    double m_pdfZoom = 1.0;                       // user zoom multiplier on top of fit-to-width; 1.0 == fit
 
     // Video page (m_stack index 3).
     QString m_videoPath;            // path of the clip currently loaded (de-dup re-selects)

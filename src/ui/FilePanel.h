@@ -108,6 +108,10 @@ public:
     bool isThumbnailMode() const;
     void toggleViewMode();
 
+    // When false, archives open as plain files instead of being browsed in place
+    // as folders. Set from the "archive as folder" config preference.
+    void setArchiveAsFolder(bool on) { m_archiveAsFolder = on; }
+
     // Re-applies translated text (the status-bar object/selection counts) after a
     // live UI-language change.
     void retranslate() { updateStatus(); }
@@ -133,7 +137,21 @@ private slots:
     void onTabBarCurrentChanged(int index);
 
 private:
-    void pushHistory(const QString &fromPath);
+    // A single back/forward history location: either a real directory, or a flat
+    // "virtual directory" of arbitrary paths (Ctrl+F search results fed to the
+    // panel). Modelling flat listings as history entries lets Back/Forward return
+    // to a search result set within the session, not just to real directories.
+    struct NavEntry {
+        bool flat = false;      // true => flatPaths is the listing; false => dir
+        QString dir;            // directory path (when !flat)
+        QStringList flatPaths;  // flat listing entries (when flat)
+        bool isValid() const { return flat ? !flatPaths.isEmpty() : !dir.isEmpty(); }
+    };
+    // Snapshots what the view currently shows, for pushing onto a history stack.
+    NavEntry currentLocation() const;
+    // Restores a history entry into the view (dir scan or flat listing).
+    void applyHistoryEntry(const NavEntry &entry);
+    void pushHistory(const NavEntry &entry);
     void updateStatus();
     void updateNavButtons();
     QString tabLabelFor(const QSharedPointer<TabState> &tab) const;
@@ -168,8 +186,8 @@ private:
     FileListView *m_view;
     StatusBarWidget *m_statusBar;
     FileSystemModel *m_model;
-    QStringList m_backHistory;
-    QStringList m_forwardHistory;
+    QVector<NavEntry> m_backHistory;
+    QVector<NavEntry> m_forwardHistory;
 
     TabManager *m_tabManager;
     TabBar *m_tabBar;
@@ -182,4 +200,12 @@ private:
     // used as the tab label in place of the "/" virtual root. Empty when not in
     // an archive.
     QString m_archiveName;
+
+    // Whether archives open as browsable folders (config preference). Default on.
+    bool m_archiveAsFolder = true;
+
+    // The flat search-result set currently displayed (empty when not in flat
+    // mode); mirrors the model's flat entries so currentLocation() can snapshot
+    // it -- the model clears its rootPath in flat mode so we can't recover it there.
+    QStringList m_flatPaths;
 };

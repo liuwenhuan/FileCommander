@@ -1120,52 +1120,72 @@ void QuickView::populateCsvTable(const QString &tsv) {
     m_officeTable->resizeColumnsToContents();
 }
 
+namespace {
+// Horizontal breathing room subtracted from the viewport before fitting pages to
+// width, on top of the scrollbar extent, so a page never overflows into a
+// horizontal scrollbar. Also the vertical margin (in viewport heights) of pages
+// kept rendered above/below the visible window.
+constexpr int kPdfSideMargin = 12;
+} // namespace
+
 QWidget *QuickView::buildPdfPage() {
     m_pdfPage = new QWidget(this);
 
-    // A toolbar mirroring the image page: page navigation on the left, zoom on
-    // the right, with the "page N / M" label between them.
+    // A slim toolbar: just zoom (fit-to-width is the implicit default), with the
+    // "page N / M" readout — driven by scroll position, not a current-page index.
     auto *toolbar = new QToolBar(m_pdfPage);
-    toolbar->addAction(tr("Prev"), this, [this]() {
-        if (m_pdfDoc && m_pdfPageIndex > 0) {
-            --m_pdfPageIndex;
-            renderPdfPage();
-        }
-    });
-    toolbar->addAction(tr("Next"), this, [this]() {
-        if (m_pdfDoc && m_pdfPageIndex + 1 < m_pdfDoc->numPages()) {
-            ++m_pdfPageIndex;
-            renderPdfPage();
-        }
-    });
-
-    m_pdfPageInfo = new QLabel(m_pdfPage);
-    m_pdfPageInfo->setContentsMargins(8, 0, 8, 0);
-    toolbar->addWidget(m_pdfPageInfo);
-
-    auto *spacer = new QWidget(toolbar);
-    spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    toolbar->addWidget(spacer);
-
     toolbar->addAction(tr("Zoom In"), this, [this]() {
         if (!m_pdfDoc)
             return;
         m_pdfZoom = qBound(kPdfMinZoom, m_pdfZoom * kZoomStep, kPdfMaxZoom);
-        renderPdfPage();
+        relayoutPdfPages();
+        renderVisiblePdfPages();
     });
     toolbar->addAction(tr("Zoom Out"), this, [this]() {
         if (!m_pdfDoc)
             return;
         m_pdfZoom = qBound(kPdfMinZoom, m_pdfZoom / kZoomStep, kPdfMaxZoom);
-        renderPdfPage();
+        relayoutPdfPages();
+        renderVisiblePdfPages();
     });
 
-    m_pdfLabel = new QLabel(m_pdfPage);
-    m_pdfLabel->setAlignment(Qt::AlignCenter);
+    auto *spacer = new QWidget(toolbar);
+    spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    toolbar->addWidget(spacer);
+
+    m_pdfPageInfo = new QLabel(m_pdfPage);
+    m_pdfPageInfo->setContentsMargins(8, 0, 8, 0);
+    toolbar->addWidget(m_pdfPageInfo);
+
+    // One container widget holds a top-aligned column of per-page labels; the
+    // scroll area does not resize it (we size labels ourselves to control fit).
+    m_pdfContainer = new QWidget;
+    auto *pagesLayout = new QVBoxLayout(m_pdfContainer);
+    pagesLayout->setContentsMargins(4, 4, 4, 4);
+    pagesLayout->setSpacing(8);
+    pagesLayout->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
+
     m_pdfScroll = new QScrollArea(m_pdfPage);
-    m_pdfScroll->setWidget(m_pdfLabel);
+    m_pdfScroll->setWidget(m_pdfContainer);
     m_pdfScroll->setWidgetResizable(false);
-    m_pdfScroll->setAlignment(Qt::AlignCenter);
+    m_pdfScroll->setAlignment(Qt::AlignHCenter);
+    // Resizing the pane re-fits every page to the new width; debounce so a divider
+    // drag re-fits once at the end rather than on every intermediate width.
+    m_pdfScroll->viewport()->installEventFilter(this);
+
+    m_pdfRelayoutTimer = new QTimer(this);
+    m_pdfRelayoutTimer->setSingleShot(true);
+    m_pdfRelayoutTimer->setInterval(80);
+    connect(m_pdfRelayoutTimer, &QTimer::timeout, this, [this]() {
+        if (!m_pdfDoc)
+            return;
+        relayoutPdfPages();
+        renderVisiblePdfPages();
+    });
+
+    // Scrolling reveals new pages (render them) and updates the page readout.
+    connect(m_pdfScroll->verticalScrollBar(), &QScrollBar::valueChanged, this,
+            [this]() { renderVisiblePdfPages(); });
 
     auto *layout = new QVBoxLayout(m_pdfPage);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -1174,41 +1194,149 @@ QWidget *QuickView::buildPdfPage() {
     return m_pdfPage;
 }
 
-void QuickView::renderPdfPage() {
+void QuickView::loadPdfPages() {
+    // Tear down any previous document's labels first, then build one placeholder
+    // label per page of the freshly-loaded m_pdfDoc.
+    if (auto *lay = m_pdfContainer->layout()) {
+        while (QLayoutItem *item = lay->takeAt(0)) {
+            if (QWidget *w = item->widget())
+                w->deleteLater();
+            delete item;
+        }
+    }
+    m_pdfPageLabels.clear();
+    m_pdfPageSizes.clear();
+    m_pdfRenderedWidth.clear();
+
     if (!m_pdfDoc)
         return;
     const int pageCount = m_pdfDoc->numPages();
-    if (pageCount <= 0)
-        return;
-    m_pdfPageIndex = qBound(0, m_pdfPageIndex, pageCount - 1);
+    auto *lay = static_cast<QVBoxLayout *>(m_pdfContainer->layout());
+    for (int i = 0; i < pageCount; ++i) {
+        // Open each page once just to read its native size; the pixmap is rendered
+        // later, lazily, only when the page nears the viewport.
+        std::unique_ptr<Poppler::Page> page(m_pdfDoc->page(i));
+        const QSizeF sz = page ? page->pageSizeF() : QSizeF(612, 792); // Letter fallback
+        m_pdfPageSizes.push_back(sz);
 
-    // Poppler::Document::page returns an owning pointer; wrap it so it frees on
-    // every path out of this function.
-    std::unique_ptr<Poppler::Page> page(m_pdfDoc->page(m_pdfPageIndex));
-    if (!page) {
-        m_pdfLabel->setText(tr("Failed to render page %1").arg(m_pdfPageIndex + 1));
-        return;
+        auto *label = new QLabel(m_pdfContainer);
+        label->setAlignment(Qt::AlignCenter);
+        label->setStyleSheet(QStringLiteral("QLabel { background: white; }"));
+        lay->addWidget(label, 0, Qt::AlignHCenter);
+        m_pdfPageLabels.push_back(label);
+        m_pdfRenderedWidth.push_back(-1);
     }
 
-    const double dpi = kPdfBaseDpi * m_pdfZoom;
-    const QImage image = page->renderToImage(dpi, dpi);
-    if (image.isNull()) {
-        m_pdfLabel->setText(tr("Failed to render page %1").arg(m_pdfPageIndex + 1));
+    // Size every placeholder to its fitted dimensions so the scrollbar range is
+    // correct up front, then render whatever is initially on screen.
+    relayoutPdfPages();
+    renderVisiblePdfPages();
+}
+
+void QuickView::relayoutPdfPages() {
+    if (!m_pdfDoc || m_pdfPageLabels.isEmpty())
         return;
+
+    // Fit each page to the viewport width (minus the scrollbar extent and a small
+    // margin so no horizontal scrollbar appears), scaled by the user zoom. Guard a
+    // small minimum for the case where the pane isn't laid out yet (width ~0); the
+    // first resize event then re-fits to the real width.
+    const int sbExtent = m_pdfScroll->style()->pixelMetric(QStyle::PM_ScrollBarExtent);
+    const int viewportW = m_pdfScroll->viewport()->width() - sbExtent - kPdfSideMargin;
+    const double baseW = qMax(120, viewportW);
+
+    // Preserve the scroll position as a fraction of the total range so a zoom or
+    // resize keeps roughly the same part of the document in view.
+    QScrollBar *vbar = m_pdfScroll->verticalScrollBar();
+    const double ratio = vbar->maximum() > 0
+                             ? double(vbar->value()) / double(vbar->maximum())
+                             : 0.0;
+
+    for (int i = 0; i < m_pdfPageLabels.size(); ++i) {
+        const double Wp = qMax(1.0, m_pdfPageSizes[i].width());
+        const double Hp = qMax(1.0, m_pdfPageSizes[i].height());
+        const double targetW = baseW * m_pdfZoom;
+        const QSize fitted(qRound(targetW), qRound(targetW * Hp / Wp));
+        m_pdfPageLabels[i]->setFixedSize(fitted);
+        m_pdfRenderedWidth[i] = -1; // force a re-render at the new width
+        m_pdfPageLabels[i]->clear();
     }
-    m_pdfLabel->setPixmap(QPixmap::fromImage(image));
-    m_pdfLabel->resize(image.size());
-    m_pdfPageInfo->setText(tr("Page %1 / %2").arg(m_pdfPageIndex + 1).arg(pageCount));
+    m_pdfContainer->adjustSize(); // recompute the scrollbar range for the new sizes
+
+    if (ratio > 0.0 && vbar->maximum() > 0)
+        vbar->setValue(qRound(ratio * vbar->maximum()));
+}
+
+void QuickView::renderVisiblePdfPages() {
+    if (!m_pdfDoc || m_pdfPageLabels.isEmpty())
+        return;
+
+    // Visible window in container coordinates, padded by one viewport height above
+    // and below so scrolling reveals already-rendered pages instead of blanks.
+    const int top = m_pdfScroll->verticalScrollBar()->value();
+    const int vh = m_pdfScroll->viewport()->height();
+    const int keepTop = top - vh;
+    const int keepBottom = top + 2 * vh;
+
+    int firstVisible = -1;
+    for (int i = 0; i < m_pdfPageLabels.size(); ++i) {
+        QLabel *label = m_pdfPageLabels[i];
+        const QRect g = label->geometry();
+        const bool inWindow = g.bottom() >= keepTop && g.top() <= keepBottom;
+        // The first page overlapping the actual visible band drives "page N / M".
+        if (firstVisible < 0 && g.bottom() >= top && g.top() <= top + vh)
+            firstVisible = i;
+
+        if (inWindow) {
+            if (m_pdfRenderedWidth[i] == label->width())
+                continue; // already rendered at this width
+            std::unique_ptr<Poppler::Page> page(m_pdfDoc->page(i));
+            if (!page) {
+                label->setText(tr("Failed to render page %1").arg(i + 1));
+                continue;
+            }
+            const double Wp = qMax(1.0, m_pdfPageSizes[i].width());
+            const double dpi = kPdfBaseDpi * (double(label->width()) / Wp);
+            const QImage image = page->renderToImage(dpi, dpi);
+            if (image.isNull()) {
+                label->setText(tr("Failed to render page %1").arg(i + 1));
+                continue;
+            }
+            label->setPixmap(QPixmap::fromImage(image));
+            m_pdfRenderedWidth[i] = label->width();
+        } else if (m_pdfRenderedWidth[i] != -1) {
+            // Far offscreen: drop the pixmap to bound memory, but keep the fixed
+            // size so the layout and scrollbar range stay stable.
+            label->clear();
+            m_pdfRenderedWidth[i] = -1;
+        }
+    }
+
+    if (firstVisible < 0)
+        firstVisible = 0;
+    m_pdfPageInfo->setText(
+        tr("Page %1 / %2").arg(firstVisible + 1).arg(m_pdfPageLabels.size()));
 }
 
 void QuickView::closePdf() {
-    // Releasing the unique_ptr frees the Poppler document; reset the view state
-    // so a later PDF starts clean and no stale page lingers.
+    // Releasing the unique_ptr frees the Poppler document; drop all page labels and
+    // reset the view state so a later PDF starts clean and no stale page lingers.
     m_pdfDoc.reset();
-    m_pdfPageIndex = 0;
+    if (m_pdfContainer) {
+        if (auto *lay = m_pdfContainer->layout()) {
+            while (QLayoutItem *item = lay->takeAt(0)) {
+                if (QWidget *w = item->widget())
+                    w->deleteLater();
+                delete item;
+            }
+        }
+    }
+    m_pdfPageLabels.clear();
+    m_pdfPageSizes.clear();
+    m_pdfRenderedWidth.clear();
     m_pdfZoom = 1.0;
-    if (m_pdfLabel)
-        m_pdfLabel->clear();
+    if (m_pdfPageInfo)
+        m_pdfPageInfo->clear();
 }
 
 void QuickView::zoomImageBy(double factor) {
@@ -1232,6 +1360,14 @@ bool QuickView::eventFilter(QObject *watched, QEvent *event) {
     }
     if (watched == m_mpv && event->type() == QEvent::Resize) {
         positionVideoInfoOverlay(); // keep the panel pinned to the top-right corner
+        // fall through to default handling
+    }
+    // Resizing the PDF viewport re-fits every page to the new width; debounce so a
+    // divider drag re-fits once at the end rather than on every intermediate width.
+    if (m_pdfScroll && watched == m_pdfScroll->viewport() &&
+        event->type() == QEvent::Resize) {
+        if (m_pdfDoc)
+            m_pdfRelayoutTimer->start();
         // fall through to default handling
     }
     const bool onImage =
@@ -1382,10 +1518,11 @@ void QuickView::showFile(const QString &path) {
         doc->setRenderHint(Poppler::Document::TextAntialiasing, true);
 
         m_pdfDoc = std::move(doc);
-        m_pdfPageIndex = 0;
         m_pdfZoom = 1.0;
-        renderPdfPage();
+        // Switch first so the scroll viewport has its real width before we fit
+        // pages to it; loadPdfPages still guards a minimum for the un-laid-out case.
         m_stack->setCurrentWidget(m_pdfPage);
+        loadPdfPages();
         return;
     }
 

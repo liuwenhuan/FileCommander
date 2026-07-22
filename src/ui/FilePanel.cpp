@@ -366,6 +366,48 @@ void FilePanel::hideQuickFilter() {
     m_view->setFocus();
 }
 
+FilePanel::NavEntry FilePanel::currentLocation() const {
+    // Archive locations ("/" virtual roots) can't be restored by history, so they
+    // are never recorded -- leaving an archive already drops to its host dir.
+    if (m_archiveProvider)
+        return {};
+    NavEntry e;
+    if (m_model->isFlatMode()) {
+        e.flat = true;
+        e.flatPaths = m_flatPaths;
+    } else {
+        e.dir = m_model->rootPath();
+    }
+    return e;
+}
+
+void FilePanel::applyHistoryEntry(const NavEntry &entry) {
+    // Restoring a history entry: never re-push (goBack/goForward manage the stacks).
+    if (m_archiveProvider) {
+        m_archiveProvider.reset();
+        m_archiveName.clear();
+        m_model->setProvider(nullptr);
+    }
+    if (m_filterBar->isVisible()) {
+        m_filterBar->blockSignals(true);
+        m_filterBar->clear();
+        m_filterBar->hide();
+        m_filterBar->blockSignals(false);
+    }
+    if (entry.flat) {
+        m_flatPaths = entry.flatPaths;
+        m_model->setFlatEntries(entry.flatPaths);
+    } else {
+        m_flatPaths.clear();
+        m_model->setRootPath(entry.dir);
+        emit pathChanged(entry.dir);
+        if (auto tab = m_tabManager->activeTab()) {
+            tab->path = entry.dir;
+            updateActiveTabLabel();
+        }
+    }
+}
+
 void FilePanel::navigateTo(const QString &path) {
     // Go through the model's provider so this works for remote backends too;
     // for the local provider these are the same QDir/QFileInfo calls as before.
@@ -373,6 +415,8 @@ void FilePanel::navigateTo(const QString &path) {
     const QString cleaned = provider->cleanPath(path);
     if (!provider->isDir(cleaned))
         return;
+    // Snapshot where we're leaving (dir or flat listing) BEFORE mutating the view.
+    const NavEntry from = currentLocation();
     if (m_filterBar->isVisible()) {
         // setRootPath() clears the model filter; just tidy the (now stale) bar.
         m_filterBar->blockSignals(true);
@@ -380,9 +424,10 @@ void FilePanel::navigateTo(const QString &path) {
         m_filterBar->hide();
         m_filterBar->blockSignals(false);
     }
-    if (!m_model->rootPath().isEmpty())
-        pushHistory(m_model->rootPath());
+    if (from.isValid())
+        pushHistory(from);
     m_forwardHistory.clear();
+    m_flatPaths.clear(); // leaving any flat listing for a real directory
     m_model->setRootPath(cleaned);
     emit pathChanged(cleaned);
 
@@ -394,6 +439,10 @@ void FilePanel::navigateTo(const QString &path) {
 }
 
 void FilePanel::showSearchResults(const QStringList &paths) {
+    // Snapshot the current location first so Back returns to it, then swap the
+    // view to the flat listing. The flat set is itself a history entry, so a
+    // later Back/Forward can return to these results within the session.
+    const NavEntry from = currentLocation();
     // Leave archive browsing if active: a flat listing is a plain local-path set.
     if (m_archiveProvider) {
         m_archiveProvider.reset();
@@ -406,16 +455,16 @@ void FilePanel::showSearchResults(const QStringList &paths) {
         m_filterBar->hide();
         m_filterBar->blockSignals(false);
     }
-    // Push the current directory so Back returns from the flat listing to it.
-    if (!m_model->rootPath().isEmpty())
-        pushHistory(m_model->rootPath());
+    if (from.isValid())
+        pushHistory(from);
     m_forwardHistory.clear();
+    m_flatPaths = paths;
     m_model->setFlatEntries(paths);
     updateNavButtons();
 }
 
-void FilePanel::pushHistory(const QString &fromPath) {
-    m_backHistory.append(fromPath);
+void FilePanel::pushHistory(const NavEntry &entry) {
+    m_backHistory.append(entry);
 }
 
 void FilePanel::updateNavButtons() {
@@ -453,20 +502,20 @@ void FilePanel::navigateUp() {
 void FilePanel::goBack() {
     if (m_backHistory.isEmpty())
         return;
-    m_forwardHistory.append(m_model->rootPath());
-    const QString path = m_backHistory.takeLast();
-    m_model->setRootPath(path);
-    emit pathChanged(path);
+    const NavEntry cur = currentLocation();
+    if (cur.isValid())
+        m_forwardHistory.append(cur);
+    applyHistoryEntry(m_backHistory.takeLast());
     updateNavButtons();
 }
 
 void FilePanel::goForward() {
     if (m_forwardHistory.isEmpty())
         return;
-    m_backHistory.append(m_model->rootPath());
-    const QString path = m_forwardHistory.takeLast();
-    m_model->setRootPath(path);
-    emit pathChanged(path);
+    const NavEntry cur = currentLocation();
+    if (cur.isValid())
+        m_backHistory.append(cur);
+    applyHistoryEntry(m_forwardHistory.takeLast());
     updateNavButtons();
 }
 
@@ -526,15 +575,23 @@ void FilePanel::onActivated(const QModelIndex &index) {
     }
 
     // Entering an archive: only from the local filesystem (no nested-archive
-    // browse yet). Read-only smart browse via ArchiveProvider.
-    if (!m_archiveProvider && ArchiveProvider::isArchivePath(info.path())) {
+    // browse yet). Read-only smart browse via ArchiveProvider. Disabled when the
+    // "archive as folder" preference is off -- archives then open as plain files.
+    if (m_archiveAsFolder && !m_archiveProvider && ArchiveProvider::isArchivePath(info.path())) {
         QString error;
         auto provider = std::make_shared<ArchiveProvider>(info.path(), &error);
         if (provider->isValid()) {
+            // Record where we came from (a real dir or a flat search-results list)
+            // BEFORE switching to the archive provider, so Back returns to it.
+            // currentLocation() reports {} once m_archiveProvider is set, so the
+            // navigateTo("/") below can't snapshot it -- we must push it here.
+            const NavEntry from = currentLocation();
             m_archiveProvider = provider;
             m_archiveName = QFileInfo(info.path()).fileName();
             m_model->setProvider(provider);
-            navigateTo(QStringLiteral("/")); // archive virtual root
+            if (from.isValid())
+                pushHistory(from);
+            navigateTo(QStringLiteral("/")); // archive virtual root (won't re-push)
             return;
         }
         // Not a usable archive (or unreadable): fall through to opening it.

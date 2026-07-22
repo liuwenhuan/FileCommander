@@ -51,6 +51,12 @@ public:
     bool confirmOverwrite() const;
     void setConfirmOverwrite(bool confirm);
 
+    // When true, entering an archive (zip/7z/tar/...) browses it in place as if
+    // it were a folder. When false, archives are treated as plain files (opened
+    // with the default handler / previewed). Defaults to true.
+    bool archiveAsFolder() const;
+    void setArchiveAsFolder(bool on);
+
     QByteArray windowGeometry() const;
     void setWindowGeometry(const QByteArray &geometry);
 

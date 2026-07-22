@@ -74,6 +74,7 @@
 #include "SessionManager.h"
 #include "TitleBar.h"
 #include "dialogs/ChecksumDialog.h"
+#include "dialogs/CommandOutputDialog.h"
 #include "dialogs/ConnectDialog.h"
 #include "dialogs/SecureWipeDialog.h"
 
@@ -271,6 +272,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     const bool showHidden = m_settings.showHiddenFiles();
     m_leftPanel->model()->setShowHiddenFiles(showHidden);
     m_rightPanel->model()->setShowHiddenFiles(showHidden);
+    const bool archiveAsFolder = m_settings.archiveAsFolder();
+    m_leftPanel->setArchiveAsFolder(archiveAsFolder);
+    m_rightPanel->setArchiveAsFolder(archiveAsFolder);
     const QByteArray headerState = m_settings.viewHeaderState();
     if (!headerState.isEmpty()) {
         m_leftPanel->view()->horizontalHeader()->restoreState(headerState);
@@ -427,6 +431,18 @@ void MainWindow::buildTitleBarMenus() {
         noConfirm->setChecked(!m_settings.confirmDelete());
         connect(noConfirm, &QAction::toggled, this,
                 [this](bool on) { m_settings.setConfirmDelete(!on); });
+    }
+    {
+        // Browse archives (zip/7z/tar/...) in place as folders, or treat them as
+        // plain files. Applies to both panels immediately.
+        QAction *archiveFolder = configMenu->addAction(tr("Open &Archives as Folders"));
+        archiveFolder->setCheckable(true);
+        archiveFolder->setChecked(m_settings.archiveAsFolder());
+        connect(archiveFolder, &QAction::toggled, this, [this](bool on) {
+            m_settings.setArchiveAsFolder(on);
+            m_leftPanel->setArchiveAsFolder(on);
+            m_rightPanel->setArchiveAsFolder(on);
+        });
     }
     configMenu->addSeparator();
     // Relocated here (previously in Commands, no shortcut of their own).
@@ -1444,18 +1460,42 @@ void MainWindow::runCommand(const QString &command, const QString &directory) {
     // Run through a shell so pipes, globbing, and redirection work as typed.
     const QString cwd = directory.isEmpty() && m_activePanel ? m_activePanel->currentPath()
                                                              : directory;
-    if (!QProcess::startDetached(QStringLiteral("/bin/sh"),
-                                  {QStringLiteral("-c"), command}, cwd)) {
-        QMessageBox::warning(this, tr("Command"),
-                             tr("Failed to run: %1").arg(command));
-        return;
-    }
-    // A detached process finishes asynchronously; give quick commands (mkdir,
-    // touch, rm) a moment to land, then refresh so their effect shows up.
-    QTimer::singleShot(300, this, [this]() {
-        m_leftPanel->refresh();
-        m_rightPanel->refresh();
+
+    // Capture output (rather than detaching) so commands that only print --
+    // ls, echo, grep, or a command's error message -- are actually visible; the
+    // console reveals itself only when there's output or a failure, so pure
+    // side-effecting commands (mkdir, touch) stay quiet and just refresh panels.
+    if (!m_commandOutput)
+        m_commandOutput = new CommandOutputDialog(this);
+    m_commandOutput->beginCommand(command, cwd);
+
+    // Parented to `this`, so a launched GUI app lives for the session (not killed
+    // when a local QProcess goes out of scope). Merged channels interleave
+    // stdout+stderr in the order they were written, matching a terminal.
+    auto *proc = new QProcess(this);
+    proc->setWorkingDirectory(cwd);
+    proc->setProcessChannelMode(QProcess::MergedChannels);
+
+    connect(proc, &QProcess::readyReadStandardOutput, this, [this, proc]() {
+        m_commandOutput->appendOutput(QString::fromLocal8Bit(proc->readAllStandardOutput()));
     });
+    connect(proc, &QProcess::errorOccurred, this, [this, proc](QProcess::ProcessError err) {
+        if (err == QProcess::FailedToStart) {
+            m_commandOutput->endCommand(-1, /*crashed=*/true);
+            proc->deleteLater();
+        }
+    });
+    connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
+            [this, proc](int code, QProcess::ExitStatus status) {
+                m_commandOutput->appendOutput(QString::fromLocal8Bit(proc->readAllStandardOutput()));
+                m_commandOutput->endCommand(code, status == QProcess::CrashExit);
+                // Reflect any filesystem changes the command made.
+                m_leftPanel->refresh();
+                m_rightPanel->refresh();
+                proc->deleteLater();
+            });
+
+    proc->start(QStringLiteral("/bin/sh"), {QStringLiteral("-c"), command});
 }
 
 void MainWindow::openShortcutsDialog() {

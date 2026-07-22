@@ -51,6 +51,8 @@ add_library(ui STATIC
     dialogs/PropertiesDialog.cpp
     dialogs/ConnectDialog.h
     dialogs/ConnectDialog.cpp
+    dialogs/CommandOutputDialog.h
+    dialogs/CommandOutputDialog.cpp
     dialogs/ChecksumDialog.h
     dialogs/ChecksumDialog.cpp
     dialogs/SecureWipeDialog.h
