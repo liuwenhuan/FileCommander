@@ -387,22 +387,16 @@ int copyDataProgress(struct archive *ar, struct archive *aw, qint64 &done, qint6
 } // namespace
 
 bool ArchiveProvider::extractWhole() {
-    // AppImage uses per-entry extraction (m_extractAll is false), so this path is
-    // not taken; extract each file individually via unsquashfs if it ever is.
+    // AppImage normally uses per-entry extraction (m_extractAll is false), so this
+    // path isn't taken; if it ever is, extract the whole filesystem in ONE
+    // unsquashfs pass (not one process per file). unsquashfs sanitises pathnames so
+    // extraction stays within the temp dir.
     if (m_isSquashfs) {
-        bool ok = true;
-        for (const RawEntry &e : m_rawEntries) {
-            if (e.isDir)
-                continue;
-            const QString destPath = QDir(m_tempDir->path()).filePath(e.path);
-            QDir().mkpath(QFileInfo(destPath).path());
-            if (SquashfsReader::readEntry(m_archivePath, e.path, destPath) !=
-                SquashfsReader::Status::Ok)
-                ok = false;
-        }
-        if (ok)
-            m_wholeExtracted = true;
-        return ok;
+        if (SquashfsReader::extractTo(m_archivePath, {}, m_tempDir->path()) !=
+            SquashfsReader::Status::Ok)
+            return false;
+        m_wholeExtracted = true;
+        return true;
     }
 
     struct archive *a = archive_read_new();
@@ -458,8 +452,12 @@ bool ArchiveProvider::extractWhole() {
 }
 
 QString ArchiveProvider::extractSingle(const QString &realPath) {
-    // AppImage: extract the one entry via unsquashfs to a temp file.
+    // AppImage: extract the one entry via unsquashfs to a temp file. Guard the
+    // write target against traversal (defense in depth -- readEntry validates too).
     if (m_isSquashfs) {
+        if (!SquashfsReader::isSafeEntryPath(realPath) ||
+            !SquashfsReader::isContained(m_tempDir->path(), realPath))
+            return QString();
         const QString destPath = QDir(m_tempDir->path()).filePath(realPath);
         QDir().mkpath(QFileInfo(destPath).path());
         if (SquashfsReader::readEntry(m_archivePath, realPath, destPath) !=
