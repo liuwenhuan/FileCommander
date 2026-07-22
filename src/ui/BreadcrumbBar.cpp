@@ -1,6 +1,7 @@
 #include "BreadcrumbBar.h"
 
 #include <QDir>
+#include <QEvent>
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
@@ -47,6 +48,17 @@ bool BreadcrumbBar::eventFilter(QObject *watched, QEvent *event) {
         return true;
     }
     return QWidget::eventFilter(watched, event);
+}
+
+void BreadcrumbBar::changeEvent(QEvent *event) {
+    QWidget::changeEvent(event);
+    // Theme switches arrive as a palette/style re-polish. rebuildSegments() re-
+    // samples the (now updated) WindowText colour so the path text tracks the
+    // active theme instead of keeping the colour frozen at the last navigation.
+    if (event->type() == QEvent::PaletteChange ||
+        event->type() == QEvent::StyleChange) {
+        rebuildSegments();
+    }
 }
 
 void BreadcrumbBar::setPath(const QString &path) {

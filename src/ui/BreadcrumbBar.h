@@ -28,6 +28,9 @@ signals:
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
+    // The segment colours are baked into the label's rich text at build time, so
+    // a theme switch (which re-polishes the palette) needs an explicit rebuild.
+    void changeEvent(QEvent *event) override;
 
 private:
     void rebuildSegments();
