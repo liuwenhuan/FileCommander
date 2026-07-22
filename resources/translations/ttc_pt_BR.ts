@@ -410,8 +410,8 @@ Extrair também?</translation>
     <name>FilePanel</name>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="51"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="279"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="705"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="285"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="732"/>
         <source>New Tab</source>
         <translation>Nova aba</translation>
     </message>
@@ -446,17 +446,17 @@ Extrair também?</translation>
         <translation>Filtro: digite para refinar a lista, Esc para limpar</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="656"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="683"/>
         <source>Select by Pattern</source>
         <translation>Selecionar por padrão</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="656"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="683"/>
         <source>Unselect by Pattern</source>
         <translation>Desmarcar por padrão</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="657"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="684"/>
         <source>Wildcard mask (e.g. *.txt):</source>
         <translation>Máscara curinga (ex.: *.txt):</translation>
     </message>
@@ -464,12 +464,12 @@ Extrair também?</translation>
 <context>
     <name>FileSystemModel</name>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="433"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="467"/>
         <source>%1 already exists</source>
         <translation>%1 já existe</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="436"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="470"/>
         <source>Failed to rename %1</source>
         <translation>Falha ao renomear %1</translation>
     </message>
@@ -518,33 +518,33 @@ Extrair também?</translation>
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="158"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1538"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="156"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1568"/>
         <source>Total Commander for Linux</source>
         <translation>Total Commander para Linux</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1000"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="976"/>
         <source>Show / hide hidden files</source>
         <translation>Mostrar/ocultar arquivos ocultos</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1001"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="977"/>
         <source>Filter the current panel (type to narrow)</source>
         <translation>Filtrar o painel atual (digite para refinar)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1002"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="978"/>
         <source>Quick view (preview in the other panel)</source>
         <translation>Visualização rápida (no outro painel)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1003"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="979"/>
         <source>Point the other panel at this directory</source>
         <translation>Abrir este diretório no outro painel</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1004"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="980"/>
         <source>Swap the two panels</source>
         <translation>Trocar os dois painéis</translation>
     </message>
@@ -553,130 +553,128 @@ Extrair também?</translation>
         <translation type="vanished">Favoritos de diretórios</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1005"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="981"/>
         <source>Calculate folder size</source>
         <translation>Calcular tamanho da pasta</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1006"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="982"/>
         <source>Undo the last rename / move</source>
         <translation>Desfazer última renomeação/movimentação</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1007"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="983"/>
         <source>Multi-rename tool</source>
         <translation>Ferramenta de renomeação em lote</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1008"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="984"/>
         <source>Search files</source>
         <translation>Pesquisar arquivos</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1022"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="998"/>
         <source>Select files by pattern (e.g. *.zip)</source>
         <translation>Selecionar por padrão (ex.: *.zip)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1026"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1002"/>
         <source>Unselect files by pattern</source>
         <translation>Desmarcar por padrão</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1100"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1683"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1093"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1713"/>
         <source>Paste</source>
         <translation>Colar</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1096"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1658"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1089"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1688"/>
         <source>Cut</source>
         <translation>Recortar</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1098"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1091"/>
         <source>Copy to Clipboard</source>
         <translation>Copiar para a área de transferência</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1121"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1114"/>
         <source>Swap Panels</source>
         <translation>Trocar painéis</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1125"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1118"/>
         <source>Quick View</source>
         <translation>Visualização rápida</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1106"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1099"/>
         <source>Quick Filter</source>
         <translation>Filtro rápido</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1123"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1116"/>
         <source>Same Directory in Other Panel</source>
         <translation>Mesmo diretório no outro painel</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1119"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1675"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1112"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1705"/>
         <source>Calculate Folder Size</source>
         <translation>Calcular tamanho da pasta</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1127"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1120"/>
         <source>Undo Last Operation</source>
         <translation>Desfazer última operação</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1102"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1095"/>
         <source>Multi-Rename Tool</source>
         <translation>Ferramenta de renomeação em lote</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1104"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1097"/>
         <source>Directory Hotlist</source>
         <translation>Lista de diretórios</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1110"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1103"/>
         <source>Properties</source>
         <translation>Propriedades</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1112"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1105"/>
         <source>Show Hidden Files</source>
         <translation>Mostrar arquivos ocultos</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="916"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="892"/>
         <source>Change F%1 Function</source>
         <translation>Alterar função F%1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="969"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="945"/>
         <source>Choose the function for the F%1 key:</source>
         <translation>Escolha a função da tecla F%1:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="222"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="252"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="227"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="257"/>
         <source>Operation Error</source>
         <translation>Erro na operação</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="356"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1058"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1650"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1034"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1680"/>
         <source>View</source>
         <translation>Visualizar</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="356"/>
         <source>Could not open %1</source>
-        <translation>Não foi possível abrir %1</translation>
+        <translation type="vanished">Não foi possível abrir %1</translation>
     </message>
     <message>
         <source>&amp;File</source>
@@ -687,57 +685,54 @@ Extrair também?</translation>
         <translation type="vanished">Sai&amp;r</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="385"/>
         <source>&amp;Commands</source>
-        <translation>&amp;Comandos</translation>
+        <translation type="vanished">&amp;Comandos</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="387"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="432"/>
         <source>&amp;Refresh</source>
         <translation>&amp;Atualizar</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="389"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="387"/>
         <source>&amp;Compress Selected...</source>
         <translation>&amp;Compactar selecionados...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="394"/>
         <source>&amp;Search Files...</source>
-        <translation>&amp;Pesquisar arquivos...</translation>
+        <translation type="vanished">&amp;Pesquisar arquivos...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="442"/>
         <source>&amp;Keyboard Shortcuts...</source>
-        <translation>Atalhos de &amp;teclado...</translation>
+        <translation type="vanished">Atalhos de &amp;teclado...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="445"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="430"/>
         <source>&amp;View</source>
         <translation>E&amp;xibir</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="447"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="434"/>
         <source>&amp;Theme</source>
         <translation>&amp;Tema</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="468"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="455"/>
         <source>&amp;Language</source>
         <translation>&amp;Idioma</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="455"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="442"/>
         <source>Auto</source>
         <translation>Automático</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="456"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="443"/>
         <source>Light</source>
         <translation>Claro</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="457"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="444"/>
         <source>Dark</source>
         <translation>Escuro</translation>
     </message>
@@ -762,57 +757,57 @@ Extrair também?</translation>
         <translation type="vanished">↻</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1059"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1651"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1797"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1035"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1681"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1808"/>
         <source>Edit</source>
         <translation>Editar</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1060"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1653"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1659"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1849"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1036"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1683"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1689"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1860"/>
         <source>Copy</source>
         <translation>Copiar</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1061"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1654"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1037"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1684"/>
         <source>Move</source>
         <translation>Mover</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1062"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1685"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1892"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1038"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1715"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1903"/>
         <source>New Folder</source>
         <translation>Nova pasta</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1063"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1039"/>
         <source>Delete (to trash)</source>
         <translation>Excluir (para a lixeira)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1064"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1040"/>
         <source>Delete Permanently</source>
         <translation>Excluir permanentemente</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1066"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1042"/>
         <source>Delete (Del key)</source>
         <translation>Excluir (tecla Del)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="313"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1068"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1655"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="321"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1044"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1685"/>
         <source>Rename</source>
         <translation>Renomear</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="223"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="228"/>
         <source>%1
 
 %2</source>
@@ -821,376 +816,425 @@ Extrair também?</translation>
 %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="224"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="229"/>
         <source>Retry</source>
         <translation>Tentar novamente</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="225"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="230"/>
         <source>Skip</source>
         <translation>Ignorar</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="226"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="231"/>
         <source>Skip All</source>
         <translation>Ignorar tudo</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="227"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="232"/>
         <source>Cancel</source>
         <translation>Cancelar</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="251"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="256"/>
         <source>
 ... and %1 more.</source>
         <translation>
 ... e mais %1.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="388"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="382"/>
         <source>Open &amp;Terminal Here</source>
         <translation>Abrir &amp;terminal aqui</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="390"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="385"/>
         <source>S&amp;plit File...</source>
         <translation>Di&amp;vidir arquivo...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="391"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="384"/>
         <source>Com&amp;bine Files...</source>
         <translation>Com&amp;binar arquivos...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="392"/>
         <source>Calculate &amp;Checksums (MD5 / CRC32 / SHA1)...</source>
-        <translation>Calcular &amp;somas de verificação (MD5 / CRC32 / SHA1)...</translation>
+        <translation type="vanished">Calcular &amp;somas de verificação (MD5 / CRC32 / SHA1)...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="395"/>
         <source>&amp;Multi-Rename Tool...</source>
-        <translation>Ferramenta de renomeação em &amp;lote...</translation>
+        <translation type="vanished">Ferramenta de renomeação em &amp;lote...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="397"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="422"/>
         <source>S&amp;ynchronize Directories...</source>
         <translation>S&amp;incronizar diretórios...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="399"/>
         <source>Compar&amp;e by Content...</source>
-        <translation>Comparar por &amp;conteúdo...</translation>
+        <translation type="vanished">Comparar por &amp;conteúdo...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="401"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="423"/>
         <source>Compare &amp;Directories (by time)</source>
         <translation>Comparar &amp;diretórios (por data)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="403"/>
         <source>Calculate &amp;Occupied Space</source>
-        <translation>Calcular &amp;espaço ocupado</translation>
+        <translation type="vanished">Calcular &amp;espaço ocupado</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="406"/>
         <source>&amp;Select by Pattern...</source>
-        <translation>&amp;Selecionar por padrão...</translation>
+        <translation type="vanished">&amp;Selecionar por padrão...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="410"/>
         <source>&amp;Unselect by Pattern...</source>
-        <translation>&amp;Desmarcar por padrão...</translation>
+        <translation type="vanished">&amp;Desmarcar por padrão...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="415"/>
         <source>Same Directory in &amp;Other Panel</source>
-        <translation>Mesmo diretório no &amp;outro painel</translation>
+        <translation type="vanished">Mesmo diretório no &amp;outro painel</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="417"/>
         <source>S&amp;wap Panels</source>
-        <translation>&amp;Trocar painéis</translation>
+        <translation type="vanished">&amp;Trocar painéis</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="419"/>
         <source>&amp;Directory Hotlist...</source>
-        <translation>&amp;Lista de diretórios...</translation>
+        <translation type="vanished">&amp;Lista de diretórios...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="423"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="398"/>
         <source>Connect to &amp;Server...</source>
         <translation>Conectar ao &amp;servidor...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="436"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="425"/>
         <source>&amp;Network Neighborhood</source>
         <translation>Ambiente de &amp;rede</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="493"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="480"/>
         <source>Font size:</source>
         <translation>Tamanho da fonte:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="505"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="492"/>
         <source>Type a size, or use − / + (8-18)</source>
         <translation>Digite um tamanho ou use − / + (8-18)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="547"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="536"/>
         <source>Command &amp;Line</source>
         <translation>&amp;Linha de comando</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="554"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="543"/>
         <source>Function &amp;Key Bar</source>
         <translation>Barra de &amp;teclas de função</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="568"/>
         <source>Office &amp;Document Preview</source>
-        <translation>Visualização de &amp;documentos do Office</translation>
+        <translation type="vanished">Visualização de &amp;documentos do Office</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="569"/>
         <source>Office &amp;Document Preview (install office_oxide)</source>
-        <translation>Visualização de &amp;documentos do Office (instale office_oxide)</translation>
+        <translation type="vanished">Visualização de &amp;documentos do Office (instale office_oxide)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1030"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1006"/>
         <source>Invert selection</source>
         <translation>Inverter seleção</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1035"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1011"/>
         <source>Switch to list view</source>
         <translation>Alternar para visualização em lista</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1036"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1012"/>
         <source>Switch to thumbnail view</source>
         <translation>Alternar para visualização em miniaturas</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1070"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1046"/>
         <source>New Tab</source>
         <translation>Nova aba</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1074"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1050"/>
         <source>Close Tab</source>
         <translation>Fechar aba</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1078"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1054"/>
         <source>Next Tab</source>
         <translation>Próxima aba</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1082"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1058"/>
         <source>Previous Tab</source>
         <translation>Aba anterior</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1088"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1064"/>
         <source>Search Files</source>
         <translation>Pesquisar arquivos</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1090"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1069"/>
+        <source>Command Line</source>
+        <translation>Linha de comando</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="1083"/>
         <source>Compress Selected</source>
         <translation>Compactar selecionados</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1092"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1688"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1085"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1718"/>
         <source>Refresh</source>
         <translation>Atualizar</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1094"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1087"/>
         <source>Exit</source>
         <translation>Sair</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1179"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1172"/>
         <source>Checksums</source>
         <translation>Somas de verificação</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1180"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1173"/>
         <source>Select one or more files first.</source>
         <translation>Selecione primeiro um ou mais arquivos.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1217"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1193"/>
+        <source>Secure Wipe</source>
+        <translation>Apagamento seguro</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="1194"/>
+        <source>Securely erase %1 item(s) (%2 bytes)?
+
+Their contents will be overwritten on disk and then deleted. This is IRREVERSIBLE: the files do NOT go to the trash and cannot be recovered.</source>
+        <translation>Apagar com segurança %1 item(ns) (%2 bytes)?
+
+Seu conteúdo será sobrescrito no disco e depois excluído. Isso é IRREVERSÍVEL: os arquivos NÃO vão para a lixeira e não podem ser recuperados.</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="1241"/>
         <source>Open Terminal</source>
         <translation>Abrir terminal</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1217"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1241"/>
         <source>No terminal emulator found.</source>
         <translation>Nenhum emulador de terminal encontrado.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1235"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1259"/>
         <source>Open With</source>
         <translation>Abrir com</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1236"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1260"/>
         <source>Application command:</source>
         <translation>Comando do aplicativo:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1328"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1332"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1347"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1349"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1358"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1362"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1377"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1379"/>
         <source>Split File</source>
         <translation>Dividir arquivo</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1328"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1358"/>
         <source>Select a file to split.</source>
         <translation>Selecione um arquivo para dividir.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1332"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1362"/>
         <source>Part size (MB):</source>
         <translation>Tamanho da parte (MB):</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1347"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1377"/>
         <source>Failed to split the file.</source>
         <translation>Falha ao dividir o arquivo.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1350"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1380"/>
         <source>Created %1 part(s).</source>
         <translation>%1 parte(s) criada(s).</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1365"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1378"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1380"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1395"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1408"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1410"/>
         <source>Combine Files</source>
         <translation>Combinar arquivos</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1366"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1396"/>
         <source>Select the first part (e.g. name.001) of a split file.</source>
         <translation>Selecione a primeira parte (ex.: nome.001) de um arquivo dividido.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1378"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1408"/>
         <source>Failed to merge the parts.</source>
         <translation>Falha ao juntar as partes.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1380"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1410"/>
         <source>Parts merged.</source>
         <translation>Partes juntadas.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1393"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1423"/>
         <source>Command</source>
         <translation>Comando</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1394"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1424"/>
         <source>Failed to run: %1</source>
         <translation>Falha ao executar: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1470"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1500"/>
         <source>Compare by Content</source>
         <translation>Comparar por conteúdo</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1471"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1501"/>
         <source>Select two files to compare: either two in one panel, or one in each panel.</source>
         <translation>Selecione dois arquivos para comparar: dois em um painel ou um em cada painel.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1486"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1516"/>
         <source>Remove this directory from favorites</source>
         <translation>Remover este diretório dos favoritos</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1489"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1519"/>
         <source>Bookmark this directory</source>
         <translation>Adicionar este diretório aos favoritos</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1496"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1526"/>
         <source>(No favorites yet)</source>
         <translation>(Nenhum favorito ainda)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1647"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="349"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1677"/>
         <source>Open</source>
         <translation>Abrir</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1648"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="350"/>
+        <source>No application is associated with %1</source>
+        <translation>Nenhum aplicativo está associado a %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="380"/>
+        <source>&amp;Tools</source>
+        <translation>&amp;Ferramentas</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="383"/>
+        <source>Calculate &amp;Checksums...</source>
+        <translation>Calcular &amp;somas de verificação...</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="386"/>
+        <source>Compar&amp;e Files...</source>
+        <translation>Comparar &amp;arquivos...</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="388"/>
+        <source>&amp;Wipe Files (secure erase)...</source>
+        <translation>&amp;Apagar arquivos (apagamento seguro)...</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="394"/>
+        <source>Con&amp;fig</source>
+        <translation>Con&amp;figuração</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="396"/>
+        <source>Configure &amp;Keyboard Shortcuts...</source>
+        <translation>Configurar atalhos de &amp;teclado...</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="414"/>
+        <source>&amp;Delete to Trash Without Confirmation</source>
+        <translation>&amp;Excluir para a lixeira sem confirmação</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="1678"/>
         <source>Open With...</source>
         <translation>Abrir com...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1656"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1686"/>
         <source>Delete</source>
         <translation>Excluir</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1661"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1691"/>
         <source>Compress Selected...</source>
         <translation>Compactar selecionados...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1665"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1695"/>
         <source>Extract Here</source>
         <translation>Extrair aqui</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1666"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1696"/>
         <source>Extract To...</source>
         <translation>Extrair para...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1669"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1699"/>
         <source>Copy Path</source>
         <translation>Copiar caminho</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1676"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1706"/>
         <source>Properties...</source>
         <translation>Propriedades...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1687"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1717"/>
         <source>Open Terminal Here</source>
         <translation>Abrir terminal aqui</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1743"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1765"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1754"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1776"/>
         <source>Extract</source>
         <translation>Extrair</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1743"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1754"/>
         <source>Extraction failed: %1</source>
         <translation>Falha na extração: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1750"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1761"/>
         <source>Nested archive</source>
         <translation>Arquivo compactado aninhado</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1751"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1762"/>
         <source>The result contains a single archive:
 %1
 
@@ -1201,64 +1245,64 @@ Extract it too?</source>
 Extrair também?</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1765"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1776"/>
         <source>Extracted archive to %1</source>
         <translation>Arquivo compactado extraído para %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1784"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1795"/>
         <source>Extract to</source>
         <translation>Extrair para</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1798"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1809"/>
         <source>Image files can&apos;t be edited; use F3 to view.</source>
         <translation>Imagens não podem ser editadas; use F3 para visualizar.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1814"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1825"/>
         <source>Read-only</source>
         <translation>Somente leitura</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1815"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1826"/>
         <source>This archive is read-only. Copy files out to a folder to modify them.</source>
         <translation>Este arquivo compactado é somente leitura. Copie os arquivos para uma pasta para modificá-los.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1849"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1860"/>
         <source>Copy to:</source>
         <translation>Copiar para:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1892"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1903"/>
         <source>Folder name:</source>
         <translation>Nome da pasta:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1909"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1924"/>
         <source>Confirm Delete</source>
         <translation>Confirmar exclusão</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1910"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1925"/>
         <source>Delete %1 item(s) (%2 bytes)?%3</source>
         <translation>Excluir %1 item(ns) (%2 bytes)?%3</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1913"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1928"/>
         <source>
 This is permanent and will NOT go to the trash.</source>
         <translation>
 Esta ação é permanente e NÃO irá para a lixeira.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1935"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1952"/>
         <source>Compress</source>
         <translation>Compactar</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1935"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1952"/>
         <source>Compression failed: %1</source>
         <translation>Falha na compactação: %1</translation>
     </message>
@@ -1669,75 +1713,75 @@ Destino: %4 (%5 bytes)</translation>
         <translation>Não foi possível ler %1</translation>
     </message>
     <message>
-        <location filename="../../src/archive/ArchiveModel.cpp" line="153"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="269"/>
+        <location filename="../../src/archive/ArchiveModel.cpp" line="167"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="296"/>
         <source>Name</source>
         <translation>Nome</translation>
     </message>
     <message>
-        <location filename="../../src/archive/ArchiveModel.cpp" line="155"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="273"/>
+        <location filename="../../src/archive/ArchiveModel.cpp" line="169"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="300"/>
         <source>Size</source>
         <translation>Tamanho</translation>
     </message>
     <message>
-        <location filename="../../src/archive/ArchiveModel.cpp" line="157"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="275"/>
+        <location filename="../../src/archive/ArchiveModel.cpp" line="171"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="302"/>
         <source>Modified</source>
         <translation>Modificado</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="271"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="298"/>
         <source>Ext</source>
         <translation>Ext</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="281"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="308"/>
         <source>Permissions</source>
         <translation>Permissões</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="279"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="306"/>
         <source>Type</source>
         <translation>Tipo</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="277"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="304"/>
         <source>Created</source>
         <translation>Criado</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="289"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="316"/>
         <source>Folder</source>
         <translation>Pasta</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="292"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="319"/>
         <source>File</source>
         <translation>Arquivo</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="304"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="331"/>
         <source>Image</source>
         <translation>Imagem</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="306"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="333"/>
         <source>Video</source>
         <translation>Vídeo</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="308"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="335"/>
         <source>Audio</source>
         <translation>Áudio</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="310"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="337"/>
         <source>Archive</source>
         <translation>Compactado</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="312"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="339"/>
         <source>Document</source>
         <translation>Documento</translation>
     </message>
@@ -1785,226 +1829,336 @@ Destino: %4 (%5 bytes)</translation>
 <context>
     <name>QuickView</name>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="61"/>
-        <location filename="../../src/ui/QuickView.cpp" line="704"/>
+        <location filename="../../src/ui/QuickView.cpp" line="89"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1271"/>
         <source>Select a file to preview</source>
         <translation>Selecione um arquivo para visualizar</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="100"/>
-        <location filename="../../src/ui/QuickView.cpp" line="565"/>
+        <location filename="../../src/ui/QuickView.cpp" line="157"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1120"/>
         <source>Zoom In</source>
         <translation>Ampliar</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="101"/>
-        <location filename="../../src/ui/QuickView.cpp" line="571"/>
+        <location filename="../../src/ui/QuickView.cpp" line="158"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1126"/>
         <source>Zoom Out</source>
         <translation>Reduzir</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="102"/>
+        <location filename="../../src/ui/QuickView.cpp" line="159"/>
         <source>Fit</source>
         <translation>Ajustar</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="112"/>
+        <location filename="../../src/ui/QuickView.cpp" line="164"/>
+        <source>Rotate Left</source>
+        <translation>Girar à esquerda</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="165"/>
+        <source>Rotate Right</source>
+        <translation>Girar à direita</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="166"/>
+        <source>&lt; Prev</source>
+        <translation>&lt; Ant.</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="167"/>
+        <source>Next &gt;</source>
+        <translation>Próx. &gt;</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="173"/>
         <source>Lock Zoom</source>
         <translation>Travar zoom</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="113"/>
+        <location filename="../../src/ui/QuickView.cpp" line="174"/>
         <source>Keep the current zoom ratio for the next images</source>
         <translation>Manter a proporção de zoom atual para as próximas imagens</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="116"/>
-        <location filename="../../src/ui/QuickView.cpp" line="304"/>
+        <location filename="../../src/ui/QuickView.cpp" line="177"/>
+        <location filename="../../src/ui/QuickView.cpp" line="571"/>
         <source>Show info</source>
         <translation>Mostrar informações</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="117"/>
+        <location filename="../../src/ui/QuickView.cpp" line="178"/>
         <source>Overlay basic image information</source>
         <translation>Sobrepor informações básicas da imagem</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="224"/>
-        <location filename="../../src/ui/QuickView.cpp" line="232"/>
-        <location filename="../../src/ui/QuickView.cpp" line="239"/>
-        <location filename="../../src/ui/QuickView.cpp" line="338"/>
+        <location filename="../../src/ui/QuickView.cpp" line="319"/>
+        <source>Rotated on screen only — could not save to disk.</source>
+        <translation>Girado apenas na tela — não foi possível salvar no disco.</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="346"/>
+        <source>Wrap</source>
+        <translation>Quebrar linha</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="352"/>
+        <source>Hex</source>
+        <translation>Hex</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="362"/>
+        <source>Find… (Enter / F3)</source>
+        <translation>Localizar… (Enter / F3)</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="416"/>
+        <source>
+
+[... truncated ...]</source>
+        <translation>
+
+[... truncado ...]</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="491"/>
+        <location filename="../../src/ui/QuickView.cpp" line="499"/>
+        <location filename="../../src/ui/QuickView.cpp" line="506"/>
+        <location filename="../../src/ui/QuickView.cpp" line="605"/>
         <source>Play</source>
         <translation>Reproduzir</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="232"/>
-        <location filename="../../src/ui/QuickView.cpp" line="240"/>
-        <location filename="../../src/ui/QuickView.cpp" line="339"/>
-        <location filename="../../src/ui/QuickView.cpp" line="739"/>
+        <location filename="../../src/ui/QuickView.cpp" line="499"/>
+        <location filename="../../src/ui/QuickView.cpp" line="507"/>
+        <location filename="../../src/ui/QuickView.cpp" line="606"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1320"/>
         <source>Pause</source>
         <translation>Pausar</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="250"/>
+        <location filename="../../src/ui/QuickView.cpp" line="517"/>
         <source>1x</source>
         <translation>1x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="251"/>
+        <location filename="../../src/ui/QuickView.cpp" line="518"/>
         <source>1.5x</source>
         <translation>1.5x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="252"/>
+        <location filename="../../src/ui/QuickView.cpp" line="519"/>
         <source>2x</source>
         <translation>2x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="253"/>
+        <location filename="../../src/ui/QuickView.cpp" line="520"/>
         <source>3x</source>
         <translation>3x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="263"/>
+        <location filename="../../src/ui/QuickView.cpp" line="530"/>
         <source>Seek</source>
         <translation>Buscar</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="274"/>
+        <location filename="../../src/ui/QuickView.cpp" line="541"/>
         <source>Mute / unmute</source>
         <translation>Silenciar / ativar som</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="290"/>
+        <location filename="../../src/ui/QuickView.cpp" line="557"/>
         <source>Vol</source>
         <translation>Vol</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="295"/>
+        <location filename="../../src/ui/QuickView.cpp" line="562"/>
         <source>Volume</source>
         <translation>Volume</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="305"/>
+        <location filename="../../src/ui/QuickView.cpp" line="572"/>
         <source>Overlay basic video information</source>
         <translation>Sobrepor informações básicas do vídeo</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="376"/>
+        <location filename="../../src/ui/QuickView.cpp" line="643"/>
         <source>&lt;b&gt;Duration:&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;Resolution:&lt;/b&gt; %2 &amp;times; %3&lt;br&gt;&lt;b&gt;Codec:&lt;/b&gt; %4</source>
         <translation>&lt;b&gt;Duração:&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;Resolução:&lt;/b&gt; %2 &amp;times; %3&lt;br&gt;&lt;b&gt;Codec:&lt;/b&gt; %4</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="378"/>
-        <location filename="../../src/ui/QuickView.cpp" line="379"/>
+        <location filename="../../src/ui/QuickView.cpp" line="645"/>
+        <location filename="../../src/ui/QuickView.cpp" line="646"/>
         <source>?</source>
         <translation>?</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="380"/>
+        <location filename="../../src/ui/QuickView.cpp" line="647"/>
         <source>unknown</source>
         <translation>desconhecido</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="465"/>
         <source>Unlock with password…</source>
-        <translation>Desbloquear com senha…</translation>
+        <translation type="vanished">Desbloquear com senha…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="478"/>
         <source>Password required</source>
-        <translation>Senha necessária</translation>
+        <translation type="vanished">Senha necessária</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="479"/>
         <source>Enter the password for “%1”:</source>
-        <translation>Digite a senha de “%1”:</translation>
+        <translation type="vanished">Digite a senha de “%1”:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="488"/>
-        <location filename="../../src/ui/QuickView.cpp" line="500"/>
-        <location filename="../../src/ui/QuickView.cpp" line="504"/>
-        <location filename="../../src/ui/QuickView.cpp" line="509"/>
         <source>Decrypt</source>
-        <translation>Descriptografar</translation>
+        <translation type="vanished">Descriptografar</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="488"/>
         <source>Could not create a temporary file.</source>
-        <translation>Não foi possível criar um arquivo temporário.</translation>
+        <translation type="vanished">Não foi possível criar um arquivo temporário.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="500"/>
         <source>Incorrect password.</source>
-        <translation>Senha incorreta.</translation>
+        <translation type="vanished">Senha incorreta.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="505"/>
         <source>Decryption needs python3 with the msoffcrypto module:
 pip install --user msoffcrypto-tool</source>
-        <translation>A descriptografia requer python3 com o módulo msoffcrypto:
+        <translation type="vanished">A descriptografia requer python3 com o módulo msoffcrypto:
 pip install --user msoffcrypto-tool</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="510"/>
         <source>Decryption failed: %1</source>
-        <translation>Falha na descriptografia: %1</translation>
+        <translation type="vanished">Falha na descriptografia: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="544"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1099"/>
         <source>Prev</source>
         <translation>Anterior</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="550"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1105"/>
         <source>Next</source>
         <translation>Próximo</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="604"/>
-        <location filename="../../src/ui/QuickView.cpp" line="611"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1159"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1166"/>
         <source>Failed to render page %1</source>
         <translation>Falha ao renderizar a página %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="616"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1171"/>
         <source>Page %1 / %2</source>
         <translation>Página %1 / %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="765"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1346"/>
         <source>Cannot open PDF: %1</source>
         <translation>Não é possível abrir o PDF: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="810"/>
         <source>“%1” is encrypted.</source>
-        <translation>“%1” está criptografado.</translation>
+        <translation type="vanished">“%1” está criptografado.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="811"/>
         <source>“%1” is encrypted and cannot be previewed.</source>
-        <translation>“%1” está criptografado e não pode ser visualizado.</translation>
+        <translation type="vanished">“%1” está criptografado e não pode ser visualizado.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="817"/>
+        <location filename="../../src/ui/QuickView.cpp" line="846"/>
         <source>Cannot preview %1:
 %2</source>
         <translation>Não é possível visualizar %1:
 %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="848"/>
+        <location filename="../../src/ui/QuickView.cpp" line="260"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1403"/>
         <source>&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;%2 &amp;times; %3&lt;br&gt;%4&lt;br&gt;%5 bpp</source>
         <translation>&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;%2 &amp;times; %3&lt;br&gt;%4&lt;br&gt;%5 bpp</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="852"/>
+        <location filename="../../src/ui/QuickView.cpp" line="264"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1407"/>
         <source>Unknown format</source>
         <translation>Formato desconhecido</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="885"/>
+        <location filename="../../src/ui/QuickView.cpp" line="740"/>
+        <source>Password</source>
+        <translation>Senha</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="747"/>
+        <source>Unlock</source>
+        <translation>Desbloquear</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="771"/>
+        <source>Enter a password.</source>
+        <translation>Digite uma senha.</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="815"/>
+        <location filename="../../src/ui/QuickView.cpp" line="970"/>
+        <source>“%1” is encrypted. Enter the password to preview it:</source>
+        <translation>“%1” está criptografado. Digite a senha para visualizá-lo:</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="827"/>
+        <location filename="../../src/ui/QuickView.cpp" line="982"/>
+        <source>Incorrect password. Try again.</source>
+        <translation>Senha incorreta. Tente novamente.</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="836"/>
+        <source>“%1” is encrypted in a format that can&apos;t be previewed.</source>
+        <translation>“%1” está criptografado em um formato que não pode ser visualizado.</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="855"/>
+        <source>Up</source>
+        <translation>Acima</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="915"/>
+        <source>Loading %1…</source>
+        <translation>Carregando %1…</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="959"/>
+        <source>“%1” is encrypted in a format that can&apos;t be previewed (7z encryption is unsupported).</source>
+        <translation>“%1” está criptografado em um formato que não pode ser visualizado (a criptografia 7z não é suportada).</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="989"/>
+        <source>“%1” uses an encryption that can&apos;t be previewed.</source>
+        <translation>“%1” usa uma criptografia que não pode ser visualizada.</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="993"/>
+        <source>Cannot open archive: %1</source>
+        <translation>Não foi possível abrir o arquivo compactado: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="1003"/>
+        <source>Could not create a temporary directory.</source>
+        <translation>Não foi possível criar um diretório temporário.</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="1014"/>
+        <source>Could not extract %1: %2</source>
+        <translation>Não foi possível extrair %1: %2</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="1020"/>
+        <source>Could not read the nested archive %1.</source>
+        <translation>Não foi possível ler o arquivo compactado aninhado %1.</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="1441"/>
         <source>No preview available for %1</source>
         <translation>Nenhuma visualização disponível para %1</translation>
     </message>
@@ -2012,47 +2166,57 @@ pip install --user msoffcrypto-tool</translation>
 <context>
     <name>SearchDialog</name>
     <message>
-        <location filename="../../src/search/SearchDialog.cpp" line="15"/>
+        <location filename="../../src/search/SearchDialog.cpp" line="16"/>
         <source>Search Files</source>
         <translation>Pesquisar arquivos</translation>
     </message>
     <message>
-        <location filename="../../src/search/SearchDialog.cpp" line="24"/>
+        <location filename="../../src/search/SearchDialog.cpp" line="25"/>
         <source>Case sensitive</source>
         <translation>Diferenciar maiúsculas</translation>
     </message>
     <message>
-        <location filename="../../src/search/SearchDialog.cpp" line="25"/>
+        <location filename="../../src/search/SearchDialog.cpp" line="26"/>
         <source>Include subdirectories</source>
         <translation>Incluir subdiretórios</translation>
     </message>
     <message>
-        <location filename="../../src/search/SearchDialog.cpp" line="29"/>
+        <location filename="../../src/search/SearchDialog.cpp" line="30"/>
         <source>Search in:</source>
         <translation>Pesquisar em:</translation>
     </message>
     <message>
-        <location filename="../../src/search/SearchDialog.cpp" line="30"/>
+        <location filename="../../src/search/SearchDialog.cpp" line="31"/>
         <source>Name pattern:</source>
         <translation>Padrão de nome:</translation>
     </message>
     <message>
-        <location filename="../../src/search/SearchDialog.cpp" line="34"/>
+        <location filename="../../src/search/SearchDialog.cpp" line="35"/>
         <source>Search</source>
         <translation>Pesquisar</translation>
     </message>
     <message>
-        <location filename="../../src/search/SearchDialog.cpp" line="55"/>
+        <location filename="../../src/search/SearchDialog.cpp" line="46"/>
+        <source>Send to panel</source>
+        <translation>Enviar para o painel</translation>
+    </message>
+    <message>
+        <location filename="../../src/search/SearchDialog.cpp" line="47"/>
+        <source>Show all results in the active panel as a flat list</source>
+        <translation>Mostrar todos os resultados no painel ativo como uma lista simples</translation>
+    </message>
+    <message>
+        <location filename="../../src/search/SearchDialog.cpp" line="66"/>
         <source>Searching...</source>
         <translation>Pesquisando...</translation>
     </message>
     <message>
-        <location filename="../../src/search/SearchDialog.cpp" line="68"/>
+        <location filename="../../src/search/SearchDialog.cpp" line="79"/>
         <source>%1 result(s)</source>
         <translation>%1 resultado(s)</translation>
     </message>
     <message>
-        <location filename="../../src/search/SearchDialog.cpp" line="87"/>
+        <location filename="../../src/search/SearchDialog.cpp" line="107"/>
         <source>Cancelling...</source>
         <translation>Cancelando...</translation>
     </message>
@@ -2062,27 +2226,27 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/dialogs/SecureWipeDialog.cpp" line="231"/>
         <source>Secure Wipe</source>
-        <translation type="unfinished"></translation>
+        <translation>Apagamento seguro</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SecureWipeDialog.cpp" line="236"/>
         <source>Overwriting and deleting %1 item(s)…</source>
-        <translation type="unfinished"></translation>
+        <translation>Sobrescrevendo e excluindo %1 item(ns)…</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SecureWipeDialog.cpp" line="239"/>
         <source>File</source>
-        <translation type="unfinished">Arquivo</translation>
+        <translation>Arquivo</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SecureWipeDialog.cpp" line="239"/>
         <source>Status</source>
-        <translation type="unfinished">Status</translation>
+        <translation>Status</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SecureWipeDialog.cpp" line="249"/>
         <source>…</source>
-        <translation type="unfinished">…</translation>
+        <translation>…</translation>
     </message>
 </context>
 <context>
@@ -2253,19 +2417,16 @@ Direita: %2</translation>
 <context>
     <name>TextViewer</name>
     <message>
-        <location filename="../../src/viewer/TextViewer.cpp" line="40"/>
         <source>Wrap</source>
-        <translation>Quebrar linha</translation>
+        <translation type="vanished">Quebrar linha</translation>
     </message>
     <message>
-        <location filename="../../src/viewer/TextViewer.cpp" line="46"/>
         <source>Hex</source>
-        <translation>Hex</translation>
+        <translation type="vanished">Hex</translation>
     </message>
     <message>
-        <location filename="../../src/viewer/TextViewer.cpp" line="56"/>
         <source>Find… (Enter / F3)</source>
-        <translation>Localizar… (Enter / F3)</translation>
+        <translation type="vanished">Localizar… (Enter / F3)</translation>
     </message>
 </context>
 <context>
@@ -2331,12 +2492,12 @@ Direita: %2</translation>
     <message>
         <location filename="../../src/ui/dialogs/SecureWipeDialog.cpp" line="189"/>
         <source>Wiped</source>
-        <translation type="unfinished"></translation>
+        <translation>Apagado</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SecureWipeDialog.cpp" line="189"/>
         <source>Failed</source>
-        <translation type="unfinished"></translation>
+        <translation>Falhou</translation>
     </message>
 </context>
 </TS>
