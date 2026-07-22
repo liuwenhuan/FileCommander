@@ -29,6 +29,7 @@ class QTemporaryDir;
 class QToolBar;
 class QTableWidget;
 class QTextBrowser;
+class QTextEdit;
 class QTimer;
 class ArchiveModel;
 class MpvWidget;
@@ -108,12 +109,16 @@ private:
         QSharedPointer<ArchiveNode> root;
         ArchiveHandler::Status status = ArchiveHandler::Status::Ok;
         QString err;
+        QString packageInfo; // .deb control / .rpm header text, empty otherwise
     };
     void handleArchiveLoad(const ArchiveLoadResult &r, const QString &path, const QString &pw,
                            qint64 size, qint64 mtime);
     void onArchiveActivated(const QModelIndex &index); // enter dir / descend / go up
     void navigateArchiveUp();
     void updateArchivePathLabel();
+    // Show `info` (a .deb control file / .rpm header block) in the panel above the
+    // tree, or hide the panel when `info` is empty.
+    void setArchivePackageInfo(const QString &info);
     void populateCsvTable(const QString &csv); // fill the office table from CSV text
     // Converts an office file (optionally with a password) and shows the result:
     // the rendered document/grid, the inline password page (encrypted / wrong
@@ -205,6 +210,9 @@ private:
     QTableView *m_archiveView = nullptr;
     ArchiveModel *m_archiveModel = nullptr;
     QLabel *m_archivePathLabel = nullptr;
+    // Package metadata panel above the tree: shows a .deb's control file or a
+    // .rpm's header info. Hidden for every other archive (and for nested levels).
+    QTextEdit *m_archiveInfoView = nullptr;
     // Nesting chain: paths[0] is the previewed archive, later entries are nested
     // archives the user clicked into (extracted to m_nestedDir). passwords is
     // parallel (empty until an encrypted level is unlocked). "Up" at a nested
@@ -222,6 +230,7 @@ private:
         QString passphrase;
         qint64 size = 0;
         qint64 mtime = 0;
+        QString packageInfo; // cached .deb/.rpm metadata (empty for other archives)
     };
     int m_archiveGen = 0;                                // supersede stale async loads
     std::shared_ptr<std::atomic<bool>> m_archiveCancel; // current load's cancel flag

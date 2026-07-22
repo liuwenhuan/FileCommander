@@ -6,6 +6,8 @@ if(TARGET LibArchive::LibArchive)
         ArchiveNode.h
         ArchiveHandler.h
         ArchiveHandler.cpp
+        PackageInfo.h
+        PackageInfo.cpp
         SevenZipReader.h
         SevenZipReader.cpp
         ExternalArchiveTool.h

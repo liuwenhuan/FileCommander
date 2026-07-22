@@ -38,6 +38,7 @@
 #include <QTemporaryDir>
 #include <QTextBrowser>
 #include <QTextCodec>
+#include <QTextEdit>
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTimer>
@@ -51,6 +52,7 @@
 
 #include "ArchiveHandler.h"
 #include "ArchiveModel.h"
+#include "PackageInfo.h"
 #include "ImageViewer.h"
 #include "MpvWidget.h"
 #include "OfficeConverter.h"
@@ -901,6 +903,16 @@ QWidget *QuickView::buildArchivePage() {
     m_archivePathLabel->setContentsMargins(8, 0, 8, 0);
     toolbar->addWidget(m_archivePathLabel);
 
+    // Package-metadata panel (hidden unless the root archive is a .deb/.rpm).
+    // Read-only, no frame, wraps long Description lines; capped so a big control
+    // file never crowds out the file tree.
+    m_archiveInfoView = new QTextEdit(m_archivePage);
+    m_archiveInfoView->setReadOnly(true);
+    m_archiveInfoView->setFrameShape(QFrame::NoFrame);
+    m_archiveInfoView->setLineWrapMode(QTextEdit::WidgetWidth);
+    m_archiveInfoView->setMaximumHeight(180);
+    m_archiveInfoView->hide();
+
     m_archiveView = new QTableView(m_archivePage);
     m_archiveView->setModel(m_archiveModel);
     m_archiveView->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -915,6 +927,7 @@ QWidget *QuickView::buildArchivePage() {
     auto *layout = new QVBoxLayout(m_archivePage);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(toolbar);
+    layout->addWidget(m_archiveInfoView);
     layout->addWidget(m_archiveView, 1);
     return m_archivePage;
 }
@@ -943,6 +956,7 @@ void QuickView::tryLoadCurrentArchive() {
         cached->mtime == mtime && cached->passphrase == pw) {
         m_archiveModel->setTree(cached->root, path, pw);
         updateArchivePathLabel();
+        setArchivePackageInfo(cached->packageInfo);
         m_stack->setCurrentWidget(m_archivePage);
         return;
     }
@@ -970,6 +984,11 @@ void QuickView::tryLoadCurrentArchive() {
     watcher->setFuture(QtConcurrent::run([path, pw, cancel]() {
         ArchiveLoadResult r;
         r.root = ArchiveHandler::buildTree(path, pw, &r.status, &r.err, cancel.get());
+        // Read .deb/.rpm metadata here (off the GUI thread) so the extra I/O and
+        // decompression never hitches the preview; PackageInfo returns empty for
+        // anything else.
+        if (r.status == ArchiveHandler::Status::Ok && r.root)
+            r.packageInfo = PackageInfo::forPackage(path);
         return r;
     }));
 }
@@ -980,7 +999,7 @@ void QuickView::handleArchiveLoad(const ArchiveLoadResult &r, const QString &pat
 
     if (r.status == ArchiveHandler::Status::Ok && r.root) {
         // Cache the tree (bounded, FIFO eviction) so re-visits and "Up" are instant.
-        m_archiveCache.insert(path, {r.root, pw, size, mtime});
+        m_archiveCache.insert(path, {r.root, pw, size, mtime, r.packageInfo});
         m_archiveCacheOrder.removeAll(path);
         m_archiveCacheOrder.append(path);
         constexpr int kMaxCachedArchives = 8;
@@ -989,6 +1008,7 @@ void QuickView::handleArchiveLoad(const ArchiveLoadResult &r, const QString &pat
 
         m_archiveModel->setTree(r.root, path, pw);
         updateArchivePathLabel();
+        setArchivePackageInfo(r.packageInfo);
         m_stack->setCurrentWidget(m_archivePage);
         return;
     }
@@ -1102,6 +1122,18 @@ void QuickView::updateArchivePathLabel() {
         label += QFileInfo(p).fileName() + QStringLiteral(" › ");
     label += QStringLiteral("/%1").arg(m_archiveModel->currentPath());
     m_archivePathLabel->setText(label);
+}
+
+void QuickView::setArchivePackageInfo(const QString &info) {
+    if (info.isEmpty()) {
+        m_archiveInfoView->clear();
+        m_archiveInfoView->hide();
+        return;
+    }
+    // Plain text keeps the control/header exactly as written (no HTML escaping
+    // surprises) and inherits the theme's text colour like the rest of the UI.
+    m_archiveInfoView->setPlainText(info);
+    m_archiveInfoView->show();
 }
 
 void QuickView::populateCsvTable(const QString &tsv) {
