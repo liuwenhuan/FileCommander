@@ -34,12 +34,21 @@ void sortChildren(QSharedPointer<ArchiveNode> &node) {
 ArchiveModel::ArchiveModel(QObject *parent) : QAbstractTableModel(parent) {}
 
 bool ArchiveModel::loadArchive(const QString &archivePath, QString *errorMessage) {
-    auto root = ArchiveHandler::buildTree(archivePath, errorMessage);
+    return loadArchive(archivePath, QString(), nullptr, errorMessage);
+}
+
+bool ArchiveModel::loadArchive(const QString &archivePath, const QString &passphrase,
+                               ArchiveHandler::Status *status, QString *errorMessage) {
+    ArchiveHandler::Status st = ArchiveHandler::Status::Ok;
+    auto root = ArchiveHandler::buildTree(archivePath, passphrase, &st, errorMessage);
+    if (status)
+        *status = st;
     if (!root)
-        return false;
+        return false; // st explains why (NeedPassword / WrongPassword / ...)
 
     beginResetModel();
     m_archivePath = archivePath;
+    m_passphrase = passphrase;
     m_root = root;
     sortChildren(m_root);
     for (auto &child : m_root->children) {

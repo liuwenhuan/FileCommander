@@ -27,6 +27,7 @@
 #include <QStyle>
 #include <QTableView>
 #include <QTableWidget>
+#include <QTemporaryDir>
 #include <QTextBrowser>
 #include <QTextCodec>
 #include <QTextCursor>
@@ -645,9 +646,31 @@ void QuickView::tryUnlock() {
         m_encryptedFeedback->setText(tr("Enter a password."));
         return;
     }
-    // office_oxide decrypts in-process and renders directly; renderOffice() shows
-    // the document on success or refreshes this page's feedback on a wrong password.
-    renderOffice(m_encryptedPath, password);
+    if (m_encryptedKind == EncryptedKind::Office) {
+        // office_oxide decrypts in-process and renders directly; renderOffice()
+        // shows the document on success or refreshes feedback on a wrong password.
+        renderOffice(m_encryptedPath, password);
+        return;
+    }
+    // Archive: retry the current chain level with the entered password.
+    ArchiveHandler::Status status = ArchiveHandler::Status::Ok;
+    QString err;
+    if (m_archiveModel->loadArchive(m_encryptedPath, password, &status, &err)) {
+        if (!m_archivePasswords.isEmpty())
+            m_archivePasswords.last() = password; // remember for nested extraction
+        updateArchivePathLabel();
+        m_stack->setCurrentWidget(m_archivePage);
+        return;
+    }
+    if (status == ArchiveHandler::Status::WrongPassword) {
+        m_encryptedFeedback->setText(tr("Incorrect password. Try again."));
+        m_passwordEdit->selectAll();
+        m_passwordEdit->setFocus();
+    } else if (status == ArchiveHandler::Status::EncryptedUnsupported) {
+        m_encryptedFeedback->setText(tr("This archive's encryption isn't supported."));
+    } else {
+        m_encryptedFeedback->setText(tr("Could not open the archive."));
+    }
 }
 
 void QuickView::renderOffice(const QString &path, const QString &password) {
@@ -672,6 +695,7 @@ void QuickView::renderOffice(const QString &path, const QString &password) {
     switch (r.encryption) {
     case OfficeConverter::Encryption::NeedsPassword:
         // First encounter: show the inline field, cleared and focused.
+        m_encryptedKind = EncryptedKind::Office;
         m_encryptedPath = path;
         m_encryptedLabel->setText(
             tr("“%1” is encrypted. Enter the password to preview it:").arg(info.fileName()));
@@ -684,6 +708,7 @@ void QuickView::renderOffice(const QString &path, const QString &password) {
         return;
     case OfficeConverter::Encryption::WrongPassword:
         // Stay on the page and report in place; let the user retype.
+        m_encryptedKind = EncryptedKind::Office;
         m_encryptedPath = path;
         m_encryptedFeedback->setText(tr("Incorrect password. Try again."));
         m_passwordEdit->selectAll();
@@ -736,25 +761,136 @@ QWidget *QuickView::buildArchivePage() {
     return m_archivePage;
 }
 
+void QuickView::previewArchive(const QString &path) {
+    stopVideo();
+    closePdf();
+    m_infoOverlay->hide();
+    // Fresh chain rooted at this archive; drop any previously extracted nesteds.
+    m_archivePaths = QStringList{path};
+    m_archivePasswords = QStringList{QString()};
+    m_nestedDir.reset();
+    tryLoadCurrentArchive();
+}
+
+void QuickView::tryLoadCurrentArchive() {
+    const QString path = m_archivePaths.last();
+    const QString pw = m_archivePasswords.last();
+    ArchiveHandler::Status status = ArchiveHandler::Status::Ok;
+    QString err;
+    if (m_archiveModel->loadArchive(path, pw, &status, &err)) {
+        updateArchivePathLabel();
+        m_stack->setCurrentWidget(m_archivePage);
+        return;
+    }
+
+    const QString name = QFileInfo(path).fileName();
+    switch (status) {
+    case ArchiveHandler::Status::NeedPassword: {
+        // libarchive can decrypt ZIP but not 7z/rar content; for those don't
+        // prompt for a password we could never use -- say so directly.
+        const QString lower = path.toLower();
+        if (lower.endsWith(QLatin1String(".7z")) || lower.endsWith(QLatin1String(".rar"))) {
+            m_info->setText(tr("“%1” is encrypted in a format that can't be previewed "
+                               "(7z/RAR encryption is unsupported).")
+                                .arg(name));
+            m_stack->setCurrentWidget(m_info);
+            break;
+        }
+        // Gate the preview behind the inline password page (same UI as office).
+        m_encryptedKind = EncryptedKind::Archive;
+        m_encryptedPath = path;
+        m_encryptedLabel->setText(
+            tr("“%1” is encrypted. Enter the password to preview it:").arg(name));
+        m_encryptedFeedback->clear();
+        m_passwordEdit->clear();
+        m_passwordEdit->show();
+        m_unlockButton->show();
+        m_stack->setCurrentWidget(m_encryptedPage);
+        m_passwordEdit->setFocus();
+        break;
+    }
+    case ArchiveHandler::Status::EncryptedUnsupported:
+        m_info->setText(tr("“%1” is encrypted in a format that can't be previewed "
+                           "(7z/RAR encryption is unsupported).")
+                            .arg(name));
+        m_stack->setCurrentWidget(m_info);
+        break;
+    default:
+        m_info->setText(tr("Cannot open archive: %1").arg(name));
+        m_stack->setCurrentWidget(m_info);
+        break;
+    }
+}
+
+void QuickView::descendIntoNestedArchive(const QString &entryFullPath, const QString &entryName) {
+    if (!m_nestedDir)
+        m_nestedDir = std::make_unique<QTemporaryDir>();
+    if (!m_nestedDir->isValid()) {
+        m_info->setText(tr("Could not create a temporary directory."));
+        m_stack->setCurrentWidget(m_info);
+        return;
+    }
+    // Extract just this entry into a per-level subdir so names never collide.
+    const QString sub =
+        QDir(m_nestedDir->path()).filePath(QString::number(m_archivePaths.size()));
+    QDir().mkpath(sub);
+    QString err;
+    if (!ArchiveHandler::extract(m_archivePaths.last(), {entryFullPath}, sub,
+                                 m_archivePasswords.last(), &err)) {
+        m_info->setText(tr("Could not extract %1: %2").arg(entryName, err));
+        m_stack->setCurrentWidget(m_info);
+        return;
+    }
+    const QString nested = QDir(sub).filePath(entryFullPath);
+    if (!QFileInfo::exists(nested)) {
+        m_info->setText(tr("Could not read the nested archive %1.").arg(entryName));
+        m_stack->setCurrentWidget(m_info);
+        return;
+    }
+    m_archivePaths.append(nested);
+    m_archivePasswords.append(QString());
+    tryLoadCurrentArchive();
+}
+
 void QuickView::onArchiveActivated(const QModelIndex &index) {
     if (m_archiveModel->isParentEntry(index.row())) {
         navigateArchiveUp();
         return;
     }
     const auto node = m_archiveModel->nodeAt(index.row());
-    if (node && node->isDir) {
+    if (!node)
+        return;
+    if (node->isDir) {
         m_archiveModel->enterDirectory(node->fullPath);
         updateArchivePathLabel();
+        return;
     }
+    // A file entry that is itself an archive: extract it and descend inside.
+    if (ArchiveHandler::isSupportedArchive(node->name))
+        descendIntoNestedArchive(node->fullPath, node->name);
 }
 
 void QuickView::navigateArchiveUp() {
-    if (m_archiveModel->navigateUp())
-        updateArchivePathLabel();
+    if (!m_archiveModel->isAtRoot()) {
+        if (m_archiveModel->navigateUp())
+            updateArchivePathLabel();
+        return;
+    }
+    // At the root of a nested archive: pop back to the parent archive.
+    if (m_archivePaths.size() > 1) {
+        m_archivePaths.removeLast();
+        m_archivePasswords.removeLast();
+        tryLoadCurrentArchive();
+    }
 }
 
 void QuickView::updateArchivePathLabel() {
-    m_archivePathLabel->setText(QStringLiteral("/%1").arg(m_archiveModel->currentPath()));
+    // "outer.zip › inner.zip / subdir" -- the archive chain plus the path inside.
+    QString label;
+    for (const QString &p : m_archivePaths)
+        label += QFileInfo(p).fileName() + QStringLiteral(" › ");
+    label += QStringLiteral("/%1").arg(m_archiveModel->currentPath());
+    m_archivePathLabel->setText(label);
 }
 
 void QuickView::populateCsvTable(const QString &tsv) {
@@ -955,17 +1091,7 @@ void QuickView::showFile(const QString &path) {
     // extraction). Checked first so an archive under the cursor shows its file
     // tree instead of falling through to a garbage text head.
     if (ArchiveHandler::isSupportedArchive(path)) {
-        stopVideo();
-        closePdf();
-        m_infoOverlay->hide();
-        QString err;
-        if (m_archiveModel->loadArchive(path, &err)) {
-            updateArchivePathLabel();
-            m_stack->setCurrentWidget(m_archivePage);
-        } else {
-            m_info->setText(tr("Cannot open archive: %1").arg(info.fileName()));
-            m_stack->setCurrentWidget(m_info);
-        }
+        previewArchive(path);
         return;
     }
 

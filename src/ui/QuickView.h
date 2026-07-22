@@ -19,6 +19,7 @@ class QScrollArea;
 class QSlider;
 class QStackedWidget;
 class QTableView;
+class QTemporaryDir;
 class QToolBar;
 class QTableWidget;
 class QTextBrowser;
@@ -82,7 +83,10 @@ private:
     QWidget *buildOfficeTablePage();       // spreadsheet (xls/xlsx) preview as a grid
     QWidget *buildEncryptedPage();         // "encrypted" note + an unlock button
     QWidget *buildArchivePage();           // read-only archive listing (no extraction)
-    void onArchiveActivated(const QModelIndex &index); // enter dir / go up
+    void previewArchive(const QString &path);   // start a fresh archive chain at path
+    void tryLoadCurrentArchive();               // (re)load the current chain level
+    void descendIntoNestedArchive(const QString &entryFullPath, const QString &entryName);
+    void onArchiveActivated(const QModelIndex &index); // enter dir / descend / go up
     void navigateArchiveUp();
     void updateArchivePathLabel();
     void populateCsvTable(const QString &csv); // fill the office table from CSV text
@@ -150,6 +154,10 @@ private:
     QWidget *m_encryptedPage = nullptr;
     QLabel *m_encryptedLabel = nullptr;       // "“file” is encrypted. Enter password:"
     QLineEdit *m_passwordEdit = nullptr;      // inline password entry
+    // The inline password page is shared by office files and archives; the kind
+    // decides what tryUnlock() does with the entered password.
+    enum class EncryptedKind { Office, Archive };
+    EncryptedKind m_encryptedKind = EncryptedKind::Office;
     QPushButton *m_unlockButton = nullptr;    // triggers tryUnlock()
     QLabel *m_encryptedFeedback = nullptr;    // wrong-password / error note, in place
     QString m_encryptedPath;                  // file awaiting a password
@@ -161,6 +169,13 @@ private:
     QTableView *m_archiveView = nullptr;
     ArchiveModel *m_archiveModel = nullptr;
     QLabel *m_archivePathLabel = nullptr;
+    // Nesting chain: paths[0] is the previewed archive, later entries are nested
+    // archives the user clicked into (extracted to m_nestedDir). passwords is
+    // parallel (empty until an encrypted level is unlocked). "Up" at a nested
+    // root pops back to the parent archive.
+    QStringList m_archivePaths;
+    QStringList m_archivePasswords;
+    std::unique_ptr<QTemporaryDir> m_nestedDir; // holds extracted nested archives
 
     // PDF page (m_stack index 5): a single rendered page in a scroll area with
     // prev/next + zoom controls. Poppler renders each page to a QImage on demand.

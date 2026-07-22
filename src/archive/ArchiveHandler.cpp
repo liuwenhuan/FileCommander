@@ -115,9 +115,10 @@ bool ArchiveHandler::isSupportedArchive(const QString &path) {
     // libarchive (archive_read_support_format_all in buildTree/extract) reads all
     // of these, so listing/preview/extraction work uniformly. 7z, rar and iso are
     // read-only here (creation still offers only the tar/zip family).
-    static const QStringList kExtensions = {".zip",    ".tar",     ".tar.gz", ".tgz",
-                                             ".tar.bz2", ".tbz2",   ".tar.xz", ".txz",
-                                             ".7z",     ".rar",     ".iso"};
+    static const QStringList kExtensions = {
+        ".zip",     ".tar",   ".tar.gz",  ".tgz",  ".tar.bz2", ".tbz2",
+        ".tar.xz",  ".txz",   ".tar.zst", ".tzst", ".7z",      ".rar",
+        ".iso",     ".deb",   ".rpm",     ".cpio", ".cab"};
     const QString lower = path.toLower();
     for (const QString &ext : kExtensions) {
         if (lower.endsWith(ext))
@@ -128,13 +129,39 @@ bool ArchiveHandler::isSupportedArchive(const QString &path) {
 
 QSharedPointer<ArchiveNode> ArchiveHandler::buildTree(const QString &archivePath,
                                                        QString *errorMessage) {
+    return buildTree(archivePath, QString(), nullptr, errorMessage);
+}
+
+QSharedPointer<ArchiveNode> ArchiveHandler::buildTree(const QString &archivePath,
+                                                       const QString &passphrase, Status *status,
+                                                       QString *errorMessage) {
+    auto setStatus = [&](Status s) {
+        if (status)
+            *status = s;
+    };
+    // Map a libarchive data/header error string to a status: a passphrase problem
+    // vs an encryption libarchive can't handle (7z/rar) vs a plain error.
+    auto classify = [](const QString &e) {
+        if (e.contains(QLatin1String("passphrase"), Qt::CaseInsensitive) ||
+            e.contains(QLatin1String("incorrect"), Qt::CaseInsensitive) ||
+            e.contains(QLatin1String("wrong password"), Qt::CaseInsensitive))
+            return Status::WrongPassword;
+        if (e.contains(QLatin1String("encrypted"), Qt::CaseInsensitive) &&
+            e.contains(QLatin1String("not supported"), Qt::CaseInsensitive))
+            return Status::EncryptedUnsupported;
+        return Status::Error;
+    };
+
     struct archive *a = archive_read_new();
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
+    if (!passphrase.isEmpty())
+        archive_read_add_passphrase(a, passphrase.toUtf8().constData());
 
     if (archive_read_open_filename(a, archivePath.toUtf8().constData(), 10240) != ARCHIVE_OK) {
         if (errorMessage)
             *errorMessage = lastArchiveError(a);
+        setStatus(Status::Error);
         archive_read_free(a);
         return {};
     }
@@ -142,6 +169,8 @@ QSharedPointer<ArchiveNode> ArchiveHandler::buildTree(const QString &archivePath
     auto root = QSharedPointer<ArchiveNode>::create();
     root->isDir = true;
 
+    bool sawEncrypted = false;
+    bool verified = false;
     struct archive_entry *entry;
     int r;
     while ((r = archive_read_next_header(a, &entry)) == ARCHIVE_OK) {
@@ -149,31 +178,80 @@ QSharedPointer<ArchiveNode> ArchiveHandler::buildTree(const QString &archivePath
         entryPath = entryPath.replace(QLatin1Char('\\'), QLatin1Char('/'));
         while (entryPath.endsWith('/'))
             entryPath.chop(1);
+        const bool isDir = archive_entry_filetype(entry) == AE_IFDIR;
         const QStringList parts = entryPath.split('/', Qt::SkipEmptyParts);
         if (!parts.isEmpty()) {
-            const bool isDir = archive_entry_filetype(entry) == AE_IFDIR;
             const qint64 size = archive_entry_size(entry);
             QDateTime modified;
             if (archive_entry_mtime_is_set(entry))
                 modified = QDateTime::fromSecsSinceEpoch(archive_entry_mtime(entry));
             ensurePath(root, parts, isDir, size, modified);
         }
-        archive_read_data_skip(a);
+
+        if (archive_entry_is_encrypted(entry))
+            sawEncrypted = true;
+
+        // With a passphrase, verify it against the first encrypted regular file
+        // by actually decrypting a little of it -- a wrong password (or an
+        // unsupported 7z/rar cipher) surfaces here rather than silently listing.
+        if (!passphrase.isEmpty() && !verified && archive_entry_is_encrypted(entry) && !isDir) {
+            char buf[4096];
+            const la_ssize_t n = archive_read_data(a, buf, sizeof buf);
+            if (n < 0) {
+                const QString e = lastArchiveError(a);
+                if (errorMessage)
+                    *errorMessage = e;
+                setStatus(classify(e));
+                archive_read_close(a);
+                archive_read_free(a);
+                return {};
+            }
+            verified = true;
+        } else {
+            archive_read_data_skip(a);
+        }
     }
 
-    if (r != ARCHIVE_EOF && errorMessage)
-        *errorMessage = lastArchiveError(a);
+    if (r != ARCHIVE_EOF) {
+        const QString e = lastArchiveError(a);
+        if (errorMessage)
+            *errorMessage = e;
+        // Header-encrypted 7z fails the whole read ("archive header is encrypted,
+        // but currently not supported").
+        setStatus(e.contains(QLatin1String("encrypted"), Qt::CaseInsensitive)
+                      ? Status::EncryptedUnsupported
+                      : Status::Error);
+        archive_read_close(a);
+        archive_read_free(a);
+        return {};
+    }
 
     archive_read_close(a);
     archive_read_free(a);
+
+    // Encrypted but no passphrase yet -> the caller should prompt. (The names are
+    // listable for ZIP, but we gate the preview behind the password like office.)
+    if (sawEncrypted && passphrase.isEmpty()) {
+        setStatus(Status::NeedPassword);
+        return {};
+    }
+    setStatus(Status::Ok);
     return root;
 }
 
 bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entryFullPaths,
                               const QString &destDir, QString *errorMessage) {
+    return extract(archivePath, entryFullPaths, destDir, QString(), errorMessage);
+}
+
+bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entryFullPaths,
+                              const QString &destDir, const QString &passphrase,
+                              QString *errorMessage) {
     struct archive *a = archive_read_new();
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
+    if (!passphrase.isEmpty())
+        archive_read_add_passphrase(a, passphrase.toUtf8().constData());
 
     struct archive *ext = archive_write_disk_new();
     archive_write_disk_set_options(ext, ARCHIVE_EXTRACT_TIME | ARCHIVE_EXTRACT_PERM |
