@@ -5,6 +5,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QListView>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -374,6 +375,10 @@ QWidget *QuickView::buildTextPage() {
     m_textToolbar = new QToolBar(m_textPage);
 
     m_textEncoding = new QComboBox(m_textToolbar);
+    // A plain QListView popup honours our QSS `::item` colours; the platform's
+    // native combo popup ignores them and paints from the palette Text role,
+    // which turns non-selected rows invisible in the light theme.
+    m_textEncoding->setView(new QListView(m_textEncoding));
     for (const TextEncoding &e : kTextEncodings)
         m_textEncoding->addItem(QString::fromLatin1(e.label));
     m_textToolbar->addWidget(m_textEncoding);
@@ -546,6 +551,8 @@ QWidget *QuickView::buildVideoPage() {
     });
 
     m_speedCombo = new QComboBox(m_videoPage);
+    // Use a QListView popup so the QSS `::item` colours apply (see m_textEncoding).
+    m_speedCombo->setView(new QListView(m_speedCombo));
     // Drop the combo's outer frame so it reads as a flat control alongside the
     // play button instead of drawing an extra boxed outline. Keep the drop-down
     // sub-control (arrow) untouched so it stays a usable dropdown.

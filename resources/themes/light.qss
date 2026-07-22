@@ -102,6 +102,59 @@ QLineEdit:focus {
     border: 1px solid #3d7deb;
 }
 
+/* Combo boxes -- flat box + flat popup that matches the theme. Without these
+   rules Qt falls back to the native platform style: a 3D/protruding drop-down
+   and a popup whose text colour ignores the app theme. */
+QComboBox {
+    background-color: #ffffff;
+    color: #202020;
+    border: 1px solid #c8c8c8;
+    border-radius: 3px;
+    padding: 2px 6px;
+}
+
+QComboBox:focus {
+    border: 1px solid #3d7deb;
+}
+
+QComboBox:hover {
+    border: 1px solid #a8a8a8;
+}
+
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: center right;
+    width: 18px;
+    border: none;
+    background: transparent;
+}
+
+/* The dropdown list. selection-* keep the highlighted row on-theme; the flat
+   1px border replaces the native raised frame. */
+QComboBox QAbstractItemView {
+    background-color: #ffffff;
+    color: #202020;
+    border: 1px solid #c8c8c8;
+    outline: none;
+    selection-background-color: #3d7deb;
+    selection-color: #ffffff;
+}
+
+/* Colour the item text on the ::item sub-control itself. Under DTK the
+   view-level `color` above only reaches the *selected* row; non-selected rows
+   fall back to the (light) palette Text role and render invisible on white,
+   so the per-item colour has to be spelled out here. */
+QComboBox QAbstractItemView::item {
+    color: #202020;
+    padding: 3px 8px;
+    min-height: 20px;
+}
+
+QComboBox QAbstractItemView::item:selected {
+    background-color: #3d7deb;
+    color: #ffffff;
+}
+
 QPushButton {
     background-color: #e4e4e4;
     border: 1px solid #c0c0c0;
