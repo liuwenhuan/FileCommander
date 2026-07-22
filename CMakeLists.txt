@@ -32,6 +32,10 @@ target_link_libraries(ttc PRIVATE
     Qt5::Widgets Qt5::Core Qt5::Gui Qt5::Concurrent
 )
 
+# test-ws worktree only: rename output binary to `test-ttc` so this isolated
+# dev/test build never collides with (or gets killed alongside) the main `ttc`.
+set_target_properties(ttc PROPERTIES OUTPUT_NAME test-ttc)
+
 add_subdirectory(tests)
 add_subdirectory(bench)
 
