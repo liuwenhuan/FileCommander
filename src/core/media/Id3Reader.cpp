@@ -258,7 +258,6 @@ AudioTags Id3Reader::read(const QString &path) {
         return tags;
 
     const QByteArray header = file.read(10);
-    bool haveV2 = false;
     if (header.size() == 10 && header.startsWith("ID3")) {
         const uchar major = static_cast<uchar>(header.at(3));
         const uchar flags = static_cast<uchar>(header.at(5));
@@ -266,20 +265,25 @@ AudioTags Id3Reader::read(const QString &path) {
         const bool globalUnsync = flags & 0x80;
         const bool extHeader = flags & 0x40;
 
-        // Bound the read so a corrupt size can't allocate wildly (covers can be
-        // a few MB, so 64 MiB is a generous ceiling).
-        const quint32 cap = 64u * 1024 * 1024;
+        // Bound the read so a corrupt size can't allocate wildly and so a single
+        // file selection never blocks the GUI thread on a huge read. Real tags
+        // plus one embedded cover comfortably fit a few MB; 8 MiB is a generous
+        // ceiling that still truncates pathological/corrupt declared sizes.
+        const quint32 cap = 8u * 1024 * 1024;
         QByteArray body = file.read(qMin(tagSize, cap));
         if (globalUnsync)
             body = deUnsync(body);
 
         int pos = 0;
         // Skip an extended header when present (its own size prefix leads it).
+        // All size math is done in 64-bit so a crafted 32-bit size can never
+        // overflow the int bounds check below.
         if (extHeader && body.size() >= 4) {
-            const quint32 extSize =
-                (major >= 4) ? syncsafe(reinterpret_cast<const uchar *>(body.constData()))
-                             : be32(reinterpret_cast<const uchar *>(body.constData())) + 4;
-            pos += qMin<int>(extSize, body.size());
+            const qint64 extSize =
+                (major >= 4)
+                    ? qint64(syncsafe(reinterpret_cast<const uchar *>(body.constData())))
+                    : qint64(be32(reinterpret_cast<const uchar *>(body.constData()))) + 4;
+            pos += static_cast<int>(qMin<qint64>(extSize, body.size()));
         }
 
         const int idLen = (major <= 2) ? 3 : 4;
@@ -304,17 +308,81 @@ AudioTags Id3Reader::read(const QString &path) {
             }
 
             const int dataStart = pos + hdrLen;
-            if (size == 0 || dataStart + static_cast<int>(size) > body.size())
+            // Validate the frame span in 64-bit arithmetic: a crafted v2.3 32-bit
+            // size (e.g. ~0x7FFFFFF8) would overflow a signed int here, which is
+            // undefined behaviour. Comparing as qint64 avoids the overflow and
+            // rejects any frame that would read past the buffer.
+            if (size == 0 ||
+                static_cast<qint64>(dataStart) + static_cast<qint64>(size) >
+                    static_cast<qint64>(body.size()))
                 break;
 
+            // Decode the per-frame format flags (v2.3 and v2.4 use different bit
+            // layouts) so grouping/compression/encryption are handled rather than
+            // fed raw to the parsers (the empty-lyrics class of bug).
+            bool grouping = false, compression = false, encryption = false;
+            bool frameUnsync = false, dataLenPrefix = false;
+            if (major == 3) {
+                compression = frameFlags2 & 0x80;
+                encryption = frameFlags2 & 0x40;
+                grouping = frameFlags2 & 0x20;
+            } else if (major >= 4) {
+                grouping = frameFlags2 & 0x40;
+                compression = frameFlags2 & 0x08;
+                encryption = frameFlags2 & 0x04;
+                frameUnsync = frameFlags2 & 0x02;
+                dataLenPrefix = frameFlags2 & 0x01;
+            }
+
+            const int nextPos = dataStart + static_cast<int>(size);
+
+            // Encrypted frames can't be decoded without the (separate) key frame;
+            // skip rather than mis-parse ciphertext as text.
+            if (encryption) {
+                pos = nextPos;
+                continue;
+            }
+
             QByteArray frame = body.mid(dataStart, size);
+
+            // Grouping identity byte leads the frame data when set; drop it.
+            if (grouping && !frame.isEmpty())
+                frame = frame.mid(1);
+
             // Per-frame unsynchronisation (v2.4 format flag 0x02).
-            if (major >= 4 && (frameFlags2 & 0x02))
+            if (frameUnsync)
                 frame = deUnsync(frame);
-            // A data-length indicator (v2.4 flag 0x01) prefixes the payload with
-            // a 4-byte size; skip it so it isn't mistaken for content.
-            if (major >= 4 && (frameFlags2 & 0x01) && frame.size() >= 4)
+
+            if (compression) {
+                // zlib-compressed payload. qUncompress() expects a 4-byte
+                // big-endian uncompressed-size header followed by the zlib
+                // stream. v2.3 frames already carry exactly that prefix; v2.4
+                // frames carry a syncsafe data-length prefix instead, so rebuild
+                // a plain big-endian header from it.
+                QByteArray z;
+                if (major == 3) {
+                    z = frame;
+                } else if (frame.size() >= 4) {
+                    const quint32 usize =
+                        syncsafe(reinterpret_cast<const uchar *>(frame.constData()));
+                    QByteArray hdr(4, Qt::Uninitialized);
+                    hdr[0] = static_cast<char>((usize >> 24) & 0xff);
+                    hdr[1] = static_cast<char>((usize >> 16) & 0xff);
+                    hdr[2] = static_cast<char>((usize >> 8) & 0xff);
+                    hdr[3] = static_cast<char>(usize & 0xff);
+                    z = hdr + frame.mid(4);
+                }
+                const QByteArray dec = z.isEmpty() ? QByteArray() : qUncompress(z);
+                if (dec.isEmpty()) { // unusable/corrupt → skip this frame
+                    pos = nextPos;
+                    continue;
+                }
+                frame = dec;
+            } else if (dataLenPrefix && frame.size() >= 4) {
+                // A data-length indicator (v2.4 flag 0x01) prefixes the payload
+                // with a 4-byte size; skip it so it isn't mistaken for content.
                 frame = frame.mid(4);
+            }
 
             const char first = id.at(0);
             if ((id == "TXXX" || id == "TXX") && frame.size() > 1) {
@@ -327,7 +395,13 @@ AudioTags Id3Reader::read(const QString &path) {
                     const QString desc = decodeText(enc, frame.mid(1, dterm - 1));
                     const int vpos = dterm + terminatorSize(enc);
                     const QString value = decodeText(enc, frame.mid(vpos)).trimmed();
-                    if (tags.lyrics.isEmpty() && desc.contains("lyric", Qt::CaseInsensitive))
+                    // Taggers stash lyrics in TXXX under assorted descriptions:
+                    // "lyrics"/"unsynced lyrics" and, as ffmpeg does, the literal
+                    // frame name "USLT". Match any of them.
+                    const bool looksLikeLyrics =
+                        desc.contains("lyric", Qt::CaseInsensitive) ||
+                        desc.compare("USLT", Qt::CaseInsensitive) == 0;
+                    if (tags.lyrics.isEmpty() && looksLikeLyrics)
                         tags.lyrics = value;
                 }
             } else if (first == 'T' && !frame.isEmpty()) {
@@ -347,15 +421,13 @@ AudioTags Id3Reader::read(const QString &path) {
                     tags.comment = decodeText(enc, frame.mid(p)).trimmed();
                 }
             }
-            pos = dataStart + static_cast<int>(size);
+            pos = nextPos;
         }
-        haveV2 = tags.hasAnyText() || tags.hasCover() || !tags.lyrics.isEmpty();
     }
     file.close();
 
     // ID3v1 fills anything the v2 tag left blank (or the whole thing when there
     // was no v2 tag at all).
-    Q_UNUSED(haveV2);
     readId3v1(path, tags);
     return tags;
 }

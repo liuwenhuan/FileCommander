@@ -1375,6 +1375,8 @@ void MainWindow::toggleQuickView() {
     const QList<int> sizes = m_panelSplitter->sizes();
 
     if (m_quickViewActive) {
+        // Stop any playing media so it doesn't keep running behind the hidden pane.
+        m_quickView->stopPlayback();
         // Put the previewed panel back where it was.
         m_panelSplitter->replaceWidget(m_quickViewIndex, m_quickViewPanel);
         m_quickViewPanel->show();
