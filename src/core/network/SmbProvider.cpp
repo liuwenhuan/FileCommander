@@ -177,6 +177,13 @@ QString SmbProvider::host() const {
     return m_host;
 }
 
+QString SmbProvider::displayName() const {
+    QMutexLocker locker(&m_mutex);
+    if (m_host.isEmpty())
+        return {};
+    return m_user.isEmpty() ? m_host : m_user + QLatin1Char('@') + m_host;
+}
+
 QString SmbProvider::userForAuth() const { return m_user; }
 QString SmbProvider::passwordForAuth() const { return m_password; }
 QString SmbProvider::workgroupForAuth() const { return m_workgroup; }

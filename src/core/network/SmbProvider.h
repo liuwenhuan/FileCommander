@@ -44,6 +44,9 @@ public:
     bool isConnected() const;
     QString host() const;
 
+    // Connection label for network tabs: "user@host" (or "host" if no user).
+    QString displayName() const override;
+
     // Read by the libsmbclient auth callback (a free function in the .cpp),
     // which runs synchronously inside a libsmbclient call this provider issued.
     // The values are set once in connectToHost() and never mutated after, so

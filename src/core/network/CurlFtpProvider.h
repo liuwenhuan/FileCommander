@@ -46,6 +46,9 @@ public:
     bool isConnected() const;
     QString host() const;
 
+    // Connection label for network tabs: "user@host" (or "host" if no user).
+    QString displayName() const override;
+
     // FileProvider overrides:
     QVector<FileInfo> list(const QString &path, bool showHidden) const override;
     bool isDir(const QString &path) const override;

@@ -174,6 +174,7 @@ bool SftpProvider::connectToHost(const QString &host, int port, const QString &u
     m_session = session;
     m_sftp = sftp;
     m_host = host;
+    m_user = user;
     return true;
 }
 
@@ -193,6 +194,7 @@ void SftpProvider::disconnect() {
         m_socket = -1;
     }
     m_host.clear();
+    m_user.clear();
 }
 
 bool SftpProvider::isConnected() const {
@@ -203,6 +205,13 @@ bool SftpProvider::isConnected() const {
 QString SftpProvider::host() const {
     QMutexLocker locker(&m_mutex);
     return m_host;
+}
+
+QString SftpProvider::displayName() const {
+    QMutexLocker locker(&m_mutex);
+    if (m_host.isEmpty())
+        return {};
+    return m_user.isEmpty() ? m_host : m_user + QLatin1Char('@') + m_host;
 }
 
 QVector<FileInfo> SftpProvider::list(const QString &path, bool showHidden) const {

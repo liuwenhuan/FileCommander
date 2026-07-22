@@ -35,6 +35,9 @@ public:
     bool isConnected() const;
     QString host() const;
 
+    // Connection label for network tabs: "user@host" (or "host" if no user).
+    QString displayName() const override;
+
     // FileProvider overrides:
     QVector<FileInfo> list(const QString &path, bool showHidden) const override;
     bool isDir(const QString &path) const override;
@@ -67,4 +70,5 @@ private:
     _LIBSSH2_SFTP *m_sftp = nullptr;
     int m_socket = -1;
     QString m_host;
+    QString m_user;
 };

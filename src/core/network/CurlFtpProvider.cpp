@@ -284,6 +284,13 @@ QString CurlFtpProvider::host() const {
     return m_host;
 }
 
+QString CurlFtpProvider::displayName() const {
+    QMutexLocker locker(&m_mutex);
+    if (m_host.isEmpty())
+        return {};
+    return m_user.isEmpty() ? m_host : m_user + QLatin1Char('@') + m_host;
+}
+
 QString CurlFtpProvider::cleanPath(const QString &path) const {
     QString p = path;
     p.replace(QLatin1Char('\\'), QLatin1Char('/'));
