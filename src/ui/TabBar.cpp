@@ -171,6 +171,7 @@ void TabBar::contextMenuEvent(QContextMenuEvent *event) {
     // Right-clicking anywhere on the tab strip opens the directory-favorites
     // menu (bookmark toggle for the current directory + the saved favorites,
     // synced with Ctrl+D). The panel/window owns the favorites list, so we
-    // just forward the location and let it build the menu.
-    emit favoritesMenuRequested(event->globalPos());
+    // forward the location and the right-clicked tab (so a chosen favorite
+    // navigates *that* tab, not merely the active one) and let it build the menu.
+    emit favoritesMenuRequested(event->globalPos(), tabAt(event->pos()));
 }

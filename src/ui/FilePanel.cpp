@@ -420,6 +420,16 @@ void FilePanel::navigateTo(const QString &path) {
     updateNavButtons();
 }
 
+void FilePanel::navigateTabTo(int tabIndex, const QString &path) {
+    // Make the requested tab current first so navigateTo() (which always acts on
+    // the active tab) mutates it. Setting the tab-bar index drives
+    // onTabBarCurrentChanged(), which saves the outgoing tab and loads this one.
+    if (tabIndex >= 0 && tabIndex < m_tabBar->count() &&
+        tabIndex != m_tabBar->currentIndex())
+        m_tabBar->setCurrentIndex(tabIndex);
+    navigateTo(path);
+}
+
 void FilePanel::showSearchResults(const QStringList &paths) {
     // Snapshot the current location first so Back returns to it, then swap the
     // view to the flat listing. The flat set is itself a history entry, so a

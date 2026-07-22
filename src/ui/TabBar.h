@@ -17,7 +17,8 @@ signals:
     void closeTabRequested(int index);
     // Right-click on the tab strip opens the directory-favorites menu at this
     // point; the panel/window builds and shows it (toggle + saved favorites).
-    void favoritesMenuRequested(const QPoint &globalPos);
+    // tabIndex is the tab under the cursor (-1 if the click missed the tabs).
+    void favoritesMenuRequested(const QPoint &globalPos, int tabIndex);
 
 protected:
     void contextMenuEvent(QContextMenuEvent *event) override;

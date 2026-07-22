@@ -32,6 +32,10 @@ public:
 
     QString currentPath() const { return m_model->rootPath(); }
     void navigateTo(const QString &path);
+    // Activates `tabIndex` (if valid and not already current) and navigates it to
+    // `path`. Used by the tab-strip favorites menu so a chosen favorite lands in
+    // the right-clicked tab. tabIndex < 0 targets the active tab.
+    void navigateTabTo(int tabIndex, const QString &path);
     // Shows a flat listing of arbitrary file paths (e.g. Ctrl+F search results
     // spanning many directories) in place of the current directory. Any normal
     // navigation (Back, breadcrumb, double-click, refresh) leaves this mode.

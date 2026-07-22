@@ -96,7 +96,9 @@ private slots:
     void openDirectoryHotlist(); // Ctrl+D
     void showProperties(); // F9
     void showShortcutMenu(const QPoint &globalPos);
-    void showFavoritesMenu(const QPoint &globalPos); // "★" button in the address row
+    // Directory-favorites menu from a tab-strip right-click. tabIndex is the
+    // right-clicked tab so a chosen favorite navigates that tab (-1 = active tab).
+    void showFavoritesMenu(const QPoint &globalPos, int tabIndex);
     void calculateSizes();
     void calculateChecksums(); // MD5 / CRC32 / SHA1 of the selected files
     void secureWipeSelected(); // overwrite on-disk bytes (HDD 1x / SSD 3x DoD) then delete
@@ -149,8 +151,9 @@ private:
     void showFileContextMenu(FilePanel *panel, const QPoint &viewPos);
     void showBlankContextMenu(FilePanel *panel, const QPoint &viewPos);
     // Fills a menu with "bookmark current" + separator + saved favorites,
-    // shared by Ctrl+D (openDirectoryHotlist) and the "★" address-row button.
-    void populateFavoritesMenu(QMenu *menu, FilePanel *panel);
+    // shared by Ctrl+D (openDirectoryHotlist) and the tab-strip right-click menu.
+    // tabIndex is the tab a chosen favorite should navigate (-1 = active tab).
+    void populateFavoritesMenu(QMenu *menu, FilePanel *panel, int tabIndex = -1);
     void recordMoveUndo(const QStringList &sources, const QString &destDir);
 
     // Last reversible operation, for Ctrl+Z. Best-effort: rename and move only.

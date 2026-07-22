@@ -1592,7 +1592,7 @@ void MainWindow::compareSelectedFiles() {
     dlg->show();
 }
 
-void MainWindow::populateFavoritesMenu(QMenu *menu, FilePanel *panel) {
+void MainWindow::populateFavoritesMenu(QMenu *menu, FilePanel *panel, int tabIndex) {
     const QString currentPath = panel->currentPath();
     const QStringList favorites = m_settings.favoriteDirectories();
 
@@ -1606,13 +1606,16 @@ void MainWindow::populateFavoritesMenu(QMenu *menu, FilePanel *panel) {
     }
     menu->addSeparator();
 
-    // 2) Saved favorites (full path); clicking jumps this panel there.
+    // 2) Saved favorites (full path); clicking jumps the target tab there. When
+    // opened from a tab right-click, tabIndex is that tab; otherwise it's -1 and
+    // navigateTabTo() falls back to the active tab.
     if (favorites.isEmpty()) {
         QAction *placeholder = menu->addAction(tr("(No favorites yet)"));
         placeholder->setEnabled(false);
     } else {
         for (const QString &favPath : favorites)
-            menu->addAction(favPath, this, [panel, favPath]() { panel->navigateTo(favPath); });
+            menu->addAction(favPath, this,
+                            [panel, favPath, tabIndex]() { panel->navigateTabTo(tabIndex, favPath); });
     }
 }
 
@@ -1624,11 +1627,11 @@ void MainWindow::openDirectoryHotlist() {
     menu.exec(QCursor::pos());
 }
 
-void MainWindow::showFavoritesMenu(const QPoint &globalPos) {
+void MainWindow::showFavoritesMenu(const QPoint &globalPos, int tabIndex) {
     if (!m_activePanel)
         return;
     QMenu menu(this);
-    populateFavoritesMenu(&menu, m_activePanel);
+    populateFavoritesMenu(&menu, m_activePanel, tabIndex);
     menu.exec(globalPos);
 }
 
