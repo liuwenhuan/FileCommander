@@ -296,6 +296,11 @@ private:
     double m_slidesSceneWidth = 0.0;             // widest page (scene units) for fit-to-width
     QTimer *m_slidesRelayoutTimer = nullptr;     // debounce viewport resizes before re-fitting
     double m_slidesZoom = 1.0;                    // user zoom multiplier on top of fit-to-width; 1.0 == fit
+    // A freshly loaded deck must open at the top of slide 1. Until the initial
+    // fit (plus its deferred re-fit) has settled, relayoutSlides forces the
+    // scrollbar to 0 and ignores the "preserve scroll ratio" logic, which would
+    // otherwise carry over the *previous* deck's scroll position on a file switch.
+    bool m_slidesResetScroll = false;
 
     // Video page (m_stack index 3).
     QString m_videoPath;            // path of the clip currently loaded (de-dup re-selects)

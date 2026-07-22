@@ -1803,6 +1803,9 @@ QWidget *QuickView::buildSlidesPage() {
         if (m_slidePageTop.isEmpty())
             return;
         relayoutSlides();
+        // The deferred re-fit is the last step of loading a deck; from here on the
+        // user is browsing, so resume preserving the scroll ratio on zoom/resize.
+        m_slidesResetScroll = false;
     });
 
     // Scrolling just updates the slide readout (all items are already in the scene).
@@ -1831,6 +1834,7 @@ void QuickView::loadSlides(const QStringList &svgs) {
     m_slideTexts.clear();
     m_slidesZoom = 1.0;
     m_slidesSceneWidth = 0.0;
+    m_slidesResetScroll = true; // a new deck opens at the top of slide 1
 
     double y = 0.0;
     for (const QString &svg : svgs) {
@@ -1877,16 +1881,21 @@ void QuickView::relayoutSlides() {
     const double baseW = qMax(120, viewportW);
     const double fit = baseW / m_slidesSceneWidth;
 
-    // Preserve the scroll position as a fraction of the range across the transform.
+    // Preserve the scroll position as a fraction of the range across the transform
+    // -- but only while browsing one deck. On a fresh load, force the top so a
+    // file switch never inherits the previous deck's scroll ratio (see
+    // m_slidesResetScroll).
     QScrollBar *vbar = m_slidesView->verticalScrollBar();
-    const double ratio = vbar->maximum() > 0
+    const double ratio = (!m_slidesResetScroll && vbar->maximum() > 0)
                              ? double(vbar->value()) / double(vbar->maximum())
                              : 0.0;
 
     const double s = fit * m_slidesZoom;
     m_slidesView->setTransform(QTransform::fromScale(s, s));
 
-    if (ratio > 0.0 && vbar->maximum() > 0)
+    if (m_slidesResetScroll)
+        vbar->setValue(0);
+    else if (ratio > 0.0 && vbar->maximum() > 0)
         vbar->setValue(qRound(ratio * vbar->maximum()));
     renderVisibleSlides(); // refresh the "Slide N / M" readout for the new geometry
 }
