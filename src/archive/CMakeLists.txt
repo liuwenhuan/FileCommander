@@ -10,6 +10,8 @@ if(TARGET LibArchive::LibArchive)
         PackageInfo.cpp
         SevenZipReader.h
         SevenZipReader.cpp
+        SquashfsReader.h
+        SquashfsReader.cpp
         ExternalArchiveTool.h
         ExternalArchiveTool.cpp
         ArchiveModel.h

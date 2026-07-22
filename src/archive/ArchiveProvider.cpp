@@ -10,6 +10,7 @@
 #include <QTemporaryDir>
 
 #include "ArchiveLayout.h"
+#include "SquashfsReader.h"
 
 namespace {
 
@@ -43,9 +44,12 @@ QString basenameOf(const QString &virtualPath) {
 ArchiveProvider::ArchiveProvider(const QString &archivePath, QString *error)
     : m_archivePath(archivePath) {
     m_baseName = QFileInfo(archivePath).fileName();
+    // An AppImage is browsed via unsquashfs (see SquashfsReader), not libarchive.
+    m_isSquashfs = SquashfsReader::isAppImage(archivePath);
     // Non-zip formats are (potentially) solid/streaming -> extract-all on first
-    // read. zip supports locating a single entry cheaply enough via a scan.
-    m_extractAll = !m_archivePath.toLower().endsWith(QLatin1String(".zip"));
+    // read. zip -- and squashfs, which extracts a single entry cheaply via
+    // `unsquashfs -o <off> <entry>` -- locate one entry without a full pass.
+    m_extractAll = !m_isSquashfs && !m_archivePath.toLower().endsWith(QLatin1String(".zip"));
 
     readEntryList(error);
     if (!m_valid)
@@ -65,7 +69,10 @@ ArchiveProvider::ArchiveProvider(const QString &archivePath, QString *error)
 ArchiveProvider::~ArchiveProvider() = default;
 
 bool ArchiveProvider::isArchivePath(const QString &path) {
-    return ArchiveLayout::hasArchiveSuffix(path);
+    if (ArchiveLayout::hasArchiveSuffix(path))
+        return true;
+    // AppImages are recognised by magic bytes, not suffix (many have none).
+    return SquashfsReader::available() && SquashfsReader::isAppImage(path);
 }
 
 void ArchiveProvider::setProgressCallback(std::function<void(qint64, qint64)> cb) {
@@ -74,6 +81,30 @@ void ArchiveProvider::setProgressCallback(std::function<void(qint64, qint64)> cb
 }
 
 void ArchiveProvider::readEntryList(QString *error) {
+    // AppImage: read the appended squashfs's entry list via unsquashfs.
+    if (m_isSquashfs) {
+        const SquashfsReader::Status s = SquashfsReader::list(
+            m_archivePath, [&](const SquashfsReader::Entry &e) {
+                RawEntry r;
+                r.path = e.path;
+                r.isDir = e.isDir;
+                r.size = e.size;
+                r.modified = e.modified;
+                if (!r.isDir)
+                    m_totalBytes += r.size;
+                m_rawEntries.append(r);
+            });
+        if (s != SquashfsReader::Status::Ok) {
+            if (error)
+                *error = s == SquashfsReader::Status::Unavailable
+                             ? QStringLiteral("unsquashfs not installed")
+                             : QStringLiteral("could not read AppImage filesystem");
+            return;
+        }
+        m_valid = true;
+        return;
+    }
+
     struct archive *a = archive_read_new();
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
@@ -356,6 +387,24 @@ int copyDataProgress(struct archive *ar, struct archive *aw, qint64 &done, qint6
 } // namespace
 
 bool ArchiveProvider::extractWhole() {
+    // AppImage uses per-entry extraction (m_extractAll is false), so this path is
+    // not taken; extract each file individually via unsquashfs if it ever is.
+    if (m_isSquashfs) {
+        bool ok = true;
+        for (const RawEntry &e : m_rawEntries) {
+            if (e.isDir)
+                continue;
+            const QString destPath = QDir(m_tempDir->path()).filePath(e.path);
+            QDir().mkpath(QFileInfo(destPath).path());
+            if (SquashfsReader::readEntry(m_archivePath, e.path, destPath) !=
+                SquashfsReader::Status::Ok)
+                ok = false;
+        }
+        if (ok)
+            m_wholeExtracted = true;
+        return ok;
+    }
+
     struct archive *a = archive_read_new();
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
@@ -409,6 +458,16 @@ bool ArchiveProvider::extractWhole() {
 }
 
 QString ArchiveProvider::extractSingle(const QString &realPath) {
+    // AppImage: extract the one entry via unsquashfs to a temp file.
+    if (m_isSquashfs) {
+        const QString destPath = QDir(m_tempDir->path()).filePath(realPath);
+        QDir().mkpath(QFileInfo(destPath).path());
+        if (SquashfsReader::readEntry(m_archivePath, realPath, destPath) !=
+            SquashfsReader::Status::Ok)
+            return QString();
+        return destPath;
+    }
+
     struct archive *a = archive_read_new();
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
