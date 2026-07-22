@@ -32,42 +32,18 @@ bool isAppImage(const QString &path) {
     return SquashfsReader::available() && SquashfsReader::isAppImage(path);
 }
 
-// Lists a .7z-style tree for an AppImage via unsquashfs, mirroring extractSevenZip.
+// Extracts an AppImage's squashfs (whole tree, or `sel`) in a SINGLE unsquashfs
+// pass. SquashfsReader::extractTo validates names and relies on unsquashfs's own
+// pathname sanitisation for containment.
 bool extractAppImage(const QString &archivePath, const QStringList &sel, const QString &destDir,
                      QString *errorMessage) {
-    QVector<SquashfsReader::Entry> files;
-    const SquashfsReader::Status ls = SquashfsReader::list(
-        archivePath, [&](const SquashfsReader::Entry &e) {
-            if (!e.isDir)
-                files.append(e);
-        });
-    if (ls != SquashfsReader::Status::Ok) {
-        if (errorMessage)
-            *errorMessage = QStringLiteral("AppImage list: %1").arg(int(ls));
+    const SquashfsReader::Status s = SquashfsReader::extractTo(archivePath, sel, destDir);
+    if (s != SquashfsReader::Status::Ok) {
+        if (errorMessage && errorMessage->isEmpty())
+            *errorMessage = QStringLiteral("AppImage extract: %1").arg(int(s));
         return false;
     }
-    QDir().mkpath(destDir);
-    bool ok = true;
-    for (const SquashfsReader::Entry &e : files) {
-        bool want = sel.isEmpty();
-        for (const QString &s : sel) {
-            if (e.path == s || e.path.startsWith(s + QLatin1Char('/'))) {
-                want = true;
-                break;
-            }
-        }
-        if (!want)
-            continue;
-        const QString destPath = QDir(destDir).filePath(e.path);
-        const SquashfsReader::Status rs =
-            SquashfsReader::readEntry(archivePath, e.path, destPath);
-        if (rs != SquashfsReader::Status::Ok) {
-            ok = false;
-            if (errorMessage && errorMessage->isEmpty())
-                *errorMessage = QStringLiteral("AppImage extract '%1': %2").arg(e.path).arg(int(rs));
-        }
-    }
-    return ok;
+    return true;
 }
 
 ArchiveHandler::Status sevenZipToStatus(SevenZipReader::Status s) {
