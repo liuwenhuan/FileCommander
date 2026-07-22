@@ -10,6 +10,7 @@
 #include "ArchiveLayout.h"
 #include "ExternalArchiveTool.h"
 #include "SevenZipReader.h"
+#include "SquashfsReader.h"
 
 namespace {
 
@@ -23,6 +24,50 @@ QString lastArchiveError(struct archive *a) {
 // lists solid archives from the header index without a full decompress.
 bool isSevenZip(const QString &path) {
     return path.trimmed().toLower().endsWith(QStringLiteral(".7z"));
+}
+
+// An AppImage (ELF + appended squashfs) is browsable only when unsquashfs is
+// installed. Detection is by magic bytes -- most AppImages carry no suffix.
+bool isAppImage(const QString &path) {
+    return SquashfsReader::available() && SquashfsReader::isAppImage(path);
+}
+
+// Lists a .7z-style tree for an AppImage via unsquashfs, mirroring extractSevenZip.
+bool extractAppImage(const QString &archivePath, const QStringList &sel, const QString &destDir,
+                     QString *errorMessage) {
+    QVector<SquashfsReader::Entry> files;
+    const SquashfsReader::Status ls = SquashfsReader::list(
+        archivePath, [&](const SquashfsReader::Entry &e) {
+            if (!e.isDir)
+                files.append(e);
+        });
+    if (ls != SquashfsReader::Status::Ok) {
+        if (errorMessage)
+            *errorMessage = QStringLiteral("AppImage list: %1").arg(int(ls));
+        return false;
+    }
+    QDir().mkpath(destDir);
+    bool ok = true;
+    for (const SquashfsReader::Entry &e : files) {
+        bool want = sel.isEmpty();
+        for (const QString &s : sel) {
+            if (e.path == s || e.path.startsWith(s + QLatin1Char('/'))) {
+                want = true;
+                break;
+            }
+        }
+        if (!want)
+            continue;
+        const QString destPath = QDir(destDir).filePath(e.path);
+        const SquashfsReader::Status rs =
+            SquashfsReader::readEntry(archivePath, e.path, destPath);
+        if (rs != SquashfsReader::Status::Ok) {
+            ok = false;
+            if (errorMessage && errorMessage->isEmpty())
+                *errorMessage = QStringLiteral("AppImage extract '%1': %2").arg(e.path).arg(int(rs));
+        }
+    }
+    return ok;
 }
 
 ArchiveHandler::Status sevenZipToStatus(SevenZipReader::Status s) {
@@ -236,7 +281,8 @@ bool ArchiveHandler::isSupportedArchive(const QString &path) {
         if (lower.endsWith(ext))
             return true;
     }
-    return false;
+    // AppImages have no reliable suffix; recognise them by magic (needs unsquashfs).
+    return isAppImage(path);
 }
 
 QSharedPointer<ArchiveNode> ArchiveHandler::buildTree(const QString &archivePath,
@@ -252,6 +298,28 @@ QSharedPointer<ArchiveNode> ArchiveHandler::buildTree(const QString &archivePath
         if (status)
             *status = s;
     };
+
+    // AppImage: list the appended squashfs via unsquashfs (libarchive can't read it).
+    if (isAppImage(archivePath)) {
+        auto root = QSharedPointer<ArchiveNode>::create();
+        root->isDir = true;
+        const SquashfsReader::Status s = SquashfsReader::list(
+            archivePath,
+            [&](const SquashfsReader::Entry &e) {
+                const QStringList parts = e.path.split(QLatin1Char('/'), Qt::SkipEmptyParts);
+                if (!parts.isEmpty())
+                    ensurePath(root, parts, e.isDir, e.size, e.modified);
+            },
+            cancel);
+        if (s == SquashfsReader::Status::Ok) {
+            setStatus(Status::Ok);
+            return root;
+        }
+        setStatus(Status::Error);
+        if (errorMessage && errorMessage->isEmpty())
+            *errorMessage = QStringLiteral("AppImage: %1").arg(int(s));
+        return {};
+    }
 
     // .7z: list via the in-process reader (encrypted + solid). Only if it can't
     // handle the container at all do we fall through to libarchive.
@@ -427,6 +495,10 @@ bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entr
 bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entryFullPaths,
                               const QString &destDir, const QString &passphrase,
                               QString *errorMessage) {
+    // AppImage: extract the appended squashfs via unsquashfs.
+    if (isAppImage(archivePath))
+        return extractAppImage(archivePath, entryFullPaths, destDir, errorMessage);
+
     // .7z goes through the in-process reader (handles encrypted + solid); only a
     // container it can't decode falls through to libarchive.
     if (isSevenZip(archivePath)) {

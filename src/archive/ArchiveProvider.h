@@ -104,6 +104,7 @@ private:
     bool m_valid = false;
     bool m_extractAll = false;  // non-zip: extract everything on first read
     bool m_wholeExtracted = false;
+    bool m_isSquashfs = false;  // AppImage: list/extract via unsquashfs, not libarchive
 
     // Raw entries read on open (pre-strip), used for tree build + extraction.
     struct RawEntry {
