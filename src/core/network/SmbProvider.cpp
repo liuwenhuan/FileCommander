@@ -66,6 +66,30 @@ bool SmbProvider::connectToHost(const QString &host, const QString &user,
         return false;
     }
 
+    // Validate the host before it is ever concatenated into an smb:// URL.
+    // libsmbclient parses the authority as [domain;][user[:pass]@]server[:port],
+    // so a host like "real-server@attacker.example" would connect to the
+    // attacker while the auth callback still hands over the password -- a
+    // credential-leak vector reachable via a tampered bookmarks file. Reject
+    // anything that isn't a bare host / IPv4 / [IPv6]; alnum, '.', '-', '_',
+    // ':' and brackets are the only authority characters we allow.
+    if (host.isEmpty()) {
+        if (error)
+            *error = QStringLiteral("Empty host name");
+        return false;
+    }
+    for (const QChar c : host) {
+        const bool ok = c.isLetterOrNumber() || c == QLatin1Char('.') ||
+                        c == QLatin1Char('-') || c == QLatin1Char('_') ||
+                        c == QLatin1Char(':') || c == QLatin1Char('[') ||
+                        c == QLatin1Char(']');
+        if (!ok) {
+            if (error)
+                *error = QStringLiteral("Invalid character in host name: %1").arg(c);
+            return false;
+        }
+    }
+
     // Stash credentials before init so the auth callback can read them.
     m_host = host;
     m_workgroup = workgroup;
