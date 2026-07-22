@@ -988,17 +988,10 @@ void QuickView::handleArchiveLoad(const ArchiveLoadResult &r, const QString &pat
 
     switch (r.status) {
     case ArchiveHandler::Status::NeedPassword: {
-        // libarchive (with nettle) decrypts ZIP and RAR5, but its 7z reader has
-        // no decrypt path -- for 7z don't prompt for a password we can't use.
-        // (Encrypted RAR4, which libarchive also can't decrypt, still degrades
-        // gracefully: the prompt below leads to an "unsupported" note on submit.)
-        if (path.toLower().endsWith(QLatin1String(".7z"))) {
-            m_info->setText(tr("“%1” is encrypted in a format that can't be previewed "
-                               "(7z encryption is unsupported).")
-                                .arg(name));
-            m_stack->setCurrentWidget(m_info);
-            break;
-        }
+        // ZIP/RAR5 decrypt via libarchive+nettle; 7z (incl. header-encrypted
+        // -mhe) via the in-process SevenZipReader. All prompt for a password
+        // here. (Encrypted RAR4, which nothing here can decrypt, still degrades
+        // gracefully: the prompt leads to an "unsupported" note on submit.)
         // Gate the preview behind the inline password page (same UI as office).
         // Don't steal focus: the page can appear just from cursor movement.
         m_encryptedKind = EncryptedKind::Archive;

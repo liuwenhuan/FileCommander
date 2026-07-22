@@ -1,8 +1,13 @@
 if(TARGET LibArchive::LibArchive)
+    # Vendored public-domain LZMA SDK (7z decoder) for encrypted/solid 7z preview.
+    add_subdirectory(lzma_sdk)
+
     add_library(archive STATIC
         ArchiveNode.h
         ArchiveHandler.h
         ArchiveHandler.cpp
+        SevenZipReader.h
+        SevenZipReader.cpp
         ArchiveModel.h
         ArchiveModel.cpp
         ArchiveLayout.h
@@ -23,6 +28,9 @@ if(TARGET LibArchive::LibArchive)
         Qt5::Core
         LibArchive::LibArchive
     )
+    # lzma7z (vendored 7z decoder) is an internal implementation detail of
+    # SevenZipReader; nettle provides AES-256/SHA-256 for the encryption glue.
+    target_link_libraries(archive PRIVATE lzma7z nettle)
 else()
     message(WARNING "libarchive not found -- archive support disabled")
     add_library(archive INTERFACE)

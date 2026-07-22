@@ -5,14 +5,84 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QVector>
 
 #include "ArchiveLayout.h"
+#include "SevenZipReader.h"
 
 namespace {
 
 QString lastArchiveError(struct archive *a) {
     const char *msg = archive_error_string(a);
     return msg ? QString::fromUtf8(msg) : QString();
+}
+
+// .7z gets its own in-process reader (SevenZipReader) rather than libarchive:
+// it decodes AES-256 encrypted archives (which this libarchive cannot) and
+// lists solid archives from the header index without a full decompress.
+bool isSevenZip(const QString &path) {
+    return path.trimmed().toLower().endsWith(QStringLiteral(".7z"));
+}
+
+ArchiveHandler::Status sevenZipToStatus(SevenZipReader::Status s) {
+    switch (s) {
+    case SevenZipReader::Status::Ok:            return ArchiveHandler::Status::Ok;
+    case SevenZipReader::Status::NeedPassword:  return ArchiveHandler::Status::NeedPassword;
+    case SevenZipReader::Status::WrongPassword: return ArchiveHandler::Status::WrongPassword;
+    case SevenZipReader::Status::Unsupported:   return ArchiveHandler::Status::EncryptedUnsupported;
+    case SevenZipReader::Status::Error:         return ArchiveHandler::Status::Error;
+    }
+    return ArchiveHandler::Status::Error;
+}
+
+// Extracts selected entries (empty selection => everything) from a .7z via the
+// in-process reader, preserving the archive's directory layout under destDir.
+// `*handled` is set false only when the reader can't decode this container, so
+// the caller can fall back to libarchive. Each readEntry re-decodes the entry's
+// solid block; fine for preview-scale use.
+bool extractSevenZip(const QString &archivePath, const QStringList &sel, const QString &destDir,
+                     const QString &passphrase, QString *errorMessage, bool *handled) {
+    QVector<SevenZipReader::Entry> files;
+    const SevenZipReader::Status ls = SevenZipReader::list(
+        archivePath, passphrase,
+        [&](const SevenZipReader::Entry &e) {
+            if (!e.isDir)
+                files.append(e);
+        });
+    if (ls == SevenZipReader::Status::Unsupported) {
+        *handled = false;
+        return false;
+    }
+    *handled = true;
+    if (ls != SevenZipReader::Status::Ok) {
+        if (errorMessage)
+            *errorMessage = QStringLiteral("7z: %1").arg(int(ls));
+        return false;
+    }
+
+    QDir().mkpath(destDir);
+    bool ok = true;
+    for (const SevenZipReader::Entry &e : files) {
+        bool want = sel.isEmpty();
+        for (const QString &s : sel) {
+            if (e.path == s || e.path.startsWith(s + QLatin1Char('/'))) {
+                want = true;
+                break;
+            }
+        }
+        if (!want)
+            continue;
+        const QString destPath = QDir(destDir).filePath(e.path);
+        QDir().mkpath(QFileInfo(destPath).absolutePath());
+        const SevenZipReader::Status rs =
+            SevenZipReader::readEntry(archivePath, passphrase, e.path, destPath);
+        if (rs != SevenZipReader::Status::Ok) {
+            ok = false;
+            if (errorMessage && errorMessage->isEmpty())
+                *errorMessage = QStringLiteral("7z extract '%1': %2").arg(e.path).arg(int(rs));
+        }
+    }
+    return ok;
 }
 
 QSharedPointer<ArchiveNode> ensurePath(QSharedPointer<ArchiveNode> &root, const QStringList &parts,
@@ -140,6 +210,32 @@ QSharedPointer<ArchiveNode> ArchiveHandler::buildTree(const QString &archivePath
         if (status)
             *status = s;
     };
+
+    // .7z: list via the in-process reader (encrypted + solid). Only if it can't
+    // handle the container at all do we fall through to libarchive.
+    if (isSevenZip(archivePath)) {
+        auto root = QSharedPointer<ArchiveNode>::create();
+        root->isDir = true;
+        const SevenZipReader::Status s = SevenZipReader::list(
+            archivePath, passphrase,
+            [&](const SevenZipReader::Entry &e) {
+                const QStringList parts = e.path.split(QLatin1Char('/'), Qt::SkipEmptyParts);
+                if (!parts.isEmpty())
+                    ensurePath(root, parts, e.isDir, e.size, e.modified);
+            },
+            cancel);
+        if (s != SevenZipReader::Status::Unsupported) {
+            setStatus(sevenZipToStatus(s));
+            if (s != SevenZipReader::Status::Ok) {
+                if (errorMessage && errorMessage->isEmpty())
+                    *errorMessage = QStringLiteral("7z: %1").arg(int(s));
+                return {};
+            }
+            return root;
+        }
+        // else: unusual coder -> let libarchive try below.
+    }
+
     // Map a libarchive data/header error string to a status: a passphrase problem
     // vs an encryption libarchive can't handle (7z/rar) vs a plain error.
     auto classify = [](const QString &e) {
@@ -258,6 +354,16 @@ bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entr
 bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entryFullPaths,
                               const QString &destDir, const QString &passphrase,
                               QString *errorMessage) {
+    // .7z goes through the in-process reader (handles encrypted + solid); only a
+    // container it can't decode falls through to libarchive.
+    if (isSevenZip(archivePath)) {
+        bool handled = false;
+        const bool ok =
+            extractSevenZip(archivePath, entryFullPaths, destDir, passphrase, errorMessage, &handled);
+        if (handled)
+            return ok;
+    }
+
     struct archive *a = archive_read_new();
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
