@@ -154,7 +154,7 @@ Extract it too?</source>
     <name>CommandOutputDialog</name>
     <message>
         <location filename="../../src/ui/dialogs/CommandOutputDialog.cpp" line="11"/>
-        <location filename="../../src/ui/dialogs/CommandOutputDialog.cpp" line="69"/>
+        <location filename="../../src/ui/dialogs/CommandOutputDialog.cpp" line="75"/>
         <source>Command Output</source>
         <translation>命令输出</translation>
     </message>
@@ -164,12 +164,12 @@ Extract it too?</source>
         <translation>清除</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/CommandOutputDialog.cpp" line="53"/>
+        <location filename="../../src/ui/dialogs/CommandOutputDialog.cpp" line="59"/>
         <source>[command failed to run or crashed]</source>
         <translation>[命令运行失败或崩溃]</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/CommandOutputDialog.cpp" line="56"/>
+        <location filename="../../src/ui/dialogs/CommandOutputDialog.cpp" line="62"/>
         <source>[exited with code %1]</source>
         <translation>[退出码 %1]</translation>
     </message>
@@ -228,130 +228,136 @@ Extract it too?</source>
 <context>
     <name>ConnectDialog</name>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="53"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="260"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="345"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="54"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="261"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="370"/>
         <source>Connect to Server</source>
         <translation>连接到服务器</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="61"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="62"/>
         <source>example.com or 192.168.1.10</source>
         <translation>example.com 或 192.168.1.10</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="71"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="72"/>
         <source>/ (remote path or share)</source>
         <translation>/（远程路径或共享）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="74"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="75"/>
         <source>Connect anonymously</source>
         <translation>匿名连接</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="77"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="78"/>
         <source>Protocol:</source>
         <translation>协议：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="78"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="79"/>
         <source>Server:</source>
         <translation>服务器：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="79"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="80"/>
         <source>Port:</source>
         <translation>端口：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="80"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="81"/>
         <source>User name:</source>
         <translation>用户名：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="81"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="82"/>
         <source>Password:</source>
         <translation>密码：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="82"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="83"/>
         <source>Remote path:</source>
         <translation>远程路径：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="87"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="88"/>
         <source>Connect</source>
         <translation>连接</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="93"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="94"/>
         <source>Save</source>
         <translation>保存</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="94"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="95"/>
         <source>Delete</source>
         <translation>删除</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="102"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="103"/>
         <source>Saved connections</source>
         <translation>已保存的连接</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="111"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="112"/>
+        <source>SFTP, FTP, WebDAV and SMB all connect through a built-in client.</source>
+        <translation>SFTP、FTP、WebDAV 和 SMB 均通过内置客户端连接。</translation>
+    </message>
+    <message>
         <source>SFTP, FTP and WebDAV connect through a built-in client; SMB is mounted via GVfs.</source>
-        <translation>SFTP、FTP 和 WebDAV 通过内置客户端连接；SMB 通过 GVfs 挂载。</translation>
+        <translation type="vanished">SFTP、FTP 和 WebDAV 通过内置客户端连接；SMB 通过 GVfs 挂载。</translation>
     </message>
     <message>
         <source>The server is mounted via GVfs and opened as a local folder.</source>
         <translation type="vanished">该服务器已通过 GVfs 挂载，并作为本地文件夹打开。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="182"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="196"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="183"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="197"/>
         <source>Save Connection</source>
         <translation>保存连接</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="183"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="184"/>
         <source>Please enter a server address first.</source>
         <translation>请先输入服务器地址。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="196"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="197"/>
         <source>Name for this connection:</source>
         <translation>此连接的名称：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="227"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="228"/>
         <source>Delete Connection</source>
         <translation>删除连接</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="228"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="229"/>
         <source>Remove the saved connection &quot;%1&quot;?</source>
         <translation>是否删除已保存的连接“%1”？</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="261"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="262"/>
         <source>Please enter a server address.</source>
         <translation>请输入服务器地址。</translation>
-    </message>
-    <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="282"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="306"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="331"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="359"/>
-        <source>Connection Failed</source>
-        <translation>连接失败</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="283"/>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="307"/>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="332"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="360"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="356"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="384"/>
+        <source>Connection Failed</source>
+        <translation>连接失败</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="284"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="308"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="333"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="357"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="385"/>
         <source>Could not connect to %1.
 
 %2</source>
@@ -360,7 +366,7 @@ Extract it too?</source>
 %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="346"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="371"/>
         <source>Could not build a connection URI.</source>
         <translation>无法构建连接 URI。</translation>
     </message>
@@ -435,7 +441,7 @@ Extract it too?</source>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="51"/>
         <location filename="../../src/ui/FilePanel.cpp" line="285"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="782"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="789"/>
         <source>New Tab</source>
         <translation>新建标签</translation>
     </message>
@@ -470,17 +476,17 @@ Extract it too?</source>
         <translation>过滤：键入以缩小列表范围，按 Esc 清除</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="733"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="740"/>
         <source>Select by Pattern</source>
         <translation>按模式选择</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="733"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="740"/>
         <source>Unselect by Pattern</source>
         <translation>按模式取消选择</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="734"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="741"/>
         <source>Wildcard mask (e.g. *.txt):</source>
         <translation>通配符掩码（如 *.txt）：</translation>
     </message>

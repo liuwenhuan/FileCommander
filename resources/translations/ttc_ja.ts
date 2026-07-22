@@ -154,7 +154,7 @@ Extract it too?</source>
     <name>CommandOutputDialog</name>
     <message>
         <location filename="../../src/ui/dialogs/CommandOutputDialog.cpp" line="11"/>
-        <location filename="../../src/ui/dialogs/CommandOutputDialog.cpp" line="69"/>
+        <location filename="../../src/ui/dialogs/CommandOutputDialog.cpp" line="75"/>
         <source>Command Output</source>
         <translation>コマンド出力</translation>
     </message>
@@ -164,12 +164,12 @@ Extract it too?</source>
         <translation>クリア</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/CommandOutputDialog.cpp" line="53"/>
+        <location filename="../../src/ui/dialogs/CommandOutputDialog.cpp" line="59"/>
         <source>[command failed to run or crashed]</source>
         <translation>[コマンドの実行に失敗またはクラッシュしました]</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/CommandOutputDialog.cpp" line="56"/>
+        <location filename="../../src/ui/dialogs/CommandOutputDialog.cpp" line="62"/>
         <source>[exited with code %1]</source>
         <translation>[終了コード %1]</translation>
     </message>
@@ -228,130 +228,136 @@ Extract it too?</source>
 <context>
     <name>ConnectDialog</name>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="53"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="260"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="345"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="54"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="261"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="370"/>
         <source>Connect to Server</source>
         <translation>サーバーに接続</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="61"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="62"/>
         <source>example.com or 192.168.1.10</source>
         <translation>example.com または 192.168.1.10</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="71"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="72"/>
         <source>/ (remote path or share)</source>
         <translation>/ （リモートパスまたは共有）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="74"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="75"/>
         <source>Connect anonymously</source>
         <translation>匿名で接続</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="77"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="78"/>
         <source>Protocol:</source>
         <translation>プロトコル:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="78"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="79"/>
         <source>Server:</source>
         <translation>サーバー:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="79"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="80"/>
         <source>Port:</source>
         <translation>ポート:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="80"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="81"/>
         <source>User name:</source>
         <translation>ユーザー名:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="81"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="82"/>
         <source>Password:</source>
         <translation>パスワード:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="82"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="83"/>
         <source>Remote path:</source>
         <translation>リモートパス:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="87"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="88"/>
         <source>Connect</source>
         <translation>接続</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="93"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="94"/>
         <source>Save</source>
         <translation>保存</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="94"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="95"/>
         <source>Delete</source>
         <translation>削除</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="102"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="103"/>
         <source>Saved connections</source>
         <translation>保存された接続</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="111"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="112"/>
+        <source>SFTP, FTP, WebDAV and SMB all connect through a built-in client.</source>
+        <translation>SFTP、FTP、WebDAV、SMB はすべて内蔵クライアントで接続します。</translation>
+    </message>
+    <message>
         <source>SFTP, FTP and WebDAV connect through a built-in client; SMB is mounted via GVfs.</source>
-        <translation>SFTP、FTP、WebDAV は組み込みクライアントで接続します。SMB は GVfs でマウントされます。</translation>
+        <translation type="vanished">SFTP、FTP、WebDAV は組み込みクライアントで接続します。SMB は GVfs でマウントされます。</translation>
     </message>
     <message>
         <source>The server is mounted via GVfs and opened as a local folder.</source>
         <translation type="vanished">サーバーは GVfs 経由でマウントされ、ローカルフォルダーとして開かれます。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="182"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="196"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="183"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="197"/>
         <source>Save Connection</source>
         <translation>接続を保存</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="183"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="184"/>
         <source>Please enter a server address first.</source>
         <translation>先にサーバーアドレスを入力してください。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="196"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="197"/>
         <source>Name for this connection:</source>
         <translation>この接続の名前:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="227"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="228"/>
         <source>Delete Connection</source>
         <translation>接続を削除</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="228"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="229"/>
         <source>Remove the saved connection &quot;%1&quot;?</source>
         <translation>保存された接続「%1」を削除しますか？</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="261"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="262"/>
         <source>Please enter a server address.</source>
         <translation>サーバーアドレスを入力してください。</translation>
-    </message>
-    <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="282"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="306"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="331"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="359"/>
-        <source>Connection Failed</source>
-        <translation>接続失敗</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="283"/>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="307"/>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="332"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="360"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="356"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="384"/>
+        <source>Connection Failed</source>
+        <translation>接続失敗</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="284"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="308"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="333"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="357"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="385"/>
         <source>Could not connect to %1.
 
 %2</source>
@@ -360,7 +366,7 @@ Extract it too?</source>
 %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="346"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="371"/>
         <source>Could not build a connection URI.</source>
         <translation>接続 URI を作成できませんでした。</translation>
     </message>
@@ -435,7 +441,7 @@ Extract it too?</source>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="51"/>
         <location filename="../../src/ui/FilePanel.cpp" line="285"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="782"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="789"/>
         <source>New Tab</source>
         <translation>新しいタブ</translation>
     </message>
@@ -470,17 +476,17 @@ Extract it too?</source>
         <translation>フィルター: 入力で絞り込み、Esc でクリア</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="733"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="740"/>
         <source>Select by Pattern</source>
         <translation>パターンで選択</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="733"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="740"/>
         <source>Unselect by Pattern</source>
         <translation>パターンで選択解除</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="734"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="741"/>
         <source>Wildcard mask (e.g. *.txt):</source>
         <translation>ワイルドカードマスク（例: *.txt）:</translation>
     </message>

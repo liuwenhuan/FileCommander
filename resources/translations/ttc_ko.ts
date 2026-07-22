@@ -154,7 +154,7 @@ Extract it too?</source>
     <name>CommandOutputDialog</name>
     <message>
         <location filename="../../src/ui/dialogs/CommandOutputDialog.cpp" line="11"/>
-        <location filename="../../src/ui/dialogs/CommandOutputDialog.cpp" line="69"/>
+        <location filename="../../src/ui/dialogs/CommandOutputDialog.cpp" line="75"/>
         <source>Command Output</source>
         <translation>명령 출력</translation>
     </message>
@@ -164,12 +164,12 @@ Extract it too?</source>
         <translation>지우기</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/CommandOutputDialog.cpp" line="53"/>
+        <location filename="../../src/ui/dialogs/CommandOutputDialog.cpp" line="59"/>
         <source>[command failed to run or crashed]</source>
         <translation>[명령 실행에 실패했거나 충돌했습니다]</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/CommandOutputDialog.cpp" line="56"/>
+        <location filename="../../src/ui/dialogs/CommandOutputDialog.cpp" line="62"/>
         <source>[exited with code %1]</source>
         <translation>[종료 코드 %1]</translation>
     </message>
@@ -228,130 +228,136 @@ Extract it too?</source>
 <context>
     <name>ConnectDialog</name>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="53"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="260"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="345"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="54"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="261"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="370"/>
         <source>Connect to Server</source>
         <translation>서버에 연결</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="61"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="62"/>
         <source>example.com or 192.168.1.10</source>
         <translation>example.com 또는 192.168.1.10</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="71"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="72"/>
         <source>/ (remote path or share)</source>
         <translation>/ (원격 경로 또는 공유)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="74"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="75"/>
         <source>Connect anonymously</source>
         <translation>익명으로 연결</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="77"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="78"/>
         <source>Protocol:</source>
         <translation>프로토콜:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="78"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="79"/>
         <source>Server:</source>
         <translation>서버:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="79"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="80"/>
         <source>Port:</source>
         <translation>포트:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="80"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="81"/>
         <source>User name:</source>
         <translation>사용자 이름:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="81"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="82"/>
         <source>Password:</source>
         <translation>비밀번호:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="82"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="83"/>
         <source>Remote path:</source>
         <translation>원격 경로:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="87"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="88"/>
         <source>Connect</source>
         <translation>연결</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="93"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="94"/>
         <source>Save</source>
         <translation>저장</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="94"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="95"/>
         <source>Delete</source>
         <translation>삭제</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="102"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="103"/>
         <source>Saved connections</source>
         <translation>저장된 연결</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="111"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="112"/>
+        <source>SFTP, FTP, WebDAV and SMB all connect through a built-in client.</source>
+        <translation>SFTP, FTP, WebDAV 및 SMB는 모두 내장 클라이언트로 연결됩니다.</translation>
+    </message>
+    <message>
         <source>SFTP, FTP and WebDAV connect through a built-in client; SMB is mounted via GVfs.</source>
-        <translation>SFTP, FTP, WebDAV는 내장 클라이언트로 연결됩니다. SMB는 GVfs로 마운트됩니다.</translation>
+        <translation type="vanished">SFTP, FTP, WebDAV는 내장 클라이언트로 연결됩니다. SMB는 GVfs로 마운트됩니다.</translation>
     </message>
     <message>
         <source>The server is mounted via GVfs and opened as a local folder.</source>
         <translation type="vanished">서버가 GVfs를 통해 마운트되어 로컬 폴더로 열립니다.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="182"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="196"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="183"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="197"/>
         <source>Save Connection</source>
         <translation>연결 저장</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="183"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="184"/>
         <source>Please enter a server address first.</source>
         <translation>먼저 서버 주소를 입력하십시오.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="196"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="197"/>
         <source>Name for this connection:</source>
         <translation>이 연결의 이름:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="227"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="228"/>
         <source>Delete Connection</source>
         <translation>연결 삭제</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="228"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="229"/>
         <source>Remove the saved connection &quot;%1&quot;?</source>
         <translation>저장된 연결 &quot;%1&quot; 을(를) 제거할까요?</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="261"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="262"/>
         <source>Please enter a server address.</source>
         <translation>서버 주소를 입력하십시오.</translation>
-    </message>
-    <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="282"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="306"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="331"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="359"/>
-        <source>Connection Failed</source>
-        <translation>연결 실패</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="283"/>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="307"/>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="332"/>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="360"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="356"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="384"/>
+        <source>Connection Failed</source>
+        <translation>연결 실패</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="284"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="308"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="333"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="357"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="385"/>
         <source>Could not connect to %1.
 
 %2</source>
@@ -360,7 +366,7 @@ Extract it too?</source>
 %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="346"/>
+        <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="371"/>
         <source>Could not build a connection URI.</source>
         <translation>연결 URI를 만들 수 없습니다.</translation>
     </message>
@@ -435,7 +441,7 @@ Extract it too?</source>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="51"/>
         <location filename="../../src/ui/FilePanel.cpp" line="285"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="782"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="789"/>
         <source>New Tab</source>
         <translation>새 탭</translation>
     </message>
@@ -470,17 +476,17 @@ Extract it too?</source>
         <translation>필터: 입력하여 목록 좁히기, Esc로 지우기</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="733"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="740"/>
         <source>Select by Pattern</source>
         <translation>패턴으로 선택</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="733"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="740"/>
         <source>Unselect by Pattern</source>
         <translation>패턴으로 선택 해제</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="734"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="741"/>
         <source>Wildcard mask (e.g. *.txt):</source>
         <translation>와일드카드 마스크(예: *.txt):</translation>
     </message>

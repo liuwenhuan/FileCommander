@@ -31,6 +31,8 @@ add_library(core STATIC
     network/CurlFtpProvider.cpp
     network/CurlWebDavProvider.h
     network/CurlWebDavProvider.cpp
+    network/SmbProvider.h
+    network/SmbProvider.cpp
     network/ConnectionStore.h
     network/ConnectionStore.cpp
 )
@@ -38,11 +40,13 @@ add_library(core STATIC
 # libssh2 powers the SFTP file backend (network/SftpProvider); libsecret stores
 # saved-connection passwords in the login keyring (network/ConnectionStore);
 # libcurl powers the native FTP and WebDAV backends (network/CurlFtpProvider,
-# network/CurlWebDavProvider).
+# network/CurlWebDavProvider); libsmbclient powers the native SMB/CIFS backend
+# (network/SmbProvider).
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBSSH2 REQUIRED libssh2)
 pkg_check_modules(LIBSECRET REQUIRED libsecret-1)
 pkg_check_modules(CURL REQUIRED libcurl)
+pkg_check_modules(SMBCLIENT REQUIRED smbclient)
 
 target_include_directories(core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -55,6 +59,7 @@ target_include_directories(core PUBLIC
     ${LIBSSH2_INCLUDE_DIRS}
     ${LIBSECRET_INCLUDE_DIRS}
     ${CURL_INCLUDE_DIRS}
+    ${SMBCLIENT_INCLUDE_DIRS}
 )
 
 target_link_libraries(core PUBLIC
@@ -65,4 +70,5 @@ target_link_libraries(core PUBLIC
     ${LIBSSH2_LIBRARIES}
     ${LIBSECRET_LIBRARIES}
     ${CURL_LIBRARIES}
+    ${SMBCLIENT_LIBRARIES}
 )

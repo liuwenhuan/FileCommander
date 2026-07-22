@@ -4,6 +4,7 @@
 #include "network/CurlWebDavProvider.h"
 #include "network/GvfsMounter.h"
 #include "network/SftpProvider.h"
+#include "network/SmbProvider.h"
 
 #include <QApplication>
 #include <QCheckBox>
@@ -108,7 +109,7 @@ ConnectDialog::ConnectDialog(QWidget *parent) : QDialog(parent) {
     layout->addWidget(savedBox);
     layout->addLayout(form);
     auto *hint = new QLabel(
-        tr("SFTP, FTP and WebDAV connect through a built-in client; SMB is mounted via GVfs."),
+        tr("SFTP, FTP, WebDAV and SMB all connect through a built-in client."),
         this);
     hint->setWordWrap(true);
     layout->addWidget(hint);
@@ -325,6 +326,30 @@ void ConnectDialog::accept() {
         QApplication::setOverrideCursor(Qt::WaitCursor);
         const bool ok = provider->connectToHost(host, m_portSpin->value(), user, password,
                                                 useHttps, &error);
+        QApplication::restoreOverrideCursor();
+        setEnabled(true);
+        if (!ok) {
+            QMessageBox::critical(this, tr("Connection Failed"),
+                                  tr("Could not connect to %1.\n\n%2").arg(host, error));
+            return;
+        }
+        m_remoteProvider = provider;
+        const QString p = m_pathEdit->text().trimmed();
+        m_remotePath = p.isEmpty() ? QStringLiteral("/") : p;
+        QDialog::accept();
+        return;
+    }
+
+    // SMB/CIFS uses the native libsmbclient backend (SmbProvider) rather than a
+    // gvfs mount, mirroring the SFTP/FTP/WebDAV branches above. The remote path
+    // doubles as the initial share/directory to open ("/" lists the shares).
+    if (protocol == GvfsMounter::Protocol::Smb) {
+        auto provider = std::make_shared<SmbProvider>();
+        QString error;
+        setEnabled(false);
+        QApplication::setOverrideCursor(Qt::WaitCursor);
+        const bool ok = provider->connectToHost(host, user, password, QString(),
+                                                 anonymous, &error);
         QApplication::restoreOverrideCursor();
         setEnabled(true);
         if (!ok) {
