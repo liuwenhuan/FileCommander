@@ -33,6 +33,7 @@ class QTextEdit;
 class QTimer;
 class ArchiveModel;
 class MpvWidget;
+class AudioPlayer;
 class Settings;
 
 // Poppler's document type is only referenced through a unique_ptr member, so a
@@ -89,6 +90,7 @@ protected:
     static bool isVideo(const QString &path);
     static bool isMarkdown(const QString &path);
     static bool isPdf(const QString &path);
+    static bool isAudio(const QString &path);
 
 private:
     QWidget *buildImagePage();
@@ -96,6 +98,11 @@ private:
     void renderText();            // (re)render m_textRaw per the encoding/hex toggle
     void loadImageSiblings();     // list sibling images in the current dir
     QWidget *buildVideoPage();
+    QWidget *buildAudioPage();
+    void showAudio(const QString &path);  // load + populate the audio page
+    void loadAudioSiblings();             // list sibling audio files in the dir
+    void stopAudio();                     // halt playback + timer
+    void updateAudioTransport();          // sync play/pause label + seek + times
     QWidget *buildMarkdownPage();
     // Reads, parses and lays out a .md file on a worker thread, then installs the
     // finished QTextDocument into m_markdown (keeps the GUI responsive on large or
@@ -270,6 +277,27 @@ private:
     QLabel *m_videoInfoOverlay = nullptr;
     QTimer *m_videoTimer = nullptr; // polls position while playing
     bool m_seeking = false;         // suppress timer updates while dragging
+
+    // Audio page (m_stack index 9): cover art + tags + lyrics + a transport row
+    // (play/pause, prev/next track, seek slider with elapsed/total labels). Uses
+    // an audio-only libmpv engine (AudioPlayer), separate from the video MpvWidget.
+    QWidget *m_audioPage = nullptr;
+    AudioPlayer *m_audio = nullptr;
+    QLabel *m_audioCover = nullptr;   // embedded cover art or a placeholder glyph
+    QLabel *m_audioTitle = nullptr;   // big title line
+    QLabel *m_audioMeta = nullptr;    // artist / album / year / genre / track
+    QTextBrowser *m_audioLyrics = nullptr;
+    QPushButton *m_audioPlayButton = nullptr;
+    QPushButton *m_audioPrevButton = nullptr;
+    QPushButton *m_audioNextButton = nullptr;
+    QSlider *m_audioSeek = nullptr;
+    QLabel *m_audioElapsed = nullptr;
+    QLabel *m_audioTotal = nullptr;
+    QTimer *m_audioTimer = nullptr;  // polls position while playing
+    bool m_audioSeeking = false;     // suppress timer updates while dragging
+    QString m_audioPath;             // path of the track currently loaded
+    QStringList m_audioSiblings;     // sibling audio files for prev/next
+    int m_audioSiblingIndex = -1;
 
     Settings &m_settings; // persisted video speed / volume / mute
     Context m_context;    // Embedded (Ctrl+Q pane) vs Window (F3 viewer)
