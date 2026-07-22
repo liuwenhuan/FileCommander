@@ -1,6 +1,7 @@
 #include "SquashfsReader.h"
 
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QHash>
@@ -9,6 +10,7 @@
 #include <QRegularExpression>
 #include <QStandardPaths>
 #include <QTemporaryDir>
+#include <QVector>
 
 #include <cstring>
 
@@ -187,6 +189,66 @@ struct OffsetCacheEntry {
 QHash<QString, OffsetCacheEntry> g_offsetCache;
 QMutex g_offsetMutex;
 
+// unsquashfs >= 4.5 sanitises pathnames on extraction (CVE-2021-40153/41072), so
+// a crafted `..` name can't write outside the destination during a bare
+// extract-all. Query and cache the installed version once; if it's older (or
+// unparseable) we won't trust a bare extract-all and fall back to validated
+// per-entry extraction instead.
+bool computeUnsquashfsAtLeast45() {
+    if (unsquashfsExe().isEmpty())
+        return false;
+    const ProcResult r = runProcess(unsquashfsExe(), {QStringLiteral("-version")}, nullptr, 5000);
+    // -version historically exits non-zero; parse whatever it printed regardless.
+    const QString text = QString::fromLocal8Bit(r.out) + QLatin1Char('\n') + r.err;
+    static const QRegularExpression re(QStringLiteral("version\\s+(\\d+)\\.(\\d+)"));
+    const QRegularExpressionMatch m = re.match(text);
+    if (!m.hasMatch())
+        return false; // unknown -> treat as unsafe
+    const int major = m.captured(1).toInt();
+    const int minor = m.captured(2).toInt();
+    return major > 4 || (major == 4 && minor >= 5);
+}
+
+bool unsquashfsAtLeast45() {
+    static const bool ok = computeUnsquashfsAtLeast45();
+    return ok;
+}
+
+// SECURITY: after an extraction, remove any symlink in `destDir` whose target
+// escapes `destDir`. unsquashfs recreates symlinks faithfully, so a crafted entry
+// like `secret.txt -> /home/<user>/.ssh/id_rsa` would otherwise sit live in the
+// user's chosen folder and disclose the target when opened. Legitimate internal
+// relative links (e.g. usr/lib/libfoo.so -> libfoo.so.1) resolve within destDir
+// and are kept. Returns the number of escaping links removed.
+int stripEscapingSymlinks(const QString &destDir) {
+    const QString base = QDir(destDir).canonicalPath();
+    if (base.isEmpty())
+        return 0;
+    int removed = 0;
+    // Do NOT follow symlinks while iterating (no FollowSymlinks) so we can't be led
+    // outside; each symlink entry is inspected in place.
+    QDirIterator it(destDir,
+                    QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System,
+                    QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        const QString path = it.next();
+        const QFileInfo fi = it.fileInfo();
+        if (!fi.isSymLink())
+            continue;
+        // Where does it point? Prefer the fully-resolved target (exists); fall back
+        // to the raw (possibly dangling) target string for broken/outside links.
+        QString resolved = fi.canonicalFilePath();
+        if (resolved.isEmpty())
+            resolved = QDir::cleanPath(fi.symLinkTarget());
+        const bool inside = resolved == base || resolved.startsWith(base + QLatin1Char('/'));
+        if (!inside) {
+            if (QFile::remove(path))
+                ++removed;
+        }
+    }
+    return removed;
+}
+
 } // namespace
 
 bool SquashfsReader::available() { return !unsquashfsExe().isEmpty(); }
@@ -352,13 +414,35 @@ SquashfsReader::Status SquashfsReader::extractTo(const QString &archivePath,
         return Status::Error;
 
     QDir().mkpath(destDir);
+    const bool selective = !entries.isEmpty();
+
+    // Bare extract-all (no explicit names) trusts unsquashfs to sanitise '..' in
+    // stored names. Only >= 4.5 does; on an older/unknown build, extract entry by
+    // entry through readEntry() -- which validates each name and rejects symlinks in
+    // app -- instead of trusting the tool.
+    if (!selective && !unsquashfsAtLeast45()) {
+        QVector<Entry> files;
+        const Status ls = list(archivePath, [&](const Entry &e) {
+            if (!e.isDir)
+                files.append(e);
+        }, cancel);
+        if (ls != Status::Ok)
+            return ls;
+        bool ok = true;
+        for (const Entry &e : files) {
+            const QString destPath = QDir(destDir).filePath(e.path);
+            if (readEntry(archivePath, e.path, destPath, cancel) != Status::Ok)
+                ok = false; // e.g. a symlink entry -- skipped, not written
+        }
+        return ok ? Status::Ok : Status::Error;
+    }
+
     QStringList args = {QStringLiteral("-o"), QString::number(off), QStringLiteral("-f"),
                         QStringLiteral("-d"), destDir, archivePath};
 
     // Selective extraction: pass only the validated entry paths, so unsquashfs never
     // touches an unsafe name. Extraction is a SINGLE process for the whole set (not
     // one process per file). An empty selection means "everything".
-    const bool selective = !entries.isEmpty();
     int added = 0;
     for (const QString &e : entries) {
         QString rel = e;
@@ -369,12 +453,18 @@ SquashfsReader::Status SquashfsReader::extractTo(const QString &archivePath,
         args << (QLatin1Char('/') + rel);
         ++added;
     }
-    // A selection that was entirely unsafe must NOT collapse into an extract-all.
+    // A selection that was entirely unsafe must NOT collapse into an extract-all;
+    // report it as an error rather than a silent success.
     if (selective && added == 0)
-        return Status::Ok;
+        return Status::Error;
 
     const ProcResult r = runProcess(unsquashfsExe(), args, cancel, 600000);
     if (!r.ran || r.exitCode != 0)
         return Status::Error;
+
+    // SECURITY (authoritative guard): unsquashfs faithfully recreates symlinks, so
+    // an entry pointing outside destDir (absolute, or relative via '..') would sit
+    // live in the user's folder. Remove any such escaping link; keep internal ones.
+    stripEscapingSymlinks(destDir);
     return Status::Ok;
 }
