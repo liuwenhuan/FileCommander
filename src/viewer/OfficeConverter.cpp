@@ -142,7 +142,13 @@ OfficeConverter::Encryption classifyEncryption(const QString &stderrText) {
 }
 } // namespace
 
-OfficeConverter::Result OfficeConverter::convert(const QString &path, const QString &password) {
+bool OfficeConverter::isPresentationFile(const QString &path) {
+    const QString suffix = suffixLower(path);
+    return suffix == QLatin1String("ppt") || suffix == QLatin1String("pptx");
+}
+
+OfficeConverter::Result OfficeConverter::convert(const QString &path, const QString &password,
+                                                 int firstN) {
     Result result;
     result.kind = kindFor(path);
     if (result.kind == Kind::None) {
@@ -170,7 +176,7 @@ OfficeConverter::Result OfficeConverter::convert(const QString &path, const QStr
     // to the flattened text (html) preview below.
     const QString suffix = suffixLower(path);
     if (suffix == QLatin1String("ppt") || suffix == QLatin1String("pptx")) {
-        Result pres = convertPresentation(binary, path, password);
+        Result pres = convertPresentation(binary, path, password, firstN);
         if (!pres.ok)
             pres.encryption = classifyEncryption(pres.error);
         if (pres.ok && !pres.slideSvgs.isEmpty())
@@ -192,14 +198,26 @@ OfficeConverter::Result OfficeConverter::convert(const QString &path, const QStr
 
 OfficeConverter::Result OfficeConverter::convertPresentation(const QString &binary,
                                                              const QString &path,
-                                                             const QString &password) {
+                                                             const QString &password, int firstN) {
     Result result;
     result.kind = Kind::Presentation;
 
     // PowerPoint → per-slide SVG (`office-oxide svg <file>`): stdout is a JSON
     // array of standalone SVG document strings, one per slide. Non-pptx (incl.
     // legacy .ppt) and any pptx the renderer can't handle print `[]`.
-    const ProcResult run = runOfficeOxide(binary, {QStringLiteral("svg"), path}, kTimeoutMs, password);
+    // firstN > 0 requests only the first N slides (`svg --first N`) for a fast
+    // first paint.
+    const QStringList svgArgs = firstN > 0
+                                    ? QStringList{QStringLiteral("svg"),
+                                                  QStringLiteral("--first"),
+                                                  QString::number(firstN), path}
+                                    : QStringList{QStringLiteral("svg"), path};
+    ProcResult run = runOfficeOxide(binary, svgArgs, kTimeoutMs, password);
+    // An older office_oxide build may not know `--first`; rather than fall back to
+    // the flattened text preview, retry the full render so slides still appear.
+    if (firstN > 0 && run.started && !run.timedOut && run.exitCode != 0) {
+        run = runOfficeOxide(binary, {QStringLiteral("svg"), path}, kTimeoutMs, password);
+    }
     if (!run.started || run.timedOut) {
         result.error = run.stdErr;
         return result;

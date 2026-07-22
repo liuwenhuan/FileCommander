@@ -92,6 +92,9 @@ constexpr double kPdfMaxZoom = 6.0;
 constexpr int kPdfSideMargin = 24;
 // Vertical gap (device px) between stacked PDF page bitmaps in the scene.
 constexpr int kPdfPageGap = 12;
+// Slides rendered in the fast first stage of a pptx preview; the rest stream in
+// afterwards (see QuickView::renderOffice).
+constexpr int kFirstStageSlides = 3;
 } // namespace
 
 QuickView::QuickView(Settings &settings, Context context, QWidget *parent)
@@ -1133,23 +1136,51 @@ void QuickView::renderOffice(const QString &path, const QString &password) {
     // Run the conversion (subprocess + JSON parse -- up to a second-plus on a big
     // deck) off the GUI thread so selecting a pptx never freezes the UI. A per-call
     // gen guards against a stale result painting over a newer selection.
+    //
+    // Presentations load in two stages: stage 1 renders only the first few slides
+    // (`svg --first N`, fast) so the preview appears almost immediately and lands on
+    // slide 1; stage 2 renders the whole deck in the background and appends the rest,
+    // keeping the current scroll position. Word/spreadsheet files convert once.
     const int gen = ++m_officeGen;
     m_officeShownPath.clear(); // not yet showing this file's content
 
     m_info->setText(tr("Loading preview…"));
     m_stack->setCurrentWidget(m_info);
 
-    auto *watcher = new QFutureWatcher<OfficeConverter::Result>(this);
-    connect(watcher, &QFutureWatcher<OfficeConverter::Result>::finished, this,
-            [this, watcher, gen, path]() {
-                const OfficeConverter::Result r = watcher->result();
-                watcher->deleteLater();
+    const int firstN = OfficeConverter::isPresentationFile(path) ? kFirstStageSlides : 0;
+
+    auto *w1 = new QFutureWatcher<OfficeConverter::Result>(this);
+    connect(w1, &QFutureWatcher<OfficeConverter::Result>::finished, this,
+            [this, w1, gen, path, password, firstN]() {
+                const OfficeConverter::Result r = w1->result();
+                w1->deleteLater();
                 if (gen != m_officeGen)
                     return; // a newer selection superseded this conversion
                 handleOfficeResult(r, path);
+
+                // Stage 2: a full first-stage deck (exactly N slides) likely has
+                // more -- fetch the whole deck and append the remainder in the
+                // background, leaving the shown slides and scroll position intact.
+                if (!(r.ok && r.kind == OfficeConverter::Kind::Presentation && firstN > 0 &&
+                      r.slideSvgs.size() == firstN))
+                    return;
+                auto *w2 = new QFutureWatcher<OfficeConverter::Result>(this);
+                connect(w2, &QFutureWatcher<OfficeConverter::Result>::finished, this,
+                        [this, w2, gen, path]() {
+                            const OfficeConverter::Result r2 = w2->result();
+                            w2->deleteLater();
+                            if (gen != m_officeGen)
+                                return;
+                            if (r2.ok && r2.kind == OfficeConverter::Kind::Presentation &&
+                                r2.slideSvgs.size() > m_slideSvgs.size())
+                                appendRemainingSlides(r2.slideSvgs);
+                        });
+                w2->setFuture(QtConcurrent::run(
+                    [path, password]() { return OfficeConverter::convert(path, password, 0); }));
             });
-    watcher->setFuture(QtConcurrent::run(
-        [path, password]() { return OfficeConverter::convert(path, password); }));
+    w1->setFuture(QtConcurrent::run([path, password, firstN]() {
+        return OfficeConverter::convert(path, password, firstN);
+    }));
 }
 
 void QuickView::handleOfficeResult(const OfficeConverter::Result &r, const QString &path) {
@@ -1908,6 +1939,50 @@ void QuickView::loadSlides(const QStringList &svgs) {
     // once the layout has run (mirrors the old lazy-render deferral, kept to avoid
     // reintroducing the "blank after switching decks" bug).
     m_slidesRelayoutTimer->start();
+}
+
+void QuickView::appendRemainingSlides(const QStringList &fullSvgs) {
+    // Stage 2 of a pptx load: the full deck arrived; append the slides past the
+    // ones already shown. The first slides are identical to stage 1's, so we keep
+    // them (and the user's scroll position / any built items) untouched and only
+    // extend the scene downward.
+    const int startIdx = m_slideSvgs.size();
+    if (fullSvgs.size() <= startIdx)
+        return;
+
+    const double S = SlideScene::kSceneScale;
+    auto gapAfter = [](double h) { return qMax(200.0, h * 0.03); };
+
+    // Continue stacking from just below the last already-loaded slide.
+    double y = 0.0;
+    if (!m_slidePageTop.isEmpty())
+        y = m_slidePageTop.last() + m_slideSizes.last().height() +
+            gapAfter(m_slideSizes.last().height());
+
+    for (int i = startIdx; i < fullSvgs.size(); ++i) {
+        const QByteArray bytes = fullSvgs[i].toUtf8();
+        QSizeF sizeScene(960 * S, 540 * S);
+        QString text;
+        SlideScene::parseSlideMeta(bytes, &sizeScene, &text);
+
+        QGraphicsRectItem *ph = makeSlidePlaceholder(sizeScene);
+        m_slidesScene->addItem(ph);
+        ph->setPos(0, y);
+
+        m_slideSvgs.push_back(bytes);
+        m_slidePageItems.push_back(ph);
+        m_slideBuilt.push_back(false);
+        m_slidePageTop.push_back(y);
+        m_slideSizes.push_back(sizeScene);
+        m_slideTexts.push_back(text); // Copy All now covers the whole deck
+        m_slidesSceneWidth = qMax(m_slidesSceneWidth, sizeScene.width());
+        y += sizeScene.height() + gapAfter(sizeScene.height());
+    }
+
+    // Growing the scene rect extends the scrollbar range; the current value (and so
+    // the visible region, whose slides are unchanged) stays put.
+    m_slidesScene->setSceneRect(0, 0, qMax(1.0, m_slidesSceneWidth), qMax(1.0, y));
+    renderVisibleSlides(); // build any now-visible appended slides + refresh N / M
 }
 
 void QuickView::buildSlideItem(int i) {

@@ -160,6 +160,10 @@ private:
     // scroll area, fit-to-width and rendered lazily (mirrors the PDF cluster, with
     // QSvgRenderer standing in for Poppler).
     void loadSlides(const QStringList &svgs); // parse every slide's SVG into the scene
+    // Two-stage load: append the slides beyond the ones already shown (the full
+    // deck arriving after the fast first-N paint), extending the scene downward
+    // without disturbing the current scroll position or the loaded slides.
+    void appendRemainingSlides(const QStringList &fullSvgs);
     void relayoutSlides();        // recompute the fit-to-width view transform
     void renderVisibleSlides();   // build on-screen slides, free far ones, update readout
     void buildSlideItem(int i);   // replace slide i's placeholder with its full item tree
