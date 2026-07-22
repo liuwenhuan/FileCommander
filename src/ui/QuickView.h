@@ -16,6 +16,9 @@
 
 class QCheckBox;
 class QComboBox;
+class QGraphicsPixmapItem;
+class QGraphicsScene;
+class QGraphicsView;
 class QLabel;
 class QLineEdit;
 class QModelIndex;
@@ -149,10 +152,16 @@ private:
     // Continuous pptx slide preview: every slide's SVG stacks vertically in one
     // scroll area, fit-to-width and rendered lazily (mirrors the PDF cluster, with
     // QSvgRenderer standing in for Poppler).
-    void loadSlides(const QStringList &svgs); // build one placeholder label per slide
-    void relayoutSlides();        // recompute every label's fitted size, force re-render
-    void renderVisibleSlides();   // render pixmaps for on-screen slides, free far ones
+    void loadSlides(const QStringList &svgs); // parse every slide's SVG into the scene
+    void relayoutSlides();        // recompute the fit-to-width view transform
+    void renderVisibleSlides();   // update the "Slide N / M" readout for the scroll pos
     void closeSlides();           // drop all slide data + reset the slides UI state
+    // Copies text to the clipboard for the slides page. Prefers whatever the user
+    // has selected in the scene; scope picks the fallback when nothing is selected
+    // (current slide under the scroll position, or the whole deck).
+    enum class CopyScope { Selection, CurrentPage, All };
+    void copySlidesText(CopyScope scope);
+    int currentSlide() const;     // slide index under the current scroll position
     void applyImageScale();
     void zoomImageBy(double factor);
     // Rotates the shown image by +/-90 degrees, then persists it losslessly back
@@ -263,18 +272,19 @@ private:
     double m_pdfZoom = 1.0;                       // user zoom multiplier on top of fit-to-width; 1.0 == fit
 
     // Slides page (m_stack index 10): pptx rendered by office_oxide to one
-    // standalone SVG per slide, stacked vertically in one continuous scroll area.
-    // Mirrors the PDF cluster above (QSvgRenderer in place of Poppler): slides fit
-    // the viewport width by default, Zoom In/Out multiply that fit, and pixmaps are
-    // rendered lazily (only slides near the viewport) so a big deck opens smoothly.
+    // standalone SVG per slide. Each slide's SVG is parsed into native graphics
+    // items (SlideSceneBuilder) and stacked vertically in a single QGraphicsScene,
+    // so text stays selectable and shapes scale as vectors. Slides fit the viewport
+    // width by default; Zoom In/Out multiply that fit via the view transform (no
+    // re-rasterization -- crisp at any zoom).
     QWidget *m_slidesPage = nullptr;
-    QScrollArea *m_slidesScroll = nullptr;
-    QWidget *m_slidesContainer = nullptr;        // scroll widget: a QVBoxLayout of slide labels
+    QGraphicsView *m_slidesView = nullptr;
+    QGraphicsScene *m_slidesScene = nullptr;
     QLabel *m_slidesInfo = nullptr;              // "Slide N / M" per scroll position
-    QVector<QLabel *> m_slideLabels;             // one placeholder/label per slide
-    QVector<QByteArray> m_slideSvgData;          // raw SVG document bytes per slide
-    QVector<QSize> m_slideSizes;                 // native slide size (from SVG defaultSize)
-    QVector<int> m_slideRenderedWidth;           // px width each label was rendered at (-1 == placeholder)
+    QVector<double> m_slidePageTop;              // scene-Y of each slide's page block
+    QVector<double> m_slidePageHeight;           // scene height of each slide's page block
+    QVector<QString> m_slideTexts;               // concatenated text per slide (copy fallback)
+    double m_slidesSceneWidth = 0.0;             // widest page (scene units) for fit-to-width
     QTimer *m_slidesRelayoutTimer = nullptr;     // debounce viewport resizes before re-fitting
     double m_slidesZoom = 1.0;                    // user zoom multiplier on top of fit-to-width; 1.0 == fit
 

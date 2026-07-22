@@ -8,9 +8,14 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QClipboard>
 #include <QFontMetrics>
 #include <QFutureWatcher>
 #include <QBuffer>
+#include <QGraphicsPixmapItem>
+#include <QGraphicsScene>
+#include <QGraphicsTextItem>
+#include <QGraphicsView>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QImage>
@@ -27,6 +32,7 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSet>
+#include <QShortcut>
 #include <QStandardPaths>
 #include <QSize>
 #include <QSizePolicy>
@@ -56,6 +62,7 @@
 #include "ImageViewer.h"
 #include "MpvWidget.h"
 #include "OfficeConverter.h"
+#include "SlideSceneBuilder.h"
 #include "config/Settings.h"
 #include "media/Id3Reader.h"
 
@@ -81,6 +88,9 @@ constexpr double kMaxScale = 20.0;
 constexpr double kPdfBaseDpi = 72.0;
 constexpr double kPdfMinZoom = 0.25;
 constexpr double kPdfMaxZoom = 6.0;
+// Side gutter reserved so a fitted page/slide never triggers a horizontal
+// scrollbar (on top of the scrollbar extent).
+constexpr int kPdfSideMargin = 12;
 } // namespace
 
 QuickView::QuickView(Settings &settings, Context context, QWidget *parent)
@@ -1424,14 +1434,6 @@ void QuickView::populateCsvTable(const QString &tsv) {
     m_officeTable->resizeColumnsToContents();
 }
 
-namespace {
-// Horizontal breathing room subtracted from the viewport before fitting pages to
-// width, on top of the scrollbar extent, so a page never overflows into a
-// horizontal scrollbar. Also the vertical margin (in viewport heights) of pages
-// kept rendered above/below the visible window.
-constexpr int kPdfSideMargin = 12;
-} // namespace
-
 QWidget *QuickView::buildPdfPage() {
     m_pdfPage = new QWidget(this);
 
@@ -1646,23 +1648,26 @@ void QuickView::closePdf() {
 QWidget *QuickView::buildSlidesPage() {
     m_slidesPage = new QWidget(this);
 
-    // A slim toolbar: zoom (fit-to-width is the implicit default) plus the
-    // "Slide N / M" readout driven by scroll position. Mirrors the PDF page.
+    // A slim toolbar: zoom (fit-to-width is the implicit default), copy-text
+    // fallbacks, and the "Slide N / M" readout driven by scroll position.
     auto *toolbar = new QToolBar(m_slidesPage);
     toolbar->addAction(tr("Zoom In"), this, [this]() {
-        if (m_slideLabels.isEmpty())
+        if (m_slidePageTop.isEmpty())
             return;
         m_slidesZoom = qBound(kPdfMinZoom, m_slidesZoom * kZoomStep, kPdfMaxZoom);
         relayoutSlides();
-        renderVisibleSlides();
     });
     toolbar->addAction(tr("Zoom Out"), this, [this]() {
-        if (m_slideLabels.isEmpty())
+        if (m_slidePageTop.isEmpty())
             return;
         m_slidesZoom = qBound(kPdfMinZoom, m_slidesZoom / kZoomStep, kPdfMaxZoom);
         relayoutSlides();
-        renderVisibleSlides();
     });
+    toolbar->addSeparator();
+    toolbar->addAction(tr("Copy Slide"), this,
+                       [this]() { copySlidesText(CopyScope::CurrentPage); });
+    toolbar->addAction(tr("Copy All"), this,
+                       [this]() { copySlidesText(CopyScope::All); });
 
     auto *spacer = new QWidget(toolbar);
     spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -1672,196 +1677,187 @@ QWidget *QuickView::buildSlidesPage() {
     m_slidesInfo->setContentsMargins(8, 0, 8, 0);
     toolbar->addWidget(m_slidesInfo);
 
-    // One container widget holds a top-aligned column of per-slide labels; the
-    // scroll area does not resize it (we size labels ourselves to control fit).
-    m_slidesContainer = new QWidget;
-    auto *slidesLayout = new QVBoxLayout(m_slidesContainer);
-    slidesLayout->setContentsMargins(4, 4, 4, 4);
-    slidesLayout->setSpacing(8);
-    slidesLayout->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
-
-    m_slidesScroll = new QScrollArea(m_slidesPage);
-    m_slidesScroll->setWidget(m_slidesContainer);
-    m_slidesScroll->setWidgetResizable(false);
-    m_slidesScroll->setAlignment(Qt::AlignHCenter);
-    // Resizing the pane re-fits every slide to the new width; debounce so a divider
+    // Every slide's shapes and text are native graphics items stacked in one scene.
+    // The view scales the whole scene to fit the pane width (vectors stay crisp at
+    // any zoom); it does not rasterize.
+    m_slidesScene = new QGraphicsScene(this);
+    m_slidesScene->setBackgroundBrush(QColor(0x50, 0x50, 0x50));
+    m_slidesView = new QGraphicsView(m_slidesScene, m_slidesPage);
+    m_slidesView->setFrameShape(QFrame::NoFrame);
+    m_slidesView->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
+    m_slidesView->setDragMode(QGraphicsView::NoDrag); // let text items own the mouse
+    m_slidesView->setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing |
+                                 QPainter::SmoothPixmapTransform);
+    m_slidesView->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    // Resizing the pane re-fits the deck to the new width; debounce so a divider
     // drag re-fits once at the end rather than on every intermediate width.
-    m_slidesScroll->viewport()->installEventFilter(this);
+    m_slidesView->viewport()->installEventFilter(this);
 
     m_slidesRelayoutTimer = new QTimer(this);
     m_slidesRelayoutTimer->setSingleShot(true);
     m_slidesRelayoutTimer->setInterval(80);
     connect(m_slidesRelayoutTimer, &QTimer::timeout, this, [this]() {
-        if (m_slideLabels.isEmpty())
+        if (m_slidePageTop.isEmpty())
             return;
         relayoutSlides();
-        renderVisibleSlides();
     });
 
-    // Scrolling reveals new slides (render them) and updates the slide readout.
-    connect(m_slidesScroll->verticalScrollBar(), &QScrollBar::valueChanged, this,
+    // Scrolling just updates the slide readout (all items are already in the scene).
+    connect(m_slidesView->verticalScrollBar(), &QScrollBar::valueChanged, this,
             [this]() { renderVisibleSlides(); });
+
+    auto *copySc = new QShortcut(QKeySequence::Copy, m_slidesPage);
+    copySc->setContext(Qt::WidgetWithChildrenShortcut);
+    connect(copySc, &QShortcut::activated, this,
+            [this]() { copySlidesText(CopyScope::Selection); });
 
     auto *layout = new QVBoxLayout(m_slidesPage);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(toolbar);
-    layout->addWidget(m_slidesScroll, 1);
+    layout->addWidget(m_slidesView, 1);
     return m_slidesPage;
 }
 
 void QuickView::loadSlides(const QStringList &svgs) {
-    // Tear down any previous deck's labels first, then build one placeholder label
-    // per slide of the freshly-converted document.
-    if (auto *lay = m_slidesContainer->layout()) {
-        while (QLayoutItem *item = lay->takeAt(0)) {
-            if (QWidget *w = item->widget())
-                w->deleteLater();
-            delete item;
-        }
-    }
-    m_slideLabels.clear();
-    m_slideSvgData.clear();
-    m_slideSizes.clear();
-    m_slideRenderedWidth.clear();
+    // Parse each slide's SVG into a page item tree and stack the pages vertically
+    // in the scene. Vector items mean no lazy rasterization: everything lives in
+    // the scene and the view transform handles fit + zoom.
+    m_slidesScene->clear();
+    m_slidePageTop.clear();
+    m_slidePageHeight.clear();
+    m_slideTexts.clear();
     m_slidesZoom = 1.0;
+    m_slidesSceneWidth = 0.0;
 
-    auto *lay = static_cast<QVBoxLayout *>(m_slidesContainer->layout());
+    double y = 0.0;
     for (const QString &svg : svgs) {
-        const QByteArray bytes = svg.toUtf8();
-        m_slideSvgData.push_back(bytes);
-
-        // Read the slide's native size once (the viewBox), just to fit the label;
-        // the pixmap is rendered later, lazily, when the slide nears the viewport.
-        QSvgRenderer probe(bytes);
-        QSize sz = probe.defaultSize();
-        if (!sz.isValid() || sz.isEmpty())
-            sz = QSize(960, 540); // 16:9 fallback when the SVG has no usable size
-        m_slideSizes.push_back(sz);
-
-        auto *label = new QLabel(m_slidesContainer);
-        label->setAlignment(Qt::AlignCenter);
-        label->setStyleSheet(QStringLiteral("QLabel { background: white; }"));
-        lay->addWidget(label, 0, Qt::AlignHCenter);
-        m_slideLabels.push_back(label);
-        m_slideRenderedWidth.push_back(-1);
+        QSizeF sizeScene(960 * SlideScene::kSceneScale, 540 * SlideScene::kSceneScale);
+        QString text;
+        QGraphicsItem *page =
+            SlideScene::buildSlidePage(svg.toUtf8(), &sizeScene, &text);
+        if (!page) {
+            // Unparseable SVG: keep the deck's page count consistent with a blank
+            // placeholder so "Slide N / M" and scrolling still line up.
+            auto *blank = new QGraphicsRectItem(QRectF(QPointF(0, 0), sizeScene));
+            blank->setBrush(Qt::white);
+            page = blank;
+        }
+        m_slidesScene->addItem(page);
+        page->setPos(0, y);
+        m_slidePageTop.push_back(y);
+        m_slidePageHeight.push_back(sizeScene.height());
+        m_slideTexts.push_back(text);
+        m_slidesSceneWidth = qMax(m_slidesSceneWidth, sizeScene.width());
+        const double gap = qMax(200.0, sizeScene.height() * 0.03);
+        y += sizeScene.height() + gap;
     }
+    m_slidesScene->setSceneRect(0, 0, qMax(1.0, m_slidesSceneWidth), qMax(1.0, y));
 
-    // Size every placeholder to its fitted dimensions so the scrollbar range is
-    // correct up front, then render whatever is initially on screen.
     relayoutSlides();
-    renderVisibleSlides();
-    // When the same QuickView is reused to show a different deck (switching files),
-    // the freshly created labels' geometry isn't settled until the layout event has
-    // run — so the immediate render above can execute before geometry is valid and
-    // skip the whole frame, leaving the page blank until the user manually zooms or
-    // scrolls. Fire the relayout timer to re-render once the layout has settled.
+    // When the same QuickView is reused for a different deck, the view's viewport
+    // width may not be settled yet, so the fit computed above can be wrong. Re-fit
+    // once the layout has run (mirrors the old lazy-render deferral, kept to avoid
+    // reintroducing the "blank after switching decks" bug).
     m_slidesRelayoutTimer->start();
 }
 
 void QuickView::relayoutSlides() {
-    if (m_slideLabels.isEmpty())
+    if (m_slidePageTop.isEmpty() || m_slidesSceneWidth <= 0.0)
         return;
 
-    // Fit each slide to the viewport width (minus the scrollbar extent and a small
-    // margin so no horizontal scrollbar appears), scaled by the user zoom. Guard a
-    // small minimum for the case where the pane isn't laid out yet (width ~0); the
+    // Fit the scene width to the viewport (minus the scrollbar extent and a small
+    // margin so no horizontal scrollbar appears), scaled by the user zoom, via the
+    // view transform. Guard a minimum for the not-yet-laid-out case (width ~0); the
     // first resize event then re-fits to the real width.
-    const int sbExtent = m_slidesScroll->style()->pixelMetric(QStyle::PM_ScrollBarExtent);
-    const int viewportW = m_slidesScroll->viewport()->width() - sbExtent - kPdfSideMargin;
+    const int sbExtent = m_slidesView->style()->pixelMetric(QStyle::PM_ScrollBarExtent);
+    const int viewportW = m_slidesView->viewport()->width() - sbExtent - kPdfSideMargin;
     const double baseW = qMax(120, viewportW);
+    const double fit = baseW / m_slidesSceneWidth;
 
-    // Preserve the scroll position as a fraction of the total range so a zoom or
-    // resize keeps roughly the same part of the deck in view.
-    QScrollBar *vbar = m_slidesScroll->verticalScrollBar();
+    // Preserve the scroll position as a fraction of the range across the transform.
+    QScrollBar *vbar = m_slidesView->verticalScrollBar();
     const double ratio = vbar->maximum() > 0
                              ? double(vbar->value()) / double(vbar->maximum())
                              : 0.0;
 
-    for (int i = 0; i < m_slideLabels.size(); ++i) {
-        const double Wp = qMax(1.0, double(m_slideSizes[i].width()));
-        const double Hp = qMax(1.0, double(m_slideSizes[i].height()));
-        const double targetW = baseW * m_slidesZoom;
-        const QSize fitted(qRound(targetW), qRound(targetW * Hp / Wp));
-        m_slideLabels[i]->setFixedSize(fitted);
-        m_slideRenderedWidth[i] = -1; // force a re-render at the new width
-        m_slideLabels[i]->clear();
-    }
-    m_slidesContainer->adjustSize(); // recompute the scrollbar range for the new sizes
+    const double s = fit * m_slidesZoom;
+    m_slidesView->setTransform(QTransform::fromScale(s, s));
 
     if (ratio > 0.0 && vbar->maximum() > 0)
         vbar->setValue(qRound(ratio * vbar->maximum()));
+    renderVisibleSlides(); // refresh the "Slide N / M" readout for the new geometry
 }
 
 void QuickView::renderVisibleSlides() {
-    if (m_slideLabels.isEmpty())
+    // Vector items are always in the scene; this only refreshes the readout to the
+    // slide under the current scroll position.
+    if (m_slidePageTop.isEmpty()) {
+        if (m_slidesInfo)
+            m_slidesInfo->clear();
         return;
+    }
+    const int cur = qMax(0, currentSlide());
+    m_slidesInfo->setText(tr("Slide %1 / %2").arg(cur + 1).arg(m_slidePageTop.size()));
+}
 
-    // Visible window in container coordinates, padded by one viewport height above
-    // and below so scrolling reveals already-rendered slides instead of blanks.
-    const int top = m_slidesScroll->verticalScrollBar()->value();
-    const int vh = m_slidesScroll->viewport()->height();
-    const int keepTop = top - vh;
-    const int keepBottom = top + 2 * vh;
+int QuickView::currentSlide() const {
+    if (m_slidePageTop.isEmpty())
+        return -1;
+    const QRectF vis =
+        m_slidesView->mapToScene(m_slidesView->viewport()->rect()).boundingRect();
+    const double y = vis.top();
+    int slide = 0;
+    for (int i = 0; i < m_slidePageTop.size(); ++i) {
+        if (m_slidePageTop[i] <= y + 1.0)
+            slide = i;
+        else
+            break;
+    }
+    return slide;
+}
 
-    int firstVisible = -1;
-    for (int i = 0; i < m_slideLabels.size(); ++i) {
-        QLabel *label = m_slideLabels[i];
-        const QRect g = label->geometry();
-        const bool inWindow = g.bottom() >= keepTop && g.top() <= keepBottom;
-        // The first slide overlapping the actual visible band drives "Slide N / M".
-        if (firstVisible < 0 && g.bottom() >= top && g.top() <= top + vh)
-            firstVisible = i;
-
-        if (inWindow) {
-            if (m_slideRenderedWidth[i] == label->width())
-                continue; // already rendered at this width
-            const QSize target = label->size();
-            if (target.isEmpty())
-                continue;
-            QImage image(target, QImage::Format_ARGB32_Premultiplied);
-            image.fill(Qt::white);
-            QSvgRenderer renderer(m_slideSvgData[i]);
-            if (!renderer.isValid()) {
-                label->setText(tr("Failed to render slide %1").arg(i + 1));
-                continue;
+void QuickView::copySlidesText(CopyScope scope) {
+    QString out;
+    if (scope == CopyScope::Selection) {
+        // Gather the selected text of every selectable text item in the scene.
+        const QList<QGraphicsItem *> items = m_slidesScene->items();
+        // items() returns top-to-bottom; reverse for roughly reading order.
+        for (int i = items.size() - 1; i >= 0; --i) {
+            if (auto *t = qgraphicsitem_cast<QGraphicsTextItem *>(items[i])) {
+                const QString sel = t->textCursor().selectedText();
+                if (!sel.isEmpty()) {
+                    if (!out.isEmpty())
+                        out.append('\n');
+                    out.append(sel);
+                }
             }
-            QPainter painter(&image);
-            painter.setRenderHint(QPainter::Antialiasing, true);
-            painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-            renderer.render(&painter);
-            painter.end();
-            label->setPixmap(QPixmap::fromImage(image));
-            m_slideRenderedWidth[i] = label->width();
-        } else if (m_slideRenderedWidth[i] != -1) {
-            // Far offscreen: drop the pixmap to bound memory, but keep the fixed
-            // size so the layout and scrollbar range stay stable.
-            label->clear();
-            m_slideRenderedWidth[i] = -1;
+        }
+        if (out.isEmpty())
+            return; // nothing selected: don't clobber the clipboard
+    } else if (scope == CopyScope::CurrentPage) {
+        const int i = currentSlide();
+        if (i >= 0 && i < m_slideTexts.size())
+            out = m_slideTexts[i];
+    } else { // All
+        for (const QString &t : m_slideTexts) {
+            if (!out.isEmpty())
+                out.append(QStringLiteral("\n\n"));
+            out.append(t);
         }
     }
-
-    if (firstVisible < 0)
-        firstVisible = 0;
-    m_slidesInfo->setText(
-        tr("Slide %1 / %2").arg(firstVisible + 1).arg(m_slideLabels.size()));
+    if (!out.isEmpty())
+        QApplication::clipboard()->setText(out);
 }
 
 void QuickView::closeSlides() {
-    // Drop all slide labels and data, and reset the view state so a later deck
+    // Drop all slide items and data, and reset the view state so a later deck
     // starts clean and no stale slide lingers.
-    if (m_slidesContainer) {
-        if (auto *lay = m_slidesContainer->layout()) {
-            while (QLayoutItem *item = lay->takeAt(0)) {
-                if (QWidget *w = item->widget())
-                    w->deleteLater();
-                delete item;
-            }
-        }
-    }
-    m_slideLabels.clear();
-    m_slideSvgData.clear();
-    m_slideSizes.clear();
-    m_slideRenderedWidth.clear();
+    if (m_slidesScene)
+        m_slidesScene->clear();
+    m_slidePageTop.clear();
+    m_slidePageHeight.clear();
+    m_slideTexts.clear();
+    m_slidesSceneWidth = 0.0;
     m_slidesZoom = 1.0;
     if (m_slidesInfo)
         m_slidesInfo->clear();
@@ -1899,9 +1895,9 @@ bool QuickView::eventFilter(QObject *watched, QEvent *event) {
         // fall through to default handling
     }
     // Same debounced re-fit for the slides viewport.
-    if (m_slidesScroll && watched == m_slidesScroll->viewport() &&
+    if (m_slidesView && watched == m_slidesView->viewport() &&
         event->type() == QEvent::Resize) {
-        if (!m_slideLabels.isEmpty())
+        if (!m_slidePageTop.isEmpty())
             m_slidesRelayoutTimer->start();
         // fall through to default handling
     }
