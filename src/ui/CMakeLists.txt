@@ -21,6 +21,8 @@ add_library(ui STATIC
     ViewerWindow.cpp
     MpvWidget.h
     MpvWidget.cpp
+    AudioPlayer.h
+    AudioPlayer.cpp
     FunctionKeyBar.h
     FunctionKeyBar.cpp
     StatusBarWidget.h
