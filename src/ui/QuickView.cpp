@@ -20,6 +20,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMouseEvent>
+#include <QPainter>
 #include <QPlainTextEdit>
 #include <QProcess>
 #include <QPushButton>
@@ -32,6 +33,7 @@
 #include <QSlider>
 #include <QStackedWidget>
 #include <QStyle>
+#include <QSvgRenderer>
 #include <QTableView>
 #include <QTableWidget>
 #include <QTemporaryDir>
@@ -115,6 +117,7 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent)
     m_stack->addWidget(buildEncryptedPage());    // 7
     m_stack->addWidget(buildArchivePage());      // 8
     m_stack->addWidget(buildAudioPage());        // 9
+    m_stack->addWidget(buildSlidesPage());       // 10
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -1119,6 +1122,12 @@ void QuickView::renderOffice(const QString &path, const QString &password) {
     const QFileInfo info(path);
     const OfficeConverter::Result r = OfficeConverter::convert(path, password);
 
+    if (r.ok && r.kind == OfficeConverter::Kind::Presentation && !r.slideSvgs.isEmpty()) {
+        // pptx rendered as slide images: stack them in the continuous slides page.
+        loadSlides(r.slideSvgs);
+        m_stack->setCurrentWidget(m_slidesPage);
+        return;
+    }
     if (r.ok && r.kind == OfficeConverter::Kind::Document) {
         // Fit large embedded images to the preview width. Use the stack's width
         // (the actual pane width) rather than m_markdown's, which may still be
@@ -1209,6 +1218,7 @@ void QuickView::previewArchive(const QString &path) {
     stopVideo();
     stopAudio();
     closePdf();
+    closeSlides();
     m_infoOverlay->hide();
     // Fresh chain rooted at this archive; drop any previously extracted nesteds.
     m_archivePaths = QStringList{path};
@@ -1633,6 +1643,224 @@ void QuickView::closePdf() {
         m_pdfPageInfo->clear();
 }
 
+QWidget *QuickView::buildSlidesPage() {
+    m_slidesPage = new QWidget(this);
+
+    // A slim toolbar: zoom (fit-to-width is the implicit default) plus the
+    // "Slide N / M" readout driven by scroll position. Mirrors the PDF page.
+    auto *toolbar = new QToolBar(m_slidesPage);
+    toolbar->addAction(tr("Zoom In"), this, [this]() {
+        if (m_slideLabels.isEmpty())
+            return;
+        m_slidesZoom = qBound(kPdfMinZoom, m_slidesZoom * kZoomStep, kPdfMaxZoom);
+        relayoutSlides();
+        renderVisibleSlides();
+    });
+    toolbar->addAction(tr("Zoom Out"), this, [this]() {
+        if (m_slideLabels.isEmpty())
+            return;
+        m_slidesZoom = qBound(kPdfMinZoom, m_slidesZoom / kZoomStep, kPdfMaxZoom);
+        relayoutSlides();
+        renderVisibleSlides();
+    });
+
+    auto *spacer = new QWidget(toolbar);
+    spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    toolbar->addWidget(spacer);
+
+    m_slidesInfo = new QLabel(m_slidesPage);
+    m_slidesInfo->setContentsMargins(8, 0, 8, 0);
+    toolbar->addWidget(m_slidesInfo);
+
+    // One container widget holds a top-aligned column of per-slide labels; the
+    // scroll area does not resize it (we size labels ourselves to control fit).
+    m_slidesContainer = new QWidget;
+    auto *slidesLayout = new QVBoxLayout(m_slidesContainer);
+    slidesLayout->setContentsMargins(4, 4, 4, 4);
+    slidesLayout->setSpacing(8);
+    slidesLayout->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
+
+    m_slidesScroll = new QScrollArea(m_slidesPage);
+    m_slidesScroll->setWidget(m_slidesContainer);
+    m_slidesScroll->setWidgetResizable(false);
+    m_slidesScroll->setAlignment(Qt::AlignHCenter);
+    // Resizing the pane re-fits every slide to the new width; debounce so a divider
+    // drag re-fits once at the end rather than on every intermediate width.
+    m_slidesScroll->viewport()->installEventFilter(this);
+
+    m_slidesRelayoutTimer = new QTimer(this);
+    m_slidesRelayoutTimer->setSingleShot(true);
+    m_slidesRelayoutTimer->setInterval(80);
+    connect(m_slidesRelayoutTimer, &QTimer::timeout, this, [this]() {
+        if (m_slideLabels.isEmpty())
+            return;
+        relayoutSlides();
+        renderVisibleSlides();
+    });
+
+    // Scrolling reveals new slides (render them) and updates the slide readout.
+    connect(m_slidesScroll->verticalScrollBar(), &QScrollBar::valueChanged, this,
+            [this]() { renderVisibleSlides(); });
+
+    auto *layout = new QVBoxLayout(m_slidesPage);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(toolbar);
+    layout->addWidget(m_slidesScroll, 1);
+    return m_slidesPage;
+}
+
+void QuickView::loadSlides(const QStringList &svgs) {
+    // Tear down any previous deck's labels first, then build one placeholder label
+    // per slide of the freshly-converted document.
+    if (auto *lay = m_slidesContainer->layout()) {
+        while (QLayoutItem *item = lay->takeAt(0)) {
+            if (QWidget *w = item->widget())
+                w->deleteLater();
+            delete item;
+        }
+    }
+    m_slideLabels.clear();
+    m_slideSvgData.clear();
+    m_slideSizes.clear();
+    m_slideRenderedWidth.clear();
+    m_slidesZoom = 1.0;
+
+    auto *lay = static_cast<QVBoxLayout *>(m_slidesContainer->layout());
+    for (const QString &svg : svgs) {
+        const QByteArray bytes = svg.toUtf8();
+        m_slideSvgData.push_back(bytes);
+
+        // Read the slide's native size once (the viewBox), just to fit the label;
+        // the pixmap is rendered later, lazily, when the slide nears the viewport.
+        QSvgRenderer probe(bytes);
+        QSize sz = probe.defaultSize();
+        if (!sz.isValid() || sz.isEmpty())
+            sz = QSize(960, 540); // 16:9 fallback when the SVG has no usable size
+        m_slideSizes.push_back(sz);
+
+        auto *label = new QLabel(m_slidesContainer);
+        label->setAlignment(Qt::AlignCenter);
+        label->setStyleSheet(QStringLiteral("QLabel { background: white; }"));
+        lay->addWidget(label, 0, Qt::AlignHCenter);
+        m_slideLabels.push_back(label);
+        m_slideRenderedWidth.push_back(-1);
+    }
+
+    // Size every placeholder to its fitted dimensions so the scrollbar range is
+    // correct up front, then render whatever is initially on screen.
+    relayoutSlides();
+    renderVisibleSlides();
+}
+
+void QuickView::relayoutSlides() {
+    if (m_slideLabels.isEmpty())
+        return;
+
+    // Fit each slide to the viewport width (minus the scrollbar extent and a small
+    // margin so no horizontal scrollbar appears), scaled by the user zoom. Guard a
+    // small minimum for the case where the pane isn't laid out yet (width ~0); the
+    // first resize event then re-fits to the real width.
+    const int sbExtent = m_slidesScroll->style()->pixelMetric(QStyle::PM_ScrollBarExtent);
+    const int viewportW = m_slidesScroll->viewport()->width() - sbExtent - kPdfSideMargin;
+    const double baseW = qMax(120, viewportW);
+
+    // Preserve the scroll position as a fraction of the total range so a zoom or
+    // resize keeps roughly the same part of the deck in view.
+    QScrollBar *vbar = m_slidesScroll->verticalScrollBar();
+    const double ratio = vbar->maximum() > 0
+                             ? double(vbar->value()) / double(vbar->maximum())
+                             : 0.0;
+
+    for (int i = 0; i < m_slideLabels.size(); ++i) {
+        const double Wp = qMax(1.0, double(m_slideSizes[i].width()));
+        const double Hp = qMax(1.0, double(m_slideSizes[i].height()));
+        const double targetW = baseW * m_slidesZoom;
+        const QSize fitted(qRound(targetW), qRound(targetW * Hp / Wp));
+        m_slideLabels[i]->setFixedSize(fitted);
+        m_slideRenderedWidth[i] = -1; // force a re-render at the new width
+        m_slideLabels[i]->clear();
+    }
+    m_slidesContainer->adjustSize(); // recompute the scrollbar range for the new sizes
+
+    if (ratio > 0.0 && vbar->maximum() > 0)
+        vbar->setValue(qRound(ratio * vbar->maximum()));
+}
+
+void QuickView::renderVisibleSlides() {
+    if (m_slideLabels.isEmpty())
+        return;
+
+    // Visible window in container coordinates, padded by one viewport height above
+    // and below so scrolling reveals already-rendered slides instead of blanks.
+    const int top = m_slidesScroll->verticalScrollBar()->value();
+    const int vh = m_slidesScroll->viewport()->height();
+    const int keepTop = top - vh;
+    const int keepBottom = top + 2 * vh;
+
+    int firstVisible = -1;
+    for (int i = 0; i < m_slideLabels.size(); ++i) {
+        QLabel *label = m_slideLabels[i];
+        const QRect g = label->geometry();
+        const bool inWindow = g.bottom() >= keepTop && g.top() <= keepBottom;
+        // The first slide overlapping the actual visible band drives "Slide N / M".
+        if (firstVisible < 0 && g.bottom() >= top && g.top() <= top + vh)
+            firstVisible = i;
+
+        if (inWindow) {
+            if (m_slideRenderedWidth[i] == label->width())
+                continue; // already rendered at this width
+            const QSize target = label->size();
+            if (target.isEmpty())
+                continue;
+            QImage image(target, QImage::Format_ARGB32_Premultiplied);
+            image.fill(Qt::white);
+            QSvgRenderer renderer(m_slideSvgData[i]);
+            if (!renderer.isValid()) {
+                label->setText(tr("Failed to render slide %1").arg(i + 1));
+                continue;
+            }
+            QPainter painter(&image);
+            painter.setRenderHint(QPainter::Antialiasing, true);
+            painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+            renderer.render(&painter);
+            painter.end();
+            label->setPixmap(QPixmap::fromImage(image));
+            m_slideRenderedWidth[i] = label->width();
+        } else if (m_slideRenderedWidth[i] != -1) {
+            // Far offscreen: drop the pixmap to bound memory, but keep the fixed
+            // size so the layout and scrollbar range stay stable.
+            label->clear();
+            m_slideRenderedWidth[i] = -1;
+        }
+    }
+
+    if (firstVisible < 0)
+        firstVisible = 0;
+    m_slidesInfo->setText(
+        tr("Slide %1 / %2").arg(firstVisible + 1).arg(m_slideLabels.size()));
+}
+
+void QuickView::closeSlides() {
+    // Drop all slide labels and data, and reset the view state so a later deck
+    // starts clean and no stale slide lingers.
+    if (m_slidesContainer) {
+        if (auto *lay = m_slidesContainer->layout()) {
+            while (QLayoutItem *item = lay->takeAt(0)) {
+                if (QWidget *w = item->widget())
+                    w->deleteLater();
+                delete item;
+            }
+        }
+    }
+    m_slideLabels.clear();
+    m_slideSvgData.clear();
+    m_slideSizes.clear();
+    m_slideRenderedWidth.clear();
+    m_slidesZoom = 1.0;
+    if (m_slidesInfo)
+        m_slidesInfo->clear();
+}
+
 void QuickView::zoomImageBy(double factor) {
     m_imageFitMode = false;
     m_imageScale = qBound(kMinScale, m_imageScale * factor, kMaxScale);
@@ -1662,6 +1890,13 @@ bool QuickView::eventFilter(QObject *watched, QEvent *event) {
         event->type() == QEvent::Resize) {
         if (m_pdfDoc)
             m_pdfRelayoutTimer->start();
+        // fall through to default handling
+    }
+    // Same debounced re-fit for the slides viewport.
+    if (m_slidesScroll && watched == m_slidesScroll->viewport() &&
+        event->type() == QEvent::Resize) {
+        if (!m_slideLabels.isEmpty())
+            m_slidesRelayoutTimer->start();
         // fall through to default handling
     }
     const bool onImage =
@@ -1728,6 +1963,7 @@ void QuickView::showFile(const QString &path) {
         stopVideo();
         stopAudio();
         closePdf(); // don't keep a document loaded behind the "no preview" note
+        closeSlides();
         m_infoOverlay->hide();
         m_info->setText(tr("Select a file to preview"));
         m_stack->setCurrentWidget(m_info);
@@ -1807,6 +2043,7 @@ void QuickView::showFile(const QString &path) {
     if (isPdf(path)) {
         m_infoOverlay->hide(); // image overlay belongs to another page
         closePdf();            // drop any prior document before loading the new one
+        closeSlides();         // and any prior slide deck
 
         // Poppler::Document::load returns an owning pointer (nullptr on failure).
         std::unique_ptr<Poppler::Document> doc(Poppler::Document::load(path));
@@ -1832,7 +2069,9 @@ void QuickView::showFile(const QString &path) {
 
     // Reaching here means the target is not a PDF: release any loaded document so
     // we don't hold a large PDF in memory behind an image/text/markdown preview.
+    // Also drop any slide deck; renderOffice() reloads it for a fresh pptx.
     closePdf();
+    closeSlides();
 
     // Office documents (integrated, always-on): docx/doc/pptx/ppt render as
     // Markdown, xlsx/xls as a grid, via the external office_oxide CLI. Silently

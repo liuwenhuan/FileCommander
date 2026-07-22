@@ -108,6 +108,7 @@ private:
     void updateAudioTransport();          // sync play/pause label + seek + times
     QWidget *buildMarkdownPage();
     QWidget *buildPdfPage();
+    QWidget *buildSlidesPage();            // pptx slide-image preview (per-slide SVG)
     QWidget *buildOfficeTablePage();       // spreadsheet (xls/xlsx) preview as a grid
     QWidget *buildEncryptedPage();         // "encrypted" note + an unlock button
     QWidget *buildArchivePage();           // read-only archive listing (no extraction)
@@ -145,6 +146,13 @@ private:
     void relayoutPdfPages();      // recompute every label's fitted size, force re-render
     void renderVisiblePdfPages(); // render pixmaps for on-screen pages, free far ones
     void closePdf();              // release any loaded document + reset PDF UI state
+    // Continuous pptx slide preview: every slide's SVG stacks vertically in one
+    // scroll area, fit-to-width and rendered lazily (mirrors the PDF cluster, with
+    // QSvgRenderer standing in for Poppler).
+    void loadSlides(const QStringList &svgs); // build one placeholder label per slide
+    void relayoutSlides();        // recompute every label's fitted size, force re-render
+    void renderVisibleSlides();   // render pixmaps for on-screen slides, free far ones
+    void closeSlides();           // drop all slide data + reset the slides UI state
     void applyImageScale();
     void zoomImageBy(double factor);
     // Rotates the shown image by +/-90 degrees, then persists it losslessly back
@@ -253,6 +261,22 @@ private:
     QTimer *m_pdfRelayoutTimer = nullptr;        // debounce viewport resizes before re-fitting
     std::unique_ptr<Poppler::Document> m_pdfDoc; // currently loaded document
     double m_pdfZoom = 1.0;                       // user zoom multiplier on top of fit-to-width; 1.0 == fit
+
+    // Slides page (m_stack index 10): pptx rendered by office_oxide to one
+    // standalone SVG per slide, stacked vertically in one continuous scroll area.
+    // Mirrors the PDF cluster above (QSvgRenderer in place of Poppler): slides fit
+    // the viewport width by default, Zoom In/Out multiply that fit, and pixmaps are
+    // rendered lazily (only slides near the viewport) so a big deck opens smoothly.
+    QWidget *m_slidesPage = nullptr;
+    QScrollArea *m_slidesScroll = nullptr;
+    QWidget *m_slidesContainer = nullptr;        // scroll widget: a QVBoxLayout of slide labels
+    QLabel *m_slidesInfo = nullptr;              // "Slide N / M" per scroll position
+    QVector<QLabel *> m_slideLabels;             // one placeholder/label per slide
+    QVector<QByteArray> m_slideSvgData;          // raw SVG document bytes per slide
+    QVector<QSize> m_slideSizes;                 // native slide size (from SVG defaultSize)
+    QVector<int> m_slideRenderedWidth;           // px width each label was rendered at (-1 == placeholder)
+    QTimer *m_slidesRelayoutTimer = nullptr;     // debounce viewport resizes before re-fitting
+    double m_slidesZoom = 1.0;                    // user zoom multiplier on top of fit-to-width; 1.0 == fit
 
     // Video page (m_stack index 3).
     QString m_videoPath;            // path of the clip currently loaded (de-dup re-selects)

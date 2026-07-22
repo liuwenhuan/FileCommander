@@ -11,7 +11,7 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
-find_package(Qt5 REQUIRED COMPONENTS Core Widgets Gui Concurrent Test)
+find_package(Qt5 REQUIRED COMPONENTS Core Widgets Gui Concurrent Svg Test)
 find_package(LibArchive)
 
 enable_testing()
