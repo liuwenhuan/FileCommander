@@ -22,6 +22,7 @@
 #include <QRegExp>
 #include <QStringRef>
 #include <QTextDocument>
+#include <QTextOption>
 #include <QVector>
 #include <QXmlStreamReader>
 
@@ -357,13 +358,9 @@ void addText(const QXmlStreamAttributes &attrs, const QString &text, QGraphicsIt
         font.setItalic(true);
 
     const QFontMetricsF fm(font);
-    const double advance = fm.horizontalAdvance(text);
     const QStringRef anchor = attrs.value(QLatin1String("text-anchor"));
-    double left = x;
-    if (anchor == QLatin1String("middle"))
-        left = x - advance / 2.0;
-    else if (anchor == QLatin1String("end"))
-        left = x - advance;
+    // SVG y is the baseline; a QGraphicsTextItem is anchored by its top-left, so the
+    // item top puts the first line's baseline back on y (document margin is 0).
     const double top = baseline - fm.ascent();
 
     auto *item = new QGraphicsTextItem(page);
@@ -372,8 +369,44 @@ void addText(const QXmlStreamAttributes &attrs, const QString &text, QGraphicsIt
     const QColor fill = parseColor(attrs.value(QLatin1String("fill")));
     item->setDefaultTextColor(fill.isValid() ? fill : QColor(Qt::black));
     item->setPlainText(text);
-    item->setPos(left, top);
     item->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+    // A whole source paragraph arrives as one <text>. When oxide knows the text
+    // box's usable width it emits data-w (EMU, already group-transformed); we then
+    // let QGraphicsTextItem word-wrap at that width using real font metrics, with
+    // text-anchor driving both the box's horizontal placement and the in-box
+    // alignment. x stays the SVG anchor point (start=left, middle=centre, end=right
+    // of the box), same as the non-wrapping case -- so the box's left edge is
+    // derived from x, the anchor, and the width. Without data-w the text stays
+    // single-line (short labels), using the measured-advance left-shift as before.
+    const double dataW = attrNum(attrs, "data-w", -1.0) * S;
+    if (dataW > 0.0) {
+        item->setTextWidth(dataW);
+        QTextOption opt = item->document()->defaultTextOption();
+        // Break within the box even for a long unbroken run (URLs, CJK) so text
+        // never spills past the box edge.
+        opt.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+        Qt::Alignment align = Qt::AlignLeft;
+        double left = x; // anchor=start: box left edge is the anchor point
+        if (anchor == QLatin1String("middle")) {
+            align = Qt::AlignHCenter;
+            left = x - dataW / 2.0;
+        } else if (anchor == QLatin1String("end")) {
+            align = Qt::AlignRight;
+            left = x - dataW;
+        }
+        opt.setAlignment(align);
+        item->document()->setDefaultTextOption(opt);
+        item->setPos(left, top);
+    } else {
+        const double advance = fm.horizontalAdvance(text);
+        double left = x;
+        if (anchor == QLatin1String("middle"))
+            left = x - advance / 2.0;
+        else if (anchor == QLatin1String("end"))
+            left = x - advance;
+        item->setPos(left, top);
+    }
 
     if (outText) {
         if (!outText->isEmpty())
