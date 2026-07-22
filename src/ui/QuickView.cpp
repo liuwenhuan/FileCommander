@@ -2,6 +2,7 @@
 
 #include <QAbstractItemView>
 #include <QAction>
+#include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDir>
@@ -12,15 +13,20 @@
 #include <QBuffer>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QImage>
 #include <QImageReader>
+#include <QImageWriter>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMouseEvent>
 #include <QPlainTextEdit>
+#include <QProcess>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSet>
+#include <QStandardPaths>
 #include <QSize>
 #include <QSizePolicy>
 #include <QSlider>
@@ -35,6 +41,7 @@
 #include <QTextDocument>
 #include <QTimer>
 #include <QToolBar>
+#include <QTransform>
 #include <QVBoxLayout>
 #include <QWheelEvent>
 #include <QtConcurrent>
@@ -115,6 +122,71 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent)
 // member is destroyed where the complete Poppler type is visible.
 QuickView::~QuickView() = default;
 
+void QuickView::setContentFontSize(int pt) {
+    if (pt <= 0)
+        return;
+    // The widget font persists across setPlainText()/setHtml()/setMarkdown(), so
+    // setting it here is enough for current and future content.
+    if (m_text) {
+        QFont f = m_text->font(); // keep the monospace family, change only size
+        f.setPointSize(pt);
+        m_text->setFont(f);
+    }
+    if (m_markdown) {
+        QFont f = m_markdown->font();
+        f.setPointSize(pt);
+        m_markdown->setFont(f);
+    }
+    if (m_officeTable) {
+        // Spreadsheet (xls/xlsx) preview grid: scale the cell text with the app
+        // font. Cells inherit the widget font, so setting it here is enough; nudge
+        // the row height so larger text isn't clipped.
+        QFont f = m_officeTable->font();
+        f.setPointSize(pt);
+        m_officeTable->setFont(f);
+        m_officeTable->verticalHeader()->setDefaultSectionSize(QFontMetrics(f).height() + 6);
+        if (m_officeTable->rowCount() > 0)
+            m_officeTable->resizeColumnsToContents(); // re-fit widths to the new size
+    }
+}
+
+void QuickView::focusPreview() {
+    QWidget *page = m_stack->currentWidget();
+    if (!page)
+        return;
+    // Prefer each page's primary interactive widget so the keyboard lands on
+    // something useful (scroll text, navigate the grid, type the password).
+    QWidget *target = nullptr;
+    if (page == m_textPage)
+        target = m_text;
+    else if (page == m_markdown)
+        target = m_markdown;
+    else if (page == m_imagePage)
+        target = m_imageScroll;
+    else if (page == m_pdfPage)
+        target = m_pdfScroll;
+    else if (page == m_officeTable)
+        target = m_officeTable;
+    else if (page == m_encryptedPage)
+        target = m_passwordEdit;
+    else if (page == m_archivePage)
+        target = m_archiveView;
+    else if (page == m_videoPage)
+        target = m_playButton ? static_cast<QWidget *>(m_playButton) : nullptr;
+    // Fall back to the first tab-focusable visible descendant, else the page.
+    if (!target || !target->isVisible() || target->focusPolicy() == Qt::NoFocus) {
+        target = nullptr;
+        for (QWidget *w : page->findChildren<QWidget *>())
+            if (w->isVisible() && (w->focusPolicy() & Qt::TabFocus)) {
+                target = w;
+                break;
+            }
+        if (!target)
+            target = page;
+    }
+    target->setFocus(Qt::TabFocusReason);
+}
+
 QWidget *QuickView::buildImagePage() {
     m_imagePage = new QWidget(this);
 
@@ -126,6 +198,8 @@ QWidget *QuickView::buildImagePage() {
         m_imageScale = fitScale();
         applyImageScale();
     });
+    toolbar->addAction(tr("Rotate Left"), this, [this]() { rotateCurrentImage(-90); });
+    toolbar->addAction(tr("Rotate Right"), this, [this]() { rotateCurrentImage(90); });
     toolbar->addAction(tr("< Prev"), this, [this]() { showPrevSibling(); });
     toolbar->addAction(tr("Next >"), this, [this]() { showNextSibling(); });
 
@@ -200,6 +274,89 @@ void QuickView::applyImageScale() {
     const bool pannable = target.width() > m_imageScroll->viewport()->width() ||
                           target.height() > m_imageScroll->viewport()->height();
     m_imageScroll->viewport()->setCursor(pannable ? Qt::OpenHandCursor : Qt::ArrowCursor);
+}
+
+void QuickView::rotateCurrentImage(int degrees) {
+    if (m_originalPixmap.isNull() || m_imagePath.isEmpty())
+        return;
+
+    // Rotate what's on screen first for responsiveness. 90-degree multiples are
+    // exact, so a fast (nearest-neighbour) transform loses nothing.
+    QTransform t;
+    t.rotate(degrees);
+    m_originalPixmap = m_originalPixmap.transformed(t, Qt::FastTransformation);
+    if (m_imageFitMode)
+        m_imageScale = fitScale();
+    applyImageScale();
+
+    // The overlay's width/height are now swapped; rebuild it if it's showing.
+    if (m_infoOverlay->isVisible()) {
+        const QFileInfo fi(m_imagePath);
+        QImageReader reader(m_imagePath);
+        const QString format = QString::fromLatin1(reader.format()).toUpper();
+        m_infoOverlay->setText(tr("<b>%1</b><br>%2 &times; %3<br>%4<br>%5 bpp")
+                                   .arg(fi.fileName().toHtmlEscaped())
+                                   .arg(m_originalPixmap.width())
+                                   .arg(m_originalPixmap.height())
+                                   .arg(format.isEmpty() ? tr("Unknown format") : format)
+                                   .arg(m_originalPixmap.depth()));
+        positionInfoOverlay();
+    }
+
+    // Persist losslessly back to disk, preserving format and precision.
+    const QFileInfo fi(m_imagePath);
+    const QString suffix = fi.suffix().toLower();
+    const int rot = ((degrees % 360) + 360) % 360; // +90 -> 90, -90 -> 270
+    bool saved = false;
+
+    if (suffix == QLatin1String("jpg") || suffix == QLatin1String("jpeg")) {
+        // Prefer true-lossless JPEG rotation via jpegtran (no re-encode of the
+        // DCT coefficients). Write to a same-directory temp file, then swap.
+        const QString jpegtran = QStandardPaths::findExecutable(QStringLiteral("jpegtran"));
+        if (!jpegtran.isEmpty()) {
+            const QString tmp =
+                fi.absoluteDir().filePath(QStringLiteral(".%1.rot.tmp").arg(fi.fileName()));
+            QProcess proc;
+            proc.start(jpegtran, {QStringLiteral("-rotate"), QString::number(rot),
+                                  QStringLiteral("-copy"), QStringLiteral("all"),
+                                  QStringLiteral("-outfile"), tmp, m_imagePath});
+            if (proc.waitForFinished(15000) && proc.exitStatus() == QProcess::NormalExit &&
+                proc.exitCode() == 0 && QFileInfo::exists(tmp)) {
+                if (QFile::remove(m_imagePath) && QFile::rename(tmp, m_imagePath))
+                    saved = true;
+                else
+                    QFile::remove(tmp); // leave the original in place on a failed swap
+            } else {
+                QFile::remove(tmp); // clean up a partial output
+            }
+        }
+        if (!saved) {
+            // jpegtran missing or failed: re-encode at max quality (near-lossless).
+            QImage img(m_imagePath);
+            if (!img.isNull()) {
+                img = img.transformed(t, Qt::FastTransformation);
+                QImageWriter writer(m_imagePath);
+                writer.setQuality(100);
+                saved = writer.write(img);
+            }
+        }
+    } else {
+        // png/bmp/tiff/webp/...: these round-trip losslessly through QImageWriter.
+        QImage img(m_imagePath);
+        if (!img.isNull()) {
+            img = img.transformed(t, Qt::FastTransformation);
+            QImageWriter writer(m_imagePath);
+            saved = writer.write(img);
+        }
+    }
+
+    if (!saved) {
+        // Read-only file or unsupported writer: keep the on-screen rotation but
+        // make clear the file on disk is unchanged.
+        m_infoOverlay->setText(tr("Rotated on screen only — could not save to disk."));
+        m_infoOverlay->show();
+        positionInfoOverlay();
+    }
 }
 
 void QuickView::positionInfoOverlay() {
@@ -619,6 +776,9 @@ QWidget *QuickView::buildEncryptedPage() {
     m_passwordEdit->setEchoMode(QLineEdit::Password);
     m_passwordEdit->setPlaceholderText(tr("Password"));
     m_passwordEdit->setFixedWidth(240);
+    // Intercept Tab/Backtab so it returns focus to the file list rather than
+    // advancing to the Unlock button (handled in eventFilter).
+    m_passwordEdit->installEventFilter(this);
     column->addWidget(m_passwordEdit, 0, Qt::AlignHCenter);
 
     m_unlockButton = new QPushButton(tr("Unlock"), m_encryptedPage);
@@ -683,7 +843,9 @@ void QuickView::renderOffice(const QString &path, const QString &password) {
 
     switch (r.encryption) {
     case OfficeConverter::Encryption::NeedsPassword:
-        // First encounter: show the inline field, cleared and focused.
+        // First encounter: show the inline field but do NOT steal focus -- the
+        // page can appear merely from moving the file-list cursor. Remember what
+        // held focus so Tab in the field can return there.
         m_encryptedKind = EncryptedKind::Office;
         m_encryptedPath = path;
         m_encryptedLabel->setText(
@@ -692,8 +854,8 @@ void QuickView::renderOffice(const QString &path, const QString &password) {
         m_passwordEdit->clear();
         m_passwordEdit->show();
         m_unlockButton->show();
+        m_focusBeforeEncrypted = QApplication::focusWidget();
         m_stack->setCurrentWidget(m_encryptedPage);
-        m_passwordEdit->setFocus();
         return;
     case OfficeConverter::Encryption::WrongPassword:
         // Stay on the page and report in place; let the user retype.
@@ -826,17 +988,19 @@ void QuickView::handleArchiveLoad(const ArchiveLoadResult &r, const QString &pat
 
     switch (r.status) {
     case ArchiveHandler::Status::NeedPassword: {
-        // libarchive can decrypt ZIP but not 7z/rar content; for those don't
-        // prompt for a password we could never use -- say so directly.
-        const QString lower = path.toLower();
-        if (lower.endsWith(QLatin1String(".7z")) || lower.endsWith(QLatin1String(".rar"))) {
+        // libarchive (with nettle) decrypts ZIP and RAR5, but its 7z reader has
+        // no decrypt path -- for 7z don't prompt for a password we can't use.
+        // (Encrypted RAR4, which libarchive also can't decrypt, still degrades
+        // gracefully: the prompt below leads to an "unsupported" note on submit.)
+        if (path.toLower().endsWith(QLatin1String(".7z"))) {
             m_info->setText(tr("“%1” is encrypted in a format that can't be previewed "
-                               "(7z/RAR encryption is unsupported).")
+                               "(7z encryption is unsupported).")
                                 .arg(name));
             m_stack->setCurrentWidget(m_info);
             break;
         }
         // Gate the preview behind the inline password page (same UI as office).
+        // Don't steal focus: the page can appear just from cursor movement.
         m_encryptedKind = EncryptedKind::Archive;
         m_encryptedPath = path;
         m_encryptedLabel->setText(
@@ -845,8 +1009,8 @@ void QuickView::handleArchiveLoad(const ArchiveLoadResult &r, const QString &pat
         m_passwordEdit->clear();
         m_passwordEdit->show();
         m_unlockButton->show();
+        m_focusBeforeEncrypted = QApplication::focusWidget();
         m_stack->setCurrentWidget(m_encryptedPage);
-        m_passwordEdit->setFocus();
         break;
     }
     case ArchiveHandler::Status::WrongPassword:
@@ -858,9 +1022,8 @@ void QuickView::handleArchiveLoad(const ArchiveLoadResult &r, const QString &pat
         m_stack->setCurrentWidget(m_encryptedPage);
         break;
     case ArchiveHandler::Status::EncryptedUnsupported:
-        m_info->setText(tr("“%1” is encrypted in a format that can't be previewed "
-                           "(7z/RAR encryption is unsupported).")
-                            .arg(name));
+        m_info->setText(
+            tr("“%1” uses an encryption that can't be previewed.").arg(name));
         m_stack->setCurrentWidget(m_info);
         break;
     default:
@@ -1062,6 +1225,18 @@ void QuickView::zoomImageBy(double factor) {
 }
 
 bool QuickView::eventFilter(QObject *watched, QEvent *event) {
+    // Tab/Backtab while typing a preview password returns focus to whatever held
+    // it before the encrypted page appeared (the file list), instead of cycling
+    // to the Unlock button.
+    if (watched == m_passwordEdit && event->type() == QEvent::KeyPress) {
+        auto *ke = static_cast<QKeyEvent *>(event);
+        if (ke->key() == Qt::Key_Tab || ke->key() == Qt::Key_Backtab) {
+            if (m_focusBeforeEncrypted && m_focusBeforeEncrypted->isVisible()) {
+                m_focusBeforeEncrypted->setFocus();
+                return true;
+            }
+        }
+    }
     if (watched == m_mpv && event->type() == QEvent::Resize) {
         positionVideoInfoOverlay(); // keep the panel pinned to the top-right corner
         // fall through to default handling

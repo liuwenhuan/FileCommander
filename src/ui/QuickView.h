@@ -4,6 +4,7 @@
 #include <QHash>
 #include <QPixmap>
 #include <QPoint>
+#include <QPointer>
 #include <QStringList>
 #include <QWidget>
 
@@ -56,6 +57,17 @@ public:
     ~QuickView() override;
 
     void showFile(const QString &path);
+
+    // Sets the point size of the text-preview font, so the preview tracks the
+    // app's file-list font-size setting. Applies to the plain-text/hex page and
+    // the markdown/office rich-text page; the monospace text page keeps its
+    // family, only the size changes.
+    void setContentFontSize(int pt);
+
+    // Moves keyboard focus into the preview's current page (its primary
+    // interactive widget). Used when the user Tabs from the file list into the
+    // embedded preview pane, so the pane — not the panel it covers — takes focus.
+    void focusPreview();
 
     // Formats raw bytes as an offset/hex/ascii dump (the Hex toggle). Static so
     // it can be unit-tested without a widget.
@@ -118,6 +130,9 @@ private:
     void closePdf();      // release any loaded document + reset PDF UI state
     void applyImageScale();
     void zoomImageBy(double factor);
+    // Rotates the shown image by +/-90 degrees, then persists it losslessly back
+    // to m_imagePath (jpegtran for JPEG when available, QImageWriter otherwise).
+    void rotateCurrentImage(int degrees);
     double fitScale() const;
     void positionInfoOverlay();      // keep the image metadata panel pinned top-right
     void positionVideoInfoOverlay(); // same, over the video area
@@ -172,6 +187,10 @@ private:
     QPushButton *m_unlockButton = nullptr;    // triggers tryUnlock()
     QLabel *m_encryptedFeedback = nullptr;    // wrong-password / error note, in place
     QString m_encryptedPath;                  // file awaiting a password
+    // Widget that held keyboard focus when the encrypted page was shown (the file
+    // list). Tab/Backtab in m_passwordEdit returns focus here instead of cycling
+    // to the Unlock button. QPointer so it self-nulls if the widget is destroyed.
+    QPointer<QWidget> m_focusBeforeEncrypted;
 
     // Archive page: a read-only listing of an archive's entries (a pure header
     // scan via ArchiveModel -- nothing is extracted). Activate-to-navigate like

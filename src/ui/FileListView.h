@@ -81,6 +81,13 @@ private:
 
     bool m_adjustingColumns = false; // guards against re-entrancy
     bool m_columnsManual = false;    // user (or restore) set widths -> no auto-fit
+
+    // Sort state owned by the view. The header's own sort-indicator is unreliable
+    // as a source of truth: FileSystemModel::sort() resets the model
+    // (begin/endResetModel), which clears the header indicator, so reading it back
+    // to decide the next toggle direction breaks re-clicking the same column.
+    int m_sortColumn = 0;
+    Qt::SortOrder m_sortOrder = Qt::AscendingOrder;
     QTimer *m_refitTimer = nullptr;  // debounces the full refit during resizes
     // Column proportions captured at the start of a resize burst. The per-step
     // last-column-only stretch skews the live ratios, so the settled refit

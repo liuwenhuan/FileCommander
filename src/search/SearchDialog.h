@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QDialog>
+#include <QStringList>
 
 class QLineEdit;
 class QCheckBox;
@@ -20,6 +21,10 @@ public:
 
 signals:
     void navigateRequested(const QString &path);
+    // Emitted by the "Send to panel" button with every result path, so the
+    // active file panel can list them all TC "feed-to-listbox" style (they span
+    // many directories, so a single navigate wouldn't show them together).
+    void feedToPanelRequested(const QStringList &paths);
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -29,6 +34,7 @@ private slots:
     void onResultFound(const QString &path);
     void onFinished();
     void onResultActivated();
+    void feedToPanel();
 
 private:
     SearchEngine *m_engine;
@@ -37,6 +43,7 @@ private:
     QCheckBox *m_caseSensitiveCheck;
     QCheckBox *m_subdirsCheck;
     QPushButton *m_searchButton;
+    QPushButton *m_feedButton;
     QListWidget *m_resultsList;
     QLabel *m_statusLabel;
     bool m_closePending = false;

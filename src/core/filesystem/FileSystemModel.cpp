@@ -50,6 +50,7 @@ void FileSystemModel::setProvider(std::shared_ptr<FileProvider> provider) {
 }
 
 void FileSystemModel::setRootPath(const QString &path) {
+    m_flatMode = false;       // leaving any flat search-results listing
     m_rootPath = path;
     m_nameFilter.clear();     // a fresh directory always starts unfiltered
     m_dirSizes.clear();       // computed folder sizes don't survive a rescan
@@ -72,7 +73,31 @@ void FileSystemModel::setShowHiddenFiles(bool show) {
         setRootPath(m_rootPath);
 }
 
+void FileSystemModel::setFlatEntries(const QStringList &paths) {
+    beginResetModel();
+    m_flatMode = true;
+    m_rootPath.clear();      // no single directory backs a flat listing
+    m_nameFilter.clear();
+    m_dirSizes.clear();
+    m_compareStatus.clear();
+    m_hasParentEntry = false; // cross-directory list has no single ".." parent
+    m_allEntries.clear();
+    m_allEntries.reserve(paths.size());
+    for (const QString &p : paths) {
+        FileInfo info(p);
+        if (info.isValid())
+            m_allEntries.append(info);
+    }
+    sortEntries();           // sorts m_allEntries and rebuilds the visible m_entries
+    endResetModel();
+    emit loadFinished(m_entries.size());
+}
+
 void FileSystemModel::onScanFinished() {
+    // A directory scan started before we switched to flat mode may still be
+    // running; ignore its late result so it doesn't clobber the flat listing.
+    if (m_flatMode)
+        return;
     beginResetModel();
     m_allEntries = m_watcher.result();
     m_hasParentEntry = !m_provider->parentPath(m_rootPath).isEmpty();
@@ -208,8 +233,10 @@ QVariant FileSystemModel::data(const QModelIndex &index, int role) const {
     if (role == Qt::DisplayRole || role == Qt::EditRole) {
         switch (index.column()) {
         case NameColumn:
-            // Base name only; the extension lives in its own column.
-            return info.baseName();
+            // Flat search-results listing shows the full path so results from
+            // different directories stay distinguishable; a normal directory
+            // listing shows the base name only (extension is its own column).
+            return m_flatMode ? info.path() : info.baseName();
         case ExtColumn:
             return info.isDir() ? QString() : info.suffix();
         case SizeColumn:
@@ -372,6 +399,13 @@ Qt::ItemFlags FileSystemModel::flags(const QModelIndex &index) const {
     Qt::ItemFlags f = QAbstractTableModel::flags(index);
     if (!index.isValid())
         return f;
+    // Flat search-results listing is read-only: its entries live in many
+    // different directories, so inline rename and drop-target semantics don't
+    // apply. Dragging results out is still useful, so keep that.
+    if (m_flatMode) {
+        f |= Qt::ItemIsDragEnabled;
+        return f;
+    }
     // Inline rename is offered on the Name cell of any real entry (never
     // ".."), and on the Ext cell of real files (directories have no
     // extension to edit). Views must still call edit() explicitly (see

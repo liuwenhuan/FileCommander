@@ -32,6 +32,10 @@ public:
 
     QString currentPath() const { return m_model->rootPath(); }
     void navigateTo(const QString &path);
+    // Shows a flat listing of arbitrary file paths (e.g. Ctrl+F search results
+    // spanning many directories) in place of the current directory. Any normal
+    // navigation (Back, breadcrumb, double-click, refresh) leaves this mode.
+    void showSearchResults(const QStringList &paths);
     void navigateUp();
     void goBack();
     void goForward();

@@ -5,6 +5,7 @@
 #include <QFormLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QHBoxLayout>
 #include <QListWidget>
 #include <QPushButton>
 #include <QVBoxLayout>
@@ -40,11 +41,21 @@ SearchDialog::SearchDialog(const QString &initialPath, QWidget *parent) : QDialo
 
     m_statusLabel = new QLabel(this);
 
+    // Lists every current result in the active file panel (flat, cross-directory
+    // "feed to listbox" view) rather than navigating to a single one.
+    m_feedButton = new QPushButton(tr("Send to panel"), this);
+    m_feedButton->setToolTip(tr("Show all results in the active panel as a flat list"));
+    connect(m_feedButton, &QPushButton::clicked, this, &SearchDialog::feedToPanel);
+
+    auto *bottomRow = new QHBoxLayout;
+    bottomRow->addWidget(m_statusLabel, 1);
+    bottomRow->addWidget(m_feedButton);
+
     auto *layout = new QVBoxLayout(this);
     layout->addLayout(form);
     layout->addWidget(m_searchButton);
     layout->addWidget(m_resultsList, 1);
-    layout->addWidget(m_statusLabel);
+    layout->addLayout(bottomRow);
 }
 
 void SearchDialog::startSearch() {
@@ -74,6 +85,15 @@ void SearchDialog::onResultActivated() {
     QListWidgetItem *item = m_resultsList->currentItem();
     if (item)
         emit navigateRequested(item->text());
+}
+
+void SearchDialog::feedToPanel() {
+    QStringList paths;
+    paths.reserve(m_resultsList->count());
+    for (int i = 0; i < m_resultsList->count(); ++i)
+        paths.append(m_resultsList->item(i)->text());
+    if (!paths.isEmpty())
+        emit feedToPanelRequested(paths);
 }
 
 void SearchDialog::closeEvent(QCloseEvent *event) {

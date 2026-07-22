@@ -269,15 +269,20 @@ void FileListView::setModel(QAbstractItemModel *model) {
 }
 
 void FileListView::sortByHeaderSection(int column) {
-    QHeaderView *header = horizontalHeader();
-    // Toggle direction when re-clicking the current sort column.
+    // Toggle direction when re-clicking the current sort column. Decide from the
+    // view's own state, not the header indicator: model()->sort() below resets the
+    // model, which clears the header's indicator, so reading it back would make
+    // every re-click compute "ascending" again and never toggle.
     Qt::SortOrder order = Qt::AscendingOrder;
-    if (header->sortIndicatorSection() == column &&
-        header->sortIndicatorOrder() == Qt::AscendingOrder)
+    if (m_sortColumn == column && m_sortOrder == Qt::AscendingOrder)
         order = Qt::DescendingOrder;
-    header->setSortIndicator(column, order);
+    m_sortColumn = column;
+    m_sortOrder = order;
+    horizontalHeader()->setSortIndicator(column, order);
     if (model())
         model()->sort(column, order);
+    // The model reset above can drop the indicator; restore it so the arrow shows.
+    horizontalHeader()->setSortIndicator(column, order);
 }
 
 void FileListView::showColumnMenu(const QPoint &pos) {

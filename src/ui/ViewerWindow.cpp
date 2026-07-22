@@ -6,6 +6,7 @@
 #include <QVBoxLayout>
 
 #include "QuickView.h"
+#include "config/Settings.h"
 
 ViewerWindow::ViewerWindow(Settings &settings, const QString &path, QWidget *parent)
     : QWidget(parent) {
@@ -15,6 +16,7 @@ ViewerWindow::ViewerWindow(Settings &settings, const QString &path, QWidget *par
     resize(900, 700);
 
     m_preview = new QuickView(settings, QuickView::Context::Window, this);
+    m_preview->setContentFontSize(settings.listFontSize()); // match the app font size
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(m_preview);

@@ -233,8 +233,12 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     connect(m_view, &QAbstractItemView::activated, this, &FilePanel::onActivated);
     connect(m_addressBar, &BreadcrumbBar::pathActivated, this, &FilePanel::onAddressBarEntered);
     connect(m_model, &FileSystemModel::loadFinished, this, [this](int) {
-        m_addressBar->setPath(m_model->rootPath());
-        syncTreeToPath(m_model->rootPath());
+        // In flat (search-results) mode there is no single directory: skip the
+        // breadcrumb/tree/disk-usage sync, which all key off rootPath().
+        const bool flat = m_model->isFlatMode();
+        m_addressBar->setPath(flat ? QString() : m_model->rootPath());
+        if (!flat)
+            syncTreeToPath(m_model->rootPath());
         if (!m_pendingSelection.isEmpty()) {
             QItemSelectionModel *sel = m_view->selectionModel();
             QModelIndex first;
@@ -258,8 +262,10 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
         if (m_view->model()->rowCount() > 0 && !m_view->currentIndex().isValid())
             m_view->setCurrentIndex(m_view->model()->index(0, 0));
         updateStatus();
-        const QStorageInfo storage(m_model->rootPath());
-        m_statusBar->setDiskInfo(storage.bytesAvailable(), storage.bytesTotal());
+        if (!flat) {
+            const QStorageInfo storage(m_model->rootPath());
+            m_statusBar->setDiskInfo(storage.bytesAvailable(), storage.bytesTotal());
+        }
     });
 
     connect(m_tabBar, &QTabBar::currentChanged, this, &FilePanel::onTabBarCurrentChanged);
@@ -384,6 +390,27 @@ void FilePanel::navigateTo(const QString &path) {
         tab->path = cleaned;
         updateActiveTabLabel();
     }
+    updateNavButtons();
+}
+
+void FilePanel::showSearchResults(const QStringList &paths) {
+    // Leave archive browsing if active: a flat listing is a plain local-path set.
+    if (m_archiveProvider) {
+        m_archiveProvider.reset();
+        m_archiveName.clear();
+        m_model->setProvider(nullptr); // back to the local provider
+    }
+    if (m_filterBar->isVisible()) {
+        m_filterBar->blockSignals(true);
+        m_filterBar->clear();
+        m_filterBar->hide();
+        m_filterBar->blockSignals(false);
+    }
+    // Push the current directory so Back returns from the flat listing to it.
+    if (!m_model->rootPath().isEmpty())
+        pushHistory(m_model->rootPath());
+    m_forwardHistory.clear();
+    m_model->setFlatEntries(paths);
     updateNavButtons();
 }
 

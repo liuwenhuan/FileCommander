@@ -3,6 +3,7 @@
 #include <QAction>
 #include <QActionGroup>
 #include <QApplication>
+#include <QKeyEvent>
 #include <QClipboard>
 #include <QCloseEvent>
 #include <QCursor>
@@ -178,6 +179,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     splitter->setHandleWidth(2);
     m_quickView = new QuickView(m_settings, QuickView::Context::Embedded, this);
     m_quickView->hide(); // parked until Ctrl+Q swaps it into a panel slot
+    // App-wide filter so Tab out of the preview pane returns to the file list
+    // (the list->preview half is driven by FilePanel::switchPanelRequested).
+    qApp->installEventFilter(this);
 
     // (Folder trees are now per-panel, inside each FilePanel.)
 
@@ -301,6 +305,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     for (FilePanel *panel : {m_leftPanel, m_rightPanel}) {
         connect(panel, &FilePanel::panelActivated, this, &MainWindow::setActivePanel);
         connect(panel, &FilePanel::switchPanelRequested, this, [this, panel]() {
+            // With the preview active, the "other" panel is hidden behind it, so
+            // Tab from the visible (active) list moves into the preview pane
+            // instead. Tab back out of the preview is handled in eventFilter().
+            if (m_quickViewActive && panel == m_activePanel) {
+                m_quickView->focusPreview();
+                return;
+            }
             FilePanel *other = otherPanel(panel);
             other->view()->setFocus();
             setActivePanel(other);
@@ -364,6 +375,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     const int listFont = m_settings.listFontSize();
     m_leftPanel->setListFontSize(listFont);
     m_rightPanel->setListFontSize(listFont);
+    if (m_quickView)
+        m_quickView->setContentFontSize(listFont);
 }
 
 void MainWindow::buildTitleBarMenus() {
@@ -508,6 +521,8 @@ void MainWindow::buildTitleBarMenus() {
                 m_settings.setListFontSize(pt);
                 m_leftPanel->setListFontSize(pt);
                 m_rightPanel->setListFontSize(pt);
+                if (m_quickView)
+                    m_quickView->setContentFontSize(pt);
             }
             const QString s = QString::number(pt);
             if (sizeEdit->text() != s)
@@ -556,6 +571,21 @@ void MainWindow::buildTitleBarMenus() {
 }
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
+    // While the embedded preview is active, plain Tab/Backtab pressed with focus
+    // inside the preview pane returns focus to the active file list (the reverse
+    // of FilePanel::switchPanelRequested, which moves list -> preview). Cheap
+    // early-outs keep this off the hot path for every other event.
+    if (m_quickViewActive && event->type() == QEvent::KeyPress && m_quickView && m_activePanel) {
+        auto *ke = static_cast<QKeyEvent *>(event);
+        if ((ke->key() == Qt::Key_Tab || ke->key() == Qt::Key_Backtab) &&
+            !(ke->modifiers() & Qt::ControlModifier)) {
+            QWidget *fw = QApplication::focusWidget();
+            if (fw && m_quickView->isAncestorOf(fw)) {
+                m_activePanel->view()->setFocus(Qt::TabFocusReason);
+                return true; // consume: preview -> list
+            }
+        }
+    }
     return QMainWindow::eventFilter(watched, event);
 }
 
@@ -1059,6 +1089,23 @@ void MainWindow::setupShortcuts() {
 
     bindShortcut("search", tr("Search Files"), QKeySequence(Qt::CTRL | Qt::Key_F),
                  [this] { openSearch(); });
+    // Focus the bottom command line (TC-style). Reveals it first if the user has
+    // hidden it via the View menu, so the command bar is always keyboard-reachable
+    // -- previously CommandBar::focusInput() was dead code with no way to reach it.
+    bindShortcut("focusCommandBar", tr("Command Line"), QKeySequence(Qt::CTRL | Qt::Key_E),
+                 [this] {
+                     if (!m_commandBar)
+                         return;
+                     if (m_commandBar->isHidden()) {
+                         m_commandBar->setVisible(true);
+                         m_settings.setShowCommandBar(true);
+                     }
+                     // Show the active panel's directory before focusing (in case a
+                     // panel switch happened while the bar was hidden).
+                     if (m_activePanel)
+                         m_commandBar->setDirectory(m_activePanel->currentPath());
+                     m_commandBar->focusInput();
+                 });
     bindShortcut("compress", tr("Compress Selected"), QKeySequence(Qt::ALT | Qt::Key_F5),
                  [this] { compressSelected(); });
     bindShortcut("refresh", tr("Refresh"), QKeySequence(Qt::CTRL | Qt::Key_R),
@@ -1943,6 +1990,12 @@ void MainWindow::openSearch() {
     connect(dlg, &SearchDialog::navigateRequested, this, [panel](const QString &path) {
         QFileInfo info(path);
         panel->navigateTo(info.isDir() ? path : info.absolutePath());
+    });
+    // "Send to panel": list every result in the *currently* active panel as a
+    // flat cross-directory view (Back / breadcrumb / refresh leaves it).
+    connect(dlg, &SearchDialog::feedToPanelRequested, this, [this](const QStringList &paths) {
+        if (m_activePanel)
+            m_activePanel->showSearchResults(paths);
     });
     dlg->show();
 }

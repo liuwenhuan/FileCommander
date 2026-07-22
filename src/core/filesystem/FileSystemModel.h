@@ -3,6 +3,7 @@
 #include <QAbstractTableModel>
 #include <QFutureWatcher>
 #include <QHash>
+#include <QStringList>
 #include <QVector>
 
 #include <memory>
@@ -45,6 +46,16 @@ public:
 
     void setRootPath(const QString &path);
     QString rootPath() const { return m_rootPath; }
+
+    // "Flat" listing mode: populate the model with an explicit set of file paths
+    // that may span many directories (e.g. Ctrl+F search results shown TC
+    // "feed-to-listbox" style) instead of scanning a single directory. There is
+    // no ".." entry and the listing is read-only. Any subsequent setRootPath()
+    // (normal navigation / refresh) leaves flat mode and restores directory
+    // scanning. The Name column shows the full path so cross-directory results
+    // stay distinguishable.
+    void setFlatEntries(const QStringList &paths);
+    bool isFlatMode() const { return m_flatMode; }
 
     // The backend this model reads through. Defaults to the local filesystem;
     // MainWindow/FilePanel swap in a remote provider when navigating there.
@@ -107,6 +118,7 @@ private:
 
     std::shared_ptr<FileProvider> m_provider; // backend (local by default); never null
     QString m_rootPath;
+    bool m_flatMode = false; // true while showing an explicit cross-directory path list
     bool m_showHidden = false;
     QVector<FileInfo> m_allEntries; // full directory scan (source of truth)
     QVector<FileInfo> m_entries;    // visible subset after quick filter
