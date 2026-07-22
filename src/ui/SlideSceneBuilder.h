@@ -35,4 +35,11 @@ constexpr double kSceneScale = 0.01;
 // structurally unparseable SVG yields nullptr so the caller can degrade.
 QGraphicsItem *buildSlidePage(const QByteArray &svg, QSizeF *outSizeScene, QString *outText);
 
+// Lightweight metadata-only parse: the slide's scene size (from the viewBox) and
+// its concatenated text, WITHOUT building any graphics items or decoding embedded
+// images. Cheap enough to run for every slide of a big deck up front, so the deck
+// can lay out placeholders and populate copy-all text while only the on-screen
+// slides pay the cost of a full buildSlidePage().
+void parseSlideMeta(const QByteArray &svg, QSizeF *outSizeScene, QString *outText);
+
 } // namespace SlideScene

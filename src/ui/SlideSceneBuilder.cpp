@@ -456,4 +456,73 @@ QGraphicsItem *buildSlidePage(const QByteArray &svg, QSizeF *outSizeScene, QStri
     return page;
 }
 
+// Unescape the five XML predefined entities in a small text fragment.
+QString xmlUnescape(const QString &s) {
+    QString out = s;
+    out.replace(QLatin1String("&lt;"), QLatin1String("<"));
+    out.replace(QLatin1String("&gt;"), QLatin1String(">"));
+    out.replace(QLatin1String("&quot;"), QLatin1String("\""));
+    out.replace(QLatin1String("&apos;"), QLatin1String("'"));
+    out.replace(QLatin1String("&amp;"), QLatin1String("&")); // last, so &amp;lt; survives
+    return out;
+}
+
+void parseSlideMeta(const QByteArray &svg, QSizeF *outSizeScene, QString *outText) {
+    // A byte-level scan rather than a full XML parse: an image-heavy deck embeds
+    // megabytes of base64 in <image href=...>, and QXmlStreamReader tokenizes all
+    // of it. We only need the viewBox (near the head) and the <text> contents, so
+    // indexOf jumps straight over the base64 blobs -- orders of magnitude cheaper.
+    QSizeF sizeScene(960 * S, 540 * S);
+
+    // viewBox="minX minY W H" — parse width/height from the first occurrence.
+    const int vb = svg.indexOf("viewBox=\"");
+    if (vb >= 0) {
+        const int start = vb + 9;
+        const int end = svg.indexOf('"', start);
+        if (end > start) {
+            const QString vals = QString::fromLatin1(svg.constData() + start, end - start);
+            const QVector<QStringRef> parts =
+                vals.splitRef(QRegExp(QStringLiteral("[\\s,]+")), QString::SkipEmptyParts);
+            if (parts.size() == 4) {
+                const double w = parts[2].toDouble();
+                const double h = parts[3].toDouble();
+                if (w > 0 && h > 0)
+                    sizeScene = QSizeF(w * S, h * S);
+            }
+        }
+    }
+    if (outSizeScene)
+        *outSizeScene = sizeScene;
+    if (!outText)
+        return;
+
+    // Collect every <text ...>inner</text>. Our SVG never nests elements inside
+    // <text>, so a flat scan for the closing tag is sufficient.
+    int pos = 0;
+    while (true) {
+        const int lt = svg.indexOf("<text", pos);
+        if (lt < 0 || lt + 5 >= svg.size())
+            break;
+        const char after = svg.at(lt + 5); // guard against a hypothetical <textPath>
+        if (after != ' ' && after != '>' && after != '\t' && after != '\n') {
+            pos = lt + 5;
+            continue;
+        }
+        const int gt = svg.indexOf('>', lt);
+        if (gt < 0)
+            break;
+        const int close = svg.indexOf("</text>", gt);
+        if (close < 0)
+            break;
+        const QByteArray inner = svg.mid(gt + 1, close - gt - 1);
+        const QString t = xmlUnescape(QString::fromUtf8(inner));
+        if (!t.trimmed().isEmpty()) {
+            if (!outText->isEmpty())
+                outText->append('\n');
+            outText->append(t);
+        }
+        pos = close + 7;
+    }
+}
+
 } // namespace SlideScene

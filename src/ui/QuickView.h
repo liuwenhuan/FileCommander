@@ -13,9 +13,11 @@
 #include <memory>
 
 #include "ArchiveHandler.h" // ArchiveNode + ArchiveHandler::Status (async load result)
+#include "OfficeConverter.h" // OfficeConverter::Result (async conversion payload)
 
 class QCheckBox;
 class QComboBox;
+class QGraphicsItem;
 class QGraphicsPixmapItem;
 class QGraphicsScene;
 class QGraphicsView;
@@ -130,11 +132,16 @@ private:
     void navigateArchiveUp();
     void updateArchivePathLabel();
     void populateCsvTable(const QString &csv); // fill the office table from CSV text
-    // Converts an office file (optionally with a password) and shows the result:
-    // the rendered document/grid, the inline password page (encrypted / wrong
-    // password / unsupported), or an error. Called with an empty password from
-    // showFile() and with the typed password from tryUnlock().
+    // Converts an office file (optionally with a password) OFF the GUI thread and
+    // shows the result: the rendered document/grid, the inline password page
+    // (encrypted / wrong password / unsupported), or an error. Called with an empty
+    // password from showFile() and with the typed password from tryUnlock(). The
+    // conversion (subprocess + JSON parse) can take a second or more on a big deck,
+    // so it runs via QtConcurrent and the result is applied by handleOfficeResult()
+    // on the GUI thread; a generation counter drops results superseded by a newer
+    // selection.
     void renderOffice(const QString &path, const QString &password);
+    void handleOfficeResult(const OfficeConverter::Result &r, const QString &path);
     // Reads the inline password field and re-renders m_encryptedPath with it,
     // giving feedback in place on a wrong password. Wired to the unlock button and
     // the field's returnPressed.
@@ -154,7 +161,9 @@ private:
     // QSvgRenderer standing in for Poppler).
     void loadSlides(const QStringList &svgs); // parse every slide's SVG into the scene
     void relayoutSlides();        // recompute the fit-to-width view transform
-    void renderVisibleSlides();   // update the "Slide N / M" readout for the scroll pos
+    void renderVisibleSlides();   // build on-screen slides, free far ones, update readout
+    void buildSlideItem(int i);   // replace slide i's placeholder with its full item tree
+    void releaseSlideItem(int i); // swap slide i's full item tree back for a placeholder
     void closeSlides();           // drop all slide data + reset the slides UI state
     void buildPdfPageText(int i); // build the transparent selectable text layer for one page
     // Copies text to the clipboard for the PDF/slides pages. Prefers whatever the
@@ -210,6 +219,14 @@ private:
     // Office spreadsheet page: a read-only grid populated from office_oxide's CSV
     // output. Word/PowerPoint documents reuse the markdown page above.
     QTableWidget *m_officeTable = nullptr;
+
+    // Async office conversion. m_officeGen is bumped on every file switch (and every
+    // renderOffice call); a completed conversion whose captured gen no longer
+    // matches is dropped, so a superseded selection never paints over the current
+    // one. m_officeShownPath de-dupes a spurious re-selection of the file already
+    // displayed (the embedded preview follows the file-list cursor).
+    int m_officeGen = 0;
+    QString m_officeShownPath;
 
     // Encrypted-office page: an inline password field (no popup) with feedback
     // shown in place. office_oxide decrypts in-process, so a correct password
@@ -290,8 +307,17 @@ private:
     QGraphicsView *m_slidesView = nullptr;
     QGraphicsScene *m_slidesScene = nullptr;
     QLabel *m_slidesInfo = nullptr;              // "Slide N / M" per scroll position
+    // Per-slide bookkeeping. Every slide's size + text is parsed up front (cheap),
+    // but only on-screen slides get a full item tree built (buildSlidePage decodes
+    // embedded images -- expensive); off-screen slides hold a lightweight white
+    // placeholder rect so the scrollbar range, page numbers and positioning stay
+    // correct without paying the build cost. m_slidePageItems[i] is whichever is
+    // currently in the scene; m_slideBuilt[i] says which.
+    QVector<QByteArray> m_slideSvgs;             // raw SVG per slide (for on-demand build)
+    QVector<QGraphicsItem *> m_slidePageItems;   // current scene item per slide (placeholder or full)
+    QVector<bool> m_slideBuilt;                  // whether the full item tree is built
     QVector<double> m_slidePageTop;              // scene-Y of each slide's page block
-    QVector<double> m_slidePageHeight;           // scene height of each slide's page block
+    QVector<QSizeF> m_slideSizes;                // scene size of each slide's page block
     QVector<QString> m_slideTexts;               // concatenated text per slide (copy fallback)
     double m_slidesSceneWidth = 0.0;             // widest page (scene units) for fit-to-width
     QTimer *m_slidesRelayoutTimer = nullptr;     // debounce viewport resizes before re-fitting

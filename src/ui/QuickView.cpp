@@ -1130,13 +1130,36 @@ void QuickView::tryUnlock() {
 }
 
 void QuickView::renderOffice(const QString &path, const QString &password) {
+    // Run the conversion (subprocess + JSON parse -- up to a second-plus on a big
+    // deck) off the GUI thread so selecting a pptx never freezes the UI. A per-call
+    // gen guards against a stale result painting over a newer selection.
+    const int gen = ++m_officeGen;
+    m_officeShownPath.clear(); // not yet showing this file's content
+
+    m_info->setText(tr("Loading preview…"));
+    m_stack->setCurrentWidget(m_info);
+
+    auto *watcher = new QFutureWatcher<OfficeConverter::Result>(this);
+    connect(watcher, &QFutureWatcher<OfficeConverter::Result>::finished, this,
+            [this, watcher, gen, path]() {
+                const OfficeConverter::Result r = watcher->result();
+                watcher->deleteLater();
+                if (gen != m_officeGen)
+                    return; // a newer selection superseded this conversion
+                handleOfficeResult(r, path);
+            });
+    watcher->setFuture(QtConcurrent::run(
+        [path, password]() { return OfficeConverter::convert(path, password); }));
+}
+
+void QuickView::handleOfficeResult(const OfficeConverter::Result &r, const QString &path) {
     const QFileInfo info(path);
-    const OfficeConverter::Result r = OfficeConverter::convert(path, password);
 
     if (r.ok && r.kind == OfficeConverter::Kind::Presentation && !r.slideSvgs.isEmpty()) {
         // pptx rendered as slide images: stack them in the continuous slides page.
         loadSlides(r.slideSvgs);
         m_stack->setCurrentWidget(m_slidesPage);
+        m_officeShownPath = path; // de-dupe a spurious re-selection of this file
         return;
     }
     if (r.ok && r.kind == OfficeConverter::Kind::Document) {
@@ -1146,11 +1169,13 @@ void QuickView::renderOffice(const QString &path, const QString &password) {
         const int avail = qMax(200, m_stack->width() - 32);
         m_markdown->setHtml(fitImagesToWidth(r.html, avail));
         m_stack->setCurrentWidget(m_markdown);
+        m_officeShownPath = path;
         return;
     }
     if (r.ok && r.kind == OfficeConverter::Kind::Spreadsheet) {
         populateCsvTable(r.tsv);
         m_stack->setCurrentWidget(m_officeTable);
+        m_officeShownPath = path;
         return;
     }
 
@@ -1824,13 +1849,28 @@ QWidget *QuickView::buildSlidesPage() {
     return m_slidesPage;
 }
 
+namespace {
+// A slide's off-screen stand-in: a plain white rect at the slide's size, so the
+// scrollbar range and page geometry match a fully built slide without the cost of
+// parsing shapes/text or decoding embedded images.
+QGraphicsRectItem *makeSlidePlaceholder(const QSizeF &sizeScene) {
+    auto *ph = new QGraphicsRectItem(QRectF(QPointF(0, 0), sizeScene));
+    ph->setBrush(Qt::white);
+    ph->setPen(QPen(QColor(0xcc, 0xcc, 0xcc)));
+    return ph;
+}
+} // namespace
+
 void QuickView::loadSlides(const QStringList &svgs) {
-    // Parse each slide's SVG into a page item tree and stack the pages vertically
-    // in the scene. Vector items mean no lazy rasterization: everything lives in
-    // the scene and the view transform handles fit + zoom.
+    // Parse every slide's size + text up front (cheap) and lay out one placeholder
+    // per slide; the full item tree (shapes/text/images) is built lazily, only for
+    // the slides near the viewport, so even a big multi-image deck opens instantly.
     m_slidesScene->clear();
+    m_slideSvgs.clear();
+    m_slidePageItems.clear();
+    m_slideBuilt.clear();
     m_slidePageTop.clear();
-    m_slidePageHeight.clear();
+    m_slideSizes.clear();
     m_slideTexts.clear();
     m_slidesZoom = 1.0;
     m_slidesSceneWidth = 0.0;
@@ -1838,21 +1878,23 @@ void QuickView::loadSlides(const QStringList &svgs) {
 
     double y = 0.0;
     for (const QString &svg : svgs) {
+        const QByteArray bytes = svg.toUtf8();
         QSizeF sizeScene(960 * SlideScene::kSceneScale, 540 * SlideScene::kSceneScale);
         QString text;
-        QGraphicsItem *page =
-            SlideScene::buildSlidePage(svg.toUtf8(), &sizeScene, &text);
-        if (!page) {
-            // Unparseable SVG: keep the deck's page count consistent with a blank
-            // placeholder so "Slide N / M" and scrolling still line up.
-            auto *blank = new QGraphicsRectItem(QRectF(QPointF(0, 0), sizeScene));
-            blank->setBrush(Qt::white);
-            page = blank;
-        }
-        m_slidesScene->addItem(page);
-        page->setPos(0, y);
+        // Metadata only: no items, no image decode. Copy All/Copy Slide rely on
+        // m_slideTexts, so text is extracted for EVERY slide regardless of lazy
+        // build.
+        SlideScene::parseSlideMeta(bytes, &sizeScene, &text);
+
+        QGraphicsRectItem *ph = makeSlidePlaceholder(sizeScene);
+        m_slidesScene->addItem(ph);
+        ph->setPos(0, y);
+
+        m_slideSvgs.push_back(bytes);
+        m_slidePageItems.push_back(ph);
+        m_slideBuilt.push_back(false);
         m_slidePageTop.push_back(y);
-        m_slidePageHeight.push_back(sizeScene.height());
+        m_slideSizes.push_back(sizeScene);
         m_slideTexts.push_back(text);
         m_slidesSceneWidth = qMax(m_slidesSceneWidth, sizeScene.width());
         const double gap = qMax(200.0, sizeScene.height() * 0.03);
@@ -1860,12 +1902,41 @@ void QuickView::loadSlides(const QStringList &svgs) {
     }
     m_slidesScene->setSceneRect(0, 0, qMax(1.0, m_slidesSceneWidth), qMax(1.0, y));
 
-    relayoutSlides();
+    relayoutSlides(); // fits, resets to top, and builds the initially-visible slides
     // When the same QuickView is reused for a different deck, the view's viewport
     // width may not be settled yet, so the fit computed above can be wrong. Re-fit
     // once the layout has run (mirrors the old lazy-render deferral, kept to avoid
     // reintroducing the "blank after switching decks" bug).
     m_slidesRelayoutTimer->start();
+}
+
+void QuickView::buildSlideItem(int i) {
+    // Swap slide i's placeholder for its full item tree (parsed on demand). Marked
+    // built even if the SVG is unparseable, so a broken slide isn't re-parsed on
+    // every scroll -- its placeholder simply stays.
+    if (i < 0 || i >= m_slidePageItems.size() || m_slideBuilt[i])
+        return;
+    QGraphicsItem *page = SlideScene::buildSlidePage(m_slideSvgs[i], nullptr, nullptr);
+    m_slideBuilt[i] = true;
+    if (!page)
+        return; // keep the placeholder
+    delete m_slidePageItems[i]; // removes the placeholder from the scene
+    m_slidesScene->addItem(page);
+    page->setPos(0, m_slidePageTop[i]);
+    m_slidePageItems[i] = page;
+}
+
+void QuickView::releaseSlideItem(int i) {
+    // Swap slide i's full item tree back for a lightweight placeholder, freeing any
+    // decoded images once the slide is well off-screen.
+    if (i < 0 || i >= m_slidePageItems.size() || !m_slideBuilt[i])
+        return;
+    delete m_slidePageItems[i];
+    QGraphicsRectItem *ph = makeSlidePlaceholder(m_slideSizes[i]);
+    m_slidesScene->addItem(ph);
+    ph->setPos(0, m_slidePageTop[i]);
+    m_slidePageItems[i] = ph;
+    m_slideBuilt[i] = false;
 }
 
 void QuickView::relayoutSlides() {
@@ -1901,13 +1972,30 @@ void QuickView::relayoutSlides() {
 }
 
 void QuickView::renderVisibleSlides() {
-    // Vector items are always in the scene; this only refreshes the readout to the
-    // slide under the current scroll position.
     if (m_slidePageTop.isEmpty()) {
         if (m_slidesInfo)
             m_slidesInfo->clear();
         return;
     }
+
+    // Visible band in scene coordinates, padded by one viewport height above and
+    // below so a slide is fully built before it scrolls into view (no blank frame).
+    const QRectF vis =
+        m_slidesView->mapToScene(m_slidesView->viewport()->rect()).boundingRect();
+    const double vh = qMax(1.0, vis.height());
+    const double keepTop = vis.top() - vh;
+    const double keepBottom = vis.bottom() + vh;
+
+    for (int i = 0; i < m_slidePageItems.size(); ++i) {
+        const double top = m_slidePageTop[i];
+        const double bottom = top + m_slideSizes[i].height();
+        const bool inWindow = bottom >= keepTop && top <= keepBottom;
+        if (inWindow && !m_slideBuilt[i])
+            buildSlideItem(i);
+        else if (!inWindow && m_slideBuilt[i])
+            releaseSlideItem(i);
+    }
+
     const int cur = qMax(0, currentSlide());
     m_slidesInfo->setText(tr("Slide %1 / %2").arg(cur + 1).arg(m_slidePageTop.size()));
 }
@@ -1966,11 +2054,15 @@ void QuickView::closeSlides() {
     // starts clean and no stale slide lingers.
     if (m_slidesScene)
         m_slidesScene->clear();
+    m_slideSvgs.clear();
+    m_slidePageItems.clear();
+    m_slideBuilt.clear();
     m_slidePageTop.clear();
-    m_slidePageHeight.clear();
+    m_slideSizes.clear();
     m_slideTexts.clear();
     m_slidesSceneWidth = 0.0;
     m_slidesZoom = 1.0;
+    m_slidesResetScroll = false;
     if (m_slidesInfo)
         m_slidesInfo->clear();
 }
@@ -2073,6 +2165,9 @@ void QuickView::resizeEvent(QResizeEvent *event) {
 
 void QuickView::showFile(const QString &path) {
     QFileInfo info(path);
+    // Any new selection invalidates a still-running office conversion so its result
+    // can't paint over the newly selected file (renderOffice bumps this again).
+    ++m_officeGen;
     if (path.isEmpty() || !info.exists() || info.isDir()) {
         stopVideo();
         stopAudio();
@@ -2178,6 +2273,17 @@ void QuickView::showFile(const QString &path) {
         // pages to it; loadPdfPages still guards a minimum for the un-laid-out case.
         m_stack->setCurrentWidget(m_pdfPage);
         loadPdfPages();
+        return;
+    }
+
+    // Office de-dup: the embedded preview follows the file-list cursor, which can
+    // re-fire on the same row. If we're already showing this office file's content,
+    // don't reconvert (or tear the current deck down below and rebuild it).
+    if (OfficeConverter::isOfficeFile(path) && OfficeConverter::isAvailable() &&
+        path == m_officeShownPath &&
+        (m_stack->currentWidget() == m_slidesPage ||
+         m_stack->currentWidget() == m_markdown ||
+         m_stack->currentWidget() == m_officeTable)) {
         return;
     }
 
