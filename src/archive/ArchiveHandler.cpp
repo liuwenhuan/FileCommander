@@ -8,6 +8,7 @@
 #include <QVector>
 
 #include "ArchiveLayout.h"
+#include "ExternalArchiveTool.h"
 #include "SevenZipReader.h"
 
 namespace {
@@ -80,6 +81,47 @@ bool extractSevenZip(const QString &archivePath, const QStringList &sel, const Q
             ok = false;
             if (errorMessage && errorMessage->isEmpty())
                 *errorMessage = QStringLiteral("7z extract '%1': %2").arg(e.path).arg(int(rs));
+        }
+    }
+    return ok;
+}
+
+// Same shape as extractSevenZip but via the external CLI tool -- the extract-side
+// fallback for archives libarchive can't decode (e.g. encrypted RAR).
+bool extractExternal(const QString &archivePath, const QStringList &sel, const QString &destDir,
+                     const QString &passphrase, QString *errorMessage) {
+    QVector<ExternalArchiveTool::Entry> files;
+    const ExternalArchiveTool::Status ls = ExternalArchiveTool::list(
+        archivePath, passphrase,
+        [&](const ExternalArchiveTool::Entry &e) {
+            if (!e.isDir)
+                files.append(e);
+        });
+    if (ls != ExternalArchiveTool::Status::Ok) {
+        if (errorMessage && errorMessage->isEmpty())
+            *errorMessage = QStringLiteral("external list: %1").arg(int(ls));
+        return false;
+    }
+    QDir().mkpath(destDir);
+    bool ok = true;
+    for (const ExternalArchiveTool::Entry &e : files) {
+        bool want = sel.isEmpty();
+        for (const QString &s : sel) {
+            if (e.path == s || e.path.startsWith(s + QLatin1Char('/'))) {
+                want = true;
+                break;
+            }
+        }
+        if (!want)
+            continue;
+        const QString destPath = QDir(destDir).filePath(e.path);
+        QDir().mkpath(QFileInfo(destPath).absolutePath());
+        const ExternalArchiveTool::Status rs =
+            ExternalArchiveTool::readEntry(archivePath, passphrase, e.path, destPath);
+        if (rs != ExternalArchiveTool::Status::Ok) {
+            ok = false;
+            if (errorMessage && errorMessage->isEmpty())
+                *errorMessage = QStringLiteral("external extract '%1': %2").arg(e.path).arg(int(rs));
         }
     }
     return ok;
@@ -249,6 +291,44 @@ QSharedPointer<ArchiveNode> ArchiveHandler::buildTree(const QString &archivePath
         return Status::Error;
     };
 
+    // libarchive couldn't open/decrypt this (`s`, `err`). For formats or ciphers
+    // it can't do (encrypted RAR, exotic coders) try a system 7z/unrar CLI before
+    // giving up; otherwise report the original libarchive status.
+    auto fallback = [&](Status s, const QString &err) -> QSharedPointer<ArchiveNode> {
+        if ((s == Status::Error || s == Status::EncryptedUnsupported ||
+             s == Status::WrongPassword) &&
+            ExternalArchiveTool::available(archivePath)) {
+            auto root = QSharedPointer<ArchiveNode>::create();
+            root->isDir = true;
+            const ExternalArchiveTool::Status ex = ExternalArchiveTool::list(
+                archivePath, passphrase,
+                [&](const ExternalArchiveTool::Entry &e) {
+                    const QStringList parts =
+                        e.path.split(QLatin1Char('/'), Qt::SkipEmptyParts);
+                    if (!parts.isEmpty())
+                        ensurePath(root, parts, e.isDir, e.size, e.modified);
+                },
+                cancel);
+            if (ex == ExternalArchiveTool::Status::Ok) {
+                setStatus(Status::Ok);
+                return root;
+            }
+            if (ex == ExternalArchiveTool::Status::NeedPassword) {
+                setStatus(Status::NeedPassword);
+                return {};
+            }
+            if (ex == ExternalArchiveTool::Status::WrongPassword) {
+                setStatus(Status::WrongPassword);
+                return {};
+            }
+            // external couldn't help either -> report the original status below.
+        }
+        setStatus(s);
+        if (errorMessage && !err.isEmpty())
+            *errorMessage = err;
+        return {};
+    };
+
     struct archive *a = archive_read_new();
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
@@ -256,11 +336,9 @@ QSharedPointer<ArchiveNode> ArchiveHandler::buildTree(const QString &archivePath
         archive_read_add_passphrase(a, passphrase.toUtf8().constData());
 
     if (archive_read_open_filename(a, archivePath.toUtf8().constData(), 10240) != ARCHIVE_OK) {
-        if (errorMessage)
-            *errorMessage = lastArchiveError(a);
-        setStatus(Status::Error);
+        const QString e = lastArchiveError(a);
         archive_read_free(a);
-        return {};
+        return fallback(Status::Error, e);
     }
 
     auto root = QSharedPointer<ArchiveNode>::create();
@@ -306,12 +384,9 @@ QSharedPointer<ArchiveNode> ArchiveHandler::buildTree(const QString &archivePath
             const la_ssize_t n = archive_read_data(a, buf, sizeof buf);
             if (n < 0) {
                 const QString e = lastArchiveError(a);
-                if (errorMessage)
-                    *errorMessage = e;
-                setStatus(classify(e));
                 archive_read_close(a);
                 archive_read_free(a);
-                return {};
+                return fallback(classify(e), e);
             }
             verified = true;
         } else {
@@ -321,16 +396,14 @@ QSharedPointer<ArchiveNode> ArchiveHandler::buildTree(const QString &archivePath
 
     if (r != ARCHIVE_EOF) {
         const QString e = lastArchiveError(a);
-        if (errorMessage)
-            *errorMessage = e;
         // Header-encrypted 7z fails the whole read ("archive header is encrypted,
         // but currently not supported").
-        setStatus(e.contains(QLatin1String("encrypted"), Qt::CaseInsensitive)
-                      ? Status::EncryptedUnsupported
-                      : Status::Error);
+        const Status s = e.contains(QLatin1String("encrypted"), Qt::CaseInsensitive)
+                             ? Status::EncryptedUnsupported
+                             : Status::Error;
         archive_read_close(a);
         archive_read_free(a);
-        return {};
+        return fallback(s, e);
     }
 
     archive_read_close(a);
@@ -376,10 +449,13 @@ bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entr
     archive_write_disk_set_standard_lookup(ext);
 
     if (archive_read_open_filename(a, archivePath.toUtf8().constData(), 10240) != ARCHIVE_OK) {
-        if (errorMessage)
-            *errorMessage = lastArchiveError(a);
+        const QString e = lastArchiveError(a);
         archive_read_free(a);
         archive_write_free(ext);
+        if (ExternalArchiveTool::available(archivePath))
+            return extractExternal(archivePath, entryFullPaths, destDir, passphrase, errorMessage);
+        if (errorMessage)
+            *errorMessage = e;
         return false;
     }
 
@@ -433,6 +509,16 @@ bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entr
     archive_read_free(a);
     archive_write_close(ext);
     archive_write_free(ext);
+    // libarchive couldn't fully extract (e.g. an encrypted RAR) -> retry via the
+    // external CLI tool if one is installed.
+    if (!ok && ExternalArchiveTool::available(archivePath)) {
+        QString exErr;
+        if (extractExternal(archivePath, entryFullPaths, destDir, passphrase, &exErr)) {
+            if (errorMessage)
+                errorMessage->clear();
+            return true;
+        }
+    }
     return ok;
 }
 
