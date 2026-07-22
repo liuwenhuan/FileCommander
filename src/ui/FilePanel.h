@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QPair>
+#include <QPersistentModelIndex>
 #include <QVector>
 #include <QWidget>
 
@@ -21,6 +22,8 @@ class QSplitter;
 class QListView;
 class QStackedWidget;
 class ThumbnailDelegate;
+class QAbstractItemView;
+class QTimer;
 
 // One side of the dual-pane layout: address bar + file list + per-panel
 // back/forward history. Two of these live in MainWindow (left/right).
@@ -108,6 +111,12 @@ public:
 
     FileSystemModel *model() const { return m_model; }
     FileListView *view() const { return m_view; }
+    // The icon (thumbnail-mode) view, for callers (MainWindow's context menu)
+    // that need to wire it up alongside view().
+    QListView *iconView() const { return m_iconView; }
+    // Whichever of view()/iconView() is currently visible -- context menu,
+    // rename, etc. should all act on this one so they work in both modes.
+    QAbstractItemView *activeView() const;
 
     // True while browsing inside an archive: the backend is read-only, so
     // MainWindow blocks write ops (delete/rename/mkdir/move-in/paste) here.
@@ -117,6 +126,19 @@ public:
     // that depends on the current mode.
     bool isThumbnailMode() const;
     void toggleViewMode();
+
+    // Starts an in-place rename of the active view's current index (F2 /
+    // context-menu "Rename"), matching the list view's behaviour in thumbnail
+    // mode too.
+    void beginRenameCurrent();
+
+    // Explicit per-panel thumbnail icon size / list row height, driven by the
+    // status-bar -/+ buttons and persisted by MainWindow (per side, per mode).
+    // 0 means "auto": derive the size from the View-menu font instead.
+    void setThumbnailIconSize(int px);
+    int thumbnailIconSize() const { return m_thumbIconSize; }
+    void setListRowHeight(int h);
+    int listRowHeight() const { return m_listRowHeightOverride; }
 
     // When false, archives open as plain files instead of being browsed in place
     // as folders. Set from the "archive as folder" config preference.
@@ -136,7 +158,11 @@ signals:
     // The "*" button was clicked: caller should pop a shortcut menu at pos.
     void shortcutMenuRequested(const QPoint &globalPos);
     // Tab strip right-clicked: caller should pop the directory-favorites menu.
-    void favoritesMenuRequested(const QPoint &globalPos);
+    // tabIndex is the right-clicked tab (-1 if the click missed the tabs).
+    void favoritesMenuRequested(const QPoint &globalPos, int tabIndex);
+    // The status-bar -/+ buttons changed this panel's thumbnail size or list
+    // row height: caller (MainWindow) should persist the new value.
+    void viewScaleChanged();
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -170,8 +196,21 @@ private:
     // Selects + scrolls the folder tree to `path` when the tree is visible.
     void syncTreeToPath(const QString &path);
     // Scales the thumbnail-view cell (icon + label) to the given font size so the
-    // grid grows/shrinks with the View-menu font setting.
+    // grid grows/shrinks with the View-menu font setting (unless overridden by
+    // an explicit m_thumbIconSize from the -/+ buttons).
     void applyThumbnailFontSize(int pt);
+    // Applies an explicit icon pixel size to the thumbnail grid/delegate,
+    // independent of font size. Shared by applyThumbnailFontSize() and the -/+
+    // zoom handlers.
+    void applyThumbnailIconSize(int iconPx);
+    // Recomputes and applies the list view's row height from either
+    // m_listRowHeightOverride or the current font/icon metrics.
+    void applyListRowHeight();
+    // Status-bar -/+ handlers: adjust whichever mode is currently showing.
+    void zoomViewOut();
+    void zoomViewIn();
+    void zoomThumbnails(int deltaPx);
+    void zoomListRows(int deltaPx);
     // Extracts the archive entries immediately before/after the current one in
     // the background, so stepping through archived files previews instantly.
     void prefetchArchiveNeighbors();
@@ -217,4 +256,20 @@ private:
     // mode); mirrors the model's flat entries so currentLocation() can snapshot
     // it -- the model clears its rootPath in flat mode so we can't recover it there.
     QStringList m_flatPaths;
+
+    // Explicit thumbnail icon px set via the -/+ buttons; 0 = auto (derive from
+    // m_lastFontPt). Overrides applyThumbnailFontSize()'s font-based sizing.
+    int m_thumbIconSize = 0;
+    // Last point size passed to applyThumbnailFontSize(), so setThumbnailIconSize()
+    // (called by MainWindow before/independent of a font change) can re-derive
+    // the delegate's label size without needing the caller to know it.
+    int m_lastFontPt = 12;
+    // Explicit list row height set via the -/+ buttons; 0 = auto.
+    int m_listRowHeightOverride = 0;
+
+    // Timer-based inline rename for a single click on an already-selected
+    // thumbnail, mirroring FileListView's mouse handling for the list view (the
+    // icon view has no equivalent of its own since it isn't a FileListView).
+    QPersistentModelIndex m_iconRenameClickIndex;
+    QTimer *m_iconRenameClickTimer = nullptr;
 };

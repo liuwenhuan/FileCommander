@@ -7,7 +7,9 @@ class QAbstractItemView;
 
 // Icon-grid delegate for a QListView (IconMode) over FileSystemModel: draws
 // a centered thumbnail (from ThumbnailCache, falling back to the model's
-// regular Qt::DecorationRole icon) with the file name elided beneath it.
+// regular Qt::DecorationRole icon) with the file name wrapped to up to two
+// lines beneath it. The parent ("..") entry gets a drawn "up" arrow instead
+// of the usual folder/generic pixmap.
 //
 // Self-contained -- it does not touch FilePanel/FileListView/MainWindow. An
 // integrator wires it up with something like:

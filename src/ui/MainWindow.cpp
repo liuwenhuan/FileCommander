@@ -1,5 +1,7 @@
 #include "MainWindow.h"
 
+#include <QAbstractItemView>
+#include <QListView>
 #include <QAction>
 #include <QActionGroup>
 #include <QApplication>
@@ -365,11 +367,24 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
                     panel->selectPathAfterReload(newPath);
                 });
 
+        // Both the list and thumbnail (icon) views get the same context menu;
+        // showFileContextMenu()/showBlankContextMenu() operate on the panel's
+        // ACTIVE view (whichever is visible), and the two views share a
+        // selection model, so right-clicking either behaves identically.
         panel->view()->setContextMenuPolicy(Qt::CustomContextMenu);
         connect(panel->view(), &QWidget::customContextMenuRequested, this,
                 [this, panel](const QPoint &pos) {
                     setActivePanel(panel);
                     if (panel->view()->indexAt(pos).isValid())
+                        showFileContextMenu(panel, pos);
+                    else
+                        showBlankContextMenu(panel, pos);
+                });
+        panel->iconView()->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(panel->iconView(), &QWidget::customContextMenuRequested, this,
+                [this, panel](const QPoint &pos) {
+                    setActivePanel(panel);
+                    if (panel->iconView()->indexAt(pos).isValid())
                         showFileContextMenu(panel, pos);
                     else
                         showBlankContextMenu(panel, pos);
@@ -400,6 +415,24 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_rightPanel->setListFontSize(listFont);
     if (m_quickView)
         m_quickView->setContentFontSize(listFont);
+
+    // Per-side, per-mode view scale (status-bar -/+ buttons): restore whatever
+    // was last saved, then persist again whenever a panel's -/+ click changes
+    // it. Applied after setListFontSize() above since it can override the
+    // font-derived thumbnail/row size.
+    m_leftPanel->setThumbnailIconSize(m_settings.thumbnailIconSize(QStringLiteral("left")));
+    m_leftPanel->setListRowHeight(m_settings.listRowHeight(QStringLiteral("left")));
+    m_rightPanel->setThumbnailIconSize(m_settings.thumbnailIconSize(QStringLiteral("right")));
+    m_rightPanel->setListRowHeight(m_settings.listRowHeight(QStringLiteral("right")));
+
+    connect(m_leftPanel, &FilePanel::viewScaleChanged, this, [this]() {
+        m_settings.setThumbnailIconSize(QStringLiteral("left"), m_leftPanel->thumbnailIconSize());
+        m_settings.setListRowHeight(QStringLiteral("left"), m_leftPanel->listRowHeight());
+    });
+    connect(m_rightPanel, &FilePanel::viewScaleChanged, this, [this]() {
+        m_settings.setThumbnailIconSize(QStringLiteral("right"), m_rightPanel->thumbnailIconSize());
+        m_settings.setListRowHeight(QStringLiteral("right"), m_rightPanel->listRowHeight());
+    });
 }
 
 void MainWindow::buildTitleBarMenus() {
@@ -1755,11 +1788,14 @@ void MainWindow::pasteFromClipboard() {
 }
 
 void MainWindow::showFileContextMenu(FilePanel *panel, const QPoint &viewPos) {
+    // Operate on whichever view (list or thumbnail) is actually showing --
+    // the caller resolved `viewPos` against that same view's coordinates.
+    QAbstractItemView *view = panel->activeView();
     // Right-clicking a row that isn't already selected replaces the
     // selection with just that row, matching Explorer/Nautilus/TC.
-    const QModelIndex idx = panel->view()->indexAt(viewPos);
-    if (idx.isValid() && !panel->view()->selectionModel()->isSelected(idx))
-        panel->view()->setCurrentIndex(idx);
+    const QModelIndex idx = view->indexAt(viewPos);
+    if (idx.isValid() && !view->selectionModel()->isSelected(idx))
+        view->setCurrentIndex(idx);
 
     QMenu menu(this);
     menu.addAction(tr("Open"), this, &MainWindow::openWithDefault);
@@ -1792,7 +1828,7 @@ void MainWindow::showFileContextMenu(FilePanel *panel, const QPoint &viewPos) {
     menu.addSeparator();
     menu.addAction(tr("Calculate Folder Size"), this, &MainWindow::calculateSizes);
     menu.addAction(tr("Properties..."), this, &MainWindow::showProperties);
-    menu.exec(panel->view()->viewport()->mapToGlobal(viewPos));
+    menu.exec(view->viewport()->mapToGlobal(viewPos));
 }
 
 void MainWindow::showBlankContextMenu(FilePanel *panel, const QPoint &viewPos) {
@@ -1804,7 +1840,7 @@ void MainWindow::showBlankContextMenu(FilePanel *panel, const QPoint &viewPos) {
     menu.addSeparator();
     menu.addAction(tr("Open Terminal Here"), this, &MainWindow::openTerminalHere);
     menu.addAction(tr("Refresh"), this, &MainWindow::refreshActivePanel);
-    menu.exec(panel->view()->viewport()->mapToGlobal(viewPos));
+    menu.exec(panel->activeView()->viewport()->mapToGlobal(viewPos));
 }
 
 void MainWindow::setActivePanel(FilePanel *panel) {
@@ -2074,12 +2110,10 @@ void MainWindow::renameCurrent() {
     // In-place cell editing (like TC/Explorer/Nautilus) rather than a
     // modal dialog: FileSystemModel::flags()/setData() do the actual
     // rename synchronously when editing commits. NoEditTriggers stays set
-    // on the view globally, so only this explicit edit() call (never a
-    // stray click) can start it.
-    FileListView *view = m_activePanel->view();
-    const QModelIndex idx = view->currentIndex();
-    if (idx.isValid())
-        view->edit(idx.siblingAtColumn(FileSystemModel::NameColumn));
+    // on both views globally, so only this explicit edit() call (never a
+    // stray click) can start it. beginRenameCurrent() acts on whichever view
+    // (list or thumbnail) is currently showing.
+    m_activePanel->beginRenameCurrent();
 }
 
 void MainWindow::navigateBack() {

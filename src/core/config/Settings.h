@@ -102,6 +102,14 @@ public:
     int maxConcurrentTransfers() const;
     void setMaxConcurrentTransfers(int count);
 
+    // Per-side ("left"/"right") thumbnail icon size and list row height, set via
+    // each panel's status-bar -/+ buttons. 0 means "not customized yet" -- the
+    // panel then derives the size from the View-menu font instead.
+    int thumbnailIconSize(const QString &side) const;
+    void setThumbnailIconSize(const QString &side, int px);
+    int listRowHeight(const QString &side) const;
+    void setListRowHeight(const QString &side, int height);
+
 private:
     QSettings m_settings;
 };

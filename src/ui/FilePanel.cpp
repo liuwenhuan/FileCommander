@@ -1,5 +1,6 @@
 #include "FilePanel.h"
 
+#include <QApplication>
 #include <QClipboard>
 #include <QDir>
 #include <QEvent>
@@ -14,10 +15,12 @@
 #include <QItemSelectionModel>
 #include <QKeyEvent>
 #include <QLineEdit>
+#include <QMouseEvent>
 #include <QStackedWidget>
 #include <QListView>
 #include <QShortcut>
 #include <QStorageInfo>
+#include <QTimer>
 #include <QTreeView>
 #include <QFileSystemModel>
 #include <QSplitter>
@@ -164,6 +167,9 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_iconView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_iconView->setSelectionModel(m_view->selectionModel()); // shared: mode switch keeps selection
     m_iconView->installEventFilter(this);
+    // Mouse events are delivered to the viewport, not the view widget, so the
+    // click-to-rename handling below must filter the viewport.
+    m_iconView->viewport()->installEventFilter(this);
     connect(m_iconView, &QAbstractItemView::activated, this, &FilePanel::onActivated);
     // Real image/video thumbnails (with a generic-icon fallback), generated + disk
     // cached off-thread. The delegate's icon/text sizes track the View-menu font.
@@ -172,6 +178,21 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_thumbnailDelegate->setIconSize(64);
     m_thumbnailDelegate->setFontPointSize(m_iconView->font().pointSize());
     m_iconView->setItemDelegate(m_thumbnailDelegate);
+
+    // Single-click-on-already-selected-thumbnail starts an inline rename after
+    // the double-click interval, mirroring FileListView's mouse handling (see
+    // eventFilter() below); a double-click cancels it and opens instead.
+    m_iconRenameClickTimer = new QTimer(this);
+    m_iconRenameClickTimer->setSingleShot(true);
+    connect(m_iconRenameClickTimer, &QTimer::timeout, this, [this]() {
+        const QModelIndex idx(m_iconRenameClickIndex);
+        m_iconRenameClickIndex = QModelIndex();
+        // Only if it's still the sole selection (nothing changed while we waited).
+        if (idx.isValid() && m_iconView->selectionModel()
+            && m_iconView->selectionModel()->selectedIndexes().size() == 1
+            && m_iconView->selectionModel()->isSelected(idx))
+            m_iconView->edit(idx);
+    });
 
     m_bodyStack = new QStackedWidget(this);
     m_bodyStack->addWidget(m_view);     // index 0: list
@@ -195,6 +216,9 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
 
     connect(m_view->selectionModel(), &QItemSelectionModel::selectionChanged, this,
             [this] { updateStatus(); });
+
+    connect(m_statusBar, &StatusBarWidget::zoomOutRequested, this, &FilePanel::zoomViewOut);
+    connect(m_statusBar, &StatusBarWidget::zoomInRequested, this, &FilePanel::zoomViewIn);
 
     // Keep the chrome (tabs, breadcrumb, column header) as short as one file
     // row so the panel reads as a single dense list rather than stacked bars.
@@ -257,10 +281,11 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     connect(m_tabBar, &TabBar::closeTabRequested, this, &FilePanel::closeTabAt);
     // Right-click on the tab strip opens the directory-favorites menu (owned by
     // MainWindow, which has the settings-backed favorites list).
-    connect(m_tabBar, &TabBar::favoritesMenuRequested, this, [this](const QPoint &pos) {
-        emit panelActivated(this);
-        emit favoritesMenuRequested(pos);
-    });
+    connect(m_tabBar, &TabBar::favoritesMenuRequested, this,
+            [this](const QPoint &pos, int tabIndex) {
+                emit panelActivated(this);
+                emit favoritesMenuRequested(pos, tabIndex);
+            });
 
     const int firstTab = m_tabManager->addTab(QString());
     m_tabBar->blockSignals(true);
@@ -305,7 +330,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
 }
 
 bool FilePanel::eventFilter(QObject *watched, QEvent *event) {
-    if (watched == m_view && event->type() == QEvent::FocusIn)
+    if ((watched == m_view || watched == m_iconView) && event->type() == QEvent::FocusIn)
         emit panelActivated(this);
 
     // Plain Tab (not Ctrl+Tab, which cycles tabs) jumps to the other panel.
@@ -316,6 +341,39 @@ bool FilePanel::eventFilter(QObject *watched, QEvent *event) {
             emit switchPanelRequested();
             return true;
         }
+    }
+
+    // Single-click-on-already-selected-thumbnail rename, mirroring
+    // FileListView's mousePress/Release/DoubleClick handling: record the index
+    // on press (only if it was already the sole selection), start the rename
+    // timer on release over the same cell, and cancel on a double-click (which
+    // opens instead via QAbstractItemView::activated).
+    if (watched == m_iconView->viewport() && event->type() == QEvent::MouseButtonPress) {
+        auto *me = static_cast<QMouseEvent *>(event);
+        m_iconRenameClickTimer->stop();
+        m_iconRenameClickIndex = QModelIndex();
+        if (me->button() == Qt::LeftButton &&
+            !(me->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier))) {
+            const QModelIndex idx = m_iconView->indexAt(me->pos());
+            // Note: QListView (icon mode) selects single items (column 0), not
+            // whole rows, so selectedRows()/isRowSelected() are always empty
+            // here -- use isSelected()/selectedIndexes() instead.
+            if (idx.isValid() && !m_model->isParentEntry(idx.row()) &&
+                (m_model->flags(idx) & Qt::ItemIsEditable) &&
+                m_iconView->selectionModel()->isSelected(idx) &&
+                m_iconView->selectionModel()->selectedIndexes().size() == 1)
+                m_iconRenameClickIndex = idx;
+        }
+    } else if (watched == m_iconView->viewport() && event->type() == QEvent::MouseButtonRelease) {
+        auto *me = static_cast<QMouseEvent *>(event);
+        if (m_iconRenameClickIndex.isValid() &&
+            m_iconView->indexAt(me->pos()) == QModelIndex(m_iconRenameClickIndex))
+            m_iconRenameClickTimer->start(QApplication::doubleClickInterval() + 10);
+        else
+            m_iconRenameClickIndex = QModelIndex();
+    } else if (watched == m_iconView->viewport() && event->type() == QEvent::MouseButtonDblClick) {
+        m_iconRenameClickTimer->stop();
+        m_iconRenameClickIndex = QModelIndex();
     }
 
     if (watched == m_filterBar && event->type() == QEvent::KeyPress) {
@@ -520,6 +578,19 @@ bool FilePanel::isThumbnailMode() const {
     return m_bodyStack && m_bodyStack->currentWidget() == m_iconView;
 }
 
+QAbstractItemView *FilePanel::activeView() const {
+    return isThumbnailMode() ? static_cast<QAbstractItemView *>(m_iconView)
+                              : static_cast<QAbstractItemView *>(m_view);
+}
+
+void FilePanel::beginRenameCurrent() {
+    QAbstractItemView *view = activeView();
+    const QModelIndex idx = view->currentIndex();
+    if (!idx.isValid() || m_model->isParentEntry(idx.row()))
+        return;
+    view->edit(idx.siblingAtColumn(FileSystemModel::NameColumn));
+}
+
 void FilePanel::toggleViewMode() {
     if (!m_bodyStack)
         return;
@@ -663,14 +734,13 @@ void FilePanel::setListFontSize(int pt) {
 
     // Scale the row icons with the font so a larger font doesn't leave tiny
     // icons stranded in tall rows. The delegate honours the view's iconSize
-    // (decorationSize); the row height tracks whichever of icon/text is taller.
+    // (decorationSize); the row height tracks whichever of icon/text is taller,
+    // unless the -/+ buttons have set an explicit override.
     const QFontMetrics fm(f);
     const int fontH = fm.height();
     const int iconPx = qBound(16, fontH + 4, 48);
     m_view->setIconSize(QSize(iconPx, iconPx));
-    const int rowH = qMax(qMax(fontH, iconPx), 16) + 6;
-    m_view->verticalHeader()->setDefaultSectionSize(rowH);
-    m_view->horizontalHeader()->setFixedHeight(rowH);
+    applyListRowHeight();
 
     // Thumbnail (icon) view follows the same font; its grid icon size and the
     // delegate's text point size are set when the thumbnail delegate is wired.
@@ -685,17 +755,77 @@ void FilePanel::setListFontSize(int pt) {
 void FilePanel::applyThumbnailFontSize(int pt) {
     if (!m_iconView)
         return;
+    m_lastFontPt = pt; // remembered so setThumbnailIconSize() can re-derive without a font change
     // Grow the thumbnail cell with the font: icon scales from a 64px baseline at
     // 12pt; the grid reserves room for the icon plus a two-line elided label.
-    const int iconPx = qBound(48, 64 * pt / 12, 160);
+    // An explicit m_thumbIconSize (from the -/+ buttons) overrides the
+    // font-derived size, so zooming persists independent of the font setting.
+    const int iconPx = m_thumbIconSize > 0 ? m_thumbIconSize : qBound(48, 64 * pt / 12, 160);
+    applyThumbnailIconSize(iconPx);
+    if (m_thumbnailDelegate)
+        m_thumbnailDelegate->setFontPointSize(pt); // label text always tracks the list font
+}
+
+void FilePanel::applyThumbnailIconSize(int iconPx) {
+    if (!m_iconView)
+        return;
     m_iconView->setIconSize(QSize(iconPx, iconPx));
     const int textH = QFontMetrics(m_iconView->font()).height() * 2 + 8;
     m_iconView->setGridSize(QSize(iconPx + 44, iconPx + textH));
     if (m_thumbnailDelegate) {
         m_thumbnailDelegate->setIconSize(iconPx);
-        m_thumbnailDelegate->setFontPointSize(pt);
         m_iconView->doItemsLayout();
     }
+}
+
+void FilePanel::applyListRowHeight() {
+    const QFontMetrics fm(m_view->font());
+    const int autoRowH = qMax(qMax(fm.height(), m_view->iconSize().height()), 16) + 6;
+    const int rowH = m_listRowHeightOverride > 0 ? m_listRowHeightOverride : autoRowH;
+    m_view->verticalHeader()->setDefaultSectionSize(rowH);
+    m_view->horizontalHeader()->setFixedHeight(rowH);
+}
+
+void FilePanel::setThumbnailIconSize(int px) {
+    m_thumbIconSize = px > 0 ? qBound(48, px, 192) : 0;
+    applyThumbnailFontSize(m_lastFontPt); // reapply: override (or auto) at the current font size
+}
+
+void FilePanel::setListRowHeight(int h) {
+    m_listRowHeightOverride = h > 0 ? qBound(16, h, 64) : 0;
+    applyListRowHeight();
+}
+
+void FilePanel::zoomThumbnails(int deltaPx) {
+    if (!m_iconView)
+        return;
+    const int current = m_thumbIconSize > 0 ? m_thumbIconSize : m_iconView->iconSize().width();
+    m_thumbIconSize = qBound(48, current + deltaPx, 192);
+    applyThumbnailIconSize(m_thumbIconSize);
+    emit viewScaleChanged();
+}
+
+void FilePanel::zoomListRows(int deltaPx) {
+    const QFontMetrics fm(m_view->font());
+    const int autoRowH = qMax(qMax(fm.height(), m_view->iconSize().height()), 16) + 6;
+    const int current = m_listRowHeightOverride > 0 ? m_listRowHeightOverride : autoRowH;
+    m_listRowHeightOverride = qBound(16, current + deltaPx, 64);
+    applyListRowHeight();
+    emit viewScaleChanged();
+}
+
+void FilePanel::zoomViewOut() {
+    if (isThumbnailMode())
+        zoomThumbnails(-16);
+    else
+        zoomListRows(-4);
+}
+
+void FilePanel::zoomViewIn() {
+    if (isThumbnailMode())
+        zoomThumbnails(16);
+    else
+        zoomListRows(4);
 }
 
 void FilePanel::selectAll() {
