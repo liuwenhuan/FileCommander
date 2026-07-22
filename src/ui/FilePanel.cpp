@@ -815,12 +815,17 @@ QString FilePanel::tabLabelFor(const QSharedPointer<TabState> &tab) const {
         label = tab->path; // real root "/"
     }
     // On a network connection, prefix the connection identity (user@host) so the
-    // tab shows which host it is browsing, not just the directory. Local and
-    // archive backends report an empty displayName() and keep the label as-is.
-    if (FileProvider *provider = m_model->provider()) {
-        const QString connection = provider->displayName();
-        if (!connection.isEmpty())
-            return connection + QStringLiteral(" : ") + label;
+    // tab shows which host it is browsing, not just the directory. The provider
+    // is per-panel (shared by all tabs) but each tab keeps its own path, so this
+    // only holds for the ACTIVE tab -- mirror the archive-name guard above and
+    // leave background tabs (which may sit on a local path) with the plain label.
+    // Local and archive backends report an empty displayName() regardless.
+    if (tab == m_tabManager->tabAt(m_tabManager->activeIndex())) {
+        if (FileProvider *provider = m_model->provider()) {
+            const QString connection = provider->displayName();
+            if (!connection.isEmpty())
+                return connection + QStringLiteral(" : ") + label;
+        }
     }
     return label;
 }
