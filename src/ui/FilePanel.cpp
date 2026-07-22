@@ -12,6 +12,8 @@
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QInputDialog>
+
+#include "ThemedDialogs.h"
 #include <QItemSelectionModel>
 #include <QKeyEvent>
 #include <QLineEdit>
@@ -30,6 +32,7 @@
 
 #include "BreadcrumbBar.h"
 #include "FileListView.h"
+#include "IconFileView.h"
 #include "FileProvider.h"
 #include "ArchiveProvider.h"
 #include "StatusBarWidget.h"
@@ -151,7 +154,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     // Thumbnail/icon view: shares the model and (below) the selection model with
     // the list, so a mode switch keeps the current selection. Big icons come
     // from the model's DecorationRole (IconCache).
-    m_iconView = new QListView(this);
+    m_iconView = new IconFileView(this);
     m_iconView->setModel(m_model);
     m_iconView->setModelColumn(0); // Name column carries the icon + label
     m_iconView->setViewMode(QListView::IconMode);
@@ -264,7 +267,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
             // top. NoUpdate leaves the selection above intact.
             if (first.isValid()) {
                 sel->setCurrentIndex(first, QItemSelectionModel::NoUpdate);
-                m_view->scrollTo(first, QAbstractItemView::EnsureVisible);
+                activeView()->scrollTo(first, QAbstractItemView::EnsureVisible);
             }
             m_pendingSelection.clear();
         }
@@ -890,7 +893,7 @@ void FilePanel::toggleHiddenFiles() {
 
 void FilePanel::selectByPattern(bool select) {
     bool ok = false;
-    const QString mask = QInputDialog::getText(
+    const QString mask = ttc::getText(
         this, select ? tr("Select by Pattern") : tr("Unselect by Pattern"),
         tr("Wildcard mask (e.g. *.txt):"), QLineEdit::Normal, QStringLiteral("*"), &ok);
     if (!ok || mask.isEmpty())

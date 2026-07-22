@@ -33,7 +33,7 @@ QString humanDuration(qint64 seconds) {
 } // namespace
 
 TransferProgressDialog::TransferProgressDialog(OperationQueue *queue, QWidget *parent)
-    : QDialog(parent), m_queue(queue) {
+    : FramelessDialog(parent), m_queue(queue) {
     setWindowTitle(tr("Transfers"));
     setModal(false);
     resize(460, 180);

@@ -202,7 +202,7 @@ enum Column { ColFile = 0, ColStatus, ColCount };
 }
 
 SecureWipeDialog::SecureWipeDialog(const QStringList &paths, QWidget *parent)
-    : QDialog(parent), m_paths(paths), m_cancel(std::make_shared<std::atomic<bool>>(false)) {
+    : FramelessDialog(parent), m_paths(paths), m_cancel(std::make_shared<std::atomic<bool>>(false)) {
     buildUi();
 
     m_thread = new QThread(this);

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QDialog>
+#include "FramelessDialog.h"
 #include <QStringList>
 
 class QLineEdit;
@@ -13,7 +13,7 @@ class SearchEngine;
 // Ctrl+F filename search dialog. Streams results into a list as
 // SearchEngine finds them; double-clicking a result asks MainWindow to
 // navigate the active panel there.
-class SearchDialog : public QDialog {
+class SearchDialog : public FramelessDialog {
     Q_OBJECT
 
 public:

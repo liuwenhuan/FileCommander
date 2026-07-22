@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QDialog>
+#include "FramelessDialog.h"
 #include <QString>
 
 #include <memory>
@@ -25,7 +25,7 @@ class QPushButton;
 //   const QString local = ConnectDialog::runAndMount(this);
 //   if (!local.isEmpty())
 //       m_activePanel->navigateTo(local);
-class ConnectDialog : public QDialog {
+class ConnectDialog : public FramelessDialog {
     Q_OBJECT
 
 public:

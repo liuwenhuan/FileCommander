@@ -17,6 +17,7 @@ find_package(LibArchive)
 enable_testing()
 
 add_subdirectory(src/core)
+add_subdirectory(src/widgets)
 add_subdirectory(src/ui)
 add_subdirectory(src/viewer)
 add_subdirectory(src/archive)
@@ -28,7 +29,7 @@ add_executable(ttc
 )
 
 target_link_libraries(ttc PRIVATE
-    core ui viewer archive search
+    core ui viewer archive search widgets
     Qt5::Widgets Qt5::Core Qt5::Gui Qt5::Concurrent
 )
 

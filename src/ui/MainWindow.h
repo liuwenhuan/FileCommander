@@ -142,6 +142,12 @@ private:
     void changeFunctionKey(int index);    // pick a new command for that key
     void updateFunctionKeyLabels();
     FilePanel *otherPanel(FilePanel *panel) const;
+    // The panel currently browsing `dir` (cleaned path match), or nullptr if
+    // neither panel shows it (e.g. a drop onto a sub-folder that isn't open).
+    FilePanel *panelShowingDir(const QString &dir) const;
+    // The paths files land at when `sources` are copied/moved/linked into
+    // `destDir` (destDir joined with each source's base name).
+    static QStringList destPathsFor(const QStringList &sources, const QString &destDir);
     // If `panel` is browsing a (read-only) archive, warn and return true so the
     // caller aborts the write op. Null panel → false.
     bool blockArchiveWrite(FilePanel *panel);
@@ -180,6 +186,16 @@ private:
     // would snap the cursor back to the top of the list.
     FilePanel *m_pendingDeletePanel = nullptr;
     QStringList m_pendingDeletePaths;
+    // Set while a move is in flight so the queue-finished handler removes the
+    // vanished source rows in place (same as delete) instead of rescanning the
+    // source directory.
+    FilePanel *m_pendingMovePanel = nullptr;
+    QStringList m_pendingMovePaths;
+    // Set while a copy or move is in flight so the queue-finished handler
+    // refreshes only the destination panel and selects the resulting file(s),
+    // rather than full-refreshing both panels.
+    FilePanel *m_pendingDestPanel = nullptr;
+    QStringList m_pendingDestPaths;
     ThemeManager *m_themeManager;
     Settings m_settings;
     QSplitter *m_panelSplitter;

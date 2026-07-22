@@ -7,7 +7,7 @@
 #include <QScrollBar>
 #include <QVBoxLayout>
 
-CommandOutputDialog::CommandOutputDialog(QWidget *parent) : QDialog(parent) {
+CommandOutputDialog::CommandOutputDialog(QWidget *parent) : FramelessDialog(parent) {
     setWindowTitle(tr("Command Output"));
     // Non-modal: the user keeps working in the file panels while a command runs.
     setModal(false);

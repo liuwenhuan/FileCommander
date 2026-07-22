@@ -5,6 +5,8 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
+
+#include "ThemedDialogs.h"
 #include <QPlainTextEdit>
 #include <QScrollBar>
 #include <QTextBlock>
@@ -36,7 +38,7 @@ void colorLine(QPlainTextEdit *edit, int lineIndex, const QColor &color) {
 } // namespace
 
 CompareDialog::CompareDialog(const QString &leftPath, const QString &rightPath, QWidget *parent)
-    : QDialog(parent) {
+    : FramelessDialog(parent) {
     setWindowTitle(tr("Compare: %1 vs %2")
                         .arg(QFileInfo(leftPath).fileName(), QFileInfo(rightPath).fileName()));
     resize(1100, 700);
@@ -75,7 +77,7 @@ CompareDialog::CompareDialog(const QString &leftPath, const QString &rightPath, 
 
     QString error;
     if (!loadAndCompare(leftPath, rightPath, &error))
-        QMessageBox::warning(this, tr("Compare"), error);
+        ttc::warning(this, tr("Compare"), error);
 }
 
 bool CompareDialog::loadAndCompare(const QString &leftPath, const QString &rightPath,

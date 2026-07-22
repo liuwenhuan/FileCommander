@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QDialog>
+#include "FramelessDialog.h"
 #include <QElapsedTimer>
 
 class QLabel;
@@ -10,7 +10,7 @@ class QPushButton;
 // Modeless progress display for the currently running OperationQueue job.
 // Shows a byte- or item-based bar plus live throughput, elapsed time, and an
 // ETA estimate.
-class OperationProgressDialog : public QDialog {
+class OperationProgressDialog : public FramelessDialog {
     Q_OBJECT
 
 public:

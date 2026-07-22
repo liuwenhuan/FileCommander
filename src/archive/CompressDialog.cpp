@@ -9,7 +9,7 @@
 
 CompressDialog::CompressDialog(const QString &destDir, const QString &defaultBaseName,
                                 QWidget *parent)
-    : QDialog(parent), m_destDir(destDir) {
+    : FramelessDialog(parent), m_destDir(destDir) {
     setWindowTitle(tr("Compress"));
 
     m_nameEdit = new QLineEdit(defaultBaseName, this);

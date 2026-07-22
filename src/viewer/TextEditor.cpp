@@ -4,6 +4,8 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QMessageBox>
+
+#include "ThemedDialogs.h"
 #include <QPainter>
 #include <QShortcut>
 #include <QTextBlock>
@@ -107,7 +109,7 @@ TextEditor::TextEditor(QWidget *parent) : QWidget(parent) {
 bool TextEditor::loadFile(const QString &path) {
     QFileInfo info(path);
     if (info.size() > kMaxEditableBytes) {
-        QMessageBox::warning(this, tr("Edit"),
+        ttc::warning(this, tr("Edit"),
                               tr("%1 is too large to edit (over 50 MB).").arg(info.fileName()));
         return false;
     }
@@ -127,7 +129,7 @@ bool TextEditor::loadFile(const QString &path) {
 void TextEditor::save() {
     QFile file(m_path);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QMessageBox::warning(this, tr("Save"), tr("Could not write to %1").arg(m_path));
+        ttc::warning(this, tr("Save"), tr("Could not write to %1").arg(m_path));
         return;
     }
     QTextStream stream(&file);
@@ -148,7 +150,7 @@ void TextEditor::updateTitle() {
 bool TextEditor::promptSaveIfModified() {
     if (!m_editor->document()->isModified())
         return true;
-    const auto answer = QMessageBox::question(
+    const auto answer = ttc::question(
         this, tr("Unsaved Changes"), tr("Save changes to %1?").arg(QFileInfo(m_path).fileName()),
         QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
     if (answer == QMessageBox::Cancel)

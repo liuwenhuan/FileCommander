@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QDialog>
+#include "FramelessDialog.h"
 #include <QStringList>
 
 class QTableWidget;
@@ -18,7 +18,7 @@ class QDialogButtonBox;
 // near-instant and the dialog does its own duplicate-name/conflict
 // checking up front, which OperationQueue's per-item conflict prompt
 // isn't set up for.
-class MultiRenameDialog : public QDialog {
+class MultiRenameDialog : public FramelessDialog {
     Q_OBJECT
 
 public:

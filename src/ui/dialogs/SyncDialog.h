@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QDialog>
+#include "FramelessDialog.h"
 #include <QVector>
 
 #include "DirectorySync.h"
@@ -14,7 +14,7 @@ class OperationQueue;
 // Commands > Synchronize Directories: compares the two panels' current
 // directories and lets the user selectively (or in bulk) copy
 // differences in either direction.
-class SyncDialog : public QDialog {
+class SyncDialog : public FramelessDialog {
     Q_OBJECT
 
 public:

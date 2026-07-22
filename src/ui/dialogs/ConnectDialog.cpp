@@ -18,6 +18,8 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMessageBox>
+
+#include "ThemedDialogs.h"
 #include <QPushButton>
 #include <QSpinBox>
 #include <QVBoxLayout>
@@ -50,7 +52,7 @@ int protocolToIndex(int protocol) {
 
 } // namespace
 
-ConnectDialog::ConnectDialog(QWidget *parent) : QDialog(parent) {
+ConnectDialog::ConnectDialog(QWidget *parent) : FramelessDialog(parent) {
     setWindowTitle(tr("Connect to Server"));
     setModal(true);
 
@@ -180,7 +182,7 @@ void ConnectDialog::onSavedSelectionChanged() {
 void ConnectDialog::onSaveConnection() {
     SavedConnection c = currentFormAsConnection();
     if (c.host.isEmpty()) {
-        QMessageBox::warning(this, tr("Save Connection"),
+        ttc::warning(this, tr("Save Connection"),
                              tr("Please enter a server address first."));
         return;
     }
@@ -193,7 +195,7 @@ void ConnectDialog::onSaveConnection() {
         !existing.name.isEmpty() ? existing.name : c.host;
 
     bool ok = false;
-    const QString name = QInputDialog::getText(
+    const QString name = ttc::getText(
         this, tr("Save Connection"), tr("Name for this connection:"),
         QLineEdit::Normal, suggested, &ok);
     if (!ok)
@@ -225,7 +227,7 @@ void ConnectDialog::onDeleteConnection() {
         return;
     const SavedConnection &c = m_saved[row];
     const QString label = c.name.isEmpty() ? c.host : c.name;
-    if (QMessageBox::question(this, tr("Delete Connection"),
+    if (ttc::question(this, tr("Delete Connection"),
                               tr("Remove the saved connection \"%1\"?").arg(label)) !=
         QMessageBox::Yes)
         return;
@@ -258,7 +260,7 @@ void ConnectDialog::accept() {
 
     const QString host = m_hostEdit->text().trimmed();
     if (host.isEmpty()) {
-        QMessageBox::warning(this, tr("Connect to Server"),
+        ttc::warning(this, tr("Connect to Server"),
                              tr("Please enter a server address."));
         return;
     }
@@ -280,7 +282,7 @@ void ConnectDialog::accept() {
         QApplication::restoreOverrideCursor();
         setEnabled(true);
         if (!ok) {
-            QMessageBox::critical(this, tr("Connection Failed"),
+            ttc::critical(this, tr("Connection Failed"),
                                   tr("Could not connect to %1.\n\n%2").arg(host, error));
             return;
         }
@@ -304,7 +306,7 @@ void ConnectDialog::accept() {
         QApplication::restoreOverrideCursor();
         setEnabled(true);
         if (!ok) {
-            QMessageBox::critical(this, tr("Connection Failed"),
+            ttc::critical(this, tr("Connection Failed"),
                                   tr("Could not connect to %1.\n\n%2").arg(host, error));
             return;
         }
@@ -329,7 +331,7 @@ void ConnectDialog::accept() {
         QApplication::restoreOverrideCursor();
         setEnabled(true);
         if (!ok) {
-            QMessageBox::critical(this, tr("Connection Failed"),
+            ttc::critical(this, tr("Connection Failed"),
                                   tr("Could not connect to %1.\n\n%2").arg(host, error));
             return;
         }
@@ -353,7 +355,7 @@ void ConnectDialog::accept() {
         QApplication::restoreOverrideCursor();
         setEnabled(true);
         if (!ok) {
-            QMessageBox::critical(this, tr("Connection Failed"),
+            ttc::critical(this, tr("Connection Failed"),
                                   tr("Could not connect to %1.\n\n%2").arg(host, error));
             return;
         }
@@ -367,7 +369,7 @@ void ConnectDialog::accept() {
     const QString uri = GvfsMounter::buildUri(protocol, host, m_portSpin->value(),
                                               user, m_pathEdit->text());
     if (uri.isEmpty()) {
-        QMessageBox::warning(this, tr("Connect to Server"),
+        ttc::warning(this, tr("Connect to Server"),
                              tr("Could not build a connection URI."));
         return;
     }
@@ -380,7 +382,7 @@ void ConnectDialog::accept() {
     setEnabled(true);
 
     if (!result.success) {
-        QMessageBox::critical(
+        ttc::critical(
             this, tr("Connection Failed"),
             tr("Could not connect to %1.\n\n%2").arg(uri, result.error));
         return;

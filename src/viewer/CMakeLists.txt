@@ -10,5 +10,6 @@ add_library(viewer STATIC
 target_include_directories(viewer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_link_libraries(viewer PUBLIC
+    widgets
     Qt5::Widgets
 )

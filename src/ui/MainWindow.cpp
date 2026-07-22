@@ -29,6 +29,9 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
+
+#include "FramelessDialog.h"
+#include "ThemedDialogs.h"
 #include <QMimeData>
 #include <QPainter>
 #include <QResizeEvent>
@@ -63,6 +66,7 @@
 #include "TranslationManager.h"
 #include "CompressDialog.h"
 #include "FilePanel.h"
+#include "IconFileView.h"
 #include "FileSplitter.h"
 #include "QuickView.h"
 #include "ViewerWindow.h"
@@ -231,18 +235,27 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         return OverwriteConfirmDialog::ask(this, src, dst);
     });
     m_queue->setErrorHandler([this](const QString &path, const QString &error) {
-        QMessageBox box(QMessageBox::Warning, tr("Operation Error"),
-                        tr("%1\n\n%2").arg(error, path), QMessageBox::NoButton, this);
-        QPushButton *retry = box.addButton(tr("Retry"), QMessageBox::AcceptRole);
-        QPushButton *skip = box.addButton(tr("Skip"), QMessageBox::RejectRole);
-        QPushButton *skipAll = box.addButton(tr("Skip All"), QMessageBox::RejectRole);
-        box.addButton(tr("Cancel"), QMessageBox::DestructiveRole);
-        box.exec();
-        if (box.clickedButton() == retry)
+        // Custom-button message box (Retry / Skip / Skip All / Cancel), embedded
+        // in the themed frameless chrome like the ttc::message() wrappers.
+        FramelessDialog dlg(this);
+        dlg.setWindowTitle(tr("Operation Error"));
+        auto *box = new QMessageBox(QMessageBox::Warning, tr("Operation Error"),
+                                    tr("%1\n\n%2").arg(error, path), QMessageBox::NoButton, &dlg);
+        box->setWindowFlags(Qt::Widget);
+        QPushButton *retry = box->addButton(tr("Retry"), QMessageBox::AcceptRole);
+        QPushButton *skip = box->addButton(tr("Skip"), QMessageBox::RejectRole);
+        QPushButton *skipAll = box->addButton(tr("Skip All"), QMessageBox::RejectRole);
+        box->addButton(tr("Cancel"), QMessageBox::DestructiveRole);
+        connect(box, &QMessageBox::finished, &dlg, [&dlg](int) { dlg.accept(); });
+        auto *layout = new QVBoxLayout(&dlg);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->addWidget(box);
+        dlg.exec();
+        if (box->clickedButton() == retry)
             return ErrorAction::Retry;
-        if (box.clickedButton() == skip)
+        if (box->clickedButton() == skip)
             return ErrorAction::Skip;
-        if (box.clickedButton() == skipAll)
+        if (box->clickedButton() == skipAll)
             return ErrorAction::SkipAll;
         return ErrorAction::Cancel;
     });
@@ -253,6 +266,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     connect(m_queue, &OperationQueue::started, this,
             [this](const QString &) { m_operationErrors.clear(); });
     connect(m_queue, &OperationQueue::finished, this, [this](bool) {
+        bool handledPlan = false;
+
         if (m_pendingDeletePanel) {
             // A delete just finished: drop the vanished rows from the active
             // panel in place and move the cursor onto the next file, rather than
@@ -270,7 +285,39 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
             other->refresh();
             if (!handled)
                 panel->refresh();
-        } else {
+            handledPlan = true;
+        }
+
+        if (m_pendingMovePanel) {
+            // A move just finished: the source files vanished, so remove exactly
+            // those rows in place (like a delete) and select the next file --
+            // never a full rescan of the source directory.
+            FilePanel *panel = m_pendingMovePanel;
+            m_pendingMovePanel = nullptr;
+            QStringList gone;
+            for (const QString &p : m_pendingMovePaths)
+                if (!QFileInfo::exists(p)) // keep any that survived a failed move
+                    gone.append(p);
+            m_pendingMovePaths.clear();
+            if (!panel->removeDeletedAndSelectNext(gone))
+                panel->refresh();
+            handledPlan = true;
+        }
+
+        if (m_pendingDestPanel) {
+            // A copy or move just landed files in this panel: refresh it and
+            // select the freshly-arrived file(s), leaving every other panel
+            // untouched.
+            FilePanel *panel = m_pendingDestPanel;
+            m_pendingDestPanel = nullptr;
+            for (const QString &p : m_pendingDestPaths)
+                panel->selectPathAfterReload(p);
+            m_pendingDestPaths.clear();
+            panel->refresh();
+            handledPlan = true;
+        }
+
+        if (!handledPlan) {
             m_leftPanel->refresh();
             m_rightPanel->refresh();
         }
@@ -280,7 +327,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
             QString text = m_operationErrors.mid(0, shown).join(QLatin1Char('\n'));
             if (m_operationErrors.size() > shown)
                 text += tr("\n... and %1 more.").arg(m_operationErrors.size() - shown);
-            QMessageBox::warning(this, tr("Operation Error"), text);
+            ttc::warning(this, tr("Operation Error"), text);
             m_operationErrors.clear();
         }
     });
@@ -348,13 +395,17 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
                 m_commandBar->setDirectory(path);
         });
         connect(panel->view(), &FileListView::filesDropped, this, &MainWindow::handleFilesDropped);
+        // The thumbnail view supports the same drag-and-drop; route it through
+        // the same handler (its filesDropped signature matches FileListView's).
+        connect(panel->iconView(), &IconFileView::filesDropped, this,
+                &MainWindow::handleFilesDropped);
         connect(panel->view()->selectionModel(), &QItemSelectionModel::currentRowChanged, this,
                 [this]() {
                     if (m_quickViewActive)
                         m_quickViewDebounce->start(); // coalesce rapid cursor moves
                 });
         connect(panel->model(), &FileSystemModel::renameFailed, this, [this](const QString &msg) {
-            QMessageBox::warning(this, tr("Rename"), msg);
+            ttc::warning(this, tr("Rename"), msg);
         });
         connect(panel->model(), &FileSystemModel::renamed, this,
                 [this, panel](const QString &oldPath, const QString &newPath) {
@@ -395,7 +446,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
             // FilePanel::onActivated and never reach here; F3 is the in-app
             // viewer.)
             if (!QDesktopServices::openUrl(QUrl::fromLocalFile(path)))
-                QMessageBox::warning(this, tr("Open"),
+                ttc::warning(this, tr("Open"),
                                      tr("No application is associated with %1").arg(path));
         });
     }
@@ -1263,7 +1314,7 @@ void MainWindow::calculateChecksums() {
         if (QFileInfo(p).isFile())
             files.append(p);
     if (files.isEmpty()) {
-        QMessageBox::information(this, tr("Checksums"),
+        ttc::information(this, tr("Checksums"),
                                  tr("Select one or more files first."));
         return;
     }
@@ -1283,7 +1334,7 @@ void MainWindow::secureWipeSelected() {
         return;
 
     const qint64 total = sumSizes(paths);
-    const auto answer = QMessageBox::warning(
+    const auto answer = ttc::warning(
         this, tr("Secure Wipe"),
         tr("Securely erase %1 item(s) (%2 bytes)?\n\n"
            "Their contents will be overwritten on disk and then deleted. This is "
@@ -1332,7 +1383,7 @@ void MainWindow::openTerminalHere() {
             return;
         }
     }
-    QMessageBox::warning(this, tr("Open Terminal"), tr("No terminal emulator found."));
+    ttc::warning(this, tr("Open Terminal"), tr("No terminal emulator found."));
 }
 
 void MainWindow::openWithDefault() {
@@ -1350,7 +1401,7 @@ void MainWindow::openWith() {
     if (path.isEmpty())
         return;
     bool ok = false;
-    const QString app = QInputDialog::getText(this, tr("Open With"),
+    const QString app = ttc::getText(this, tr("Open With"),
                                               tr("Application command:"), QLineEdit::Normal,
                                               QString(), &ok);
     if (ok && !app.isEmpty())
@@ -1449,11 +1500,11 @@ void MainWindow::splitFile() {
         return;
     const QString source = m_activePanel->currentEntryPath();
     if (source.isEmpty() || QFileInfo(source).isDir()) {
-        QMessageBox::information(this, tr("Split File"), tr("Select a file to split."));
+        ttc::information(this, tr("Split File"), tr("Select a file to split."));
         return;
     }
     bool ok = false;
-    const int mb = QInputDialog::getInt(this, tr("Split File"), tr("Part size (MB):"), 100, 1,
+    const int mb = ttc::getInt(this, tr("Split File"), tr("Part size (MB):"), 100, 1,
                                          1000000, 1, &ok);
     if (!ok)
         return;
@@ -1468,9 +1519,9 @@ void MainWindow::splitFile() {
         m_leftPanel->refresh();
         m_rightPanel->refresh();
         if (parts.isEmpty())
-            QMessageBox::warning(this, tr("Split File"), tr("Failed to split the file."));
+            ttc::warning(this, tr("Split File"), tr("Failed to split the file."));
         else
-            QMessageBox::information(this, tr("Split File"),
+            ttc::information(this, tr("Split File"),
                                      tr("Created %1 part(s).").arg(parts.size()));
         watcher->deleteLater();
     });
@@ -1486,7 +1537,7 @@ void MainWindow::combineFiles() {
         return;
     const QString base = FileSplitter::baseNameForPart(first);
     if (base.isEmpty()) {
-        QMessageBox::information(this, tr("Combine Files"),
+        ttc::information(this, tr("Combine Files"),
                                  tr("Select the first part (e.g. name.001) of a split file."));
         return;
     }
@@ -1499,9 +1550,9 @@ void MainWindow::combineFiles() {
         m_leftPanel->refresh();
         m_rightPanel->refresh();
         if (!watcher->result())
-            QMessageBox::warning(this, tr("Combine Files"), tr("Failed to merge the parts."));
+            ttc::warning(this, tr("Combine Files"), tr("Failed to merge the parts."));
         else
-            QMessageBox::information(this, tr("Combine Files"), tr("Parts merged."));
+            ttc::information(this, tr("Combine Files"), tr("Parts merged."));
         watcher->deleteLater();
     });
     watcher->setFuture(QtConcurrent::run(&FileSplitter::merge, first, destPath,
@@ -1614,7 +1665,7 @@ void MainWindow::compareSelectedFiles() {
     }
 
     if (leftPath.isEmpty() || rightPath.isEmpty()) {
-        QMessageBox::information(
+        ttc::information(
             this, tr("Compare by Content"),
             tr("Select two files to compare: either two in one panel, or one in each panel."));
         return;
@@ -1706,16 +1757,53 @@ FilePanel *MainWindow::otherPanel(FilePanel *panel) const {
     return panel == m_leftPanel ? m_rightPanel : m_leftPanel;
 }
 
+FilePanel *MainWindow::panelShowingDir(const QString &dir) const {
+    const QString target = QDir::cleanPath(dir);
+    if (QDir::cleanPath(m_leftPanel->currentPath()) == target)
+        return m_leftPanel;
+    if (QDir::cleanPath(m_rightPanel->currentPath()) == target)
+        return m_rightPanel;
+    return nullptr;
+}
+
+QStringList MainWindow::destPathsFor(const QStringList &sources, const QString &destDir) {
+    QStringList out;
+    out.reserve(sources.size());
+    const QDir dir(destDir);
+    for (const QString &s : sources)
+        out.append(dir.filePath(QFileInfo(s).fileName()));
+    return out;
+}
+
 void MainWindow::handleFilesDropped(const QStringList &sources, const QString &destDir,
                                      FileListView::DropActionKind kind) {
+    // Refresh + select only the affected panels: the destination (if it's one
+    // of the two open panels) gets the arriving files selected, and a move also
+    // removes the vanished rows from the source panel in place. A drop onto a
+    // sub-folder that isn't open matches no panel and falls back to a full
+    // rescan of both panels.
+    FilePanel *destPanel = panelShowingDir(destDir);
+    if (destPanel) {
+        m_pendingDestPanel = destPanel;
+        m_pendingDestPaths = destPathsFor(sources, destDir);
+    }
+
     switch (kind) {
     case FileListView::DropActionKind::Copy:
         m_queue->enqueueCopy(sources, destDir);
         break;
-    case FileListView::DropActionKind::Move:
+    case FileListView::DropActionKind::Move: {
+        FilePanel *srcPanel = sources.isEmpty()
+                                  ? nullptr
+                                  : panelShowingDir(QFileInfo(sources.first()).absolutePath());
+        if (srcPanel) {
+            m_pendingMovePanel = srcPanel;
+            m_pendingMovePaths = sources;
+        }
         recordMoveUndo(sources, destDir);
         m_queue->enqueueMove(sources, destDir);
         break;
+    }
     case FileListView::DropActionKind::Link:
         m_queue->enqueueSymlink(sources, destDir);
         break;
@@ -1875,13 +1963,13 @@ void MainWindow::smartExtractArchive(const QString &archivePath, const QString &
         QString err;
         const ArchiveHandler::SmartResult res = ArchiveHandler::smartExtract(source, base, &err);
         if (!res.ok) {
-            QMessageBox::warning(this, tr("Extract"), tr("Extraction failed: %1").arg(err));
+            ttc::warning(this, tr("Extract"), tr("Extraction failed: %1").arg(err));
             return;
         }
         finalDir = res.finalDir;
         if (res.nestedArchivePath.isEmpty())
             break;
-        const auto answer = QMessageBox::question(
+        const auto answer = ttc::question(
             this, tr("Nested archive"),
             tr("The result contains a single archive:\n%1\n\nExtract it too?")
                 .arg(QFileInfo(res.nestedArchivePath).fileName()),
@@ -1897,7 +1985,7 @@ void MainWindow::smartExtractArchive(const QString &archivePath, const QString &
         if (panel && panel->currentPath() == destDir)
             panel->refresh();
     }
-    QMessageBox::information(this, tr("Extract"), tr("Extracted archive to %1").arg(finalDir));
+    ttc::information(this, tr("Extract"), tr("Extracted archive to %1").arg(finalDir));
 }
 
 void MainWindow::extractArchiveHere() {
@@ -1929,7 +2017,7 @@ void MainWindow::editCurrent() {
         return;
 
     if (ImageViewer::isImage(path)) {
-        QMessageBox::information(this, tr("Edit"),
+        ttc::information(this, tr("Edit"),
                                   tr("Image files can't be edited; use F3 to view."));
         return;
     }
@@ -1946,7 +2034,7 @@ void MainWindow::editCurrent() {
 bool MainWindow::blockArchiveWrite(FilePanel *panel) {
     if (!panel || !panel->isArchive())
         return false;
-    QMessageBox::information(this, tr("Read-only"),
+    ttc::information(this, tr("Read-only"),
                              tr("This archive is read-only. Copy files out to a folder to "
                                 "modify them."));
     return true;
@@ -1963,6 +2051,11 @@ void MainWindow::copySelected() {
     if (blockArchiveWrite(dest))
         return;
     const QString destDir = dest->currentPath();
+
+    // Refresh only the destination panel afterwards and select the arriving
+    // file(s); the source panel is left exactly as it is (nothing left it).
+    m_pendingDestPanel = dest;
+    m_pendingDestPaths = destPathsFor(sources, destDir);
 
     // When either panel is backed by a remote provider (e.g. SFTP), stream the
     // transfer through the provider engine (handles resume + progress) rather
@@ -1981,11 +2074,16 @@ void MainWindow::copySelected() {
         QDir::cleanPath(destDir) == QDir::cleanPath(m_activePanel->currentPath())) {
         const QFileInfo fi(sources.first());
         bool ok = false;
-        const QString newName = QInputDialog::getText(this, tr("Copy"), tr("Copy to:"),
+        const QString newName = ttc::getText(this, tr("Copy"), tr("Copy to:"),
                                                        QLineEdit::Normal, fi.fileName(), &ok);
-        if (!ok || newName.isEmpty())
+        if (!ok || newName.isEmpty()) {
+            m_pendingDestPanel = nullptr; // cancelled: no post-copy refresh plan
+            m_pendingDestPaths.clear();
             return;
-        m_queue->enqueueCopyAs(sources.first(), QDir(destDir).filePath(newName));
+        }
+        const QString target = QDir(destDir).filePath(newName);
+        m_pendingDestPaths = QStringList{target};
+        m_queue->enqueueCopyAs(sources.first(), target);
         return;
     }
     m_queue->enqueueCopy(sources, destDir);
@@ -2003,6 +2101,13 @@ void MainWindow::moveSelected() {
         return;
     FilePanel *dest = otherPanel(m_activePanel);
     const QString destDir = dest->currentPath();
+
+    // Remove the moved rows from the source panel in place (like a delete) and
+    // refresh only the destination panel, selecting the arriving file(s).
+    m_pendingMovePanel = m_activePanel;
+    m_pendingMovePaths = sources;
+    m_pendingDestPanel = dest;
+    m_pendingDestPaths = destPathsFor(sources, destDir);
 
     FileProvider *srcProv = m_activePanel->model()->provider();
     FileProvider *dstProv = dest->model()->provider();
@@ -2024,10 +2129,15 @@ void MainWindow::makeDirectory() {
         return;
     bool ok = false;
     const QString name =
-        QInputDialog::getText(this, tr("New Folder"), tr("Folder name:"), QLineEdit::Normal,
+        ttc::getText(this, tr("New Folder"), tr("Folder name:"), QLineEdit::Normal,
                                QString(), &ok);
-    if (ok && !name.isEmpty())
+    if (ok && !name.isEmpty()) {
+        // Refresh this panel afterwards and select the freshly-created folder
+        // (same select-after-reload mechanism used by copy/move).
+        m_pendingDestPanel = m_activePanel;
+        m_pendingDestPaths = QStringList{QDir(m_activePanel->currentPath()).filePath(name)};
         m_queue->enqueueMkdir(m_activePanel->currentPath(), name);
+    }
 }
 
 void MainWindow::deleteSelected(bool permanent) {
@@ -2044,7 +2154,7 @@ void MainWindow::deleteSelected(bool permanent) {
     // be undone from the trash.
     if (permanent || m_settings.confirmDelete()) {
         const qint64 total = sumSizes(paths);
-        const auto answer = QMessageBox::question(
+        const auto answer = ttc::question(
             this, tr("Confirm Delete"),
             tr("Delete %1 item(s) (%2 bytes)?%3")
                 .arg(paths.size())
@@ -2077,7 +2187,7 @@ void MainWindow::compressSelected() {
 
     QString err;
     if (!ArchiveHandler::create(dlg.archivePath(), sources, dlg.format(), &err)) {
-        QMessageBox::warning(this, tr("Compress"), tr("Compression failed: %1").arg(err));
+        ttc::warning(this, tr("Compress"), tr("Compression failed: %1").arg(err));
         return;
     }
     otherPanel(m_activePanel)->refresh();

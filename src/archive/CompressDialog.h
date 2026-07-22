@@ -1,12 +1,12 @@
 #pragma once
 
-#include <QDialog>
+#include "FramelessDialog.h"
 
 class QLineEdit;
 class QComboBox;
 
 // Prompts for an archive name + format when compressing selected files.
-class CompressDialog : public QDialog {
+class CompressDialog : public FramelessDialog {
     Q_OBJECT
 
 public:

@@ -12,6 +12,8 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+
+#include "ThemedDialogs.h"
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QSet>
@@ -22,7 +24,7 @@
 #include "FileOperations.h"
 
 MultiRenameDialog::MultiRenameDialog(const QStringList &paths, QWidget *parent)
-    : QDialog(parent), m_sourcePaths(paths) {
+    : FramelessDialog(parent), m_sourcePaths(paths) {
     setWindowTitle(tr("Multi-Rename Tool"));
     resize(700, 550);
 
@@ -229,7 +231,7 @@ void MultiRenameDialog::apply() {
     }
 
     if (!failures.isEmpty())
-        QMessageBox::warning(this, tr("Multi-Rename"),
+        ttc::warning(this, tr("Multi-Rename"),
                               tr("Some files could not be renamed:\n%1").arg(failures.join('\n')));
     accept();
 }

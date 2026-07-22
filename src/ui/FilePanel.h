@@ -20,6 +20,7 @@ class QTreeView;
 class QFileSystemModel;
 class QSplitter;
 class QListView;
+class IconFileView;
 class QStackedWidget;
 class ThumbnailDelegate;
 class QAbstractItemView;
@@ -113,7 +114,7 @@ public:
     FileListView *view() const { return m_view; }
     // The icon (thumbnail-mode) view, for callers (MainWindow's context menu)
     // that need to wire it up alongside view().
-    QListView *iconView() const { return m_iconView; }
+    IconFileView *iconView() const { return m_iconView; }
     // Whichever of view()/iconView() is currently visible -- context menu,
     // rename, etc. should all act on this one so they work in both modes.
     QAbstractItemView *activeView() const;
@@ -226,7 +227,7 @@ private:
     QTreeView *m_dirTree = nullptr;            // per-panel folder tree (hidden by default)
     QFileSystemModel *m_dirTreeModel = nullptr;
     QSplitter *m_bodySplitter = nullptr;       // [tree | body]
-    QListView *m_iconView = nullptr;           // thumbnail/icon mode (shares m_model)
+    IconFileView *m_iconView = nullptr;        // thumbnail/icon mode (shares m_model)
     ThumbnailDelegate *m_thumbnailDelegate = nullptr; // image/video thumbnails in icon mode
     QStackedWidget *m_bodyStack = nullptr;     // {list view, icon view}
     QToolButton *m_addTabButton; // "+" at the right end of the tab strip

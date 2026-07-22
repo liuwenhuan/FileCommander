@@ -7,6 +7,8 @@
 #include <QHeaderView>
 #include <QLabel>
 #include <QMessageBox>
+
+#include "ThemedDialogs.h"
 #include <QPushButton>
 #include <QSet>
 #include <QTableWidget>
@@ -40,7 +42,7 @@ QString timeOrDash(const QDateTime &dt) {
 } // namespace
 
 SyncDialog::SyncDialog(const QString &leftDir, const QString &rightDir, QWidget *parent)
-    : QDialog(parent), m_leftDir(leftDir), m_rightDir(rightDir) {
+    : FramelessDialog(parent), m_leftDir(leftDir), m_rightDir(rightDir) {
     setWindowTitle(tr("Synchronize Directories"));
     resize(900, 600);
 
@@ -50,7 +52,7 @@ SyncDialog::SyncDialog(const QString &leftDir, const QString &rightDir, QWidget 
     });
     connect(m_queue, &OperationQueue::finished, this, [this](bool) { refresh(); });
     connect(m_queue, &OperationQueue::errorOccurred, this, [this](const QString &msg) {
-        QMessageBox::warning(this, tr("Synchronize"), msg);
+        ttc::warning(this, tr("Synchronize"), msg);
     });
 
     auto *pathsLabel =

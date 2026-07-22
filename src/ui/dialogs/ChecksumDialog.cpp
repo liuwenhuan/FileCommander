@@ -118,7 +118,7 @@ void ChecksumWorker::process() {
 // ---------------------------------------------------------------------------
 
 ChecksumDialog::ChecksumDialog(const QStringList &paths, QWidget *parent)
-    : QDialog(parent), m_paths(paths), m_cancel(std::make_shared<std::atomic<bool>>(false)) {
+    : FramelessDialog(parent), m_paths(paths), m_cancel(std::make_shared<std::atomic<bool>>(false)) {
     buildUi();
 
     // Spin up the worker on its own thread. The worker owns nothing that the UI

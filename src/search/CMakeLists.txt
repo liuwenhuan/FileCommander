@@ -8,6 +8,7 @@ add_library(search STATIC
 target_include_directories(search PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_link_libraries(search PUBLIC
+    widgets
     Qt5::Widgets
     Qt5::Core
     Qt5::Concurrent

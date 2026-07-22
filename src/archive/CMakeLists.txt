@@ -28,6 +28,7 @@ if(TARGET LibArchive::LibArchive)
 
     target_link_libraries(archive PUBLIC
         core
+        widgets
         Qt5::Widgets
         Qt5::Core
         LibArchive::LibArchive

@@ -10,6 +10,8 @@
 #include <QLabel>
 #include <QLocale>
 #include <QMessageBox>
+
+#include "ThemedDialogs.h"
 #include <QVBoxLayout>
 
 namespace {
@@ -64,7 +66,7 @@ PropertiesDialog::PropertiesDialog(const QString &path, QWidget *parent)
     : PropertiesDialog(QStringList{path}, parent) {}
 
 PropertiesDialog::PropertiesDialog(const QStringList &paths, QWidget *parent)
-    : QDialog(parent), m_paths(paths) {
+    : FramelessDialog(parent), m_paths(paths) {
     setModal(true);
     buildUi();
 }
@@ -183,7 +185,7 @@ void PropertiesDialog::apply() {
     }
 
     if (!failed.isEmpty()) {
-        QMessageBox::warning(this, tr("Properties"),
+        ttc::warning(this, tr("Properties"),
                              tr("Failed to change permissions for:\n%1").arg(failed.join('\n')));
         return; // keep the dialog open so the user can retry or cancel
     }

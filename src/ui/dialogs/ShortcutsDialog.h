@@ -1,6 +1,7 @@
 #pragma once
 
-#include <QDialog>
+#include "FramelessDialog.h"
+
 #include <QKeySequence>
 #include <QMap>
 #include <QString>
@@ -11,7 +12,7 @@ class QDialogButtonBox;
 
 // Lets the user rebind keyboard shortcuts, with live conflict detection
 // (two actions sharing one key sequence disables OK until resolved).
-class ShortcutsDialog : public QDialog {
+class ShortcutsDialog : public FramelessDialog {
     Q_OBJECT
 
 public:

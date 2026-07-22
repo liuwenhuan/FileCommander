@@ -7,6 +7,8 @@
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
+
+#include "ThemedDialogs.h"
 #include <QPushButton>
 #include <QTableView>
 #include <QToolBar>
@@ -17,7 +19,7 @@
 
 ArchiveBrowserDialog::ArchiveBrowserDialog(const QString &archivePath,
                                             const QString &defaultExtractDir, QWidget *parent)
-    : QDialog(parent), m_defaultExtractDir(defaultExtractDir) {
+    : FramelessDialog(parent), m_defaultExtractDir(defaultExtractDir) {
     setWindowTitle(QFileInfo(archivePath).fileName());
     resize(700, 500);
 
@@ -52,7 +54,7 @@ ArchiveBrowserDialog::ArchiveBrowserDialog(const QString &archivePath,
 
     QString err;
     if (!m_model->loadArchive(archivePath, &err)) {
-        QMessageBox::warning(this, tr("Open Archive"),
+        ttc::warning(this, tr("Open Archive"),
                               tr("Could not open %1: %2").arg(archivePath, err));
     }
     m_view->horizontalHeader()->setSectionResizeMode(ArchiveModel::NameColumn,
@@ -103,9 +105,9 @@ bool ArchiveBrowserDialog::doExtract(const QString &destDir) {
         QString err;
         const bool ok = ArchiveHandler::extract(m_model->archivePath(), entries, destDir, &err);
         if (!ok)
-            QMessageBox::warning(this, tr("Extract"), tr("Extraction failed: %1").arg(err));
+            ttc::warning(this, tr("Extract"), tr("Extraction failed: %1").arg(err));
         else
-            QMessageBox::information(
+            ttc::information(
                 this, tr("Extract"),
                 tr("Extracted %1 item(s) to %2").arg(entries.size()).arg(destDir));
         return ok;
@@ -120,13 +122,13 @@ bool ArchiveBrowserDialog::doExtract(const QString &destDir) {
         QString err;
         const ArchiveHandler::SmartResult res = ArchiveHandler::smartExtract(source, base, &err);
         if (!res.ok) {
-            QMessageBox::warning(this, tr("Extract"), tr("Extraction failed: %1").arg(err));
+            ttc::warning(this, tr("Extract"), tr("Extraction failed: %1").arg(err));
             return false;
         }
         finalDir = res.finalDir;
         if (res.nestedArchivePath.isEmpty())
             break;
-        const auto answer = QMessageBox::question(
+        const auto answer = ttc::question(
             this, tr("Nested archive"),
             tr("The result contains a single archive:\n%1\n\nExtract it too?")
                 .arg(QFileInfo(res.nestedArchivePath).fileName()),
@@ -137,7 +139,7 @@ bool ArchiveBrowserDialog::doExtract(const QString &destDir) {
         base = QFileInfo(res.nestedArchivePath).absolutePath();
     }
 
-    QMessageBox::information(this, tr("Extract"),
+    ttc::information(this, tr("Extract"),
                              tr("Extracted archive to %1").arg(finalDir));
     return true;
 }
