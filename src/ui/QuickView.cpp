@@ -1750,6 +1750,12 @@ void QuickView::loadSlides(const QStringList &svgs) {
     // correct up front, then render whatever is initially on screen.
     relayoutSlides();
     renderVisibleSlides();
+    // When the same QuickView is reused to show a different deck (switching files),
+    // the freshly created labels' geometry isn't settled until the layout event has
+    // run — so the immediate render above can execute before geometry is valid and
+    // skip the whole frame, leaving the page blank until the user manually zooms or
+    // scrolls. Fire the relayout timer to re-render once the layout has settled.
+    m_slidesRelayoutTimer->start();
 }
 
 void QuickView::relayoutSlides() {
