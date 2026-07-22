@@ -156,11 +156,14 @@ private:
     void relayoutSlides();        // recompute the fit-to-width view transform
     void renderVisibleSlides();   // update the "Slide N / M" readout for the scroll pos
     void closeSlides();           // drop all slide data + reset the slides UI state
-    // Copies text to the clipboard for the slides page. Prefers whatever the user
-    // has selected in the scene; scope picks the fallback when nothing is selected
-    // (current slide under the scroll position, or the whole deck).
+    void buildPdfPageText(int i); // build the transparent selectable text layer for one page
+    // Copies text to the clipboard for the PDF/slides pages. Prefers whatever the
+    // user has selected in the scene; scope picks the fallback when nothing is
+    // selected (current page under the scroll position, or the whole document).
     enum class CopyScope { Selection, CurrentPage, All };
+    void copyPdfText(CopyScope scope);
     void copySlidesText(CopyScope scope);
+    int currentPdfPage() const;   // page index under the current scroll position
     int currentSlide() const;     // slide index under the current scroll position
     void applyImageScale();
     void zoomImageBy(double factor);
@@ -256,17 +259,23 @@ private:
     QHash<QString, CachedArchive> m_archiveCache;
     QStringList m_archiveCacheOrder;                    // FIFO eviction order
 
-    // PDF page (m_stack index 5): every page stacks vertically in one scroll area
-    // and the whole document scrolls continuously. Pages fit the viewport width by
-    // default; Zoom In/Out multiply that fit. Pixmaps are rendered lazily (only
-    // pages near the viewport) so a 500-page PDF opens without hitching.
+    // PDF page (m_stack index 5): every page stacks vertically in one QGraphicsScene
+    // and the whole document scrolls continuously. Each page is a bitmap background
+    // (Poppler renderToImage -> QGraphicsPixmapItem, kept sharp by re-rendering at
+    // the zoomed resolution) with a transparent, selectable text layer on top
+    // (Poppler textList -> one QGraphicsTextItem per word) so the visible pixels
+    // are faithful yet the text can be selected and copied. Pages fit the viewport
+    // width by default; Zoom In/Out multiply that fit. Bitmaps and text are built
+    // lazily (only pages near the viewport) so a 500-page PDF opens without hitching.
     QWidget *m_pdfPage = nullptr;
-    QScrollArea *m_pdfScroll = nullptr;
-    QWidget *m_pdfContainer = nullptr;           // scroll widget: a QVBoxLayout of page labels
+    QGraphicsView *m_pdfView = nullptr;
+    QGraphicsScene *m_pdfScene = nullptr;
     QLabel *m_pdfPageInfo = nullptr;             // "page N / M" per scroll position
-    QVector<QLabel *> m_pdfPageLabels;           // one placeholder/label per page
+    QVector<QGraphicsPixmapItem *> m_pdfBgItems; // one background item per page (parents its text layer)
     QVector<QSizeF> m_pdfPageSizes;              // native page sizes in points (== px @ 72 dpi)
-    QVector<int> m_pdfRenderedWidth;             // px width each label was rendered at (-1 == placeholder)
+    QVector<double> m_pdfPageTop;                // scene-Y of each page's top edge
+    QVector<int> m_pdfRenderedWidth;             // px width each page bitmap was rendered at (-1 == none)
+    QVector<bool> m_pdfTextBuilt;                // whether a page's transparent text layer is present
     QTimer *m_pdfRelayoutTimer = nullptr;        // debounce viewport resizes before re-fitting
     std::unique_ptr<Poppler::Document> m_pdfDoc; // currently loaded document
     double m_pdfZoom = 1.0;                       // user zoom multiplier on top of fit-to-width; 1.0 == fit
