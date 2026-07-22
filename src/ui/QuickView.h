@@ -97,6 +97,10 @@ private:
     void loadImageSiblings();     // list sibling images in the current dir
     QWidget *buildVideoPage();
     QWidget *buildMarkdownPage();
+    // Reads, parses and lays out a .md file on a worker thread, then installs the
+    // finished QTextDocument into m_markdown (keeps the GUI responsive on large or
+    // table-heavy files). Stale renders are dropped via m_markdownGen.
+    void loadMarkdownAsync(const QString &path);
     QWidget *buildPdfPage();
     QWidget *buildOfficeTablePage();       // spreadsheet (xls/xlsx) preview as a grid
     QWidget *buildEncryptedPage();         // "encrypted" note + an unlock button
@@ -180,6 +184,7 @@ private:
     // Markdown page (m_stack index 4): a rich-text browser that renders the
     // file via QTextDocument's bundled MD4C support (Qt 5.14+), no extra deps.
     QTextBrowser *m_markdown = nullptr;
+    int m_markdownGen = 0; // supersede stale async markdown renders
 
     // Office spreadsheet page: a read-only grid populated from office_oxide's CSV
     // output. Word/PowerPoint documents reuse the markdown page above.

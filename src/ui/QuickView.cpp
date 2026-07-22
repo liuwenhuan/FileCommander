@@ -62,6 +62,14 @@ namespace {
 constexpr qint64 kTextWindowBytes = 5 * 1024 * 1024; // text preview cap: 5 MiB
 constexpr qint64 kMarkdownMaxBytes = 2 * 1024 * 1024; // cap markdown at 2 MiB
 
+// office_oxide (and Markdown) tables carry no cell borders; QTextDocument draws
+// none by default. This default stylesheet gives every table cell a thin border
+// so Word/Excel/Markdown tables read as grids. Shared by the on-screen browser
+// and the off-thread render document so both lay out identically.
+const QString kMarkdownDefaultCss =
+    QStringLiteral("table { border-collapse: collapse; } "
+                   "td, th { border: 1px solid #808080; padding: 2px 6px; }");
+
 // Selectable text encodings for the F3 window's text page. codec == nullptr
 // means "use the locale codec".
 struct TextEncoding {
@@ -710,13 +718,56 @@ QWidget *QuickView::buildMarkdownPage() {
     // Open links in the user's browser rather than trying to navigate in-panel.
     m_markdown = new QTextBrowser(this);
     m_markdown->setOpenExternalLinks(true);
-    // office_oxide (and Markdown) tables carry no cell borders; QTextDocument
-    // draws none by default. A default stylesheet gives every table cell a thin
-    // border so Word/Excel/Markdown tables are legible as grids.
-    m_markdown->document()->setDefaultStyleSheet(
-        QStringLiteral("table { border-collapse: collapse; } "
-                       "td, th { border: 1px solid #808080; padding: 2px 6px; }"));
+    m_markdown->document()->setDefaultStyleSheet(kMarkdownDefaultCss);
     return m_markdown;
+}
+
+void QuickView::loadMarkdownAsync(const QString &path) {
+    // Supersede any in-flight render so a fast scroll through several .md files
+    // only ever installs the newest one.
+    ++m_markdownGen;
+    const int gen = m_markdownGen;
+
+    // Capture the browser's font + current width so the off-thread layout matches
+    // the final on-screen layout -- installing the ready-made document then costs
+    // no extra re-layout on the GUI thread.
+    const QFont font = m_markdown->font();
+    const int width = qMax(200, m_markdown->viewport()->width());
+
+    auto *watcher = new QFutureWatcher<QTextDocument *>(this);
+    connect(watcher, &QFutureWatcher<QTextDocument *>::finished, this,
+            [this, watcher, gen]() {
+                watcher->deleteLater();
+                QTextDocument *doc = watcher->result();
+                if (!doc)
+                    return; // unreadable file; leave the current preview in place
+                if (gen != m_markdownGen) {
+                    delete doc; // a newer selection superseded this render
+                    return;
+                }
+                // setDocument doesn't take ownership, so parent the document to the
+                // browser: the previous child document is deleted on the next swap.
+                doc->setParent(m_markdown);
+                m_markdown->setDocument(doc);
+                m_stack->setCurrentWidget(m_markdown);
+            });
+    watcher->setFuture(QtConcurrent::run([path, font, width]() -> QTextDocument * {
+        QFile f(path);
+        if (!f.open(QIODevice::ReadOnly))
+            return nullptr;
+        // Cap the read so a pathologically large .md can't stall the render.
+        const QByteArray data = f.read(kMarkdownMaxBytes);
+        auto *doc = new QTextDocument;
+        doc->setDefaultFont(font);
+        doc->setDefaultStyleSheet(kMarkdownDefaultCss);
+        // QTextDocument::setMarkdown wants the GitHub dialect (tables, task lists).
+        doc->setMarkdown(QString::fromUtf8(data), QTextDocument::MarkdownDialectGitHub);
+        doc->setTextWidth(width); // force the expensive layout here, off the GUI thread
+        // The document was created on this worker thread; hand it to the GUI thread
+        // so setParent()/setDocument() there are legal.
+        doc->moveToThread(qApp->thread());
+        return doc;
+    }));
 }
 
 QString QuickView::fitImagesToWidth(const QString &html, int maxWidth) const {
@@ -1582,13 +1633,12 @@ void QuickView::showFile(const QString &path) {
         m_infoOverlay->hide();
         QFile mdFile(path);
         if (mdFile.open(QIODevice::ReadOnly)) {
-            // Cap the read so a pathologically large .md can't stall the render.
-            const QByteArray data = mdFile.read(kMarkdownMaxBytes);
-            // QTextEdit::setMarkdown takes no dialect argument; go through the
-            // document to request the GitHub dialect (tables, task lists, ...).
-            m_markdown->document()->setMarkdown(QString::fromUtf8(data),
-                                                QTextDocument::MarkdownDialectGitHub);
-            m_stack->setCurrentWidget(m_markdown);
+            mdFile.close();
+            // Parse + lay out Markdown on a worker thread: setMarkdown plus the
+            // QTextDocument layout is heavy on dense/table-rich files and would
+            // otherwise freeze the GUI. loadMarkdownAsync installs the finished
+            // document when it's ready.
+            loadMarkdownAsync(path);
             return;
         }
         // Unreadable: fall through to the generic text/no-preview handling below.
