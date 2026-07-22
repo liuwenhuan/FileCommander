@@ -46,6 +46,12 @@ bool ArchiveModel::loadArchive(const QString &archivePath, const QString &passph
     if (!root)
         return false; // st explains why (NeedPassword / WrongPassword / ...)
 
+    setTree(root, archivePath, passphrase);
+    return true;
+}
+
+void ArchiveModel::setTree(QSharedPointer<ArchiveNode> root, const QString &archivePath,
+                           const QString &passphrase) {
     beginResetModel();
     m_archivePath = archivePath;
     m_passphrase = passphrase;
@@ -57,7 +63,6 @@ bool ArchiveModel::loadArchive(const QString &archivePath, const QString &passph
     }
     m_currentNode = m_root;
     endResetModel();
-    return true;
 }
 
 void ArchiveModel::setCurrentNode(QSharedPointer<ArchiveNode> node) {

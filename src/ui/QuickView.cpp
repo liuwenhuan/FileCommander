@@ -8,6 +8,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QFontMetrics>
+#include <QFutureWatcher>
 #include <QBuffer>
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -36,6 +37,7 @@
 #include <QToolBar>
 #include <QVBoxLayout>
 #include <QWheelEvent>
+#include <QtConcurrent>
 
 #include <poppler-qt5.h>
 
@@ -652,25 +654,12 @@ void QuickView::tryUnlock() {
         renderOffice(m_encryptedPath, password);
         return;
     }
-    // Archive: retry the current chain level with the entered password.
-    ArchiveHandler::Status status = ArchiveHandler::Status::Ok;
-    QString err;
-    if (m_archiveModel->loadArchive(m_encryptedPath, password, &status, &err)) {
-        if (!m_archivePasswords.isEmpty())
-            m_archivePasswords.last() = password; // remember for nested extraction
-        updateArchivePathLabel();
-        m_stack->setCurrentWidget(m_archivePage);
-        return;
-    }
-    if (status == ArchiveHandler::Status::WrongPassword) {
-        m_encryptedFeedback->setText(tr("Incorrect password. Try again."));
-        m_passwordEdit->selectAll();
-        m_passwordEdit->setFocus();
-    } else if (status == ArchiveHandler::Status::EncryptedUnsupported) {
-        m_encryptedFeedback->setText(tr("This archive's encryption isn't supported."));
-    } else {
-        m_encryptedFeedback->setText(tr("Could not open the archive."));
-    }
+    // Archive: retry the current chain level with the entered password. The load
+    // runs on a worker thread; handleArchiveLoad() shows the listing on success
+    // or refreshes this page's feedback on a wrong password.
+    if (!m_archivePasswords.isEmpty())
+        m_archivePasswords.last() = password;
+    tryLoadCurrentArchive();
 }
 
 void QuickView::renderOffice(const QString &path, const QString &password) {
@@ -775,16 +764,67 @@ void QuickView::previewArchive(const QString &path) {
 void QuickView::tryLoadCurrentArchive() {
     const QString path = m_archivePaths.last();
     const QString pw = m_archivePasswords.last();
-    ArchiveHandler::Status status = ArchiveHandler::Status::Ok;
-    QString err;
-    if (m_archiveModel->loadArchive(path, pw, &status, &err)) {
+    const QFileInfo fi(path);
+    const qint64 size = fi.size();
+    const qint64 mtime = fi.lastModified().toSecsSinceEpoch();
+
+    // Cache hit (same path, unchanged size/mtime, same password): populate now.
+    const auto cached = m_archiveCache.constFind(path);
+    if (cached != m_archiveCache.constEnd() && cached->root && cached->size == size &&
+        cached->mtime == mtime && cached->passphrase == pw) {
+        m_archiveModel->setTree(cached->root, path, pw);
         updateArchivePathLabel();
         m_stack->setCurrentWidget(m_archivePage);
         return;
     }
 
+    // Supersede any in-flight load, then list on a worker thread so a big
+    // solid/streaming archive (tar.bz2, 7z solid) never freezes the UI.
+    ++m_archiveGen;
+    const int gen = m_archiveGen;
+    if (m_archiveCancel)
+        m_archiveCancel->store(true);
+    m_archiveCancel = std::make_shared<std::atomic<bool>>(false);
+    auto cancel = m_archiveCancel;
+
+    m_info->setText(tr("Loading %1…").arg(fi.fileName()));
+    m_stack->setCurrentWidget(m_info);
+
+    auto *watcher = new QFutureWatcher<ArchiveLoadResult>(this);
+    connect(watcher, &QFutureWatcher<ArchiveLoadResult>::finished, this,
+            [this, watcher, gen, path, pw, size, mtime]() {
+                watcher->deleteLater();
+                if (gen != m_archiveGen)
+                    return; // a newer selection superseded this load
+                handleArchiveLoad(watcher->result(), path, pw, size, mtime);
+            });
+    watcher->setFuture(QtConcurrent::run([path, pw, cancel]() {
+        ArchiveLoadResult r;
+        r.root = ArchiveHandler::buildTree(path, pw, &r.status, &r.err, cancel.get());
+        return r;
+    }));
+}
+
+void QuickView::handleArchiveLoad(const ArchiveLoadResult &r, const QString &path,
+                                  const QString &pw, qint64 size, qint64 mtime) {
     const QString name = QFileInfo(path).fileName();
-    switch (status) {
+
+    if (r.status == ArchiveHandler::Status::Ok && r.root) {
+        // Cache the tree (bounded, FIFO eviction) so re-visits and "Up" are instant.
+        m_archiveCache.insert(path, {r.root, pw, size, mtime});
+        m_archiveCacheOrder.removeAll(path);
+        m_archiveCacheOrder.append(path);
+        constexpr int kMaxCachedArchives = 8;
+        while (m_archiveCacheOrder.size() > kMaxCachedArchives)
+            m_archiveCache.remove(m_archiveCacheOrder.takeFirst());
+
+        m_archiveModel->setTree(r.root, path, pw);
+        updateArchivePathLabel();
+        m_stack->setCurrentWidget(m_archivePage);
+        return;
+    }
+
+    switch (r.status) {
     case ArchiveHandler::Status::NeedPassword: {
         // libarchive can decrypt ZIP but not 7z/rar content; for those don't
         // prompt for a password we could never use -- say so directly.
@@ -809,6 +849,14 @@ void QuickView::tryLoadCurrentArchive() {
         m_passwordEdit->setFocus();
         break;
     }
+    case ArchiveHandler::Status::WrongPassword:
+        m_encryptedKind = EncryptedKind::Archive;
+        m_encryptedPath = path;
+        m_encryptedFeedback->setText(tr("Incorrect password. Try again."));
+        m_passwordEdit->selectAll();
+        m_passwordEdit->setFocus();
+        m_stack->setCurrentWidget(m_encryptedPage);
+        break;
     case ArchiveHandler::Status::EncryptedUnsupported:
         m_info->setText(tr("“%1” is encrypted in a format that can't be previewed "
                            "(7z/RAR encryption is unsupported).")
@@ -1097,6 +1145,12 @@ void QuickView::showFile(const QString &path) {
 
     if (isVideo(path)) {
         m_infoOverlay->hide(); // image overlay belongs to another page
+
+        // Already showing/playing this exact clip? Don't reload it -- a spurious
+        // re-selection of the same row shouldn't restart the decode.
+        if (path == m_videoPath && m_stack->currentWidget() == m_videoPage)
+            return;
+        m_videoPath = path;
 
         // Apply the persisted preview preferences to both the core and controls
         // (block signals so seeding them doesn't re-persist or fight the core).

@@ -99,6 +99,7 @@ target_link_libraries(ui PUBLIC
     Qt5::Core
     Qt5::Gui
     Qt5::OpenGL
+    Qt5::Concurrent
 )
 target_link_libraries(ui PRIVATE ${MPV_LIBRARIES} ${POPPLER_QT5_LIBRARIES}
     Qt5::X11Extras ${XCB_LIBRARIES} ZLIB::ZLIB)

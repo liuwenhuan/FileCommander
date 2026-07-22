@@ -4,6 +4,8 @@
 #include <QString>
 #include <QStringList>
 
+#include <atomic>
+
 #include "ArchiveNode.h"
 
 // Thin facade over libarchive: build an in-memory tree of an archive's
@@ -28,7 +30,8 @@ public:
     // names without one). Returns null unless *status == Ok.
     static QSharedPointer<ArchiveNode> buildTree(const QString &archivePath,
                                                   const QString &passphrase, Status *status,
-                                                  QString *errorMessage = nullptr);
+                                                  QString *errorMessage = nullptr,
+                                                  std::atomic<bool> *cancel = nullptr);
 
     // entryFullPaths empty => extract everything. A directory entry in
     // the list extracts that directory and everything under it.

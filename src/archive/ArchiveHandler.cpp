@@ -134,7 +134,8 @@ QSharedPointer<ArchiveNode> ArchiveHandler::buildTree(const QString &archivePath
 
 QSharedPointer<ArchiveNode> ArchiveHandler::buildTree(const QString &archivePath,
                                                        const QString &passphrase, Status *status,
-                                                       QString *errorMessage) {
+                                                       QString *errorMessage,
+                                                       std::atomic<bool> *cancel) {
     auto setStatus = [&](Status s) {
         if (status)
             *status = s;
@@ -174,6 +175,16 @@ QSharedPointer<ArchiveNode> ArchiveHandler::buildTree(const QString &archivePath
     struct archive_entry *entry;
     int r;
     while ((r = archive_read_next_header(a, &entry)) == ARCHIVE_OK) {
+        // Abandoned while decompressing a big solid/streaming archive (the user
+        // moved on): bail out so we don't keep chewing CPU in the background.
+        if (cancel && cancel->load()) {
+            if (errorMessage)
+                *errorMessage = QStringLiteral("cancelled");
+            setStatus(Status::Error);
+            archive_read_close(a);
+            archive_read_free(a);
+            return {};
+        }
         QString entryPath = QString::fromUtf8(archive_entry_pathname(entry));
         entryPath = entryPath.replace(QLatin1Char('\\'), QLatin1Char('/'));
         while (entryPath.endsWith('/'))

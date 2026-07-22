@@ -23,6 +23,10 @@ public:
     // listing succeeded (status == Ok).
     bool loadArchive(const QString &archivePath, const QString &passphrase,
                      ArchiveHandler::Status *status, QString *errorMessage = nullptr);
+    // Populate the model from an already-built tree (e.g. one produced on a
+    // worker thread or served from a cache). Must run on the GUI thread.
+    void setTree(QSharedPointer<ArchiveNode> root, const QString &archivePath,
+                 const QString &passphrase);
     QString archivePath() const { return m_archivePath; }
     QString passphrase() const { return m_passphrase; } // verified password, if any
 

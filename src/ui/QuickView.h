@@ -1,12 +1,15 @@
 #pragma once
 
 #include <QByteArray>
+#include <QHash>
 #include <QPixmap>
 #include <QPoint>
 #include <QStringList>
 #include <QWidget>
 
 #include <memory>
+
+#include "ArchiveHandler.h" // ArchiveNode + ArchiveHandler::Status (async load result)
 
 class QCheckBox;
 class QComboBox;
@@ -84,8 +87,16 @@ private:
     QWidget *buildEncryptedPage();         // "encrypted" note + an unlock button
     QWidget *buildArchivePage();           // read-only archive listing (no extraction)
     void previewArchive(const QString &path);   // start a fresh archive chain at path
-    void tryLoadCurrentArchive();               // (re)load the current chain level
+    void tryLoadCurrentArchive();               // (re)load the current chain level (async)
     void descendIntoNestedArchive(const QString &entryFullPath, const QString &entryName);
+    // Result of a worker-thread buildTree; handled back on the GUI thread.
+    struct ArchiveLoadResult {
+        QSharedPointer<ArchiveNode> root;
+        ArchiveHandler::Status status = ArchiveHandler::Status::Ok;
+        QString err;
+    };
+    void handleArchiveLoad(const ArchiveLoadResult &r, const QString &path, const QString &pw,
+                           qint64 size, qint64 mtime);
     void onArchiveActivated(const QModelIndex &index); // enter dir / descend / go up
     void navigateArchiveUp();
     void updateArchivePathLabel();
@@ -177,6 +188,21 @@ private:
     QStringList m_archivePasswords;
     std::unique_ptr<QTemporaryDir> m_nestedDir; // holds extracted nested archives
 
+    // Async listing + cache: big solid/streaming archives (tar.bz2, 7z solid)
+    // take a while to list (libarchive must decompress the stream), so buildTree
+    // runs on a worker thread and populates the model here. The cache (keyed by
+    // path + size + mtime) makes re-visits and "Up" instant.
+    struct CachedArchive {
+        QSharedPointer<ArchiveNode> root;
+        QString passphrase;
+        qint64 size = 0;
+        qint64 mtime = 0;
+    };
+    int m_archiveGen = 0;                                // supersede stale async loads
+    std::shared_ptr<std::atomic<bool>> m_archiveCancel; // current load's cancel flag
+    QHash<QString, CachedArchive> m_archiveCache;
+    QStringList m_archiveCacheOrder;                    // FIFO eviction order
+
     // PDF page (m_stack index 5): a single rendered page in a scroll area with
     // prev/next + zoom controls. Poppler renders each page to a QImage on demand.
     QWidget *m_pdfPage = nullptr;
@@ -188,6 +214,7 @@ private:
     double m_pdfZoom = 1.0;                     // render scale; 1.0 == 72 dpi
 
     // Video page (m_stack index 3).
+    QString m_videoPath;            // path of the clip currently loaded (de-dup re-selects)
     QWidget *m_videoPage = nullptr;
     MpvWidget *m_mpv = nullptr;
     QPushButton *m_playButton = nullptr;

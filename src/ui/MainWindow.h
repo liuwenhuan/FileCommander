@@ -183,6 +183,9 @@ private:
     QPixmap m_frameCache;
     QColor m_frameCacheColor;     // window colour the cache was rendered with
     QTimer *m_maskTimer = nullptr; // coalesces rounded-corner mask updates
+    QTimer *m_quickViewDebounce = nullptr; // delays the Ctrl+Q preview until the
+                                           // cursor settles (skip big files while
+                                           // arrow-scrolling past them)
 
     QuickView *m_quickView = nullptr;
     FilePanel *m_quickViewPanel = nullptr; // panel replaced by the preview

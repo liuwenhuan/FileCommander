@@ -209,6 +209,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_maskTimer->setSingleShot(true);
     m_maskTimer->setInterval(50);
     connect(m_maskTimer, &QTimer::timeout, this, &MainWindow::applyRoundedMask);
+    // Debounce the Ctrl+Q preview: refresh it only after the cursor has been
+    // still for a moment, so arrow-scrolling past big archives/videos doesn't
+    // kick off (then abandon) an expensive listing/decode for every row.
+    m_quickViewDebounce = new QTimer(this);
+    m_quickViewDebounce->setSingleShot(true);
+    m_quickViewDebounce->setInterval(180);
+    connect(m_quickViewDebounce, &QTimer::timeout, this, &MainWindow::updateQuickView);
     // No global status bar: each FilePanel carries its own status strip, so
     // the function-key bar stays the bottom-most widget.
 
@@ -306,7 +313,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         });
         connect(panel->view(), &FileListView::filesDropped, this, &MainWindow::handleFilesDropped);
         connect(panel->view()->selectionModel(), &QItemSelectionModel::currentRowChanged, this,
-                [this]() { updateQuickView(); });
+                [this]() {
+                    if (m_quickViewActive)
+                        m_quickViewDebounce->start(); // coalesce rapid cursor moves
+                });
         connect(panel->model(), &FileSystemModel::renameFailed, this, [this](const QString &msg) {
             QMessageBox::warning(this, tr("Rename"), msg);
         });
