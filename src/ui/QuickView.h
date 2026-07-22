@@ -61,6 +61,10 @@ public:
 
     void showFile(const QString &path);
 
+    // Halts any active media playback (video and audio). Called when the preview
+    // pane is dismissed (Ctrl+Q) so a clip doesn't keep playing while hidden.
+    void stopPlayback();
+
     // Sets the point size of the text-preview font, so the preview tracks the
     // app's file-list font-size setting. Applies to the plain-text/hex page and
     // the markdown/office rich-text page; the monospace text page keeps its

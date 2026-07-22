@@ -983,6 +983,11 @@ void QuickView::stopAudio() {
     m_audioPath.clear();
 }
 
+void QuickView::stopPlayback() {
+    stopVideo();
+    stopAudio();
+}
+
 QWidget *QuickView::buildMarkdownPage() {
     // A read-only rich-text browser. Qt renders Markdown through its bundled
     // MD4C parser (QTextDocument::setMarkdown), so no external md4c is linked.
@@ -1739,6 +1744,7 @@ void QuickView::showFile(const QString &path) {
 
     if (isVideo(path)) {
         m_infoOverlay->hide(); // image overlay belongs to another page
+        stopAudio();           // don't leave an audio track playing behind the video
 
         // Already showing/playing this exact clip? Don't reload it -- a spurious
         // re-selection of the same row shouldn't restart the decode.
