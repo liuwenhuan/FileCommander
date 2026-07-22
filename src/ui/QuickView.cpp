@@ -50,10 +50,12 @@
 
 #include "ArchiveHandler.h"
 #include "ArchiveModel.h"
+#include "AudioPlayer.h"
 #include "ImageViewer.h"
 #include "MpvWidget.h"
 #include "OfficeConverter.h"
 #include "config/Settings.h"
+#include "media/Id3Reader.h"
 
 namespace {
 constexpr qint64 kTextWindowBytes = 5 * 1024 * 1024; // text preview cap: 5 MiB
@@ -112,6 +114,7 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent)
     m_stack->addWidget(buildOfficeTablePage());  // 6
     m_stack->addWidget(buildEncryptedPage());    // 7
     m_stack->addWidget(buildArchivePage());      // 8
+    m_stack->addWidget(buildAudioPage());        // 9
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -478,6 +481,13 @@ void QuickView::loadImageSiblings() {
 }
 
 void QuickView::showNextSibling() {
+    // Audio page: step to the next track in the directory.
+    if (m_stack->currentWidget() == m_audioPage) {
+        if (m_audioSiblings.isEmpty() || m_audioSiblingIndex < 0)
+            return;
+        showFile(m_audioSiblings.at((m_audioSiblingIndex + 1) % m_audioSiblings.size()));
+        return;
+    }
     if (m_stack->currentWidget() != m_imagePage || m_imageSiblings.isEmpty() ||
         m_imageSiblingIndex < 0)
         return;
@@ -485,6 +495,15 @@ void QuickView::showNextSibling() {
 }
 
 void QuickView::showPrevSibling() {
+    // Audio page: step to the previous track in the directory.
+    if (m_stack->currentWidget() == m_audioPage) {
+        if (m_audioSiblings.isEmpty() || m_audioSiblingIndex < 0)
+            return;
+        const int prev =
+            (m_audioSiblingIndex - 1 + m_audioSiblings.size()) % m_audioSiblings.size();
+        showFile(m_audioSiblings.at(prev));
+        return;
+    }
     if (m_stack->currentWidget() != m_imagePage || m_imageSiblings.isEmpty() ||
         m_imageSiblingIndex < 0)
         return;
@@ -506,6 +525,12 @@ bool QuickView::isMarkdown(const QString &path) {
 
 bool QuickView::isPdf(const QString &path) {
     return QFileInfo(path).suffix().toLower() == QLatin1String("pdf");
+}
+
+bool QuickView::isAudio(const QString &path) {
+    static const QSet<QString> kAudioSuffixes = {"mp3", "wav",  "flac", "ogg",
+                                                 "aac", "m4a", "wma",  "opus"};
+    return kAudioSuffixes.contains(QFileInfo(path).suffix().toLower());
 }
 
 QWidget *QuickView::buildVideoPage() {
@@ -693,6 +718,269 @@ void QuickView::stopVideo() {
         m_videoTimer->stop();
     m_mpv->stop();
     m_videoInfoOverlay->hide();
+}
+
+namespace {
+// Formats a duration in seconds as M:SS (or H:MM:SS past an hour), for the
+// audio transport's elapsed/total labels.
+QString formatClock(double seconds) {
+    if (seconds < 0.0 || seconds != seconds) // negative or NaN
+        seconds = 0.0;
+    const int total = static_cast<int>(seconds + 0.5);
+    const int h = total / 3600;
+    const int m = (total % 3600) / 60;
+    const int s = total % 60;
+    if (h > 0)
+        return QString("%1:%2:%3")
+            .arg(h)
+            .arg(m, 2, 10, QChar('0'))
+            .arg(s, 2, 10, QChar('0'));
+    return QString("%1:%2").arg(m).arg(s, 2, 10, QChar('0'));
+}
+} // namespace
+
+QWidget *QuickView::buildAudioPage() {
+    m_audioPage = new QWidget(this);
+
+    m_audio = new AudioPlayer(this);
+
+    // Left column: cover art with a placeholder when the file carries none.
+    m_audioCover = new QLabel(m_audioPage);
+    m_audioCover->setFixedSize(220, 220);
+    m_audioCover->setAlignment(Qt::AlignCenter);
+    m_audioCover->setStyleSheet(
+        "QLabel { background: rgba(0,0,0,20); border-radius: 6px; }");
+
+    // Right column: title + a metadata block + scrollable lyrics.
+    m_audioTitle = new QLabel(m_audioPage);
+    m_audioTitle->setTextFormat(Qt::RichText);
+    m_audioTitle->setWordWrap(true);
+    QFont titleFont = m_audioTitle->font();
+    titleFont.setPointSizeF(titleFont.pointSizeF() * 1.4);
+    titleFont.setBold(true);
+    m_audioTitle->setFont(titleFont);
+
+    m_audioMeta = new QLabel(m_audioPage);
+    m_audioMeta->setTextFormat(Qt::RichText);
+    m_audioMeta->setWordWrap(true);
+    m_audioMeta->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+    m_audioLyrics = new QTextBrowser(m_audioPage);
+    m_audioLyrics->setPlaceholderText(tr("No embedded lyrics."));
+
+    auto *rightCol = new QVBoxLayout();
+    rightCol->setContentsMargins(0, 0, 0, 0);
+    rightCol->addWidget(m_audioTitle);
+    rightCol->addWidget(m_audioMeta);
+    rightCol->addWidget(m_audioLyrics, 1);
+
+    auto *topRow = new QHBoxLayout();
+    topRow->setContentsMargins(8, 8, 8, 4);
+    topRow->setSpacing(12);
+    auto *coverCol = new QVBoxLayout();
+    coverCol->addWidget(m_audioCover, 0, Qt::AlignTop);
+    coverCol->addStretch(1);
+    topRow->addLayout(coverCol);
+    topRow->addLayout(rightCol, 1);
+
+    // Transport row: prev, play/pause, next, elapsed, seek, total.
+    m_audioPrevButton = new QPushButton(m_audioPage);
+    m_audioPrevButton->setIcon(style()->standardIcon(QStyle::SP_MediaSkipBackward));
+    m_audioPrevButton->setToolTip(tr("Previous track"));
+    connect(m_audioPrevButton, &QPushButton::clicked, this,
+            [this]() { showPrevSibling(); });
+
+    m_audioPlayButton = new QPushButton(m_audioPage);
+    m_audioPlayButton->setIcon(style()->standardIcon(QStyle::SP_MediaPause));
+    m_audioPlayButton->setToolTip(tr("Play / pause"));
+    connect(m_audioPlayButton, &QPushButton::clicked, this, [this]() {
+        m_audio->playPause();
+        QTimer::singleShot(50, this, [this]() { updateAudioTransport(); });
+    });
+
+    m_audioNextButton = new QPushButton(m_audioPage);
+    m_audioNextButton->setIcon(style()->standardIcon(QStyle::SP_MediaSkipForward));
+    m_audioNextButton->setToolTip(tr("Next track"));
+    connect(m_audioNextButton, &QPushButton::clicked, this,
+            [this]() { showNextSibling(); });
+
+    m_audioElapsed = new QLabel(QStringLiteral("0:00"), m_audioPage);
+    m_audioTotal = new QLabel(QStringLiteral("0:00"), m_audioPage);
+
+    m_audioSeek = new QSlider(Qt::Horizontal, m_audioPage);
+    m_audioSeek->setRange(0, 1000);
+    m_audioSeek->setToolTip(tr("Seek"));
+    connect(m_audioSeek, &QSlider::sliderPressed, this,
+            [this]() { m_audioSeeking = true; });
+    connect(m_audioSeek, &QSlider::sliderReleased, this, [this]() {
+        m_audio->seekFraction(m_audioSeek->value() / 1000.0);
+        m_audioSeeking = false;
+    });
+
+    auto *transport = new QHBoxLayout();
+    transport->setContentsMargins(8, 4, 8, 8);
+    transport->addWidget(m_audioPrevButton);
+    transport->addWidget(m_audioPlayButton);
+    transport->addWidget(m_audioNextButton);
+    transport->addWidget(m_audioElapsed);
+    transport->addWidget(m_audioSeek, 1);
+    transport->addWidget(m_audioTotal);
+
+    auto *layout = new QVBoxLayout(m_audioPage);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->addLayout(topRow, 1);
+    layout->addLayout(transport);
+
+    // Poll the playback position to advance the seek slider and keep the
+    // play/pause icon in sync while a track plays.
+    m_audioTimer = new QTimer(this);
+    m_audioTimer->setInterval(250);
+    connect(m_audioTimer, &QTimer::timeout, this, [this]() { updateAudioTransport(); });
+
+    return m_audioPage;
+}
+
+void QuickView::updateAudioTransport() {
+    if (!m_audio)
+        return;
+    const bool playing = !(m_audio->paused() || m_audio->ended());
+    m_audioPlayButton->setIcon(style()->standardIcon(
+        playing ? QStyle::SP_MediaPause : QStyle::SP_MediaPlay));
+    if (m_audioSeeking)
+        return;
+    const double dur = m_audio->durationSeconds();
+    const double pos = m_audio->positionSeconds();
+    if (dur > 0.0) {
+        const double frac = pos / dur;
+        m_audioSeek->setValue(qBound(0, static_cast<int>(frac * 1000.0), 1000));
+        m_audioTotal->setText(formatClock(dur));
+    }
+    m_audioElapsed->setText(formatClock(pos));
+}
+
+void QuickView::loadAudioSiblings() {
+    const QDir dir(QFileInfo(m_audioPath).absolutePath());
+    const QFileInfoList entries =
+        dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot, QDir::Name);
+    m_audioSiblings.clear();
+    for (const QFileInfo &fi : entries)
+        if (isAudio(fi.absoluteFilePath()))
+            m_audioSiblings.append(fi.absoluteFilePath());
+    m_audioSiblingIndex =
+        m_audioSiblings.indexOf(QFileInfo(m_audioPath).absoluteFilePath());
+}
+
+void QuickView::showAudio(const QString &path) {
+    m_infoOverlay->hide(); // image overlay belongs to another page
+
+    // Re-selecting the exact track that's already playing is a no-op.
+    if (path == m_audioPath && m_stack->currentWidget() == m_audioPage)
+        return;
+    m_audioPath = path;
+    loadAudioSiblings();
+
+    // Metadata: the hand-rolled ID3 reader (mp3 and friends) first; fall back to
+    // libmpv's demuxer metadata for formats it doesn't cover (ogg/flac/…).
+    AudioTags tags = Id3Reader::read(path);
+
+    const QFileInfo fi(path);
+    QString title = tags.title;
+    QString artist = tags.artist;
+    QString album = tags.album;
+    if (title.isEmpty())
+        title = fi.completeBaseName();
+
+    // Cover art.
+    QPixmap cover;
+    if (tags.hasCover())
+        cover.loadFromData(tags.coverData);
+    if (!cover.isNull()) {
+        m_audioCover->setPixmap(cover.scaled(m_audioCover->size(), Qt::KeepAspectRatio,
+                                             Qt::SmoothTransformation));
+    } else {
+        m_audioCover->setPixmap(
+            style()
+                ->standardIcon(QStyle::SP_MediaVolume)
+                .pixmap(96, 96));
+    }
+
+    m_audioTitle->setText(title.toHtmlEscaped());
+
+    // Fill in missing basics from mpv once the file is loaded below; build the
+    // metadata block from what we have now and refresh it after a short delay.
+    auto buildMeta = [this](const QString &artist, const QString &album,
+                            const AudioTags &t) {
+        QStringList rows;
+        auto add = [&rows](const QString &label, const QString &value) {
+            if (!value.trimmed().isEmpty())
+                rows << QString("<b>%1:</b> %2").arg(label, value.toHtmlEscaped());
+        };
+        add(tr("Artist"), artist);
+        add(tr("Album"), album);
+        add(tr("Album Artist"), t.albumArtist);
+        add(tr("Year"), t.year);
+        add(tr("Genre"), t.genre);
+        add(tr("Track"), t.track);
+        add(tr("Composer"), t.composer);
+        m_audioMeta->setText(rows.join(QStringLiteral("<br>")));
+    };
+    buildMeta(artist, album, tags);
+
+    // Lyrics (embedded USLT only; sidecar/online lyrics are out of scope).
+    if (!tags.lyrics.isEmpty())
+        m_audioLyrics->setPlainText(tags.lyrics);
+    else
+        m_audioLyrics->clear();
+
+    // Apply persisted volume/mute (shared with the video preview settings).
+    m_audio->setVolume(m_settings.videoVolume());
+    m_audio->setMute(m_settings.videoMuted());
+
+    m_audioSeek->setValue(0);
+    m_audioElapsed->setText(QStringLiteral("0:00"));
+    m_audioTotal->setText(QStringLiteral("0:00"));
+    m_audio->load(path);
+    m_stack->setCurrentWidget(m_audioPage);
+    m_audioTimer->start();
+
+    // If the ID3 reader found no artist/album (non-mp3 formats), pull them from
+    // mpv's demuxer metadata once it has opened the file.
+    if (tags.artist.isEmpty() || tags.album.isEmpty() || tags.title.isEmpty()) {
+        QTimer::singleShot(300, this, [this, path, artist, album, tags]() {
+            if (m_audioPath != path) // user moved on
+                return;
+            QString a = artist.isEmpty() ? m_audio->metadata("artist") : artist;
+            QString al = album.isEmpty() ? m_audio->metadata("album") : album;
+            if (m_audioTitle->text().isEmpty() || tags.title.isEmpty()) {
+                const QString mt = m_audio->metadata("title");
+                if (!mt.isEmpty())
+                    m_audioTitle->setText(mt.toHtmlEscaped());
+            }
+            QStringList rows;
+            auto add = [&rows](const QString &label, const QString &value) {
+                if (!value.trimmed().isEmpty())
+                    rows << QString("<b>%1:</b> %2").arg(label, value.toHtmlEscaped());
+            };
+            add(tr("Artist"), a);
+            add(tr("Album"), al);
+            add(tr("Album Artist"), tags.albumArtist);
+            add(tr("Year"), tags.year);
+            add(tr("Genre"), tags.genre);
+            add(tr("Track"), tags.track);
+            add(tr("Composer"), tags.composer);
+            if (!rows.isEmpty())
+                m_audioMeta->setText(rows.join(QStringLiteral("<br>")));
+        });
+    }
+}
+
+void QuickView::stopAudio() {
+    if (!m_audio)
+        return;
+    if (m_audioTimer)
+        m_audioTimer->stop();
+    m_audio->stop();
+    m_audioPath.clear();
 }
 
 QWidget *QuickView::buildMarkdownPage() {
@@ -914,6 +1202,7 @@ QWidget *QuickView::buildArchivePage() {
 
 void QuickView::previewArchive(const QString &path) {
     stopVideo();
+    stopAudio();
     closePdf();
     m_infoOverlay->hide();
     // Fresh chain rooted at this archive; drop any previously extracted nesteds.
@@ -1432,6 +1721,7 @@ void QuickView::showFile(const QString &path) {
     QFileInfo info(path);
     if (path.isEmpty() || !info.exists() || info.isDir()) {
         stopVideo();
+        stopAudio();
         closePdf(); // don't keep a document loaded behind the "no preview" note
         m_infoOverlay->hide();
         m_info->setText(tr("Select a file to preview"));
@@ -1499,6 +1789,14 @@ void QuickView::showFile(const QString &path) {
 
     // Any non-video target: make sure playback is not left running in the back.
     stopVideo();
+
+    if (isAudio(path)) {
+        showAudio(path);
+        return;
+    }
+
+    // Any non-audio target: stop audio playback if a track was playing.
+    stopAudio();
 
     if (isPdf(path)) {
         m_infoOverlay->hide(); // image overlay belongs to another page

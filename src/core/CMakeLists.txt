@@ -23,6 +23,8 @@ add_library(core STATIC
     sync/DirectorySync.cpp
     compare/TextDiff.h
     compare/TextDiff.cpp
+    media/Id3Reader.h
+    media/Id3Reader.cpp
     network/GvfsMounter.h
     network/GvfsMounter.cpp
     network/SftpProvider.h
@@ -55,6 +57,7 @@ target_include_directories(core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/config
     ${CMAKE_CURRENT_SOURCE_DIR}/sync
     ${CMAKE_CURRENT_SOURCE_DIR}/compare
+    ${CMAKE_CURRENT_SOURCE_DIR}/media
     ${CMAKE_CURRENT_SOURCE_DIR}/network
     ${LIBSSH2_INCLUDE_DIRS}
     ${LIBSECRET_INCLUDE_DIRS}
