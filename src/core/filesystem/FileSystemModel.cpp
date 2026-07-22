@@ -203,6 +203,30 @@ FileInfo FileSystemModel::fileInfoAt(int row) const {
     return m_entries.at(idx);
 }
 
+int FileSystemModel::removePaths(const QStringList &paths) {
+    if (paths.isEmpty())
+        return -1;
+    const QSet<QString> targets(paths.begin(), paths.end());
+    int anchorRow = -1;
+    // Walk the visible list back-to-front so earlier row indices stay valid as
+    // we splice each match out. The last (lowest) row we touch is the anchor.
+    for (int i = m_entries.size() - 1; i >= 0; --i) {
+        if (!targets.contains(m_entries.at(i).path()))
+            continue;
+        const int row = m_hasParentEntry ? i + 1 : i;
+        beginRemoveRows(QModelIndex(), row, row);
+        m_entries.remove(i);
+        endRemoveRows();
+        anchorRow = row;
+    }
+    // Keep the unfiltered backing store in sync so a later sort/filter/rescan
+    // boundary doesn't resurrect the removed entries.
+    for (int i = m_allEntries.size() - 1; i >= 0; --i)
+        if (targets.contains(m_allEntries.at(i).path()))
+            m_allEntries.remove(i);
+    return anchorRow;
+}
+
 int FileSystemModel::rowCount(const QModelIndex &parent) const {
     if (parent.isValid())
         return 0;

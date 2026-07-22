@@ -172,6 +172,11 @@ private:
     OperationQueue *m_queue;
     TransferProgressDialog *m_progressDialog;
     QStringList m_operationErrors; // accumulated per-file errors for the running job
+    // Set while a delete is in flight so the queue-finished handler can remove
+    // just those rows and select the next file, instead of a full rescan that
+    // would snap the cursor back to the top of the list.
+    FilePanel *m_pendingDeletePanel = nullptr;
+    QStringList m_pendingDeletePaths;
     ThemeManager *m_themeManager;
     Settings m_settings;
     QSplitter *m_panelSplitter;

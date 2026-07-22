@@ -67,6 +67,12 @@ public:
     // listing doesn't snap back to the top.
     void selectPathAfterReload(const QString &path);
 
+    // Removes just-deleted paths from the listing in place (no directory
+    // rescan) and moves the cursor/selection onto the row that slid into the
+    // gap -- i.e. the "next" file. Returns true if it handled the removal;
+    // false if nothing matched (the caller should fall back to refresh()).
+    bool removeDeletedAndSelectNext(const QStringList &paths);
+
     // Marks this panel as the active one (of the two). Softens the inactive
     // panel's selection colour so the active panel's cursor row stands out.
     void setActive(bool active);
@@ -125,7 +131,7 @@ signals:
     void switchPanelRequested();
     // The "*" button was clicked: caller should pop a shortcut menu at pos.
     void shortcutMenuRequested(const QPoint &globalPos);
-    // The "★" button was clicked: caller should pop the favorites menu at pos.
+    // Tab strip right-clicked: caller should pop the directory-favorites menu.
     void favoritesMenuRequested(const QPoint &globalPos);
 
 protected:
@@ -173,7 +179,6 @@ private:
     QToolButton *m_treeButton; // "🗀" toggles this panel's folder tree; first in the row
     QToolButton *m_backButton;
     QToolButton *m_forwardButton;
-    QToolButton *m_favButton;  // "★" directory favorites, now before the "✳" button
     QToolButton *m_starButton;
     QTreeView *m_dirTree = nullptr;            // per-panel folder tree (hidden by default)
     QFileSystemModel *m_dirTreeModel = nullptr;

@@ -89,18 +89,6 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_forwardButton->setToolTip(tr("Forward"));
     connect(m_forwardButton, &QToolButton::clicked, this, &FilePanel::goForward);
 
-    // "★" opens the directory favorites menu (bookmark current + jump list).
-    m_favButton = new QToolButton(this);
-    m_favButton->setText(QStringLiteral("★"));
-    m_favButton->setAutoRaise(true);
-    m_favButton->setFocusPolicy(Qt::NoFocus);
-    m_favButton->setToolTip(tr("Favorite directories"));
-    connect(m_favButton, &QToolButton::clicked, this, [this]() {
-        emit panelActivated(this); // act on this panel
-        emit favoritesMenuRequested(
-            m_favButton->mapToGlobal(QPoint(0, m_favButton->height())));
-    });
-
     // "*" opens a menu of all keyboard shortcuts (click a row to run it).
     m_starButton = new QToolButton(this);
     m_starButton->setText(QStringLiteral("✳"));
@@ -120,7 +108,6 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     addressLayout->addWidget(m_backButton);
     addressLayout->addWidget(m_forwardButton);
     addressLayout->addWidget(m_addressBar, 1);
-    addressLayout->addWidget(m_favButton);  // ★ favorites, just before the ✳ menu
     addressLayout->addWidget(m_starButton);
 
     m_filterBar = new QLineEdit(this);
@@ -132,8 +119,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_statusBar = new StatusBarWidget(this);
 
     // Tab row: [tree] at the head, then the tab strip (stretch), then the
-    // trailing "+". Back/Forward, the ★ favorites button and the ✳ menu live in
-    // the address row below.
+    // trailing "+". Back/Forward and the ✳ menu live in the address row below.
     auto *tabRow = new QWidget(this);
     auto *tabRowLayout = new QHBoxLayout(tabRow);
     tabRowLayout->setContentsMargins(0, 0, 0, 0);
@@ -222,7 +208,6 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_treeButton->setFixedSize(rowH, rowH);
     m_backButton->setFixedSize(rowH, rowH);
     m_forwardButton->setFixedSize(rowH, rowH);
-    m_favButton->setFixedSize(rowH, rowH);
     m_starButton->setFixedSize(rowH, rowH);
     m_addTabButton->setFixedWidth(rowH); // width matches "✳"; height follows the tab strip
     updateNavButtons();
@@ -269,15 +254,12 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     });
 
     connect(m_tabBar, &QTabBar::currentChanged, this, &FilePanel::onTabBarCurrentChanged);
-    connect(m_tabBar, &TabBar::newTabRequested, this, &FilePanel::newTab);
     connect(m_tabBar, &TabBar::closeTabRequested, this, &FilePanel::closeTabAt);
-    connect(m_tabBar, &TabBar::closeOthersRequested, this, [this](int idx) {
-        m_tabManager->closeOthers(idx);
-        syncTabBarFromManager();
-    });
-    connect(m_tabBar, &TabBar::copyPathRequested, this, [this](int idx) {
-        if (auto tab = m_tabManager->tabAt(idx))
-            QGuiApplication::clipboard()->setText(tab->path);
+    // Right-click on the tab strip opens the directory-favorites menu (owned by
+    // MainWindow, which has the settings-backed favorites list).
+    connect(m_tabBar, &TabBar::favoritesMenuRequested, this, [this](const QPoint &pos) {
+        emit panelActivated(this);
+        emit favoritesMenuRequested(pos);
     });
 
     const int firstTab = m_tabManager->addTab(QString());
@@ -717,6 +699,38 @@ void FilePanel::deselectAll() {
 void FilePanel::selectPathAfterReload(const QString &path) {
     if (!path.isEmpty() && !m_pendingSelection.contains(path))
         m_pendingSelection.append(path);
+}
+
+bool FilePanel::removeDeletedAndSelectNext(const QStringList &paths) {
+    // Flat search results have no single directory to keep in sync -- let the
+    // caller do a normal refresh there.
+    if (paths.isEmpty() || m_model->isFlatMode())
+        return false;
+    const int anchor = m_model->removePaths(paths);
+    if (anchor < 0)
+        return false; // nothing matched (e.g. the delete failed) -> caller refreshes
+
+    const int rows = m_model->rowCount();
+    if (rows <= 0)
+        return true; // directory emptied; nothing left to select
+
+    // The removed block's old top row now holds the "next" file. If we deleted
+    // the tail of the list, fall back to the new last row.
+    int target = anchor >= rows ? rows - 1 : anchor;
+    // Prefer a real entry over the ".." parent row when something else remains.
+    if (m_model->isParentEntry(target) && rows > 1)
+        target = 1;
+
+    QAbstractItemView *view = isThumbnailMode() ? static_cast<QAbstractItemView *>(m_iconView)
+                                                : static_cast<QAbstractItemView *>(m_view);
+    const QModelIndex idx = m_model->index(target, 0);
+    QItemSelectionModel *sel = view->selectionModel();
+    sel->clearSelection();
+    sel->select(idx, QItemSelectionModel::Select | QItemSelectionModel::Rows);
+    sel->setCurrentIndex(idx, QItemSelectionModel::NoUpdate);
+    view->scrollTo(idx, QAbstractItemView::EnsureVisible);
+    updateStatus();
+    return true;
 }
 
 void FilePanel::setActive(bool active) {

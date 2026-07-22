@@ -168,20 +168,9 @@ void TabBar::refreshCloseButtons() {
 }
 
 void TabBar::contextMenuEvent(QContextMenuEvent *event) {
-    const int index = tabAt(event->pos());
-    if (index < 0) {
-        QMenu menu(this);
-        menu.addAction(tr("New Tab"), this, &TabBar::newTabRequested);
-        menu.exec(event->globalPos());
-        return;
-    }
-
-    QMenu menu(this);
-    menu.addAction(tr("New Tab"), this, &TabBar::newTabRequested);
-    menu.addAction(tr("Close Tab"), this, [this, index]() { emit closeTabRequested(index); });
-    menu.addAction(tr("Close Others"), this,
-                    [this, index]() { emit closeOthersRequested(index); });
-    menu.addSeparator();
-    menu.addAction(tr("Copy Path"), this, [this, index]() { emit copyPathRequested(index); });
-    menu.exec(event->globalPos());
+    // Right-clicking anywhere on the tab strip opens the directory-favorites
+    // menu (bookmark toggle for the current directory + the saved favorites,
+    // synced with Ctrl+D). The panel/window owns the favorites list, so we
+    // just forward the location and let it build the menu.
+    emit favoritesMenuRequested(event->globalPos());
 }

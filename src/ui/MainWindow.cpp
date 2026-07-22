@@ -251,8 +251,27 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     connect(m_queue, &OperationQueue::started, this,
             [this](const QString &) { m_operationErrors.clear(); });
     connect(m_queue, &OperationQueue::finished, this, [this](bool) {
-        m_leftPanel->refresh();
-        m_rightPanel->refresh();
+        if (m_pendingDeletePanel) {
+            // A delete just finished: drop the vanished rows from the active
+            // panel in place and move the cursor onto the next file, rather than
+            // rescanning (which would reset the selection to the first row).
+            FilePanel *panel = m_pendingDeletePanel;
+            m_pendingDeletePanel = nullptr;
+            QStringList gone;
+            for (const QString &p : m_pendingDeletePaths)
+                if (!QFileInfo::exists(p)) // keep any that survived a failed delete
+                    gone.append(p);
+            m_pendingDeletePaths.clear();
+            const bool handled = panel->removeDeletedAndSelectNext(gone);
+            // The other panel may show the same directory, so refresh it fully.
+            FilePanel *other = (panel == m_leftPanel) ? m_rightPanel : m_leftPanel;
+            other->refresh();
+            if (!handled)
+                panel->refresh();
+        } else {
+            m_leftPanel->refresh();
+            m_rightPanel->refresh();
+        }
         // Report all per-file failures once, not one modal per error.
         if (!m_operationErrors.isEmpty()) {
             const int shown = qMin(m_operationErrors.size(), 20);
@@ -444,15 +463,9 @@ void MainWindow::buildTitleBarMenus() {
             m_rightPanel->setArchiveAsFolder(on);
         });
     }
-    configMenu->addSeparator();
-    // Relocated here (previously in Commands, no shortcut of their own).
-    configMenu->addAction(tr("S&ynchronize Directories..."), this, &MainWindow::openSyncDialog);
-    configMenu->addAction(tr("Compare &Directories (by time)"), this,
-                          &MainWindow::compareDirectories);
-    configMenu->addAction(tr("&Network Neighborhood"), this, [this] {
-        if (m_activePanel)
-            m_activePanel->navigateTo(QStringLiteral("/run/user/%1/gvfs").arg(getuid()));
-    });
+    // Synchronize/Compare Directories now live in the "✳" shortcut menu; the
+    // Network Neighborhood entry was removed (SMB/FTP/etc. use Connect to
+    // Server instead of a gvfs browse).
 
     auto *viewMenu = new QMenu(tr("&View"), this);
     m_viewMenu = viewMenu;
@@ -1057,6 +1070,12 @@ void MainWindow::showShortcutMenu(const QPoint &globalPos) {
                 m_activePanel->toggleViewMode();
         });
     }
+
+    // Directory tools relocated here from the Config menu.
+    menu.addSeparator();
+    addEntry(tr("Synchronize directories..."), QString(), [this]() { openSyncDialog(); });
+    addEntry(tr("Compare directories (by time)"), QString(),
+             [this]() { compareDirectories(); });
 
     // Align the menu's right edge with the active panel's right edge -- for the
     // left panel that's the splitter between the two panels -- instead of
@@ -1996,6 +2015,10 @@ void MainWindow::deleteSelected(bool permanent) {
         if (answer != QMessageBox::Yes)
             return;
     }
+    // Remember what we're deleting (and where) so the queue-finished handler
+    // removes exactly these rows and selects the next file without a full rescan.
+    m_pendingDeletePanel = m_activePanel;
+    m_pendingDeletePaths = paths;
     m_queue->enqueueDelete(paths, /*toTrash=*/!permanent);
 }
 

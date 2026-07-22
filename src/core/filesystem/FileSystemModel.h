@@ -75,6 +75,13 @@ public:
     FileInfo fileInfoAt(int row) const;
     bool isParentEntry(int row) const;
 
+    // Removes the given absolute paths from the listing incrementally (via
+    // beginRemoveRows, no directory rescan) so the view keeps its scroll
+    // position and can select the row that slid into the gap. Returns the
+    // smallest visible row index that was removed (the "select next" anchor),
+    // or -1 if nothing matched. Used after a delete instead of a full refresh.
+    int removePaths(const QStringList &paths);
+
     // On-demand directory size: once computed (see directorySize()), the Size
     // column shows the recursive byte total for that folder instead of
     // "<DIR>". Cleared automatically when the directory is rescanned.
