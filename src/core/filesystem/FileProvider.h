@@ -38,6 +38,12 @@ public:
     // Parent directory of path, or an empty string if path is already a root.
     virtual QString parentPath(const QString &path) const = 0;
 
+    // Concise human label for the connection this provider represents (e.g.
+    // "user@host"), shown alongside the current directory on network tabs. The
+    // default is empty: local/archive backends have no connection identity and
+    // keep the plain directory-name tab label.
+    virtual QString displayName() const { return {}; }
+
     // Whether anything exists at path.
     virtual bool exists(const QString &path) const = 0;
 

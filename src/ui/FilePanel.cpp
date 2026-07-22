@@ -944,14 +944,28 @@ void FilePanel::calculateDirSizes() {
 QString FilePanel::tabLabelFor(const QSharedPointer<TabState> &tab) const {
     if (!tab || tab->path.isEmpty())
         return tr("New Tab");
+    // Directory-name label (unchanged local behaviour).
+    QString label;
     const QString name = QFileInfo(tab->path).fileName();
-    if (!name.isEmpty())
-        return name;
-    // The archive virtual root is "/" (no file name): label the active tab with
-    // the archive's own file name instead of a bare "/".
-    if (!m_archiveName.isEmpty() && tab == m_tabManager->tabAt(m_tabManager->activeIndex()))
-        return m_archiveName;
-    return tab->path; // real root "/"
+    if (!name.isEmpty()) {
+        label = name;
+    } else if (!m_archiveName.isEmpty() &&
+               tab == m_tabManager->tabAt(m_tabManager->activeIndex())) {
+        // The archive virtual root is "/" (no file name): label the active tab
+        // with the archive's own file name instead of a bare "/".
+        label = m_archiveName;
+    } else {
+        label = tab->path; // real root "/"
+    }
+    // On a network connection, prefix the connection identity (user@host) so the
+    // tab shows which host it is browsing, not just the directory. Local and
+    // archive backends report an empty displayName() and keep the label as-is.
+    if (FileProvider *provider = m_model->provider()) {
+        const QString connection = provider->displayName();
+        if (!connection.isEmpty())
+            return connection + QStringLiteral(" : ") + label;
+    }
+    return label;
 }
 
 void FilePanel::updateActiveTabLabel() {
