@@ -21,7 +21,11 @@
 #include <QPolygonF>
 #include <QRectF>
 #include <QRegExp>
+#include <QPair>
 #include <QStringRef>
+#include <QTextBlockFormat>
+#include <QTextCharFormat>
+#include <QTextCursor>
 #include <QTextDocument>
 #include <QTextOption>
 #include <QTransform>
@@ -434,8 +438,55 @@ struct TextEntry {
     double vcenter;          // data-vc (scene units); <0 == not vertically centred
 };
 
-void addText(const QXmlStreamAttributes &attrs, const QString &text, QGraphicsItem *page,
-             QString *outText, QVector<TextEntry> *entries) {
+// One text run: its characters and the fill colour to draw them in (an invalid
+// QColor means "use the <text>'s default fill"). A <text> with no <tspan> yields a
+// single default-coloured segment; inline colour changes (#19) split it into runs.
+using TextSegment = QPair<QString, QColor>;
+
+// Read a <text> element's contents into coloured segments. The reader is positioned
+// on the <text> StartElement; on return it has consumed the matching </text>.
+// Characters accumulate into the current segment; a <tspan fill=..> opens a new
+// segment carrying that colour, its </tspan> closes it back to the default colour.
+// (readElementText() cannot be used here -- it raises an error on the <tspan> child.)
+// Only <text>'s direct <tspan> children are honoured (no nesting), per the contract.
+QVector<TextSegment> readTextSegments(QXmlStreamReader &xml) {
+    QVector<TextSegment> segs;
+    QString cur;
+    QColor curColor; // invalid == default fill
+    auto flush = [&]() {
+        if (!cur.isEmpty()) {
+            segs.push_back({cur, curColor});
+            cur.clear();
+        }
+    };
+    while (!xml.atEnd()) {
+        const auto tok = xml.readNext();
+        if (tok == QXmlStreamReader::Characters) {
+            cur.append(xml.text());
+        } else if (tok == QXmlStreamReader::StartElement &&
+                   xml.name() == QLatin1String("tspan")) {
+            flush(); // close the preceding default-coloured run
+            curColor = parseColor(xml.attributes().value(QLatin1String("fill")));
+        } else if (tok == QXmlStreamReader::EndElement &&
+                   xml.name() == QLatin1String("tspan")) {
+            flush();            // close this coloured run
+            curColor = QColor(); // back to the <text> default colour
+        } else if (tok == QXmlStreamReader::EndElement &&
+                   xml.name() == QLatin1String("text")) {
+            flush();
+            break;
+        }
+    }
+    return segs;
+}
+
+void addText(const QXmlStreamAttributes &attrs, const QVector<TextSegment> &segments,
+             QGraphicsItem *page, QString *outText, QVector<TextEntry> *entries) {
+    // Width/wrapping/anchor logic all runs on the full concatenated string; only the
+    // per-run colours differ. outText and reflow also use this joined string.
+    QString text;
+    for (const TextSegment &seg : segments)
+        text.append(seg.first);
     if (text.trimmed().isEmpty())
         return;
     const double x = attrNum(attrs, "x") * S;
@@ -480,9 +531,48 @@ void addText(const QXmlStreamAttributes &attrs, const QString &text, QGraphicsIt
     item->document()->setDocumentMargin(0); // no stray inset before the glyphs
     item->setFont(font);
     const QColor fill = parseColor(attrs.value(QLatin1String("fill")));
-    item->setDefaultTextColor(fill.isValid() ? fill : QColor(Qt::black));
-    item->setPlainText(text);
+    const QColor defColor = fill.isValid() ? fill : QColor(Qt::black);
+    item->setDefaultTextColor(defColor);
+    // Fast path (zero regression): a single run with no colour of its own is plain
+    // text. Otherwise (#19 inline mixed colour) insert each run with its own
+    // foreground via a cursor -- runs without a colour fall back to the default.
+    const bool plain = segments.size() == 1 && !segments.front().second.isValid();
+    if (plain) {
+        item->setPlainText(text);
+    } else {
+        QTextCursor cur(item->document());
+        for (const TextSegment &seg : segments) {
+            QTextCharFormat fmt;
+            fmt.setForeground(seg.second.isValid() ? seg.second : defColor);
+            cur.insertText(seg.first, fmt);
+        }
+    }
     item->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+    // #21 list line-spacing + hanging indent: paragraph-level data-* attributes map
+    // onto the first (only) text block's QTextBlockFormat. marL/indent are EMU box
+    // offsets scaled by S; line-spacing is a percent (proportional) or a fixed EMU
+    // height. The anchor/x still place the box; these indent within it.
+    const bool hasMl = attrs.hasAttribute(QLatin1String("data-ml"));
+    const bool hasIndent = attrs.hasAttribute(QLatin1String("data-indent"));
+    const bool hasLs = attrs.hasAttribute(QLatin1String("data-linespacing"));
+    const bool hasLsPts = attrs.hasAttribute(QLatin1String("data-linespacing-pts"));
+    if (hasMl || hasIndent || hasLs || hasLsPts) {
+        QTextCursor cur(item->document());
+        cur.select(QTextCursor::Document);
+        QTextBlockFormat bf = cur.blockFormat();
+        if (hasMl)
+            bf.setLeftMargin(attrNum(attrs, "data-ml") * S);
+        if (hasIndent)
+            bf.setTextIndent(attrNum(attrs, "data-indent") * S); // negative == hanging
+        if (hasLs)
+            bf.setLineHeight(attrNum(attrs, "data-linespacing"),
+                             QTextBlockFormat::ProportionalHeight);
+        else if (hasLsPts)
+            bf.setLineHeight(attrNum(attrs, "data-linespacing-pts") * S,
+                             QTextBlockFormat::FixedHeight);
+        cur.setBlockFormat(bf);
+    }
 
     // A whole source paragraph arrives as one <text>. When oxide knows the text
     // box's usable width it emits data-w (EMU, already group-transformed); we then
@@ -703,7 +793,7 @@ QGraphicsItem *buildSlidePage(const QByteArray &svg, QSizeF *outSizeScene, QStri
         else if (name == QLatin1String("image"))
             addImage(attrs, parent);
         else if (name == QLatin1String("text"))
-            addText(attrs, xml.readElementText(), parent, outText, &textEntries);
+            addText(attrs, readTextSegments(xml), parent, outText, &textEntries);
         // Unknown elements: ignored (graceful degradation).
     }
 
