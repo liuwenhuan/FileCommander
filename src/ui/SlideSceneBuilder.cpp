@@ -107,6 +107,30 @@ void applyFill(QAbstractGraphicsShapeItem *item, const QXmlStreamAttributes &att
     item->setBrush(fill.isValid() ? QBrush(fill) : Qt::NoBrush);
 }
 
+// Parse an SVG transform list. oxide only emits rotate(deg cx cy) for shape/group
+// rotation; anything else yields identity. The center (cx,cy) is in EMU, so it is
+// scaled by S to match the scene units every element is drawn in.
+QTransform parseSvgTransform(const QString &spec) {
+    QTransform t;
+    QRegExp re(QStringLiteral("rotate\\(([^)]*)\\)"));
+    if (re.indexIn(spec) < 0)
+        return t;
+    const QVector<QStringRef> p = re.cap(1).splitRef(
+        QRegExp(QStringLiteral("[\\s,]+")), QString::SkipEmptyParts);
+    if (p.isEmpty())
+        return t;
+    const double deg = p[0].toDouble();
+    double cx = 0.0, cy = 0.0;
+    if (p.size() >= 3) {
+        cx = p[1].toDouble() * S;
+        cy = p[2].toDouble() * S;
+    }
+    t.translate(cx, cy);
+    t.rotate(deg);
+    t.translate(-cx, -cy);
+    return t;
+}
+
 // <rect x y width height fill stroke stroke-width [rx]>. Rounded corners (rx) are
 // drawn via a path item; sharp rects use a plain rect item. Parented to page.
 void addRect(const QXmlStreamAttributes &attrs, QGraphicsItem *page) {
@@ -598,9 +622,18 @@ QGraphicsItem *buildSlidePage(const QByteArray &svg, QSizeF *outSizeScene, QStri
     QGraphicsRectItem *page = nullptr;
     QSizeF sizeScene(960 * S, 540 * S);
     QVector<TextEntry> textEntries; // for post-parse same-box paragraph reflow
+    // Parent stack: each element is parented to the current top. A <g transform>
+    // pushes a rotation container so its children inherit the rotate(); a plain <g>
+    // re-pushes the same top so the EndElement pop stays balanced.
+    QVector<QGraphicsItem *> parents;
 
     while (!xml.atEnd()) {
         const auto tok = xml.readNext();
+        if (tok == QXmlStreamReader::EndElement) {
+            if (xml.name() == QLatin1String("g") && parents.size() > 1)
+                parents.pop_back();
+            continue;
+        }
         if (tok != QXmlStreamReader::StartElement)
             continue;
         const QStringRef name = xml.name();
@@ -628,29 +661,49 @@ QGraphicsItem *buildSlidePage(const QByteArray &svg, QSizeF *outSizeScene, QStri
             page = new QGraphicsRectItem(QRectF(0, 0, w * S, h * S));
             page->setBrush(QBrush(Qt::white));
             page->setPen(QPen(QColor(0xcc, 0xcc, 0xcc))); // faint page border
+            parents.append(page);
             continue;
         }
         if (!page)
             continue; // elements before <svg> (shouldn't happen) have no parent
 
+        if (name == QLatin1String("g")) {
+            QGraphicsItem *top = parents.last();
+            const QString tf = attrs.value(QLatin1String("transform")).toString();
+            if (!tf.isEmpty()) {
+                const QTransform mat = parseSvgTransform(tf);
+                if (!mat.isIdentity()) {
+                    auto *cont = new QGraphicsRectItem(top);
+                    cont->setPen(Qt::NoPen);
+                    cont->setBrush(Qt::NoBrush);
+                    cont->setTransform(mat);
+                    parents.append(cont);
+                    continue;
+                }
+            }
+            parents.append(top); // no-op group: keep pop pairing on EndElement
+            continue;
+        }
+
+        QGraphicsItem *parent = parents.last();
         if (name == QLatin1String("rect"))
-            addRect(attrs, page);
+            addRect(attrs, parent);
         else if (name == QLatin1String("ellipse"))
-            addEllipse(attrs, page, false);
+            addEllipse(attrs, parent, false);
         else if (name == QLatin1String("circle"))
-            addEllipse(attrs, page, true);
+            addEllipse(attrs, parent, true);
         else if (name == QLatin1String("line"))
-            addLine(attrs, page);
+            addLine(attrs, parent);
         else if (name == QLatin1String("polyline"))
-            addPoly(attrs, page, false);
+            addPoly(attrs, parent, false);
         else if (name == QLatin1String("polygon"))
-            addPoly(attrs, page, true);
+            addPoly(attrs, parent, true);
         else if (name == QLatin1String("path"))
-            addPath(attrs, page);
+            addPath(attrs, parent);
         else if (name == QLatin1String("image"))
-            addImage(attrs, page);
+            addImage(attrs, parent);
         else if (name == QLatin1String("text"))
-            addText(attrs, xml.readElementText(), page, outText, &textEntries);
+            addText(attrs, xml.readElementText(), parent, outText, &textEntries);
         // Unknown elements: ignored (graceful degradation).
     }
 
