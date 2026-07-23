@@ -49,6 +49,23 @@ TitleBar::TitleBar(QWidget *window, const QList<QMenu *> &menus, QWidget *parent
     // Draggable empty area in the middle.
     layout->addStretch(1);
 
+    // "New Version" badge: hidden until the update checker reports a release.
+    // Sits just before the window buttons; clicking it opens the update dialog.
+    auto *badge = new QToolButton(this);
+    badge->setText(tr("New Version"));
+    badge->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    badge->setAutoRaise(true);
+    badge->setFocusPolicy(Qt::NoFocus);
+    badge->setCursor(Qt::PointingHandCursor);
+    badge->setObjectName("UpdateBadge");
+    badge->setStyleSheet(QStringLiteral(
+        "QToolButton#UpdateBadge { color: palette(highlight); font-weight: bold;"
+        " padding: 2px 10px; }"));
+    badge->hide();
+    connect(badge, &QAbstractButton::clicked, this, [this] { emit updateRequested(); });
+    layout->addWidget(badge);
+    m_updateBadge = badge;
+
     auto *minButton = new TitleButton(TitleButton::Minimize, this);
     m_maxButton = new TitleButton(TitleButton::Maximize, this);
     auto *closeButton = new TitleButton(TitleButton::Close, this);
@@ -75,6 +92,11 @@ void TitleBar::syncWindowState() {
     if (m_maxButton)
         static_cast<TitleButton *>(m_maxButton)
             ->setKind(m_window->isMaximized() ? TitleButton::Restore : TitleButton::Maximize);
+}
+
+void TitleBar::setUpdateAvailable(bool available) {
+    if (m_updateBadge)
+        m_updateBadge->setVisible(available);
 }
 
 void TitleBar::mousePressEvent(QMouseEvent *event) {

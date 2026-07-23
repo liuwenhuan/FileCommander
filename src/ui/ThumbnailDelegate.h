@@ -42,6 +42,14 @@ public:
                const QModelIndex &index) const override;
     QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override;
 
+    // The exact cell rect the delegate paints into (icon + up-to-two-line label
+    // + margins) for a given base font. This is the single source of truth for
+    // sizeHint(); FilePanel also uses it to size the icon view's grid so the
+    // selection tile frames one cell precisely, without overlapping (or clipping
+    // into) neighbouring rows. `baseFont` is the view font; the label point size
+    // override (if any) is applied on top, matching paint().
+    QSize cellSizeHint(const QFont &baseFont) const;
+
 private slots:
     // Repaints the cell(s) for `path` if the view currently has a row
     // showing it, so a thumbnail that finished generating after paint()

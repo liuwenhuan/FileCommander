@@ -57,6 +57,11 @@ public:
     bool archiveAsFolder() const;
     void setArchiveAsFolder(bool on);
 
+    // Auto-open a newly inserted removable device (USB stick, phone storage,
+    // external HDD) in a fresh, activated tab. Defaults to false.
+    bool autoOpenNewDevice() const;
+    void setAutoOpenNewDevice(bool on);
+
     QByteArray windowGeometry() const;
     void setWindowGeometry(const QByteArray &geometry);
 
@@ -91,6 +96,12 @@ public:
     QString functionKeyCommand(int index, const QString &defaultId) const;
     void setFunctionKeyCommand(int index, const QString &id);
 
+    // The two extra square toolbar buttons flanking the F-key row (slot =
+    // "leading" before F3 / "trailing" after F8). Same reassignable-command
+    // model as the F-keys, keyed by name instead of index.
+    QString extraKeyCommand(const QString &slot, const QString &defaultId) const;
+    void setExtraKeyCommand(const QString &slot, const QString &id);
+
     // Directory hotlist (Ctrl+D).
     QStringList favoriteDirectories() const;
     void addFavoriteDirectory(const QString &path);
@@ -109,6 +120,16 @@ public:
     void setThumbnailIconSize(const QString &side, int px);
     int listRowHeight(const QString &side) const;
     void setListRowHeight(const QString &side, int height);
+
+    // Online-update bookkeeping: the yyyy-MM-dd date of the last update check,
+    // so the background check runs only once on the first launch of a given day.
+    QString updateLastCheckDate() const;
+    void setUpdateLastCheckDate(const QString &date);
+
+    // Whether the quick-notepad third column was open when the app last closed,
+    // so it reappears on restart.
+    bool notepadVisible() const;
+    void setNotepadVisible(bool on);
 
 private:
     QSettings m_settings;

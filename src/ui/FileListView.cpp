@@ -6,9 +6,12 @@
 #include <QDrag>
 #include <QDropEvent>
 #include <QFont>
+#include <QHash>
 #include <QHeaderView>
 #include <QAction>
+#include <QItemSelection>
 #include <QItemSelectionModel>
+#include <QStringList>
 #include <QKeyEvent>
 #include <QMenu>
 #include <QMimeData>
@@ -61,7 +64,10 @@ protected:
         const bool light = palette().color(QPalette::Window).lightness() > 128;
         const QColor bg = light ? QColor(0xec, 0xec, 0xec) : QColor(0x23, 0x23, 0x23);
         const QColor fg = light ? QColor(0x20, 0x20, 0x20) : QColor(0xe0, 0xe0, 0xe0);
-        const QColor border = light ? QColor(0xd0, 0xd0, 0xd0) : QColor(0x1a, 0x1a, 0x1a);
+        // Divider between header sections. In dark mode 0x1a was nearly
+        // indistinguishable from the 0x23 header background, so the column
+        // separators vanished; use a mid grey that reads clearly on both.
+        const QColor border = light ? QColor(0xd0, 0xd0, 0xd0) : QColor(0x50, 0x50, 0x50);
 
         painter->save();
         painter->fillRect(rect, bg);
@@ -278,11 +284,73 @@ void FileListView::sortByHeaderSection(int column) {
         order = Qt::DescendingOrder;
     m_sortColumn = column;
     m_sortOrder = order;
+
+    // FileSystemModel::sort() does a begin/endResetModel, which clears both the
+    // selection and the current index. Remember them by path so we can restore
+    // the same files after the reorder and keep the user's focused file in view
+    // (centred), instead of jumping to the top with nothing selected.
+    auto *fsModel = qobject_cast<FileSystemModel *>(model());
+    QStringList selectedPaths;
+    QString currentPath;
+    if (fsModel) {
+        if (QItemSelectionModel *sel = selectionModel()) {
+            const QModelIndexList rows = sel->selectedRows();
+            selectedPaths.reserve(rows.size());
+            for (const QModelIndex &idx : rows)
+                selectedPaths << fsModel->fileInfoAt(idx.row()).path();
+        }
+        const QModelIndex cur = currentIndex();
+        if (cur.isValid())
+            currentPath = fsModel->fileInfoAt(cur.row()).path();
+    }
+
     horizontalHeader()->setSortIndicator(column, order);
     if (model())
         model()->sort(column, order);
     // The model reset above can drop the indicator; restore it so the arrow shows.
     horizontalHeader()->setSortIndicator(column, order);
+
+    if (fsModel && (!selectedPaths.isEmpty() || !currentPath.isEmpty())) {
+        // Map each surviving path back to its new row in the sorted model.
+        QHash<QString, int> rowByPath;
+        const int rowN = fsModel->rowCount();
+        rowByPath.reserve(rowN);
+        for (int r = 0; r < rowN; ++r)
+            rowByPath.insert(fsModel->fileInfoAt(r).path(), r);
+
+        QItemSelectionModel *sel = selectionModel();
+        const int lastCol = fsModel->columnCount() - 1;
+        if (sel) {
+            QItemSelection restored;
+            for (const QString &p : selectedPaths) {
+                const auto it = rowByPath.constFind(p);
+                if (it != rowByPath.constEnd())
+                    restored.select(fsModel->index(it.value(), 0),
+                                    fsModel->index(it.value(), lastCol));
+            }
+            sel->clearSelection();
+            if (!restored.isEmpty())
+                sel->select(restored, QItemSelectionModel::Select | QItemSelectionModel::Rows);
+        }
+
+        // Prefer the previously-current file as the row to reveal; fall back to
+        // the first still-present selected file.
+        int centerRow = -1;
+        const auto findRow = [&](const QString &p) {
+            const auto it = rowByPath.constFind(p);
+            return it != rowByPath.constEnd() ? it.value() : -1;
+        };
+        if (!currentPath.isEmpty())
+            centerRow = findRow(currentPath);
+        if (centerRow < 0 && !selectedPaths.isEmpty())
+            centerRow = findRow(selectedPaths.first());
+        if (centerRow >= 0) {
+            const QModelIndex cur = fsModel->index(centerRow, 0);
+            if (sel)
+                sel->setCurrentIndex(cur, QItemSelectionModel::NoUpdate);
+            scrollTo(cur, QAbstractItemView::PositionAtCenter);
+        }
+    }
 }
 
 void FileListView::showColumnMenu(const QPoint &pos) {
@@ -451,8 +519,16 @@ void FileListView::setPanelActive(bool active) {
         return;
     setProperty("panelActive", active);
     // Re-run the QSS attribute selector so the selection colour updates now.
+    // QStyleSheetStyle::polish() re-resolves the widget font from the global
+    // stylesheet, discarding any point size set via setFont() -- which is what
+    // reset the list to the default font the moment a file was selected (the
+    // panel becoming active triggers this repolish). Preserve and restore the
+    // user-chosen font across the repolish so the custom size sticks.
+    const QFont keep = font();
     style()->unpolish(this);
     style()->polish(this);
+    if (font() != keep)
+        setFont(keep);
     viewport()->update();
 }
 

@@ -27,6 +27,8 @@ add_library(ui STATIC
     AudioPlayer.cpp
     FunctionKeyBar.h
     FunctionKeyBar.cpp
+    NotepadPanel.h
+    NotepadPanel.cpp
     StatusBarWidget.h
     StatusBarWidget.cpp
     TabManager.h
@@ -63,6 +65,12 @@ add_library(ui STATIC
     dialogs/SecureWipeDialog.cpp
     dialogs/TransferProgressDialog.h
     dialogs/TransferProgressDialog.cpp
+    dialogs/ExternalConnectDialog.h
+    dialogs/ExternalConnectDialog.cpp
+    dialogs/AboutDialog.h
+    dialogs/AboutDialog.cpp
+    dialogs/UpdateDialog.h
+    dialogs/UpdateDialog.cpp
 )
 
 # zlib provides crc32() for the checksum dialog. It is already pulled in

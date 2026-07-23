@@ -21,6 +21,15 @@ public:
     // Refreshes the maximize/restore glyph after an external state change.
     void syncWindowState();
 
+    // Shows or hides the "New Version" badge. Hidden by default; MainWindow calls
+    // this with true once the daily update check (or a manual one) finds a newer
+    // release, and the badge's click emits updateRequested().
+    void setUpdateAvailable(bool available);
+
+signals:
+    // Emitted when the "New Version" badge is clicked (opens the update dialog).
+    void updateRequested();
+
 protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
@@ -31,5 +40,6 @@ protected:
 private:
     QWidget *m_window;
     QAbstractButton *m_maxButton = nullptr; // a TitleButton (cast in the .cpp)
+    QAbstractButton *m_updateBadge = nullptr; // "New Version" badge, hidden until an update is found
     bool m_pressed = false;                 // left button down (for drag vs double-click)
 };

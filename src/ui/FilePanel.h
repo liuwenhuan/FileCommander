@@ -43,7 +43,7 @@ public:
     // Shows a flat listing of arbitrary file paths (e.g. Ctrl+F search results
     // spanning many directories) in place of the current directory. Any normal
     // navigation (Back, breadcrumb, double-click, refresh) leaves this mode.
-    void showSearchResults(const QStringList &paths);
+    void showSearchResultsInNewTab(const QString &keyword, const QStringList &paths);
     void navigateUp();
     void goBack();
     void goForward();
@@ -157,7 +157,7 @@ signals:
     // Tab pressed in the list: caller should activate the other panel.
     void switchPanelRequested();
     // The "*" button was clicked: caller should pop a shortcut menu at pos.
-    void shortcutMenuRequested(const QPoint &globalPos);
+    void shortcutMenuRequested(FilePanel *panel, const QPoint &globalPos);
     // Tab strip right-clicked: caller should pop the directory-favorites menu.
     // tabIndex is the right-clicked tab (-1 if the click missed the tabs).
     void favoritesMenuRequested(const QPoint &globalPos, int tabIndex);

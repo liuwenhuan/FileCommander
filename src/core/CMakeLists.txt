@@ -37,6 +37,16 @@ add_library(core STATIC
     network/SmbProvider.cpp
     network/ConnectionStore.h
     network/ConnectionStore.cpp
+    network/SmbHostBrowser.h
+    network/SmbHostBrowser.cpp
+    devices/RemovableDeviceMonitor.h
+    devices/RemovableDeviceMonitor.cpp
+    notepad/NotepadStore.h
+    notepad/NotepadStore.cpp
+    update/UpdateChecker.h
+    update/UpdateChecker.cpp
+    update/Updater.h
+    update/Updater.cpp
 )
 
 # libssh2 powers the SFTP file backend (network/SftpProvider); libsecret stores
@@ -59,6 +69,9 @@ target_include_directories(core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/compare
     ${CMAKE_CURRENT_SOURCE_DIR}/media
     ${CMAKE_CURRENT_SOURCE_DIR}/network
+    ${CMAKE_CURRENT_SOURCE_DIR}/devices
+    ${CMAKE_CURRENT_SOURCE_DIR}/notepad
+    ${CMAKE_CURRENT_SOURCE_DIR}/update
     ${LIBSSH2_INCLUDE_DIRS}
     ${LIBSECRET_INCLUDE_DIRS}
     ${CURL_INCLUDE_DIRS}
@@ -70,6 +83,8 @@ target_link_libraries(core PUBLIC
     Qt5::Gui
     Qt5::Widgets
     Qt5::Concurrent
+    Qt5::DBus
+    Qt5::Network
     ${LIBSSH2_LIBRARIES}
     ${LIBSECRET_LIBRARIES}
     ${CURL_LIBRARIES}

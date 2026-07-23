@@ -227,3 +227,35 @@ int Settings::listRowHeight(const QString &side) const {
 void Settings::setListRowHeight(const QString &side, int height) {
     m_settings.setValue(QStringLiteral("view/listRowHeight/%1").arg(side), height);
 }
+
+QString Settings::extraKeyCommand(const QString &slot, const QString &defaultId) const {
+    return m_settings.value(QStringLiteral("functionKeys/%1").arg(slot), defaultId).toString();
+}
+
+void Settings::setExtraKeyCommand(const QString &slot, const QString &id) {
+    m_settings.setValue(QStringLiteral("functionKeys/%1").arg(slot), id);
+}
+
+bool Settings::autoOpenNewDevice() const {
+    return m_settings.value("behavior/autoOpenNewDevice", false).toBool();
+}
+
+void Settings::setAutoOpenNewDevice(bool on) {
+    m_settings.setValue("behavior/autoOpenNewDevice", on);
+}
+
+QString Settings::updateLastCheckDate() const {
+    return m_settings.value("update/lastCheckDate").toString();
+}
+
+void Settings::setUpdateLastCheckDate(const QString &date) {
+    m_settings.setValue("update/lastCheckDate", date);
+}
+
+bool Settings::notepadVisible() const {
+    return m_settings.value("view/notepadVisible", false).toBool();
+}
+
+void Settings::setNotepadVisible(bool on) {
+    m_settings.setValue("view/notepadVisible", on);
+}

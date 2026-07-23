@@ -3,6 +3,23 @@
         <file alias="light.qss">themes/light.qss</file>
         <file alias="dark.qss">themes/dark.qss</file>
     </qresource>
+    <qresource prefix="/icons">
+        <file alias="branch-closed-light.svg">icons/branch-closed-light.svg</file>
+        <file alias="branch-open-light.svg">icons/branch-open-light.svg</file>
+        <file alias="branch-closed-dark.svg">icons/branch-closed-dark.svg</file>
+        <file alias="branch-open-dark.svg">icons/branch-open-dark.svg</file>
+        <file alias="ext-connect.svg">icons/ext-connect.svg</file>
+        <file alias="notepad.svg">icons/notepad.svg</file>
+        <file alias="dev-usb.svg">icons/dev-usb.svg</file>
+        <file alias="dev-drive.svg">icons/dev-drive.svg</file>
+        <file alias="dev-hdd.svg">icons/dev-hdd.svg</file>
+        <file alias="dev-phone.svg">icons/dev-phone.svg</file>
+        <file alias="dev-sdcard.svg">icons/dev-sdcard.svg</file>
+        <file alias="dev-smb.svg">icons/dev-smb.svg</file>
+        <file alias="dev-sftp.svg">icons/dev-sftp.svg</file>
+        <file alias="dev-ftp.svg">icons/dev-ftp.svg</file>
+        <file alias="dev-webdav.svg">icons/dev-webdav.svg</file>
+    </qresource>
     <qresource prefix="/translations">
         <file alias="ttc_zh_CN.qm">translations/ttc_zh_CN.qm</file>
         <file alias="ttc_zh_TW.qm">translations/ttc_zh_TW.qm</file>

@@ -223,7 +223,11 @@ void ThumbnailDelegate::paint(QPainter *painter, const QStyleOptionViewItem &opt
 QSize ThumbnailDelegate::sizeHint(const QStyleOptionViewItem &option,
                                    const QModelIndex &index) const {
     Q_UNUSED(index);
-    QFont font = option.font;
+    return cellSizeHint(option.font);
+}
+
+QSize ThumbnailDelegate::cellSizeHint(const QFont &baseFont) const {
+    QFont font = baseFont;
     if (m_fontPointSize > 0)
         font.setPointSize(m_fontPointSize);
     const QFontMetrics fm(font);

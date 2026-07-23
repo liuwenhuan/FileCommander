@@ -15,6 +15,11 @@ struct TabState {
     QStringList selectedFiles;
     int sortColumn = 0;
     int sortOrder = 0; // Qt::AscendingOrder / Qt::DescendingOrder
+    // A non-empty flatPaths marks this tab as a flat search-results listing (a
+    // temporary virtual directory) rather than a real directory; title is the
+    // custom tab label (the search keyword) shown instead of a path-derived one.
+    QStringList flatPaths;
+    QString title;
 };
 
 // Owns the tab state for one FilePanel. Purely data/state -- the visual

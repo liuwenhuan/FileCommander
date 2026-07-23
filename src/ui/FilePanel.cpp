@@ -104,7 +104,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     connect(m_starButton, &QToolButton::clicked, this, [this]() {
         emit panelActivated(this); // act on this panel
         emit shortcutMenuRequested(
-            m_starButton->mapToGlobal(QPoint(0, m_starButton->height())));
+            this, m_starButton->mapToGlobal(QPoint(0, m_starButton->height())));
     });
 
     auto *addressRow = new QWidget(this);
@@ -159,9 +159,20 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_iconView->setModelColumn(0); // Name column carries the icon + label
     m_iconView->setViewMode(QListView::IconMode);
     m_iconView->setIconSize(QSize(64, 64));
-    m_iconView->setGridSize(QSize(110, 90));
+    // Grid size is set from the delegate's cell metrics once it's installed
+    // (see applyThumbnailIconSize() below), not hard-coded -- a too-short grid
+    // makes the selection tile overlap adjacent rows.
     m_iconView->setResizeMode(QListView::Adjust);
     m_iconView->setMovement(QListView::Static);
+    // QListView::setMovement(Static) has a side-effect: it calls
+    // setDragEnabled(false) and viewport->setAcceptDrops(false), which silently
+    // disables ALL drag-and-drop (a Static-layout icon view is assumed to be
+    // non-draggable). We want the Static grid layout but the same cross-panel
+    // DnD as the list view, so re-assert drag/drop here, after setMovement.
+    m_iconView->setDragEnabled(true);
+    m_iconView->setDragDropMode(QAbstractItemView::DragDrop);
+    m_iconView->setDefaultDropAction(Qt::CopyAction);
+    m_iconView->viewport()->setAcceptDrops(true);
     m_iconView->setUniformItemSizes(true);
     m_iconView->setWordWrap(true);
     m_iconView->setSelectionMode(QAbstractItemView::ExtendedSelection);
@@ -181,6 +192,9 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_thumbnailDelegate->setIconSize(64);
     m_thumbnailDelegate->setFontPointSize(m_iconView->font().pointSize());
     m_iconView->setItemDelegate(m_thumbnailDelegate);
+    // Now that the delegate is installed, size the grid from its cell metrics
+    // (single source of truth) so the selection tile frames exactly one cell.
+    applyThumbnailIconSize(64);
 
     // Single-click-on-already-selected-thumbnail starts an inline rename after
     // the double-click interval, mirroring FileListView's mouse handling (see
@@ -446,6 +460,8 @@ void FilePanel::applyHistoryEntry(const NavEntry &entry) {
         emit pathChanged(entry.dir);
         if (auto tab = m_tabManager->activeTab()) {
             tab->path = entry.dir;
+            tab->flatPaths.clear(); // no longer a search-results listing
+            tab->title.clear();     // drop the keyword title -> path-derived label
             updateActiveTabLabel();
         }
     }
@@ -476,6 +492,8 @@ void FilePanel::navigateTo(const QString &path) {
 
     if (auto tab = m_tabManager->activeTab()) {
         tab->path = cleaned;
+        tab->flatPaths.clear(); // no longer a search-results listing
+        tab->title.clear();     // drop the keyword title -> path-derived label
         updateActiveTabLabel();
     }
     updateNavButtons();
@@ -491,11 +509,24 @@ void FilePanel::navigateTabTo(int tabIndex, const QString &path) {
     navigateTo(path);
 }
 
-void FilePanel::showSearchResults(const QStringList &paths) {
-    // Snapshot the current location first so Back returns to it, then swap the
-    // view to the flat listing. The flat set is itself a history entry, so a
-    // later Back/Forward can return to these results within the session.
-    const NavEntry from = currentLocation();
+void FilePanel::showSearchResultsInNewTab(const QString &keyword, const QStringList &paths) {
+    if (paths.isEmpty())
+        return;
+    // The results are a temporary virtual directory: give them their own tab
+    // (titled after the search keyword) so the previously-browsed directory in
+    // the current tab is left untouched.
+    saveCurrentTabState();
+    const int idx = m_tabManager->addTab(QString());
+    if (auto tab = m_tabManager->tabAt(idx)) {
+        tab->flatPaths = paths;
+        tab->title = keyword.isEmpty() ? tr("Search results") : keyword;
+    }
+    m_tabManager->setActiveIndex(idx);
+    m_tabBar->blockSignals(true);
+    m_tabBar->addTab(tabLabelFor(m_tabManager->tabAt(idx)));
+    m_tabBar->setCurrentIndex(idx);
+    m_tabBar->blockSignals(false);
+
     // Leave archive browsing if active: a flat listing is a plain local-path set.
     if (m_archiveProvider) {
         m_archiveProvider.reset();
@@ -508,8 +539,8 @@ void FilePanel::showSearchResults(const QStringList &paths) {
         m_filterBar->hide();
         m_filterBar->blockSignals(false);
     }
-    if (from.isValid())
-        pushHistory(from);
+    // A fresh tab has no prior location to return to; Back/Forward start empty.
+    m_backHistory.clear();
     m_forwardHistory.clear();
     m_flatPaths = paths;
     m_model->setFlatEntries(paths);
@@ -773,10 +804,15 @@ void FilePanel::applyThumbnailIconSize(int iconPx) {
     if (!m_iconView)
         return;
     m_iconView->setIconSize(QSize(iconPx, iconPx));
-    const int textH = QFontMetrics(m_iconView->font()).height() * 2 + 8;
-    m_iconView->setGridSize(QSize(iconPx + 44, iconPx + textH));
     if (m_thumbnailDelegate) {
         m_thumbnailDelegate->setIconSize(iconPx);
+        // The grid height MUST equal the delegate's painted cell height, or the
+        // vertical layout step is shorter than the cell and the selection tile
+        // (drawn on option.rect) overlaps the rows above/below and clips the
+        // label. Width adds a little inter-column breathing room. cellSizeHint()
+        // is the shared source of truth with the delegate's sizeHint().
+        const QSize cell = m_thumbnailDelegate->cellSizeHint(m_iconView->font());
+        m_iconView->setGridSize(QSize(cell.width() + 26, cell.height()));
         m_iconView->doItemsLayout();
     }
 }
@@ -845,13 +881,20 @@ void FilePanel::selectPathAfterReload(const QString &path) {
 }
 
 bool FilePanel::removeDeletedAndSelectNext(const QStringList &paths) {
-    // Flat search results have no single directory to keep in sync -- let the
-    // caller do a normal refresh there.
-    if (paths.isEmpty() || m_model->isFlatMode())
+    if (paths.isEmpty())
         return false;
+    // Flat search-results listings have no directory to rescan -- refresh() is a
+    // no-op there because the model's rootPath is empty. So splice the deleted
+    // rows out of the model in place; removePaths() handles a flat listing the
+    // same as a directory one. Keep the panel's own m_flatPaths mirror in sync
+    // too, or a Back/Forward history snapshot would resurrect the deleted rows.
+    const bool flat = m_model->isFlatMode();
     const int anchor = m_model->removePaths(paths);
     if (anchor < 0)
         return false; // nothing matched (e.g. the delete failed) -> caller refreshes
+    if (flat)
+        for (const QString &p : paths)
+            m_flatPaths.removeAll(p);
 
     const int rows = m_model->rowCount();
     if (rows <= 0)
@@ -942,6 +985,10 @@ void FilePanel::calculateDirSizes() {
 }
 
 QString FilePanel::tabLabelFor(const QSharedPointer<TabState> &tab) const {
+    // A search-results tab carries an explicit title (the search keyword) and no
+    // single directory path, so honour it before the path-derived label.
+    if (tab && !tab->title.isEmpty())
+        return tab->title;
     if (!tab || tab->path.isEmpty())
         return tr("New Tab");
     // Directory-name label (unchanged local behaviour).
@@ -996,7 +1043,15 @@ void FilePanel::saveCurrentTabState() {
     auto tab = m_tabManager->activeTab();
     if (!tab)
         return;
-    tab->path = m_model->rootPath();
+    if (m_model->isFlatMode()) {
+        // Preserve the flat search-results listing (and its keyword title) so
+        // switching away and back restores it instead of a real directory.
+        tab->flatPaths = m_flatPaths;
+    } else {
+        tab->path = m_model->rootPath();
+        tab->flatPaths.clear();
+        tab->title.clear();
+    }
     tab->selectedFiles = selectedPaths();
 }
 
@@ -1008,8 +1063,13 @@ void FilePanel::loadTabState(int index) {
     m_forwardHistory.clear();
     m_pendingSelection = tab->selectedFiles;
     updateNavButtons();
-    if (!tab->path.isEmpty())
+    if (!tab->flatPaths.isEmpty()) {
+        m_flatPaths = tab->flatPaths;
+        m_model->setFlatEntries(tab->flatPaths);
+    } else if (!tab->path.isEmpty()) {
+        m_flatPaths.clear();
         m_model->setRootPath(tab->path);
+    }
 }
 
 void FilePanel::onTabBarCurrentChanged(int index) {

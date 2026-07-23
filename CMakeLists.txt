@@ -11,10 +11,17 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
-find_package(Qt5 REQUIRED COMPONENTS Core Widgets Gui Concurrent Test)
+find_package(Qt5 REQUIRED COMPONENTS Core Widgets Gui Concurrent Test DBus Network)
 find_package(LibArchive)
 
 enable_testing()
+
+# Generated version header (TTC_VERSION etc.) derived from the project()
+# version above, so the About box and the online-update checker can read the
+# running version at runtime instead of hard-coding it.
+configure_file(${CMAKE_SOURCE_DIR}/src/version.h.in
+               ${CMAKE_BINARY_DIR}/generated/version.h @ONLY)
+include_directories(${CMAKE_BINARY_DIR}/generated)
 
 add_subdirectory(src/core)
 add_subdirectory(src/widgets)

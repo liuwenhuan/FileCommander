@@ -16,6 +16,7 @@ class QTimer;
 
 #include "FileListView.h"
 #include "Settings.h"
+#include "update/UpdateChecker.h" // UpdateInfo (stored by value)
 
 class FilePanel;
 class FunctionKeyBar;
@@ -31,6 +32,9 @@ class QTreeView;
 class QFileSystemModel;
 class QMenu;
 class TitleBar;
+class RemovableDeviceMonitor;
+class SmbHostBrowser;
+class NotepadPanel;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -95,7 +99,7 @@ private slots:
     void compareDirectories();
     void openDirectoryHotlist(); // Ctrl+D
     void showProperties(); // F9
-    void showShortcutMenu(const QPoint &globalPos);
+    void showShortcutMenu(FilePanel *panel, const QPoint &globalPos);
     // Directory-favorites menu from a tab-strip right-click. tabIndex is the
     // right-clicked tab so a chosen favorite navigates that tab (-1 = active tab).
     void showFavoritesMenu(const QPoint &globalPos, int tabIndex);
@@ -113,6 +117,11 @@ private slots:
     void updateQuickView();
     void undoLast(); // Ctrl+Z
     void runCommand(const QString &command, const QString &directory);
+    void openExternalConnections(); // external-connect command (leading button default)
+    void toggleNotepad();           // quick-notepad command (trailing button default)
+    void showAboutDialog();         // View > About this program
+    void checkForUpdatesNow();      // View > Check for Updates (manual)
+    void showUpdateDialog();        // opens the pending-update dialog
 
     void navigateBack();
     void navigateForward();
@@ -141,6 +150,13 @@ private:
     void runFunctionKey(int index);       // execute the command assigned to F(3+index)
     void changeFunctionKey(int index);    // pick a new command for that key
     void updateFunctionKeyLabels();
+    // The two square buttons flanking the F-key row (slot "leading"/"trailing").
+    void runExtraKey(const QString &slot);
+    void changeExtraKey(const QString &slot);
+    void updateExtraKeyButtons();
+    // Shared command picker for changeFunctionKey/changeExtraKey. Returns the
+    // chosen command id, or an empty string if cancelled; currentId is preselected.
+    QString pickCommandId(const QString &title, const QString &currentId);
     FilePanel *otherPanel(FilePanel *panel) const;
     // The panel currently browsing `dir` (cleaned path match), or nullptr if
     // neither panel shows it (e.g. a drop onto a sub-folder that isn't open).
@@ -224,6 +240,16 @@ private:
     QMap<QString, QString> m_commandLabels;                  // id -> label (all commands)
     QList<QPair<QString, QString>> m_shortcutOrder; // id, label (keyed shortcuts only)
     QString m_fkeyCommands[6];  // command id per F3..F8 slot
+    QString m_leadingCommand;   // command id for the square button before F3
+    QString m_trailingCommand;  // command id for the square button after F8
 
     TitleBar *m_titleBar = nullptr; // self-drawn frameless title bar
+
+    // Feature batch: external devices, quick notepad, online update.
+    void setupFeatureBatch(); // constructor helper: wires the three subsystems below
+    RemovableDeviceMonitor *m_deviceMonitor = nullptr; // UDisks2 hot-plug watcher
+    SmbHostBrowser *m_smbBrowser = nullptr;            // SMB neighbourhood discovery
+    NotepadPanel *m_notepadPanel = nullptr;            // third-column quick notes
+    UpdateInfo m_pendingUpdate;                        // valid when m_hasUpdate
+    bool m_hasUpdate = false;                          // an update is available
 };

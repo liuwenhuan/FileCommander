@@ -7,6 +7,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QHBoxLayout>
+#include <QListView>
 #include <QListWidget>
 #include <QPushButton>
 #include <QVBoxLayout>
@@ -18,7 +19,7 @@ SearchDialog::SearchDialog(const QString &initialPath, QWidget *parent) : Framel
     resize(600, 500);
 
     m_engine = new SearchEngine(this);
-    connect(m_engine, &SearchEngine::resultFound, this, &SearchDialog::onResultFound);
+    connect(m_engine, &SearchEngine::resultsFound, this, &SearchDialog::onResultsFound);
     connect(m_engine, &SearchEngine::finished, this, &SearchDialog::onFinished);
 
     m_pathEdit = new QLineEdit(initialPath, this);
@@ -34,10 +35,15 @@ SearchDialog::SearchDialog(const QString &initialPath, QWidget *parent) : Framel
     form->addRow(QString(), m_subdirsCheck);
 
     m_searchButton = new QPushButton(tr("Search"), this);
-    connect(m_searchButton, &QPushButton::clicked, this, &SearchDialog::startSearch);
+    connect(m_searchButton, &QPushButton::clicked, this, &SearchDialog::onSearchButtonClicked);
     connect(m_patternEdit, &QLineEdit::returnPressed, this, &SearchDialog::startSearch);
 
     m_resultsList = new QListWidget(this);
+    // Every row is a single line of the same height; telling the view so lets it
+    // skip per-item size negotiation, and batched layout keeps insertion cheap
+    // even when a search streams thousands of paths in at once.
+    m_resultsList->setUniformItemSizes(true);
+    m_resultsList->setLayoutMode(QListView::Batched);
     connect(m_resultsList, &QListWidget::itemActivated, this, &SearchDialog::onResultActivated);
 
     m_statusLabel = new QLabel(this);
@@ -59,25 +65,43 @@ SearchDialog::SearchDialog(const QString &initialPath, QWidget *parent) : Framel
     layout->addLayout(bottomRow);
 }
 
+void SearchDialog::onSearchButtonClicked() {
+    // One button drives both actions: it starts a search when idle and stops the
+    // running one when a search is in progress (its label reflects the mode).
+    if (m_engine->isRunning()) {
+        m_engine->cancel();
+        m_statusLabel->setText(tr("Stopping..."));
+        m_searchButton->setEnabled(false); // re-enabled by onFinished()
+        return;
+    }
+    startSearch();
+}
+
 void SearchDialog::startSearch() {
     if (m_engine->isRunning())
         return;
     m_resultsList->clear();
     m_resultCount = 0;
     m_statusLabel->setText(tr("Searching..."));
-    m_searchButton->setEnabled(false);
+    m_searchButton->setText(tr("Stop search")); // becomes a cancel button while running
     m_engine->start(m_pathEdit->text(), m_patternEdit->text(), m_caseSensitiveCheck->isChecked(),
                      m_subdirsCheck->isChecked());
 }
 
-void SearchDialog::onResultFound(const QString &path) {
-    m_resultsList->addItem(path);
-    ++m_resultCount;
+void SearchDialog::onResultsFound(const QStringList &paths) {
+    m_resultsList->addItems(paths);
+    m_resultCount += paths.size();
+    m_statusLabel->setText(tr("Searching... %1 found").arg(m_resultCount));
 }
 
 void SearchDialog::onFinished() {
+    m_searchButton->setText(tr("Search"));
     m_searchButton->setEnabled(true);
-    m_statusLabel->setText(tr("%1 result(s)").arg(m_resultCount));
+    if (m_engine->wasTruncated())
+        m_statusLabel->setText(
+            tr("First %1 results (limit reached -- narrow the pattern)").arg(m_resultCount));
+    else
+        m_statusLabel->setText(tr("%1 result(s)").arg(m_resultCount));
     if (m_closePending)
         close();
 }
@@ -94,7 +118,7 @@ void SearchDialog::feedToPanel() {
     for (int i = 0; i < m_resultsList->count(); ++i)
         paths.append(m_resultsList->item(i)->text());
     if (!paths.isEmpty())
-        emit feedToPanelRequested(paths);
+        emit feedToPanelRequested(m_patternEdit->text().trimmed(), paths);
 }
 
 void SearchDialog::showEvent(QShowEvent *event) {
@@ -119,4 +143,19 @@ void SearchDialog::closeEvent(QCloseEvent *event) {
         return;
     }
     event->accept();
+}
+
+void SearchDialog::done(int r) {
+    // Escape / reject() land here (never in closeEvent), and QDialog::done()'s
+    // WA_DeleteOnClose path would delete this dialog -- and its child
+    // SearchEngine -- immediately, while the background worker still touches
+    // `this`, causing a crash. Mirror closeEvent(): if a search is running,
+    // cancel it and defer teardown until finished() fires; don't call the base.
+    if (m_engine->isRunning()) {
+        m_engine->cancel();
+        m_closePending = true;
+        m_statusLabel->setText(tr("Cancelling..."));
+        return;
+    }
+    QDialog::done(r);
 }

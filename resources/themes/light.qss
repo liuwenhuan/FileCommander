@@ -219,3 +219,46 @@ QScrollBar::handle {
 QScrollBar::handle:hover {
     background: #a8a8a8;
 }
+
+/* Directory-tree expand/collapse arrows. Dark-tinted SVGs so every branch
+   arrow stays legible and consistent against the light background,
+   regardless of row/selection state. */
+QTreeView::branch:has-children:!has-siblings:closed,
+QTreeView::branch:closed:has-children:has-siblings {
+    border-image: none;
+    image: url(:/icons/branch-closed-dark.svg);
+}
+QTreeView::branch:open:has-children:!has-siblings,
+QTreeView::branch:open:has-children:has-siblings {
+    border-image: none;
+    image: url(:/icons/branch-open-dark.svg);
+}
+
+/* External-connection fly-out: a floating panel anchored above its function-key
+   button. Rounded top corners + a blue accent border, with no bottom border so
+   it merges with the button it grows out of. */
+#ExternalConnectPanel {
+    background-color: #f5f5f5;
+    border: 1px solid #3d7deb;
+    border-bottom: none;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+}
+#ExternalConnectPanel QListWidget#ExternalConnectList {
+    background-color: #f5f5f5;
+    border: none;
+    outline: none;
+    padding: 4px 2px;
+}
+#ExternalConnectPanel QListWidget#ExternalConnectList::item {
+    padding: 5px 8px;
+    border-radius: 4px;
+    color: #303030;
+}
+#ExternalConnectPanel QListWidget#ExternalConnectList::item:hover {
+    background-color: #e6e6e6;
+}
+#ExternalConnectPanel QListWidget#ExternalConnectList::item:selected {
+    background-color: #3d7deb;
+    color: #ffffff;
+}

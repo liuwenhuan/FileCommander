@@ -22,6 +22,7 @@
 #include <QTreeWidget>
 #include <QFileDialog>
 #include <QFileSystemModel>
+#include <QIcon>
 #include <QInputDialog>
 #include <QItemSelectionModel>
 #include <QKeySequence>
@@ -95,6 +96,25 @@
 #include "dialogs/PropertiesDialog.h"
 #include "dialogs/ShortcutsDialog.h"
 #include "dialogs/SyncDialog.h"
+
+// Feature batch: external-connection picker, quick notepad, online update.
+#include "NotepadPanel.h"
+#include "dialogs/AboutDialog.h"
+#include "dialogs/ExternalConnectDialog.h"
+#include "dialogs/UpdateDialog.h"
+#include "devices/RemovableDeviceMonitor.h"
+#include "network/ConnectionStore.h"
+#include "network/CurlFtpProvider.h"
+#include "network/CurlWebDavProvider.h"
+#include "network/GvfsMounter.h"
+#include "network/SftpProvider.h"
+#include "network/SmbHostBrowser.h"
+#include "network/SmbProvider.h"
+#include "update/UpdateChecker.h"
+
+#include <QApplication>
+#include <QDate>
+#include <memory>
 
 namespace {
 // A splitter whose handle paints its own grey line across the full panel
@@ -676,11 +696,72 @@ void MainWindow::buildTitleBarMenus() {
     // address row — no global View-menu entry. Office document preview is an
     // always-on integrated feature now, so it has no toggle here.)
 
+    viewMenu->addSeparator();
+    viewMenu->addAction(tr("Check for &Updates..."), this, &MainWindow::checkForUpdatesNow);
+    viewMenu->addAction(tr("&About this Program..."), this, &MainWindow::showAboutDialog);
+
     // Embed the menus in our self-drawn title bar (app icon + menu buttons +
     // window buttons), placed where the menu bar would normally sit.
     m_titleBar = new TitleBar(this, {toolsMenu, configMenu, viewMenu});
     m_titleBar->setCursor(Qt::ArrowCursor); // don't inherit the window resize cursor
     setMenuWidget(m_titleBar);
+    // Clicking the title-bar "New Version" badge opens the pending-update dialog.
+    connect(m_titleBar, &TitleBar::updateRequested, this, &MainWindow::showUpdateDialog);
+
+    setupFeatureBatch();
+}
+
+// External-device hot-plug watcher, SMB neighbourhood browser, and the daily
+// background update check. Kept out of the (already large) constructor body.
+void MainWindow::setupFeatureBatch() {
+    // Removable-device hot-plug: when a new USB stick / phone / drive appears and
+    // the preference is on, mount it and open it in a fresh, activated tab.
+    m_deviceMonitor = new RemovableDeviceMonitor(this);
+    connect(m_deviceMonitor, &RemovableDeviceMonitor::deviceAdded, this,
+            [this](const RemovableDevice &dev) {
+                if (!m_settings.autoOpenNewDevice() || !m_activePanel)
+                    return;
+                QString mountPoint = dev.mountPoint;
+                if (mountPoint.isEmpty())
+                    mountPoint = m_deviceMonitor->ensureMounted(dev.id);
+                if (mountPoint.isEmpty())
+                    return;
+                m_activePanel->newTab();
+                m_activePanel->navigateTo(mountPoint);
+            });
+
+    // SMB neighbourhood discovery is owned here and injected into the
+    // external-connection picker; discovery is kicked off lazily by the dialog.
+    m_smbBrowser = new SmbHostBrowser(this);
+
+    // Restore the quick-notepad third column if it was open at last close.
+    if (m_settings.notepadVisible())
+        toggleNotepad();
+
+    // Once-a-day background update check: if we haven't checked today, ask the
+    // server quietly. A found update only lights the title-bar badge (no popup);
+    // the user opens it when they choose.
+    const QString today = QDate::currentDate().toString(Qt::ISODate);
+    if (m_settings.updateLastCheckDate() != today) {
+        auto *checker = new UpdateChecker(this);
+        auto stamp = [this, today] { m_settings.setUpdateLastCheckDate(today); };
+        connect(checker, &UpdateChecker::updateAvailable, this,
+                [this, checker, stamp](const UpdateInfo &info) {
+                    m_pendingUpdate = info;
+                    m_hasUpdate = true;
+                    if (m_titleBar)
+                        m_titleBar->setUpdateAvailable(true);
+                    stamp();
+                    checker->deleteLater();
+                });
+        connect(checker, &UpdateChecker::noUpdate, this, [checker, stamp] {
+            stamp();
+            checker->deleteLater();
+        });
+        connect(checker, &UpdateChecker::checkFailed, this,
+                [checker](const QString &) { checker->deleteLater(); });
+        checker->checkForUpdates();
+    }
 }
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
@@ -1017,9 +1098,7 @@ void MainWindow::updateFunctionKeyLabels() {
     }
 }
 
-void MainWindow::changeFunctionKey(int index) {
-    if (index < 0 || index >= 6)
-        return;
+QString MainWindow::pickCommandId(const QString &title, const QString &currentId) {
     // List every command by label so the user can pick a replacement.
     QList<QPair<QString, QString>> commands; // (label, id)
     for (auto it = m_commandLabels.constBegin(); it != m_commandLabels.constEnd(); ++it)
@@ -1028,7 +1107,7 @@ void MainWindow::changeFunctionKey(int index) {
               [](const auto &a, const auto &b) { return a.first.localeAwareCompare(b.first) < 0; });
 
     QDialog dlg(this);
-    dlg.setWindowTitle(tr("Change F%1 Function").arg(3 + index));
+    dlg.setWindowTitle(title);
     dlg.resize(420, 480);
 
     // Two columns: function name (left) and its shortcut (right-aligned).
@@ -1068,7 +1147,7 @@ void MainWindow::changeFunctionKey(int index) {
         item->setText(1, key.toString(QKeySequence::NativeText) + QStringLiteral("     "));
         item->setTextAlignment(1, Qt::AlignRight | Qt::AlignVCenter);
         item->setData(0, Qt::UserRole, id);
-        if (id == m_fkeyCommands[index])
+        if (id == currentId)
             currentItem = item;
     }
     tree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
@@ -1081,18 +1160,203 @@ void MainWindow::changeFunctionKey(int index) {
     connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
     connect(tree, &QTreeWidget::itemDoubleClicked, &dlg, &QDialog::accept);
     auto *layout = new QVBoxLayout(&dlg);
-    layout->addWidget(new QLabel(tr("Choose the function for the F%1 key:").arg(3 + index), &dlg));
+    layout->addWidget(new QLabel(tr("Choose a function:"), &dlg));
     layout->addWidget(tree);
     layout->addWidget(buttons);
 
-    if (dlg.exec() == QDialog::Accepted && tree->currentItem()) {
-        m_fkeyCommands[index] = tree->currentItem()->data(0, Qt::UserRole).toString();
-        m_settings.setFunctionKeyCommand(index, m_fkeyCommands[index]);
+    if (dlg.exec() == QDialog::Accepted && tree->currentItem())
+        return tree->currentItem()->data(0, Qt::UserRole).toString();
+    return QString();
+}
+
+void MainWindow::changeFunctionKey(int index) {
+    if (index < 0 || index >= 6)
+        return;
+    const QString id =
+        pickCommandId(tr("Change F%1 Function").arg(3 + index), m_fkeyCommands[index]);
+    if (!id.isEmpty()) {
+        m_fkeyCommands[index] = id;
+        m_settings.setFunctionKeyCommand(index, id);
         updateFunctionKeyLabels();
     }
 }
 
-void MainWindow::showShortcutMenu(const QPoint &globalPos) {
+void MainWindow::changeExtraKey(const QString &slot) {
+    const bool leading = (slot == QLatin1String("leading"));
+    const QString title =
+        leading ? tr("Change Leading Button Function") : tr("Change Trailing Button Function");
+    const QString current = leading ? m_leadingCommand : m_trailingCommand;
+    const QString id = pickCommandId(title, current);
+    if (id.isEmpty())
+        return;
+    if (leading)
+        m_leadingCommand = id;
+    else
+        m_trailingCommand = id;
+    m_settings.setExtraKeyCommand(slot, id);
+    updateExtraKeyButtons();
+}
+
+void MainWindow::runExtraKey(const QString &slot) {
+    const QString cmd = (slot == QLatin1String("leading")) ? m_leadingCommand : m_trailingCommand;
+    auto it = m_shortcutHandlers.constFind(cmd);
+    if (it != m_shortcutHandlers.constEnd() && it.value())
+        it.value()();
+}
+
+void MainWindow::updateExtraKeyButtons() {
+    m_leadingCommand = m_settings.extraKeyCommand("leading", "external-connect");
+    m_trailingCommand = m_settings.extraKeyCommand("trailing", "notepad");
+    m_functionKeyBar->setLeadingIcon(QIcon(QStringLiteral(":/icons/ext-connect.svg")));
+    m_functionKeyBar->setTrailingIcon(QIcon(QStringLiteral(":/icons/notepad.svg")));
+    m_functionKeyBar->setLeadingToolTip(m_commandLabels.value(m_leadingCommand, m_leadingCommand));
+    m_functionKeyBar->setTrailingToolTip(
+        m_commandLabels.value(m_trailingCommand, m_trailingCommand));
+}
+
+namespace {
+// Reopens a saved bookmark by building and connecting its native provider,
+// mirroring ConnectDialog::accept(). Returns the connected provider on success,
+// or a null pointer (with the reason in *error) on failure. The password is
+// pulled from the keyring by id.
+std::shared_ptr<FileProvider> providerForSaved(const SavedConnection &c, QString *error) {
+    const auto protocol = static_cast<GvfsMounter::Protocol>(c.protocol);
+    const QString password = c.anonymous ? QString() : ConnectionStore::loadPassword(c.id);
+    switch (protocol) {
+    case GvfsMounter::Protocol::Sftp: {
+        auto p = std::make_shared<SftpProvider>();
+        return p->connectToHost(c.host, c.port, c.user, password, error) ? p : nullptr;
+    }
+    case GvfsMounter::Protocol::Ftp: {
+        auto p = std::make_shared<CurlFtpProvider>();
+        return p->connectToHost(c.host, c.port, c.user, password, error) ? p : nullptr;
+    }
+    case GvfsMounter::Protocol::WebDav:
+    case GvfsMounter::Protocol::WebDavs: {
+        auto p = std::make_shared<CurlWebDavProvider>();
+        const bool useHttps = protocol == GvfsMounter::Protocol::WebDavs;
+        return p->connectToHost(c.host, c.port, c.user, password, useHttps, error) ? p : nullptr;
+    }
+    case GvfsMounter::Protocol::Smb: {
+        auto p = std::make_shared<SmbProvider>();
+        return p->connectToHost(c.host, c.user, password, QString(), c.anonymous, error) ? p
+                                                                                         : nullptr;
+    }
+    default:
+        if (error)
+            *error = MainWindow::tr("Unsupported connection type.");
+        return nullptr;
+    }
+}
+} // namespace
+
+void MainWindow::openExternalConnections() {
+    if (!m_activePanel)
+        return;
+    // A floating fly-out anchored above the launching (leading) button rather
+    // than a modal dialog: it aggregates removable devices, saved bookmarks and
+    // discovered SMB hosts; activating a row emits one of three signals which we
+    // turn into a navigation in the active panel. The panel is non-modal and
+    // deletes itself when it closes (WA_DeleteOnClose).
+    auto *dlg = new ExternalConnectDialog(m_deviceMonitor, m_smbBrowser, this);
+
+    connect(dlg, &ExternalConnectDialog::openLocalPath, this, [this](const QString &path) {
+        if (!path.isEmpty())
+            m_activePanel->navigateTo(path);
+    });
+    connect(dlg, &ExternalConnectDialog::openSavedConnection, this,
+            [this](const SavedConnection &conn) {
+                QString error;
+                QApplication::setOverrideCursor(Qt::WaitCursor);
+                auto provider = providerForSaved(conn, &error);
+                QApplication::restoreOverrideCursor();
+                if (!provider) {
+                    ttc::critical(this, tr("Connection Failed"),
+                                  tr("Could not connect to %1.\n\n%2").arg(conn.host, error));
+                    return;
+                }
+                m_activePanel->model()->setProvider(provider);
+                m_activePanel->navigateTo(conn.remotePath.isEmpty() ? QStringLiteral("/")
+                                                                     : conn.remotePath);
+            });
+    connect(dlg, &ExternalConnectDialog::openSmbHost, this, [this](const QString &hostName) {
+        if (hostName.isEmpty())
+            return;
+        // Browse the host's shares anonymously; "/" lists the shares available.
+        auto provider = std::make_shared<SmbProvider>();
+        QString error;
+        QApplication::setOverrideCursor(Qt::WaitCursor);
+        const bool ok =
+            provider->connectToHost(hostName, QString(), QString(), QString(), true, &error);
+        QApplication::restoreOverrideCursor();
+        if (!ok) {
+            ttc::critical(this, tr("Connection Failed"),
+                          tr("Could not connect to %1.\n\n%2").arg(hostName, error));
+            return;
+        }
+        m_activePanel->model()->setProvider(provider);
+        m_activePanel->navigateTo(QStringLiteral("/"));
+    });
+
+    // Pop up directly above the leading function-key button that launched it.
+    dlg->popUpAbove(m_functionKeyBar->leadingButtonGlobalRect());
+}
+
+void MainWindow::toggleNotepad() {
+    // Lazily build the third column and add it to the panel splitter the first
+    // time it's opened; thereafter just toggle its visibility.
+    if (!m_notepadPanel) {
+        m_notepadPanel = new NotepadPanel(m_panelSplitter);
+        m_panelSplitter->addWidget(m_notepadPanel);
+    }
+    const bool show = !m_notepadPanel->isVisible();
+    if (!show)
+        m_notepadPanel->saveAll();
+    m_notepadPanel->setVisible(show);
+    m_settings.setNotepadVisible(show);
+}
+
+void MainWindow::showAboutDialog() {
+    AboutDialog dlg(windowIcon(), this);
+    dlg.exec();
+}
+
+void MainWindow::checkForUpdatesNow() {
+    // A manual check: report the outcome directly (unlike the silent daily
+    // check, which only lights the title-bar badge).
+    auto *checker = new UpdateChecker(this);
+    connect(checker, &UpdateChecker::updateAvailable, this, [this, checker](const UpdateInfo &info) {
+        m_pendingUpdate = info;
+        m_hasUpdate = true;
+        if (m_titleBar)
+            m_titleBar->setUpdateAvailable(true);
+        m_settings.setUpdateLastCheckDate(QDate::currentDate().toString(Qt::ISODate));
+        checker->deleteLater();
+        showUpdateDialog();
+    });
+    connect(checker, &UpdateChecker::noUpdate, this, [this, checker] {
+        m_settings.setUpdateLastCheckDate(QDate::currentDate().toString(Qt::ISODate));
+        checker->deleteLater();
+        ttc::information(this, tr("Check for Updates"),
+                         tr("You are running the latest version."));
+    });
+    connect(checker, &UpdateChecker::checkFailed, this, [this, checker](const QString &err) {
+        checker->deleteLater();
+        ttc::warning(this, tr("Check for Updates"),
+                     tr("Could not check for updates.\n\n%1").arg(err));
+    });
+    checker->checkForUpdates();
+}
+
+void MainWindow::showUpdateDialog() {
+    if (!m_hasUpdate)
+        return;
+    UpdateDialog dlg(m_pendingUpdate, this);
+    connect(&dlg, &UpdateDialog::restartRequested, qApp, &QApplication::quit);
+    dlg.exec();
+}
+
+void MainWindow::showShortcutMenu(FilePanel *panel, const QPoint &globalPos) {
     QMenu menu(this);
 
     auto addEntry = [&](const QString &label, const QString &keyText, std::function<void()> act) {
@@ -1134,24 +1398,23 @@ void MainWindow::showShortcutMenu(const QPoint &globalPos) {
 
     // Select/unselect by wildcard mask -- these live on the panel (+/-), not in
     // the registered shortcut table, so wire them explicitly.
-    addEntry(tr("Select files by pattern (e.g. *.zip)"), QStringLiteral("+"), [this]() {
-        if (m_activePanel)
-            m_activePanel->selectByPattern(true);
+    addEntry(tr("Select files by pattern (e.g. *.zip)"), QStringLiteral("+"), [panel]() {
+        if (panel)
+            panel->selectByPattern(true);
     });
-    addEntry(tr("Unselect files by pattern"), QStringLiteral("-"), [this]() {
-        if (m_activePanel)
-            m_activePanel->selectByPattern(false);
+    addEntry(tr("Unselect files by pattern"), QStringLiteral("-"), [panel]() {
+        if (panel)
+            panel->selectByPattern(false);
     });
-    addEntry(tr("Invert selection"), QStringLiteral("*"), [this]() {
-        if (m_activePanel)
-            m_activePanel->invertSelection();
+    addEntry(tr("Invert selection"), QStringLiteral("*"), [panel]() {
+        if (panel)
+            panel->invertSelection();
     });
-    if (m_activePanel) {
-        const QString label = m_activePanel->isThumbnailMode() ? tr("Switch to list view")
-                                                               : tr("Switch to thumbnail view");
-        addEntry(label, QString(), [this]() {
-            if (m_activePanel)
-                m_activePanel->toggleViewMode();
+    if (panel) {
+        const QString label = panel->isThumbnailMode() ? tr("Switch to list view")
+                                                        : tr("Switch to thumbnail view");
+        addEntry(label, QString(), [panel]() {
+            panel->toggleViewMode();
         });
     }
 
@@ -1165,9 +1428,9 @@ void MainWindow::showShortcutMenu(const QPoint &globalPos) {
     // left panel that's the splitter between the two panels -- instead of
     // letting it open rightward from the button and spill past the divider.
     QPoint pos = globalPos;
-    if (m_activePanel) {
+    if (panel) {
         const int menuWidth = menu.sizeHint().width();
-        const int rightEdge = m_activePanel->mapToGlobal(QPoint(m_activePanel->width(), 0)).x();
+        const int rightEdge = panel->mapToGlobal(QPoint(panel->width(), 0)).x();
         pos.setX(rightEdge - menuWidth);
     }
     menu.exec(pos);
@@ -1182,6 +1445,9 @@ void MainWindow::setupShortcuts() {
     registerCommand("move", tr("Move"), [this] { moveSelected(); });
     registerCommand("mkdir", tr("New Folder"), [this] { makeDirectory(); });
     registerCommand("delete", tr("Delete (to trash)"), [this] { deleteSelected(false); });
+    registerCommand("external-connect", tr("Connect External / Devices"),
+                    [this] { openExternalConnections(); });
+    registerCommand("notepad", tr("Quick Notepad"), [this] { toggleNotepad(); });
     bindShortcut("deletePermanent", tr("Delete Permanently"),
                  QKeySequence(Qt::SHIFT | Qt::Key_Delete), [this] { deleteSelected(true); });
     bindShortcut("deleteAlt", tr("Delete (Del key)"), QKeySequence(Qt::Key_Delete),
@@ -1284,9 +1550,18 @@ void MainWindow::setupShortcuts() {
         connect(m_functionKeyBar, &FunctionKeyBar::activated, this, &MainWindow::runFunctionKey);
         connect(m_functionKeyBar, &FunctionKeyBar::changeRequested, this,
                 &MainWindow::changeFunctionKey);
+        connect(m_functionKeyBar, &FunctionKeyBar::leadingActivated, this,
+                [this] { runExtraKey(QStringLiteral("leading")); });
+        connect(m_functionKeyBar, &FunctionKeyBar::trailingActivated, this,
+                [this] { runExtraKey(QStringLiteral("trailing")); });
+        connect(m_functionKeyBar, &FunctionKeyBar::leadingChangeRequested, this,
+                [this] { changeExtraKey(QStringLiteral("leading")); });
+        connect(m_functionKeyBar, &FunctionKeyBar::trailingChangeRequested, this,
+                [this] { changeExtraKey(QStringLiteral("trailing")); });
         m_shortcutsBuilt = true;
     }
     updateFunctionKeyLabels();
+    updateExtraKeyButtons();
 }
 
 void MainWindow::showProperties() {
@@ -1868,7 +2143,20 @@ void MainWindow::pasteFromClipboard() {
         return;
 
     const QString destDir = m_activePanel->currentPath();
+
+    // Refresh only the affected panels afterwards (like copy/move/drop), never a
+    // blanket rescan of both: select the arriving file(s) in the destination,
+    // and for a cut also drop the moved rows from the source panel in place
+    // instead of rescanning it.
+    m_pendingDestPanel = m_activePanel;
+    m_pendingDestPaths = destPathsFor(sources, destDir);
+
     if (isCut) {
+        FilePanel *srcPanel = panelShowingDir(QFileInfo(sources.first()).absolutePath());
+        if (srcPanel) {
+            m_pendingMovePanel = srcPanel;
+            m_pendingMovePaths = sources;
+        }
         recordMoveUndo(sources, destDir);
         m_queue->enqueueMove(sources, destDir);
         QGuiApplication::clipboard()->clear();
@@ -2205,12 +2493,13 @@ void MainWindow::openSearch() {
         QFileInfo info(path);
         panel->navigateTo(info.isDir() ? path : info.absolutePath());
     });
-    // "Send to panel": list every result in the *currently* active panel as a
-    // flat cross-directory view (Back / breadcrumb / refresh leaves it).
-    connect(dlg, &SearchDialog::feedToPanelRequested, this, [this](const QStringList &paths) {
-        if (m_activePanel)
-            m_activePanel->showSearchResults(paths);
-    });
+    // "Send to panel": open every result as a flat cross-directory listing in a
+    // NEW tab of the active panel, titled after the search keyword.
+    connect(dlg, &SearchDialog::feedToPanelRequested, this,
+            [this](const QString &keyword, const QStringList &paths) {
+                if (m_activePanel)
+                    m_activePanel->showSearchResultsInNewTab(keyword, paths);
+            });
     dlg->show();
 }
 
@@ -2254,6 +2543,10 @@ void MainWindow::closeEvent(QCloseEvent *event) {
     m_settings.setViewHeaderState(m_leftPanel->view()->horizontalHeader()->saveState());
     // Persist the panel divider position.
     m_settings.setPanelSplitterState(m_panelSplitter->saveState());
+
+    // Flush any unsaved quick notes before the app goes away.
+    if (m_notepadPanel)
+        m_notepadPanel->saveAll();
 
     SessionPanelData leftSession, rightSession;
     for (const auto &t : m_leftPanel->tabSnapshot())

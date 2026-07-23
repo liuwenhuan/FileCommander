@@ -21,20 +21,29 @@ public:
 
 signals:
     void navigateRequested(const QString &path);
-    // Emitted by the "Send to panel" button with every result path, so the
-    // active file panel can list them all TC "feed-to-listbox" style (they span
+    // Emitted by the "Send to panel" button with the search keyword and every
+    // result path, so the active file panel can open them as a flat
+    // "feed-to-listbox" listing in a new tab titled after the keyword (they span
     // many directories, so a single navigate wouldn't show them together).
-    void feedToPanelRequested(const QStringList &paths);
+    void feedToPanelRequested(const QString &keyword, const QStringList &paths);
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    // ESC / reject() reach a QDialog through done(), not closeEvent() -- and
+    // done()'s WA_DeleteOnClose handling would delete us (and the child
+    // SearchEngine) while a background search still runs. Override it to route
+    // through the same "cancel then defer teardown" guard as closeEvent().
+    void done(int r) override;
     // Put keyboard focus on the name-pattern field (not the directory field)
     // whenever the dialog is shown, so the user can type a filename immediately.
     void showEvent(QShowEvent *event) override;
 
 private slots:
+    // Toggles between starting a search and stopping the running one, matching
+    // the search button's current label.
+    void onSearchButtonClicked();
     void startSearch();
-    void onResultFound(const QString &path);
+    void onResultsFound(const QStringList &paths);
     void onFinished();
     void onResultActivated();
     void feedToPanel();
