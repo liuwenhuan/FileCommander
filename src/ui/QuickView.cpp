@@ -1121,7 +1121,11 @@ void QuickView::tryUnlock() {
     if (m_encryptedKind == EncryptedKind::Office) {
         // office_oxide decrypts in-process and renders directly; renderOffice()
         // shows the document on success or refreshes feedback on a wrong password.
-        renderOffice(m_encryptedPath, password);
+        // Unlock is an explicit user action, not a cursor sweep: render immediately and
+    // cancel any pending debounced convert.
+    if (m_officeConvertTimer)
+        m_officeConvertTimer->stop();
+    startOfficeRender(m_encryptedPath, password);
         return;
     }
     // Archive: retry the current chain level with the entered password. The load
@@ -1133,6 +1137,22 @@ void QuickView::tryUnlock() {
 }
 
 void QuickView::renderOffice(const QString &path, const QString &password) {
+    // Debounce rapid file switches: a fast arrow-key sweep through a folder would
+    // otherwise spawn one office_oxide process per file (the gen counter only drops
+    // the stale *result*, the subprocess still ran). Stash the target and (re)start
+    // the timer; the convert fires once the cursor settles on a file.
+    m_pendingOfficePath = path;
+    m_pendingOfficePassword = password;
+    if (!m_officeConvertTimer) {
+        m_officeConvertTimer = new QTimer(this);
+        m_officeConvertTimer->setSingleShot(true);
+        connect(m_officeConvertTimer, &QTimer::timeout, this,
+                [this]() { startOfficeRender(m_pendingOfficePath, m_pendingOfficePassword); });
+    }
+    m_officeConvertTimer->start(150);
+}
+
+void QuickView::startOfficeRender(const QString &path, const QString &password) {
     // Run the conversion (subprocess + JSON parse -- up to a second-plus on a big
     // deck) off the GUI thread so selecting a pptx never freezes the UI. A per-call
     // gen guards against a stale result painting over a newer selection.

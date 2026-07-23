@@ -140,7 +140,8 @@ private:
     // so it runs via QtConcurrent and the result is applied by handleOfficeResult()
     // on the GUI thread; a generation counter drops results superseded by a newer
     // selection.
-    void renderOffice(const QString &path, const QString &password);
+    void renderOffice(const QString &path, const QString &password); // debounced entry point
+    void startOfficeRender(const QString &path, const QString &password); // runs the actual convert
     void handleOfficeResult(const OfficeConverter::Result &r, const QString &path);
     // Reads the inline password field and re-renders m_encryptedPath with it,
     // giving feedback in place on a wrong password. Wired to the unlock button and
@@ -164,6 +165,10 @@ private:
     // deck arriving after the fast first-N paint), extending the scene downward
     // without disturbing the current scroll position or the loaded slides.
     void appendRemainingSlides(const QStringList &fullSvgs);
+    // Append slides from index `from` in small chunks across event-loop turns (keyed
+    // to the office gen so a file switch abandons a half-built deck), so a large deck
+    // doesn't block the UI building every placeholder + parsing metadata at once.
+    void appendSlidesChunk(const QStringList &fullSvgs, int from, int gen);
     void relayoutSlides();        // recompute the fit-to-width view transform
     void renderVisibleSlides();   // build on-screen slides, free far ones, update readout
     void buildSlideItem(int i);   // replace slide i's placeholder with its full item tree
@@ -231,6 +236,12 @@ private:
     // displayed (the embedded preview follows the file-list cursor).
     int m_officeGen = 0;
     QString m_officeShownPath;
+    // Debounce rapid file switches: a fast arrow-key sweep through a folder would
+    // otherwise spawn one office_oxide process per file. renderOffice() only stashes
+    // the target and (re)starts this timer; the convert fires once the cursor settles.
+    QTimer *m_officeConvertTimer = nullptr;
+    QString m_pendingOfficePath;
+    QString m_pendingOfficePassword;
 
     // Encrypted-office page: an inline password field (no popup) with feedback
     // shown in place. office_oxide decrypts in-process, so a correct password
