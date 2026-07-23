@@ -3,6 +3,7 @@
 #include <QByteArray>
 #include <QSizeF>
 #include <QString>
+#include <QStringList>
 
 class QGraphicsItem;
 
@@ -41,5 +42,12 @@ QGraphicsItem *buildSlidePage(const QByteArray &svg, QSizeF *outSizeScene, QStri
 // can lay out placeholders and populate copy-all text while only the on-screen
 // slides pay the cost of a full buildSlidePage().
 void parseSlideMeta(const QByteArray &svg, QSizeF *outSizeScene, QString *outText);
+
+// Text-only, per-paragraph parse: each non-empty <text> element's inner text in
+// document order, applying the same skip-empty rule buildSlidePage uses when it
+// creates one QGraphicsTextItem per <text>. So the Nth string here corresponds to
+// the Nth text item of the built slide -- used by in-page find to locate a match's
+// item without decoding the slide's images.
+QStringList parseSlideTexts(const QByteArray &svg);
 
 } // namespace SlideScene

@@ -24,6 +24,7 @@
 #include <QStringRef>
 #include <QTextDocument>
 #include <QTextOption>
+#include <QTransform>
 #include <QVector>
 #include <QXmlStreamReader>
 
@@ -59,6 +60,31 @@ double attrNum(const QXmlStreamAttributes &attrs, const char *name, double def =
     return ok ? v : def;
 }
 
+// Apply an SVG stroke-dasharray to a pen. Qt expresses dash lengths as multiples
+// of the pen width, and office_oxide emits dasharray in the same user units as
+// stroke-width, so dividing by stroke-width gives the scale-independent pattern
+// (e.g. dasharray "101600 76200" at stroke-width 25400 -> [4, 3]).
+void applyDash(QPen &pen, const QXmlStreamAttributes &attrs) {
+    const QString da = attrs.value(QLatin1String("stroke-dasharray")).toString();
+    if (da.isEmpty() || da == QLatin1String("none"))
+        return;
+    const double sw = attrNum(attrs, "stroke-width", 0.0);
+    const double unit = sw > 0.0 ? sw : 1.0;
+    QVector<qreal> pat;
+    const QStringList toks =
+        da.split(QRegExp(QStringLiteral("[\\s,]+")), QString::SkipEmptyParts);
+    for (const QString &t : toks) {
+        bool ok = false;
+        const double v = t.toDouble(&ok);
+        if (ok)
+            pat.append(qMax(0.01, v / unit));
+    }
+    if (pat.size() % 2 == 1)
+        pat += pat; // SVG repeats an odd-length list to make it even
+    if (!pat.isEmpty())
+        pen.setDashPattern(pat);
+}
+
 // Apply a stroke (colour + width) to a shape's pen, or give it a cosmetic
 // no-op pen when the SVG specifies no stroke.
 void applyStroke(QAbstractGraphicsShapeItem *item, const QXmlStreamAttributes &attrs) {
@@ -68,6 +94,7 @@ void applyStroke(QAbstractGraphicsShapeItem *item, const QXmlStreamAttributes &a
         QPen pen(stroke);
         pen.setWidthF(w > 0.0 ? w : 0.0); // width 0 == cosmetic hairline
         pen.setCosmetic(w <= 0.0);
+        applyDash(pen, attrs);
         item->setPen(pen);
     } else {
         item->setPen(Qt::NoPen);
@@ -128,6 +155,7 @@ void addLine(const QXmlStreamAttributes &attrs, QGraphicsItem *page) {
     QPen pen(stroke.isValid() ? stroke : QColor(Qt::black));
     pen.setWidthF(w > 0.0 ? w : 0.0);
     pen.setCosmetic(w <= 0.0);
+    applyDash(pen, attrs);
     item->setPen(pen);
 }
 
@@ -302,6 +330,13 @@ void addPath(const QXmlStreamAttributes &attrs, QGraphicsItem *page) {
 
 // <image x y width height (xlink:)href="data:image/<fmt>;base64,...">. A decode
 // failure is swallowed (no item added) rather than fatal.
+//
+// PowerPoint picture crops (a:srcRect) arrive as data-crop-l/t/r/b: the fraction
+// of the source image trimmed off each edge, expressed as an integer per-mille of
+// 100000 (so 12500 == 12.5% trimmed off that edge; absent == 0). We copy() the
+// cropped sub-rect out of the decoded pixmap, then scale THAT sub-image to fill the
+// SVG's target box exactly (non-uniform) -- the whole point of a crop is that the
+// retained region maps onto the shape box, so letterboxing it would be wrong.
 void addImage(const QXmlStreamAttributes &attrs, QGraphicsItem *page) {
     const double x = attrNum(attrs, "x") * S;
     const double y = attrNum(attrs, "y") * S;
@@ -324,13 +359,37 @@ void addImage(const QXmlStreamAttributes &attrs, QGraphicsItem *page) {
     QImage img;
     if (!img.loadFromData(bytes))
         return;
-    auto *item = new QGraphicsPixmapItem(QPixmap::fromImage(img), page);
+    QPixmap pm = QPixmap::fromImage(img);
+
+    // Crop fractions (per-mille of 100000) trimmed off each edge; default 0.
+    const double lf = attrNum(attrs, "data-crop-l", 0.0) / 100000.0;
+    const double tf = attrNum(attrs, "data-crop-t", 0.0) / 100000.0;
+    const double rf = attrNum(attrs, "data-crop-r", 0.0) / 100000.0;
+    const double bf = attrNum(attrs, "data-crop-b", 0.0) / 100000.0;
+    const bool cropped = (lf > 0.0 || tf > 0.0 || rf > 0.0 || bf > 0.0) &&
+                         (lf + rf < 1.0) && (tf + bf < 1.0);
+    if (cropped) {
+        const int iw = pm.width(), ih = pm.height();
+        const int cx = qRound(iw * lf);
+        const int cy = qRound(ih * tf);
+        const int cw = qRound(iw * (1.0 - lf - rf));
+        const int ch = qRound(ih * (1.0 - tf - bf));
+        if (cw > 0 && ch > 0)
+            pm = pm.copy(cx, cy, cw, ch);
+    }
+
+    auto *item = new QGraphicsPixmapItem(pm, page);
     item->setTransformationMode(Qt::SmoothTransformation);
-    // Scale the (native-resolution) pixmap into the SVG's target box, then place
-    // it. The pixmap item draws in its own pixels, so scale = box / pixel size.
-    const double sx = img.width() > 0 ? w / double(img.width()) : 1.0;
-    const double sy = img.height() > 0 ? h / double(img.height()) : 1.0;
-    item->setScale(qMin(sx, sy)); // uniform scale (matches xMidYMid meet intent)
+    // Scale the (possibly cropped) pixmap into the SVG's target box. The pixmap item
+    // draws in its own pixels, so scale = box / pixel size. A crop fills the box
+    // exactly (non-uniform); an uncropped image keeps the xMidYMid-meet uniform scale.
+    const double sx = pm.width() > 0 ? w / double(pm.width()) : 1.0;
+    const double sy = pm.height() > 0 ? h / double(pm.height()) : 1.0;
+    if (cropped) {
+        item->setTransform(QTransform::fromScale(sx, sy));
+    } else {
+        item->setScale(qMin(sx, sy)); // uniform scale (matches xMidYMid meet intent)
+    }
     item->setPos(x, y);
 }
 
@@ -348,6 +407,7 @@ void addImage(const QXmlStreamAttributes &attrs, QGraphicsItem *page) {
 struct TextEntry {
     int box;                 // data-box id (-1 == none; excluded from reflow)
     QGraphicsTextItem *item;
+    double vcenter;          // data-vc (scene units); <0 == not vertically centred
 };
 
 void addText(const QXmlStreamAttributes &attrs, const QString &text, QGraphicsItem *page,
@@ -381,6 +441,10 @@ void addText(const QXmlStreamAttributes &attrs, const QString &text, QGraphicsIt
         font.setBold(true);
     if (attrs.value(QLatin1String("font-style")) == QLatin1String("italic"))
         font.setItalic(true);
+    // oxide flags run-level underline as text-decoration="underline" (subscript /
+    // superscript it bakes into y + font-size, so nothing to do here).
+    if (attrs.value(QLatin1String("text-decoration")) == QLatin1String("underline"))
+        font.setUnderline(true);
 
     const QFontMetricsF fm(font);
     const QStringRef anchor = attrs.value(QLatin1String("text-anchor"));
@@ -411,14 +475,25 @@ void addText(const QXmlStreamAttributes &attrs, const QString &text, QGraphicsIt
         // Break within the box even for a long unbroken run (URLs, CJK) so text
         // never spills past the box edge.
         opt.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+        // If even a single glyph is wider than the wrap box, Qt lays that
+        // overflowing line out from the box's left edge -- it cannot centre a
+        // line wider than the box -- which shoves centred/right text off the
+        // box centre. This happens for an oversized glyph in a tiny box (a
+        // numeral centred in a small circle) and for per-character CJK wrapping.
+        // Centre/right on the widest glyph's own width in that case so the ink
+        // stays on the anchor point instead of drifting right.
+        double widestChar = 0.0;
+        for (const QChar &c : text)
+            widestChar = qMax(widestChar, fm.horizontalAdvance(c));
+        const double refW = qMax(dataW, widestChar);
         Qt::Alignment align = Qt::AlignLeft;
         double left = x; // anchor=start: box left edge is the anchor point
         if (anchor == QLatin1String("middle")) {
             align = Qt::AlignHCenter;
-            left = x - dataW / 2.0;
+            left = x - refW / 2.0;
         } else if (anchor == QLatin1String("end")) {
             align = Qt::AlignRight;
-            left = x - dataW;
+            left = x - refW;
         }
         opt.setAlignment(align);
         item->document()->setDefaultTextOption(opt);
@@ -442,7 +517,11 @@ void addText(const QXmlStreamAttributes &attrs, const QString &text, QGraphicsIt
     if (entries) {
         bool hasBox = false;
         const int box = attrs.value(QLatin1String("data-box")).toInt(&hasBox);
-        entries->push_back({hasBox ? box : -1, item});
+        // data-vc (EMU box centre Y) marks a vertically-centred box: oxide bakes
+        // the baseline assuming no wrap, so reflowTextBoxes re-centres the block
+        // after ttc word-wraps it. Absent (< 0) for top/bottom-anchored boxes.
+        const double vc = attrNum(attrs, "data-vc", -1.0);
+        entries->push_back({hasBox ? box : -1, item, vc >= 0.0 ? vc * S : -1.0});
     }
 }
 
@@ -456,28 +535,55 @@ void addText(const QXmlStreamAttributes &attrs, const QString &text, QGraphicsIt
 // as much as the wrap required. Different boxes are independent.
 void reflowTextBoxes(const QVector<TextEntry> &entries) {
     QHash<int, QVector<QGraphicsTextItem *>> groups;
+    QHash<int, double> boxVCenter; // box id -> data-vc (scene units), <0 if none
     for (const TextEntry &e : entries) {
-        if (e.box >= 0)
+        if (e.box >= 0) {
             groups[e.box].push_back(e.item);
+            if (e.vcenter >= 0.0)
+                boxVCenter[e.box] = e.vcenter;
+        }
     }
     for (auto it = groups.begin(); it != groups.end(); ++it) {
         QVector<QGraphicsTextItem *> &items = it.value();
-        if (items.size() < 2)
-            continue;
         std::sort(items.begin(), items.end(),
                   [](QGraphicsTextItem *a, QGraphicsTextItem *b) { return a->y() < b->y(); });
-        // Capture the authored tops before moving anything.
-        QVector<double> origTop;
-        origTop.reserve(items.size());
-        for (QGraphicsTextItem *it2 : items)
-            origTop.push_back(it2->y());
 
-        double shift = 0.0;
-        for (int i = 1; i < items.size(); ++i) {
-            const double reserved = origTop[i] - origTop[i - 1]; // space oxide gave prev
-            const double actual = items[i - 1]->boundingRect().height();
-            shift += qMax(0.0, actual - reserved); // only when prev overran its slot
-            items[i]->setY(origTop[i] + shift);
+        // Push same-box paragraphs down so a word-wrapped (taller) paragraph
+        // never overlaps the next paragraph in the same box.
+        if (items.size() >= 2) {
+            QVector<double> origTop;
+            origTop.reserve(items.size());
+            for (QGraphicsTextItem *it2 : items)
+                origTop.push_back(it2->y());
+
+            double shift = 0.0;
+            for (int i = 1; i < items.size(); ++i) {
+                const double reserved = origTop[i] - origTop[i - 1]; // space oxide gave prev
+                const double actual = items[i - 1]->boundingRect().height();
+                shift += qMax(0.0, actual - reserved); // only when prev overran its slot
+                items[i]->setY(origTop[i] + shift);
+            }
+        }
+
+        // Re-centre a vertically-centred box after wrapping. oxide bakes the
+        // baseline assuming each <text> is one line and centres that assumed
+        // block on the box centre. When ttc word-wraps a line into N lines the
+        // block grows downward (push-down above expands the bottom), so its
+        // centre drifts below the box centre by half the total wrap overflow.
+        // Shift the whole group up by that half so the real block re-centres --
+        // a no-wrap box has zero overflow and stays exactly as oxide authored,
+        // preserving oxide's single-line ink correction.
+        if (boxVCenter.value(it.key(), -1.0) >= 0.0) {
+            double extra = 0.0;
+            for (QGraphicsTextItem *g : items) {
+                const QFontMetricsF gfm(g->font());
+                extra += qMax(0.0, g->boundingRect().height() - gfm.lineSpacing());
+            }
+            const double shiftUp = extra / 2.0;
+            if (shiftUp > 0.0) {
+                for (QGraphicsTextItem *g : items)
+                    g->setY(g->y() - shiftUp);
+            }
         }
     }
 }
@@ -627,6 +733,36 @@ void parseSlideMeta(const QByteArray &svg, QSizeF *outSizeScene, QString *outTex
         }
         pos = close + 7;
     }
+}
+
+QStringList parseSlideTexts(const QByteArray &svg) {
+    // Same flat <text> scan as parseSlideMeta, but each non-empty paragraph is
+    // returned separately (and unclipped) rather than concatenated, so its index
+    // lines up with the slide's built text items.
+    QStringList out;
+    int pos = 0;
+    while (true) {
+        const int lt = svg.indexOf("<text", pos);
+        if (lt < 0 || lt + 5 >= svg.size())
+            break;
+        const char after = svg.at(lt + 5); // guard against <textPath>
+        if (after != ' ' && after != '>' && after != '\t' && after != '\n') {
+            pos = lt + 5;
+            continue;
+        }
+        const int gt = svg.indexOf('>', lt);
+        if (gt < 0)
+            break;
+        const int close = svg.indexOf("</text>", gt);
+        if (close < 0)
+            break;
+        const QByteArray inner = svg.mid(gt + 1, close - gt - 1);
+        const QString t = xmlUnescape(QString::fromUtf8(inner));
+        if (!t.trimmed().isEmpty())
+            out << t;
+        pos = close + 7;
+    }
+    return out;
 }
 
 } // namespace SlideScene
