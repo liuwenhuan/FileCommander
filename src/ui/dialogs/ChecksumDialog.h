@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QDialog>
+#include "FramelessDialog.h"
 #include <QObject>
 #include <QStringList>
 
@@ -45,7 +45,7 @@ private:
 // files. Construct it with the paths to hash and show() it; hashing runs on a
 // background thread and the table fills in row by row. Closing the dialog while
 // a run is in flight cancels the worker cleanly.
-class ChecksumDialog : public QDialog {
+class ChecksumDialog : public FramelessDialog {
     Q_OBJECT
 
 public:

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QDialog>
+#include "FramelessDialog.h"
 
 class QPlainTextEdit;
 
@@ -13,7 +13,7 @@ class QPlainTextEdit;
 // It shows itself only when there is something worth seeing (any output, or a
 // non-zero / crashed exit) so pure side-effecting commands (mkdir, touch) stay
 // out of the way and just refresh the panels as before.
-class CommandOutputDialog : public QDialog {
+class CommandOutputDialog : public FramelessDialog {
     Q_OBJECT
 
 public:

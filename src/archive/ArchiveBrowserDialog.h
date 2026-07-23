@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QDialog>
+#include "FramelessDialog.h"
 
 class QTableView;
 class QLabel;
@@ -10,7 +10,7 @@ class ArchiveModel;
 // archive in a FilePanel. Browsing (double-click into subdirs, "..") and
 // extraction are both wired in from the start -- unlike the old project,
 // which shipped the libarchive engine without ever hooking up the UI.
-class ArchiveBrowserDialog : public QDialog {
+class ArchiveBrowserDialog : public FramelessDialog {
     Q_OBJECT
 
 public:

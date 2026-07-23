@@ -96,7 +96,9 @@ private slots:
     void openDirectoryHotlist(); // Ctrl+D
     void showProperties(); // F9
     void showShortcutMenu(const QPoint &globalPos);
-    void showFavoritesMenu(const QPoint &globalPos); // "★" button in the address row
+    // Directory-favorites menu from a tab-strip right-click. tabIndex is the
+    // right-clicked tab so a chosen favorite navigates that tab (-1 = active tab).
+    void showFavoritesMenu(const QPoint &globalPos, int tabIndex);
     void calculateSizes();
     void calculateChecksums(); // MD5 / CRC32 / SHA1 of the selected files
     void secureWipeSelected(); // overwrite on-disk bytes (HDD 1x / SSD 3x DoD) then delete
@@ -140,6 +142,12 @@ private:
     void changeFunctionKey(int index);    // pick a new command for that key
     void updateFunctionKeyLabels();
     FilePanel *otherPanel(FilePanel *panel) const;
+    // The panel currently browsing `dir` (cleaned path match), or nullptr if
+    // neither panel shows it (e.g. a drop onto a sub-folder that isn't open).
+    FilePanel *panelShowingDir(const QString &dir) const;
+    // The paths files land at when `sources` are copied/moved/linked into
+    // `destDir` (destDir joined with each source's base name).
+    static QStringList destPathsFor(const QStringList &sources, const QString &destDir);
     // If `panel` is browsing a (read-only) archive, warn and return true so the
     // caller aborts the write op. Null panel → false.
     bool blockArchiveWrite(FilePanel *panel);
@@ -149,8 +157,9 @@ private:
     void showFileContextMenu(FilePanel *panel, const QPoint &viewPos);
     void showBlankContextMenu(FilePanel *panel, const QPoint &viewPos);
     // Fills a menu with "bookmark current" + separator + saved favorites,
-    // shared by Ctrl+D (openDirectoryHotlist) and the "★" address-row button.
-    void populateFavoritesMenu(QMenu *menu, FilePanel *panel);
+    // shared by Ctrl+D (openDirectoryHotlist) and the tab-strip right-click menu.
+    // tabIndex is the tab a chosen favorite should navigate (-1 = active tab).
+    void populateFavoritesMenu(QMenu *menu, FilePanel *panel, int tabIndex = -1);
     void recordMoveUndo(const QStringList &sources, const QString &destDir);
 
     // Last reversible operation, for Ctrl+Z. Best-effort: rename and move only.
@@ -177,6 +186,16 @@ private:
     // would snap the cursor back to the top of the list.
     FilePanel *m_pendingDeletePanel = nullptr;
     QStringList m_pendingDeletePaths;
+    // Set while a move is in flight so the queue-finished handler removes the
+    // vanished source rows in place (same as delete) instead of rescanning the
+    // source directory.
+    FilePanel *m_pendingMovePanel = nullptr;
+    QStringList m_pendingMovePaths;
+    // Set while a copy or move is in flight so the queue-finished handler
+    // refreshes only the destination panel and selects the resulting file(s),
+    // rather than full-refreshing both panels.
+    FilePanel *m_pendingDestPanel = nullptr;
+    QStringList m_pendingDestPaths;
     ThemeManager *m_themeManager;
     Settings m_settings;
     QSplitter *m_panelSplitter;

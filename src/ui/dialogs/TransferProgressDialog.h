@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QDialog>
+#include "FramelessDialog.h"
 #include <QElapsedTimer>
 
 class QLabel;
@@ -21,7 +21,7 @@ class OperationQueue;
 // recently reported job's progress (current file, bytes done/total, transfer
 // speed, ETA) plus how many operations remain queued, mirroring
 // OperationProgressDialog's presentation.
-class TransferProgressDialog : public QDialog {
+class TransferProgressDialog : public FramelessDialog {
     Q_OBJECT
 
 public:

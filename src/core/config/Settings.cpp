@@ -211,3 +211,19 @@ int Settings::maxConcurrentTransfers() const {
 void Settings::setMaxConcurrentTransfers(int count) {
     m_settings.setValue("network/maxConcurrentTransfers", qBound(1, count, 8));
 }
+
+int Settings::thumbnailIconSize(const QString &side) const {
+    return m_settings.value(QStringLiteral("view/thumbnailIconSize/%1").arg(side), 0).toInt();
+}
+
+void Settings::setThumbnailIconSize(const QString &side, int px) {
+    m_settings.setValue(QStringLiteral("view/thumbnailIconSize/%1").arg(side), px);
+}
+
+int Settings::listRowHeight(const QString &side) const {
+    return m_settings.value(QStringLiteral("view/listRowHeight/%1").arg(side), 0).toInt();
+}
+
+void Settings::setListRowHeight(const QString &side, int height) {
+    m_settings.setValue(QStringLiteral("view/listRowHeight/%1").arg(side), height);
+}

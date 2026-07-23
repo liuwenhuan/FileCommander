@@ -8,7 +8,7 @@
 
 OverwriteConfirmDialog::OverwriteConfirmDialog(const QString &source, const QString &destination,
                                                  QWidget *parent)
-    : QDialog(parent) {
+    : FramelessDialog(parent) {
     setWindowTitle(tr("Confirm Overwrite"));
     setModal(true);
 

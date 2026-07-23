@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QDialog>
+#include "FramelessDialog.h"
 
 class QPlainTextEdit;
 class QLabel;
@@ -9,7 +9,7 @@ class QLabel;
 // Content...). Gaps are inserted on whichever side is missing a line so
 // matching/differing lines stay vertically aligned, and scrolling is
 // synchronized between the two panes.
-class CompareDialog : public QDialog {
+class CompareDialog : public FramelessDialog {
     Q_OBJECT
 
 public:

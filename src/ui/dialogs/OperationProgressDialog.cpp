@@ -30,7 +30,7 @@ QString humanDuration(qint64 seconds) {
 
 } // namespace
 
-OperationProgressDialog::OperationProgressDialog(QWidget *parent) : QDialog(parent) {
+OperationProgressDialog::OperationProgressDialog(QWidget *parent) : FramelessDialog(parent) {
     setWindowTitle(tr("File Operation"));
     setModal(false);
     resize(460, 150);

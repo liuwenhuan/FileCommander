@@ -5,6 +5,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QListView>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -45,6 +46,7 @@
 #include <QTemporaryDir>
 #include <QTextBrowser>
 #include <QTextCodec>
+#include <QTextEdit>
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTimer>
@@ -58,6 +60,7 @@
 
 #include "ArchiveHandler.h"
 #include "ArchiveModel.h"
+#include "PackageInfo.h"
 #include "AudioPlayer.h"
 #include "ImageViewer.h"
 #include "MpvWidget.h"
@@ -69,6 +72,14 @@
 namespace {
 constexpr qint64 kTextWindowBytes = 5 * 1024 * 1024; // text preview cap: 5 MiB
 constexpr qint64 kMarkdownMaxBytes = 2 * 1024 * 1024; // cap markdown at 2 MiB
+
+// office_oxide (and Markdown) tables carry no cell borders; QTextDocument draws
+// none by default. This default stylesheet gives every table cell a thin border
+// so Word/Excel/Markdown tables read as grids. Shared by the on-screen browser
+// and the off-thread render document so both lay out identically.
+const QString kMarkdownDefaultCss =
+    QStringLiteral("table { border-collapse: collapse; } "
+                   "td, th { border: 1px solid #808080; padding: 2px 6px; }");
 
 // Selectable text encodings for the F3 window's text page. codec == nullptr
 // means "use the locale codec".
@@ -394,6 +405,10 @@ QWidget *QuickView::buildTextPage() {
     m_textToolbar = new QToolBar(m_textPage);
 
     m_textEncoding = new QComboBox(m_textToolbar);
+    // A plain QListView popup honours our QSS `::item` colours; the platform's
+    // native combo popup ignores them and paints from the palette Text role,
+    // which turns non-selected rows invisible in the light theme.
+    m_textEncoding->setView(new QListView(m_textEncoding));
     for (const TextEncoding &e : kTextEncodings)
         m_textEncoding->addItem(QString::fromLatin1(e.label));
     m_textToolbar->addWidget(m_textEncoding);
@@ -588,6 +603,8 @@ QWidget *QuickView::buildVideoPage() {
     });
 
     m_speedCombo = new QComboBox(m_videoPage);
+    // Use a QListView popup so the QSS `::item` colours apply (see m_textEncoding).
+    m_speedCombo->setView(new QListView(m_speedCombo));
     // Drop the combo's outer frame so it reads as a flat control alongside the
     // play button instead of drawing an extra boxed outline. Keep the drop-down
     // sub-control (arrow) untouched so it stays a usable dropdown.
@@ -1011,13 +1028,56 @@ QWidget *QuickView::buildMarkdownPage() {
     // Open links in the user's browser rather than trying to navigate in-panel.
     m_markdown = new QTextBrowser(this);
     m_markdown->setOpenExternalLinks(true);
-    // office_oxide (and Markdown) tables carry no cell borders; QTextDocument
-    // draws none by default. A default stylesheet gives every table cell a thin
-    // border so Word/Excel/Markdown tables are legible as grids.
-    m_markdown->document()->setDefaultStyleSheet(
-        QStringLiteral("table { border-collapse: collapse; } "
-                       "td, th { border: 1px solid #808080; padding: 2px 6px; }"));
+    m_markdown->document()->setDefaultStyleSheet(kMarkdownDefaultCss);
     return m_markdown;
+}
+
+void QuickView::loadMarkdownAsync(const QString &path) {
+    // Supersede any in-flight render so a fast scroll through several .md files
+    // only ever installs the newest one.
+    ++m_markdownGen;
+    const int gen = m_markdownGen;
+
+    // Capture the browser's font + current width so the off-thread layout matches
+    // the final on-screen layout -- installing the ready-made document then costs
+    // no extra re-layout on the GUI thread.
+    const QFont font = m_markdown->font();
+    const int width = qMax(200, m_markdown->viewport()->width());
+
+    auto *watcher = new QFutureWatcher<QTextDocument *>(this);
+    connect(watcher, &QFutureWatcher<QTextDocument *>::finished, this,
+            [this, watcher, gen]() {
+                watcher->deleteLater();
+                QTextDocument *doc = watcher->result();
+                if (!doc)
+                    return; // unreadable file; leave the current preview in place
+                if (gen != m_markdownGen) {
+                    delete doc; // a newer selection superseded this render
+                    return;
+                }
+                // setDocument doesn't take ownership, so parent the document to the
+                // browser: the previous child document is deleted on the next swap.
+                doc->setParent(m_markdown);
+                m_markdown->setDocument(doc);
+                m_stack->setCurrentWidget(m_markdown);
+            });
+    watcher->setFuture(QtConcurrent::run([path, font, width]() -> QTextDocument * {
+        QFile f(path);
+        if (!f.open(QIODevice::ReadOnly))
+            return nullptr;
+        // Cap the read so a pathologically large .md can't stall the render.
+        const QByteArray data = f.read(kMarkdownMaxBytes);
+        auto *doc = new QTextDocument;
+        doc->setDefaultFont(font);
+        doc->setDefaultStyleSheet(kMarkdownDefaultCss);
+        // QTextDocument::setMarkdown wants the GitHub dialect (tables, task lists).
+        doc->setMarkdown(QString::fromUtf8(data), QTextDocument::MarkdownDialectGitHub);
+        doc->setTextWidth(width); // force the expensive layout here, off the GUI thread
+        // The document was created on this worker thread; hand it to the GUI thread
+        // so setParent()/setDocument() there are legal.
+        doc->moveToThread(qApp->thread());
+        return doc;
+    }));
 }
 
 QString QuickView::fitImagesToWidth(const QString &html, int maxWidth) const {
@@ -1283,6 +1343,16 @@ QWidget *QuickView::buildArchivePage() {
     m_archivePathLabel->setContentsMargins(8, 0, 8, 0);
     toolbar->addWidget(m_archivePathLabel);
 
+    // Package-metadata panel (hidden unless the root archive is a .deb/.rpm).
+    // Read-only, no frame, wraps long Description lines; capped so a big control
+    // file never crowds out the file tree.
+    m_archiveInfoView = new QTextEdit(m_archivePage);
+    m_archiveInfoView->setReadOnly(true);
+    m_archiveInfoView->setFrameShape(QFrame::NoFrame);
+    m_archiveInfoView->setLineWrapMode(QTextEdit::WidgetWidth);
+    m_archiveInfoView->setMaximumHeight(180);
+    m_archiveInfoView->hide();
+
     m_archiveView = new QTableView(m_archivePage);
     m_archiveView->setModel(m_archiveModel);
     m_archiveView->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -1297,6 +1367,7 @@ QWidget *QuickView::buildArchivePage() {
     auto *layout = new QVBoxLayout(m_archivePage);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(toolbar);
+    layout->addWidget(m_archiveInfoView);
     layout->addWidget(m_archiveView, 1);
     return m_archivePage;
 }
@@ -1327,6 +1398,7 @@ void QuickView::tryLoadCurrentArchive() {
         cached->mtime == mtime && cached->passphrase == pw) {
         m_archiveModel->setTree(cached->root, path, pw);
         updateArchivePathLabel();
+        setArchivePackageInfo(cached->packageInfo);
         m_stack->setCurrentWidget(m_archivePage);
         return;
     }
@@ -1354,6 +1426,11 @@ void QuickView::tryLoadCurrentArchive() {
     watcher->setFuture(QtConcurrent::run([path, pw, cancel]() {
         ArchiveLoadResult r;
         r.root = ArchiveHandler::buildTree(path, pw, &r.status, &r.err, cancel.get());
+        // Read .deb/.rpm metadata here (off the GUI thread) so the extra I/O and
+        // decompression never hitches the preview; PackageInfo returns empty for
+        // anything else.
+        if (r.status == ArchiveHandler::Status::Ok && r.root)
+            r.packageInfo = PackageInfo::forPackage(path);
         return r;
     }));
 }
@@ -1364,7 +1441,7 @@ void QuickView::handleArchiveLoad(const ArchiveLoadResult &r, const QString &pat
 
     if (r.status == ArchiveHandler::Status::Ok && r.root) {
         // Cache the tree (bounded, FIFO eviction) so re-visits and "Up" are instant.
-        m_archiveCache.insert(path, {r.root, pw, size, mtime});
+        m_archiveCache.insert(path, {r.root, pw, size, mtime, r.packageInfo});
         m_archiveCacheOrder.removeAll(path);
         m_archiveCacheOrder.append(path);
         constexpr int kMaxCachedArchives = 8;
@@ -1373,6 +1450,7 @@ void QuickView::handleArchiveLoad(const ArchiveLoadResult &r, const QString &pat
 
         m_archiveModel->setTree(r.root, path, pw);
         updateArchivePathLabel();
+        setArchivePackageInfo(r.packageInfo);
         m_stack->setCurrentWidget(m_archivePage);
         return;
     }
@@ -1486,6 +1564,18 @@ void QuickView::updateArchivePathLabel() {
         label += QFileInfo(p).fileName() + QStringLiteral(" › ");
     label += QStringLiteral("/%1").arg(m_archiveModel->currentPath());
     m_archivePathLabel->setText(label);
+}
+
+void QuickView::setArchivePackageInfo(const QString &info) {
+    if (info.isEmpty()) {
+        m_archiveInfoView->clear();
+        m_archiveInfoView->hide();
+        return;
+    }
+    // Plain text keeps the control/header exactly as written (no HTML escaping
+    // surprises) and inherits the theme's text colour like the rest of the UI.
+    m_archiveInfoView->setPlainText(info);
+    m_archiveInfoView->show();
 }
 
 void QuickView::populateCsvTable(const QString &tsv) {
@@ -2401,13 +2491,12 @@ void QuickView::showFile(const QString &path) {
         m_infoOverlay->hide();
         QFile mdFile(path);
         if (mdFile.open(QIODevice::ReadOnly)) {
-            // Cap the read so a pathologically large .md can't stall the render.
-            const QByteArray data = mdFile.read(kMarkdownMaxBytes);
-            // QTextEdit::setMarkdown takes no dialect argument; go through the
-            // document to request the GitHub dialect (tables, task lists, ...).
-            m_markdown->document()->setMarkdown(QString::fromUtf8(data),
-                                                QTextDocument::MarkdownDialectGitHub);
-            m_stack->setCurrentWidget(m_markdown);
+            mdFile.close();
+            // Parse + lay out Markdown on a worker thread: setMarkdown plus the
+            // QTextDocument layout is heavy on dense/table-rich files and would
+            // otherwise freeze the GUI. loadMarkdownAsync installs the finished
+            // document when it's ready.
+            loadMarkdownAsync(path);
             return;
         }
         // Unreadable: fall through to the generic text/no-preview handling below.

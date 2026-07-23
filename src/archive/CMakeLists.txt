@@ -6,6 +6,8 @@ if(TARGET LibArchive::LibArchive)
         ArchiveNode.h
         ArchiveHandler.h
         ArchiveHandler.cpp
+        PackageInfo.h
+        PackageInfo.cpp
         SevenZipReader.h
         SevenZipReader.cpp
         SquashfsReader.h
@@ -28,6 +30,7 @@ if(TARGET LibArchive::LibArchive)
 
     target_link_libraries(archive PUBLIC
         core
+        widgets
         Qt5::Widgets
         Qt5::Core
         LibArchive::LibArchive

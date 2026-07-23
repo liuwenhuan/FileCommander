@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QDialog>
+#include "FramelessDialog.h"
 #include <QFile>
 #include <QStringList>
 
@@ -12,7 +12,7 @@ class QLabel;
 // them to every path on accept. When several files disagree on a bit, its
 // checkbox shows a partially-checked (mixed) state and that bit is left
 // untouched unless the user sets it explicitly.
-class PropertiesDialog : public QDialog {
+class PropertiesDialog : public FramelessDialog {
     Q_OBJECT
 
 public:

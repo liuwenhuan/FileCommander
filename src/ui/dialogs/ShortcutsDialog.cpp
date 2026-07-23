@@ -11,7 +11,8 @@
 ShortcutsDialog::ShortcutsDialog(const QList<QPair<QString, QString>> &actionLabels,
                                   const QMap<QString, QKeySequence> &current,
                                   const QMap<QString, QKeySequence> &defaults, QWidget *parent)
-    : QDialog(parent), m_actionLabels(actionLabels), m_current(current), m_defaults(defaults) {
+    : FramelessDialog(parent), m_actionLabels(actionLabels), m_current(current),
+      m_defaults(defaults) {
     setWindowTitle(tr("Keyboard Shortcuts"));
     resize(500, 500);
 

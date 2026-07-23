@@ -7,6 +7,8 @@ add_library(ui STATIC
     FilePanel.cpp
     FileListView.h
     FileListView.cpp
+    IconFileView.h
+    IconFileView.cpp
     ThumbnailCache.h
     ThumbnailCache.cpp
     ThumbnailDelegate.h
@@ -101,6 +103,7 @@ target_link_libraries(ui PUBLIC
     viewer
     archive
     search
+    widgets
     Qt5::Widgets
     Qt5::Core
     Qt5::Gui

@@ -13,7 +13,7 @@
 
 #include "SearchEngine.h"
 
-SearchDialog::SearchDialog(const QString &initialPath, QWidget *parent) : QDialog(parent) {
+SearchDialog::SearchDialog(const QString &initialPath, QWidget *parent) : FramelessDialog(parent) {
     setWindowTitle(tr("Search Files"));
     resize(600, 500);
 

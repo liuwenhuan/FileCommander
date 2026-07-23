@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QDialog>
+#include "FramelessDialog.h"
 #include <QObject>
 #include <QStringList>
 
@@ -48,7 +48,7 @@ private:
 // caller). Wiping runs on a background thread; the table fills in row by row and
 // filesChanged() fires when the run completes so the caller can refresh its
 // views. Closing the dialog mid-run cancels the worker cleanly.
-class SecureWipeDialog : public QDialog {
+class SecureWipeDialog : public FramelessDialog {
     Q_OBJECT
 
 public:
