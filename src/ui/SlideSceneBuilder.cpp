@@ -361,10 +361,21 @@ void addText(const QXmlStreamAttributes &attrs, const QString &text, QGraphicsIt
     if (px < 1)
         px = 1;
 
-    QString family = attrs.value(QLatin1String("font-family")).toString();
-    if (family.isEmpty())
-        family = QStringLiteral("sans-serif");
-    QFont font(family);
+    // font-family may be a CJK-first fallback list ("EA字体, latin字体") from oxide;
+    // split on commas and hand the whole list to QFont so it falls back family-by-
+    // family (a bare QFont(str) would treat the entire string as one missing name).
+    QStringList families;
+    const QStringList rawFamilies =
+        attrs.value(QLatin1String("font-family")).toString().split(QLatin1Char(','));
+    for (const QString &f : rawFamilies) {
+        const QString t = f.trimmed();
+        if (!t.isEmpty())
+            families << t;
+    }
+    if (families.isEmpty())
+        families << QStringLiteral("sans-serif");
+    QFont font;
+    font.setFamilies(families);
     font.setPixelSize(px);
     if (attrs.value(QLatin1String("font-weight")) == QLatin1String("bold"))
         font.setBold(true);
