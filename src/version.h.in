@@ -1,0 +1,9 @@
+#pragma once
+
+// Generated from the top-level CMakeLists project(... VERSION ...) via
+// configure_file(). Edit src/version.h.in, never the generated copy in the
+// build tree. Consumed by the About dialog and the online-update checker.
+#define TTC_VERSION "@PROJECT_VERSION@"
+#define TTC_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define TTC_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define TTC_VERSION_PATCH @PROJECT_VERSION_PATCH@
