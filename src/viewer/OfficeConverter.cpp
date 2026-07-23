@@ -2,6 +2,9 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonValue>
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QRegularExpression>
@@ -139,7 +142,13 @@ OfficeConverter::Encryption classifyEncryption(const QString &stderrText) {
 }
 } // namespace
 
-OfficeConverter::Result OfficeConverter::convert(const QString &path, const QString &password) {
+bool OfficeConverter::isPresentationFile(const QString &path) {
+    const QString suffix = suffixLower(path);
+    return suffix == QLatin1String("ppt") || suffix == QLatin1String("pptx");
+}
+
+OfficeConverter::Result OfficeConverter::convert(const QString &path, const QString &password,
+                                                 int firstN) {
     Result result;
     result.kind = kindFor(path);
     if (result.kind == Kind::None) {
@@ -160,6 +169,23 @@ OfficeConverter::Result OfficeConverter::convert(const QString &path, const QStr
         return result;
     }
 
+    // PowerPoint: try the per-slide SVG render first. A non-empty result is the
+    // real slide-image preview; on an encrypted pptx we return the encryption
+    // state so the UI can prompt for a password. Only a clean empty result (`[]`
+    // -- legacy .ppt, or a pptx the renderer can't turn into slides) falls through
+    // to the flattened text (html) preview below.
+    const QString suffix = suffixLower(path);
+    if (suffix == QLatin1String("ppt") || suffix == QLatin1String("pptx")) {
+        Result pres = convertPresentation(binary, path, password, firstN);
+        if (!pres.ok)
+            pres.encryption = classifyEncryption(pres.error);
+        if (pres.ok && !pres.slideSvgs.isEmpty())
+            return pres;
+        if (pres.encrypted())
+            return pres;
+        // else: empty `[]` -> fall through to convertDocument (text preview).
+    }
+
     Result r = (result.kind == Kind::Document) ? convertDocument(binary, path, password)
                                                : convertSpreadsheet(binary, path, password);
     // office_oxide reports encryption (OOXML wrappers and legacy .doc fEncrypted
@@ -168,6 +194,53 @@ OfficeConverter::Result OfficeConverter::convert(const QString &path, const QStr
     if (!r.ok)
         r.encryption = classifyEncryption(r.error);
     return r;
+}
+
+OfficeConverter::Result OfficeConverter::convertPresentation(const QString &binary,
+                                                             const QString &path,
+                                                             const QString &password, int firstN) {
+    Result result;
+    result.kind = Kind::Presentation;
+
+    // PowerPoint → per-slide SVG (`office-oxide svg <file>`): stdout is a JSON
+    // array of standalone SVG document strings, one per slide. Non-pptx (incl.
+    // legacy .ppt) and any pptx the renderer can't handle print `[]`.
+    // firstN > 0 requests only the first N slides (`svg --first N`) for a fast
+    // first paint.
+    const QStringList svgArgs = firstN > 0
+                                    ? QStringList{QStringLiteral("svg"),
+                                                  QStringLiteral("--first"),
+                                                  QString::number(firstN), path}
+                                    : QStringList{QStringLiteral("svg"), path};
+    ProcResult run = runOfficeOxide(binary, svgArgs, kTimeoutMs, password);
+    // An older office_oxide build may not know `--first`; rather than fall back to
+    // the flattened text preview, retry the full render so slides still appear.
+    if (firstN > 0 && run.started && !run.timedOut && run.exitCode != 0) {
+        run = runOfficeOxide(binary, {QStringLiteral("svg"), path}, kTimeoutMs, password);
+    }
+    if (!run.started || run.timedOut) {
+        result.error = run.stdErr;
+        return result;
+    }
+    if (run.exitCode != 0) {
+        result.error = run.stdErr.isEmpty()
+                           ? QStringLiteral("office_oxide exited with code %1").arg(run.exitCode)
+                           : run.stdErr;
+        return result;
+    }
+
+    const QJsonDocument doc = QJsonDocument::fromJson(run.stdOut.toUtf8());
+    if (doc.isArray()) {
+        const QJsonArray arr = doc.array();
+        for (const QJsonValue &v : arr) {
+            if (v.isString())
+                result.slideSvgs << v.toString();
+        }
+    }
+    // ok only when there is at least one slide; an empty array leaves ok=false so
+    // convert() falls back to the flattened text preview.
+    result.ok = !result.slideSvgs.isEmpty();
+    return result;
 }
 
 OfficeConverter::Result OfficeConverter::convertDocument(const QString &binary, const QString &path,

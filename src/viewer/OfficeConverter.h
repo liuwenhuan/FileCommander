@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QString>
+#include <QStringList>
 
 // Wraps the `office_oxide` command-line tool
 // (https://github.com/yfedoseev/office_oxide) as a subprocess to convert
@@ -22,13 +23,16 @@
 // strips them (slide-positioned, don't line up with the flattened text preview).
 class OfficeConverter {
 public:
-    enum class Kind { None, Document, Spreadsheet };
+    enum class Kind { None, Document, Spreadsheet, Presentation };
 
     // True for .doc/.docx/.ppt/.pptx/.xls/.xlsx, case-insensitively.
     static bool isOfficeFile(const QString &path);
 
     // Document for word-processing/presentation files, Spreadsheet for
     // Excel files, None for anything else (including non-office files).
+    // NOTE: PowerPoint files report Document here (the fallback text path);
+    // convert() decides at run time whether a .pptx yields per-slide SVG
+    // (Kind::Presentation) or falls back to the flattened text preview.
     static Kind kindFor(const QString &path);
 
     // True if the office_oxide CLI can be located; see resolveBinary().
@@ -57,6 +61,7 @@ public:
         Kind kind = Kind::None;
         QString html;  // Document: HTML markup (render with QTextBrowser::setHtml)
         QString tsv;   // Spreadsheet: tab-separated cell text (one row per line)
+        QStringList slideSvgs; // Presentation: one standalone SVG document per slide
         QString error; // human-readable message on failure
         Encryption encryption = Encryption::None;
 
@@ -69,11 +74,28 @@ public:
     // environment variable, never on the command line. Never throws: every failure
     // path sets ok=false, fills in `error`, and — for password-protected files —
     // sets `encryption` so the caller can prompt or report a wrong password.
-    static Result convert(const QString &path, const QString &password = QString());
+    //
+    // firstN > 0 renders only the first N slides of a presentation (`svg --first
+    // N`) for a fast first-paint; it is ignored for word/spreadsheet files. Callers
+    // then re-convert with firstN == 0 to fill in the rest.
+    static Result convert(const QString &path, const QString &password = QString(),
+                          int firstN = 0);
+
+    // True for .ppt/.pptx (the files convert() may render as per-slide SVG). Lets a
+    // caller decide whether the two-stage (first-N then full) SVG path applies.
+    static bool isPresentationFile(const QString &path);
 
 private:
     static Result convertDocument(const QString &binary, const QString &path,
                                   const QString &password);
     static Result convertSpreadsheet(const QString &binary, const QString &path,
                                      const QString &password);
+    // PowerPoint (.pptx) → per-slide SVG (`office-oxide svg <file>`): stdout is a
+    // JSON array of standalone SVG document strings. Legacy .ppt and any pptx the
+    // renderer can't turn into slides print `[]`, leaving slideSvgs empty so the
+    // caller can fall back to the text (html) preview. firstN > 0 passes
+    // `--first N`; if that build of office_oxide rejects the flag, it retries the
+    // full render so a preview still appears.
+    static Result convertPresentation(const QString &binary, const QString &path,
+                                      const QString &password, int firstN);
 };

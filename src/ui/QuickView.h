@@ -13,9 +13,14 @@
 #include <memory>
 
 #include "ArchiveHandler.h" // ArchiveNode + ArchiveHandler::Status (async load result)
+#include "OfficeConverter.h" // OfficeConverter::Result (async conversion payload)
 
 class QCheckBox;
 class QComboBox;
+class QGraphicsItem;
+class QGraphicsPixmapItem;
+class QGraphicsScene;
+class QGraphicsView;
 class QLabel;
 class QLineEdit;
 class QModelIndex;
@@ -113,6 +118,7 @@ private:
     // table-heavy files). Stale renders are dropped via m_markdownGen.
     void loadMarkdownAsync(const QString &path);
     QWidget *buildPdfPage();
+    QWidget *buildSlidesPage();            // pptx slide-image preview (per-slide SVG)
     QWidget *buildOfficeTablePage();       // spreadsheet (xls/xlsx) preview as a grid
     QWidget *buildEncryptedPage();         // "encrypted" note + an unlock button
     QWidget *buildArchivePage();           // read-only archive listing (no extraction)
@@ -135,11 +141,17 @@ private:
     // tree, or hide the panel when `info` is empty.
     void setArchivePackageInfo(const QString &info);
     void populateCsvTable(const QString &csv); // fill the office table from CSV text
-    // Converts an office file (optionally with a password) and shows the result:
-    // the rendered document/grid, the inline password page (encrypted / wrong
-    // password / unsupported), or an error. Called with an empty password from
-    // showFile() and with the typed password from tryUnlock().
-    void renderOffice(const QString &path, const QString &password);
+    // Converts an office file (optionally with a password) OFF the GUI thread and
+    // shows the result: the rendered document/grid, the inline password page
+    // (encrypted / wrong password / unsupported), or an error. Called with an empty
+    // password from showFile() and with the typed password from tryUnlock(). The
+    // conversion (subprocess + JSON parse) can take a second or more on a big deck,
+    // so it runs via QtConcurrent and the result is applied by handleOfficeResult()
+    // on the GUI thread; a generation counter drops results superseded by a newer
+    // selection.
+    void renderOffice(const QString &path, const QString &password); // debounced entry point
+    void startOfficeRender(const QString &path, const QString &password); // runs the actual convert
+    void handleOfficeResult(const OfficeConverter::Result &r, const QString &path);
     // Reads the inline password field and re-renders m_encryptedPath with it,
     // giving feedback in place on a wrong password. Wired to the unlock button and
     // the field's returnPressed.
@@ -154,6 +166,32 @@ private:
     void relayoutPdfPages();      // recompute every label's fitted size, force re-render
     void renderVisiblePdfPages(); // render pixmaps for on-screen pages, free far ones
     void closePdf();              // release any loaded document + reset PDF UI state
+    // Continuous pptx slide preview: every slide's SVG stacks vertically in one
+    // scroll area, fit-to-width and rendered lazily (mirrors the PDF cluster, with
+    // QSvgRenderer standing in for Poppler).
+    void loadSlides(const QStringList &svgs); // parse every slide's SVG into the scene
+    // Two-stage load: append the slides beyond the ones already shown (the full
+    // deck arriving after the fast first-N paint), extending the scene downward
+    // without disturbing the current scroll position or the loaded slides.
+    void appendRemainingSlides(const QStringList &fullSvgs);
+    // Append slides from index `from` in small chunks across event-loop turns (keyed
+    // to the office gen so a file switch abandons a half-built deck), so a large deck
+    // doesn't block the UI building every placeholder + parsing metadata at once.
+    void appendSlidesChunk(const QStringList &fullSvgs, int from, int gen);
+    void relayoutSlides();        // recompute the fit-to-width view transform
+    void renderVisibleSlides();   // build on-screen slides, free far ones, update readout
+    void buildSlideItem(int i);   // replace slide i's placeholder with its full item tree
+    void releaseSlideItem(int i); // swap slide i's full item tree back for a placeholder
+    void closeSlides();           // drop all slide data + reset the slides UI state
+    void buildPdfPageText(int i); // build the transparent selectable text layer for one page
+    // Copies text to the clipboard for the PDF/slides pages. Prefers whatever the
+    // user has selected in the scene; scope picks the fallback when nothing is
+    // selected (current page under the scroll position, or the whole document).
+    enum class CopyScope { Selection, CurrentPage, All };
+    void copyPdfText(CopyScope scope);
+    void copySlidesText(CopyScope scope);
+    int currentPdfPage() const;   // page index under the current scroll position
+    int currentSlide() const;     // slide index under the current scroll position
     void applyImageScale();
     void zoomImageBy(double factor);
     // Rotates the shown image by +/-90 degrees, then persists it losslessly back
@@ -200,6 +238,20 @@ private:
     // Office spreadsheet page: a read-only grid populated from office_oxide's CSV
     // output. Word/PowerPoint documents reuse the markdown page above.
     QTableWidget *m_officeTable = nullptr;
+
+    // Async office conversion. m_officeGen is bumped on every file switch (and every
+    // renderOffice call); a completed conversion whose captured gen no longer
+    // matches is dropped, so a superseded selection never paints over the current
+    // one. m_officeShownPath de-dupes a spurious re-selection of the file already
+    // displayed (the embedded preview follows the file-list cursor).
+    int m_officeGen = 0;
+    QString m_officeShownPath;
+    // Debounce rapid file switches: a fast arrow-key sweep through a folder would
+    // otherwise spawn one office_oxide process per file. renderOffice() only stashes
+    // the target and (re)starts this timer; the convert fires once the cursor settles.
+    QTimer *m_officeConvertTimer = nullptr;
+    QString m_pendingOfficePath;
+    QString m_pendingOfficePassword;
 
     // Encrypted-office page: an inline password field (no popup) with feedback
     // shown in place. office_oxide decrypts in-process, so a correct password
@@ -253,20 +305,57 @@ private:
     QHash<QString, CachedArchive> m_archiveCache;
     QStringList m_archiveCacheOrder;                    // FIFO eviction order
 
-    // PDF page (m_stack index 5): every page stacks vertically in one scroll area
-    // and the whole document scrolls continuously. Pages fit the viewport width by
-    // default; Zoom In/Out multiply that fit. Pixmaps are rendered lazily (only
-    // pages near the viewport) so a 500-page PDF opens without hitching.
+    // PDF page (m_stack index 5): every page stacks vertically in one QGraphicsScene
+    // and the whole document scrolls continuously. Each page is a bitmap background
+    // (Poppler renderToImage -> QGraphicsPixmapItem, kept sharp by re-rendering at
+    // the zoomed resolution) with a transparent, selectable text layer on top
+    // (Poppler textList -> one QGraphicsTextItem per word) so the visible pixels
+    // are faithful yet the text can be selected and copied. Pages fit the viewport
+    // width by default; Zoom In/Out multiply that fit. Bitmaps and text are built
+    // lazily (only pages near the viewport) so a 500-page PDF opens without hitching.
     QWidget *m_pdfPage = nullptr;
-    QScrollArea *m_pdfScroll = nullptr;
-    QWidget *m_pdfContainer = nullptr;           // scroll widget: a QVBoxLayout of page labels
+    QGraphicsView *m_pdfView = nullptr;
+    QGraphicsScene *m_pdfScene = nullptr;
     QLabel *m_pdfPageInfo = nullptr;             // "page N / M" per scroll position
-    QVector<QLabel *> m_pdfPageLabels;           // one placeholder/label per page
+    QVector<QGraphicsPixmapItem *> m_pdfBgItems; // one background item per page (parents its text layer)
     QVector<QSizeF> m_pdfPageSizes;              // native page sizes in points (== px @ 72 dpi)
-    QVector<int> m_pdfRenderedWidth;             // px width each label was rendered at (-1 == placeholder)
+    QVector<double> m_pdfPageTop;                // scene-Y of each page's top edge
+    QVector<int> m_pdfRenderedWidth;             // px width each page bitmap was rendered at (-1 == none)
+    QVector<bool> m_pdfTextBuilt;                // whether a page's transparent text layer is present
     QTimer *m_pdfRelayoutTimer = nullptr;        // debounce viewport resizes before re-fitting
     std::unique_ptr<Poppler::Document> m_pdfDoc; // currently loaded document
     double m_pdfZoom = 1.0;                       // user zoom multiplier on top of fit-to-width; 1.0 == fit
+
+    // Slides page (m_stack index 10): pptx rendered by office_oxide to one
+    // standalone SVG per slide. Each slide's SVG is parsed into native graphics
+    // items (SlideSceneBuilder) and stacked vertically in a single QGraphicsScene,
+    // so text stays selectable and shapes scale as vectors. Slides fit the viewport
+    // width by default; Zoom In/Out multiply that fit via the view transform (no
+    // re-rasterization -- crisp at any zoom).
+    QWidget *m_slidesPage = nullptr;
+    QGraphicsView *m_slidesView = nullptr;
+    QGraphicsScene *m_slidesScene = nullptr;
+    QLabel *m_slidesInfo = nullptr;              // "Slide N / M" per scroll position
+    // Per-slide bookkeeping. Every slide's size + text is parsed up front (cheap),
+    // but only on-screen slides get a full item tree built (buildSlidePage decodes
+    // embedded images -- expensive); off-screen slides hold a lightweight white
+    // placeholder rect so the scrollbar range, page numbers and positioning stay
+    // correct without paying the build cost. m_slidePageItems[i] is whichever is
+    // currently in the scene; m_slideBuilt[i] says which.
+    QVector<QByteArray> m_slideSvgs;             // raw SVG per slide (for on-demand build)
+    QVector<QGraphicsItem *> m_slidePageItems;   // current scene item per slide (placeholder or full)
+    QVector<bool> m_slideBuilt;                  // whether the full item tree is built
+    QVector<double> m_slidePageTop;              // scene-Y of each slide's page block
+    QVector<QSizeF> m_slideSizes;                // scene size of each slide's page block
+    QVector<QString> m_slideTexts;               // concatenated text per slide (copy fallback)
+    double m_slidesSceneWidth = 0.0;             // widest page (scene units) for fit-to-width
+    QTimer *m_slidesRelayoutTimer = nullptr;     // debounce viewport resizes before re-fitting
+    double m_slidesZoom = 1.0;                    // user zoom multiplier on top of fit-to-width; 1.0 == fit
+    // A freshly loaded deck must open at the top of slide 1. Until the initial
+    // fit (plus its deferred re-fit) has settled, relayoutSlides forces the
+    // scrollbar to 0 and ignores the "preserve scroll ratio" logic, which would
+    // otherwise carry over the *previous* deck's scroll position on a file switch.
+    bool m_slidesResetScroll = false;
 
     // Video page (m_stack index 3).
     QString m_videoPath;            // path of the clip currently loaded (de-dup re-selects)
