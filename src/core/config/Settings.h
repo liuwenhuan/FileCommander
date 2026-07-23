@@ -153,6 +153,13 @@ public:
     bool notepadVisible() const;
     void setNotepadVisible(bool on);
 
+    // Persisted height (px) of the quick-notepad editor pane, i.e. the split
+    // the user dragged between the note list (top) and the editor (bottom).
+    // The list absorbs the remaining space, so saving the editor height keeps
+    // the divider stable across the popup's dynamic total-height changes.
+    int notepadEditorHeight() const;
+    void setNotepadEditorHeight(int height);
+
 private:
     QSettings m_settings;
 };

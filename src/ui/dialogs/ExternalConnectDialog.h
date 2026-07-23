@@ -57,6 +57,9 @@ signals:
     void openSavedConnection(const SavedConnection &conn);
     // A network-neighbourhood host name; the caller assembles smb://host.
     void openSmbHost(const QString &hostName);
+    // The gear next to the "Network Neighborhood" header: open the manual SMB
+    // connect form (so the user can connect even when discovery finds nothing).
+    void openSmbConnectForm();
 
 private slots:
     void onHostsDiscovered(const QVector<SmbHost> &hosts);
@@ -71,6 +74,9 @@ private:
     void rebuild();
     // Appends a non-interactive section header row.
     void addHeader(const QString &text);
+    // Appends the "Network Neighborhood" header with a gear button on its right
+    // (setItemWidget); the gear emits openSmbConnectForm().
+    void addNetworkHeader(const QString &text);
     // Resizes the list (and thus the panel) to fit its rows, up to a cap.
     void fitToContents();
 
@@ -81,4 +87,10 @@ private:
 
     QVector<SavedConnection> m_saved; // parallel payload for KindSaved rows
     QVector<SmbHost> m_hosts;         // hosts accumulated from discovery
+    bool m_discoveryDone = false;     // all sources finished (drives empty state)
+    // Fly-out anchoring: the popup grows UPWARD as hosts arrive -- its bottom edge
+    // stays pinned to the launching button, so newly discovered rows push the top
+    // up rather than shifting everything or spilling over the button.
+    int m_popupX = 0;
+    int m_fixedBottomY = -1; // global Y of the pinned bottom edge (-1 = not popped up)
 };

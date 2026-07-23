@@ -44,6 +44,18 @@ public:
     // keep the plain directory-name tab label.
     virtual QString displayName() const { return {}; }
 
+    // Sets the connect/operation timeout (milliseconds) for network backends, so
+    // a stalled connection or request fails instead of hanging indefinitely.
+    // Local and archive backends ignore it. Must be set before connectToHost to
+    // bound the connection phase. NetworkSession injects the configured value.
+    virtual void setTimeoutMs(int /*ms*/) {}
+
+    // Re-establishes the connection using the credentials captured by the last
+    // successful connectToHost, for transparent reconnection after a drop.
+    // Returns true on success. Network backends override; the default fails
+    // (local/archive have no connection to re-establish).
+    virtual bool reconnect(QString * /*error*/) { return false; }
+
     // Whether anything exists at path.
     virtual bool exists(const QString &path) const = 0;
 

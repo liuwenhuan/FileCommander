@@ -39,6 +39,14 @@ add_library(core STATIC
     network/ConnectionStore.cpp
     network/SmbHostBrowser.h
     network/SmbHostBrowser.cpp
+    network/NetworkSession.h
+    network/NetworkSession.cpp
+    network/WsdDiscovery.h
+    network/WsdDiscovery.cpp
+    network/MdnsDiscovery.h
+    network/MdnsDiscovery.cpp
+    network/LanScan.h
+    network/LanScan.cpp
     devices/RemovableDeviceMonitor.h
     devices/RemovableDeviceMonitor.cpp
     notepad/NotepadStore.h

@@ -3,6 +3,9 @@
 #include <QKeySequence>
 #include <QList>
 #include <QMainWindow>
+
+#include <atomic>
+#include <memory>
 #include <QMap>
 #include <QPair>
 #include <QPixmap>
@@ -13,12 +16,14 @@
 #include <QLabel>
 
 class QTimer;
+class QTemporaryDir;
 
 #include "FileListView.h"
 #include "Settings.h"
 #include "update/UpdateChecker.h" // UpdateInfo (stored by value)
 
 class FilePanel;
+class FileProvider;
 class FunctionKeyBar;
 class CommandBar;
 class CommandOutputDialog;
@@ -115,6 +120,10 @@ private slots:
     void openWith();
     void toggleQuickView(); // Ctrl+Q
     void updateQuickView();
+    // Remote-preview download callbacks (invoked from the worker thread via a
+    // queued invocation; reqId discards a stale download after the cursor moves).
+    void onPreviewProgress(quint64 reqId, qint64 done, qint64 total);
+    void onPreviewDone(quint64 reqId, const QString &tempPath, bool cancelled);
     void undoLast(); // Ctrl+Z
     void runCommand(const QString &command, const QString &directory);
     void openExternalConnections(); // external-connect command (leading button default)
@@ -157,10 +166,22 @@ private:
     // Shared command picker for changeFunctionKey/changeExtraKey. Returns the
     // chosen command id, or an empty string if cancelled; currentId is preselected.
     QString pickCommandId(const QString &title, const QString &currentId);
+    // Opens the "Connect to Server" dialog (optionally preselecting SMB, e.g.
+    // from the network-neighborhood gear) and, on accept, connects the active
+    // panel to the chosen server asynchronously.
+    void openServerConnectDialog(bool preselectSmb);
+    // Modal username/password prompt shown when a server needs credentials.
+    // Returns true and fills *user/*pass on OK, false on cancel.
+    bool promptCredentials(const QString &host, QString *user, QString *pass);
     FilePanel *otherPanel(FilePanel *panel) const;
     // The panel currently browsing `dir` (cleaned path match), or nullptr if
     // neither panel shows it (e.g. a drop onto a sub-folder that isn't open).
     FilePanel *panelShowingDir(const QString &dir) const;
+    // The provider that owns `path`: a panel backed by a remote provider whose
+    // current directory is (a prefix of) `path`, otherwise the local provider.
+    // Lets drag-drop / paste pick the cross-provider transfer engine the same way
+    // F5 copy/move does, instead of treating a remote path as a local file.
+    FileProvider *providerOwningPath(const QString &path) const;
     // The paths files land at when `sources` are copied/moved/linked into
     // `destDir` (destDir joined with each source's base name).
     static QStringList destPathsFor(const QStringList &sources, const QString &destDir);
@@ -233,6 +254,17 @@ private:
     FilePanel *m_quickViewPanel = nullptr; // panel replaced by the preview
     int m_quickViewIndex = -1;
     bool m_quickViewActive = false;
+    // Network preview: a remote file must be downloaded to a real local temp file
+    // before the viewers can open it. The download runs on a worker thread; the
+    // request id discards a stale download when the cursor has moved on. The temp
+    // dir is created lazily and auto-cleaned on exit.
+    QTemporaryDir *m_previewTempDir = nullptr;
+    quint64 m_previewReqId = 0;
+    bool m_previewRunning = false;                       // a remote fetch is in flight
+    QString m_previewName;                               // current file's name (for messages)
+    std::shared_ptr<std::atomic<bool>> m_previewCancel;  // current download's cancel flag
+    QString ensurePreviewTempDir();
+    void cancelPreviewDownload(); // Stop button: abort the current preview fetch
 
     QMap<QString, QShortcut *> m_shortcuts;
     QMap<QString, QKeySequence> m_shortcutDefaults;
@@ -248,6 +280,10 @@ private:
     // Feature batch: external devices, quick notepad, online update.
     void setupFeatureBatch(); // constructor helper: wires the three subsystems below
     RemovableDeviceMonitor *m_deviceMonitor = nullptr; // UDisks2 hot-plug watcher
+    // Mount points of currently-mounted removable volumes. Diffed on every
+    // devicesChanged() so a vanished mount (unmount or unplug) can auto-close
+    // the tabs that were browsing it.
+    QStringList m_removableMounts;
     SmbHostBrowser *m_smbBrowser = nullptr;            // SMB neighbourhood discovery
     UpdateInfo m_pendingUpdate;                        // valid when m_hasUpdate
     bool m_hasUpdate = false;                          // an update is available

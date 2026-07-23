@@ -1,5 +1,7 @@
 #include "NotepadPanel.h"
 
+#include "config/Settings.h"
+
 #include <QCloseEvent>
 #include <QGuiApplication>
 #include <QHBoxLayout>
@@ -63,6 +65,18 @@ NotepadPanel::NotepadPanel(QWidget *parent)
     m_splitter->addWidget(m_editor);
     m_splitter->setStretchFactor(0, 0);
     m_splitter->setStretchFactor(1, 1);
+
+    // Restore the user's last list/editor divider (persisted as the editor
+    // height). A genuine drag emits splitterMoved -- our own setSizes() does
+    // not -- so we can persist the new editor pane height straight from it.
+    m_editorHeight = Settings().notepadEditorHeight();
+    connect(m_splitter, &QSplitter::splitterMoved, this, [this](int, int) {
+        const QList<int> sizes = m_splitter->sizes();
+        if (sizes.size() == 2 && sizes.at(1) > 0) {
+            m_editorHeight = sizes.at(1);
+            Settings().setNotepadEditorHeight(m_editorHeight);
+        }
+    });
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(6, 6, 6, 6);
@@ -259,9 +273,9 @@ void NotepadPanel::closeEvent(QCloseEvent *event) {
     QWidget::closeEvent(event);
 }
 
-void NotepadPanel::popUpAbove(const QRect &anchorGlobalRect, int topLimitGlobalY) {
+void NotepadPanel::popUpAbove(const QRect &anchorGlobalRect, const QRect &appContentGlobalRect) {
     m_anchorRect = anchorGlobalRect;
-    m_topLimitY = topLimitGlobalY;
+    m_appContentRect = appContentGlobalRect;
     applyDynamicSize();
     show();
     raise();
@@ -285,29 +299,37 @@ void NotepadPanel::applyDynamicSize() {
     // Layout: top+bottom margin (6+6) + tool/splitter spacing (6) + splitter handle.
     const int chrome = 6 + 6 + 6 + m_splitter->handleWidth();
 
-    // Ideal height shows all rows and the preferred editor.
-    const int desired = toolH + chrome + listFull + kEditorPref;
-    // Ceiling: from the button's top up to the app window's top.
-    const int maxAvail = qMax(kEditorMin + 60, m_anchorRect.top() - m_topLimitY);
+    // Editor target: the user's persisted divider height if any, else the
+    // preferred default. This is what the list is sized *around*, so the
+    // divider the user dragged stays put as the popup's total height changes.
+    const int editorTarget = qMax(kEditorMin, m_editorHeight > 0 ? m_editorHeight : kEditorPref);
+
+    // Ideal height shows all rows and the target editor.
+    const int desired = toolH + chrome + listFull + editorTarget;
+    // Ceiling: from the button's top up to the app window's visible top (the
+    // shadow margin is excluded -- m_appContentRect is the content rect).
+    const int maxAvail = qMax(kEditorMin + 60, m_anchorRect.top() - m_appContentRect.top());
     const int h = qMin(desired, maxAvail);
 
     resize(kPanelWidth, h);
 
-    // Split the space: show the whole list when it fits alongside a full-size
-    // editor; otherwise cap the list so the editor keeps its minimum, and let
-    // the list scroll for the overflow.
+    // Split the space: give the editor its target height and show the whole
+    // list when both fit; otherwise cap the list (keeping the editor at least
+    // its minimum) and let the list scroll for the overflow.
     const int content = h - toolH - chrome; // shared by list + editor
     int listShown, editorShown;
-    if (listFull + kEditorPref <= content) {
+    if (listFull + editorTarget <= content) {
         listShown = listFull;
         editorShown = content - listFull;
     } else {
-        listShown = qBound(24, content - kEditorMin, listFull);
+        listShown = qBound(24, content - editorTarget, listFull);
         editorShown = content - listShown;
     }
     m_splitter->setSizes({listShown, editorShown});
 
-    int x = m_anchorRect.left();
+    // Right edge aligned to the app window's right edge; bottom just above the
+    // button; top capped at the app window's visible top (enforced via maxAvail).
+    int x = m_appContentRect.right() - width() + 1;
     int y = m_anchorRect.top() - height() + 1; // 1px overlap merges the edges
 
     if (QScreen *scr = QGuiApplication::screenAt(m_anchorRect.center())) {

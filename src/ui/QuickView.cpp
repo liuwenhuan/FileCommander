@@ -29,6 +29,7 @@
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QProcess>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -142,6 +143,7 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent)
     m_stack->addWidget(buildArchivePage());      // 8
     m_stack->addWidget(buildAudioPage());        // 9
     m_stack->addWidget(buildSlidesPage());       // 10
+    m_stack->addWidget(buildDownloadPage());     // 11
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -1214,6 +1216,63 @@ QWidget *QuickView::buildEncryptedPage() {
     connect(m_unlockButton, &QPushButton::clicked, this, &QuickView::tryUnlock);
     connect(m_passwordEdit, &QLineEdit::returnPressed, this, &QuickView::tryUnlock);
     return m_encryptedPage;
+}
+
+QWidget *QuickView::buildDownloadPage() {
+    m_downloadPage = new QWidget(this);
+    auto *outer = new QVBoxLayout(m_downloadPage);
+    outer->addStretch(1);
+
+    auto *column = new QVBoxLayout;
+    column->setSpacing(12);
+
+    m_downloadLabel = new QLabel(m_downloadPage);
+    m_downloadLabel->setAlignment(Qt::AlignCenter);
+    m_downloadLabel->setWordWrap(true);
+    column->addWidget(m_downloadLabel);
+
+    m_downloadProgress = new QProgressBar(m_downloadPage);
+    m_downloadProgress->setFixedWidth(320);
+    m_downloadProgress->setRange(0, 0); // indeterminate until a total is known
+    column->addWidget(m_downloadProgress, 0, Qt::AlignHCenter);
+
+    m_downloadStopButton = new QPushButton(tr("停止下载"), m_downloadPage);
+    m_downloadStopButton->setFixedWidth(160);
+    column->addWidget(m_downloadStopButton, 0, Qt::AlignHCenter);
+
+    outer->addLayout(column);
+    outer->addStretch(1);
+
+    connect(m_downloadStopButton, &QPushButton::clicked, this,
+            &QuickView::downloadCancelRequested);
+    return m_downloadPage;
+}
+
+void QuickView::showDownloading(const QString &name) {
+    m_downloadLabel->setText(tr("正在下载到本地以便预览…\n%1").arg(name));
+    m_downloadProgress->setRange(0, 0); // reset to indeterminate
+    m_downloadProgress->setVisible(true);
+    m_downloadStopButton->setVisible(true);
+    m_stack->setCurrentWidget(m_downloadPage);
+}
+
+void QuickView::setDownloadProgress(qint64 done, qint64 total) {
+    if (!m_downloadProgress)
+        return;
+    if (total > 0) {
+        // Scale to KiB so the int range holds large files.
+        m_downloadProgress->setRange(0, static_cast<int>(total / 1024 + 1));
+        m_downloadProgress->setValue(static_cast<int>(done / 1024));
+    } else {
+        m_downloadProgress->setRange(0, 0); // unknown size: keep it indeterminate
+    }
+}
+
+void QuickView::showDownloadCancelled(const QString &name) {
+    m_downloadLabel->setText(tr("已取消预览：本文件的预览下载被用户停止。\n%1").arg(name));
+    m_downloadProgress->setVisible(false);
+    m_downloadStopButton->setVisible(false);
+    m_stack->setCurrentWidget(m_downloadPage);
 }
 
 void QuickView::tryUnlock() {

@@ -308,3 +308,12 @@ bool Settings::notepadVisible() const {
 void Settings::setNotepadVisible(bool on) {
     m_settings.setValue("view/notepadVisible", on);
 }
+
+int Settings::notepadEditorHeight() const {
+    // 0 = never set; NotepadPanel falls back to its preferred editor height.
+    return m_settings.value("view/notepadEditorHeight", 0).toInt();
+}
+
+void Settings::setNotepadEditorHeight(int height) {
+    m_settings.setValue("view/notepadEditorHeight", qMax(0, height));
+}

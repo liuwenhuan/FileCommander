@@ -47,6 +47,14 @@ public:
     // Connection label for network tabs: "user@host" (or "host" if no user).
     QString displayName() const override;
 
+    // Bounds waits on connections and response data by ms (libsmbclient's
+    // smbc_setTimeout). Must be set before connectToHost(). Ignored if <= 0.
+    void setTimeoutMs(int ms) override { m_timeoutMs = ms > 0 ? ms : m_timeoutMs; }
+
+    // Rebuilds the context from the credentials captured by the last successful
+    // connectToHost(). Returns true on success.
+    bool reconnect(QString *error) override;
+
     // Read by the libsmbclient auth callback (a free function in the .cpp),
     // which runs synchronously inside a libsmbclient call this provider issued.
     // The values are set once in connectToHost() and never mutated after, so
@@ -93,4 +101,6 @@ private:
     QString m_user;
     QString m_password;
     QString m_workgroup;
+    bool m_anonymous = false; // remembered so reconnect() reuses guest mode
+    int m_timeoutMs = 12000;
 };

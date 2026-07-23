@@ -1,6 +1,8 @@
 #pragma once
 
+#include <QDateTime>
 #include <QObject>
+#include <QSet>
 #include <QString>
 #include <QVector>
 
@@ -11,33 +13,68 @@ struct SmbHost {
     QString name;     // host name, e.g. "NAS01"
     QString address;  // optional; may be empty
 };
+// So QVector<SmbHost> can cross a queued invocation (worker sources deliver host
+// batches to the browser's thread via QMetaObject::invokeMethod).
+Q_DECLARE_METATYPE(SmbHost)
 
-// Discovers SMB "network neighbourhood" hosts by browsing the smb:// root and
-// each workgroup with libsmbclient. The scan runs on a background thread (a
-// browse can block for seconds while master browsers are queried) and reports
-// hosts incrementally via hostsDiscovered as each workgroup is walked, then
-// emits discoveryFinished exactly once.
-//
-// Failures (no browser, timeout, unreachable workgroup) are swallowed: the scan
-// still ends with discoveryFinished and never crashes.
+class MdnsDiscovery;
+
+// Discovers SMB "network neighbourhood" hosts across three complementary
+// sources, because no single method covers a modern LAN:
+//   * mDNS/DNS-SD (Avahi) `_smb._tcp` -- NAS, macOS, avahi-advertising Samba;
+//   * WS-Discovery (multicast SOAP) -- Windows 10/11 PCs (which don't do mDNS);
+//   * legacy NetBIOS browse via libsmbclient -- older networks with a browse
+//     master (mostly dead on modern LANs, kept as a best-effort fallback).
+// Each source runs asynchronously and reports hosts incrementally through
+// hostsDiscovered; discoveryFinished is emitted exactly once, after ALL sources
+// have completed (so the UI can stop showing "searching" and, if nothing was
+// found, say so). Failures in any source are swallowed.
 class SmbHostBrowser : public QObject {
     Q_OBJECT
 public:
     explicit SmbHostBrowser(QObject *parent = nullptr);
 
-    // Starts an asynchronous discovery. Results arrive through the signals. Safe
-    // to call repeatedly: a call made while a discovery is already running is
-    // ignored rather than starting a second overlapping scan.
-    void startDiscovery();
+    // Discovered hosts accumulated (deduped) from the most recent scan(s). Lets a
+    // freshly opened picker show results instantly from cache instead of waiting
+    // for a scan each time.
+    QVector<SmbHost> cachedHosts() const { return m_cachedHosts; }
+
+    // Starts an asynchronous discovery across all sources, UNLESS a scan is
+    // already running or the cache is still fresh (< kCacheSecs old) and `force`
+    // is false -- in which case the cached results are reused and no scan runs.
+    // Returns true if a scan is now active (caller should show "searching" until
+    // discoveryFinished), false if the fresh cache is being used (already done).
+    bool startDiscovery(bool force = false);
+
+    // How long discovered hosts stay cached before a click triggers a rescan.
+    static constexpr qint64 kCacheSecs = 4 * 60 * 60; // 4 hours
 
 signals:
     // Emitted one or more times as hosts are found; each emission carries a
-    // batch (typically the servers of one workgroup).
+    // batch (one server, or the servers of one workgroup). The receiver dedups.
     void hostsDiscovered(const QVector<SmbHost> &hosts);
 
-    // Emitted once when the scan completes (whether or not any host was found).
+    // Emitted once when EVERY source has finished (whether or not any host was
+    // found).
     void discoveryFinished();
 
+private slots:
+    void onMdnsHost(const QString &name, const QString &address);
+    void onSourceHosts(const QVector<SmbHost> &hosts); // a source reported a batch
+    void onSourceFinished();                           // a source completed
+
 private:
-    bool m_running = false;  // set/cleared on the object's thread only
+    // Dedups `hosts` against the accumulated cache (by IP, else name), appends the
+    // genuinely new ones, and emits hostsDiscovered for just those.
+    void addHosts(const QVector<SmbHost> &hosts);
+    bool cacheFresh() const {
+        return m_lastScan.isValid() && m_lastScan.secsTo(QDateTime::currentDateTime()) < kCacheSecs;
+    }
+
+    bool m_running = false;   // set/cleared on the object's thread only
+    int m_pending = 0;        // sources not yet finished; discoveryFinished at 0
+    MdnsDiscovery *m_mdns = nullptr;
+    QSet<QString> m_localAddrs; // this machine's own IPv4s, to filter out "self"
+    QVector<SmbHost> m_cachedHosts; // accumulated, deduped discovery results
+    QDateTime m_lastScan;           // when the last full scan finished (cache age)
 };

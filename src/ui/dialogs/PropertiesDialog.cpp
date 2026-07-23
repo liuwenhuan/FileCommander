@@ -44,6 +44,16 @@ QString humanSize(qint64 bytes) {
         .arg(QLocale().toString(bytes));
 }
 
+// Renders an owner/group cell. A resolved name wins (with the numeric id in
+// parentheses when known); otherwise the bare id; otherwise "-" for unknown.
+QString ownerGroupText(const QString &name, int id) {
+    if (!name.isEmpty())
+        return id >= 0 ? QStringLiteral("%1 (%2)").arg(name).arg(id) : name;
+    if (id >= 0)
+        return QString::number(id);
+    return QStringLiteral("-");
+}
+
 } // namespace
 
 int PropertiesDialog::toOctal(QFile::Permissions perms) {
@@ -71,11 +81,41 @@ PropertiesDialog::PropertiesDialog(const QStringList &paths, QWidget *parent)
     buildUi();
 }
 
+PropertiesDialog::PropertiesDialog(const FileInfo &info, QWidget *parent)
+    : FramelessDialog(parent), m_paths(QStringList{info.path()}), m_info(info),
+      m_hasInfo(true) {
+    setModal(true);
+    buildUi();
+}
+
 void PropertiesDialog::buildUi() {
     const bool single = m_paths.size() == 1;
 
     auto *form = new QFormLayout;
-    if (single) {
+    if (single && m_hasInfo) {
+        // Remote / pre-fetched metadata: read everything off the FileInfo so we
+        // never touch the (meaningless-for-remote) local filesystem.
+        const QString name = m_info.name();
+        setWindowTitle(tr("Properties — %1").arg(name));
+        form->addRow(tr("Name:"), new QLabel(name, this));
+        form->addRow(tr("Location:"),
+                     new QLabel(QFileInfo(m_info.path()).path(), this));
+        const QString type = m_info.isSymLink() ? tr("Symbolic link")
+                             : m_info.isDir()   ? tr("Folder")
+                                                : tr("File");
+        form->addRow(tr("Type:"), new QLabel(type, this));
+        if (!m_info.isDir())
+            form->addRow(tr("Size:"), new QLabel(humanSize(m_info.size()), this));
+        if (m_info.modified().isValid())
+            form->addRow(
+                tr("Modified:"),
+                new QLabel(m_info.modified().toString(QStringLiteral("yyyy-MM-dd HH:mm:ss")),
+                           this));
+        form->addRow(tr("Owner:"),
+                     new QLabel(ownerGroupText(m_info.owner(), m_info.ownerId()), this));
+        form->addRow(tr("Group:"),
+                     new QLabel(ownerGroupText(m_info.group(), m_info.groupId()), this));
+    } else if (single) {
         QFileInfo info(m_paths.first());
         setWindowTitle(tr("Properties — %1").arg(info.fileName()));
         form->addRow(tr("Name:"), new QLabel(info.fileName(), this));
@@ -91,8 +131,12 @@ void PropertiesDialog::buildUi() {
         form->addRow(tr("Modified:"),
                      new QLabel(info.lastModified().toString(QStringLiteral("yyyy-MM-dd HH:mm:ss")),
                                 this));
-        form->addRow(tr("Owner:"), new QLabel(info.owner(), this));
-        form->addRow(tr("Group:"), new QLabel(info.group(), this));
+        form->addRow(tr("Owner:"),
+                     new QLabel(ownerGroupText(info.owner(), static_cast<int>(info.ownerId())),
+                                this));
+        form->addRow(tr("Group:"),
+                     new QLabel(ownerGroupText(info.group(), static_cast<int>(info.groupId())),
+                                this));
     } else {
         setWindowTitle(tr("Properties — %1 items").arg(m_paths.size()));
         qint64 total = 0;
@@ -111,9 +155,14 @@ void PropertiesDialog::buildUi() {
     Qt::CheckState initial[9];
     for (int i = 0; i < 9; ++i) {
         int set = 0;
-        for (const QString &p : m_paths)
-            if (QFileInfo(p).permissions() & kBits[i].flag)
+        if (m_hasInfo) {
+            if (m_info.permissions() & kBits[i].flag)
                 ++set;
+        } else {
+            for (const QString &p : m_paths)
+                if (QFileInfo(p).permissions() & kBits[i].flag)
+                    ++set;
+        }
         initial[i] = set == 0 ? Qt::Unchecked
                      : set == m_paths.size() ? Qt::Checked
                                              : Qt::PartiallyChecked;

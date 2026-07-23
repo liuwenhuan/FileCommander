@@ -4,6 +4,8 @@
 #include <QString>
 #include <QVector>
 
+class QTimer;
+
 // A single removable storage volume as reported by UDisks2: a USB stick, an
 // external hard drive, a phone's mass-storage partition, etc. The `id` is the
 // UDisks2 object path of the block device, which is stable for the lifetime of
@@ -63,4 +65,5 @@ private:
     QVector<RemovableDevice> enumerate() const;
 
     QVector<RemovableDevice> m_devices;
+    QTimer *m_refreshDebounce = nullptr; // coalesces D-Bus signal bursts
 };

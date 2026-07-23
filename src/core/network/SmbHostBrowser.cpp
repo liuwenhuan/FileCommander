@@ -1,128 +1,139 @@
 #include "SmbHostBrowser.h"
 
+#include <QHostInfo>
+#include <QNetworkInterface>
 #include <QPointer>
-#include <QUrl>
 #include <QtConcurrent>
 
-#include <libsmbclient.h>
+#include "LanScan.h"
+#include "MdnsDiscovery.h"
+#include "WsdDiscovery.h"
 
 namespace {
 
-// Anonymous auth for browsing: hand libsmbclient empty credentials so it queries
-// the network neighbourhood as guest. Browsing the smb:// root and workgroups
-// needs no login, so there is nothing to leak here (unlike SmbProvider, which
-// carries real credentials).
-void anonymousAuthCallback(SMBCCTX * /*ctx*/, const char * /*srv*/, const char * /*shr*/,
-                           char *wg, int wglen, char *un, int unlen, char *pw, int pwlen) {
-    if (wg && wglen > 0)
-        wg[0] = '\0';
-    if (un && unlen > 0)
-        un[0] = '\0';
-    if (pw && pwlen > 0)
-        pw[0] = '\0';
+// Marshals a batch of hosts (into the dedup/cache slot) and a source-completion
+// notification back to the browser's thread from a worker thread (no-op if the
+// browser was destroyed).
+void postHosts(QPointer<SmbHostBrowser> self, const QVector<SmbHost> &hosts) {
+    if (hosts.isEmpty() || !self)
+        return;
+    QMetaObject::invokeMethod(self.data(), "onSourceHosts", Qt::QueuedConnection,
+                              Q_ARG(QVector<SmbHost>, hosts));
 }
-
-// Lists the SMB servers directly under an smb:// URL (the root or a workgroup).
-// Returns their names; workgroup names encountered under the root are appended
-// to `workgroupsOut` so the caller can descend into them.
-QVector<SmbHost> serversUnder(SMBCCTX *ctx, const QByteArray &url,
-                              QStringList *workgroupsOut) {
-    QVector<SmbHost> hosts;
-
-    smbc_opendir_fn opendirFn = smbc_getFunctionOpendir(ctx);
-    smbc_readdir_fn readdirFn = smbc_getFunctionReaddir(ctx);
-    smbc_closedir_fn closedirFn = smbc_getFunctionClosedir(ctx);
-
-    SMBCFILE *dir = opendirFn(ctx, url.constData());
-    if (!dir)
-        return hosts;
-
-    struct smbc_dirent *de = nullptr;
-    while ((de = readdirFn(ctx, dir)) != nullptr) {
-        const QString name = QString::fromUtf8(de->name);
-        if (name.isEmpty() || name == QStringLiteral(".") || name == QStringLiteral(".."))
-            continue;
-
-        if (de->smbc_type == SMBC_SERVER) {
-            hosts.append(SmbHost{name, QString()});
-        } else if (de->smbc_type == SMBC_WORKGROUP && workgroupsOut) {
-            workgroupsOut->append(name);
-        }
-    }
-
-    closedirFn(ctx, dir);
-    return hosts;
+void postSourceFinished(QPointer<SmbHostBrowser> self) {
+    if (!self)
+        return;
+    QMetaObject::invokeMethod(self.data(), "onSourceFinished", Qt::QueuedConnection);
 }
-
 } // namespace
 
-SmbHostBrowser::SmbHostBrowser(QObject *parent) : QObject(parent) {}
+SmbHostBrowser::SmbHostBrowser(QObject *parent) : QObject(parent) {
+    qRegisterMetaType<QVector<SmbHost>>("QVector<SmbHost>");
+}
 
-void SmbHostBrowser::startDiscovery() {
+bool SmbHostBrowser::startDiscovery(bool force) {
     if (m_running)
-        return; // ignore overlapping requests
+        return true; // a scan is already active
+    if (!force && cacheFresh())
+        return false; // fresh cache -- reuse it, no scan
     m_running = true;
 
-    // A QPointer lets the worker's cross-thread callbacks no-op if this object is
-    // destroyed before the scan finishes.
+    // Snapshot this machine's own IPv4s so "self" is filtered out of the results
+    // (it advertises its own Samba via mDNS; browsing to yourself is pointless).
+    m_localAddrs.clear();
+    for (const QHostAddress &a : QNetworkInterface::allAddresses())
+        if (a.protocol() == QAbstractSocket::IPv4Protocol)
+            m_localAddrs.insert(a.toString());
+
+    // Three sources run in parallel; discoveryFinished fires once all complete.
+    m_pending = 3;
+
     QPointer<SmbHostBrowser> self(this);
 
+    // Source 1: WS-Discovery for Windows hosts (worker thread).
     QtConcurrent::run([self]() {
-        // Marshals a batch of hosts back to the object's thread. If the browser
-        // has already been destroyed there is nothing to deliver to, so skip.
-        auto emitHosts = [self](const QVector<SmbHost> &hosts) {
-            if (hosts.isEmpty() || !self)
-                return;
-            QMetaObject::invokeMethod(
-                self.data(),
-                [self, hosts]() {
-                    if (self)
-                        emit self->hostsDiscovered(hosts);
-                },
-                Qt::QueuedConnection);
-        };
-
-        SMBCCTX *ctx = smbc_new_context();
-        if (ctx) {
-            smbc_setFunctionAuthDataWithContext(ctx, anonymousAuthCallback);
-            smbc_setOptionUseKerberos(ctx, 0);
-            smbc_setOptionFallbackAfterKerberos(ctx, 1);
-            smbc_setOptionNoAutoAnonymousLogin(ctx, 0);
-            smbc_setDebug(ctx, 0);
-
-            if (smbc_init_context(ctx)) {
-                // Root browse: collect any servers listed directly plus the set
-                // of workgroups to descend into.
-                QStringList workgroups;
-                const QVector<SmbHost> rootHosts =
-                    serversUnder(ctx, QByteArrayLiteral("smb://"), &workgroups);
-                emitHosts(rootHosts);
-
-                for (const QString &wg : workgroups) {
-                    const QByteArray wgUrl =
-                        QByteArrayLiteral("smb://") +
-                        QUrl::toPercentEncoding(wg);
-                    const QVector<SmbHost> wgHosts = serversUnder(ctx, wgUrl, nullptr);
-                    emitHosts(wgHosts);
-                }
-            }
-
-            // shutdown_ctx=1 closes any open dirs and frees the context.
-            smbc_free_context(ctx, 1);
-        }
-
-        // Always report completion and clear the running flag, on the object's
-        // thread, even when the context could not be created.
-        if (self) {
-            QMetaObject::invokeMethod(
-                self.data(),
-                [self]() {
-                    if (self) {
-                        self->m_running = false;
-                        emit self->discoveryFinished();
-                    }
-                },
-                Qt::QueuedConnection);
-        }
+        QVector<SmbHost> hosts;
+        for (const auto &pair : wsd::probe(3000))
+            hosts.append(SmbHost{pair.first, pair.second});
+        postHosts(self, hosts);
+        postSourceFinished(self);
     });
+
+    // Source 3: active TCP-445 subnet scan -- the reliable catch-all that finds
+    // plain Samba/Windows servers which advertise via none of the other methods
+    // (worker thread). Names come from a NetBIOS node-status query, else the IP.
+    QtConcurrent::run([self]() {
+        QVector<SmbHost> hosts;
+        for (const auto &pair : lanscan::scan445(400))
+            hosts.append(SmbHost{pair.first, pair.second});
+        postHosts(self, hosts);
+        postSourceFinished(self);
+    });
+
+    // Source 4: mDNS/DNS-SD via Avahi (async D-Bus on this thread).
+    if (!m_mdns) {
+        m_mdns = new MdnsDiscovery(this);
+        connect(m_mdns, &MdnsDiscovery::hostFound, this, &SmbHostBrowser::onMdnsHost);
+        connect(m_mdns, &MdnsDiscovery::finished, this, &SmbHostBrowser::onSourceFinished);
+    }
+    m_mdns->start();
+    return true; // a scan is now active
+}
+
+void SmbHostBrowser::addHosts(const QVector<SmbHost> &hosts) {
+    // Dedup against the accumulated cache by IP (else name), so a host reported by
+    // several sources / on several interfaces appears once. Emit only the new ones.
+    auto keyOf = [](const SmbHost &h) {
+        return (h.address.isEmpty() ? h.name : h.address).toLower();
+    };
+    QVector<SmbHost> fresh;
+    for (const SmbHost &h : hosts) {
+        if (keyOf(h).isEmpty())
+            continue;
+        bool known = false;
+        for (const SmbHost &c : m_cachedHosts)
+            if (keyOf(c) == keyOf(h)) {
+                known = true;
+                break;
+            }
+        if (!known) {
+            m_cachedHosts.append(h);
+            fresh.append(h);
+        }
+    }
+    if (!fresh.isEmpty())
+        emit hostsDiscovered(fresh);
+}
+
+void SmbHostBrowser::onSourceHosts(const QVector<SmbHost> &hosts) {
+    addHosts(hosts);
+}
+
+void SmbHostBrowser::onMdnsHost(const QString &name, const QString &address) {
+    // Keep IPv4 only (an IPv6 address would list the same host twice under the
+    // IP-based dedup), and drop "self" / junk (loopback, link-local, and this
+    // machine's own IPs -- mDNS resolves the local host on every docker iface).
+    if (address.contains(QLatin1Char(':'))) // IPv6
+        return;
+    if (m_localAddrs.contains(address) || address.startsWith(QStringLiteral("127.")) ||
+        address.startsWith(QStringLiteral("169.254.")))
+        return;
+    // Self advertises _smb._tcp on docker-bridge IPs that QNetworkInterface may
+    // not enumerate, so also drop it by hostname. (Applied only to mDNS: the
+    // 445-scan already excludes self by IP, and a real neighbour may legitimately
+    // share this host's NetBIOS name.)
+    QString n = name.toLower();
+    if (n.endsWith(QStringLiteral(".local")))
+        n.chop(6);
+    if (!n.isEmpty() && n == QHostInfo::localHostName().toLower())
+        return;
+    addHosts({SmbHost{name, address}});
+}
+
+void SmbHostBrowser::onSourceFinished() {
+    if (m_pending > 0 && --m_pending == 0) {
+        m_running = false;
+        m_lastScan = QDateTime::currentDateTime(); // start the 4h cache clock
+        emit discoveryFinished();
+    }
 }

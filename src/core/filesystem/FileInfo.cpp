@@ -21,6 +21,11 @@ FileInfo::FileInfo(const QString &path) {
     if (!m_created.isValid())
         m_created = qfi.metadataChangeTime(); // birth time isn't always available
     m_permissions = qfi.permissions();
+    // The local filesystem resolves both numeric ids and names.
+    m_ownerId = static_cast<int>(qfi.ownerId());
+    m_groupId = static_cast<int>(qfi.groupId());
+    m_owner = qfi.owner();
+    m_group = qfi.group();
     // m_mimeType is intentionally left empty here; see mimeType() below.
 }
 
@@ -37,7 +42,8 @@ const QString &FileInfo::mimeType() const {
 
 FileInfo FileInfo::fromFields(const QString &path, const QString &name, qint64 size,
                               const QDateTime &modified, bool isDir,
-                              QFile::Permissions permissions) {
+                              QFile::Permissions permissions, int ownerId, int groupId,
+                              const QString &owner, const QString &group) {
     FileInfo info;
     info.m_name = name;
     info.m_path = path;
@@ -57,6 +63,10 @@ FileInfo FileInfo::fromFields(const QString &path, const QString &name, qint64 s
     info.m_modified = modified;
     // m_created intentionally left invalid: SFTP exposes no creation time.
     info.m_permissions = permissions;
+    info.m_ownerId = ownerId;
+    info.m_groupId = groupId;
+    info.m_owner = owner;
+    info.m_group = group;
     return info;
 }
 

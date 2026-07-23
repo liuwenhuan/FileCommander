@@ -13,6 +13,7 @@
 #include "FileProvider.h"
 #include "IconCache.h"
 #include "LocalFileProvider.h"
+#include "network/NetworkSession.h"
 
 namespace {
 
@@ -45,8 +46,64 @@ FileSystemModel::FileSystemModel(QObject *parent) : QAbstractTableModel(parent) 
             &FileSystemModel::onScanFinished);
 }
 
+FileSystemModel::~FileSystemModel() = default; // out-of-line: completes unique_ptr<NetworkSession>
+
 void FileSystemModel::setProvider(std::shared_ptr<FileProvider> provider) {
+    // Switching to a different (or local) provider abandons any network session.
+    if (m_session && (!provider || provider.get() != m_session->provider()))
+        teardownSession();
     m_provider = provider ? std::move(provider) : localProviderPtr();
+}
+
+void FileSystemModel::teardownSession() {
+    if (!m_session)
+        return;
+    m_session->stop();
+    m_session.reset(); // ~NetworkSession joins its worker thread
+}
+
+void FileSystemModel::connectNetwork(std::shared_ptr<FileProvider> provider,
+                                     std::function<bool(QString *)> connectFn,
+                                     const QString &initialPath) {
+    teardownSession();
+    m_provider = provider; // network provider becomes the backend
+    m_session = std::make_unique<NetworkSession>(provider);
+    connect(m_session.get(), &NetworkSession::stateChanged, this,
+            &FileSystemModel::onSessionStateChanged);
+    connect(m_session.get(), &NetworkSession::listReady, this,
+            &FileSystemModel::onSessionListReady);
+    connect(m_session.get(), &NetworkSession::listFailed, this,
+            &FileSystemModel::onSessionListFailed);
+    connect(m_session.get(), &NetworkSession::authRequired, this,
+            &FileSystemModel::onSessionAuthRequired);
+    m_authRetry = nullptr;   // connect site sets it via setAuthContext for retryable backends
+    m_relistOnConnect = false;
+    // Start connecting on the worker thread. The caller then navigates to
+    // initialPath: that requestList is queued after this connect on the single
+    // worker thread, so it lists only once the connection lands (no double-list).
+    m_session->start(std::move(connectFn), initialPath);
+}
+
+void FileSystemModel::setAuthContext(const QString &label, AuthRetryFactory factory) {
+    m_networkLabel = label;
+    m_authRetry = std::move(factory);
+}
+
+void FileSystemModel::onSessionAuthRequired(const QString &error) {
+    Q_UNUSED(error);
+    emit networkAuthRequired(m_networkLabel); // UI prompts, then calls provideCredentials
+}
+
+void FileSystemModel::provideCredentials(const QString &user, const QString &pass) {
+    if (!m_session || !m_authRetry)
+        return;
+    m_relistOnConnect = true; // navigateTo's list request was consumed by the failed attempt
+    m_session->retryWith(m_authRetry(user, pass));
+}
+
+void FileSystemModel::retryNetwork() {
+    if (m_session)
+        m_session->retry();
 }
 
 void FileSystemModel::setRootPath(const QString &path) {
@@ -57,13 +114,66 @@ void FileSystemModel::setRootPath(const QString &path) {
     m_compareStatus.clear();  // comparison highlights are stale after a rescan
     m_dateStrCache.clear();   // bound the memo; new listing, new timestamps
     emit loadStarted();
-    // Capture a shared_ptr copy so the provider outlives this worker-thread scan
-    // even if the model switches to another provider meanwhile.
+
+    // Network tab: route the listing through the session's worker thread. The
+    // current view is left intact until the result arrives, so a slow/failed
+    // navigation never blanks the panel. Stale results are discarded by reqId.
+    if (m_session) {
+        m_session->requestList(++m_reqId, path, m_showHidden);
+        return;
+    }
+
+    // Local/archive: scan on a QtConcurrent worker as before. Capture a
+    // shared_ptr copy so the provider outlives this scan even if the model
+    // switches providers meanwhile.
     std::shared_ptr<FileProvider> provider = m_provider;
     const bool showHidden = m_showHidden;
     QFuture<QVector<FileInfo>> future =
         QtConcurrent::run([provider, path, showHidden] { return provider->list(path, showHidden); });
     m_watcher.setFuture(future);
+}
+
+void FileSystemModel::onSessionStateChanged(int state, int attempt) {
+    // Forward to the status line. The initial listing is driven by the caller's
+    // navigateTo() (queued behind the connect on the worker thread); post-drop
+    // refreshes are emitted by the session itself as listReady(reqId 0).
+    emit networkStateChanged(state, attempt);
+    // A credentialed retry just connected: the original list request was already
+    // consumed by the failed anonymous attempt, so re-list the current directory.
+    if (state == NetworkSession::Connected && m_relistOnConnect) {
+        m_relistOnConnect = false;
+        setRootPath(m_rootPath);
+    }
+}
+
+void FileSystemModel::onSessionListReady(quint64 reqId, const QString &path,
+                                         const QVector<FileInfo> &entries) {
+    if (m_flatMode)
+        return;
+    // reqId 0 is a session-initiated refresh (post-reconnect): accept only if it
+    // still matches the current directory. Otherwise ignore superseded results.
+    if (reqId == 0) {
+        if (path != m_rootPath)
+            return;
+    } else if (reqId != m_reqId) {
+        return;
+    }
+    beginResetModel();
+    m_allEntries = entries;
+    m_hasParentEntry = m_provider && !m_provider->parentPath(path).isEmpty();
+    sortEntries();
+    endResetModel();
+    m_rootPath = path;
+    emit loadFinished(m_entries.size());
+}
+
+void FileSystemModel::onSessionListFailed(quint64 reqId, const QString &path) {
+    Q_UNUSED(path);
+    if (reqId != 0 && reqId != m_reqId)
+        return;
+    // Keep the current view intact (don't blank it); the status line already
+    // reflects the reconnect/failed state. End any loading indicator.
+    emit loadFinished(m_entries.size());
 }
 
 void FileSystemModel::setShowHiddenFiles(bool show) {
@@ -146,6 +256,28 @@ qint64 FileSystemModel::directorySize(const QString &path) {
     while (it.hasNext()) {
         it.next();
         total += it.fileInfo().size();
+    }
+    return total;
+}
+
+qint64 FileSystemModel::directorySize(FileProvider *provider, const QString &path) {
+    LocalFileProvider *local = LocalFileProvider::instance();
+    if (!provider || provider == local)
+        return directorySize(path); // local: fast QDirIterator recursion
+
+    // Remote backend: recurse through the provider (each list() call serialises
+    // on the provider's mutex, so this is safe alongside the session thread).
+    // Symlinked directories are NOT descended, to avoid infinite loops on the
+    // server; the link entry itself just contributes its own reported size.
+    qint64 total = 0;
+    const QVector<FileInfo> entries = provider->list(path, /*showHidden=*/true);
+    for (const FileInfo &e : entries) {
+        if (e.isParentEntry())
+            continue;
+        if (e.isDir() && !e.isSymLink())
+            total += directorySize(provider, e.path());
+        else
+            total += e.size();
     }
     return total;
 }

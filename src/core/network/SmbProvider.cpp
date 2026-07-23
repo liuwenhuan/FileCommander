@@ -93,6 +93,7 @@ bool SmbProvider::connectToHost(const QString &host, const QString &user,
     // Stash credentials before init so the auth callback can read them.
     m_host = host;
     m_workgroup = workgroup;
+    m_anonymous = anonymous;
     if (anonymous) {
         m_user.clear();
         m_password.clear();
@@ -120,6 +121,9 @@ bool SmbProvider::connectToHost(const QString &host, const QString &user,
     // Allow an anonymous/guest attempt when no credentials are supplied.
     smbc_setOptionNoAutoAnonymousLogin(ctx, 0);
     smbc_setDebug(ctx, 0);
+    // Bound waits on connection establishment and response data (milliseconds)
+    // so a dead/unreachable server fails instead of hanging on the OS default.
+    smbc_setTimeout(ctx, m_timeoutMs);
 
     if (!smbc_init_context(ctx)) {
         if (error)
@@ -140,9 +144,18 @@ bool SmbProvider::connectToHost(const QString &host, const QString &user,
     smbc_closedir_fn closedirFn = smbc_getFunctionClosedir(ctx);
     SMBCFILE *dir = opendirFn(ctx, rootUrl.constData());
     if (!dir) {
-        if (error)
-            *error = QStringLiteral("Cannot open \\\\%1: %2")
-                         .arg(host, QString::fromUtf8(std::strerror(errno)));
+        const int e = errno;
+        if (error) {
+            // EACCES/EPERM here mean the server rejected the (anonymous) login --
+            // credentials are needed. Flag it clearly ("authentication") so the
+            // caller can prompt for a username/password instead of just failing.
+            if (e == EACCES || e == EPERM)
+                *error = QStringLiteral("Authentication required for \\\\%1: %2")
+                             .arg(host, QString::fromUtf8(std::strerror(e)));
+            else
+                *error = QStringLiteral("Cannot open \\\\%1: %2")
+                             .arg(host, QString::fromUtf8(std::strerror(e)));
+        }
         smbc_free_context(ctx, 1);
         m_ctx = nullptr;
         m_host.clear();
@@ -150,6 +163,24 @@ bool SmbProvider::connectToHost(const QString &host, const QString &user,
     }
     closedirFn(ctx, dir);
     return true;
+}
+
+bool SmbProvider::reconnect(QString *error) {
+    // Snapshot credentials before disconnect() clears them. connectToHost() and
+    // disconnect() each take m_mutex, so reconnect() must not hold the
+    // (non-recursive) lock while calling them.
+    QString host, user, password, workgroup;
+    bool anonymous;
+    {
+        QMutexLocker locker(&m_mutex);
+        host = m_host;
+        user = m_user;
+        password = m_password;
+        workgroup = m_workgroup;
+        anonymous = m_anonymous;
+    }
+    disconnect();
+    return connectToHost(host, user, password, workgroup, anonymous, error);
 }
 
 void SmbProvider::disconnect() {
@@ -165,6 +196,7 @@ void SmbProvider::disconnect() {
     m_user.clear();
     m_password.clear();
     m_workgroup.clear();
+    m_anonymous = false;
 }
 
 bool SmbProvider::isConnected() const {

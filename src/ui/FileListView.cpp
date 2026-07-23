@@ -240,9 +240,9 @@ FileListView::FileListView(QWidget *parent) : QTableView(parent) {
             [this](int logical, int oldSize, int newSize) {
                 onSectionResized(logical, oldSize, newSize);
             });
-    // Double-click a section's resize grip -> auto-fit that column to content.
+    // Double-click a divider -> auto-fit the column on its RIGHT to content.
     connect(horizontalHeader(), &QHeaderView::sectionHandleDoubleClicked, this,
-            &FileListView::autoFitColumn);
+            &FileListView::autoFitColumnRightOfHandle);
 
     setDragEnabled(true);
     setAcceptDrops(true);
@@ -271,6 +271,12 @@ void FileListView::setModel(QAbstractItemModel *model) {
         // Every column is user-resizable by dragging its edge, including
         // Name. No stretch section, so no column is locked.
         header->setStretchLastSection(false);
+        // A hidden section otherwise keeps a phantom minimumSectionSize slot in
+        // the layout (reports size 0 yet still offsets later columns, leaving a
+        // blank gap before the next visible column). Allow a zero minimum so a
+        // hidden column truly occupies nothing; applyLayout enforces per-column
+        // smart-mins on the *visible* columns, so this doesn't let them collapse.
+        header->setMinimumSectionSize(0);
         for (int col = 0; col < model->columnCount(); ++col)
             header->setSectionResizeMode(col, QHeaderView::Interactive);
 
@@ -407,7 +413,18 @@ void FileListView::showColumnMenu(const QPoint &pos) {
             action->setEnabled(false); // the Name column can't be hidden
         connect(action, &QAction::toggled, this, [this, c, header](bool on) {
             header->setSectionHidden(c, !on);
-            applyLayout();
+            if (on) {
+                // Newly shown column: fit it by the unified rule (content-min
+                // width) rather than reusing a stale persisted/default width, so
+                // it joins the same layout scheme as every other info column.
+                // Clearing m_userSet lets recomputeContentWidths() reset its base
+                // to the measured content width; other user-set columns keep
+                // their widths (recompute only touches !m_userSet columns).
+                m_userSet[c] = false;
+                recomputeContentWidths(); // recomputes bases + applyLayout()
+            } else {
+                applyLayout();
+            }
         });
     }
     menu.exec(header->mapToGlobal(pos));
@@ -562,8 +579,20 @@ void FileListView::applyLayout() {
             qMax(m_smartMin[FileSystemModel::NameColumn], avail - sumInfoDisp);
 
     m_adjustingColumns = true;
-    for (int c : visible)
-        header->resizeSection(c, disp.value(c));
+    for (int c = 0; c < header->count(); ++c) {
+        if (header->isSectionHidden(c)) {
+            // resizeSection is a no-op on a hidden section, so a hidden column
+            // keeps a phantom slot in the layout (reports size 0 yet still
+            // offsets later columns, leaving a blank gap before the next visible
+            // column and pushing the last column off-screen). Briefly show it to
+            // collapse its width to 0 (minimumSectionSize is 0), then re-hide.
+            header->showSection(c);
+            header->resizeSection(c, 0);
+            header->hideSection(c);
+        } else {
+            header->resizeSection(c, disp.value(c));
+        }
+    }
     m_adjustingColumns = false;
 }
 
@@ -599,10 +628,30 @@ void FileListView::onSectionResized(int logical, int oldSize, int newSize) {
     applyLayout(); // re-pin the last column and keep the sum = viewport
 }
 
+void FileListView::autoFitColumnRightOfHandle(int handleLeftLogical) {
+    // Qt reports the divider by the column to its LEFT; the user means the column
+    // to its RIGHT. Find the next visible column and fit that one. The rightmost
+    // divider (last visible column's right edge, pinned to the viewport) has no
+    // column to its right, so nothing happens there.
+    QHeaderView *header = horizontalHeader();
+    if (!header)
+        return;
+    for (int c = handleLeftLogical + 1; c < header->count(); ++c) {
+        if (!header->isSectionHidden(c)) {
+            autoFitColumn(c);
+            return;
+        }
+    }
+}
+
 void FileListView::autoFitColumn(int logical) {
-    // Fit an info column to its (freshly measured) content width. The Name column
-    // is the flex remainder -- it always fills the leftover space, so there is
-    // nothing to "fit" and it is skipped.
+    // Fit an info column to its (freshly measured) content width: exactly the
+    // widest value it must display (the header label is folded into m_contentWidth
+    // as a floor, so a short column still shows its title). Only this column's
+    // base changes; applyLayout then makes the Name column absorb the difference,
+    // leaving every other info column untouched -- unless Name would fall below
+    // its 16-char floor, which triggers the usual priority compression. The Name
+    // column itself is the flex remainder, so there is nothing to "fit" for it.
     if (logical <= FileSystemModel::NameColumn || logical >= m_baseWidth.size() || !model())
         return;
     recomputeContentWidths(); // refresh m_contentWidth for the current listing

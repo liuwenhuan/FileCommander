@@ -6,11 +6,13 @@
 #include <QStringList>
 #include <QVector>
 
+#include <functional>
 #include <memory>
 
 #include "FileInfo.h"
 
 class FileProvider;
+class NetworkSession;
 
 // Flat listing of a single directory's contents (not a recursive tree) --
 // this backs one FilePanel's file list. Loads asynchronously so opening a
@@ -43,9 +45,34 @@ public:
     enum CompareStatus { CompareNone, CompareUnique, CompareNewer, CompareOlder };
 
     explicit FileSystemModel(QObject *parent = nullptr);
+    ~FileSystemModel() override;
 
     void setRootPath(const QString &path);
     QString rootPath() const { return m_rootPath; }
+
+    // Network connection lifecycle. Wraps `provider` in a NetworkSession running
+    // on its own worker thread and starts an asynchronous connect via the
+    // protocol-specific `connectFn` closure, so the GUI thread never blocks on a
+    // slow/stalled link. On success the model lists `initialPath`. Connect and
+    // reconnect progress is surfaced through networkStateChanged() for the status
+    // line. Replaces the old synchronous setProvider()+navigate for network tabs.
+    void connectNetwork(std::shared_ptr<FileProvider> provider,
+                        std::function<bool(QString *)> connectFn, const QString &initialPath);
+    bool hasNetworkSession() const { return m_session != nullptr; }
+    // User-initiated retry after the "multiple reconnects failed" state.
+    void retryNetwork();
+
+    // Given the user's credentials, produces a fresh connect closure for the same
+    // target. Set by the connect site (which knows the host/protocol) so an
+    // anonymous connection that turns out to need a password can be retried.
+    using AuthRetryFactory =
+        std::function<std::function<bool(QString *)>(const QString &user, const QString &pass)>;
+    // Records who is being connected (for the prompt) and how to rebuild the
+    // connect with credentials. Call right after connectNetwork().
+    void setAuthContext(const QString &label, AuthRetryFactory factory);
+    // Supplies the credentials the user entered after networkAuthRequired: rebuilds
+    // the connect closure and retries, then re-lists once connected.
+    void provideCredentials(const QString &user, const QString &pass);
 
     // "Flat" listing mode: populate the model with an explicit set of file paths
     // that may span many directories (e.g. Ctrl+F search results shown TC
@@ -61,6 +88,9 @@ public:
     // MainWindow/FilePanel swap in a remote provider when navigating there.
     void setProvider(std::shared_ptr<FileProvider> provider);
     FileProvider *provider() const { return m_provider.get(); }
+    // Shared owner of the current provider, so a worker task (e.g. a recursive
+    // directory-size walk) can keep it alive even if the model swaps providers.
+    std::shared_ptr<FileProvider> providerPtr() const { return m_provider; }
     bool showHiddenFiles() const { return m_showHidden; }
     void setShowHiddenFiles(bool show);
 
@@ -87,6 +117,10 @@ public:
     // "<DIR>". Cleared automatically when the directory is rescanned.
     void setComputedDirSize(const QString &path, qint64 bytes);
     static qint64 directorySize(const QString &path);
+    // Provider-aware recursive size: local uses the fast QDirIterator path above;
+    // a remote provider (SFTP/FTP/WebDAV/SMB) is walked via provider->list so
+    // network folders can be sized too. Runs on a worker thread.
+    static qint64 directorySize(FileProvider *provider, const QString &path);
 
     // Colours rows per a name->CompareStatus map (from "Compare Directories").
     // Cleared automatically on rescan.
@@ -115,11 +149,22 @@ signals:
     void loadFinished(int count);
     void renameFailed(const QString &message);
     void renamed(const QString &oldPath, const QString &newPath);
+    // Network connection state for the status line: state is a
+    // NetworkSession::State, attempt is the current reconnect attempt (1..N).
+    void networkStateChanged(int state, int attempt);
+    // The server needs credentials: `label` (host) identifies which. The UI
+    // should prompt and call provideCredentials().
+    void networkAuthRequired(const QString &label);
 
 private slots:
     void onScanFinished();
+    void onSessionListReady(quint64 reqId, const QString &path, const QVector<FileInfo> &entries);
+    void onSessionListFailed(quint64 reqId, const QString &path);
+    void onSessionAuthRequired(const QString &error);
+    void onSessionStateChanged(int state, int attempt);
 
 private:
+    void teardownSession();
     void sortEntries();
     void applyFilter();
     // Formats a timestamp as "yyyy-MM-dd HH:mm", memoised by epoch-minute.
@@ -143,4 +188,12 @@ private:
     QFutureWatcher<QVector<FileInfo>> m_watcher;
     int m_sortColumn = NameColumn;
     Qt::SortOrder m_sortOrder = Qt::AscendingOrder;
+
+    // Network tab: worker-thread session owning the network provider. Null for
+    // local/archive tabs (which keep the QtConcurrent scan path above).
+    std::unique_ptr<NetworkSession> m_session;
+    quint64 m_reqId = 0; // monotonic list request id; stale results ignored
+    AuthRetryFactory m_authRetry;   // rebuilds the connect with credentials
+    QString m_networkLabel;         // host shown in the credentials prompt
+    bool m_relistOnConnect = false; // re-list rootPath once a credentialed retry lands
 };

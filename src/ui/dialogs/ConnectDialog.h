@@ -3,6 +3,7 @@
 #include "FramelessDialog.h"
 #include <QString>
 
+#include <functional>
 #include <memory>
 
 #include "FileProvider.h"
@@ -38,16 +39,24 @@ public:
     // The URI that was mounted (useful for a later unmount). Empty on failure.
     QString mountedUri() const { return m_mountedUri; }
 
-    // For a native SFTP connection: the connected provider and the initial
-    // remote path to open. Null / empty for the gvfs-mounted protocols (in that
-    // case use mountedLocalPath()).
+    // For a native connection (SFTP/FTP/WebDAV/SMB): the (as-yet UNCONNECTED)
+    // provider, the connect closure to run on the session worker thread, and the
+    // initial remote path to open. Null / empty for the gvfs-mounted protocols
+    // (in that case use mountedLocalPath()). accept() no longer blocks on the
+    // network -- the caller drives the async connect via connectNetwork().
     std::shared_ptr<FileProvider> remoteProvider() const { return m_remoteProvider; }
+    std::function<bool(QString *)> connectFn() const { return m_connectFn; }
     QString remotePath() const { return m_remotePath; }
 
     // Convenience: run the dialog modally and, on a successful mount, return the
     // local mount path. Returns an empty string if the user cancelled or the
     // mount failed. This is the recommended entry point for menu actions.
     static QString runAndMount(QWidget *parent = nullptr);
+
+    // Preselects a protocol in the form (e.g. SMB), so a caller that already knows
+    // the target kind can open the dialog ready to fill in. `protocol` is a
+    // GvfsMounter::Protocol value.
+    void selectProtocol(int protocol);
 
 private slots:
     void onProtocolChanged(int index);
@@ -83,6 +92,7 @@ private:
 
     QString m_mountedLocalPath;
     QString m_mountedUri;
-    std::shared_ptr<FileProvider> m_remoteProvider; // set for native SFTP
+    std::shared_ptr<FileProvider> m_remoteProvider; // native backend (UNCONNECTED)
+    std::function<bool(QString *)> m_connectFn;      // runs connectToHost on the worker
     QString m_remotePath;
 };

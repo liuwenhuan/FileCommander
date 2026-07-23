@@ -28,11 +28,12 @@ class NotepadPanel : public QWidget {
 public:
     explicit NotepadPanel(QWidget *parent = nullptr);
 
-    // Sizes the panel to its content -- capped so its top edge never rises above
-    // topLimitGlobalY (the app window's top) -- and shows it as a popup with its
-    // bottom edge flush above anchorGlobalRect (the launching button), so it
-    // reads as a fly-out growing out of the button.
-    void popUpAbove(const QRect &anchorGlobalRect, int topLimitGlobalY);
+    // Shows the panel as a fly-out above the launching button: its RIGHT edge is
+    // aligned to the app window's right edge, its bottom sits just above
+    // anchorGlobalRect (the button), and its height is capped so the top edge
+    // never rises above appContentGlobalRect.top(). appContentGlobalRect is the
+    // app window's VISIBLE content rect in global coords (shadow margin excluded).
+    void popUpAbove(const QRect &anchorGlobalRect, const QRect &appContentGlobalRect);
 
     // Flushes the in-editor note to disk. Called on close.
     void saveAll();
@@ -79,5 +80,9 @@ private:
     bool m_deleteArmed = false;   // Delete clicked once, waiting for confirm
 
     QRect m_anchorRect;           // launching button geometry (for re-fitting)
-    int m_topLimitY = 0;          // app-window top: the popup may not rise past it
+    QRect m_appContentRect;       // app window's visible content rect (no shadow):
+                                  // right edge to align to, top edge as the cap
+
+    int m_editorHeight = 0;       // persisted editor-pane height (px); 0 = unset,
+                                  // fall back to the preferred height
 };

@@ -25,6 +25,7 @@ class QLabel;
 class QLineEdit;
 class QModelIndex;
 class QPlainTextEdit;
+class QProgressBar;
 class QPushButton;
 class QScrollArea;
 class QSlider;
@@ -67,10 +68,24 @@ public:
 
     void showFile(const QString &path);
 
+    // Network-preview download states. A remote file must be fetched to a local
+    // temp file before it can be previewed; while that runs, the preview pane
+    // shows this download page (message + progress + a Stop button) so the user
+    // isn't left staring at a blank pane and can abort a large download.
+    void showDownloading(const QString &name);           // "downloading to preview…"
+    void setDownloadProgress(qint64 done, qint64 total); // update the bar
+    void showDownloadCancelled(const QString &name);     // "preview cancelled by user"
+
     // Halts any active media playback (video and audio). Called when the preview
     // pane is dismissed (Ctrl+Q) so a clip doesn't keep playing while hidden.
     void stopPlayback();
 
+signals:
+    // The Stop button on the download page was clicked: the host should cancel
+    // the in-flight remote download for the current preview.
+    void downloadCancelRequested();
+
+public:
     // Sets the point size of the text-preview font, so the preview tracks the
     // app's file-list font-size setting. Applies to the plain-text/hex page and
     // the markdown/office rich-text page; the monospace text page keeps its
@@ -121,6 +136,7 @@ private:
     QWidget *buildSlidesPage();            // pptx slide-image preview (per-slide SVG)
     QWidget *buildOfficeTablePage();       // spreadsheet (xls/xlsx) preview as a grid
     QWidget *buildEncryptedPage();         // "encrypted" note + an unlock button
+    QWidget *buildDownloadPage();          // remote-preview download status + Stop
     QWidget *buildArchivePage();           // read-only archive listing (no extraction)
     void previewArchive(const QString &path);   // start a fresh archive chain at path
     void tryLoadCurrentArchive();               // (re)load the current chain level (async)
@@ -204,6 +220,14 @@ private:
     void stopVideo();                // unload + hide the video page
 
     QStackedWidget *m_stack;
+
+    // Download page (remote preview): a centred message, a progress bar and a
+    // Stop button. Shown while a network file is being fetched to a temp file.
+    QWidget *m_downloadPage = nullptr;
+    QLabel *m_downloadLabel = nullptr;
+    QProgressBar *m_downloadProgress = nullptr;
+    QPushButton *m_downloadStopButton = nullptr;
+
     QWidget *m_imagePage;
     QScrollArea *m_imageScroll;
     QLabel *m_imageLabel;

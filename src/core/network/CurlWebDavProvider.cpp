@@ -115,6 +115,7 @@ struct WebDavHandle : public FileHandle {
     qint64 resumeOffset = 0;
     bool started = false;
     qint64 cachedSize = -1;
+    int timeoutMs = 12000; // connect-phase timeout for the transfer
 
     CURL *curl = nullptr;
     std::thread worker;
@@ -152,7 +153,10 @@ void startWebDavTransfer(WebDavHandle *h) {
     const QByteArray urlUtf8 = url.toUtf8();
     curl_easy_setopt(h->curl, CURLOPT_URL, urlUtf8.constData());
     curl_easy_setopt(h->curl, CURLOPT_NOSIGNAL, 1L);
-    curl_easy_setopt(h->curl, CURLOPT_CONNECTTIMEOUT, 15L);
+    // Bound the connect phase only. No total CURLOPT_TIMEOUT_MS: a bulk GET/PUT
+    // may legitimately run longer than the connect timeout, and a stalled
+    // transfer is already abortable via the progress callback / closeHandle().
+    curl_easy_setopt(h->curl, CURLOPT_CONNECTTIMEOUT_MS, static_cast<long>(h->timeoutMs));
     curl_easy_setopt(h->curl, CURLOPT_HTTPAUTH, static_cast<long>(CURLAUTH_ANY));
     curl_easy_setopt(h->curl, CURLOPT_FOLLOWLOCATION, 1L);
     if (!h->user.isEmpty()) {
@@ -236,7 +240,12 @@ bool CurlWebDavProvider::connectToHost(const QString &host, int port, const QStr
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, m_errorBuffer);
     curl_easy_setopt(curl, CURLOPT_URL, urlUtf8.constData());
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 15L);
+    // These timeouts persist on the handle (kept as m_curl) and bound every
+    // later control-plane request (PROPFIND/MOVE/DELETE/MKCOL/size). m_curl
+    // never drives a bulk transfer (those use per-handle curl handles), so a
+    // total CURLOPT_TIMEOUT_MS is safe and guards against a hung HTTP request.
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, static_cast<long>(m_timeoutMs));
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, static_cast<long>(m_timeoutMs));
     curl_easy_setopt(curl, CURLOPT_HTTPAUTH, static_cast<long>(CURLAUTH_ANY));
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     if (!user.isEmpty()) {
@@ -284,6 +293,25 @@ bool CurlWebDavProvider::connectToHost(const QString &host, int port, const QStr
     m_password = password;
     m_connected = true;
     return true;
+}
+
+bool CurlWebDavProvider::reconnect(QString *error) {
+    // Snapshot credentials before disconnect() clears them. connectToHost() and
+    // disconnect() each take m_mutex, so reconnect() must not hold the
+    // (non-recursive) lock while calling them.
+    QString host, user, password;
+    int port;
+    bool useHttps;
+    {
+        QMutexLocker locker(&m_mutex);
+        host = m_host;
+        port = m_port;
+        user = m_user;
+        password = m_password;
+        useHttps = m_useHttps;
+    }
+    disconnect();
+    return connectToHost(host, port, user, password, useHttps, error);
 }
 
 void CurlWebDavProvider::disconnect() {
@@ -671,7 +699,7 @@ QVector<FileInfo> CurlWebDavProvider::parsePropfindXml(const QByteArray &data,
 
 FileHandle *CurlWebDavProvider::openRead(const QString &path) {
     QString h, u, p;
-    int port;
+    int port, timeout;
     bool https;
     {
         QMutexLocker locker(&m_mutex);
@@ -682,6 +710,7 @@ FileHandle *CurlWebDavProvider::openRead(const QString &path) {
         u = m_user;
         p = m_password;
         https = m_useHttps;
+        timeout = m_timeoutMs;
     }
     auto *handle = new WebDavHandle();
     handle->mode = WebDavHandle::Mode::Read;
@@ -691,12 +720,13 @@ FileHandle *CurlWebDavProvider::openRead(const QString &path) {
     handle->user = u;
     handle->password = p;
     handle->useHttps = https;
+    handle->timeoutMs = timeout;
     return handle;
 }
 
 FileHandle *CurlWebDavProvider::openWrite(const QString &path, bool /*truncate*/) {
     QString h, u, p;
-    int port;
+    int port, timeout;
     bool https;
     {
         QMutexLocker locker(&m_mutex);
@@ -707,6 +737,7 @@ FileHandle *CurlWebDavProvider::openWrite(const QString &path, bool /*truncate*/
         u = m_user;
         p = m_password;
         https = m_useHttps;
+        timeout = m_timeoutMs;
     }
     auto *handle = new WebDavHandle();
     handle->mode = WebDavHandle::Mode::Write;
@@ -716,6 +747,7 @@ FileHandle *CurlWebDavProvider::openWrite(const QString &path, bool /*truncate*/
     handle->user = u;
     handle->password = p;
     handle->useHttps = https;
+    handle->timeoutMs = timeout;
     // truncate is intentionally ignored: WebDAV PUT always replaces the whole
     // resource (there is no append mode), and seek() refuses resume for
     // write handles, so every openWrite() ends up doing a full PUT anyway.

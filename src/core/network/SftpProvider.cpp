@@ -9,8 +9,10 @@
 #include <cerrno>
 #include <cstring>
 
+#include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -45,9 +47,12 @@ QString sessionError(LIBSSH2_SESSION *session, const QString &fallback) {
     return fallback;
 }
 
-// Opens a blocking TCP connection to host:port. Returns the socket fd, or -1
-// with *error populated.
-int openSocket(const QString &host, int port, QString *error) {
+// Opens a TCP connection to host:port, giving up after timeoutMs. Returns the
+// socket fd (left in blocking mode for libssh2), or -1 with *error populated.
+// The connect is issued non-blocking and waited on with select() so a dead or
+// firewalled host fails after timeoutMs instead of blocking on the OS default
+// (which can exceed a minute).
+int openSocket(const QString &host, int port, int timeoutMs, QString *error) {
     struct addrinfo hints;
     std::memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
@@ -66,14 +71,50 @@ int openSocket(const QString &host, int port, QString *error) {
     }
 
     int sock = -1;
+    int lastErrno = 0;
     for (struct addrinfo *ai = result; ai != nullptr; ai = ai->ai_next) {
-        sock = ::socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-        if (sock < 0)
+        const int fd = ::socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+        if (fd < 0) {
+            lastErrno = errno;
             continue;
-        if (::connect(sock, ai->ai_addr, ai->ai_addrlen) == 0)
-            break; // connected
-        ::close(sock);
-        sock = -1;
+        }
+        const int origFlags = ::fcntl(fd, F_GETFL, 0);
+        if (origFlags >= 0)
+            ::fcntl(fd, F_SETFL, origFlags | O_NONBLOCK);
+
+        if (::connect(fd, ai->ai_addr, ai->ai_addrlen) != 0 && errno != EINPROGRESS) {
+            lastErrno = errno;
+            ::close(fd);
+            continue;
+        }
+        // Wait (bounded) for the non-blocking connect to complete.
+        if (errno == EINPROGRESS) {
+            fd_set wset;
+            FD_ZERO(&wset);
+            FD_SET(fd, &wset);
+            struct timeval tv;
+            tv.tv_sec = timeoutMs / 1000;
+            tv.tv_usec = (timeoutMs % 1000) * 1000;
+            const int sel = ::select(fd + 1, nullptr, &wset, nullptr, &tv);
+            if (sel <= 0) {
+                lastErrno = (sel == 0) ? ETIMEDOUT : errno;
+                ::close(fd);
+                continue;
+            }
+            // Writable: confirm the connect actually succeeded via SO_ERROR.
+            int soErr = 0;
+            socklen_t len = sizeof(soErr);
+            if (::getsockopt(fd, SOL_SOCKET, SO_ERROR, &soErr, &len) < 0 || soErr != 0) {
+                lastErrno = soErr != 0 ? soErr : errno;
+                ::close(fd);
+                continue;
+            }
+        }
+        // Restore blocking mode so libssh2 (blocking session) works normally.
+        if (origFlags >= 0)
+            ::fcntl(fd, F_SETFL, origFlags);
+        sock = fd;
+        break;
     }
     ::freeaddrinfo(result);
 
@@ -81,7 +122,7 @@ int openSocket(const QString &host, int port, QString *error) {
         *error = QStringLiteral("Cannot connect to %1:%2: %3")
                      .arg(host)
                      .arg(port)
-                     .arg(QString::fromUtf8(std::strerror(errno)));
+                     .arg(QString::fromUtf8(std::strerror(lastErrno != 0 ? lastErrno : errno)));
     return sock;
 }
 
@@ -105,7 +146,7 @@ bool SftpProvider::connectToHost(const QString &host, int port, const QString &u
         return false;
     }
 
-    const int sock = openSocket(host, port, error);
+    const int sock = openSocket(host, port, m_timeoutMs, error);
     if (sock < 0)
         return false;
 
@@ -119,6 +160,9 @@ bool SftpProvider::connectToHost(const QString &host, int port, const QString &u
     // Blocking mode keeps the flow simple: every libssh2 call returns only once
     // complete rather than yielding LIBSSH2_ERROR_EAGAIN.
     libssh2_session_set_blocking(session, 1);
+    // Bound every subsequent blocking libssh2 call (handshake, auth, sftp ops)
+    // so a stalled server fails instead of hanging forever. Milliseconds.
+    libssh2_session_set_timeout(session, static_cast<long>(m_timeoutMs));
 
     if (libssh2_session_handshake(session, sock) != 0) {
         if (error)
@@ -174,8 +218,27 @@ bool SftpProvider::connectToHost(const QString &host, int port, const QString &u
     m_session = session;
     m_sftp = sftp;
     m_host = host;
+    m_port = port;
     m_user = user;
+    m_password = password; // retained so reconnect() can re-authenticate
     return true;
+}
+
+bool SftpProvider::reconnect(QString *error) {
+    // Snapshot the credentials before disconnect() clears them. connectToHost()
+    // and disconnect() each take m_mutex themselves, so reconnect() must not
+    // hold the (non-recursive) lock while calling them.
+    QString host, user, password;
+    int port;
+    {
+        QMutexLocker locker(&m_mutex);
+        host = m_host;
+        user = m_user;
+        password = m_password;
+        port = m_port;
+    }
+    disconnect();
+    return connectToHost(host, port, user, password, error);
 }
 
 void SftpProvider::disconnect() {
@@ -195,6 +258,7 @@ void SftpProvider::disconnect() {
     }
     m_host.clear();
     m_user.clear();
+    m_password.clear();
 }
 
 bool SftpProvider::isConnected() const {
@@ -264,8 +328,16 @@ QVector<FileInfo> SftpProvider::list(const QString &path, bool showHidden) const
             if (m & 0001) perms |= QFile::ExeOther;
         }
 
+        // The server reports numeric uid/gid only when the UIDGID flag is set;
+        // names are not part of the SFTP attributes, so they stay empty (-1 for
+        // an unknown id).
+        const bool hasIds = attrs.flags & LIBSSH2_SFTP_ATTR_UIDGID;
+        const int uid = hasIds ? static_cast<int>(attrs.uid) : -1;
+        const int gid = hasIds ? static_cast<int>(attrs.gid) : -1;
+
         const QString fullPath = cleanPath(dirPath + QLatin1Char('/') + name);
-        result.append(FileInfo::fromFields(fullPath, name, size, modified, entryIsDir, perms));
+        result.append(FileInfo::fromFields(fullPath, name, size, modified, entryIsDir, perms,
+                                           uid, gid));
     }
 
     libssh2_sftp_closedir(handle);

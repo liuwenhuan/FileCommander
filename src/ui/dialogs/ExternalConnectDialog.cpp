@@ -7,6 +7,10 @@
 
 #include <QApplication>
 #include <QFont>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QPalette>
+#include <QToolButton>
 #include <QGuiApplication>
 #include <QIcon>
 #include <QListWidget>
@@ -55,12 +59,13 @@ ExternalConnectDialog::ExternalConnectDialog(RemovableDeviceMonitor *devices,
     m_list->setIconSize(QSize(20, 20));
     m_list->setUniformItemSizes(false);
     m_list->setMinimumWidth(340);
-    m_list->setFrameShape(QFrame::NoFrame); // the panel supplies the border
+    m_list->setFrameShape(QFrame::NoFrame); // the QSS gives the list its own inset border
     m_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
     auto *layout = new QVBoxLayout(this);
-    // A slim uniform inset so the list sits just inside the panel's border.
-    layout->setContentsMargins(1, 1, 1, 1);
+    // Match the quick-notepad fly-out: a 6px inset so the list's inset frame
+    // reads against the panel's accent border.
+    layout->setContentsMargins(6, 6, 6, 6);
     layout->addWidget(m_list);
 
     // Single click activates (menu-like), as does double-click / Enter.
@@ -72,12 +77,22 @@ ExternalConnectDialog::ExternalConnectDialog(RemovableDeviceMonitor *devices,
         connect(m_devices, &RemovableDeviceMonitor::devicesChanged, this,
                 &ExternalConnectDialog::rebuild);
 
-    // Network neighbourhood discovery is asynchronous: kick it off and append
-    // host rows as they arrive. The first two sections render immediately.
+    // Network neighbourhood: seed instantly from the cached results of the
+    // startup (or a prior) scan, then only rescan if that cache has gone stale
+    // (>4h). Host rows appended live as a running scan reports them.
     if (m_smb) {
+        m_hosts = m_smb->cachedHosts();
         connect(m_smb, &SmbHostBrowser::hostsDiscovered, this,
                 &ExternalConnectDialog::onHostsDiscovered);
-        m_smb->startDiscovery();
+        // When every discovery source finishes, drop the "Searching…" line for a
+        // definite empty state ("no hosts found") instead of a perpetual spinner.
+        connect(m_smb, &SmbHostBrowser::discoveryFinished, this, [this] {
+            m_discoveryDone = true;
+            rebuild();
+        });
+        // startDiscovery returns whether a scan is now active: if so show
+        // "Searching…" until it finishes; if the fresh cache is used, we're done.
+        m_discoveryDone = !m_smb->startDiscovery(false);
     }
 
     rebuild();
@@ -102,6 +117,11 @@ void ExternalConnectDialog::popUpAbove(const QRect &anchorGlobalRect) {
             y = avail.top();
     }
 
+    // Pin the bottom edge to the button top: later growth (as hosts arrive) moves
+    // the top up, keeping the bottom flush with the button. See fitToContents().
+    m_popupX = x;
+    m_fixedBottomY = anchorGlobalRect.top() + 1;
+
     move(x, y);
     show();
     raise();
@@ -117,6 +137,39 @@ void ExternalConnectDialog::addHeader(const QString &text) {
     item->setFont(f);
     // Follow the theme: dim the header relative to normal text.
     item->setForeground(palette().color(QPalette::Disabled, QPalette::Text));
+}
+
+void ExternalConnectDialog::addNetworkHeader(const QString &text) {
+    auto *item = new QListWidgetItem(m_list);
+    item->setFlags(Qt::NoItemFlags);
+    // A custom row widget: the bold, dimmed header label + a right-aligned gear
+    // button that opens the manual SMB connect form (always available, so the
+    // user can connect even when discovery turns up nothing).
+    auto *row = new QWidget(m_list);
+    auto *lay = new QHBoxLayout(row);
+    lay->setContentsMargins(0, 0, 0, 0);
+    lay->setSpacing(4);
+    auto *label = new QLabel(text, row);
+    QFont f = label->font();
+    f.setBold(true);
+    label->setFont(f);
+    QPalette lp = label->palette();
+    lp.setColor(QPalette::WindowText, palette().color(QPalette::Disabled, QPalette::Text));
+    label->setPalette(lp);
+    lay->addWidget(label);
+    lay->addStretch(1);
+    auto *gear = new QToolButton(row);
+    gear->setIcon(QIcon(QStringLiteral(":/icons/dev-smb.svg")));
+    gear->setAutoRaise(true);
+    gear->setCursor(Qt::PointingHandCursor);
+    gear->setToolTip(tr("手动连接 SMB 服务器…"));
+    connect(gear, &QToolButton::clicked, this, [this] {
+        emit openSmbConnectForm();
+        close(); // dismiss the fly-out; the connect form takes over
+    });
+    lay->addWidget(gear);
+    item->setSizeHint(row->sizeHint());
+    m_list->setItemWidget(item, row);
 }
 
 void ExternalConnectDialog::rebuild() {
@@ -157,18 +210,33 @@ void ExternalConnectDialog::rebuild() {
         }
     }
 
-    // 3. Network neighbourhood (populated as discovery reports hosts).
-    addHeader(tr("Network Neighborhood"));
+    // 3. Network neighbourhood (populated as discovery reports hosts). The header
+    // carries a gear button that opens the manual SMB connect form.
+    addNetworkHeader(tr("Network Neighborhood"));
     if (m_hosts.isEmpty()) {
-        auto *searching = new QListWidgetItem(tr("Searching…"), m_list);
-        searching->setFlags(Qt::NoItemFlags);
+        // "Searching…" while discovery runs; a definite "none found" once every
+        // source has finished (so it never sticks on "searching" forever).
+        auto *note = new QListWidgetItem(
+            m_discoveryDone ? tr("未发现网络主机") : tr("Searching…"), m_list);
+        note->setFlags(Qt::NoItemFlags);
     } else {
         for (const SmbHost &h : m_hosts) {
-            const QString label = h.name.isEmpty() ? h.address : h.name;
+            // Show "name (ip)" when both are known, so the user sees exactly which
+            // machine each row is; just the name or just the IP when only one is.
+            // Connect BY the IP when known (a NetBIOS name like "DEEPIN-PC" may not
+            // resolve via DNS), else by the name.
+            QString label;
+            if (h.name.isEmpty())
+                label = h.address;
+            else if (h.address.isEmpty())
+                label = h.name;
+            else
+                label = QStringLiteral("%1 (%2)").arg(h.name, h.address);
+            const QString target = h.address.isEmpty() ? h.name : h.address;
             auto *item = new QListWidgetItem(QIcon(QStringLiteral(":/icons/dev-smb.svg")),
                                              label, m_list);
             item->setData(Qt::UserRole, KindHost);
-            item->setData(Qt::UserRole + 1, h.name.isEmpty() ? h.address : h.name);
+            item->setData(Qt::UserRole + 1, target);
         }
     }
 
@@ -176,12 +244,23 @@ void ExternalConnectDialog::rebuild() {
 }
 
 void ExternalConnectDialog::onHostsDiscovered(const QVector<SmbHost> &hosts) {
-    // Merge new hosts, skipping ones we already show (by name+address).
+    // A host is one entity even when several sources / interfaces / IP families
+    // report it (mDNS often resolves the same name on IPv4, IPv6 and per-NIC).
+    // Dedup by its display identity -- its name, or its address when unnamed --
+    // so it appears once, not three times.
+    // Key on the IP when known so two distinct machines that share a hostname
+    // (e.g. two cloned "deepin-PC" installs) don't collapse into one; fall back
+    // to the name for name-only results (legacy NetBIOS).
+    auto keyOf = [](const SmbHost &h) {
+        return (h.address.isEmpty() ? h.name : h.address).toLower();
+    };
     bool added = false;
     for (const SmbHost &h : hosts) {
+        if (keyOf(h).isEmpty())
+            continue;
         bool known = false;
         for (const SmbHost &existing : m_hosts) {
-            if (existing.name == h.name && existing.address == h.address) {
+            if (keyOf(existing) == keyOf(h)) {
                 known = true;
                 break;
             }
@@ -204,6 +283,18 @@ void ExternalConnectDialog::fitToContents() {
     const int maxHeight = 480;
     m_list->setFixedHeight(qMin(h + 2, maxHeight));
     adjustSize();
+
+    // Once popped up, keep the bottom edge pinned to the button and grow upward:
+    // reposition so bottom = m_fixedBottomY after the height change (clamped to
+    // the screen top). Skipped during the initial pre-show fit (m_fixedBottomY<0).
+    if (m_fixedBottomY >= 0 && isVisible()) {
+        int y = m_fixedBottomY - height();
+        if (QScreen *scr = QGuiApplication::screenAt(QPoint(m_popupX, m_fixedBottomY))) {
+            if (y < scr->availableGeometry().top())
+                y = scr->availableGeometry().top();
+        }
+        move(m_popupX, y);
+    }
 }
 
 void ExternalConnectDialog::onItemActivated(QListWidgetItem *item) {

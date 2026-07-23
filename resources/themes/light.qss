@@ -245,14 +245,14 @@ QTreeView::branch:open:has-children:has-siblings {
     border-top-right-radius: 8px;
 }
 #ExternalConnectPanel QListWidget#ExternalConnectList {
-    background-color: #f5f5f5;
-    border: none;
+    background-color: #ffffff;
+    border: 1px solid #d0d0d0;
+    border-radius: 4px;
     outline: none;
-    padding: 4px 2px;
 }
 #ExternalConnectPanel QListWidget#ExternalConnectList::item {
-    padding: 5px 8px;
-    border-radius: 4px;
+    padding: 4px 6px;
+    border-radius: 3px;
     color: #303030;
 }
 #ExternalConnectPanel QListWidget#ExternalConnectList::item:hover {
@@ -261,6 +261,16 @@ QTreeView::branch:open:has-children:has-siblings {
 #ExternalConnectPanel QListWidget#ExternalConnectList::item:selected {
     background-color: #3d7deb;
     color: #ffffff;
+}
+#ExternalConnectPanel QListWidget#ExternalConnectList QScrollBar:vertical {
+    width: 7px;
+    background: transparent;
+    margin: 0;
+}
+#ExternalConnectPanel QListWidget#ExternalConnectList QScrollBar::add-line:vertical,
+#ExternalConnectPanel QListWidget#ExternalConnectList QScrollBar::sub-line:vertical {
+    height: 0;
+    background: transparent;
 }
 
 /* Quick-notepad fly-out: same anchored-popup treatment as the external-connect

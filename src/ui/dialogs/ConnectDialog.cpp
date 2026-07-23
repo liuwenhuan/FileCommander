@@ -252,6 +252,10 @@ void ConnectDialog::onAnonymousToggled(bool anonymous) {
     }
 }
 
+void ConnectDialog::selectProtocol(int protocol) {
+    m_protocolCombo->setCurrentIndex(protocolToIndex(protocol));
+}
+
 void ConnectDialog::accept() {
     const int index = m_protocolCombo->currentIndex();
     if (index < 0 || index >= static_cast<int>(std::size(kProtocols)))
@@ -269,97 +273,62 @@ void ConnectDialog::accept() {
     const QString user = anonymous ? QString() : m_userEdit->text().trimmed();
     const QString password = anonymous ? QString() : m_passwordEdit->text();
 
-    // SFTP uses the native libssh2 backend (SftpProvider) rather than a gvfs
-    // mount: connect and, on success, hand the connected provider + initial
-    // path back to the caller, which swaps it into the panel's model.
+    const int port = m_portSpin->value();
+
+    // Native backends (SFTP/FTP/WebDAV/SMB): DON'T connect here -- that would
+    // block the GUI thread on the network. Build the (unconnected) provider and
+    // a connect closure; the caller hands both to FileSystemModel::connectNetwork
+    // which runs the connect on a worker thread and shows progress in the status
+    // line. accept() returns immediately.
+
+    // SFTP (libssh2 / SftpProvider).
     if (protocol == GvfsMounter::Protocol::Sftp) {
         auto provider = std::make_shared<SftpProvider>();
-        QString error;
-        setEnabled(false);
-        QApplication::setOverrideCursor(Qt::WaitCursor);
-        const bool ok =
-            provider->connectToHost(host, m_portSpin->value(), user, password, &error);
-        QApplication::restoreOverrideCursor();
-        setEnabled(true);
-        if (!ok) {
-            ttc::critical(this, tr("Connection Failed"),
-                                  tr("Could not connect to %1.\n\n%2").arg(host, error));
-            return;
-        }
         m_remoteProvider = provider;
+        m_connectFn = [provider, host, port, user, password](QString *error) {
+            return provider->connectToHost(host, port, user, password, error);
+        };
         const QString p = m_pathEdit->text().trimmed();
         m_remotePath = p.isEmpty() ? QStringLiteral("/") : p;
         QDialog::accept();
         return;
     }
 
-    // FTP uses the native libcurl backend (CurlFtpProvider) rather than a gvfs
-    // mount, mirroring the SFTP branch above: connect and, on success, hand
-    // the connected provider + initial path back to the caller.
+    // FTP (libcurl / CurlFtpProvider).
     if (protocol == GvfsMounter::Protocol::Ftp) {
         auto provider = std::make_shared<CurlFtpProvider>();
-        QString error;
-        setEnabled(false);
-        QApplication::setOverrideCursor(Qt::WaitCursor);
-        const bool ok =
-            provider->connectToHost(host, m_portSpin->value(), user, password, &error);
-        QApplication::restoreOverrideCursor();
-        setEnabled(true);
-        if (!ok) {
-            ttc::critical(this, tr("Connection Failed"),
-                                  tr("Could not connect to %1.\n\n%2").arg(host, error));
-            return;
-        }
         m_remoteProvider = provider;
+        m_connectFn = [provider, host, port, user, password](QString *error) {
+            return provider->connectToHost(host, port, user, password, error);
+        };
         const QString p = m_pathEdit->text().trimmed();
         m_remotePath = p.isEmpty() ? QStringLiteral("/") : p;
         QDialog::accept();
         return;
     }
 
-    // WebDAV (HTTP/HTTPS) likewise uses the native libcurl backend
-    // (CurlWebDavProvider), same mechanism as SFTP/FTP above.
+    // WebDAV / WebDAVS (libcurl / CurlWebDavProvider).
     if (protocol == GvfsMounter::Protocol::WebDav ||
         protocol == GvfsMounter::Protocol::WebDavs) {
         const bool useHttps = protocol == GvfsMounter::Protocol::WebDavs;
         auto provider = std::make_shared<CurlWebDavProvider>();
-        QString error;
-        setEnabled(false);
-        QApplication::setOverrideCursor(Qt::WaitCursor);
-        const bool ok = provider->connectToHost(host, m_portSpin->value(), user, password,
-                                                useHttps, &error);
-        QApplication::restoreOverrideCursor();
-        setEnabled(true);
-        if (!ok) {
-            ttc::critical(this, tr("Connection Failed"),
-                                  tr("Could not connect to %1.\n\n%2").arg(host, error));
-            return;
-        }
         m_remoteProvider = provider;
+        m_connectFn = [provider, host, port, user, password, useHttps](QString *error) {
+            return provider->connectToHost(host, port, user, password, useHttps, error);
+        };
         const QString p = m_pathEdit->text().trimmed();
         m_remotePath = p.isEmpty() ? QStringLiteral("/") : p;
         QDialog::accept();
         return;
     }
 
-    // SMB/CIFS uses the native libsmbclient backend (SmbProvider) rather than a
-    // gvfs mount, mirroring the SFTP/FTP/WebDAV branches above. The remote path
-    // doubles as the initial share/directory to open ("/" lists the shares).
+    // SMB/CIFS (libsmbclient / SmbProvider). "/" lists the shares.
     if (protocol == GvfsMounter::Protocol::Smb) {
         auto provider = std::make_shared<SmbProvider>();
-        QString error;
-        setEnabled(false);
-        QApplication::setOverrideCursor(Qt::WaitCursor);
-        const bool ok = provider->connectToHost(host, user, password, QString(),
-                                                 anonymous, &error);
-        QApplication::restoreOverrideCursor();
-        setEnabled(true);
-        if (!ok) {
-            ttc::critical(this, tr("Connection Failed"),
-                                  tr("Could not connect to %1.\n\n%2").arg(host, error));
-            return;
-        }
         m_remoteProvider = provider;
+        m_connectFn = [provider, host, user, password, anonymous](QString *error) {
+            return provider->connectToHost(host, user, password, QString(), anonymous, error);
+        };
         const QString p = m_pathEdit->text().trimmed();
         m_remotePath = p.isEmpty() ? QStringLiteral("/") : p;
         QDialog::accept();

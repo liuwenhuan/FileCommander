@@ -10,6 +10,7 @@
 #include <QGraphicsPathItem>
 #include <QGraphicsPixmapItem>
 #include <QGraphicsRectItem>
+#include <QGraphicsSimpleTextItem>
 #include <QGraphicsTextItem>
 #include <QHash>
 #include <QImage>
@@ -23,10 +24,12 @@
 #include <QRegExp>
 #include <QPair>
 #include <QStringRef>
+#include <QTextBlock>
 #include <QTextBlockFormat>
 #include <QTextCharFormat>
 #include <QTextCursor>
 #include <QTextDocument>
+#include <QTextLayout>
 #include <QTextOption>
 #include <QTransform>
 #include <QVector>
@@ -92,8 +95,14 @@ void applyDash(QPen &pen, const QXmlStreamAttributes &attrs) {
 // Apply a stroke (colour + width) to a shape's pen, or give it a cosmetic
 // no-op pen when the SVG specifies no stroke.
 void applyStroke(QAbstractGraphicsShapeItem *item, const QXmlStreamAttributes &attrs) {
-    const QColor stroke = parseColor(attrs.value(QLatin1String("stroke")));
+    QColor stroke = parseColor(attrs.value(QLatin1String("stroke")));
     if (stroke.isValid()) {
+        // B1: stroke-opacity (0-1) modulates the pen colour's alpha. Absent leaves
+        // the colour fully opaque, so default behaviour is unchanged.
+        bool opOk = false;
+        const double op = attrs.value(QLatin1String("stroke-opacity")).toDouble(&opOk);
+        if (opOk)
+            stroke.setAlphaF(qBound(0.0, op, 1.0));
         const double w = attrNum(attrs, "stroke-width", 0.0) * S;
         QPen pen(stroke);
         pen.setWidthF(w > 0.0 ? w : 0.0); // width 0 == cosmetic hairline
@@ -107,7 +116,17 @@ void applyStroke(QAbstractGraphicsShapeItem *item, const QXmlStreamAttributes &a
 
 // Apply a fill; "none"/absent leaves the shape unfilled.
 void applyFill(QAbstractGraphicsShapeItem *item, const QXmlStreamAttributes &attrs) {
-    const QColor fill = parseColor(attrs.value(QLatin1String("fill")));
+    QColor fill = parseColor(attrs.value(QLatin1String("fill")));
+    if (fill.isValid()) {
+        // B1: fill-opacity (0-1) modulates the fill colour's alpha so a semi-
+        // transparent overlay (e.g. a 14% srgbClr wash) no longer paints as a
+        // solid block that hides content beneath it. Absent == fully opaque, so
+        // solid fills are untouched (zero regression).
+        bool opOk = false;
+        const double op = attrs.value(QLatin1String("fill-opacity")).toDouble(&opOk);
+        if (opOk)
+            fill.setAlphaF(qBound(0.0, op, 1.0));
+    }
     item->setBrush(fill.isValid() ? QBrush(fill) : Qt::NoBrush);
 }
 
@@ -438,24 +457,31 @@ struct TextEntry {
     double vcenter;          // data-vc (scene units); <0 == not vertically centred
 };
 
-// One text run: its characters and the fill colour to draw them in (an invalid
-// QColor means "use the <text>'s default fill"). A <text> with no <tspan> yields a
-// single default-coloured segment; inline colour changes (#19) split it into runs.
-using TextSegment = QPair<QString, QColor>;
+// One text run: its characters, the fill colour to draw them in (an invalid QColor
+// means "use the <text>'s default fill"), and an optional font size in EMU (<=0 ==
+// "use the <text>'s default font size"). A <text> with no <tspan> yields a single
+// default-coloured, default-sized segment; a <tspan> (#19 colour, B2b bullet size)
+// splits off a run carrying its own fill and/or font-size.
+struct TextSegment {
+    QString text;
+    QColor color;        // invalid == <text> default fill
+    double fontSizeEmu;  // <=0 == <text> default font size
+};
 
-// Read a <text> element's contents into coloured segments. The reader is positioned
-// on the <text> StartElement; on return it has consumed the matching </text>.
-// Characters accumulate into the current segment; a <tspan fill=..> opens a new
-// segment carrying that colour, its </tspan> closes it back to the default colour.
+// Read a <text> element's contents into runs. The reader is positioned on the
+// <text> StartElement; on return it has consumed the matching </text>. Characters
+// accumulate into the current run; a <tspan fill=.. font-size=..> opens a new run
+// carrying that colour/size, its </tspan> closes it back to the <text> defaults.
 // (readElementText() cannot be used here -- it raises an error on the <tspan> child.)
 // Only <text>'s direct <tspan> children are honoured (no nesting), per the contract.
 QVector<TextSegment> readTextSegments(QXmlStreamReader &xml) {
     QVector<TextSegment> segs;
     QString cur;
-    QColor curColor; // invalid == default fill
+    QColor curColor;         // invalid == default fill
+    double curSize = 0.0;    // <=0 == default font size
     auto flush = [&]() {
         if (!cur.isEmpty()) {
-            segs.push_back({cur, curColor});
+            segs.push_back({cur, curColor, curSize});
             cur.clear();
         }
     };
@@ -465,12 +491,19 @@ QVector<TextSegment> readTextSegments(QXmlStreamReader &xml) {
             cur.append(xml.text());
         } else if (tok == QXmlStreamReader::StartElement &&
                    xml.name() == QLatin1String("tspan")) {
-            flush(); // close the preceding default-coloured run
-            curColor = parseColor(xml.attributes().value(QLatin1String("fill")));
+            flush(); // close the preceding default run
+            const QXmlStreamAttributes ta = xml.attributes();
+            curColor = parseColor(ta.value(QLatin1String("fill")));
+            // B2b: a bullet marker (or any tspan) may carry its own font-size in EMU
+            // so its glyph is sized independently of the surrounding paragraph.
+            bool okSize = false;
+            const double sz = ta.value(QLatin1String("font-size")).toDouble(&okSize);
+            curSize = okSize ? sz : 0.0;
         } else if (tok == QXmlStreamReader::EndElement &&
                    xml.name() == QLatin1String("tspan")) {
-            flush();            // close this coloured run
-            curColor = QColor(); // back to the <text> default colour
+            flush();             // close this run
+            curColor = QColor();  // back to the <text> default colour
+            curSize = 0.0;        // back to the <text> default font size
         } else if (tok == QXmlStreamReader::EndElement &&
                    xml.name() == QLatin1String("text")) {
             flush();
@@ -480,22 +513,15 @@ QVector<TextSegment> readTextSegments(QXmlStreamReader &xml) {
     return segs;
 }
 
-void addText(const QXmlStreamAttributes &attrs, const QVector<TextSegment> &segments,
-             QGraphicsItem *page, QString *outText, QVector<TextEntry> *entries) {
-    // Width/wrapping/anchor logic all runs on the full concatenated string; only the
-    // per-run colours differ. outText and reflow also use this joined string.
-    QString text;
-    for (const TextSegment &seg : segments)
-        text.append(seg.first);
-    if (text.trimmed().isEmpty())
-        return;
-    const double x = attrNum(attrs, "x") * S;
-    const double baseline = attrNum(attrs, "y") * S;
+// Build the QFont for a <text> from its SVG attributes: the CJK-first family
+// fallback list, pixel size (font-size EMU * S), and bold/italic/underline flags.
+// Shared by the horizontal and vertical text paths. font-size is in EMU; the
+// scene works in EMU/100, so px = EMU * S.
+QFont buildTextFont(const QXmlStreamAttributes &attrs) {
     const double sizeEmu = attrNum(attrs, "font-size", 18.0 * 12700.0); // 18pt fallback
     int px = qRound(sizeEmu * S);
     if (px < 1)
         px = 1;
-
     // font-family may be a CJK-first fallback list ("EA字体, latin字体") from oxide;
     // split on commas and hand the whole list to QFont so it falls back family-by-
     // family (a bare QFont(str) would treat the entire string as one missing name).
@@ -520,6 +546,104 @@ void addText(const QXmlStreamAttributes &attrs, const QVector<TextSegment> &segm
     // superscript it bakes into y + font-size, so nothing to do here).
     if (attrs.value(QLatin1String("text-decoration")) == QLatin1String("underline"))
         font.setUnderline(true);
+    return font;
+}
+
+// B2a vertical text (data-vert="mongolianVert"/"eaVert"): glyphs stack top to
+// bottom within a column; successive columns advance right to left. Each glyph is
+// its own QGraphicsSimpleTextItem, so no horizontal QTextDocument wrapping is
+// involved -- CJK and Latin alike stack upright (unrotated), matching PowerPoint's
+// mongolianVert. Geometry consumed (aligned with oxide for the vert case): x/y are
+// the text box top-left, data-w/data-h the box size in EMU. A column wraps when the
+// next glyph would exceed the box bottom (data-h absent => one unbounded column).
+// Per-run colours from #19 tspans carry through per glyph.
+void addVerticalText(const QXmlStreamAttributes &attrs,
+                     const QVector<TextSegment> &segments, const QFont &font,
+                     const QColor &defColor, QGraphicsItem *page, QString *outText) {
+    QString text;
+    QVector<QColor> colors;
+    QVector<QFont> fonts; // per-glyph font (honours a run's own B2b font-size)
+    const QFontMetricsF baseFm(font);
+    double maxH = baseFm.height(); // widest line height across runs -> column pitch
+    for (const TextSegment &seg : segments) {
+        const QColor c = seg.color.isValid() ? seg.color : defColor;
+        QFont f = font;
+        if (seg.fontSizeEmu > 0.0) {
+            int px = qRound(seg.fontSizeEmu * S);
+            f.setPixelSize(px < 1 ? 1 : px);
+            maxH = qMax(maxH, QFontMetricsF(f).height());
+        }
+        for (const QChar &ch : seg.text) {
+            text.append(ch);
+            colors.append(c);
+            fonts.append(f);
+        }
+    }
+    if (text.trimmed().isEmpty())
+        return;
+
+    const double step = maxH; // vertical advance between stacked glyphs
+    const double colW = maxH; // a column's horizontal extent (CJK ~ square)
+    const double boxLeft = attrNum(attrs, "x") * S;
+    const double boxTop = attrNum(attrs, "y") * S;
+    const double boxW = attrNum(attrs, "data-w", -1.0) * S;
+    const double boxH = attrNum(attrs, "data-h", -1.0) * S;
+    const double rightEdge = boxW > 0.0 ? boxLeft + boxW : boxLeft + colW;
+    double colX = rightEdge - colW; // left x of the current (rightmost) column
+    double y = boxTop;
+    int inCol = 0; // glyphs placed in the current column (>=1 before we may wrap)
+    for (int i = 0; i < text.size(); ++i) {
+        const QChar ch = text.at(i);
+        if (ch == QLatin1Char('\n')) { // explicit break -> next column
+            colX -= colW;
+            y = boxTop;
+            inCol = 0;
+            continue;
+        }
+        if (boxH > 0.0 && inCol > 0 && y + step > boxTop + boxH) {
+            colX -= colW; // column full: advance leftward, restart at the top
+            y = boxTop;
+            inCol = 0;
+        }
+        auto *g = new QGraphicsSimpleTextItem(QString(ch), page);
+        g->setFont(fonts.at(i));
+        g->setBrush(colors.at(i));
+        const double adv = QFontMetricsF(fonts.at(i)).horizontalAdvance(ch);
+        g->setPos(colX + (colW - adv) / 2.0, y); // centre the glyph within its column
+        y += step;
+        ++inCol;
+    }
+
+    if (outText) {
+        if (!outText->isEmpty())
+            outText->append('\n');
+        outText->append(text);
+    }
+}
+
+void addText(const QXmlStreamAttributes &attrs, const QVector<TextSegment> &segments,
+             QGraphicsItem *page, QString *outText, QVector<TextEntry> *entries) {
+    // Width/wrapping/anchor logic all runs on the full concatenated string; only the
+    // per-run colours differ. outText and reflow also use this joined string.
+    QString text;
+    for (const TextSegment &seg : segments)
+        text.append(seg.text);
+    if (text.trimmed().isEmpty())
+        return;
+    const double x = attrNum(attrs, "x") * S;
+    const double baseline = attrNum(attrs, "y") * S;
+    const QFont font = buildTextFont(attrs);
+
+    const QColor fill = parseColor(attrs.value(QLatin1String("fill")));
+    const QColor defColor = fill.isValid() ? fill : QColor(Qt::black);
+
+    // B2a: mongolianVert/eaVert lay glyphs out in columns (own path); vert270 reuses
+    // the horizontal layout below then rotates the whole item -90 degrees.
+    const QStringRef vert = attrs.value(QLatin1String("data-vert"));
+    if (vert == QLatin1String("mongolianVert") || vert == QLatin1String("eaVert")) {
+        addVerticalText(attrs, segments, font, defColor, page, outText);
+        return;
+    }
 
     const QFontMetricsF fm(font);
     const QStringRef anchor = attrs.value(QLatin1String("text-anchor"));
@@ -530,21 +654,29 @@ void addText(const QXmlStreamAttributes &attrs, const QVector<TextSegment> &segm
     auto *item = new QGraphicsTextItem(page);
     item->document()->setDocumentMargin(0); // no stray inset before the glyphs
     item->setFont(font);
-    const QColor fill = parseColor(attrs.value(QLatin1String("fill")));
-    const QColor defColor = fill.isValid() ? fill : QColor(Qt::black);
     item->setDefaultTextColor(defColor);
-    // Fast path (zero regression): a single run with no colour of its own is plain
-    // text. Otherwise (#19 inline mixed colour) insert each run with its own
-    // foreground via a cursor -- runs without a colour fall back to the default.
-    const bool plain = segments.size() == 1 && !segments.front().second.isValid();
+    // Fast path (zero regression): a single run with no colour or size of its own is
+    // plain text. Otherwise (#19 inline mixed colour, B2b per-run font-size) insert
+    // each run with its own foreground/size via a cursor -- runs without a colour or
+    // size fall back to the <text> defaults.
+    const bool plain = segments.size() == 1 &&
+                       !segments.front().color.isValid() &&
+                       segments.front().fontSizeEmu <= 0.0;
     if (plain) {
         item->setPlainText(text);
     } else {
         QTextCursor cur(item->document());
         for (const TextSegment &seg : segments) {
             QTextCharFormat fmt;
-            fmt.setForeground(seg.second.isValid() ? seg.second : defColor);
-            cur.insertText(seg.first, fmt);
+            fmt.setForeground(seg.color.isValid() ? seg.color : defColor);
+            // B2b: a run's own font-size (EMU) overrides the paragraph size. The base
+            // font is pixel-sized (EMU * S), so the run is pixel-sized the same way to
+            // stay on one scale (bullet marker sized to buSzPct * body size).
+            if (seg.fontSizeEmu > 0.0) {
+                int px = qRound(seg.fontSizeEmu * S);
+                fmt.setProperty(QTextFormat::FontPixelSize, px < 1 ? 1 : px);
+            }
+            cur.insertText(seg.text, fmt);
         }
     }
     item->setTextInteractionFlags(Qt::TextSelectableByMouse);
@@ -586,9 +718,13 @@ void addText(const QXmlStreamAttributes &attrs, const QVector<TextSegment> &segm
     if (dataW > 0.0) {
         item->setTextWidth(dataW);
         QTextOption opt = item->document()->defaultTextOption();
-        // Break within the box even for a long unbroken run (URLs, CJK) so text
-        // never spills past the box edge.
-        opt.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+        // B3b: wrap at Unicode line-break opportunities (WrapAtWordBoundary). CJK
+        // ideographs each carry their own break opportunity (UAX#14), so CJK still
+        // wraps per character; a run of digits/ASCII letters is one unbreakable word,
+        // so "2006" no longer splits into "200"/"6" in a narrow box. (A pure-alnum run
+        // wider than the box overflows rather than breaking mid-token, which is the
+        // intended trade -- punctuation like "/" or "." in URLs still offers breaks.)
+        opt.setWrapMode(QTextOption::WordWrap);
         // If even a single glyph is wider than the wrap box, Qt lays that
         // overflowing line out from the box's left edge -- it cannot centre a
         // line wider than the box -- which shoves centred/right text off the
@@ -620,6 +756,14 @@ void addText(const QXmlStreamAttributes &attrs, const QVector<TextSegment> &segm
         else if (anchor == QLatin1String("end"))
             left = x - advance;
         item->setPos(left, top);
+    }
+
+    // B2a vert270: the text runs bottom-to-top, so rotate the laid-out item 90
+    // degrees counter-clockwise about its top-left anchor. mongolianVert/eaVert took
+    // the column path above and returned before reaching here.
+    if (vert == QLatin1String("vert270")) {
+        item->setTransformOriginPoint(0, 0);
+        item->setRotation(-90);
     }
 
     if (outText) {
@@ -672,9 +816,21 @@ void reflowTextBoxes(const QVector<TextEntry> &entries) {
 
             double shift = 0.0;
             for (int i = 1; i < items.size(); ++i) {
+                QGraphicsTextItem *prev = items[i - 1];
                 const double reserved = origTop[i] - origTop[i - 1]; // space oxide gave prev
-                const double actual = items[i - 1]->boundingRect().height();
-                shift += qMax(0.0, actual - reserved); // only when prev overran its slot
+                const double actual = prev->boundingRect().height();  // forces layout
+                // B4b: only a paragraph that actually WRAPPED (more than one laid-out
+                // line) may overrun the single-line slot oxide reserved. A single line
+                // whose bounding box is inflated by a large proportional line-spacing
+                // (data-linespacing="200") must NOT push the next paragraph down --
+                // doing so shoved the last spAutoFit bullet (长春天成) further below
+                // its box. Multi-line wraps behave exactly as before.
+                int lineCount = 1;
+                const QTextBlock blk = prev->document()->firstBlock();
+                if (blk.isValid() && blk.layout() && blk.layout()->lineCount() > 0)
+                    lineCount = blk.layout()->lineCount();
+                if (lineCount > 1)
+                    shift += qMax(0.0, actual - reserved); // only when prev overran its slot
                 items[i]->setY(origTop[i] + shift);
             }
         }

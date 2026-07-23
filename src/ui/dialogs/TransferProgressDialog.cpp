@@ -4,6 +4,7 @@
 #include <QLabel>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include "OperationQueue.h"
@@ -70,6 +71,16 @@ TransferProgressDialog::TransferProgressDialog(OperationQueue *queue, QWidget *p
     layout->addWidget(m_errorLabel);
     layout->addWidget(buttons);
 
+    // Deferred-show timer: a job that finishes within kShowDelayMs never pops a
+    // window. Single-shot, re-armed on each started while hidden.
+    m_showTimer = new QTimer(this);
+    m_showTimer->setSingleShot(true);
+    m_showTimer->setInterval(kShowDelayMs);
+    connect(m_showTimer, &QTimer::timeout, this, [this] {
+        if (m_running)
+            showIfHidden();
+    });
+
     if (m_queue) {
         connect(m_queue, &OperationQueue::started, this, &TransferProgressDialog::onStarted);
         connect(m_queue, &OperationQueue::progress, this, &TransferProgressDialog::onProgress);
@@ -92,6 +103,14 @@ void TransferProgressDialog::onPauseClicked() {
         m_queue->resumeCurrent();
 }
 
+void TransferProgressDialog::showIfHidden() {
+    if (m_shown)
+        return;
+    m_shown = true;
+    show();
+    raise();
+}
+
 void TransferProgressDialog::onStarted(const QString &description) {
     m_descriptionLabel->setText(description);
     m_bytesLabel->clear();
@@ -99,14 +118,25 @@ void TransferProgressDialog::onStarted(const QString &description) {
     m_etaLabel->clear();
     m_fileLabel->clear();
     m_errorLabel->clear();
+    m_hasError = false;
     m_paused = false;
     m_pauseButton->setText(tr("Pause"));
     m_progressBar->setRange(0, 0);
     m_timer.start(); // reset the clock for throughput/ETA of this job
+    m_running = true;
+    // Don't show yet: arm the deferred-show timer so a quick job never flashes a
+    // window. onProgress may reveal it sooner if the total turns out to be large.
+    if (!m_shown && !m_showTimer->isActive())
+        m_showTimer->start();
 }
 
 void TransferProgressDialog::onProgress(qint64 doneItems, qint64 totalItems, qint64 doneBytes,
                                         qint64 totalBytes, const QString &currentFile) {
+    // Reveal immediately for an obviously large operation, before the 1s delay,
+    // so a big copy/move gives instant feedback (the user-chosen policy).
+    if (!m_shown && (totalBytes > kBigBytes || totalItems > kBigItems))
+        showIfHidden();
+
     // Prefer the byte-based bar (smooth for large transfers); fall back to
     // item counts for byte-less operations.
     if (totalBytes > 0) {
@@ -150,13 +180,24 @@ void TransferProgressDialog::onQueueChanged(int pendingCount) {
 }
 
 void TransferProgressDialog::onFinished(bool ok) {
-    if (!ok)
-        return;
-    // A successful job just completed; if nothing else is queued or running,
-    // leave the last state visible rather than resetting — the user can close
-    // the dialog themselves. Nothing further to do here.
+    // The queue drained. Cancel any pending deferred-show and drop the running
+    // flag so a late timer tick can't pop an empty window.
+    m_running = false;
+    m_showTimer->stop();
+    // Auto-hide the dialog once done, unless an error is on display (then the
+    // user closes it after reading). A quick job that never showed stays hidden.
+    if (m_shown && ok && !m_hasError) {
+        m_shown = false;
+        hide();
+    }
 }
 
 void TransferProgressDialog::onErrorOccurred(const QString &message) {
     m_errorLabel->setText(message);
+    // Only keep an already-visible dialog up past completion so the message is
+    // readable. Don't pop the dialog just for an error: MainWindow already shows
+    // a consolidated warning on finish, and a quick failed op shouldn't flash two
+    // windows.
+    if (m_shown)
+        m_hasError = true;
 }

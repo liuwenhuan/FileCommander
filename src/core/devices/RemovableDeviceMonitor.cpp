@@ -7,6 +7,7 @@
 #include <QDBusObjectPath>
 #include <QDBusReply>
 #include <QHash>
+#include <QTimer>
 #include <QVariantMap>
 
 namespace {
@@ -121,10 +122,19 @@ RemovableDeviceMonitor::RemovableDeviceMonitor(QObject *parent) : QObject(parent
     qDBusRegisterMetaType<InterfaceProperties>();
     qDBusRegisterMetaType<ManagedObjects>();
 
+    // Coalesce bursts of D-Bus signals (a device emits several InterfacesAdded,
+    // and UDisks emits frequent PropertiesChanged) into one settled refresh.
+    m_refreshDebounce = new QTimer(this);
+    m_refreshDebounce->setSingleShot(true);
+    m_refreshDebounce->setInterval(200);
+    connect(m_refreshDebounce, &QTimer::timeout, this, &RemovableDeviceMonitor::refresh);
+
     // Watch hot-plug via the ObjectManager signals. A single refresh() after
     // either signal re-reads the full state and diffs it, which naturally
     // coalesces the several InterfacesAdded a device emits (block, then
-    // filesystem, then drive) into one settled snapshot.
+    // filesystem, then drive) into one settled snapshot. PropertiesChanged is
+    // also watched so a plain unmount (device still plugged, MountPoints
+    // cleared) -- which emits no InterfacesRemoved -- is noticed too.
     QDBusConnection bus = QDBusConnection::systemBus();
     if (bus.isConnected()) {
         bus.connect(QString::fromUtf8(kService), QString::fromUtf8(kManagerPath),
@@ -133,6 +143,13 @@ RemovableDeviceMonitor::RemovableDeviceMonitor(QObject *parent) : QObject(parent
         bus.connect(QString::fromUtf8(kService), QString::fromUtf8(kManagerPath),
                     QString::fromUtf8(kObjectManagerIface), QStringLiteral("InterfacesRemoved"),
                     this, SLOT(handleInterfacesChanged()));
+        // Empty object path = match PropertiesChanged from any UDisks object
+        // (block/filesystem/drive); the slot just re-diffs, so over-matching is
+        // harmless beyond one extra GetManagedObjects call.
+        bus.connect(QString::fromUtf8(kService), QString(),
+                    QStringLiteral("org.freedesktop.DBus.Properties"),
+                    QStringLiteral("PropertiesChanged"), this,
+                    SLOT(handleInterfacesChanged()));
     }
 
     m_devices = enumerate();
@@ -143,7 +160,8 @@ QVector<RemovableDevice> RemovableDeviceMonitor::devices() const {
 }
 
 void RemovableDeviceMonitor::handleInterfacesChanged() {
-    refresh();
+    // Debounce: a single settled refresh after the burst, not one per signal.
+    m_refreshDebounce->start();
 }
 
 void RemovableDeviceMonitor::refresh() {

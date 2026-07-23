@@ -120,6 +120,7 @@ struct FtpHandle : public FileHandle {
     qint64 resumeOffset = 0; // read mode: CURLOPT_RESUME_FROM_LARGE
     bool started = false;    // lazily launched on the first read()/write()
     qint64 cachedSize = -1;
+    int timeoutMs = 12000;   // connect-phase timeout for the transfer
 
     CURL *curl = nullptr;
     std::thread worker;
@@ -161,7 +162,11 @@ void startFtpTransfer(FtpHandle *h) {
     const QByteArray urlUtf8 = url.toUtf8();
     curl_easy_setopt(h->curl, CURLOPT_URL, urlUtf8.constData());
     curl_easy_setopt(h->curl, CURLOPT_NOSIGNAL, 1L);
-    curl_easy_setopt(h->curl, CURLOPT_CONNECTTIMEOUT, 15L);
+    // Bound the connect phase only. A total CURLOPT_TIMEOUT_MS is deliberately
+    // NOT set here: a legitimate bulk transfer may run far longer than the
+    // connect timeout, and the caller can already abort a stalled transfer via
+    // the progress callback / closeHandle().
+    curl_easy_setopt(h->curl, CURLOPT_CONNECTTIMEOUT_MS, static_cast<long>(h->timeoutMs));
     if (!h->user.isEmpty()) {
         const QByteArray userUtf8 = h->user.toUtf8();
         const QByteArray passUtf8 = h->password.toUtf8();
@@ -233,7 +238,12 @@ bool CurlFtpProvider::connectToHost(const QString &host, int port, const QString
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, m_errorBuffer);
     curl_easy_setopt(curl, CURLOPT_URL, rootUtf8.constData());
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 15L);
+    // These timeouts persist on the handle (kept as m_curl) and so bound every
+    // later control-plane request (list/isDir/rename/...). m_curl never drives a
+    // bulk file transfer (those use per-handle curl handles), so a total
+    // CURLOPT_TIMEOUT_MS is safe here and guards against a hung control channel.
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, static_cast<long>(m_timeoutMs));
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, static_cast<long>(m_timeoutMs));
     curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discardCallback);
     if (!user.isEmpty()) {
@@ -260,6 +270,23 @@ bool CurlFtpProvider::connectToHost(const QString &host, int port, const QString
     m_password = password;
     m_connected = true;
     return true;
+}
+
+bool CurlFtpProvider::reconnect(QString *error) {
+    // Snapshot credentials before disconnect() clears them. connectToHost() and
+    // disconnect() each take m_mutex, so reconnect() must not hold the
+    // (non-recursive) lock while calling them.
+    QString host, user, password;
+    int port;
+    {
+        QMutexLocker locker(&m_mutex);
+        host = m_host;
+        port = m_port;
+        user = m_user;
+        password = m_password;
+    }
+    disconnect();
+    return connectToHost(host, port, user, password, error);
 }
 
 void CurlFtpProvider::disconnect() {
@@ -588,7 +615,7 @@ QVector<FileInfo> CurlFtpProvider::parseUnixListing(const QByteArray &data, cons
 
 FileHandle *CurlFtpProvider::openRead(const QString &path) {
     QString h, u, p;
-    int port;
+    int port, timeout;
     {
         QMutexLocker locker(&m_mutex);
         if (!m_connected)
@@ -597,6 +624,7 @@ FileHandle *CurlFtpProvider::openRead(const QString &path) {
         port = m_port;
         u = m_user;
         p = m_password;
+        timeout = m_timeoutMs;
     }
     auto *handle = new FtpHandle();
     handle->mode = FtpHandle::Mode::Read;
@@ -605,12 +633,13 @@ FileHandle *CurlFtpProvider::openRead(const QString &path) {
     handle->port = port;
     handle->user = u;
     handle->password = p;
+    handle->timeoutMs = timeout;
     return handle;
 }
 
 FileHandle *CurlFtpProvider::openWrite(const QString &path, bool truncate) {
     QString h, u, p;
-    int port;
+    int port, timeout;
     {
         QMutexLocker locker(&m_mutex);
         if (!m_connected)
@@ -619,6 +648,7 @@ FileHandle *CurlFtpProvider::openWrite(const QString &path, bool truncate) {
         port = m_port;
         u = m_user;
         p = m_password;
+        timeout = m_timeoutMs;
     }
     auto *handle = new FtpHandle();
     handle->mode = FtpHandle::Mode::Write;
@@ -628,6 +658,7 @@ FileHandle *CurlFtpProvider::openWrite(const QString &path, bool truncate) {
     handle->user = u;
     handle->password = p;
     handle->truncate = truncate;
+    handle->timeoutMs = timeout;
     return handle;
 }
 

@@ -52,7 +52,23 @@ public:
     // Path under the keyboard cursor (not necessarily selected) -- used by
     // F3/F4 to know which single file to open.
     QString currentEntryPath() const;
+    // Cheap cached-listing queries about the entry under the cursor (no provider
+    // round-trip): used to gate network preview (skip directories / oversized
+    // files) without a blocking remote stat.
+    bool currentEntryIsDir() const;
+    qint64 currentEntrySize() const;
+    // The cached FileInfo for the entry under the cursor (owner/group/perms from
+    // the provider's listing). Used for the Properties dialog on network tabs,
+    // where a local QFileInfo over the remote path would yield nothing.
+    FileInfo currentEntryInfo() const;
     QStringList selectedPaths() const;
+
+    // Activates the current entry exactly as a double-click / Enter would: a
+    // directory (or "..") is entered via the active provider (so network/archive
+    // tabs navigate correctly, not just local paths), an archive opens as a
+    // folder, a file emits openRequested. Used by the right-click "Open" action,
+    // which previously bypassed the provider and did nothing on network tabs.
+    void activateCurrentEntry();
 
     // A real, on-disk path for the current entry suitable for the preview
     // viewers. For a normal directory this is just currentEntryPath(); inside an
@@ -97,6 +113,13 @@ public:
     void closeCurrentTab();
     void nextTab();
     void prevTab();
+
+    // Closes every real-directory tab whose path lives on `mountRoot` (the mount
+    // point of a removable volume that was just unmounted/unplugged). If that
+    // would leave the panel empty, the sole survivor is redirected home instead
+    // of closed. Flat search-result tabs are never affected. Returns the number
+    // of tabs closed or redirected.
+    int closeTabsOnMount(const QString &mountRoot);
 
     // Reveals the quick-filter box and gives it focus. Esc (handled in the
     // event filter) hides it and restores the full listing.
@@ -190,6 +213,9 @@ private:
     void applyHistoryEntry(const NavEntry &entry);
     void pushHistory(const NavEntry &entry);
     void updateStatus();
+    // Maps a NetworkSession::State to the centred connection message in the
+    // status line ("connecting / reconnecting(N/M) / failed+retry").
+    void onNetworkStateChanged(int state, int attempt);
     void updateNavButtons();
     QString tabLabelFor(const QSharedPointer<TabState> &tab) const;
     void syncTabBarFromManager();

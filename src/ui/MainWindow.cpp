@@ -12,8 +12,14 @@
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QFormLayout>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
+#include <QTemporaryDir>
+
+#include <atomic>
+#include <functional>
 #include <QLabel>
 #include <QHBoxLayout>
 #include <QMouseEvent>
@@ -173,6 +179,28 @@ QMimeData *buildFileClipboardData(const QStringList &paths, bool cut) {
 constexpr int kShadowMargin = 16; // translucent margin: drop shadow + resize band
 constexpr int kCornerRadius = 8;  // rounded window-corner radius
 constexpr int kResizeGrab = 8;    // edge-resize grab band, straddling the content edge
+
+// A saved tab path that points at removable media which is no longer present:
+// it lives under a removable mount root (/media, /run/media, /mnt) yet the
+// directory doesn't currently exist -- i.e. the stick/drive was unplugged
+// while the app was closed. Network/virtual paths (smb://, empty, "/") and
+// ordinary local directories are left untouched.
+bool isMissingRemovablePath(const QString &path) {
+    if (!path.startsWith(QLatin1Char('/')))
+        return false; // network/virtual (smb://, archive "/", flat search)
+    static const QStringList kRemovableRoots = {
+        QStringLiteral("/media/"), QStringLiteral("/run/media/"), QStringLiteral("/mnt/")};
+    bool underRemovable = false;
+    for (const QString &root : kRemovableRoots) {
+        if (path.startsWith(root)) {
+            underRemovable = true;
+            break;
+        }
+    }
+    if (!underRemovable)
+        return false;
+    return !QFileInfo(path).isDir();
+}
 } // namespace
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
@@ -206,6 +234,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     splitter->setHandleWidth(2);
     m_quickView = new QuickView(m_settings, QuickView::Context::Embedded, this);
     m_quickView->hide(); // parked until Ctrl+Q swaps it into a panel slot
+    // Stop button on the remote-preview download page cancels the in-flight fetch.
+    connect(m_quickView, &QuickView::downloadCancelRequested, this,
+            &MainWindow::cancelPreviewDownload);
     // App-wide filter so Tab out of the preview pane returns to the file list
     // (the list->preview half is driven by FilePanel::switchPanelRequested).
     qApp->installEventFilter(this);
@@ -392,19 +423,47 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     const QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
     SessionPanelData leftSession, rightSession;
     if (SessionManager::load(leftSession, rightSession)) {
-        QVector<QPair<QString, QStringList>> leftTabs, rightTabs;
-        for (const auto &t : leftSession.tabs)
-            leftTabs.append({t.path, t.selectedFiles});
-        for (const auto &t : rightSession.tabs)
-            rightTabs.append({t.path, t.selectedFiles});
-        m_leftPanel->restoreTabs(leftTabs, leftSession.activeTab);
-        m_rightPanel->restoreTabs(rightTabs, rightSession.activeTab);
+        // Drop tabs whose removable medium is gone (device unplugged while the
+        // app was closed), keeping the active-tab index pointing at a survivor.
+        auto buildTabs = [](const SessionPanelData &s, int &activeOut) {
+            QVector<QPair<QString, QStringList>> tabs;
+            int active = 0;
+            for (int i = 0; i < s.tabs.size(); ++i) {
+                if (isMissingRemovablePath(s.tabs.at(i).path))
+                    continue;
+                if (i < s.activeTab)
+                    ++active; // this kept tab sits before the old active one
+                tabs.append({s.tabs.at(i).path, s.tabs.at(i).selectedFiles});
+            }
+            activeOut = qBound(0, active, qMax(0, tabs.size() - 1));
+            return tabs;
+        };
+        int leftActive = 0, rightActive = 0;
+        const auto leftTabs = buildTabs(leftSession, leftActive);
+        const auto rightTabs = buildTabs(rightSession, rightActive);
+        if (leftTabs.isEmpty())
+            m_leftPanel->navigateTo(home);
+        else
+            m_leftPanel->restoreTabs(leftTabs, leftActive);
+        if (rightTabs.isEmpty())
+            m_rightPanel->navigateTo(home);
+        else
+            m_rightPanel->restoreTabs(rightTabs, rightActive);
     } else {
         m_leftPanel->navigateTo(home);
         m_rightPanel->navigateTo(home);
     }
 
     for (FilePanel *panel : {m_leftPanel, m_rightPanel}) {
+        // The server wants credentials: prompt, then hand them to that panel's
+        // model to retry the connection with a username/password.
+        FileSystemModel *model = panel->model();
+        connect(model, &FileSystemModel::networkAuthRequired, this,
+                [this, model](const QString &host) {
+                    QString user, pass;
+                    if (promptCredentials(host, &user, &pass))
+                        model->provideCredentials(user, pass);
+                });
         connect(panel, &FilePanel::panelActivated, this, &MainWindow::setActivePanel);
         connect(panel, &FilePanel::switchPanelRequested, this, [this, panel]() {
             // With the preview active, the "other" panel is hidden behind it, so
@@ -543,19 +602,8 @@ void MainWindow::buildTitleBarMenus() {
     m_configMenu = configMenu;
     configMenu->addAction(tr("Configure &Keyboard Shortcuts..."), this,
                           &MainWindow::openShortcutsDialog);
-    configMenu->addAction(tr("Connect to &Server..."), this, [this] {
-        ConnectDialog dlg(this);
-        if (dlg.exec() != QDialog::Accepted || !m_activePanel)
-            return;
-        if (auto provider = dlg.remoteProvider()) {
-            // Native SFTP: swap the connected provider into the panel's model.
-            m_activePanel->model()->setProvider(provider);
-            m_activePanel->navigateTo(dlg.remotePath());
-        } else if (!dlg.mountedLocalPath().isEmpty()) {
-            // gvfs-mounted protocols look like a local directory.
-            m_activePanel->navigateTo(dlg.mountedLocalPath());
-        }
-    });
+    configMenu->addAction(tr("Connect to &Server..."), this,
+                          [this] { openServerConnectDialog(false); });
     {
         // Skip the "Delete N items?" prompt for trash deletes when checked.
         // (Permanent Shift+Del always confirms regardless -- see deleteSelected.)
@@ -740,9 +788,38 @@ void MainWindow::setupFeatureBatch() {
                 m_activePanel->navigateTo(mountPoint);
             });
 
+    // Seed the current removable-mount snapshot so the first devicesChanged()
+    // diffs against reality, not an empty set.
+    auto currentRemovableMounts = [this] {
+        QStringList mounts;
+        for (const RemovableDevice &dev : m_deviceMonitor->devices())
+            if (dev.isMounted && !dev.mountPoint.isEmpty())
+                mounts.append(dev.mountPoint);
+        return mounts;
+    };
+    m_removableMounts = currentRemovableMounts();
+
+    // When a removable volume is unmounted or unplugged, close any tab (in
+    // either panel) that was browsing it. devicesChanged() covers both a device
+    // vanishing outright and a still-plugged device merely being unmounted.
+    connect(m_deviceMonitor, &RemovableDeviceMonitor::devicesChanged, this,
+            [this, currentRemovableMounts] {
+                const QStringList fresh = currentRemovableMounts();
+                for (const QString &gone : m_removableMounts) {
+                    if (fresh.contains(gone))
+                        continue; // still mounted -- nothing to do
+                    m_leftPanel->closeTabsOnMount(gone);
+                    m_rightPanel->closeTabsOnMount(gone);
+                }
+                m_removableMounts = fresh;
+            });
+
     // SMB neighbourhood discovery is owned here and injected into the
-    // external-connection picker; discovery is kicked off lazily by the dialog.
+    // external-connection picker. Kick off one background scan at startup and
+    // cache the results (4h): opening the picker then shows hosts instantly from
+    // cache, only rescanning once the cache goes stale.
     m_smbBrowser = new SmbHostBrowser(this);
+    m_smbBrowser->startDiscovery();
 
     // Once-a-day background update check: if we haven't checked today, ask the
     // server quietly. A found update only lights the title-bar badge (no popup);
@@ -1221,37 +1298,50 @@ void MainWindow::updateExtraKeyButtons() {
 }
 
 namespace {
-// Reopens a saved bookmark by building and connecting its native provider,
-// mirroring ConnectDialog::accept(). Returns the connected provider on success,
-// or a null pointer (with the reason in *error) on failure. The password is
-// pulled from the keyring by id.
-std::shared_ptr<FileProvider> providerForSaved(const SavedConnection &c, QString *error) {
+// A native backend built for a saved bookmark: the (UNCONNECTED) provider plus
+// the connect closure to run on the session worker thread. Empty provider means
+// the protocol isn't a native backend.
+struct SavedNativeProvider {
+    std::shared_ptr<FileProvider> provider;
+    std::function<bool(QString *)> connectFn;
+};
+
+// Builds (but does not connect) the native provider for a saved bookmark,
+// mirroring ConnectDialog. The connect runs later on the worker thread via
+// FileSystemModel::connectNetwork, so reopening a bookmark never blocks the UI.
+// The password is pulled from the keyring by id.
+SavedNativeProvider providerForSaved(const SavedConnection &c) {
     const auto protocol = static_cast<GvfsMounter::Protocol>(c.protocol);
     const QString password = c.anonymous ? QString() : ConnectionStore::loadPassword(c.id);
     switch (protocol) {
     case GvfsMounter::Protocol::Sftp: {
         auto p = std::make_shared<SftpProvider>();
-        return p->connectToHost(c.host, c.port, c.user, password, error) ? p : nullptr;
+        return {p, [p, c, password](QString *e) {
+                    return p->connectToHost(c.host, c.port, c.user, password, e);
+                }};
     }
     case GvfsMounter::Protocol::Ftp: {
         auto p = std::make_shared<CurlFtpProvider>();
-        return p->connectToHost(c.host, c.port, c.user, password, error) ? p : nullptr;
+        return {p, [p, c, password](QString *e) {
+                    return p->connectToHost(c.host, c.port, c.user, password, e);
+                }};
     }
     case GvfsMounter::Protocol::WebDav:
     case GvfsMounter::Protocol::WebDavs: {
         auto p = std::make_shared<CurlWebDavProvider>();
         const bool useHttps = protocol == GvfsMounter::Protocol::WebDavs;
-        return p->connectToHost(c.host, c.port, c.user, password, useHttps, error) ? p : nullptr;
+        return {p, [p, c, password, useHttps](QString *e) {
+                    return p->connectToHost(c.host, c.port, c.user, password, useHttps, e);
+                }};
     }
     case GvfsMounter::Protocol::Smb: {
         auto p = std::make_shared<SmbProvider>();
-        return p->connectToHost(c.host, c.user, password, QString(), c.anonymous, error) ? p
-                                                                                         : nullptr;
+        return {p, [p, c, password](QString *e) {
+                    return p->connectToHost(c.host, c.user, password, QString(), c.anonymous, e);
+                }};
     }
     default:
-        if (error)
-            *error = MainWindow::tr("Unsupported connection type.");
-        return nullptr;
+        return {};
     }
 }
 } // namespace
@@ -1272,37 +1362,41 @@ void MainWindow::openExternalConnections() {
     });
     connect(dlg, &ExternalConnectDialog::openSavedConnection, this,
             [this](const SavedConnection &conn) {
-                QString error;
-                QApplication::setOverrideCursor(Qt::WaitCursor);
-                auto provider = providerForSaved(conn, &error);
-                QApplication::restoreOverrideCursor();
-                if (!provider) {
+                auto native = providerForSaved(conn);
+                if (!native.provider) {
                     ttc::critical(this, tr("Connection Failed"),
-                                  tr("Could not connect to %1.\n\n%2").arg(conn.host, error));
+                                  tr("Unsupported connection type."));
                     return;
                 }
-                m_activePanel->model()->setProvider(provider);
-                m_activePanel->navigateTo(conn.remotePath.isEmpty() ? QStringLiteral("/")
-                                                                     : conn.remotePath);
+                // Connect asynchronously on a worker thread; the status line
+                // shows "connecting / reconnecting / failed". Never blocks the UI.
+                const QString path =
+                    conn.remotePath.isEmpty() ? QStringLiteral("/") : conn.remotePath;
+                m_activePanel->model()->connectNetwork(native.provider, native.connectFn, path);
+                m_activePanel->navigateTo(path);
             });
     connect(dlg, &ExternalConnectDialog::openSmbHost, this, [this](const QString &hostName) {
         if (hostName.isEmpty())
             return;
         // Browse the host's shares anonymously; "/" lists the shares available.
+        // Connect asynchronously so an unreachable host never freezes the UI.
         auto provider = std::make_shared<SmbProvider>();
-        QString error;
-        QApplication::setOverrideCursor(Qt::WaitCursor);
-        const bool ok =
-            provider->connectToHost(hostName, QString(), QString(), QString(), true, &error);
-        QApplication::restoreOverrideCursor();
-        if (!ok) {
-            ttc::critical(this, tr("Connection Failed"),
-                          tr("Could not connect to %1.\n\n%2").arg(hostName, error));
-            return;
-        }
-        m_activePanel->model()->setProvider(provider);
+        auto connectFn = [provider, hostName](QString *e) {
+            return provider->connectToHost(hostName, QString(), QString(), QString(), true, e);
+        };
+        m_activePanel->model()->connectNetwork(provider, connectFn, QStringLiteral("/"));
+        // If the anonymous browse is denied, prompt for a login and retry with it.
+        m_activePanel->model()->setAuthContext(
+            hostName, [provider, hostName](const QString &u, const QString &p) {
+                return std::function<bool(QString *)>([provider, hostName, u, p](QString *e) {
+                    return provider->connectToHost(hostName, u, p, QString(), /*anonymous=*/false, e);
+                });
+            });
         m_activePanel->navigateTo(QStringLiteral("/"));
     });
+    // Gear next to the "Network Neighborhood" header: open the manual SMB form.
+    connect(dlg, &ExternalConnectDialog::openSmbConnectForm, this,
+            [this] { openServerConnectDialog(true); });
 
     // Pop up directly above the leading function-key button that launched it.
     dlg->popUpAbove(m_functionKeyBar->leadingButtonGlobalRect());
@@ -1313,8 +1407,11 @@ void MainWindow::toggleNotepad() {
     // launched it (mirrors the external-connection panel), rather than a docked
     // third column. Non-modal; it auto-saves and deletes itself on close.
     auto *pad = new NotepadPanel(this);
-    const int appTop = mapToGlobal(QPoint(0, 0)).y();
-    pad->popUpAbove(m_functionKeyBar->trailingButtonGlobalRect(), appTop);
+    // The app window's VISIBLE content rect in global coords: contentsRect()
+    // excludes the frameless shadow margin, so the popup aligns to the real
+    // window edges, not the shadow.
+    const QRect appContent(mapToGlobal(contentsRect().topLeft()), contentsRect().size());
+    pad->popUpAbove(m_functionKeyBar->trailingButtonGlobalRect(), appContent);
 }
 
 void MainWindow::showAboutDialog() {
@@ -1571,6 +1668,19 @@ void MainWindow::showProperties() {
     const QStringList paths = m_activePanel->selectedPaths();
     if (paths.isEmpty())
         return;
+    // Single remote entry: build the dialog from the cached FileInfo so its
+    // owner/group/permissions/size come from the provider's listing (a local
+    // QFileInfo over a remote path would show nothing).
+    FileProvider *prov = m_activePanel->model()->provider();
+    const bool network = prov && !prov->displayName().isEmpty();
+    if (network && paths.size() == 1) {
+        const FileInfo info = m_activePanel->currentEntryInfo();
+        if (info.isValid()) {
+            PropertiesDialog dlg(info, this);
+            dlg.exec();
+            return;
+        }
+    }
     PropertiesDialog dlg(paths, this);
     if (dlg.exec() == QDialog::Accepted)
         m_activePanel->refresh();
@@ -1665,9 +1775,11 @@ void MainWindow::openTerminalHere() {
 void MainWindow::openWithDefault() {
     if (!m_activePanel)
         return;
-    const QString path = m_activePanel->currentEntryPath();
-    if (!path.isEmpty())
-        QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+    // Delegate to the panel's activate logic: a directory (local, network or
+    // archive) is entered in-place via its provider; a file is opened with the
+    // associated app. The old QDesktopServices-on-local-path shortcut did
+    // nothing for network tabs, so right-click "Open" couldn't change directory.
+    m_activePanel->activateCurrentEntry();
 }
 
 void MainWindow::openWith() {
@@ -1759,18 +1871,163 @@ void MainWindow::toggleQuickView() {
     updateQuickView();
 }
 
+namespace {
+// Downloads a remote file to a real local temp file so the local viewers can
+// open it (images/text/media all need a real path). Streams through the provider
+// on the calling worker thread, reporting bytes via `progressCb` and aborting
+// promptly when *cancel becomes true. Returns the temp path, or an empty string
+// on failure/cancellation (the partial temp file is removed). `reqId` keeps
+// concurrent previews from colliding on a name.
+QString downloadRemoteToTemp(FileProvider *provider, const QString &remotePath,
+                             const QString &destDir, quint64 reqId, std::atomic<bool> *cancel,
+                             qint64 total, const std::function<void(qint64, qint64)> &progressCb) {
+    if (!provider || !provider->canStream())
+        return {};
+    FileHandle *h = provider->openRead(remotePath);
+    if (!h)
+        return {};
+    const QString base = QFileInfo(remotePath).fileName();
+    const QString outPath =
+        QDir(destDir).filePath(QStringLiteral("%1_%2").arg(reqId).arg(base));
+    QFile out(outPath);
+    if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        provider->closeHandle(h);
+        return {};
+    }
+    QByteArray buf;
+    buf.resize(64 * 1024);
+    qint64 done = 0, lastReported = 0, n = 0;
+    bool ok = true;
+    while (true) {
+        if (cancel && cancel->load()) { // user pressed Stop
+            ok = false;
+            break;
+        }
+        n = provider->read(h, buf.data(), buf.size());
+        if (n <= 0)
+            break; // 0 = EOF, <0 = error (handled below)
+        if (out.write(buf.constData(), n) != n) {
+            ok = false;
+            break;
+        }
+        done += n;
+        // Throttle progress to ~1 MiB steps so the event queue isn't flooded.
+        if (progressCb && done - lastReported >= 1024 * 1024) {
+            progressCb(done, total);
+            lastReported = done;
+        }
+    }
+    if (n < 0)
+        ok = false;
+    provider->closeHandle(h);
+    out.close();
+    if (!ok) {
+        QFile::remove(outPath);
+        return {};
+    }
+    if (progressCb)
+        progressCb(done, total); // final 100%
+    return outPath;
+}
+} // namespace
+
+QString MainWindow::ensurePreviewTempDir() {
+    if (!m_previewTempDir)
+        m_previewTempDir = new QTemporaryDir(QDir::tempPath() + QStringLiteral("/ttc-preview-XXXXXX"));
+    return (m_previewTempDir && m_previewTempDir->isValid()) ? m_previewTempDir->path()
+                                                             : QString();
+}
+
 void MainWindow::updateQuickView() {
     if (!m_quickViewActive || !m_activePanel)
         return;
-    // An archive under the cursor previews from its raw path (a header scan);
-    // any other target goes through currentPreviewPath(), which extracts an
-    // archived entry to a real temp file (and prefetches neighbours) so archived
-    // files preview like local ones.
+    // An archive under the cursor previews from its raw path (a header scan).
     const QString entry = m_activePanel->currentEntryPath();
-    if (ArchiveHandler::isSupportedArchive(entry))
+    if (ArchiveHandler::isSupportedArchive(entry)) {
         m_quickView->showFile(entry);
-    else
+        return;
+    }
+
+    FileProvider *prov = m_activePanel->model()->provider();
+    const bool network = prov && !prov->displayName().isEmpty();
+    if (!network) {
+        // Local / archive-entry: currentPreviewPath() already yields a real path.
         m_quickView->showFile(m_activePanel->currentPreviewPath());
+        return;
+    }
+
+    // Network file: the remote path isn't a real local file, so download it to a
+    // temp file on a worker thread (never blocking the GUI) and show it when
+    // ready. Skip directories and oversized files (using the cached listing, no
+    // remote round-trip). A newer cursor position supersedes an in-flight one.
+    ++m_previewReqId;
+    const quint64 reqId = m_previewReqId;
+    m_previewRunning = false;
+    m_quickView->showFile(QString()); // blank while loading / when unpreviewable
+    if (entry.isEmpty() || m_activePanel->currentEntryIsDir())
+        return;
+    static constexpr qint64 kMaxPreviewBytes = 100LL * 1024 * 1024; // don't fetch huge files
+    const qint64 total = m_activePanel->currentEntrySize();
+    if (total > kMaxPreviewBytes)
+        return;
+    const QString destDir = ensurePreviewTempDir();
+    if (destDir.isEmpty())
+        return;
+
+    m_previewRunning = true;
+    m_previewName = QFileInfo(entry).fileName();
+    // Fresh cancel flag for this download; the Stop button flips it.
+    m_previewCancel = std::make_shared<std::atomic<bool>>(false);
+
+    // If the download hasn't finished within 0.5s, show the download page with a
+    // progress bar and a Stop button (per the requested UX) so the pane isn't
+    // just blank. A quick download finishes first and never shows it.
+    const QString name = m_previewName;
+    QTimer::singleShot(500, this, [this, reqId, name] {
+        if (reqId == m_previewReqId && m_previewRunning)
+            m_quickView->showDownloading(name);
+    });
+
+    std::shared_ptr<FileProvider> provider = m_activePanel->model()->providerPtr();
+    std::shared_ptr<std::atomic<bool>> cancel = m_previewCancel;
+    MainWindow *self = this; // lives for the app's lifetime; queued calls hop to GUI thread
+    QtConcurrent::run([self, provider, entry, destDir, reqId, cancel, total] {
+        auto progressCb = [self, reqId](qint64 done, qint64 tot) {
+            QMetaObject::invokeMethod(self, "onPreviewProgress", Qt::QueuedConnection,
+                                      Q_ARG(quint64, reqId), Q_ARG(qint64, done),
+                                      Q_ARG(qint64, tot));
+        };
+        const QString tmp =
+            downloadRemoteToTemp(provider.get(), entry, destDir, reqId, cancel.get(), total,
+                                 progressCb);
+        const bool cancelled = cancel->load();
+        QMetaObject::invokeMethod(self, "onPreviewDone", Qt::QueuedConnection,
+                                  Q_ARG(quint64, reqId), Q_ARG(QString, tmp),
+                                  Q_ARG(bool, cancelled));
+    });
+}
+
+void MainWindow::onPreviewProgress(quint64 reqId, qint64 done, qint64 total) {
+    if (reqId != m_previewReqId || !m_previewRunning)
+        return; // superseded / already done
+    m_quickView->setDownloadProgress(done, total);
+}
+
+void MainWindow::onPreviewDone(quint64 reqId, const QString &tempPath, bool cancelled) {
+    if (reqId != m_previewReqId)
+        return; // a newer selection took over; this result is stale
+    m_previewRunning = false;
+    if (cancelled)
+        m_quickView->showDownloadCancelled(m_previewName);
+    else
+        m_quickView->showFile(tempPath); // empty path -> "select a file" placeholder
+}
+
+void MainWindow::cancelPreviewDownload() {
+    if (m_previewCancel)
+        m_previewCancel->store(true); // the worker's read loop aborts on the next chunk
+    m_previewRunning = false;
+    m_quickView->showDownloadCancelled(m_previewName);
 }
 
 void MainWindow::splitFile() {
@@ -2035,6 +2292,51 @@ FilePanel *MainWindow::otherPanel(FilePanel *panel) const {
     return panel == m_leftPanel ? m_rightPanel : m_leftPanel;
 }
 
+bool MainWindow::promptCredentials(const QString &host, QString *user, QString *pass) {
+    QDialog dlg(this);
+    dlg.setWindowTitle(tr("需要密码"));
+    auto *form = new QFormLayout(&dlg);
+    auto *info = new QLabel(
+        host.isEmpty() ? tr("此连接需要用户名和密码。")
+                       : tr("连接“%1”需要用户名和密码。").arg(host),
+        &dlg);
+    info->setWordWrap(true);
+    form->addRow(info);
+    auto *userEdit = new QLineEdit(&dlg);
+    auto *passEdit = new QLineEdit(&dlg);
+    passEdit->setEchoMode(QLineEdit::Password);
+    form->addRow(tr("用户名："), userEdit);
+    form->addRow(tr("密码："), passEdit);
+    auto *box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+    form->addRow(box);
+    connect(box, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    connect(box, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+    userEdit->setFocus();
+    if (dlg.exec() != QDialog::Accepted)
+        return false;
+    *user = userEdit->text();
+    *pass = passEdit->text();
+    return true;
+}
+
+void MainWindow::openServerConnectDialog(bool preselectSmb) {
+    ConnectDialog dlg(this);
+    if (preselectSmb)
+        dlg.selectProtocol(static_cast<int>(GvfsMounter::Protocol::Smb));
+    if (dlg.exec() != QDialog::Accepted || !m_activePanel)
+        return;
+    if (auto provider = dlg.remoteProvider()) {
+        // Native backend: connect asynchronously on a worker thread (status line
+        // shows progress), then navigate to the initial remote path -- the
+        // listing waits for the connection, never freezing the UI.
+        m_activePanel->model()->connectNetwork(provider, dlg.connectFn(), dlg.remotePath());
+        m_activePanel->navigateTo(dlg.remotePath());
+    } else if (!dlg.mountedLocalPath().isEmpty()) {
+        // gvfs-mounted protocols look like a local directory.
+        m_activePanel->navigateTo(dlg.mountedLocalPath());
+    }
+}
+
 FilePanel *MainWindow::panelShowingDir(const QString &dir) const {
     const QString target = QDir::cleanPath(dir);
     if (QDir::cleanPath(m_leftPanel->currentPath()) == target)
@@ -2042,6 +2344,22 @@ FilePanel *MainWindow::panelShowingDir(const QString &dir) const {
     if (QDir::cleanPath(m_rightPanel->currentPath()) == target)
         return m_rightPanel;
     return nullptr;
+}
+
+FileProvider *MainWindow::providerOwningPath(const QString &path) const {
+    LocalFileProvider *local = LocalFileProvider::instance();
+    const QString clean = QDir::cleanPath(path);
+    for (FilePanel *p : {m_leftPanel, m_rightPanel}) {
+        FileProvider *pv = p->model()->provider();
+        if (pv == local)
+            continue; // local paths are owned by the local provider
+        // A remote panel owns `path` if its current directory is `path` itself or
+        // an ancestor of it (so sub-folder drops into a remote pane resolve too).
+        const QString root = QDir::cleanPath(p->currentPath());
+        if (clean == root || clean.startsWith(root + QLatin1Char('/')))
+            return pv;
+    }
+    return local;
 }
 
 QStringList MainWindow::destPathsFor(const QStringList &sources, const QString &destDir) {
@@ -2066,9 +2384,21 @@ void MainWindow::handleFilesDropped(const QStringList &sources, const QString &d
         m_pendingDestPaths = destPathsFor(sources, destDir);
     }
 
+    // Detect whether either end is a remote provider (SFTP/FTP/WebDAV/SMB). If so
+    // the transfer must stream through the provider engine, exactly as F5
+    // copy/move does -- treating a remote path as a local file is what made a
+    // drag out of a network tab fail with a permission error.
+    LocalFileProvider *local = LocalFileProvider::instance();
+    FileProvider *dstProv = providerOwningPath(destDir);
+    FileProvider *srcProv = sources.isEmpty() ? local : providerOwningPath(sources.first());
+    const bool crossProvider = (srcProv != local) || (dstProv != local);
+
     switch (kind) {
     case FileListView::DropActionKind::Copy:
-        m_queue->enqueueCopy(sources, destDir);
+        if (crossProvider)
+            m_queue->enqueueProviderCopy(srcProv, sources, dstProv, destDir);
+        else
+            m_queue->enqueueCopy(sources, destDir);
         break;
     case FileListView::DropActionKind::Move: {
         FilePanel *srcPanel = sources.isEmpty()
@@ -2078,12 +2408,23 @@ void MainWindow::handleFilesDropped(const QStringList &sources, const QString &d
             m_pendingMovePanel = srcPanel;
             m_pendingMovePaths = sources;
         }
-        recordMoveUndo(sources, destDir);
-        m_queue->enqueueMove(sources, destDir);
+        if (crossProvider) {
+            // Cross-provider move (copy + delete source); local undo doesn't apply.
+            m_queue->enqueueProviderMove(srcProv, sources, dstProv, destDir);
+        } else {
+            recordMoveUndo(sources, destDir);
+            m_queue->enqueueMove(sources, destDir);
+        }
         break;
     }
     case FileListView::DropActionKind::Link:
-        m_queue->enqueueSymlink(sources, destDir);
+        if (crossProvider) {
+            // Symlinks are a local-filesystem concept; can't span a remote backend.
+            ttc::warning(this, tr("创建链接"),
+                         tr("无法为网络位置创建符号链接。"));
+        } else {
+            m_queue->enqueueSymlink(sources, destDir);
+        }
         break;
     }
 }
@@ -2152,15 +2493,29 @@ void MainWindow::pasteFromClipboard() {
     m_pendingDestPanel = m_activePanel;
     m_pendingDestPaths = destPathsFor(sources, destDir);
 
+    // Same cross-provider routing as drag-drop / F5: if the source paths or the
+    // destination belong to a remote provider, stream through the provider engine
+    // instead of the local-file path (which can't reach a network location).
+    LocalFileProvider *local = LocalFileProvider::instance();
+    FileProvider *dstProv = providerOwningPath(destDir);
+    FileProvider *srcProv = providerOwningPath(sources.first());
+    const bool crossProvider = (srcProv != local) || (dstProv != local);
+
     if (isCut) {
         FilePanel *srcPanel = panelShowingDir(QFileInfo(sources.first()).absolutePath());
         if (srcPanel) {
             m_pendingMovePanel = srcPanel;
             m_pendingMovePaths = sources;
         }
-        recordMoveUndo(sources, destDir);
-        m_queue->enqueueMove(sources, destDir);
+        if (crossProvider) {
+            m_queue->enqueueProviderMove(srcProv, sources, dstProv, destDir);
+        } else {
+            recordMoveUndo(sources, destDir);
+            m_queue->enqueueMove(sources, destDir);
+        }
         QGuiApplication::clipboard()->clear();
+    } else if (crossProvider) {
+        m_queue->enqueueProviderCopy(srcProv, sources, dstProv, destDir);
     } else {
         m_queue->enqueueCopy(sources, destDir);
     }

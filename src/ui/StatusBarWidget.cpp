@@ -8,6 +8,16 @@ StatusBarWidget::StatusBarWidget(QWidget *parent) : QWidget(parent) {
     m_label = new QLabel(this);
     m_diskLabel = new QLabel(this);
 
+    // Centred connection-status label (network tabs). Rich text so the failed
+    // state can offer a clickable "Retry" link; hidden until a network tab sets
+    // it. linkActivated carries the click out as retryRequested.
+    m_connLabel = new QLabel(this);
+    m_connLabel->setTextFormat(Qt::RichText);
+    m_connLabel->setTextInteractionFlags(Qt::LinksAccessibleByMouse);
+    m_connLabel->hide();
+    connect(m_connLabel, &QLabel::linkActivated, this,
+            [this](const QString &) { emit retryRequested(); });
+
     // Compact "-"/"+" pair after the disk info: zoom the current view (list row
     // height or thumbnail size). Flat + auto-raise so they read as part of the
     // status strip rather than full toolbar buttons.
@@ -32,9 +42,30 @@ StatusBarWidget::StatusBarWidget(QWidget *parent) : QWidget(parent) {
     layout->setSpacing(2);
     layout->addWidget(m_label);
     layout->addStretch(1);
+    layout->addWidget(m_connLabel); // centred between the two stretches
+    layout->addStretch(1);
     layout->addWidget(m_diskLabel);
     layout->addWidget(m_zoomOutButton);
     layout->addWidget(m_zoomInButton);
+}
+
+void StatusBarWidget::setConnectionStatus(const QString &text, int level) {
+    if (text.isEmpty() || level == ConnNone) {
+        m_connLabel->clear();
+        m_connLabel->hide();
+        return;
+    }
+    const char *color = level == ConnFailed         ? "#e04a4a"  // red
+                        : level == ConnReconnecting ? "#d08a2a"  // amber
+                                                    : "#9a9a9a"; // grey (connecting)
+    QString html =
+        QStringLiteral("<span style='color:%1'>%2</span>").arg(color, text.toHtmlEscaped());
+    if (level == ConnFailed) {
+        html += QStringLiteral("&nbsp;<a href='#retry' style='color:%1'>%2</a>")
+                    .arg(color, tr("重试"));
+    }
+    m_connLabel->setText(html);
+    m_connLabel->show();
 }
 
 namespace {

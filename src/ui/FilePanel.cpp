@@ -3,6 +3,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QDir>
+#include <QStandardPaths>
 #include <QEvent>
 #include <QFileInfo>
 #include <QFont>
@@ -37,6 +38,7 @@
 #include "ArchiveProvider.h"
 #include "StatusBarWidget.h"
 #include "TabBar.h"
+#include "network/NetworkSession.h"
 #include "ThumbnailDelegate.h"
 
 FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
@@ -294,6 +296,13 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
         }
     });
 
+    // Network connection status -> centred status-line message; the "Retry" link
+    // in the failed state asks the model's session to reconnect.
+    connect(m_model, &FileSystemModel::networkStateChanged, this,
+            &FilePanel::onNetworkStateChanged);
+    connect(m_statusBar, &StatusBarWidget::retryRequested, this,
+            [this] { m_model->retryNetwork(); });
+
     connect(m_tabBar, &QTabBar::currentChanged, this, &FilePanel::onTabBarCurrentChanged);
     connect(m_tabBar, &TabBar::closeTabRequested, this, &FilePanel::closeTabAt);
     // Right-click on the tab strip opens the directory-favorites menu (owned by
@@ -472,7 +481,12 @@ void FilePanel::navigateTo(const QString &path) {
     // for the local provider these are the same QDir/QFileInfo calls as before.
     FileProvider *provider = m_model->provider();
     const QString cleaned = provider->cleanPath(path);
-    if (!provider->isDir(cleaned))
+    // For a network tab, DON'T do a synchronous isDir() here: on a remote backend
+    // that is a blocking network round-trip on the GUI thread (a freeze source),
+    // and callers already know the target is a directory (onActivated checks the
+    // cached FileInfo). The async listing that follows reveals a bad path. Local
+    // and archive backends keep the cheap in-process isDir guard.
+    if (provider->displayName().isEmpty() && !provider->isDir(cleaned))
         return;
     // Snapshot where we're leaving (dir or flat listing) BEFORE mutating the view.
     const NavEntry from = currentLocation();
@@ -497,6 +511,29 @@ void FilePanel::navigateTo(const QString &path) {
         updateActiveTabLabel();
     }
     updateNavButtons();
+}
+
+void FilePanel::onNetworkStateChanged(int state, int attempt) {
+    // Map the session state to the centred status-line message. Connected/Idle
+    // clear it (the tab shows its normal selection/disk info again).
+    switch (state) {
+    case NetworkSession::Connecting:
+        m_statusBar->setConnectionStatus(tr("正在等待连接…"), StatusBarWidget::ConnConnecting);
+        break;
+    case NetworkSession::Reconnecting:
+        m_statusBar->setConnectionStatus(
+            tr("断线，正在重连（%1/%2）…").arg(attempt).arg(NetworkSession::kMaxReconnects),
+            StatusBarWidget::ConnReconnecting);
+        break;
+    case NetworkSession::Failed:
+        m_statusBar->setConnectionStatus(tr("多次重连失败"), StatusBarWidget::ConnFailed);
+        break;
+    case NetworkSession::Connected:
+    case NetworkSession::Idle:
+    default:
+        m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
+        break;
+    }
 }
 
 void FilePanel::navigateTabTo(int tabIndex, const QString &path) {
@@ -649,6 +686,15 @@ void FilePanel::syncTreeToPath(const QString &path) {
     }
 }
 
+void FilePanel::activateCurrentEntry() {
+    // Reuse the double-click/Enter path so directories, archives and files are
+    // all handled through the active provider -- not QDesktopServices on a
+    // fabricated local path, which silently no-ops for network providers.
+    const QModelIndex idx = activeView()->currentIndex();
+    if (idx.isValid())
+        onActivated(idx);
+}
+
 void FilePanel::onActivated(const QModelIndex &index) {
     const FileInfo info = m_model->fileInfoAt(index.row());
     if (!info.isValid())
@@ -706,6 +752,21 @@ QString FilePanel::currentEntryPath() const {
     if (!idx.isValid())
         return {};
     return m_model->fileInfoAt(idx.row()).path();
+}
+
+bool FilePanel::currentEntryIsDir() const {
+    const QModelIndex idx = m_view->currentIndex();
+    return idx.isValid() && m_model->fileInfoAt(idx.row()).isDir();
+}
+
+qint64 FilePanel::currentEntrySize() const {
+    const QModelIndex idx = m_view->currentIndex();
+    return idx.isValid() ? m_model->fileInfoAt(idx.row()).size() : 0;
+}
+
+FileInfo FilePanel::currentEntryInfo() const {
+    const QModelIndex idx = m_view->currentIndex();
+    return idx.isValid() ? m_model->fileInfoAt(idx.row()) : FileInfo();
 }
 
 QStringList FilePanel::selectedPaths() const {
@@ -974,13 +1035,18 @@ void FilePanel::calculateDirSizes() {
         }
     }
 
+    // Capture the provider (shared) so a remote directory can be sized via the
+    // provider engine, and so it stays alive for the whole walk even if the model
+    // swaps providers meanwhile. Local paths take the fast QDirIterator path.
+    std::shared_ptr<FileProvider> provider = m_model->providerPtr();
     for (const QString &path : dirs) {
         auto *watcher = new QFutureWatcher<qint64>(this);
         connect(watcher, &QFutureWatcher<qint64>::finished, this, [this, watcher, path]() {
             m_model->setComputedDirSize(path, watcher->result());
             watcher->deleteLater();
         });
-        watcher->setFuture(QtConcurrent::run(&FileSystemModel::directorySize, path));
+        watcher->setFuture(QtConcurrent::run(
+            [provider, path]() { return FileSystemModel::directorySize(provider.get(), path); }));
     }
 }
 
@@ -1085,6 +1151,50 @@ void FilePanel::closeTabAt(int index) {
         return; // always keep at least one tab open
     m_tabManager->closeTab(index);
     syncTabBarFromManager();
+}
+
+int FilePanel::closeTabsOnMount(const QString &mountRoot) {
+    if (mountRoot.isEmpty())
+        return 0;
+
+    const QString prefix = mountRoot + QLatin1Char('/');
+    auto onDevice = [&](const QSharedPointer<TabState> &t) {
+        // Only real-directory tabs live on a mount; flat search-result tabs are
+        // virtual and path-independent.
+        return t && t->flatPaths.isEmpty() &&
+               (t->path == mountRoot || t->path.startsWith(prefix));
+    };
+
+    // Flush the live view into the active tab so a surviving active tab keeps
+    // whatever the user last navigated to (not a stale saved path).
+    saveCurrentTabState();
+
+    int affected = 0;
+    // Close from the back so indices stay valid; never drop below one tab.
+    for (int i = m_tabManager->count() - 1; i >= 0; --i) {
+        if (m_tabManager->count() <= 1)
+            break;
+        if (onDevice(m_tabManager->tabAt(i))) {
+            m_tabManager->closeTab(i);
+            ++affected;
+        }
+    }
+
+    // If the only remaining tab is still on the dead device, send it home
+    // rather than leave it stranded on an unmounted path.
+    if (m_tabManager->count() == 1 && onDevice(m_tabManager->tabAt(0))) {
+        const QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+        auto t0 = m_tabManager->tabAt(0);
+        t0->path = home;
+        t0->flatPaths.clear();
+        t0->title.clear();
+        t0->selectedFiles.clear();
+        ++affected;
+    }
+
+    if (affected > 0)
+        syncTabBarFromManager();
+    return affected;
 }
 
 void FilePanel::newTab() {

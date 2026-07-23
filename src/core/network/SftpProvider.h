@@ -38,6 +38,14 @@ public:
     // Connection label for network tabs: "user@host" (or "host" if no user).
     QString displayName() const override;
 
+    // Bounds the TCP connect phase and every subsequent blocking libssh2 call.
+    // Must be set before connectToHost(). Ignored if <= 0.
+    void setTimeoutMs(int ms) override { m_timeoutMs = ms > 0 ? ms : m_timeoutMs; }
+
+    // Rebuilds the session from the credentials captured by the last successful
+    // connectToHost(). Returns true on success.
+    bool reconnect(QString *error) override;
+
     // FileProvider overrides:
     QVector<FileInfo> list(const QString &path, bool showHidden) const override;
     bool isDir(const QString &path) const override;
@@ -70,5 +78,8 @@ private:
     _LIBSSH2_SFTP *m_sftp = nullptr;
     int m_socket = -1;
     QString m_host;
+    int m_port = 22;
     QString m_user;
+    QString m_password; // retained for reconnect()
+    int m_timeoutMs = 12000;
 };

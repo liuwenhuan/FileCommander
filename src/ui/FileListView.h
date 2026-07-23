@@ -113,9 +113,14 @@ private:
     // User dragged a column border: adjacent give-and-take keeping the total
     // pinned to the viewport (see the connect in the ctor).
     void onSectionResized(int logical, int oldSize, int newSize);
-    // Double-click on a section's resize grip: fit that info column to its
-    // content width (Name is the flex column, so it is skipped).
+    // Double-click on a section's resize grip: fit an info column to its content
+    // width (Name is the flex column, so it is skipped).
     void autoFitColumn(int logical);
+    // Slot for QHeaderView::sectionHandleDoubleClicked, whose argument is the
+    // column on the LEFT of the double-clicked divider. Fits the column on the
+    // RIGHT of that divider (the next visible one) -- what the user is pointing
+    // at -- to its content width.
+    void autoFitColumnRightOfHandle(int handleLeftLogical);
     // Right-click on the header: toggle which columns are shown.
     void showColumnMenu(const QPoint &pos);
 

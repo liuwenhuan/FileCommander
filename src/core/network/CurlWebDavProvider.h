@@ -49,6 +49,14 @@ public:
     // Connection label for network tabs: "user@host" (or "host" if no user).
     QString displayName() const override;
 
+    // Bounds the connect phase (and control-plane requests) by ms. Must be set
+    // before connectToHost(). Ignored if <= 0.
+    void setTimeoutMs(int ms) override { m_timeoutMs = ms > 0 ? ms : m_timeoutMs; }
+
+    // Rebuilds the connection from the credentials captured by the last
+    // successful connectToHost(). Returns true on success.
+    bool reconnect(QString *error) override;
+
     // FileProvider overrides:
     QVector<FileInfo> list(const QString &path, bool showHidden) const override;
     bool isDir(const QString &path) const override;
@@ -92,5 +100,6 @@ private:
     QString m_user;
     QString m_password;
     bool m_useHttps = false;
+    int m_timeoutMs = 12000;
     bool m_connected = false;
 };

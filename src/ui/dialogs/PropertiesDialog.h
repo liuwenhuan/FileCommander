@@ -1,6 +1,7 @@
 #pragma once
 
 #include "FramelessDialog.h"
+#include "FileInfo.h"
 #include <QFile>
 #include <QStringList>
 
@@ -18,6 +19,10 @@ class PropertiesDialog : public FramelessDialog {
 public:
     explicit PropertiesDialog(const QString &path, QWidget *parent = nullptr);
     explicit PropertiesDialog(const QStringList &paths, QWidget *parent = nullptr);
+    // Single-item overload that carries pre-fetched metadata (owner/group,
+    // permissions, size, ...). Use this for remote entries (SFTP, FTP, SMB, ...)
+    // where probing `path` with QFileInfo would be meaningless.
+    explicit PropertiesDialog(const FileInfo &info, QWidget *parent = nullptr);
 
     // Pure conversions between Qt's permission flags and a Unix octal triad
     // (e.g. 0755). Exposed static for unit testing.
@@ -30,6 +35,8 @@ private:
     void apply();
 
     QStringList m_paths;
+    FileInfo m_info;          // valid only when constructed from a FileInfo
+    bool m_hasInfo = false;   // true -> read metadata from m_info, not QFileInfo
     QCheckBox *m_bits[9]; // owner rwx, group rwx, other rwx (row-major)
     QLabel *m_octalLabel;
 };

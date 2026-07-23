@@ -15,15 +15,24 @@ public:
     void setSelectionInfo(int selectedCount, qint64 selectedBytes, int totalCount);
     void setDiskInfo(qint64 freeBytes, qint64 totalBytes);
 
+    // Connection status shown centred in the strip, for network tabs. `level`:
+    // 0 = hide (local tab / connected), 1 = connecting (grey), 2 = reconnecting
+    // (amber), 3 = failed (red, with a clickable "Retry"). Empty text also hides.
+    enum ConnLevel { ConnNone = 0, ConnConnecting = 1, ConnReconnecting = 2, ConnFailed = 3 };
+    void setConnectionStatus(const QString &text, int level);
+
 signals:
     // The trailing "-"/"+" buttons: shrink/grow the panel's current view (list
     // row height or thumbnail size, depending on mode). FilePanel owns the
     // mode-specific logic; this widget only reports the click.
     void zoomOutRequested();
     void zoomInRequested();
+    // The "Retry" link in the failed connection status was clicked.
+    void retryRequested();
 
 private:
     QLabel *m_label;
+    QLabel *m_connLabel; // centred connection status (network tabs only)
     QLabel *m_diskLabel;
     QToolButton *m_zoomOutButton;
     QToolButton *m_zoomInButton;

@@ -15,9 +15,16 @@ public:
     // local filesystem. Used by remote backends (e.g. SFTP) where a QFileInfo
     // over `path` would be meaningless. `created` is left invalid (SFTP has no
     // creation time) and isSymLink defaults to false.
+    //
+    // ownerId/groupId are numeric uid/gid (-1 when unknown); owner/group are
+    // resolved names (often empty for remote backends that only expose numbers).
+    // These trail the signature with defaults so existing call sites keep
+    // compiling unchanged.
     static FileInfo fromFields(const QString &path, const QString &name, qint64 size,
                                const QDateTime &modified, bool isDir,
-                               QFile::Permissions permissions);
+                               QFile::Permissions permissions, int ownerId = -1,
+                               int groupId = -1, const QString &owner = QString(),
+                               const QString &group = QString());
 
     const QString &name() const { return m_name; }        // full file name, e.g. "photo.jpg"
     const QString &baseName() const { return m_baseName; } // name without extension, e.g. "photo"
@@ -27,6 +34,12 @@ public:
     const QDateTime &modified() const { return m_modified; }
     const QDateTime &created() const { return m_created; }
     QFile::Permissions permissions() const { return m_permissions; }
+    // Numeric owner/group ids (-1 when unknown) and their resolved names (may be
+    // empty when only numeric ids are available, as with SFTP).
+    int ownerId() const { return m_ownerId; }
+    int groupId() const { return m_groupId; }
+    const QString &owner() const { return m_owner; }
+    const QString &group() const { return m_group; }
     bool isDir() const { return m_isDir; }
     bool isSymLink() const { return m_isSymLink; }
     bool isParentEntry() const { return m_isParentEntry; }
@@ -46,8 +59,16 @@ private:
     QDateTime m_modified;
     QDateTime m_created;
     QFile::Permissions m_permissions;
+    int m_ownerId = -1;
+    int m_groupId = -1;
+    QString m_owner;
+    QString m_group;
     bool m_isDir = false;
     bool m_isSymLink = false;
     bool m_isParentEntry = false;
     mutable QString m_mimeType; // lazily populated by mimeType()
 };
+
+// So QVector<FileInfo> can cross a queued signal/slot connection (the network
+// session delivers directory listings from its worker thread to the GUI thread).
+Q_DECLARE_METATYPE(FileInfo)
