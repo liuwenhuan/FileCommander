@@ -1,10 +1,12 @@
 #pragma once
 
+#include <QPalette>
 #include <QPersistentModelIndex>
 #include <QTableView>
 #include <QVector>
 
 class QTimer;
+class QFontMetrics;
 
 // QTableView with the header/selection behavior a file panel needs
 // (stretch the Name column, select whole rows, keyboard-driven), plus
@@ -38,10 +40,24 @@ public:
     // header view on a section click, since the DTK style swallows sectionClicked.
     void sortByHeaderSection(int column);
 
-    // Marks the columns as user-controlled (e.g. a persisted header layout was
-    // restored), so auto-fit-to-content on directory load is suppressed and the
-    // widths are left exactly as they are.
-    void markColumnsManual() { m_columnsManual = true; }
+    // Per-column persisted "base" widths (the user's target widths at full
+    // viewport). Info columns carry real values; the Name slot is informational
+    // (recomputed as the flex remainder). Used by MainWindow to save each panel's
+    // column layout independently.
+    QVector<int> columnBaseWidths() const { return m_baseWidth; }
+
+    // Atomically restores a persisted per-side layout: hidden-column mask, base
+    // widths, and sort. Runs under the re-entrancy guard so none of the header
+    // changes are mis-read as user drags. hiddenMask/sortCol < 0 mean "leave the
+    // default". Widths <= 0 (and the Name slot) are ignored.
+    void restoreColumnLayout(const QVector<int> &baseWidths, int hiddenMask, int sortCol,
+                             Qt::SortOrder sortOrder);
+
+    // Active sort, owned by the view (see m_sortColumn). setSort applies it to the
+    // model and the header indicator.
+    int sortColumn() const { return m_sortColumn; }
+    Qt::SortOrder sortOrder() const { return m_sortOrder; }
+    void setSort(int column, Qt::SortOrder order);
 
 signals:
     // kind is decided from live modifier keys at drop time (not drag
@@ -61,26 +77,56 @@ protected:
     void startDrag(Qt::DropActions supportedActions) override;
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dragMoveEvent(QDragMoveEvent *event) override;
+    void dragLeaveEvent(QDragLeaveEvent *event) override;
     void dropEvent(QDropEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
+    // Invalidates the cached active/inactive selection palettes when the app
+    // stylesheet (theme) changes, then re-applies the current one.
+    void changeEvent(QEvent *event) override;
 
 private:
     QString destinationDirForDrop(const QPoint &pos) const;
-    // Scales the columns so they fill the viewport width, preserving their
-    // relative proportions (so a manual column drag is kept as a ratio).
-    void stretchColumnsToFit();
-    // Sizes each column to its content (+ header), then scales the set to fill
-    // the viewport exactly (never overflows -> no horizontal scrollbar). Used on
-    // directory load while the user hasn't manually adjusted the columns.
-    void fitColumnsToContents();
-    // Cheap per-step variant used mid-resize: only the last visible column
-    // absorbs the width delta (one resizeSection instead of one per column).
-    void stretchLastColumnOnly();
+    // Lazily derives the active + inactive selection palettes from the theme QSS
+    // once (a one-time double repolish), so setPanelActive can later switch
+    // between them with a cheap setPalette() instead of a full repolish.
+    void ensureSelectionPalettes();
+
+    QPalette m_activePalette;         // selection colours for the active panel
+    QPalette m_inactivePalette;       // softened selection colours when inactive
+    bool m_selectionPalettesValid = false;
+    bool m_panelActive = true;        // last applied active state
+    bool m_panelActiveKnown = false;  // whether m_panelActive has been set yet
+
+    // --- Column layout ------------------------------------------------------
+    // Recomputes each info column's natural content width (measured once per
+    // directory load, all rows) and the per-column compression floor, then
+    // re-lays out. Hooked to the model's modelReset.
+    void recomputeContentWidths();
+    // Measures the widest DisplayRole string across ALL rows for a variable
+    // column (Ext/Size/Type), so long values that scroll off-screen still fit.
+    int measureVariableColumn(int column, const QFontMetrics &fm) const;
+    // Distributes the current viewport width across the visible columns so they
+    // fill it exactly (last column pinned to the right edge): Name absorbs slack,
+    // then the shrink policy (Name to a 16-char floor, then priority-compress the
+    // info columns) kicks in when cramped.
+    void applyLayout();
+    // User dragged a column border: adjacent give-and-take keeping the total
+    // pinned to the viewport (see the connect in the ctor).
+    void onSectionResized(int logical, int oldSize, int newSize);
+    // Double-click on a section's resize grip: fit that info column to its
+    // content width (Name is the flex column, so it is skipped).
+    void autoFitColumn(int logical);
     // Right-click on the header: toggle which columns are shown.
     void showColumnMenu(const QPoint &pos);
 
-    bool m_adjustingColumns = false; // guards against re-entrancy
-    bool m_columnsManual = false;    // user (or restore) set widths -> no auto-fit
+    bool m_adjustingColumns = false; // guards against re-entrancy in resizeSection
+
+    // Per-column geometry, sized to the model's column count in setModel().
+    QVector<int> m_baseWidth;    // persisted target width (info cols); Name = flex
+    QVector<int> m_contentWidth; // measured natural content width (info cols)
+    QVector<int> m_smartMin;     // compression floor = header text width + pad
+    QVector<bool> m_userSet;     // user/restore set this base -> don't overwrite on load
+    int m_nameFloor = 0;         // 16*avgChar + icon + pad, recomputed in applyLayout
 
     // Sort state owned by the view. The header's own sort-indicator is unreliable
     // as a source of truth: FileSystemModel::sort() resets the model
@@ -88,11 +134,6 @@ private:
     // to decide the next toggle direction breaks re-clicking the same column.
     int m_sortColumn = 0;
     Qt::SortOrder m_sortOrder = Qt::AscendingOrder;
-    QTimer *m_refitTimer = nullptr;  // debounces the full refit during resizes
-    // Column proportions captured at the start of a resize burst. The per-step
-    // last-column-only stretch skews the live ratios, so the settled refit
-    // restores these instead of scaling the mutated ones.
-    QVector<int> m_resizeBaseSizes;
 
     // Click-to-rename: the name/ext cell that was already the sole selection
     // when the mouse went down, plus the timer that fires the edit once we're

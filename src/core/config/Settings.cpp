@@ -73,6 +73,23 @@ void Settings::setVideoMuted(bool muted) {
     m_settings.setValue("video/muted", muted);
 }
 
+int Settings::audioVolume() const {
+    return m_settings.value("audio/volume", 70).toInt();
+}
+
+void Settings::setAudioVolume(int volume) {
+    m_settings.setValue("audio/volume", qBound(0, volume, 100));
+}
+
+bool Settings::audioMuted() const {
+    // Default false: an audio preview is opened to be heard.
+    return m_settings.value("audio/muted", false).toBool();
+}
+
+void Settings::setAudioMuted(bool muted) {
+    m_settings.setValue("audio/muted", muted);
+}
+
 bool Settings::showHiddenFiles() const {
     return m_settings.value("behavior/showHiddenFiles", false).toBool();
 }
@@ -119,6 +136,38 @@ QByteArray Settings::viewHeaderState() const {
 
 void Settings::setViewHeaderState(const QByteArray &state) {
     m_settings.setValue("window/viewHeaderState", state);
+}
+
+QString Settings::columnBaseWidths(const QString &side) const {
+    return m_settings.value(QStringLiteral("view/columnWidths/%1").arg(side)).toString();
+}
+
+void Settings::setColumnBaseWidths(const QString &side, const QString &csv) {
+    m_settings.setValue(QStringLiteral("view/columnWidths/%1").arg(side), csv);
+}
+
+int Settings::hiddenColumnsMask(const QString &side) const {
+    return m_settings.value(QStringLiteral("view/columnHidden/%1").arg(side), -1).toInt();
+}
+
+void Settings::setHiddenColumnsMask(const QString &side, int mask) {
+    m_settings.setValue(QStringLiteral("view/columnHidden/%1").arg(side), mask);
+}
+
+int Settings::sortColumn(const QString &side) const {
+    return m_settings.value(QStringLiteral("view/sortColumn/%1").arg(side), -1).toInt();
+}
+
+void Settings::setSortColumn(const QString &side, int column) {
+    m_settings.setValue(QStringLiteral("view/sortColumn/%1").arg(side), column);
+}
+
+int Settings::sortOrder(const QString &side) const {
+    return m_settings.value(QStringLiteral("view/sortOrder/%1").arg(side), 0).toInt();
+}
+
+void Settings::setSortOrder(const QString &side, int order) {
+    m_settings.setValue(QStringLiteral("view/sortOrder/%1").arg(side), order);
 }
 
 bool Settings::showCommandBar() const {

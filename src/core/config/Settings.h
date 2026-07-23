@@ -42,6 +42,13 @@ public:
     bool videoMuted() const;
     void setVideoMuted(bool muted);
 
+    // Audio preview volume/mute, kept independent of the video preview so the
+    // audio player (which is opened to be heard) defaults to un-muted.
+    int audioVolume() const;
+    void setAudioVolume(int volume);
+    bool audioMuted() const;
+    void setAudioMuted(bool muted);
+
     bool showHiddenFiles() const;
     void setShowHiddenFiles(bool show);
 
@@ -65,10 +72,25 @@ public:
     QByteArray windowGeometry() const;
     void setWindowGeometry(const QByteArray &geometry);
 
-    // File-list header layout (column widths + sort indicator), shared by both
-    // panels, from QHeaderView::saveState().
+    // Legacy: file-list header layout (column widths + sort) as one
+    // QHeaderView::saveState() blob shared by both panels. Superseded by the
+    // per-side column settings below; kept read-only for one-time migration.
     QByteArray viewHeaderState() const;
     void setViewHeaderState(const QByteArray &state);
+
+    // Per-side ("left"/"right") file-list column layout, persisted independently
+    // for each panel. columnBaseWidths is a comma-joined list of the per-column
+    // base (target) widths; hiddenColumnsMask is a bitmask of hidden columns
+    // (1<<column); sortColumn/sortOrder record the active sort. Empty / -1 mean
+    // "not customized yet" so the panel falls back to content-fit defaults.
+    QString columnBaseWidths(const QString &side) const;
+    void setColumnBaseWidths(const QString &side, const QString &csv);
+    int hiddenColumnsMask(const QString &side) const;
+    void setHiddenColumnsMask(const QString &side, int mask);
+    int sortColumn(const QString &side) const;
+    void setSortColumn(const QString &side, int column);
+    int sortOrder(const QString &side) const;
+    void setSortOrder(const QString &side, int order);
 
     // Visibility of the optional UI bars/panes (View menu toggles). The command
     // line and function-key bar default on; the folder tree defaults off.

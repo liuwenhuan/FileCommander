@@ -1,49 +1,83 @@
 #pragma once
 
-#include <QSet>
+#include <QRect>
 #include <QString>
 #include <QWidget>
 
 #include "notepad/NotepadStore.h"
 
 class QLineEdit;
+class QListWidget;
+class QListWidgetItem;
 class QPlainTextEdit;
-class QTabWidget;
+class QPushButton;
+class QSplitter;
 class QTimer;
 
-// The quick-notepad third column: a search box, New/Delete buttons and a tab
-// per note (each an auto-saving QPlainTextEdit). Self-contained -- it owns its
-// NotepadStore and persists edits on a debounce timer, so the host only has to
-// show/hide it and call saveAll() on close. Added by MainWindow as the third
-// pane of the main splitter.
+// The quick-notepad fly-out: a floating popup (like the external-connection
+// panel) anchored above its launching button rather than a docked column. It is
+// split top/bottom by a draggable divider:
+//   * the top pane is a scrollable list of notes, each row previewing the
+//     note's title / first line;
+//   * the bottom pane edits the note selected above.
+// It owns its NotepadStore, auto-saves edits on a debounce, flushes on close,
+// and deletes itself when closed (WA_DeleteOnClose).
 class NotepadPanel : public QWidget {
     Q_OBJECT
 
 public:
     explicit NotepadPanel(QWidget *parent = nullptr);
 
-    // Flushes every open note to disk (called by the host on window close and
-    // whenever the panel is hidden). Also cancels the pending debounce save.
+    // Sizes the panel to its content -- capped so its top edge never rises above
+    // topLimitGlobalY (the app window's top) -- and shows it as a popup with its
+    // bottom edge flush above anchorGlobalRect (the launching button), so it
+    // reads as a fly-out growing out of the button.
+    void popUpAbove(const QRect &anchorGlobalRect, int topLimitGlobalY);
+
+    // Flushes the in-editor note to disk. Called on close.
     void saveAll();
+
+protected:
+    void closeEvent(QCloseEvent *event) override;
 
 private slots:
     void onNewNote();
     void onDeleteCurrent();
-    void onTabCloseRequested(int index);
-    void onTabDoubleClicked(int index);
-    void onEditorChanged();       // a note body changed -> mark dirty + arm timer
+    void onCurrentRowChanged();               // list selection -> load into editor
+    void onEditorChanged();                   // editor edited -> dirty + arm timer
     void onSearchTextChanged(const QString &query);
-    void flushPendingSaves();     // debounce timeout: write out the dirty notes
+    void flushPendingSaves();                 // debounce timeout: persist the note
 
 private:
-    // Builds an editor tab for `note`, loading its body. Returns the tab index.
-    int addNoteTab(const NotepadNote &note);
-    // The note id bound to the tab at `index`, or empty if out of range.
-    QString idAt(int index) const;
+    // (Re)computes the dynamic height + splitter split from the current note
+    // count and repositions the popup above its anchor. No-op until popUpAbove
+    // has recorded an anchor.
+    void applyDynamicSize();
+    // Rebuilds the list from the store, selecting `selectId` (or the first row).
+    void reloadList(const QString &selectId = QString());
+    QListWidgetItem *addRow(const NotepadNote &note);
+    QString currentId() const;
+    // Writes the editor's text to its note and refreshes that row's preview.
+    void commitCurrentEditor();
+    // Reverts the Delete button from its armed "confirm" state.
+    void disarmDelete();
+    // Preview shown in the list: the first non-empty line of the body, trimmed.
+    static QString previewOf(const QString &body);
 
     NotepadStore m_store;
     QLineEdit *m_search = nullptr;
-    QTabWidget *m_tabs = nullptr;
-    QTimer *m_saveTimer = nullptr; // single-shot debounce for auto-save
-    QSet<QString> m_dirty;         // note ids with unsaved edits
+    QListWidget *m_list = nullptr;
+    QSplitter *m_splitter = nullptr;
+    QPlainTextEdit *m_editor = nullptr;
+    QPushButton *m_deleteButton = nullptr;
+    QTimer *m_saveTimer = nullptr;
+    QTimer *m_deleteArmTimer = nullptr; // reverts the two-step delete confirm
+
+    QString m_currentId;          // note bound to the editor
+    bool m_dirty = false;         // editor has unsaved edits
+    bool m_loadingEditor = false; // guard: suppress textChanged while loading
+    bool m_deleteArmed = false;   // Delete clicked once, waiting for confirm
+
+    QRect m_anchorRect;           // launching button geometry (for re-fitting)
+    int m_topLimitY = 0;          // app-window top: the popup may not rise past it
 };

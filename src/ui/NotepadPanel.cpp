@@ -1,197 +1,324 @@
 #include "NotepadPanel.h"
 
-#include <QColor>
+#include <QCloseEvent>
+#include <QGuiApplication>
 #include <QHBoxLayout>
-#include <QInputDialog>
 #include <QLineEdit>
-#include <QMessageBox>
-#include <QPalette>
+#include <QListWidget>
 #include <QPlainTextEdit>
 #include <QPushButton>
-#include <QTabBar>
-#include <QTabWidget>
-#include <QTextCursor>
+#include <QScreen>
+#include <QSplitter>
 #include <QTimer>
 #include <QVBoxLayout>
 
 namespace {
 constexpr int kAutoSaveDelayMs = 600; // debounce between the last keystroke and a save
-
-// Each editor carries its note id as a dynamic property so a textChanged signal
-// can be traced back to the note it belongs to without a parallel container.
-const char kNoteIdProperty[] = "notepadNoteId";
+constexpr int kPanelWidth = 420;
+constexpr int kEditorPref = 200;      // preferred editing-area height
+constexpr int kEditorMin = 120;       // editor never shrinks below this
 } // namespace
 
-NotepadPanel::NotepadPanel(QWidget *parent) : QWidget(parent) {
-    m_search = new QLineEdit(this);
-    m_search->setPlaceholderText(tr("Search all notes..."));
-    m_search->setClearButtonEnabled(true);
+NotepadPanel::NotepadPanel(QWidget *parent)
+    // Qt::Popup: a top-level fly-out that closes as soon as focus leaves it.
+    : QWidget(parent, Qt::Popup) {
+    setObjectName(QStringLiteral("NotepadPanel"));
+    setAttribute(Qt::WA_DeleteOnClose);
+    setAttribute(Qt::WA_StyledBackground, true); // render the #objectName border
 
+    // Toolbar: search + New / Delete.
+    m_search = new QLineEdit(this);
+    m_search->setPlaceholderText(tr("Search notes..."));
+    m_search->setClearButtonEnabled(true);
     auto *newButton = new QPushButton(tr("New"), this);
-    auto *deleteButton = new QPushButton(tr("Delete"), this);
+    m_deleteButton = new QPushButton(tr("Delete"), this);
+    newButton->setFocusPolicy(Qt::NoFocus);
+    m_deleteButton->setFocusPolicy(Qt::NoFocus);
 
     auto *toolRow = new QHBoxLayout;
     toolRow->setContentsMargins(0, 0, 0, 0);
+    toolRow->setSpacing(4);
     toolRow->addWidget(m_search, 1);
     toolRow->addWidget(newButton);
-    toolRow->addWidget(deleteButton);
+    toolRow->addWidget(m_deleteButton);
 
-    m_tabs = new QTabWidget(this);
-    m_tabs->setTabsClosable(true);
-    m_tabs->setMovable(true);
-    m_tabs->setDocumentMode(true);
+    // Split top (list) / bottom (editor) with a draggable divider.
+    m_splitter = new QSplitter(Qt::Vertical, this);
+    m_splitter->setObjectName(QStringLiteral("NotepadSplitter"));
+    m_splitter->setChildrenCollapsible(false);
+    m_splitter->setHandleWidth(4);
+
+    m_list = new QListWidget(m_splitter);
+    m_list->setObjectName(QStringLiteral("NotepadList"));
+    m_list->setFrameShape(QFrame::NoFrame);
+    m_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_list->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+
+    m_editor = new QPlainTextEdit(m_splitter);
+    m_editor->setObjectName(QStringLiteral("NotepadEditor"));
+    m_editor->setFrameShape(QFrame::NoFrame);
+    m_editor->setPlaceholderText(tr("Write your note here..."));
+
+    m_splitter->addWidget(m_list);
+    m_splitter->addWidget(m_editor);
+    m_splitter->setStretchFactor(0, 0);
+    m_splitter->setStretchFactor(1, 1);
 
     auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(4, 4, 4, 4);
-    layout->setSpacing(4);
+    layout->setContentsMargins(6, 6, 6, 6);
+    layout->setSpacing(6);
     layout->addLayout(toolRow);
-    layout->addWidget(m_tabs, 1);
+    layout->addWidget(m_splitter, 1);
 
     m_saveTimer = new QTimer(this);
     m_saveTimer->setSingleShot(true);
     m_saveTimer->setInterval(kAutoSaveDelayMs);
     connect(m_saveTimer, &QTimer::timeout, this, &NotepadPanel::flushPendingSaves);
 
+    // Two-step delete confirm reverts itself after a few seconds of no second
+    // click (an inline confirm avoids a modal dialog, which would dismiss this
+    // popup).
+    m_deleteArmTimer = new QTimer(this);
+    m_deleteArmTimer->setSingleShot(true);
+    m_deleteArmTimer->setInterval(3000);
+    connect(m_deleteArmTimer, &QTimer::timeout, this, &NotepadPanel::disarmDelete);
+
     connect(newButton, &QPushButton::clicked, this, &NotepadPanel::onNewNote);
-    connect(deleteButton, &QPushButton::clicked, this, &NotepadPanel::onDeleteCurrent);
-    connect(m_tabs, &QTabWidget::tabCloseRequested, this, &NotepadPanel::onTabCloseRequested);
-    connect(m_tabs, &QTabWidget::tabBarDoubleClicked, this, &NotepadPanel::onTabDoubleClicked);
+    connect(m_deleteButton, &QPushButton::clicked, this, &NotepadPanel::onDeleteCurrent);
+    connect(m_list, &QListWidget::currentRowChanged, this, &NotepadPanel::onCurrentRowChanged);
+    connect(m_editor, &QPlainTextEdit::textChanged, this, &NotepadPanel::onEditorChanged);
     connect(m_search, &QLineEdit::textChanged, this, &NotepadPanel::onSearchTextChanged);
 
-    // Load every saved note as a tab; seed an empty note on first run so the
-    // panel is never blank.
-    const QVector<NotepadNote> notes = m_store.notes();
-    if (notes.isEmpty()) {
-        addNoteTab(m_store.create(tr("Note 1")));
-    } else {
-        for (const NotepadNote &note : notes)
-            addNoteTab(note);
+    // Seed a first note so the editor is never bound to nothing.
+    if (m_store.notes().isEmpty())
+        m_store.create(tr("Note 1"));
+    reloadList();
+}
+
+QString NotepadPanel::previewOf(const QString &body) {
+    const QVector<QStringRef> lines = body.splitRef(QLatin1Char('\n'));
+    for (const QStringRef &line : lines) {
+        const QString t = line.trimmed().toString();
+        if (!t.isEmpty())
+            return t.left(60);
     }
+    return QString();
 }
 
-int NotepadPanel::addNoteTab(const NotepadNote &note) {
-    auto *editor = new QPlainTextEdit(m_tabs);
-    editor->setPlainText(m_store.load(note.id));
-    editor->setProperty(kNoteIdProperty, note.id);
-    connect(editor, &QPlainTextEdit::textChanged, this, &NotepadPanel::onEditorChanged);
-    const int index = m_tabs->addTab(editor, note.title);
-    return index;
+QListWidgetItem *NotepadPanel::addRow(const NotepadNote &note) {
+    // Prefer a live preview of the body; fall back to the stored title.
+    QString label = previewOf(m_store.load(note.id));
+    if (label.isEmpty())
+        label = note.title.isEmpty() ? tr("New note") : note.title;
+    auto *item = new QListWidgetItem(label, m_list);
+    item->setData(Qt::UserRole, note.id);
+    return item;
 }
 
-QString NotepadPanel::idAt(int index) const {
-    QWidget *w = m_tabs->widget(index);
-    return w ? w->property(kNoteIdProperty).toString() : QString();
+void NotepadPanel::reloadList(const QString &selectId) {
+    const QString want = selectId.isEmpty() ? m_currentId : selectId;
+
+    m_list->blockSignals(true);
+    m_list->clear();
+    int selectRow = -1;
+    const QVector<NotepadNote> notes = m_store.notes();
+    for (int i = 0; i < notes.size(); ++i) {
+        addRow(notes.at(i));
+        if (notes.at(i).id == want)
+            selectRow = i;
+    }
+    if (selectRow < 0 && m_list->count() > 0)
+        selectRow = 0;
+    m_list->setCurrentRow(selectRow);
+    m_list->blockSignals(false);
+
+    // Load whatever ended up selected into the editor.
+    onCurrentRowChanged();
+
+    // Re-fit the popup to the new note count (grows/shrinks; no-op before the
+    // popup has an anchor, i.e. during construction).
+    applyDynamicSize();
+}
+
+QString NotepadPanel::currentId() const {
+    QListWidgetItem *item = m_list->currentItem();
+    return item ? item->data(Qt::UserRole).toString() : QString();
+}
+
+void NotepadPanel::onCurrentRowChanged() {
+    disarmDelete(); // a different note is now selected
+    // Persist the note we're leaving before swapping in the new one.
+    commitCurrentEditor();
+
+    const QString id = currentId();
+    m_currentId = id;
+
+    m_loadingEditor = true;
+    m_editor->setPlainText(id.isEmpty() ? QString() : m_store.load(id));
+    m_editor->setEnabled(!id.isEmpty());
+    m_loadingEditor = false;
+    m_dirty = false;
 }
 
 void NotepadPanel::onNewNote() {
-    const NotepadNote note = m_store.create(tr("Note %1").arg(m_tabs->count() + 1));
-    const int index = addNoteTab(note);
-    m_tabs->setCurrentIndex(index);
+    commitCurrentEditor();
+    const NotepadNote note = m_store.create(tr("Note %1").arg(m_store.notes().size() + 1));
+    m_search->clear(); // ensure the new row isn't filtered out
+    reloadList(note.id);
+    m_editor->setFocus();
 }
 
 void NotepadPanel::onDeleteCurrent() {
-    onTabCloseRequested(m_tabs->currentIndex());
-}
-
-void NotepadPanel::onTabCloseRequested(int index) {
-    const QString id = idAt(index);
+    const QString id = m_currentId;
     if (id.isEmpty())
         return;
 
-    const QString title = m_tabs->tabText(index);
-    const auto reply = QMessageBox::question(
-        this, tr("Delete Note"),
-        tr("Delete note \"%1\"? This cannot be undone.").arg(title),
-        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
-    if (reply != QMessageBox::Yes)
+    // First click arms an inline confirm (button reads "Confirm?"); a second
+    // click within a few seconds actually deletes. This keeps confirmation
+    // inside the popup -- a modal dialog would steal focus and close it.
+    if (!m_deleteArmed) {
+        m_deleteArmed = true;
+        m_deleteButton->setText(tr("Confirm?"));
+        m_deleteArmTimer->start();
         return;
+    }
 
-    m_dirty.remove(id);
+    disarmDelete();
+    m_dirty = false;
+    m_currentId.clear();
     m_store.remove(id);
-    QWidget *editor = m_tabs->widget(index);
-    m_tabs->removeTab(index);
-    delete editor;
 
-    // Never leave the panel empty: reseed a fresh note.
-    if (m_tabs->count() == 0)
-        addNoteTab(m_store.create(tr("Note 1")));
+    // Never leave the notepad empty.
+    if (m_store.notes().isEmpty())
+        m_store.create(tr("Note 1"));
+    reloadList();
 }
 
-void NotepadPanel::onTabDoubleClicked(int index) {
-    const QString id = idAt(index);
-    if (id.isEmpty())
+void NotepadPanel::disarmDelete() {
+    if (!m_deleteArmed)
         return;
-
-    bool ok = false;
-    const QString title = QInputDialog::getText(this, tr("Rename Note"), tr("Title:"),
-                                                QLineEdit::Normal, m_tabs->tabText(index), &ok);
-    if (!ok || title.isEmpty())
-        return;
-
-    m_store.rename(id, title);
-    m_tabs->setTabText(index, title);
+    m_deleteArmed = false;
+    m_deleteArmTimer->stop();
+    if (m_deleteButton)
+        m_deleteButton->setText(tr("Delete"));
 }
 
 void NotepadPanel::onEditorChanged() {
-    auto *editor = qobject_cast<QPlainTextEdit *>(sender());
-    if (!editor)
+    if (m_loadingEditor)
         return;
-    const QString id = editor->property(kNoteIdProperty).toString();
-    if (!id.isEmpty())
-        m_dirty.insert(id);
+    m_dirty = true;
     m_saveTimer->start(); // restart the debounce window
 }
 
-void NotepadPanel::flushPendingSaves() {
-    if (m_dirty.isEmpty())
+void NotepadPanel::commitCurrentEditor() {
+    if (!m_dirty || m_currentId.isEmpty())
         return;
-    for (int i = 0; i < m_tabs->count(); ++i) {
-        const QString id = idAt(i);
-        if (id.isEmpty() || !m_dirty.contains(id))
-            continue;
-        if (auto *editor = qobject_cast<QPlainTextEdit *>(m_tabs->widget(i)))
-            m_store.save(id, editor->toPlainText());
+    const QString body = m_editor->toPlainText();
+    m_store.save(m_currentId, body);
+    // Keep the stored title in sync with the preview so the list stays useful
+    // even before the body is reloaded.
+    m_store.rename(m_currentId, previewOf(body));
+    m_dirty = false;
+
+    // Refresh the current row's preview text in place.
+    if (QListWidgetItem *item = m_list->currentItem()) {
+        QString label = previewOf(body);
+        if (label.isEmpty())
+            label = tr("New note");
+        item->setText(label);
     }
-    m_dirty.clear();
+}
+
+void NotepadPanel::flushPendingSaves() {
+    commitCurrentEditor();
 }
 
 void NotepadPanel::onSearchTextChanged(const QString &query) {
-    const QColor hitColor = palette().color(QPalette::Highlight);
-
+    // Filter the list to notes whose title or body matches; empty query shows
+    // everything. Rows are hidden rather than removed so selection is preserved.
     if (query.isEmpty()) {
-        // Clear tab highlighting and any in-editor selection.
-        for (int i = 0; i < m_tabs->count(); ++i)
-            m_tabs->tabBar()->setTabTextColor(i, QColor());
-        if (auto *editor = qobject_cast<QPlainTextEdit *>(m_tabs->currentWidget())) {
-            QTextCursor cursor = editor->textCursor();
-            cursor.clearSelection();
-            editor->setTextCursor(cursor);
-        }
+        for (int i = 0; i < m_list->count(); ++i)
+            m_list->item(i)->setHidden(false);
         return;
     }
 
     const QVector<QString> hits = m_store.search(query);
-
-    // Tint tabs that contain a match with the palette highlight colour, reset
-    // the rest to the theme default.
-    for (int i = 0; i < m_tabs->count(); ++i)
-        m_tabs->tabBar()->setTabTextColor(i, hits.contains(idAt(i)) ? hitColor : QColor());
-
-    // Highlight the first match inside the current tab, searching from its top.
-    if (auto *editor = qobject_cast<QPlainTextEdit *>(m_tabs->currentWidget())) {
-        editor->moveCursor(QTextCursor::Start);
-        editor->find(query);
+    for (int i = 0; i < m_list->count(); ++i) {
+        QListWidgetItem *item = m_list->item(i);
+        item->setHidden(!hits.contains(item->data(Qt::UserRole).toString()));
     }
 }
 
 void NotepadPanel::saveAll() {
     m_saveTimer->stop();
-    for (int i = 0; i < m_tabs->count(); ++i) {
-        const QString id = idAt(i);
-        if (id.isEmpty())
-            continue;
-        if (auto *editor = qobject_cast<QPlainTextEdit *>(m_tabs->widget(i)))
-            m_store.save(id, editor->toPlainText());
+    commitCurrentEditor();
+}
+
+void NotepadPanel::closeEvent(QCloseEvent *event) {
+    saveAll();
+    QWidget::closeEvent(event);
+}
+
+void NotepadPanel::popUpAbove(const QRect &anchorGlobalRect, int topLimitGlobalY) {
+    m_anchorRect = anchorGlobalRect;
+    m_topLimitY = topLimitGlobalY;
+    applyDynamicSize();
+    show();
+    raise();
+    m_editor->setFocus();
+}
+
+void NotepadPanel::applyDynamicSize() {
+    if (m_anchorRect.isNull())
+        return; // no anchor yet (e.g. reloadList during construction)
+
+    // Height is dynamic: grow to show every list row plus a comfortable editor.
+    // The only cap is the app window's top -- the panel's top may reach it but
+    // not pass it. When that cap forces the list to be shorter than its full
+    // content, the list (and only the list) scrolls.
+    int listFull = 2 * m_list->frameWidth();
+    for (int i = 0; i < m_list->count(); ++i)
+        listFull += m_list->sizeHintForRow(i);
+    listFull = qMax(listFull, 24);
+
+    const int toolH = m_search->sizeHint().height();
+    // Layout: top+bottom margin (6+6) + tool/splitter spacing (6) + splitter handle.
+    const int chrome = 6 + 6 + 6 + m_splitter->handleWidth();
+
+    // Ideal height shows all rows and the preferred editor.
+    const int desired = toolH + chrome + listFull + kEditorPref;
+    // Ceiling: from the button's top up to the app window's top.
+    const int maxAvail = qMax(kEditorMin + 60, m_anchorRect.top() - m_topLimitY);
+    const int h = qMin(desired, maxAvail);
+
+    resize(kPanelWidth, h);
+
+    // Split the space: show the whole list when it fits alongside a full-size
+    // editor; otherwise cap the list so the editor keeps its minimum, and let
+    // the list scroll for the overflow.
+    const int content = h - toolH - chrome; // shared by list + editor
+    int listShown, editorShown;
+    if (listFull + kEditorPref <= content) {
+        listShown = listFull;
+        editorShown = content - listFull;
+    } else {
+        listShown = qBound(24, content - kEditorMin, listFull);
+        editorShown = content - listShown;
     }
-    m_dirty.clear();
+    m_splitter->setSizes({listShown, editorShown});
+
+    int x = m_anchorRect.left();
+    int y = m_anchorRect.top() - height() + 1; // 1px overlap merges the edges
+
+    if (QScreen *scr = QGuiApplication::screenAt(m_anchorRect.center())) {
+        const QRect avail = scr->availableGeometry();
+        if (x + width() > avail.right())
+            x = avail.right() - width();
+        if (x < avail.left())
+            x = avail.left();
+        if (y < avail.top())
+            y = avail.top();
+    }
+
+    move(x, y);
 }

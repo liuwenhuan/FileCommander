@@ -29,6 +29,8 @@ add_library(ui STATIC
     AudioPlayer.cpp
     FunctionKeyBar.h
     FunctionKeyBar.cpp
+    DragPixmap.h
+    DragPixmap.cpp
     NotepadPanel.h
     NotepadPanel.cpp
     StatusBarWidget.h

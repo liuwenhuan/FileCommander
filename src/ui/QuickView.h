@@ -383,7 +383,9 @@ private:
     QPushButton *m_audioPlayButton = nullptr;
     QPushButton *m_audioPrevButton = nullptr;
     QPushButton *m_audioNextButton = nullptr;
+    QPushButton *m_audioMuteButton = nullptr; // checkable: checked == muted
     QSlider *m_audioSeek = nullptr;
+    QSlider *m_audioVolumeSlider = nullptr;
     QLabel *m_audioElapsed = nullptr;
     QLabel *m_audioTotal = nullptr;
     QTimer *m_audioTimer = nullptr;  // polls position while playing

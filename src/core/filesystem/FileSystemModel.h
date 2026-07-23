@@ -122,6 +122,8 @@ private slots:
 private:
     void sortEntries();
     void applyFilter();
+    // Formats a timestamp as "yyyy-MM-dd HH:mm", memoised by epoch-minute.
+    QString cachedDateStr(const QDateTime &dt) const;
 
     std::shared_ptr<FileProvider> m_provider; // backend (local by default); never null
     QString m_rootPath;
@@ -132,6 +134,11 @@ private:
     QString m_nameFilter;
     QHash<QString, qint64> m_dirSizes;    // path -> computed recursive size
     QHash<QString, int> m_compareStatus;  // name -> CompareStatus
+    // Memoises the formatted "yyyy-MM-dd HH:mm" string per epoch-minute so the
+    // (expensive) QDateTime::toString runs once per distinct timestamp instead
+    // of once per cell per repaint. Pure function of the value, so it only needs
+    // clearing to bound its size (done at each directory scan).
+    mutable QHash<qint64, QString> m_dateStrCache;
     bool m_hasParentEntry = false;
     QFutureWatcher<QVector<FileInfo>> m_watcher;
     int m_sortColumn = NameColumn;

@@ -363,14 +363,24 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     const bool archiveAsFolder = m_settings.archiveAsFolder();
     m_leftPanel->setArchiveAsFolder(archiveAsFolder);
     m_rightPanel->setArchiveAsFolder(archiveAsFolder);
-    const QByteArray headerState = m_settings.viewHeaderState();
-    if (!headerState.isEmpty()) {
-        m_leftPanel->view()->horizontalHeader()->restoreState(headerState);
-        m_rightPanel->view()->horizontalHeader()->restoreState(headerState);
-        // A restored layout is the user's saved choice: keep it, don't auto-fit.
-        m_leftPanel->view()->markColumnsManual();
-        m_rightPanel->view()->markColumnsManual();
-    }
+    // Per-side column layout (base widths + hidden mask + sort), stored
+    // independently for each panel. When absent (fresh profile, or upgrading from
+    // the old single shared header blob) the panel simply content-fits on first
+    // load -- the legacy widths are intentionally NOT migrated, since they came
+    // from a proportional auto-scale rather than deliberate tuning.
+    auto restorePanelColumns = [this](FilePanel *panel, const QString &side) {
+        const QString csv = m_settings.columnBaseWidths(side);
+        if (csv.isEmpty())
+            return;
+        QVector<int> widths;
+        for (const QString &part : csv.split(QLatin1Char(','), Qt::SkipEmptyParts))
+            widths.append(part.toInt());
+        const int sc = m_settings.sortColumn(side);
+        panel->view()->restoreColumnLayout(widths, m_settings.hiddenColumnsMask(side), sc,
+                                           static_cast<Qt::SortOrder>(m_settings.sortOrder(side)));
+    };
+    restorePanelColumns(m_leftPanel, QStringLiteral("left"));
+    restorePanelColumns(m_rightPanel, QStringLiteral("right"));
 
     // Optional bars + splitter layout. Applied before buildTitleBarMenus() so
     // the View-menu checkmarks (which read the widgets' visibility) match.
@@ -733,10 +743,6 @@ void MainWindow::setupFeatureBatch() {
     // SMB neighbourhood discovery is owned here and injected into the
     // external-connection picker; discovery is kicked off lazily by the dialog.
     m_smbBrowser = new SmbHostBrowser(this);
-
-    // Restore the quick-notepad third column if it was open at last close.
-    if (m_settings.notepadVisible())
-        toggleNotepad();
 
     // Once-a-day background update check: if we haven't checked today, ask the
     // server quietly. A found update only lights the title-bar badge (no popup);
@@ -1303,17 +1309,12 @@ void MainWindow::openExternalConnections() {
 }
 
 void MainWindow::toggleNotepad() {
-    // Lazily build the third column and add it to the panel splitter the first
-    // time it's opened; thereafter just toggle its visibility.
-    if (!m_notepadPanel) {
-        m_notepadPanel = new NotepadPanel(m_panelSplitter);
-        m_panelSplitter->addWidget(m_notepadPanel);
-    }
-    const bool show = !m_notepadPanel->isVisible();
-    if (!show)
-        m_notepadPanel->saveAll();
-    m_notepadPanel->setVisible(show);
-    m_settings.setNotepadVisible(show);
+    // A floating fly-out anchored above the trailing function-key button that
+    // launched it (mirrors the external-connection panel), rather than a docked
+    // third column. Non-modal; it auto-saves and deletes itself on close.
+    auto *pad = new NotepadPanel(this);
+    const int appTop = mapToGlobal(QPoint(0, 0)).y();
+    pad->popUpAbove(m_functionKeyBar->trailingButtonGlobalRect(), appTop);
 }
 
 void MainWindow::showAboutDialog() {
@@ -2539,14 +2540,28 @@ void MainWindow::refreshActivePanel() {
 
 void MainWindow::closeEvent(QCloseEvent *event) {
     m_settings.setWindowGeometry(saveGeometry());
-    // Persist the shared column layout + sort from the left panel's header.
-    m_settings.setViewHeaderState(m_leftPanel->view()->horizontalHeader()->saveState());
+    // Persist each panel's column layout independently: base widths + hidden
+    // mask + sort (replaces the old single left-panel blob shared to both).
+    auto savePanelColumns = [this](FilePanel *panel, const QString &side) {
+        FileListView *view = panel->view();
+        QHeaderView *header = view->horizontalHeader();
+        QStringList parts;
+        const QVector<int> widths = view->columnBaseWidths();
+        for (int w : widths)
+            parts << QString::number(w);
+        m_settings.setColumnBaseWidths(side, parts.join(QLatin1Char(',')));
+        int mask = 0;
+        for (int c = 0; c < header->count(); ++c)
+            if (header->isSectionHidden(c))
+                mask |= (1 << c);
+        m_settings.setHiddenColumnsMask(side, mask);
+        m_settings.setSortColumn(side, view->sortColumn());
+        m_settings.setSortOrder(side, static_cast<int>(view->sortOrder()));
+    };
+    savePanelColumns(m_leftPanel, QStringLiteral("left"));
+    savePanelColumns(m_rightPanel, QStringLiteral("right"));
     // Persist the panel divider position.
     m_settings.setPanelSplitterState(m_panelSplitter->saveState());
-
-    // Flush any unsaved quick notes before the app goes away.
-    if (m_notepadPanel)
-        m_notepadPanel->saveAll();
 
     SessionPanelData leftSession, rightSession;
     for (const auto &t : m_leftPanel->tabSnapshot())

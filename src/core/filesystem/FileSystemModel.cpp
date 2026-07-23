@@ -55,6 +55,7 @@ void FileSystemModel::setRootPath(const QString &path) {
     m_nameFilter.clear();     // a fresh directory always starts unfiltered
     m_dirSizes.clear();       // computed folder sizes don't survive a rescan
     m_compareStatus.clear();  // comparison highlights are stale after a rescan
+    m_dateStrCache.clear();   // bound the memo; new listing, new timestamps
     emit loadStarted();
     // Capture a shared_ptr copy so the provider outlives this worker-thread scan
     // even if the model switches to another provider meanwhile.
@@ -239,11 +240,41 @@ int FileSystemModel::columnCount(const QModelIndex &parent) const {
     return ColumnCount;
 }
 
+QString FileSystemModel::cachedDateStr(const QDateTime &dt) const {
+    if (!dt.isValid())
+        return {};
+    // Key by whole minutes -- the format has no seconds, so timestamps in the
+    // same minute share a string.
+    const qint64 key = dt.toMSecsSinceEpoch() / 60000;
+    auto it = m_dateStrCache.constFind(key);
+    if (it != m_dateStrCache.constEnd())
+        return it.value();
+    const QString s = dt.toString(QStringLiteral("yyyy-MM-dd HH:mm"));
+    m_dateStrCache.insert(key, s);
+    return s;
+}
+
 QVariant FileSystemModel::data(const QModelIndex &index, int role) const {
     if (!index.isValid())
         return {};
 
-    const FileInfo info = fileInfoAt(index.row());
+    // Hot path: data() is called several times per cell on every repaint, so
+    // bind a reference into m_entries instead of copying a (QString/QDateTime-
+    // heavy) FileInfo each time. Only the rare parent ".." row needs a
+    // constructed value.
+    const int row = index.row();
+    FileInfo parentHolder;
+    const FileInfo *infoPtr;
+    if (isParentEntry(row)) {
+        parentHolder = FileInfo::makeParentEntry(m_provider->parentPath(m_rootPath));
+        infoPtr = &parentHolder;
+    } else {
+        const int idx = m_hasParentEntry ? row - 1 : row;
+        if (idx < 0 || idx >= m_entries.size())
+            return {};
+        infoPtr = &m_entries.at(idx);
+    }
+    const FileInfo &info = *infoPtr;
     if (!info.isValid())
         return {};
 
@@ -271,11 +302,9 @@ QVariant FileSystemModel::data(const QModelIndex &index, int role) const {
             }
             return humanSize(info.size());
         case ModifiedColumn:
-            return info.modified().toString(QStringLiteral("yyyy-MM-dd HH:mm"));
+            return cachedDateStr(info.modified());
         case CreatedColumn:
-            return info.created().isValid()
-                       ? info.created().toString(QStringLiteral("yyyy-MM-dd HH:mm"))
-                       : QString();
+            return info.created().isValid() ? cachedDateStr(info.created()) : QString();
         case TypeColumn:
             return typeCategory(info);
         case PermissionsColumn:

@@ -264,3 +264,53 @@ QTreeView::branch:open:has-children:has-siblings {
     background-color: #3d7deb;
     color: #ffffff;
 }
+
+/* Quick-notepad fly-out: same anchored-popup treatment as the external-connect
+   panel (rounded top, accent border, bottom-flush). Split top list / bottom editor. */
+#NotepadPanel {
+    background-color: #2b2b2b;
+    border: 1px solid #3d7deb;
+    border-bottom: none;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+}
+#NotepadPanel QListWidget#NotepadList {
+    background-color: #262626;
+    border: 1px solid #1a1a1a;
+    border-radius: 4px;
+    outline: none;
+}
+#NotepadPanel QListWidget#NotepadList::item {
+    padding: 4px 6px;
+    border-radius: 3px;
+    color: #e0e0e0;
+}
+#NotepadPanel QListWidget#NotepadList::item:hover {
+    background-color: #3a3a3a;
+}
+#NotepadPanel QListWidget#NotepadList::item:selected {
+    background-color: #3d7deb;
+    color: #ffffff;
+}
+#NotepadPanel QPlainTextEdit#NotepadEditor {
+    background-color: #262626;
+    border: 1px solid #1a1a1a;
+    border-radius: 4px;
+    color: #e0e0e0;
+}
+#NotepadPanel QSplitter#NotepadSplitter::handle {
+    background-color: #3a3a3a;
+}
+
+/* Notepad list: a thin scrollbar shown only when the list can't fit (i.e. the
+   popup has hit the app-top ceiling). Handle colour inherits the global rule. */
+#NotepadPanel QListWidget#NotepadList QScrollBar:vertical {
+    width: 7px;
+    background: transparent;
+    margin: 0;
+}
+#NotepadPanel QListWidget#NotepadList QScrollBar::add-line:vertical,
+#NotepadPanel QListWidget#NotepadList QScrollBar::sub-line:vertical {
+    height: 0;
+    background: transparent;
+}

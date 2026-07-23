@@ -850,6 +850,39 @@ QWidget *QuickView::buildAudioPage() {
         m_audioSeeking = false;
     });
 
+    // Mute toggle + volume slider, mirroring the video preview's controls but
+    // backed by the independent audio/* settings.
+    m_audioMuteButton = new QPushButton(m_audioPage);
+    m_audioMuteButton->setCheckable(true);
+    m_audioMuteButton->setToolTip(tr("Mute / unmute"));
+    m_audioMuteButton->setIconSize(QSize(18, 18));
+    auto syncAudioMuteIcon = [this]() {
+        m_audioMuteButton->setIcon(style()->standardIcon(
+            m_audioMuteButton->isChecked() ? QStyle::SP_MediaVolumeMuted
+                                           : QStyle::SP_MediaVolume));
+    };
+    syncAudioMuteIcon();
+    connect(m_audioMuteButton, &QPushButton::toggled, this,
+            [this, syncAudioMuteIcon](bool muted) {
+                m_audio->setMute(muted);
+                m_settings.setAudioMuted(muted);
+                syncAudioMuteIcon();
+            });
+
+    auto *audioVolumeLabel = new QLabel(tr("Vol"), m_audioPage);
+    m_audioVolumeSlider = new QSlider(Qt::Horizontal, m_audioPage);
+    m_audioVolumeSlider->setRange(0, 100);
+    m_audioVolumeSlider->setValue(70);
+    m_audioVolumeSlider->setFixedWidth(90);
+    m_audioVolumeSlider->setToolTip(tr("Volume"));
+    connect(m_audioVolumeSlider, &QSlider::valueChanged, this, [this](int value) {
+        m_audio->setVolume(value);
+        m_settings.setAudioVolume(value); // persist for later previews
+        // Dragging the volume up is an intent to hear it: lift the mute.
+        if (value > 0 && m_audioMuteButton->isChecked())
+            m_audioMuteButton->setChecked(false); // its toggle handler unmutes + persists
+    });
+
     auto *transport = new QHBoxLayout();
     transport->setContentsMargins(8, 4, 8, 8);
     transport->addWidget(m_audioPrevButton);
@@ -858,6 +891,9 @@ QWidget *QuickView::buildAudioPage() {
     transport->addWidget(m_audioElapsed);
     transport->addWidget(m_audioSeek, 1);
     transport->addWidget(m_audioTotal);
+    transport->addWidget(m_audioMuteButton);
+    transport->addWidget(audioVolumeLabel);
+    transport->addWidget(m_audioVolumeSlider);
 
     auto *layout = new QVBoxLayout(m_audioPage);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -965,9 +1001,20 @@ void QuickView::showAudio(const QString &path) {
     else
         m_audioLyrics->clear();
 
-    // Apply persisted volume/mute (shared with the video preview settings).
-    m_audio->setVolume(m_settings.videoVolume());
-    m_audio->setMute(m_settings.videoMuted());
+    // Apply the persisted audio volume/mute (independent of the video preview,
+    // so the audio player defaults to un-muted) and sync the transport controls.
+    const int audioVol = m_settings.audioVolume();
+    const bool audioMute = m_settings.audioMuted();
+    m_audioVolumeSlider->blockSignals(true);
+    m_audioVolumeSlider->setValue(audioVol);
+    m_audioVolumeSlider->blockSignals(false);
+    m_audioMuteButton->blockSignals(true);
+    m_audioMuteButton->setChecked(audioMute);
+    m_audioMuteButton->setIcon(style()->standardIcon(
+        audioMute ? QStyle::SP_MediaVolumeMuted : QStyle::SP_MediaVolume));
+    m_audioMuteButton->blockSignals(false);
+    m_audio->setVolume(audioVol);
+    m_audio->setMute(audioMute);
 
     m_audioSeek->setValue(0);
     m_audioElapsed->setText(QStringLiteral("0:00"));

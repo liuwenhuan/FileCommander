@@ -2,12 +2,15 @@
 
 #include <QApplication>
 #include <QDrag>
+#include <QDragLeaveEvent>
 #include <QDropEvent>
+#include <QIcon>
 #include <QItemSelectionModel>
 #include <QMimeData>
 #include <QSet>
 #include <QUrl>
 
+#include "DragPixmap.h"
 #include "FileSystemModel.h"
 
 IconFileView::IconFileView(QWidget *parent) : QListView(parent) {
@@ -28,12 +31,16 @@ void IconFileView::startDrag(Qt::DropActions supportedActions) {
     // selectedIndexes() can also repeat a row across columns, so de-dup by row.
     QList<QUrl> urls;
     QSet<int> seenRows;
+    QModelIndex firstIdx;
     for (const QModelIndex &idx : selectionModel()->selectedIndexes()) {
         if (seenRows.contains(idx.row()))
             continue;
         seenRows.insert(idx.row());
         if (fsModel->isParentEntry(idx.row()))
             continue;
+        // The drag icon shows the topmost (first-listed) selected item.
+        if (!firstIdx.isValid() || idx.row() < firstIdx.row())
+            firstIdx = idx;
         urls.append(QUrl::fromLocalFile(fsModel->fileInfoAt(idx.row()).path()));
     }
     if (urls.isEmpty())
@@ -44,6 +51,12 @@ void IconFileView::startDrag(Qt::DropActions supportedActions) {
 
     auto *drag = new QDrag(this);
     drag->setMimeData(mimeData);
+    // Show what's actually being dragged: the first item's icon, plus a stacked
+    // pile + count badge for a multi-item drag.
+    const QIcon icon =
+        fsModel->index(firstIdx.row(), FileSystemModel::NameColumn).data(Qt::DecorationRole).value<QIcon>();
+    drag->setPixmap(ttc::makeDragPixmap(icon, urls.size(), devicePixelRatioF()));
+    drag->setHotSpot(QPoint(12, 12));
     drag->exec(supportedActions, Qt::CopyAction);
 }
 
@@ -55,6 +68,14 @@ void IconFileView::dragEnterEvent(QDragEnterEvent *event) {
 void IconFileView::dragMoveEvent(QDragMoveEvent *event) {
     if (event->mimeData()->hasUrls())
         event->acceptProposedAction();
+}
+
+void IconFileView::dragLeaveEvent(QDragLeaveEvent *event) {
+    // We draw no drop indicator, so skip QAbstractItemView's dragLeave handler,
+    // which repaints the entire viewport. That full repaint fired every time a
+    // fast drag crossed out of this view (e.g. over the splitter into the other
+    // panel), causing a visible stutter. Accepting without a repaint is enough.
+    event->accept();
 }
 
 QString IconFileView::destinationDirForDrop(const QPoint &pos) const {

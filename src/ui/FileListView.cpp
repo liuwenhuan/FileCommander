@@ -4,9 +4,14 @@
 #include <QApplication>
 #include <QColor>
 #include <QDrag>
+#include <QDragLeaveEvent>
 #include <QDropEvent>
+#include <QEvent>
 #include <QFont>
+#include <QFontMetrics>
 #include <QHash>
+#include <QIcon>
+#include <QPalette>
 #include <QHeaderView>
 #include <QAction>
 #include <QItemSelection>
@@ -20,11 +25,13 @@
 #include <QPolygon>
 #include <QStyledItemDelegate>
 #include <QResizeEvent>
+#include <QScrollBar>
 #include <QStyle>
 #include <QTimer>
 #include <QUrl>
 #include <QVector>
 
+#include "DragPixmap.h"
 #include "FileSystemModel.h"
 
 namespace {
@@ -50,13 +57,24 @@ protected:
     void mouseReleaseEvent(QMouseEvent *e) override {
         QHeaderView::mouseReleaseEvent(e);
         // The DTK style doesn't emit sectionClicked, so trigger the sort here on
-        // a genuine click: same section, negligible drag (not a resize/reorder).
+        // a genuine click on the label: same section, negligible drag (not a
+        // resize/reorder), and NOT on a section border -- a click/double-click on
+        // the resize grip is a width adjustment, never a sort.
         if (e->button() == Qt::LeftButton && m_pressIndex >= 0 &&
             logicalIndexAt(e->pos().x()) == m_pressIndex &&
-            (e->pos() - m_pressPos).manhattanLength() < 4) {
+            (e->pos() - m_pressPos).manhattanLength() < 4 && !onResizeGrip(m_pressPos.x())) {
             if (auto *view = qobject_cast<FileListView *>(parentWidget()))
                 view->sortByHeaderSection(m_pressIndex);
         }
+    }
+    void mouseDoubleClickEvent(QMouseEvent *e) override {
+        // Let the base emit sectionHandleDoubleClicked (auto-fit) for a grip
+        // double-click. A double-click -- whether it auto-fits a column or lands
+        // on a label -- must not sort: clear the press index so the trailing
+        // release doesn't. (Auto-fit also shifts the borders, which would
+        // otherwise make that release look like a label click.)
+        QHeaderView::mouseDoubleClickEvent(e);
+        m_pressIndex = -1;
     }
     void paintSection(QPainter *painter, const QRect &rect, int logicalIndex) const override {
         if (!rect.isValid() || !model())
@@ -100,6 +118,21 @@ protected:
     }
 
 private:
+    // True when x is within the resize grip of any visible section boundary, so
+    // a click there is a width drag/auto-fit rather than a label click.
+    bool onResizeGrip(int x) const {
+        const int grip =
+            qMax(5, style()->pixelMetric(QStyle::PM_HeaderGripMargin, nullptr, this));
+        for (int i = 0; i < count(); ++i) {
+            if (isSectionHidden(i))
+                continue;
+            const int right = sectionViewportPosition(i) + sectionSize(i);
+            if (qAbs(x - right) <= grip)
+                return true;
+        }
+        return false;
+    }
+
     int m_pressIndex = -1;
     QPoint m_pressPos;
 };
@@ -171,7 +204,10 @@ FileListView::FileListView(QWidget *parent) : QTableView(parent) {
     setSelectionBehavior(QAbstractItemView::SelectRows);
     setSelectionMode(QAbstractItemView::ExtendedSelection);
     setEditTriggers(QAbstractItemView::NoEditTriggers);
-    setAlternatingRowColors(true);
+    // Zebra striping is disabled: the themes set alternate-background-color equal
+    // to the base, so the alternating-row machinery only added per-row style work
+    // on every repaint (costly during an interactive resize) for no visual gain.
+    setAlternatingRowColors(false);
     setShowGrid(false);
     setWordWrap(false);
     // Direct-painting delegate: keeps cells off QStyleSheetStyle's slow per-cell
@@ -180,10 +216,15 @@ FileListView::FileListView(QWidget *parent) : QTableView(parent) {
     // Always reserve the vertical scrollbar's space. Panels share one view whose
     // model swaps on tab switch; with an auto-hiding scrollbar the viewport width
     // would jump by ~15px between a tab that needs the bar and one that doesn't,
-    // and stretchColumnsToFit() (which fits columns to viewport()->width()) would
+    // and applyLayout() (which fits columns to viewport()->width()) would
     // reflow the columns on every switch. Keeping the bar always-on holds the
     // viewport width constant so column widths stay put.
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
+    // Columns are always managed to fill the viewport exactly (applyLayout), so
+    // a horizontal scrollbar is never wanted -- turn it off so the last column's
+    // right edge stays pinned (Qt otherwise flashes the bar at the exact-fit
+    // boundary). In the extreme-narrow case the last column simply clips.
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     verticalHeader()->hide();
     setHorizontalHeader(new PlainHeaderView(this)); // non-bold, self-painted labels
     horizontalHeader()->setSortIndicatorShown(true);
@@ -191,27 +232,23 @@ FileListView::FileListView(QWidget *parent) : QTableView(parent) {
     horizontalHeader()->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(horizontalHeader(), &QWidget::customContextMenuRequested, this,
             [this](const QPoint &pos) { showColumnMenu(pos); });
-    // A user drag of a column edge (not one of our programmatic resizes, which
-    // set m_adjustingColumns) switches the panel to manual mode: from then on we
-    // keep the user's widths and don't auto-fit to content on directory change.
+    // A user drag of a column border does adjacent give-and-take (the dragged
+    // column and the next visible one trade width) so the total stays pinned to
+    // the viewport and the last column's right edge never moves. Programmatic
+    // resizes set m_adjustingColumns and are ignored here.
     connect(horizontalHeader(), &QHeaderView::sectionResized, this,
-            [this](int, int, int) {
-                if (!m_adjustingColumns)
-                    m_columnsManual = true;
+            [this](int logical, int oldSize, int newSize) {
+                onSectionResized(logical, oldSize, newSize);
             });
+    // Double-click a section's resize grip -> auto-fit that column to content.
+    connect(horizontalHeader(), &QHeaderView::sectionHandleDoubleClicked, this,
+            &FileListView::autoFitColumn);
 
     setDragEnabled(true);
     setAcceptDrops(true);
     setDropIndicatorShown(true);
     setDragDropMode(QAbstractItemView::DragDrop);
     setDefaultDropAction(Qt::CopyAction);
-
-    // Debounces the full proportional column refit while a resize is in
-    // flight; resizeEvent() does the cheap last-column-only variant per step.
-    m_refitTimer = new QTimer(this);
-    m_refitTimer->setSingleShot(true);
-    m_refitTimer->setInterval(60);
-    connect(m_refitTimer, &QTimer::timeout, this, [this] { stretchColumnsToFit(); });
 
     m_renameClickTimer = new QTimer(this);
     m_renameClickTimer->setSingleShot(true);
@@ -237,17 +274,22 @@ void FileListView::setModel(QAbstractItemModel *model) {
         for (int col = 0; col < model->columnCount(); ++col)
             header->setSectionResizeMode(col, QHeaderView::Interactive);
 
-        // Starting proportions; stretchColumnsToFit() scales these to fill the
-        // panel. Name gets the lion's share.
-        for (int col = 0; col < model->columnCount() && col < FileSystemModel::ColumnCount; ++col)
-            header->resizeSection(col, kDefaultColWidths[col]);
+        // Per-column geometry vectors, seeded with the default widths as the
+        // starting base (content-fit on first load and any restore override them).
+        const int n = model->columnCount();
+        m_baseWidth.fill(100, n);
+        m_contentWidth.fill(0, n);
+        m_smartMin.fill(30, n);
+        m_userSet.fill(false, n);
+        for (int col = 0; col < n && col < FileSystemModel::ColumnCount; ++col)
+            m_baseWidth[col] = kDefaultColWidths[col];
 
-        // Default view: hide Created and Permissions (a persisted header state,
-        // restored later by MainWindow, overrides this if the user changed it).
+        // Default view: hide Created and Permissions (MainWindow restores the
+        // per-side hidden mask later, overriding this if the user changed it).
         header->setSectionHidden(FileSystemModel::CreatedColumn, true);
         header->setSectionHidden(FileSystemModel::PermissionsColumn, true);
 
-        stretchColumnsToFit();
+        applyLayout();
 
         // Re-arm click-to-sort after the model is set. setSortingEnabled(true)
         // alone left the header's sectionsClickable off (the replaced
@@ -264,13 +306,11 @@ void FileListView::setModel(QAbstractItemModel *model) {
         horizontalHeader()->setSortIndicatorShown(true);
         horizontalHeader()->setSectionsClickable(true);
 
-        // On each directory load (the model resets), size the columns to their
-        // content and scale to the viewport — unless the user has taken manual
-        // control of the widths this session.
-        connect(model, &QAbstractItemModel::modelReset, this, [this]() {
-            if (!m_columnsManual)
-                fitColumnsToContents();
-        });
+        // On each directory load (the model resets), re-measure content widths
+        // for the new listing and re-lay-out. User-set base widths are preserved
+        // (measurement only refreshes non-user columns).
+        connect(model, &QAbstractItemModel::modelReset, this,
+                [this]() { recomputeContentWidths(); });
     }
 }
 
@@ -367,7 +407,7 @@ void FileListView::showColumnMenu(const QPoint &pos) {
             action->setEnabled(false); // the Name column can't be hidden
         connect(action, &QAction::toggled, this, [this, c, header](bool on) {
             header->setSectionHidden(c, !on);
-            stretchColumnsToFit();
+            applyLayout();
         });
     }
     menu.exec(header->mapToGlobal(pos));
@@ -375,161 +415,310 @@ void FileListView::showColumnMenu(const QPoint &pos) {
 
 void FileListView::resizeEvent(QResizeEvent *event) {
     QTableView::resizeEvent(event);
-    // During an interactive resize (window edge or splitter drag) this fires
-    // per mouse step. A full proportional refit resizes every column — each
-    // resizeSection triggering header/viewport relayout — which visibly lags
-    // the drag. So per step only the last column absorbs the delta (one
-    // section resize), and the full proportional refit runs once, shortly
-    // after the size settles. The refit scales from the proportions captured
-    // at the start of the burst (m_resizeBaseSizes), since the per-step
-    // stretch skews the live last-column ratio.
-    if (m_refitTimer) {
-        if (!m_refitTimer->isActive()) {
-            // First step of a burst: remember the current column proportions.
-            m_resizeBaseSizes.clear();
-            if (QHeaderView *header = horizontalHeader()) {
-                m_resizeBaseSizes.reserve(header->count());
-                for (int c = 0; c < header->count(); ++c)
-                    m_resizeBaseSizes.append(header->sectionSize(c));
-            }
+    // applyLayout() is pure arithmetic over the cached content-mins/base widths
+    // (no per-row measurement), so it's cheap enough to run synchronously on
+    // every interactive resize step -- no debounce or last-column-only shortcut.
+    applyLayout();
+}
+
+int FileListView::measureVariableColumn(int column, const QFontMetrics &fm) const {
+    // Widest DisplayRole string across ALL rows, so a long value that is
+    // currently scrolled off-screen still gets a column wide enough to show it.
+    // For very large listings, cap the scan -- the widest value is almost
+    // certainly within the first slice, and the delegate elides anyway.
+    if (!model())
+        return 0;
+    const int rows = model()->rowCount();
+    const int scan = qMin(rows, 4000);
+    int w = 0;
+    for (int r = 0; r < scan; ++r) {
+        const QString s = model()->index(r, column).data(Qt::DisplayRole).toString();
+        if (!s.isEmpty())
+            w = qMax(w, fm.horizontalAdvance(s));
+    }
+    return w;
+}
+
+void FileListView::recomputeContentWidths() {
+    if (m_adjustingColumns || !model())
+        return;
+    QHeaderView *header = horizontalHeader();
+    const int n = qMin(header->count(), model()->columnCount());
+    if (m_baseWidth.size() != header->count()) // model column count changed
+        return;
+
+    const QFontMetrics fm = fontMetrics();
+    const int kHeaderPad = 28; // paintSection insets 8 left / 20 right (arrow room)
+    const int kCellPad = 16;   // delegate insets ~4/4 + breathing room
+
+    for (int c = 0; c < n; ++c) {
+        const QString headerText =
+            model()->headerData(c, Qt::Horizontal, Qt::DisplayRole).toString();
+        m_smartMin[c] = fm.horizontalAdvance(headerText) + kHeaderPad;
+
+        int content = 0;
+        switch (c) {
+        case FileSystemModel::NameColumn:
+            content = 0; // Name is the flex remainder; not content-measured
+            break;
+        case FileSystemModel::ModifiedColumn:
+        case FileSystemModel::CreatedColumn:
+            content = fm.horizontalAdvance(QStringLiteral("0000-00-00 00:00")) + kCellPad;
+            break;
+        case FileSystemModel::PermissionsColumn:
+            content = fm.horizontalAdvance(QStringLiteral("drwxrwxrwx")) + kCellPad;
+            break;
+        default: // Ext, Size, Type -> variable
+            content = measureVariableColumn(c, fm) + kCellPad;
+            break;
         }
-        m_refitTimer->start();
+
+        if (c != FileSystemModel::NameColumn) {
+            m_contentWidth[c] = qMax(content, m_smartMin[c]);
+            if (!m_userSet[c])
+                m_baseWidth[c] = m_contentWidth[c];
+        }
     }
-    stretchLastColumnOnly();
+    applyLayout();
 }
 
-void FileListView::stretchLastColumnOnly() {
+void FileListView::applyLayout() {
     if (m_adjustingColumns)
         return;
     QHeaderView *header = horizontalHeader();
     if (!header || header->count() == 0)
         return;
-    const int avail = viewport()->width();
-    if (avail <= 0)
+    // deepin/DTK uses OVERLAY scrollbars: the vertical bar floats over the right
+    // edge of the viewport instead of shrinking it, so viewport()->width() still
+    // counts the strip it covers. The bar is always-on (see the ctor), so always
+    // reserve its width -- unconditionally, not via isVisible(), which can lag a
+    // model reset -- so the last column's content isn't hidden under the bar.
+    // Use the style's standard scrollbar thickness (PM_ScrollBarExtent, ~15-20px)
+    // -- NOT verticalScrollBar()->width(), which the deepin overlay bar reports as
+    // a large hit-area (~100px), over-reserving and crushing the columns.
+    const int avail =
+        viewport()->width() - qBound(12, style()->pixelMetric(QStyle::PM_ScrollBarExtent), 24);
+    if (avail <= 0) // pre-show / zero width: defer to the next resize/reset
+        return;
+    if (m_baseWidth.size() != header->count())
         return;
 
-    int last = -1, othersTotal = 0;
-    for (int c = 0; c < header->count(); ++c) {
-        if (header->isSectionHidden(c))
-            continue;
-        if (last >= 0)
-            othersTotal += header->sectionSize(last);
-        last = c;
-    }
-    if (last < 0)
+    const QFontMetrics fm = fontMetrics();
+    // "16 characters" floor for the Name column: the width of 16 ASCII chars.
+    // The row icon is deliberately NOT added on top -- doing so over-reserved the
+    // Name column and crowded out the info columns, so a long "APPIMAGE" type
+    // couldn't get its content width. averageCharWidth() is avoided (a CJK font
+    // inflates it by averaging in full-width glyphs).
+    m_nameFloor = fm.horizontalAdvance(QStringLiteral("0000000000000000"));
+
+    // Visible columns in logical order (Name is index 0 and never hidden).
+    QVector<int> visible;
+    for (int c = 0; c < header->count(); ++c)
+        if (!header->isSectionHidden(c))
+            visible.append(c);
+    if (visible.isEmpty())
         return;
+
+    // Tentative: info columns at their base, Name absorbs the remainder.
+    QVector<int> disp = m_baseWidth;
+    int sumInfoBase = 0;
+    for (int c : visible)
+        if (c != FileSystemModel::NameColumn)
+            sumInfoBase += m_baseWidth[c];
+
+    const int nameW = avail - sumInfoBase;
+    if (nameW < m_nameFloor) {
+        // Shrink phase: Name is pinned to its floor, so compress info columns by
+        // priority (least important first) down to their smart-min.
+        int deficit = sumInfoBase - (avail - m_nameFloor);
+        static const int kCompressOrder[] = {
+            FileSystemModel::CreatedColumn, FileSystemModel::PermissionsColumn,
+            FileSystemModel::ExtColumn,     FileSystemModel::TypeColumn,
+            FileSystemModel::ModifiedColumn, FileSystemModel::SizeColumn};
+        for (int c : kCompressOrder) {
+            if (deficit <= 0)
+                break;
+            if (c >= disp.size() || header->isSectionHidden(c))
+                continue;
+            const int room = disp[c] - m_smartMin[c];
+            const int take = qMin(qMax(0, room), deficit);
+            disp[c] -= take;
+            deficit -= take;
+        }
+    }
+
+    // Name is the SOLE flex column: it absorbs the exact remainder after every
+    // info column (including the LAST) keeps its own width. That way each info
+    // column shows its content and double-click auto-fit can actually widen the
+    // last (Type) column -- unlike a "last column takes the remainder" scheme,
+    // where the last column's own width would be ignored. Integer math makes the
+    // total exactly `avail`, so the last column's right edge stays pinned.
+    int sumInfoDisp = 0;
+    for (int c : visible)
+        if (c != FileSystemModel::NameColumn)
+            sumInfoDisp += disp[c];
+    if (FileSystemModel::NameColumn < disp.size())
+        disp[FileSystemModel::NameColumn] =
+            qMax(m_smartMin[FileSystemModel::NameColumn], avail - sumInfoDisp);
 
     m_adjustingColumns = true;
-    header->resizeSection(last, qMax(30, avail - othersTotal));
+    for (int c : visible)
+        header->resizeSection(c, disp.value(c));
     m_adjustingColumns = false;
 }
 
-void FileListView::fitColumnsToContents() {
-    if (m_adjustingColumns)
+void FileListView::onSectionResized(int logical, int oldSize, int newSize) {
+    if (m_adjustingColumns) // our own applyLayout() resizeSection -> ignore
         return;
     QHeaderView *header = horizontalHeader();
-    if (!header || header->count() == 0 || !model())
-        return;
-    const int avail = viewport()->width();
-    if (avail <= 0)
+    if (logical < 0 || logical >= m_baseWidth.size())
         return;
 
-    // Desired width per visible column: content (+ header), but floored at the
-    // column's baseline proportion so nothing collapses, and capped so one long
-    // value can't swallow the row.
-    QVector<int> cols;
-    QVector<int> want;
-    int total = 0;
-    for (int c = 0; c < header->count(); ++c) {
-        if (header->isSectionHidden(c))
-            continue;
-        const int content = sizeHintForColumn(c);    // samples visible rows
-        const int head = header->sectionSizeHint(c); // header text width
-        const int def = (c < FileSystemModel::ColumnCount) ? kDefaultColWidths[c] : 100;
-        int w = qMax(def, qMax(content, head) + 14);
-        w = qMin(w, def * 3); // cap growth so a long value doesn't dominate
-        cols.append(c);
-        want.append(w);
-        total += w;
-    }
-    if (cols.isEmpty() || total <= 0)
-        return;
-
-    // Scale the desired widths to fill the viewport exactly (shrink if content
-    // overflows -> no horizontal scrollbar; grow to use the extra space).
-    m_adjustingColumns = true;
-    const double factor = static_cast<double>(avail) / total;
-    int used = 0;
-    for (int i = 0; i < cols.size(); ++i) {
-        const int w = (i == cols.size() - 1) ? qMax(30, avail - used)
-                                             : qMax(30, static_cast<int>(want.at(i) * factor));
-        used += w;
-        header->resizeSection(cols.at(i), w);
-    }
-    m_adjustingColumns = false;
-}
-
-void FileListView::stretchColumnsToFit() {
-    if (m_adjustingColumns)
-        return;
-    QHeaderView *header = horizontalHeader();
-    if (!header || header->count() == 0)
-        return;
-    const int avail = viewport()->width();
-    if (avail <= 0)
-        return;
-
-    // Prefer the proportions captured before the resize burst (see
-    // resizeEvent); the live sizes have the last column skewed by the per-step
-    // stretch. Outside a burst the vector is empty and live sizes are used.
-    const bool useBase = m_resizeBaseSizes.size() == header->count();
-    auto sizeOf = [&](int c) {
-        return useBase ? m_resizeBaseSizes.at(c) : header->sectionSize(c);
-    };
-
-    QVector<int> cols;
-    int total = 0;
-    for (int c = 0; c < header->count(); ++c) {
+    // Find the next visible column after `logical`.
+    int next = -1;
+    for (int c = logical + 1; c < header->count(); ++c) {
         if (!header->isSectionHidden(c)) {
-            cols.append(c);
-            total += sizeOf(c);
+            next = c;
+            break;
         }
     }
-    if (cols.isEmpty() || total <= 0)
+    if (next < 0) {
+        // Dragged the last visible column's right border -> locked. Revert.
+        applyLayout();
         return;
+    }
 
+    const int delta = newSize - oldSize;
+    if (logical != FileSystemModel::NameColumn) {
+        m_baseWidth[logical] = qMax(m_smartMin[logical], newSize);
+        m_userSet[logical] = true;
+    }
+    // Trade the delta out of the next visible column (adjacent give-and-take).
+    m_baseWidth[next] = qMax(m_smartMin[next], m_baseWidth[next] - delta);
+    m_userSet[next] = true;
+    applyLayout(); // re-pin the last column and keep the sum = viewport
+}
+
+void FileListView::autoFitColumn(int logical) {
+    // Fit an info column to its (freshly measured) content width. The Name column
+    // is the flex remainder -- it always fills the leftover space, so there is
+    // nothing to "fit" and it is skipped.
+    if (logical <= FileSystemModel::NameColumn || logical >= m_baseWidth.size() || !model())
+        return;
+    recomputeContentWidths(); // refresh m_contentWidth for the current listing
+    m_baseWidth[logical] = qMax(m_contentWidth.value(logical), m_smartMin.value(logical));
+    m_userSet[logical] = true;
+    applyLayout();
+}
+
+void FileListView::restoreColumnLayout(const QVector<int> &baseWidths, int hiddenMask, int sortCol,
+                                       Qt::SortOrder sortOrder) {
+    QHeaderView *header = horizontalHeader();
+    // Guard the whole restore: setSectionHidden / any resize below must not be
+    // mistaken for a user drag (onSectionResized would otherwise re-adopt them).
     m_adjustingColumns = true;
-    const double factor = static_cast<double>(avail) / total;
-    int used = 0;
-    for (int i = 0; i < cols.size(); ++i) {
-        int width;
-        if (i == cols.size() - 1)
-            width = qMax(30, avail - used); // last column takes the remainder exactly
-        else
-            width = qMax(30, static_cast<int>(sizeOf(cols.at(i)) * factor));
-        used += width;
-        header->resizeSection(cols.at(i), width);
+    if (hiddenMask >= 0)
+        for (int c = 0; c < header->count(); ++c)
+            header->setSectionHidden(c, (hiddenMask & (1 << c)) != 0);
+    const int n = qMin(baseWidths.size(), m_baseWidth.size());
+    for (int c = 0; c < n; ++c) {
+        if (c == FileSystemModel::NameColumn)
+            continue; // Name is the flex remainder; its stored slot is ignored
+        if (baseWidths.at(c) > 0) {
+            m_baseWidth[c] = baseWidths.at(c);
+            m_userSet[c] = true;
+        }
+    }
+    if (sortCol >= 0) {
+        m_sortColumn = sortCol;
+        m_sortOrder = sortOrder;
     }
     m_adjustingColumns = false;
-    m_resizeBaseSizes.clear(); // burst finished; next one recaptures
+
+    if (sortCol >= 0 && model())
+        model()->sort(sortCol, sortOrder); // resets model -> recompute + applyLayout
+    else
+        applyLayout();
+    header->setSortIndicator(qMax(0, m_sortColumn), m_sortOrder);
+}
+
+void FileListView::setSort(int column, Qt::SortOrder order) {
+    m_sortColumn = column;
+    m_sortOrder = order;
+    horizontalHeader()->setSortIndicator(column, order);
+    if (model())
+        model()->sort(column, order); // resets model -> recomputeContentWidths + applyLayout
+    horizontalHeader()->setSortIndicator(column, order);
+}
+
+void FileListView::ensureSelectionPalettes() {
+    if (m_selectionPalettesValid)
+        return;
+
+    // Derive both palettes once from the theme QSS: temporarily toggle the
+    // panelActive property and let QStyleSheetStyle fold its selection-colour
+    // rules into the palette. QStyleSheetStyle::polish() also re-resolves the
+    // widget font from the global stylesheet, dropping any size set via
+    // setFont(), so preserve and restore it around the probing.
+    const QFont keep = font();
+    const QVariant prev = property("panelActive");
+
+    // Clear any previously-applied explicit palette first: an explicitly-set
+    // role stops QStyleSheetStyle from folding the theme's colour into it on
+    // polish, which would otherwise make us re-capture stale colours after a
+    // theme switch.
+    setPalette(QPalette());
+
+    setProperty("panelActive", true);
+    style()->unpolish(this);
+    style()->polish(this);
+    m_activePalette = palette();
+
+    setProperty("panelActive", false);
+    style()->unpolish(this);
+    style()->polish(this);
+    m_inactivePalette = palette();
+
+    setProperty("panelActive", prev);
+    if (font() != keep)
+        setFont(keep);
+    m_selectionPalettesValid = true;
 }
 
 void FileListView::setPanelActive(bool active) {
-    if (property("panelActive").isValid() && property("panelActive").toBool() == active)
+    if (m_panelActiveKnown && m_panelActive == active)
         return;
+    m_panelActive = active;
+    m_panelActiveKnown = true;
+
+    // Fast path: swap in the pre-derived palette instead of a full repolish.
+    // The delegate paints selection from palette Highlight/HighlightedText, so a
+    // cheap setPalette() is enough -- no QStyleSheetStyle re-resolution (and no
+    // font-reset side effect) on every panel switch. Keep the dynamic property
+    // in sync so any later repolish still yields the same colours.
+    ensureSelectionPalettes();
     setProperty("panelActive", active);
-    // Re-run the QSS attribute selector so the selection colour updates now.
-    // QStyleSheetStyle::polish() re-resolves the widget font from the global
-    // stylesheet, discarding any point size set via setFont() -- which is what
-    // reset the list to the default font the moment a file was selected (the
-    // panel becoming active triggers this repolish). Preserve and restore the
-    // user-chosen font across the repolish so the custom size sticks.
-    const QFont keep = font();
-    style()->unpolish(this);
-    style()->polish(this);
-    if (font() != keep)
-        setFont(keep);
+    setPalette(active ? m_activePalette : m_inactivePalette);
     viewport()->update();
+}
+
+void FileListView::changeEvent(QEvent *event) {
+    if (event->type() == QEvent::StyleChange) {
+        // The application stylesheet (theme) changed: the cached palettes are
+        // stale. Drop them and re-apply the current state's freshly-derived
+        // colours so the selection tint never lags a theme switch.
+        m_selectionPalettesValid = false;
+        if (m_panelActiveKnown) {
+            ensureSelectionPalettes();
+            setPalette(m_panelActive ? m_activePalette : m_inactivePalette);
+        }
+    } else if (event->type() == QEvent::FontChange) {
+        // The list font drives content-width measurement; a font change (the
+        // panel applies the configured list font after construction, or the user
+        // changes the View-menu font size) invalidates the cached widths.
+        recomputeContentWidths();
+    }
+    QTableView::changeEvent(event);
 }
 
 void FileListView::keyboardSearch(const QString &search) {
@@ -606,9 +795,13 @@ void FileListView::startDrag(Qt::DropActions supportedActions) {
         return;
 
     QList<QUrl> urls;
+    QModelIndex firstIdx;
     for (const QModelIndex &idx : selectionModel()->selectedRows()) {
         if (fsModel->isParentEntry(idx.row()))
             continue;
+        // The drag icon shows the topmost (first-listed) selected item.
+        if (!firstIdx.isValid() || idx.row() < firstIdx.row())
+            firstIdx = idx;
         urls.append(QUrl::fromLocalFile(fsModel->fileInfoAt(idx.row()).path()));
     }
     if (urls.isEmpty())
@@ -619,6 +812,12 @@ void FileListView::startDrag(Qt::DropActions supportedActions) {
 
     auto *drag = new QDrag(this);
     drag->setMimeData(mimeData);
+    // Show what's actually being dragged: the first item's icon, plus a stacked
+    // pile + count badge for a multi-item drag.
+    const QIcon icon =
+        fsModel->index(firstIdx.row(), FileSystemModel::NameColumn).data(Qt::DecorationRole).value<QIcon>();
+    drag->setPixmap(ttc::makeDragPixmap(icon, urls.size(), devicePixelRatioF()));
+    drag->setHotSpot(QPoint(12, 12));
     drag->exec(supportedActions, Qt::CopyAction);
 }
 
@@ -630,6 +829,14 @@ void FileListView::dragEnterEvent(QDragEnterEvent *event) {
 void FileListView::dragMoveEvent(QDragMoveEvent *event) {
     if (event->mimeData()->hasUrls())
         event->acceptProposedAction();
+}
+
+void FileListView::dragLeaveEvent(QDragLeaveEvent *event) {
+    // We draw no drop indicator, so skip QAbstractItemView's dragLeave handler,
+    // which repaints the entire viewport. That full repaint fired every time a
+    // fast drag crossed out of this view (e.g. over the splitter into the other
+    // panel), causing a visible stutter. Accepting without a repaint is enough.
+    event->accept();
 }
 
 QString FileListView::destinationDirForDrop(const QPoint &pos) const {

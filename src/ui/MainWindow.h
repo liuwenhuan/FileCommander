@@ -249,7 +249,6 @@ private:
     void setupFeatureBatch(); // constructor helper: wires the three subsystems below
     RemovableDeviceMonitor *m_deviceMonitor = nullptr; // UDisks2 hot-plug watcher
     SmbHostBrowser *m_smbBrowser = nullptr;            // SMB neighbourhood discovery
-    NotepadPanel *m_notepadPanel = nullptr;            // third-column quick notes
     UpdateInfo m_pendingUpdate;                        // valid when m_hasUpdate
     bool m_hasUpdate = false;                          // an update is available
 };
