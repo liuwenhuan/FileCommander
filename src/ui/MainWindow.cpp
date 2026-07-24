@@ -501,6 +501,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
                         // show a login prompt the user can click to try again.
                         panel->showLoginPrompt();
                 });
+        // An inline rename on a remote tab: run it on the transfer pool (never the
+        // GUI thread). Uses the panel's live provider; the queue's finished handler
+        // refreshes the panels and its error path reports any failure.
+        connect(model, &FileSystemModel::remoteRenameRequested, this,
+                [this, model](const QString &oldPath, const QString &newName) {
+                    if (FileProvider *prov = model->provider())
+                        m_queue->enqueueProviderRename(prov, oldPath, newName);
+                });
         // The "登录" link on a cancelled-auth tab: prompt again and retry.
         connect(panel, &FilePanel::loginRequested, this, [this, model](FilePanel *p) {
             QString user, pass;

@@ -182,6 +182,13 @@ signals:
     void loadFinished(int count);
     void renameFailed(const QString &message);
     void renamed(const QString &oldPath, const QString &newPath);
+    // An inline rename on a REMOTE tab: the actual provider->rename() is a
+    // blocking round trip (SFTP does stat + rename), so setData refuses to run it
+    // on the GUI thread and asks the owner (MainWindow) to enqueue it on the
+    // transfer pool instead. The panel refreshes on completion; a failure is
+    // surfaced by the queue's error path (the row was never optimistically
+    // changed, so nothing to roll back).
+    void remoteRenameRequested(const QString &oldPath, const QString &newName);
     // Network connection state for the status line: state is a
     // NetworkSession::State, attempt is the current reconnect attempt (1..N).
     void networkStateChanged(int state, int attempt);

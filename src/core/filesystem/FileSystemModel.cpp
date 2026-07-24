@@ -743,6 +743,24 @@ bool FileSystemModel::setData(const QModelIndex &index, const QVariant &value, i
         return false;
 
     const QString oldPath = info.path();
+
+    // Remote tab: never block the GUI thread on a network rename (SFTP alone is a
+    // stat + rename round trip, and it contends with the interactive session
+    // lock). Hand it to the transfer pool and accept the edit; the panel reloads
+    // on completion and the old name simply stays if the rename fails.
+    if (m_session) {
+        // Reproduce the providers' own sibling-target computation (they all do
+        // cleanPath(parentDir + "/" + newName)) so `renamed` records a correct
+        // undo entry and keeps the cursor on the renamed row after the reload,
+        // exactly as the synchronous path does.
+        const QString parent = m_provider->parentPath(m_provider->cleanPath(oldPath));
+        const QString parentDir = parent.isEmpty() ? QStringLiteral("/") : parent;
+        const QString newPath = m_provider->cleanPath(parentDir + QLatin1Char('/') + newName);
+        emit remoteRenameRequested(oldPath, newName);
+        emit renamed(oldPath, newPath);
+        return true;
+    }
+
     QString newPath;
     switch (m_provider->rename(oldPath, newName, &newPath)) {
     case FileProvider::RenameResult::AlreadyExists:
