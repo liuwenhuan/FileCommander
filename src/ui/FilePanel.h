@@ -165,6 +165,16 @@ public:
     // navigating. Used to return focus to the saved active tab after reconnecting.
     void activateTab(int index);
 
+    // Whether the tab at `index` represents a network connection (has a protocol
+    // scheme / reconnect descriptor). Drives the tab context menu's disconnect /
+    // reconnect actions.
+    bool tabHasConnection(int index) const;
+    // Tears the tab at `index`'s server connection down for good (stops the
+    // session, clears its label/icon/reconnect descriptor and history) and sends
+    // it home as a plain local tab. Unlike opening a local favourite, this does
+    // NOT keep the server in Back history.
+    void disconnectTab(int index);
+
     FileSystemModel *model() const { return m_model; }
     FileListView *view() const { return m_view; }
     // The icon (thumbnail-mode) view, for callers (MainWindow's context menu)

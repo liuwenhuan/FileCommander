@@ -111,6 +111,9 @@ private slots:
     // Directory-favorites menu from a tab-strip right-click. tabIndex is the
     // right-clicked tab so a chosen favorite navigates that tab (-1 = active tab).
     void showFavoritesMenu(const QPoint &globalPos, int tabIndex);
+    // Re-establish the server connection saved on `panel`'s tab at `index` (its
+    // reconnect descriptor), e.g. from the tab context menu's "重新连接".
+    void reconnectSavedTab(FilePanel *panel, int index);
     void calculateSizes();
     void calculateChecksums(); // MD5 / CRC32 / SHA1 of the selected files
     void secureWipeSelected(); // overwrite on-disk bytes (HDD 1x / SSD 3x DoD) then delete

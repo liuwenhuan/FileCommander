@@ -138,6 +138,10 @@ bool FileSystemModel::isConnected() const {
     return m_session && m_session->state() == NetworkSession::Connected;
 }
 
+int FileSystemModel::sessionState() const {
+    return m_session ? static_cast<int>(m_session->state()) : -1;
+}
+
 void FileSystemModel::setAuthContext(const QString &label, AuthRetryFactory factory) {
     m_networkLabel = label;
     m_authRetry = std::move(factory);

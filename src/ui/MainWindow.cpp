@@ -2341,8 +2341,35 @@ void MainWindow::showFavoritesMenu(const QPoint &globalPos, int tabIndex) {
     if (!m_activePanel)
         return;
     QMenu menu(this);
-    populateFavoritesMenu(&menu, m_activePanel, tabIndex);
+    FilePanel *panel = m_activePanel; // favoritesMenuRequested emits panelActivated first
+    // For a network tab, offer reconnect / disconnect above the favorites so the
+    // user can manage the connection directly (there was no manual entry before).
+    if (tabIndex >= 0 && panel->tabHasConnection(tabIndex)) {
+        if (!panel->tabConnInfo(tabIndex).host.isEmpty()) {
+            menu.addAction(tr("重新连接"), this,
+                           [this, panel, tabIndex] { reconnectSavedTab(panel, tabIndex); });
+        }
+        menu.addAction(tr("断开连接"), this,
+                       [panel, tabIndex] { panel->disconnectTab(tabIndex); });
+        menu.addSeparator();
+    }
+    populateFavoritesMenu(&menu, panel, tabIndex);
     menu.exec(globalPos);
+}
+
+void MainWindow::reconnectSavedTab(FilePanel *panel, int index) {
+    const SavedConnection c = panel->tabConnInfo(index);
+    if (c.host.isEmpty())
+        return;
+    auto native = providerForSaved(c);
+    if (!native.provider) {
+        ttc::critical(this, tr("重新连接"), tr("不支持的连接类型。"));
+        return;
+    }
+    const QString path = c.remotePath.isEmpty() ? QStringLiteral("/") : c.remotePath;
+    const QString label = c.user.isEmpty() ? c.host : c.user + QLatin1Char('@') + c.host;
+    panel->connectTabTo(index, native.provider, native.connectFn, path, label, c,
+                        native.authFactory);
 }
 
 

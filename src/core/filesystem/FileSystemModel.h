@@ -64,6 +64,9 @@ public:
     // to call from the GUI thread even while a connect is in flight -- used to
     // avoid blocking provider calls (e.g. displayName()) during connection.
     bool isConnected() const;
+    // The active session's raw NetworkSession::State (-1 if no session). Lock-free;
+    // drives the per-tab connection status badge on the tab icon.
+    int sessionState() const;
     // User-initiated retry after the "multiple reconnects failed" state.
     void retryNetwork();
 

@@ -20,6 +20,9 @@
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QMouseEvent>
+#include <QPainter>
+#include <QPen>
+#include <QPixmap>
 #include <QSet>
 #include <QStackedWidget>
 #include <QListView>
@@ -585,6 +588,8 @@ void FilePanel::onNetworkStateChanged(int state, int attempt) {
         m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
         break;
     }
+    // Keep the active tab's status-dot badge in sync with the live session state.
+    refreshTabIcons();
 }
 
 void FilePanel::showLoginPrompt() {
@@ -1206,14 +1211,52 @@ static QIcon iconForScheme(const QString &scheme) {
     return QIcon();
 }
 
+// The protocol icon with a small status dot overlaid so the tab shows connection
+// health at a glance: amber while connecting/reconnecting, red on failure. No dot
+// once connected (or for a local tab), keeping the plain protocol icon.
+static QIcon iconForConn(const QString &scheme, int state) {
+    const QIcon base = iconForScheme(scheme);
+    if (base.isNull())
+        return base;
+    QColor dot;
+    if (state == NetworkSession::Failed)
+        dot = QColor(0xe0, 0x4a, 0x4a); // red
+    else if (state == NetworkSession::Connecting || state == NetworkSession::Reconnecting)
+        dot = QColor(0xd0, 0x8a, 0x2a); // amber
+    else
+        return base; // connected / idle / local: no badge
+    const int sz = 16;
+    QPixmap pm = base.pixmap(sz, sz);
+    QPainter p(&pm);
+    p.setRenderHint(QPainter::Antialiasing);
+    p.setPen(QPen(Qt::white, 1));
+    p.setBrush(dot);
+    const int d = 8;
+    p.drawEllipse(sz - d, sz - d, d - 1, d - 1); // bottom-right corner
+    p.end();
+    return QIcon(pm);
+}
+
 void FilePanel::refreshTabIcons() {
     // Each tab renders its OWN stored protocol (connScheme), so a tab keeps its
     // icon even when another tab switches to a local folder (which changes the
-    // panel-wide provider but not this tab's identity).
+    // panel-wide provider but not this tab's identity). A status dot is overlaid
+    // per tab: the active tab reads the model's live session state; a parked tab
+    // reads its own stored session's state.
+    const int activeIdx = m_tabManager->activeIndex();
     const int n = qMin(m_tabBar->count(), m_tabManager->count());
     for (int i = 0; i < n; ++i) {
         auto tab = m_tabManager->tabAt(i);
-        m_tabBar->setTabIcon(i, tab ? iconForScheme(tab->connScheme) : QIcon());
+        if (!tab) {
+            m_tabBar->setTabIcon(i, QIcon());
+            continue;
+        }
+        int state = -1;
+        if (i == activeIdx)
+            state = m_model->sessionState();
+        else if (tab->session)
+            state = static_cast<int>(tab->session->state());
+        m_tabBar->setTabIcon(i, iconForConn(tab->connScheme, state));
     }
 }
 
@@ -1514,6 +1557,42 @@ void FilePanel::connectTabTo(int index, std::shared_ptr<FileProvider> provider,
 void FilePanel::activateTab(int index) {
     if (index >= 0 && index < m_tabBar->count() && index != m_tabBar->currentIndex())
         m_tabBar->setCurrentIndex(index); // park/adopt via onTabBarCurrentChanged
+}
+
+bool FilePanel::tabHasConnection(int index) const {
+    auto tab = m_tabManager->tabAt(index);
+    return tab && (!tab->connScheme.isEmpty() || !tab->connInfo.host.isEmpty());
+}
+
+void FilePanel::disconnectTab(int index) {
+    if (index < 0 || index >= m_tabManager->count())
+        return;
+    activateTab(index); // make it current so the model's active backend is this tab's
+    auto tab = m_tabManager->activeTab();
+    // Drop the live connection from the model (bundle dropped -> released) and then
+    // release every remaining owner of the parked session so it actually stops.
+    if (m_model->hasNetworkSession())
+        m_model->detachConnection();
+    if (tab) {
+        tab->provider.reset();
+        tab->session.reset(); // last owner gone -> ~NetworkSession stops its thread
+        tab->connScheme.clear();
+        tab->connLabel.clear();
+        tab->authLabel.clear();
+        tab->authFactory = nullptr;
+        tab->connInfo = SavedConnection{};
+        m_tabHistory.remove(tab.data()); // history entries also held the session
+    }
+    m_backHistory.clear();
+    m_forwardHistory.clear();
+    updateNavButtons();
+    m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
+    const int idx = m_tabManager->activeIndex();
+    if (auto t = m_tabManager->activeTab())
+        m_tabBar->setTabText(idx, tabLabelFor(t));
+    refreshTabIcons();
+    // Send the now-local tab home rather than leaving it on a dead remote path.
+    navigateTo(QStandardPaths::writableLocation(QStandardPaths::HomeLocation));
 }
 
 void FilePanel::restoreTabs(const QVector<QPair<QString, QStringList>> &tabs, int activeIndex) {
