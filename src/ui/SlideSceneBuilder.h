@@ -50,10 +50,4 @@ void parseSlideMeta(const QByteArray &svg, QSizeF *outSizeScene, QString *outTex
 // item without decoding the slide's images.
 QStringList parseSlideTexts(const QByteArray &svg);
 
-// Drop the embedded-image decode cache. buildSlidePage memoises decoded, downscaled
-// pixmaps by content hash so a repeated master background or a re-scrolled slide is
-// decoded once; call this when switching away from a deck so the next file starts
-// with an empty cache.
-void clearImageCache();
-
 } // namespace SlideScene

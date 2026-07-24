@@ -3,8 +3,6 @@
 #include <QBrush>
 #include <QByteArray>
 #include <QColor>
-#include <QCryptographicHash>
-#include <QElapsedTimer>
 #include <QFont>
 #include <QFontMetricsF>
 #include <QGraphicsEllipseItem>
@@ -17,7 +15,6 @@
 #include <QHash>
 #include <QImage>
 #include <QLineF>
-#include <QMutex>
 #include <QPainterPath>
 #include <QPen>
 #include <QPixmap>
@@ -44,58 +41,6 @@ namespace SlideScene {
 namespace {
 
 constexpr double S = kSceneScale;
-
-// Gate verbose per-slide timing behind TTC_PROFILE_PREVIEW (any value enables it).
-bool previewProfilingEnabled() {
-    static const bool on = qEnvironmentVariableIsSet("TTC_PROFILE_PREVIEW");
-    return on;
-}
-
-// Cap on an embedded image's longest edge, in pixels. A slide is displayed at
-// roughly screen resolution (~1280px wide) plus some zoom headroom; a picture far
-// larger than this (e.g. a 4401x2456 master background) is downscaled once on decode
-// so the scene carries a right-sized pixmap. Decode-to-pixmap, paint and memory all
-// drop proportionally, with no visible loss at normal zoom (SmoothTransformation).
-constexpr int kMaxImageEdge = 2560;
-
-// Per-deck decode cache. Embedded images are keyed by a hash of their raw bytes, so
-// an identical picture reused across slides (a repeated master background) -- or a
-// slide rebuilt when it scrolls back into view -- is decoded and downscaled exactly
-// once. Cleared on file switch via clearImageCache(). buildSlidePage runs on the GUI
-// thread only; the mutex is cheap insurance against future off-thread use.
-QMutex &imageCacheMutex() {
-    static QMutex m;
-    return m;
-}
-QHash<QByteArray, QPixmap> &imageCache() {
-    static QHash<QByteArray, QPixmap> c;
-    return c;
-}
-
-// Decode base64-derived image bytes into a display-sized pixmap, memoised by content
-// hash. The returned pixmap is uncropped and at most kMaxImageEdge on its longest
-// side; cropping and scaling into the target box are the caller's job. A null pixmap
-// (decode failure) is cached too, so a broken image isn't re-decoded on every scroll.
-QPixmap decodeImageCached(const QByteArray &bytes) {
-    const QByteArray key = QCryptographicHash::hash(bytes, QCryptographicHash::Md5);
-    {
-        QMutexLocker lock(&imageCacheMutex());
-        const auto it = imageCache().constFind(key);
-        if (it != imageCache().constEnd())
-            return it.value();
-    }
-    QPixmap pm;
-    QImage img;
-    if (img.loadFromData(bytes)) {
-        if (img.width() > kMaxImageEdge || img.height() > kMaxImageEdge)
-            img = img.scaled(kMaxImageEdge, kMaxImageEdge, Qt::KeepAspectRatio,
-                             Qt::SmoothTransformation);
-        pm = QPixmap::fromImage(img);
-    }
-    QMutexLocker lock(&imageCacheMutex());
-    imageCache().insert(key, pm);
-    return pm;
-}
 
 // Parse an SVG paint value ("#rgb", "#rrggbb", "none", or a couple of names)
 // into a QColor. An invalid/empty/"none" value yields an invalid QColor, which
@@ -458,9 +403,10 @@ void addImage(const QXmlStreamAttributes &attrs, QGraphicsItem *page) {
         return;
     const QByteArray b64 = uri.mid(comma + 7).toLatin1();
     const QByteArray bytes = QByteArray::fromBase64(b64);
-    QPixmap pm = decodeImageCached(bytes);
-    if (pm.isNull())
+    QImage img;
+    if (!img.loadFromData(bytes))
         return;
+    QPixmap pm = QPixmap::fromImage(img);
 
     // Crop fractions (per-mille of 100000) trimmed off each edge; default 0.
     const double lf = attrNum(attrs, "data-crop-l", 0.0) / 100000.0;
@@ -915,11 +861,6 @@ void reflowTextBoxes(const QVector<TextEntry> &entries) {
 } // namespace
 
 QGraphicsItem *buildSlidePage(const QByteArray &svg, QSizeF *outSizeScene, QString *outText) {
-    const bool profile = previewProfilingEnabled();
-    QElapsedTimer timer;
-    if (profile)
-        timer.start();
-
     QXmlStreamReader xml(svg);
 
     // The page background rect is created once the <svg> viewBox is known; every
@@ -1021,17 +962,7 @@ QGraphicsItem *buildSlidePage(const QByteArray &svg, QSizeF *outSizeScene, QStri
     reflowTextBoxes(textEntries);
     if (outSizeScene)
         *outSizeScene = sizeScene;
-    if (profile)
-        qInfo("[preview] buildSlidePage: %lldms (svg=%.1fKB)",
-              static_cast<long long>(timer.elapsed()), svg.size() / 1024.0);
     return page;
-}
-
-// Drop the embedded-image decode cache so a later deck doesn't retain the previous
-// one's decoded pictures. Called on file switch (QuickView::closeSlides).
-void clearImageCache() {
-    QMutexLocker lock(&imageCacheMutex());
-    imageCache().clear();
 }
 
 // Unescape the five XML predefined entities in a small text fragment.
