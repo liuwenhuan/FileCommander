@@ -26,14 +26,35 @@ NetworkSession::NetworkSession(std::shared_ptr<FileProvider> provider, QObject *
 }
 
 NetworkSession::~NetworkSession() {
-    stop();
-    if (m_thread) {
-        m_thread->quit();
-        // Bounded by the per-op timeout: a worker mid-blocking-call returns
-        // within kConnectTimeoutMs, then the loop quits.
-        m_thread->wait();
-        delete m_thread;
+    // Reached only via the deferred-delete path in shutdownAsync (the installed
+    // shared_ptr deleter), which fires after m_thread's event loop has ended --
+    // so there is nothing to join here, and this runs on the worker thread, where
+    // the child heartbeat QTimer is destroyed on its own affinity thread. The
+    // QThread object deletes itself via its own finished->deleteLater, so we must
+    // not touch m_thread here.
+}
+
+void NetworkSession::shutdownAsync() {
+    if (m_shuttingDown)
+        return;
+    m_shuttingDown = true;
+    m_stopping = true;
+    // Stop the heartbeat and let the worker's blocking call (if any) unwind on the
+    // worker thread, not here.
+    QMetaObject::invokeMethod(this, "onStop", Qt::QueuedConnection);
+    if (!m_thread) {
+        delete this; // never constructed a thread (shouldn't happen); safe direct
+        return;
     }
+    // Qt flushes a worker QObject's deferred delete as its thread's event loop
+    // exits, so deleteLater here destroys this object on the worker thread once
+    // quit() lands -- correct affinity for its child timer, and no GUI wait. The
+    // thread object (GUI affinity) deletes itself the same way. Connect BEFORE
+    // quit so finished() is never missed.
+    connect(m_thread, &QThread::finished, this, &QObject::deleteLater);
+    connect(m_thread, &QThread::finished, m_thread, &QObject::deleteLater);
+    m_thread->quit();
+    // Returns immediately; the join + deletes happen in the background.
 }
 
 void NetworkSession::start(ConnectFn connectFn, const QString &currentDir) {

@@ -82,6 +82,15 @@ public:
     // Stops the heartbeat and worker thread cleanly. Called before destruction.
     void stop();
 
+    // Non-blocking teardown: signals the worker to stop and arranges for this
+    // object and its QThread to be deleted once the thread's event loop ends,
+    // WITHOUT the caller (GUI thread) waiting. A worker mid-blocking-call still
+    // returns within the per-op timeout; the cleanup then completes in the
+    // background instead of freezing the UI for up to 12s. This is the shared_ptr
+    // deleter installed at construction, so the last owner drop tears the session
+    // down asynchronously -- never call delete on a NetworkSession directly.
+    void shutdownAsync();
+
 signals:
     void stateChanged(int state, int attempt); // NetworkSession::State + reconnect attempt
     void listReady(quint64 reqId, const QString &path, const QVector<FileInfo> &entries);
@@ -129,4 +138,5 @@ private:
     int m_attempt = 0;
     bool m_everConnected = false;  // distinguishes "connecting" vs "reconnecting"
     std::atomic<bool> m_stopping{false};
+    bool m_shuttingDown = false;   // guards shutdownAsync against a double call
 };

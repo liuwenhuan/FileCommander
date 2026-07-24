@@ -59,7 +59,7 @@ void FileSystemModel::teardownSession() {
     if (!m_session)
         return;
     m_session->stop();
-    m_session.reset(); // ~NetworkSession joins its worker thread
+    m_session.reset(); // last drop -> shutdownAsync tears down without blocking
 }
 
 void FileSystemModel::connectNetwork(std::shared_ptr<FileProvider> provider,
@@ -67,7 +67,11 @@ void FileSystemModel::connectNetwork(std::shared_ptr<FileProvider> provider,
                                      const QString &initialPath) {
     teardownSession();
     m_provider = provider; // network provider becomes the backend
-    m_session = std::make_shared<NetworkSession>(provider);
+    // Custom deleter: the last owner drop tears the session down asynchronously
+    // (shutdownAsync) so closing a tab / swapping a session never blocks the GUI
+    // on a stalled worker's join. Every copy (parked in tabs/history) shares it.
+    m_session = std::shared_ptr<NetworkSession>(new NetworkSession(provider),
+                                                [](NetworkSession *s) { s->shutdownAsync(); });
     connect(m_session.get(), &NetworkSession::stateChanged, this,
             &FileSystemModel::onSessionStateChanged);
     connect(m_session.get(), &NetworkSession::listReady, this,
