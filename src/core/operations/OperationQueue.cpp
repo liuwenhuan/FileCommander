@@ -3,6 +3,7 @@
 #include <QFileInfo>
 
 #include "FileOperations.h"
+#include "FileProvider.h"
 #include "Settings.h"
 
 OperationQueue::OperationQueue(QObject *parent) : QObject(parent) {
@@ -162,6 +163,42 @@ void OperationQueue::enqueueProviderMove(FileProvider *src, const QStringList &s
     job.run = [src, sources, dst, destDir, resolver](FileOperations &ops, QString &err) {
         return ops.copyAcrossProviders(src, sources, dst, destDir, /*removeSource=*/true,
                                        resolver, &err);
+    };
+    m_transferQueue.enqueue(job);
+    maybeStartNextTransfer();
+}
+
+void OperationQueue::enqueueProviderMkdir(FileProvider *dst, const QString &parentDir,
+                                          const QString &name) {
+    Job job;
+    job.description = tr("Creating directory %1").arg(name);
+    job.run = [dst, parentDir, name](FileOperations &ops, QString &err) {
+        return ops.makeProviderDirectory(dst, parentDir, name, &err);
+    };
+    m_transferQueue.enqueue(job);
+    maybeStartNextTransfer();
+}
+
+void OperationQueue::enqueueProviderDelete(FileProvider *provider, const QStringList &paths) {
+    Job job;
+    job.description = tr("Deleting %1 item(s)").arg(paths.size());
+    job.run = [provider, paths](FileOperations &ops, QString &err) {
+        return ops.deleteProviderPaths(provider, paths, &err);
+    };
+    m_transferQueue.enqueue(job);
+    maybeStartNextTransfer();
+}
+
+void OperationQueue::enqueueProviderRename(FileProvider *provider, const QString &path,
+                                           const QString &newName) {
+    Job job;
+    job.description = tr("Renaming %1").arg(path);
+    job.run = [provider, path, newName](FileOperations &, QString &err) {
+        QString newPath;
+        if (provider->rename(path, newName, &newPath) == FileProvider::RenameResult::Ok)
+            return true;
+        err = tr("Failed to rename %1").arg(path);
+        return false;
     };
     m_transferQueue.enqueue(job);
     maybeStartNextTransfer();

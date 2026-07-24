@@ -218,6 +218,10 @@ private:
         QString toName;        // Rename: original name to restore
         QStringList movedPaths;// Move: current paths at the destination
         QString restoreDir;    // Move: original parent directory
+        // Rename on a remote tab: the provider that owns fromPath, so undo goes
+        // through the network backend instead of the local filesystem. Null =
+        // local (undo via the plain rename path).
+        FileProvider *provider = nullptr;
     };
     UndoRecord m_lastUndo;
 

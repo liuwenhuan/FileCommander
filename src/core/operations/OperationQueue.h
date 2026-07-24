@@ -61,6 +61,14 @@ public:
     void enqueueProviderMove(FileProvider *src, const QStringList &sources, FileProvider *dst,
                              const QString &destDir);
 
+    // Remote directory create / delete / rename that act through the provider
+    // (a network tab's new-folder / delete / rename-undo), dispatched to the
+    // transfer pool so they never block on — or share the interactive session's
+    // lock with — the local-job pipeline.
+    void enqueueProviderMkdir(FileProvider *dst, const QString &parentDir, const QString &name);
+    void enqueueProviderDelete(FileProvider *provider, const QStringList &paths);
+    void enqueueProviderRename(FileProvider *provider, const QString &path, const QString &newName);
+
     // Requests cancellation of all running/queued operations, both local and
     // provider transfers. Safe to call from the GUI thread; each worker stops
     // at the next per-entry boundary.

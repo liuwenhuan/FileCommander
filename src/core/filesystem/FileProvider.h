@@ -86,6 +86,17 @@ public:
     // Size in bytes of an open handle's file, or -1 if unknown (used for resume).
     virtual qint64 handleSize(FileHandle * /*handle*/) { return -1; }
     virtual void closeHandle(FileHandle *handle) { delete handle; }
+    // Like closeHandle, but reports whether the file was fully and successfully
+    // committed. Streamed uploads (FTP/WebDAV) only learn the real server-side
+    // result when the transfer thread finishes at close time, so write() can
+    // return success for bytes that never actually land; a transfer MUST check
+    // this instead of assuming success. The default forwards to closeHandle and
+    // reports success -- synchronous backends already surface write failures
+    // through write()'s return value.
+    virtual bool closeHandleStatus(FileHandle *handle) {
+        closeHandle(handle);
+        return true;
+    }
 
     // Capability probe: whether this provider supports the streaming I/O above.
     virtual bool canStream() const { return false; }

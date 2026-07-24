@@ -732,9 +732,14 @@ qint64 CurlFtpProvider::handleSize(FileHandle *handle) {
 }
 
 void CurlFtpProvider::closeHandle(FileHandle *handle) {
+    closeHandleStatus(handle);
+}
+
+bool CurlFtpProvider::closeHandleStatus(FileHandle *handle) {
     auto *h = static_cast<FtpHandle *>(handle);
     if (!h)
-        return;
+        return true;
+    bool ok = true;
     if (h->started) {
         auto &state = *h->state;
         {
@@ -747,9 +752,15 @@ void CurlFtpProvider::closeHandle(FileHandle *handle) {
         }
         if (h->worker.joinable())
             h->worker.join();
-        if (h->mode == FtpHandle::Mode::Write && !state.curlOk)
-            qWarning("CurlFtpProvider: upload of %s did not complete successfully",
-                     qPrintable(h->path));
+        // Only an upload's completion matters for correctness: the STOR/APPE
+        // result is only known now, after the transfer thread has finished.
+        if (h->mode == FtpHandle::Mode::Write) {
+            ok = state.curlOk;
+            if (!ok)
+                qWarning("CurlFtpProvider: upload of %s did not complete successfully",
+                         qPrintable(h->path));
+        }
     }
     delete h;
+    return ok;
 }

@@ -512,6 +512,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
                     m_lastUndo.type = UndoRecord::Rename;
                     m_lastUndo.fromPath = newPath;
                     m_lastUndo.toName = QFileInfo(oldPath).fileName();
+                    // Remember the backend so undo of a remote rename goes back
+                    // through the provider, not the local filesystem.
+                    FileProvider *prov = panel->model()->provider();
+                    m_lastUndo.provider = (prov == LocalFileProvider::instance()) ? nullptr : prov;
                     // Keep the cursor on the renamed entry after the reload
                     // (fired synchronously before the model's rescan starts).
                     panel->selectPathAfterReload(newPath);
@@ -1892,7 +1896,10 @@ void MainWindow::undoLast() {
     m_lastUndo = UndoRecord{}; // consume, so undo isn't itself undoable
     switch (rec.type) {
     case UndoRecord::Rename:
-        m_queue->enqueueRename(rec.fromPath, rec.toName);
+        if (rec.provider)
+            m_queue->enqueueProviderRename(rec.provider, rec.fromPath, rec.toName);
+        else
+            m_queue->enqueueRename(rec.fromPath, rec.toName);
         break;
     case UndoRecord::Move:
         m_queue->enqueueMove(rec.movedPaths, rec.restoreDir);
@@ -2887,8 +2894,15 @@ void MainWindow::makeDirectory() {
         // Refresh this panel afterwards and select the freshly-created folder
         // (same select-after-reload mechanism used by copy/move).
         m_pendingDestPanel = m_activePanel;
-        m_pendingDestPaths = QStringList{QDir(m_activePanel->currentPath()).filePath(name)};
-        m_queue->enqueueMkdir(m_activePanel->currentPath(), name);
+        const QString parent = m_activePanel->currentPath();
+        m_pendingDestPaths = QStringList{QDir(parent).filePath(name)};
+        // On a network tab go through the provider so the folder is created on
+        // the remote host; a plain enqueueMkdir would hit the local filesystem.
+        FileProvider *prov = m_activePanel->model()->provider();
+        if (prov != LocalFileProvider::instance())
+            m_queue->enqueueProviderMkdir(prov, parent, name);
+        else
+            m_queue->enqueueMkdir(parent, name);
     }
 }
 
@@ -2901,18 +2915,24 @@ void MainWindow::deleteSelected(bool permanent) {
     if (paths.isEmpty())
         return;
 
+    // On a network tab, delete goes through the provider (recursively) on the
+    // remote host. There is no trash remotely, so it is always permanent.
+    FileProvider *prov = m_activePanel->model()->provider();
+    const bool remote = prov != LocalFileProvider::instance();
+    const bool goesPermanent = permanent || remote;
+
     // Trash deletes can skip the prompt when the user turned confirmation off
-    // (Config menu). Permanent deletes (Shift+Del) always confirm -- they can't
-    // be undone from the trash.
-    if (permanent || m_settings.confirmDelete()) {
+    // (Config menu). Permanent deletes (Shift+Del, or any remote delete) always
+    // confirm -- they can't be undone from the trash.
+    if (goesPermanent || m_settings.confirmDelete()) {
         const qint64 total = sumSizes(paths);
         const auto answer = ttc::question(
             this, tr("Confirm Delete"),
             tr("Delete %1 item(s) (%2 bytes)?%3")
                 .arg(paths.size())
                 .arg(total)
-                .arg(permanent ? tr("\nThis is permanent and will NOT go to the trash.")
-                               : QString()));
+                .arg(goesPermanent ? tr("\nThis is permanent and will NOT go to the trash.")
+                                   : QString()));
         if (answer != QMessageBox::Yes)
             return;
     }
@@ -2920,7 +2940,10 @@ void MainWindow::deleteSelected(bool permanent) {
     // removes exactly these rows and selects the next file without a full rescan.
     m_pendingDeletePanel = m_activePanel;
     m_pendingDeletePaths = paths;
-    m_queue->enqueueDelete(paths, /*toTrash=*/!permanent);
+    if (remote)
+        m_queue->enqueueProviderDelete(prov, paths);
+    else
+        m_queue->enqueueDelete(paths, /*toTrash=*/!permanent);
 }
 
 void MainWindow::compressSelected() {

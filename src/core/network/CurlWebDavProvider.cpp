@@ -827,9 +827,14 @@ qint64 CurlWebDavProvider::handleSize(FileHandle *handle) {
 }
 
 void CurlWebDavProvider::closeHandle(FileHandle *handle) {
+    closeHandleStatus(handle);
+}
+
+bool CurlWebDavProvider::closeHandleStatus(FileHandle *handle) {
     auto *h = static_cast<WebDavHandle *>(handle);
     if (!h)
-        return;
+        return true;
+    bool ok = true;
     if (h->started) {
         auto &state = *h->state;
         {
@@ -842,9 +847,15 @@ void CurlWebDavProvider::closeHandle(FileHandle *handle) {
         }
         if (h->worker.joinable())
             h->worker.join();
-        if (h->mode == WebDavHandle::Mode::Write && !state.curlOk)
-            qWarning("CurlWebDavProvider: upload of %s did not complete successfully",
-                     qPrintable(h->path));
+        // Only an upload's completion matters for correctness: the PUT result is
+        // only known now, after the transfer thread has finished.
+        if (h->mode == WebDavHandle::Mode::Write) {
+            ok = state.curlOk;
+            if (!ok)
+                qWarning("CurlWebDavProvider: upload of %s did not complete successfully",
+                         qPrintable(h->path));
+        }
     }
     delete h;
+    return ok;
 }

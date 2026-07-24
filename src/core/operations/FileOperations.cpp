@@ -399,6 +399,81 @@ bool FileOperations::renamePath(const QString &path, const QString &newName,
     return ok;
 }
 
+bool FileOperations::makeProviderDirectory(FileProvider *dst, const QString &parentDir,
+                                           const QString &name, QString *errorMessage) {
+    const QString full = joinPath(parentDir, name);
+    if (dst->exists(full)) {
+        const QString msg = tr("%1 already exists").arg(name);
+        if (errorMessage)
+            *errorMessage = msg;
+        emit errorOccurred(msg);
+        return false;
+    }
+    if (!dst->mkdir(full)) {
+        const QString msg = tr("Failed to create directory %1").arg(name);
+        if (errorMessage)
+            *errorMessage = msg;
+        emit errorOccurred(msg);
+        return false;
+    }
+    return true;
+}
+
+bool FileOperations::removeProviderTree(FileProvider *provider, const QString &path,
+                                        QString *errorMessage) {
+    waitIfPaused();
+    if (m_cancelled)
+        return false;
+
+    // Depth-first: a directory can only be removed once emptied, so recurse into
+    // its children before removing the node itself.
+    if (provider->isDir(path)) {
+        const QVector<FileInfo> entries = provider->list(path, /*showHidden=*/true);
+        for (const FileInfo &entry : entries) {
+            if (m_cancelled)
+                return false;
+            if (!removeProviderTree(provider, entry.path(), errorMessage))
+                return false;
+        }
+    }
+
+    while (!provider->remove(path)) {
+        const QString msg = tr("Failed to delete %1").arg(path);
+        if (resolveError(path, msg) == ErrorAction::Retry)
+            continue;
+        if (errorMessage)
+            *errorMessage = msg;
+        emit errorOccurred(msg);
+        return false; // skipped or cancelled
+    }
+    return true;
+}
+
+bool FileOperations::deleteProviderPaths(FileProvider *provider, const QStringList &paths,
+                                         QString *errorMessage) {
+    m_cancelled = false;
+    m_totalItems = paths.size();
+    m_totalBytes = 0; // bytes freed aren't a meaningful transfer measure
+    m_doneItems = 0;
+    m_doneBytes = 0;
+    m_errorBatch = ErrorAction::Retry;
+
+    bool allOk = true;
+    for (const QString &path : paths) {
+        waitIfPaused();
+        if (m_cancelled)
+            return false;
+        if (!removeProviderTree(provider, path, errorMessage)) {
+            if (m_cancelled)
+                return false;
+            allOk = false; // this entry was skipped; keep deleting the rest
+        }
+        ++m_doneItems;
+        emitProgress(path);
+    }
+    return allOk;
+}
+
 bool FileOperations::createSymlinks(const QStringList &sources, const QString &destDir,
                                      QString *errorMessage) {
     m_cancelled = false;
@@ -579,7 +654,15 @@ bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileP
     }
 
     src->closeHandle(in);
-    dst->closeHandle(out);
+    // A streamed upload (FTP/WebDAV) only learns the real server-side result
+    // when its transfer thread finishes here, at close time -- so even after a
+    // clean read/write loop the commit can still fail (disk full, dropped link,
+    // permission). Treat that as a failed transfer rather than a false success.
+    const bool committed = dst->closeHandleStatus(out);
+    if (ok && !committed) {
+        ok = false;
+        *failMsg = tr("Upload of %1 did not complete").arg(destPath);
+    }
     if (!ok)
         m_doneBytes = doneBytesAtStart;
     return ok;
@@ -659,7 +742,16 @@ bool FileOperations::transferEntry(FileProvider *src, const QString &srcPath, Fi
 
     if (src->isDir(srcPath)) {
         // Recreate the directory on the destination, then recurse its entries.
-        dst->mkdir(destPath);
+        // mkdir failing because the directory already exists (a merge into an
+        // existing folder) is fine; a genuine failure must abort this subtree,
+        // otherwise every child below silently fails with no root cause shown.
+        if (!dst->mkdir(destPath) && !dst->isDir(destPath)) {
+            const QString msg = tr("Failed to create directory %1").arg(destPath);
+            if (errorMessage)
+                *errorMessage = msg;
+            emit errorOccurred(msg);
+            return false;
+        }
         const QVector<FileInfo> entries = src->list(srcPath, /*showHidden=*/true);
         for (const FileInfo &entry : entries) {
             if (m_cancelled)
@@ -670,9 +762,14 @@ bool FileOperations::transferEntry(FileProvider *src, const QString &srcPath, Fi
                 return false;
         }
         // A move removes the (now-empty) source directory once its contents have
-        // all been transferred.
-        if (removeSource)
-            src->remove(srcPath);
+        // all been transferred. If it can't (e.g. a child was skipped so the dir
+        // isn't empty), surface it rather than silently leaving a half-move.
+        if (removeSource && !src->remove(srcPath)) {
+            const QString msg = tr("Moved contents but could not remove source %1").arg(srcPath);
+            if (errorMessage)
+                *errorMessage = msg;
+            emit errorOccurred(msg);
+        }
         emitProgress(srcPath);
         return true;
     }
@@ -682,8 +779,12 @@ bool FileOperations::transferEntry(FileProvider *src, const QString &srcPath, Fi
     if (result == FileResult::Failed)
         return false;
     // Only drop the source for a genuine transfer, never for a skipped file.
-    if (removeSource && result == FileResult::Done)
-        src->remove(srcPath);
+    if (removeSource && result == FileResult::Done && !src->remove(srcPath)) {
+        const QString msg = tr("Copied but could not remove source %1").arg(srcPath);
+        if (errorMessage)
+            *errorMessage = msg;
+        emit errorOccurred(msg);
+    }
     return true;
 }
 

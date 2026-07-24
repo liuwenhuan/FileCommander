@@ -47,6 +47,16 @@ public:
                              FileProvider *dst, const QString &destDir, bool removeSource,
                              const ConflictResolver &resolver, QString *errorMessage = nullptr);
 
+    // Remote (provider) directory create + recursive delete. These mirror the
+    // local makeDirectory()/deletePaths() but go through the FileProvider
+    // interface, so a network tab's "new folder" / "delete" actually act on the
+    // remote host instead of silently hitting the local filesystem. There is no
+    // trash on a remote backend, so a provider delete is always permanent.
+    bool makeProviderDirectory(FileProvider *dst, const QString &parentDir, const QString &name,
+                               QString *errorMessage = nullptr);
+    bool deleteProviderPaths(FileProvider *provider, const QStringList &paths,
+                             QString *errorMessage = nullptr);
+
     bool wasCancelled() const { return m_cancelled.load(); }
 
     // Thread-safe: called from the GUI thread while a copy/move/delete runs
@@ -102,6 +112,9 @@ private:
     bool streamCopy(FileProvider *src, const QString &srcPath, FileProvider *dst,
                     const QString &destPath, bool truncate, qint64 startOffset,
                     QString *failMsg);
+    // Recursively removes a remote entry (depth-first) via the provider; used by
+    // deleteProviderPaths. Honours pause/cancel and the error resolver per node.
+    bool removeProviderTree(FileProvider *provider, const QString &path, QString *errorMessage);
     // Recursively totals the byte size of a source tree via list()/handle sizes.
     static qint64 countProviderBytes(FileProvider *src, const QStringList &paths);
     static qint64 providerTreeBytes(FileProvider *src, const QString &path);
