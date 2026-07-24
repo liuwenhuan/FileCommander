@@ -129,7 +129,11 @@ bool NetworkSession::reconnectCycle() {
         }
         // Authentication needed on the initial connect: stop retrying anonymously
         // and ask the UI to prompt for credentials (it will call retryWith()).
-        if (!m_everConnected && looksLikeAuthFailure(err)) {
+        // Prefer the provider's precise auth-failure flag (real error code) and
+        // fall back to keyword matching for backends that don't set it.
+        const bool authNeeded =
+            (m_provider && m_provider->lastConnectAuthFailed()) || looksLikeAuthFailure(err);
+        if (!m_everConnected && authNeeded) {
             setState(Idle); // clear the status line; the prompt takes over
             emit authRequired(err);
             return false;

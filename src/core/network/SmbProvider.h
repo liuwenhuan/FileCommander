@@ -106,7 +106,10 @@ private:
     // smbc_getOptionUserData). No lock; used both for the interactive context
     // (connectToHost) and for every pooled transfer context (the Factory).
     // Returns the context on success, or nullptr with *error populated.
-    SMBCCTX *buildContext(QString *error);
+    // authFailed (optional) is set true when the server rejected the login
+    // (EACCES/EPERM) -- passed through by the interactive connect to
+    // FileProvider::lastConnectAuthFailed(); the pool Factory passes nullptr.
+    SMBCCTX *buildContext(QString *error, bool *authFailed = nullptr);
     // Wires the pool's Factory/Destroyer/size once credentials are known.
     void configurePool();
 

@@ -92,8 +92,12 @@ private:
     // beyond the passed-in credentials; used both for the interactive session
     // (connectToHost) and for every pooled transfer connection (the Factory).
     // Returns a heap SftpConn* on success, or nullptr with *error populated.
+    // authFailed (optional) is set to true when the failure was a credential
+    // rejection specifically -- the interactive path passes it through to
+    // FileProvider::lastConnectAuthFailed(); the pool Factory passes nullptr.
     static SftpConn *buildConnection(const QString &host, int port, const QString &user,
-                                     const QString &password, int timeoutMs, QString *error);
+                                     const QString &password, int timeoutMs, QString *error,
+                                     bool *authFailed = nullptr);
     // Fully tears down and frees a SftpConn (the pool Destroyer; self-contained,
     // captures no provider state so it is safe on the detached reaper thread).
     static void destroyConnection(SftpConn *conn);

@@ -159,7 +159,8 @@ SftpProvider::~SftpProvider() {
 }
 
 SftpConn *SftpProvider::buildConnection(const QString &host, int port, const QString &user,
-                                        const QString &password, int timeoutMs, QString *error) {
+                                        const QString &password, int timeoutMs, QString *error,
+                                        bool *authFailed) {
     const int sock = openSocket(host, port, timeoutMs, error);
     if (sock < 0)
         return nullptr;
@@ -212,6 +213,9 @@ SftpConn *SftpProvider::buildConnection(const QString &host, int port, const QSt
     if (!authed) {
         if (error)
             *error = sessionError(session, QStringLiteral("Authentication failed"));
+        if (authFailed)
+            *authFailed = true; // libssh2's message ("Username/PublicKey combination
+                                // invalid") may lack any auth keyword; flag it here.
         libssh2_session_disconnect(session, "auth failed");
         libssh2_session_free(session);
         ::close(sock);
@@ -287,7 +291,9 @@ bool SftpProvider::connectToHost(const QString &host, int port, const QString &u
         return false;
     }
 
-    SftpConn *conn = buildConnection(host, port, user, password, m_timeoutMs, error);
+    m_lastConnectAuthFailed = false;
+    SftpConn *conn =
+        buildConnection(host, port, user, password, m_timeoutMs, error, &m_lastConnectAuthFailed);
     if (!conn)
         return false;
 

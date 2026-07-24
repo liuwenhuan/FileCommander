@@ -1,6 +1,7 @@
 #include "OfficeConverter.h"
 
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -14,6 +15,13 @@
 namespace {
 
 constexpr int kTimeoutMs = 30000; // office_oxide should be near-instant; this is a generous cap.
+
+// Preview timing is noisy and only wanted while profiling the "instant preview"
+// path, so it is gated behind the TTC_PROFILE_PREVIEW env var (any value enables it).
+bool previewProfilingEnabled() {
+    static const bool on = qEnvironmentVariableIsSet("TTC_PROFILE_PREVIEW");
+    return on;
+}
 
 QString suffixLower(const QString &path) {
     return QFileInfo(path).suffix().toLower();
@@ -212,12 +220,18 @@ OfficeConverter::Result OfficeConverter::convertPresentation(const QString &bina
                                                   QStringLiteral("--first"),
                                                   QString::number(firstN), path}
                                     : QStringList{QStringLiteral("svg"), path};
+    const bool profile = previewProfilingEnabled();
+    QElapsedTimer timer;
+    if (profile)
+        timer.start();
+
     ProcResult run = runOfficeOxide(binary, svgArgs, kTimeoutMs, password);
     // An older office_oxide build may not know `--first`; rather than fall back to
     // the flattened text preview, retry the full render so slides still appear.
     if (firstN > 0 && run.started && !run.timedOut && run.exitCode != 0) {
         run = runOfficeOxide(binary, {QStringLiteral("svg"), path}, kTimeoutMs, password);
     }
+    const qint64 subprocessMs = profile ? timer.restart() : 0;
     if (!run.started || run.timedOut) {
         result.error = run.stdErr;
         return result;
@@ -229,13 +243,23 @@ OfficeConverter::Result OfficeConverter::convertPresentation(const QString &bina
         return result;
     }
 
-    const QJsonDocument doc = QJsonDocument::fromJson(run.stdOut.toUtf8());
+    const QByteArray utf8 = run.stdOut.toUtf8();
+    const int payloadBytes = utf8.size();
+    const QJsonDocument doc = QJsonDocument::fromJson(utf8);
     if (doc.isArray()) {
         const QJsonArray arr = doc.array();
         for (const QJsonValue &v : arr) {
             if (v.isString())
                 result.slideSvgs << v.toString();
         }
+    }
+    if (profile) {
+        const qint64 parseMs = timer.elapsed();
+        qInfo("[preview] oxide svg%s: subprocess=%lldms json-parse=%lldms "
+              "payload=%.1fMB slides=%d",
+              firstN > 0 ? " --first" : "", static_cast<long long>(subprocessMs),
+              static_cast<long long>(parseMs), payloadBytes / (1024.0 * 1024.0),
+              int(result.slideSvgs.size()));
     }
     // ok only when there is at least one slide; an empty array leaves ok=false so
     // convert() falls back to the flattened text preview.

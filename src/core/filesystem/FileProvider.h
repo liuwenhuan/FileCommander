@@ -61,6 +61,16 @@ public:
     // (local/archive have no connection to re-establish).
     virtual bool reconnect(QString * /*error*/) { return false; }
 
+    // Whether the most recent interactive connect (connectToHost/reconnect)
+    // failed specifically because the server rejected the credentials -- i.e. the
+    // right recovery is to prompt for a username/password, not to keep retrying
+    // the same (anonymous) dial. Network backends set this from their real error
+    // code (SFTP: userauth failure; SMB: EACCES/EPERM; FTP: CURLE_LOGIN_DENIED;
+    // WebDAV: HTTP 401) rather than fragile message-string matching. Read on the
+    // same worker thread right after the connect returns; the transfer pool's own
+    // (background) connection builds never touch it.
+    bool lastConnectAuthFailed() const { return m_lastConnectAuthFailed; }
+
     // Whether anything exists at path.
     virtual bool exists(const QString &path) const = 0;
 
@@ -114,4 +124,10 @@ public:
     // ignore it. NetworkSession injects the configured maxConcurrentTransfers so
     // the pool never opens more connections than there are transfer workers.
     virtual void setMaxTransferChannels(int /*channels*/) {}
+
+protected:
+    // Set by network backends' connectToHost/reconnect when the failure was an
+    // authentication rejection (see lastConnectAuthFailed()). Non-network
+    // providers never touch it, so it stays false.
+    bool m_lastConnectAuthFailed = false;
 };

@@ -1354,6 +1354,11 @@ void FilePanel::adoptConnectionFrom(const QSharedPointer<TabState> &tab) {
     // A tab with no session is local: clear any lingering connection status.
     if (!m_model->hasNetworkSession())
         m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
+    // A parked session still pending credentials is re-offered its prompt by the
+    // subsequent loadTabState() re-list (which re-runs the connect and re-emits
+    // authRequired now that the tab is active again), so nothing extra is needed
+    // here; a Failed one restores its status + retry link via attachConnection's
+    // networkStateChanged emit.
 }
 
 void FilePanel::onTabBarCurrentChanged(int index) {

@@ -124,7 +124,7 @@ SmbProvider::~SmbProvider() {
     disconnect();
 }
 
-SMBCCTX *SmbProvider::buildContext(QString *error) {
+SMBCCTX *SmbProvider::buildContext(QString *error, bool *authFailed) {
     SMBCCTX *ctx = smbc_new_context();
     if (!ctx) {
         if (error)
@@ -162,11 +162,14 @@ SMBCCTX *SmbProvider::buildContext(QString *error) {
     SMBCFILE *dir = opendirFn(ctx, rootUrl.constData());
     if (!dir) {
         const int e = errno;
+        // EACCES/EPERM here mean the server rejected the (anonymous) login --
+        // credentials are needed. Flag it so the caller prompts for a
+        // username/password instead of retrying the same anonymous dial.
+        const bool isAuth = (e == EACCES || e == EPERM);
+        if (authFailed)
+            *authFailed = isAuth;
         if (error) {
-            // EACCES/EPERM here mean the server rejected the (anonymous) login --
-            // credentials are needed. Flag it clearly ("authentication") so the
-            // caller can prompt for a username/password instead of just failing.
-            if (e == EACCES || e == EPERM)
+            if (isAuth)
                 *error = QStringLiteral("Authentication required for \\\\%1: %2")
                              .arg(m_host, QString::fromUtf8(std::strerror(e)));
             else
@@ -210,6 +213,7 @@ bool SmbProvider::connectToHost(const QString &host, const QString &user,
             *error = QStringLiteral("Already connected");
         return false;
     }
+    m_lastConnectAuthFailed = false; // reset before any early-return below
 
     // Validate the host before it is ever concatenated into an smb:// URL.
     // libsmbclient parses the authority as [domain;][user[:pass]@]server[:port],
@@ -260,7 +264,7 @@ bool SmbProvider::connectToHost(const QString &host, const QString &user,
         return false;
     }
 
-    SMBCCTX *ctx = buildContext(error);
+    SMBCCTX *ctx = buildContext(error, &m_lastConnectAuthFailed);
     if (!ctx) {
         m_host.clear();
         return false;

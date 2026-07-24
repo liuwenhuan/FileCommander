@@ -220,6 +220,7 @@ bool CurlFtpProvider::connectToHost(const QString &host, int port, const QString
             *error = QStringLiteral("Already connected");
         return false;
     }
+    m_lastConnectAuthFailed = false;
     ensureCurlGlobalInit();
 
     CURL *curl = curl_easy_init();
@@ -254,6 +255,7 @@ bool CurlFtpProvider::connectToHost(const QString &host, int port, const QString
     const CURLcode res = curl_easy_perform(curl);
     curl_easy_setopt(curl, CURLOPT_NOBODY, 0L);
 
+    m_lastConnectAuthFailed = (res == CURLE_LOGIN_DENIED);
     if (res != CURLE_OK) {
         if (error) {
             *error = m_errorBuffer[0] != '\0' ? QString::fromUtf8(m_errorBuffer)

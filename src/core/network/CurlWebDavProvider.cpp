@@ -218,6 +218,7 @@ bool CurlWebDavProvider::connectToHost(const QString &host, int port, const QStr
             *error = QStringLiteral("Already connected");
         return false;
     }
+    m_lastConnectAuthFailed = false;
     ensureCurlGlobalInit();
 
     CURL *curl = curl_easy_init();
@@ -275,6 +276,10 @@ bool CurlWebDavProvider::connectToHost(const QString &host, int port, const QStr
 
     const bool ok = (res == CURLE_OK) &&
                     (httpCode == 207 || httpCode == 200 || httpCode == 301 || httpCode == 302);
+    // 401 Unauthorized (or 407 proxy auth) means the server wants credentials --
+    // the raw "Server returned HTTP 401" message carries no auth keyword, so flag
+    // it explicitly for the reconnect state machine to prompt instead of retry.
+    m_lastConnectAuthFailed = (res == CURLE_OK && (httpCode == 401 || httpCode == 407));
     if (!ok) {
         if (error) {
             if (res != CURLE_OK)

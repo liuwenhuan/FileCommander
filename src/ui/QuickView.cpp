@@ -2344,6 +2344,7 @@ void QuickView::closeSlides() {
     // starts clean and no stale slide lingers.
     if (m_slidesScene)
         m_slidesScene->clear();
+    SlideScene::clearImageCache(); // decoded pictures belong to the deck being closed
     m_slideSvgs.clear();
     m_slidePageItems.clear();
     m_slideBuilt.clear();
