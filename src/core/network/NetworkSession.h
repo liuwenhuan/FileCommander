@@ -90,6 +90,10 @@ signals:
     // should prompt for a username/password and call retryWith(). Emitted instead
     // of a Failed state so the anonymous attempt isn't retried 5 times in vain.
     void authRequired(const QString &error);
+    // The reconnect cycle gave up. `error` is the last attempt's real reason
+    // (may be empty), for a specific status-line message. Emitted just before the
+    // Failed stateChanged.
+    void failed(const QString &error);
 
 private slots:
     // All of these execute on the worker thread.

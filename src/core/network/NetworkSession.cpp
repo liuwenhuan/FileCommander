@@ -102,6 +102,7 @@ bool NetworkSession::reconnectCycle() {
     // reconnect budget. m_everConnected only flips true on success (which
     // returns), so this is stable for the whole cycle.
     const int maxAttempts = m_everConnected ? kMaxReconnects : kInitialConnectAttempts;
+    QString lastErr;
     for (int n = 1; n <= maxAttempts; ++n) {
         if (m_stopping)
             return false;
@@ -115,6 +116,8 @@ bool NetworkSession::reconnectCycle() {
             ok = m_everConnected ? m_provider->reconnect(&err)
                                  : (m_connectFn ? m_connectFn(&err) : false);
         }
+        if (!ok && !err.isEmpty())
+            lastErr = err; // remember the real reason to surface on final failure
         if (m_stopping)
             return false;
         if (ok) {
@@ -139,6 +142,11 @@ bool NetworkSession::reconnectCycle() {
                 return false;
         }
     }
+    // Surface the real reason (connection refused / host not found / timeout /
+    // auth / cert) before flipping to Failed, so the status line can show it
+    // instead of a generic "reconnect failed". Emitted first so the model has it
+    // stored by the time the Failed stateChanged is processed.
+    emit failed(lastErr);
     setState(Failed);
     return false;
 }

@@ -187,7 +187,8 @@ private:
     FilePanel *beginServerConnection();
     // Modal username/password prompt shown when a server needs credentials.
     // Returns true and fills *user/*pass on OK, false on cancel.
-    bool promptCredentials(const QString &host, QString *user, QString *pass);
+    bool promptCredentials(const QString &host, QString *user, QString *pass,
+                           const QString &error = QString());
     FilePanel *otherPanel(FilePanel *panel) const;
     // The panel currently browsing `dir` (cleaned path match), or nullptr if
     // neither panel shows it (e.g. a drop onto a sub-folder that isn't open).

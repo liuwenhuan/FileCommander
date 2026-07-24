@@ -185,15 +185,23 @@ signals:
     // Network connection state for the status line: state is a
     // NetworkSession::State, attempt is the current reconnect attempt (1..N).
     void networkStateChanged(int state, int attempt);
-    // The server needs credentials: `label` (host) identifies which. The UI
-    // should prompt and call provideCredentials().
-    void networkAuthRequired(const QString &label);
+    // The server needs credentials: `label` (host) identifies which, `error` is
+    // the server's reason (may be empty; distinguishes wrong-password from a
+    // first-time prompt). The UI should prompt and call provideCredentials().
+    void networkAuthRequired(const QString &label, const QString &error);
+
+public:
+    // The active session's last connection-failure reason (empty if none/cleared),
+    // for a specific "connection failed: <reason>" status line. Cleared on a fresh
+    // connect and on a successful (re)connect.
+    QString lastNetworkError() const { return m_lastNetworkError; }
 
 private slots:
     void onScanFinished();
     void onSessionListReady(quint64 reqId, const QString &path, const QVector<FileInfo> &entries);
     void onSessionListFailed(quint64 reqId, const QString &path);
     void onSessionAuthRequired(const QString &error);
+    void onSessionFailed(const QString &error);
     void onSessionStateChanged(int state, int attempt);
 
 private:
@@ -228,5 +236,6 @@ private:
     quint64 m_reqId = 0; // monotonic list request id; stale results ignored
     AuthRetryFactory m_authRetry;   // rebuilds the connect with credentials
     QString m_networkLabel;         // host shown in the credentials prompt
+    QString m_lastNetworkError;     // last connect-failure reason (for the status line)
     bool m_relistOnConnect = false; // re-list rootPath once a credentialed retry lands
 };

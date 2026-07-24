@@ -573,9 +573,15 @@ void FilePanel::onNetworkStateChanged(int state, int attempt) {
             tr("断线，正在重连（%1/%2）…").arg(attempt).arg(NetworkSession::kMaxReconnects),
             StatusBarWidget::ConnReconnecting);
         break;
-    case NetworkSession::Failed:
-        m_statusBar->setConnectionStatus(tr("多次重连失败"), StatusBarWidget::ConnFailed);
+    case NetworkSession::Failed: {
+        // Show the real reason (connection refused / host not found / timeout /
+        // auth / cert) when known, instead of a generic message.
+        const QString err = m_model->lastNetworkError();
+        m_statusBar->setConnectionStatus(
+            err.isEmpty() ? tr("多次重连失败") : tr("连接失败：%1").arg(err),
+            StatusBarWidget::ConnFailed);
         break;
+    }
     case NetworkSession::Connected:
         m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
         // displayName() (user@host) is only known once connected, and the tab

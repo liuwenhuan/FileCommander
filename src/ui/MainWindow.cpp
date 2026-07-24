@@ -469,9 +469,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         // model to retry the connection with a username/password.
         FileSystemModel *model = panel->model();
         connect(model, &FileSystemModel::networkAuthRequired, this,
-                [this, model, panel](const QString &host) {
+                [this, model, panel](const QString &host, const QString &error) {
                     QString user, pass;
-                    if (promptCredentials(host, &user, &pass))
+                    if (promptCredentials(host, &user, &pass, error))
                         model->provideCredentials(user, pass);
                     else
                         // Cancelled: don't leave a blank, connected-looking tab --
@@ -2410,7 +2410,8 @@ FilePanel *MainWindow::otherPanel(FilePanel *panel) const {
     return panel == m_leftPanel ? m_rightPanel : m_leftPanel;
 }
 
-bool MainWindow::promptCredentials(const QString &host, QString *user, QString *pass) {
+bool MainWindow::promptCredentials(const QString &host, QString *user, QString *pass,
+                                   const QString &error) {
     QDialog dlg(this);
     dlg.setWindowTitle(tr("需要密码"));
     auto *form = new QFormLayout(&dlg);
@@ -2420,6 +2421,14 @@ bool MainWindow::promptCredentials(const QString &host, QString *user, QString *
         &dlg);
     info->setWordWrap(true);
     form->addRow(info);
+    // Show the server's rejection reason (e.g. wrong password) so the user knows
+    // this is a retry, not a first prompt.
+    if (!error.isEmpty()) {
+        auto *errLabel = new QLabel(error, &dlg);
+        errLabel->setWordWrap(true);
+        errLabel->setStyleSheet(QStringLiteral("color:#e04a4a"));
+        form->addRow(errLabel);
+    }
     auto *userEdit = new QLineEdit(&dlg);
     auto *passEdit = new QLineEdit(&dlg);
     passEdit->setEchoMode(QLineEdit::Password);
@@ -2442,12 +2451,15 @@ void MainWindow::reconnectNetworkTabs(FilePanel *panel,
                                       int activeIndex) {
     if (netTabs.isEmpty())
         return;
+    QStringList unsupported;
     for (const auto &nt : netTabs) {
         const int idx = nt.first;
         const SavedConnection &c = nt.second;
         auto native = providerForSaved(c);
-        if (!native.provider)
+        if (!native.provider) {
+            unsupported << c.host; // don't silently downgrade to a local tab
             continue;
+        }
         const QString path = c.remotePath.isEmpty() ? QStringLiteral("/") : c.remotePath;
         const QString label = c.user.isEmpty() ? c.host : c.user + QLatin1Char('@') + c.host;
         // Async connect on the tab; keeps its label from the start. authFactory
@@ -2458,6 +2470,10 @@ void MainWindow::reconnectNetworkTabs(FilePanel *panel,
     // Return focus to the tab that was active last session (connectTabTo switched
     // away to reach each network tab).
     panel->activateTab(activeIndex);
+    if (!unsupported.isEmpty())
+        ttc::warning(this, tr("重新连接"),
+                     tr("以下连接的协议不受支持，未能自动重连：\n%1")
+                         .arg(unsupported.join(QStringLiteral(", "))));
 }
 
 FilePanel *MainWindow::beginServerConnection() {

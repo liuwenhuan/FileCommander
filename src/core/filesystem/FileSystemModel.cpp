@@ -76,7 +76,9 @@ void FileSystemModel::connectNetwork(std::shared_ptr<FileProvider> provider,
             &FileSystemModel::onSessionListFailed);
     connect(m_session.get(), &NetworkSession::authRequired, this,
             &FileSystemModel::onSessionAuthRequired);
+    connect(m_session.get(), &NetworkSession::failed, this, &FileSystemModel::onSessionFailed);
     m_authRetry = nullptr;   // connect site sets it via setAuthContext for retryable backends
+    m_lastNetworkError.clear();
     m_relistOnConnect = false;
     // Start connecting on the worker thread. The caller then navigates to
     // initialPath: that requestList is queued after this connect on the single
@@ -132,6 +134,7 @@ void FileSystemModel::attachConnection(NetworkConn conn) {
         m_networkLabel.clear();
         m_authRetry = nullptr;
     }
+    m_lastNetworkError.clear(); // belongs to the previous active connection
 }
 
 bool FileSystemModel::isConnected() const {
@@ -148,10 +151,16 @@ void FileSystemModel::setAuthContext(const QString &label, AuthRetryFactory fact
 }
 
 void FileSystemModel::onSessionAuthRequired(const QString &error) {
-    Q_UNUSED(error);
     if (sender() != m_session.get())
         return; // parked background session; ignore
-    emit networkAuthRequired(m_networkLabel); // UI prompts, then calls provideCredentials
+    m_lastNetworkError = error;
+    emit networkAuthRequired(m_networkLabel, error); // UI prompts, then provideCredentials
+}
+
+void FileSystemModel::onSessionFailed(const QString &error) {
+    if (sender() != m_session.get())
+        return; // parked background session; ignore
+    m_lastNetworkError = error; // surfaced by the status line when Failed arrives
 }
 
 void FileSystemModel::provideCredentials(const QString &user, const QString &pass) {
@@ -210,6 +219,8 @@ void FileSystemModel::onSessionStateChanged(int state, int attempt) {
     // inactive tab -- only the active tab's connection drives the status line.
     if (sender() != m_session.get())
         return;
+    if (state == NetworkSession::Connected)
+        m_lastNetworkError.clear(); // a good connect clears any stale failure reason
     // Forward to the status line. The initial listing is driven by the caller's
     // navigateTo() (queued behind the connect on the worker thread); post-drop
     // refreshes are emitted by the session itself as listReady(reqId 0).
