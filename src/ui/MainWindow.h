@@ -144,7 +144,7 @@ private slots:
     void refreshActivePanel();
 
     void handleFilesDropped(const QStringList &sources, const QString &destDir,
-                             FileListView::DropActionKind kind);
+                             FileListView::DropActionKind kind, FileProvider *srcProvider);
     void copySelectionToClipboard();
     void cutSelectionToClipboard();
     void pasteFromClipboard();

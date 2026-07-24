@@ -138,6 +138,10 @@ void IconFileView::dropEvent(QDropEvent *event) {
         return;
     }
 
-    emit filesDropped(sourcePaths, destDir, kind);
+    FileProvider *srcProvider = nullptr;
+    if (auto *srcView = qobject_cast<QAbstractItemView *>(event->source()))
+        if (auto *srcModel = qobject_cast<FileSystemModel *>(srcView->model()))
+            srcProvider = srcModel->provider();
+    emit filesDropped(sourcePaths, destDir, kind, srcProvider);
     event->acceptProposedAction();
 }

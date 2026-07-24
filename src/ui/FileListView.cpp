@@ -947,6 +947,13 @@ void FileListView::dropEvent(QDropEvent *event) {
         return;
     }
 
-    emit filesDropped(sourcePaths, destDir, kind);
+    // The source panel's provider (null for an external drop): lets the receiver
+    // route an archive/remote source through the right backend instead of reading
+    // its virtual path as a local file.
+    FileProvider *srcProvider = nullptr;
+    if (auto *srcView = qobject_cast<QAbstractItemView *>(event->source()))
+        if (auto *srcModel = qobject_cast<FileSystemModel *>(srcView->model()))
+            srcProvider = srcModel->provider();
+    emit filesDropped(sourcePaths, destDir, kind, srcProvider);
     event->acceptProposedAction();
 }

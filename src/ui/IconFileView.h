@@ -21,7 +21,7 @@ signals:
     // time (not drag start): in-panel default=Move, Ctrl=Copy, Shift=Link;
     // cross-panel (or from outside the app) default=Copy, Ctrl=Move.
     void filesDropped(const QStringList &sourcePaths, const QString &destDir,
-                      FileListView::DropActionKind kind);
+                      FileListView::DropActionKind kind, FileProvider *srcProvider);
 
 protected:
     void startDrag(Qt::DropActions supportedActions) override;

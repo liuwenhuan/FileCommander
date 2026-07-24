@@ -2598,7 +2598,7 @@ QStringList MainWindow::destPathsFor(const QStringList &sources, const QString &
 }
 
 void MainWindow::handleFilesDropped(const QStringList &sources, const QString &destDir,
-                                     FileListView::DropActionKind kind) {
+                                     FileListView::DropActionKind kind, FileProvider *srcProvider) {
     // Refresh + select only the affected panels: the destination (if it's one
     // of the two open panels) gets the arriving files selected, and a move also
     // removes the vanished rows from the source panel in place. A drop onto a
@@ -2614,9 +2614,15 @@ void MainWindow::handleFilesDropped(const QStringList &sources, const QString &d
     // the transfer must stream through the provider engine, exactly as F5
     // copy/move does -- treating a remote path as a local file is what made a
     // drag out of a network tab fail with a permission error.
+    // Use the drag's real source provider (from the originating panel) rather than
+    // guessing it from the path: an archive's virtual "/file.txt" is
+    // indistinguishable from a real local path, and at an archive's "/" root the
+    // ancestor guess fails outright -- which made a drag OUT of an archive read a
+    // bogus local path and fail with a permission error. External drops carry no
+    // source provider (null) and are plain local files.
     LocalFileProvider *local = LocalFileProvider::instance();
     FileProvider *dstProv = providerOwningPath(destDir);
-    FileProvider *srcProv = sources.isEmpty() ? local : providerOwningPath(sources.first());
+    FileProvider *srcProv = srcProvider ? srcProvider : local;
     const bool crossProvider = (srcProv != local) || (dstProv != local);
 
     switch (kind) {

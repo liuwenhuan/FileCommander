@@ -7,6 +7,7 @@
 
 class QTimer;
 class QFontMetrics;
+class FileProvider;
 
 // QTableView with the header/selection behavior a file panel needs
 // (stretch the Name column, select whole rows, keyboard-driven), plus
@@ -63,8 +64,12 @@ signals:
     // kind is decided from live modifier keys at drop time (not drag
     // start): in-panel default=Move, Ctrl=Copy, Shift=Link; cross-panel
     // (or from outside the app) default=Copy, Ctrl=Move.
+    // srcProvider is the provider of the panel the drag started in (null for an
+    // external drop), so the receiver knows the true source backend instead of
+    // guessing from the path -- an archive's virtual "/file" is indistinguishable
+    // from a real local path otherwise.
     void filesDropped(const QStringList &sourcePaths, const QString &destDir,
-                       FileListView::DropActionKind kind);
+                       FileListView::DropActionKind kind, FileProvider *srcProvider);
 
 protected:
     void keyPressEvent(QKeyEvent *event) override;
