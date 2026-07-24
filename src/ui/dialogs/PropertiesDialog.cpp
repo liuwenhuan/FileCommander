@@ -92,51 +92,53 @@ void PropertiesDialog::buildUi() {
     const bool single = m_paths.size() == 1;
 
     auto *form = new QFormLayout;
+    // Value fields must be selectable so the name/location/etc. can be copied --
+    // a plain QLabel is read-only AND non-selectable by default. The left-column
+    // captions (added via addRow(QString, ...)) intentionally stay non-selectable.
+    auto valueLabel = [this](const QString &text) {
+        auto *l = new QLabel(text, this);
+        l->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+        l->setCursor(Qt::IBeamCursor);
+        return l;
+    };
     if (single && m_hasInfo) {
         // Remote / pre-fetched metadata: read everything off the FileInfo so we
         // never touch the (meaningless-for-remote) local filesystem.
         const QString name = m_info.name();
         setWindowTitle(tr("Properties — %1").arg(name));
-        form->addRow(tr("Name:"), new QLabel(name, this));
-        form->addRow(tr("Location:"),
-                     new QLabel(QFileInfo(m_info.path()).path(), this));
+        form->addRow(tr("Name:"), valueLabel(name));
+        form->addRow(tr("Location:"), valueLabel(QFileInfo(m_info.path()).path()));
         const QString type = m_info.isSymLink() ? tr("Symbolic link")
                              : m_info.isDir()   ? tr("Folder")
                                                 : tr("File");
-        form->addRow(tr("Type:"), new QLabel(type, this));
+        form->addRow(tr("Type:"), valueLabel(type));
         if (!m_info.isDir())
-            form->addRow(tr("Size:"), new QLabel(humanSize(m_info.size()), this));
+            form->addRow(tr("Size:"), valueLabel(humanSize(m_info.size())));
         if (m_info.modified().isValid())
             form->addRow(
                 tr("Modified:"),
-                new QLabel(m_info.modified().toString(QStringLiteral("yyyy-MM-dd HH:mm:ss")),
-                           this));
-        form->addRow(tr("Owner:"),
-                     new QLabel(ownerGroupText(m_info.owner(), m_info.ownerId()), this));
-        form->addRow(tr("Group:"),
-                     new QLabel(ownerGroupText(m_info.group(), m_info.groupId()), this));
+                valueLabel(m_info.modified().toString(QStringLiteral("yyyy-MM-dd HH:mm:ss"))));
+        form->addRow(tr("Owner:"), valueLabel(ownerGroupText(m_info.owner(), m_info.ownerId())));
+        form->addRow(tr("Group:"), valueLabel(ownerGroupText(m_info.group(), m_info.groupId())));
     } else if (single) {
         QFileInfo info(m_paths.first());
         setWindowTitle(tr("Properties — %1").arg(info.fileName()));
-        form->addRow(tr("Name:"), new QLabel(info.fileName(), this));
-        form->addRow(tr("Location:"), new QLabel(info.absolutePath(), this));
+        form->addRow(tr("Name:"), valueLabel(info.fileName()));
+        form->addRow(tr("Location:"), valueLabel(info.absolutePath()));
         const QString type = info.isSymLink() ? tr("Symbolic link")
                              : info.isDir()   ? tr("Folder")
                                               : tr("File");
-        form->addRow(tr("Type:"), new QLabel(type, this));
+        form->addRow(tr("Type:"), valueLabel(type));
         if (info.isSymLink())
-            form->addRow(tr("Target:"), new QLabel(info.symLinkTarget(), this));
+            form->addRow(tr("Target:"), valueLabel(info.symLinkTarget()));
         if (!info.isDir())
-            form->addRow(tr("Size:"), new QLabel(humanSize(info.size()), this));
+            form->addRow(tr("Size:"), valueLabel(humanSize(info.size())));
         form->addRow(tr("Modified:"),
-                     new QLabel(info.lastModified().toString(QStringLiteral("yyyy-MM-dd HH:mm:ss")),
-                                this));
+                     valueLabel(info.lastModified().toString(QStringLiteral("yyyy-MM-dd HH:mm:ss"))));
         form->addRow(tr("Owner:"),
-                     new QLabel(ownerGroupText(info.owner(), static_cast<int>(info.ownerId())),
-                                this));
+                     valueLabel(ownerGroupText(info.owner(), static_cast<int>(info.ownerId()))));
         form->addRow(tr("Group:"),
-                     new QLabel(ownerGroupText(info.group(), static_cast<int>(info.groupId())),
-                                this));
+                     valueLabel(ownerGroupText(info.group(), static_cast<int>(info.groupId()))));
     } else {
         setWindowTitle(tr("Properties — %1 items").arg(m_paths.size()));
         qint64 total = 0;
@@ -145,9 +147,8 @@ void PropertiesDialog::buildUi() {
             if (fi.isFile())
                 total += fi.size();
         }
-        form->addRow(tr("Selection:"),
-                     new QLabel(tr("%1 items").arg(m_paths.size()), this));
-        form->addRow(tr("Total size:"), new QLabel(humanSize(total), this));
+        form->addRow(tr("Selection:"), valueLabel(tr("%1 items").arg(m_paths.size())));
+        form->addRow(tr("Total size:"), valueLabel(humanSize(total)));
     }
 
     // For each permission bit, decide the initial state across all paths:
