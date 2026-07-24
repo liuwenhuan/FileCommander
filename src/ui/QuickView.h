@@ -141,6 +141,14 @@ private:
     void previewArchive(const QString &path);   // start a fresh archive chain at path
     void tryLoadCurrentArchive();               // (re)load the current chain level (async)
     void descendIntoNestedArchive(const QString &entryFullPath, const QString &entryName);
+    // Smart preview drill-down: when a freshly-loaded archive level holds exactly
+    // one entry, follow it automatically -- step into a lone sub-directory, or
+    // extract + open a lone nested archive -- and repeat, until the level branches
+    // (more than one entry) or a single plain file is reached. Mirrors smart
+    // extraction's "skip pointless wrapper folders" behaviour. Only runs while
+    // m_archiveAutoDescend is set (a fresh preview); any manual navigation clears
+    // it so the user keeps control.
+    void autoDescendArchive();
     // Result of a worker-thread buildTree; handled back on the GUI thread.
     struct ArchiveLoadResult {
         QSharedPointer<ArchiveNode> root;
@@ -312,6 +320,7 @@ private:
     QStringList m_archivePaths;
     QStringList m_archivePasswords;
     std::unique_ptr<QTemporaryDir> m_nestedDir; // holds extracted nested archives
+    bool m_archiveAutoDescend = false;          // smart drill-down active (see autoDescendArchive)
 
     // Async listing + cache: big solid/streaming archives (tar.bz2, 7z solid)
     // take a while to list (libarchive must decompress the stream), so buildTree

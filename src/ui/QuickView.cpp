@@ -1487,6 +1487,7 @@ void QuickView::previewArchive(const QString &path) {
     m_archivePaths = QStringList{path};
     m_archivePasswords = QStringList{QString()};
     m_nestedDir.reset();
+    m_archiveAutoDescend = true; // a fresh preview drills through single-entry chains
     tryLoadCurrentArchive();
 }
 
@@ -1505,6 +1506,7 @@ void QuickView::tryLoadCurrentArchive() {
         updateArchivePathLabel();
         setArchivePackageInfo(cached->packageInfo);
         m_stack->setCurrentWidget(m_archivePage);
+        autoDescendArchive();
         return;
     }
 
@@ -1557,6 +1559,7 @@ void QuickView::handleArchiveLoad(const ArchiveLoadResult &r, const QString &pat
         updateArchivePathLabel();
         setArchivePackageInfo(r.packageInfo);
         m_stack->setCurrentWidget(m_archivePage);
+        autoDescendArchive();
         return;
     }
 
@@ -1630,7 +1633,37 @@ void QuickView::descendIntoNestedArchive(const QString &entryFullPath, const QSt
     tryLoadCurrentArchive();
 }
 
+void QuickView::autoDescendArchive() {
+    // Follow a single-entry chain automatically until the level branches or ends
+    // on a plain file. enterDirectory() is synchronous (loop here); a lone nested
+    // archive extracts + reloads asynchronously and this routine re-runs from the
+    // reload's autoDescend (the flag stays set through automatic descents).
+    for (;;) {
+        if (!m_archiveAutoDescend)
+            return;
+        const int rows = m_archiveModel->rowCount();
+        // Row 0 is the ".." parent entry except at the archive root.
+        const int firstReal = m_archiveModel->isAtRoot() ? 0 : 1;
+        if (rows - firstReal != 1)
+            return; // empty, or it branches -> stop on this level
+        const auto only = m_archiveModel->nodeAt(firstReal);
+        if (!only)
+            return;
+        if (only->isDir) {
+            m_archiveModel->enterDirectory(only->fullPath);
+            updateArchivePathLabel();
+            continue; // keep drilling down
+        }
+        if (ArchiveHandler::isSupportedArchive(only->name)) {
+            descendIntoNestedArchive(only->fullPath, only->name);
+            return; // continues from the reload's autoDescend
+        }
+        return; // a single plain file: stop and show this level
+    }
+}
+
 void QuickView::onArchiveActivated(const QModelIndex &index) {
+    m_archiveAutoDescend = false; // the user is navigating by hand now
     if (m_archiveModel->isParentEntry(index.row())) {
         navigateArchiveUp();
         return;
@@ -1649,6 +1682,7 @@ void QuickView::onArchiveActivated(const QModelIndex &index) {
 }
 
 void QuickView::navigateArchiveUp() {
+    m_archiveAutoDescend = false; // manual "Up" hands control back to the user
     if (!m_archiveModel->isAtRoot()) {
         if (m_archiveModel->navigateUp())
             updateArchivePathLabel();
