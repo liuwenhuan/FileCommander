@@ -46,6 +46,7 @@ public:
 
     // Connection label for network tabs: "user@host" (or "host" if no user).
     QString displayName() const override;
+    QString scheme() const override { return QStringLiteral("smb"); }
 
     // Bounds waits on connections and response data by ms (libsmbclient's
     // smbc_setTimeout). Must be set before connectToHost(). Ignored if <= 0.

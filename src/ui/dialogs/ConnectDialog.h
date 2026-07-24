@@ -47,6 +47,12 @@ public:
     std::shared_ptr<FileProvider> remoteProvider() const { return m_remoteProvider; }
     std::function<bool(QString *)> connectFn() const { return m_connectFn; }
     QString remotePath() const { return m_remotePath; }
+    // "user@host" for the chosen target, available right after accept() so the
+    // caller can label the connecting tab before the link is established.
+    QString displayLabel() const { return m_displayLabel; }
+    // Reconnect descriptor (protocol/host/port/user/remotePath/anonymous/id) for
+    // session persistence. Valid after a successful native accept().
+    SavedConnection connectionInfo() const { return m_connInfo; }
 
     // Convenience: run the dialog modally and, on a successful mount, return the
     // local mount path. Returns an empty string if the user cancelled or the
@@ -95,4 +101,6 @@ private:
     std::shared_ptr<FileProvider> m_remoteProvider; // native backend (UNCONNECTED)
     std::function<bool(QString *)> m_connectFn;      // runs connectToHost on the worker
     QString m_remotePath;
+    QString m_displayLabel;                          // "user@host" for the connecting tab
+    SavedConnection m_connInfo;                      // reconnect descriptor for session save
 };

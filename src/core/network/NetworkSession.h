@@ -48,6 +48,12 @@ public:
     // timeout, up to 5 reconnect attempts, backoff 1/2/4/8/8s, 30s heartbeat.
     static constexpr int kConnectTimeoutMs = 12000;
     static constexpr int kMaxReconnects = 5;
+    // A brand-new connection to an unreachable host should surface a failure
+    // quickly rather than burning the full drop-recovery budget: the 5-attempt
+    // backoff cycle is for a link that WAS up and blipped, not for dialling a
+    // dead host. So an initial connect (never yet connected) fails after just a
+    // couple of attempts.
+    static constexpr int kInitialConnectAttempts = 2;
     static constexpr int kHeartbeatMs = 30000;
 
     explicit NetworkSession(std::shared_ptr<FileProvider> provider, QObject *parent = nullptr);
@@ -55,6 +61,7 @@ public:
 
     FileProvider *provider() const { return m_provider.get(); }
     State state() const { return m_state; }
+    int attempt() const { return m_attempt; }
 
     // Kicks off the initial connect on the worker thread. `currentDir` is the
     // directory the tab will open, used as the heartbeat liveness probe target.

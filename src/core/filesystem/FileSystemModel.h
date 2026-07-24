@@ -59,6 +59,11 @@ public:
     void connectNetwork(std::shared_ptr<FileProvider> provider,
                         std::function<bool(QString *)> connectFn, const QString &initialPath);
     bool hasNetworkSession() const { return m_session != nullptr; }
+    // True only once the active session's link is actually established. Reads the
+    // session state without taking any provider lock, so it is safe (and cheap)
+    // to call from the GUI thread even while a connect is in flight -- used to
+    // avoid blocking provider calls (e.g. displayName()) during connection.
+    bool isConnected() const;
     // User-initiated retry after the "multiple reconnects failed" state.
     void retryNetwork();
 
@@ -73,6 +78,31 @@ public:
     // Supplies the credentials the user entered after networkAuthRequired: rebuilds
     // the connect closure and retries, then re-lists once connected.
     void provideCredentials(const QString &user, const QString &pass);
+
+    // A tab's live remote connection, moved between the model (the active tab's
+    // backend) and per-tab storage so each tab keeps its OWN connection: switching
+    // tabs swaps the active connection instead of one panel-wide provider. An
+    // empty bundle (null session) means a local tab.
+    struct NetworkConn {
+        std::shared_ptr<FileProvider> provider;
+        std::shared_ptr<NetworkSession> session;
+        QString label;            // "user@host" for the credential prompt
+        AuthRetryFactory authRetry;
+    };
+    // Removes the currently active network connection from the model (leaving it
+    // local) and returns it so the caller can stash it with its tab. The session
+    // keeps running -- it is NOT stopped -- so the connection stays warm in the
+    // background. Returns an empty bundle if the active tab was already local.
+    // Copies the active connection WITHOUT removing it from the model (both the
+    // model and the caller then co-own the still-running session). Used to record
+    // a connection into navigation history so Back can restore it. Empty bundle if
+    // the active tab is local.
+    NetworkConn peekConnection() const;
+    NetworkConn detachConnection();
+    // Installs a previously-detached connection as the active backend (or goes
+    // local when the bundle is empty). Reflects the session's current state on the
+    // status line immediately. Signals were wired when the session was created.
+    void attachConnection(NetworkConn conn);
 
     // "Flat" listing mode: populate the model with an explicit set of file paths
     // that may span many directories (e.g. Ctrl+F search results shown TC
@@ -191,7 +221,7 @@ private:
 
     // Network tab: worker-thread session owning the network provider. Null for
     // local/archive tabs (which keep the QtConcurrent scan path above).
-    std::unique_ptr<NetworkSession> m_session;
+    std::shared_ptr<NetworkSession> m_session;
     quint64 m_reqId = 0; // monotonic list request id; stale results ignored
     AuthRetryFactory m_authRetry;   // rebuilds the connect with credentials
     QString m_networkLabel;         // host shown in the credentials prompt

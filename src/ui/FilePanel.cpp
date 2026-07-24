@@ -12,6 +12,7 @@
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QIcon>
 #include <QInputDialog>
 
 #include "ThemedDialogs.h"
@@ -444,6 +445,14 @@ FilePanel::NavEntry FilePanel::currentLocation() const {
     } else {
         e.dir = m_model->rootPath();
     }
+    // Record the backend so Back/Forward can return to a live server connection
+    // (and its "user@host" tab label), not merely re-walk the path locally.
+    e.conn = m_model->peekConnection();
+    if (auto tab = m_tabManager->activeTab()) {
+        e.connScheme = tab->connScheme;
+        e.connLabel = tab->connLabel;
+        e.connInfo = tab->connInfo;
+    }
     return e;
 }
 
@@ -460,6 +469,22 @@ void FilePanel::applyHistoryEntry(const NavEntry &entry) {
         m_filterBar->hide();
         m_filterBar->blockSignals(false);
     }
+    // Restore the backend this location was viewed through BEFORE listing, so a
+    // remote entry lists through its (re-adopted) server and a local entry lists
+    // locally. attachConnection() also re-points the model's active session.
+    m_model->attachConnection(entry.conn);
+    if (auto tab = m_tabManager->activeTab()) {
+        tab->provider = entry.conn.provider;
+        tab->session = entry.conn.session;
+        tab->connScheme = entry.connScheme;
+        tab->connLabel = entry.connLabel;
+        tab->authLabel = entry.conn.label;
+        tab->authFactory = entry.conn.authRetry;
+        tab->connInfo = entry.connInfo;
+    }
+    if (!m_model->hasNetworkSession())
+        m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
+
     if (entry.flat) {
         m_flatPaths = entry.flatPaths;
         m_model->setFlatEntries(entry.flatPaths);
@@ -471,7 +496,11 @@ void FilePanel::applyHistoryEntry(const NavEntry &entry) {
             tab->path = entry.dir;
             tab->flatPaths.clear(); // no longer a search-results listing
             tab->title.clear();     // drop the keyword title -> path-derived label
-            updateActiveTabLabel();
+            // Label from the restored connection (connLabel already set above);
+            // stampActiveConnection would keep it while (re)connecting.
+            const int idx = m_tabManager->activeIndex();
+            m_tabBar->setTabText(idx, tabLabelFor(tab));
+            refreshTabIcons();
         }
     }
 }
@@ -482,11 +511,13 @@ void FilePanel::navigateTo(const QString &path) {
     FileProvider *provider = m_model->provider();
     const QString cleaned = provider->cleanPath(path);
     // For a network tab, DON'T do a synchronous isDir() here: on a remote backend
-    // that is a blocking network round-trip on the GUI thread (a freeze source),
-    // and callers already know the target is a directory (onActivated checks the
-    // cached FileInfo). The async listing that follows reveals a bad path. Local
+    // it is a blocking GUI-thread round-trip AND, right after connectNetwork, it
+    // fails because the provider hasn't connected yet (which used to abort the
+    // very first remote navigation, so nothing ever listed). Detect "network" by
+    // the presence of a session, not displayName() -- the latter is empty until
+    // the connect lands. The async listing that follows reveals a bad path. Local
     // and archive backends keep the cheap in-process isDir guard.
-    if (provider->displayName().isEmpty() && !provider->isDir(cleaned))
+    if (!m_model->hasNetworkSession() && !provider->isDir(cleaned))
         return;
     // Snapshot where we're leaving (dir or flat listing) BEFORE mutating the view.
     const NavEntry from = currentLocation();
@@ -497,7 +528,9 @@ void FilePanel::navigateTo(const QString &path) {
         m_filterBar->hide();
         m_filterBar->blockSignals(false);
     }
-    if (from.isValid())
+    if (m_suppressHistoryOnce)
+        m_suppressHistoryOnce = false; // the initial post-connect listing; don't record the transient local dir
+    else if (from.isValid())
         pushHistory(from);
     m_forwardHistory.clear();
     m_flatPaths.clear(); // leaving any flat listing for a real directory
@@ -529,6 +562,12 @@ void FilePanel::onNetworkStateChanged(int state, int attempt) {
         m_statusBar->setConnectionStatus(tr("多次重连失败"), StatusBarWidget::ConnFailed);
         break;
     case NetworkSession::Connected:
+        m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
+        // displayName() (user@host) is only known once connected, and the tab
+        // label was first built before that -- refresh it so the connected tab
+        // shows "user@host : dir" instead of a bare directory name.
+        updateActiveTabLabel();
+        break;
     case NetworkSession::Idle:
     default:
         m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
@@ -1070,26 +1109,91 @@ QString FilePanel::tabLabelFor(const QSharedPointer<TabState> &tab) const {
     } else {
         label = tab->path; // real root "/"
     }
-    // On a network connection, prefix the connection identity (user@host) so the
-    // tab shows which host it is browsing, not just the directory. The provider
-    // is per-panel (shared by all tabs) but each tab keeps its own path, so this
-    // only holds for the ACTIVE tab -- mirror the archive-name guard above and
-    // leave background tabs (which may sit on a local path) with the plain label.
-    // Local and archive backends report an empty displayName() regardless.
-    if (tab == m_tabManager->tabAt(m_tabManager->activeIndex())) {
-        if (FileProvider *provider = m_model->provider()) {
-            const QString connection = provider->displayName();
-            if (!connection.isEmpty())
-                return connection + QStringLiteral(" : ") + label;
-        }
-    }
+    // On a network tab, prefix the connection identity (user@host) so the tab
+    // shows which host it is browsing, not just the directory. This is stored per
+    // tab (stampActiveConnection) rather than read from the panel-wide provider,
+    // so EVERY network tab shows its own host -- not only the active one -- and
+    // the prefix survives a sibling tab switching to a local folder. Local tabs
+    // have an empty connLabel and keep the plain directory label.
+    if (tab && !tab->connLabel.isEmpty())
+        return tab->connLabel + QStringLiteral(" : ") + label;
     return label;
 }
 
+void FilePanel::setConnectingLabel(const QString &label, const QString &scheme) {
+    auto tab = m_tabManager->activeTab();
+    if (!tab)
+        return;
+    tab->connScheme = scheme;
+    tab->connLabel = label;
+    const int idx = m_tabManager->activeIndex();
+    m_tabBar->setTabText(idx, tabLabelFor(tab));
+    refreshTabIcons();
+    // A fresh connection resets this tab's navigation history: the transient
+    // pre-connect local dir isn't a place Back should return to. Suppress the one
+    // history push the imminent initial navigateTo(remote root) would make.
+    m_backHistory.clear();
+    m_forwardHistory.clear();
+    m_suppressHistoryOnce = true;
+    updateNavButtons();
+    // Note: a later stampActiveConnection() while still connecting leaves connLabel
+    // untouched (it only overwrites once isConnected()), so this prefix persists.
+}
+
+void FilePanel::stampActiveConnection() {
+    // Snapshot the live backend's identity into the active tab so its icon/label
+    // are the tab's own property from now on, independent of provider swaps.
+    auto tab = m_tabManager->activeTab();
+    if (!tab)
+        return;
+    if (FileProvider *provider = m_model->provider()) {
+        const QString scheme = provider->scheme(); // cheap: inline constant, no lock
+        tab->connScheme = scheme;
+        if (scheme.isEmpty()) {
+            tab->connLabel.clear();
+        } else if (m_model->isConnected()) {
+            // Only read displayName() once the link is up. A network provider
+            // holds its mutex for the whole (possibly slow/stalled) connect, and
+            // displayName() takes that same mutex -- calling it mid-connect would
+            // freeze the GUI thread until the attempt times out. Until connected
+            // we keep whatever prefix we had (empty on a brand-new tab).
+            tab->connLabel = provider->displayName();
+        }
+    } else {
+        tab->connScheme.clear();
+        tab->connLabel.clear();
+    }
+}
+
 void FilePanel::updateActiveTabLabel() {
+    stampActiveConnection();
     const int idx = m_tabManager->activeIndex();
     if (auto tab = m_tabManager->tabAt(idx))
         m_tabBar->setTabText(idx, tabLabelFor(tab));
+    refreshTabIcons();
+}
+
+static QIcon iconForScheme(const QString &scheme) {
+    if (scheme == QLatin1String("sftp"))
+        return QIcon(QStringLiteral(":/icons/dev-sftp.svg"));
+    if (scheme == QLatin1String("smb"))
+        return QIcon(QStringLiteral(":/icons/dev-smb.svg"));
+    if (scheme == QLatin1String("ftp"))
+        return QIcon(QStringLiteral(":/icons/dev-ftp.svg"));
+    if (scheme == QLatin1String("webdav"))
+        return QIcon(QStringLiteral(":/icons/dev-webdav.svg"));
+    return QIcon();
+}
+
+void FilePanel::refreshTabIcons() {
+    // Each tab renders its OWN stored protocol (connScheme), so a tab keeps its
+    // icon even when another tab switches to a local folder (which changes the
+    // panel-wide provider but not this tab's identity).
+    const int n = qMin(m_tabBar->count(), m_tabManager->count());
+    for (int i = 0; i < n; ++i) {
+        auto tab = m_tabManager->tabAt(i);
+        m_tabBar->setTabIcon(i, tab ? iconForScheme(tab->connScheme) : QIcon());
+    }
 }
 
 void FilePanel::syncTabBarFromManager() {
@@ -1102,6 +1206,7 @@ void FilePanel::syncTabBarFromManager() {
     if (active >= 0 && active < m_tabBar->count())
         m_tabBar->setCurrentIndex(active);
     m_tabBar->blockSignals(false);
+    refreshTabIcons();
     loadTabState(m_tabManager->activeIndex());
 }
 
@@ -1138,18 +1243,107 @@ void FilePanel::loadTabState(int index) {
     }
 }
 
+void FilePanel::parkConnectionInto(const QSharedPointer<TabState> &tab) {
+    if (!tab)
+        return;
+    FileSystemModel::NetworkConn c = m_model->detachConnection();
+    tab->provider = c.provider;
+    tab->session = c.session;
+    tab->authLabel = c.label;
+    tab->authFactory = c.authRetry;
+    // connScheme/connLabel were already stamped and stay put.
+}
+
+void FilePanel::adoptConnectionFrom(const QSharedPointer<TabState> &tab) {
+    FileSystemModel::NetworkConn c;
+    if (tab) {
+        c.provider = tab->provider;
+        c.session = tab->session;
+        c.label = tab->authLabel;
+        c.authRetry = tab->authFactory;
+    }
+    m_model->attachConnection(std::move(c));
+    // A tab with no session is local: clear any lingering connection status.
+    if (!m_model->hasNetworkSession())
+        m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
+}
+
 void FilePanel::onTabBarCurrentChanged(int index) {
     if (index < 0)
         return;
+    const int prev = m_tabManager->activeIndex();
     saveCurrentTabState();
+    if (prev != index && prev >= 0)
+        parkConnectionInto(m_tabManager->tabAt(prev)); // keep the old tab's server alive
     m_tabManager->setActiveIndex(index);
+    if (prev != index)
+        adoptConnectionFrom(m_tabManager->tabAt(index)); // swap in this tab's server
     loadTabState(index);
+    updateActiveTabLabel();
+}
+
+void FilePanel::openLocalInTab(int tabIndex, const QString &path) {
+    // Switch to the target tab (which swaps in its own connection) ...
+    if (tabIndex >= 0 && tabIndex < m_tabBar->count() &&
+        tabIndex != m_tabBar->currentIndex())
+        m_tabBar->setCurrentIndex(tabIndex); // drives onTabBarCurrentChanged()
+
+    // Record where we're leaving -- INCLUDING the live server connection -- into
+    // back history so a Back press returns to the server (and its "user@host"
+    // label), then leave it for the local favorite. currentLocation() captures
+    // the connection via peekConnection(), so we snapshot BEFORE detaching.
+    const NavEntry from = currentLocation();
+    if (from.isValid()) {
+        pushHistory(from);
+        m_forwardHistory.clear();
+    }
+
+    // Park the connection: detach it from the model (it stays alive, co-owned by
+    // the history entry above) rather than setProvider(nullptr), which would stop
+    // the session and make Back unable to restore it. This tab is now local.
+    m_model->detachConnection();
+    if (auto tab = m_tabManager->activeTab()) {
+        tab->provider.reset();
+        tab->session.reset();
+        tab->connScheme.clear();
+        tab->connLabel.clear();
+        tab->authLabel.clear();
+        tab->authFactory = nullptr;
+        tab->connInfo = {}; // now a local tab: don't persist/reconnect it as remote
+    }
+    m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
+
+    // Navigate locally without re-pushing history (we already captured `from`).
+    if (m_filterBar->isVisible()) {
+        m_filterBar->blockSignals(true);
+        m_filterBar->clear();
+        m_filterBar->hide();
+        m_filterBar->blockSignals(false);
+    }
+    m_flatPaths.clear();
+    m_model->setRootPath(path);
+    emit pathChanged(path);
+    if (auto tab = m_tabManager->activeTab()) {
+        tab->path = path;
+        tab->flatPaths.clear();
+        tab->title.clear();
+        updateActiveTabLabel();
+    }
+    updateNavButtons();
 }
 
 void FilePanel::closeTabAt(int index) {
     if (m_tabManager->count() <= 1)
         return; // always keep at least one tab open
+    // Closing the active tab: drop its live connection from the model first, so
+    // the model doesn't keep listing through a server whose tab is gone. (A
+    // background tab's session is owned solely by its TabState and is torn down
+    // when closeTab() drops that TabState.)
+    if (index == m_tabManager->activeIndex() && m_model->hasNetworkSession())
+        m_model->detachConnection(); // returned bundle drops here -> session stops
     m_tabManager->closeTab(index);
+    // Whatever tab is active now may carry its own parked connection: make it live.
+    adoptConnectionFrom(m_tabManager->activeTab());
     syncTabBarFromManager();
 }
 
@@ -1199,7 +1393,15 @@ int FilePanel::closeTabsOnMount(const QString &mountRoot) {
 
 void FilePanel::newTab() {
     saveCurrentTabState();
-    const QString path = m_model->rootPath();
+    const bool wasNetwork = m_model->hasNetworkSession();
+    // Park the outgoing tab's connection so its server stays alive in the
+    // background while this new tab is active (also drops the model to local).
+    parkConnectionInto(m_tabManager->activeTab());
+    // A brand-new tab is a local tab: keep the current local directory, or go
+    // home when we were on a server (its remote path is meaningless locally).
+    const QString path = wasNetwork
+        ? QStandardPaths::writableLocation(QStandardPaths::HomeLocation)
+        : m_model->rootPath();
     const int idx = m_tabManager->addTab(path);
     m_tabBar->blockSignals(true);
     m_tabBar->addTab(tabLabelFor(m_tabManager->tabAt(idx)));
@@ -1207,6 +1409,7 @@ void FilePanel::newTab() {
     m_tabBar->blockSignals(false);
     m_tabManager->setActiveIndex(idx);
     loadTabState(idx);
+    updateActiveTabLabel(); // stamp the new (local) tab: no icon, plain label
 }
 
 void FilePanel::closeCurrentTab() {
@@ -1233,6 +1436,39 @@ QVector<QPair<QString, QStringList>> FilePanel::tabSnapshot() {
         result.append({tab->path, tab->selectedFiles});
     }
     return result;
+}
+
+SavedConnection FilePanel::tabConnInfo(int index) const {
+    if (auto tab = m_tabManager->tabAt(index))
+        return tab->connInfo;
+    return {};
+}
+
+void FilePanel::setActiveTabConnInfo(const SavedConnection &conn) {
+    if (auto tab = m_tabManager->activeTab())
+        tab->connInfo = conn;
+}
+
+void FilePanel::connectTabTo(int index, std::shared_ptr<FileProvider> provider,
+                             std::function<bool(QString *)> connectFn, const QString &initialPath,
+                             const QString &label, const SavedConnection &connInfo,
+                             FileSystemModel::AuthRetryFactory authFactory) {
+    if (index < 0 || index >= m_tabBar->count() || !provider)
+        return;
+    if (index != m_tabBar->currentIndex())
+        m_tabBar->setCurrentIndex(index); // park/adopt via onTabBarCurrentChanged
+    m_model->connectNetwork(provider, std::move(connectFn), initialPath);
+    if (authFactory)
+        m_model->setAuthContext(label, std::move(authFactory));
+    setConnectingLabel(label, provider->scheme());
+    if (auto tab = m_tabManager->activeTab())
+        tab->connInfo = connInfo;
+    navigateTo(initialPath); // sets tab->path and drives the (async) remote listing
+}
+
+void FilePanel::activateTab(int index) {
+    if (index >= 0 && index < m_tabBar->count() && index != m_tabBar->currentIndex())
+        m_tabBar->setCurrentIndex(index); // park/adopt via onTabBarCurrentChanged
 }
 
 void FilePanel::restoreTabs(const QVector<QPair<QString, QStringList>> &tabs, int activeIndex) {

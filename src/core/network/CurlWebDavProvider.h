@@ -48,6 +48,7 @@ public:
 
     // Connection label for network tabs: "user@host" (or "host" if no user).
     QString displayName() const override;
+    QString scheme() const override { return QStringLiteral("webdav"); }
 
     // Bounds the connect phase (and control-plane requests) by ms. Must be set
     // before connectToHost(). Ignored if <= 0.

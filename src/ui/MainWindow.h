@@ -20,7 +20,10 @@ class QTemporaryDir;
 
 #include "FileListView.h"
 #include "Settings.h"
+#include "network/ConnectionStore.h" // SavedConnection (session reconnect)
 #include "update/UpdateChecker.h" // UpdateInfo (stored by value)
+
+#include <QVector>
 
 class FilePanel;
 class FileProvider;
@@ -170,6 +173,15 @@ private:
     // from the network-neighborhood gear) and, on accept, connects the active
     // panel to the chosen server asynchronously.
     void openServerConnectDialog(bool preselectSmb);
+    // On startup, re-establishes each restored network tab's server connection
+    // (async) and its tab label, then returns focus to the originally-active tab.
+    // netTabs maps a restored tab index to its reconnect descriptor.
+    void reconnectNetworkTabs(FilePanel *panel,
+                              const QVector<QPair<int, SavedConnection>> &netTabs, int activeIndex);
+    // Target panel/tab for a new server connection: always the LEFT panel, in a
+    // fresh tab (per user preference) rather than replacing whatever the active
+    // panel is showing. Focuses the left panel and returns it ready to connect.
+    FilePanel *beginServerConnection();
     // Modal username/password prompt shown when a server needs credentials.
     // Returns true and fills *user/*pass on OK, false on cancel.
     bool promptCredentials(const QString &host, QString *user, QString *pass);

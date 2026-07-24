@@ -10,9 +10,67 @@
 #include <cstring>
 
 #include <fcntl.h>
+#include <netdb.h>
+#include <sys/select.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 namespace {
+
+// Bounded TCP reachability probe to `host`:`port`. libsmbclient's own
+// smbc_setTimeout does NOT bound the initial TCP connect, so an unreachable /
+// black-holed IP (SYN never answered) hangs the worker for the OS default
+// (~2 min) instead of the configured timeout -- the user sees "connecting"
+// forever and never a failure. A non-blocking connect + select bounded by
+// `timeoutMs` fails fast so the session can move on to reconnect/failed. Returns
+// true if the port accepts a connection within the budget. Runs on the session
+// worker thread.
+bool tcpReachable(const QString &host, int port, int timeoutMs) {
+    // Accept "[::1]"-style bracketed IPv6 by stripping the brackets for getaddrinfo.
+    QString h = host;
+    if (h.startsWith(QLatin1Char('[')) && h.endsWith(QLatin1Char(']')))
+        h = h.mid(1, h.size() - 2);
+    const QByteArray hostUtf8 = h.toUtf8();
+    const QByteArray portStr = QByteArray::number(port);
+
+    struct addrinfo hints;
+    std::memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    struct addrinfo *res = nullptr;
+    if (getaddrinfo(hostUtf8.constData(), portStr.constData(), &hints, &res) != 0 || !res)
+        return false; // name doesn't resolve -> not reachable
+
+    bool reachable = false;
+    for (struct addrinfo *ai = res; ai && !reachable; ai = ai->ai_next) {
+        int fd = ::socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+        if (fd < 0)
+            continue;
+        const int flags = ::fcntl(fd, F_GETFL, 0);
+        ::fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+        int rc = ::connect(fd, ai->ai_addr, ai->ai_addrlen);
+        if (rc == 0) {
+            reachable = true; // connected immediately (localhost)
+        } else if (errno == EINPROGRESS) {
+            fd_set wset;
+            FD_ZERO(&wset);
+            FD_SET(fd, &wset);
+            struct timeval tv;
+            tv.tv_sec = timeoutMs / 1000;
+            tv.tv_usec = (timeoutMs % 1000) * 1000;
+            if (::select(fd + 1, nullptr, &wset, nullptr, &tv) > 0 && FD_ISSET(fd, &wset)) {
+                int soErr = 0;
+                socklen_t len = sizeof(soErr);
+                if (::getsockopt(fd, SOL_SOCKET, SO_ERROR, &soErr, &len) == 0 && soErr == 0)
+                    reachable = true;
+            }
+        }
+        ::close(fd);
+    }
+    freeaddrinfo(res);
+    return reachable;
+}
 
 // Wraps a libsmbclient file handle so it can travel through the opaque
 // FileHandle interface. Opened by openRead/openWrite, closed by closeHandle.
@@ -100,6 +158,19 @@ bool SmbProvider::connectToHost(const QString &host, const QString &user,
     } else {
         m_user = user;
         m_password = password;
+    }
+
+    // Fail fast if the host's SMB port isn't reachable within the timeout, so an
+    // unreachable/black-holed IP surfaces "connection failed" in bounded time
+    // instead of hanging libsmbclient's un-timed TCP connect for minutes.
+    // Reachability only needs a short budget (a live LAN host answers in <100ms);
+    // cap it well under the SMB op timeout so a dead host fails fast.
+    if (!tcpReachable(host, 445, qMin(m_timeoutMs, 5000))) {
+        if (error)
+            *error = QStringLiteral("Cannot reach \\\\%1: host unreachable or SMB port closed")
+                         .arg(host);
+        m_host.clear();
+        return false;
     }
 
     SMBCCTX *ctx = smbc_new_context();

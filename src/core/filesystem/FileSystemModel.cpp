@@ -46,7 +46,7 @@ FileSystemModel::FileSystemModel(QObject *parent) : QAbstractTableModel(parent) 
             &FileSystemModel::onScanFinished);
 }
 
-FileSystemModel::~FileSystemModel() = default; // out-of-line: completes unique_ptr<NetworkSession>
+FileSystemModel::~FileSystemModel() = default; // out-of-line: completes shared_ptr<NetworkSession>
 
 void FileSystemModel::setProvider(std::shared_ptr<FileProvider> provider) {
     // Switching to a different (or local) provider abandons any network session.
@@ -67,7 +67,7 @@ void FileSystemModel::connectNetwork(std::shared_ptr<FileProvider> provider,
                                      const QString &initialPath) {
     teardownSession();
     m_provider = provider; // network provider becomes the backend
-    m_session = std::make_unique<NetworkSession>(provider);
+    m_session = std::make_shared<NetworkSession>(provider);
     connect(m_session.get(), &NetworkSession::stateChanged, this,
             &FileSystemModel::onSessionStateChanged);
     connect(m_session.get(), &NetworkSession::listReady, this,
@@ -84,6 +84,60 @@ void FileSystemModel::connectNetwork(std::shared_ptr<FileProvider> provider,
     m_session->start(std::move(connectFn), initialPath);
 }
 
+FileSystemModel::NetworkConn FileSystemModel::peekConnection() const {
+    NetworkConn c;
+    if (m_session) {
+        c.provider = m_provider;
+        c.session = m_session;
+        c.label = m_networkLabel;
+        c.authRetry = m_authRetry;
+    }
+    return c;
+}
+
+FileSystemModel::NetworkConn FileSystemModel::detachConnection() {
+    NetworkConn c;
+    if (m_session) {
+        // Hand the live connection to the caller WITHOUT stopping it: it stays
+        // alive (and its heartbeat keeps reconnecting) while parked with its tab.
+        // Its signals remain connected to this model but the sender() guards in
+        // the slots ignore it now that it is no longer m_session.
+        c.provider = m_provider;
+        c.session = m_session;
+        c.label = m_networkLabel;
+        c.authRetry = m_authRetry;
+        m_session.reset();
+        m_provider = localProviderPtr();
+        m_networkLabel.clear();
+        m_authRetry = nullptr;
+        m_relistOnConnect = false;
+    }
+    return c;
+}
+
+void FileSystemModel::attachConnection(NetworkConn conn) {
+    if (conn.session) {
+        m_provider = conn.provider;
+        m_session = conn.session; // becomes active; signals were wired at creation
+        m_networkLabel = conn.label;
+        m_authRetry = conn.authRetry;
+        m_relistOnConnect = false;
+        // Bring the status line up to date with this connection's current state
+        // (the session won't re-emit on its own just because we re-adopted it).
+        emit networkStateChanged(m_session->state(), m_session->attempt());
+    } else {
+        // Local tab: drop to the local provider, no session.
+        m_session.reset();
+        m_provider = localProviderPtr();
+        m_networkLabel.clear();
+        m_authRetry = nullptr;
+    }
+}
+
+bool FileSystemModel::isConnected() const {
+    return m_session && m_session->state() == NetworkSession::Connected;
+}
+
 void FileSystemModel::setAuthContext(const QString &label, AuthRetryFactory factory) {
     m_networkLabel = label;
     m_authRetry = std::move(factory);
@@ -91,6 +145,8 @@ void FileSystemModel::setAuthContext(const QString &label, AuthRetryFactory fact
 
 void FileSystemModel::onSessionAuthRequired(const QString &error) {
     Q_UNUSED(error);
+    if (sender() != m_session.get())
+        return; // parked background session; ignore
     emit networkAuthRequired(m_networkLabel); // UI prompts, then calls provideCredentials
 }
 
@@ -115,10 +171,22 @@ void FileSystemModel::setRootPath(const QString &path) {
     m_dateStrCache.clear();   // bound the memo; new listing, new timestamps
     emit loadStarted();
 
-    // Network tab: route the listing through the session's worker thread. The
-    // current view is left intact until the result arrives, so a slow/failed
-    // navigation never blanks the panel. Stale results are discarded by reqId.
+    // Network tab: route the listing through the session's worker thread. Once
+    // connected, the current view is left intact until the result arrives so a
+    // slow refresh never blanks the panel (no flicker). Stale results are
+    // discarded by reqId. But while the link is NOT yet up (connecting /
+    // reconnecting / failed), blank the listing first: otherwise the panel would
+    // keep showing whatever was there before -- typically a LOCAL directory --
+    // under a remote tab, which looks browsable but isn't.
     if (m_session) {
+        if (!isConnected()) {
+            beginResetModel();
+            m_allEntries.clear();
+            m_hasParentEntry = false;
+            sortEntries();
+            endResetModel();
+            emit loadFinished(m_entries.size());
+        }
         m_session->requestList(++m_reqId, path, m_showHidden);
         return;
     }
@@ -134,6 +202,10 @@ void FileSystemModel::setRootPath(const QString &path) {
 }
 
 void FileSystemModel::onSessionStateChanged(int state, int attempt) {
+    // Ignore state changes from a backgrounded (parked) session belonging to an
+    // inactive tab -- only the active tab's connection drives the status line.
+    if (sender() != m_session.get())
+        return;
     // Forward to the status line. The initial listing is driven by the caller's
     // navigateTo() (queued behind the connect on the worker thread); post-drop
     // refreshes are emitted by the session itself as listReady(reqId 0).
@@ -148,6 +220,8 @@ void FileSystemModel::onSessionStateChanged(int state, int attempt) {
 
 void FileSystemModel::onSessionListReady(quint64 reqId, const QString &path,
                                          const QVector<FileInfo> &entries) {
+    if (sender() != m_session.get())
+        return; // a parked background session's stale result; not the active tab
     if (m_flatMode)
         return;
     // reqId 0 is a session-initiated refresh (post-reconnect): accept only if it
@@ -169,6 +243,8 @@ void FileSystemModel::onSessionListReady(quint64 reqId, const QString &path,
 
 void FileSystemModel::onSessionListFailed(quint64 reqId, const QString &path) {
     Q_UNUSED(path);
+    if (sender() != m_session.get())
+        return; // parked background session; ignore
     if (reqId != 0 && reqId != m_reqId)
         return;
     // Keep the current view intact (don't blank it); the status line already
@@ -208,6 +284,12 @@ void FileSystemModel::onScanFinished() {
     // A directory scan started before we switched to flat mode may still be
     // running; ignore its late result so it doesn't clobber the flat listing.
     if (m_flatMode)
+        return;
+    // A LOCAL scan (e.g. from a freshly-created tab's initial listing) may still
+    // be in flight when the tab is turned into a network tab by connectNetwork().
+    // Its late result is stale -- dropping it here is what keeps a connecting
+    // remote tab blank instead of briefly showing the local directory.
+    if (m_session)
         return;
     beginResetModel();
     m_allEntries = m_watcher.result();

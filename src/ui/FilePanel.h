@@ -40,6 +40,16 @@ public:
     // `path`. Used by the tab-strip favorites menu so a chosen favorite lands in
     // the right-clicked tab. tabIndex < 0 targets the active tab.
     void navigateTabTo(int tabIndex, const QString &path);
+    // Labels the active tab as connecting to `label` ("user@host") with protocol
+    // `scheme`, right away -- before the link is up -- so the tab shows the host
+    // name (and its protocol icon) immediately instead of a bare directory. The
+    // stamp survives the connecting phase and tab switches; once connected the
+    // real displayName() (same shape) refreshes it. Call right after connectNetwork().
+    void setConnectingLabel(const QString &label, const QString &scheme);
+    // Switches to `tabIndex`, drops any server connection it holds (going back to
+    // the local filesystem), then navigates it to the local `path`. Used by the
+    // favorites menu: favorites are always local directories.
+    void openLocalInTab(int tabIndex, const QString &path);
     // Shows a flat listing of arbitrary file paths (e.g. Ctrl+F search results
     // spanning many directories) in place of the current directory. Any normal
     // navigation (Back, breadcrumb, double-click, refresh) leaves this mode.
@@ -131,7 +141,24 @@ public:
     // it, or core depending on ui.
     QVector<QPair<QString, QStringList>> tabSnapshot();
     int activeTabIndex() const { return m_tabManager->activeIndex(); }
+    int tabCount() const { return m_tabManager->count(); }
     void restoreTabs(const QVector<QPair<QString, QStringList>> &tabs, int activeIndex);
+    // Per-tab reconnect descriptor (host empty => local tab), for session save.
+    SavedConnection tabConnInfo(int index) const;
+    // Records the reconnect descriptor onto the active tab (set right after a
+    // connect so a later session save can persist and re-establish it).
+    void setActiveTabConnInfo(const SavedConnection &conn);
+    // Re-establishes a network connection on the tab at `index` during session
+    // restore: switches to it, connects `provider` via `connectFn`, labels it with
+    // `label`, and records `connInfo`. `authFactory` (may be empty) lets a password
+    // prompt retry. Runs asynchronously -- never blocks startup.
+    void connectTabTo(int index, std::shared_ptr<FileProvider> provider,
+                      std::function<bool(QString *)> connectFn, const QString &initialPath,
+                      const QString &label, const SavedConnection &connInfo,
+                      FileSystemModel::AuthRetryFactory authFactory);
+    // Makes the tab at `index` active (swapping in its parked connection), without
+    // navigating. Used to return focus to the saved active tab after reconnecting.
+    void activateTab(int index);
 
     FileSystemModel *model() const { return m_model; }
     FileListView *view() const { return m_view; }
@@ -205,6 +232,15 @@ private:
         bool flat = false;      // true => flatPaths is the listing; false => dir
         QString dir;            // directory path (when !flat)
         QStringList flatPaths;  // flat listing entries (when flat)
+        // The backend this location was viewed through (conn.session null => a
+        // local location). Recorded so Back/Forward restores a live server
+        // connection and its tab label, not just the path. The shared_ptr keeps
+        // the parked session running until this entry is discarded.
+        FileSystemModel::NetworkConn conn;
+        QString connScheme;     // protocol icon for the restored tab
+        QString connLabel;      // "user@host" prefix for the restored tab
+        SavedConnection connInfo; // reconnect descriptor, so restored network
+                                  // history stays session-persistable
         bool isValid() const { return flat ? !flatPaths.isEmpty() : !dir.isEmpty(); }
     };
     // Snapshots what the view currently shows, for pushing onto a history stack.
@@ -244,6 +280,19 @@ private:
     void saveCurrentTabState();
     void loadTabState(int index);
     void updateActiveTabLabel();
+    // Renders each tab's protocol icon (sftp/smb/ftp/webdav) from that tab's OWN
+    // stored connScheme, so a tab keeps its icon regardless of what backend is
+    // momentarily active or what a sibling tab is doing.
+    void refreshTabIcons();
+    // Records the active tab's connection identity (scheme + "user@host") from the
+    // live backend into its TabState, so its icon/label survive tab switches.
+    void stampActiveConnection();
+    // Moves the model's active connection into `tab` (parks it, still running) so
+    // it stays alive while `tab` is inactive. No-op for a local active tab.
+    void parkConnectionInto(const QSharedPointer<TabState> &tab);
+    // Installs `tab`'s parked connection as the model's active backend (or goes
+    // local if `tab` has none), and syncs the connection status line.
+    void adoptConnectionFrom(const QSharedPointer<TabState> &tab);
 
     BreadcrumbBar *m_addressBar;
     QToolButton *m_treeButton; // "🗀" toggles this panel's folder tree; first in the row
@@ -263,6 +312,10 @@ private:
     FileSystemModel *m_model;
     QVector<NavEntry> m_backHistory;
     QVector<NavEntry> m_forwardHistory;
+    // Set when a fresh connection is starting so the very next navigateTo (the
+    // initial listing of the remote root) doesn't push a bogus history entry for
+    // the transient pre-connect local directory the new tab was created at.
+    bool m_suppressHistoryOnce = false;
 
     TabManager *m_tabManager;
     TabBar *m_tabBar;

@@ -18,6 +18,19 @@ void savePanel(QSettings &settings, const QString &group, const SessionPanelData
         settings.setArrayIndex(i);
         settings.setValue("path", panel.tabs.at(i).path);
         settings.setValue("selectedFiles", panel.tabs.at(i).selectedFiles);
+        // Network reconnect descriptor -- only written for a network tab (non-empty
+        // host). Password is NOT stored here; it lives in the keyring under `id`
+        // (bookmark connections) or relies on key-auth / a re-prompt.
+        const SavedConnection &c = panel.tabs.at(i).conn;
+        if (!c.host.isEmpty()) {
+            settings.setValue("conn/protocol", c.protocol);
+            settings.setValue("conn/host", c.host);
+            settings.setValue("conn/port", c.port);
+            settings.setValue("conn/user", c.user);
+            settings.setValue("conn/remotePath", c.remotePath);
+            settings.setValue("conn/anonymous", c.anonymous);
+            settings.setValue("conn/id", c.id);
+        }
     }
     settings.endArray();
     settings.endGroup();
@@ -37,6 +50,15 @@ bool loadPanel(QSettings &settings, const QString &group, SessionPanelData &pane
         SessionTabData tab;
         tab.path = settings.value("path").toString();
         tab.selectedFiles = settings.value("selectedFiles").toStringList();
+        tab.conn.host = settings.value("conn/host").toString();
+        if (!tab.conn.host.isEmpty()) {
+            tab.conn.protocol = settings.value("conn/protocol").toInt();
+            tab.conn.port = settings.value("conn/port").toInt();
+            tab.conn.user = settings.value("conn/user").toString();
+            tab.conn.remotePath = settings.value("conn/remotePath").toString();
+            tab.conn.anonymous = settings.value("conn/anonymous").toBool();
+            tab.conn.id = settings.value("conn/id").toString();
+        }
         panel.tabs.append(tab);
     }
     settings.endArray();

@@ -5,9 +5,14 @@
 #include <QStringList>
 #include <QVector>
 
+#include "network/ConnectionStore.h" // SavedConnection
+
 struct SessionTabData {
     QString path;
     QStringList selectedFiles;
+    // A network tab's reconnect descriptor (conn.host empty => local tab), so the
+    // server and its tab label are re-established on next launch.
+    SavedConnection conn;
 };
 
 struct SessionPanelData {

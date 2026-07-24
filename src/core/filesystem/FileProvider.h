@@ -44,6 +44,11 @@ public:
     // keep the plain directory-name tab label.
     virtual QString displayName() const { return {}; }
 
+    // Short lowercase protocol identifier for network backends: "sftp", "smb",
+    // "ftp", or "webdav". Used to pick the per-protocol tab icon so the user can
+    // tell connection types apart at a glance. Empty for local/archive backends.
+    virtual QString scheme() const { return {}; }
+
     // Sets the connect/operation timeout (milliseconds) for network backends, so
     // a stalled connection or request fails instead of hanging indefinitely.
     // Local and archive backends ignore it. Must be set before connectToHost to

@@ -275,6 +275,26 @@ void ConnectDialog::accept() {
 
     const int port = m_portSpin->value();
 
+    // The tab label to show immediately while connecting -- same "user@host"
+    // shape the providers' displayName() returns once connected, so the tab
+    // doesn't jump when the link comes up.
+    m_displayLabel = user.isEmpty() ? host : user + QLatin1Char('@') + host;
+
+    // Reconnect descriptor for session persistence (so this server -- and its tab
+    // label -- return on next launch). Password is NOT stored here; m_currentId
+    // (set when a bookmark was loaded) lets the keyring password be looked up.
+    m_connInfo = SavedConnection{};
+    m_connInfo.protocol = static_cast<int>(protocol);
+    m_connInfo.host = host;
+    m_connInfo.port = port;
+    m_connInfo.user = user;
+    m_connInfo.anonymous = anonymous;
+    m_connInfo.id = m_currentId;
+    {
+        const QString rp = m_pathEdit->text().trimmed();
+        m_connInfo.remotePath = rp.isEmpty() ? QStringLiteral("/") : rp;
+    }
+
     // Native backends (SFTP/FTP/WebDAV/SMB): DON'T connect here -- that would
     // block the GUI thread on the network. Build the (unconnected) provider and
     // a connect closure; the caller hands both to FileSystemModel::connectNetwork

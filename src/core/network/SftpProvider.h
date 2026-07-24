@@ -37,6 +37,7 @@ public:
 
     // Connection label for network tabs: "user@host" (or "host" if no user).
     QString displayName() const override;
+    QString scheme() const override { return QStringLiteral("sftp"); }
 
     // Bounds the TCP connect phase and every subsequent blocking libssh2 call.
     // Must be set before connectToHost(). Ignored if <= 0.

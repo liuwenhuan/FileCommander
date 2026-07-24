@@ -425,7 +425,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     if (SessionManager::load(leftSession, rightSession)) {
         // Drop tabs whose removable medium is gone (device unplugged while the
         // app was closed), keeping the active-tab index pointing at a survivor.
-        auto buildTabs = [](const SessionPanelData &s, int &activeOut) {
+        // Network tabs kept for reconnection: (restored index -> descriptor).
+        QVector<QPair<int, SavedConnection>> leftNet, rightNet;
+        auto buildTabs = [](const SessionPanelData &s, int &activeOut,
+                            QVector<QPair<int, SavedConnection>> &netTabs) {
             QVector<QPair<QString, QStringList>> tabs;
             int active = 0;
             for (int i = 0; i < s.tabs.size(); ++i) {
@@ -433,14 +436,17 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
                     continue;
                 if (i < s.activeTab)
                     ++active; // this kept tab sits before the old active one
+                const int newIndex = tabs.size();
                 tabs.append({s.tabs.at(i).path, s.tabs.at(i).selectedFiles});
+                if (!s.tabs.at(i).conn.host.isEmpty())
+                    netTabs.append({newIndex, s.tabs.at(i).conn});
             }
             activeOut = qBound(0, active, qMax(0, tabs.size() - 1));
             return tabs;
         };
         int leftActive = 0, rightActive = 0;
-        const auto leftTabs = buildTabs(leftSession, leftActive);
-        const auto rightTabs = buildTabs(rightSession, rightActive);
+        const auto leftTabs = buildTabs(leftSession, leftActive, leftNet);
+        const auto rightTabs = buildTabs(rightSession, rightActive, rightNet);
         if (leftTabs.isEmpty())
             m_leftPanel->navigateTo(home);
         else
@@ -449,6 +455,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
             m_rightPanel->navigateTo(home);
         else
             m_rightPanel->restoreTabs(rightTabs, rightActive);
+        // Re-establish the servers (async) so remote tabs -- and their labels --
+        // come back instead of silently showing a local directory.
+        reconnectNetworkTabs(m_leftPanel, leftNet, leftActive);
+        reconnectNetworkTabs(m_rightPanel, rightNet, rightActive);
     } else {
         m_leftPanel->navigateTo(home);
         m_rightPanel->navigateTo(home);
@@ -1304,6 +1314,9 @@ namespace {
 struct SavedNativeProvider {
     std::shared_ptr<FileProvider> provider;
     std::function<bool(QString *)> connectFn;
+    // Rebuilds the connect closure with user-entered credentials, so an anonymous
+    // or wrong-password connection can be retried after a prompt.
+    FileSystemModel::AuthRetryFactory authFactory;
 };
 
 // Builds (but does not connect) the native provider for a saved bookmark,
@@ -1316,29 +1329,55 @@ SavedNativeProvider providerForSaved(const SavedConnection &c) {
     switch (protocol) {
     case GvfsMounter::Protocol::Sftp: {
         auto p = std::make_shared<SftpProvider>();
-        return {p, [p, c, password](QString *e) {
+        auto factory = [p, c](const QString &u, const QString &pw) {
+            return std::function<bool(QString *)>(
+                [p, c, u, pw](QString *e) { return p->connectToHost(c.host, c.port, u, pw, e); });
+        };
+        return {p,
+                [p, c, password](QString *e) {
                     return p->connectToHost(c.host, c.port, c.user, password, e);
-                }};
+                },
+                factory};
     }
     case GvfsMounter::Protocol::Ftp: {
         auto p = std::make_shared<CurlFtpProvider>();
-        return {p, [p, c, password](QString *e) {
+        auto factory = [p, c](const QString &u, const QString &pw) {
+            return std::function<bool(QString *)>(
+                [p, c, u, pw](QString *e) { return p->connectToHost(c.host, c.port, u, pw, e); });
+        };
+        return {p,
+                [p, c, password](QString *e) {
                     return p->connectToHost(c.host, c.port, c.user, password, e);
-                }};
+                },
+                factory};
     }
     case GvfsMounter::Protocol::WebDav:
     case GvfsMounter::Protocol::WebDavs: {
         auto p = std::make_shared<CurlWebDavProvider>();
         const bool useHttps = protocol == GvfsMounter::Protocol::WebDavs;
-        return {p, [p, c, password, useHttps](QString *e) {
+        auto factory = [p, c, useHttps](const QString &u, const QString &pw) {
+            return std::function<bool(QString *)>([p, c, u, pw, useHttps](QString *e) {
+                return p->connectToHost(c.host, c.port, u, pw, useHttps, e);
+            });
+        };
+        return {p,
+                [p, c, password, useHttps](QString *e) {
                     return p->connectToHost(c.host, c.port, c.user, password, useHttps, e);
-                }};
+                },
+                factory};
     }
     case GvfsMounter::Protocol::Smb: {
         auto p = std::make_shared<SmbProvider>();
-        return {p, [p, c, password](QString *e) {
+        auto factory = [p, c](const QString &u, const QString &pw) {
+            return std::function<bool(QString *)>([p, c, u, pw](QString *e) {
+                return p->connectToHost(c.host, u, pw, QString(), /*anonymous=*/false, e);
+            });
+        };
+        return {p,
+                [p, c, password](QString *e) {
                     return p->connectToHost(c.host, c.user, password, QString(), c.anonymous, e);
-                }};
+                },
+                factory};
     }
     default:
         return {};
@@ -1372,8 +1411,19 @@ void MainWindow::openExternalConnections() {
                 // shows "connecting / reconnecting / failed". Never blocks the UI.
                 const QString path =
                     conn.remotePath.isEmpty() ? QStringLiteral("/") : conn.remotePath;
-                m_activePanel->model()->connectNetwork(native.provider, native.connectFn, path);
-                m_activePanel->navigateTo(path);
+                // Open in a fresh tab on the left panel, not the active tab.
+                FilePanel *panel = beginServerConnection();
+                panel->model()->connectNetwork(native.provider, native.connectFn, path);
+                // Show the host name on the tab immediately, before it connects.
+                const QString label =
+                    conn.user.isEmpty() ? conn.host : conn.user + QLatin1Char('@') + conn.host;
+                panel->setConnectingLabel(label, native.provider->scheme());
+                // Record the connection so it is re-established (with its label) on
+                // next launch, and store the remote path we're opening.
+                SavedConnection persist = conn;
+                persist.remotePath = path;
+                panel->setActiveTabConnInfo(persist);
+                panel->navigateTo(path);
             });
     connect(dlg, &ExternalConnectDialog::openSmbHost, this, [this](const QString &hostName) {
         if (hostName.isEmpty())
@@ -1384,15 +1434,26 @@ void MainWindow::openExternalConnections() {
         auto connectFn = [provider, hostName](QString *e) {
             return provider->connectToHost(hostName, QString(), QString(), QString(), true, e);
         };
-        m_activePanel->model()->connectNetwork(provider, connectFn, QStringLiteral("/"));
+        // Open in a fresh tab on the left panel, not the active tab.
+        FilePanel *panel = beginServerConnection();
+        panel->model()->connectNetwork(provider, connectFn, QStringLiteral("/"));
+        // Show the host name on the tab immediately, before it connects.
+        panel->setConnectingLabel(hostName, QStringLiteral("smb"));
+        // Record for session reconnect (anonymous SMB browse of this host).
+        SavedConnection smbInfo;
+        smbInfo.protocol = static_cast<int>(GvfsMounter::Protocol::Smb);
+        smbInfo.host = hostName;
+        smbInfo.anonymous = true;
+        smbInfo.remotePath = QStringLiteral("/");
+        panel->setActiveTabConnInfo(smbInfo);
         // If the anonymous browse is denied, prompt for a login and retry with it.
-        m_activePanel->model()->setAuthContext(
+        panel->model()->setAuthContext(
             hostName, [provider, hostName](const QString &u, const QString &p) {
                 return std::function<bool(QString *)>([provider, hostName, u, p](QString *e) {
                     return provider->connectToHost(hostName, u, p, QString(), /*anonymous=*/false, e);
                 });
             });
-        m_activePanel->navigateTo(QStringLiteral("/"));
+        panel->navigateTo(QStringLiteral("/"));
     });
     // Gear next to the "Network Neighborhood" header: open the manual SMB form.
     connect(dlg, &ExternalConnectDialog::openSmbConnectForm, this,
@@ -2233,8 +2294,13 @@ void MainWindow::populateFavoritesMenu(QMenu *menu, FilePanel *panel, int tabInd
         placeholder->setEnabled(false);
     } else {
         for (const QString &favPath : favorites)
-            menu->addAction(favPath, this,
-                            [panel, favPath, tabIndex]() { panel->navigateTabTo(tabIndex, favPath); });
+            menu->addAction(favPath, this, [panel, favPath, tabIndex]() {
+                // Favorites are local directories: drop any server this tab holds
+                // and browse the local path. openLocalInTab() switches to the
+                // right-clicked tab, disconnects only THAT tab, then navigates --
+                // sibling tabs keep their own connections and icons.
+                panel->openLocalInTab(tabIndex, favPath);
+            });
     }
 }
 
@@ -2319,21 +2385,61 @@ bool MainWindow::promptCredentials(const QString &host, QString *user, QString *
     return true;
 }
 
+void MainWindow::reconnectNetworkTabs(FilePanel *panel,
+                                      const QVector<QPair<int, SavedConnection>> &netTabs,
+                                      int activeIndex) {
+    if (netTabs.isEmpty())
+        return;
+    for (const auto &nt : netTabs) {
+        const int idx = nt.first;
+        const SavedConnection &c = nt.second;
+        auto native = providerForSaved(c);
+        if (!native.provider)
+            continue;
+        const QString path = c.remotePath.isEmpty() ? QStringLiteral("/") : c.remotePath;
+        const QString label = c.user.isEmpty() ? c.host : c.user + QLatin1Char('@') + c.host;
+        // Async connect on the tab; keeps its label from the start. authFactory
+        // lets a password prompt retry if the stored/keyring credentials fail.
+        panel->connectTabTo(idx, native.provider, native.connectFn, path, label, c,
+                            native.authFactory);
+    }
+    // Return focus to the tab that was active last session (connectTabTo switched
+    // away to reach each network tab).
+    panel->activateTab(activeIndex);
+}
+
+FilePanel *MainWindow::beginServerConnection() {
+    // Server connections always land in a fresh tab on the LEFT panel, so they
+    // never clobber whatever the (possibly right, possibly busy) active panel is
+    // showing. Focus it so the user sees the new connection appear.
+    FilePanel *panel = m_leftPanel;
+    setActivePanel(panel);
+    panel->newTab();
+    panel->view()->setFocus();
+    return panel;
+}
+
 void MainWindow::openServerConnectDialog(bool preselectSmb) {
     ConnectDialog dlg(this);
     if (preselectSmb)
         dlg.selectProtocol(static_cast<int>(GvfsMounter::Protocol::Smb));
-    if (dlg.exec() != QDialog::Accepted || !m_activePanel)
+    if (dlg.exec() != QDialog::Accepted)
         return;
     if (auto provider = dlg.remoteProvider()) {
         // Native backend: connect asynchronously on a worker thread (status line
         // shows progress), then navigate to the initial remote path -- the
         // listing waits for the connection, never freezing the UI.
-        m_activePanel->model()->connectNetwork(provider, dlg.connectFn(), dlg.remotePath());
-        m_activePanel->navigateTo(dlg.remotePath());
+        FilePanel *panel = beginServerConnection();
+        panel->model()->connectNetwork(provider, dlg.connectFn(), dlg.remotePath());
+        // Show the host name on the tab immediately, before it connects.
+        panel->setConnectingLabel(dlg.displayLabel(), provider->scheme());
+        // Record for session reconnect on next launch.
+        panel->setActiveTabConnInfo(dlg.connectionInfo());
+        panel->navigateTo(dlg.remotePath());
     } else if (!dlg.mountedLocalPath().isEmpty()) {
         // gvfs-mounted protocols look like a local directory.
-        m_activePanel->navigateTo(dlg.mountedLocalPath());
+        FilePanel *panel = beginServerConnection();
+        panel->navigateTo(dlg.mountedLocalPath());
     }
 }
 
@@ -2918,13 +3024,21 @@ void MainWindow::closeEvent(QCloseEvent *event) {
     // Persist the panel divider position.
     m_settings.setPanelSplitterState(m_panelSplitter->saveState());
 
-    SessionPanelData leftSession, rightSession;
-    for (const auto &t : m_leftPanel->tabSnapshot())
-        leftSession.tabs.append({t.first, t.second});
-    leftSession.activeTab = m_leftPanel->activeTabIndex();
-    for (const auto &t : m_rightPanel->tabSnapshot())
-        rightSession.tabs.append({t.first, t.second});
-    rightSession.activeTab = m_rightPanel->activeTabIndex();
+    auto snapshotPanel = [](FilePanel *panel) {
+        SessionPanelData data;
+        const auto snap = panel->tabSnapshot();
+        for (int i = 0; i < snap.size(); ++i) {
+            SessionTabData t;
+            t.path = snap.at(i).first;
+            t.selectedFiles = snap.at(i).second;
+            t.conn = panel->tabConnInfo(i); // network reconnect descriptor (host empty => local)
+            data.tabs.append(t);
+        }
+        data.activeTab = panel->activeTabIndex();
+        return data;
+    };
+    SessionPanelData leftSession = snapshotPanel(m_leftPanel);
+    SessionPanelData rightSession = snapshotPanel(m_rightPanel);
     SessionManager::save(leftSession, rightSession);
 
     QMainWindow::closeEvent(event);

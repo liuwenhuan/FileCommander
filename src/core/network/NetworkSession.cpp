@@ -91,7 +91,12 @@ bool looksLikeAuthFailure(const QString &err) {
 } // namespace
 
 bool NetworkSession::reconnectCycle() {
-    for (int n = 1; n <= kMaxReconnects; ++n) {
+    // A never-connected session (initial dial) gets a short attempt budget so an
+    // unreachable host fails fast; a dropped-but-was-live link gets the full
+    // reconnect budget. m_everConnected only flips true on success (which
+    // returns), so this is stable for the whole cycle.
+    const int maxAttempts = m_everConnected ? kMaxReconnects : kInitialConnectAttempts;
+    for (int n = 1; n <= maxAttempts; ++n) {
         if (m_stopping)
             return false;
         // Before the first success this is the initial connect ("connecting");
@@ -122,7 +127,7 @@ bool NetworkSession::reconnectCycle() {
         }
         // Backoff before the next attempt (none after the final failure):
         // 1s, 2s, 4s, 8s (capped at 8s).
-        if (n < kMaxReconnects) {
+        if (n < maxAttempts) {
             const int backoff = qMin(8000, 1000 << (n - 1));
             if (!backoffSleep(backoff))
                 return false;
@@ -135,6 +140,12 @@ bool NetworkSession::reconnectCycle() {
 bool NetworkSession::ensureConnected() {
     if (m_state == Connected)
         return true;
+    // Already given up (initial dial failed, or reconnect budget exhausted): don't
+    // silently re-run the whole cycle on every list request -- that would keep the
+    // tab stuck "connecting" and never let it settle on the failure. Rest in
+    // Failed; an explicit user retry() (onRetry) restarts the cycle directly.
+    if (m_state == Failed)
+        return false;
     return reconnectCycle();
 }
 
