@@ -466,6 +466,7 @@ struct TextSegment {
     QString text;
     QColor color;        // invalid == <text> default fill
     double fontSizeEmu;  // <=0 == <text> default font size
+    int baselineShift;   // data-baseline permille (0 == normal; >0 super, <0 sub)
 };
 
 // Read a <text> element's contents into runs. The reader is positioned on the
@@ -479,9 +480,10 @@ QVector<TextSegment> readTextSegments(QXmlStreamReader &xml) {
     QString cur;
     QColor curColor;         // invalid == default fill
     double curSize = 0.0;    // <=0 == default font size
+    int curShift = 0;        // data-baseline permille (0 == normal)
     auto flush = [&]() {
         if (!cur.isEmpty()) {
-            segs.push_back({cur, curColor, curSize});
+            segs.push_back({cur, curColor, curSize, curShift});
             cur.clear();
         }
     };
@@ -499,11 +501,18 @@ QVector<TextSegment> readTextSegments(QXmlStreamReader &xml) {
             bool okSize = false;
             const double sz = ta.value(QLatin1String("font-size")).toDouble(&okSize);
             curSize = okSize ? sz : 0.0;
+            // Contract v2 super/subscript: data-baseline is a permille offset
+            // (30000 == +30% of ascent up; -25000 == -25% down). oxide keeps the
+            // run's parent font-size; ttc shrinks + shifts it (see layoutTextBox).
+            bool okBl = false;
+            const int bl = ta.value(QLatin1String("data-baseline")).toInt(&okBl);
+            curShift = okBl ? bl : 0;
         } else if (tok == QXmlStreamReader::EndElement &&
                    xml.name() == QLatin1String("tspan")) {
             flush();             // close this run
             curColor = QColor();  // back to the <text> default colour
             curSize = 0.0;        // back to the <text> default font size
+            curShift = 0;         // back to the baseline
         } else if (tok == QXmlStreamReader::EndElement &&
                    xml.name() == QLatin1String("text")) {
             flush();
@@ -549,6 +558,375 @@ QFont buildTextFont(const QXmlStreamAttributes &attrs) {
     return font;
 }
 
+// ---------------------------------------------------------------------------
+// Contract-v2 layout layer (ttc is the sole typesetter).
+//
+// When oxide emits the v2 text contract (data-anchor / data-para present) it no
+// longer bakes a baseline y: it hands each paragraph's text box geometry and
+// leaves ALL layout to ttc -- line wrapping (with CJK kinsoku), line pitch,
+// vertical box anchoring, horizontal alignment, and super/subscript -- every one
+// computed here from real QFontMetricsF. The pre-v2 path (baked baseline y +
+// reflowTextBoxes) is untouched, so a deck from old oxide renders exactly as
+// before (zero regression); only v2 text takes the box engine below.
+// ---------------------------------------------------------------------------
+
+// Global vertical metric compensation. A Windows/Office font (e.g. 微软雅黑) is
+// substituted on Linux by fontconfig (-> 思源黑体/Source Han Sans), whose ascent
+// and line height differ slightly, so a whole paragraph can sit a touch high or
+// its lines too loose/tight versus PowerPoint. This table nudges the SUBSTITUTE
+// font's ascent/line-height back toward the authored font's proportions.
+//
+//   ascent : multiplies the measured ascent (shifts the first baseline down when
+//            >1) so the block's optical top matches Office.
+//   line   : multiplies the measured line height (the inter-line pitch).
+//
+// Keyed by the *authored* family (lower-cased, as it appears in font-family).
+// No entry  ->  {1,1} == use the substitute font's own metrics untouched (the
+// safe default the task calls for). ADD ENTRIES HERE as Office comparisons show
+// a consistent offset for a given source font -- values are empirical and belong
+// in this one obvious place.
+struct FontComp { double ascent; double line; };
+FontComp fontCompFor(const QString &familyRaw) {
+    static const QHash<QString, FontComp> table = {
+        // family (lower-case)          ascent   line     (1,1 == neutral)
+        {QStringLiteral("微软雅黑"),        {1.00, 1.00}},
+        {QStringLiteral("microsoft yahei"), {1.00, 1.00}},
+        {QStringLiteral("等线"),            {1.00, 1.00}},
+        {QStringLiteral("dengxian"),        {1.00, 1.00}},
+        {QStringLiteral("宋体"),            {1.00, 1.00}},
+        {QStringLiteral("simsun"),          {1.00, 1.00}},
+        {QStringLiteral("黑体"),            {1.00, 1.00}},
+        {QStringLiteral("simhei"),          {1.00, 1.00}},
+        {QStringLiteral("calibri"),         {1.00, 1.00}},
+    };
+    const auto it = table.constFind(familyRaw.trimmed().toLower());
+    return it != table.constEnd() ? it.value() : FontComp{1.0, 1.0};
+}
+
+// The first (primary) family named in a font-family list -- the one used to look
+// up the compensation table (oxide lists the EA/CJK family first).
+QString primaryFamily(const QXmlStreamAttributes &attrs) {
+    const QString raw = attrs.value(QLatin1String("font-family")).toString();
+    const int comma = raw.indexOf(QLatin1Char(','));
+    return (comma >= 0 ? raw.left(comma) : raw).trimmed();
+}
+
+// --- CJK line-break rules (kinsoku shori / 禁则处理) -----------------------
+// Characters that may not START a line (closing brackets, trailing punctuation):
+// when a break would put one at a line head, it "hangs" onto the previous line.
+bool isHeadForbidden(QChar c) {
+    static const QString set = QStringLiteral(
+        "，。、．：；！？）」』】》〉〕｝］’”､…‥・ー々ぁぃぅぇぉっゃゅょゎ"
+        "ァィゥェォッャュョヮ)]},.;:!?");
+    return set.contains(c);
+}
+// Characters that may not END a line (opening brackets): a break landing right
+// after one pushes it down to the next line instead.
+bool isTailForbidden(QChar c) {
+    static const QString set = QStringLiteral("（「『【《〈〔｛［‘“([{");
+    return set.contains(c);
+}
+
+// Character class for break-opportunity decisions.
+enum class CClass { Space, Alnum, Cjk, Other };
+CClass classOf(QChar c) {
+    if (c.isSpace())
+        return CClass::Space;
+    const ushort u = c.unicode();
+    // Latin letters/digits and the punctuation that binds a "word" together
+    // (so 12,345.6 / http://a.b / e-mail are not split mid-token).
+    if ((u >= '0' && u <= '9') || (u >= 'A' && u <= 'Z') || (u >= 'a' && u <= 'z') ||
+        c == QLatin1Char('.') || c == QLatin1Char(',') || c == QLatin1Char('/') ||
+        c == QLatin1Char('-') || c == QLatin1Char('_') || c == QLatin1Char('@') ||
+        c == QLatin1Char(':') || c == QLatin1Char('%') || c == QLatin1Char('+'))
+        return CClass::Alnum;
+    // CJK unified ideographs + common kana + fullwidth ranges wrap per glyph.
+    if ((u >= 0x4E00 && u <= 0x9FFF) || (u >= 0x3400 && u <= 0x4DBF) ||
+        (u >= 0x3040 && u <= 0x30FF) || (u >= 0xFF00 && u <= 0xFFEF) ||
+        (u >= 0x3000 && u <= 0x303F))
+        return CClass::Cjk;
+    return CClass::Other;
+}
+
+// One flattened glyph carrying the run it came from (for per-run font metrics).
+struct Glyph { QChar ch; int run; };
+
+// A run within a paragraph: its resolved font, colour and super/subscript.
+struct LineRun { QString text; QColor color; QFont font; int shift; };
+
+// A wrapped line: the runs that compose it, its total advance and the ascent to
+// place it by (max run ascent so a bigger glyph on the line still sits right).
+struct LaidLine { QVector<LineRun> runs; double width; double ascent; };
+
+// Whether a break is allowed *before* glyph i (i>0) given its neighbours.
+bool breakBefore(const QVector<Glyph> &g, int i) {
+    const CClass a = classOf(g[i - 1].ch);
+    const CClass b = classOf(g[i].ch);
+    if (a == CClass::Space || b == CClass::Space)
+        return true;                       // always breakable at whitespace
+    if (a == CClass::Alnum && b == CClass::Alnum)
+        return false;                      // keep an alnum word intact
+    return true;                           // CJK anywhere / across script boundary
+}
+
+// Nudge a proposed break index (first glyph of the next line) to satisfy kinsoku:
+// pull a head-forbidden char back onto this line, or push a tail-forbidden char
+// down to the next. Bounded so it can never collapse a line to nothing.
+int kinsoku(const QVector<Glyph> &g, int lineStart, int brk) {
+    const int n = g.size();
+    for (int guard = 0; guard < 4; ++guard) {
+        bool changed = false;
+        // Head rule: glyph at brk cannot open a line -> hang it on this line.
+        if (brk < n && brk > lineStart && isHeadForbidden(g[brk].ch)) {
+            ++brk;
+            changed = true;
+        }
+        // Tail rule: glyph at brk-1 cannot close a line -> drop it to the next.
+        if (brk - 1 > lineStart && isTailForbidden(g[brk - 1].ch)) {
+            --brk;
+            changed = true;
+        }
+        if (!changed)
+            break;
+    }
+    return qBound(lineStart + 1, brk, n);
+}
+
+// A paragraph resolved from one v2 <text>: box geometry + its runs, held until
+// buildSlidePage has read the whole box so the box can be laid out as a unit.
+struct V2Para {
+    QGraphicsItem *parent;
+    int box;
+    int para;
+    double x;                  // anchor x (scene)
+    Qt::Alignment halign;      // from text-anchor
+    double top;                // data-top (scene) -- box text-area top
+    double areaH;              // data-areah (scene) -- box text-area height
+    QChar vanchor;             // 't' / 'c' / 'b'
+    double dataW;              // wrap width (scene); <=0 == no wrap
+    double lineFactor;         // proportional line spacing (1.0 == single)
+    double lineFixed;          // fixed line pitch (scene); <=0 == use factor
+    double spcBefore;          // space before (scene)
+    double spcAfter;           // space after (scene)
+    double marL;               // left margin (scene)
+    double indent;             // first-line indent delta (scene)
+    QFont font;                // paragraph base font
+    QColor defColor;
+    FontComp comp;             // metric compensation for the base family
+    QVector<TextSegment> segs; // runs (colour / size / baseline)
+};
+
+// Break a paragraph's runs into wrapped lines using real metrics + kinsoku.
+QVector<LaidLine> wrapParagraph(const V2Para &p) {
+    // Flatten runs to glyphs and build the resolved per-run font/colour.
+    QVector<Glyph> glyphs;
+    QVector<QFont> runFont;
+    QVector<QColor> runColor;
+    QVector<int> runShift;
+    for (int r = 0; r < p.segs.size(); ++r) {
+        const TextSegment &s = p.segs[r];
+        QFont f = p.font;
+        if (s.fontSizeEmu > 0.0) {
+            int px = qRound(s.fontSizeEmu * S);
+            f.setPixelSize(px < 1 ? 1 : px);
+        }
+        if (s.baselineShift != 0) {
+            // Super/subscript run: shrink to ~62% (Office default) around its own
+            // size; the shift itself is applied when placing (needs the baseline).
+            int px = qMax(1, qRound(f.pixelSize() * 0.62));
+            f.setPixelSize(px);
+        }
+        runFont.push_back(f);
+        runColor.push_back(s.color.isValid() ? s.color : p.defColor);
+        runShift.push_back(s.baselineShift);
+        for (const QChar &ch : s.text)
+            glyphs.push_back({ch, r});
+    }
+    QVector<QFontMetricsF> fm;
+    fm.reserve(runFont.size());
+    for (const QFont &f : runFont)
+        fm.push_back(QFontMetricsF(f));
+
+    auto adv = [&](int i) { return fm[glyphs[i].run].horizontalAdvance(glyphs[i].ch); };
+
+    // Greedy wrap into [start,end) glyph ranges.
+    QVector<QPair<int, int>> ranges;
+    const int n = glyphs.size();
+    const double maxW = p.dataW;
+    int lineStart = 0;
+    double w = 0.0;
+    int lastBreak = -1; // last index a break is allowed before, within this line
+    for (int i = 0; i < n; ++i) {
+        if (glyphs[i].ch == QLatin1Char('\n')) { // forced break
+            ranges.push_back({lineStart, i});
+            lineStart = i + 1;
+            w = 0.0;
+            lastBreak = -1;
+            continue;
+        }
+        const double a = adv(i);
+        if (maxW > 0.0 && i > lineStart && w + a > maxW) {
+            int brk = (lastBreak > lineStart) ? lastBreak : i; // fall back to hard cut
+            brk = kinsoku(glyphs, lineStart, brk);
+            ranges.push_back({lineStart, brk});
+            lineStart = brk;
+            // Re-measure the glyphs carried onto the new line up to (not incl.) i.
+            w = 0.0;
+            for (int k = lineStart; k < i; ++k)
+                w += adv(k);
+            lastBreak = -1;
+        }
+        if (i > lineStart && breakBefore(glyphs, i))
+            lastBreak = i;
+        w += a;
+    }
+    if (lineStart < n || ranges.isEmpty())
+        ranges.push_back({lineStart, n});
+
+    // Materialise each range into runs (grouping consecutive same-run glyphs) and
+    // measure the line's advance + ascent.
+    QVector<LaidLine> lines;
+    for (const auto &rg : ranges) {
+        LaidLine line;
+        line.width = 0.0;
+        line.ascent = 0.0;
+        int i = rg.first;
+        // Skip a single leading space left by a wrap (keeps wrapped lines flush).
+        if (i < rg.second && i > 0 && glyphs[i].ch == QLatin1Char(' '))
+            ++i;
+        while (i < rg.second) {
+            const int r = glyphs[i].run;
+            QString txt;
+            while (i < rg.second && glyphs[i].run == r) {
+                txt.append(glyphs[i].ch);
+                ++i;
+            }
+            LineRun lr{txt, runColor[r], runFont[r], runShift[r]};
+            line.runs.push_back(lr);
+            line.width += fm[r].horizontalAdvance(txt);
+            line.ascent = qMax(line.ascent, fm[r].ascent());
+        }
+        if (line.ascent <= 0.0)
+            line.ascent = QFontMetricsF(p.font).ascent();
+        lines.push_back(line);
+    }
+    if (lines.isEmpty())
+        lines.push_back(LaidLine{{}, 0.0, QFontMetricsF(p.font).ascent()});
+    return lines;
+}
+
+// Render one wrapped line at a known baseline. A line free of super/subscript is
+// a single selectable QGraphicsTextItem (runs inserted for colour/size). A line
+// carrying a shifted run is drawn as per-run QGraphicsSimpleTextItem so each run
+// sits at its exact (possibly raised/lowered) baseline -- selection is traded for
+// precise placement on those rare lines.
+void emitLine(const LaidLine &line, double left, double baselineY, double baseAscent,
+              QGraphicsItem *parent) {
+    bool anyShift = false;
+    for (const LineRun &r : line.runs)
+        if (r.shift != 0) {
+            anyShift = true;
+            break;
+        }
+    if (!anyShift) {
+        auto *item = new QGraphicsTextItem(parent);
+        item->document()->setDocumentMargin(0);
+        item->setTextWidth(-1);
+        QTextCursor cur(item->document());
+        for (const LineRun &r : line.runs) {
+            QTextCharFormat fmt;
+            fmt.setForeground(r.color);
+            fmt.setFont(r.font);
+            cur.insertText(r.text, fmt);
+        }
+        item->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        item->setPos(left, baselineY - line.ascent); // baseline lands on baselineY
+        return;
+    }
+    double penX = left;
+    for (const LineRun &r : line.runs) {
+        auto *g = new QGraphicsSimpleTextItem(r.text, parent);
+        g->setFont(r.font);
+        g->setBrush(r.color);
+        const QFontMetricsF rfm(r.font);
+        // Positive shift raises the baseline (superscript), negative lowers it.
+        const double dy = (r.shift / 100000.0) * baseAscent;
+        g->setPos(penX, baselineY - rfm.ascent() - dy);
+        penX += rfm.horizontalAdvance(r.text);
+    }
+}
+
+// Lay out and create the items for every v2 text box collected during parse.
+// Boxes are independent; paragraphs within a box stack from data-top, then the
+// whole block is vertically anchored (t/ctr/b) inside the text area.
+void layoutV2Boxes(const QVector<V2Para> &paras) {
+    QHash<int, QVector<int>> byBox; // box id -> indices into paras
+    for (int i = 0; i < paras.size(); ++i)
+        byBox[paras[i].box].push_back(i);
+
+    for (auto it = byBox.begin(); it != byBox.end(); ++it) {
+        QVector<int> idx = it.value();
+        std::sort(idx.begin(), idx.end(),
+                  [&](int a, int b) { return paras[a].para < paras[b].para; });
+
+        // Box-level geometry comes from the first paragraph (oxide emits the same
+        // text-area top/height/anchor on every paragraph of a box).
+        const V2Para &first = paras[idx.front()];
+        const double top = first.top;
+        const double areaH = first.areaH;
+        const QChar vanchor = first.vanchor;
+
+        // Pre-wrap every paragraph and compute the total block height so the whole
+        // block can be anchored before any item is placed.
+        struct PP { QVector<LaidLine> lines; double pitch; double ascent0; double height0;
+                    double spcBefore; double spcAfter; };
+        QVector<PP> pp;
+        double H = 0.0;
+        for (int k = 0; k < idx.size(); ++k) {
+            const V2Para &p = paras[idx[k]];
+            const QFontMetricsF bfm(p.font);
+            PP e;
+            e.lines = wrapParagraph(p);
+            e.ascent0 = bfm.ascent() * p.comp.ascent;
+            e.height0 = bfm.height() * p.comp.line;
+            e.pitch = p.lineFixed > 0.0 ? p.lineFixed : e.height0 * p.lineFactor;
+            e.spcBefore = p.spcBefore;
+            e.spcAfter = p.spcAfter;
+            const int nl = e.lines.size();
+            H += e.spcBefore + e.height0 + (nl - 1) * e.pitch + e.spcAfter;
+            pp.push_back(e);
+        }
+
+        double y0 = top; // block top for vertical-anchor 't'
+        if (vanchor == QLatin1Char('c'))
+            y0 = top + (areaH - H) / 2.0;
+        else if (vanchor == QLatin1Char('b'))
+            y0 = top + (areaH - H);
+
+        double cursor = y0;
+        for (int k = 0; k < idx.size(); ++k) {
+            const V2Para &p = paras[idx[k]];
+            const PP &e = pp[k];
+            cursor += e.spcBefore;
+            const QFontMetricsF bfm(p.font);
+            const double baseAscent = bfm.ascent();
+            for (int li = 0; li < e.lines.size(); ++li) {
+                const LaidLine &line = e.lines[li];
+                const double baselineY = cursor + e.ascent0 + li * e.pitch;
+                double left = p.x + p.marL;      // anchor=start (left)
+                if (li == 0)
+                    left += p.indent;            // first-line indent (hanging list)
+                if (p.halign == Qt::AlignHCenter)
+                    left = p.x - line.width / 2.0;
+                else if (p.halign == Qt::AlignRight)
+                    left = p.x - line.width;
+                emitLine(line, left, baselineY, baseAscent, p.parent);
+            }
+            cursor += e.height0 + (e.lines.size() - 1) * e.pitch + e.spcAfter;
+        }
+    }
+}
+
 // B2a vertical text (data-vert="mongolianVert"/"eaVert"): glyphs stack top to
 // bottom within a column; successive columns advance right to left. Each glyph is
 // its own QGraphicsSimpleTextItem, so no horizontal QTextDocument wrapping is
@@ -589,28 +967,79 @@ void addVerticalText(const QXmlStreamAttributes &attrs,
     const double boxW = attrNum(attrs, "data-w", -1.0) * S;
     const double boxH = attrNum(attrs, "data-h", -1.0) * S;
     const double rightEdge = boxW > 0.0 ? boxLeft + boxW : boxLeft + colW;
+
+    // B6: build cells. A CJK/other glyph is its own upright cell; a maximal run of
+    // Latin/digits (with interior spaces) becomes ONE horizontal cell rotated 90°
+    // clockwise into the vertical flow -- so "PowerPoint" reads as a single tilted
+    // word instead of a stuttered column of single letters. '\n' forces a column.
+    struct VCell { bool brk; bool rotated; QString text; QFont font; QColor color; double h; };
+    QVector<VCell> cells;
+    for (int i = 0; i < text.size();) {
+        const QChar ch = text.at(i);
+        if (ch == QLatin1Char('\n')) {
+            cells.push_back({true, false, QString(), font, defColor, 0.0});
+            ++i;
+            continue;
+        }
+        if (classOf(ch) == CClass::Alnum) {
+            // Merge this Latin/digit token (plus interior spaces) into one cell.
+            const QFont f = fonts.at(i);
+            const QColor c = colors.at(i);
+            QString run;
+            int j = i;
+            while (j < text.size()) {
+                const QChar cj = text.at(j);
+                if (cj == QLatin1Char('\n'))
+                    break;
+                const CClass cc = classOf(cj);
+                if (cc == CClass::Alnum || (cc == CClass::Space && j + 1 < text.size() &&
+                                            classOf(text.at(j + 1)) == CClass::Alnum)) {
+                    run.append(cj);
+                    ++j;
+                } else {
+                    break;
+                }
+            }
+            const double h = QFontMetricsF(f).horizontalAdvance(run);
+            cells.push_back({false, true, run, f, c, h});
+            i = j;
+            continue;
+        }
+        cells.push_back({false, false, QString(ch), fonts.at(i), colors.at(i), step});
+        ++i;
+    }
+
     double colX = rightEdge - colW; // left x of the current (rightmost) column
     double y = boxTop;
-    int inCol = 0; // glyphs placed in the current column (>=1 before we may wrap)
-    for (int i = 0; i < text.size(); ++i) {
-        const QChar ch = text.at(i);
-        if (ch == QLatin1Char('\n')) { // explicit break -> next column
+    int inCol = 0; // cells placed in the current column (>=1 before we may wrap)
+    for (const VCell &cell : cells) {
+        if (cell.brk) { // explicit break -> next column
             colX -= colW;
             y = boxTop;
             inCol = 0;
             continue;
         }
-        if (boxH > 0.0 && inCol > 0 && y + step > boxTop + boxH) {
+        if (boxH > 0.0 && inCol > 0 && y + cell.h > boxTop + boxH) {
             colX -= colW; // column full: advance leftward, restart at the top
             y = boxTop;
             inCol = 0;
         }
-        auto *g = new QGraphicsSimpleTextItem(QString(ch), page);
-        g->setFont(fonts.at(i));
-        g->setBrush(colors.at(i));
-        const double adv = QFontMetricsF(fonts.at(i)).horizontalAdvance(ch);
-        g->setPos(colX + (colW - adv) / 2.0, y); // centre the glyph within its column
-        y += step;
+        auto *g = new QGraphicsSimpleTextItem(cell.text, page);
+        g->setFont(cell.font);
+        g->setBrush(cell.color);
+        if (cell.rotated) {
+            // Rotate +90° CW about the item's top-left: glyphs then advance
+            // downward and the run's line-height extends leftward by fontH. Anchor
+            // the strip's right edge so it is centred within the column's width.
+            const double fontH = QFontMetricsF(cell.font).height();
+            g->setTransformOriginPoint(0, 0);
+            g->setRotation(90);
+            g->setPos(colX + (colW + fontH) / 2.0, y);
+        } else {
+            const double adv = QFontMetricsF(cell.font).horizontalAdvance(cell.text);
+            g->setPos(colX + (colW - adv) / 2.0, y); // centre glyph within its column
+        }
+        y += cell.h;
         ++inCol;
     }
 
@@ -622,7 +1051,8 @@ void addVerticalText(const QXmlStreamAttributes &attrs,
 }
 
 void addText(const QXmlStreamAttributes &attrs, const QVector<TextSegment> &segments,
-             QGraphicsItem *page, QString *outText, QVector<TextEntry> *entries) {
+             QGraphicsItem *page, QString *outText, QVector<TextEntry> *entries,
+             QVector<V2Para> *v2) {
     // Width/wrapping/anchor logic all runs on the full concatenated string; only the
     // per-run colours differ. outText and reflow also use this joined string.
     QString text;
@@ -642,6 +1072,56 @@ void addText(const QXmlStreamAttributes &attrs, const QVector<TextSegment> &segm
     const QStringRef vert = attrs.value(QLatin1String("data-vert"));
     if (vert == QLatin1String("mongolianVert") || vert == QLatin1String("eaVert")) {
         addVerticalText(attrs, segments, font, defColor, page, outText);
+        return;
+    }
+
+    // Contract v2: oxide emits box geometry (data-anchor / data-para) and NO baked
+    // baseline; ttc owns the whole layout. Collect the paragraph here and defer to
+    // layoutV2Boxes() once the entire box has been read (so paragraphs can stack +
+    // the block can be vertically anchored). Old oxide never emits these, so the
+    // legacy baseline path below is untouched -> zero regression. (data-box is the
+    // grouping key; a v2 paragraph always carries one.)
+    if (v2 && (attrs.hasAttribute(QLatin1String("data-anchor")) ||
+               attrs.hasAttribute(QLatin1String("data-para")))) {
+        V2Para p;
+        p.parent = page;
+        bool okBox = false;
+        p.box = attrs.value(QLatin1String("data-box")).toInt(&okBox);
+        if (!okBox)
+            p.box = -1000000 - v2->size(); // ungrouped: give it a private box id
+        p.para = qRound(attrNum(attrs, "data-para", 0.0));
+        p.x = x;
+        const QStringRef anc = attrs.value(QLatin1String("text-anchor"));
+        p.halign = anc == QLatin1String("middle") ? Qt::AlignHCenter
+                   : anc == QLatin1String("end")  ? Qt::AlignRight
+                                                  : Qt::AlignLeft;
+        p.top = attrNum(attrs, "data-top") * S;
+        p.areaH = attrNum(attrs, "data-areah") * S;
+        const QStringRef va = attrs.value(QLatin1String("data-anchor"));
+        p.vanchor = va == QLatin1String("ctr")  ? QLatin1Char('c')
+                    : va == QLatin1String("b")   ? QLatin1Char('b')
+                                                 : QLatin1Char('t');
+        p.dataW = attrNum(attrs, "data-w", -1.0) * S;
+        p.lineFactor = attrs.hasAttribute(QLatin1String("data-linespacing"))
+                           ? attrNum(attrs, "data-linespacing", 100.0) / 100.0
+                           : 1.0;
+        p.lineFixed = attrs.hasAttribute(QLatin1String("data-linespacing-pts"))
+                          ? attrNum(attrs, "data-linespacing-pts") * S
+                          : -1.0;
+        p.spcBefore = attrNum(attrs, "data-spc-before") * S;
+        p.spcAfter = attrNum(attrs, "data-spc-after") * S;
+        p.marL = attrNum(attrs, "data-ml") * S;
+        p.indent = attrNum(attrs, "data-indent") * S;
+        p.font = font;
+        p.defColor = defColor;
+        p.comp = fontCompFor(primaryFamily(attrs));
+        p.segs = segments;
+        v2->push_back(p);
+        if (outText) { // preserve copy-all text in document order
+            if (!outText->isEmpty())
+                outText->append('\n');
+            outText->append(text);
+        }
         return;
     }
 
@@ -867,7 +1347,8 @@ QGraphicsItem *buildSlidePage(const QByteArray &svg, QSizeF *outSizeScene, QStri
     // other element is parented to it (its local space is the slide's EMU/100).
     QGraphicsRectItem *page = nullptr;
     QSizeF sizeScene(960 * S, 540 * S);
-    QVector<TextEntry> textEntries; // for post-parse same-box paragraph reflow
+    QVector<TextEntry> textEntries; // for post-parse same-box paragraph reflow (v1)
+    QVector<V2Para> v2Paras;        // contract-v2 paragraphs, laid out after parse
     // Parent stack: each element is parented to the current top. A <g transform>
     // pushes a rotation container so its children inherit the rotate(); a plain <g>
     // re-pushes the same top so the EndElement pop stays balanced.
@@ -949,7 +1430,7 @@ QGraphicsItem *buildSlidePage(const QByteArray &svg, QSizeF *outSizeScene, QStri
         else if (name == QLatin1String("image"))
             addImage(attrs, parent);
         else if (name == QLatin1String("text"))
-            addText(attrs, readTextSegments(xml), parent, outText, &textEntries);
+            addText(attrs, readTextSegments(xml), parent, outText, &textEntries, &v2Paras);
         // Unknown elements: ignored (graceful degradation).
     }
 
@@ -958,8 +1439,10 @@ QGraphicsItem *buildSlidePage(const QByteArray &svg, QSizeF *outSizeScene, QStri
         return nullptr;
     }
     // Now that every paragraph's wrapped height is known, cascade same-box
-    // paragraphs downward so wrapping never overlaps the next paragraph.
+    // paragraphs downward so wrapping never overlaps the next paragraph (v1 path).
     reflowTextBoxes(textEntries);
+    // Contract-v2 boxes: lay out + create all items now that each box is complete.
+    layoutV2Boxes(v2Paras);
     if (outSizeScene)
         *outSizeScene = sizeScene;
     return page;
