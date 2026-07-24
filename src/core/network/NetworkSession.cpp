@@ -3,6 +3,7 @@
 #include <QThread>
 #include <QTimer>
 
+#include "config/Settings.h"
 #include "filesystem/FileProvider.h"
 
 NetworkSession::NetworkSession(std::shared_ptr<FileProvider> provider, QObject *parent)
@@ -10,8 +11,13 @@ NetworkSession::NetworkSession(std::shared_ptr<FileProvider> provider, QObject *
     // Directory listings cross from the worker thread to the GUI thread via a
     // queued signal, so their element/container types must be registered.
     qRegisterMetaType<QVector<FileInfo>>("QVector<FileInfo>");
-    if (m_provider)
+    if (m_provider) {
         m_provider->setTimeoutMs(kConnectTimeoutMs);
+        // Size the provider's transfer connection pool to the transfer worker
+        // count so it opens exactly as many independent connections as there are
+        // concurrent transfers (SFTP/SMB use this; other backends ignore it).
+        m_provider->setMaxTransferChannels(Settings().maxConcurrentTransfers());
+    }
     m_thread = new QThread;
     m_thread->setObjectName(QStringLiteral("NetworkSession"));
     moveToThread(m_thread);

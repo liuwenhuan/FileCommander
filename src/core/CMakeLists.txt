@@ -27,6 +27,7 @@ add_library(core STATIC
     media/Id3Reader.cpp
     network/GvfsMounter.h
     network/GvfsMounter.cpp
+    network/ConnectionPool.h
     network/SftpProvider.h
     network/SftpProvider.cpp
     network/CurlFtpProvider.h

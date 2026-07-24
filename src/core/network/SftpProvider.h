@@ -3,11 +3,17 @@
 #include <QMutex>
 #include <QString>
 
+#include "ConnectionPool.h"
 #include "FileProvider.h"
 
 // libssh2 forward decls to keep the C headers out of this interface.
 struct _LIBSSH2_SESSION;
 struct _LIBSSH2_SFTP;
+
+// One independent SSH+SFTP physical connection borrowed by the pool for a
+// transfer. Defined in the .cpp (needs the libssh2 types); the pool only ever
+// handles SftpConn* so an incomplete type is enough here.
+struct SftpConn;
 
 // A remote file backend over SFTP (libssh2). Implements the FileProvider
 // interface so a FileSystemModel can browse a remote host exactly as it browses
@@ -47,6 +53,11 @@ public:
     // connectToHost(). Returns true on success.
     bool reconnect(QString *error) override;
 
+    // Caps the transfer connection pool at `channels` independent SSH sessions,
+    // matching the number of concurrent transfer workers. Injected by
+    // NetworkSession from the configured maxConcurrentTransfers.
+    void setMaxTransferChannels(int channels) override;
+
     // FileProvider overrides:
     QVector<FileInfo> list(const QString &path, bool showHidden) const override;
     bool isDir(const QString &path) const override;
@@ -56,9 +67,13 @@ public:
     RenameResult rename(const QString &path, const QString &newName, QString *newPath) override;
 
     // Streaming I/O over the SFTP subsystem so cross-provider transfers can read
-    // from / write to the remote host (with resume). Every call serialises on
-    // m_mutex just like list()/isDir(), because the libssh2 session is shared
-    // and not thread-safe and a directory scan may run concurrently.
+    // from / write to the remote host (with resume). openRead/openWrite borrow an
+    // independent SSH connection from the pool and pin it in the returned handle;
+    // read/write/seek then operate on that private connection with NO m_mutex, so
+    // concurrent transfers run truly in parallel and never contend with the
+    // interactive session's list()/isDir()/heartbeat. If the pool cannot hand out
+    // a connection, it transparently falls back to the shared single session
+    // (serialised on m_mutex like before), so a transfer always completes.
     FileHandle *openRead(const QString &path) override;
     FileHandle *openWrite(const QString &path, bool truncate) override;
     qint64 read(FileHandle *handle, char *buffer, qint64 maxSize) override;
@@ -72,7 +87,21 @@ public:
     bool mkdir(const QString &path) override;
 
 private:
-    // Serialises every access to the session/sftp handles.
+    // Builds one independent, authenticated SSH+SFTP connection (socket ->
+    // handshake -> password/key auth -> sftp init). No lock, no member access
+    // beyond the passed-in credentials; used both for the interactive session
+    // (connectToHost) and for every pooled transfer connection (the Factory).
+    // Returns a heap SftpConn* on success, or nullptr with *error populated.
+    static SftpConn *buildConnection(const QString &host, int port, const QString &user,
+                                     const QString &password, int timeoutMs, QString *error);
+    // Fully tears down and frees a SftpConn (the pool Destroyer; self-contained,
+    // captures no provider state so it is safe on the detached reaper thread).
+    static void destroyConnection(SftpConn *conn);
+    // Wires the pool's Factory/Destroyer/size once credentials are known.
+    void configurePool();
+
+    // Serialises every access to the shared interactive session/sftp handles
+    // (list/isDir/rename/heartbeat and the fallback transfer path only).
     mutable QMutex m_mutex;
 
     _LIBSSH2_SESSION *m_session = nullptr;
@@ -83,4 +112,8 @@ private:
     QString m_user;
     QString m_password; // retained for reconnect()
     int m_timeoutMs = 12000;
+
+    // Pool of independent SSH connections for concurrent transfers.
+    ConnectionPool<SftpConn> m_pool;
+    int m_maxChannels = 2;
 };

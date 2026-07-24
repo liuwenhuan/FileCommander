@@ -106,4 +106,12 @@ public:
     virtual bool remove(const QString & /*path*/) { return false; }
     // Creates a directory (including parents where the backend allows). Default fails.
     virtual bool mkdir(const QString & /*path*/) { return false; }
+
+    // Sets the maximum number of independent physical connections this provider
+    // may open for concurrent streaming transfers (its internal connection
+    // pool's cap). Backends without a pool (local/archive, and the FTP/WebDAV
+    // backends whose per-handle curl handle already carries its own connection)
+    // ignore it. NetworkSession injects the configured maxConcurrentTransfers so
+    // the pool never opens more connections than there are transfer workers.
+    virtual void setMaxTransferChannels(int /*channels*/) {}
 };

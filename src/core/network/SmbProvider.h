@@ -3,6 +3,7 @@
 #include <QMutex>
 #include <QString>
 
+#include "ConnectionPool.h"
 #include "FileProvider.h"
 
 // libsmbclient opaque context; forward-declared to keep the C header out of
@@ -56,6 +57,11 @@ public:
     // connectToHost(). Returns true on success.
     bool reconnect(QString *error) override;
 
+    // Caps the transfer connection pool at `channels` independent SMBCCTX
+    // contexts, matching the number of concurrent transfer workers. Injected by
+    // NetworkSession from the configured maxConcurrentTransfers.
+    void setMaxTransferChannels(int channels) override;
+
     // Read by the libsmbclient auth callback (a free function in the .cpp),
     // which runs synchronously inside a libsmbclient call this provider issued.
     // The values are set once in connectToHost() and never mutated after, so
@@ -73,7 +79,12 @@ public:
     RenameResult rename(const QString &path, const QString &newName, QString *newPath) override;
 
     // Streaming I/O over SMB so cross-provider transfers can read from / write
-    // to the share (with resume). Serialised on m_mutex like list().
+    // to the share (with resume). openRead/openWrite borrow an independent
+    // SMBCCTX from the pool and pin it in the returned handle; read/write/seek
+    // then operate on that private context with NO m_mutex, so concurrent
+    // transfers run in parallel and never contend with the interactive context's
+    // list()/isDir()/heartbeat. If the pool cannot hand out a context, it falls
+    // back to the shared interactive context (serialised on m_mutex).
     FileHandle *openRead(const QString &path) override;
     FileHandle *openWrite(const QString &path, bool truncate) override;
     qint64 read(FileHandle *handle, char *buffer, qint64 maxSize) override;
@@ -90,7 +101,17 @@ private:
     // Builds the "smb://host<path>" URL for a POSIX provider path.
     QString urlFor(const QString &path) const;
 
-    // Serialises every access to the context/handles.
+    // Creates, initialises and probes one independent SMBCCTX using the current
+    // credentials (read via the auth callback, which reaches back through
+    // smbc_getOptionUserData). No lock; used both for the interactive context
+    // (connectToHost) and for every pooled transfer context (the Factory).
+    // Returns the context on success, or nullptr with *error populated.
+    SMBCCTX *buildContext(QString *error);
+    // Wires the pool's Factory/Destroyer/size once credentials are known.
+    void configurePool();
+
+    // Serialises every access to the shared interactive context/handles
+    // (list/isDir/rename/heartbeat and the fallback transfer path only).
     mutable QMutex m_mutex;
 
     SMBCCTX *m_ctx = nullptr;
@@ -104,4 +125,8 @@ private:
     QString m_workgroup;
     bool m_anonymous = false; // remembered so reconnect() reuses guest mode
     int m_timeoutMs = 12000;
+
+    // Pool of independent SMBCCTX contexts for concurrent transfers.
+    ConnectionPool<SMBCCTX> m_pool;
+    int m_maxChannels = 2;
 };

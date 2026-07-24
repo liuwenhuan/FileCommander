@@ -74,9 +74,15 @@ bool tcpReachable(const QString &host, int port, int timeoutMs) {
 
 // Wraps a libsmbclient file handle so it can travel through the opaque
 // FileHandle interface. Opened by openRead/openWrite, closed by closeHandle.
+// When `conn` is non-null the handle owns a pooled context borrowed for the
+// transfer and all I/O runs on it lock-free; when `conn` is null the handle uses
+// the provider's shared interactive context under m_mutex (the fallback path).
 struct SmbHandle : FileHandle {
     SMBCFILE *file = nullptr;
+    SMBCCTX *conn = nullptr; // borrowed from the pool; null => shared-context fallback
+    bool broken = false;     // an I/O error occurred -> discard the ctx, don't reuse
     explicit SmbHandle(SMBCFILE *f) : file(f) {}
+    SmbHandle(SMBCFILE *f, SMBCCTX *c) : file(f), conn(c) {}
 };
 
 // libsmbclient's auth callback. It runs synchronously inside a libsmbclient
@@ -110,7 +116,88 @@ void authCallback(SMBCCTX *ctx, const char * /*srv*/, const char * /*shr*/,
 SmbProvider::SmbProvider() = default;
 
 SmbProvider::~SmbProvider() {
+    // Non-blocking teardown of the transfer pool first: the transfer workers are
+    // already joined by the OperationQueue destructor by the time a provider is
+    // released, so the pool holds only idle contexts, handed off to a detached
+    // reaper so this destructor never blocks on a slow disconnect.
+    m_pool.shutdownAsync();
     disconnect();
+}
+
+SMBCCTX *SmbProvider::buildContext(QString *error) {
+    SMBCCTX *ctx = smbc_new_context();
+    if (!ctx) {
+        if (error)
+            *error = QStringLiteral("Failed to allocate SMB context");
+        return nullptr;
+    }
+
+    smbc_setOptionUserData(ctx, this);
+    smbc_setFunctionAuthDataWithContext(ctx, authCallback);
+    // This backend targets username/password (and guest) access to Samba/NAS
+    // shares, so Kerberos is not required; keep it off and rely on the auth
+    // callback.
+    smbc_setOptionUseKerberos(ctx, 0);
+    smbc_setOptionFallbackAfterKerberos(ctx, 1);
+    // Allow an anonymous/guest attempt when no credentials are supplied.
+    smbc_setOptionNoAutoAnonymousLogin(ctx, 0);
+    smbc_setDebug(ctx, 0);
+    // Bound waits on connection establishment and response data (milliseconds).
+    smbc_setTimeout(ctx, m_timeoutMs);
+
+    if (!smbc_init_context(ctx)) {
+        if (error)
+            *error = QStringLiteral("Failed to initialise SMB context: %1")
+                         .arg(QString::fromUtf8(std::strerror(errno)));
+        smbc_free_context(ctx, 1);
+        return nullptr;
+    }
+
+    // Probe: list the server's shares. This forces the actual connection +
+    // authentication so a bad host/credential fails here rather than on the
+    // first navigation.
+    const QByteArray rootUrl = urlFor(QStringLiteral("/")).toUtf8();
+    smbc_opendir_fn opendirFn = smbc_getFunctionOpendir(ctx);
+    smbc_closedir_fn closedirFn = smbc_getFunctionClosedir(ctx);
+    SMBCFILE *dir = opendirFn(ctx, rootUrl.constData());
+    if (!dir) {
+        const int e = errno;
+        if (error) {
+            // EACCES/EPERM here mean the server rejected the (anonymous) login --
+            // credentials are needed. Flag it clearly ("authentication") so the
+            // caller can prompt for a username/password instead of just failing.
+            if (e == EACCES || e == EPERM)
+                *error = QStringLiteral("Authentication required for \\\\%1: %2")
+                             .arg(m_host, QString::fromUtf8(std::strerror(e)));
+            else
+                *error = QStringLiteral("Cannot open \\\\%1: %2")
+                             .arg(m_host, QString::fromUtf8(std::strerror(e)));
+        }
+        smbc_free_context(ctx, 1);
+        return nullptr;
+    }
+    closedirFn(ctx, dir);
+    return ctx;
+}
+
+void SmbProvider::configurePool() {
+    // The Factory builds an independent context off any lock. It captures `this`
+    // (only invoked by borrow() during an active transfer, i.e. while the
+    // provider is alive); buildContext reads the effectively-const post-connect
+    // credentials via the auth callback and m_host. The Destroyer captures
+    // nothing, so it is safe on the detached reaper thread.
+    m_pool.configure(
+        [this](QString *err) -> SMBCCTX * { return buildContext(err); },
+        [](SMBCCTX *c) {
+            if (c)
+                smbc_free_context(c, 1);
+        },
+        m_maxChannels);
+}
+
+void SmbProvider::setMaxTransferChannels(int channels) {
+    m_maxChannels = channels > 0 ? channels : 1;
+    m_pool.setMaxSize(m_maxChannels);
 }
 
 bool SmbProvider::connectToHost(const QString &host, const QString &user,
@@ -173,66 +260,16 @@ bool SmbProvider::connectToHost(const QString &host, const QString &user,
         return false;
     }
 
-    SMBCCTX *ctx = smbc_new_context();
+    SMBCCTX *ctx = buildContext(error);
     if (!ctx) {
-        if (error)
-            *error = QStringLiteral("Failed to allocate SMB context");
-        m_host.clear();
-        return false;
-    }
-
-    smbc_setOptionUserData(ctx, this);
-    smbc_setFunctionAuthDataWithContext(ctx, authCallback);
-    // This backend targets username/password (and guest) access to Samba/NAS
-    // shares, so Kerberos is not required; keep it off and rely on the auth
-    // callback. (An AD/domain deployment that wants Kerberos mutual auth would
-    // need a per-connection toggle -- deferred.)
-    smbc_setOptionUseKerberos(ctx, 0);
-    smbc_setOptionFallbackAfterKerberos(ctx, 1);
-    // Allow an anonymous/guest attempt when no credentials are supplied.
-    smbc_setOptionNoAutoAnonymousLogin(ctx, 0);
-    smbc_setDebug(ctx, 0);
-    // Bound waits on connection establishment and response data (milliseconds)
-    // so a dead/unreachable server fails instead of hanging on the OS default.
-    smbc_setTimeout(ctx, m_timeoutMs);
-
-    if (!smbc_init_context(ctx)) {
-        if (error)
-            *error = QStringLiteral("Failed to initialise SMB context: %1")
-                         .arg(QString::fromUtf8(std::strerror(errno)));
-        smbc_free_context(ctx, 1);
         m_host.clear();
         return false;
     }
 
     m_ctx = ctx;
-
-    // Probe: list the server's shares. This forces the actual connection +
-    // authentication so a bad host/credential fails here rather than on the
-    // first navigation.
-    const QByteArray rootUrl = urlFor(QStringLiteral("/")).toUtf8();
-    smbc_opendir_fn opendirFn = smbc_getFunctionOpendir(ctx);
-    smbc_closedir_fn closedirFn = smbc_getFunctionClosedir(ctx);
-    SMBCFILE *dir = opendirFn(ctx, rootUrl.constData());
-    if (!dir) {
-        const int e = errno;
-        if (error) {
-            // EACCES/EPERM here mean the server rejected the (anonymous) login --
-            // credentials are needed. Flag it clearly ("authentication") so the
-            // caller can prompt for a username/password instead of just failing.
-            if (e == EACCES || e == EPERM)
-                *error = QStringLiteral("Authentication required for \\\\%1: %2")
-                             .arg(host, QString::fromUtf8(std::strerror(e)));
-            else
-                *error = QStringLiteral("Cannot open \\\\%1: %2")
-                             .arg(host, QString::fromUtf8(std::strerror(e)));
-        }
-        smbc_free_context(ctx, 1);
-        m_ctx = nullptr;
-        m_host.clear();
-        return false;
-    }
-    closedirFn(ctx, dir);
+    // Wire the transfer pool now that credentials are known. The pool builds its
+    // own independent contexts lazily on first borrow().
+    configurePool();
     return true;
 }
 
@@ -483,11 +520,26 @@ QString SmbProvider::parentPath(const QString &path) const {
 
 FileHandle *SmbProvider::openRead(const QString &path) {
     const QString clean = cleanPath(path);
+    const QByteArray url = urlFor(clean).toUtf8();
+
+    // Preferred path: borrow an independent context so the transfer runs
+    // lock-free and in parallel with other transfers and the interactive context.
+    QString perr;
+    if (SMBCCTX *conn = m_pool.borrow(&perr)) {
+        smbc_open_fn openFn = smbc_getFunctionOpen(conn);
+        SMBCFILE *f = openFn(conn, url.constData(), O_RDONLY, 0);
+        if (!f) {
+            m_pool.release(conn); // context is fine; open just failed (e.g. no file)
+            return nullptr;
+        }
+        return new SmbHandle(f, conn);
+    }
+
+    // Fallback: shared interactive context under m_mutex.
     QMutexLocker locker(&m_mutex);
     if (!m_ctx)
         return nullptr;
     smbc_open_fn openFn = smbc_getFunctionOpen(m_ctx);
-    const QByteArray url = urlFor(clean).toUtf8();
     SMBCFILE *f = openFn(m_ctx, url.constData(), O_RDONLY, 0);
     if (!f)
         return nullptr;
@@ -496,16 +548,30 @@ FileHandle *SmbProvider::openRead(const QString &path) {
 
 FileHandle *SmbProvider::openWrite(const QString &path, bool truncate) {
     const QString clean = cleanPath(path);
-    QMutexLocker locker(&m_mutex);
-    if (!m_ctx)
-        return nullptr;
+    const QByteArray url = urlFor(clean).toUtf8();
     // truncate=false (resume) keeps existing bytes so the caller can seek to the
     // append point; O_TRUNC is only added for a fresh/overwrite write.
     int flags = O_WRONLY | O_CREAT;
     if (truncate)
         flags |= O_TRUNC;
+
+    // Preferred path: independent pooled context, lock-free I/O.
+    QString perr;
+    if (SMBCCTX *conn = m_pool.borrow(&perr)) {
+        smbc_open_fn openFn = smbc_getFunctionOpen(conn);
+        SMBCFILE *f = openFn(conn, url.constData(), flags, 0644);
+        if (!f) {
+            m_pool.release(conn);
+            return nullptr;
+        }
+        return new SmbHandle(f, conn);
+    }
+
+    // Fallback: shared interactive context under m_mutex.
+    QMutexLocker locker(&m_mutex);
+    if (!m_ctx)
+        return nullptr;
     smbc_open_fn openFn = smbc_getFunctionOpen(m_ctx);
-    const QByteArray url = urlFor(clean).toUtf8();
     SMBCFILE *f = openFn(m_ctx, url.constData(), flags, 0644);
     if (!f)
         return nullptr;
@@ -516,6 +582,14 @@ qint64 SmbProvider::read(FileHandle *handle, char *buffer, qint64 maxSize) {
     auto *h = static_cast<SmbHandle *>(handle);
     if (!h || !h->file)
         return -1;
+    if (h->conn) {
+        // Private context: no shared state, so no lock -- true parallelism.
+        smbc_read_fn readFn = smbc_getFunctionRead(h->conn);
+        const ssize_t n = readFn(h->conn, h->file, buffer, static_cast<size_t>(maxSize));
+        if (n < 0)
+            h->broken = true; // physical error -> discard the ctx at close
+        return n < 0 ? -1 : static_cast<qint64>(n);
+    }
     QMutexLocker locker(&m_mutex);
     if (!m_ctx)
         return -1;
@@ -528,6 +602,13 @@ qint64 SmbProvider::write(FileHandle *handle, const char *buffer, qint64 size) {
     auto *h = static_cast<SmbHandle *>(handle);
     if (!h || !h->file)
         return -1;
+    if (h->conn) {
+        smbc_write_fn writeFn = smbc_getFunctionWrite(h->conn);
+        const ssize_t n = writeFn(h->conn, h->file, buffer, static_cast<size_t>(size));
+        if (n < 0)
+            h->broken = true;
+        return n < 0 ? -1 : static_cast<qint64>(n);
+    }
     QMutexLocker locker(&m_mutex);
     if (!m_ctx)
         return -1;
@@ -540,6 +621,10 @@ bool SmbProvider::seek(FileHandle *handle, qint64 offset) {
     auto *h = static_cast<SmbHandle *>(handle);
     if (!h || !h->file)
         return false;
+    if (h->conn) {
+        smbc_lseek_fn lseekFn = smbc_getFunctionLseek(h->conn);
+        return lseekFn(h->conn, h->file, static_cast<off_t>(offset), SEEK_SET) >= 0;
+    }
     QMutexLocker locker(&m_mutex);
     if (!m_ctx)
         return false;
@@ -551,11 +636,17 @@ qint64 SmbProvider::handleSize(FileHandle *handle) {
     auto *h = static_cast<SmbHandle *>(handle);
     if (!h || !h->file)
         return -1;
+    struct stat st;
+    if (h->conn) {
+        smbc_fstat_fn fstatFn = smbc_getFunctionFstat(h->conn);
+        if (fstatFn(h->conn, h->file, &st) != 0)
+            return -1;
+        return static_cast<qint64>(st.st_size);
+    }
     QMutexLocker locker(&m_mutex);
     if (!m_ctx)
         return -1;
     smbc_fstat_fn fstatFn = smbc_getFunctionFstat(m_ctx);
-    struct stat st;
     if (fstatFn(m_ctx, h->file, &st) != 0)
         return -1;
     return static_cast<qint64>(st.st_size);
@@ -565,6 +656,23 @@ void SmbProvider::closeHandle(FileHandle *handle) {
     auto *h = static_cast<SmbHandle *>(handle);
     if (!h)
         return;
+    if (h->conn) {
+        // Pooled context: close the file on it (lock-free), then return the
+        // context to the pool -- or discard it if an I/O error was seen or the
+        // close itself fails, so a poisoned context is never reused.
+        bool ok = true;
+        if (h->file) {
+            smbc_close_fn closeFn = smbc_getFunctionClose(h->conn);
+            ok = closeFn(h->conn, h->file) == 0;
+        }
+        if (h->broken || !ok)
+            m_pool.discard(h->conn);
+        else
+            m_pool.release(h->conn);
+        delete h;
+        return;
+    }
+    // Fallback handle: shared context under m_mutex.
     {
         QMutexLocker locker(&m_mutex);
         if (m_ctx && h->file) {

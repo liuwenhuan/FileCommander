@@ -16,13 +16,30 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+// One independent SSH+SFTP physical connection: its own TCP socket, its own
+// libssh2 session (libssh2 sessions are NOT thread-safe, so concurrency needs a
+// separate session per worker rather than multiple channels on one), and its own
+// SFTP subsystem handle. Forward-declared in the header; the pool only handles
+// SftpConn*, so the full definition can live here next to the libssh2 types.
+struct SftpConn {
+    int socket = -1;
+    LIBSSH2_SESSION *session = nullptr;
+    LIBSSH2_SFTP *sftp = nullptr;
+};
+
 namespace {
 
 // Wraps a libssh2 SFTP file handle so it can travel through the opaque
 // FileHandle interface. Opened by openRead/openWrite, closed by closeHandle.
+// When `conn` is non-null the handle owns a pooled connection borrowed for the
+// transfer and all I/O runs on it lock-free; when `conn` is null the handle uses
+// the provider's shared interactive session under m_mutex (the fallback path).
 struct SftpHandle : FileHandle {
     LIBSSH2_SFTP_HANDLE *handle = nullptr;
+    SftpConn *conn = nullptr; // borrowed from the pool; null => shared-session fallback
+    bool broken = false;      // an I/O error occurred -> discard the conn, don't reuse
     explicit SftpHandle(LIBSSH2_SFTP_HANDLE *h) : handle(h) {}
+    SftpHandle(LIBSSH2_SFTP_HANDLE *h, SftpConn *c) : handle(h), conn(c) {}
 };
 
 // Global one-time libssh2_init(0). libssh2 requires a single init before any
@@ -133,43 +150,40 @@ SftpProvider::SftpProvider() {
 }
 
 SftpProvider::~SftpProvider() {
+    // Non-blocking teardown of the transfer pool first: the transfer workers are
+    // already joined by the OperationQueue destructor by the time a provider is
+    // released, so the pool holds only idle connections, handed off to a detached
+    // reaper so this destructor never blocks on a slow disconnect.
+    m_pool.shutdownAsync();
     disconnect();
 }
 
-bool SftpProvider::connectToHost(const QString &host, int port, const QString &user,
-                                 const QString &password, QString *error) {
-    QMutexLocker locker(&m_mutex);
-
-    if (m_session) {
-        if (error)
-            *error = QStringLiteral("Already connected");
-        return false;
-    }
-
-    const int sock = openSocket(host, port, m_timeoutMs, error);
+SftpConn *SftpProvider::buildConnection(const QString &host, int port, const QString &user,
+                                        const QString &password, int timeoutMs, QString *error) {
+    const int sock = openSocket(host, port, timeoutMs, error);
     if (sock < 0)
-        return false;
+        return nullptr;
 
     LIBSSH2_SESSION *session = libssh2_session_init();
     if (!session) {
         if (error)
             *error = QStringLiteral("Failed to initialise SSH session");
         ::close(sock);
-        return false;
+        return nullptr;
     }
     // Blocking mode keeps the flow simple: every libssh2 call returns only once
     // complete rather than yielding LIBSSH2_ERROR_EAGAIN.
     libssh2_session_set_blocking(session, 1);
     // Bound every subsequent blocking libssh2 call (handshake, auth, sftp ops)
     // so a stalled server fails instead of hanging forever. Milliseconds.
-    libssh2_session_set_timeout(session, static_cast<long>(m_timeoutMs));
+    libssh2_session_set_timeout(session, static_cast<long>(timeoutMs));
 
     if (libssh2_session_handshake(session, sock) != 0) {
         if (error)
             *error = sessionError(session, QStringLiteral("SSH handshake failed"));
         libssh2_session_free(session);
         ::close(sock);
-        return false;
+        return nullptr;
     }
 
     const QByteArray userUtf8 = user.toUtf8();
@@ -201,7 +215,7 @@ bool SftpProvider::connectToHost(const QString &host, int port, const QString &u
         libssh2_session_disconnect(session, "auth failed");
         libssh2_session_free(session);
         ::close(sock);
-        return false;
+        return nullptr;
     }
 
     LIBSSH2_SFTP *sftp = libssh2_sftp_init(session);
@@ -211,16 +225,86 @@ bool SftpProvider::connectToHost(const QString &host, int port, const QString &u
         libssh2_session_disconnect(session, "sftp init failed");
         libssh2_session_free(session);
         ::close(sock);
+        return nullptr;
+    }
+
+    auto *conn = new SftpConn();
+    conn->socket = sock;
+    conn->session = session;
+    conn->sftp = sftp;
+    return conn;
+}
+
+void SftpProvider::destroyConnection(SftpConn *conn) {
+    if (!conn)
+        return;
+    if (conn->sftp)
+        libssh2_sftp_shutdown(conn->sftp);
+    if (conn->session) {
+        libssh2_session_disconnect(conn->session, "bye");
+        libssh2_session_free(conn->session);
+    }
+    if (conn->socket >= 0)
+        ::close(conn->socket);
+    delete conn;
+}
+
+void SftpProvider::configurePool() {
+    // The Factory snapshots the (effectively const post-connect) credentials
+    // under m_mutex, then builds the connection with no lock held so the network
+    // handshake never blocks the interactive session. It captures `this` but is
+    // only ever invoked by borrow() during an active transfer, i.e. while the
+    // provider is alive. The Destroyer captures nothing (safe on the reaper).
+    m_pool.configure(
+        [this](QString *err) -> SftpConn * {
+            QString host, user, password;
+            int port, timeout;
+            {
+                QMutexLocker locker(&m_mutex);
+                host = m_host;
+                port = m_port;
+                user = m_user;
+                password = m_password;
+                timeout = m_timeoutMs;
+            }
+            return buildConnection(host, port, user, password, timeout, err);
+        },
+        [](SftpConn *c) { destroyConnection(c); }, m_maxChannels);
+}
+
+void SftpProvider::setMaxTransferChannels(int channels) {
+    m_maxChannels = channels > 0 ? channels : 1;
+    m_pool.setMaxSize(m_maxChannels);
+}
+
+bool SftpProvider::connectToHost(const QString &host, int port, const QString &user,
+                                 const QString &password, QString *error) {
+    QMutexLocker locker(&m_mutex);
+
+    if (m_session) {
+        if (error)
+            *error = QStringLiteral("Already connected");
         return false;
     }
 
-    m_socket = sock;
-    m_session = session;
-    m_sftp = sftp;
+    SftpConn *conn = buildConnection(host, port, user, password, m_timeoutMs, error);
+    if (!conn)
+        return false;
+
+    // Adopt the freshly built connection as the shared interactive session; the
+    // wrapper struct is no longer needed once its fields are unpacked.
+    m_socket = conn->socket;
+    m_session = conn->session;
+    m_sftp = conn->sftp;
+    delete conn;
+
     m_host = host;
     m_port = port;
     m_user = user;
     m_password = password; // retained so reconnect() can re-authenticate
+    // Wire the transfer pool now that credentials are known. The pool builds its
+    // own independent connections lazily on first borrow().
+    configurePool();
     return true;
 }
 
@@ -430,10 +514,28 @@ QString SftpProvider::parentPath(const QString &path) const {
 
 FileHandle *SftpProvider::openRead(const QString &path) {
     const QString clean = cleanPath(path);
+    const QByteArray pathUtf8 = clean.toUtf8();
+
+    // Preferred path: borrow an independent connection so the transfer runs
+    // lock-free and in parallel with other transfers and the interactive session.
+    QString perr;
+    if (SftpConn *conn = m_pool.borrow(&perr)) {
+        LIBSSH2_SFTP_HANDLE *h =
+            libssh2_sftp_open(conn->sftp, pathUtf8.constData(), LIBSSH2_FXF_READ, 0);
+        if (!h) {
+            // Open failed (e.g. missing file); the connection itself is fine, so
+            // return it to the pool rather than tearing it down.
+            m_pool.release(conn);
+            return nullptr;
+        }
+        return new SftpHandle(h, conn);
+    }
+
+    // Fallback: no pooled connection available -> use the shared interactive
+    // session under m_mutex (serial, but the transfer still completes).
     QMutexLocker locker(&m_mutex);
     if (!m_sftp)
         return nullptr;
-    const QByteArray pathUtf8 = clean.toUtf8();
     LIBSSH2_SFTP_HANDLE *h =
         libssh2_sftp_open(m_sftp, pathUtf8.constData(), LIBSSH2_FXF_READ, 0);
     if (!h)
@@ -443,9 +545,6 @@ FileHandle *SftpProvider::openRead(const QString &path) {
 
 FileHandle *SftpProvider::openWrite(const QString &path, bool truncate) {
     const QString clean = cleanPath(path);
-    QMutexLocker locker(&m_mutex);
-    if (!m_sftp)
-        return nullptr;
     // truncate=false (resume) keeps existing bytes so the caller can seek to the
     // append point; TRUNC is only added for a fresh/overwrite write.
     unsigned long flags = LIBSSH2_FXF_WRITE | LIBSSH2_FXF_CREAT;
@@ -454,6 +553,22 @@ FileHandle *SftpProvider::openWrite(const QString &path, bool truncate) {
     const long mode = LIBSSH2_SFTP_S_IRUSR | LIBSSH2_SFTP_S_IWUSR | LIBSSH2_SFTP_S_IRGRP |
                       LIBSSH2_SFTP_S_IROTH; // 0644
     const QByteArray pathUtf8 = clean.toUtf8();
+
+    // Preferred path: independent pooled connection, lock-free I/O.
+    QString perr;
+    if (SftpConn *conn = m_pool.borrow(&perr)) {
+        LIBSSH2_SFTP_HANDLE *h = libssh2_sftp_open(conn->sftp, pathUtf8.constData(), flags, mode);
+        if (!h) {
+            m_pool.release(conn);
+            return nullptr;
+        }
+        return new SftpHandle(h, conn);
+    }
+
+    // Fallback: shared interactive session under m_mutex.
+    QMutexLocker locker(&m_mutex);
+    if (!m_sftp)
+        return nullptr;
     LIBSSH2_SFTP_HANDLE *h = libssh2_sftp_open(m_sftp, pathUtf8.constData(), flags, mode);
     if (!h)
         return nullptr;
@@ -464,6 +579,14 @@ qint64 SftpProvider::read(FileHandle *handle, char *buffer, qint64 maxSize) {
     auto *h = static_cast<SftpHandle *>(handle);
     if (!h || !h->handle)
         return -1;
+    if (h->conn) {
+        // Private connection: no shared state, so no lock -- true parallelism.
+        const ssize_t n = libssh2_sftp_read(h->handle, buffer, static_cast<size_t>(maxSize));
+        if (n < 0)
+            h->broken = true; // physical error -> discard the conn at close
+        return n < 0 ? -1 : static_cast<qint64>(n);
+    }
+    // Fallback handle: shared session, serialise on m_mutex.
     QMutexLocker locker(&m_mutex);
     const ssize_t n = libssh2_sftp_read(h->handle, buffer, static_cast<size_t>(maxSize));
     return n < 0 ? -1 : static_cast<qint64>(n);
@@ -473,9 +596,15 @@ qint64 SftpProvider::write(FileHandle *handle, const char *buffer, qint64 size) 
     auto *h = static_cast<SftpHandle *>(handle);
     if (!h || !h->handle)
         return -1;
+    if (h->conn) {
+        // libssh2 may accept fewer bytes than offered; return the true count and
+        // let the caller loop over the remainder. Private connection -> no lock.
+        const ssize_t n = libssh2_sftp_write(h->handle, buffer, static_cast<size_t>(size));
+        if (n < 0)
+            h->broken = true;
+        return n < 0 ? -1 : static_cast<qint64>(n);
+    }
     QMutexLocker locker(&m_mutex);
-    // libssh2 may accept fewer bytes than offered; return the true count and let
-    // the caller loop over the remainder.
     const ssize_t n = libssh2_sftp_write(h->handle, buffer, static_cast<size_t>(size));
     return n < 0 ? -1 : static_cast<qint64>(n);
 }
@@ -484,6 +613,10 @@ bool SftpProvider::seek(FileHandle *handle, qint64 offset) {
     auto *h = static_cast<SftpHandle *>(handle);
     if (!h || !h->handle)
         return false;
+    if (h->conn) {
+        libssh2_sftp_seek64(h->handle, static_cast<libssh2_uint64_t>(offset));
+        return true;
+    }
     QMutexLocker locker(&m_mutex);
     libssh2_sftp_seek64(h->handle, static_cast<libssh2_uint64_t>(offset));
     return true;
@@ -493,10 +626,15 @@ qint64 SftpProvider::handleSize(FileHandle *handle) {
     auto *h = static_cast<SftpHandle *>(handle);
     if (!h || !h->handle)
         return -1;
-    QMutexLocker locker(&m_mutex);
     LIBSSH2_SFTP_ATTRIBUTES attrs;
-    if (libssh2_sftp_fstat(h->handle, &attrs) != 0)
-        return -1;
+    if (h->conn) {
+        if (libssh2_sftp_fstat(h->handle, &attrs) != 0)
+            return -1;
+    } else {
+        QMutexLocker locker(&m_mutex);
+        if (libssh2_sftp_fstat(h->handle, &attrs) != 0)
+            return -1;
+    }
     if (!(attrs.flags & LIBSSH2_SFTP_ATTR_SIZE))
         return -1;
     return static_cast<qint64>(attrs.filesize);
@@ -506,6 +644,23 @@ void SftpProvider::closeHandle(FileHandle *handle) {
     auto *h = static_cast<SftpHandle *>(handle);
     if (!h)
         return;
+    if (h->conn) {
+        // Pooled connection: close the file handle on it (lock-free), then return
+        // the connection to the pool -- or discard it if an I/O error was seen or
+        // the close itself fails, so a poisoned connection is never reused.
+        if (h->broken) {
+            m_pool.discard(h->conn); // freeing the session closes the handle too
+        } else {
+            const int rc = h->handle ? libssh2_sftp_close(h->handle) : 0;
+            if (rc == 0)
+                m_pool.release(h->conn);
+            else
+                m_pool.discard(h->conn);
+        }
+        delete h;
+        return;
+    }
+    // Fallback handle: shared session under m_mutex.
     {
         QMutexLocker locker(&m_mutex);
         if (h->handle)
