@@ -4,6 +4,7 @@
 #include <QByteArray>
 #include <QColor>
 #include <QFont>
+#include <QFontDatabase>
 #include <QFontMetricsF>
 #include <QGraphicsEllipseItem>
 #include <QGraphicsLineItem>
@@ -542,10 +543,32 @@ QFont buildTextFont(const QXmlStreamAttributes &attrs) {
         if (!t.isEmpty())
             families << t;
     }
-    if (families.isEmpty())
-        families << QStringLiteral("sans-serif");
+    // CJK metric/glyph consistency + determinism. Decks name Windows fonts
+    // (微软雅黑 / 宋体 / 黑体) that don't exist on Linux. Leaving a MISSING family at
+    // the head of the list is the real defect: Qt then resolves each glyph through a
+    // fallback whose pick can differ between QFontMetricsF (measurement) and
+    // QTextDocument/QGraphicsTextItem (render), and that pick depends on which fonts
+    // the app has already loaded -- so the SAME title overlaps or not depending on
+    // the (QHash-random) order boxes get laid out in. Fix: keep only families the
+    // system can actually resolve, so both paths anchor to the identical real font
+    // every time. A deck family that DOES exist still wins (kept, in order); the
+    // guaranteed-present CJK fonts are appended as a floor for the common case where
+    // none of the named families resolve.
+    QFontDatabase fdb; // Qt5: hasFamily is a non-static member
+    QStringList resolved;
+    for (const QString &f : families)
+        if (fdb.hasFamily(f))
+            resolved << f;
+    for (const QString &c : {QStringLiteral("Noto Sans CJK SC"),
+                             QStringLiteral("Source Han Sans SC"),
+                             QStringLiteral("思源黑体"),
+                             QStringLiteral("WenQuanYi Micro Hei")})
+        if (!resolved.contains(c) && fdb.hasFamily(c))
+            resolved << c;
+    if (resolved.isEmpty())
+        resolved << QStringLiteral("sans-serif");
     QFont font;
-    font.setFamilies(families);
+    font.setFamilies(resolved);
     font.setPixelSize(px);
     if (attrs.value(QLatin1String("font-weight")) == QLatin1String("bold"))
         font.setBold(true);
@@ -698,6 +721,7 @@ struct V2Para {
     QGraphicsItem *parent;
     int box;
     int para;
+    int paraCount;             // data-para-count: total paras in box (incl. trailing empty)
     double x;                  // anchor x (scene)
     Qt::Alignment halign;      // from text-anchor
     double top;                // data-top (scene) -- box text-area top
@@ -884,9 +908,10 @@ void layoutV2Boxes(const QVector<V2Para> &paras) {
         // Pre-wrap every paragraph and compute the total block height so the whole
         // block can be anchored before any item is placed.
         struct PP { QVector<LaidLine> lines; double pitch; double ascent0; double height0;
-                    double spcBefore; double spcAfter; };
+                    double spcBefore; double spcAfter; int leadBlank; };
         QVector<PP> pp;
         double H = 0.0;
+        int expectPara = 0; // next contiguous data-para index we'd expect
         for (int k = 0; k < idx.size(); ++k) {
             const V2Para &p = paras[idx[k]];
             const QFontMetricsF bfm(p.font);
@@ -897,8 +922,24 @@ void layoutV2Boxes(const QVector<V2Para> &paras) {
             e.pitch = p.lineFixed > 0.0 ? p.lineFixed : e.height0 * p.lineFactor;
             e.spcBefore = p.spcBefore;
             e.spcAfter = p.spcAfter;
+            // Empty <a:p> paragraphs emit no <text> (oxide skips them) but still count
+            // in the data-para index, so a jump in para encodes blank line(s) above
+            // this one -- e.g. the dashed "平台类应用适配" box whose first visible line
+            // is data-para="1" had one blank paragraph. Office preserves that blank
+            // line's rhythm, so reserve one standard line-height per skipped index to
+            // push the visible text down to match. (Trailing blanks after the last
+            // visible paragraph produce no <text> and no index gap -> not recoverable
+            // here; they need oxide to emit a per-box paragraph count.)
+            e.leadBlank = qMax(0, p.para - expectPara);
+            expectPara = p.para + 1;
             const int nl = e.lines.size();
-            H += e.spcBefore + e.height0 + (nl - 1) * e.pitch + e.spcAfter;
+            // Office applies the line-spacing multiplier to EVERY line, including the
+            // first -- and a bullet list is usually N single-line paragraphs (para 0,
+            // 1, 2 each one line), so the multiplier must land on each paragraph's one
+            // line too. Charge nl*pitch (not height0 + (nl-1)*pitch): identical for the
+            // 100% case (pitch == height0), but at 150%/200% the previously-dropped
+            // first-line spacing is now honoured so stacked list items match Office.
+            H += e.leadBlank * e.height0 + e.spcBefore + nl * e.pitch + e.spcAfter;
             pp.push_back(e);
         }
 
@@ -912,6 +953,7 @@ void layoutV2Boxes(const QVector<V2Para> &paras) {
         for (int k = 0; k < idx.size(); ++k) {
             const V2Para &p = paras[idx[k]];
             const PP &e = pp[k];
+            cursor += e.leadBlank * e.height0; // reserve skipped (empty) paragraphs
             cursor += e.spcBefore;
             const QFontMetricsF bfm(p.font);
             const double baseAscent = bfm.ascent();
@@ -1088,13 +1130,27 @@ void addText(const QXmlStreamAttributes &attrs, const QVector<TextSegment> &segm
     // grouping key; a v2 paragraph always carries one.)
     if (v2 && (attrs.hasAttribute(QLatin1String("data-anchor")) ||
                attrs.hasAttribute(QLatin1String("data-para")))) {
+        // Z-order anchor. v2 text items are created later, in layoutV2Boxes(), so if
+        // they were parented straight to the page they would stack ABOVE every rect
+        // drawn during parse -- and their order relative to each other would swing
+        // with QHash iteration, causing flicker. Worse, a real deck can place an
+        // (earlier, lower) label box under a title's background rect that is meant to
+        // OCCLUDE it; floating the text on top paints the hidden label over the title
+        // (observed: "公安专版" bleeding into the "大数据平台" title). Insert an empty
+        // placeholder NOW, at this element's true document position, and parent the
+        // deferred text to it: QGraphicsScene stacks siblings by insertion order, so
+        // the text inherits the correct z relative to later rects -- deterministically.
+        auto *placeholder = new QGraphicsRectItem(page);
+        placeholder->setPen(Qt::NoPen);
+        placeholder->setBrush(Qt::NoBrush);
         V2Para p;
-        p.parent = page;
+        p.parent = placeholder;
         bool okBox = false;
         p.box = attrs.value(QLatin1String("data-box")).toInt(&okBox);
         if (!okBox)
             p.box = -1000000 - v2->size(); // ungrouped: give it a private box id
         p.para = qRound(attrNum(attrs, "data-para", 0.0));
+        p.paraCount = qRound(attrNum(attrs, "data-para-count", 0.0));
         p.x = x;
         const QStringRef anc = attrs.value(QLatin1String("text-anchor"));
         p.halign = anc == QLatin1String("middle") ? Qt::AlignHCenter
