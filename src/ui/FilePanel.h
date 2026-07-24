@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QHash>
 #include <QPair>
 #include <QPersistentModelIndex>
 #include <QVector>
@@ -319,6 +320,17 @@ private:
     FileSystemModel *m_model;
     QVector<NavEntry> m_backHistory;
     QVector<NavEntry> m_forwardHistory;
+    // Back/forward history is PER TAB: switching tabs saves the outgoing tab's
+    // stacks here and restores the incoming tab's, so a remote tab's Back still
+    // returns to its server after visiting another tab. Keyed by TabState; pruned
+    // to live tabs on close. (History held NetworkConn shared_ptrs keep a parked
+    // session alive until the entry is discarded.)
+    struct TabHistory {
+        QVector<NavEntry> back;
+        QVector<NavEntry> forward;
+    };
+    QHash<const TabState *, TabHistory> m_tabHistory;
+    void pruneTabHistory(); // drop entries for tabs that no longer exist
     // Set when a fresh connection is starting so the very next navigateTo (the
     // initial listing of the remote root) doesn't push a bogus history entry for
     // the transient pre-connect local directory the new tab was created at.

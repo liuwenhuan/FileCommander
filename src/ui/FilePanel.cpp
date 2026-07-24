@@ -20,6 +20,7 @@
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QMouseEvent>
+#include <QSet>
 #include <QStackedWidget>
 #include <QListView>
 #include <QShortcut>
@@ -502,12 +503,15 @@ void FilePanel::applyHistoryEntry(const NavEntry &entry) {
             tab->path = entry.dir;
             tab->flatPaths.clear(); // no longer a search-results listing
             tab->title.clear();     // drop the keyword title -> path-derived label
-            // Label from the restored connection (connLabel already set above);
-            // stampActiveConnection would keep it while (re)connecting.
-            const int idx = m_tabManager->activeIndex();
-            m_tabBar->setTabText(idx, tabLabelFor(tab));
-            refreshTabIcons();
         }
+    }
+    // Refresh the tab label + protocol icon for BOTH branches: a flat (search)
+    // history entry can still carry a connection, and used to restore with a
+    // stale label/icon because this refresh sat only in the non-flat branch.
+    if (auto tab = m_tabManager->activeTab()) {
+        const int idx = m_tabManager->activeIndex();
+        m_tabBar->setTabText(idx, tabLabelFor(tab));
+        refreshTabIcons();
     }
 }
 
@@ -1214,6 +1218,7 @@ void FilePanel::refreshTabIcons() {
 }
 
 void FilePanel::syncTabBarFromManager() {
+    pruneTabHistory(); // bulk closes (close-others/to-right/on-mount) land here
     m_tabBar->blockSignals(true);
     while (m_tabBar->count() > 0)
         m_tabBar->removeTab(0);
@@ -1241,14 +1246,19 @@ void FilePanel::saveCurrentTabState() {
         tab->title.clear();
     }
     tab->selectedFiles = selectedPaths();
+    // Stash this tab's back/forward stacks so they survive a tab switch instead
+    // of being wiped (which used to strand a remote tab's Back on the server).
+    m_tabHistory.insert(tab.data(), TabHistory{m_backHistory, m_forwardHistory});
 }
 
 void FilePanel::loadTabState(int index) {
     auto tab = m_tabManager->tabAt(index);
     if (!tab)
         return;
-    m_backHistory.clear();
-    m_forwardHistory.clear();
+    // Restore this tab's own history (empty for a tab that never navigated).
+    const TabHistory h = m_tabHistory.value(tab.data());
+    m_backHistory = h.back;
+    m_forwardHistory = h.forward;
     m_pendingSelection = tab->selectedFiles;
     updateNavButtons();
     if (!tab->flatPaths.isEmpty()) {
@@ -1257,6 +1267,18 @@ void FilePanel::loadTabState(int index) {
     } else if (!tab->path.isEmpty()) {
         m_flatPaths.clear();
         m_model->setRootPath(tab->path);
+    }
+}
+
+void FilePanel::pruneTabHistory() {
+    QSet<const TabState *> live;
+    for (int i = 0; i < m_tabManager->count(); ++i)
+        live.insert(m_tabManager->tabAt(i).data());
+    for (auto it = m_tabHistory.begin(); it != m_tabHistory.end();) {
+        if (!live.contains(it.key()))
+            it = m_tabHistory.erase(it); // frees any parked sessions its entries held
+        else
+            ++it;
     }
 }
 
@@ -1288,6 +1310,10 @@ void FilePanel::adoptConnectionFrom(const QSharedPointer<TabState> &tab) {
 void FilePanel::onTabBarCurrentChanged(int index) {
     if (index < 0)
         return;
+    // Clicking a tab also activates its panel: otherwise the click switched the
+    // tab but left the OTHER panel active, so the next keyboard/F5 action ran on
+    // the wrong pane. (The +/view/favorites paths already emit this.)
+    emit panelActivated(this);
     const int prev = m_tabManager->activeIndex();
     saveCurrentTabState();
     if (prev != index && prev >= 0)
@@ -1358,6 +1384,7 @@ void FilePanel::closeTabAt(int index) {
     // when closeTab() drops that TabState.)
     if (index == m_tabManager->activeIndex() && m_model->hasNetworkSession())
         m_model->detachConnection(); // returned bundle drops here -> session stops
+    m_tabHistory.remove(m_tabManager->tabAt(index).data());
     m_tabManager->closeTab(index);
     // Whatever tab is active now may carry its own parked connection: make it live.
     adoptConnectionFrom(m_tabManager->activeTab());
@@ -1386,6 +1413,7 @@ int FilePanel::closeTabsOnMount(const QString &mountRoot) {
         if (m_tabManager->count() <= 1)
             break;
         if (onDevice(m_tabManager->tabAt(i))) {
+            m_tabHistory.remove(m_tabManager->tabAt(i).data());
             m_tabManager->closeTab(i);
             ++affected;
         }
