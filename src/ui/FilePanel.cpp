@@ -686,9 +686,16 @@ void FilePanel::updateStatus() {
 }
 
 void FilePanel::navigateUp() {
-    QDir dir(m_model->rootPath());
-    if (dir.cdUp())
+    const QString child = m_model->rootPath();
+    QDir dir(child);
+    if (dir.cdUp()) {
         navigateTo(dir.absolutePath());
+        // Land the cursor on the directory we just came out of, so going up then
+        // back down is one keystroke -- matches Explorer/Nautilus/TC. Normalise so
+        // it matches the parent listing's entry path exactly.
+        if (FileProvider *prov = m_model->provider())
+            selectPathAfterReload(prov->cleanPath(child));
+    }
 }
 
 void FilePanel::goBack() {
@@ -783,7 +790,18 @@ void FilePanel::onActivated(const QModelIndex &index) {
         return;
     }
 
-    if (info.isDir() || info.isParentEntry()) {
+    if (info.isParentEntry()) {
+        // Going up via "..": remember the directory we're leaving so the parent
+        // listing lands the cursor on it (same behaviour as the Backspace/navigateUp
+        // path). info.path() is already the parent directory.
+        const QString child = m_model->provider()
+                                  ? m_model->provider()->cleanPath(m_model->rootPath())
+                                  : m_model->rootPath();
+        navigateTo(info.path());
+        selectPathAfterReload(child);
+        return;
+    }
+    if (info.isDir()) {
         navigateTo(info.path());
         return;
     }
