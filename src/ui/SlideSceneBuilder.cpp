@@ -765,9 +765,14 @@ QVector<LaidLine> wrapParagraph(const V2Para &p) {
             continue;
         }
         const double a = adv(i);
-        if (maxW > 0.0 && i > lineStart && w + a > maxW) {
-            int brk = (lastBreak > lineStart) ? lastBreak : i; // fall back to hard cut
-            brk = kinsoku(glyphs, lineStart, brk);
+        // Wrap when the box width is exceeded -- but only if this line actually has
+        // a legal break point. An unbreakable token that starts the line (e.g. the
+        // digits "2006" in a narrow timeline label) is allowed to OVERFLOW rather
+        // than be sliced mid-word: Word/Office never break inside a number/word, and
+        // slicing "2006" into "200"+"6" is a fidelity bug. Once a later break point
+        // appears (script boundary, space, CJK) the line wraps there instead.
+        if (maxW > 0.0 && i > lineStart && w + a > maxW && lastBreak > lineStart) {
+            int brk = kinsoku(glyphs, lineStart, lastBreak);
             ranges.push_back({lineStart, brk});
             lineStart = brk;
             // Re-measure the glyphs carried onto the new line up to (not incl.) i.
