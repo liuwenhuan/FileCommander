@@ -671,6 +671,85 @@ CClass classOf(QChar c) {
     return CClass::Other;
 }
 
+// --- Forced metric profiles (方案A: 缺失字体度量强制排版) --------------------
+// When the authored CJK font is MISSING on this system we DISPLAY with the
+// substitute (思源黑体/Noto) but drive line WRAPPING and line HEIGHT from the
+// authored font's real metrics, so line breaks land on the same characters and
+// the block occupies the same vertical space as PowerPoint -- no reflow chaos
+// from the substitute's different advances. Every character's horizontal/vertical
+// footprint matches the mapped font. Measured from the real font files:
+//   微软雅黑.ttf  -> proportional Latin (kYaHeiAscii), line box 1.321/1.059em
+//   SimSun/SimHei/FangSong/KaiTi -> Latin fixed half-width 0.5em, line box 1.001/0.860em
+// CJK advance is 1.0em in every one of them. A profile is used ONLY for a missing
+// authored font (rule 3); a font present on the system (rule 2) keeps its own
+// real metrics untouched.
+struct MetricProfile {
+    double lineHeight;   // single-line pitch, em (* pixel size)
+    double ascent;       // baseline offset from line top, em
+    const double *ascii; // advance (em) for ASCII 32..126; null => uniform `latin`
+    double latin;        // advance (em) used when ascii == null (half-width)
+};
+
+// 微软雅黑 -- measured from 微软雅黑.ttf at 1000px (em fractions), ASCII 32..126.
+static const double kYaHeiAscii[95] = {
+  0.2959,0.3125,0.4355,0.6382,0.5864,0.8896,0.8701,0.2563,0.3340,0.3340,
+  0.4551,0.7417,0.2407,0.4326,0.2407,0.4272,0.5864,0.5864,0.5864,0.5864,
+  0.5864,0.5864,0.5864,0.5864,0.5864,0.5864,0.2407,0.2407,0.7417,0.7417,
+  0.7417,0.4829,1.0312,0.7036,0.6274,0.6689,0.7617,0.5498,0.5312,0.7436,
+  0.7734,0.2939,0.3960,0.6348,0.5132,0.9770,0.8130,0.8149,0.6118,0.8149,
+  0.6528,0.5771,0.5732,0.7466,0.6763,1.0176,0.6450,0.6035,0.6201,0.3340,
+  0.4160,0.3340,0.7417,0.4482,0.2949,0.5527,0.6387,0.5015,0.6396,0.5674,
+  0.3467,0.6396,0.6157,0.2661,0.2671,0.5444,0.2661,0.9370,0.6162,0.6357,
+  0.6387,0.6396,0.3818,0.4629,0.3725,0.6162,0.5249,0.7895,0.5068,0.5293,
+  0.4917,0.3340,0.2690,0.3340,0.7417,
+};
+static const MetricProfile kProfYaHei = {1.321, 1.059, kYaHeiAscii, 0.0};
+// 宋体/黑体/仿宋/楷体 -- Latin fixed half-width; measured line box 1.001/0.860em.
+static const MetricProfile kProfTraditional = {1.001, 0.860, nullptr, 0.5};
+
+// Map an authored family (any case) to its forced profile, or null if unknown.
+const MetricProfile *profileForFamily(const QString &familyRaw) {
+    const QString f = familyRaw.trimmed().toLower();
+    if (f == QStringLiteral("微软雅黑") || f == QStringLiteral("microsoft yahei") ||
+        f == QStringLiteral("msyh") || f == QStringLiteral("msyhbd") ||
+        f == QStringLiteral("等线") || f == QStringLiteral("dengxian"))
+        return &kProfYaHei; // 等线: modern sans, approximated by YaHei metrics
+    if (f == QStringLiteral("宋体") || f == QStringLiteral("simsun") ||
+        f == QStringLiteral("nsimsun") || f == QStringLiteral("新宋体") ||
+        f == QStringLiteral("黑体") || f == QStringLiteral("simhei") ||
+        f == QStringLiteral("仿宋") || f == QStringLiteral("fangsong") ||
+        f == QStringLiteral("仿宋_gb2312") ||
+        f == QStringLiteral("楷体") || f == QStringLiteral("kaiti") ||
+        f == QStringLiteral("楷体_gb2312"))
+        return &kProfTraditional;
+    return nullptr;
+}
+
+// The active forced profile for a <text>: only when the authored primary family
+// is a known Windows font that is NOT installed here (rule 3). A present font
+// (rule 2) returns null -> its own real metrics drive layout.
+const MetricProfile *activeProfile(const QXmlStreamAttributes &attrs) {
+    const QString fam = primaryFamily(attrs);
+    if (fam.isEmpty())
+        return nullptr;
+    QFontDatabase fdb;
+    if (fdb.hasFamily(fam))
+        return nullptr; // installed -> honour it (rule 2), no forcing
+    return profileForFamily(fam);
+}
+
+// Forced advance (scene units) for one char at pixel size px: ASCII -> table or
+// uniform half-width; CJK/fullwidth -> 1em; anything else -> <0 so the caller
+// falls back to the substitute font's own measured advance.
+double profileAdvance(const MetricProfile &p, QChar c, double px) {
+    const ushort u = c.unicode();
+    if (u >= 32 && u <= 126)
+        return (p.ascii ? p.ascii[u - 32] : p.latin) * px;
+    if (classOf(c) == CClass::Cjk)
+        return px; // full-width square, 1.0em
+    return -1.0;   // unknown script -> caller measures with the display font
+}
+
 // One flattened glyph carrying the run it came from (for per-run font metrics).
 struct Glyph { QChar ch; int run; };
 
@@ -737,6 +816,7 @@ struct V2Para {
     QFont font;                // paragraph base font
     QColor defColor;
     FontComp comp;             // metric compensation for the base family
+    const MetricProfile *profile = nullptr; // forced metrics for a missing authored font
     QVector<TextSegment> segs; // runs (colour / size / baseline)
 };
 
@@ -771,7 +851,19 @@ QVector<LaidLine> wrapParagraph(const V2Para &p) {
     for (const QFont &f : runFont)
         fm.push_back(QFontMetricsF(f));
 
-    auto adv = [&](int i) { return fm[glyphs[i].run].horizontalAdvance(glyphs[i].ch); };
+    // Advance that drives WRAP decisions. With a forced profile (missing authored
+    // font) the break widths come from the authored font's metrics, so lines break
+    // on the same characters PowerPoint did -- regardless of the substitute's own
+    // (different) advances. Falls back to the substitute font for unknown scripts.
+    auto adv = [&](int i) -> double {
+        const int r = glyphs[i].run;
+        if (p.profile) {
+            const double a = profileAdvance(*p.profile, glyphs[i].ch, runFont[r].pixelSize());
+            if (a >= 0.0)
+                return a;
+        }
+        return fm[r].horizontalAdvance(glyphs[i].ch);
+    };
 
     // Greedy wrap into [start,end) glyph ranges.
     QVector<QPair<int, int>> ranges;
@@ -917,8 +1009,17 @@ void layoutV2Boxes(const QVector<V2Para> &paras) {
             const QFontMetricsF bfm(p.font);
             PP e;
             e.lines = wrapParagraph(p);
-            e.ascent0 = bfm.ascent() * p.comp.ascent;
-            e.height0 = bfm.height() * p.comp.line;
+            if (p.profile) {
+                // Missing authored font: drive line height + first-baseline from the
+                // authored font's real metrics so the block occupies the same vertical
+                // space as PowerPoint, not the (differently-tall) substitute's.
+                const double px = p.font.pixelSize();
+                e.ascent0 = p.profile->ascent * px;
+                e.height0 = p.profile->lineHeight * px;
+            } else {
+                e.ascent0 = bfm.ascent() * p.comp.ascent;
+                e.height0 = bfm.height() * p.comp.line;
+            }
             e.pitch = p.lineFixed > 0.0 ? p.lineFixed : e.height0 * p.lineFactor;
             e.spcBefore = p.spcBefore;
             e.spcAfter = p.spcAfter;
@@ -1176,6 +1277,7 @@ void addText(const QXmlStreamAttributes &attrs, const QVector<TextSegment> &segm
         p.font = font;
         p.defColor = defColor;
         p.comp = fontCompFor(primaryFamily(attrs));
+        p.profile = activeProfile(attrs); // forced metrics iff authored font missing
         p.segs = segments;
         v2->push_back(p);
         if (outText) { // preserve copy-all text in document order
