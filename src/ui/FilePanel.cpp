@@ -686,6 +686,16 @@ void FilePanel::updateStatus() {
 }
 
 void FilePanel::navigateUp() {
+    // Reuse the ".." row the provider already put in the listing: it carries the
+    // correct target for every backend -- the parent dir locally, the parent
+    // virtual dir inside an archive, or the host directory when leaving an archive
+    // root. This makes Backspace behave exactly like double-clicking ".." (which
+    // otherwise QDir::cdUp() couldn't do for an archive's virtual "/" root).
+    if (m_model->rowCount() > 0 && m_model->isParentEntry(0)) {
+        onActivated(m_model->index(0, 0));
+        return;
+    }
+    // No ".." row (e.g. the local filesystem root): fall back to QDir.
     const QString child = m_model->rootPath();
     QDir dir(child);
     if (dir.cdUp()) {
@@ -783,10 +793,14 @@ void FilePanel::onActivated(const QModelIndex &index) {
     // filesystem at the directory the archive lives in.
     if (info.isParentEntry() && m_archiveProvider && !m_model->provider()->isDir(info.path())) {
         const QString exitDir = info.path();
+        // Select the archive we're stepping out of, so leaving then re-entering is
+        // one keystroke (matches going up out of a normal sub-directory).
+        const QString archiveFile = QDir(exitDir).filePath(m_archiveName);
         m_archiveProvider.reset();
         m_archiveName.clear();
         m_model->setProvider(nullptr); // back to the local provider
         navigateTo(exitDir);
+        selectPathAfterReload(archiveFile);
         return;
     }
 
