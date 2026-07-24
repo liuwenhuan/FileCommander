@@ -155,11 +155,22 @@ qint64 sumSizes(const QStringList &paths) {
     return total;
 }
 
+// Private clipboard format tagging remote (SFTP/FTP/WebDAV/SMB) sources with the
+// connection they came from, so paste routes them through the right provider
+// instead of the fragile path-ancestor guess -- and, crucially, refuses rather
+// than silently reading a same-named LOCAL file when the source connection is
+// gone. Layout: line0 "cut"|"copy", line1 scheme, line2 displayName (user@host),
+// then one remote path per line.
+constexpr char kRemoteClipboardMime[] = "application/x-ttc-remote-copy";
+
 // Builds clipboard data with both the plain text/uri-list format (read by
 // virtually everything) and the GNOME x-special/gnome-copied-files
 // convention (read by Nautilus/Dolphin/PCManFM) so cut vs. copy survives
-// round-tripping through those file managers, not just within ttc.
-QMimeData *buildFileClipboardData(const QStringList &paths, bool cut) {
+// round-tripping through those file managers, not just within ttc. When the
+// source is a remote provider, also attaches kRemoteClipboardMime so an in-app
+// paste can recover the true source provider (see pasteFromClipboard).
+QMimeData *buildFileClipboardData(const QStringList &paths, bool cut,
+                                  FileProvider *srcProvider = nullptr) {
     QList<QUrl> urls;
     for (const QString &path : paths)
         urls.append(QUrl::fromLocalFile(path));
@@ -171,6 +182,18 @@ QMimeData *buildFileClipboardData(const QStringList &paths, bool cut) {
     for (const QUrl &url : urls)
         gnomeFormat += url.toString().toUtf8() + "\n";
     mime->setData(QStringLiteral("x-special/gnome-copied-files"), gnomeFormat);
+
+    // A remote source: tag it with scheme + displayName so paste binds it back to
+    // the live connection rather than treating the path as a local file.
+    if (srcProvider && !srcProvider->scheme().isEmpty() &&
+        !srcProvider->displayName().isEmpty()) {
+        QByteArray remote = (cut ? "cut\n" : "copy\n");
+        remote += srcProvider->scheme().toUtf8() + "\n";
+        remote += srcProvider->displayName().toUtf8() + "\n";
+        for (const QString &path : paths)
+            remote += path.toUtf8() + "\n";
+        mime->setData(QLatin1String(kRemoteClipboardMime), remote);
+    }
 
     return mime;
 }
@@ -2540,6 +2563,23 @@ FileProvider *MainWindow::providerOwningPath(const QString &path) const {
     return local;
 }
 
+FileProvider *MainWindow::findLiveRemoteProvider(const QString &scheme,
+                                                 const QString &displayName) const {
+    if (scheme.isEmpty() || displayName.isEmpty())
+        return nullptr;
+    // Match a clipboard-tagged remote source back to a still-live connection. We
+    // check both panels' active providers (the dominant flow: copy in a remote
+    // pane, paste while it -- or the other pane on the same server -- is still
+    // open). A parked/closed connection matches nothing, so paste refuses instead
+    // of silently reading a same-named local file.
+    for (FilePanel *p : {m_leftPanel, m_rightPanel}) {
+        FileProvider *pv = p->model()->provider();
+        if (pv && pv->scheme() == scheme && pv->displayName() == displayName)
+            return pv;
+    }
+    return nullptr;
+}
+
 QStringList MainWindow::destPathsFor(const QStringList &sources, const QString &destDir) {
     QStringList out;
     out.reserve(sources.size());
@@ -2613,7 +2653,8 @@ void MainWindow::copySelectionToClipboard() {
     const QStringList paths = m_activePanel->selectedPaths();
     if (paths.isEmpty())
         return;
-    QGuiApplication::clipboard()->setMimeData(buildFileClipboardData(paths, /*cut=*/false));
+    QGuiApplication::clipboard()->setMimeData(
+        buildFileClipboardData(paths, /*cut=*/false, m_activePanel->model()->provider()));
 }
 
 void MainWindow::cutSelectionToClipboard() {
@@ -2622,7 +2663,8 @@ void MainWindow::cutSelectionToClipboard() {
     const QStringList paths = m_activePanel->selectedPaths();
     if (paths.isEmpty())
         return;
-    QGuiApplication::clipboard()->setMimeData(buildFileClipboardData(paths, /*cut=*/true));
+    QGuiApplication::clipboard()->setMimeData(
+        buildFileClipboardData(paths, /*cut=*/true, m_activePanel->model()->provider()));
 }
 
 void MainWindow::pasteFromClipboard() {
@@ -2636,8 +2678,39 @@ void MainWindow::pasteFromClipboard() {
 
     QStringList sources;
     bool isCut = false;
+    // Set when the clipboard carried a remote-source tag: the source paths are
+    // remote and belong to this provider, so paste must NOT fall back to
+    // providerOwningPath's path-ancestor guess (which could resolve to a local
+    // file of the same name).
+    FileProvider *explicitSrcProv = nullptr;
 
-    if (mime->hasFormat(QStringLiteral("x-special/gnome-copied-files"))) {
+    if (mime->hasFormat(QLatin1String(kRemoteClipboardMime))) {
+        // Our own remote tag wins: line0 cut/copy, line1 scheme, line2
+        // displayName, then remote paths (kept verbatim -- they are remote, not
+        // file:// URLs).
+        const QList<QByteArray> lines = mime->data(QLatin1String(kRemoteClipboardMime)).split('\n');
+        QString scheme, displayName;
+        for (int i = 0; i < lines.size(); ++i) {
+            const QByteArray line = lines.at(i).trimmed();
+            if (i == 0) {
+                isCut = (line == "cut");
+            } else if (i == 1) {
+                scheme = QString::fromUtf8(line);
+            } else if (i == 2) {
+                displayName = QString::fromUtf8(line);
+            } else if (!line.isEmpty()) {
+                sources.append(QString::fromUtf8(line));
+            }
+        }
+        explicitSrcProv = findLiveRemoteProvider(scheme, displayName);
+        if (!sources.isEmpty() && !explicitSrcProv) {
+            // The source connection is gone: refuse rather than silently reading a
+            // same-named local file at these paths.
+            ttc::warning(this, tr("粘贴"),
+                         tr("源连接（%1）已关闭，无法从远端粘贴。").arg(displayName));
+            return;
+        }
+    } else if (mime->hasFormat(QStringLiteral("x-special/gnome-copied-files"))) {
         const QByteArray data = mime->data(QStringLiteral("x-special/gnome-copied-files"));
         const QList<QByteArray> lines = data.split('\n');
         for (int i = 0; i < lines.size(); ++i) {
@@ -2676,7 +2749,7 @@ void MainWindow::pasteFromClipboard() {
     // instead of the local-file path (which can't reach a network location).
     LocalFileProvider *local = LocalFileProvider::instance();
     FileProvider *dstProv = providerOwningPath(destDir);
-    FileProvider *srcProv = providerOwningPath(sources.first());
+    FileProvider *srcProv = explicitSrcProv ? explicitSrcProv : providerOwningPath(sources.first());
     const bool crossProvider = (srcProv != local) || (dstProv != local);
 
     if (isCut) {

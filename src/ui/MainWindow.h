@@ -198,6 +198,12 @@ private:
     // Lets drag-drop / paste pick the cross-provider transfer engine the same way
     // F5 copy/move does, instead of treating a remote path as a local file.
     FileProvider *providerOwningPath(const QString &path) const;
+    // Resolves a clipboard-tagged remote source (scheme + "user@host") back to a
+    // still-live provider among the open panels, or null if that connection is
+    // gone -- so a remote paste binds to the real source instead of the fragile
+    // path guess, and refuses rather than silently reading a local file.
+    FileProvider *findLiveRemoteProvider(const QString &scheme,
+                                         const QString &displayName) const;
     // The paths files land at when `sources` are copied/moved/linked into
     // `destDir` (destDir joined with each source's base name).
     static QStringList destPathsFor(const QStringList &sources, const QString &destDir);
