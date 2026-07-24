@@ -469,11 +469,23 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         // model to retry the connection with a username/password.
         FileSystemModel *model = panel->model();
         connect(model, &FileSystemModel::networkAuthRequired, this,
-                [this, model](const QString &host) {
+                [this, model, panel](const QString &host) {
                     QString user, pass;
                     if (promptCredentials(host, &user, &pass))
                         model->provideCredentials(user, pass);
+                    else
+                        // Cancelled: don't leave a blank, connected-looking tab --
+                        // show a login prompt the user can click to try again.
+                        panel->showLoginPrompt();
                 });
+        // The "登录" link on a cancelled-auth tab: prompt again and retry.
+        connect(panel, &FilePanel::loginRequested, this, [this, model](FilePanel *p) {
+            QString user, pass;
+            if (promptCredentials(p->currentPath(), &user, &pass))
+                model->provideCredentials(user, pass);
+            else
+                p->showLoginPrompt();
+        });
         connect(panel, &FilePanel::panelActivated, this, &MainWindow::setActivePanel);
         connect(panel, &FilePanel::switchPanelRequested, this, [this, panel]() {
             // With the preview active, the "other" panel is hidden behind it, so
@@ -1422,6 +1434,12 @@ void MainWindow::openExternalConnections() {
                 const QString label =
                     conn.user.isEmpty() ? conn.host : conn.user + QLatin1Char('@') + conn.host;
                 panel->setConnectingLabel(label, native.provider->scheme());
+                // Wire the credential-retry factory so a wrong/missing keyring
+                // password surfaces a login prompt AND the re-entered password
+                // actually reconnects -- without this, provideCredentials had no
+                // factory and silently discarded what the user typed.
+                if (native.authFactory)
+                    panel->model()->setAuthContext(label, native.authFactory);
                 // Record the connection so it is re-established (with its label) on
                 // next launch, and store the remote path we're opening.
                 SavedConnection persist = conn;
@@ -2440,6 +2458,10 @@ void MainWindow::openServerConnectDialog(bool preselectSmb) {
         panel->model()->connectNetwork(provider, dlg.connectFn(), dlg.remotePath());
         // Show the host name on the tab immediately, before it connects.
         panel->setConnectingLabel(dlg.displayLabel(), provider->scheme());
+        // Wire credential retry so a wrong/blank password prompts and reconnects
+        // instead of the re-entered password being silently discarded.
+        if (auto af = dlg.authFactory())
+            panel->model()->setAuthContext(dlg.displayLabel(), af);
         // Record for session reconnect on next launch.
         panel->setActiveTabConnInfo(dlg.connectionInfo());
         panel->navigateTo(dlg.remotePath());

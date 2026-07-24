@@ -17,8 +17,16 @@ public:
 
     // Connection status shown centred in the strip, for network tabs. `level`:
     // 0 = hide (local tab / connected), 1 = connecting (grey), 2 = reconnecting
-    // (amber), 3 = failed (red, with a clickable "Retry"). Empty text also hides.
-    enum ConnLevel { ConnNone = 0, ConnConnecting = 1, ConnReconnecting = 2, ConnFailed = 3 };
+    // (amber), 3 = failed (red, with a clickable "Retry"), 4 = needs auth (amber,
+    // with a clickable "登录" login link). Empty text also hides. Levels 3 and 4
+    // both emit retryRequested on click; the panel decides retry vs re-login.
+    enum ConnLevel {
+        ConnNone = 0,
+        ConnConnecting = 1,
+        ConnReconnecting = 2,
+        ConnFailed = 3,
+        ConnNeedsAuth = 4
+    };
     void setConnectionStatus(const QString &text, int level);
 
 signals:

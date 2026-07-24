@@ -301,8 +301,14 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     // in the failed state asks the model's session to reconnect.
     connect(m_model, &FileSystemModel::networkStateChanged, this,
             &FilePanel::onNetworkStateChanged);
-    connect(m_statusBar, &StatusBarWidget::retryRequested, this,
-            [this] { m_model->retryNetwork(); });
+    connect(m_statusBar, &StatusBarWidget::retryRequested, this, [this] {
+        // Same link for both states: re-prompt for credentials if the user had
+        // cancelled the login, otherwise ask the session to reconnect.
+        if (m_awaitingLogin)
+            emit loginRequested(this);
+        else
+            m_model->retryNetwork();
+    });
 
     connect(m_tabBar, &QTabBar::currentChanged, this, &FilePanel::onTabBarCurrentChanged);
     connect(m_tabBar, &TabBar::closeTabRequested, this, &FilePanel::closeTabAt);
@@ -547,6 +553,8 @@ void FilePanel::navigateTo(const QString &path) {
 }
 
 void FilePanel::onNetworkStateChanged(int state, int attempt) {
+    // Any genuine session state change supersedes a pending manual-login prompt.
+    m_awaitingLogin = false;
     // Map the session state to the centred status-line message. Connected/Idle
     // clear it (the tab shows its normal selection/disk info again).
     switch (state) {
@@ -573,6 +581,15 @@ void FilePanel::onNetworkStateChanged(int state, int attempt) {
         m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
         break;
     }
+}
+
+void FilePanel::showLoginPrompt() {
+    // Called after the user cancelled the credential dialog: leave a clear,
+    // actionable "需要登录" status with a login link rather than a blank tab that
+    // looks connected. Set the flag AFTER any state-driven clear (the Idle state
+    // change fires first and would otherwise wipe this).
+    m_awaitingLogin = true;
+    m_statusBar->setConnectionStatus(tr("需要登录"), StatusBarWidget::ConnNeedsAuth);
 }
 
 void FilePanel::navigateTabTo(int tabIndex, const QString &path) {

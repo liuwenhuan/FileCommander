@@ -46,6 +46,10 @@ public:
     // stamp survives the connecting phase and tab switches; once connected the
     // real displayName() (same shape) refreshes it. Call right after connectNetwork().
     void setConnectingLabel(const QString &label, const QString &scheme);
+    // Show a "需要登录" status with a clickable login link on this tab, after the
+    // user cancelled the credential prompt. Without this the tab would sit blank
+    // and connected-looking with no way to retry the login.
+    void showLoginPrompt();
     // Switches to `tabIndex`, drops any server connection it holds (going back to
     // the local filesystem), then navigates it to the local `path`. Used by the
     // favorites menu: favorites are always local directories.
@@ -206,6 +210,9 @@ signals:
     void openRequested(const QString &path);
     // Tab pressed in the list: caller should activate the other panel.
     void switchPanelRequested();
+    // The status-bar "登录" link was clicked after an auth cancel: caller should
+    // re-prompt for credentials on this panel's connection.
+    void loginRequested(FilePanel *panel);
     // The "*" button was clicked: caller should pop a shortcut menu at pos.
     void shortcutMenuRequested(FilePanel *panel, const QPoint &globalPos);
     // Tab strip right-clicked: caller should pop the directory-favorites menu.
@@ -316,6 +323,9 @@ private:
     // initial listing of the remote root) doesn't push a bogus history entry for
     // the transient pre-connect local directory the new tab was created at.
     bool m_suppressHistoryOnce = false;
+    // The active tab is showing a "需要登录" prompt (user cancelled auth): the
+    // status-bar retry link re-prompts for credentials instead of reconnecting.
+    bool m_awaitingLogin = false;
 
     TabManager *m_tabManager;
     TabBar *m_tabBar;

@@ -54,6 +54,16 @@ public:
     // session persistence. Valid after a successful native accept().
     SavedConnection connectionInfo() const { return m_connInfo; }
 
+    // Credential-retry factory: given a (user, password) the user re-enters after
+    // an auth prompt, returns a fresh connect closure. Lets a wrong/blank password
+    // be corrected and reconnected. Empty for the gvfs-mounted protocols. The raw
+    // std::function type matches FileSystemModel::AuthRetryFactory without pulling
+    // that header into this dialog.
+    std::function<std::function<bool(QString *)>(const QString &, const QString &)>
+    authFactory() const {
+        return m_authFactory;
+    }
+
     // Convenience: run the dialog modally and, on a successful mount, return the
     // local mount path. Returns an empty string if the user cancelled or the
     // mount failed. This is the recommended entry point for menu actions.
@@ -103,4 +113,6 @@ private:
     QString m_remotePath;
     QString m_displayLabel;                          // "user@host" for the connecting tab
     SavedConnection m_connInfo;                      // reconnect descriptor for session save
+    std::function<std::function<bool(QString *)>(const QString &, const QString &)>
+        m_authFactory;                               // credential-retry factory (native only)
 };

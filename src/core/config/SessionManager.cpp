@@ -79,5 +79,8 @@ bool SessionManager::load(SessionPanelData &left, SessionPanelData &right) {
     QSettings settings(sessionFilePath(), QSettings::IniFormat);
     const bool leftOk = loadPanel(settings, "leftPanel", left);
     const bool rightOk = loadPanel(settings, "rightPanel", right);
-    return leftOk && rightOk;
+    // Restore if EITHER panel had saved tabs. Using && dropped the entire session
+    // (including the other panel's network tabs) whenever one panel happened to be
+    // empty; the caller already falls back to home for a panel with no tabs.
+    return leftOk || rightOk;
 }

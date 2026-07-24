@@ -308,6 +308,12 @@ void ConnectDialog::accept() {
         m_connectFn = [provider, host, port, user, password](QString *error) {
             return provider->connectToHost(host, port, user, password, error);
         };
+        m_authFactory = [provider, host, port](const QString &u, const QString &pw) {
+            return std::function<bool(QString *)>(
+                [provider, host, port, u, pw](QString *e) {
+                    return provider->connectToHost(host, port, u, pw, e);
+                });
+        };
         const QString p = m_pathEdit->text().trimmed();
         m_remotePath = p.isEmpty() ? QStringLiteral("/") : p;
         QDialog::accept();
@@ -320,6 +326,12 @@ void ConnectDialog::accept() {
         m_remoteProvider = provider;
         m_connectFn = [provider, host, port, user, password](QString *error) {
             return provider->connectToHost(host, port, user, password, error);
+        };
+        m_authFactory = [provider, host, port](const QString &u, const QString &pw) {
+            return std::function<bool(QString *)>(
+                [provider, host, port, u, pw](QString *e) {
+                    return provider->connectToHost(host, port, u, pw, e);
+                });
         };
         const QString p = m_pathEdit->text().trimmed();
         m_remotePath = p.isEmpty() ? QStringLiteral("/") : p;
@@ -336,6 +348,12 @@ void ConnectDialog::accept() {
         m_connectFn = [provider, host, port, user, password, useHttps](QString *error) {
             return provider->connectToHost(host, port, user, password, useHttps, error);
         };
+        m_authFactory = [provider, host, port, useHttps](const QString &u, const QString &pw) {
+            return std::function<bool(QString *)>(
+                [provider, host, port, u, pw, useHttps](QString *e) {
+                    return provider->connectToHost(host, port, u, pw, useHttps, e);
+                });
+        };
         const QString p = m_pathEdit->text().trimmed();
         m_remotePath = p.isEmpty() ? QStringLiteral("/") : p;
         QDialog::accept();
@@ -348,6 +366,12 @@ void ConnectDialog::accept() {
         m_remoteProvider = provider;
         m_connectFn = [provider, host, user, password, anonymous](QString *error) {
             return provider->connectToHost(host, user, password, QString(), anonymous, error);
+        };
+        m_authFactory = [provider, host](const QString &u, const QString &pw) {
+            return std::function<bool(QString *)>(
+                [provider, host, u, pw](QString *e) {
+                    return provider->connectToHost(host, u, pw, QString(), /*anonymous=*/false, e);
+                });
         };
         const QString p = m_pathEdit->text().trimmed();
         m_remotePath = p.isEmpty() ? QStringLiteral("/") : p;

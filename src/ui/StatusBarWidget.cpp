@@ -57,12 +57,13 @@ void StatusBarWidget::setConnectionStatus(const QString &text, int level) {
     }
     const char *color = level == ConnFailed         ? "#e04a4a"  // red
                         : level == ConnReconnecting ? "#d08a2a"  // amber
+                        : level == ConnNeedsAuth    ? "#d08a2a"  // amber (action needed)
                                                     : "#9a9a9a"; // grey (connecting)
     QString html =
         QStringLiteral("<span style='color:%1'>%2</span>").arg(color, text.toHtmlEscaped());
-    if (level == ConnFailed) {
+    if (level == ConnFailed || level == ConnNeedsAuth) {
         html += QStringLiteral("&nbsp;<a href='#retry' style='color:%1'>%2</a>")
-                    .arg(color, tr("重试"));
+                    .arg(color, level == ConnNeedsAuth ? tr("登录") : tr("重试"));
     }
     m_connLabel->setText(html);
     m_connLabel->show();
