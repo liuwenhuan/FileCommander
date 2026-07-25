@@ -34,6 +34,7 @@ class QTableView;
 class QTemporaryDir;
 class QToolBar;
 class QTableWidget;
+class QTabWidget;
 class QTextBrowser;
 class QTextEdit;
 class QTimer;
@@ -156,7 +157,10 @@ private:
     // Show `info` (a .deb control file / .rpm header block) in the panel above the
     // tree, or hide the panel when `info` is empty.
     void setArchivePackageInfo(const QString &info);
-    void populateCsvTable(const QString &csv); // fill the office table from CSV text
+    // Fill the office preview with one grid tab per worksheet (name, TSV).
+    void populateSheets(const QVector<QPair<QString, QString>> &sheets);
+    // The QTableWidget of the currently selected worksheet tab, or null.
+    QTableWidget *currentOfficeTable() const;
     // Converts an office file (optionally with a password) OFF the GUI thread and
     // shows the result: the rendered document/grid, the inline password page
     // (encrypted / wrong password / unsupported), or an error. Called with an empty
@@ -261,7 +265,7 @@ private:
 
     // Office spreadsheet page: a read-only grid populated from office_oxide's CSV
     // output. Word/PowerPoint documents reuse the markdown page above.
-    QTableWidget *m_officeTable = nullptr;
+    QTabWidget *m_officeTabs = nullptr; // spreadsheet preview: one grid tab per worksheet
 
     // Async office conversion. m_officeGen is bumped on every file switch (and every
     // renderOffice call); a completed conversion whose captured gen no longer
