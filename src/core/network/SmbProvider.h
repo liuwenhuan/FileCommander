@@ -106,6 +106,8 @@ public:
     // its worker pool to the parallelism that actually exists.
     int maxReadChannels() const override;
 
+    bool setModifiedTime(const QString &path, const QDateTime &modified) override;
+
     bool remove(const QString &path) override;
     bool mkdir(const QString &path) override;
 

@@ -109,6 +109,19 @@ void LocalFileProvider::closeHandle(FileHandle *handle) {
     delete static_cast<LocalHandle *>(handle); // QFile closes in its destructor
 }
 
+bool LocalFileProvider::setModifiedTime(const QString &path, const QDateTime &modified) {
+    if (!modified.isValid())
+        return false;
+    // QFileDevice::setFileTime needs the file open, and needs write access to
+    // stamp it. Failure is reported but never fatal to the caller's copy.
+    QFile file(path);
+    if (!file.open(QIODevice::ReadWrite))
+        return false;
+    const bool ok = file.setFileTime(modified, QFileDevice::FileModificationTime);
+    file.close();
+    return ok;
+}
+
 bool LocalFileProvider::remove(const QString &path) {
     QFileInfo fi(path);
     if (fi.isDir())

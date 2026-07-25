@@ -63,6 +63,10 @@ add_library(ui STATIC
     dialogs/MultiRenameDialog.cpp
     dialogs/SyncDialog.h
     dialogs/SyncDialog.cpp
+    dialogs/SyncModel.h
+    dialogs/SyncModel.cpp
+    dialogs/SyncActionDelegate.h
+    dialogs/SyncActionDelegate.cpp
     dialogs/CompareDialog.h
     dialogs/CompareDialog.cpp
     dialogs/PropertiesDialog.h

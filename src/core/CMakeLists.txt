@@ -21,6 +21,8 @@ add_library(core STATIC
     config/SessionManager.cpp
     sync/DirectorySync.h
     sync/DirectorySync.cpp
+    sync/SyncScanner.h
+    sync/SyncScanner.cpp
     compare/TextDiff.h
     compare/TextDiff.cpp
     media/Id3Reader.h

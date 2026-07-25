@@ -2,6 +2,7 @@
 
 #include <atomic>
 
+#include <QDateTime>
 #include <QMutex>
 #include <QObject>
 #include <QStringList>
@@ -86,6 +87,16 @@ private:
                   const ConflictResolver &resolver, ErrorAction &batchAction,
                   QString *errorMessage);
     bool copyRecursively(const QString &sourceDir, const QString &destDir);
+    // The single local file-copy primitive: replaces `target`, copies `source`
+    // onto it, and carries the source's modification time across. Every local
+    // copy goes through here so the timestamp behaviour can't diverge between
+    // the flat, recursive, and copy-as paths.
+    //
+    // Returns only whether the *copy* succeeded. Restamping the time is
+    // best-effort and deliberately cannot fail the operation: on a filesystem
+    // that won't accept it, the result is a copied file with a fresh timestamp,
+    // which is exactly the pre-existing behaviour.
+    static bool copyFilePreservingTime(const QString &source, const QString &target);
     void emitProgress(const QString &currentFile);
     void waitIfPaused(); // blocks the worker while paused, until resume/cancel
     // Returns true if the caller should treat the failed entry as handled
@@ -100,18 +111,25 @@ private:
     // Per-file outcome so a move only removes the source when the copy landed.
     enum class FileResult { Done, Skipped, Failed };
     // Copies (recursing into directories) one source entry to destPath.
+    //
+    // `sourceTime` is the source's modification time when the caller already
+    // knows it, so the copy can be restamped without asking the backend again.
+    // A directory listing hands out every child's time for free, so recursion
+    // passes it down; only a top-level file (which arrives as a bare path) leaves
+    // it invalid and pays for a lookup.
     bool transferEntry(FileProvider *src, const QString &srcPath, FileProvider *dst,
                        const QString &destPath, bool removeSource,
                        const ConflictResolver &resolver, ErrorAction &batchAction,
-                       QString *errorMessage);
+                       QString *errorMessage, const QDateTime &sourceTime = {});
     // Copies a single regular file, applying conflict resolution and resume.
     FileResult transferFile(FileProvider *src, const QString &srcPath, FileProvider *dst,
                             const QString &destPath, const ConflictResolver &resolver,
-                            ErrorAction &batchAction, QString *errorMessage);
+                            ErrorAction &batchAction, QString *errorMessage,
+                            const QDateTime &sourceTime = {});
     // Streams one file's bytes; startOffset>0 resumes an interrupted transfer.
     bool streamCopy(FileProvider *src, const QString &srcPath, FileProvider *dst,
                     const QString &destPath, bool truncate, qint64 startOffset,
-                    QString *failMsg);
+                    QString *failMsg, const QDateTime &sourceTime = {});
     // Recursively removes a remote entry (depth-first) via the provider; used by
     // deleteProviderPaths. Honours pause/cancel and the error resolver per node.
     bool removeProviderTree(FileProvider *provider, const QString &path, QString *errorMessage);
@@ -119,6 +137,15 @@ private:
     static qint64 countProviderBytes(FileProvider *src, const QStringList &paths);
     static qint64 providerTreeBytes(FileProvider *src, const QString &path);
     static qint64 providerFileSize(FileProvider *provider, const QString &path);
+    // The file's modification time as its backend reports it, or an invalid
+    // QDateTime if it can't be determined.
+    //
+    // There is no single-file stat in the FileProvider interface, so this lists
+    // the parent directory -- one extra round trip on a network backend. Callers
+    // that already hold the entry's FileInfo must pass its modified() down
+    // instead of calling this (see transferEntry's sourceTime); otherwise copying
+    // a directory of N files would re-list its parent N times.
+    static QDateTime providerFileModified(FileProvider *provider, const QString &path);
     static QString uniqueProviderDestination(FileProvider *dst, const QString &destPath);
     static QString joinPath(const QString &dir, const QString &name);
     static QString lastComponent(const QString &path);

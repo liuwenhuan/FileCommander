@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QDateTime>
 #include <QString>
 #include <QVector>
 
@@ -121,6 +122,23 @@ public:
     // concurrently in-process, so it reports 1 until its helper subprocesses
     // are confirmed available, and only then reports the real number.
     virtual int maxReadChannels() const { return 1; }
+
+    // Stamps `path` with `modified` as its modification time, so a copy carries
+    // the source's timestamp instead of being dated to the moment it was written.
+    //
+    // Best-effort by contract: a false return means "this backend can't set
+    // times", NOT that the copy failed. Callers must never fail a transfer over
+    // it -- the file is already written, and the worst case is the pre-existing
+    // behaviour of a fresh timestamp.
+    //
+    // Only backends verified against a real server implement this. SFTP, FTP and
+    // WebDAV keep the default: their protocols do expose a way to do it
+    // (SETSTAT / MFMT / PROPPATCH), but none of it has been tried against an
+    // actual server here, and shipping an unverified write path is worse than
+    // leaving the old behaviour in place.
+    virtual bool setModifiedTime(const QString & /*path*/, const QDateTime & /*modified*/) {
+        return false;
+    }
 
     // Removes a single file or empty dir (used by move = copy+remove). Providers
     // that support writes should implement it; default fails.

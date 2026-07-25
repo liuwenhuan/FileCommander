@@ -27,6 +27,8 @@ public:
     void closeHandle(FileHandle *handle) override;
     bool canStream() const override { return true; }
 
+    bool setModifiedTime(const QString &path, const QDateTime &modified) override;
+
     bool remove(const QString &path) override;
     bool mkdir(const QString &path) override;
 };

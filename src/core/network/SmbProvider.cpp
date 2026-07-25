@@ -14,6 +14,7 @@
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 namespace {
@@ -873,6 +874,30 @@ int SmbProvider::maxReadChannels() const {
     // to the real cap after the first successful read, and a caller that asks
     // again then gets the better number.
     return m_helpers.provenChannels();
+}
+
+bool SmbProvider::setModifiedTime(const QString &path, const QDateTime &modified) {
+    if (!modified.isValid())
+        return false;
+
+    const QString clean = cleanPath(path);
+    QMutexLocker locker(&m_mutex);
+    if (!m_ctx)
+        return false;
+
+    // libsmbclient takes {atime, mtime}. The server stores whole seconds (every
+    // timestamp read back from this share had msec == 0), so the sub-second part
+    // is dropped here rather than silently rounded by the wire format.
+    struct timeval tv[2];
+    tv[0].tv_sec = static_cast<time_t>(modified.toSecsSinceEpoch());
+    tv[0].tv_usec = 0;
+    tv[1] = tv[0];
+
+    const QByteArray url = urlFor(clean).toUtf8();
+    smbc_utimes_fn utimesFn = smbc_getFunctionUtimes(m_ctx);
+    if (!utimesFn)
+        return false;
+    return utimesFn(m_ctx, url.constData(), tv) == 0;
 }
 
 bool SmbProvider::remove(const QString &path) {

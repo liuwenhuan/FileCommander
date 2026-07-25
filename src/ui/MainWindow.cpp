@@ -2358,7 +2358,11 @@ void MainWindow::openMultiRenameDialog() {
 }
 
 void MainWindow::openSyncDialog() {
-    SyncDialog dlg(m_leftPanel->currentPath(), m_rightPanel->currentPath(), this);
+    // Pass each panel's provider, not just its path: a network tab's directory
+    // is meaningless to the local filesystem, so comparing one without its
+    // backend silently produced an empty result.
+    SyncDialog dlg(m_leftPanel->currentPath(), m_leftPanel->model()->providerPtr(),
+                   m_rightPanel->currentPath(), m_rightPanel->model()->providerPtr(), this);
     dlg.exec();
     m_leftPanel->refresh();
     m_rightPanel->refresh();

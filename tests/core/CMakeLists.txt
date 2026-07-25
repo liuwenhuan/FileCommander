@@ -7,9 +7,11 @@ add_executable(core_tests
     operations/test_OperationQueue.cpp
     operations/test_FileSplitter.cpp
     operations/test_ProviderTransfer.cpp
+    operations/test_PreserveMtime.cpp
     config/test_SessionManager.cpp
     config/test_Settings.cpp
     sync/test_DirectorySync.cpp
+    sync/test_SyncScanner.cpp
     compare/test_TextDiff.cpp
     network/test_GvfsMounter.cpp
     network/test_SftpProvider.cpp

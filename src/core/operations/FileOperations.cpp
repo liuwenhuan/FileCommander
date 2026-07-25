@@ -7,6 +7,7 @@
 #include <QProcess>
 
 #include "FileProvider.h"
+#include "LocalFileProvider.h"
 
 FileOperations::FileOperations(QObject *parent) : QObject(parent) {}
 
@@ -101,6 +102,23 @@ QString FileOperations::uniqueDestination(const QString &destDir, const QString 
     return candidate;
 }
 
+bool FileOperations::copyFilePreservingTime(const QString &source, const QString &target) {
+    // Capture the source time before the copy: if source and target somehow
+    // resolve to the same file, reading it afterwards would give the new stamp.
+    const QDateTime sourceTime = QFileInfo(source).lastModified();
+
+    QFile::remove(target);
+    if (!QFile::copy(source, target))
+        return false;
+
+    // Best-effort restamp. QFile::copy leaves the destination dated to the
+    // moment it was written, which made a just-synchronised file look NEWER
+    // than its own source -- so a re-comparison reported every copied file as a
+    // difference, with the arrow pointing back the way it came.
+    LocalFileProvider::instance()->setModifiedTime(target, sourceTime);
+    return true;
+}
+
 bool FileOperations::copyRecursively(const QString &sourceDir, const QString &destDir) {
     QDir().mkpath(destDir);
     QDirIterator it(sourceDir, QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden);
@@ -112,8 +130,7 @@ bool FileOperations::copyRecursively(const QString &sourceDir, const QString &de
             if (!copyRecursively(entry.filePath(), target))
                 return false;
         } else {
-            QFile::remove(target);
-            if (!QFile::copy(entry.filePath(), target))
+            if (!copyFilePreservingTime(entry.filePath(), target))
                 return false;
             m_doneBytes += entry.size();
         }
@@ -164,8 +181,7 @@ bool FileOperations::copyOne(const QString &source, const QString &destDir, bool
         if (srcInfo.isDir()) {
             ok = copyRecursively(source, destPath);
         } else {
-            QFile::remove(destPath);
-            ok = QFile::copy(source, destPath);
+            ok = copyFilePreservingTime(source, destPath);
             if (ok)
                 m_doneBytes += srcInfo.size();
         }
@@ -251,8 +267,7 @@ bool FileOperations::copyAs(const QString &source, const QString &destPath,
     if (srcInfo.isDir()) {
         ok = copyRecursively(source, target);
     } else {
-        QFile::remove(target);
-        ok = QFile::copy(source, target);
+        ok = copyFilePreservingTime(source, target);
         if (ok)
             m_doneBytes += srcInfo.size();
     }
@@ -536,6 +551,23 @@ qint64 FileOperations::providerFileSize(FileProvider *provider, const QString &p
     return size;
 }
 
+QDateTime FileOperations::providerFileModified(FileProvider *provider, const QString &path) {
+    // There is no per-file stat in the FileProvider interface, so the file's own
+    // entry is picked out of its parent's listing -- the same listing the model
+    // already relies on for sizes and times. Returns an invalid QDateTime when
+    // the entry can't be found, which callers treat as "don't restamp".
+    const QString parent = provider->parentPath(path);
+    if (parent.isEmpty())
+        return {};
+    const QString name = path.section(QLatin1Char('/'), -1);
+    const QVector<FileInfo> entries = provider->list(parent, /*showHidden=*/true);
+    for (const FileInfo &entry : entries) {
+        if (entry.name() == name)
+            return entry.modified();
+    }
+    return {};
+}
+
 qint64 FileOperations::providerTreeBytes(FileProvider *src, const QString &path) {
     if (!src->isDir(path))
         return qMax<qint64>(0, providerFileSize(src, path));
@@ -587,7 +619,7 @@ QString FileOperations::uniqueProviderDestination(FileProvider *dst, const QStri
 
 bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileProvider *dst,
                                 const QString &destPath, bool truncate, qint64 startOffset,
-                                QString *failMsg) {
+                                QString *failMsg, const QDateTime &sourceTime) {
     // Roll back progress accounting if the attempt fails so a retry starts from
     // a clean byte count rather than double-counting.
     const qint64 doneBytesAtStart = m_doneBytes;
@@ -663,15 +695,32 @@ bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileP
         ok = false;
         *failMsg = tr("Upload of %1 did not complete").arg(destPath);
     }
-    if (!ok)
+    if (!ok) {
         m_doneBytes = doneBytesAtStart;
-    return ok;
+        return false;
+    }
+
+    // Carry the source's modification time onto the copy, so a transferred file
+    // doesn't come out looking newer than the original it was made from. Purely
+    // best-effort: backends that can't set times (and those whose support has
+    // not been verified against a real server) return false, which leaves the
+    // long-standing behaviour untouched and must NOT turn a completed transfer
+    // into a failure.
+    // Prefer the time the caller already had (from the directory listing that
+    // enumerated this file); only fall back to a lookup when it wasn't supplied.
+    const QDateTime stamp =
+        sourceTime.isValid() ? sourceTime : providerFileModified(src, srcPath);
+    if (stamp.isValid())
+        dst->setModifiedTime(destPath, stamp);
+
+    return true;
 }
 
 FileOperations::FileResult
 FileOperations::transferFile(FileProvider *src, const QString &srcPath, FileProvider *dst,
                              const QString &destPath, const ConflictResolver &resolver,
-                             ErrorAction &batchAction, QString *errorMessage) {
+                             ErrorAction &batchAction, QString *errorMessage,
+                             const QDateTime &sourceTime) {
     QString target = destPath;
 
     while (true) {
@@ -718,7 +767,7 @@ FileOperations::transferFile(FileProvider *src, const QString &srcPath, FileProv
         }
 
         QString failMsg;
-        if (streamCopy(src, srcPath, dst, target, truncate, startOffset, &failMsg))
+        if (streamCopy(src, srcPath, dst, target, truncate, startOffset, &failMsg, sourceTime))
             return FileResult::Done;
         if (m_cancelled)
             return FileResult::Failed;
@@ -735,7 +784,7 @@ FileOperations::transferFile(FileProvider *src, const QString &srcPath, FileProv
 bool FileOperations::transferEntry(FileProvider *src, const QString &srcPath, FileProvider *dst,
                                    const QString &destPath, bool removeSource,
                                    const ConflictResolver &resolver, ErrorAction &batchAction,
-                                   QString *errorMessage) {
+                                   QString *errorMessage, const QDateTime &sourceTime) {
     waitIfPaused();
     if (m_cancelled)
         return false;
@@ -757,8 +806,11 @@ bool FileOperations::transferEntry(FileProvider *src, const QString &srcPath, Fi
             if (m_cancelled)
                 return false;
             const QString childDest = joinPath(destPath, entry.name());
+            // The listing above already carries each child's timestamp, so hand
+            // it down rather than making the child re-list this directory to
+            // rediscover it.
             if (!transferEntry(src, entry.path(), dst, childDest, removeSource, resolver,
-                               batchAction, errorMessage))
+                               batchAction, errorMessage, entry.modified()))
                 return false;
         }
         // A move removes the (now-empty) source directory once its contents have
@@ -775,7 +827,7 @@ bool FileOperations::transferEntry(FileProvider *src, const QString &srcPath, Fi
     }
 
     const FileResult result =
-        transferFile(src, srcPath, dst, destPath, resolver, batchAction, errorMessage);
+        transferFile(src, srcPath, dst, destPath, resolver, batchAction, errorMessage, sourceTime);
     if (result == FileResult::Failed)
         return false;
     // Only drop the source for a genuine transfer, never for a skipped file.
