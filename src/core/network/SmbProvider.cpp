@@ -85,6 +85,25 @@ struct SmbHandle : FileHandle {
     SmbHandle(SMBCFILE *f, SMBCCTX *c) : file(f), conn(c) {}
 };
 
+// Serialises smbc_new_context()/smbc_free_context() across the whole process.
+//
+// Creating or freeing a context reaches into state libsmbclient keeps globally
+// rather than per-context (the loaded smb.conf in libsmbconf, and the talloc
+// pools under libcli). Doing either from two threads at once corrupts that
+// state and crashes inside the library. The connection pool deliberately runs
+// its factory and destroyer without holding the pool lock -- so that a slow
+// dial or teardown doesn't stall other borrowers -- and thumbnailing a share
+// full of videos is the first thing that reliably drives two workers to
+// build/drop contexts at the same moment.
+//
+// Scoped to the library's own state, so it is process-wide rather than per
+// provider, and held only across create/destroy: ordinary reads and writes on
+// an already-built context stay fully parallel.
+QMutex &smbContextLifecycleMutex() {
+    static QMutex mutex;
+    return mutex;
+}
+
 // libsmbclient's auth callback. It runs synchronously inside a libsmbclient
 // call (which already holds the provider's mutex), so it may read the
 // provider's credential members directly -- they are set once before any call
@@ -125,7 +144,15 @@ SmbProvider::~SmbProvider() {
 }
 
 SMBCCTX *SmbProvider::buildContext(QString *error, bool *authFailed) {
-    SMBCCTX *ctx = smbc_new_context();
+    SMBCCTX *ctx = nullptr;
+    {
+        // Only the allocation itself is serialised. Everything below either
+        // touches this context alone or talks to the network, and holding the
+        // process-wide lock across a dial would make every connection wait out
+        // every other one's timeout.
+        QMutexLocker lifecycleLocker(&smbContextLifecycleMutex());
+        ctx = smbc_new_context();
+    }
     if (!ctx) {
         if (error)
             *error = QStringLiteral("Failed to allocate SMB context");
@@ -145,10 +172,20 @@ SMBCCTX *SmbProvider::buildContext(QString *error, bool *authFailed) {
     // Bound waits on connection establishment and response data (milliseconds).
     smbc_setTimeout(ctx, m_timeoutMs);
 
-    if (!smbc_init_context(ctx)) {
+    // Initialisation parses smb.conf into the same process-wide state the
+    // allocation above touches, so it takes the lock too -- but on its own, not
+    // held across the network probe that follows.
+    bool initialised = false;
+    {
+        QMutexLocker lifecycleLocker(&smbContextLifecycleMutex());
+        initialised = smbc_init_context(ctx) != nullptr;
+    }
+    if (!initialised) {
+        const int initErrno = errno;
         if (error)
             *error = QStringLiteral("Failed to initialise SMB context: %1")
-                         .arg(QString::fromUtf8(std::strerror(errno)));
+                         .arg(QString::fromUtf8(std::strerror(initErrno)));
+        QMutexLocker lifecycleLocker(&smbContextLifecycleMutex());
         smbc_free_context(ctx, 1);
         return nullptr;
     }
@@ -176,6 +213,7 @@ SMBCCTX *SmbProvider::buildContext(QString *error, bool *authFailed) {
                 *error = QStringLiteral("Cannot open \\\\%1: %2")
                              .arg(m_host, QString::fromUtf8(std::strerror(e)));
         }
+        QMutexLocker lifecycleLocker(&smbContextLifecycleMutex());
         smbc_free_context(ctx, 1);
         return nullptr;
     }
@@ -192,14 +230,23 @@ void SmbProvider::configurePool() {
     m_pool.configure(
         [this](QString *err) -> SMBCCTX * { return buildContext(err); },
         [](SMBCCTX *c) {
-            if (c)
+            if (c) {
+                // Same global state the factory guards; the reaper thread frees
+                // contexts while other threads may be building them.
+                QMutexLocker lifecycleLocker(&smbContextLifecycleMutex());
                 smbc_free_context(c, 1);
+            }
         },
         m_maxChannels);
 }
 
 void SmbProvider::setMaxTransferChannels(int channels) {
-    m_maxChannels = channels > 0 ? channels : 1;
+    // Deliberately ignores anything above one: libsmbclient cannot be driven
+    // from two threads at once, not even through separate contexts (see the
+    // m_maxChannels comment in the header). The setter is kept so callers that
+    // tune channel counts generically don't need to special-case SMB.
+    Q_UNUSED(channels);
+    m_maxChannels = 1;
     m_pool.setMaxSize(m_maxChannels);
 }
 
@@ -299,6 +346,9 @@ void SmbProvider::disconnect() {
     QMutexLocker locker(&m_mutex);
     if (m_ctx) {
         // shutdown_ctx=1 closes any open files/dirs and frees the context.
+        // Serialised against context creation elsewhere in the process: pooled
+        // transfers may still be dialling on other threads when a tab is closed.
+        QMutexLocker lifecycleLocker(&smbContextLifecycleMutex());
         smbc_free_context(m_ctx, 1);
         m_ctx = nullptr;
     }

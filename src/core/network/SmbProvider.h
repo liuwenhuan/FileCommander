@@ -129,7 +129,13 @@ private:
     bool m_anonymous = false; // remembered so reconnect() reuses guest mode
     int m_timeoutMs = 12000;
 
-    // Pool of independent SMBCCTX contexts for concurrent transfers.
+    // Pool of SMBCCTX contexts. Capped at one on purpose: libsmbclient is not
+    // thread-safe even across separate contexts -- its talloc pools and loaded
+    // smb.conf are process-global, so two threads reading through two contexts
+    // corrupt that state and abort inside the library ("Bad talloc magic
+    // value"). Verified against a real server: two concurrent readers crash
+    // within seconds, one never does. The pool stays in place for its lifetime
+    // and hand-off machinery; it just never hands out a second channel.
     ConnectionPool<SMBCCTX> m_pool;
-    int m_maxChannels = 2;
+    int m_maxChannels = 1;
 };
