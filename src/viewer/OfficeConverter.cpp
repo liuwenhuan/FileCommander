@@ -4,6 +4,7 @@
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QJsonValue>
 #include <QProcess>
 #include <QProcessEnvironment>
@@ -282,12 +283,23 @@ OfficeConverter::Result OfficeConverter::convertSpreadsheet(const QString &binar
     Result result;
     result.kind = Kind::Spreadsheet;
 
-    // Excel → tab-separated cell text (`office-oxide text <file>`). The CLI has
-    // no CSV subcommand, but `text` yields clean TSV (one row per line, cells
-    // separated by tabs, commas kept literal) which the viewer renders as a
-    // grid. (`markdown` would give a titled table too, but TSV maps 1:1 to
-    // cells without any table-syntax parsing.)
-    const ProcResult run = runOfficeOxide(binary, {QStringLiteral("text"), path}, kTimeoutMs, password);
+    // Excel → per-worksheet TSV (`office-oxide sheets <file>`): stdout is a JSON
+    // array of {name, tsv} objects, one per sheet, so the viewer shows each
+    // worksheet as its own tab/grid. (The older `text` subcommand concatenates
+    // every sheet into one nameless blob, which reads as a single table.)
+    ProcResult run = runOfficeOxide(binary, {QStringLiteral("sheets"), path}, kTimeoutMs, password);
+    // Older office_oxide has no `sheets` subcommand: fall back to the flat `text`
+    // dump as one unnamed sheet so preview still works against an old binary.
+    if (run.started && !run.timedOut && run.exitCode != 0) {
+        const ProcResult t =
+            runOfficeOxide(binary, {QStringLiteral("text"), path}, kTimeoutMs, password);
+        if (t.started && !t.timedOut && t.exitCode == 0) {
+            result.ok = true;
+            result.tsv = t.stdOut;
+            result.sheets.append({QString(), t.stdOut});
+            return result;
+        }
+    }
     if (!run.started || run.timedOut) {
         result.error = run.stdErr;
         return result;
@@ -299,7 +311,20 @@ OfficeConverter::Result OfficeConverter::convertSpreadsheet(const QString &binar
         return result;
     }
 
+    const QJsonDocument doc = QJsonDocument::fromJson(run.stdOut.toUtf8());
+    if (doc.isArray()) {
+        for (const QJsonValue &v : doc.array()) {
+            if (!v.isObject())
+                continue;
+            const QJsonObject o = v.toObject();
+            result.sheets.append({o.value(QStringLiteral("name")).toString(),
+                                  o.value(QStringLiteral("tsv")).toString()});
+        }
+    }
+    // First sheet backs the copy-text fallback; ok even for an empty workbook
+    // (zero sheets) since the CLI itself succeeded.
+    if (!result.sheets.isEmpty())
+        result.tsv = result.sheets.first().second;
     result.ok = true;
-    result.tsv = run.stdOut; // tab-separated
     return result;
 }

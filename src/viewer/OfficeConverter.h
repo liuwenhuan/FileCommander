@@ -1,7 +1,9 @@
 #pragma once
 
+#include <QPair>
 #include <QString>
 #include <QStringList>
+#include <QVector>
 
 // Wraps the `office_oxide` command-line tool
 // (https://github.com/yfedoseev/office_oxide) as a subprocess to convert
@@ -61,6 +63,10 @@ public:
         Kind kind = Kind::None;
         QString html;  // Document: HTML markup (render with QTextBrowser::setHtml)
         QString tsv;   // Spreadsheet: tab-separated cell text (one row per line)
+        // Spreadsheet: one (sheet name, TSV) pair per worksheet, in workbook
+        // order, so the viewer can show each sheet as its own tab/grid. Empty
+        // only when the workbook has no sheets; `tsv` mirrors the first sheet.
+        QVector<QPair<QString, QString>> sheets;
         QStringList slideSvgs; // Presentation: one standalone SVG document per slide
         QString error; // human-readable message on failure
         Encryption encryption = Encryption::None;

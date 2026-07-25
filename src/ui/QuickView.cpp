@@ -41,6 +41,8 @@
 #include <QSlider>
 #include <QStackedWidget>
 #include <QStyle>
+#include <QTabBar>
+#include <QTabWidget>
 #include <QTableView>
 #include <QTableWidget>
 #include <QTemporaryDir>
@@ -169,16 +171,23 @@ void QuickView::setContentFontSize(int pt) {
         f.setPointSize(pt);
         m_markdown->setFont(f);
     }
-    if (m_officeTable) {
-        // Spreadsheet (xls/xlsx) preview grid: scale the cell text with the app
-        // font. Cells inherit the widget font, so setting it here is enough; nudge
-        // the row height so larger text isn't clipped.
-        QFont f = m_officeTable->font();
+    if (m_officeTabs) {
+        // Spreadsheet (xls/xlsx) preview grids: scale every worksheet tab's cell
+        // text with the app font. Cells inherit the widget font, so setting it is
+        // enough; nudge the row height so larger text isn't clipped. The tab widget
+        // itself carries the font too, so new tabs inherit the current size.
+        QFont f = m_officeTabs->font();
         f.setPointSize(pt);
-        m_officeTable->setFont(f);
-        m_officeTable->verticalHeader()->setDefaultSectionSize(QFontMetrics(f).height() + 6);
-        if (m_officeTable->rowCount() > 0)
-            m_officeTable->resizeColumnsToContents(); // re-fit widths to the new size
+        m_officeTabs->setFont(f);
+        for (int i = 0; i < m_officeTabs->count(); ++i) {
+            auto *table = qobject_cast<QTableWidget *>(m_officeTabs->widget(i));
+            if (!table)
+                continue;
+            table->setFont(f);
+            table->verticalHeader()->setDefaultSectionSize(QFontMetrics(f).height() + 6);
+            if (table->rowCount() > 0)
+                table->resizeColumnsToContents(); // re-fit widths to the new size
+        }
     }
 }
 
@@ -197,8 +206,8 @@ void QuickView::focusPreview() {
         target = m_imageScroll;
     else if (page == m_pdfPage)
         target = m_pdfView;
-    else if (page == m_officeTable)
-        target = m_officeTable;
+    else if (page == m_officeTabs)
+        target = currentOfficeTable();
     else if (page == m_encryptedPage)
         target = m_passwordEdit;
     else if (page == m_archivePage)
@@ -1168,12 +1177,19 @@ QString QuickView::fitImagesToWidth(const QString &html, int maxWidth) const {
 }
 
 QWidget *QuickView::buildOfficeTablePage() {
-    m_officeTable = new QTableWidget(this);
-    m_officeTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_officeTable->setSelectionMode(QAbstractItemView::NoSelection);
-    m_officeTable->horizontalHeader()->setVisible(false);
-    m_officeTable->verticalHeader()->setVisible(false);
-    return m_officeTable;
+    // One grid per worksheet, selected via a bottom tab bar (Excel-style). The
+    // tabs are populated per file in populateSheets(); the bar hides itself for a
+    // single-sheet workbook so a lone sheet reads as a plain grid.
+    m_officeTabs = new QTabWidget(this);
+    m_officeTabs->setTabPosition(QTabWidget::South);
+    m_officeTabs->setDocumentMode(true);
+    return m_officeTabs;
+}
+
+// The QTableWidget behind the currently selected worksheet tab (null when the
+// workbook produced no sheets).
+QTableWidget *QuickView::currentOfficeTable() const {
+    return m_officeTabs ? qobject_cast<QTableWidget *>(m_officeTabs->currentWidget()) : nullptr;
 }
 
 QWidget *QuickView::buildEncryptedPage() {
@@ -1389,8 +1405,8 @@ void QuickView::handleOfficeResult(const OfficeConverter::Result &r, const QStri
         return;
     }
     if (r.ok && r.kind == OfficeConverter::Kind::Spreadsheet) {
-        populateCsvTable(r.tsv);
-        m_stack->setCurrentWidget(m_officeTable);
+        populateSheets(r.sheets);
+        m_stack->setCurrentWidget(m_officeTabs);
         m_officeShownPath = path;
         return;
     }
@@ -1717,10 +1733,17 @@ void QuickView::setArchivePackageInfo(const QString &info) {
     m_archiveInfoView->show();
 }
 
-void QuickView::populateCsvTable(const QString &tsv) {
-    m_officeTable->clear();
-    // office-oxide's `text` output is tab-separated: one row per line, cells
-    // split on '\t' (commas are literal, so no quote handling needed).
+// Build a read-only grid for one worksheet's TSV. office-oxide's per-sheet text
+// is tab-separated: one row per line, cells split on '\t' (commas are literal, so
+// no quote handling needed).
+static QTableWidget *makeSheetGrid(const QString &tsv, const QFont &font, QWidget *parent) {
+    auto *table = new QTableWidget(parent);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setSelectionMode(QAbstractItemView::NoSelection);
+    table->horizontalHeader()->setVisible(false);
+    table->verticalHeader()->setVisible(false);
+    table->setFont(font);
+
     const QStringList lines = tsv.split(QLatin1Char('\n'));
     QVector<QStringList> rows;
     for (const QString &line : lines) {
@@ -1728,16 +1751,38 @@ void QuickView::populateCsvTable(const QString &tsv) {
             continue; // drop a trailing empty line from the final newline
         rows.append(line.split(QLatin1Char('\t')));
     }
-
     int cols = 0;
     for (const auto &r : rows)
         cols = qMax(cols, r.size());
-    m_officeTable->setRowCount(rows.size());
-    m_officeTable->setColumnCount(cols);
+    table->setRowCount(rows.size());
+    table->setColumnCount(cols);
+    table->verticalHeader()->setDefaultSectionSize(QFontMetrics(font).height() + 6);
     for (int r = 0; r < rows.size(); ++r)
         for (int c = 0; c < rows.at(r).size(); ++c)
-            m_officeTable->setItem(r, c, new QTableWidgetItem(rows.at(r).at(c)));
-    m_officeTable->resizeColumnsToContents();
+            table->setItem(r, c, new QTableWidgetItem(rows.at(r).at(c)));
+    table->resizeColumnsToContents();
+    return table;
+}
+
+void QuickView::populateSheets(const QVector<QPair<QString, QString>> &sheets) {
+    // Replace the previous file's tabs. deleteLater on removed pages keeps this
+    // safe even if a stale async result races in.
+    while (m_officeTabs->count() > 0) {
+        QWidget *w = m_officeTabs->widget(0);
+        m_officeTabs->removeTab(0);
+        w->deleteLater();
+    }
+    const QFont font = m_officeTabs->font();
+    for (const auto &sheet : sheets) {
+        QTableWidget *grid = makeSheetGrid(sheet.second, font, m_officeTabs);
+        // A sheet with no name (legacy fallback) gets a generic label.
+        const QString name = sheet.first.isEmpty()
+                                 ? tr("Sheet %1").arg(m_officeTabs->count() + 1)
+                                 : sheet.first;
+        m_officeTabs->addTab(grid, name);
+    }
+    // Hide the tab strip for a single-sheet workbook so it reads as a plain grid.
+    m_officeTabs->tabBar()->setVisible(sheets.size() > 1);
 }
 
 QWidget *QuickView::buildPdfPage() {
@@ -2607,7 +2652,7 @@ void QuickView::showFile(const QString &path) {
         path == m_officeShownPath &&
         (m_stack->currentWidget() == m_slidesPage ||
          m_stack->currentWidget() == m_markdown ||
-         m_stack->currentWidget() == m_officeTable)) {
+         m_stack->currentWidget() == m_officeTabs)) {
         return;
     }
 
