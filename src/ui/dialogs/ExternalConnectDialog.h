@@ -83,6 +83,7 @@ private:
         QString iconPath;
         QString tooltip;
         std::function<void()> onClick;
+        QString text; // optional label on the button (e.g. a "Searching…" state)
     };
     // Appends a bold, dimmed section header row, optionally carrying right-aligned
     // action buttons (setItemWidget). No actions -> a plain non-interactive label.
@@ -93,9 +94,11 @@ private:
     // Unmounts the device, then refreshes; shows an error and keeps the panel open
     // on failure.
     void ejectDevice(const QString &id);
-    // Forces a fresh network-neighbourhood scan (reusing SmbHostBrowser) and shows
-    // the "Searching…" state while it runs.
+    // Forces a fresh network-neighbourhood scan (reusing SmbHostBrowser); the
+    // header's button turns into a "Searching…" state while it runs.
     void rescanNetwork();
+    // Aborts a running network scan (from clicking the "Searching…" button).
+    void stopNetworkScan();
     // Resizes the list (and thus the panel) to fit its rows, up to a cap.
     void fitToContents();
 

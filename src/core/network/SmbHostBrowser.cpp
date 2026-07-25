@@ -80,6 +80,18 @@ bool SmbHostBrowser::startDiscovery(bool force) {
     return true; // a scan is now active
 }
 
+void SmbHostBrowser::stopDiscovery() {
+    if (!m_running)
+        return;
+    m_running = false;
+    m_pending = 0; // a late onSourceFinished won't re-emit discoveryFinished
+    m_lastScan = QDateTime::currentDateTime(); // count it as a completed run for the TTL
+    // The QtConcurrent workers keep running to completion, but postHosts() just
+    // feeds the cache (harmless) and postSourceFinished() is now gated out. Tell
+    // the UI the scan is over so it can drop the "searching" state.
+    emit discoveryFinished();
+}
+
 void SmbHostBrowser::addHosts(const QVector<SmbHost> &hosts) {
     // Dedup against the accumulated cache by IP (else name), so a host reported by
     // several sources / on several interfaces appears once. Emit only the new ones.

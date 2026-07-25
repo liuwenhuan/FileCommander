@@ -46,6 +46,13 @@ public:
     // discoveryFinished), false if the fresh cache is being used (already done).
     bool startDiscovery(bool force = false);
 
+    // Aborts the running scan: stops waiting on the in-flight sources and emits
+    // discoveryFinished immediately so the UI can leave its "searching" state.
+    // The concurrent workers can't be killed mid-probe, but their late results
+    // are harmless (cached) and no longer re-trigger discoveryFinished. No-op if
+    // no scan is active.
+    void stopDiscovery();
+
     // How long discovered hosts stay cached before a click triggers a rescan.
     static constexpr qint64 kCacheSecs = 4 * 60 * 60; // 4 hours
 

@@ -159,7 +159,13 @@ void ExternalConnectDialog::addHeader(const QString &text, const QList<HeaderAct
     lay->addStretch(1);
     for (const HeaderAction &a : actions) {
         auto *btn = new QToolButton(row);
-        btn->setIcon(QIcon(a.iconPath));
+        if (!a.iconPath.isEmpty())
+            btn->setIcon(QIcon(a.iconPath));
+        if (!a.text.isEmpty()) {
+            btn->setText(a.text);
+            btn->setToolButtonStyle(a.iconPath.isEmpty() ? Qt::ToolButtonTextOnly
+                                                         : Qt::ToolButtonTextBesideIcon);
+        }
         btn->setAutoRaise(true);
         btn->setCursor(Qt::PointingHandCursor);
         btn->setToolTip(a.tooltip);
@@ -240,6 +246,17 @@ void ExternalConnectDialog::rescanNetwork() {
     rebuild();
 }
 
+void ExternalConnectDialog::stopNetworkScan() {
+    if (!m_smb)
+        return;
+    // Abort the scan: SmbHostBrowser emits discoveryFinished (which flips
+    // m_discoveryDone and rebuilds the header back to the refresh icon). Set the
+    // flag here too so the button updates immediately even if the signal is queued.
+    m_smb->stopDiscovery();
+    m_discoveryDone = true;
+    rebuild();
+}
+
 void ExternalConnectDialog::rebuild() {
     m_list->clear();
     m_saved = ConnectionStore::loadAll();
@@ -279,10 +296,17 @@ void ExternalConnectDialog::rebuild() {
     }
 
     // 3. Network neighbourhood (populated as discovery reports hosts). The header
-    // carries a single refresh button that rescans the local network.
-    addHeader(tr("Network Neighborhood"),
-              {{QStringLiteral(":/icons/refresh.svg"), tr("重新搜索网络共享"),
-                [this] { rescanNetwork(); }}});
+    // button doubles as the scan indicator: a refresh icon when idle (click to
+    // rescan), or a "Searching…" label while a scan runs (click to abort it).
+    HeaderAction netAction;
+    if (m_discoveryDone) {
+        netAction = {QStringLiteral(":/icons/refresh.svg"), tr("重新搜索网络共享"),
+                     [this] { rescanNetwork(); }, QString()};
+    } else {
+        netAction = {QString(), tr("正在搜索，点击停止"), [this] { stopNetworkScan(); },
+                     tr("Searching…")};
+    }
+    addHeader(tr("Network Neighborhood"), {netAction});
     for (const SmbHost &h : m_hosts) {
         // Show "name (ip)" when both are known, so the user sees exactly which
         // machine each row is; just the name or just the IP when only one is.
@@ -301,14 +325,9 @@ void ExternalConnectDialog::rebuild() {
         item->setData(Qt::UserRole, KindHost);
         item->setData(Qt::UserRole + 1, target);
     }
-    // A trailing status line: "Searching…" while a scan is still running (so a
-    // rescan visibly does something even when known hosts are already listed --
-    // new hosts append above it and it clears when discovery finishes), or a
-    // definite "none found" once every source has finished with nothing.
-    if (!m_discoveryDone) {
-        auto *note = new QListWidgetItem(tr("Searching…"), m_list);
-        note->setFlags(Qt::NoItemFlags);
-    } else if (m_hosts.isEmpty()) {
+    // The "searching" state now lives on the header button, so the list only
+    // shows a definite empty state once a completed scan turned up nothing.
+    if (m_discoveryDone && m_hosts.isEmpty()) {
         auto *note = new QListWidgetItem(tr("未发现网络主机"), m_list);
         note->setFlags(Qt::NoItemFlags);
     }
