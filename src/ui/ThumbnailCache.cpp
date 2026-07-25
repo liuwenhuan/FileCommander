@@ -391,21 +391,28 @@ constexpr double kFrameSeekFraction = 0.10;
 Mp4RangePlan::Range keyframeRangeFor(const RemoteThumbnailFetcher::Ticket &ticket,
                                      const QString &path, const Mp4RangePlan::Plan &plan,
                                      qint64 fileSize) {
-    // The index is the last range the plan asked for when it trails the media,
-    // and the first when it leads: in both cases it is the largest one, since
-    // the others are a header or a small slice of frame data.
-    Mp4RangePlan::Range indexRange{0, 0};
+    // Both plan shapes put the index in a different slot, and neither position
+    // nor size identifies it on its own:
+    //   * index leading  -> [0, indexEnd] then a slice of frame data after it,
+    //     so the index is the FIRST range and the second one starts non-zero;
+    //   * index trailing -> a slice of frame data from 0 then [indexOffset, len],
+    //     so the index is the SECOND range -- and often the smaller of the two,
+    //     since a compact index loses to a 256 KB slice of media.
+    // Rather than guess, read each candidate and let the parser say: it returns
+    // nothing for a buffer that holds no video track, so a wrong pick costs one
+    // read and falls through to the right one.
     for (const Mp4RangePlan::Range &r : plan.ranges) {
-        if (r.second > indexRange.second)
-            indexRange = r;
+        if (r.second <= 0)
+            continue;
+        const QByteArray buf = ticket.readRange(path, r.first, r.second);
+        if (buf.isEmpty())
+            continue;
+        const Mp4RangePlan::Range kf =
+            Mp4RangePlan::keyframeRange(buf, r.first, fileSize, kFrameSeekFraction);
+        if (kf.second > 0)
+            return kf;
     }
-    if (indexRange.second <= 0)
-        return {0, 0};
-
-    const QByteArray moov = ticket.readRange(path, indexRange.first, indexRange.second);
-    if (moov.isEmpty())
-        return {0, 0};
-    return Mp4RangePlan::keyframeRange(moov, indexRange.first, fileSize, kFrameSeekFraction);
+    return {0, 0};
 }
 
 } // namespace
