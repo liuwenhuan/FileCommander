@@ -318,10 +318,23 @@ bool SmbProvider::connectToHost(const QString &host, const QString &user,
     }
 
     m_ctx = ctx;
+    // Publish the label only now: displayName() used to derive it from m_host,
+    // which is only non-empty on a live connection, and callers rely on an empty
+    // string meaning "not connected yet".
+    publishDisplayName();
     // Wire the transfer pool now that credentials are known. The pool builds its
     // own independent contexts lazily on first borrow().
     configurePool();
     return true;
+}
+
+void SmbProvider::publishDisplayName() {
+    // Called with m_mutex held (connect/disconnect); takes the identity mutex
+    // second, per the lock order documented in the header.
+    QMutexLocker locker(&m_identityMutex);
+    m_displayName = m_host.isEmpty()
+                        ? QString()
+                        : (m_user.isEmpty() ? m_host : m_user + QLatin1Char('@') + m_host);
 }
 
 bool SmbProvider::reconnect(QString *error) {
@@ -359,6 +372,7 @@ void SmbProvider::disconnect() {
     m_password.clear();
     m_workgroup.clear();
     m_anonymous = false;
+    publishDisplayName(); // back to empty: the tab label must stop claiming a link
 }
 
 bool SmbProvider::isConnected() const {
@@ -372,10 +386,11 @@ QString SmbProvider::host() const {
 }
 
 QString SmbProvider::displayName() const {
-    QMutexLocker locker(&m_mutex);
-    if (m_host.isEmpty())
-        return {};
-    return m_user.isEmpty() ? m_host : m_user + QLatin1Char('@') + m_host;
+    // Reads the snapshot under its own tiny mutex, never m_mutex: the GUI thread
+    // calls this to label a tab, and m_mutex can be held for seconds by a large
+    // directory listing on the session thread.
+    QMutexLocker locker(&m_identityMutex);
+    return m_displayName;
 }
 
 QString SmbProvider::userForAuth() const { return m_user; }
@@ -404,6 +419,75 @@ QString SmbProvider::urlFor(const QString &path) const {
     return url;
 }
 
+namespace {
+// Translates a POSIX mode into Qt's permission flags (the owner/group/other
+// bits libsmbclient synthesises from the DOS attributes).
+QFile::Permissions permsFromMode(mode_t m) {
+    QFile::Permissions perms;
+    if (m & 0400) perms |= QFile::ReadOwner;
+    if (m & 0200) perms |= QFile::WriteOwner;
+    if (m & 0100) perms |= QFile::ExeOwner;
+    if (m & 0040) perms |= QFile::ReadGroup;
+    if (m & 0020) perms |= QFile::WriteGroup;
+    if (m & 0010) perms |= QFile::ExeGroup;
+    if (m & 0004) perms |= QFile::ReadOther;
+    if (m & 0002) perms |= QFile::WriteOther;
+    if (m & 0001) perms |= QFile::ExeOther;
+    return perms;
+}
+} // namespace
+
+QVector<FileInfo> SmbProvider::listPlus(const QString &dirPath, const QByteArray &url,
+                                        bool showHidden, bool *supported) const {
+    // readdirplus2 returns each entry's stat alongside its name, so a directory
+    // costs ONE server round-trip instead of one readdir plus one stat per entry.
+    // On a 1410-entry share that is the difference between ~60ms and ~5s.
+    QVector<FileInfo> result;
+    *supported = false;
+
+    smbc_readdirplus2_fn readdirPlus2Fn = smbc_getFunctionReaddirPlus2(m_ctx);
+    if (!readdirPlus2Fn)
+        return result;
+
+    smbc_opendir_fn opendirFn = smbc_getFunctionOpendir(m_ctx);
+    smbc_closedir_fn closedirFn = smbc_getFunctionClosedir(m_ctx);
+
+    SMBCFILE *dir = opendirFn(m_ctx, url.constData());
+    if (!dir)
+        return result;
+
+    int seen = 0;
+    const struct libsmb_file_info *fi = nullptr;
+    struct stat st;
+    while ((fi = readdirPlus2Fn(m_ctx, dir, &st)) != nullptr) {
+        ++seen;
+        const QString name = QString::fromUtf8(fi->name);
+        if (name.isEmpty() || name == QStringLiteral(".") || name == QStringLiteral(".."))
+            continue;
+
+        // Inside a share every entry is a real file or directory, so the
+        // share/server special-casing of the readdir path does not apply here:
+        // only dot-prefixed names count as hidden.
+        if (!showHidden && name.startsWith(QLatin1Char('.')))
+            continue;
+
+        const QString fullPath = cleanPath(dirPath + QLatin1Char('/') + name);
+        const bool entryIsDir = S_ISDIR(st.st_mode);
+        result.append(FileInfo::fromFields(
+            fullPath, name, entryIsDir ? 0 : static_cast<qint64>(st.st_size),
+            QDateTime::fromSecsSinceEpoch(static_cast<qint64>(st.st_mtime)), entryIsDir,
+            permsFromMode(st.st_mode)));
+    }
+    closedirFn(m_ctx, dir);
+
+    // A directory always yields at least "." and ".."; zero raw entries means
+    // the server/library did not actually serve readdirplus2 here (it returns
+    // nothing at the server root, where only readdir enumerates the shares), so
+    // the caller must fall back rather than report an empty directory.
+    *supported = seen > 0;
+    return result;
+}
+
 QVector<FileInfo> SmbProvider::list(const QString &path, bool showHidden) const {
     QVector<FileInfo> result;
     const QString dirPath = cleanPath(path);
@@ -412,12 +496,22 @@ QVector<FileInfo> SmbProvider::list(const QString &path, bool showHidden) const 
     if (!m_ctx)
         return result;
 
+    const QByteArray url = urlFor(dirPath).toUtf8();
+
+    // Fast path first: one round-trip for the whole directory. It does not work
+    // at the server root (share enumeration), which falls through below.
+    if (dirPath != QStringLiteral("/")) {
+        bool supported = false;
+        QVector<FileInfo> plus = listPlus(dirPath, url, showHidden, &supported);
+        if (supported)
+            return plus;
+    }
+
     smbc_opendir_fn opendirFn = smbc_getFunctionOpendir(m_ctx);
     smbc_readdir_fn readdirFn = smbc_getFunctionReaddir(m_ctx);
     smbc_closedir_fn closedirFn = smbc_getFunctionClosedir(m_ctx);
     smbc_stat_fn statFn = smbc_getFunctionStat(m_ctx);
 
-    const QByteArray url = urlFor(dirPath).toUtf8();
     SMBCFILE *dir = opendirFn(m_ctx, url.constData());
     if (!dir)
         return result;
@@ -462,17 +556,7 @@ QVector<FileInfo> SmbProvider::list(const QString &path, bool showHidden) const 
                 entryIsDir = S_ISDIR(st.st_mode);
                 size = entryIsDir ? 0 : static_cast<qint64>(st.st_size);
                 modified = QDateTime::fromSecsSinceEpoch(static_cast<qint64>(st.st_mtime));
-
-                const mode_t m = st.st_mode;
-                if (m & 0400) perms |= QFile::ReadOwner;
-                if (m & 0200) perms |= QFile::WriteOwner;
-                if (m & 0100) perms |= QFile::ExeOwner;
-                if (m & 0040) perms |= QFile::ReadGroup;
-                if (m & 0020) perms |= QFile::WriteGroup;
-                if (m & 0010) perms |= QFile::ExeGroup;
-                if (m & 0004) perms |= QFile::ReadOther;
-                if (m & 0002) perms |= QFile::WriteOther;
-                if (m & 0001) perms |= QFile::ExeOther;
+                perms = permsFromMode(st.st_mode);
             }
         }
 

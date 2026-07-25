@@ -101,6 +101,15 @@ private:
     // Builds the "smb://host<path>" URL for a POSIX provider path.
     QString urlFor(const QString &path) const;
 
+    // list()'s fast path: enumerates `url` with smbc_readdirplus2, which carries
+    // each entry's stat in the directory response instead of costing a separate
+    // round-trip per entry. Caller must hold m_mutex and have a live m_ctx.
+    // Sets *supported false when the library returned nothing at all for this
+    // directory (notably the server root, where only readdir lists the shares),
+    // meaning the result is meaningless and the readdir path must be used.
+    QVector<FileInfo> listPlus(const QString &dirPath, const QByteArray &url, bool showHidden,
+                               bool *supported) const;
+
     // Creates, initialises and probes one independent SMBCCTX using the current
     // credentials (read via the auth callback, which reaches back through
     // smbc_getOptionUserData). No lock; used both for the interactive context
@@ -113,9 +122,24 @@ private:
     // Wires the pool's Factory/Destroyer/size once credentials are known.
     void configurePool();
 
+    // Recomputes m_displayName ("user@host", or empty when disconnected) from
+    // the current credentials. Call after any change to m_host/m_user, with
+    // m_mutex held.
+    void publishDisplayName();
+
     // Serialises every access to the shared interactive context/handles
     // (list/isDir/rename/heartbeat and the fallback transfer path only).
     mutable QMutex m_mutex;
+
+    // Guards m_displayName ONLY. Deliberately separate from m_mutex: the GUI
+    // thread calls displayName() to label a tab while the session thread may be
+    // inside a multi-second list(), and m_mutex is held for that whole listing.
+    // Sharing one mutex made the tab-label refresh in FilePanel::navigateTo()
+    // freeze the GUI for the duration of the listing. This one is only ever held
+    // across a string copy, never across network I/O. Lock order, where both are
+    // taken: m_mutex first, then this.
+    mutable QMutex m_identityMutex;
+    QString m_displayName;
 
     SMBCCTX *m_ctx = nullptr;
     QString m_host;
