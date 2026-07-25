@@ -67,6 +67,7 @@
 #include "ImageViewer.h"
 #include "MpvWidget.h"
 #include "OfficeConverter.h"
+#include "SeekSlider.h"
 #include "SlideSceneBuilder.h"
 #include "config/Settings.h"
 #include "media/Id3Reader.h"
@@ -631,7 +632,9 @@ QWidget *QuickView::buildVideoPage() {
                 m_settings.setVideoSpeed(speed); // persist for later previews
             });
 
-    m_progressSlider = new QSlider(Qt::Horizontal, m_videoPage);
+    // SeekSlider (not a plain QSlider) so clicking anywhere on the bar jumps
+    // there, as in every other player.
+    m_progressSlider = new SeekSlider(Qt::Horizontal, m_videoPage);
     m_progressSlider->setRange(0, 1000);
     m_progressSlider->setToolTip(tr("Seek"));
     connect(m_progressSlider, &QSlider::sliderPressed, this, [this]() { m_seeking = true; });
@@ -851,7 +854,7 @@ QWidget *QuickView::buildAudioPage() {
     m_audioElapsed = new QLabel(QStringLiteral("0:00"), m_audioPage);
     m_audioTotal = new QLabel(QStringLiteral("0:00"), m_audioPage);
 
-    m_audioSeek = new QSlider(Qt::Horizontal, m_audioPage);
+    m_audioSeek = new SeekSlider(Qt::Horizontal, m_audioPage); // click-to-seek, as in the video page
     m_audioSeek->setRange(0, 1000);
     m_audioSeek->setToolTip(tr("Seek"));
     connect(m_audioSeek, &QSlider::sliderPressed, this,

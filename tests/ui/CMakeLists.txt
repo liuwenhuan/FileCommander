@@ -3,6 +3,7 @@ add_executable(ui_tests
     test_PropertiesDialog.cpp
     test_CommandHistory.cpp
     test_TextViewer.cpp
+    test_SeekSlider.cpp
 )
 
 target_link_libraries(ui_tests PRIVATE
