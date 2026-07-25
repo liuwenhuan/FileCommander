@@ -1,0 +1,19 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=ttc
+GenericName=File Manager
+GenericName[zh_CN]=文件管理器
+Comment=Dual-pane file manager
+Comment[zh_CN]=双栏文件管理器
+# The basename here must stay "ttc": src/main.cpp calls setDesktopFileName("ttc")
+# so the window manager can match running windows to this entry.
+Exec=ttc %F
+Icon=ttc
+Terminal=false
+Categories=Utility;Core;FileTools;FileManager;
+MimeType=inode/directory;
+Keywords=file;manager;explorer;commander;
+Keywords[zh_CN]=文件;管理器;资源管理器;
+StartupNotify=true
+StartupWMClass=ttc

@@ -40,8 +40,37 @@ target_link_libraries(ttc PRIVATE
     Qt5::Widgets Qt5::Core Qt5::Gui Qt5::Concurrent
 )
 
-add_subdirectory(tests)
-add_subdirectory(bench)
+# Tests and benchmarks default ON (the normal development build is unchanged),
+# but a packaging build turns them off: they roughly triple build time, and
+# tests/ hard-requires /usr/src/googletest, which a clean package builder has no
+# reason to install.
+option(TTC_BUILD_TESTS "Build the unit test suites" ON)
+option(TTC_BUILD_BENCH "Build the benchmarks" ON)
+
+if(TTC_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()
+if(TTC_BUILD_BENCH)
+    add_subdirectory(bench)
+endif()
+
+# --- Installation -----------------------------------------------------------
+# Consumed by both packaging scripts (see packaging/ and docs/PACKAGING.md) via
+# `DESTDIR=<staging> cmake --install`. The desktop file must be named
+# ttc.desktop: src/main.cpp calls setDesktopFileName("ttc"), which is how the
+# window manager ties running windows back to the launcher entry.
+include(GNUInstallDirs)
+
+install(TARGETS ttc RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES packaging/ttc.desktop
+        DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/applications)
+# Note this SVG is deliberately NOT in resources.qrc -- the in-app window icon
+# is painted in code (src/main.cpp) so it needs no SVG plugin. This copy exists
+# purely for the desktop/launcher entry's Icon=ttc.
+install(FILES resources/icons/ttc.svg
+        DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/apps)
+install(FILES packaging/ttc.metainfo.xml
+        DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/metainfo)
 
 # --- Translations -----------------------------------------------------------
 # Contributor workflow (see resources/translations/README.md):

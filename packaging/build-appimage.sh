@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+#
+# Builds ttc-<version>-x86_64.AppImage.
+#
+# The resulting AppImage must be launched through a real type-2 runtime, because
+# src/core/update/Updater.cpp decides how to self-update by checking $APPIMAGE.
+# A bare self-extracting archive would leave that unset and send the updater
+# down the .deb path. appimagetool (invoked by linuxdeploy) gives us that.
+#
+# Usage: packaging/build-appimage.sh [output-dir]
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+OUT_ARG="${1:-$REPO_ROOT/dist}"
+mkdir -p "$OUT_ARG"
+OUT_DIR="$(cd "$OUT_ARG" && pwd)"
+BUILD_DIR="$REPO_ROOT/build-appimage"
+APPDIR="$BUILD_DIR/AppDir"
+TOOLS_DIR="$REPO_ROOT/packaging/.tools"
+
+VERSION="$(sed -n 's/^project(ttc VERSION \([0-9.]*\).*/\1/p' "$REPO_ROOT/CMakeLists.txt")"
+if [[ -z "$VERSION" ]]; then
+    echo "error: could not read version from CMakeLists.txt project() line" >&2
+    exit 1
+fi
+
+echo "==> Building ttc $VERSION AppImage"
+
+# --- Toolchain --------------------------------------------------------------
+fetch_tool() {
+    local name="$1" url="$2" dest="$TOOLS_DIR/$1"
+    if [[ ! -x "$dest" ]]; then
+        echo "==> Fetching $name"
+        mkdir -p "$TOOLS_DIR"
+        curl -fsSL -o "$dest" "$url"
+        chmod +x "$dest"
+    fi
+}
+
+fetch_tool linuxdeploy-x86_64.AppImage \
+    "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
+fetch_tool linuxdeploy-plugin-qt-x86_64.AppImage \
+    "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage"
+
+LINUXDEPLOY="$TOOLS_DIR/linuxdeploy-x86_64.AppImage"
+
+# Without a usable /dev/fuse the tools can't mount themselves; they can still
+# unpack and run in place.
+if [[ ! -w /dev/fuse ]]; then
+    echo "==> /dev/fuse unavailable; using --appimage-extract-and-run"
+    export APPIMAGE_EXTRACT_AND_RUN=1
+fi
+
+# --- Build ------------------------------------------------------------------
+cmake -S "$REPO_ROOT" -B "$BUILD_DIR" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DTTC_BUILD_TESTS=OFF \
+    -DTTC_BUILD_BENCH=OFF
+
+cmake --build "$BUILD_DIR" --target ttc -j"$(nproc)"
+
+rm -rf "$APPDIR"
+DESTDIR="$APPDIR" cmake --install "$BUILD_DIR"
+strip --strip-unneeded "$APPDIR/usr/bin/ttc"
+
+# --- Bundle the external tools ttc shells out to -----------------------------
+# 7z is what makes UDF disc images browsable (see ExternalArchiveTool), and
+# unsquashfs is what makes AppImages browsable. Bundling them keeps those
+# features working on a host that has neither.
+#
+# Note /usr/bin/7z is only a shell wrapper around /usr/lib/p7zip/7z, which
+# dlopen()s 7z.so from the same directory. Both files must travel together, so
+# we reproduce that layout and supply our own wrapper.
+#
+# Only the full `7z` reads UDF -- 7za/7zr report zero entries on those images --
+# so we deliberately bundle 7z and not the smaller variants.
+install -d "$APPDIR/usr/bin" "$APPDIR/usr/lib/p7zip"
+if [[ -f /usr/lib/p7zip/7z && -f /usr/lib/p7zip/7z.so ]]; then
+    cp /usr/lib/p7zip/7z /usr/lib/p7zip/7z.so "$APPDIR/usr/lib/p7zip/"
+    cat > "$APPDIR/usr/bin/7z" <<'EOF'
+#!/bin/sh
+# Resolve the real 7z next to this wrapper, mirroring the p7zip layout so the
+# binary can dlopen 7z.so from its own directory.
+here="$(dirname "$(readlink -f "$0")")"
+exec "$here/../lib/p7zip/7z" "$@"
+EOF
+    chmod +x "$APPDIR/usr/bin/7z"
+else
+    echo "warning: /usr/lib/p7zip/7z not found; UDF/RAR support will fall back to the host" >&2
+fi
+
+if command -v unsquashfs >/dev/null 2>&1; then
+    cp "$(command -v unsquashfs)" "$APPDIR/usr/bin/unsquashfs"
+else
+    echo "warning: unsquashfs not found; AppImage browsing will fall back to the host" >&2
+fi
+
+# --- Runtime hook -----------------------------------------------------------
+# AppRun sources every apprun-hooks/*.sh before exec'ing the app. Ours drops
+# host-only Qt plugin names (Deepin's dxcb would otherwise abort startup) and
+# puts the bundled tools on PATH. Must be installed before linuxdeploy runs, so
+# it ends up inside the image.
+install -d "$APPDIR/apprun-hooks"
+install -m 0644 "$REPO_ROOT/packaging/apprun-hook.sh" "$APPDIR/apprun-hooks/ttc-hook.sh"
+
+# --- Package ----------------------------------------------------------------
+# linuxdeploy-plugin-qt supplies the platform plugin (libqxcb -- the app forces
+# QT_QPA_PLATFORM=xcb) and the image format plugins, including libqsvg, which
+# the 17 SVG icons in resources.qrc need in order to render at all.
+export QMAKE="${QMAKE:-/usr/lib/qt5/bin/qmake}"
+[[ -x "$QMAKE" ]] || QMAKE="$(command -v qmake)"
+export VERSION
+
+cd "$BUILD_DIR"
+"$LINUXDEPLOY" \
+    --appdir "$APPDIR" \
+    --plugin qt \
+    --desktop-file "$APPDIR/usr/share/applications/ttc.desktop" \
+    --icon-file "$APPDIR/usr/share/icons/hicolor/scalable/apps/ttc.svg" \
+    --output appimage
+
+# linuxdeploy names the output from the desktop entry + $VERSION; normalise it
+# to the name docs/UPDATE_SERVER.md commits to in the release checklist.
+PRODUCED="$(find "$BUILD_DIR" -maxdepth 1 -name '*.AppImage' -newer "$APPDIR/usr/bin/ttc" | head -1)"
+if [[ -z "$PRODUCED" ]]; then
+    echo "error: linuxdeploy did not produce an AppImage" >&2
+    exit 1
+fi
+
+FINAL="$OUT_DIR/ttc-${VERSION}-x86_64.AppImage"
+mv "$PRODUCED" "$FINAL"
+chmod +x "$FINAL"
+
+echo
+echo "==> $FINAL"
+sha256sum "$FINAL"

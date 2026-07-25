@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>ttc</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <name>ttc</name>
+  <summary>Dual-pane file manager</summary>
+  <summary xml:lang="zh_CN">双栏文件管理器</summary>
+
+  <description>
+    <p>
+      A dual-pane file manager for X11 desktops. Browses local directories,
+      archives, and remote shares (SFTP, SMB, FTP, WebDAV) in the same view,
+      with built-in preview for text, images, video, PDF, and office documents.
+    </p>
+    <p xml:lang="zh_CN">
+      面向 X11 桌面的双栏文件管理器。在同一视图中浏览本地目录、压缩包以及
+      远程共享(SFTP、SMB、FTP、WebDAV),内置文本、图片、视频、PDF 与
+      办公文档预览。
+    </p>
+  </description>
+
+  <launchable type="desktop-id">ttc.desktop</launchable>
+  <categories>
+    <category>Utility</category>
+    <category>FileTools</category>
+  </categories>
+
+  <provides>
+    <binary>ttc</binary>
+  </provides>
+
+  <releases>
+    <release version="0.1.0"/>
+  </releases>
+
+  <content_rating type="oars-1.1"/>
+</component>

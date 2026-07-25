@@ -36,8 +36,11 @@ if(TARGET LibArchive::LibArchive)
         LibArchive::LibArchive
     )
     # lzma7z (vendored 7z decoder) is an internal implementation detail of
-    # SevenZipReader; nettle provides AES-256/SHA-256 for the encryption glue.
-    target_link_libraries(archive PRIVATE lzma7z nettle)
+    # SevenZipReader. It also supplies the AES-256/SHA-256 used by the
+    # encryption glue (lzma_sdk/Aes.c, Sha256.c), so there is no separate crypto
+    # library to link -- an earlier `nettle` here was vestigial: nothing includes
+    # <nettle/...> and it never appeared in the binary's NEEDED list.
+    target_link_libraries(archive PRIVATE lzma7z)
 else()
     message(WARNING "libarchive not found -- archive support disabled")
     add_library(archive INTERFACE)

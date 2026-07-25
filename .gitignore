@@ -1,5 +1,7 @@
 # Build directories
 build/
+build-deb/
+build-appimage/
 
 # In-source CMake build artifacts (a stray `cmake .` at the repo root)
 /CMakeCache.txt
@@ -22,6 +24,22 @@ _deps/
 *.o
 *.a
 /ttc
+
+# Compiled test / benchmark executables. These were tracked by mistake before
+# this rule existed (~36 MB of ELF in the history); untracked as of the
+# packaging work, but the files stay on disk for whoever is mid-run.
+/tests/core/core_tests
+/tests/ui/ui_tests
+/tests/archive/archive_tests
+/tests/viewer/viewer_tests
+/bench/bench_dirlisting
+
+# Packaging output and downloaded tooling
+/dist/
+/AppDir/
+packaging/.tools/
+*.deb
+*.AppImage
 
 # Editor / tooling
 .claude/
