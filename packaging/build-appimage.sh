@@ -100,6 +100,29 @@ else
     echo "warning: unsquashfs not found; AppImage browsing will fall back to the host" >&2
 fi
 
+# office-oxide renders Office documents for the preview pane. Searched exactly
+# as the app searches at runtime (OfficeConverter::resolveBinary), including the
+# cargo/local install dirs it is usually built into.
+OXIDE=""
+for candidate in office_oxide office-oxide oxide; do
+    OXIDE="$(command -v "$candidate" 2>/dev/null || true)"
+    [[ -n "$OXIDE" ]] && break
+    for dir in "$HOME/.local/bin" "$HOME/.cargo/bin"; do
+        if [[ -x "$dir/$candidate" ]]; then
+            OXIDE="$dir/$candidate"
+            break 2
+        fi
+    done
+done
+
+if [[ -n "$OXIDE" ]]; then
+    cp "$(readlink -f "$OXIDE")" "$APPDIR/usr/bin/office-oxide"
+    chmod +x "$APPDIR/usr/bin/office-oxide"
+    echo "==> Bundled office-oxide from $OXIDE"
+else
+    echo "warning: office-oxide not found; Office document preview will not work" >&2
+fi
+
 # --- Runtime hook -----------------------------------------------------------
 # AppRun sources every apprun-hooks/*.sh before exec'ing the app. Ours drops
 # host-only Qt plugin names (Deepin's dxcb would otherwise abort startup) and

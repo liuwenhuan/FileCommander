@@ -53,6 +53,31 @@ strip --strip-unneeded "$STAGE_DIR/usr/bin/ttc-smb-helper"
 install -d "$STAGE_DIR/usr/share/doc/ttc"
 gzip -9cn "$REPO_ROOT/docs/UPDATE_SERVER.md" > "$STAGE_DIR/usr/share/doc/ttc/UPDATE_SERVER.md.gz"
 
+# office-oxide renders Office documents for the preview pane. It is a separate
+# project with no distro package, so it ships here rather than as a dependency;
+# without it, Office preview silently shows nothing. Found the same way the app
+# looks for it at runtime (see OfficeConverter::resolveBinary), so whatever the
+# build host uses is what gets packaged.
+OXIDE=""
+for candidate in office_oxide office-oxide oxide; do
+    OXIDE="$(command -v "$candidate" 2>/dev/null || true)"
+    [[ -n "$OXIDE" ]] && break
+    for dir in "$HOME/.local/bin" "$HOME/.cargo/bin"; do
+        if [[ -x "$dir/$candidate" ]]; then
+            OXIDE="$dir/$candidate"
+            break 2
+        fi
+    done
+done
+
+if [[ -n "$OXIDE" ]]; then
+    install -m 0755 "$(readlink -f "$OXIDE")" "$STAGE_DIR/usr/bin/office-oxide"
+    strip --strip-unneeded "$STAGE_DIR/usr/bin/office-oxide" 2>/dev/null || true
+    echo "==> Bundled office-oxide from $OXIDE"
+else
+    echo "warning: office-oxide not found; Office document preview will not work" >&2
+fi
+
 # --- Dependencies -----------------------------------------------------------
 # Prefer dpkg-shlibdeps: it reads the actual ELF and resolves each SONAME to the
 # package that ships it, so the list can't drift as the link line changes. The
