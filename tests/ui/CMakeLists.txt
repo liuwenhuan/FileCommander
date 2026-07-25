@@ -7,6 +7,7 @@ add_executable(ui_tests
     test_SeekSlider.cpp
     test_RemoteThumbnailFetcher.cpp
     test_RemoteThumbnail.cpp
+    test_ExifThumbnail.cpp
 )
 
 # test_main.cpp supplies main() (with a QApplication), so gtest_main is not linked.

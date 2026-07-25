@@ -1,5 +1,7 @@
 #include "ThumbnailCache.h"
 
+#include "ExifThumbnail.h"
+
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
@@ -53,23 +55,44 @@ QString extensionOf(const QString &path) { return QFileInfo(path).suffix().toLow
 // QuickView allows: this runs unattended while the user scrolls, so it must
 // cost pennies per file rather than be merely bounded.
 //
-// An image is fetched whole -- a partial one decodes to nothing useful -- so
-// its budget doubles as a "don't bother" threshold; anything larger keeps the
-// generic icon. A video is different: ffmpeg needs the container's index plus a
-// little data to pull an early frame, so a fixed excerpt is fetched however
-// large the file is, which is what makes thumbnailing a folder of videos
-// affordable at all. The excerpt is both ends of the file (kRemoteVideoHalf
-// each) because MP4/MOV put that index either at the front or -- as ffmpeg
-// writes by default -- at the very back; see Ticket::downloadHeadAndTail.
+// An image has no safe partial decode: a truncated JPEG does NOT fail to
+// decode -- Qt returns a non-null image with no error set, mostly flat grey --
+// so a prefix must never be passed off as a thumbnail. Ordinary images are
+// therefore fetched whole, and the budget doubles as a "don't bother"
+// threshold. The exception is a camera JPEG, which carries a complete EXIF
+// preview in its first few tens of KB: that is tried first (kExifProbeBytes),
+// and when it hits, a 20 MB photo costs ~64 KB instead. Because that path
+// exists, the whole-file ceiling can stay modest without giving up on big
+// photos.
+//
+// A video is different again: ffmpeg needs the container's index plus a little
+// data to pull an early frame, so a fixed excerpt is fetched however large the
+// file is -- 146 MB and 4 MB cost the same. The excerpt is both ends of the
+// file (kRemoteVideoHalf each) because MP4/MOV put that index either at the
+// front or -- as ffmpeg writes by default -- at the very back; see
+// Ticket::downloadHeadAndTail.
 constexpr qint64 kRemoteImageBudget = 8LL * 1024 * 1024;
 constexpr qint64 kRemoteVideoHalf = 2LL * 1024 * 1024;
+// Enough to cover the EXIF APP1 segment of every camera JPEG sampled (their
+// previews ended by ~23 KB), with headroom for larger embedded previews.
+constexpr qint64 kExifProbeBytes = 128 * 1024;
 
 bool isVideoPath(const QString &path) { return videoExtensions().contains(extensionOf(path)); }
 
+// JPEGs are the only format that reliably embeds an EXIF preview, so they get
+// the cheap header probe; other formats go straight to the whole-file path.
+bool isJpegPath(const QString &path) {
+    const QString ext = extensionOf(path);
+    return ext == QStringLiteral("jpg") || ext == QStringLiteral("jpeg");
+}
+
 // Largest remote file still worth a thumbnail attempt, by kind. Videos have no
-// size ceiling because only a fixed excerpt of one is ever fetched.
+// size ceiling because only a fixed excerpt of one is ever fetched; JPEGs have
+// none either, because the EXIF probe is tried first and a photo too big to
+// fetch whole almost always carries one (every camera JPEG sampled did).
 qint64 remoteSizeLimit(const QString &path) {
-    return isVideoPath(path) ? std::numeric_limits<qint64>::max() : kRemoteImageBudget;
+    return (isVideoPath(path) || isJpegPath(path)) ? std::numeric_limits<qint64>::max()
+                                                   : kRemoteImageBudget;
 }
 
 // Decodes an image file, scaling it to fit within size x size (preserving
@@ -355,11 +378,34 @@ void ThumbnailCache::generateRemote(const RemoteThumbnailFetcher::Ticket &ticket
                                     const QString &path, const QString &key, qint64 fileSize,
                                     int size) {
     QImage image;
+    // Cheapest path first: a camera JPEG carries a complete preview in its
+    // header, so a big photo can be thumbnailed from a fraction of its bytes.
+    // Only worth the extra round trip when fetching the whole file would
+    // actually hurt -- a small JPEG is cheaper to just pull.
+    if (isJpegPath(path) && fileSize > kExifProbeBytes * 2) {
+        const QByteArray preview = ExifThumbnail::extract(ticket.readHead(path, kExifProbeBytes));
+        if (!preview.isEmpty()) {
+            QImage embedded;
+            if (embedded.loadFromData(preview, "JPEG") && !embedded.isNull()) {
+                image = embedded.width() > size || embedded.height() > size
+                            ? embedded.scaled(size, size, Qt::KeepAspectRatio,
+                                              Qt::SmoothTransformation)
+                            : embedded;
+            }
+        }
+    }
+
     // A video takes both ends of the file, an image just its start: MP4/MOV put
     // the index at one end or the other, and only the head is knowable up front.
+    // A JPEG that got past remoteSizeLimit() on the strength of the EXIF probe
+    // but had no usable preview must not now be pulled down in full: fall back
+    // to the ordinary whole-file budget, and give up beyond it.
+    const bool tooBigToFetchWhole = !isVideoPath(path) && fileSize > kRemoteImageBudget;
     const QString localCopy =
-        isVideoPath(path) ? ticket.downloadHeadAndTail(path, fileSize, kRemoteVideoHalf)
-                          : ticket.download(path, fileSize);
+        (!image.isNull() || tooBigToFetchWhole)
+            ? QString() // already answered, or not worth the bytes
+            : (isVideoPath(path) ? ticket.downloadHeadAndTail(path, fileSize, kRemoteVideoHalf)
+                                 : ticket.download(path, fileSize));
     if (!localCopy.isEmpty()) {
         // From here on the fetched excerpt is an ordinary local file, so the
         // decode is byte-for-byte the same work generate() does -- including

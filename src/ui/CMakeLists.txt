@@ -13,6 +13,8 @@ add_library(ui STATIC
     ThumbnailCache.cpp
     RemoteThumbnailFetcher.h
     RemoteThumbnailFetcher.cpp
+    ExifThumbnail.h
+    ExifThumbnail.cpp
     ThumbnailDelegate.h
     ThumbnailDelegate.cpp
     CommandBar.h

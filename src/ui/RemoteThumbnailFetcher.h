@@ -63,6 +63,14 @@ public:
         QString downloadHeadAndTail(const QString &path, qint64 fileSize,
                                     qint64 halfBytes) const;
 
+        // Reads at most `maxBytes` from the start of `path` straight into
+        // memory, with no temp file. For probing a header -- notably a camera
+        // JPEG's embedded EXIF preview, which lets a 20 MB photo be thumbnailed
+        // from its first few tens of KB. Returns what it managed to read (empty
+        // on failure or cancellation); a short result is not an error, since the
+        // file may simply be smaller than the budget.
+        QByteArray readHead(const QString &path, qint64 maxBytes) const;
+
     private:
         friend class RemoteThumbnailFetcher;
         Ticket(const RemoteThumbnailFetcher *owner, std::shared_ptr<FileProvider> provider,

@@ -98,6 +98,39 @@ QString RemoteThumbnailFetcher::Ticket::download(const QString &path, qint64 max
     return outPath;
 }
 
+QByteArray RemoteThumbnailFetcher::Ticket::readHead(const QString &path, qint64 maxBytes) const {
+    FileProvider *provider = m_provider.get();
+    if (!provider || !provider->canStream() || maxBytes <= 0 || cancelled())
+        return {};
+
+    FileHandle *handle = provider->openRead(path);
+    if (!handle)
+        return {};
+
+    QByteArray out;
+    out.reserve(static_cast<int>(qMin<qint64>(maxBytes, 1 << 20)));
+    QByteArray buffer;
+    buffer.resize(kChunkBytes);
+    bool ok = true;
+    while (out.size() < maxBytes) {
+        if (cancelled()) {
+            ok = false;
+            break;
+        }
+        const qint64 want = qMin<qint64>(buffer.size(), maxBytes - out.size());
+        const qint64 n = provider->read(handle, buffer.data(), want);
+        if (n < 0) {
+            ok = false;
+            break;
+        }
+        if (n == 0)
+            break; // EOF: the whole file was smaller than the budget
+        out.append(buffer.constData(), static_cast<int>(n));
+    }
+    provider->closeHandle(handle);
+    return ok ? out : QByteArray();
+}
+
 QString RemoteThumbnailFetcher::Ticket::downloadHeadAndTail(const QString &path, qint64 fileSize,
                                                             qint64 halfBytes) const {
     // Nothing to skip: fetching both ends would just fetch the whole file, and
