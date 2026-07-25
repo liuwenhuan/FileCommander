@@ -52,4 +52,24 @@ Plan plan(const QByteArray &head, qint64 fileSize);
 // probe did not reveal a valid index there.
 Plan refine(const Plan &pending, const QByteArray &probe, qint64 fileSize);
 
+// Byte range holding the keyframe nearest `fraction` through the video, worked
+// out from the index in `moov`.
+//
+// The frame grab does not take the first frame: it seeks to 10% of the duration
+// so the thumbnail is representative rather than a title card or a black lead-in
+// (see ThumbnailCache::extractVideoFrame). That seek lands deep in the media --
+// 46 seconds into a 462-second file is ~270 MB in -- so a plan covering only the
+// index and the bytes right after it decodes to nothing there.
+//
+// Guessing a window at fileSize * fraction would usually work but not always:
+// what has to be covered is the gap between keyframes, which is set by the
+// encoder's GOP and ranges from ~1.5 MB to 9 MB and beyond on real files. The
+// index already answers this exactly -- stss lists which samples are keyframes,
+// stco/co64 give each chunk's byte offset, stsc maps samples to chunks, and
+// stts gives their durations -- so the position is computed, not guessed.
+//
+// Returns an invalid (0-length) range when `moov` lacks a usable video track
+// index, leaving the caller to fall back to a fixed window.
+Range keyframeRange(const QByteArray &moov, qint64 moovOffset, qint64 fileSize, double fraction);
+
 } // namespace Mp4RangePlan

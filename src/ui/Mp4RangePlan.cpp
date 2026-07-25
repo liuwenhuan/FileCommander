@@ -20,6 +20,16 @@ constexpr qint64 kMaxIndexBytes = 64LL * 1024 * 1024;
 
 constexpr int kBoxHeaderSize = 8;
 
+// Bytes to take from the keyframe's own position. One keyframe plus a little
+// slack: the grab decodes a single frame, so this only has to span that frame,
+// not the gap to the next one.
+constexpr qint64 kKeyframeWindowBytes = 2 * 1024 * 1024;
+
+// Sanity bound on table entry counts read out of the index. A real video's
+// tables run to tens of thousands of entries; a wildly larger count means a
+// corrupt or hostile field, and walking it would burn time and memory.
+constexpr quint32 kMaxTableEntries = 8u * 1000u * 1000u;
+
 quint32 beUint32(const QByteArray &data, int offset) {
     return (static_cast<quint32>(static_cast<quint8>(data[offset])) << 24) |
            (static_cast<quint32>(static_cast<quint8>(data[offset + 1])) << 16) |
@@ -97,6 +107,195 @@ Mp4RangePlan::Plan indexFoundAt(qint64 indexOffset, qint64 indexSize, qint64 fil
     return p;
 }
 
+// --- Reading the sample tables ----------------------------------------------
+// Everything below walks structures nested inside moov:
+//   trak > mdia > (hdlr, minf > stbl > {stss, stco/co64, stsc, stsz, stts})
+// Only enough is parsed to answer one question -- which byte range holds the
+// keyframe nearest a given point in time -- so no attempt is made to model the
+// format in general.
+
+// Finds a child box of `type` within [from, to) of `data`, returning its
+// payload range. Boxes are laid end to end, each headed by size + type.
+bool findBox(const QByteArray &data, int from, int to, const char *type, int *payloadStart,
+             int *payloadEnd) {
+    int pos = from;
+    while (pos + kBoxHeaderSize <= to) {
+        const qint64 size = beUint32(data, pos);
+        if (size < kBoxHeaderSize || pos + size > to)
+            return false; // truncated or malformed: stop rather than guess
+        if (data.mid(pos + 4, 4) == QByteArray(type, 4)) {
+            *payloadStart = pos + kBoxHeaderSize;
+            *payloadEnd = pos + static_cast<int>(size);
+            return true;
+        }
+        pos += static_cast<int>(size);
+    }
+    return false;
+}
+
+// Full-box tables start with a version/flags word then a 32-bit entry count.
+bool tableHeader(const QByteArray &data, int payloadStart, int payloadEnd, quint32 *count,
+                 int *entriesStart) {
+    if (payloadStart + 8 > payloadEnd)
+        return false;
+    *count = beUint32(data, payloadStart + 4);
+    *entriesStart = payloadStart + 8;
+    if (*count > kMaxTableEntries)
+        return false;
+    return true;
+}
+
+// The sample tables of the file's first video track.
+struct SampleTables {
+    QVector<quint32> syncSamples;   // stss: 1-based sample numbers that are keyframes
+    QVector<qint64> chunkOffsets;   // stco/co64: byte offset of each chunk
+    QVector<quint32> sampleSizes;   // stsz: per-sample size (empty when uniform)
+    quint32 uniformSampleSize = 0;  // stsz: non-zero when every sample is this size
+    // stsc runs: (firstChunk, samplesPerChunk)
+    QVector<QPair<quint32, quint32>> chunkRuns;
+    // stts runs: (sampleCount, duration) in media timescale units
+    QVector<QPair<quint32, quint32>> timeRuns;
+    quint32 timescale = 0;
+
+    bool usable() const {
+        return !syncSamples.isEmpty() && !chunkOffsets.isEmpty() && !chunkRuns.isEmpty() &&
+               !timeRuns.isEmpty() && timescale > 0;
+    }
+};
+
+// True when this trak's handler says "video". A file's first trak is often the
+// video one but not reliably -- audio-first files exist -- so it is checked.
+bool isVideoTrack(const QByteArray &moov, int mdiaStart, int mdiaEnd) {
+    int hs = 0, he = 0;
+    if (!findBox(moov, mdiaStart, mdiaEnd, "hdlr", &hs, &he))
+        return false;
+    // hdlr: version/flags, pre_defined, then the 4-character handler type.
+    return he - hs >= 12 && moov.mid(hs + 8, 4) == QByteArrayLiteral("vide");
+}
+
+bool readTables(const QByteArray &moov, int mdiaStart, int mdiaEnd, SampleTables *out) {
+    int mdhdS = 0, mdhdE = 0;
+    if (findBox(moov, mdiaStart, mdiaEnd, "mdhd", &mdhdS, &mdhdE) && mdhdE - mdhdS >= 20) {
+        // Version 0 puts the timescale at +12, version 1 (64-bit times) at +20.
+        const quint8 version = static_cast<quint8>(moov[mdhdS]);
+        const int tsOffset = version == 1 ? 20 : 12;
+        if (mdhdS + tsOffset + 4 <= mdhdE)
+            out->timescale = beUint32(moov, mdhdS + tsOffset);
+    }
+
+    int minfS = 0, minfE = 0, stblS = 0, stblE = 0;
+    if (!findBox(moov, mdiaStart, mdiaEnd, "minf", &minfS, &minfE))
+        return false;
+    if (!findBox(moov, minfS, minfE, "stbl", &stblS, &stblE))
+        return false;
+
+    int s = 0, e = 0;
+    quint32 n = 0;
+    int entries = 0;
+
+    if (findBox(moov, stblS, stblE, "stss", &s, &e) && tableHeader(moov, s, e, &n, &entries)) {
+        for (quint32 i = 0; i < n && entries + 4 <= e; ++i, entries += 4)
+            out->syncSamples.append(beUint32(moov, entries));
+    }
+
+    if (findBox(moov, stblS, stblE, "stco", &s, &e) && tableHeader(moov, s, e, &n, &entries)) {
+        for (quint32 i = 0; i < n && entries + 4 <= e; ++i, entries += 4)
+            out->chunkOffsets.append(beUint32(moov, entries));
+    } else if (findBox(moov, stblS, stblE, "co64", &s, &e) &&
+               tableHeader(moov, s, e, &n, &entries)) {
+        for (quint32 i = 0; i < n && entries + 8 <= e; ++i, entries += 8)
+            out->chunkOffsets.append(static_cast<qint64>(beUint64(moov, entries)));
+    }
+
+    if (findBox(moov, stblS, stblE, "stsc", &s, &e) && tableHeader(moov, s, e, &n, &entries)) {
+        for (quint32 i = 0; i < n && entries + 12 <= e; ++i, entries += 12)
+            out->chunkRuns.append({beUint32(moov, entries), beUint32(moov, entries + 4)});
+    }
+
+    if (findBox(moov, stblS, stblE, "stsz", &s, &e) && s + 12 <= e) {
+        out->uniformSampleSize = beUint32(moov, s + 4);
+        const quint32 count = beUint32(moov, s + 8);
+        if (out->uniformSampleSize == 0 && count <= kMaxTableEntries) {
+            int p = s + 12;
+            for (quint32 i = 0; i < count && p + 4 <= e; ++i, p += 4)
+                out->sampleSizes.append(beUint32(moov, p));
+        }
+    }
+
+    if (findBox(moov, stblS, stblE, "stts", &s, &e) && tableHeader(moov, s, e, &n, &entries)) {
+        for (quint32 i = 0; i < n && entries + 8 <= e; ++i, entries += 8)
+            out->timeRuns.append({beUint32(moov, entries), beUint32(moov, entries + 4)});
+    }
+
+    return out->usable();
+}
+
+// Sample number (1-based) at `fraction` of the way through, via stts.
+quint32 sampleAtFraction(const SampleTables &t, double fraction) {
+    qint64 totalUnits = 0;
+    for (const auto &run : t.timeRuns)
+        totalUnits += static_cast<qint64>(run.first) * run.second;
+    if (totalUnits <= 0)
+        return 1;
+
+    const qint64 targetUnits = static_cast<qint64>(totalUnits * fraction);
+    qint64 elapsed = 0;
+    quint32 sample = 1;
+    for (const auto &run : t.timeRuns) {
+        const qint64 runUnits = static_cast<qint64>(run.first) * run.second;
+        if (elapsed + runUnits >= targetUnits && run.second > 0) {
+            const qint64 into = (targetUnits - elapsed) / run.second;
+            return sample + static_cast<quint32>(qBound<qint64>(0, into, run.first - 1));
+        }
+        elapsed += runUnits;
+        sample += run.first;
+    }
+    return sample > 1 ? sample - 1 : 1;
+}
+
+// Byte offset of `sample` (1-based), by walking stsc's chunk runs and summing
+// the sizes of the samples that precede it inside its chunk.
+qint64 offsetOfSample(const SampleTables &t, quint32 sample) {
+    quint32 chunkIndex = 0;      // 0-based
+    quint32 sampleInChunk = 0;   // 0-based within that chunk
+    quint32 seen = 0;            // samples accounted for so far
+
+    for (int r = 0; r < t.chunkRuns.size(); ++r) {
+        const quint32 firstChunk = t.chunkRuns[r].first;          // 1-based
+        const quint32 perChunk = t.chunkRuns[r].second;
+        const quint32 lastChunk = (r + 1 < t.chunkRuns.size())
+                                      ? t.chunkRuns[r + 1].first - 1
+                                      : static_cast<quint32>(t.chunkOffsets.size());
+        if (perChunk == 0 || lastChunk < firstChunk)
+            continue;
+        const quint32 chunks = lastChunk - firstChunk + 1;
+        const quint32 samplesHere = chunks * perChunk;
+        if (seen + samplesHere >= sample) {
+            const quint32 into = sample - seen - 1;
+            chunkIndex = firstChunk - 1 + into / perChunk;
+            sampleInChunk = into % perChunk;
+            break;
+        }
+        seen += samplesHere;
+        chunkIndex = lastChunk; // in case the tables run short
+    }
+
+    if (chunkIndex >= static_cast<quint32>(t.chunkOffsets.size()))
+        return -1;
+
+    qint64 offset = t.chunkOffsets[chunkIndex];
+    // Skip the samples ahead of ours inside this chunk.
+    const quint32 firstSampleOfChunk = sample - sampleInChunk;
+    for (quint32 s = firstSampleOfChunk; s < sample; ++s) {
+        if (t.uniformSampleSize > 0) {
+            offset += t.uniformSampleSize;
+        } else if (s >= 1 && s <= static_cast<quint32>(t.sampleSizes.size())) {
+            offset += t.sampleSizes[s - 1];
+        }
+    }
+    return offset;
+}
+
 } // namespace
 
 namespace Mp4RangePlan {
@@ -164,6 +363,74 @@ Plan refine(const Plan &pending, const QByteArray &probe, qint64 fileSize) {
     result.ranges.append({0, qMin(kFrameDataBytes, pending.probeOffset)});
     result.ranges.append({box.offset, box.size});
     return result;
+}
+
+
+Range keyframeRange(const QByteArray &moov, qint64 moovOffset, qint64 fileSize, double fraction) {
+    Q_UNUSED(moovOffset);
+    const Range none{0, 0};
+    if (moov.size() < kBoxHeaderSize || fileSize <= 0)
+        return none;
+
+    // The buffer is whatever range the caller fetched, so moov may sit at its
+    // start, be preceded by the boxes before it (ftyp and friends), or arrive
+    // already unwrapped. Walk the chain to find it rather than assuming.
+    int start = 0;
+    int end = moov.size();
+    bool located = false;
+    for (int pos = 0; pos + kBoxHeaderSize <= moov.size();) {
+        const qint64 size = beUint32(moov, pos);
+        if (size < kBoxHeaderSize)
+            break; // malformed or a 64-bit/extends-to-EOF form we can skip past
+        if (moov.mid(pos + 4, 4) == QByteArrayLiteral("moov")) {
+            start = pos + kBoxHeaderSize;
+            end = static_cast<int>(qMin<qint64>(pos + size, moov.size()));
+            located = true;
+            break;
+        }
+        pos += static_cast<int>(size);
+    }
+    // No box header found at all: assume the caller handed over moov's payload.
+    if (!located && moov.mid(4, 4) != QByteArrayLiteral("moov") &&
+        moov.mid(4, 4) != QByteArrayLiteral("ftyp"))
+        start = 0;
+
+    // Find the first trak whose handler says video, and read its tables.
+    SampleTables tables;
+    int pos = start;
+    bool found = false;
+    while (pos + kBoxHeaderSize <= end) {
+        const qint64 size = beUint32(moov, pos);
+        if (size < kBoxHeaderSize || pos + size > end)
+            break;
+        if (moov.mid(pos + 4, 4) == QByteArrayLiteral("trak")) {
+            int mdiaS = 0, mdiaE = 0;
+            if (findBox(moov, pos + kBoxHeaderSize, pos + static_cast<int>(size), "mdia", &mdiaS,
+                        &mdiaE) &&
+                isVideoTrack(moov, mdiaS, mdiaE) && readTables(moov, mdiaS, mdiaE, &tables)) {
+                found = true;
+                break;
+            }
+        }
+        pos += static_cast<int>(size);
+    }
+    if (!found)
+        return none;
+
+    // The sample at `fraction`, then the last keyframe at or before it -- a
+    // decoder can only start from a keyframe.
+    const quint32 target = sampleAtFraction(tables, fraction);
+    quint32 keyframe = tables.syncSamples.first();
+    for (const quint32 s : tables.syncSamples) {
+        if (s > target)
+            break;
+        keyframe = s;
+    }
+
+    const qint64 offset = offsetOfSample(tables, keyframe);
+    if (offset < 0 || offset >= fileSize)
+        return none;
+    return {offset, qMin(kKeyframeWindowBytes, fileSize - offset)};
 }
 
 } // namespace Mp4RangePlan

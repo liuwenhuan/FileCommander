@@ -380,6 +380,36 @@ void ThumbnailCache::generate(const QString &path, const QString &key, int size)
                                Q_ARG(QString, key), Q_ARG(QImage, image));
 }
 
+namespace {
+
+// Fraction of the duration the frame grab seeks to; mirrors extractVideoFrame.
+constexpr double kFrameSeekFraction = 0.10;
+
+// Fetches the index the plan already located, and asks it where the keyframe at
+// the seek point lives. Returns a zero-length range when the index cannot be
+// read or holds no usable video track, leaving the plan as it was.
+Mp4RangePlan::Range keyframeRangeFor(const RemoteThumbnailFetcher::Ticket &ticket,
+                                     const QString &path, const Mp4RangePlan::Plan &plan,
+                                     qint64 fileSize) {
+    // The index is the last range the plan asked for when it trails the media,
+    // and the first when it leads: in both cases it is the largest one, since
+    // the others are a header or a small slice of frame data.
+    Mp4RangePlan::Range indexRange{0, 0};
+    for (const Mp4RangePlan::Range &r : plan.ranges) {
+        if (r.second > indexRange.second)
+            indexRange = r;
+    }
+    if (indexRange.second <= 0)
+        return {0, 0};
+
+    const QByteArray moov = ticket.readRange(path, indexRange.first, indexRange.second);
+    if (moov.isEmpty())
+        return {0, 0};
+    return Mp4RangePlan::keyframeRange(moov, indexRange.first, fileSize, kFrameSeekFraction);
+}
+
+} // namespace
+
 QString ThumbnailCache::fetchVideoExcerpt(const RemoteThumbnailFetcher::Ticket &ticket,
                                           const QString &path, qint64 fileSize) {
     // Ask the container where its index is instead of guessing. One small read
@@ -403,6 +433,16 @@ QString ThumbnailCache::fetchVideoExcerpt(const RemoteThumbnailFetcher::Ticket &
                 plan = Mp4RangePlan::refine(plan, probe, fileSize);
             }
             if (!plan.ranges.isEmpty()) {
+                // The plan so far covers the index and the bytes just past it.
+                // That is not where the frame is taken from: the grab seeks to
+                // 10% of the duration, which on a long file is hundreds of MB
+                // in. Read the index and let it name the exact keyframe there,
+                // so one small extra range replaces both a wrong guess and a
+                // wastefully wide window.
+                const Mp4RangePlan::Range keyframe = keyframeRangeFor(ticket, path, plan, fileSize);
+                if (keyframe.second > 0)
+                    plan.ranges.append(keyframe);
+
                 const QString excerpt = ticket.downloadRanges(path, fileSize, plan.ranges);
                 if (!excerpt.isEmpty())
                     return excerpt;

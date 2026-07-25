@@ -158,3 +158,122 @@ TEST(Mp4RangePlanTest, RangesStayInsideTheFile) {
         EXPECT_LE(r.first + r.second, fileSize);
     }
 }
+
+namespace {
+
+// Builds a minimal but structurally valid moov holding one video track whose
+// tables describe `samples` frames, a keyframe every `gop`, each `sampleBytes`
+// long, one sample per chunk starting at `mediaStart`.
+QByteArray videoMoov(int samples, int gop, quint32 sampleBytes, qint64 mediaStart) {
+    auto be32 = [](quint32 v) {
+        QByteArray b;
+        b.append(char((v >> 24) & 0xFF));
+        b.append(char((v >> 16) & 0xFF));
+        b.append(char((v >> 8) & 0xFF));
+        b.append(char(v & 0xFF));
+        return b;
+    };
+    auto full = [&](const QByteArray &type, const QByteArray &body) {
+        QByteArray b = be32(quint32(body.size() + 12)) + type + be32(0) + body;
+        return b;
+    };
+    auto plain = [&](const QByteArray &type, const QByteArray &body) {
+        return be32(quint32(body.size() + 8)) + type + body;
+    };
+
+    QByteArray stss;
+    int keys = 0;
+    for (int s = 1; s <= samples; s += gop) {
+        stss += be32(quint32(s));
+        ++keys;
+    }
+    stss = full(QByteArrayLiteral("stss"), be32(quint32(keys)) + stss);
+
+    QByteArray stco;
+    for (int c = 0; c < samples; ++c)
+        stco += be32(quint32(mediaStart + qint64(c) * sampleBytes));
+    stco = full(QByteArrayLiteral("stco"), be32(quint32(samples)) + stco);
+
+    // One sample per chunk, uniform size, uniform duration (1 unit @ 1 Hz).
+    const QByteArray stsc =
+        full(QByteArrayLiteral("stsc"), be32(1) + be32(1) + be32(1) + be32(1));
+    const QByteArray stsz =
+        full(QByteArrayLiteral("stsz"), be32(sampleBytes) + be32(quint32(samples)));
+    const QByteArray stts =
+        full(QByteArrayLiteral("stts"), be32(1) + be32(quint32(samples)) + be32(1));
+
+    const QByteArray stbl = plain(QByteArrayLiteral("stbl"), stss + stco + stsc + stsz + stts);
+    const QByteArray minf = plain(QByteArrayLiteral("minf"), stbl);
+    const QByteArray hdlr =
+        full(QByteArrayLiteral("hdlr"), be32(0) + QByteArrayLiteral("vide") + be32(0));
+    // mdhd v0: creation, modification, timescale, duration.
+    const QByteArray mdhd =
+        full(QByteArrayLiteral("mdhd"), be32(0) + be32(0) + be32(1) + be32(quint32(samples)));
+    const QByteArray mdia = plain(QByteArrayLiteral("mdia"), mdhd + hdlr + minf);
+    const QByteArray trak = plain(QByteArrayLiteral("trak"), mdia);
+    return plain(QByteArrayLiteral("moov"), trak);
+}
+
+} // namespace
+
+// The frame grab seeks to 10% of the duration, so the plan has to reach the
+// keyframe there -- not the start of the media. This is what a fixed window
+// cannot do reliably, since the keyframe spacing is set by the encoder.
+TEST(Mp4RangePlanTest, KeyframeRangeLandsOnTheSeekPoint) {
+    constexpr int samples = 1000;
+    constexpr int gop = 250;              // keyframes at 1, 251, 501, 751
+    constexpr quint32 sampleBytes = 4096;
+    constexpr qint64 mediaStart = 100000;
+    const QByteArray moov = videoMoov(samples, gop, sampleBytes, mediaStart);
+
+    const qint64 fileSize = mediaStart + qint64(samples) * sampleBytes + 1;
+    const Mp4RangePlan::Range r = Mp4RangePlan::keyframeRange(moov, 0, fileSize, 0.10);
+
+    // 10% of 1000 samples is sample 100; the keyframe at or before it is #1.
+    ASSERT_GT(r.second, 0) << "no keyframe located";
+    EXPECT_EQ(r.first, mediaStart) << "should point at the keyframe covering the seek point";
+}
+
+// Half way in, the answer must be the keyframe before that point (#501), not
+// the first one -- otherwise the excerpt holds the wrong part of the file.
+TEST(Mp4RangePlanTest, KeyframeRangeTracksTheRequestedFraction) {
+    constexpr int samples = 1000;
+    constexpr int gop = 250;
+    constexpr quint32 sampleBytes = 4096;
+    constexpr qint64 mediaStart = 100000;
+    const QByteArray moov = videoMoov(samples, gop, sampleBytes, mediaStart);
+    const qint64 fileSize = mediaStart + qint64(samples) * sampleBytes + 1;
+
+    const Mp4RangePlan::Range r = Mp4RangePlan::keyframeRange(moov, 0, fileSize, 0.55);
+    ASSERT_GT(r.second, 0);
+    // Sample 550 -> keyframe 501 -> offset mediaStart + 500 * sampleBytes.
+    EXPECT_EQ(r.first, mediaStart + 500 * qint64(sampleBytes));
+}
+
+// The buffer handed in is whatever range was fetched, which for a file with a
+// leading index starts at byte 0 -- ftyp first, moov after it. Finding moov
+// inside the buffer is what makes that case work.
+TEST(Mp4RangePlanTest, KeyframeRangeFindsMoovBehindLeadingBoxes) {
+    const QByteArray moov = videoMoov(1000, 250, 4096, 100000);
+    QByteArray withFtyp;
+    withFtyp.append(QByteArray("\x00\x00\x00\x10", 4));
+    withFtyp.append(QByteArrayLiteral("ftyp"));
+    withFtyp.append(QByteArray(8, '\0'));
+    withFtyp.append(moov);
+
+    const qint64 fileSize = 100000 + 1000LL * 4096 + 1;
+    const Mp4RangePlan::Range r = Mp4RangePlan::keyframeRange(withFtyp, 0, fileSize, 0.10);
+    EXPECT_GT(r.second, 0) << "moov was not found behind the leading ftyp box";
+}
+
+// Audio-only or table-less input must report nothing rather than a bogus
+// offset, so the caller keeps its fixed-window fallback.
+TEST(Mp4RangePlanTest, KeyframeRangeDeclinesWithoutAVideoTrack) {
+    EXPECT_EQ(Mp4RangePlan::keyframeRange(QByteArray(), 0, 1000, 0.10).second, 0);
+    EXPECT_EQ(Mp4RangePlan::keyframeRange(QByteArrayLiteral("not a box"), 0, 1000, 0.10).second, 0);
+    // A moov with no trak at all.
+    QByteArray empty;
+    empty.append(QByteArray("\x00\x00\x00\x08", 4));
+    empty.append(QByteArrayLiteral("moov"));
+    EXPECT_EQ(Mp4RangePlan::keyframeRange(empty, 0, 1000, 0.10).second, 0);
+}
