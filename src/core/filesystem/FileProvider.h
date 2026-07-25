@@ -111,6 +111,17 @@ public:
     // Capability probe: whether this provider supports the streaming I/O above.
     virtual bool canStream() const { return false; }
 
+    // How many reads this backend can genuinely serve at the same time, i.e.
+    // how many independent read channels openRead() can hand out before they
+    // start queueing behind one another. One means strictly serial.
+    //
+    // Callers that size a worker pool should ask rather than assume: extra
+    // workers on a single-channel backend only deepen the queue and hold more
+    // memory. SMB is the case that matters -- libsmbclient cannot be driven
+    // concurrently in-process, so it reports 1 until its helper subprocesses
+    // are confirmed available, and only then reports the real number.
+    virtual int maxReadChannels() const { return 1; }
+
     // Removes a single file or empty dir (used by move = copy+remove). Providers
     // that support writes should implement it; default fails.
     virtual bool remove(const QString & /*path*/) { return false; }

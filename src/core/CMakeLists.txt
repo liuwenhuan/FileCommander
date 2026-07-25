@@ -36,6 +36,9 @@ add_library(core STATIC
     network/CurlWebDavProvider.cpp
     network/SmbProvider.h
     network/SmbProvider.cpp
+    network/SmbHelperProtocol.h
+    network/SmbHelperClient.h
+    network/SmbHelperClient.cpp
     network/ConnectionStore.h
     network/ConnectionStore.cpp
     network/SmbHostBrowser.h

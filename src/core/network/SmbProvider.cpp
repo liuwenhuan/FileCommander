@@ -77,6 +77,14 @@ bool tcpReachable(const QString &host, int port, int timeoutMs) {
 // When `conn` is non-null the handle owns a pooled context borrowed for the
 // transfer and all I/O runs on it lock-free; when `conn` is null the handle uses
 // the provider's shared interactive context under m_mutex (the fallback path).
+// A handle backed by a helper subprocess instead of an in-process context, so
+// several reads can be in flight at once. `channel` is borrowed from
+// SmbProvider::m_helpers and returned by closeHandle.
+struct SmbHelperHandle : FileHandle {
+    SmbHelperClient::Channel *channel = nullptr;
+    explicit SmbHelperHandle(SmbHelperClient::Channel *c) : channel(c) {}
+};
+
 struct SmbHandle : FileHandle {
     SMBCFILE *file = nullptr;
     SMBCCTX *conn = nullptr; // borrowed from the pool; null => shared-context fallback
@@ -140,6 +148,10 @@ SmbProvider::~SmbProvider() {
     // released, so the pool holds only idle contexts, handed off to a detached
     // reaper so this destructor never blocks on a slow disconnect.
     m_pool.shutdownAsync();
+    // Helpers go before disconnect() so no subprocess outlives the provider
+    // that spawned it. Their teardown is fast (close a socket, reap a child
+    // that exits on EOF), so this does not block the way an SMB disconnect can.
+    m_helpers.shutdown();
     disconnect();
 }
 
@@ -325,6 +337,9 @@ bool SmbProvider::connectToHost(const QString &host, const QString &user,
     // Wire the transfer pool now that credentials are known. The pool builds its
     // own independent contexts lazily on first borrow().
     configurePool();
+    // Same for the helper pool: it spawns nothing until the first read asks for
+    // a channel, so an ordinary browse session costs no subprocesses at all.
+    m_helpers.configure(m_host, m_user, m_password, m_workgroup, m_anonymous, m_timeoutMs);
     return true;
 }
 
@@ -356,6 +371,10 @@ bool SmbProvider::reconnect(QString *error) {
 }
 
 void SmbProvider::disconnect() {
+    // Before the lock: the helpers hold credentials that are about to be
+    // cleared, and shutdown() takes its own mutex plus waits on child processes.
+    m_helpers.shutdown();
+
     QMutexLocker locker(&m_mutex);
     if (m_ctx) {
         // shutdown_ctx=1 closes any open files/dirs and frees the context.
@@ -660,8 +679,19 @@ FileHandle *SmbProvider::openRead(const QString &path) {
     const QString clean = cleanPath(path);
     const QByteArray url = urlFor(clean).toUtf8();
 
-    // Preferred path: borrow an independent context so the transfer runs
-    // lock-free and in parallel with other transfers and the interactive context.
+    // First choice: a helper subprocess. The in-process pool below is capped at
+    // one channel because libsmbclient's global state cannot survive concurrent
+    // use, so out-of-process is the only way two reads overlap. Every failure
+    // here (no helper installed, pool at capacity, spawn or open failed) simply
+    // falls through to the in-process path, which behaves exactly as before.
+    if (SmbHelperClient::Channel *channel = m_helpers.acquire()) {
+        if (channel->open(url))
+            return new SmbHelperHandle(channel);
+        m_helpers.release(channel); // open failed; the connection may still be fine
+    }
+
+    // Next: borrow an independent context so the transfer runs lock-free and in
+    // parallel with other transfers and the interactive context.
     QString perr;
     if (SMBCCTX *conn = m_pool.borrow(&perr)) {
         smbc_open_fn openFn = smbc_getFunctionOpen(conn);
@@ -717,6 +747,8 @@ FileHandle *SmbProvider::openWrite(const QString &path, bool truncate) {
 }
 
 qint64 SmbProvider::read(FileHandle *handle, char *buffer, qint64 maxSize) {
+    if (auto *hh = dynamic_cast<SmbHelperHandle *>(handle))
+        return hh->channel ? hh->channel->read(buffer, maxSize) : -1;
     auto *h = static_cast<SmbHandle *>(handle);
     if (!h || !h->file)
         return -1;
@@ -756,6 +788,8 @@ qint64 SmbProvider::write(FileHandle *handle, const char *buffer, qint64 size) {
 }
 
 bool SmbProvider::seek(FileHandle *handle, qint64 offset) {
+    if (auto *hh = dynamic_cast<SmbHelperHandle *>(handle))
+        return hh->channel && hh->channel->seek(offset);
     auto *h = static_cast<SmbHandle *>(handle);
     if (!h || !h->file)
         return false;
@@ -771,6 +805,8 @@ bool SmbProvider::seek(FileHandle *handle, qint64 offset) {
 }
 
 qint64 SmbProvider::handleSize(FileHandle *handle) {
+    if (auto *hh = dynamic_cast<SmbHelperHandle *>(handle))
+        return hh->channel ? hh->channel->size() : -1;
     auto *h = static_cast<SmbHandle *>(handle);
     if (!h || !h->file)
         return -1;
@@ -791,6 +827,16 @@ qint64 SmbProvider::handleSize(FileHandle *handle) {
 }
 
 void SmbProvider::closeHandle(FileHandle *handle) {
+    if (auto *hh = dynamic_cast<SmbHelperHandle *>(handle)) {
+        if (hh->channel) {
+            hh->channel->close();
+            // release() destroys the channel if the close revealed a broken
+            // helper, so a wedged subprocess is never handed to the next read.
+            m_helpers.release(hh->channel);
+        }
+        delete hh;
+        return;
+    }
     auto *h = static_cast<SmbHandle *>(handle);
     if (!h)
         return;
@@ -819,6 +865,14 @@ void SmbProvider::closeHandle(FileHandle *handle) {
         }
     }
     delete h;
+}
+
+int SmbProvider::maxReadChannels() const {
+    // The helper pool answers 1 until a subprocess has actually connected, so a
+    // caller never sizes its workers for parallelism that isn't there. It rises
+    // to the real cap after the first successful read, and a caller that asks
+    // again then gets the better number.
+    return m_helpers.provenChannels();
 }
 
 bool SmbProvider::remove(const QString &path) {

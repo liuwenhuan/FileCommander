@@ -59,11 +59,14 @@ cmake -S "$REPO_ROOT" -B "$BUILD_DIR" \
     -DTTC_BUILD_TESTS=OFF \
     -DTTC_BUILD_BENCH=OFF
 
-cmake --build "$BUILD_DIR" --target ttc -j"$(nproc)"
+# ttc-smb-helper is a separate executable, so it needs naming here: without it
+# SMB thumbnails silently fall back to the slower single-channel path.
+cmake --build "$BUILD_DIR" --target ttc ttc-smb-helper -j"$(nproc)"
 
 rm -rf "$APPDIR"
 DESTDIR="$APPDIR" cmake --install "$BUILD_DIR"
 strip --strip-unneeded "$APPDIR/usr/bin/ttc"
+strip --strip-unneeded "$APPDIR/usr/bin/ttc-smb-helper"
 
 # --- Bundle the external tools ttc shells out to -----------------------------
 # 7z is what makes UDF disc images browsable (see ExternalArchiveTool), and

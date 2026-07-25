@@ -5,6 +5,7 @@
 
 #include "ConnectionPool.h"
 #include "FileProvider.h"
+#include "SmbHelperClient.h"
 
 // libsmbclient opaque context; forward-declared to keep the C header out of
 // this interface (the .cpp includes <libsmbclient.h>). SMBCCTX is a typedef in
@@ -85,6 +86,11 @@ public:
     // transfers run in parallel and never contend with the interactive context's
     // list()/isDir()/heartbeat. If the pool cannot hand out a context, it falls
     // back to the shared interactive context (serialised on m_mutex).
+    //
+    // openRead has one further preference ahead of both: a helper subprocess
+    // (see m_helpers). Since the in-process pool is capped at a single channel,
+    // that is the only way two reads ever overlap. Reads only -- writes have no
+    // helper path and are unchanged.
     FileHandle *openRead(const QString &path) override;
     FileHandle *openWrite(const QString &path, bool truncate) override;
     qint64 read(FileHandle *handle, char *buffer, qint64 maxSize) override;
@@ -93,6 +99,12 @@ public:
     qint64 handleSize(FileHandle *handle) override;
     void closeHandle(FileHandle *handle) override;
     bool canStream() const override { return true; }
+
+    // The number of helper subprocesses that can serve reads in parallel, or 1
+    // when no helper is available (the in-process path is strictly serial,
+    // because libsmbclient cannot be driven concurrently). Lets a caller size
+    // its worker pool to the parallelism that actually exists.
+    int maxReadChannels() const override;
 
     bool remove(const QString &path) override;
     bool mkdir(const QString &path) override;
@@ -162,4 +174,11 @@ private:
     // and hand-off machinery; it just never hands out a second channel.
     ConnectionPool<SMBCCTX> m_pool;
     int m_maxChannels = 1;
+
+    // Out-of-process read channels, which are how this backend gets real
+    // parallelism despite the single in-process channel above: each helper is a
+    // separate process, so each has its own copy of libsmbclient's global
+    // state. Used by openRead() for reads only; when no helper is available the
+    // in-process path below runs unchanged, so this is pure acceleration.
+    SmbHelperClient m_helpers;
 };

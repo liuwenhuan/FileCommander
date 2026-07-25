@@ -29,6 +29,7 @@ add_subdirectory(src/ui)
 add_subdirectory(src/viewer)
 add_subdirectory(src/archive)
 add_subdirectory(src/search)
+add_subdirectory(src/smbhelper)
 
 add_executable(ttc
     src/main.cpp

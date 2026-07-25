@@ -39,13 +39,16 @@ cmake -S "$REPO_ROOT" -B "$BUILD_DIR" \
     -DTTC_BUILD_TESTS=OFF \
     -DTTC_BUILD_BENCH=OFF
 
-cmake --build "$BUILD_DIR" --target ttc -j"$(nproc)"
+# ttc-smb-helper is a separate executable, so it needs naming here: without it
+# SMB thumbnails silently fall back to the slower single-channel path.
+cmake --build "$BUILD_DIR" --target ttc ttc-smb-helper -j"$(nproc)"
 
 # --- Stage ------------------------------------------------------------------
 rm -rf "$STAGE_DIR"
 DESTDIR="$STAGE_DIR" cmake --install "$BUILD_DIR"
 
 strip --strip-unneeded "$STAGE_DIR/usr/bin/ttc"
+strip --strip-unneeded "$STAGE_DIR/usr/bin/ttc-smb-helper"
 
 install -d "$STAGE_DIR/usr/share/doc/ttc"
 gzip -9cn "$REPO_ROOT/docs/UPDATE_SERVER.md" > "$STAGE_DIR/usr/share/doc/ttc/UPDATE_SERVER.md.gz"
