@@ -31,6 +31,48 @@ const QString &unrarExe() {
 
 bool isRar(const QString &path) { return path.trimmed().toLower().endsWith(QStringLiteral(".rar")); }
 
+// Is this a UDF disc image? Reads the ECMA-167 Volume Recognition Sequence: a
+// run of 2048-byte descriptors starting at sector 16, each tagged with a 5-byte
+// standard identifier. "NSR02"/"NSR03" means a UDF filesystem is present.
+//
+// Most install ISOs are UDF *bridge* images: they carry both an ISO9660
+// structure (a stub, for old readers) and the real UDF tree. libarchive only
+// implements ISO9660, so it opens the file happily and reports the handful of
+// stub entries -- a silent wrong answer rather than an error. Detecting the NSR
+// descriptor lets the caller route those to 7z while leaving pure ISO9660
+// images on the in-process path.
+bool isUdfImage(const QString &path) {
+    const QString lower = path.trimmed().toLower();
+    if (!lower.endsWith(QStringLiteral(".iso")) && !lower.endsWith(QStringLiteral(".img")) &&
+        !lower.endsWith(QStringLiteral(".udf")))
+        return false;
+
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly))
+        return false;
+
+    constexpr qint64 kSectorSize = 2048;
+    constexpr qint64 kFirstSector = 16; // ECMA-119: recognition area starts here
+    constexpr int kMaxDescriptors = 16; // bounded scan; real sequences are short
+    if (!f.seek(kFirstSector * kSectorSize))
+        return false;
+
+    for (int i = 0; i < kMaxDescriptors; ++i) {
+        const QByteArray sector = f.read(kSectorSize);
+        if (sector.size() < 7)
+            break;
+        // Layout: 1 byte structure type, then a 5-byte standard identifier.
+        const QByteArray id = sector.mid(1, 5);
+        if (id == "NSR02" || id == "NSR03")
+            return true;
+        // TEA01 terminates the sequence. Anything unrecognised means we've run
+        // off the end of the descriptors, so stop rather than scan garbage.
+        if (id != "BEA01" && id != "CD001" && id != "CDW02" && id != "BOOT2")
+            break;
+    }
+    return false;
+}
+
 struct ProcResult {
     bool ran = false; // process actually finished (not killed / failed to start)
     int exitCode = -1;
@@ -74,6 +116,100 @@ ProcResult runProcess(const QString &exe, const QStringList &args, std::atomic<b
     return r;
 }
 
+struct StreamResult {
+    bool ran = false; // process finished AND every byte reached the file
+    int exitCode = -1;
+    QString err;
+};
+
+// Like runProcess, but pipes stdout straight into `destPath` instead of holding
+// it in memory. Used for extraction, where an entry can be many GB.
+StreamResult runProcessToFile(const QString &exe, const QStringList &args, const QString &destPath,
+                              std::atomic<bool> *cancel, int timeoutMs) {
+    StreamResult r;
+    QFile out(destPath);
+    if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        return r;
+
+    QProcess proc;
+    proc.setProgram(exe);
+    proc.setArguments(args);
+    proc.setProcessChannelMode(QProcess::SeparateChannels);
+    proc.start(QIODevice::ReadOnly);
+    if (!proc.waitForStarted(5000)) {
+        out.close();
+        out.remove();
+        return r;
+    }
+
+    // Drain BOTH pipes as data arrives. stdout obviously, or the writer stalls
+    // once the pipe buffer fills -- but stderr too: it's only ~64 KiB, and a tool
+    // that chatters past that would block forever on a write nobody is reading,
+    // which on a multi-GB extract means a wedged worker thread.
+    bool writeFailed = false;
+    QByteArray errBuf;
+    auto drain = [&]() {
+        // Keep only a bounded head: this is diagnostic text for classifyFailure,
+        // and a runaway tool shouldn't be able to grow it without limit.
+        constexpr int kMaxErrBytes = 64 * 1024;
+        const QByteArray e = proc.readAllStandardError();
+        if (errBuf.size() < kMaxErrBytes)
+            errBuf += e.left(kMaxErrBytes - errBuf.size());
+        while (proc.bytesAvailable() > 0) {
+            const QByteArray chunk = proc.read(1 << 20);
+            if (chunk.isEmpty())
+                break;
+            if (out.write(chunk) != chunk.size()) {
+                writeFailed = true;
+                return;
+            }
+        }
+    };
+
+    int waited = 0;
+    const int slice = 150;
+    bool finished = false;
+    while (!finished) {
+        finished = proc.waitForFinished(slice);
+        drain();
+        if (writeFailed) {
+            proc.kill();
+            proc.waitForFinished(1000);
+            break;
+        }
+        if (finished)
+            break;
+        if (cancel && cancel->load()) {
+            proc.kill();
+            proc.waitForFinished(1000);
+            break;
+        }
+        waited += slice;
+        if (waited >= timeoutMs) {
+            proc.kill();
+            proc.waitForFinished(1000);
+            break;
+        }
+    }
+    if (finished && !writeFailed) {
+        // waitForFinished can return before the last readyRead is delivered.
+        proc.waitForReadyRead(0);
+        drain();
+    }
+
+    errBuf += proc.readAllStandardError();
+    r.err = QString::fromLocal8Bit(errBuf);
+    const bool clean = finished && !writeFailed && proc.exitStatus() == QProcess::NormalExit;
+    if (clean) {
+        r.ran = out.flush();
+        r.exitCode = proc.exitCode();
+    }
+    out.close();
+    if (!r.ran)
+        out.remove(); // never leave a half-written file behind for a caller to serve
+    return r;
+}
+
 // Classify a failed run as a password problem when the tool's diagnostics mention
 // encryption; an empty password then means NeedPassword, otherwise WrongPassword.
 ExternalArchiveTool::Status classifyFailure(const QString &stderrText, const QString &password) {
@@ -104,9 +240,14 @@ ExternalArchiveTool::Status listWith7z(const QString &archivePath, const QString
         cancel, 60000);
     if (!r.ran)
         return ExternalArchiveTool::Status::Error;
-    if (r.exitCode != 0 && r.exitCode != 1)
-        return classifyFailure(r.err, password);
 
+    // Parse BEFORE judging the exit code. 7z reports a non-zero status for
+    // non-fatal complaints too -- a UDF bridge image, for instance, exits 2 with
+    // "Headers Error" over the malformed ISO9660 stub while still listing the
+    // whole UDF tree correctly. Treating that as fatal would throw away a
+    // perfectly good listing, so entries are collected first and the exit code
+    // only decides what to do when nothing came back.
+    //
     // -slt emits a header, then one "Key = Value" block per entry after a line of
     // dashes. Parse blocks; a blank line ends the current entry.
     const QString text = QString::fromUtf8(r.out);
@@ -114,9 +255,10 @@ ExternalArchiveTool::Status listWith7z(const QString &archivePath, const QString
     bool inEntries = false;
     bool have = false;
     ExternalArchiveTool::Entry cur;
+    QVector<ExternalArchiveTool::Entry> entries;
     auto flush = [&]() {
         if (have && !cur.path.isEmpty())
-            cb(cur);
+            entries.append(cur);
         cur = ExternalArchiveTool::Entry{};
         have = false;
     };
@@ -152,27 +294,44 @@ ExternalArchiveTool::Status listWith7z(const QString &archivePath, const QString
         }
     }
     flush();
+
+    // Nothing parsed -> the run really did fail; let the exit code and stderr say
+    // how (a password prompt is the common case).
+    if (entries.isEmpty() && r.exitCode != 0)
+        return classifyFailure(r.err, password);
+
+    for (const ExternalArchiveTool::Entry &e : entries)
+        cb(e);
     return ExternalArchiveTool::Status::Ok;
 }
 
 ExternalArchiveTool::Status readWith7z(const QString &archivePath, const QString &password,
                                        const QString &entryPath, const QString &destPath,
-                                       std::atomic<bool> *cancel) {
-    const ProcResult r = runProcess(
+                                       std::atomic<bool> *cancel, qint64 expectedSize) {
+    // Streams rather than using runProcess: a disc image entry can be multiple
+    // gigabytes (an install.wim is routinely > 4 GB), and buffering stdout in a
+    // QByteArray before writing would need that much RAM -- and would exceed
+    // QByteArray's 2 GB limit outright.
+    const StreamResult r = runProcessToFile(
         sevenZipExe(),
         {QStringLiteral("x"), QStringLiteral("-so"), QStringLiteral("-y"),
          sevenZipPasswordArg(password), archivePath, entryPath},
-        cancel, 120000);
+        destPath, cancel, 600000);
     if (!r.ran)
         return ExternalArchiveTool::Status::Error;
-    if (r.exitCode != 0 && r.exitCode != 1)
-        return classifyFailure(r.err, password);
-    QFile out(destPath);
-    if (!out.open(QIODevice::WriteOnly))
-        return ExternalArchiveTool::Status::Error;
-    out.write(r.out);
-    out.close();
-    return ExternalArchiveTool::Status::Ok;
+    if (r.exitCode == 0)
+        return ExternalArchiveTool::Status::Ok;
+
+    // Non-zero exit: trust the bytes over the status, but only when they check
+    // out (see the header note on expectedSize). Anything short or empty is a
+    // real failure -- serving a truncated file to a viewer would be worse than
+    // reporting the error.
+    const qint64 got = QFileInfo(destPath).size();
+    const bool sizeOk = expectedSize >= 0 ? got == expectedSize : got > 0;
+    if (sizeOk)
+        return ExternalArchiveTool::Status::Ok;
+    QFile::remove(destPath);
+    return classifyFailure(r.err, password);
 }
 
 // unrar fallback (only when 7z is absent). `unrar lb` lists bare paths; sizes and
@@ -205,21 +364,16 @@ ExternalArchiveTool::Status listWithUnrar(const QString &archivePath, const QStr
 ExternalArchiveTool::Status readWithUnrar(const QString &archivePath, const QString &password,
                                           const QString &entryPath, const QString &destPath,
                                           std::atomic<bool> *cancel) {
-    const ProcResult r = runProcess(
+    const StreamResult r = runProcessToFile(
         unrarExe(),
         {QStringLiteral("p"), QStringLiteral("-inul"),
          QStringLiteral("-p") + (password.isEmpty() ? QStringLiteral("-") : password), archivePath,
          entryPath},
-        cancel, 120000);
+        destPath, cancel, 600000);
     if (!r.ran)
         return ExternalArchiveTool::Status::Error;
     if (r.exitCode != 0)
         return classifyFailure(r.err, password);
-    QFile out(destPath);
-    if (!out.open(QIODevice::WriteOnly))
-        return ExternalArchiveTool::Status::Error;
-    out.write(r.out);
-    out.close();
     return ExternalArchiveTool::Status::Ok;
 }
 
@@ -234,6 +388,12 @@ bool useUnrar(const QString &archivePath) {
 
 bool ExternalArchiveTool::available(const QString &archivePath) {
     return use7z() || useUnrar(archivePath);
+}
+
+bool ExternalArchiveTool::preferExternal(const QString &archivePath) {
+    if (!use7z())
+        return false; // nothing better to switch to
+    return isUdfImage(archivePath);
 }
 
 ExternalArchiveTool::Status ExternalArchiveTool::list(const QString &archivePath,
@@ -251,9 +411,10 @@ ExternalArchiveTool::Status ExternalArchiveTool::readEntry(const QString &archiv
                                                            const QString &password,
                                                            const QString &entryPath,
                                                            const QString &destPath,
-                                                           std::atomic<bool> *cancel) {
+                                                           std::atomic<bool> *cancel,
+                                                           qint64 expectedSize) {
     if (use7z())
-        return readWith7z(archivePath, password, entryPath, destPath, cancel);
+        return readWith7z(archivePath, password, entryPath, destPath, cancel, expectedSize);
     if (useUnrar(archivePath))
         return readWithUnrar(archivePath, password, entryPath, destPath, cancel);
     return Status::Unavailable;

@@ -135,10 +135,19 @@ bool extractExternal(const QString &archivePath, const QStringList &sel, const Q
         }
         if (!want)
             continue;
+        // Entry names come from the archive, so they're untrusted: reject "..",
+        // absolute paths, and anything that would land outside destDir.
+        if (!SquashfsReader::isSafeEntryPath(e.path) ||
+            !SquashfsReader::isContained(destDir, e.path)) {
+            ok = false;
+            if (errorMessage && errorMessage->isEmpty())
+                *errorMessage = QStringLiteral("unsafe entry path '%1'").arg(e.path);
+            continue;
+        }
         const QString destPath = QDir(destDir).filePath(e.path);
         QDir().mkpath(QFileInfo(destPath).absolutePath());
-        const ExternalArchiveTool::Status rs =
-            ExternalArchiveTool::readEntry(archivePath, passphrase, e.path, destPath);
+        const ExternalArchiveTool::Status rs = ExternalArchiveTool::readEntry(
+            archivePath, passphrase, e.path, destPath, nullptr, e.size);
         if (rs != ExternalArchiveTool::Status::Ok) {
             ok = false;
             if (errorMessage && errorMessage->isEmpty())
@@ -295,6 +304,28 @@ QSharedPointer<ArchiveNode> ArchiveHandler::buildTree(const QString &archivePath
         if (errorMessage && errorMessage->isEmpty())
             *errorMessage = QStringLiteral("AppImage: %1").arg(int(s));
         return {};
+    }
+
+    // UDF disc image: list via the external 7z. This has to be decided up front,
+    // not left to the fallback below, because libarchive doesn't fail on these --
+    // it reads the ISO9660 bridge stub and reports a couple of placeholder
+    // entries, so there's no error to fall back from (see preferExternal).
+    if (ExternalArchiveTool::preferExternal(archivePath)) {
+        auto root = QSharedPointer<ArchiveNode>::create();
+        root->isDir = true;
+        const ExternalArchiveTool::Status s = ExternalArchiveTool::list(
+            archivePath, passphrase,
+            [&](const ExternalArchiveTool::Entry &e) {
+                const QStringList parts = e.path.split(QLatin1Char('/'), Qt::SkipEmptyParts);
+                if (!parts.isEmpty())
+                    ensurePath(root, parts, e.isDir, e.size, e.modified);
+            },
+            cancel);
+        if (s == ExternalArchiveTool::Status::Ok) {
+            setStatus(Status::Ok);
+            return root;
+        }
+        // Fall through to libarchive: a stub listing beats nothing at all.
     }
 
     // .7z: list via the in-process reader (encrypted + solid). Only if it can't
@@ -474,6 +505,12 @@ bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entr
     // AppImage: extract the appended squashfs via unsquashfs.
     if (isAppImage(archivePath))
         return extractAppImage(archivePath, entryFullPaths, destDir, errorMessage);
+
+    // UDF disc image: extract via the external 7z for the same reason listing
+    // does -- libarchive would "succeed" on the ISO9660 bridge stub and write
+    // the wrong files without ever reporting an error.
+    if (ExternalArchiveTool::preferExternal(archivePath))
+        return extractExternal(archivePath, entryFullPaths, destDir, passphrase, errorMessage);
 
     // .7z goes through the in-process reader (handles encrypted + solid); only a
     // container it can't decode falls through to libarchive.

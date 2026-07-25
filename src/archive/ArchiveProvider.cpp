@@ -10,6 +10,7 @@
 #include <QTemporaryDir>
 
 #include "ArchiveLayout.h"
+#include "ExternalArchiveTool.h"
 #include "SquashfsReader.h"
 
 namespace {
@@ -46,10 +47,16 @@ ArchiveProvider::ArchiveProvider(const QString &archivePath, QString *error)
     m_baseName = QFileInfo(archivePath).fileName();
     // An AppImage is browsed via unsquashfs (see SquashfsReader), not libarchive.
     m_isSquashfs = SquashfsReader::isAppImage(archivePath);
+    // A UDF disc image is browsed via the 7z tool: libarchive would "succeed"
+    // but only show the ISO9660 bridge stub (see preferExternal).
+    m_useExternal = !m_isSquashfs && ExternalArchiveTool::preferExternal(archivePath);
     // Non-zip formats are (potentially) solid/streaming -> extract-all on first
-    // read. zip -- and squashfs, which extracts a single entry cheaply via
-    // `unsquashfs -o <off> <entry>` -- locate one entry without a full pass.
-    m_extractAll = !m_isSquashfs && !m_archivePath.toLower().endsWith(QLatin1String(".zip"));
+    // read. zip -- and squashfs / 7z-on-a-disc-image, which extract a single
+    // entry cheaply by name -- locate one entry without a full pass. Extracting
+    // a whole disc image would also mean writing multiple GB to /tmp just to
+    // preview one file.
+    m_extractAll = !m_isSquashfs && !m_useExternal &&
+                   !m_archivePath.toLower().endsWith(QLatin1String(".zip"));
 
     readEntryList(error);
     if (!m_valid)
@@ -99,6 +106,37 @@ void ArchiveProvider::readEntryList(QString *error) {
                 *error = s == SquashfsReader::Status::Unavailable
                              ? QStringLiteral("unsquashfs not installed")
                              : QStringLiteral("could not read AppImage filesystem");
+            return;
+        }
+        m_valid = true;
+        return;
+    }
+
+    // UDF disc image: read the real tree via 7z. Entries whose paths aren't safe
+    // to materialise later are dropped here, so the tree only ever shows what
+    // can actually be extracted.
+    if (m_useExternal) {
+        const ExternalArchiveTool::Status s = ExternalArchiveTool::list(
+            m_archivePath, QString(), [&](const ExternalArchiveTool::Entry &e) {
+                QString path = e.path;
+                while (path.endsWith(QLatin1Char('/')))
+                    path.chop(1);
+                if (path.isEmpty() || !SquashfsReader::isSafeEntryPath(path))
+                    return;
+                RawEntry r;
+                r.path = path;
+                r.isDir = e.isDir;
+                r.size = e.isDir ? 0 : e.size;
+                r.modified = e.modified;
+                if (!r.isDir)
+                    m_totalBytes += r.size;
+                m_rawEntries.append(r);
+            });
+        if (s != ExternalArchiveTool::Status::Ok) {
+            if (error)
+                *error = s == ExternalArchiveTool::Status::Unavailable
+                             ? QStringLiteral("7z not installed")
+                             : QStringLiteral("could not read disc image");
             return;
         }
         m_valid = true;
@@ -399,6 +437,12 @@ bool ArchiveProvider::extractWhole() {
         return true;
     }
 
+    // A UDF image always uses per-entry extraction (m_extractAll is false), so
+    // this is unreachable. Guard anyway: falling through to libarchive would
+    // extract the ISO9660 bridge stub and quietly serve the wrong bytes.
+    if (m_useExternal)
+        return false;
+
     struct archive *a = archive_read_new();
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
@@ -462,6 +506,28 @@ QString ArchiveProvider::extractSingle(const QString &realPath) {
         QDir().mkpath(QFileInfo(destPath).path());
         if (SquashfsReader::readEntry(m_archivePath, realPath, destPath) !=
             SquashfsReader::Status::Ok)
+            return QString();
+        return destPath;
+    }
+
+    // UDF disc image: pull the one entry out with 7z (same traversal guard).
+    if (m_useExternal) {
+        if (!SquashfsReader::isSafeEntryPath(realPath) ||
+            !SquashfsReader::isContained(m_tempDir->path(), realPath))
+            return QString();
+        const QString destPath = QDir(m_tempDir->path()).filePath(realPath);
+        QDir().mkpath(QFileInfo(destPath).path());
+        // The listed size lets readEntry tell a benign non-zero exit (these
+        // images always produce one) from a genuinely truncated extract.
+        qint64 expected = -1;
+        for (const RawEntry &e : m_rawEntries) {
+            if (!e.isDir && e.path == realPath) {
+                expected = e.size;
+                break;
+            }
+        }
+        if (ExternalArchiveTool::readEntry(m_archivePath, QString(), realPath, destPath, nullptr,
+                                           expected) != ExternalArchiveTool::Status::Ok)
             return QString();
         return destPath;
     }
