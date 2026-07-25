@@ -107,15 +107,19 @@ private:
     // storeResult() instead.
     void generate(const QString &path, const QString &key, int size);
 
-    // Runs on a RemoteThumbnailFetcher worker: streams a bounded prefix of the
-    // remote file to a temp file, decodes it exactly as generate() does, then
-    // deletes the temp file and reports through storeResult(). The prefix is
-    // enough for an image (they are fetched whole, under the budget) and
-    // usually enough for a video; a container whose moov atom sits at the end
-    // simply fails to decode and is reported as a miss, leaving the generic
-    // icon in place.
+    // Runs on a RemoteThumbnailFetcher worker: fetches only as much of the
+    // remote file as a thumbnail needs, decodes it exactly as generate() does,
+    // then deletes the temp file and reports through storeResult(). A failure
+    // to decode is reported as a miss, leaving the generic icon in place.
     void generateRemote(const RemoteThumbnailFetcher::Ticket &ticket, const QString &path,
                         const QString &key, qint64 fileSize, int size);
+
+    // Fetches the part of a remote video a frame grab needs, following the
+    // container's own index rather than a fixed budget (see Mp4RangePlan).
+    // Falls back to a fixed both-ends excerpt for formats it cannot read.
+    // Returns a temp file path the caller must delete, or empty on failure.
+    static QString fetchVideoExcerpt(const RemoteThumbnailFetcher::Ticket &ticket,
+                                     const QString &path, qint64 fileSize);
 
     // GUI-thread slot (invoked via QMetaObject::invokeMethod with
     // Qt::QueuedConnection from worker threads): converts the decoded image

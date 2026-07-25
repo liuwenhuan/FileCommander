@@ -15,6 +15,10 @@ add_library(ui STATIC
     RemoteThumbnailFetcher.cpp
     ExifThumbnail.h
     ExifThumbnail.cpp
+    Mp4RangePlan.h
+    Mp4RangePlan.cpp
+    VideoRangePlan.h
+    VideoRangePlan.cpp
     ThumbnailDelegate.h
     ThumbnailDelegate.cpp
     CommandBar.h

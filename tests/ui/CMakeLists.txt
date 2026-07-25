@@ -8,6 +8,8 @@ add_executable(ui_tests
     test_RemoteThumbnailFetcher.cpp
     test_RemoteThumbnail.cpp
     test_ExifThumbnail.cpp
+    test_Mp4RangePlan.cpp
+    test_VideoRangePlan.cpp
 )
 
 # test_main.cpp supplies main() (with a QApplication), so gtest_main is not linked.

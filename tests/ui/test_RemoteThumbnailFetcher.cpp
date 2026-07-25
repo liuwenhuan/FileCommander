@@ -41,6 +41,11 @@ public:
 
     bool canStream() const override { return true; }
 
+    // Lets a test stand in for a backend with several independent read
+    // channels (SMB's helper subprocesses) or just one (everything serial).
+    int maxReadChannels() const override { return m_readChannels.load(); }
+    void setReadChannels(int n) { m_readChannels.store(n); }
+
     FileHandle *openRead(const QString &) override {
         ++m_opens;
         return new FakeHandle();
@@ -79,6 +84,7 @@ private:
     std::atomic<qint64> m_bytesServed{0};
     std::atomic<int> m_inRead{0};
     std::atomic<int> m_peakConcurrent{0};
+    std::atomic<int> m_readChannels{1};
 };
 
 // A provider that cannot stream -- submit() must refuse it outright rather than
@@ -146,15 +152,24 @@ TEST(RemoteThumbnailFetcherTest, DownloadStopsAtEofWhenSmallerThanBudget) {
     QFile::remove(fetched);
 }
 
-TEST(RemoteThumbnailFetcherTest, NeverRunsMoreThanTwoFetchesAtOnce) {
-    // Each read stalls, so any job that were allowed to run in parallel beyond
-    // the cap would show up in the peak-overlap counter.
+// Whatever the cap is set to, it must be the cap. Parameterised rather than
+// pinned to a number: the worker count is chosen at runtime from the backend's
+// channel count, so a test asserting a literal would break every time that
+// tuning changed -- which is exactly what it did when SMB gained parallel reads.
+class FetcherConcurrencyTest : public ::testing::TestWithParam<int> {};
+
+TEST_P(FetcherConcurrencyTest, NeverRunsMoreFetchesAtOnceThanTheConfiguredCap) {
+    const int cap = GetParam();
+    // Each read stalls, so any job allowed to run in parallel beyond the cap
+    // would show up in the peak-overlap counter.
     auto provider = std::make_shared<FakeProvider>(payload(256 * 1024), /*readDelayMs=*/20);
     RemoteThumbnailFetcher fetcher;
+    fetcher.setMaxConcurrent(cap);
+    ASSERT_EQ(fetcher.maxConcurrent(), cap);
 
     std::atomic<int> finished{0};
     int accepted = 0;
-    for (int i = 0; i < 6; ++i) {
+    for (int i = 0; i < 8; ++i) {
         const bool ok = fetcher.submit(provider, [&](const RemoteThumbnailFetcher::Ticket &ticket) {
             const QString p = ticket.download(QStringLiteral("/share/f.jpg"), 256 * 1024);
             if (!p.isEmpty())
@@ -164,11 +179,65 @@ TEST(RemoteThumbnailFetcherTest, NeverRunsMoreThanTwoFetchesAtOnce) {
         if (ok)
             ++accepted;
     }
-    ASSERT_GT(accepted, 2) << "the backlog must hold more than the worker count";
+    ASSERT_GT(accepted, cap) << "the backlog must hold more than the worker count";
     ASSERT_TRUE(waitFor([&] { return finished.load() == accepted; }, 20000));
 
-    EXPECT_LE(provider->peakConcurrent(), 2)
-        << "saw " << provider->peakConcurrent() << " concurrent reads on one connection";
+    EXPECT_LE(provider->peakConcurrent(), cap)
+        << "saw " << provider->peakConcurrent() << " concurrent reads with a cap of " << cap;
+}
+
+INSTANTIATE_TEST_SUITE_P(Caps, FetcherConcurrencyTest, ::testing::Values(1, 2, 4));
+
+TEST(RemoteThumbnailFetcherTest, DefaultsToTwoWorkersAndClampsWhatItIsGiven) {
+    // Two by default: a backend with one read channel gains nothing from more.
+    RemoteThumbnailFetcher fetcher;
+    EXPECT_EQ(fetcher.maxConcurrent(), 2);
+
+    // Nonsense values must not disable fetching or open the floodgates.
+    fetcher.setMaxConcurrent(0);
+    EXPECT_EQ(fetcher.maxConcurrent(), 1);
+    fetcher.setMaxConcurrent(-5);
+    EXPECT_EQ(fetcher.maxConcurrent(), 1);
+    fetcher.setMaxConcurrent(1000);
+    EXPECT_EQ(fetcher.maxConcurrent(), 8);
+}
+
+TEST(RemoteThumbnailFetcherTest, AdoptsTheWorkerCountAProviderReports) {
+    // The wiring that matters: a backend advertising several read channels gets
+    // a pool that can use them, without anyone hard-coding the number.
+    auto provider = std::make_shared<FakeProvider>(payload(4096), /*readDelayMs=*/0);
+    provider->setReadChannels(4);
+    RemoteThumbnailFetcher fetcher;
+    ASSERT_EQ(fetcher.maxConcurrent(), 2);
+
+    ASSERT_TRUE(fetcher.submit(provider, [](const RemoteThumbnailFetcher::Ticket &ticket) {
+        const QString p = ticket.download(QStringLiteral("/share/f.jpg"), 4096);
+        if (!p.isEmpty())
+            QFile::remove(p);
+    }));
+    EXPECT_EQ(fetcher.maxConcurrent(), 4);
+    waitFor([&] { return fetcher.outstanding() == 0; }, 20000);
+}
+
+TEST(RemoteThumbnailFetcherTest, NeverShrinksThePoolForASingleChannelBackend) {
+    // A serial backend must not claw back workers another provider is using:
+    // shrinking mid-directory would strand already-queued fetches.
+    auto wide = std::make_shared<FakeProvider>(payload(4096), /*readDelayMs=*/0);
+    wide->setReadChannels(4);
+    auto narrow = std::make_shared<FakeProvider>(payload(4096), /*readDelayMs=*/0);
+    narrow->setReadChannels(1);
+
+    RemoteThumbnailFetcher fetcher;
+    auto noop = [](const RemoteThumbnailFetcher::Ticket &ticket) {
+        const QString p = ticket.download(QStringLiteral("/share/f.jpg"), 4096);
+        if (!p.isEmpty())
+            QFile::remove(p);
+    };
+    ASSERT_TRUE(fetcher.submit(wide, noop));
+    ASSERT_EQ(fetcher.maxConcurrent(), 4);
+    ASSERT_TRUE(fetcher.submit(narrow, noop));
+    EXPECT_EQ(fetcher.maxConcurrent(), 4);
+    waitFor([&] { return fetcher.outstanding() == 0; }, 20000);
 }
 
 TEST(RemoteThumbnailFetcherTest, RefusesWorkOnceTheBacklogIsFull) {

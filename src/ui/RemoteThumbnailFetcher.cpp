@@ -13,12 +13,20 @@
 
 namespace {
 
-// Two concurrent transfers is the whole point of this class: enough that a
-// stalled file doesn't hold up the grid, few enough that browsing a photo
-// share never looks like a download manager to the server -- and, on the
-// pooled backends (SFTP/SMB), few enough to leave connection-pool slots for
-// the user's actual copy jobs.
-constexpr int kMaxConcurrentFetches = 2;
+// Concurrent transfers are the whole point of this class: enough that a stalled
+// file doesn't hold up the grid, few enough that browsing a photo share never
+// looks like a download manager to the server.
+//
+// Two by default, because that is what a backend with a single read channel can
+// actually use -- more workers on one channel only deepen the queue. Backends
+// that gain real parallelism raise it at runtime via setMaxConcurrent (SMB does
+// this once its helper subprocesses are confirmed available), so the worker
+// count tracks the channels that exist rather than betting on them.
+constexpr int kDefaultConcurrentFetches = 2;
+// Ceiling for setMaxConcurrent. Past this the server, not the client, is the
+// limit: measured against a real share, four workers fetch a directory of
+// videos ~2x faster than one and a fifth buys nothing.
+constexpr int kMaxConcurrentFetchCeiling = 8;
 // Backlog cap. Painting is the producer here, so the queue only ever needs to
 // hold what is on screen; anything beyond this is refused and re-requested by
 // the next repaint, which keeps the queue tracking the viewport rather than
@@ -131,6 +139,105 @@ QByteArray RemoteThumbnailFetcher::Ticket::readHead(const QString &path, qint64 
     return ok ? out : QByteArray();
 }
 
+QByteArray RemoteThumbnailFetcher::Ticket::readRange(const QString &path, qint64 offset,
+                                                     qint64 length) const {
+    FileProvider *provider = m_provider.get();
+    if (!provider || !provider->canStream() || length <= 0 || offset < 0 || cancelled())
+        return {};
+    if (offset == 0)
+        return readHead(path, length);
+
+    // A fresh handle per range: WebDAV and FTP only honour a seek before their
+    // transfer starts (it becomes an HTTP Range / FTP REST on the next request),
+    // so reusing a handle that has already read would silently return the wrong
+    // bytes. Reopening costs one request and behaves the same on every backend.
+    FileHandle *handle = provider->openRead(path);
+    if (!handle)
+        return {};
+    if (!provider->seek(handle, offset)) {
+        provider->closeHandle(handle);
+        return {}; // backend cannot seek -- the caller falls back
+    }
+
+    QByteArray out;
+    out.reserve(static_cast<int>(qMin<qint64>(length, 1 << 20)));
+    QByteArray buffer;
+    buffer.resize(kChunkBytes);
+    bool ok = true;
+    while (out.size() < length) {
+        if (cancelled()) {
+            ok = false;
+            break;
+        }
+        const qint64 want = qMin<qint64>(buffer.size(), length - out.size());
+        const qint64 n = provider->read(handle, buffer.data(), want);
+        if (n < 0) {
+            ok = false;
+            break;
+        }
+        if (n == 0)
+            break; // short read -- the file shrank since it was listed
+        out.append(buffer.constData(), static_cast<int>(n));
+    }
+    provider->closeHandle(handle);
+    return ok ? out : QByteArray();
+}
+
+QString RemoteThumbnailFetcher::Ticket::downloadRanges(
+    const QString &path, qint64 fileSize, const QVector<QPair<qint64, qint64>> &ranges) const {
+    FileProvider *provider = m_provider.get();
+    if (!provider || !provider->canStream() || ranges.isEmpty() || fileSize <= 0 || cancelled())
+        return {};
+
+    const QString suffix = QFileInfo(path).suffix();
+    QString templatePath = QDir::tempPath() + QStringLiteral("/ttc-rthumb-XXXXXX");
+    if (!suffix.isEmpty())
+        templatePath += QLatin1Char('.') + suffix;
+    QTemporaryFile temp(templatePath);
+    temp.setAutoRemove(false); // the caller decodes it, then removes it
+    if (!temp.open())
+        return {};
+    const QString outPath = temp.fileName();
+    // Give the file its real length up front so every range lands at its true
+    // offset and the gaps between them stay holes, costing neither disk nor
+    // network.
+    if (!temp.resize(fileSize)) {
+        temp.close();
+        QFile::remove(outPath);
+        return {};
+    }
+
+    bool wroteAnything = false;
+    for (const QPair<qint64, qint64> &range : ranges) {
+        if (cancelled()) {
+            temp.close();
+            QFile::remove(outPath);
+            return {};
+        }
+        const qint64 offset = range.first;
+        const qint64 length = qMin(range.second, fileSize - offset);
+        if (offset < 0 || length <= 0 || offset >= fileSize)
+            continue;
+
+        const QByteArray chunk = readRange(path, offset, length);
+        if (chunk.isEmpty())
+            continue; // this range was unreachable; others may still decode
+        if (!temp.seek(offset) || temp.write(chunk) != chunk.size()) {
+            temp.close();
+            QFile::remove(outPath);
+            return {};
+        }
+        wroteAnything = true;
+    }
+    temp.close();
+
+    if (!wroteAnything) {
+        QFile::remove(outPath);
+        return {};
+    }
+    return outPath;
+}
+
 QString RemoteThumbnailFetcher::Ticket::downloadHeadAndTail(const QString &path, qint64 fileSize,
                                                             qint64 halfBytes) const {
     // Nothing to skip: fetching both ends would just fetch the whole file, and
@@ -206,8 +313,17 @@ QString RemoteThumbnailFetcher::Ticket::downloadHeadAndTail(const QString &path,
 }
 
 RemoteThumbnailFetcher::RemoteThumbnailFetcher() : m_pool(new QThreadPool()) {
-    m_pool->setMaxThreadCount(kMaxConcurrentFetches);
+    m_pool->setMaxThreadCount(kDefaultConcurrentFetches);
 }
+
+void RemoteThumbnailFetcher::setMaxConcurrent(int workers) {
+    // QThreadPool grows and shrinks its worker set on demand, so this is safe
+    // to call while jobs are in flight: raising it lets queued work start at
+    // once, lowering it just stops replacing workers as they finish.
+    m_pool->setMaxThreadCount(qBound(1, workers, kMaxConcurrentFetchCeiling));
+}
+
+int RemoteThumbnailFetcher::maxConcurrent() const { return m_pool->maxThreadCount(); }
 
 RemoteThumbnailFetcher::~RemoteThumbnailFetcher() {
     {
@@ -232,6 +348,14 @@ bool RemoteThumbnailFetcher::submit(const std::shared_ptr<FileProvider> &provide
         epoch = m_epochs.value(provider.get(), 0);
         ++m_outstanding;
     }
+
+    // Size the worker pool to the parallelism this backend actually has. Asked
+    // on every submit because the answer can improve: SMB only learns its real
+    // channel count once a helper subprocess has connected, which happens on
+    // the first read. Never lowered here -- another provider may still be using
+    // the wider pool, and shrinking mid-directory would strand queued work.
+    if (const int channels = provider->maxReadChannels(); channels > maxConcurrent())
+        setMaxConcurrent(channels);
 
     // The ticket co-owns the provider, so a job that is still pulling bytes
     // cannot outlive the backend it reads through -- the reason cancellation

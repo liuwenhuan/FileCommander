@@ -2,7 +2,9 @@
 
 #include <QHash>
 #include <QMutex>
+#include <QPair>
 #include <QString>
+#include <QVector>
 
 #include <functional>
 #include <memory>
@@ -71,6 +73,24 @@ public:
         // file may simply be smaller than the budget.
         QByteArray readHead(const QString &path, qint64 maxBytes) const;
 
+        // Reads `length` bytes starting at `offset` into memory. Same contract
+        // as readHead otherwise. Used to follow a container's own index to
+        // wherever it points, rather than guessing how much of the file to pull.
+        QByteArray readRange(const QString &path, qint64 offset, qint64 length) const;
+
+        // Fetches the given byte ranges of `path` into a sparse temp file,
+        // placing each at its true offset so the file reads as the original
+        // with holes where nothing was fetched. Returns the temp path (empty on
+        // failure/cancellation, partial file removed); the caller owns it.
+        //
+        // Keeping the real offsets is the whole point: a media file's internal
+        // pointers are absolute, so the demuxer only finds its frames if every
+        // byte sits where it does in the original. `fileSize` sets the file's
+        // apparent length. Ranges may be given in any order and are fetched in
+        // one pass where the backend allows it.
+        QString downloadRanges(const QString &path, qint64 fileSize,
+                               const QVector<QPair<qint64, qint64>> &ranges) const;
+
     private:
         friend class RemoteThumbnailFetcher;
         Ticket(const RemoteThumbnailFetcher *owner, std::shared_ptr<FileProvider> provider,
@@ -101,6 +121,19 @@ public:
     // tickets report cancelled() from here on. Scoped per provider so one
     // panel's navigation never throws away the other panel's work.
     void cancel(const FileProvider *provider);
+
+    // Raises or lowers how many fetches may run at once, clamped to 1..8.
+    //
+    // Deliberately runtime rather than a compile-time constant: the right number
+    // is however many independent read channels the backend actually has. A
+    // backend limited to one channel gains nothing from extra workers -- they
+    // only queue deeper and hold more memory -- whereas SMB's helper
+    // subprocesses give it several, and it raises this once they are confirmed
+    // working. Safe to call while jobs are in flight.
+    void setMaxConcurrent(int workers);
+
+    // The current cap (post-clamp), for callers that tune it and for tests.
+    int maxConcurrent() const;
 
     // Test seam: jobs queued or running right now.
     int outstanding() const;

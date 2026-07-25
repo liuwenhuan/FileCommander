@@ -1,6 +1,8 @@
 #include "ThumbnailCache.h"
 
 #include "ExifThumbnail.h"
+#include "Mp4RangePlan.h"
+#include "VideoRangePlan.h"
 
 #include <QCryptographicHash>
 #include <QDir>
@@ -66,16 +68,20 @@ QString extensionOf(const QString &path) { return QFileInfo(path).suffix().toLow
 // photos.
 //
 // A video is different again: ffmpeg needs the container's index plus a little
-// data to pull an early frame, so a fixed excerpt is fetched however large the
-// file is -- 146 MB and 4 MB cost the same. The excerpt is both ends of the
-// file (kRemoteVideoHalf each) because MP4/MOV put that index either at the
-// front or -- as ffmpeg writes by default -- at the very back; see
-// Ticket::downloadHeadAndTail.
+// media data to pull an early frame, and only a fraction of the file is ever
+// fetched however large it is. For MP4/MOV the exact ranges are computed from
+// the container itself (Mp4RangePlan); kRemoteVideoHalf is the fallback for
+// formats that cannot be read that way -- both ends of the file, since the
+// index sits at one or the other.
 constexpr qint64 kRemoteImageBudget = 8LL * 1024 * 1024;
 constexpr qint64 kRemoteVideoHalf = 2LL * 1024 * 1024;
 // Enough to cover the EXIF APP1 segment of every camera JPEG sampled (their
 // previews ended by ~23 KB), with headroom for larger embedded previews.
 constexpr qint64 kExifProbeBytes = 128 * 1024;
+// Head read used to walk an MP4's top-level box chain. The chain is a handful
+// of small boxes before the media, so this is generous; it also covers the
+// whole index outright for a short clip.
+constexpr qint64 kMp4HeadProbe = 64 * 1024;
 
 bool isVideoPath(const QString &path) { return videoExtensions().contains(extensionOf(path)); }
 
@@ -374,6 +380,54 @@ void ThumbnailCache::generate(const QString &path, const QString &key, int size)
                                Q_ARG(QString, key), Q_ARG(QImage, image));
 }
 
+QString ThumbnailCache::fetchVideoExcerpt(const RemoteThumbnailFetcher::Ticket &ticket,
+                                          const QString &path, qint64 fileSize) {
+    // Ask the container where its index is instead of guessing. One small read
+    // of the head names every top-level box; for a file whose index trails the
+    // media that yields the index's offset, and a second tiny read gives its
+    // size. Only then is the fetch sized correctly -- which matters in both
+    // directions: a long film's index can exceed a fixed head budget (leaving
+    // it with no thumbnail at all), while a short clip needs a fraction of one.
+    const QByteArray head = ticket.readHead(path, kMp4HeadProbe);
+    if (!head.isEmpty()) {
+        // The extension is not evidence of the format -- on a real share, a
+        // whole directory of ".mkv" files turned out to be MPEG-TS -- so the
+        // container is identified from these bytes, which are already in hand.
+        const VideoRangePlan::Container kind = VideoRangePlan::detect(head);
+
+        if (kind == VideoRangePlan::Container::Iso) {
+            Mp4RangePlan::Plan plan = Mp4RangePlan::plan(head, fileSize);
+            if (plan.needsProbe) {
+                const QByteArray probe =
+                    ticket.readRange(path, plan.probeOffset, plan.probeLength);
+                plan = Mp4RangePlan::refine(plan, probe, fileSize);
+            }
+            if (!plan.ranges.isEmpty()) {
+                const QString excerpt = ticket.downloadRanges(path, fileSize, plan.ranges);
+                if (!excerpt.isEmpty())
+                    return excerpt;
+            }
+        } else {
+            // Everything else: headers, the frames the grab seeks to, and a
+            // tail for the formats that index there. No per-format parsing --
+            // measured on real files, that cost more code and decoded fewer
+            // of them than these three ranges do.
+            const QVector<VideoRangePlan::Range> ranges =
+                VideoRangePlan::plan(kind, fileSize);
+            if (!ranges.isEmpty()) {
+                const QString excerpt = ticket.downloadRanges(path, fileSize, ranges);
+                if (!excerpt.isEmpty())
+                    return excerpt;
+            }
+        }
+    }
+
+    // An unreadable head, an unrecognised container, or a plan whose ranges
+    // did not come back: fall back to the fixed both-ends excerpt, which needs
+    // no knowledge of the format.
+    return ticket.downloadHeadAndTail(path, fileSize, kRemoteVideoHalf);
+}
+
 void ThumbnailCache::generateRemote(const RemoteThumbnailFetcher::Ticket &ticket,
                                     const QString &path, const QString &key, qint64 fileSize,
                                     int size) {
@@ -395,17 +449,15 @@ void ThumbnailCache::generateRemote(const RemoteThumbnailFetcher::Ticket &ticket
         }
     }
 
-    // A video takes both ends of the file, an image just its start: MP4/MOV put
-    // the index at one end or the other, and only the head is knowable up front.
     // A JPEG that got past remoteSizeLimit() on the strength of the EXIF probe
     // but had no usable preview must not now be pulled down in full: fall back
     // to the ordinary whole-file budget, and give up beyond it.
     const bool tooBigToFetchWhole = !isVideoPath(path) && fileSize > kRemoteImageBudget;
-    const QString localCopy =
-        (!image.isNull() || tooBigToFetchWhole)
-            ? QString() // already answered, or not worth the bytes
-            : (isVideoPath(path) ? ticket.downloadHeadAndTail(path, fileSize, kRemoteVideoHalf)
-                                 : ticket.download(path, fileSize));
+    QString localCopy;
+    if (image.isNull() && !tooBigToFetchWhole) {
+        localCopy = isVideoPath(path) ? fetchVideoExcerpt(ticket, path, fileSize)
+                                      : ticket.download(path, fileSize);
+    }
     if (!localCopy.isEmpty()) {
         // From here on the fetched excerpt is an ordinary local file, so the
         // decode is byte-for-byte the same work generate() does -- including
