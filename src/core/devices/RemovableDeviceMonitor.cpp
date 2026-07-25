@@ -241,6 +241,47 @@ QString RemovableDeviceMonitor::ensureMounted(const QString &id, QString *errorO
     return reply.value();
 }
 
+bool RemovableDeviceMonitor::unmount(const QString &id, QString *errorOut) {
+    // Already unmounted? Nothing to do -- report success so the UI just refreshes.
+    bool known = false;
+    for (const RemovableDevice &dev : m_devices) {
+        if (dev.id == id) {
+            known = true;
+            if (!dev.isMounted)
+                return true;
+            break;
+        }
+    }
+    Q_UNUSED(known);
+
+    QDBusConnection bus = QDBusConnection::systemBus();
+    if (!bus.isConnected()) {
+        if (errorOut)
+            *errorOut = tr("System D-Bus is not available");
+        return false;
+    }
+
+    QDBusInterface fs(QString::fromUtf8(kService), id, QString::fromUtf8(kFilesystemIface), bus);
+    if (!fs.isValid()) {
+        if (errorOut)
+            *errorOut = tr("Device is not a mountable filesystem");
+        return false;
+    }
+
+    // Unmount(a{sv} options) -> (): empty options lets UDisks2 pick defaults.
+    const QVariantMap options;
+    QDBusReply<void> reply = fs.call(QStringLiteral("Unmount"), options);
+    if (!reply.isValid()) {
+        if (errorOut)
+            *errorOut = reply.error().message();
+        return false;
+    }
+
+    // Refresh so the snapshot reflects the now-unmounted state.
+    refresh();
+    return true;
+}
+
 QVector<RemovableDevice> RemovableDeviceMonitor::enumerate() const {
     QVector<RemovableDevice> result;
 

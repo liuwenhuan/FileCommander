@@ -49,6 +49,12 @@ public:
     // when errorOut is non-null, writes a human-readable reason to it.
     QString ensureMounted(const QString &id, QString *errorOut = nullptr);
 
+    // Unmounts the device with this id via UDisks2 (the "safely remove / eject"
+    // action). A no-op that reports success if it is already unmounted. Returns
+    // false on failure and, when errorOut is non-null, writes a human-readable
+    // reason to it.
+    bool unmount(const QString &id, QString *errorOut = nullptr);
+
 signals:
     void deviceAdded(const RemovableDevice &dev);
     void deviceRemoved(const QString &id);

@@ -128,23 +128,22 @@ void ExternalConnectDialog::popUpAbove(const QRect &anchorGlobalRect) {
     m_list->setFocus();
 }
 
-void ExternalConnectDialog::addHeader(const QString &text) {
-    auto *item = new QListWidgetItem(text, m_list);
-    // Non-interactive section label: no selection, no activation.
-    item->setFlags(Qt::NoItemFlags);
-    QFont f = item->font();
-    f.setBold(true);
-    item->setFont(f);
-    // Follow the theme: dim the header relative to normal text.
-    item->setForeground(palette().color(QPalette::Disabled, QPalette::Text));
-}
+void ExternalConnectDialog::addHeader(const QString &text, const QList<HeaderAction> &actions) {
+    // A plain label header when there are no actions (cheapest, no item widget).
+    if (actions.isEmpty()) {
+        auto *item = new QListWidgetItem(text, m_list);
+        item->setFlags(Qt::NoItemFlags); // no selection, no activation
+        QFont f = item->font();
+        f.setBold(true);
+        item->setFont(f);
+        item->setForeground(palette().color(QPalette::Disabled, QPalette::Text));
+        return;
+    }
 
-void ExternalConnectDialog::addNetworkHeader(const QString &text) {
+    // With actions: a custom row widget -- the bold, dimmed header label plus
+    // right-aligned action buttons (e.g. rescan, manual connect, manager).
     auto *item = new QListWidgetItem(m_list);
     item->setFlags(Qt::NoItemFlags);
-    // A custom row widget: the bold, dimmed header label + a right-aligned gear
-    // button that opens the manual SMB connect form (always available, so the
-    // user can connect even when discovery turns up nothing).
     auto *row = new QWidget(m_list);
     auto *lay = new QHBoxLayout(row);
     lay->setContentsMargins(0, 0, 0, 0);
@@ -158,25 +157,95 @@ void ExternalConnectDialog::addNetworkHeader(const QString &text) {
     label->setPalette(lp);
     lay->addWidget(label);
     lay->addStretch(1);
-    auto *gear = new QToolButton(row);
-    gear->setIcon(QIcon(QStringLiteral(":/icons/dev-smb.svg")));
-    gear->setAutoRaise(true);
-    gear->setCursor(Qt::PointingHandCursor);
-    gear->setToolTip(tr("手动连接 SMB 服务器…"));
-    connect(gear, &QToolButton::clicked, this, [this] {
-        emit openSmbConnectForm();
-        close(); // dismiss the fly-out; the connect form takes over
-    });
-    lay->addWidget(gear);
+    for (const HeaderAction &a : actions) {
+        auto *btn = new QToolButton(row);
+        btn->setIcon(QIcon(a.iconPath));
+        btn->setAutoRaise(true);
+        btn->setCursor(Qt::PointingHandCursor);
+        btn->setToolTip(a.tooltip);
+        connect(btn, &QToolButton::clicked, this, a.onClick);
+        lay->addWidget(btn);
+    }
     item->setSizeHint(row->sizeHint());
     m_list->setItemWidget(item, row);
+}
+
+void ExternalConnectDialog::addDeviceRow(const RemovableDevice &dev) {
+    // iconName is a bare alias ("dev-usb"); resolve it to its resource.
+    const QIcon icon(QStringLiteral(":/icons/%1.svg").arg(dev.iconName));
+    auto *item = new QListWidgetItem(m_list);
+    item->setData(Qt::UserRole, KindDevice);
+    item->setData(Qt::UserRole + 1, dev.id);
+    item->setData(Qt::UserRole + 2, dev.mountPoint);
+
+    // A mounted device gets an eject button; unmounted ones just show the name
+    // (activating the row mounts + opens them). Without an eject button we keep the
+    // plain icon+text item so the row stays a normal, cheap list entry.
+    if (!dev.isMounted) {
+        item->setIcon(icon);
+        item->setText(dev.name);
+        return;
+    }
+
+    // Custom row: icon + name (transparent labels, so a click on them falls
+    // through to the list and activates the row) + a right-aligned eject button.
+    auto *row = new QWidget(m_list);
+    auto *lay = new QHBoxLayout(row);
+    lay->setContentsMargins(0, 0, 0, 0);
+    lay->setSpacing(6);
+    auto *iconLabel = new QLabel(row);
+    iconLabel->setPixmap(icon.pixmap(m_list->iconSize()));
+    iconLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+    auto *nameLabel = new QLabel(dev.name, row);
+    nameLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+    lay->addWidget(iconLabel);
+    lay->addWidget(nameLabel);
+    lay->addStretch(1);
+    auto *eject = new QToolButton(row);
+    eject->setIcon(QIcon(QStringLiteral(":/icons/eject.svg")));
+    eject->setAutoRaise(true);
+    eject->setCursor(Qt::PointingHandCursor);
+    eject->setToolTip(tr("弹出（安全移除）"));
+    connect(eject, &QToolButton::clicked, this, [this, id = dev.id] { ejectDevice(id); });
+    lay->addWidget(eject);
+    item->setSizeHint(row->sizeHint());
+    m_list->setItemWidget(item, row);
+}
+
+void ExternalConnectDialog::ejectDevice(const QString &id) {
+    if (!m_devices)
+        return;
+    QString error;
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    const bool ok = m_devices->unmount(id, &error);
+    QApplication::restoreOverrideCursor();
+    if (!ok) {
+        ttc::critical(this, tr("弹出失败"),
+                      tr("无法弹出该设备。\n\n%1").arg(error));
+        return; // keep the panel open
+    }
+    // devicesChanged() from the monitor's refresh() already triggers rebuild(),
+    // but rebuild explicitly too in case the signal is coalesced/delayed.
+    rebuild();
+}
+
+void ExternalConnectDialog::rescanNetwork() {
+    if (!m_smb)
+        return;
+    // Force a fresh scan (reuses the same discovery that runs at startup, covering
+    // the local subnet's SMB shares); clear the accumulated hosts so stale rows
+    // don't linger and show "Searching…" until results/finish arrive.
+    m_hosts.clear();
+    m_discoveryDone = false;
+    m_smb->startDiscovery(true);
+    rebuild();
 }
 
 void ExternalConnectDialog::rebuild() {
     m_list->clear();
     m_saved = ConnectionStore::loadAll();
 
-    // 1. Removable devices.
+    // 1. Removable devices. Each mounted device row carries an eject button.
     addHeader(tr("Removable Devices"));
     const QVector<RemovableDevice> devs = m_devices ? m_devices->devices()
                                                     : QVector<RemovableDevice>();
@@ -184,18 +253,18 @@ void ExternalConnectDialog::rebuild() {
         auto *none = new QListWidgetItem(tr("No removable devices"), m_list);
         none->setFlags(Qt::NoItemFlags);
     } else {
-        for (const RemovableDevice &d : devs) {
-            // iconName is a bare alias ("dev-usb"); resolve it to its resource.
-            const QIcon icon(QStringLiteral(":/icons/%1.svg").arg(d.iconName));
-            auto *item = new QListWidgetItem(icon, d.name, m_list);
-            item->setData(Qt::UserRole, KindDevice);
-            item->setData(Qt::UserRole + 1, d.id);
-            item->setData(Qt::UserRole + 2, d.mountPoint);
-        }
+        for (const RemovableDevice &d : devs)
+            addDeviceRow(d);
     }
 
-    // 2. Saved connections.
-    addHeader(tr("Saved Connections"));
+    // 2. Saved connections. The header carries a "connection manager" button that
+    // opens the add/edit/delete dialog for saved bookmarks.
+    addHeader(tr("Saved Connections"),
+              {{QStringLiteral(":/icons/ext-connect.svg"), tr("连接管理器…"),
+                [this] {
+                    emit openConnectionManager();
+                    close();
+                }}});
     if (m_saved.isEmpty()) {
         auto *none = new QListWidgetItem(tr("No saved connections"), m_list);
         none->setFlags(Qt::NoItemFlags);
@@ -211,8 +280,16 @@ void ExternalConnectDialog::rebuild() {
     }
 
     // 3. Network neighbourhood (populated as discovery reports hosts). The header
-    // carries a gear button that opens the manual SMB connect form.
-    addNetworkHeader(tr("Network Neighborhood"));
+    // carries a refresh button (rescan the local network) and a gear button
+    // (manual SMB connect, always available even when discovery finds nothing).
+    addHeader(tr("Network Neighborhood"),
+              {{QStringLiteral(":/icons/refresh.svg"), tr("重新搜索网络共享"),
+                [this] { rescanNetwork(); }},
+               {QStringLiteral(":/icons/dev-smb.svg"), tr("手动连接 SMB 服务器…"),
+                [this] {
+                    emit openSmbConnectForm();
+                    close();
+                }}});
     if (m_hosts.isEmpty()) {
         // "Searching…" while discovery runs; a definite "none found" once every
         // source has finished (so it never sticks on "searching" forever).

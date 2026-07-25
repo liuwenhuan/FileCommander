@@ -1511,6 +1511,10 @@ void MainWindow::openExternalConnections() {
     // Gear next to the "Network Neighborhood" header: open the manual SMB form.
     connect(dlg, &ExternalConnectDialog::openSmbConnectForm, this,
             [this] { openServerConnectDialog(true); });
+    // Manager button next to the "Saved Connections" header: open the connection
+    // manager (add/edit/delete saved bookmarks).
+    connect(dlg, &ExternalConnectDialog::openConnectionManager, this,
+            [this] { openServerConnectDialog(false); });
 
     // Pop up directly above the leading function-key button that launched it.
     dlg->popUpAbove(m_functionKeyBar->leadingButtonGlobalRect());

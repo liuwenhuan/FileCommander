@@ -1,8 +1,12 @@
 #pragma once
 
+#include <QList>
 #include <QRect>
+#include <QString>
 #include <QVector>
 #include <QWidget>
+
+#include <functional>
 
 #include "network/ConnectionStore.h"
 // SmbHost is used by value in QVector<SmbHost> members and signal arguments, so
@@ -13,6 +17,7 @@ class QListWidget;
 class QListWidgetItem;
 
 class RemovableDeviceMonitor;
+struct RemovableDevice;
 
 // The external-connection picker: a floating popup panel (not a modal dialog)
 // that pops up directly above the launching button and closes as soon as focus
@@ -60,6 +65,9 @@ signals:
     // The gear next to the "Network Neighborhood" header: open the manual SMB
     // connect form (so the user can connect even when discovery finds nothing).
     void openSmbConnectForm();
+    // The manager button next to the "Saved Connections" header: open the
+    // connection manager (add/edit/delete saved bookmarks).
+    void openConnectionManager();
 
 private slots:
     void onHostsDiscovered(const QVector<SmbHost> &hosts);
@@ -72,11 +80,24 @@ private:
     // Repopulates the whole list from the current device / bookmark / host
     // state and re-fits the panel size to the content.
     void rebuild();
-    // Appends a non-interactive section header row.
-    void addHeader(const QString &text);
-    // Appends the "Network Neighborhood" header with a gear button on its right
-    // (setItemWidget); the gear emits openSmbConnectForm().
-    void addNetworkHeader(const QString &text);
+    // A right-aligned action button on a section header (icon + tooltip + click).
+    struct HeaderAction {
+        QString iconPath;
+        QString tooltip;
+        std::function<void()> onClick;
+    };
+    // Appends a bold, dimmed section header row, optionally carrying right-aligned
+    // action buttons (setItemWidget). No actions -> a plain non-interactive label.
+    void addHeader(const QString &text, const QList<HeaderAction> &actions = {});
+    // Appends a removable-device row: icon + name, plus an eject button (for a
+    // mounted device) that unmounts it. The row itself stays clickable to navigate.
+    void addDeviceRow(const RemovableDevice &dev);
+    // Unmounts the device, then refreshes; shows an error and keeps the panel open
+    // on failure.
+    void ejectDevice(const QString &id);
+    // Forces a fresh network-neighbourhood scan (reusing SmbHostBrowser) and shows
+    // the "Searching…" state while it runs.
+    void rescanNetwork();
     // Resizes the list (and thus the panel) to fit its rows, up to a cap.
     void fitToContents();
 
