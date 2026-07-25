@@ -193,6 +193,13 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     // click-to-rename handling below must filter the viewport.
     m_iconView->viewport()->installEventFilter(this);
     connect(m_iconView, &QAbstractItemView::activated, this, &FilePanel::onActivated);
+    // Once scrolling settles, ask for the rows now on screen. Painting alone
+    // would get there eventually, but only for rows that happen to repaint;
+    // after a fast scroll the queue can still be working through rows the user
+    // has left behind, and over a network those are expensive fetches spent on
+    // nothing anyone is looking at.
+    connect(m_iconView, &IconFileView::visibleRangeSettled, this,
+            &FilePanel::prefetchVisibleThumbnails);
     // Real image/video thumbnails (with a generic-icon fallback), generated + disk
     // cached off-thread. The delegate's icon/text sizes track the View-menu font.
     m_thumbnailDelegate = new ThumbnailDelegate(m_iconView);
@@ -526,6 +533,29 @@ void FilePanel::cancelRemoteThumbnails() {
     // fetcher, so this is a no-op).
     if (m_model->hasNetworkSession())
         ThumbnailCache::instance().cancelRemote(m_model->provider());
+}
+
+void FilePanel::prefetchVisibleThumbnails(int firstRow, int lastRow) {
+    // Only network listings pay a per-row price worth scheduling around; local
+    // thumbnails are cheap and the ordinary repaint path covers them.
+    const QString connectionId = m_model->connectionId();
+    if (connectionId.isEmpty() || !m_thumbnailDelegate)
+        return;
+
+    const int iconSize = m_thumbnailDelegate->iconSize();
+    const int rows = m_model->rowCount();
+    for (int row = qMax(0, firstRow); row <= lastRow && row < rows; ++row) {
+        const FileInfo info = m_model->fileInfoAt(row);
+        const QString path = info.path();
+        if (path.isEmpty() || info.isDir() || !ThumbnailCache::canThumbnail(path))
+            continue;
+        // The return value is ignored on purpose: this only needs to get the
+        // request in, and a ready thumbnail will reach the screen through the
+        // repaint that follows.
+        ThumbnailCache::instance().remoteThumbnail(m_model->providerPtr(), connectionId, path,
+                                                   info.modified().toSecsSinceEpoch(),
+                                                   info.size(), iconSize);
+    }
 }
 
 void FilePanel::navigateTo(const QString &path) {

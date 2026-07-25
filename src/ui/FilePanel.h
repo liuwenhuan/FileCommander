@@ -276,6 +276,14 @@ private:
     // the one on screen (navigating, parking a tab, disconnecting) so the link
     // isn't spent on rows nobody is looking at.
     void cancelRemoteThumbnails();
+
+    // Requests thumbnails for rows `firstRow`..`lastRow`, the ones on screen
+    // once scrolling stopped. Fetching is bounded and refuses work when its
+    // queue is full, so asking here simply puts the rows the user is actually
+    // looking at at the front of the next round instead of leaving them to
+    // whenever a repaint happens to reach them.
+    void prefetchVisibleThumbnails(int firstRow, int lastRow);
+
     QString tabLabelFor(const QSharedPointer<TabState> &tab) const;
     void syncTabBarFromManager();
     void closeTabAt(int index);

@@ -7,19 +7,92 @@
 #include <QIcon>
 #include <QItemSelectionModel>
 #include <QMimeData>
+#include <QResizeEvent>
+#include <QScrollBar>
 #include <QSet>
+#include <QTimer>
 #include <QUrl>
 
 #include "DragPixmap.h"
 #include "FileSystemModel.h"
 
-IconFileView::IconFileView(QWidget *parent) : QListView(parent) {
+namespace {
+
+// How long the view must stay still before its rows are treated as "what the
+// user is looking at". Long enough not to fire mid-flick, short enough that
+// letting go feels like it starts work immediately.
+constexpr int kScrollSettleMs = 120;
+
+} // namespace
+
+IconFileView::IconFileView(QWidget *parent)
+    : QListView(parent), m_settleTimer(new QTimer(this)) {
     // Drag source + drop target. The view mode, icon size and model are set up
     // by FilePanel, not here.
     setDragEnabled(true);
     setAcceptDrops(true);
     setDragDropMode(QAbstractItemView::DragDrop);
     setDefaultDropAction(Qt::CopyAction);
+
+    m_settleTimer->setSingleShot(true);
+    m_settleTimer->setInterval(kScrollSettleMs);
+    connect(m_settleTimer, &QTimer::timeout, this, &IconFileView::announceVisibleRange);
+}
+
+bool IconFileView::visibleRows(int *firstRow, int *lastRow) const {
+    if (!model() || model()->rowCount() == 0)
+        return false;
+
+    // Probing the corners is not enough: in icon mode they usually land in the
+    // spacing between items, where indexAt() reports nothing. Sample a grid of
+    // points across the viewport and keep the extremes that hit an item.
+    const QRect area = viewport()->rect();
+    if (area.isEmpty())
+        return false;
+
+    int lo = -1;
+    int hi = -1;
+    constexpr int kSamplesX = 8;
+    constexpr int kSamplesY = 8;
+    for (int iy = 0; iy <= kSamplesY; ++iy) {
+        const int y = area.top() + iy * (area.height() - 1) / kSamplesY;
+        for (int ix = 0; ix <= kSamplesX; ++ix) {
+            const int x = area.left() + ix * (area.width() - 1) / kSamplesX;
+            const QModelIndex idx = indexAt(QPoint(x, y));
+            if (!idx.isValid())
+                continue;
+            if (lo < 0 || idx.row() < lo)
+                lo = idx.row();
+            if (idx.row() > hi)
+                hi = idx.row();
+        }
+    }
+    if (lo < 0)
+        return false;
+
+    *firstRow = lo;
+    *lastRow = hi;
+    return true;
+}
+
+void IconFileView::announceVisibleRange() {
+    int first = 0, last = 0;
+    if (visibleRows(&first, &last))
+        emit visibleRangeSettled(first, last);
+}
+
+void IconFileView::scrollContentsBy(int dx, int dy) {
+    QListView::scrollContentsBy(dx, dy);
+    // Restart rather than fire: during a continuous scroll this keeps pushing
+    // the deadline out, so the work starts once, where the user stopped.
+    if (dx != 0 || dy != 0)
+        m_settleTimer->start();
+}
+
+void IconFileView::resizeEvent(QResizeEvent *event) {
+    QListView::resizeEvent(event);
+    // A resize relays out the grid, so a different set of rows is on screen.
+    m_settleTimer->start();
 }
 
 void IconFileView::startDrag(Qt::DropActions supportedActions) {
