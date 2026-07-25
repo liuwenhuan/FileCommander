@@ -379,7 +379,10 @@ bool FilePanel::eventFilter(QObject *watched, QEvent *event) {
         emit panelActivated(this);
 
     // Plain Tab (not Ctrl+Tab, which cycles tabs) jumps to the other panel.
-    if (watched == m_view && event->type() == QEvent::KeyPress) {
+    // Both views, not just the list: the panel keeps working the same way after
+    // switching to thumbnails, and Tab silently doing nothing there is the kind
+    // of gap that only shows up once someone actually uses that mode.
+    if ((watched == m_view || watched == m_iconView) && event->type() == QEvent::KeyPress) {
         auto *ke = static_cast<QKeyEvent *>(event);
         if ((ke->key() == Qt::Key_Tab || ke->key() == Qt::Key_Backtab) &&
             !(ke->modifiers() & Qt::ControlModifier)) {

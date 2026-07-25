@@ -1628,7 +1628,12 @@ void MainWindow::showShortcutMenu(FilePanel *panel, const QPoint &globalPos) {
     if (panel) {
         const QString label = panel->isThumbnailMode() ? tr("Switch to list view")
                                                         : tr("Switch to thumbnail view");
-        addEntry(label, QString(), [panel]() {
+        // Read the key back from the registered shortcut so a user rebind via
+        // Config > Keyboard Shortcuts is reflected here too.
+        const QKeySequence seq = m_shortcuts.value(QStringLiteral("toggleViewMode"))
+                                     ? m_shortcuts.value(QStringLiteral("toggleViewMode"))->key()
+                                     : m_shortcutDefaults.value(QStringLiteral("toggleViewMode"));
+        addEntry(label, seq.toString(QKeySequence::NativeText), [panel]() {
             panel->toggleViewMode();
         });
     }
@@ -1745,6 +1750,14 @@ void MainWindow::setupShortcuts() {
                  [this] { toggleQuickView(); });
     bindShortcut("undo", tr("Undo Last Operation"), QKeySequence(Qt::CTRL | Qt::Key_Z),
                  [this] { undoLast(); });
+    // Ctrl+F1 follows the TC convention where the Ctrl+F<n> block selects the
+    // view mode. Panel-scoped like the menu entry, so the two panels can sit in
+    // different modes.
+    bindShortcut("toggleViewMode", tr("List / Thumbnail View"),
+                 QKeySequence(Qt::CTRL | Qt::Key_F1), [this] {
+                     if (m_activePanel)
+                         m_activePanel->toggleViewMode();
+                 });
 
     // F3-F8 are reassignable slots: the key and the bottom-bar button both run
     // whichever command the slot points at.
