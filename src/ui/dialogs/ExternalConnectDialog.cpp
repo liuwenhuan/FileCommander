@@ -232,8 +232,11 @@ void ExternalConnectDialog::rescanNetwork() {
     // which is exactly why a rescan looked like it "found nothing". Keep the known
     // hosts visible; the forced scan appends any genuinely new ones on top.
     m_hosts = m_smb->cachedHosts();
-    m_discoveryDone = false;
-    m_smb->startDiscovery(true);
+    // startDiscovery(true) forces a scan and returns whether one is now active
+    // (it always is under force, unless a prior scan is still running -- also
+    // active). Drive m_discoveryDone off that so the trailing "Searching…" line
+    // shows for the duration and clears on discoveryFinished.
+    m_discoveryDone = !m_smb->startDiscovery(true);
     rebuild();
 }
 
@@ -280,31 +283,34 @@ void ExternalConnectDialog::rebuild() {
     addHeader(tr("Network Neighborhood"),
               {{QStringLiteral(":/icons/refresh.svg"), tr("重新搜索网络共享"),
                 [this] { rescanNetwork(); }}});
-    if (m_hosts.isEmpty()) {
-        // "Searching…" while discovery runs; a definite "none found" once every
-        // source has finished (so it never sticks on "searching" forever).
-        auto *note = new QListWidgetItem(
-            m_discoveryDone ? tr("未发现网络主机") : tr("Searching…"), m_list);
+    for (const SmbHost &h : m_hosts) {
+        // Show "name (ip)" when both are known, so the user sees exactly which
+        // machine each row is; just the name or just the IP when only one is.
+        // Connect BY the IP when known (a NetBIOS name like "DEEPIN-PC" may not
+        // resolve via DNS), else by the name.
+        QString label;
+        if (h.name.isEmpty())
+            label = h.address;
+        else if (h.address.isEmpty())
+            label = h.name;
+        else
+            label = QStringLiteral("%1 (%2)").arg(h.name, h.address);
+        const QString target = h.address.isEmpty() ? h.name : h.address;
+        auto *item = new QListWidgetItem(QIcon(QStringLiteral(":/icons/dev-smb.svg")),
+                                         label, m_list);
+        item->setData(Qt::UserRole, KindHost);
+        item->setData(Qt::UserRole + 1, target);
+    }
+    // A trailing status line: "Searching…" while a scan is still running (so a
+    // rescan visibly does something even when known hosts are already listed --
+    // new hosts append above it and it clears when discovery finishes), or a
+    // definite "none found" once every source has finished with nothing.
+    if (!m_discoveryDone) {
+        auto *note = new QListWidgetItem(tr("Searching…"), m_list);
         note->setFlags(Qt::NoItemFlags);
-    } else {
-        for (const SmbHost &h : m_hosts) {
-            // Show "name (ip)" when both are known, so the user sees exactly which
-            // machine each row is; just the name or just the IP when only one is.
-            // Connect BY the IP when known (a NetBIOS name like "DEEPIN-PC" may not
-            // resolve via DNS), else by the name.
-            QString label;
-            if (h.name.isEmpty())
-                label = h.address;
-            else if (h.address.isEmpty())
-                label = h.name;
-            else
-                label = QStringLiteral("%1 (%2)").arg(h.name, h.address);
-            const QString target = h.address.isEmpty() ? h.name : h.address;
-            auto *item = new QListWidgetItem(QIcon(QStringLiteral(":/icons/dev-smb.svg")),
-                                             label, m_list);
-            item->setData(Qt::UserRole, KindHost);
-            item->setData(Qt::UserRole + 1, target);
-        }
+    } else if (m_hosts.isEmpty()) {
+        auto *note = new QListWidgetItem(tr("未发现网络主机"), m_list);
+        note->setFlags(Qt::NoItemFlags);
     }
 
     fitToContents();
