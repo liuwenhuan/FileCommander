@@ -44,6 +44,7 @@
 #include "StatusBarWidget.h"
 #include "TabBar.h"
 #include "network/NetworkSession.h"
+#include "ThumbnailCache.h"
 #include "ThumbnailDelegate.h"
 
 FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
@@ -518,7 +519,17 @@ void FilePanel::applyHistoryEntry(const NavEntry &entry) {
     }
 }
 
+void FilePanel::cancelRemoteThumbnails() {
+    // Whatever the icon grid asked for belongs to the listing we are leaving, so
+    // drop it rather than spend the link on thumbnails for rows about to
+    // disappear. Harmless on a local tab (no provider is registered with the
+    // fetcher, so this is a no-op).
+    if (m_model->hasNetworkSession())
+        ThumbnailCache::instance().cancelRemote(m_model->provider());
+}
+
 void FilePanel::navigateTo(const QString &path) {
+    cancelRemoteThumbnails();
     // Go through the model's provider so this works for remote backends too;
     // for the local provider these are the same QDir/QFileInfo calls as before.
     FileProvider *provider = m_model->provider();
@@ -1366,6 +1377,9 @@ void FilePanel::pruneTabHistory() {
 void FilePanel::parkConnectionInto(const QSharedPointer<TabState> &tab) {
     if (!tab)
         return;
+    // The tab is going into the background: its thumbnails are no longer being
+    // painted, so stop fetching them (the session itself stays warm).
+    cancelRemoteThumbnails();
     FileSystemModel::NetworkConn c = m_model->detachConnection();
     tab->provider = c.provider;
     tab->session = c.session;
@@ -1430,6 +1444,7 @@ void FilePanel::openLocalInTab(int tabIndex, const QString &path) {
     // Park the connection: detach it from the model (it stays alive, co-owned by
     // the history entry above) rather than setProvider(nullptr), which would stop
     // the session and make Back unable to restore it. This tab is now local.
+    cancelRemoteThumbnails();
     m_model->detachConnection();
     if (auto tab = m_tabManager->activeTab()) {
         tab->provider.reset();
@@ -1468,8 +1483,10 @@ void FilePanel::closeTabAt(int index) {
     // the model doesn't keep listing through a server whose tab is gone. (A
     // background tab's session is owned solely by its TabState and is torn down
     // when closeTab() drops that TabState.)
-    if (index == m_tabManager->activeIndex() && m_model->hasNetworkSession())
+    if (index == m_tabManager->activeIndex() && m_model->hasNetworkSession()) {
+        cancelRemoteThumbnails();
         m_model->detachConnection(); // returned bundle drops here -> session stops
+    }
     m_tabHistory.remove(m_tabManager->tabAt(index).data());
     m_tabManager->closeTab(index);
     // Whatever tab is active now may carry its own parked connection: make it live.
@@ -1614,8 +1631,10 @@ void FilePanel::disconnectTab(int index) {
     auto tab = m_tabManager->activeTab();
     // Drop the live connection from the model (bundle dropped -> released) and then
     // release every remaining owner of the parked session so it actually stops.
-    if (m_model->hasNetworkSession())
+    if (m_model->hasNetworkSession()) {
+        cancelRemoteThumbnails();
         m_model->detachConnection();
+    }
     if (tab) {
         tab->provider.reset();
         tab->session.reset(); // last owner gone -> ~NetworkSession stops its thread

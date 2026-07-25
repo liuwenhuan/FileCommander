@@ -14,6 +14,8 @@
 #include <QTemporaryFile>
 #include <QThreadPool>
 
+#include <limits>
+
 namespace {
 
 constexpr int kMemCacheBudget = 256;  // entries; QCache cost is 1 per pixmap
@@ -46,6 +48,29 @@ const QSet<QString> &imageExtensions() {
 }
 
 QString extensionOf(const QString &path) { return QFileInfo(path).suffix().toLower(); }
+
+// Byte budgets for a *remote* thumbnail, deliberately far below the 100 MB
+// QuickView allows: this runs unattended while the user scrolls, so it must
+// cost pennies per file rather than be merely bounded.
+//
+// An image is fetched whole -- a partial one decodes to nothing useful -- so
+// its budget doubles as a "don't bother" threshold; anything larger keeps the
+// generic icon. A video is different: ffmpeg needs the container's index plus a
+// little data to pull an early frame, so a fixed excerpt is fetched however
+// large the file is, which is what makes thumbnailing a folder of videos
+// affordable at all. The excerpt is both ends of the file (kRemoteVideoHalf
+// each) because MP4/MOV put that index either at the front or -- as ffmpeg
+// writes by default -- at the very back; see Ticket::downloadHeadAndTail.
+constexpr qint64 kRemoteImageBudget = 8LL * 1024 * 1024;
+constexpr qint64 kRemoteVideoHalf = 2LL * 1024 * 1024;
+
+bool isVideoPath(const QString &path) { return videoExtensions().contains(extensionOf(path)); }
+
+// Largest remote file still worth a thumbnail attempt, by kind. Videos have no
+// size ceiling because only a fixed excerpt of one is ever fetched.
+qint64 remoteSizeLimit(const QString &path) {
+    return isVideoPath(path) ? std::numeric_limits<qint64>::max() : kRemoteImageBudget;
+}
 
 // Decodes an image file, scaling it to fit within size x size (preserving
 // aspect ratio, never upscaling past the source). Returns a null QImage on
@@ -184,24 +209,24 @@ QString ThumbnailCache::cacheKey(const QString &absolutePath, qint64 mtimeEpoch,
         QCryptographicHash::hash(payload, QCryptographicHash::Md5).toHex());
 }
 
+QString ThumbnailCache::remoteCacheKey(const QString &connectionId, const QString &path,
+                                       qint64 mtimeEpoch, qint64 fileSize, int size) {
+    const QByteArray payload = (QStringLiteral("remote:") + connectionId + QLatin1Char('\n') + path
+                                 + QLatin1Char('\n') + QString::number(mtimeEpoch)
+                                 + QLatin1Char('\n') + QString::number(fileSize)
+                                 + QLatin1Char('\n') + QString::number(size))
+                                    .toUtf8();
+    return QString::fromLatin1(
+        QCryptographicHash::hash(payload, QCryptographicHash::Md5).toHex());
+}
+
 QString ThumbnailCache::diskCachePath(const QString &key) {
     const QString dir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
                          + QStringLiteral("/ttc/thumbnails");
     return dir + QLatin1Char('/') + key + QStringLiteral(".png");
 }
 
-QPixmap ThumbnailCache::thumbnail(const QString &path, int size) {
-    if (path.isEmpty() || size <= 0 || !canThumbnail(path))
-        return {};
-
-    const QFileInfo info(path);
-    if (!info.exists() || !info.isFile())
-        return {};
-
-    const QString absolutePath = info.absoluteFilePath();
-    const qint64 mtimeEpoch = info.lastModified().toSecsSinceEpoch();
-    const QString key = cacheKey(absolutePath, mtimeEpoch, size);
-
+QPixmap ThumbnailCache::lookupCached(const QString &key) {
     {
         QMutexLocker locker(&m_mutex);
         if (QPixmap *cached = m_memCache.object(key))
@@ -222,13 +247,38 @@ QPixmap ThumbnailCache::thumbnail(const QString &path, int size) {
         // remove it so we don't keep tripping over it.
         QFile::remove(diskPath);
     }
+    return {};
+}
 
-    {
-        QMutexLocker locker(&m_mutex);
-        if (m_pending.contains(key))
-            return {}; // already generating; thumbnailReady() will follow
-        m_pending.insert(key);
-    }
+bool ThumbnailCache::claimPending(const QString &key) {
+    QMutexLocker locker(&m_mutex);
+    if (m_pending.contains(key))
+        return false; // already generating; thumbnailReady() will follow
+    m_pending.insert(key);
+    return true;
+}
+
+void ThumbnailCache::releasePending(const QString &key) {
+    QMutexLocker locker(&m_mutex);
+    m_pending.remove(key);
+}
+
+QPixmap ThumbnailCache::thumbnail(const QString &path, int size) {
+    if (path.isEmpty() || size <= 0 || !canThumbnail(path))
+        return {};
+
+    const QFileInfo info(path);
+    if (!info.exists() || !info.isFile())
+        return {};
+
+    const QString absolutePath = info.absoluteFilePath();
+    const qint64 mtimeEpoch = info.lastModified().toSecsSinceEpoch();
+    const QString key = cacheKey(absolutePath, mtimeEpoch, size);
+
+    if (QPixmap cached = lookupCached(key); !cached.isNull())
+        return cached;
+    if (!claimPending(key))
+        return {};
 
     // The singleton outlives every worker: QThreadPool's destructor blocks
     // until all queued/running work finishes, and that destructor runs as
@@ -241,9 +291,41 @@ QPixmap ThumbnailCache::thumbnail(const QString &path, int size) {
     return {};
 }
 
+QPixmap ThumbnailCache::remoteThumbnail(const std::shared_ptr<FileProvider> &provider,
+                                        const QString &connectionId, const QString &path,
+                                        qint64 mtimeEpoch, qint64 fileSize, int size) {
+    if (!provider || path.isEmpty() || size <= 0 || !canThumbnail(path))
+        return {};
+    // Nothing to decode from an empty file, and a file past the budget isn't
+    // worth the bytes -- in both cases the delegate keeps the generic icon.
+    if (fileSize <= 0 || fileSize > remoteSizeLimit(path))
+        return {};
+
+    const QString key = remoteCacheKey(connectionId, path, mtimeEpoch, fileSize, size);
+    if (QPixmap cached = lookupCached(key); !cached.isNull())
+        return cached;
+    if (!claimPending(key))
+        return {};
+
+    ThumbnailCache *self = this;
+    const bool queued = m_remote.submit(
+        provider, [self, path, key, fileSize, size](const RemoteThumbnailFetcher::Ticket &ticket) {
+            self->generateRemote(ticket, path, key, fileSize, size);
+        });
+    if (!queued) {
+        // Refused (backlog full, or the backend can't stream). Un-claim the key
+        // so the next repaint -- by which time a slot may have freed up -- can
+        // ask again; leaving it claimed would strand this file permanently.
+        releasePending(key);
+    }
+    return {};
+}
+
+void ThumbnailCache::cancelRemote(const FileProvider *provider) { m_remote.cancel(provider); }
+
 void ThumbnailCache::generate(const QString &path, const QString &key, int size) {
     QImage image;
-    if (videoExtensions().contains(extensionOf(path))) {
+    if (isVideoPath(path)) {
         const QString framePath = extractVideoFrame(path);
         if (!framePath.isEmpty()) {
             image = decodeScaled(framePath, size);
@@ -265,6 +347,45 @@ void ThumbnailCache::generate(const QString &path, const QString &key, int size)
     // QPixmap must only be created/used on the GUI thread on some platform
     // backends, so hand back a QImage and let storeResult() (queued onto
     // the GUI thread) do the QPixmap conversion.
+    QMetaObject::invokeMethod(this, "storeResult", Qt::QueuedConnection, Q_ARG(QString, path),
+                               Q_ARG(QString, key), Q_ARG(QImage, image));
+}
+
+void ThumbnailCache::generateRemote(const RemoteThumbnailFetcher::Ticket &ticket,
+                                    const QString &path, const QString &key, qint64 fileSize,
+                                    int size) {
+    QImage image;
+    // A video takes both ends of the file, an image just its start: MP4/MOV put
+    // the index at one end or the other, and only the head is knowable up front.
+    const QString localCopy =
+        isVideoPath(path) ? ticket.downloadHeadAndTail(path, fileSize, kRemoteVideoHalf)
+                          : ticket.download(path, fileSize);
+    if (!localCopy.isEmpty()) {
+        // From here on the fetched excerpt is an ordinary local file, so the
+        // decode is byte-for-byte the same work generate() does -- including
+        // ffmpeg's frame grab, which simply fails (empty frame path) on the rare
+        // container whose index sits at neither end.
+        if (isVideoPath(path)) {
+            const QString framePath = extractVideoFrame(localCopy);
+            if (!framePath.isEmpty()) {
+                image = decodeScaled(framePath, size);
+                QFile::remove(framePath);
+            }
+        } else {
+            image = decodeScaled(localCopy, size);
+        }
+        QFile::remove(localCopy); // the temp file has served its purpose
+    }
+
+    if (!image.isNull() && !ticket.cancelled()) {
+        const QString diskPath = diskCachePath(key);
+        QDir().mkpath(QFileInfo(diskPath).absolutePath());
+        if (!image.save(diskPath, "PNG"))
+            QFile::remove(diskPath); // non-fatal: the in-memory result still lands
+    }
+
+    // Reported even when cancelled or empty: storeResult clears the pending
+    // claim, and leaving it set would block every later attempt at this file.
     QMetaObject::invokeMethod(this, "storeResult", Qt::QueuedConnection, Q_ARG(QString, path),
                                Q_ARG(QString, key), Q_ARG(QImage, image));
 }

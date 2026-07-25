@@ -11,6 +11,8 @@ add_library(ui STATIC
     IconFileView.cpp
     ThumbnailCache.h
     ThumbnailCache.cpp
+    RemoteThumbnailFetcher.h
+    RemoteThumbnailFetcher.cpp
     ThumbnailDelegate.h
     ThumbnailDelegate.cpp
     CommandBar.h

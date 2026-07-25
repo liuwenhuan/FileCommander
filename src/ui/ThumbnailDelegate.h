@@ -3,6 +3,8 @@
 #include <QPointer>
 #include <QStyledItemDelegate>
 
+#include "FileInfo.h"
+
 class QAbstractItemView;
 
 // Icon-grid delegate for a QListView (IconMode) over FileSystemModel: draws
@@ -57,10 +59,12 @@ private slots:
     void onThumbnailReady(const QString &path);
 
 private:
-    // Resolves the absolute filesystem path backing `index`, or an empty
-    // string if the model isn't a FileSystemModel (defensive -- this
-    // delegate is only meant to be installed over one).
-    static QString pathForIndex(const QModelIndex &index);
+    // The listing entry backing `index`, or a default-constructed FileInfo if
+    // the model isn't a FileSystemModel (defensive -- this delegate is only
+    // meant to be installed over one). The whole entry rather than just its
+    // path, because a remote thumbnail is keyed on the listing's own
+    // size/mtime: there is no local file to stat for them.
+    static FileInfo fileInfoForIndex(const QModelIndex &index);
 
     int m_iconSize = 96;
     int m_fontPointSize = -1; // -1 == inherit the view's default font size

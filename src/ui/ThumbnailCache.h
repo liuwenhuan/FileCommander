@@ -6,6 +6,11 @@
 #include <QPixmap>
 #include <QSet>
 
+#include <memory>
+
+#include "RemoteThumbnailFetcher.h"
+
+class FileProvider;
 class QThreadPool;
 
 // Async, disk+memory cached thumbnail service backing the icon-mode file
@@ -20,6 +25,12 @@ class QThreadPool;
 // worker threads; only the QCache lookup/insert and signal emission touch
 // the GUI thread's data (QCache itself is not thread-safe, so all access to
 // it -- including from workers -- goes through m_mutex).
+//
+// Files on a remote backend (SFTP/SMB/FTP/WebDAV) go through the
+// remoteThumbnail() overload instead: their paths mean nothing locally, so the
+// bytes are streamed to a temp file first (see RemoteThumbnailFetcher, which
+// owns the concurrency limit and the cancellation) and only then decoded by
+// exactly the same code the local path uses.
 class ThumbnailCache : public QObject {
     Q_OBJECT
 
@@ -31,6 +42,27 @@ public:
     // QPixmap and schedules background generation, emitting
     // thumbnailReady(path) when it lands. Safe to call from the GUI thread.
     QPixmap thumbnail(const QString &path, int size);
+
+    // The remote counterpart of thumbnail(): same contract (ready pixmap or
+    // null plus a scheduled fetch), but identity comes from the listing's own
+    // metadata -- `mtimeEpoch` and `fileSize` from the FileInfo the panel
+    // already holds -- because there is nothing local to stat. `connectionId`
+    // (the provider's "user@host") separates identical paths on different
+    // servers, which "/share/a.jpg" alone would not.
+    //
+    // A fetch is only scheduled when the file is small enough to be worth
+    // pulling (see the per-kind budgets in the .cpp); an oversized one simply
+    // keeps returning null so the delegate draws the generic icon.
+    QPixmap remoteThumbnail(const std::shared_ptr<FileProvider> &provider,
+                            const QString &connectionId, const QString &path, qint64 mtimeEpoch,
+                            qint64 fileSize, int size);
+
+    // Abandons the remote fetches queued against `provider` -- called when a
+    // panel navigates away or a tab disconnects, so bytes are not pulled for a
+    // listing nobody is looking at any more. In-flight work stops at its next
+    // chunk boundary. Safe to call from the GUI thread (never blocks on a
+    // running fetch).
+    void cancelRemote(const FileProvider *provider);
 
     // True if `path`'s extension is a recognised image or video type --
     // i.e. a thumbnail is worth attempting. Extension-only check; does not
@@ -50,7 +82,22 @@ private:
     // "absolutePath\nmtimeEpoch\nsize". Two different files (or the same
     // file after being modified) never collide on the same key.
     static QString cacheKey(const QString &absolutePath, qint64 mtimeEpoch, int size);
+    // Remote key. The extra fields are what a remote path lacks on its own:
+    // `connectionId` disambiguates the same path on two servers, `fileSize`
+    // stands in for the local stat, and the "remote:" prefix guarantees a
+    // remote entry can never be mistaken for the local file at the same path.
+    static QString remoteCacheKey(const QString &connectionId, const QString &path,
+                                  qint64 mtimeEpoch, qint64 fileSize, int size);
     static QString diskCachePath(const QString &key);
+
+    // Shared tail of both generation paths: looks `key` up in memory, then on
+    // disk, and returns the pixmap if either hits. A disk hit is promoted into
+    // the memory cache. Null means "not cached -- generate it".
+    QPixmap lookupCached(const QString &key);
+    // Claims `key` for generation, returning false if another request already
+    // has it in flight (the caller then just waits for thumbnailReady).
+    bool claimPending(const QString &key);
+    void releasePending(const QString &key);
 
     // Runs on a worker thread: decodes/extracts the thumbnail, writes it to
     // the disk cache, then hands the result back via a queued call to
@@ -59,6 +106,16 @@ private:
     // thread on some platform backends, so that conversion happens in
     // storeResult() instead.
     void generate(const QString &path, const QString &key, int size);
+
+    // Runs on a RemoteThumbnailFetcher worker: streams a bounded prefix of the
+    // remote file to a temp file, decodes it exactly as generate() does, then
+    // deletes the temp file and reports through storeResult(). The prefix is
+    // enough for an image (they are fetched whole, under the budget) and
+    // usually enough for a video; a container whose moov atom sits at the end
+    // simply fails to decode and is reported as a miss, leaving the generic
+    // icon in place.
+    void generateRemote(const RemoteThumbnailFetcher::Ticket &ticket, const QString &path,
+                        const QString &key, qint64 fileSize, int size);
 
     // GUI-thread slot (invoked via QMetaObject::invokeMethod with
     // Qt::QueuedConnection from worker threads): converts the decoded image
@@ -71,4 +128,8 @@ private:
     QSet<QString> m_pending;             // cache keys currently generating; guarded by m_mutex
     QMutex m_mutex;
     QThreadPool *m_pool; // bounded worker pool; owned, but Qt manages its threads
+    // Separate, much narrower pool for network fetches: a remote thumbnail is
+    // bounded by the link rather than the CPU, so it gets its own limit instead
+    // of competing for m_pool's threads.
+    RemoteThumbnailFetcher m_remote;
 };

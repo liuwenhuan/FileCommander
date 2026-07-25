@@ -109,13 +109,13 @@ void ThumbnailDelegate::setFontPointSize(int pt) { m_fontPointSize = pt; }
 
 void ThumbnailDelegate::setView(QAbstractItemView *view) { m_view = view; }
 
-QString ThumbnailDelegate::pathForIndex(const QModelIndex &index) {
+FileInfo ThumbnailDelegate::fileInfoForIndex(const QModelIndex &index) {
     if (!index.isValid())
         return {};
     // This delegate is only ever installed over a FileSystemModel (per the
     // class contract); the cast is defensive rather than load-bearing.
     if (const auto *model = qobject_cast<const FileSystemModel *>(index.model()))
-        return model->fileInfoAt(index.row()).path();
+        return model->fileInfoAt(index.row());
     return {};
 }
 
@@ -163,10 +163,23 @@ void ThumbnailDelegate::paint(QPainter *painter, const QStyleOptionViewItem &opt
     if (isParentEntry) {
         drawParentArrow(painter, iconRect, opt.palette);
     } else {
-        const QString path = pathForIndex(index);
+        const FileInfo info = fileInfoForIndex(index);
+        const QString path = info.path();
         QPixmap pixmap;
-        if (!path.isEmpty() && ThumbnailCache::canThumbnail(path))
-            pixmap = ThumbnailCache::instance().thumbnail(path, m_iconSize);
+        if (!path.isEmpty() && !info.isDir() && ThumbnailCache::canThumbnail(path)) {
+            // A network tab's paths are meaningless to the local filesystem, so
+            // those rows go down the fetch-then-decode route with the metadata
+            // the listing already carries. Everything else (local files, and
+            // archive entries extracted to a real path) stays on the local path.
+            const QString connectionId = model ? model->connectionId() : QString();
+            if (!connectionId.isEmpty()) {
+                pixmap = ThumbnailCache::instance().remoteThumbnail(
+                    model->providerPtr(), connectionId, path,
+                    info.modified().toSecsSinceEpoch(), info.size(), m_iconSize);
+            } else {
+                pixmap = ThumbnailCache::instance().thumbnail(path, m_iconSize);
+            }
+        }
 
         if (pixmap.isNull()) {
             // No thumbnail available (unsupported type, or generation still in

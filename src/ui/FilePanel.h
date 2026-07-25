@@ -271,6 +271,11 @@ private:
     // status line ("connecting / reconnecting(N/M) / failed+retry").
     void onNetworkStateChanged(int state, int attempt);
     void updateNavButtons();
+    // Abandons the icon grid's outstanding remote thumbnail fetches for this
+    // panel's current connection. Called wherever that connection stops being
+    // the one on screen (navigating, parking a tab, disconnecting) so the link
+    // isn't spent on rows nobody is looking at.
+    void cancelRemoteThumbnails();
     QString tabLabelFor(const QSharedPointer<TabState> &tab) const;
     void syncTabBarFromManager();
     void closeTabAt(int index);

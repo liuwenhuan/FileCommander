@@ -83,6 +83,7 @@ void FileSystemModel::connectNetwork(std::shared_ptr<FileProvider> provider,
     connect(m_session.get(), &NetworkSession::failed, this, &FileSystemModel::onSessionFailed);
     m_authRetry = nullptr;   // connect site sets it via setAuthContext for retryable backends
     m_lastNetworkError.clear();
+    m_connectionId.clear();  // filled in once the link is up (see onSessionStateChanged)
     m_relistOnConnect = false;
     // Start connecting on the worker thread. The caller then navigates to
     // initialPath: that requestList is queued after this connect on the single
@@ -97,6 +98,7 @@ FileSystemModel::NetworkConn FileSystemModel::peekConnection() const {
         c.session = m_session;
         c.label = m_networkLabel;
         c.authRetry = m_authRetry;
+        c.connectionId = m_connectionId;
     }
     return c;
 }
@@ -112,10 +114,12 @@ FileSystemModel::NetworkConn FileSystemModel::detachConnection() {
         c.session = m_session;
         c.label = m_networkLabel;
         c.authRetry = m_authRetry;
+        c.connectionId = m_connectionId;
         m_session.reset();
         m_provider = localProviderPtr();
         m_networkLabel.clear();
         m_authRetry = nullptr;
+        m_connectionId.clear();
         m_relistOnConnect = false;
     }
     return c;
@@ -127,6 +131,7 @@ void FileSystemModel::attachConnection(NetworkConn conn) {
         m_session = conn.session; // becomes active; signals were wired at creation
         m_networkLabel = conn.label;
         m_authRetry = conn.authRetry;
+        m_connectionId = conn.connectionId;
         m_relistOnConnect = false;
         // Bring the status line up to date with this connection's current state
         // (the session won't re-emit on its own just because we re-adopted it).
@@ -137,6 +142,7 @@ void FileSystemModel::attachConnection(NetworkConn conn) {
         m_provider = localProviderPtr();
         m_networkLabel.clear();
         m_authRetry = nullptr;
+        m_connectionId.clear();
     }
     m_lastNetworkError.clear(); // belongs to the previous active connection
 }
@@ -223,8 +229,16 @@ void FileSystemModel::onSessionStateChanged(int state, int attempt) {
     // inactive tab -- only the active tab's connection drives the status line.
     if (sender() != m_session.get())
         return;
-    if (state == NetworkSession::Connected)
+    if (state == NetworkSession::Connected) {
         m_lastNetworkError.clear(); // a good connect clears any stale failure reason
+        // Snapshot the connection's identity now, while we are on the GUI thread
+        // but the provider's mutex is demonstrably free (the connect just
+        // finished). Everything downstream reads the cached copy instead of
+        // calling displayName() again, which would block on the next stall.
+        if (m_provider)
+            m_connectionId = m_provider->scheme() + QStringLiteral("://")
+                             + m_provider->displayName();
+    }
     // Forward to the status line. The initial listing is driven by the caller's
     // navigateTo() (queued behind the connect on the worker thread); post-drop
     // refreshes are emitted by the session itself as listReady(reqId 0).

@@ -91,6 +91,7 @@ public:
         std::shared_ptr<NetworkSession> session;
         QString label;            // "user@host" for the credential prompt
         AuthRetryFactory authRetry;
+        QString connectionId;     // see connectionId(); moves with the connection
     };
     // Removes the currently active network connection from the model (leaving it
     // local) and returns it so the caller can stash it with its tab. The session
@@ -124,6 +125,15 @@ public:
     // Shared owner of the current provider, so a worker task (e.g. a recursive
     // directory-size walk) can keep it alive even if the model swaps providers.
     std::shared_ptr<FileProvider> providerPtr() const { return m_provider; }
+
+    // Stable identity of the active remote connection ("sftp://user@host"), or
+    // an empty string on a local/archive tab. Snapshotted once when the link
+    // comes up, so reading it is a plain member access -- callers on the GUI
+    // thread (e.g. per-cell painting) must NOT call provider->displayName()
+    // themselves, which takes the provider's mutex and would block for the
+    // whole of a slow connect. Survives navigation within the connection, so it
+    // is usable as a cache key for per-file remote data.
+    QString connectionId() const { return m_connectionId; }
     bool showHiddenFiles() const { return m_showHidden; }
     void setShowHiddenFiles(bool show);
 
@@ -244,5 +254,6 @@ private:
     AuthRetryFactory m_authRetry;   // rebuilds the connect with credentials
     QString m_networkLabel;         // host shown in the credentials prompt
     QString m_lastNetworkError;     // last connect-failure reason (for the status line)
+    QString m_connectionId;         // "scheme://user@host" once connected; see connectionId()
     bool m_relistOnConnect = false; // re-list rootPath once a credentialed retry lands
 };
