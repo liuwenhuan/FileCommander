@@ -11,7 +11,12 @@ add_executable(ui_tests
     test_Mp4RangePlan.cpp
     test_IconFileView.cpp
     test_VideoRangePlan.cpp
+    test_FilePanelFont.cpp
 )
+
+# resources.qrc is compiled into the app target, not this one, so a test that
+# needs a real theme stylesheet reads it from the source tree instead.
+target_compile_definitions(ui_tests PRIVATE TTC_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
 # test_main.cpp supplies main() (with a QApplication), so gtest_main is not linked.
 target_link_libraries(ui_tests PRIVATE

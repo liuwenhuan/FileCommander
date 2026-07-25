@@ -1025,6 +1025,13 @@ void FilePanel::setListFontSize(int pt) {
     QFont f = m_view->font();
     f.setPointSize(pt);
     m_view->setFont(f);
+    // The inline-rename editor is a child of the VIEWPORT, not the view, so it
+    // inherits the viewport's font -- and the viewport does not inherit ours.
+    // QStyleSheetStyle::polish() (run by ensureSelectionPalettes(), and again on
+    // every theme switch) re-resolves the viewport font from the global
+    // stylesheet and clears its resolve mask, severing the inheritance link that
+    // would otherwise carry setFont() down. Set it explicitly on both.
+    m_view->viewport()->setFont(f);
 
     // Scale the row icons with the font so a larger font doesn't leave tiny
     // icons stranded in tall rows. The delegate honours the view's iconSize
@@ -1042,7 +1049,19 @@ void FilePanel::setListFontSize(int pt) {
         QFont gf = m_iconView->font();
         gf.setPointSize(pt);
         m_iconView->setFont(gf);
+        m_iconView->viewport()->setFont(gf); // same editor-inheritance reason as above
         applyThumbnailFontSize(pt);
+    }
+
+    // The folder tree is part of the same list surface, so it tracks the same
+    // setting. Indentation is deliberately left at the style default: scaling it
+    // with the font costs a deep path several pixels of name per level, in a
+    // pane that is already the narrowest thing on screen.
+    if (m_dirTree) {
+        QFont tf = m_dirTree->font();
+        tf.setPointSize(pt);
+        m_dirTree->setFont(tf);
+        m_dirTree->viewport()->setFont(tf);
     }
 }
 
