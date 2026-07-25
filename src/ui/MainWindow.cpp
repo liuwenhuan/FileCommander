@@ -1,5 +1,7 @@
 #include "MainWindow.h"
 
+#include <algorithm>
+
 #include <QAbstractItemView>
 #include <QListView>
 #include <QAction>
@@ -1862,6 +1864,45 @@ void MainWindow::syncOtherPanelToActive() {
 }
 
 void MainWindow::swapPanels() {
+    // While the preview is up it occupies one splitter slot and the panel it
+    // displaced is parked off-screen, so exchanging the two panels' paths would
+    // shuffle a pane the user cannot see -- from the user's side nothing moves
+    // except the file list under the preview. What "swap sides" means here is
+    // to move the preview to the other side: the visible panel and the preview
+    // trade places.
+    if (m_quickViewActive) {
+        const QList<int> sizes = m_panelSplitter->sizes();
+        FilePanel *visible = otherPanel(m_quickViewPanel);
+        const int visibleIndex = m_panelSplitter->indexOf(visible);
+
+        // Park the visible panel where the preview sat, then put the preview in
+        // the slot just vacated. Taking the preview out first would leave the
+        // splitter momentarily holding `visible` twice.
+        m_panelSplitter->replaceWidget(m_quickViewIndex, m_quickViewPanel);
+        m_quickViewPanel->show();
+        m_panelSplitter->replaceWidget(visibleIndex, m_quickView);
+        m_quickView->show();
+
+        m_quickViewPanel = visible;
+        m_quickViewIndex = visibleIndex;
+
+        // The panel that just came back is now the only one on screen, so it
+        // takes focus -- the preview follows the active panel's selection, and
+        // leaving focus on the hidden panel would make the preview track a
+        // cursor nobody can see.
+        FilePanel *revealed = otherPanel(visible);
+        setActivePanel(revealed);
+        revealed->view()->setFocus();
+
+        // Sides swapped, so the ratio has to swap with them or a narrow preview
+        // would stay narrow while changing sides.
+        QList<int> swapped = sizes;
+        std::reverse(swapped.begin(), swapped.end());
+        m_panelSplitter->setSizes(swapped);
+        updateQuickView();
+        return;
+    }
+
     const QString left = m_leftPanel->currentPath();
     const QString right = m_rightPanel->currentPath();
     m_leftPanel->navigateTo(right);
