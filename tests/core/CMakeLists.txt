@@ -16,6 +16,7 @@ add_executable(core_tests
     network/test_CurlFtpProvider.cpp
     network/test_CurlWebDavProvider.cpp
     network/test_NetworkSession.cpp
+    network/test_SmbHostBrowser.cpp
 )
 
 target_link_libraries(core_tests PRIVATE

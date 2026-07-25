@@ -17,6 +17,19 @@ struct SmbHost {
 // batches to the browser's thread via QMetaObject::invokeMethod).
 Q_DECLARE_METATYPE(SmbHost)
 
+// Folds `found` into `known`, returning true if anything changed (so a view can
+// skip a redraw when nothing did).
+//
+// One machine routinely arrives from several sources carrying different halves
+// of its identity: mDNS and WS-Discovery report a name, often with no address,
+// while the TCP-445 sweep reports an address whose reverse lookup failed. Those
+// halves have to be matched up rather than letting whichever arrived first win,
+// or a NAS found by name is shown without its IP for the rest of the session.
+// Entries that share a full identity are collapsed; distinct machines that
+// merely share a hostname (two cloned installs) stay separate because a known
+// address always distinguishes them.
+bool mergeDiscoveredHosts(QVector<SmbHost> &known, const QVector<SmbHost> &found);
+
 class MdnsDiscovery;
 
 // Discovers SMB "network neighbourhood" hosts across three complementary

@@ -336,33 +336,11 @@ void ExternalConnectDialog::rebuild() {
 }
 
 void ExternalConnectDialog::onHostsDiscovered(const QVector<SmbHost> &hosts) {
-    // A host is one entity even when several sources / interfaces / IP families
-    // report it (mDNS often resolves the same name on IPv4, IPv6 and per-NIC).
-    // Dedup by its display identity -- its name, or its address when unnamed --
-    // so it appears once, not three times.
-    // Key on the IP when known so two distinct machines that share a hostname
-    // (e.g. two cloned "deepin-PC" installs) don't collapse into one; fall back
-    // to the name for name-only results (legacy NetBIOS).
-    auto keyOf = [](const SmbHost &h) {
-        return (h.address.isEmpty() ? h.name : h.address).toLower();
-    };
-    bool added = false;
-    for (const SmbHost &h : hosts) {
-        if (keyOf(h).isEmpty())
-            continue;
-        bool known = false;
-        for (const SmbHost &existing : m_hosts) {
-            if (keyOf(existing) == keyOf(h)) {
-                known = true;
-                break;
-            }
-        }
-        if (!known) {
-            m_hosts.append(h);
-            added = true;
-        }
-    }
-    if (added)
+    // Sources report the same machine repeatedly and often partially, so the
+    // batch is folded into the running list rather than appended; see
+    // mergeDiscoveredHosts for how a name-only and an address-only sighting of
+    // one host are recognised as the same entry.
+    if (mergeDiscoveredHosts(m_hosts, hosts))
         rebuild();
 }
 

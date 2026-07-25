@@ -27,6 +27,74 @@ void postSourceFinished(QPointer<SmbHostBrowser> self) {
 }
 } // namespace
 
+bool mergeDiscoveredHosts(QVector<SmbHost> &known, const QVector<SmbHost> &found) {
+    // Identity is the address when we have one, the name otherwise: keying on
+    // the address keeps two cloned machines sharing a hostname apart.
+    auto keyOf = [](const SmbHost &h) {
+        return (h.address.isEmpty() ? h.name : h.address).toLower();
+    };
+
+    bool changed = false;
+    for (const SmbHost &h : found) {
+        if (keyOf(h).isEmpty())
+            continue;
+        // A sighting carrying both halves can match more than one existing row:
+        // the name-only one AND the address-only one, which it has just proved
+        // to be the same machine. Fill in every match rather than stopping at
+        // the first, then let the pass below drop the rows left redundant.
+        bool matched = false;
+        for (SmbHost &existing : known) {
+            const bool sameKey = keyOf(existing) == keyOf(h);
+            const bool sameNameOneAddressless =
+                !existing.name.isEmpty() &&
+                existing.name.compare(h.name, Qt::CaseInsensitive) == 0 &&
+                (existing.address.isEmpty() || h.address.isEmpty());
+            const bool sameAddressOneNameless =
+                !existing.address.isEmpty() && existing.address == h.address &&
+                (existing.name.isEmpty() || h.name.isEmpty());
+            if (!sameKey && !sameNameOneAddressless && !sameAddressOneNameless)
+                continue;
+
+            // Fill in whichever half this entry was missing.
+            if (existing.name.isEmpty() && !h.name.isEmpty()) {
+                existing.name = h.name;
+                changed = true;
+            }
+            if (existing.address.isEmpty() && !h.address.isEmpty()) {
+                existing.address = h.address;
+                changed = true;
+            }
+            matched = true;
+        }
+        if (!matched) {
+            known.append(h);
+            changed = true;
+        }
+    }
+
+    // Collapse rows that the fills above turned into duplicates: once two
+    // entries agree on a non-empty address they are one machine, so keep the
+    // named one. Without this a NAS first seen by IP and later by name would sit
+    // in the list twice.
+    for (int i = known.size() - 1; i >= 0; --i) {
+        const SmbHost &later = known.at(i);
+        if (later.address.isEmpty())
+            continue;
+        for (int j = 0; j < i; ++j) {
+            if (known.at(j).address != later.address)
+                continue;
+            // Keep whichever of the pair has a name; prefer the earlier row so
+            // discovery order stays stable in the list.
+            if (known.at(j).name.isEmpty() && !later.name.isEmpty())
+                known[j].name = later.name;
+            known.removeAt(i);
+            changed = true;
+            break;
+        }
+    }
+    return changed;
+}
+
 SmbHostBrowser::SmbHostBrowser(QObject *parent) : QObject(parent) {
     qRegisterMetaType<QVector<SmbHost>>("QVector<SmbHost>");
 }
