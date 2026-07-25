@@ -881,21 +881,31 @@ QVector<LaidLine> wrapParagraph(const V2Para &p) {
             continue;
         }
         const double a = adv(i);
-        // Wrap when the box width is exceeded -- but only if this line actually has
-        // a legal break point. An unbreakable token that starts the line (e.g. the
-        // digits "2006" in a narrow timeline label) is allowed to OVERFLOW rather
-        // than be sliced mid-word: Word/Office never break inside a number/word, and
-        // slicing "2006" into "200"+"6" is a fidelity bug. Once a later break point
-        // appears (script boundary, space, CJK) the line wraps there instead.
-        if (maxW > 0.0 && i > lineStart && w + a > maxW && lastBreak > lineStart) {
-            int brk = kinsoku(glyphs, lineStart, lastBreak);
+        // Break candidate: prefer breaking right BEFORE glyph i when that's legal
+        // (CJK, script boundary, space); otherwise the last legal break seen. Using i
+        // itself -- not the stale lastBreak (== i-1 for a CJK run, only updated at the
+        // bottom of the loop) -- keeps the glyph that still fits on this line. The old
+        // code broke at i-1, dropping a glyph that fit and wrapping one char early on
+        // every line, so a 2-line Office paragraph rendered as 3. An unbreakable token
+        // that starts the line still can't split (breakBefore is false mid-word, and
+        // cand then falls back to a break before the token, or overflows).
+        const int cand = (i > lineStart && breakBefore(glyphs, i)) ? i : lastBreak;
+        if (maxW > 0.0 && i > lineStart && w + a > maxW && cand > lineStart) {
+            const int brk = kinsoku(glyphs, lineStart, cand);
             ranges.push_back({lineStart, brk});
             lineStart = brk;
-            // Re-measure the glyphs carried onto the new line up to (not incl.) i.
+            // Re-measure the glyphs carried onto the new line, [lineStart, i).
             w = 0.0;
             for (int k = lineStart; k < i; ++k)
                 w += adv(k);
             lastBreak = -1;
+            // kinsoku may hang a head-forbidden glyph FORWARD onto the line just
+            // closed (brk > i); it belongs to that line, so resume after it rather
+            // than re-adding glyph i to the new line.
+            if (brk > i) {
+                i = brk - 1; // for-loop ++i resumes at brk
+                continue;
+            }
         }
         if (i > lineStart && breakBefore(glyphs, i))
             lastBreak = i;
