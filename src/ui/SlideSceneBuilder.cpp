@@ -830,6 +830,9 @@ struct V2Para {
     QColor defColor;
     FontComp comp;             // metric compensation for the base family
     const MetricProfile *profile = nullptr; // forced metrics for a missing authored font
+    QString bullet;            // data-bullet: hanging-indent marker glyph ("" == none)
+    QColor bulletColor;        // data-bullet-fill (invalid == inherit defColor)
+    double bulletSizeEmu = 0;  // data-bullet-size EMU (<=0 == paragraph font size)
     QVector<TextSegment> segs; // runs (colour / size / baseline)
 };
 
@@ -1090,12 +1093,28 @@ void layoutV2Boxes(const QVector<V2Para> &paras) {
                 const LaidLine &line = e.lines[li];
                 const double baselineY = cursor + e.ascent0 + li * e.pitch;
                 double left = p.x + p.marL;      // anchor=start (left)
-                if (li == 0)
-                    left += p.indent;            // first-line indent (hanging list)
+                // First-line out-dent applies to the TEXT only when there is no
+                // hanging bullet; with a bullet the text stays at the marL tab stop
+                // and the marker hangs at marL+indent (drawn below).
+                if (li == 0 && p.bullet.isEmpty())
+                    left += p.indent;
                 if (p.halign == Qt::AlignHCenter)
                     left = p.x - line.width / 2.0;
                 else if (p.halign == Qt::AlignRight)
                     left = p.x - line.width;
+                // Hanging bullet: draw the marker glyph at marL+indent on the first
+                // line, at its own colour/size, its baseline sharing the line's.
+                if (li == 0 && !p.bullet.isEmpty()) {
+                    QFont bf = p.font;
+                    if (p.bulletSizeEmu > 0.0) {
+                        const int bpx = qRound(p.bulletSizeEmu * S);
+                        bf.setPixelSize(bpx < 1 ? 1 : bpx);
+                    }
+                    auto *b = new QGraphicsSimpleTextItem(p.bullet, p.parent);
+                    b->setFont(bf);
+                    b->setBrush(p.bulletColor.isValid() ? p.bulletColor : p.defColor);
+                    b->setPos(p.x + p.marL + p.indent, baselineY - QFontMetricsF(bf).ascent());
+                }
                 emitLine(line, left, baselineY, baseAscent, p.parent);
             }
             // Advance by nl*pitch (not height0 + (nl-1)*pitch) to match the block
@@ -1310,6 +1329,12 @@ void addText(const QXmlStreamAttributes &attrs, const QVector<TextSegment> &segm
         p.defColor = defColor;
         p.comp = fontCompFor(primaryFamily(attrs));
         p.profile = activeProfile(attrs); // forced metrics iff authored font missing
+        // Hanging-indent bullet (data-bullet): marker glyph hangs at marL+indent,
+        // paragraph text aligns at the marL tab stop (Office). Only emitted by oxide
+        // for a real hanging indent, so its presence drives the two-position layout.
+        p.bullet = attrs.value(QLatin1String("data-bullet")).toString();
+        p.bulletColor = parseColor(attrs.value(QLatin1String("data-bullet-fill")));
+        p.bulletSizeEmu = attrNum(attrs, "data-bullet-size", 0.0);
         p.segs = segments;
         v2->push_back(p);
         if (outText) { // preserve copy-all text in document order
