@@ -72,15 +72,7 @@ void FileSystemModel::connectNetwork(std::shared_ptr<FileProvider> provider,
     // on a stalled worker's join. Every copy (parked in tabs/history) shares it.
     m_session = std::shared_ptr<NetworkSession>(new NetworkSession(provider),
                                                 [](NetworkSession *s) { s->shutdownAsync(); });
-    connect(m_session.get(), &NetworkSession::stateChanged, this,
-            &FileSystemModel::onSessionStateChanged);
-    connect(m_session.get(), &NetworkSession::listReady, this,
-            &FileSystemModel::onSessionListReady);
-    connect(m_session.get(), &NetworkSession::listFailed, this,
-            &FileSystemModel::onSessionListFailed);
-    connect(m_session.get(), &NetworkSession::authRequired, this,
-            &FileSystemModel::onSessionAuthRequired);
-    connect(m_session.get(), &NetworkSession::failed, this, &FileSystemModel::onSessionFailed);
+    wireSessionSignals();
     m_authRetry = nullptr;   // connect site sets it via setAuthContext for retryable backends
     m_lastNetworkError.clear();
     m_connectionId.clear();  // filled in once the link is up (see onSessionStateChanged)
@@ -108,8 +100,13 @@ FileSystemModel::NetworkConn FileSystemModel::detachConnection() {
     if (m_session) {
         // Hand the live connection to the caller WITHOUT stopping it: it stays
         // alive (and its heartbeat keeps reconnecting) while parked with its tab.
-        // Its signals remain connected to this model but the sender() guards in
-        // the slots ignore it now that it is no longer m_session.
+        //
+        // Drop this model's subscription as it goes. Parking within one model
+        // could rely on the sender() guards in the slots, since the connection
+        // always came back to the same object. A connection that moves to a
+        // *different* model cannot: both would stay subscribed, and the model
+        // that no longer owns it would still act on its listings.
+        disconnect(m_session.get(), nullptr, this, nullptr);
         c.provider = m_provider;
         c.session = m_session;
         c.label = m_networkLabel;
@@ -125,14 +122,37 @@ FileSystemModel::NetworkConn FileSystemModel::detachConnection() {
     return c;
 }
 
+void FileSystemModel::wireSessionSignals() {
+    if (!m_session)
+        return;
+    // Re-pointed at whichever model currently owns the session: a connection can
+    // move between models (swapping the two panels), and its results have to
+    // arrive at the model that is now showing it. Qt::UniqueConnection keeps
+    // re-adopting the same session from stacking duplicates.
+    connect(m_session.get(), &NetworkSession::stateChanged, this,
+            &FileSystemModel::onSessionStateChanged, Qt::UniqueConnection);
+    connect(m_session.get(), &NetworkSession::listReady, this,
+            &FileSystemModel::onSessionListReady, Qt::UniqueConnection);
+    connect(m_session.get(), &NetworkSession::listFailed, this,
+            &FileSystemModel::onSessionListFailed, Qt::UniqueConnection);
+    connect(m_session.get(), &NetworkSession::authRequired, this,
+            &FileSystemModel::onSessionAuthRequired, Qt::UniqueConnection);
+    connect(m_session.get(), &NetworkSession::failed, this, &FileSystemModel::onSessionFailed,
+            Qt::UniqueConnection);
+}
+
 void FileSystemModel::attachConnection(NetworkConn conn) {
     if (conn.session) {
         m_provider = conn.provider;
-        m_session = conn.session; // becomes active; signals were wired at creation
+        m_session = conn.session;
         m_networkLabel = conn.label;
         m_authRetry = conn.authRetry;
         m_connectionId = conn.connectionId;
         m_relistOnConnect = false;
+        // Subscribe before anything else: the session may have come from another
+        // model, whose subscription was dropped on detach, so without this its
+        // listings would arrive nowhere and the panel would never finish loading.
+        wireSessionSignals();
         // Bring the status line up to date with this connection's current state
         // (the session won't re-emit on its own just because we re-adopted it).
         emit networkStateChanged(m_session->state(), m_session->attempt());

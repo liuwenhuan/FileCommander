@@ -37,6 +37,17 @@ public:
 
     QString currentPath() const { return m_model->rootPath(); }
     void navigateTo(const QString &path);
+
+    // Identity of the backend this panel is browsing: "scheme://user@host" for a
+    // network tab, empty for a local one. Two panels sharing it are looking at
+    // the same server, which is what makes a bare path meaningful in both.
+    QString connectionId() const { return m_model->connectionId(); }
+
+    // Exchanges this panel's backend and location with `other`, so a network
+    // connection moves between panels instead of a path string being handed to
+    // a backend that cannot resolve it. Both panels end up where the other one
+    // was, connection and all. Safe when either or both sides are local.
+    void exchangeLocationWith(FilePanel *other);
     // Activates `tabIndex` (if valid and not already current) and navigates it to
     // `path`. Used by the tab-strip favorites menu so a chosen favorite lands in
     // the right-clicked tab. tabIndex < 0 targets the active tab.
@@ -276,6 +287,10 @@ private:
     // the one on screen (navigating, parking a tab, disconnecting) so the link
     // isn't spent on rows nobody is looking at.
     void cancelRemoteThumbnails();
+
+    // Relists at `path` and brings the address bar, tab label and nav buttons
+    // with it, for a location that arrived alongside a swapped-in backend.
+    void settleAtSwappedPath(const QString &path);
 
     // Requests thumbnails for rows `firstRow`..`lastRow`, the ones on screen
     // once scrolling stopped. Fetching is bounded and refuses work when its

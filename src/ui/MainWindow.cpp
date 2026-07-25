@@ -1872,8 +1872,26 @@ void MainWindow::secureWipeSelected() {
 }
 
 void MainWindow::syncOtherPanelToActive() {
-    if (m_activePanel)
-        otherPanel(m_activePanel)->navigateTo(m_activePanel->currentPath());
+    if (!m_activePanel)
+        return;
+    FilePanel *other = otherPanel(m_activePanel);
+    if (!other)
+        return;
+
+    // A path only means something to the backend it came from. Both panels on
+    // the same connection (or both local) can share one; otherwise the other
+    // panel would resolve it against its own backend -- and since every backend
+    // here uses POSIX-rooted paths, a path like "/home" exists on a share AND on
+    // this machine, so the panel would quietly land somewhere else rather than
+    // fail. Say so instead of moving to the wrong place.
+    if (m_activePanel->connectionId() != other->connectionId()) {
+        ttc::warning(this, tr("Same Directory in Other Panel"),
+                     tr("The two panels are on different connections, so this directory has no "
+                        "meaning in the other one. Use Swap Panels (Ctrl+U) to move this "
+                        "connection across instead."));
+        return;
+    }
+    other->navigateTo(m_activePanel->currentPath());
 }
 
 void MainWindow::swapPanels() {
@@ -1916,10 +1934,12 @@ void MainWindow::swapPanels() {
         return;
     }
 
-    const QString left = m_leftPanel->currentPath();
-    const QString right = m_rightPanel->currentPath();
-    m_leftPanel->navigateTo(right);
-    m_rightPanel->navigateTo(left);
+    // Exchange the backends, not the path strings: a remote path resolved by the
+    // other panel's backend would land it somewhere else (every backend here is
+    // POSIX-rooted, so "/home" resolves on a share and on this machine alike).
+    // Moving the connections themselves makes the swap mean what it says, and
+    // costs nothing extra when both sides are local.
+    m_leftPanel->exchangeLocationWith(m_rightPanel);
 }
 
 void MainWindow::openTerminalHere() {

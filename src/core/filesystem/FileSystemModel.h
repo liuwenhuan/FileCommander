@@ -105,7 +105,9 @@ public:
     NetworkConn detachConnection();
     // Installs a previously-detached connection as the active backend (or goes
     // local when the bundle is empty). Reflects the session's current state on the
-    // status line immediately. Signals were wired when the session was created.
+    // status line immediately, and subscribes this model to the session -- which
+    // matters when the connection arrives from another model (panel swap), since
+    // its results must now be delivered here.
     void attachConnection(NetworkConn conn);
 
     // "Flat" listing mode: populate the model with an explicit set of file paths
@@ -222,6 +224,9 @@ private slots:
     void onSessionStateChanged(int state, int attempt);
 
 private:
+    // (Re)subscribes this model to m_session's signals. Idempotent, so adopting
+    // the same session repeatedly cannot stack duplicate deliveries.
+    void wireSessionSignals();
     void teardownSession();
     void sortEntries();
     void applyFilter();

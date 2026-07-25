@@ -777,6 +777,58 @@ void FilePanel::refresh() {
         m_model->setRootPath(m_model->rootPath());
 }
 
+void FilePanel::exchangeLocationWith(FilePanel *other) {
+    if (!other || other == this)
+        return;
+
+    // Both panels are about to show a different listing, so neither's queued
+    // thumbnail fetches are wanted any more.
+    cancelRemoteThumbnails();
+    other->cancelRemoteThumbnails();
+
+    const QString myPath = currentPath();
+    const QString theirPath = other->currentPath();
+
+    // Move the backends themselves rather than the paths. A path only means
+    // anything to the backend it came from -- "/home" exists on an SMB share and
+    // on this machine, so handing one panel the other's path would quietly land
+    // it somewhere else entirely. Detaching first leaves both models local for
+    // an instant, which is safe: nothing lists until setRootPath below.
+    FileSystemModel::NetworkConn mine = m_model->detachConnection();
+    FileSystemModel::NetworkConn theirs = other->m_model->detachConnection();
+    m_model->attachConnection(std::move(theirs));
+    other->m_model->attachConnection(std::move(mine));
+
+    // The tab strip labels tabs from the connection recorded in TabState, so
+    // both need re-stamping now that the connections have moved.
+    stampActiveConnection();
+    other->stampActiveConnection();
+
+    // Land each panel on the location that came with its new backend. This does
+    // what navigateTo's tail does -- relist, update the address bar, and record
+    // the path on the active tab -- but without navigateTo's isDir() guard,
+    // which would test the path against the backend that just arrived and, on a
+    // still-connecting remote one, reject it.
+    settleAtSwappedPath(theirPath);
+    other->settleAtSwappedPath(myPath);
+
+    refreshTabIcons();
+    other->refreshTabIcons();
+}
+
+void FilePanel::settleAtSwappedPath(const QString &path) {
+    m_flatPaths.clear(); // a swapped-in location is a real directory, not a search
+    m_model->setRootPath(path);
+    emit pathChanged(path);
+    if (auto tab = m_tabManager->activeTab()) {
+        tab->path = path;
+        tab->flatPaths.clear();
+        tab->title.clear(); // drop any keyword title so the label follows the path
+        updateActiveTabLabel();
+    }
+    updateNavButtons();
+}
+
 bool FilePanel::isThumbnailMode() const {
     return m_bodyStack && m_bodyStack->currentWidget() == m_iconView;
 }
