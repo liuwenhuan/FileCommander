@@ -137,6 +137,11 @@ private:
     State m_state = Idle;
     int m_attempt = 0;
     bool m_everConnected = false;  // distinguishes "connecting" vs "reconnecting"
+    // Set between authRequired and the answering retryWith(): the session is
+    // parked waiting for the user's credentials, so queued list requests must
+    // not re-dial (that produced a duplicate password prompt). Cleared by
+    // retryWith/retry/start, and re-armed if the new credentials are rejected.
+    bool m_awaitingCredentials = false;
     std::atomic<bool> m_stopping{false};
     bool m_shuttingDown = false;   // guards shutdownAsync against a double call
 };

@@ -155,6 +155,12 @@ bool NetworkSession::reconnectCycle() {
         const bool authNeeded =
             (m_provider && m_provider->lastConnectAuthFailed()) || looksLikeAuthFailure(err);
         if (!m_everConnected && authNeeded) {
+            // Park until the UI answers. Without this the session would sit in a
+            // state ensureConnected() treats as "not settled yet", so the list
+            // request the tab queued right behind the connect would re-run the
+            // whole cycle, hit the same rejection and emit a SECOND authRequired
+            // -- two password dialogs for one connection attempt.
+            m_awaitingCredentials = true;
             setState(Idle); // clear the status line; the prompt takes over
             emit authRequired(err);
             return false;
@@ -179,6 +185,11 @@ bool NetworkSession::reconnectCycle() {
 bool NetworkSession::ensureConnected() {
     if (m_state == Connected)
         return true;
+    // Waiting for the user to type a username/password: re-dialling now would
+    // just be rejected again and raise a second credential prompt on top of the
+    // one already on screen. The pending retryWith() drives the next attempt.
+    if (m_awaitingCredentials)
+        return false;
     // Already given up (initial dial failed, or reconnect budget exhausted): don't
     // silently re-run the whole cycle on every list request -- that would keep the
     // tab stuck "connecting" and never let it settle on the failure. Rest in
@@ -195,6 +206,7 @@ void NetworkSession::onStart() {
         connect(m_heartbeat, &QTimer::timeout, this, &NetworkSession::onHeartbeat);
     }
     m_everConnected = false;
+    m_awaitingCredentials = false;
     setState(Connecting, 0);
     reconnectCycle(); // folds the initial attempt + up to kMaxReconnects retries
 }
@@ -231,6 +243,7 @@ void NetworkSession::onRetry() {
         return;
     // User asked to retry after Failed: restart the cycle. Keep m_everConnected
     // as-is so the labels reflect whether we ever had a live connection.
+    m_awaitingCredentials = false; // an explicit retry supersedes a pending prompt
     if (reconnectCycle() && !m_currentDir.isEmpty())
         emit listReady(0, m_currentDir, m_provider ? m_provider->list(m_currentDir, false)
                                                    : QVector<FileInfo>());
@@ -243,6 +256,10 @@ void NetworkSession::onRetryWith() {
     // connect so it uses m_connectFn, not the provider's stored-credential
     // reconnect(). On success, list the directory the tab opened with.
     m_everConnected = false;
+    // The credentials arrived, so the session is dialling again rather than
+    // waiting on the user. A rejection inside this cycle re-arms the flag and
+    // prompts once more -- a wrong password still gets a fresh prompt.
+    m_awaitingCredentials = false;
     reconnectCycle();
 }
 

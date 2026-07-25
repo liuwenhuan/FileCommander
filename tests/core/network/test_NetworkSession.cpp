@@ -29,6 +29,9 @@ public:
     RenameResult rename(const QString &, const QString &, QString *) override {
         return RenameResult::Failed;
     }
+    // Lets a test stand in for a backend whose connect was rejected by the server
+    // (SMB's EACCES, SFTP's userauth failure, ...).
+    void setAuthFailed(bool failed) { m_lastConnectAuthFailed = failed; }
 };
 
 // Drives the calling thread's event loop until `pred` holds or `budgetMs`
@@ -82,4 +85,79 @@ TEST(NetworkSessionLifecycle, ShutdownAsyncReturnsWhileWorkerStalled) {
     // leak, no hang.
     EXPECT_TRUE(spinUntil([&] { return destroyed.load(); }, 6000))
         << "session was never destroyed after the worker unwound";
+}
+
+// One server rejection must raise exactly ONE credential prompt. The tab issues
+// a list request immediately after connectNetwork() (FilePanel::navigateTo), and
+// that request lands on the worker right after the connect was rejected -- it
+// must not re-dial and emit a second authRequired, which showed the user two
+// password dialogs for a single login.
+TEST(NetworkSessionAuth, RejectedConnectPromptsOnceDespiteQueuedListRequest) {
+    auto provider = std::make_shared<StubProvider>();
+    std::shared_ptr<NetworkSession> session(new NetworkSession(provider),
+                                            [](NetworkSession *s) { s->shutdownAsync(); });
+
+    std::atomic<int> authPrompts{0};
+    std::atomic<int> connectCalls{0};
+    QObject::connect(session.get(), &NetworkSession::authRequired,
+                     [&authPrompts](const QString &) { ++authPrompts; });
+
+    session->start(
+        [provider, &connectCalls](QString *error) {
+            ++connectCalls;
+            provider->setAuthFailed(true); // the server wants credentials
+            *error = QStringLiteral("Authentication required");
+            return false;
+        },
+        QStringLiteral("/"));
+    // Exactly what the panel does right after connectNetwork().
+    session->requestList(1, QStringLiteral("/"), false);
+
+    ASSERT_TRUE(spinUntil([&] { return authPrompts.load() >= 1; }, 5000))
+        << "the rejected connect never asked for credentials";
+    // Give the queued list request room to (wrongly) trigger a second dial.
+    spinUntil([] { return false; }, 1000);
+
+    EXPECT_EQ(authPrompts.load(), 1) << "the user was shown more than one password dialog";
+    EXPECT_EQ(connectCalls.load(), 1) << "the queued list request re-dialled while awaiting a login";
+}
+
+// The guard above must not swallow a genuine second rejection: a wrong password
+// has to prompt again, and the right one then connects.
+TEST(NetworkSessionAuth, WrongCredentialsPromptAgainAndCorrectOnesConnect) {
+    auto provider = std::make_shared<StubProvider>();
+    std::shared_ptr<NetworkSession> session(new NetworkSession(provider),
+                                            [](NetworkSession *s) { s->shutdownAsync(); });
+
+    std::atomic<int> authPrompts{0};
+    std::atomic<bool> connected{false};
+    QObject::connect(session.get(), &NetworkSession::stateChanged, [&connected](int state, int) {
+        if (state == NetworkSession::Connected)
+            connected = true;
+    });
+    // Mirrors MainWindow: every prompt feeds credentials back via retryWith().
+    // The first answer is wrong, the second is accepted.
+    QObject::connect(session.get(), &NetworkSession::authRequired, [&](const QString &) {
+        const bool correct = ++authPrompts >= 2;
+        session->retryWith([provider, correct](QString *error) {
+            if (correct)
+                return true;
+            provider->setAuthFailed(true);
+            *error = QStringLiteral("Authentication required");
+            return false;
+        });
+    });
+
+    session->start(
+        [provider](QString *error) {
+            provider->setAuthFailed(true);
+            *error = QStringLiteral("Authentication required");
+            return false;
+        },
+        QStringLiteral("/"));
+    session->requestList(1, QStringLiteral("/"), false);
+
+    EXPECT_TRUE(spinUntil([&] { return connected.load(); }, 8000))
+        << "the correct password never established the connection";
+    EXPECT_EQ(authPrompts.load(), 2) << "a rejected password must prompt again";
 }
