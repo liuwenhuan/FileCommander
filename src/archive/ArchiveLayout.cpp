@@ -34,10 +34,12 @@ bool hasArchiveSuffix(const QString &name) {
     // for a boolean, but keeps the intent clear).
     static const QStringList kSuffixes = {
         QStringLiteral(".tar.gz"),  QStringLiteral(".tar.bz2"), QStringLiteral(".tar.xz"),
-        QStringLiteral(".tgz"),     QStringLiteral(".tbz2"),    QStringLiteral(".txz"),
-        QStringLiteral(".zip"),     QStringLiteral(".7z"),      QStringLiteral(".rar"),
-        QStringLiteral(".tar"),     QStringLiteral(".gz"),      QStringLiteral(".bz2"),
-        QStringLiteral(".xz"),
+        QStringLiteral(".tar.zst"), QStringLiteral(".tgz"),     QStringLiteral(".tbz2"),
+        QStringLiteral(".txz"),     QStringLiteral(".tzst"),    QStringLiteral(".zip"),
+        QStringLiteral(".7z"),      QStringLiteral(".rar"),     QStringLiteral(".tar"),
+        QStringLiteral(".iso"),     QStringLiteral(".deb"),     QStringLiteral(".rpm"),
+        QStringLiteral(".cpio"),    QStringLiteral(".cab"),     QStringLiteral(".gz"),
+        QStringLiteral(".bz2"),     QStringLiteral(".xz"),
     };
     const QString lower = name.toLower();
     for (const QString &s : kSuffixes) {
