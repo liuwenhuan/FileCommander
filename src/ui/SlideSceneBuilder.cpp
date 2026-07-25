@@ -468,6 +468,8 @@ struct TextSegment {
     QColor color;        // invalid == <text> default fill
     double fontSizeEmu;  // <=0 == <text> default font size
     int baselineShift;   // data-baseline permille (0 == normal; >0 super, <0 sub)
+    int bold = -1;       // tspan font-weight override: -1 inherit / 0 normal / 1 bold
+    int italic = -1;     // tspan font-style override:  -1 inherit / 0 normal / 1 italic
 };
 
 // Read a <text> element's contents into runs. The reader is positioned on the
@@ -482,9 +484,11 @@ QVector<TextSegment> readTextSegments(QXmlStreamReader &xml) {
     QColor curColor;         // invalid == default fill
     double curSize = 0.0;    // <=0 == default font size
     int curShift = 0;        // data-baseline permille (0 == normal)
+    int curBold = -1;        // tspan font-weight override (-1 inherit / 0 / 1)
+    int curItalic = -1;      // tspan font-style override  (-1 inherit / 0 / 1)
     auto flush = [&]() {
         if (!cur.isEmpty()) {
-            segs.push_back({cur, curColor, curSize, curShift});
+            segs.push_back({cur, curColor, curSize, curShift, curBold, curItalic});
             cur.clear();
         }
     };
@@ -508,12 +512,21 @@ QVector<TextSegment> readTextSegments(QXmlStreamReader &xml) {
             bool okBl = false;
             const int bl = ta.value(QLatin1String("data-baseline")).toInt(&okBl);
             curShift = okBl ? bl : 0;
+            // Inline bold/italic override (mixed weight/style within a line). oxide
+            // emits font-weight/font-style on the tspan only when the run differs
+            // from the <text> default; absent == inherit the <text>'s weight/style.
+            const QStringRef fw = ta.value(QLatin1String("font-weight"));
+            curBold = fw.isEmpty() ? -1 : (fw == QLatin1String("bold") ? 1 : 0);
+            const QStringRef fs = ta.value(QLatin1String("font-style"));
+            curItalic = fs.isEmpty() ? -1 : (fs == QLatin1String("italic") ? 1 : 0);
         } else if (tok == QXmlStreamReader::EndElement &&
                    xml.name() == QLatin1String("tspan")) {
             flush();             // close this run
             curColor = QColor();  // back to the <text> default colour
             curSize = 0.0;        // back to the <text> default font size
             curShift = 0;         // back to the baseline
+            curBold = -1;         // back to the <text> default weight
+            curItalic = -1;       // back to the <text> default style
         } else if (tok == QXmlStreamReader::EndElement &&
                    xml.name() == QLatin1String("text")) {
             flush();
@@ -834,6 +847,11 @@ QVector<LaidLine> wrapParagraph(const V2Para &p) {
             int px = qRound(s.fontSizeEmu * S);
             f.setPixelSize(px < 1 ? 1 : px);
         }
+        // Inline bold/italic override (-1 == inherit the <text> font set above).
+        if (s.bold >= 0)
+            f.setBold(s.bold == 1);
+        if (s.italic >= 0)
+            f.setItalic(s.italic == 1);
         if (s.baselineShift != 0) {
             // Super/subscript run: shrink to ~62% (Office default) around its own
             // size; the shift itself is applied when placing (needs the baseline).
