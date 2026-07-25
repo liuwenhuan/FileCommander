@@ -1098,7 +1098,11 @@ void layoutV2Boxes(const QVector<V2Para> &paras) {
                     left = p.x - line.width;
                 emitLine(line, left, baselineY, baseAscent, p.parent);
             }
-            cursor += e.height0 + (e.lines.size() - 1) * e.pitch + e.spcAfter;
+            // Advance by nl*pitch (not height0 + (nl-1)*pitch) to match the block
+            // height H above: the line-spacing multiplier applies to EVERY line,
+            // including a single-line paragraph's one line, so two stacked 200%
+            // paragraphs sit a full 2× line apart (Office), not 1× (too tight).
+            cursor += e.lines.size() * e.pitch + e.spcAfter;
         }
     }
 }
