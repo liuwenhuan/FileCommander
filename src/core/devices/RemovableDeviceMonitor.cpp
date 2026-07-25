@@ -241,18 +241,17 @@ QString RemovableDeviceMonitor::ensureMounted(const QString &id, QString *errorO
     return reply.value();
 }
 
-bool RemovableDeviceMonitor::unmount(const QString &id, QString *errorOut) {
-    // Already unmounted? Nothing to do -- report success so the UI just refreshes.
-    bool known = false;
+bool RemovableDeviceMonitor::eject(const QString &id, QString *errorOut) {
+    // Snapshot this device's mount state + drive path.
+    bool isMounted = false;
+    QString driveId;
     for (const RemovableDevice &dev : m_devices) {
         if (dev.id == id) {
-            known = true;
-            if (!dev.isMounted)
-                return true;
+            isMounted = dev.isMounted;
+            driveId = dev.driveId;
             break;
         }
     }
-    Q_UNUSED(known);
 
     QDBusConnection bus = QDBusConnection::systemBus();
     if (!bus.isConnected()) {
@@ -261,23 +260,37 @@ bool RemovableDeviceMonitor::unmount(const QString &id, QString *errorOut) {
         return false;
     }
 
-    QDBusInterface fs(QString::fromUtf8(kService), id, QString::fromUtf8(kFilesystemIface), bus);
-    if (!fs.isValid()) {
-        if (errorOut)
-            *errorOut = tr("Device is not a mountable filesystem");
-        return false;
+    // 1. Unmount the filesystem first (only when it's actually mounted).
+    if (isMounted) {
+        QDBusInterface fs(QString::fromUtf8(kService), id, QString::fromUtf8(kFilesystemIface),
+                          bus);
+        if (!fs.isValid()) {
+            if (errorOut)
+                *errorOut = tr("Device is not a mountable filesystem");
+            return false;
+        }
+        const QVariantMap options; // empty -> UDisks2 defaults
+        QDBusReply<void> reply = fs.call(QStringLiteral("Unmount"), options);
+        if (!reply.isValid()) {
+            if (errorOut)
+                *errorOut = reply.error().message();
+            return false;
+        }
     }
 
-    // Unmount(a{sv} options) -> (): empty options lets UDisks2 pick defaults.
-    const QVariantMap options;
-    QDBusReply<void> reply = fs.call(QStringLiteral("Unmount"), options);
-    if (!reply.isValid()) {
-        if (errorOut)
-            *errorOut = reply.error().message();
-        return false;
+    // 2. Power off the drive so it's safe to physically unplug. Best-effort: some
+    // drives/kernels don't support PowerOff, and a failure here after a good
+    // unmount still leaves the device safely removable, so it isn't fatal.
+    if (!driveId.isEmpty() && driveId != QStringLiteral("/")) {
+        QDBusInterface drive(QString::fromUtf8(kService), driveId, QString::fromUtf8(kDriveIface),
+                             bus);
+        if (drive.isValid()) {
+            const QVariantMap options;
+            drive.call(QStringLiteral("PowerOff"), options);
+        }
     }
 
-    // Refresh so the snapshot reflects the now-unmounted state.
+    // Refresh so the snapshot reflects the now-removed/unmounted state.
     refresh();
     return true;
 }
@@ -350,6 +363,7 @@ QVector<RemovableDevice> RemovableDeviceMonitor::enumerate() const {
 
         RemovableDevice dev;
         dev.id = it.key().path();
+        dev.driveId = drivePath; // for safe-remove PowerOff
         dev.devNode = byteStringToQString(block.value(QStringLiteral("Device")));
 
         const QString label = block.value(QStringLiteral("IdLabel")).toString();

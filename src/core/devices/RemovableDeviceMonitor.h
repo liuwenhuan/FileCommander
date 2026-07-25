@@ -21,6 +21,7 @@ struct RemovableDevice {
                          // "dev-hdd" (external hard drive), "dev-phone" (phone),
                          // "dev-sdcard" (memory card) or "dev-drive" (generic);
                          // maps to :/icons/<iconName>.svg
+    QString driveId;     // UDisks2 Drive object path, for safe-remove PowerOff
     bool isMounted = false;
 };
 
@@ -49,11 +50,11 @@ public:
     // when errorOut is non-null, writes a human-readable reason to it.
     QString ensureMounted(const QString &id, QString *errorOut = nullptr);
 
-    // Unmounts the device with this id via UDisks2 (the "safely remove / eject"
-    // action). A no-op that reports success if it is already unmounted. Returns
-    // false on failure and, when errorOut is non-null, writes a human-readable
-    // reason to it.
-    bool unmount(const QString &id, QString *errorOut = nullptr);
+    // Safely removes the device: unmounts its filesystem (when mounted) and then
+    // powers off its drive so it can be physically unplugged. Works for a device
+    // that is present but not mounted too. Returns false on failure and, when
+    // errorOut is non-null, writes a human-readable reason to it.
+    bool eject(const QString &id, QString *errorOut = nullptr);
 
 signals:
     void deviceAdded(const RemovableDevice &dev);

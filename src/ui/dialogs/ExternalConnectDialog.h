@@ -62,11 +62,9 @@ signals:
     void openSavedConnection(const SavedConnection &conn);
     // A network-neighbourhood host name; the caller assembles smb://host.
     void openSmbHost(const QString &hostName);
-    // The gear next to the "Network Neighborhood" header: open the manual SMB
-    // connect form (so the user can connect even when discovery finds nothing).
-    void openSmbConnectForm();
     // The manager button next to the "Saved Connections" header: open the
-    // connection manager (add/edit/delete saved bookmarks).
+    // connection manager (add/edit/delete saved bookmarks; manual connect,
+    // including SMB, lives in its form too).
     void openConnectionManager();
 
 private slots:

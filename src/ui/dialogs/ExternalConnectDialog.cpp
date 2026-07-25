@@ -178,17 +178,11 @@ void ExternalConnectDialog::addDeviceRow(const RemovableDevice &dev) {
     item->setData(Qt::UserRole + 1, dev.id);
     item->setData(Qt::UserRole + 2, dev.mountPoint);
 
-    // A mounted device gets an eject button; unmounted ones just show the name
-    // (activating the row mounts + opens them). Without an eject button we keep the
-    // plain icon+text item so the row stays a normal, cheap list entry.
-    if (!dev.isMounted) {
-        item->setIcon(icon);
-        item->setText(dev.name);
-        return;
-    }
-
-    // Custom row: icon + name (transparent labels, so a click on them falls
-    // through to the list and activates the row) + a right-aligned eject button.
+    // Every removable device gets an eject ("safely remove") button regardless of
+    // mount state -- eject unmounts it (when mounted) and powers off the drive so
+    // it can be unplugged. Custom row: icon + name (transparent labels, so a click
+    // on them falls through to the list and activates the row) + a right-aligned
+    // eject button.
     auto *row = new QWidget(m_list);
     auto *lay = new QHBoxLayout(row);
     lay->setContentsMargins(0, 0, 0, 0);
@@ -217,7 +211,7 @@ void ExternalConnectDialog::ejectDevice(const QString &id) {
         return;
     QString error;
     QApplication::setOverrideCursor(Qt::WaitCursor);
-    const bool ok = m_devices->unmount(id, &error);
+    const bool ok = m_devices->eject(id, &error);
     QApplication::restoreOverrideCursor();
     if (!ok) {
         ttc::critical(this, tr("弹出失败"),
@@ -232,10 +226,12 @@ void ExternalConnectDialog::ejectDevice(const QString &id) {
 void ExternalConnectDialog::rescanNetwork() {
     if (!m_smb)
         return;
-    // Force a fresh scan (reuses the same discovery that runs at startup, covering
-    // the local subnet's SMB shares); clear the accumulated hosts so stale rows
-    // don't linger and show "Searching…" until results/finish arrive.
-    m_hosts.clear();
+    // Re-seed from the browser's cache instead of clearing: SmbHostBrowser only
+    // emits hostsDiscovered for hosts NOT already cached, so a host cleared here
+    // (but still cached) would never be re-reported and would simply vanish --
+    // which is exactly why a rescan looked like it "found nothing". Keep the known
+    // hosts visible; the forced scan appends any genuinely new ones on top.
+    m_hosts = m_smb->cachedHosts();
     m_discoveryDone = false;
     m_smb->startDiscovery(true);
     rebuild();
@@ -280,16 +276,10 @@ void ExternalConnectDialog::rebuild() {
     }
 
     // 3. Network neighbourhood (populated as discovery reports hosts). The header
-    // carries a refresh button (rescan the local network) and a gear button
-    // (manual SMB connect, always available even when discovery finds nothing).
+    // carries a single refresh button that rescans the local network.
     addHeader(tr("Network Neighborhood"),
               {{QStringLiteral(":/icons/refresh.svg"), tr("重新搜索网络共享"),
-                [this] { rescanNetwork(); }},
-               {QStringLiteral(":/icons/dev-smb.svg"), tr("手动连接 SMB 服务器…"),
-                [this] {
-                    emit openSmbConnectForm();
-                    close();
-                }}});
+                [this] { rescanNetwork(); }}});
     if (m_hosts.isEmpty()) {
         // "Searching…" while discovery runs; a definite "none found" once every
         // source has finished (so it never sticks on "searching" forever).

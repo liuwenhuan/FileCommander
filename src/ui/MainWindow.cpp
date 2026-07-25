@@ -1508,11 +1508,8 @@ void MainWindow::openExternalConnections() {
             });
         panel->navigateTo(QStringLiteral("/"));
     });
-    // Gear next to the "Network Neighborhood" header: open the manual SMB form.
-    connect(dlg, &ExternalConnectDialog::openSmbConnectForm, this,
-            [this] { openServerConnectDialog(true); });
     // Manager button next to the "Saved Connections" header: open the connection
-    // manager (add/edit/delete saved bookmarks).
+    // manager (add/edit/delete saved bookmarks; manual connect lives here too).
     connect(dlg, &ExternalConnectDialog::openConnectionManager, this,
             [this] { openServerConnectDialog(false); });
 
