@@ -17,6 +17,7 @@ add_executable(ui_tests
     test_FilePanelFont.cpp
     test_TreeRootBuilder.cpp
     test_DirectoryTreeModel.cpp
+    test_SlideSceneImageCache.cpp
 )
 
 # resources.qrc is compiled into the app target, not this one, so a test that

@@ -1,8 +1,12 @@
 #include "SlideSceneBuilder.h"
 
 #include <QBrush>
+#include <QBuffer>
 #include <QByteArray>
+#include <QCache>
 #include <QColor>
+#include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QFont>
 #include <QFontDatabase>
 #include <QFontMetricsF>
@@ -15,6 +19,7 @@
 #include <QGraphicsTextItem>
 #include <QHash>
 #include <QImage>
+#include <QImageReader>
 #include <QLineF>
 #include <QPainterPath>
 #include <QPen>
@@ -24,6 +29,7 @@
 #include <QRectF>
 #include <QRegExp>
 #include <QPair>
+#include <QSize>
 #include <QStringRef>
 #include <QTextBlock>
 #include <QTextBlockFormat>
@@ -376,6 +382,78 @@ void addPath(const QXmlStreamAttributes &attrs, QGraphicsItem *page) {
     applyStroke(item, attrs);
 }
 
+// Decoded-picture cache, shared across every slide of every deck.
+//
+// PowerPoint slides inherit pictures from their master/layout, and office_oxide
+// inlines a full base64 copy of each into every slide that uses it -- an 18-page
+// deck repeats its one banner PNG 18 times. Decoding is by far the most expensive
+// thing buildSlidePage does (a real deck spends ~460 of its ~500 ms per slide in
+// QImage decode alone), so without memoization scrolling stalls once per slide.
+// Keying on the payload's digest makes an identical picture decode once, and the
+// resulting QPixmap is implicitly shared by every item that draws it.
+//
+// GUI-thread only, like every other QPixmap use in this file.
+constexpr int kImageCacheBudgetKb = 96 * 1024; // ~96 MB of decoded pixmaps
+
+// Ceiling on decoded size. Decks routinely embed assets far larger than the box
+// they are placed in -- one deck's 20144x3812 (76.8 Mpx / 293 MB decoded) PNG is
+// drawn into a strip 23% of the slide wide, ~450 px on screen -- where a
+// full-resolution decode buys no visible detail. Only pictures past the pixel
+// budget are read back downscaled, so ordinary photos are untouched.
+constexpr qint64 kMaxDecodePixels = 16LL * 1000 * 1000;
+constexpr int kMaxDecodeEdge = 4096;
+
+// Deliberately leaked: a QPixmap destroyed during static teardown (after
+// QGuiApplication is gone) is undefined behaviour, so the cache outlives main()
+// and only its *contents* are dropped, via a post routine, while Qt is still up.
+QCache<QByteArray, QPixmap> *g_imageCache = nullptr;
+
+void clearImageCache() {
+    if (g_imageCache)
+        g_imageCache->clear();
+}
+
+QCache<QByteArray, QPixmap> &imageCache() {
+    if (!g_imageCache) {
+        g_imageCache = new QCache<QByteArray, QPixmap>(kImageCacheBudgetKb);
+        qAddPostRoutine(clearImageCache);
+    }
+    return *g_imageCache;
+}
+
+// Decode one data: URI's base64 payload, memoized by content digest. Returns a
+// null pixmap if the payload isn't a decodable image. The cached pixmap is the
+// *uncropped* picture: crops are per-placement and cheap to re-cut from it, and
+// caching them separately would store the same source many times over.
+QPixmap decodeImagePayload(const QByteArray &b64) {
+    const QByteArray key = QCryptographicHash::hash(b64, QCryptographicHash::Sha1);
+    if (const QPixmap *hit = imageCache().object(key))
+        return *hit; // copied out before any later insert can evict it
+
+    const QByteArray bytes = QByteArray::fromBase64(b64);
+    QBuffer buf;
+    buf.setData(bytes);
+    buf.open(QIODevice::ReadOnly);
+    QImageReader reader(&buf); // format sniffed from content, as loadFromData did
+    const QSize full = reader.size();
+    if (full.isValid() && qint64(full.width()) * qint64(full.height()) > kMaxDecodePixels) {
+        QSize target = full;
+        target.scale(kMaxDecodeEdge, kMaxDecodeEdge, Qt::KeepAspectRatio);
+        reader.setScaledSize(target);
+    }
+    const QImage img = reader.read();
+    if (img.isNull())
+        return QPixmap();
+
+    const QPixmap pm = QPixmap::fromImage(img);
+    // Cost in KB, floored at 1 so a tiny icon can still be evicted. An entry
+    // costlier than the whole budget is simply not cached (QCache drops it).
+    const int costKb =
+        qMax(1, int(qint64(pm.width()) * qint64(pm.height()) * qMax(1, pm.depth() / 8) / 1024));
+    imageCache().insert(key, new QPixmap(pm), costKb);
+    return pm;
+}
+
 // <image x y width height (xlink:)href="data:image/<fmt>;base64,...">. A decode
 // failure is swallowed (no item added) rather than fatal.
 //
@@ -403,11 +481,9 @@ void addImage(const QXmlStreamAttributes &attrs, QGraphicsItem *page) {
     if (comma < 0)
         return;
     const QByteArray b64 = uri.mid(comma + 7).toLatin1();
-    const QByteArray bytes = QByteArray::fromBase64(b64);
-    QImage img;
-    if (!img.loadFromData(bytes))
+    QPixmap pm = decodeImagePayload(b64);
+    if (pm.isNull())
         return;
-    QPixmap pm = QPixmap::fromImage(img);
 
     // Crop fractions (per-mille of 100000) trimmed off each edge; default 0.
     const double lf = attrNum(attrs, "data-crop-l", 0.0) / 100000.0;
