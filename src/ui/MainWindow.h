@@ -295,6 +295,7 @@ private:
     std::shared_ptr<std::atomic<bool>> m_previewCancel;  // current download's cancel flag
     // The one file whose streamed preview failed, so retrying it downloads
     // instead of streaming again (which would fail the same way, forever).
+    QString m_streamFailedEntry;
     QString ensurePreviewTempDir();
     void cancelPreviewDownload(); // Stop button: abort the current preview fetch
 

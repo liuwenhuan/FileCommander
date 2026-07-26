@@ -35,6 +35,8 @@ add_library(ui STATIC
     ViewerWindow.cpp
     MpvWidget.h
     MpvWidget.cpp
+    MpvStreamSource.h
+    MpvStreamSource.cpp
     AudioPlayer.h
     AudioPlayer.cpp
     FunctionKeyBar.h

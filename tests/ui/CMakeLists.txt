@@ -18,7 +18,16 @@ add_executable(ui_tests
     test_TreeRootBuilder.cpp
     test_DirectoryTreeModel.cpp
     test_SlideSceneImageCache.cpp
+    test_MpvStreamSource.cpp
 )
+
+# test_MpvStreamSource drives a real libmpv core (headless: vo=null/ao=null) to
+# measure what a streamed preview actually reads. src/ui keeps mpv PRIVATE, so
+# this target resolves <mpv/client.h> for itself.
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(MPV REQUIRED mpv)
+target_include_directories(ui_tests PRIVATE ${MPV_INCLUDE_DIRS})
+target_link_libraries(ui_tests PRIVATE ${MPV_LIBRARIES})
 
 # resources.qrc is compiled into the app target, not this one, so a test that
 # needs a real theme stylesheet reads it from the source tree instead.

@@ -1,5 +1,7 @@
 #include "MpvWidget.h"
 
+#include "MpvStreamSource.h"
+
 #include <QDebug>
 #include <QOpenGLContext>
 #include <cstring>
@@ -29,8 +31,24 @@ MpvWidget::MpvWidget(QWidget *parent) : QOpenGLWidget(parent) {
     // (gpu) and the video pops out in a separate "… - mpv" window.
     mpv_set_option_string(m_mpv, "vo", "libmpv");
 
+    // Read-ahead, bounded. A file streamed off a network backend has to buffer
+    // or every decode stalls on a round trip -- but mpv's own default is to
+    // read ahead up to 150 MB, which for most previewed files is the entire
+    // download this whole path exists to avoid. Measured on a 133 MB clip:
+    // cache=yes alone pulled 130 MB within five seconds of starting, while the
+    // same five seconds bounded to 8 MiB pulled 8.7 MB. Local files are
+    // unaffected in practice (seeking a local file is free, and the old 150 MB
+    // ceiling only ever cost memory).
+    mpv_set_option_string(m_mpv, "cache", "yes");
+    mpv_set_option_string(m_mpv, "demuxer-max-bytes", "8MiB");
+
     if (mpv_initialize(m_mpv) < 0)
         throw std::runtime_error("could not initialize mpv");
+
+    // Lets load() accept a MpvStreamSource URL, which reads a remote file
+    // through its FileProvider instead of downloading it first.
+    if (!MpvStreamSource::registerProtocol(m_mpv))
+        qWarning("MpvWidget: libmpv refused the stream protocol; remote video will download");
 
     // Queued so the GUI thread owns the actual update()/repaint.
     connect(this, &MpvWidget::updateRequested, this, &MpvWidget::doUpdate,
@@ -99,6 +117,12 @@ void MpvWidget::onMpvEvents() {
             auto *ef = static_cast<mpv_event_end_file *>(ev->data);
             if (ef && ef->reason == MPV_END_FILE_REASON_EOF)
                 m_ended = true;
+            // ERROR is the one reason that means the file never played: a
+            // stream whose backend refused, an unreadable path, an unknown
+            // format. STOP and REDIRECT are our own doing and must not be
+            // mistaken for it.
+            else if (ef && ef->reason == MPV_END_FILE_REASON_ERROR)
+                emit loadFailed(m_currentPath);
             break;
         }
         default:

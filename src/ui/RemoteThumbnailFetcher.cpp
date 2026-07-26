@@ -1,5 +1,7 @@
 #include "RemoteThumbnailFetcher.h"
 
+#include "MpvStreamSource.h"
+
 #include <QByteArray>
 #include <QDir>
 #include <QFile>
@@ -386,13 +388,31 @@ bool RemoteThumbnailFetcher::submit(const std::shared_ptr<FileProvider> &provide
         ++m_outstanding;
     }
 
-    // Size the worker pool to the parallelism this backend actually has. Asked
-    // on every submit because the answer can improve: SMB only learns its real
-    // channel count once a helper subprocess has connected, which happens on
-    // the first read. Never lowered here -- another provider may still be using
-    // the wider pool, and shrinking mid-directory would strand queued work.
-    if (const int channels = provider->maxReadChannels(); channels > maxConcurrent())
+    // While a video is being streamed off a backend, thumbnails stand aside.
+    //
+    // Playback is what the user is actually looking at, and it is the part that
+    // shows stalling: it holds one read channel for its whole life and needs
+    // every byte to arrive before its deadline. Thumbnails have neither
+    // property -- they are speculative, and a slow one costs nothing but a
+    // late icon. On SMB the two genuinely contend, because the helper
+    // subprocess pool is the only real parallelism there is.
+    //
+    // Dropping to a single worker rather than merely discounting the stream's
+    // channel is deliberate: it is a priority decision, not channel
+    // arithmetic. Nothing is lost -- queued jobs still run, just one at a time
+    // -- and the branch below restores the full width on the first submit
+    // after playback stops.
+    if (MpvStreamSource::activeStreams() > 0) {
+        setMaxConcurrent(1);
+    } else if (const int channels = provider->maxReadChannels();
+               channels > maxConcurrent()) {
+        // Asked on every submit because the answer can improve: SMB only learns
+        // its real channel count once a helper subprocess has connected, which
+        // happens on the first read. Never lowered here -- another provider may
+        // still be using the wider pool, and shrinking mid-directory would
+        // strand queued work.
         setMaxConcurrent(channels);
+    }
 
     // The ticket co-owns the provider, so a job that is still pulling bytes
     // cannot outlive the backend it reads through -- the reason cancellation

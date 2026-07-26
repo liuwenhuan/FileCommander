@@ -65,6 +65,7 @@
 #include "PackageInfo.h"
 #include "AudioPlayer.h"
 #include "ImageViewer.h"
+#include "MpvStreamSource.h"
 #include "MpvWidget.h"
 #include "OfficeConverter.h"
 #include "SeekSlider.h"
@@ -583,6 +584,17 @@ QWidget *QuickView::buildVideoPage() {
     m_mpv->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     m_mpv->setMinimumHeight(120);
     m_mpv->installEventFilter(this); // reposition the overlay on resize
+
+    // A streamed remote clip that the core could not open is not a dead end:
+    // the host still has the old download-then-play path to fall back to. Only
+    // stream URLs are forwarded -- a local file that fails to open has nowhere
+    // better to go, and reporting it would just loop.
+    connect(m_mpv, &MpvWidget::loadFailed, this, [this](const QString &path) {
+        if (MpvStreamSource::isStreamUrl(path)) {
+            m_videoPath.clear(); // so the retry isn't mistaken for a re-selection
+            emit streamFailed(path);
+        }
+    });
 
     // Floating metadata panel, parented to the video widget so it hovers on top.
     m_videoInfoOverlay = new QLabel(m_mpv);
@@ -2535,12 +2547,26 @@ void QuickView::resizeEvent(QResizeEvent *event) {
         m_refitTimer->start();
 }
 
+bool QuickView::canStreamPreview(const QString &path) {
+    // Video only. Audio would work at the mpv level -- AudioPlayer is libmpv
+    // too -- but the audio page is built from bytes read off the local file:
+    // Id3Reader::read() opens it with QFile for tags and cover art, and the
+    // prev/next track buttons come from scanning the containing directory.
+    // Streaming would silently empty all of that, and audio files are small
+    // enough that downloading them was never the complaint.
+    return isVideo(path);
+}
+
 void QuickView::showFile(const QString &path) {
     QFileInfo info(path);
+    // A stream URL names a remote file being read through its FileProvider, so
+    // none of the local-filesystem questions below apply to it -- there is
+    // deliberately no file on disk to stat.
+    const bool streamed = MpvStreamSource::isStreamUrl(path);
     // Any new selection invalidates a still-running office conversion so its result
     // can't paint over the newly selected file (renderOffice bumps this again).
     ++m_officeGen;
-    if (path.isEmpty() || !info.exists() || info.isDir()) {
+    if (path.isEmpty() || (!streamed && (!info.exists() || info.isDir()))) {
         stopVideo();
         stopAudio();
         closePdf(); // don't keep a document loaded behind the "no preview" note

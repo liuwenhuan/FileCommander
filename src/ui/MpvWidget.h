@@ -44,6 +44,10 @@ signals:
     void updateRequested();
     // Emitted (queued) from mpv's thread when core events are pending.
     void mpvEvents();
+    // The core failed to open or decode `path` (as opposed to reaching its end,
+    // or being stopped by us). A streamed remote file reports its failure this
+    // way, so the host can retreat to downloading it instead.
+    void loadFailed(const QString &path);
 
 private slots:
     void doUpdate();

@@ -86,6 +86,11 @@ signals:
     // the in-flight remote download for the current preview.
     void downloadCancelRequested();
 
+    // A remote file handed over as a stream URL could not be played. The host
+    // should fall back to downloading it, which is what happened before
+    // streaming existed.
+    void streamFailed(const QString &url);
+
 public:
     // Sets the point size of the text-preview font, so the preview tracks the
     // app's file-list font-size setting. Applies to the plain-text/hex page and
@@ -101,6 +106,11 @@ public:
     // Formats raw bytes as an offset/hex/ascii dump (the Hex toggle). Static so
     // it can be unit-tested without a widget.
     static QString toHexDump(const QByteArray &data);
+
+    // Whether a file of this name can be previewed straight off a network
+    // backend, without being downloaded first. The host asks before deciding
+    // between a stream URL and a temp-file download.
+    static bool canStreamPreview(const QString &path);
 
     // Driven by the F3 ViewerWindow's host-level shortcuts; no-ops unless the
     // relevant page is current.

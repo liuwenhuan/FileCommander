@@ -78,6 +78,7 @@
 #include "FilePanel.h"
 #include "IconFileView.h"
 #include "FileSplitter.h"
+#include "MpvStreamSource.h"
 #include "QuickView.h"
 #include "ViewerWindow.h"
 #include "FileListView.h"
@@ -265,6 +266,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     // Stop button on the remote-preview download page cancels the in-flight fetch.
     connect(m_quickView, &QuickView::downloadCancelRequested, this,
             &MainWindow::cancelPreviewDownload);
+    // A streamed remote clip that wouldn't play falls back to the download path
+    // by re-running the preview with streaming suppressed for that one file.
+    connect(m_quickView, &QuickView::streamFailed, this, [this](const QString &) {
+        if (!m_activePanel)
+            return;
+        m_streamFailedEntry = m_activePanel->currentEntryPath();
+        updateQuickView();
+    });
     // App-wide filter so Tab out of the preview pane returns to the file list
     // (the list->preview half is driven by FilePanel::switchPanelRequested).
     qApp->installEventFilter(this);
@@ -2171,6 +2180,22 @@ void MainWindow::updateQuickView() {
     m_quickView->showFile(QString()); // blank while loading / when unpreviewable
     if (entry.isEmpty() || m_activePanel->currentEntryIsDir())
         return;
+
+    // Video streams straight off the backend: mpv reads the few megabytes it
+    // decodes through the provider instead of waiting out a whole download.
+    // Nothing below this point runs for it -- including the size ceiling, which
+    // only ever existed because previewing meant fetching the file entire.
+    if (QuickView::canStreamPreview(entry) && entry != m_streamFailedEntry) {
+        const QString url =
+            MpvStreamSource::publish(m_activePanel->model()->providerPtr(), entry);
+        if (!url.isEmpty()) {
+            m_quickView->showFile(url);
+            return;
+        }
+    }
+
+    // Everything else still has to become a real local file first: Poppler, the
+    // office converter, QImageReader and the archive reader all open a path.
     static constexpr qint64 kMaxPreviewBytes = 100LL * 1024 * 1024; // don't fetch huge files
     const qint64 total = m_activePanel->currentEntrySize();
     if (total > kMaxPreviewBytes)
