@@ -318,6 +318,17 @@ private:
     // Restores a history entry into the view (dir scan or flat listing).
     void applyHistoryEntry(const NavEntry &entry);
     void pushHistory(const NavEntry &entry);
+    // Row numbers of every selected entry, ascending, ".." excluded.
+    //
+    // Both views share one selection model, but they mark it differently: the
+    // list view selects whole rows, while QListView in IconMode selects single
+    // items (column 0 only). selectedRows() only reports rows where EVERY
+    // column is selected, so in thumbnail mode it is always empty -- callers
+    // that used it saw "nothing selected" and fell back to the cursor row,
+    // which is why a multi-select copy moved exactly one file. selectedIndexes()
+    // is the one query that answers correctly for both, once de-duplicated by
+    // row (the list view repeats a row once per column).
+    QVector<int> selectedRowNumbers() const;
     void updateStatus();
     // Refreshes (or blanks) the status strip's "N free of M" readout for the
     // current listing. Blank is a real answer here -- see the definition.

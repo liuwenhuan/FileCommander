@@ -52,6 +52,8 @@
 #include "ThumbnailCache.h"
 #include "ThumbnailDelegate.h"
 
+#include <algorithm>
+
 FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_model = new FileSystemModel(this);
     m_view = new FileListView(this);
@@ -789,14 +791,32 @@ void FilePanel::updateDiskInfo() {
     m_statusBar->setDiskInfo(storage.bytesAvailable(), storage.bytesTotal());
 }
 
-void FilePanel::updateStatus() {
-    const QModelIndexList rows = m_view->selectionModel()->selectedRows();
-    int selectedCount = 0;
-    qint64 selectedBytes = 0;
-    for (const QModelIndex &idx : rows) {
+QVector<int> FilePanel::selectedRowNumbers() const {
+    QVector<int> rows;
+    QSet<int> seen;
+    const QModelIndexList indexes = m_view->selectionModel()->selectedIndexes();
+    rows.reserve(indexes.size());
+    for (const QModelIndex &idx : indexes) {
+        if (!idx.isValid() || seen.contains(idx.row()))
+            continue;
+        seen.insert(idx.row());
         if (m_model->isParentEntry(idx.row()))
             continue;
-        const FileInfo info = m_model->fileInfoAt(idx.row());
+        rows.append(idx.row());
+    }
+    // Selection order is whatever the user clicked; callers (copy, move, size)
+    // want the on-screen order instead, so the destination list matches the
+    // panel the user was looking at.
+    std::sort(rows.begin(), rows.end());
+    return rows;
+}
+
+void FilePanel::updateStatus() {
+    const QVector<int> rows = selectedRowNumbers();
+    int selectedCount = 0;
+    qint64 selectedBytes = 0;
+    for (int row : rows) {
+        const FileInfo info = m_model->fileInfoAt(row);
         if (!info.isValid())
             continue;
         ++selectedCount;
@@ -1301,12 +1321,8 @@ FileInfo FilePanel::currentEntryInfo() const {
 
 QStringList FilePanel::selectedPaths() const {
     QStringList paths;
-    const QModelIndexList rows = m_view->selectionModel()->selectedRows();
-    for (const QModelIndex &idx : rows) {
-        if (m_model->isParentEntry(idx.row()))
-            continue;
-        paths.append(m_model->fileInfoAt(idx.row()).path());
-    }
+    for (int row : selectedRowNumbers())
+        paths.append(m_model->fileInfoAt(row).path());
     if (paths.isEmpty()) {
         const QString cur = currentEntryPath();
         if (!cur.isEmpty())
@@ -1596,11 +1612,8 @@ void FilePanel::selectByPattern(bool select) {
 
 void FilePanel::calculateDirSizes() {
     QStringList dirs;
-    const QModelIndexList rows = m_view->selectionModel()->selectedRows();
-    for (const QModelIndex &idx : rows) {
-        if (m_model->isParentEntry(idx.row()))
-            continue;
-        const FileInfo info = m_model->fileInfoAt(idx.row());
+    for (int row : selectedRowNumbers()) {
+        const FileInfo info = m_model->fileInfoAt(row);
         if (info.isValid() && info.isDir())
             dirs << info.path();
     }
