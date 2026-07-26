@@ -13,6 +13,12 @@ QString sessionFilePath() {
 void savePanel(QSettings &settings, const QString &group, const SessionPanelData &panel) {
     settings.beginGroup(group);
     settings.setValue("activeTab", panel.activeTab);
+    // Replace the stored array rather than overwriting it entry-by-entry, which
+    // is all beginWriteArray does. Without this a tab keeps whatever the
+    // previous session wrote at its index for any key the new tab doesn't set --
+    // so a local tab moving onto an index that used to hold a network tab
+    // inherited its conn/* keys and came back looking remote.
+    settings.remove("tabs");
     settings.beginWriteArray("tabs");
     for (int i = 0; i < panel.tabs.size(); ++i) {
         settings.setArrayIndex(i);
@@ -83,4 +89,21 @@ bool SessionManager::load(SessionPanelData &left, SessionPanelData &right) {
     // (including the other panel's network tabs) whenever one panel happened to be
     // empty; the caller already falls back to home for a panel with no tabs.
     return leftOk || rightOk;
+}
+
+void SessionManager::dropNetworkTabs(SessionPanelData &panel) {
+    QVector<SessionTabData> kept;
+    int active = 0;
+    for (int i = 0; i < panel.tabs.size(); ++i) {
+        if (!panel.tabs.at(i).conn.host.isEmpty())
+            continue;
+        if (i < panel.activeTab)
+            ++active; // this survivor sits before the previously active tab
+        kept.append(panel.tabs.at(i));
+    }
+    panel.tabs = kept;
+    // When the active tab itself was dropped, `active` has landed on whichever
+    // survivor took its place -- clamped to the last tab if it was a trailing
+    // one, and to 0 for a panel that lost every tab.
+    panel.activeTab = qBound(0, active, qMax(0, kept.size() - 1));
 }

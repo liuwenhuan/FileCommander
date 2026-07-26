@@ -30,4 +30,17 @@ public:
     // Returns false (leaving left/right untouched) if there's no saved
     // session yet, e.g. first launch.
     static bool load(SessionPanelData &left, SessionPanelData &right);
+
+    // Removes a panel's network tabs (non-empty conn.host), keeping activeTab on
+    // a survivor. Restoring one means reconnecting during startup -- a password
+    // prompt, a long timeout, or a server that's simply gone -- so they are
+    // dropped when the session is applied rather than when it is written:
+    // save() still records them, leaving "which servers were open last time"
+    // available on disk for anything else that wants it.
+    //
+    // Deliberately not folded into load(), which stays a faithful reader of the
+    // file; this is a policy the caller opts into. A panel can come back empty
+    // (every tab was a network tab) -- falling back to a local path is the
+    // caller's call, since only it knows what a sensible default is.
+    static void dropNetworkTabs(SessionPanelData &panel);
 };

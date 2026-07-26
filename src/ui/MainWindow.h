@@ -177,11 +177,6 @@ private:
     // from the network-neighborhood gear) and, on accept, connects the active
     // panel to the chosen server asynchronously.
     void openServerConnectDialog(bool preselectSmb);
-    // On startup, re-establishes each restored network tab's server connection
-    // (async) and its tab label, then returns focus to the originally-active tab.
-    // netTabs maps a restored tab index to its reconnect descriptor.
-    void reconnectNetworkTabs(FilePanel *panel,
-                              const QVector<QPair<int, SavedConnection>> &netTabs, int activeIndex);
     // Target panel/tab for a new server connection: always the LEFT panel, in a
     // fresh tab (per user preference) rather than replacing whatever the active
     // panel is showing. Focuses the left panel and returns it ready to connect.

@@ -449,12 +449,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     const QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
     SessionPanelData leftSession, rightSession;
     if (SessionManager::load(leftSession, rightSession)) {
+        // Network tabs are not restored at all -- reconnecting during startup
+        // blocks on an unreachable server or pops a password dialog before the
+        // window is even usable. See SessionManager::dropNetworkTabs().
+        SessionManager::dropNetworkTabs(leftSession);
+        SessionManager::dropNetworkTabs(rightSession);
         // Drop tabs whose removable medium is gone (device unplugged while the
         // app was closed), keeping the active-tab index pointing at a survivor.
-        // Network tabs kept for reconnection: (restored index -> descriptor).
-        QVector<QPair<int, SavedConnection>> leftNet, rightNet;
-        auto buildTabs = [](const SessionPanelData &s, int &activeOut,
-                            QVector<QPair<int, SavedConnection>> &netTabs) {
+        auto buildTabs = [](const SessionPanelData &s, int &activeOut) {
             QVector<QPair<QString, QStringList>> tabs;
             int active = 0;
             for (int i = 0; i < s.tabs.size(); ++i) {
@@ -462,17 +464,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
                     continue;
                 if (i < s.activeTab)
                     ++active; // this kept tab sits before the old active one
-                const int newIndex = tabs.size();
                 tabs.append({s.tabs.at(i).path, s.tabs.at(i).selectedFiles});
-                if (!s.tabs.at(i).conn.host.isEmpty())
-                    netTabs.append({newIndex, s.tabs.at(i).conn});
             }
             activeOut = qBound(0, active, qMax(0, tabs.size() - 1));
             return tabs;
         };
         int leftActive = 0, rightActive = 0;
-        const auto leftTabs = buildTabs(leftSession, leftActive, leftNet);
-        const auto rightTabs = buildTabs(rightSession, rightActive, rightNet);
+        const auto leftTabs = buildTabs(leftSession, leftActive);
+        const auto rightTabs = buildTabs(rightSession, rightActive);
         if (leftTabs.isEmpty())
             m_leftPanel->navigateTo(home);
         else
@@ -481,10 +480,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
             m_rightPanel->navigateTo(home);
         else
             m_rightPanel->restoreTabs(rightTabs, rightActive);
-        // Re-establish the servers (async) so remote tabs -- and their labels --
-        // come back instead of silently showing a local directory.
-        reconnectNetworkTabs(m_leftPanel, leftNet, leftActive);
-        reconnectNetworkTabs(m_rightPanel, rightNet, rightActive);
     } else {
         m_leftPanel->navigateTo(home);
         m_rightPanel->navigateTo(home);
@@ -2563,36 +2558,6 @@ bool MainWindow::promptCredentials(const QString &host, QString *user, QString *
     *user = userEdit->text();
     *pass = passEdit->text();
     return true;
-}
-
-void MainWindow::reconnectNetworkTabs(FilePanel *panel,
-                                      const QVector<QPair<int, SavedConnection>> &netTabs,
-                                      int activeIndex) {
-    if (netTabs.isEmpty())
-        return;
-    QStringList unsupported;
-    for (const auto &nt : netTabs) {
-        const int idx = nt.first;
-        const SavedConnection &c = nt.second;
-        auto native = providerForSaved(c);
-        if (!native.provider) {
-            unsupported << c.host; // don't silently downgrade to a local tab
-            continue;
-        }
-        const QString path = c.remotePath.isEmpty() ? QStringLiteral("/") : c.remotePath;
-        const QString label = c.user.isEmpty() ? c.host : c.user + QLatin1Char('@') + c.host;
-        // Async connect on the tab; keeps its label from the start. authFactory
-        // lets a password prompt retry if the stored/keyring credentials fail.
-        panel->connectTabTo(idx, native.provider, native.connectFn, path, label, c,
-                            native.authFactory);
-    }
-    // Return focus to the tab that was active last session (connectTabTo switched
-    // away to reach each network tab).
-    panel->activateTab(activeIndex);
-    if (!unsupported.isEmpty())
-        ttc::warning(this, tr("重新连接"),
-                     tr("以下连接的协议不受支持，未能自动重连：\n%1")
-                         .arg(unsupported.join(QStringLiteral(", "))));
 }
 
 FilePanel *MainWindow::beginServerConnection() {
