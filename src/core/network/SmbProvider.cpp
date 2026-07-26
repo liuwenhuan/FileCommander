@@ -1,4 +1,5 @@
 #include "SmbProvider.h"
+#include "SmbClientGate.h"
 
 #include <QDateTime>
 #include <QMutexLocker>
@@ -94,28 +95,13 @@ struct SmbHandle : FileHandle {
     SmbHandle(SMBCFILE *f, SMBCCTX *c) : file(f), conn(c) {}
 };
 
-// Serialises smbc_new_context()/smbc_free_context() across the whole process.
-//
-// Creating or freeing a context reaches into state libsmbclient keeps globally
-// rather than per-context (the loaded smb.conf in libsmbconf, and the talloc
-// pools under libcli). Doing either from two threads at once corrupts that
-// state and crashes inside the library. The connection pool deliberately runs
-// its factory and destroyer without holding the pool lock -- so that a slow
-// dial or teardown doesn't stall other borrowers -- and thumbnailing a share
-// full of videos is the first thing that reliably drives two workers to
-// build/drop contexts at the same moment.
-//
-// Scoped to the library's own state, so it is process-wide rather than per
-// provider, and held only across create/destroy: ordinary reads and writes on
-// an already-built context stay fully parallel.
-QMutex &smbContextLifecycleMutex() {
-    static QMutex mutex;
-    return mutex;
-}
+// libsmbclient keeps talloc and smb.conf state at process scope, so every
+// in-process call must pass through SmbClientGate. The helper read path runs in
+// another process and intentionally does not take this gate.
 
-// libsmbclient's auth callback. It runs synchronously inside a libsmbclient
-// call (which already holds the provider's mutex), so it may read the
-// provider's credential members directly -- they are set once before any call
+// libsmbclient's auth callback. It runs synchronously inside a gated
+// libsmbclient call, so it may read the provider's credential members directly
+// -- they are set once before any call
 // and never mutated afterwards. The SmbProvider* is stashed as the context's
 // user data at connect time.
 void authCallback(SMBCCTX *ctx, const char * /*srv*/, const char * /*shr*/,
@@ -157,15 +143,8 @@ SmbProvider::~SmbProvider() {
 }
 
 SMBCCTX *SmbProvider::buildContext(QString *error, bool *authFailed) {
-    SMBCCTX *ctx = nullptr;
-    {
-        // Only the allocation itself is serialised. Everything below either
-        // touches this context alone or talks to the network, and holding the
-        // process-wide lock across a dial would make every connection wait out
-        // every other one's timeout.
-        QMutexLocker lifecycleLocker(&smbContextLifecycleMutex());
-        ctx = smbc_new_context();
-    }
+    QMutexLocker smbLocker(&SmbClientGate::mutex());
+    SMBCCTX *ctx = smbc_new_context();
     if (!ctx) {
         if (error)
             *error = QStringLiteral("Failed to allocate SMB context");
@@ -185,20 +164,11 @@ SMBCCTX *SmbProvider::buildContext(QString *error, bool *authFailed) {
     // Bound waits on connection establishment and response data (milliseconds).
     smbc_setTimeout(ctx, m_timeoutMs);
 
-    // Initialisation parses smb.conf into the same process-wide state the
-    // allocation above touches, so it takes the lock too -- but on its own, not
-    // held across the network probe that follows.
-    bool initialised = false;
-    {
-        QMutexLocker lifecycleLocker(&smbContextLifecycleMutex());
-        initialised = smbc_init_context(ctx) != nullptr;
-    }
-    if (!initialised) {
+    if (!smbc_init_context(ctx)) {
         const int initErrno = errno;
         if (error)
             *error = QStringLiteral("Failed to initialise SMB context: %1")
                          .arg(QString::fromUtf8(std::strerror(initErrno)));
-        QMutexLocker lifecycleLocker(&smbContextLifecycleMutex());
         smbc_free_context(ctx, 1);
         return nullptr;
     }
@@ -226,7 +196,6 @@ SMBCCTX *SmbProvider::buildContext(QString *error, bool *authFailed) {
                 *error = QStringLiteral("Cannot open \\\\%1: %2")
                              .arg(m_host, QString::fromUtf8(std::strerror(e)));
         }
-        QMutexLocker lifecycleLocker(&smbContextLifecycleMutex());
         smbc_free_context(ctx, 1);
         return nullptr;
     }
@@ -243,10 +212,8 @@ void SmbProvider::configurePool() {
     m_pool.configure(
         [this](QString *err) -> SMBCCTX * { return buildContext(err); },
         [](SMBCCTX *c) {
-            if (c) {
-                // Same global state the factory guards; the reaper thread frees
-                // contexts while other threads may be building them.
-                QMutexLocker lifecycleLocker(&smbContextLifecycleMutex());
+            if (c && !connpool::processIsDraining()) {
+                QMutexLocker smbLocker(&SmbClientGate::mutex());
                 smbc_free_context(c, 1);
             }
         },
@@ -378,10 +345,7 @@ void SmbProvider::disconnect() {
 
     QMutexLocker locker(&m_mutex);
     if (m_ctx) {
-        // shutdown_ctx=1 closes any open files/dirs and frees the context.
-        // Serialised against context creation elsewhere in the process: pooled
-        // transfers may still be dialling on other threads when a tab is closed.
-        QMutexLocker lifecycleLocker(&smbContextLifecycleMutex());
+        QMutexLocker smbLocker(&SmbClientGate::mutex());
         smbc_free_context(m_ctx, 1);
         m_ctx = nullptr;
     }
@@ -533,6 +497,7 @@ QVector<FileInfo> SmbProvider::list(const QString &path, bool showHidden) const 
     QMutexLocker locker(&m_mutex);
     if (!m_ctx)
         return result;
+    QMutexLocker smbLocker(&SmbClientGate::mutex());
 
     const QByteArray url = urlFor(dirPath).toUtf8();
 
@@ -613,6 +578,7 @@ bool SmbProvider::isDir(const QString &path) const {
     QMutexLocker locker(&m_mutex);
     if (!m_ctx)
         return false;
+    QMutexLocker smbLocker(&SmbClientGate::mutex());
     smbc_stat_fn statFn = smbc_getFunctionStat(m_ctx);
     struct stat st;
     const QByteArray url = urlFor(clean).toUtf8();
@@ -628,6 +594,7 @@ bool SmbProvider::exists(const QString &path) const {
     QMutexLocker locker(&m_mutex);
     if (!m_ctx)
         return false;
+    QMutexLocker smbLocker(&SmbClientGate::mutex());
     smbc_stat_fn statFn = smbc_getFunctionStat(m_ctx);
     struct stat st;
     const QByteArray url = urlFor(clean).toUtf8();
@@ -644,6 +611,7 @@ FileProvider::RenameResult SmbProvider::rename(const QString &path, const QStrin
     QMutexLocker locker(&m_mutex);
     if (!m_ctx)
         return RenameResult::Failed;
+    QMutexLocker smbLocker(&SmbClientGate::mutex());
 
     smbc_stat_fn statFn = smbc_getFunctionStat(m_ctx);
     smbc_rename_fn renameFn = smbc_getFunctionRename(m_ctx);
@@ -672,6 +640,7 @@ FileProvider::RenameResult SmbProvider::moveTo(const QString &srcPath, const QSt
     QMutexLocker locker(&m_mutex);
     if (!m_ctx)
         return RenameResult::Unsupported;
+    QMutexLocker smbLocker(&SmbClientGate::mutex());
 
     smbc_stat_fn statFn = smbc_getFunctionStat(m_ctx);
     struct stat st;
@@ -741,28 +710,28 @@ FileHandle *SmbProvider::openRead(const QString &path) {
         m_helpers.release(channel); // open failed; the connection may still be fine
     }
 
-    // Next: borrow an independent context so the transfer runs lock-free and in
-    // parallel with other transfers and the interactive context.
     QString perr;
     if (SMBCCTX *conn = m_pool.borrow(&perr)) {
-        smbc_open_fn openFn = smbc_getFunctionOpen(conn);
-        SMBCFILE *f = openFn(conn, url.constData(), O_RDONLY, 0);
-        if (!f) {
-            m_pool.release(conn); // context is fine; open just failed (e.g. no file)
+        SMBCFILE *file = nullptr;
+        {
+            QMutexLocker smbLocker(&SmbClientGate::mutex());
+            smbc_open_fn openFn = smbc_getFunctionOpen(conn);
+            file = openFn(conn, url.constData(), O_RDONLY, 0);
+        }
+        if (!file) {
+            m_pool.release(conn);
             return nullptr;
         }
-        return new SmbHandle(f, conn);
+        return new SmbHandle(file, conn);
     }
 
-    // Fallback: shared interactive context under m_mutex.
     QMutexLocker locker(&m_mutex);
     if (!m_ctx)
         return nullptr;
+    QMutexLocker smbLocker(&SmbClientGate::mutex());
     smbc_open_fn openFn = smbc_getFunctionOpen(m_ctx);
-    SMBCFILE *f = openFn(m_ctx, url.constData(), O_RDONLY, 0);
-    if (!f)
-        return nullptr;
-    return new SmbHandle(f);
+    SMBCFILE *file = openFn(m_ctx, url.constData(), O_RDONLY, 0);
+    return file ? new SmbHandle(file) : nullptr;
 }
 
 FileHandle *SmbProvider::openWrite(const QString &path, bool truncate) {
@@ -774,27 +743,28 @@ FileHandle *SmbProvider::openWrite(const QString &path, bool truncate) {
     if (truncate)
         flags |= O_TRUNC;
 
-    // Preferred path: independent pooled context, lock-free I/O.
     QString perr;
     if (SMBCCTX *conn = m_pool.borrow(&perr)) {
-        smbc_open_fn openFn = smbc_getFunctionOpen(conn);
-        SMBCFILE *f = openFn(conn, url.constData(), flags, 0644);
-        if (!f) {
+        SMBCFILE *file = nullptr;
+        {
+            QMutexLocker smbLocker(&SmbClientGate::mutex());
+            smbc_open_fn openFn = smbc_getFunctionOpen(conn);
+            file = openFn(conn, url.constData(), flags, 0644);
+        }
+        if (!file) {
             m_pool.release(conn);
             return nullptr;
         }
-        return new SmbHandle(f, conn);
+        return new SmbHandle(file, conn);
     }
 
-    // Fallback: shared interactive context under m_mutex.
     QMutexLocker locker(&m_mutex);
     if (!m_ctx)
         return nullptr;
+    QMutexLocker smbLocker(&SmbClientGate::mutex());
     smbc_open_fn openFn = smbc_getFunctionOpen(m_ctx);
-    SMBCFILE *f = openFn(m_ctx, url.constData(), flags, 0644);
-    if (!f)
-        return nullptr;
-    return new SmbHandle(f);
+    SMBCFILE *file = openFn(m_ctx, url.constData(), flags, 0644);
+    return file ? new SmbHandle(file) : nullptr;
 }
 
 qint64 SmbProvider::read(FileHandle *handle, char *buffer, qint64 maxSize) {
@@ -804,7 +774,7 @@ qint64 SmbProvider::read(FileHandle *handle, char *buffer, qint64 maxSize) {
     if (!h || !h->file)
         return -1;
     if (h->conn) {
-        // Private context: no shared state, so no lock -- true parallelism.
+        QMutexLocker smbLocker(&SmbClientGate::mutex());
         smbc_read_fn readFn = smbc_getFunctionRead(h->conn);
         const ssize_t n = readFn(h->conn, h->file, buffer, static_cast<size_t>(maxSize));
         if (n < 0)
@@ -814,6 +784,7 @@ qint64 SmbProvider::read(FileHandle *handle, char *buffer, qint64 maxSize) {
     QMutexLocker locker(&m_mutex);
     if (!m_ctx)
         return -1;
+    QMutexLocker smbLocker(&SmbClientGate::mutex());
     smbc_read_fn readFn = smbc_getFunctionRead(m_ctx);
     const ssize_t n = readFn(m_ctx, h->file, buffer, static_cast<size_t>(maxSize));
     return n < 0 ? -1 : static_cast<qint64>(n);
@@ -824,6 +795,7 @@ qint64 SmbProvider::write(FileHandle *handle, const char *buffer, qint64 size) {
     if (!h || !h->file)
         return -1;
     if (h->conn) {
+        QMutexLocker smbLocker(&SmbClientGate::mutex());
         smbc_write_fn writeFn = smbc_getFunctionWrite(h->conn);
         const ssize_t n = writeFn(h->conn, h->file, buffer, static_cast<size_t>(size));
         if (n < 0)
@@ -833,6 +805,7 @@ qint64 SmbProvider::write(FileHandle *handle, const char *buffer, qint64 size) {
     QMutexLocker locker(&m_mutex);
     if (!m_ctx)
         return -1;
+    QMutexLocker smbLocker(&SmbClientGate::mutex());
     smbc_write_fn writeFn = smbc_getFunctionWrite(m_ctx);
     const ssize_t n = writeFn(m_ctx, h->file, buffer, static_cast<size_t>(size));
     return n < 0 ? -1 : static_cast<qint64>(n);
@@ -845,12 +818,14 @@ bool SmbProvider::seek(FileHandle *handle, qint64 offset) {
     if (!h || !h->file)
         return false;
     if (h->conn) {
+        QMutexLocker smbLocker(&SmbClientGate::mutex());
         smbc_lseek_fn lseekFn = smbc_getFunctionLseek(h->conn);
         return lseekFn(h->conn, h->file, static_cast<off_t>(offset), SEEK_SET) >= 0;
     }
     QMutexLocker locker(&m_mutex);
     if (!m_ctx)
         return false;
+    QMutexLocker smbLocker(&SmbClientGate::mutex());
     smbc_lseek_fn lseekFn = smbc_getFunctionLseek(m_ctx);
     return lseekFn(m_ctx, h->file, static_cast<off_t>(offset), SEEK_SET) >= 0;
 }
@@ -863,6 +838,7 @@ qint64 SmbProvider::handleSize(FileHandle *handle) {
         return -1;
     struct stat st;
     if (h->conn) {
+        QMutexLocker smbLocker(&SmbClientGate::mutex());
         smbc_fstat_fn fstatFn = smbc_getFunctionFstat(h->conn);
         if (fstatFn(h->conn, h->file, &st) != 0)
             return -1;
@@ -871,6 +847,7 @@ qint64 SmbProvider::handleSize(FileHandle *handle) {
     QMutexLocker locker(&m_mutex);
     if (!m_ctx)
         return -1;
+    QMutexLocker smbLocker(&SmbClientGate::mutex());
     smbc_fstat_fn fstatFn = smbc_getFunctionFstat(m_ctx);
     if (fstatFn(m_ctx, h->file, &st) != 0)
         return -1;
@@ -892,11 +869,9 @@ void SmbProvider::closeHandle(FileHandle *handle) {
     if (!h)
         return;
     if (h->conn) {
-        // Pooled context: close the file on it (lock-free), then return the
-        // context to the pool -- or discard it if an I/O error was seen or the
-        // close itself fails, so a poisoned context is never reused.
         bool ok = true;
         if (h->file) {
+            QMutexLocker smbLocker(&SmbClientGate::mutex());
             smbc_close_fn closeFn = smbc_getFunctionClose(h->conn);
             ok = closeFn(h->conn, h->file) == 0;
         }
@@ -911,6 +886,7 @@ void SmbProvider::closeHandle(FileHandle *handle) {
     {
         QMutexLocker locker(&m_mutex);
         if (m_ctx && h->file) {
+            QMutexLocker smbLocker(&SmbClientGate::mutex());
             smbc_close_fn closeFn = smbc_getFunctionClose(m_ctx);
             closeFn(m_ctx, h->file);
         }
@@ -934,6 +910,7 @@ bool SmbProvider::setModifiedTime(const QString &path, const QDateTime &modified
     QMutexLocker locker(&m_mutex);
     if (!m_ctx)
         return false;
+    QMutexLocker smbLocker(&SmbClientGate::mutex());
 
     // libsmbclient takes {atime, mtime}. The server stores whole seconds (every
     // timestamp read back from this share had msec == 0), so the sub-second part
@@ -958,6 +935,7 @@ bool SmbProvider::remove(const QString &path) {
     QMutexLocker locker(&m_mutex);
     if (!m_ctx)
         return false;
+    QMutexLocker smbLocker(&SmbClientGate::mutex());
     const QByteArray url = urlFor(clean).toUtf8();
     if (dir) {
         smbc_rmdir_fn rmdirFn = smbc_getFunctionRmdir(m_ctx);
@@ -972,6 +950,7 @@ bool SmbProvider::mkdir(const QString &path) {
     QMutexLocker locker(&m_mutex);
     if (!m_ctx)
         return false;
+    QMutexLocker smbLocker(&SmbClientGate::mutex());
     smbc_mkdir_fn mkdirFn = smbc_getFunctionMkdir(m_ctx);
     const QByteArray url = urlFor(clean).toUtf8();
     return mkdirFn(m_ctx, url.constData(), 0755) == 0;

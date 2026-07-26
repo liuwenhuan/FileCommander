@@ -93,11 +93,9 @@ public:
 
     // Streaming I/O over SMB so cross-provider transfers can read from / write
     // to the share (with resume). openRead/openWrite borrow an independent
-    // SMBCCTX from the pool and pin it in the returned handle; read/write/seek
-    // then operate on that private context with NO m_mutex, so concurrent
-    // transfers run in parallel and never contend with the interactive context's
-    // list()/isDir()/heartbeat. If the pool cannot hand out a context, it falls
-    // back to the shared interactive context (serialised on m_mutex).
+    // SMBCCTX from the pool and pin it in the returned handle. Every in-process
+    // libsmbclient call is serialised through the process-wide gate; if the pool
+    // cannot hand out a context, the shared interactive context is used too.
     //
     // openRead has one further preference ahead of both: a helper subprocess
     // (see m_helpers). Since the in-process pool is capped at a single channel,
@@ -129,7 +127,7 @@ private:
 
     // list()'s fast path: enumerates `url` with smbc_readdirplus2, which carries
     // each entry's stat in the directory response instead of costing a separate
-    // round-trip per entry. Caller must hold m_mutex and have a live m_ctx.
+    // round-trip per entry. Caller must hold m_mutex, SmbClientGate, and m_ctx.
     // Sets *supported false when the library returned nothing at all for this
     // directory (notably the server root, where only readdir lists the shares),
     // meaning the result is meaningless and the readdir path must be used.

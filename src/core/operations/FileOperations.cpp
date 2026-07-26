@@ -636,7 +636,24 @@ bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileP
         return false;
     }
 
+    // Tell the destination how many bytes are coming, where the source can say.
+    // A streamed HTTP PUT must commit to Content-Length vs chunked before the
+    // first byte leaves, and only this loop knows the total; -1 (source size
+    // unknown) leaves the backend on its own fallback. On a resume only the
+    // remaining tail is sent, so the declared length is the tail, not the file.
+    // Backends that don't care ignore this entirely.
+    const qint64 srcSize = src->handleSize(in);
+    const qint64 expectedBytes =
+        srcSize >= 0 ? qMax<qint64>(0, srcSize - qMax<qint64>(0, startOffset)) : -1;
+
     bool ok = true;
+    if (srcSize >= 0 && startOffset > srcSize) {
+        ok = false;
+        *failMsg = tr("Source shrank before resuming transfer of %1").arg(destPath);
+    } else {
+        dst->setExpectedWriteSize(out, expectedBytes);
+    }
+    qint64 remainingBytes = expectedBytes;
     if (startOffset > 0) {
         // Resume: line both handles up at the byte where the last run stopped.
         if (!src->seek(in, startOffset) || !dst->seek(out, startOffset)) {
@@ -658,14 +675,29 @@ bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileP
             break;
         }
 
-        const qint64 got = src->read(in, buffer, sizeof(buffer));
+        if (remainingBytes == 0)
+            break;
+
+        const qint64 maxRead = remainingBytes > 0 ? qMin<qint64>(sizeof(buffer), remainingBytes)
+                                                   : sizeof(buffer);
+        const qint64 got = src->read(in, buffer, maxRead);
         if (got < 0) {
             ok = false;
             *failMsg = tr("Read error on %1").arg(srcPath);
             break;
         }
-        if (got == 0)
-            break; // EOF
+        if (got == 0) {
+            if (remainingBytes > 0) {
+                ok = false;
+                *failMsg = tr("Unexpected end of %1").arg(srcPath);
+            }
+            break;
+        }
+        if (got > maxRead) {
+            ok = false;
+            *failMsg = tr("Read error on %1").arg(srcPath);
+            break;
+        }
 
         // A single write may accept fewer bytes than offered (common on SFTP),
         // so loop until the whole chunk is out.
@@ -681,8 +713,37 @@ bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileP
         }
         if (!ok)
             break;
+        if (remainingBytes > 0)
+            remainingBytes -= got;
         m_doneBytes += got;
         emitProgress(srcPath);
+    }
+
+    if (ok && expectedBytes == 0 && dst->write(out, "", 0) < 0) {
+        ok = false;
+        *failMsg = tr("Write error on %1").arg(destPath);
+    }
+    if (ok && remainingBytes > 0) {
+        ok = false;
+        *failMsg = tr("Unexpected end of %1").arg(srcPath);
+    }
+    if (ok && expectedBytes >= 0) {
+        char extraByte;
+        const qint64 extra = src->read(in, &extraByte, 1);
+        if (extra < 0) {
+            ok = false;
+            *failMsg = tr("Read error on %1").arg(srcPath);
+        } else if (extra > 0) {
+            ok = false;
+            *failMsg = tr("Source changed during transfer of %1").arg(srcPath);
+        }
+    }
+    if (ok && srcSize >= 0) {
+        const qint64 finalSize = src->handleSize(in);
+        if (finalSize >= 0 && finalSize != srcSize) {
+            ok = false;
+            *failMsg = tr("Source changed during transfer of %1").arg(srcPath);
+        }
     }
 
     src->closeHandle(in);

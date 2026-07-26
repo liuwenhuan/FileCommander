@@ -242,6 +242,17 @@ SftpConn *SftpProvider::buildConnection(const QString &host, int port, const QSt
 void SftpProvider::destroyConnection(SftpConn *conn) {
     if (!conn)
         return;
+    // Once the process has entered its exit drain, skip the graceful teardown:
+    // every one of these calls writes an encrypted packet, and encryption means
+    // OpenSSL, whose globals the remaining exit handlers are about to free.
+    // Dropping the socket is enough -- the server sees a closed connection and
+    // reaps its side, the same as for any client that dies or loses its link.
+    if (connpool::processIsDraining()) {
+        if (conn->socket >= 0)
+            ::close(conn->socket);
+        delete conn; // deliberately leaks the libssh2 session; the process is going away
+        return;
+    }
     if (conn->sftp)
         libssh2_sftp_shutdown(conn->sftp);
     if (conn->session) {

@@ -2,11 +2,15 @@
 
 #include <QDir>
 #include <QFile>
+#include <QHostAddress>
 #include <QProcess>
 #include <QTemporaryDir>
+#include <QTcpServer>
 #include <QThread>
 
 #include "CurlWebDavProvider.h"
+#include "FileOperations.h"
+#include "LocalFileProvider.h"
 
 // Regression cover for a silent data-loss bug in the WebDAV upload path.
 //
@@ -23,7 +27,12 @@
 // no test, because it reads like cover that isn't there.
 namespace {
 
-constexpr int kPort = 8921;
+quint16 availablePort() {
+    QTcpServer probe;
+    if (!probe.listen(QHostAddress::LocalHost, 0))
+        return 0;
+    return probe.serverPort();
+}
 
 bool haveWsgidav() {
     QProcess p;
@@ -34,34 +43,45 @@ bool haveWsgidav() {
 // Runs a password-protected wsgidav over `root` for the life of the fixture.
 class DavServer {
 public:
-    explicit DavServer(const QString &root) {
+    explicit DavServer(const QString &root)
+        : m_port(availablePort()) {
+        if (m_port == 0)
+            return;
         const QString script = QStringLiteral(
             "from wsgidav.wsgidav_app import WsgiDAVApp\n"
             "from cheroot import wsgi\n"
             "app = WsgiDAVApp({'provider_mapping': {'/': '%1'},\n"
             "  'simple_dc': {'user_mapping': {'*': {'u': {'password': 'p'}}}},\n"
             "  'verbose': 0, 'logging': {'enable': False}})\n"
-            "wsgi.Server(('127.0.0.1', %2), app).start()\n").arg(root).arg(kPort);
+            "wsgi.Server(('127.0.0.1', %2), app).start()\n").arg(root).arg(m_port);
         m_proc.start("python3", {"-c", script});
-        m_proc.waitForStarted(10000);
+        m_started = m_proc.waitForStarted(10000);
         // Wait for the port to answer rather than sleeping a fixed amount.
-        for (int i = 0; i < 100 && !reachable(); ++i)
+        for (int i = 0; m_started && i < 100 && !reachable(); ++i)
             QThread::msleep(100);
     }
 
     ~DavServer() {
-        m_proc.kill();
-        m_proc.waitForFinished(5000);
+        if (m_started) {
+            m_proc.kill();
+            m_proc.waitForFinished(5000);
+        }
     }
 
+    quint16 port() const { return m_port; }
+
     bool reachable() const {
+        if (!m_started)
+            return false;
         QProcess c;
         c.start("curl", {"-s", "-o", "/dev/null", "-m", "2",
-                         QStringLiteral("http://127.0.0.1:%1/").arg(kPort)});
+                         QStringLiteral("http://127.0.0.1:%1/").arg(m_port)});
         return c.waitForFinished(5000) && c.exitCode() == 0;
     }
 
 private:
+    quint16 m_port = 0;
+    bool m_started = false;
     QProcess m_proc;
 };
 
@@ -102,7 +122,7 @@ TEST(WebDavUploadTest, UploadedBytesActuallyLandOnTheServer) {
     CurlWebDavProvider dav;
     dav.setTimeoutMs(15000);
     QString err;
-    ASSERT_TRUE(dav.connectToHost("127.0.0.1", kPort, "u", "p", false, &err))
+    ASSERT_TRUE(dav.connectToHost("127.0.0.1", server.port(), "u", "p", false, &err))
         << err.toStdString();
 
     const QByteArray payload = patterned(4096);
@@ -120,6 +140,40 @@ TEST(WebDavUploadTest, UploadedBytesActuallyLandOnTheServer) {
 
 // The same guarantee read back through the provider's own download path, so a
 // round trip is verified end to end rather than only against the filesystem.
+TEST(WebDavUploadTest, CopyAcrossProvidersWritesTheCompleteServerSideFile) {
+    if (!haveWsgidav())
+        GTEST_SKIP() << "wsgidav/cheroot not installed; cannot serve a 401 challenge";
+    QTemporaryDir serverRoot;
+    QTemporaryDir sourceRoot;
+    ASSERT_TRUE(serverRoot.isValid() && sourceRoot.isValid());
+    DavServer server(serverRoot.path());
+    if (!server.reachable())
+        GTEST_SKIP() << "local WebDAV server did not start";
+
+    const QByteArray payload = patterned(8192);
+    const QString source = QDir(sourceRoot.path()).filePath("cross-provider.bin");
+    QFile sourceFile(source);
+    ASSERT_TRUE(sourceFile.open(QIODevice::WriteOnly));
+    ASSERT_EQ(sourceFile.write(payload), payload.size());
+    sourceFile.close();
+
+    CurlWebDavProvider dav;
+    dav.setTimeoutMs(15000);
+    QString err;
+    ASSERT_TRUE(dav.connectToHost("127.0.0.1", server.port(), "u", "p", false, &err))
+        << err.toStdString();
+
+    FileOperations operations;
+    ASSERT_TRUE(operations.copyAcrossProviders(LocalFileProvider::instance(), {source}, &dav, "/",
+                                               /*removeSource=*/false, nullptr, &err))
+        << err.toStdString();
+
+    QFile stored(QDir(serverRoot.path()).filePath("cross-provider.bin"));
+    ASSERT_TRUE(stored.open(QIODevice::ReadOnly));
+    EXPECT_EQ(stored.size(), payload.size());
+    EXPECT_EQ(stored.readAll(), payload);
+}
+
 TEST(WebDavUploadTest, RoundTripsThroughTheProvider) {
     if (!haveWsgidav())
         GTEST_SKIP() << "wsgidav/cheroot not installed; cannot serve a 401 challenge";
@@ -132,7 +186,7 @@ TEST(WebDavUploadTest, RoundTripsThroughTheProvider) {
     CurlWebDavProvider dav;
     dav.setTimeoutMs(15000);
     QString err;
-    ASSERT_TRUE(dav.connectToHost("127.0.0.1", kPort, "u", "p", false, &err))
+    ASSERT_TRUE(dav.connectToHost("127.0.0.1", server.port(), "u", "p", false, &err))
         << err.toStdString();
 
     const QByteArray payload = patterned(2048);
@@ -166,7 +220,7 @@ TEST(WebDavUploadTest, NonAsciiNameUploadsIntact) {
     CurlWebDavProvider dav;
     dav.setTimeoutMs(15000);
     QString err;
-    ASSERT_TRUE(dav.connectToHost("127.0.0.1", kPort, "u", "p", false, &err))
+    ASSERT_TRUE(dav.connectToHost("127.0.0.1", server.port(), "u", "p", false, &err))
         << err.toStdString();
 
     const QString name = QString::fromUtf8("\xe4\xb8\xad\xe6\x96\x87 \xe6\x96\x87\xe4\xbb\xb6.bin");

@@ -16,11 +16,14 @@ add_executable(core_tests
     sync/test_SyncScanner.cpp
     compare/test_TextDiff.cpp
     network/test_GvfsMounter.cpp
+    network/test_ConnectionPool.cpp
     network/test_SftpProvider.cpp
     network/test_CurlFtpProvider.cpp
     network/test_CurlWebDavProvider.cpp
     network/test_WebDavUpload.cpp
+    network/test_WebDavChunkedUpload.cpp
     network/test_NetworkSession.cpp
+    network/test_SmbClientGate.cpp
     network/test_SmbHostBrowser.cpp
     network/test_SmbHelperProtocol.cpp
 )

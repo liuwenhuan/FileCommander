@@ -81,6 +81,10 @@ public:
 
     FileHandle *openRead(const QString &path) override;
     FileHandle *openWrite(const QString &path, bool truncate) override;
+    // A size >= 0 is sent as Content-Length, so the PUT is not chunked -- see
+    // the CURLOPT_INFILESIZE_LARGE comment in the .cpp for why that matters
+    // when there is an HTTP proxy in the path.
+    void setExpectedWriteSize(FileHandle *handle, qint64 totalSize) override;
     qint64 read(FileHandle *handle, char *buffer, qint64 maxSize) override;
     qint64 write(FileHandle *handle, const char *buffer, qint64 size) override;
     bool seek(FileHandle *handle, qint64 offset) override;

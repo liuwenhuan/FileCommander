@@ -185,6 +185,21 @@ public:
     virtual FileHandle *openRead(const QString & /*path*/) { return nullptr; }
     // truncate=false opens/creates for resume (append at seek position).
     virtual FileHandle *openWrite(const QString & /*path*/, bool /*truncate*/) { return nullptr; }
+
+    // Announces how many bytes are about to be written to an open write handle,
+    // or -1 when the caller genuinely cannot know. Must be called after
+    // openWrite() and BEFORE the first write() -- a backend may have to commit
+    // to a framing decision the moment the first byte moves.
+    //
+    // A hint, not a contract: backends may ignore it, and a wrong value must
+    // never corrupt data. It exists for streamed HTTP PUT, which has to choose
+    // between declaring Content-Length and sending Transfer-Encoding: chunked
+    // before the body starts, and chunked is refused outright by some proxies
+    // and middleboxes (see CurlWebDavProvider). Backends writing over a plain
+    // file descriptor (local/SFTP/SMB/FTP) have no use for it and keep the
+    // default no-op, which is why this is a separate call rather than an extra
+    // openWrite() parameter every provider would have to thread through.
+    virtual void setExpectedWriteSize(FileHandle * /*handle*/, qint64 /*totalSize*/) {}
     virtual qint64 read(FileHandle * /*handle*/, char * /*buffer*/, qint64 /*maxSize*/) {
         return -1;
     }
