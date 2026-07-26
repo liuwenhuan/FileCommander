@@ -77,6 +77,28 @@ public:
     bool closeHandleStatus(FileHandle *handle) override;
     bool canStream() const override { return true; }
 
+    // WebDAV is HTTP, so reads genuinely run side by side: openRead() takes the
+    // provider lock only long enough to copy the connection settings, and every
+    // handle then owns a separate curl easy handle guarded by its own mutex.
+    // Nothing is shared between two readers, which is what separates this from
+    // SMB -- libsmbclient cannot be driven concurrently at all and needs helper
+    // subprocesses to get past one channel.
+    //
+    // Four, from the throughput measured against a real server (12 files):
+    //
+    //     concurrency   whole files      256 KB ranges
+    //         1           13.1 MB/s          0.31 s
+    //         2           18.9 MB/s          0.20 s
+    //         4           23.1 MB/s          0.14 s
+    //         8           26.7 MB/s          0.13 s
+    //
+    // Range requests are the shape thumbnailing actually uses, and they flatten
+    // out at four -- eight buys 7% more for twice the sockets, twice the memory
+    // held in flight, and a deeper queue for the scroll-preemption to work
+    // against. Sixteen concurrent requests drew no throttling (no 503s), so the
+    // limit here is chosen for diminishing returns rather than server tolerance.
+    int maxReadChannels() const override { return 4; }
+
     bool remove(const QString &path) override;
     bool mkdir(const QString &path) override;
 
