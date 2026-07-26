@@ -8,10 +8,15 @@ add_executable(ui_tests
     test_RemoteThumbnailFetcher.cpp
     test_RemoteThumbnail.cpp
     test_ExifThumbnail.cpp
+    test_VideoFrameQuality.cpp
+    test_ThumbnailSweep.cpp
+    test_ThumbnailSweepDrive.cpp
     test_Mp4RangePlan.cpp
     test_IconFileView.cpp
     test_VideoRangePlan.cpp
     test_FilePanelFont.cpp
+    test_TreeRootBuilder.cpp
+    test_DirectoryTreeModel.cpp
 )
 
 # resources.qrc is compiled into the app target, not this one, so a test that

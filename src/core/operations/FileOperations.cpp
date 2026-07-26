@@ -840,6 +840,26 @@ bool FileOperations::transferEntry(FileProvider *src, const QString &srcPath, Fi
     return true;
 }
 
+FileOperations::MoveOutcome FileOperations::tryServerSideMove(FileProvider *provider,
+                                                              const QString &srcPath,
+                                                              const QString &destPath) {
+    switch (provider->moveTo(srcPath, destPath)) {
+    case FileProvider::RenameResult::Ok:
+        return MoveOutcome::Moved;
+    case FileProvider::RenameResult::AlreadyExists:
+        return MoveOutcome::Occupied;
+    case FileProvider::RenameResult::Unsupported:
+    case FileProvider::RenameResult::Failed:
+        // Both mean "streaming has to do it". A backend cannot reliably tell a
+        // refusal from a fault (SFTP returns one code for both), and every
+        // implementation guarantees a non-Ok answer left the source untouched,
+        // so retreating is always safe. Nothing is reported to the user: this
+        // path exists to be faster, never to introduce a new way to fail.
+        return MoveOutcome::Unavailable;
+    }
+    return MoveOutcome::Unavailable;
+}
+
 bool FileOperations::copyAcrossProviders(FileProvider *src, const QStringList &sources,
                                          FileProvider *dst, const QString &destDir,
                                          bool removeSource, const ConflictResolver &resolver,
@@ -862,12 +882,39 @@ bool FileOperations::copyAcrossProviders(FileProvider *src, const QStringList &s
     m_totalBytes = countProviderBytes(src, sources);
     dst->mkdir(destDir);
 
+    // Whether the server-side move is still worth trying for this batch. The
+    // first Unsupported answer settles it: on SMB a move across shares is
+    // refused for every entry alike, and a 500-file directory should not pay
+    // 500 pointless round trips to be told so 500 times. Deliberately a local,
+    // per-operation flag rather than anything cached across operations -- the
+    // server's layout can change between two moves.
+    bool serverMoveViable = removeSource && src == dst;
+
     for (const QString &source : sources) {
         waitIfPaused();
         if (m_cancelled)
             return false;
 
         const QString destPath = joinPath(destDir, lastComponent(source));
+
+        if (serverMoveViable) {
+            const MoveOutcome outcome = tryServerSideMove(src, source, destPath);
+            if (outcome == MoveOutcome::Moved) {
+                // The whole entry (file or tree) relocated in one call, so no
+                // bytes crossed the wire. Credit them anyway, or the byte bar
+                // would stall at 0% through the fastest move we can do.
+                m_doneBytes += providerTreeBytes(src, destPath);
+                ++m_doneItems;
+                emitProgress(source);
+                continue;
+            }
+            if (outcome == MoveOutcome::Unavailable)
+                serverMoveViable = false; // stop asking for the rest of this batch
+            // Occupied: this one entry needs conflict resolution, which
+            // transferEntry runs below. Later entries may still move cleanly,
+            // so the flag stays on.
+        }
+
         if (!transferEntry(src, source, dst, destPath, removeSource, resolver, batchAction,
                            errorMessage)) {
             if (m_cancelled)

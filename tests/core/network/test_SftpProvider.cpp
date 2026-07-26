@@ -81,3 +81,20 @@ TEST(SftpProviderState, FreshProviderIsNotConnected) {
     EXPECT_FALSE(p.isDir("/anything"));
     EXPECT_TRUE(p.list("/anything", true).isEmpty());
 }
+
+// --- server-side move ---------------------------------------------------
+
+TEST(SftpProviderMove, DisconnectedReportsUnsupportedNotFailure) {
+    SftpProvider p;
+    // Unsupported means "ask someone else"; Failed would make the transfer
+    // engine treat a missing connection as a real error instead of falling
+    // back to streaming.
+    EXPECT_EQ(p.moveTo("/a/x.txt", "/b/x.txt"), FileProvider::RenameResult::Unsupported);
+}
+
+TEST(SftpProviderMove, RefusesMoveOntoItself) {
+    SftpProvider p;
+    // Same source and destination would otherwise risk a backend deleting the
+    // only copy; rejected before any connection check.
+    EXPECT_EQ(p.moveTo("/a/x.txt", "/a/./x.txt"), FileProvider::RenameResult::Failed);
+}

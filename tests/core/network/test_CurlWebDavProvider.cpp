@@ -140,3 +140,15 @@ TEST(CurlWebDavProviderPropfind, MalformedXmlProducesNoEntries) {
     EXPECT_TRUE(CurlWebDavProvider::parsePropfindXml("not xml", "/srv", true).isEmpty());
     EXPECT_TRUE(CurlWebDavProvider::parsePropfindXml(QByteArray(), "/srv", true).isEmpty());
 }
+
+// --- server-side move ---------------------------------------------------
+
+TEST(CurlWebDavProviderMove, DisconnectedReportsUnsupportedNotFailure) {
+    CurlWebDavProvider p;
+    EXPECT_EQ(p.moveTo("/a/x.txt", "/b/x.txt"), FileProvider::RenameResult::Unsupported);
+}
+
+TEST(CurlWebDavProviderMove, RefusesMoveOntoItself) {
+    CurlWebDavProvider p;
+    EXPECT_EQ(p.moveTo("/a/x.txt", "/a/./x.txt"), FileProvider::RenameResult::Failed);
+}

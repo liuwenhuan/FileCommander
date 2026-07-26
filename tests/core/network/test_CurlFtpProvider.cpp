@@ -125,3 +125,17 @@ TEST(CurlFtpProviderUnixListing, StripsSymlinkArrowTarget) {
     ASSERT_EQ(entries.size(), 1);
     EXPECT_EQ(entries[0].name(), QString("link"));
 }
+
+// --- server-side move -------------------------------------------------------
+
+TEST(CurlFtpProviderMove, DisconnectedReportsUnsupportedNotFailure) {
+    CurlFtpProvider p;
+    EXPECT_EQ(p.moveTo("/a/x.txt", "/b/x.txt"), FileProvider::RenameResult::Unsupported);
+}
+
+TEST(CurlFtpProviderMove, RefusesMoveOntoItself) {
+    // RNFR/RNTO onto the same path is meaningless and, given that the command
+    // pair silently overwrites its target, not worth issuing.
+    CurlFtpProvider p;
+    EXPECT_EQ(p.moveTo("/a/x.txt", "/a/./x.txt"), FileProvider::RenameResult::Failed);
+}

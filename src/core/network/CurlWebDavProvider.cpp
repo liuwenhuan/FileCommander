@@ -157,7 +157,29 @@ void startWebDavTransfer(WebDavHandle *h) {
     // may legitimately run longer than the connect timeout, and a stalled
     // transfer is already abortable via the progress callback / closeHandle().
     curl_easy_setopt(h->curl, CURLOPT_CONNECTTIMEOUT_MS, static_cast<long>(h->timeoutMs));
-    curl_easy_setopt(h->curl, CURLOPT_HTTPAUTH, static_cast<long>(CURLAUTH_ANY));
+    // Send credentials on the very first request instead of waiting to be
+    // challenged (CURLAUTH_ANY), because this handle streams its body through
+    // uploadReadCallback and that callback CANNOT rewind.
+    //
+    // With CURLAUTH_ANY the server answers the unauthenticated PUT with 401,
+    // curl retries with credentials -- but the first attempt already drained the
+    // pipe, so the retry uploads nothing. The server then stores an EMPTY file
+    // and still answers 201 Created, which every layer above reports as success.
+    // Verified against a real server: a 16-byte write landed as 0 bytes.
+    //
+    // (This is invisible to `curl -T`, whose body is a seekable file curl can
+    // rewind -- which is why the bug survived command-line testing.)
+    //
+    // The trade-off is that the credentials go out unchallenged. It is not a
+    // downgrade: these servers only offer Basic, so CURLAUTH_ANY ends up sending
+    // exactly the same Basic header one round trip later. Over plain http:// the
+    // header is base64, not encrypted, both before and after this change.
+    //
+    // The control-plane handle keeps CURLAUTH_ANY on purpose: its bodies are
+    // CURLOPT_POSTFIELDS buffers that curl owns and re-sends intact across the
+    // 401 (confirmed against the same server: PROPFIND answers 207 after being
+    // challenged), so it has nothing to lose by negotiating.
+    curl_easy_setopt(h->curl, CURLOPT_HTTPAUTH, static_cast<long>(CURLAUTH_BASIC));
     curl_easy_setopt(h->curl, CURLOPT_FOLLOWLOCATION, 1L);
     if (!h->user.isEmpty()) {
         const QByteArray userUtf8 = h->user.toUtf8();
@@ -517,6 +539,55 @@ FileProvider::RenameResult CurlWebDavProvider::rename(const QString &path, const
     if (newPath)
         *newPath = destPath;
     return RenameResult::Ok;
+}
+
+FileProvider::RenameResult CurlWebDavProvider::moveTo(const QString &srcPath,
+                                                      const QString &dstPath) {
+    const QString from = cleanPath(srcPath);
+    const QString to = cleanPath(dstPath);
+    if (from == to)
+        return RenameResult::Failed;
+
+    QMutexLocker locker(&m_mutex);
+    if (!m_connected)
+        return RenameResult::Unsupported;
+    CURL *curl = static_cast<CURL *>(m_curl);
+
+    const QByteArray destHeader = (QStringLiteral("Destination: ") + buildUrl(to, false)).toUtf8();
+    struct curl_slist *headers = nullptr;
+    headers = curl_slist_append(headers, destHeader.constData());
+    // Never let the server overwrite: "Overwrite: F" turns an occupied
+    // destination into a 412 we can hand to conflict resolution, instead of a
+    // successful move over the top of the user's file.
+    headers = curl_slist_append(headers, "Overwrite: F");
+
+    const QByteArray srcUtf8 = buildUrl(from, false).toUtf8();
+    curl_easy_setopt(curl, CURLOPT_URL, srcUtf8.constData());
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "MOVE");
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_UPLOAD, 0L);
+    curl_easy_setopt(curl, CURLOPT_NOBODY, 0L);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discardCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, nullptr);
+
+    const CURLcode res = curl_easy_perform(curl);
+    long httpCode = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpCode);
+
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, nullptr);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, nullptr);
+    curl_slist_free_all(headers);
+
+    if (res != CURLE_OK)
+        return RenameResult::Unsupported;
+    if (httpCode >= 200 && httpCode < 300)
+        return RenameResult::Ok;
+    // RFC 4918 gives each refusal its own code, so unlike the other backends
+    // this one can route them precisely: 412 the destination is taken, 409 its
+    // parent collection is missing.
+    if (httpCode == 412)
+        return RenameResult::AlreadyExists;
+    return RenameResult::Unsupported;
 }
 
 bool CurlWebDavProvider::remove(const QString &path) {

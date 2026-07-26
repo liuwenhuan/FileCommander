@@ -78,6 +78,7 @@ public:
     QString parentPath(const QString &path) const override;  // POSIX parent; '/' -> ""
     bool exists(const QString &path) const override;
     RenameResult rename(const QString &path, const QString &newName, QString *newPath) override;
+    RenameResult moveTo(const QString &srcPath, const QString &dstPath) override;
 
     // Streaming I/O over SMB so cross-provider transfers can read from / write
     // to the share (with resume). openRead/openWrite borrow an independent

@@ -486,6 +486,34 @@ FileProvider::RenameResult SftpProvider::rename(const QString &path, const QStri
     return RenameResult::Ok;
 }
 
+FileProvider::RenameResult SftpProvider::moveTo(const QString &srcPath, const QString &dstPath) {
+    const QString from = cleanPath(srcPath);
+    const QString to = cleanPath(dstPath);
+    if (from == to)
+        return RenameResult::Failed;
+
+    QMutexLocker locker(&m_mutex);
+    if (!m_sftp)
+        return RenameResult::Unsupported;
+
+    LIBSSH2_SFTP_ATTRIBUTES attrs;
+    const QByteArray destUtf8 = to.toUtf8();
+    if (libssh2_sftp_stat(m_sftp, destUtf8.constData(), &attrs) == 0)
+        return RenameResult::AlreadyExists;
+
+    const QByteArray fromUtf8 = from.toUtf8();
+    if (libssh2_sftp_rename(m_sftp, fromUtf8.constData(), destUtf8.constData()) == 0)
+        return RenameResult::Ok;
+
+    // OpenSSH reports a cross-filesystem move and an occupied destination with
+    // the same SSH_FX_FAILURE, so the error code cannot tell "can't" from
+    // "didn't". Report Unsupported and let the streaming path re-derive the real
+    // situation through its own conflict checks rather than guessing here. The
+    // server does not silently degrade to a copy on failure -- the source is
+    // verified to survive intact -- so falling back is safe.
+    return RenameResult::Unsupported;
+}
+
 QString SftpProvider::cleanPath(const QString &path) const {
     // POSIX normalisation, independent of the local platform (never QDir, which
     // carries local-filesystem semantics). Collapses redundant slashes and

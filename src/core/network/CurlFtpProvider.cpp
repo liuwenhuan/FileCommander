@@ -446,6 +446,35 @@ FileProvider::RenameResult CurlFtpProvider::rename(const QString &path, const QS
     return RenameResult::Ok;
 }
 
+FileProvider::RenameResult CurlFtpProvider::moveTo(const QString &srcPath, const QString &dstPath) {
+    const QString from = cleanPath(srcPath);
+    const QString to = cleanPath(dstPath);
+    if (from == to)
+        return RenameResult::Failed;
+
+    // This check is not an optimisation and must not be dropped: RNFR/RNTO
+    // overwrites an occupied destination *silently* (verified -- the command
+    // pair returns success and the target's contents are simply gone). It is
+    // the only thing standing between a move and destroyed data, so it runs
+    // before the rename, unlocked, exactly as rename() above does.
+    if (exists(to))
+        return RenameResult::AlreadyExists;
+
+    QMutexLocker locker(&m_mutex);
+    if (!m_connected)
+        return RenameResult::Unsupported;
+
+    if (runQuoteCommandsLocked({QStringLiteral("RNFR ") + from, QStringLiteral("RNTO ") + to}) !=
+        CURLE_OK) {
+        // Every server-side refusal arrives as the same CURLE_QUOTE_ERROR, so
+        // "the server won't do this move" is indistinguishable from a real
+        // error without parsing response text. Report Unsupported and let the
+        // caller fall back rather than guessing from a string.
+        return RenameResult::Unsupported;
+    }
+    return RenameResult::Ok;
+}
+
 bool CurlFtpProvider::remove(const QString &path) {
     const QString clean = cleanPath(path);
     const bool dir = isDir(clean); // locks internally; released before we lock below

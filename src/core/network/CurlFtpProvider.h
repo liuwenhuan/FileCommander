@@ -65,6 +65,7 @@ public:
     QString parentPath(const QString &path) const override;  // POSIX parent; '/' -> ""
     bool exists(const QString &path) const override;
     RenameResult rename(const QString &path, const QString &newName, QString *newPath) override;
+    RenameResult moveTo(const QString &srcPath, const QString &dstPath) override;
 
     FileHandle *openRead(const QString &path) override;
     FileHandle *openWrite(const QString &path, bool truncate) override;

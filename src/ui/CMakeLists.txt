@@ -15,6 +15,8 @@ add_library(ui STATIC
     RemoteThumbnailFetcher.cpp
     ExifThumbnail.h
     ExifThumbnail.cpp
+    ThumbnailSweep.h
+    ThumbnailSweep.cpp
     Mp4RangePlan.h
     Mp4RangePlan.cpp
     VideoRangePlan.h
@@ -45,6 +47,14 @@ add_library(ui STATIC
     StatusBarWidget.cpp
     TabManager.h
     TabManager.cpp
+    tree/TreeRootBuilder.h
+    tree/TreeRootBuilder.cpp
+    tree/TreeDirLister.h
+    tree/TreeDirLister.cpp
+    tree/DirectoryTreeModel.h
+    tree/DirectoryTreeModel.cpp
+    tree/NetworkTreeRegistry.h
+    tree/NetworkTreeRegistry.cpp
     TabBar.h
     TabBar.cpp
     TitleBar.h
@@ -114,6 +124,7 @@ pkg_check_modules(XCB REQUIRED xcb)
 target_include_directories(ui PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/tree
     ${CMAKE_CURRENT_SOURCE_DIR}/theme
     ${CMAKE_CURRENT_SOURCE_DIR}/i18n
 )

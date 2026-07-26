@@ -17,6 +17,12 @@ class IconFileView : public QListView {
 public:
     explicit IconFileView(QWidget *parent = nullptr);
 
+    // Rows whose items intersect the viewport right now, for a caller that
+    // needs the range without waiting for the next visibleRangeSettled (e.g.
+    // starting thumbnail work as soon as a directory finishes loading).
+    // Returns false when there is no model or nothing is laid out yet.
+    bool visibleRowRange(int *firstRow, int *lastRow) const { return visibleRows(firstRow, lastRow); }
+
 signals:
     // Same signature as FileListView::filesDropped so MainWindow can wire both
     // views to the same slot. kind is decided from live modifier keys at drop

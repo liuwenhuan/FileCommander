@@ -110,6 +110,17 @@ private:
     // --- Cross-provider transfer internals (see copyAcrossProviders). ---
     // Per-file outcome so a move only removes the source when the copy landed.
     enum class FileResult { Done, Skipped, Failed };
+
+    // Result of asking a backend to move an entry on the server. Collapses the
+    // provider's four-way answer into what the transfer loop actually decides
+    // between. Occupied is kept apart from Unavailable because it says nothing
+    // about later entries -- only that this one needs conflict resolution.
+    enum class MoveOutcome { Moved, Occupied, Unavailable };
+    // Attempts a whole-entry server-side move (no bytes through the client).
+    // Never reports an error: anything other than success means the caller
+    // proceeds with the streaming copy it would have done anyway.
+    MoveOutcome tryServerSideMove(FileProvider *provider, const QString &srcPath,
+                                  const QString &destPath);
     // Copies (recursing into directories) one source entry to destPath.
     //
     // `sourceTime` is the source's modification time when the caller already

@@ -1,6 +1,7 @@
 #include "ThumbnailCache.h"
 
 #include "ExifThumbnail.h"
+#include "FileProvider.h" // canStream(): a backend that can't stream is never retried
 #include "Mp4RangePlan.h"
 #include "VideoRangePlan.h"
 
@@ -18,6 +19,7 @@
 #include <QTemporaryFile>
 #include <QThreadPool>
 
+#include <cmath>
 #include <limits>
 
 namespace {
@@ -171,6 +173,60 @@ double videoDurationSeconds(const QString &path) {
     return parseDurationSeconds(QString::fromUtf8(proc.readAllStandardError()));
 }
 
+// Decoder complaints that mean the bytes ffmpeg was given are not the bytes it
+// needed. A remote thumbnail is taken from a sparse excerpt, so when the seek
+// lands in a hole the decoder does NOT fail -- it reports these and emits a
+// flat grey frame, which then exits 0 and looks like a success. Matching the
+// message is what separates "we fetched the wrong bytes" from "this frame is
+// legitimately a single colour", which no pixel statistic can tell apart.
+bool hasDecodeErrors(const QString &stderrText) {
+    static const QStringList markers = {
+        QStringLiteral("Invalid NAL"),          QStringLiteral("Error splitting"),
+        QStringLiteral("error while decoding"), QStringLiteral("Invalid data found"),
+        QStringLiteral("non-existing PPS"),     QStringLiteral("decode_slice_header"),
+        QStringLiteral("could not find ref"),   QStringLiteral("concealing"),
+    };
+    for (const QString &marker : markers) {
+        if (stderrText.contains(marker, Qt::CaseInsensitive))
+            return true;
+    }
+    return false;
+}
+
+// Grey-screen threshold, in greyscale standard deviation. Sits in the gap
+// measured between a frame decoded from a hole (3.1) and one decoded from
+// partially-damaged but present bytes (68.5); real content sits far above it.
+// Only ever consulted for a frame ffmpeg already complained about, so a
+// legitimately flat picture -- black open, white flash, solid transition, all
+// of which measure 0.0 -- never reaches it.
+constexpr double kFlatFrameStdDev = 10.0;
+
+// Greyscale standard deviation of `image`, the "is there anything here" test.
+// Returns -1 for an image that cannot be read.
+double frameStdDev(const QString &imagePath) {
+    QImage image(imagePath);
+    if (image.isNull())
+        return -1.0;
+    const QImage grey = image.convertToFormat(QImage::Format_Grayscale8);
+    quint64 count = 0;
+    quint64 sum = 0;
+    quint64 sumSquares = 0;
+    for (int y = 0; y < grey.height(); ++y) {
+        const uchar *line = grey.constScanLine(y);
+        for (int x = 0; x < grey.width(); ++x) {
+            const quint64 v = line[x];
+            sum += v;
+            sumSquares += v * v;
+            ++count;
+        }
+    }
+    if (count == 0)
+        return -1.0;
+    const double mean = double(sum) / double(count);
+    const double variance = double(sumSquares) / double(count) - mean * mean;
+    return variance > 0.0 ? std::sqrt(variance) : 0.0;
+}
+
 // Extracts one representative frame (~10% into the video) to a temporary
 // PNG file via the system ffmpeg binary. Returns the temp file path (caller
 // must remove it) or an empty string on any failure.
@@ -198,7 +254,21 @@ QString extractVideoFrame(const QString &path) {
     const bool ok = proc.waitForFinished(15000) && proc.exitStatus() == QProcess::NormalExit
                      && proc.exitCode() == 0 && QFileInfo::exists(framePath)
                      && QFileInfo(framePath).size() > 0;
-    if (!ok) {
+    // Exiting 0 with a non-empty PNG is not enough. Fed a sparse excerpt whose
+    // seek point was never fetched, ffmpeg reports the damage on stderr but
+    // still writes a flat grey frame and exits 0 -- which the checks above
+    // accept, and which then gets cached as this file's thumbnail forever.
+    //
+    // Both signals are required, because either alone is wrong. Flatness alone
+    // rejects real content: a legitimately black, white or single-colour frame
+    // measures 0.0, i.e. FLATTER than the grey one at 3.1. Decoder complaints
+    // alone reject good frames too: bytes damaged away from the seek point
+    // produce warnings and a perfectly usable picture (68.5). Only a frame that
+    // both drew complaints and carries no detail is the failure being caught.
+    const bool complained =
+        ok && hasDecodeErrors(QString::fromUtf8(proc.readAllStandardError()));
+    const bool damaged = complained && frameStdDev(framePath) < kFlatFrameStdDev;
+    if (!ok || damaged) {
         QFile::remove(framePath);
         return {};
     }
@@ -323,18 +393,33 @@ QPixmap ThumbnailCache::thumbnail(const QString &path, int size) {
 QPixmap ThumbnailCache::remoteThumbnail(const std::shared_ptr<FileProvider> &provider,
                                         const QString &connectionId, const QString &path,
                                         qint64 mtimeEpoch, qint64 fileSize, int size) {
-    if (!provider || path.isEmpty() || size <= 0 || !canThumbnail(path))
-        return {};
+    QPixmap ready;
+    requestRemoteThumbnail(provider, connectionId, path, mtimeEpoch, fileSize, size, &ready);
+    return ready;
+}
+
+ThumbnailCache::Request ThumbnailCache::requestRemoteThumbnail(
+    const std::shared_ptr<FileProvider> &provider, const QString &connectionId,
+    const QString &path, qint64 mtimeEpoch, qint64 fileSize, int size, QPixmap *ready) {
+    // A backend with no streaming support can never serve a thumbnail, so this
+    // is Skipped, not Busy -- retrying it would spin forever.
+    if (!provider || !provider->canStream() || path.isEmpty() || size <= 0 || !canThumbnail(path))
+        return Request::Skipped;
     // Nothing to decode from an empty file, and a file past the budget isn't
     // worth the bytes -- in both cases the delegate keeps the generic icon.
     if (fileSize <= 0 || fileSize > remoteSizeLimit(path))
-        return {};
+        return Request::Skipped;
 
     const QString key = remoteCacheKey(connectionId, path, mtimeEpoch, fileSize, size);
-    if (QPixmap cached = lookupCached(key); !cached.isNull())
-        return cached;
+    if (QPixmap cached = lookupCached(key); !cached.isNull()) {
+        if (ready)
+            *ready = cached;
+        return Request::Ready;
+    }
+    // Already generating: someone else's request covers this row, and
+    // thumbnailReady() will announce it. Nothing left for this caller to do.
     if (!claimPending(key))
-        return {};
+        return Request::Queued;
 
     ThumbnailCache *self = this;
     const bool queued = m_remote.submit(
@@ -343,11 +428,12 @@ QPixmap ThumbnailCache::remoteThumbnail(const std::shared_ptr<FileProvider> &pro
         });
     if (!queued) {
         // Refused (backlog full, or the backend can't stream). Un-claim the key
-        // so the next repaint -- by which time a slot may have freed up -- can
-        // ask again; leaving it claimed would strand this file permanently.
+        // so a later attempt -- the next repaint, or the sweep's next pump --
+        // can ask again; leaving it claimed would strand this file permanently.
         releasePending(key);
+        return Request::Busy;
     }
-    return {};
+    return Request::Queued;
 }
 
 void ThumbnailCache::cancelRemote(const FileProvider *provider) { m_remote.cancel(provider); }

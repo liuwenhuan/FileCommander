@@ -805,6 +805,10 @@ bool FileSystemModel::setData(const QModelIndex &index, const QVariant &value, i
         emit renameFailed(tr("%1 already exists").arg(newName));
         return false;
     case FileProvider::RenameResult::Failed:
+    // Unsupported belongs to moveTo(); every backend implements rename(), so it
+    // never reaches here. Treated as a plain failure rather than left out, so
+    // the switch stays exhaustive.
+    case FileProvider::RenameResult::Unsupported:
         emit renameFailed(tr("Failed to rename %1").arg(info.name()));
         return false;
     case FileProvider::RenameResult::Ok:

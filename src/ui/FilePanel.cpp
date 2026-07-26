@@ -30,7 +30,6 @@
 #include <QStorageInfo>
 #include <QTimer>
 #include <QTreeView>
-#include <QFileSystemModel>
 #include <QSplitter>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -44,6 +43,11 @@
 #include "StatusBarWidget.h"
 #include "TabBar.h"
 #include "network/NetworkSession.h"
+#include "devices/RemovableDeviceMonitor.h"
+#include "tree/DirectoryTreeModel.h"
+#include "tree/NetworkTreeRegistry.h"
+#include "tree/TreeDirLister.h"
+#include "tree/TreeRootBuilder.h"
 #include "ThumbnailCache.h"
 #include "ThumbnailDelegate.h"
 
@@ -143,21 +147,21 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     tabRowLayout->addWidget(m_addTabButton, 0, Qt::AlignVCenter);
 
     // Per-panel folder tree, to the left of the list in a splitter. Hidden until
-    // the tree button is toggled on. Navigating it drives this panel.
-    m_dirTreeModel = new QFileSystemModel(this);
-    m_dirTreeModel->setRootPath(QDir::rootPath());
-    m_dirTreeModel->setFilter(QDir::Dirs | QDir::NoDotAndDotDot);
+    // the tree button is toggled on. Navigating it drives this panel. Its top
+    // level is a set of devices/connections rather than one filesystem root --
+    // see rebuildTreeRoots() and DirectoryTreeModel.
+    m_dirTreeModel = new DirectoryTreeModel(this);
     m_dirTree = new QTreeView(this);
     m_dirTree->setModel(m_dirTreeModel);
-    m_dirTree->setRootIndex(m_dirTreeModel->index(QDir::rootPath()));
-    for (int col = 1; col < m_dirTreeModel->columnCount(); ++col)
-        m_dirTree->hideColumn(col);
     m_dirTree->setHeaderHidden(true);
     m_dirTree->setFocusPolicy(Qt::ClickFocus);
     m_dirTree->hide();
-    connect(m_dirTree, &QTreeView::activated, this, [this](const QModelIndex &idx) {
-        navigateTo(m_dirTreeModel->filePath(idx));
-    });
+    connect(m_dirTree, &QTreeView::activated, this, &FilePanel::activateTreeIndex);
+    // The walk towards the current directory can only continue once a level has
+    // actually arrived, which on a remote connection is some round trips later.
+    connect(m_dirTreeModel, &DirectoryTreeModel::childrenLoaded, this,
+            [this](const QModelIndex &) { advanceTreeSync(); });
+    rebuildTreeRoots();
 
     // Thumbnail/icon view: shares the model and (below) the selection model with
     // the list, so a mode switch keeps the current selection. Big icons come
@@ -200,6 +204,13 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     // nothing anyone is looking at.
     connect(m_iconView, &IconFileView::visibleRangeSettled, this,
             &FilePanel::prefetchVisibleThumbnails);
+    // Every finished thumbnail frees a fetch slot, so this is what carries the
+    // sweep past the first screenful and through the rest of the directory --
+    // each completion pumps the next row in. No timer, and no work queued
+    // beyond what the fetcher can hold, so a huge listing costs no more memory
+    // than a small one.
+    connect(&ThumbnailCache::instance(), &ThumbnailCache::thumbnailReady, this,
+            [this](const QString &) { pumpThumbnailSweep(); });
     // Real image/video thumbnails (with a generic-icon fallback), generated + disk
     // cached off-thread. The delegate's icon/text sizes track the View-menu font.
     m_thumbnailDelegate = new ThumbnailDelegate(m_iconView);
@@ -307,6 +318,9 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
             const QStorageInfo storage(m_model->rootPath());
             m_statusBar->setDiskInfo(storage.bytesAvailable(), storage.bytesTotal());
         }
+        // A new set of rows: begin filling their thumbnails. Cheap and a no-op
+        // on a local tab, so it costs nothing to call unconditionally.
+        restartThumbnailSweep();
     });
 
     // Network connection status -> centred status-line message; the "Retry" link
@@ -534,30 +548,71 @@ void FilePanel::cancelRemoteThumbnails() {
     // drop it rather than spend the link on thumbnails for rows about to
     // disappear. Harmless on a local tab (no provider is registered with the
     // fetcher, so this is a no-op).
+    // Stop feeding rows in as well: the sweep is what would otherwise keep
+    // re-submitting for the listing we are walking away from, refilling the
+    // queue as fast as the cancellation empties it.
+    m_thumbSweep.reset(0);
     if (m_model->hasNetworkSession())
         ThumbnailCache::instance().cancelRemote(m_model->provider());
 }
 
-void FilePanel::prefetchVisibleThumbnails(int firstRow, int lastRow) {
+void FilePanel::restartThumbnailSweep() {
     // Only network listings pay a per-row price worth scheduling around; local
     // thumbnails are cheap and the ordinary repaint path covers them.
-    const QString connectionId = m_model->connectionId();
-    if (connectionId.isEmpty() || !m_thumbnailDelegate)
+    if (m_model->connectionId().isEmpty()) {
+        m_thumbSweep.reset(0);
         return;
+    }
+    m_thumbSweep.reset(m_model->rowCount());
+    // Start where the user is looking rather than at row 0: after a refresh the
+    // view often keeps its scroll position.
+    int first = 0, last = 0;
+    if (m_iconView && m_iconView->visibleRowRange(&first, &last))
+        m_thumbSweep.focusOn(first, last);
+    pumpThumbnailSweep();
+}
+
+void FilePanel::prefetchVisibleThumbnails(int firstRow, int lastRow) {
+    // Scrolling stopped somewhere new: serve those rows next. Rows already
+    // fetched stay fetched, and rows skipped past are picked up later when the
+    // sweep wraps -- so this is a re-prioritisation, not a restart.
+    m_thumbSweep.focusOn(firstRow, lastRow);
+    pumpThumbnailSweep();
+}
+
+void FilePanel::pumpThumbnailSweep() {
+    const QString connectionId = m_model->connectionId();
+    if (connectionId.isEmpty() || !m_thumbnailDelegate || m_thumbSweep.complete())
+        return;
+    // The listing changed size underneath the sweep (rows removed, filter
+    // applied). Re-base rather than index off the end.
+    if (m_thumbSweep.rowCount() != m_model->rowCount()) {
+        restartThumbnailSweep();
+        return;
+    }
 
     const int iconSize = m_thumbnailDelegate->iconSize();
-    const int rows = m_model->rowCount();
-    for (int row = qMax(0, firstRow); row <= lastRow && row < rows; ++row) {
+    std::shared_ptr<FileProvider> provider = m_model->providerPtr();
+
+    // Feed rows in until the fetcher pushes back. Deferred means its queue is
+    // full: put that row back so it is retried, and stop -- the next completed
+    // fetch pumps again. This is the whole flow-control mechanism; without the
+    // put-back a full queue would silently swallow rows.
+    while (!m_thumbSweep.complete()) {
+        const int row = m_thumbSweep.next();
+        if (row < 0)
+            break;
         const FileInfo info = m_model->fileInfoAt(row);
         const QString path = info.path();
         if (path.isEmpty() || info.isDir() || !ThumbnailCache::canThumbnail(path))
-            continue;
-        // The return value is ignored on purpose: this only needs to get the
-        // request in, and a ready thumbnail will reach the screen through the
-        // repaint that follows.
-        ThumbnailCache::instance().remoteThumbnail(m_model->providerPtr(), connectionId, path,
-                                                   info.modified().toSecsSinceEpoch(),
-                                                   info.size(), iconSize);
+            continue; // nothing to fetch for this row; the sweep moves on
+        const auto outcome = ThumbnailCache::instance().requestRemoteThumbnail(
+            provider, connectionId, path, info.modified().toSecsSinceEpoch(), info.size(),
+            iconSize);
+        if (outcome == ThumbnailCache::Request::Busy) {
+            m_thumbSweep.putBack(row);
+            break;
+        }
     }
 }
 
@@ -860,14 +915,177 @@ void FilePanel::toggleViewMode() {
     (toThumb ? static_cast<QWidget *>(m_iconView) : static_cast<QWidget *>(m_view))->setFocus();
 }
 
+void FilePanel::setTreeSources(RemovableDeviceMonitor *devices, NetworkTreeRegistry *connections) {
+    m_deviceMonitor = devices;
+    m_connRegistry = connections;
+    // Hot-plug and connect/disconnect both rebuild the top level. Both are
+    // existing signals; nothing here polls.
+    if (m_deviceMonitor)
+        connect(m_deviceMonitor, &RemovableDeviceMonitor::devicesChanged, this,
+                &FilePanel::rebuildTreeRoots);
+    if (m_connRegistry)
+        connect(m_connRegistry, &NetworkTreeRegistry::changed, this, &FilePanel::rebuildTreeRoots);
+    rebuildTreeRoots();
+}
+
+void FilePanel::rebuildTreeRoots() {
+    if (!m_dirTreeModel)
+        return;
+
+    QVector<RemovableDevice> devices;
+    QStringList removableMounts;
+    if (m_deviceMonitor) {
+        devices = m_deviceMonitor->devices();
+        for (const RemovableDevice &device : devices)
+            if (device.isMounted && !device.mountPoint.isEmpty())
+                removableMounts.append(device.mountPoint);
+    }
+
+    QVector<NetworkTreeEntry> networks;
+    QHash<QString, std::shared_ptr<NetworkSession>> sessions;
+    if (m_connRegistry) {
+        for (const RegisteredConnection &conn : m_connRegistry->connections()) {
+            auto live = conn.session.lock();
+            if (!live)
+                continue;
+            NetworkTreeEntry entry;
+            entry.connectionId = conn.connectionId;
+            entry.label = conn.label;
+            entry.scheme = conn.scheme;
+            // Start at the topmost candidate and let the model walk down when the
+            // server refuses a level (see TreeRoot::basePathFallbacks).
+            const QStringList candidates = TreeRootBuilder::networkBaseCandidates(conn.basePath);
+            entry.basePath = candidates.value(0, QStringLiteral("/"));
+            entry.basePathFallbacks = candidates.mid(1);
+            entry.ownedByThisPanel = (conn.owner == this);
+            networks.append(entry);
+            sessions.insert(conn.connectionId, live);
+        }
+    }
+
+    const QVector<LocalVolume> volumes = TreeRootBuilder::enumerateLocalVolumes(removableMounts);
+    const QVector<TreeRoot> roots = TreeRootBuilder::build(volumes, devices, networks);
+
+    const bool showHidden = m_model->showHiddenFiles();
+    m_dirTreeModel->setShowHidden(showHidden);
+    m_dirTreeModel->setRoots(roots, [&](const TreeRoot &root) -> TreeDirLister * {
+        if (root.kind == TreeRoot::Network) {
+            const auto session = sessions.value(root.connectionId);
+            if (!session)
+                return nullptr;
+            // The SAME session the tab's file list uses: it is a single-threaded
+            // actor, so tree listings queue behind file-list ones instead of
+            // racing them. That serialisation is what makes this safe for
+            // libsmbclient, whose global state cannot survive concurrent use.
+            auto *lister = new NetworkTreeLister(session);
+            lister->setShowHidden(showHidden);
+            return lister;
+        }
+        auto *lister = new LocalTreeLister;
+        lister->setShowHidden(showHidden);
+        return lister;
+    });
+
+    // A single local root stands for the whole filesystem, exactly as the tree
+    // always looked: make it the view's root so its children (/bin, /home, ...)
+    // are the top-level rows and no device header appears. With several roots
+    // the device rows ARE the point, so the real top level is shown.
+    if (roots.size() == 1 && roots.first().kind == TreeRoot::LocalFilesystem) {
+        const QModelIndex rootIndex = m_dirTreeModel->index(0, 0);
+        m_dirTree->setRootIndex(rootIndex);
+        m_dirTree->expand(rootIndex); // populate the level now shown at the top
+    } else {
+        m_dirTree->setRootIndex(QModelIndex());
+    }
+
+    // The rebuild reset the model, so re-establish the selection.
+    if (!m_model->isFlatMode())
+        syncTreeToPath(m_model->rootPath());
+}
+
 void FilePanel::syncTreeToPath(const QString &path) {
     if (!m_dirTree || !m_dirTree->isVisible() || path.isEmpty())
         return;
-    const QModelIndex idx = m_dirTreeModel->index(path);
-    if (idx.isValid()) {
-        m_dirTree->setCurrentIndex(idx);
-        m_dirTree->scrollTo(idx);
+    m_treeTargetPath = path;
+    m_treeTargetConnId = m_model->connectionId();
+    advanceTreeSync();
+}
+
+void FilePanel::advanceTreeSync() {
+    if (m_treeTargetPath.isEmpty() || !m_dirTree || !m_dirTree->isVisible())
+        return;
+
+    const QModelIndex exact = m_dirTreeModel->indexForPath(m_treeTargetConnId, m_treeTargetPath);
+    if (exact.isValid()) {
+        m_dirTree->setCurrentIndex(exact);
+        m_dirTree->scrollTo(exact);
+        m_treeTargetPath.clear();
+        return;
     }
+
+    // Not materialised yet: expand the deepest ancestor we do have and wait for
+    // its children. Each arrival re-enters here one level deeper, so the walk
+    // costs one listing per level and never blocks -- which is the only way this
+    // can work over a network connection.
+    const QModelIndex ancestor =
+        m_dirTreeModel->deepestLoadedAncestor(m_treeTargetConnId, m_treeTargetPath);
+    if (!ancestor.isValid()) {
+        m_treeTargetPath.clear(); // no root covers this path (e.g. an archive)
+        return;
+    }
+    if (m_dirTreeModel->canFetchMore(ancestor)) {
+        m_dirTree->expand(ancestor); // triggers fetchMore; we resume on childrenLoaded
+        return;
+    }
+    // The ancestor is fully loaded yet the target is still absent -- the
+    // directory does not exist in the tree (hidden, or removed since). Settle on
+    // the ancestor rather than looping.
+    m_dirTree->expand(ancestor);
+    m_dirTree->setCurrentIndex(ancestor);
+    m_dirTree->scrollTo(ancestor);
+    m_treeTargetPath.clear();
+}
+
+QString FilePanel::connectionIdOfTab(int index) const {
+    auto tab = m_tabManager->tabAt(index);
+    if (!tab || tab->connScheme.isEmpty() || tab->connLabel.isEmpty())
+        return {};
+    return tab->connScheme + QStringLiteral("://") + tab->connLabel;
+}
+
+int FilePanel::tabIndexForConnection(const QString &connectionId) const {
+    if (connectionId.isEmpty())
+        return -1;
+    for (int i = 0; i < m_tabManager->count(); ++i)
+        if (connectionIdOfTab(i) == connectionId)
+            return i;
+    return -1;
+}
+
+void FilePanel::activateTreeIndex(const QModelIndex &index) {
+    if (!index.isValid() || !m_dirTreeModel->isActivatable(index))
+        return;
+    const QString path = m_dirTreeModel->pathAt(index);
+    if (path.isEmpty())
+        return;
+    const QString connId = m_dirTreeModel->connectionIdAt(index);
+
+    // A local node, or a node on the connection this tab is already using:
+    // navigate straight there through the active backend.
+    if (connId.isEmpty() || connId == m_model->connectionId()) {
+        navigateTo(path);
+        return;
+    }
+    // Another of THIS panel's tabs owns the connection: switch to that tab (which
+    // swaps its parked connection back in) and navigate there.
+    const int tabIndex = tabIndexForConnection(connId);
+    if (tabIndex >= 0) {
+        navigateTabTo(tabIndex, path);
+        return;
+    }
+    // Belongs to the other panel. The model marks those nodes non-activatable,
+    // so this is unreachable in practice; ignoring it is the right fallback --
+    // adopting another panel's session would break per-tab connection ownership.
 }
 
 void FilePanel::activateCurrentEntry() {
@@ -1342,6 +1560,26 @@ void FilePanel::stampActiveConnection() {
         tab->connScheme.clear();
         tab->connLabel.clear();
     }
+
+    // Publish the connection to the shared registry so both panels' trees can
+    // show a root for it. The label is snapshotted here rather than read by the
+    // tree later: displayName() takes the provider's mutex, which a slow connect
+    // holds for its whole duration, and the tree runs on the GUI thread.
+    if (m_connRegistry && !tab->connScheme.isEmpty() && !tab->connLabel.isEmpty()
+        && m_model->hasNetworkSession()) {
+        const FileSystemModel::NetworkConn conn = m_model->peekConnection();
+        if (conn.session) {
+            RegisteredConnection entry;
+            entry.connectionId = m_model->connectionId();
+            entry.label = tab->connLabel;
+            entry.scheme = tab->connScheme;
+            entry.basePath = m_model->rootPath();
+            entry.session = conn.session;
+            entry.owner = this;
+            if (!entry.connectionId.isEmpty())
+                m_connRegistry->registerConnection(entry);
+        }
+    }
 }
 
 void FilePanel::updateActiveTabLabel() {
@@ -1587,6 +1825,11 @@ void FilePanel::closeTabAt(int index) {
     // the model doesn't keep listing through a server whose tab is gone. (A
     // background tab's session is owned solely by its TabState and is torn down
     // when closeTab() drops that TabState.)
+    // Drop the closing tab's connection from the tree registry. Expiry cannot be
+    // relied on here: this tab's Back history still holds shared_ptrs to the
+    // session, so it outlives the tab and its root would linger in the tree.
+    if (m_connRegistry)
+        m_connRegistry->unregisterConnection(connectionIdOfTab(index));
     if (index == m_tabManager->activeIndex() && m_model->hasNetworkSession()) {
         cancelRemoteThumbnails();
         m_model->detachConnection(); // returned bundle drops here -> session stops
@@ -1733,6 +1976,11 @@ void FilePanel::disconnectTab(int index) {
         return;
     activateTab(index); // make it current so the model's active backend is this tab's
     auto tab = m_tabManager->activeTab();
+    // Take the connection out of the tree registry now. Its weak_ptr would expire
+    // on its own once the session dies, but a deliberate disconnect should drop
+    // the tree root immediately rather than at the next unrelated query.
+    if (m_connRegistry)
+        m_connRegistry->unregisterConnection(connectionIdOfTab(index));
     // Drop the live connection from the model (bundle dropped -> released) and then
     // release every remaining owner of the parked session so it actually stops.
     if (m_model->hasNetworkSession()) {

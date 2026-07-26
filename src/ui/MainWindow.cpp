@@ -111,6 +111,7 @@
 #include "dialogs/ExternalConnectDialog.h"
 #include "dialogs/UpdateDialog.h"
 #include "devices/RemovableDeviceMonitor.h"
+#include "tree/NetworkTreeRegistry.h"
 #include "network/ConnectionStore.h"
 #include "network/CurlFtpProvider.h"
 #include "network/CurlWebDavProvider.h"
@@ -834,6 +835,14 @@ void MainWindow::setupFeatureBatch() {
     // Removable-device hot-plug: when a new USB stick / phone / drive appears and
     // the preference is on, mount it and open it in a fresh, activated tab.
     m_deviceMonitor = new RemovableDeviceMonitor(this);
+
+    // The folder trees organise themselves around devices and live connections.
+    // Both panels share one registry so each can see (and grey out) the other's
+    // connections; hot-plug and connect/disconnect drive the rebuilds, no polling.
+    m_connRegistry = new NetworkTreeRegistry(this);
+    m_leftPanel->setTreeSources(m_deviceMonitor, m_connRegistry);
+    m_rightPanel->setTreeSources(m_deviceMonitor, m_connRegistry);
+
     connect(m_deviceMonitor, &RemovableDeviceMonitor::deviceAdded, this,
             [this](const RemovableDevice &dev) {
                 if (!m_settings.autoOpenNewDevice() || !m_activePanel)

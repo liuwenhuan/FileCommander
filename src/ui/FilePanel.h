@@ -10,6 +10,7 @@
 
 #include "FileSystemModel.h"
 #include "TabManager.h"
+#include "ThumbnailSweep.h"
 
 class BreadcrumbBar;
 class FileListView;
@@ -18,7 +19,9 @@ class TabBar;
 class QLineEdit;
 class QToolButton;
 class QTreeView;
-class QFileSystemModel;
+class DirectoryTreeModel;
+class NetworkTreeRegistry;
+class RemovableDeviceMonitor;
 class QSplitter;
 class QListView;
 class IconFileView;
@@ -225,6 +228,16 @@ public:
     // live UI-language change.
     void retranslate() { updateStatus(); }
 
+    // Injects the shared device/connection sources the folder tree organises
+    // itself around (both owned by MainWindow). Without them the tree still
+    // works, showing the plain local filesystem. Call once, after construction.
+    void setTreeSources(RemovableDeviceMonitor *devices, NetworkTreeRegistry *connections);
+
+    // Rebuilds the tree's top level from the current devices and connections.
+    // Cheap and idempotent; driven by hot-plug and connect/disconnect signals
+    // rather than by polling.
+    void rebuildTreeRoots();
+
 signals:
     void pathChanged(const QString &path);
     void panelActivated(FilePanel *panel);
@@ -299,11 +312,37 @@ private:
     // whenever a repaint happens to reach them.
     void prefetchVisibleThumbnails(int firstRow, int lastRow);
 
+    // Hands rows to the fetcher until its queue is full, in ThumbnailSweep's
+    // order (on-screen rows first, then onward through the whole listing).
+    // Called when the sweep starts, when the visible range moves, and each time
+    // a fetch finishes -- that last one is what keeps it going: every completed
+    // thumbnail frees a slot and pumps the next row into it, so the directory
+    // fills in continuously without a timer.
+    void pumpThumbnailSweep();
+
+    // Restarts the sweep for the current listing. Called after a directory
+    // loads and whenever the row set changes underneath it.
+    void restartThumbnailSweep();
+
     QString tabLabelFor(const QSharedPointer<TabState> &tab) const;
     void syncTabBarFromManager();
     void closeTabAt(int index);
     // Selects + scrolls the folder tree to `path` when the tree is visible.
+    // On a network tree the path may not be materialised yet, so this starts a
+    // level-by-level expansion towards it and resumes on childrenLoaded rather
+    // than blocking on a recursive descent.
     void syncTreeToPath(const QString &path);
+    // Continues the walk towards m_treeTargetPath after a level has loaded.
+    void advanceTreeSync();
+    // Activates a tree node: navigates this panel there, switching to the tab
+    // that owns the node's connection when it belongs to another of our tabs.
+    void activateTreeIndex(const QModelIndex &index);
+    // The tab index in this panel holding `connectionId`, or -1 if none does.
+    int tabIndexForConnection(const QString &connectionId) const;
+    // The connection identity ("scheme://user@host") stamped on the tab at
+    // `index`, or an empty string for a local tab. Same shape as
+    // FileSystemModel::connectionId(), which is what makes the two comparable.
+    QString connectionIdOfTab(int index) const;
     // Scales the thumbnail-view cell (icon + label) to the given font size so the
     // grid grows/shrinks with the View-menu font setting (unless overridden by
     // an explicit m_thumbIconSize from the -/+ buttons).
@@ -346,10 +385,22 @@ private:
     QToolButton *m_forwardButton;
     QToolButton *m_starButton;
     QTreeView *m_dirTree = nullptr;            // per-panel folder tree (hidden by default)
-    QFileSystemModel *m_dirTreeModel = nullptr;
+    DirectoryTreeModel *m_dirTreeModel = nullptr;
+    RemovableDeviceMonitor *m_deviceMonitor = nullptr; // not owned; may be null
+    NetworkTreeRegistry *m_connRegistry = nullptr;     // not owned; may be null
+    // Path the tree is walking towards, one asynchronous level at a time, plus
+    // the connection it belongs to. Cleared when reached or when it turns out to
+    // be unreachable. Bounded by the path's depth, so it always terminates.
+    QString m_treeTargetPath;
+    QString m_treeTargetConnId;
     QSplitter *m_bodySplitter = nullptr;       // [tree | body]
     IconFileView *m_iconView = nullptr;        // thumbnail/icon mode (shares m_model)
     ThumbnailDelegate *m_thumbnailDelegate = nullptr; // image/video thumbnails in icon mode
+    // Drives thumbnail fetching across the WHOLE remote listing rather than
+    // just the rows on screen: visible rows first, then on to the end, then
+    // wrapping to pick up whatever was skipped. Scrolling re-points it at the
+    // new visible rows, so the user always gets served first.
+    ThumbnailSweep m_thumbSweep;
     QStackedWidget *m_bodyStack = nullptr;     // {list view, icon view}
     QToolButton *m_addTabButton; // "+" at the right end of the tab strip
     QLineEdit *m_filterBar;

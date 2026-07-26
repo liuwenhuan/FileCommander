@@ -41,6 +41,7 @@ class QFileSystemModel;
 class QMenu;
 class TitleBar;
 class RemovableDeviceMonitor;
+class NetworkTreeRegistry;
 class SmbHostBrowser;
 class NotepadPanel;
 
@@ -306,6 +307,9 @@ private:
     // Feature batch: external devices, quick notepad, online update.
     void setupFeatureBatch(); // constructor helper: wires the three subsystems below
     RemovableDeviceMonitor *m_deviceMonitor = nullptr; // UDisks2 hot-plug watcher
+    // Live network connections across both panels, so each panel's folder tree
+    // can show a root per connection (and grey out the other panel's).
+    NetworkTreeRegistry *m_connRegistry = nullptr;
     // Mount points of currently-mounted removable volumes. Diffed on every
     // devicesChanged() so a vanished mount (unmount or unplug) can auto-close
     // the tabs that were browsing it.

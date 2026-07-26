@@ -645,6 +645,38 @@ FileProvider::RenameResult SmbProvider::rename(const QString &path, const QStrin
     return RenameResult::Ok;
 }
 
+FileProvider::RenameResult SmbProvider::moveTo(const QString &srcPath, const QString &dstPath) {
+    const QString from = cleanPath(srcPath);
+    const QString to = cleanPath(dstPath);
+    if (from == to)
+        return RenameResult::Failed;
+
+    QMutexLocker locker(&m_mutex);
+    if (!m_ctx)
+        return RenameResult::Unsupported;
+
+    smbc_stat_fn statFn = smbc_getFunctionStat(m_ctx);
+    struct stat st;
+    const QByteArray destUrl = urlFor(to).toUtf8();
+    // The server happily clobbers an occupied destination (verified: a 4 KB
+    // source silently replaced a 64-byte target), so the caller's conflict
+    // resolution has to run first -- exactly as rename() above already does.
+    if (statFn(m_ctx, destUrl.constData(), &st) == 0)
+        return RenameResult::AlreadyExists;
+
+    const QByteArray oldUrl = urlFor(from).toUtf8();
+    errno = 0;
+    if (smbc_getFunctionRename(m_ctx)(m_ctx, oldUrl.constData(), m_ctx, destUrl.constData()) == 0)
+        return RenameResult::Ok;
+
+    // EXDEV means the two paths live on different SMB shares. The server
+    // refuses regardless of permissions, and it cannot be predicted: two shares
+    // that statvfs reports as the same underlying volume (identical block
+    // counts) are still rejected. So there is no pre-flight check worth doing --
+    // the caller simply falls back to streaming.
+    return errno == EXDEV ? RenameResult::Unsupported : RenameResult::Failed;
+}
+
 QString SmbProvider::cleanPath(const QString &path) const {
     // POSIX normalisation, independent of the local platform (never QDir).
     // Collapses redundant slashes and resolves "." / ".." segments; always

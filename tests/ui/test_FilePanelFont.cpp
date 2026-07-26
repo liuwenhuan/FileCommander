@@ -3,7 +3,6 @@
 #include <QDir>
 #include <QApplication>
 #include <QFile>
-#include <QFileSystemModel>
 #include <QLineEdit>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -12,6 +11,7 @@
 #include "FilePanel.h"
 #include "FileListView.h"
 #include "FileSystemModel.h"
+#include "tree/DirectoryTreeModel.h"
 
 // The folder tree and the inline-rename editor both have to track the View-menu
 // font size, and both silently missed it. Neither is reachable through a public
@@ -28,10 +28,10 @@ void settle(FilePanel &panel, const QString &path) {
 }
 
 // The tree has no accessor on FilePanel, so find it by its model type: it is
-// the panel's only QTreeView over a QFileSystemModel.
+// the panel's only QTreeView over a DirectoryTreeModel.
 QTreeView *showTree(FilePanel &panel) {
     for (QTreeView *t : panel.findChildren<QTreeView *>())
-        if (qobject_cast<QFileSystemModel *>(t->model())) {
+        if (qobject_cast<DirectoryTreeModel *>(t->model())) {
             t->setVisible(true);
             return t;
         }

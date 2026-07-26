@@ -37,6 +37,17 @@ class ThumbnailCache : public QObject {
 public:
     static ThumbnailCache &instance();
 
+    // What a thumbnail request did, for callers that schedule rather than
+    // paint. Painting ignores this -- a null pixmap tells it everything it
+    // needs -- but a background fill must tell "a result is coming" apart from
+    // "try me again later", or it would either stall or spin.
+    enum class Request {
+        Ready,   // a cached pixmap was returned; nothing was scheduled
+        Queued,  // generation is under way; thumbnailReady(path) will follow
+        Busy,    // refused (the fetch backlog is full); ask again shortly
+        Skipped, // nothing to do: unsupported type, bad size, over budget
+    };
+
     // Returns a ready square pixmap (<= size px on its longest side) for
     // `path` if available (memory or disk cache); otherwise returns a null
     // QPixmap and schedules background generation, emitting
@@ -56,6 +67,17 @@ public:
     QPixmap remoteThumbnail(const std::shared_ptr<FileProvider> &provider,
                             const QString &connectionId, const QString &path, qint64 mtimeEpoch,
                             qint64 fileSize, int size);
+
+    // remoteThumbnail() with the outcome reported -- same work, same arguments.
+    // Only Busy means "ask again": a background sweep filling a whole directory
+    // has to tell "the queue is full right now" apart from "this row is
+    // finished with", or it would either spin on a row it cannot place or drop
+    // one it never fetched. The pixmap (when one was already cached) is written
+    // to *ready if given.
+    Request requestRemoteThumbnail(const std::shared_ptr<FileProvider> &provider,
+                                   const QString &connectionId, const QString &path,
+                                   qint64 mtimeEpoch, qint64 fileSize, int size,
+                                   QPixmap *ready = nullptr);
 
     // Abandons the remote fetches queued against `provider` -- called when a
     // panel navigates away or a tab disconnects, so bytes are not pulled for a

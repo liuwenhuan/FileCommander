@@ -31,6 +31,16 @@ constexpr int kMaxConcurrentFetchCeiling = 8;
 // hold what is on screen; anything beyond this is refused and re-requested by
 // the next repaint, which keeps the queue tracking the viewport rather than
 // the directory.
+//
+// This number is also what makes scroll "preemption" work, and it is worth
+// being precise about the limit: submitted jobs run FIFO and cannot be
+// reordered (QThreadPool has no priority interface), so a request already in
+// the queue is never displaced. What the cap buys is that the queue is only
+// ever this deep, so newly visible rows wait behind at most this many stale
+// ones. That is approximate preemption, deliberately: a real priority queue
+// would mean cancelling and re-submitting in-flight work for a bound that a
+// small number already delivers. Raising this value directly worsens the
+// worst-case wait after a scroll -- on a slow link, roughly this many fetches.
 constexpr int kMaxOutstanding = 8;
 // Epoch bookkeeping is per connection and connections are few; this only
 // bounds the pathological case of a very long session opening and dropping
