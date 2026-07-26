@@ -682,37 +682,71 @@ QFont buildTextFont(const QXmlStreamAttributes &attrs) {
 // before (zero regression); only v2 text takes the box engine below.
 // ---------------------------------------------------------------------------
 
-// Global vertical metric compensation. A Windows/Office font (e.g. 微软雅黑) is
+// PowerPoint's line box is FONT-INDEPENDENT: one "single" (100%) line is
+// 1.2 * font size, no matter what the font's own ascent/descent/leading are.
+// <a:lnSpc><a:spcPct val="120000"/> therefore means 1.2 * 1.2 == 1.44 em, not
+// "1.2 x whatever QFontMetricsF::height() reports".
+//
+// Why this is not QFontMetricsF::height(): ECMA-376 only says spcPct is "a
+// percentage of the text size" and never defines the base, but [MS-OODF] 15.5.4
+// records that PowerPoint (unlike Word) turns ODF's style:font-independent-line-
+// spacing ON, i.e. "the line height is calculated only from the font size", never
+// from the actual font's metrics. LibreOffice implements exactly that: every
+// PPT/PPTX text body gets FontIndependentLineSpacing / SdrTextFixedCellHeightItem
+// forced on (oox/source/ppt/pptshapecontext.cxx), and the fixed cell height is
+// `nFontHeight * 12 / 10` (editeng ImplCalculateFontIndependentLineSpacing); its
+// PPT *export* divides measured spacing by 1.2 em to convert back.
+//
+// Measured against the real decks to be sure, using <a:bodyPr><a:spAutoFit/>
+// shapes -- there the producing app (WPS 演示) wrote the shape's cy as exactly
+// text height + tIns + bIns, so each one is a self-calibrating ruler. Across 20
+// such boxes in three decks, 8 font sizes (10pt..80pt) and both 100% and 150%
+// spacing, (cy - insets) / (lines * size * pct) = 1.2112 +- 0.0025 -- flat in
+// font size and in the font used, which is the signature of a font-independent
+// 1.2 line box (WPS's own constant is a hair over 1.2; the 0.9% is under a tenth
+// of a line over eight lines, so the documented 1.2 is used).
+//
+// Using the font's own height instead is what made a real deck's table cell
+// overflow: 思源黑体/Source Han Sans reports height() == 1.448 em (CJK fonts carry
+// large leading), so a 120% paragraph got 1.738 em per line instead of 1.44 em --
+// 21% too tall, compounding to a whole extra line every five. Latin faces
+// (Calibri/Arial ~1.15-1.22 em) are near 1.2 by accident, which is why this only
+// ever looked wrong in Chinese text.
+constexpr double kPptLineBox = 1.2;
+
+// Global first-baseline compensation. A Windows/Office font (e.g. 微软雅黑) is
 // substituted on Linux by fontconfig (-> 思源黑体/Source Han Sans), whose ascent
-// and line height differ slightly, so a whole paragraph can sit a touch high or
-// its lines too loose/tight versus PowerPoint. This table nudges the SUBSTITUTE
-// font's ascent/line-height back toward the authored font's proportions.
+// differs slightly, so a whole paragraph can sit a touch high or low versus
+// PowerPoint. This table nudges the SUBSTITUTE font's ascent back toward the
+// authored font's proportions.
 //
 //   ascent : multiplies the measured ascent (shifts the first baseline down when
 //            >1) so the block's optical top matches Office.
-//   line   : multiplies the measured line height (the inter-line pitch).
+//
+// There is deliberately no line-height entry: the inter-line pitch does not come
+// from font metrics at all (see kPptLineBox), so it has nothing to compensate.
 //
 // Keyed by the *authored* family (lower-cased, as it appears in font-family).
-// No entry  ->  {1,1} == use the substitute font's own metrics untouched (the
-// safe default the task calls for). ADD ENTRIES HERE as Office comparisons show
-// a consistent offset for a given source font -- values are empirical and belong
+// No entry  ->  {1} == use the substitute font's own ascent untouched (the safe
+// default the task calls for). ADD ENTRIES HERE as Office comparisons show a
+// consistent offset for a given source font -- values are empirical and belong
 // in this one obvious place.
-struct FontComp { double ascent; double line; };
+struct FontComp { double ascent; };
 FontComp fontCompFor(const QString &familyRaw) {
     static const QHash<QString, FontComp> table = {
-        // family (lower-case)          ascent   line     (1,1 == neutral)
-        {QStringLiteral("微软雅黑"),        {1.00, 1.00}},
-        {QStringLiteral("microsoft yahei"), {1.00, 1.00}},
-        {QStringLiteral("等线"),            {1.00, 1.00}},
-        {QStringLiteral("dengxian"),        {1.00, 1.00}},
-        {QStringLiteral("宋体"),            {1.00, 1.00}},
-        {QStringLiteral("simsun"),          {1.00, 1.00}},
-        {QStringLiteral("黑体"),            {1.00, 1.00}},
-        {QStringLiteral("simhei"),          {1.00, 1.00}},
-        {QStringLiteral("calibri"),         {1.00, 1.00}},
+        // family (lower-case)          ascent   (1 == neutral)
+        {QStringLiteral("微软雅黑"),        {1.00}},
+        {QStringLiteral("microsoft yahei"), {1.00}},
+        {QStringLiteral("等线"),            {1.00}},
+        {QStringLiteral("dengxian"),        {1.00}},
+        {QStringLiteral("宋体"),            {1.00}},
+        {QStringLiteral("simsun"),          {1.00}},
+        {QStringLiteral("黑体"),            {1.00}},
+        {QStringLiteral("simhei"),          {1.00}},
+        {QStringLiteral("calibri"),         {1.00}},
     };
     const auto it = table.constFind(familyRaw.trimmed().toLower());
-    return it != table.constEnd() ? it.value() : FontComp{1.0, 1.0};
+    return it != table.constEnd() ? it.value() : FontComp{1.0};
 }
 
 // The first (primary) family named in a font-family list -- the one used to look
@@ -762,18 +796,22 @@ CClass classOf(QChar c) {
 
 // --- Forced metric profiles (方案A: 缺失字体度量强制排版) --------------------
 // When the authored CJK font is MISSING on this system we DISPLAY with the
-// substitute (思源黑体/Noto) but drive line WRAPPING and line HEIGHT from the
-// authored font's real metrics, so line breaks land on the same characters and
-// the block occupies the same vertical space as PowerPoint -- no reflow chaos
-// from the substitute's different advances. Every character's horizontal/vertical
-// footprint matches the mapped font. Measured from the real font files:
-//   微软雅黑.ttf  -> proportional Latin (kYaHeiAscii), line box 1.321/1.059em
-//   SimSun/SimHei/FangSong/KaiTi -> Latin fixed half-width 0.5em, line box 1.001/0.860em
+// substitute (思源黑体/Noto) but drive line WRAPPING and the FIRST BASELINE from
+// the authored font's real metrics, so line breaks land on the same characters
+// and the block starts where PowerPoint starts it -- no reflow chaos from the
+// substitute's different advances. Measured from the real font files:
+//   微软雅黑.ttf  -> proportional Latin (kYaHeiAscii), ascent 1.059em
+//   SimSun/SimHei/FangSong/KaiTi -> Latin fixed half-width 0.5em, ascent 0.860em
 // CJK advance is 1.0em in every one of them. A profile is used ONLY for a missing
 // authored font (rule 3); a font present on the system (rule 2) keeps its own
 // real metrics untouched.
+//
+// `lineHeight` is each face's own line box, kept here as the measurement record;
+// it does NOT drive the inter-line pitch, which is font-independent (kPptLineBox)
+// -- PowerPoint gives 宋体 and 微软雅黑 the same 1.2em line despite their 1.001em
+// and 1.321em natural boxes.
 struct MetricProfile {
-    double lineHeight;   // single-line pitch, em (* pixel size)
+    double lineHeight;   // the face's own line box, em -- reference only, see above
     double ascent;       // baseline offset from line top, em
     const double *ascii; // advance (em) for ASCII 32..126; null => uniform `latin`
     double latin;        // advance (em) used when ascii == null (half-width)
@@ -1116,16 +1154,16 @@ void layoutV2Boxes(const QVector<V2Para> &paras) {
             const QFontMetricsF bfm(p.font);
             PP e;
             e.lines = wrapParagraph(p);
+            // Line BOX is font-independent (see kPptLineBox): one 100% line is
+            // 1.2 * font size whatever the font's own ascent/descent/leading say.
+            e.height0 = p.font.pixelSize() * kPptLineBox;
             if (p.profile) {
-                // Missing authored font: drive line height + first-baseline from the
-                // authored font's real metrics so the block occupies the same vertical
-                // space as PowerPoint, not the (differently-tall) substitute's.
-                const double px = p.font.pixelSize();
-                e.ascent0 = p.profile->ascent * px;
-                e.height0 = p.profile->lineHeight * px;
+                // Missing authored font: drive the first baseline from the authored
+                // font's real ascent so the block starts where PowerPoint starts it,
+                // not where the (differently-proportioned) substitute would.
+                e.ascent0 = p.profile->ascent * p.font.pixelSize();
             } else {
                 e.ascent0 = bfm.ascent() * p.comp.ascent;
-                e.height0 = bfm.height() * p.comp.line;
             }
             e.pitch = p.lineFixed > 0.0 ? p.lineFixed : e.height0 * p.lineFactor;
             e.spcBefore = p.spcBefore;
