@@ -35,3 +35,8 @@ ViewerWindow::ViewerWindow(Settings &settings, const QString &path, QWidget *par
 
     m_preview->showFile(path);
 }
+
+void ViewerWindow::refreshPhosphor() {
+    if (m_preview)
+        m_preview->refreshPhosphor();
+}

@@ -11,7 +11,9 @@
 // are stored now and acted on starting in Phase 4 (theming/i18n).
 class Settings {
 public:
-    enum class Theme { Auto, Light, Dark };
+    // Persisted as the raw int, so new themes must be APPENDED -- reordering
+    // would silently repaint every existing install.
+    enum class Theme { Auto, Light, Dark, Crt };
 
     Settings();
 
@@ -23,6 +25,15 @@ public:
 
     Theme theme() const;
     void setTheme(Theme theme);
+
+    // Whether *content* -- thumbnails, image/PDF/slide previews, video -- is
+    // recoloured to the phosphor hue along with the chrome. Only consulted for
+    // Theme::Crt; the other themes never tint content whatever this says, so
+    // the menu entry is disabled outside the CRT theme rather than hidden (a
+    // hidden toggle reads as a missing feature). Defaults on: someone who chose
+    // the CRT theme asked for a CRT.
+    bool phosphorImages() const;
+    void setPhosphorImages(bool on);
 
     QString language() const;
     void setLanguage(const QString &language);

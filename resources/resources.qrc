@@ -2,6 +2,7 @@
     <qresource prefix="/themes">
         <file alias="light.qss">themes/light.qss</file>
         <file alias="dark.qss">themes/dark.qss</file>
+        <file alias="green.qss">themes/green.qss</file>
     </qresource>
     <qresource prefix="/icons">
         <file alias="branch-closed-light.svg">icons/branch-closed-light.svg</file>
@@ -21,6 +22,9 @@
         <file alias="dev-sftp.svg">icons/dev-sftp.svg</file>
         <file alias="dev-ftp.svg">icons/dev-ftp.svg</file>
         <file alias="dev-webdav.svg">icons/dev-webdav.svg</file>
+        <file alias="crt-scan-screen.png">icons/crt-scan-screen.png</file>
+        <file alias="crt-scan-chrome.png">icons/crt-scan-chrome.png</file>
+        <file alias="crt-scan-sunken.png">icons/crt-scan-sunken.png</file>
     </qresource>
     <qresource prefix="/translations">
         <file alias="ttc_zh_CN.qm">translations/ttc_zh_CN.qm</file>

@@ -10,7 +10,17 @@
 #include <QStackedLayout>
 
 BreadcrumbBar::BreadcrumbBar(QWidget *parent) : QWidget(parent) {
+    // A plain QWidget subclass does not paint a stylesheet background unless
+    // it is told to; without this the CRT theme's scanline texture stops at
+    // the Qt-provided widgets and this one stays flat. light.qss/dark.qss
+    // declare `background: transparent` for this class so their appearance is
+    // unchanged -- it shows the parent, exactly as it did before.
+    setAttribute(Qt::WA_StyledBackground, true);
     m_segmentsWidget = new QWidget(this);
+    // Named so a theme can make it transparent: a bare QWidget IS painted with
+    // the sheet's `QWidget { background }`, and this one fills the bar, so it
+    // would hide any texture the bar itself was given.
+    m_segmentsWidget->setObjectName(QStringLiteral("BreadcrumbSegments"));
     m_segmentsWidget->installEventFilter(this);
     m_segmentsLayout = new QHBoxLayout(m_segmentsWidget);
     m_segmentsLayout->setContentsMargins(6, 0, 6, 0);

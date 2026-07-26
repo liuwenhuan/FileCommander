@@ -238,6 +238,17 @@ private:
     double fitScale() const;
     void positionInfoOverlay();      // keep the image metadata panel pinned top-right
     void positionVideoInfoOverlay(); // same, over the video area
+    // Rebuilds mpv's phosphor filter chain from the current tint, pixel block
+    // and the width the video is drawn at. Idempotent; safe to call often.
+    void applyVideoPhosphor();
+
+public:
+    // Re-derives every preview surface from what it kept, after the theme or
+    // the "tint images" setting changed. Without it the pane keeps showing the
+    // treatment in force when the file was opened.
+    void refreshPhosphor();
+
+private:
     void updateVideoInfoOverlay();   // refresh the video metadata text
     void stopVideo();                // unload + hide the video page
 
@@ -424,6 +435,7 @@ private:
     QWidget *m_audioPage = nullptr;
     AudioPlayer *m_audio = nullptr;
     QLabel *m_audioCover = nullptr;   // embedded cover art or a placeholder glyph
+    QPixmap m_audioCoverSource;       // the cover as decoded, before any tint
     QLabel *m_audioTitle = nullptr;   // big title line
     QLabel *m_audioMeta = nullptr;    // artist / album / year / genre / track
     QTextBrowser *m_audioLyrics = nullptr;

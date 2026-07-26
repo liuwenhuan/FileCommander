@@ -766,6 +766,18 @@ Extract it too?</source>
         <translation>어둡게</translation>
     </message>
     <message>
+        <source>Green CRT</source>
+        <translation>녹색 CRT</translation>
+    </message>
+    <message>
+        <source>Tint images to match</source>
+        <translation>이미지도 같은 색조로</translation>
+    </message>
+    <message>
+        <source>Recolour thumbnails, previews and video to the phosphor hue. Only applies to the Green CRT theme.</source>
+        <translation>썸네일·미리보기·동영상을 인광색으로 재착색합니다. 녹색 CRT 테마에서만 적용됩니다.</translation>
+    </message>
+    <message>
         <source>Navigation</source>
         <translation type="vanished">탐색</translation>
     </message>

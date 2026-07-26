@@ -16,6 +16,11 @@ class ViewerWindow : public QWidget {
 public:
     ViewerWindow(Settings &settings, const QString &path, QWidget *parent = nullptr);
 
+    // Forwards a theme / "tint images" change to the preview this window wraps.
+    // A viewer opened with F3 is a separate top-level window, so MainWindow has
+    // to reach it explicitly -- nothing else knows it exists.
+    void refreshPhosphor();
+
 private:
     QuickView *m_preview;
 };

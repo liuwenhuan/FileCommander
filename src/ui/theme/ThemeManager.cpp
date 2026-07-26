@@ -1,7 +1,21 @@
 #include "ThemeManager.h"
 
 #include <QApplication>
+#include <QScreen>
 #include <QFile>
+#include <QWidget>
+
+#include "AppIcon.h"
+#include "filesystem/IconCache.h"
+#include "theme/Phosphor.h"
+
+namespace {
+// The CRT theme's lit phosphor -- the same #33ff88 green.qss paints text in.
+// Kept here (not parsed out of the stylesheet) because the recolouring happens
+// in painting code that never reads the stylesheet; if one is changed the other
+// must be too.
+const QColor kPhosphor(0x33, 0xff, 0x88);
+} // namespace
 
 ThemeManager::ThemeManager(QObject *parent) : QObject(parent) {
     // Must capture this before any stylesheet is ever applied, since a
@@ -13,16 +27,58 @@ bool ThemeManager::systemPrefersDark() const {
     return m_originalPalette.color(QPalette::Window).lightness() < 128;
 }
 
-void ThemeManager::apply(Settings::Theme theme) {
+void ThemeManager::apply(Settings::Theme theme, bool phosphorImages) {
     m_requestedTheme = theme;
+    m_phosphorImages = phosphorImages;
 
     Settings::Theme effective = theme;
     if (effective == Settings::Theme::Auto)
         effective = systemPrefersDark() ? Settings::Theme::Dark : Settings::Theme::Light;
 
-    const QString path =
-        effective == Settings::Theme::Dark ? ":/themes/dark.qss" : ":/themes/light.qss";
+    QString path = ":/themes/light.qss";
+    if (effective == Settings::Theme::Dark)
+        path = ":/themes/dark.qss";
+    else if (effective == Settings::Theme::Crt)
+        path = ":/themes/green.qss";
     QFile file(path);
     if (file.open(QIODevice::ReadOnly | QIODevice::Text))
         qApp->setStyleSheet(QString::fromUtf8(file.readAll()));
+
+    const bool crt = effective == Settings::Theme::Crt;
+
+    // Two separate tints, because they answer to different switches.
+    //
+    // Chrome (file-type icons, the app icon) follows the THEME: a stylesheet
+    // cannot reach the system icon theme, so blue folders and red document
+    // icons would otherwise survive into a single-hue theme and be the one
+    // thing that gives it away.
+    //
+    // Content (thumbnails, image/PDF/slide previews, video) follows the
+    // TOGGLE, since recolouring the user's own photographs is a taste
+    // decision in a way that recolouring a folder glyph is not.
+    const qreal dpr = qApp->primaryScreen() ? qApp->primaryScreen()->devicePixelRatio() : 1.0;
+    const auto blockFor = [dpr](int logical) { return qMax(2, qRound(logical * dpr)); };
+
+    IconCache::instance().setTint(crt ? kPhosphor : QColor(),
+                                  crt ? blockFor(fc::kIconBlockLogical) : 0);
+    fc::setContentTint(crt && phosphorImages ? kPhosphor : QColor());
+
+    // The simulated pixel is defined in logical pixels, so it is scaled here to
+    // the image pixels the recolouring code actually works in. Taken from the
+    // primary screen: the thumbnail cache stores device-resolution bitmaps
+    // marked dpr=1, so there is nothing to derive it from at the point of use
+    // (see fc::setContentPixelBlock).
+    //
+    // Content is quantised only when it is also tinted -- both follow the
+    // toggle. Icons are quantised whenever the theme is CRT, on their own
+    // coarser grid, because they follow the theme.
+    fc::setContentPixelBlock(crt && phosphorImages ? blockFor(fc::kContentBlockLogical) : 0);
+
+    // The app icon is painted by us, so it is repainted rather than recoloured
+    // in place. Every top-level window carries its own copy (the frameless
+    // TitleBar reads window->windowIcon()), so they all have to be re-set.
+    const QIcon icon = ttc::appIcon(crt ? kPhosphor : QColor());
+    qApp->setWindowIcon(icon);
+    for (QWidget *w : qApp->topLevelWidgets())
+        w->setWindowIcon(icon);
 }

@@ -761,6 +761,18 @@ Extract it too?</source>
         <translation>深色</translation>
     </message>
     <message>
+        <source>Green CRT</source>
+        <translation>绿色显像管</translation>
+    </message>
+    <message>
+        <source>Tint images to match</source>
+        <translation>图像跟随配色</translation>
+    </message>
+    <message>
+        <source>Recolour thumbnails, previews and video to the phosphor hue. Only applies to the Green CRT theme.</source>
+        <translation>将缩略图、预览和视频重新着色为荧光色。仅对"绿色显像管"主题生效。</translation>
+    </message>
+    <message>
         <source>Navigation</source>
         <translation type="vanished">导航</translation>
     </message>

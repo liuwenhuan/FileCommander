@@ -5,6 +5,12 @@
 #include <QToolButton>
 
 StatusBarWidget::StatusBarWidget(QWidget *parent) : QWidget(parent) {
+    // A plain QWidget subclass does not paint a stylesheet background unless
+    // it is told to; without this the CRT theme's scanline texture stops at
+    // the Qt-provided widgets and this one stays flat. light.qss/dark.qss
+    // declare `background: transparent` for this class so their appearance is
+    // unchanged -- it shows the parent, exactly as it did before.
+    setAttribute(Qt::WA_StyledBackground, true);
     m_label = new QLabel(this);
     m_diskLabel = new QLabel(this);
 

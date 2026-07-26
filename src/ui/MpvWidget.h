@@ -28,6 +28,10 @@ public:
     void seekFraction(double fraction); // absolute seek to fraction*duration
     void setVolume(int volume);         // 0..100
     void setMute(bool mute);
+    // Sets mpv's "vf" chain (empty string clears it). Used for the CRT theme's
+    // phosphor recolouring, whose filter string comes from fc::mpvFilterFor()
+    // so video and still images share one definition of the transform.
+    void applyVideoFilter(const QString &filter);
 
     // Property queries (return sensible defaults when unavailable).
     double durationSeconds() const;
@@ -59,6 +63,8 @@ protected:
 
 private:
     double getDouble(const char *prop) const;
+
+    QString m_videoFilter; // last value pushed to mpv's "vf"
     long long getInt(const char *prop) const;
     bool getFlag(const char *prop) const; // reads a boolean/flag mpv property
 

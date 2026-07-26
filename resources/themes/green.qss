@@ -1,0 +1,527 @@
+/* CRT theme -- a green-phosphor monitor: near-black screen, one hue of green at
+   several brightnesses, square corners everywhere, and a scanline texture over
+   the chrome.
+
+   Design rules this file follows, so later edits stay coherent:
+
+   * One hue. Everything is the same green (h=140) at different value/chroma.
+     #33ff88 is the lit phosphor, #1fa85c the half-lit, #12602f the unlit trace,
+     #071108 the glass. Introducing a second hue breaks the illusion.
+   * No rounded corners and no gradients -- a shadow mask draws squares. Every
+     border-radius is 0 on purpose; do not "soften" them.
+   * Text is never pure white. On a phosphor tube the brightest thing on screen
+     is the phosphor itself, so the highlight colour IS the text colour and
+     selection inverts to the dark glass instead.
+   * The scanline overlay only goes on chrome (menus, bars, buttons, dialogs).
+     The file views paint their own cells from the palette, so a texture there
+     would be painted over anyway -- they get alternating row bands instead.
+
+   Status colours (connection failed / reconnecting) stay red/amber: those are
+   painted from C++ and are semantic, not decorative. */
+
+QWidget {
+    background-color: #071108;
+    color: #33ff88;
+    selection-background-color: #33ff88;
+    selection-color: #04140a;
+}
+
+/* The screen itself.
+
+   About the scanline tiles (crt-scan-*.png): each is a 1x3 OPAQUE strip whose
+   surface colour is baked in, and it is applied with the `background: url(...)
+   repeat` shorthand and no colour of its own. That is not a stylistic choice --
+   it is the only form Qt 5 renders correctly here, verified on screen:
+
+     * background-color + background-image + background-repeat, written as three
+       separate properties, applies the colour but paints the image exactly ONCE
+       in the top-left corner. For a 1x3 tile that is invisible.
+     * background: <colour> url(...) repeat tiles correctly but drops the
+       colour, leaving the surface black.
+
+   So the colour lives in the pixels instead. When changing a surface colour,
+   regenerate its tile as well, or the two will disagree. */
+QMainWindow, QDialog {
+    background: url(:/icons/crt-scan-screen.png) repeat;
+}
+
+/* Every other container that fills real estate. The QMainWindow rule alone is
+   almost invisible in practice -- the two panels cover nearly all of it -- so
+   the texture has to be named on the widgets that are actually on top, and Qt
+   does not inherit a background-image the way it inherits a colour.
+
+   These are class-name selectors, which Qt matches against
+   QObject::metaObject()->className(); all of them declare Q_OBJECT.
+
+   Deliberately NOT textured: the sunken surfaces (file lists, tree, text and
+   image areas, line edits, combo popups). Those are the "screen" a CRT would be
+   showing content on, and scanlines behind text are the one place the effect
+   costs legibility instead of adding to it. */
+FilePanel, TitleBar, FunctionKeyBar, CommandBar, BreadcrumbBar,
+StatusBarWidget, FramelessDialog, QMessageBox, QTabBar, QToolBar,
+QDialogButtonBox, QGroupBox {
+    background: url(:/icons/crt-scan-chrome.png) repeat;
+}
+
+/* TitleBar paints its own rounded-top shape, so a `background:` rule cannot
+   reach it -- it takes the tile through a qproperty instead (see TitleBar.h). */
+TitleBar {
+    qproperty-backgroundTile: url(:/icons/crt-scan-chrome.png);
+}
+
+/* Bare QWidget containers that sit ON a textured parent. Qt paints the sheet's
+   QWidget background onto these, which would cover the texture with a flat
+   colour; transparent lets the parent's show through -- and keeps the scanlines
+   in phase, which a second tiled copy would not (a background-image's origin is
+   each widget's own top-left). */
+QWidget#PanelAddressRow, QWidget#BreadcrumbSegments {
+    background: transparent;
+}
+
+QMenuBar {
+    background: url(:/icons/crt-scan-chrome.png) repeat;
+    border-bottom: 1px solid #1fa85c;
+}
+
+QMenuBar::item {
+    background: transparent;
+    padding: 4px 10px;
+}
+
+/* Selection inverts, the way a block cursor does on a terminal. */
+QMenuBar::item:selected {
+    background-color: #33ff88;
+    color: #04140a;
+}
+
+QMenu {
+    background: url(:/icons/crt-scan-chrome.png) repeat;
+    border: 1px solid #1fa85c;
+}
+
+/* Colour spelled out rather than inherited, so a plain action can never fall
+   back to the platform style's own menu-text colour. Note that Latin entries
+   look dimmer than CJK ones at 1x -- thin strokes over a saturated green, not a
+   colour difference: sampling "About this Program..." gives exactly #33ff88. */
+QMenu::item {
+    padding: 4px 24px;
+    color: #33ff88;
+}
+
+QMenu::item:disabled {
+    color: #12602f;
+}
+
+QMenu::item:selected {
+    background-color: #33ff88;
+    color: #04140a;
+}
+
+QMenu::separator {
+    height: 1px;
+    background: #12602f;
+    margin: 3px 0;
+}
+
+QToolBar {
+    background: url(:/icons/crt-scan-chrome.png) repeat;
+    border: none;
+    spacing: 2px;
+}
+
+QToolBar QToolButton {
+    background: transparent;
+    padding: 4px 8px;
+    border-radius: 0;
+    color: #33ff88;
+}
+
+QToolBar QToolButton:hover {
+    background-color: #12602f;
+}
+
+/* File lists. No texture here: FileItemDelegate paints cells straight from the
+   palette (see its note in FileListView.cpp), so an image would be covered.
+   The alternating band is the scanline stand-in -- one shade apart, enough to
+   read as raster without turning into zebra stripes. */
+QTableView {
+    background-color: #04140a;
+    color: #33ff88;
+    alternate-background-color: #071a0d;
+    gridline-color: #12602f;
+    border: 1px solid #1fa85c;
+    /* On the widget, not a ::item rule, so these fold into the palette for the
+       delegate's fast path -- same reason as light.qss/dark.qss. */
+    selection-background-color: #33ff88;
+    selection-color: #04140a;
+}
+
+/* Inactive panel: the unlit trace, so the active panel's inverted row is
+   unmistakably the one with focus. */
+QTableView[panelActive="false"] {
+    selection-background-color: #12602f;
+    selection-color: #7ce8ac;
+}
+
+/* PlainHeaderView paints itself, so ::section styling cannot reach it; these
+   qproperty hooks are how a themed header gets its colours (see the class note
+   in FileListView.cpp). The ::section rule below still covers any plain
+   QHeaderView elsewhere in the app. */
+/* Matched by class name, NOT by the QHeaderView base: Qt applies a
+   qproperty- rule to every widget the selector matches and warns on stderr for
+   each one that lacks the property, so a plain `QHeaderView` selector produces
+   a warning per ordinary header (dialogs, tree views) on every polish. */
+PlainHeaderView {
+    qproperty-sectionBackground: #0a1a0d;
+    qproperty-sectionForeground: #33ff88;
+    qproperty-sectionBorder: #1fa85c;
+}
+
+QHeaderView::section {
+    background-color: #0a1a0d;
+    color: #33ff88;
+    padding: 4px;
+    border: none;
+    border-right: 1px solid #1fa85c;
+    border-bottom: 1px solid #1fa85c;
+    font-weight: normal;
+}
+
+QLineEdit {
+    background-color: #04140a;
+    color: #33ff88;
+    border: 1px solid #12602f;
+    border-radius: 0;
+    padding: 3px 6px;
+    selection-background-color: #33ff88;
+    selection-color: #04140a;
+}
+
+QLineEdit:focus {
+    border: 1px solid #33ff88;
+}
+
+QComboBox {
+    background-color: #04140a;
+    color: #33ff88;
+    border: 1px solid #12602f;
+    border-radius: 0;
+    padding: 2px 6px;
+}
+
+QComboBox:focus {
+    border: 1px solid #33ff88;
+}
+
+QComboBox:hover {
+    border: 1px solid #1fa85c;
+}
+
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: center right;
+    width: 18px;
+    border: none;
+    background: transparent;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #0a1a0d;
+    color: #33ff88;
+    border: 1px solid #1fa85c;
+    outline: none;
+    selection-background-color: #33ff88;
+    selection-color: #04140a;
+}
+
+/* Spelled out on ::item for the same DTK reason documented in dark.qss. */
+QComboBox QAbstractItemView::item {
+    color: #33ff88;
+    padding: 3px 8px;
+    min-height: 20px;
+}
+
+QComboBox QAbstractItemView::item:selected {
+    background-color: #33ff88;
+    color: #04140a;
+}
+
+/* Buttons read as key caps: unlit face, lit border, inverted when pressed. */
+QPushButton {
+    background: url(:/icons/crt-scan-chrome.png) repeat;
+    color: #33ff88;
+    border: 1px solid #1fa85c;
+    border-radius: 0;
+    padding: 5px 10px;
+}
+
+QPushButton:hover {
+    background-color: #12602f;
+    border: 1px solid #33ff88;
+}
+
+QPushButton:pressed {
+    background-color: #33ff88;
+    color: #04140a;
+}
+
+QPushButton:disabled {
+    color: #12602f;
+    border: 1px solid #12602f;
+}
+
+QToolButton {
+    background: transparent;
+    color: #33ff88;
+    border: 1px solid transparent;
+    border-radius: 0;
+    padding: 3px 6px;
+}
+
+QToolButton:hover {
+    background-color: #12602f;
+    border: 1px solid #1fa85c;
+}
+
+QToolButton:pressed {
+    background-color: #33ff88;
+    color: #04140a;
+}
+
+QTabBar::tab {
+    background: url(:/icons/crt-scan-chrome.png) repeat;
+    color: #1fa85c;
+    border: 1px solid #12602f;
+    border-bottom: none;
+    padding: 5px 12px;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+}
+
+/* TabBar paints its own accent line from QPalette::Highlight, which the
+   selection-background-color above already set to the lit phosphor. Keep the
+   tab face itself flat, like dark.qss does -- but brighten the label, since
+   an unselected tab is deliberately dimmed to the half-lit green. */
+QTabBar::tab:selected {
+    background: url(:/icons/crt-scan-chrome.png) repeat;
+    color: #33ff88;
+}
+
+QTabBar::tab:hover {
+    color: #33ff88;
+}
+
+QStatusBar {
+    background: url(:/icons/crt-scan-chrome.png) repeat;
+    border-top: 1px solid #1fa85c;
+    color: #33ff88;
+}
+
+QStatusBar::item {
+    border: none;
+}
+
+QProgressBar {
+    background-color: #04140a;
+    border: 1px solid #1fa85c;
+    border-radius: 0;
+    text-align: center;
+    color: #33ff88;
+}
+
+/* A blocky, stepped fill rather than one smooth bar -- the chunk is drawn in
+   segments by giving it a margin, which is what makes it look like discrete
+   character cells filling up. */
+QProgressBar::chunk {
+    background-color: #33ff88;
+    width: 8px;
+    margin: 1px;
+}
+
+QMessageBox {
+    background-color: #071108;
+}
+
+QLabel {
+    background: transparent;
+    color: #33ff88;
+}
+
+QCheckBox, QRadioButton {
+    color: #33ff88;
+    background: transparent;
+}
+
+QCheckBox::indicator, QRadioButton::indicator {
+    width: 12px;
+    height: 12px;
+    border: 1px solid #1fa85c;
+    background: #04140a;
+}
+
+QCheckBox::indicator:checked, QRadioButton::indicator:checked {
+    background: #33ff88;
+}
+
+QGroupBox {
+    border: 1px solid #12602f;
+    border-radius: 0;
+    margin-top: 8px;
+    padding-top: 6px;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 8px;
+    padding: 0 4px;
+    color: #33ff88;
+}
+
+QSplitter::handle {
+    background-color: #12602f;
+}
+
+QPlainTextEdit, QTextEdit {
+    background-color: #04140a;
+    color: #33ff88;
+    border: 1px solid #12602f;
+    border-radius: 0;
+    selection-background-color: #33ff88;
+    selection-color: #04140a;
+}
+
+/* Square scrollbars with no rounding, so the trough reads as a channel. */
+QScrollBar:vertical, QScrollBar:horizontal {
+    background: #04140a;
+    border: none;
+}
+
+QScrollBar::handle {
+    background: #12602f;
+    border-radius: 0;
+}
+
+QScrollBar::handle:hover {
+    background: #1fa85c;
+}
+
+QScrollBar::add-line, QScrollBar::sub-line {
+    height: 0;
+    width: 0;
+    background: transparent;
+}
+
+QTreeView {
+    background-color: #04140a;
+    color: #33ff88;
+    border: 1px solid #12602f;
+    alternate-background-color: #071a0d;
+    selection-background-color: #33ff88;
+    selection-color: #04140a;
+}
+
+/* Branch arrows: the light-tinted SVGs are the readable pair against a near
+   black screen, same choice dark.qss makes. */
+QTreeView::branch:has-children:!has-siblings:closed,
+QTreeView::branch:closed:has-children:has-siblings {
+    border-image: none;
+    image: url(:/icons/branch-closed-light.svg);
+}
+QTreeView::branch:open:has-children:!has-siblings,
+QTreeView::branch:open:has-children:has-siblings {
+    border-image: none;
+    image: url(:/icons/branch-open-light.svg);
+}
+
+QToolTip {
+    background: url(:/icons/crt-scan-chrome.png) repeat;
+    color: #33ff88;
+    border: 1px solid #33ff88;
+    border-radius: 0;
+    padding: 3px;
+}
+
+/* External-connection fly-out. Square top corners here too: the rounded
+   treatment the other themes use is exactly the thing a CRT theme should not
+   have. The bottom border is still dropped so it merges with its button. */
+#ExternalConnectPanel {
+    background: url(:/icons/crt-scan-screen.png) repeat;
+    border: 1px solid #33ff88;
+    border-bottom: none;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+}
+#ExternalConnectPanel QListWidget#ExternalConnectList {
+    background-color: #04140a;
+    border: 1px solid #12602f;
+    border-radius: 0;
+    outline: none;
+}
+#ExternalConnectPanel QListWidget#ExternalConnectList::item {
+    padding: 4px 6px;
+    border-radius: 0;
+    color: #33ff88;
+}
+#ExternalConnectPanel QListWidget#ExternalConnectList::item:hover {
+    background-color: #12602f;
+}
+#ExternalConnectPanel QListWidget#ExternalConnectList::item:selected {
+    background-color: #33ff88;
+    color: #04140a;
+}
+#ExternalConnectPanel QListWidget#ExternalConnectList QScrollBar:vertical {
+    width: 7px;
+    background: transparent;
+    margin: 0;
+}
+#ExternalConnectPanel QListWidget#ExternalConnectList QScrollBar::add-line:vertical,
+#ExternalConnectPanel QListWidget#ExternalConnectList QScrollBar::sub-line:vertical {
+    height: 0;
+    background: transparent;
+}
+
+/* Quick-notepad fly-out: same treatment. */
+#NotepadPanel {
+    background: url(:/icons/crt-scan-screen.png) repeat;
+    border: 1px solid #33ff88;
+    border-bottom: none;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+}
+#NotepadPanel QListWidget#NotepadList {
+    background-color: #04140a;
+    border: 1px solid #12602f;
+    border-radius: 0;
+    outline: none;
+}
+#NotepadPanel QListWidget#NotepadList::item {
+    padding: 4px 6px;
+    border-radius: 0;
+    color: #33ff88;
+}
+#NotepadPanel QListWidget#NotepadList::item:hover {
+    background-color: #12602f;
+}
+#NotepadPanel QListWidget#NotepadList::item:selected {
+    background-color: #33ff88;
+    color: #04140a;
+}
+#NotepadPanel QPlainTextEdit#NotepadEditor {
+    background-color: #04140a;
+    border: 1px solid #12602f;
+    border-radius: 0;
+    color: #33ff88;
+}
+#NotepadPanel QSplitter#NotepadSplitter::handle {
+    background-color: #12602f;
+}
+#NotepadPanel QListWidget#NotepadList QScrollBar:vertical {
+    width: 7px;
+    background: transparent;
+    margin: 0;
+}
+#NotepadPanel QListWidget#NotepadList QScrollBar::add-line:vertical,
+#NotepadPanel QListWidget#NotepadList QScrollBar::sub-line:vertical {
+    height: 0;
+    background: transparent;
+}

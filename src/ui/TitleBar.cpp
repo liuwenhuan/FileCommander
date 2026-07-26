@@ -14,6 +14,12 @@
 
 TitleBar::TitleBar(QWidget *window, const QList<QMenu *> &menus, QWidget *parent)
     : QWidget(parent), m_window(window) {
+    // A plain QWidget subclass does not paint a stylesheet background unless
+    // it is told to; without this the CRT theme's scanline texture stops at
+    // the Qt-provided widgets and this one stays flat. light.qss/dark.qss
+    // declare `background: transparent` for this class so their appearance is
+    // unchanged -- it shows the parent, exactly as it did before.
+    setAttribute(Qt::WA_StyledBackground, true);
     setAutoFillBackground(false);
     // Translucent so the rounded top corners reveal the window's shadow/rounded
     // background behind them (the window is frameless, xcb; see MainWindow).
@@ -139,7 +145,10 @@ void TitleBar::paintEvent(QPaintEvent *) {
     // kCornerRadius); a maximized window is square.
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
-    const QColor bg = palette().color(QPalette::Window);
+    // A tile, when the theme supplied one, else the flat window colour.
+    const QBrush bg = m_backgroundTile.isNull()
+                          ? QBrush(palette().color(QPalette::Window))
+                          : QBrush(m_backgroundTile);
     if (m_window && m_window->isMaximized()) {
         p.fillRect(rect(), bg);
     } else {

@@ -766,6 +766,18 @@ Extract it too?</source>
         <translation>Oscuro</translation>
     </message>
     <message>
+        <source>Green CRT</source>
+        <translation>CRT verde</translation>
+    </message>
+    <message>
+        <source>Tint images to match</source>
+        <translation>Teñir también las imágenes</translation>
+    </message>
+    <message>
+        <source>Recolour thumbnails, previews and video to the phosphor hue. Only applies to the Green CRT theme.</source>
+        <translation>Recolorea miniaturas, vistas previas y vídeo al tono de fósforo. Solo se aplica al tema CRT verde.</translation>
+    </message>
+    <message>
         <source>Navigation</source>
         <translation type="vanished">Navegación</translation>
     </message>

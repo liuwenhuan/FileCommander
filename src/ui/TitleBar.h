@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QList>
+#include <QPixmap>
 #include <QWidget>
 
 class QMenu;
@@ -14,6 +15,16 @@ class QAbstractButton;
 // rather than a QMenuBar, which collapses to a ">>" overflow as a layout item.
 class TitleBar : public QWidget {
     Q_OBJECT
+    // Painted background tile, for a theme with a texture rather than a flat
+    // colour. paintEvent draws its own rounded-top shape (the frameless window
+    // needs it), so a stylesheet `background:` can never reach this widget --
+    // this hook is how a sheet hands it one:
+    //
+    //     TitleBar { qproperty-backgroundTile: url(:/icons/crt-scan-chrome.png); }
+    //
+    // Null (the default) keeps the palette's window colour, so light.qss and
+    // dark.qss need no changes.
+    Q_PROPERTY(QPixmap backgroundTile MEMBER m_backgroundTile)
 
 public:
     TitleBar(QWidget *window, const QList<QMenu *> &menus, QWidget *parent = nullptr);
@@ -36,6 +47,8 @@ protected:
     void mouseReleaseEvent(QMouseEvent *event) override;
     void mouseDoubleClickEvent(QMouseEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
+
+    QPixmap m_backgroundTile;
 
 private:
     QWidget *m_window;

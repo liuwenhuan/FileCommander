@@ -10,6 +10,8 @@ add_executable(ui_tests
     test_ExifThumbnail.cpp
     test_VideoFrameQuality.cpp
     test_ThumbnailSweep.cpp
+    test_ThumbnailCacheReuse.cpp
+    test_ThumbnailCachePrune.cpp
     test_ThumbnailSweepDrive.cpp
     test_Mp4RangePlan.cpp
     test_IconFileView.cpp
@@ -20,8 +22,6 @@ add_executable(ui_tests
     test_TreeRootBuilder.cpp
     test_DirectoryTreeModel.cpp
     test_SlideSceneImageCache.cpp
-    test_ThumbnailCacheReuse.cpp
-    test_ThumbnailCachePrune.cpp
     test_MpvStreamSource.cpp
     test_SearchEngine.cpp
     test_DragPayload.cpp

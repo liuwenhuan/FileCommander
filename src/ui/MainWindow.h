@@ -103,6 +103,12 @@ private slots:
     void openSearch(); // Ctrl+F
     void openShortcutsDialog();
     void setTheme(Settings::Theme theme);
+    // Toggles whether content (thumbnails, previews, video) follows the CRT
+    // theme's phosphor hue. Only meaningful under Theme::Crt.
+    void setPhosphorImages(bool on);
+    // Pushes the current theme + phosphor setting everywhere it is consumed
+    // (stylesheet, icon tints, app icon, thumbnail memory cache, menu state).
+    void applyTheme();
     void setLanguage(const QString &language);
     void openMultiRenameDialog(); // Ctrl+M
     void openSyncDialog();
@@ -269,6 +275,7 @@ private:
     QMenu *m_toolsMenu = nullptr;    // owned; rebuilt on language change
     QMenu *m_configMenu = nullptr;   // owned; rebuilt on language change
     QMenu *m_viewMenu = nullptr;     // owned; rebuilt on language change
+    QAction *m_phosphorImagesAction = nullptr; // enabled only under the CRT theme
     bool m_shortcutsBuilt = false;   // one-shot guard for QShortcut creation
 
     // Frameless-chrome paint cache: the shadow + rounded frame rendered once at

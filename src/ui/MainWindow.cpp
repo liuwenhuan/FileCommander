@@ -267,7 +267,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         restoreGeometry(savedGeometry);
 
     m_themeManager = new ThemeManager(this);
-    m_themeManager->apply(m_settings.theme());
+    // Not applyTheme() yet: the panels and the menu action it refreshes do not
+    // exist this early. The stylesheet and the tints do have to be in place
+    // before any widget is built, though, or the first paint uses the wrong one.
+    m_themeManager->apply(m_settings.theme(), m_settings.phosphorImages());
 
     // A self-painted splitter so the divider line runs the full panel height
     // -- up through the breadcrumb and tab row -- clearly separating the two
@@ -720,6 +723,7 @@ void MainWindow::buildTitleBarMenus() {
         {Settings::Theme::Auto, tr("Auto")},
         {Settings::Theme::Light, tr("Light")},
         {Settings::Theme::Dark, tr("Dark")},
+        {Settings::Theme::Crt, tr("Green CRT")},
     };
     for (const auto &entry : themeEntries) {
         QAction *action = themeMenu->addAction(entry.label);
@@ -729,6 +733,20 @@ void MainWindow::buildTitleBarMenus() {
         connect(action, &QAction::triggered, this,
                 [this, theme = entry.theme]() { setTheme(theme); });
     }
+
+    // Content recolouring. Disabled (not hidden) outside the CRT theme: a
+    // vanishing entry reads as a missing feature, a greyed one reads as "not
+    // applicable here", which is what it is.
+    themeMenu->addSeparator();
+    m_phosphorImagesAction = themeMenu->addAction(tr("Tint images to match"));
+    m_phosphorImagesAction->setCheckable(true);
+    m_phosphorImagesAction->setChecked(m_settings.phosphorImages());
+    m_phosphorImagesAction->setEnabled(m_settings.theme() == Settings::Theme::Crt);
+    m_phosphorImagesAction->setToolTip(
+        tr("Recolour thumbnails, previews and video to the phosphor hue. "
+           "Only applies to the Green CRT theme."));
+    connect(m_phosphorImagesAction, &QAction::triggered, this,
+            &MainWindow::setPhosphorImages);
 
     QMenu *languageMenu = viewMenu->addMenu(tr("&Language"));
     auto *languageGroup = new QActionGroup(this);
@@ -2998,7 +3016,37 @@ void MainWindow::reconnectSavedTab(FilePanel *panel, int index) {
 
 void MainWindow::setTheme(Settings::Theme theme) {
     m_settings.setTheme(theme);
-    m_themeManager->apply(theme);
+    applyTheme();
+}
+
+void MainWindow::setPhosphorImages(bool on) {
+    m_settings.setPhosphorImages(on);
+    applyTheme();
+}
+
+void MainWindow::applyTheme() {
+    m_themeManager->apply(m_settings.theme(), m_settings.phosphorImages());
+    // The memory cache holds thumbnails already tinted under the previous
+    // setting, keyed by it. Dropping them costs one re-tint from the stored
+    // bitmaps; the disk cache is untouched, so nothing is re-fetched or
+    // re-decoded. Repaint so the panels ask for the new copies right away.
+    ThumbnailCache::instance().invalidateMemoryCache();
+    if (m_leftPanel)
+        m_leftPanel->update();
+    if (m_rightPanel)
+        m_rightPanel->update();
+    // The preview pane holds bitmaps recoloured when the file was opened, so it
+    // would otherwise keep the previous treatment until the next file. Both the
+    // embedded pane and any open F3 viewer window.
+    if (m_quickView)
+        m_quickView->refreshPhosphor();
+    for (QWidget *w : QApplication::topLevelWidgets()) {
+        if (auto *viewer = qobject_cast<ViewerWindow *>(w))
+            viewer->refreshPhosphor();
+    }
+    // Menu entries that only apply to the CRT theme.
+    if (m_phosphorImagesAction)
+        m_phosphorImagesAction->setEnabled(m_settings.theme() == Settings::Theme::Crt);
 }
 
 void MainWindow::setLanguage(const QString &language) {

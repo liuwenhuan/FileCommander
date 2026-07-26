@@ -55,6 +55,12 @@
 #include <algorithm>
 
 FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
+    // A plain QWidget subclass does not paint a stylesheet background unless
+    // it is told to; without this the CRT theme's scanline texture stops at
+    // the Qt-provided widgets and this one stays flat. light.qss/dark.qss
+    // declare `background: transparent` for this class so their appearance is
+    // unchanged -- it shows the parent, exactly as it did before.
+    setAttribute(Qt::WA_StyledBackground, true);
     m_model = new FileSystemModel(this);
     m_view = new FileListView(this);
     m_view->setModel(m_model);
@@ -123,6 +129,13 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     });
 
     auto *addressRow = new QWidget(this);
+    // Named so a theme can reach it. It is a bare QWidget, which Qt DOES paint
+    // the sheet's `QWidget { background }` onto -- covering the panel behind it
+    // with a flat colour. The CRT sheet makes it transparent instead, so the
+    // panel's own texture shows through; letting each container tile its own
+    // copy would also put the scanlines out of phase between neighbours, since
+    // a background-image's origin is the widget's own top-left corner.
+    addressRow->setObjectName(QStringLiteral("PanelAddressRow"));
     auto *addressLayout = new QHBoxLayout(addressRow);
     addressLayout->setContentsMargins(0, 0, 0, 0);
     addressLayout->setSpacing(2);

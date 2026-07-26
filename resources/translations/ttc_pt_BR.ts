@@ -766,6 +766,18 @@ Extrair também?</translation>
         <translation>Escuro</translation>
     </message>
     <message>
+        <source>Green CRT</source>
+        <translation>CRT verde</translation>
+    </message>
+    <message>
+        <source>Tint images to match</source>
+        <translation>Tingir também as imagens</translation>
+    </message>
+    <message>
+        <source>Recolour thumbnails, previews and video to the phosphor hue. Only applies to the Green CRT theme.</source>
+        <translation>Recolore miniaturas, pré-visualizações e vídeo no tom de fósforo. Aplica-se apenas ao tema CRT verde.</translation>
+    </message>
+    <message>
         <source>Navigation</source>
         <translation type="vanished">Navegação</translation>
     </message>

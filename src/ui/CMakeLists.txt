@@ -1,4 +1,8 @@
 add_library(ui STATIC
+    AppIcon.h
+    AppIcon.cpp
+    theme/PhosphorEffect.h
+    theme/PhosphorEffect.cpp
     MainWindow.h
     MainWindow.cpp
     BreadcrumbBar.h

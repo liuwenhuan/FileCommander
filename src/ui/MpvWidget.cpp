@@ -236,6 +236,20 @@ void MpvWidget::load(const QString &path) {
     mpv_set_property_async(m_mpv, 0, "pause", MPV_FORMAT_FLAG, &unpaused);
 }
 
+void MpvWidget::applyVideoFilter(const QString &filter) {
+    if (m_videoFilter == filter)
+        return;
+    m_videoFilter = filter;
+    if (!m_mpv)
+        return;
+    // "vf" is a persistent core property, so it survives loadfile and only has
+    // to be set when it changes. Setting it while a clip is playing rebuilds
+    // the filter chain, which can drop a frame -- acceptable for a theme
+    // switch, and the alternative (deferring to the next load) would leave the
+    // picture visibly out of step with the rest of the window.
+    mpv_set_property_string(m_mpv, "vf", m_videoFilter.toUtf8().constData());
+}
+
 void MpvWidget::stop() {
     if (!m_mpv)
         return;

@@ -67,6 +67,8 @@
 #include "ImageViewer.h"
 #include "MpvStreamSource.h"
 #include "MpvWidget.h"
+#include "theme/Phosphor.h"
+#include "theme/PhosphorEffect.h"
 #include "OfficeConverter.h"
 #include "SeekSlider.h"
 #include "SlideSceneBuilder.h"
@@ -310,8 +312,14 @@ void QuickView::applyImageScale() {
     if (m_originalPixmap.isNull())
         return;
     const QSize target = m_originalPixmap.size() * m_imageScale;
-    m_imageLabel->setPixmap(
-        m_originalPixmap.scaled(target, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    // Recoloured HERE, after the fit-to-pane scale, not when the file was
+    // loaded. The quantisation grid is defined in screen pixels: applying it to
+    // the full-resolution source and then scaling down averages the cells away
+    // again, which is exactly what a 4000-pixel photo shown in a 600-pixel pane
+    // did -- correctly tinted and perfectly smooth.
+    m_imageLabel->setPixmap(fc::tintedPixmap(
+        m_originalPixmap.scaled(target, Qt::KeepAspectRatio, Qt::SmoothTransformation),
+        fc::contentTint()));
     m_imageLabel->resize(target);
     // Hint that the image can be dragged when it overflows the viewport.
     const bool pannable = target.width() > m_imageScroll->viewport()->width() ||
@@ -739,6 +747,58 @@ QWidget *QuickView::buildVideoPage() {
     return m_videoPage;
 }
 
+void QuickView::refreshPhosphor() {
+    // Called when the theme, or the "tint images" toggle, changes. Every
+    // preview holds a bitmap (or a scene) that was recoloured -- or left alone
+    // -- when it was produced, so none of them notice a settings change on
+    // their own; the pane just keeps showing the old treatment until the file
+    // is opened again. Each surface is re-derived here from what it kept.
+    const QColor tint = fc::contentTint();
+
+    // Image: the source pixmap is untouched, so re-running the scale step is
+    // the whole job.
+    if (!m_originalPixmap.isNull())
+        applyImageScale();
+
+    // Audio cover: kept as decoded, for exactly this reason.
+    if (!m_audioCoverSource.isNull() && m_audioCover) {
+        m_audioCover->setPixmap(fc::tintedPixmap(
+            m_audioCoverSource.scaled(m_audioCover->size(), Qt::KeepAspectRatio,
+                                      Qt::SmoothTransformation),
+            tint));
+    }
+
+    // PDF: the page bitmaps were tinted as they came out of Poppler. Marking
+    // every page un-rendered makes renderVisiblePdfPages() redraw the on-screen
+    // ones (and only those) from the document.
+    if (m_pdfDoc) {
+        for (int i = 0; i < m_pdfRenderedWidth.size(); ++i)
+            m_pdfRenderedWidth[i] = -1;
+        renderVisiblePdfPages();
+    }
+
+    // Slides: the effect is attached per built page, so it can be swapped in
+    // place -- no need to rebuild the item trees.
+    for (int i = 0; i < m_slidePageItems.size(); ++i) {
+        QGraphicsItem *page = m_slidePageItems.at(i);
+        if (!page || !m_slideBuilt.value(i))
+            continue;
+        page->setGraphicsEffect(tint.isValid() ? new ttc::PhosphorEffect(tint) : nullptr);
+    }
+
+    applyVideoPhosphor();
+}
+
+void QuickView::applyVideoPhosphor() {
+    if (!m_mpv)
+        return;
+    // Width in the same pixels the block is measured in: the widget's logical
+    // width times its device pixel ratio.
+    const int displayWidth = qRound(m_mpv->width() * m_mpv->devicePixelRatioF());
+    m_mpv->applyVideoFilter(
+        fc::mpvFilterFor(fc::contentTint(), fc::contentPixelBlock(), displayWidth));
+}
+
 void QuickView::positionVideoInfoOverlay() {
     if (!m_videoInfoOverlay->isVisible())
         return;
@@ -989,9 +1049,12 @@ void QuickView::showAudio(const QString &path) {
     QPixmap cover;
     if (tags.hasCover())
         cover.loadFromData(tags.coverData);
+    m_audioCoverSource = cover; // kept undyed so refreshPhosphor() can redo it
     if (!cover.isNull()) {
-        m_audioCover->setPixmap(cover.scaled(m_audioCover->size(), Qt::KeepAspectRatio,
-                                             Qt::SmoothTransformation));
+        m_audioCover->setPixmap(
+            fc::tintedPixmap(cover.scaled(m_audioCover->size(), Qt::KeepAspectRatio,
+                                          Qt::SmoothTransformation),
+                             fc::contentTint()));
     } else {
         m_audioCover->setPixmap(
             style()
@@ -2022,7 +2085,8 @@ void QuickView::renderVisiblePdfPages() {
                 std::unique_ptr<Poppler::Page> page(m_pdfDoc->page(i));
                 const QImage image = page ? page->renderToImage(dpi, dpi) : QImage();
                 if (!image.isNull()) {
-                    bg->setPixmap(QPixmap::fromImage(image));
+                    bg->setPixmap(
+                        fc::tintedPixmap(QPixmap::fromImage(image), fc::contentTint()));
                     m_pdfRenderedWidth[i] = targetW;
                 }
             }
@@ -2304,6 +2368,12 @@ void QuickView::buildSlideItem(int i) {
     m_slideBuilt[i] = true;
     if (!page)
         return; // keep the placeholder
+    // A slide is a tree of vector items and embedded bitmaps, so unlike the
+    // image and PDF paths there is nothing to recolour on the way in -- the
+    // effect tints the rasterised page instead. Attached per page (not to the
+    // view) so the cost is bounded by one slide, and only when there is a tint.
+    if (fc::contentTint().isValid())
+        page->setGraphicsEffect(new ttc::PhosphorEffect(fc::contentTint()));
     delete m_slidePageItems[i]; // removes the placeholder from the scene
     m_slidesScene->addItem(page);
     page->setPos(0, m_slidePageTop[i]);
@@ -2472,6 +2542,11 @@ bool QuickView::eventFilter(QObject *watched, QEvent *event) {
     }
     if (watched == m_mpv && event->type() == QEvent::Resize) {
         positionVideoInfoOverlay(); // keep the panel pinned to the top-right corner
+        // The phosphor quantisation is sized from how wide the video is drawn,
+        // so a resized pane needs a rebuilt chain or the cells stop matching
+        // the thumbnails'. Cheap and idempotent: applyVideoFilter compares the
+        // string and does nothing when the cell count has not actually moved.
+        applyVideoPhosphor();
         // fall through to default handling
     }
     // Resizing the PDF viewport re-fits every page to the new width; debounce so a
@@ -2623,6 +2698,10 @@ void QuickView::showFile(const QString &path) {
 
         m_progressSlider->setValue(0);
         m_playButton->setText(tr("Pause")); // loadfile starts playing
+        // Pushed before loadfile so the first decoded frame is already tinted;
+        // applyVideoFilter is a no-op when the chain is unchanged, which it is
+        // for every load between theme switches.
+        applyVideoPhosphor();
         m_mpv->load(path);
         m_stack->setCurrentWidget(m_videoPage);
         if (m_videoInfoCheck->isChecked()) {
@@ -2721,6 +2800,8 @@ void QuickView::showFile(const QString &path) {
         const QString format = QString::fromLatin1(reader.format()).toUpper();
         QPixmap pm(path);
         if (!pm.isNull()) {
+            // Kept as the untouched original. Recolouring happens in
+            // applyImageScale(), at display resolution -- see the note there.
             m_originalPixmap = pm;
             m_imagePath = path;
             loadImageSiblings(); // enable prev/next among sibling images

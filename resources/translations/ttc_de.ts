@@ -766,6 +766,18 @@ Dieses auch entpacken?</translation>
         <translation>Dunkel</translation>
     </message>
     <message>
+        <source>Green CRT</source>
+        <translation>Grüner Röhrenmonitor</translation>
+    </message>
+    <message>
+        <source>Tint images to match</source>
+        <translation>Bilder mit einfärben</translation>
+    </message>
+    <message>
+        <source>Recolour thumbnails, previews and video to the phosphor hue. Only applies to the Green CRT theme.</source>
+        <translation>Färbt Miniaturansichten, Vorschauen und Videos im Phosphorton ein. Gilt nur für das Thema „Grüner Röhrenmonitor“.</translation>
+    </message>
+    <message>
         <source>Navigation</source>
         <translation type="vanished">Navigation</translation>
     </message>

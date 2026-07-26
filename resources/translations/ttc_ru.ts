@@ -766,6 +766,18 @@ Extract it too?</source>
         <translation>Тёмная</translation>
     </message>
     <message>
+        <source>Green CRT</source>
+        <translation>Зелёный ЭЛТ</translation>
+    </message>
+    <message>
+        <source>Tint images to match</source>
+        <translation>Тонировать изображения</translation>
+    </message>
+    <message>
+        <source>Recolour thumbnails, previews and video to the phosphor hue. Only applies to the Green CRT theme.</source>
+        <translation>Перекрашивает миниатюры, предпросмотр и видео в люминофорный оттенок. Только для темы «Зелёный ЭЛТ».</translation>
+    </message>
+    <message>
         <source>Navigation</source>
         <translation type="vanished">Навигация</translation>
     </message>

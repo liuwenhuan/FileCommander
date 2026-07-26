@@ -766,6 +766,18 @@ Extract it too?</source>
         <translation>ダーク</translation>
     </message>
     <message>
+        <source>Green CRT</source>
+        <translation>グリーンCRT</translation>
+    </message>
+    <message>
+        <source>Tint images to match</source>
+        <translation>画像も同じ色調に</translation>
+    </message>
+    <message>
+        <source>Recolour thumbnails, previews and video to the phosphor hue. Only applies to the Green CRT theme.</source>
+        <translation>サムネイル・プレビュー・動画を蛍光色に再着色します。グリーンCRTテーマでのみ有効。</translation>
+    </message>
+    <message>
         <source>Navigation</source>
         <translation type="vanished">ナビゲーション</translation>
     </message>

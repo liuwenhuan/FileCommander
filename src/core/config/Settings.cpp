@@ -33,6 +33,14 @@ void Settings::setTheme(Theme theme) {
     m_settings.setValue("appearance/theme", static_cast<int>(theme));
 }
 
+bool Settings::phosphorImages() const {
+    return m_settings.value("appearance/phosphorImages", true).toBool();
+}
+
+void Settings::setPhosphorImages(bool on) {
+    m_settings.setValue("appearance/phosphorImages", on);
+}
+
 QString Settings::language() const {
     return m_settings.value("appearance/language", "auto").toString();
 }

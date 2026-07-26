@@ -324,3 +324,12 @@ QTreeView::branch:open:has-children:has-siblings {
     height: 0;
     background: transparent;
 }
+
+/* These are plain QWidget subclasses that now set Qt::WA_StyledBackground, so
+   that the CRT theme can give them its scanline texture. That attribute also
+   makes them paint THIS sheet's `QWidget { background-color }`, which they did
+   not before -- they showed whatever was behind them. Spelling out
+   `transparent` restores exactly that, so this theme looks unchanged. */
+FilePanel, TitleBar, FunctionKeyBar, CommandBar, BreadcrumbBar, StatusBarWidget {
+    background: transparent;
+}
