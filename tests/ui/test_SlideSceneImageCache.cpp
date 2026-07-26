@@ -53,6 +53,14 @@ QByteArray imageTag(const QByteArray &b64, const char *extraAttrs = "") {
            " xlink:href=\"data:image/png;base64," + b64 + "\"/>";
 }
 
+// A page-sized <image>, as office_oxide emits for a <p:bg> picture background:
+// the box is the whole 16:9 slide, so a non-16:9 source makes the stretch-vs-fit
+// difference plainly measurable.
+QByteArray pageImageTag(const QByteArray &b64, const char *extraAttrs = "") {
+    return QByteArray("<image x=\"0\" y=\"0\" width=\"12192000\" height=\"6858000\" ") +
+           extraAttrs + " xlink:href=\"data:image/png;base64," + b64 + "\"/>";
+}
+
 void collectPixmapItems(QGraphicsItem *item, QVector<QGraphicsPixmapItem *> *out) {
     if (auto *p = qgraphicsitem_cast<QGraphicsPixmapItem *>(item))
         out->push_back(p);
@@ -167,4 +175,82 @@ TEST(SlideSceneImageCache, CropUsesCachedSourceWithoutMutatingIt) {
 
     delete cropped;
     delete full;
+}
+
+// A <p:bg> picture background carries data-stretch="1" (PowerPoint's
+// <a:stretch><a:fillRect/>), which means "cover the page", not "fit inside it".
+// A 3:2 source on a 16:9 slide must be scaled non-uniformly to the full box --
+// letterboxing it would leave white bars down both sides that PowerPoint does
+// not show.
+TEST(SlideSceneImageCache, StretchedBackgroundFillsTheWholeBox) {
+    const QByteArray b64 = makePngBase64(600, 400); // 3:2, unlike the 16:9 page
+    QGraphicsItem *page = SlideScene::buildSlidePage(
+        wrapSvg(pageImageTag(b64, "data-stretch=\"1\"")), nullptr, nullptr);
+    ASSERT_NE(page, nullptr);
+
+    const QVector<QGraphicsPixmapItem *> items = pixmapsOf(page);
+    ASSERT_EQ(items.size(), 1);
+    // 12192000 x 6858000 EMU at kSceneScale (0.01) == 121920 x 68580 scene units.
+    const QRectF box = items[0]->sceneBoundingRect();
+    EXPECT_NEAR(box.width(), 121920.0, 1.0);
+    EXPECT_NEAR(box.height(), 68580.0, 1.0);
+
+    delete page;
+}
+
+// The same picture in the same box *without* the marker keeps the historical
+// uniform xMidYMid-meet fit: 600x400 into 121920x68580 scales by min(203.2,
+// 171.45) = 171.45, so the height fills and the width falls short. This is the
+// old-oxide / new-FileCommander compatibility case -- no attribute, no change.
+TEST(SlideSceneImageCache, UnstretchedImageKeepsUniformFit) {
+    const QByteArray b64 = makePngBase64(600, 400);
+    QGraphicsItem *page =
+        SlideScene::buildSlidePage(wrapSvg(pageImageTag(b64)), nullptr, nullptr);
+    ASSERT_NE(page, nullptr);
+
+    const QVector<QGraphicsPixmapItem *> items = pixmapsOf(page);
+    ASSERT_EQ(items.size(), 1);
+    const QRectF box = items[0]->sceneBoundingRect();
+    EXPECT_NEAR(box.height(), 68580.0, 1.0);
+    EXPECT_NEAR(box.width(), 102870.0, 1.0) << "uniform fit must letterbox, not stretch";
+    // Aspect ratio of the source survives.
+    EXPECT_NEAR(box.width() / box.height(), 1.5, 0.01);
+
+    delete page;
+}
+
+// data-stretch="0" (and any other falsey value) is not a stretch request, so a
+// future emitter that spells the default out explicitly still gets the uniform
+// fit rather than silently flipping every picture to fill.
+TEST(SlideSceneImageCache, StretchZeroIsNotAStretch) {
+    const QByteArray b64 = makePngBase64(600, 400);
+    QGraphicsItem *page = SlideScene::buildSlidePage(
+        wrapSvg(pageImageTag(b64, "data-stretch=\"0\"")), nullptr, nullptr);
+    ASSERT_NE(page, nullptr);
+
+    const QVector<QGraphicsPixmapItem *> items = pixmapsOf(page);
+    ASSERT_EQ(items.size(), 1);
+    EXPECT_NEAR(items[0]->sceneBoundingRect().width(), 102870.0, 1.0);
+
+    delete page;
+}
+
+// A stretched background that also had to be decoded downscaled still covers the
+// page: sx/sy divide by the *decoded* pixel size, so the downsample is absorbed.
+// The real 0511.pptx backdrop takes this path.
+TEST(SlideSceneImageCache, OversizedStretchedBackgroundStillCoversThePage) {
+    const QByteArray b64 = makePngBase64(9000, 3000); // 27 Mpx -> decoded downscaled
+    QGraphicsItem *page = SlideScene::buildSlidePage(
+        wrapSvg(pageImageTag(b64, "data-stretch=\"1\"")), nullptr, nullptr);
+    ASSERT_NE(page, nullptr);
+
+    const QVector<QGraphicsPixmapItem *> items = pixmapsOf(page);
+    ASSERT_EQ(items.size(), 1);
+    EXPECT_LE(qMax(items[0]->pixmap().width(), items[0]->pixmap().height()), 4096)
+        << "precondition: this payload must actually be downsampled";
+    const QRectF box = items[0]->sceneBoundingRect();
+    EXPECT_NEAR(box.width(), 121920.0, 1.0);
+    EXPECT_NEAR(box.height(), 68580.0, 1.0);
+
+    delete page;
 }

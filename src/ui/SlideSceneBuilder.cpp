@@ -463,6 +463,12 @@ QPixmap decodeImagePayload(const QByteArray &b64) {
 // cropped sub-rect out of the decoded pixmap, then scale THAT sub-image to fill the
 // SVG's target box exactly (non-uniform) -- the whole point of a crop is that the
 // retained region maps onto the shape box, so letterboxing it would be wrong.
+//
+// data-stretch="1" asks for that same fill-the-box treatment without a crop. It
+// marks a <p:bg> picture background, whose <a:stretch><a:fillRect/> means "stretch
+// over the whole page" -- letterboxing a 4:3 backdrop onto a 16:9 slide would leave
+// white bars PowerPoint never shows. Absent (the default, and everything older
+// oxide emits) keeps the uniform xMidYMid-meet fit.
 void addImage(const QXmlStreamAttributes &attrs, QGraphicsItem *page) {
     const double x = attrNum(attrs, "x") * S;
     const double y = attrNum(attrs, "y") * S;
@@ -492,6 +498,8 @@ void addImage(const QXmlStreamAttributes &attrs, QGraphicsItem *page) {
     const double bf = attrNum(attrs, "data-crop-b", 0.0) / 100000.0;
     const bool cropped = (lf > 0.0 || tf > 0.0 || rf > 0.0 || bf > 0.0) &&
                          (lf + rf < 1.0) && (tf + bf < 1.0);
+    // Stretch-to-fill marker (a:stretch/fillRect on a page background).
+    const bool stretch = attrNum(attrs, "data-stretch", 0.0) != 0.0;
     if (cropped) {
         const int iw = pm.width(), ih = pm.height();
         const int cx = qRound(iw * lf);
@@ -505,11 +513,13 @@ void addImage(const QXmlStreamAttributes &attrs, QGraphicsItem *page) {
     auto *item = new QGraphicsPixmapItem(pm, page);
     item->setTransformationMode(Qt::SmoothTransformation);
     // Scale the (possibly cropped) pixmap into the SVG's target box. The pixmap item
-    // draws in its own pixels, so scale = box / pixel size. A crop fills the box
-    // exactly (non-uniform); an uncropped image keeps the xMidYMid-meet uniform scale.
+    // draws in its own pixels, so scale = box / pixel size -- which also absorbs any
+    // downsampling decodeImagePayload() applied, since sx/sy divide by the *decoded*
+    // size. A crop or an explicit stretch fills the box exactly (non-uniform); every
+    // other image keeps the xMidYMid-meet uniform scale.
     const double sx = pm.width() > 0 ? w / double(pm.width()) : 1.0;
     const double sy = pm.height() > 0 ? h / double(pm.height()) : 1.0;
-    if (cropped) {
+    if (cropped || stretch) {
         item->setTransform(QTransform::fromScale(sx, sy));
     } else {
         item->setScale(qMin(sx, sy)); // uniform scale (matches xMidYMid meet intent)
