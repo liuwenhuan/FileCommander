@@ -73,7 +73,19 @@ ArchiveProvider::ArchiveProvider(const QString &archivePath, QString *error)
     buildTree(stripPrefix);
 }
 
-ArchiveProvider::~ArchiveProvider() = default;
+ArchiveProvider::~ArchiveProvider() {
+    // Drop the extracted-entry temp dir first: it may sit under the same parent
+    // as an owned archive copy, and the rmdir below only succeeds once it is gone.
+    m_tempDir.reset();
+    if (!m_ownsArchiveFile || m_archivePath.isEmpty())
+        return;
+    QFile::remove(m_archivePath);
+    // The downloaded copy gets a directory to itself (so it can keep the file's
+    // own name); take that with it, but only if it is empty -- rmdir refuses
+    // otherwise, which is exactly the guard we want against deleting anything
+    // that turned out not to be ours alone.
+    QDir().rmdir(QFileInfo(m_archivePath).absolutePath());
+}
 
 bool ArchiveProvider::isArchivePath(const QString &path) {
     if (ArchiveLayout::hasArchiveSuffix(path))
@@ -290,9 +302,12 @@ QString ArchiveProvider::cleanPath(const QString &path) const { return toVirtual
 QString ArchiveProvider::parentPath(const QString &path) const {
     const QString clean = toVirtual(path);
     if (clean == QStringLiteral("/"))
-        // The archive root's "parent" is the local directory the archive lives
-        // in, so the panel shows a ".." that exits the archive back to disk.
-        return QFileInfo(m_archivePath).absolutePath();
+        // The archive root's "parent" is the directory the user came from, so the
+        // panel shows a ".." that exits the archive. For a local archive that is
+        // the directory the file sits in; for one browsed off a server the caller
+        // has overridden it with the remote directory (setExitPath), since the
+        // local path is only a downloaded copy in /tmp.
+        return m_exitPath.isEmpty() ? QFileInfo(m_archivePath).absolutePath() : m_exitPath;
     const int slash = clean.lastIndexOf(QLatin1Char('/'));
     if (slash <= 0)
         return QStringLiteral("/");

@@ -15,10 +15,12 @@ add_executable(ui_tests
     test_IconFileView.cpp
     test_VideoRangePlan.cpp
     test_FilePanelFont.cpp
+    test_NetworkArchiveBrowse.cpp
     test_TreeRootBuilder.cpp
     test_DirectoryTreeModel.cpp
     test_SlideSceneImageCache.cpp
     test_MpvStreamSource.cpp
+    test_SearchEngine.cpp
 )
 
 # test_MpvStreamSource drives a real libmpv core (headless: vo=null/ao=null) to

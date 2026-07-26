@@ -1,14 +1,18 @@
 #pragma once
 
 #include "FramelessDialog.h"
+#include "SearchEngine.h"
+
 #include <QStringList>
+#include <QVector>
+#include <memory>
 
 class QLineEdit;
 class QCheckBox;
 class QPushButton;
 class QListWidget;
 class QLabel;
-class SearchEngine;
+class FileProvider;
 
 // Ctrl+F filename search dialog. Streams results into a list as
 // SearchEngine finds them; double-clicking a result asks MainWindow to
@@ -17,10 +21,19 @@ class SearchDialog : public FramelessDialog {
     Q_OBJECT
 
 public:
-    explicit SearchDialog(const QString &initialPath, QWidget *parent = nullptr);
+    // `provider` is the backend the panel is browsing, and must be non-null
+    // exactly when that is a network tab: those tabs address provider-internal
+    // paths that do not exist on this machine, so the search has to go through
+    // the backend instead of the local filesystem. Held by shared_ptr because
+    // the search outlives neither more nor less than itself -- the tab may be
+    // closed while it runs. Null keeps the local (QDirIterator) search.
+    explicit SearchDialog(const QString &initialPath, std::shared_ptr<FileProvider> provider = {},
+                          QWidget *parent = nullptr);
 
 signals:
-    void navigateRequested(const QString &path);
+    // isDir comes from the walk itself; the receiver cannot recover it for a
+    // remote path (see SearchHit).
+    void navigateRequested(const QString &path, bool isDir);
     // Emitted by the "Send to panel" button with the search keyword and every
     // result path, so the active file panel can open them as a flat
     // "feed-to-listbox" listing in a new tab titled after the keyword (they span
@@ -43,12 +56,18 @@ private slots:
     // the search button's current label.
     void onSearchButtonClicked();
     void startSearch();
-    void onResultsFound(const QStringList &paths);
+    void onResultsFound(const QVector<SearchHit> &hits);
+    void onScanning(const QString &dir);
     void onFinished();
     void onResultActivated();
     void feedToPanel();
 
 private:
+    // Truncates a long path from the left for the status line, so the directory
+    // name (the part that shows progress) stays visible.
+    QString elideDir(const QString &dir) const;
+
+    std::shared_ptr<FileProvider> m_provider; // null for a local search
     SearchEngine *m_engine;
     QLineEdit *m_pathEdit;
     QLineEdit *m_patternEdit;

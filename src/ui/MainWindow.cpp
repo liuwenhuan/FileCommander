@@ -44,6 +44,7 @@
 #include "ThemedDialogs.h"
 #include <QMimeData>
 #include <QPainter>
+#include <QPointer>
 #include <QResizeEvent>
 #include <QRegion>
 #include <QShowEvent>
@@ -151,13 +152,26 @@ protected:
     QSplitterHandle *createHandle() override { return new PaintedHandle(orientation(), this); }
 };
 
-qint64 sumSizes(const QStringList &paths) {
-    qint64 total = 0;
-    for (const QString &p : paths) {
-        QFileInfo fi(p);
-        if (fi.isFile())
-            total += fi.size();
+// Total bytes of `paths`, taken from the listing `model` already holds instead
+// of from QFileInfo. The two confirmation prompts that use this (delete, secure
+// wipe) also run on network tabs, where the paths are the server's: a QFileInfo
+// over one of them describes a same-named LOCAL file, or nothing at all, so the
+// prompt used to offer "0 bytes" for a file that was 1.2 MB on the server.
+// Directories contribute 0, exactly as they did before -- their recursive size
+// isn't known here without a walk.
+qint64 sumSizes(const FileSystemModel *model, const QStringList &paths) {
+    if (!model)
+        return 0;
+    QHash<QString, qint64> sizeByPath;
+    const int rows = model->rowCount();
+    for (int r = 0; r < rows; ++r) {
+        const FileInfo info = model->fileInfoAt(r);
+        if (!info.isDir())
+            sizeByPath.insert(info.path(), info.size());
     }
+    qint64 total = 0;
+    for (const QString &p : paths)
+        total += sizeByPath.value(p, 0);
     return total;
 }
 
@@ -603,6 +617,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
             // network tab `path` belongs to the provider, not the filesystem.
             openWithAssociatedApp(panel, path);
         });
+        connect(panel, &FilePanel::archiveDownloadRequested, this, &MainWindow::browseRemoteArchive);
     }
 
     setActivePanel(m_leftPanel);
@@ -1857,13 +1872,52 @@ void MainWindow::calculateChecksums() {
 void MainWindow::secureWipeSelected() {
     if (!m_activePanel)
         return;
-    if (blockArchiveWrite(m_activePanel))
+
+    // Secure wipe is the one operation that bypasses the provider entirely: the
+    // dialog walks the selection with QDir and overwrites the bytes with QFile.
+    // That is only meaningful -- and only safe -- when the paths really are
+    // local-filesystem paths. Everywhere else the very same code finds and
+    // shreds a same-named LOCAL file while the prompt names a remote one (an
+    // archive holding "etc/passwd" browses as the path "/etc/passwd"), or
+    // matches nothing and still reports "Wiped" for a file it never touched.
+    //
+    // So refuse, and say why. This is not a gap to fill in later: on a server
+    // the data blocks belong to the server, and no client can promise anything
+    // about them. The check must come before blockArchiveWrite() -- that one's
+    // "copy files out to a folder to modify them" is sound advice for editing
+    // and actively wrong here, since wiping the copy leaves the original.
+    FileProvider *prov = m_activePanel->model()->provider();
+    if (!prov || !prov->isLocalFilesystem()) {
+        // Kept short and hard-wrapped: ttc::message sizes the box to the text,
+        // so a long paragraph stretches it across the whole screen.
+        const QString conn = m_activePanel->model()->connectionId();
+        QString why;
+        if (!conn.isEmpty())
+            why = tr("These items are on %1.\n"
+                     "The server owns their disk blocks, so overwriting them\n"
+                     "from here cannot guarantee the originals are gone.\n"
+                     "Delete them remotely instead.")
+                      .arg(conn);
+        else if (m_activePanel->isArchive())
+            why = tr("These items are entries inside an archive,\n"
+                     "not files on this disk.\n"
+                     "To destroy them, wipe the archive file itself\n"
+                     "from the folder that holds it.");
+        else
+            why = tr("This tab is not the local filesystem,\n"
+                     "so there are no on-disk bytes here to overwrite.");
+        ttc::warning(this, tr("Secure Wipe"),
+                     tr("Secure wipe is only available on local files.\n\n%1").arg(why));
         return;
+    }
+    if (blockArchiveWrite(m_activePanel)) // backstop: panel says archive, provider didn't
+        return;
+
     const QStringList paths = m_activePanel->selectedPaths();
     if (paths.isEmpty())
         return;
 
-    const qint64 total = sumSizes(paths);
+    const qint64 total = sumSizes(m_activePanel->model(), paths);
     const auto answer = ttc::warning(
         this, tr("Secure Wipe"),
         tr("Securely erase %1 item(s) (%2 bytes)?\n\n"
@@ -2277,6 +2331,53 @@ QString MainWindow::ensureOpenTempDir() {
     return (m_openTempDir && m_openTempDir->isValid()) ? m_openTempDir->path() : QString();
 }
 
+QString MainWindow::ensureArchiveTempDir() {
+    if (!m_archiveTempDir)
+        m_archiveTempDir =
+            new QTemporaryDir(QDir::tempPath() + QStringLiteral("/FileCommander-archive-XXXXXX"));
+    // Unlike the open-with copies above, these are NOT kept past shutdown. Nothing
+    // outside this process ever sees them (the archive is browsed in-app), each
+    // one is already deleted when its browse ends, and an archive is exactly the
+    // kind of file that can be several gigabytes -- so the auto-remove default
+    // stands as the backstop for a copy whose browse a crash cut short.
+    return (m_archiveTempDir && m_archiveTempDir->isValid()) ? m_archiveTempDir->path() : QString();
+}
+
+void MainWindow::browseRemoteArchive(FilePanel *panel, const QString &path) {
+    if (!panel || path.isEmpty())
+        return;
+    // libarchive (and unsquashfs, and 7z) open an archive by file name, and every
+    // one of them would need a full pass over it per entry read anyway, so the
+    // archive is pulled down once and browsed from local disk -- after which
+    // listing, preview and extraction all run at local speed.
+    const QString name = QFileInfo(path).fileName();
+    QPointer<FilePanel> guard(panel);
+    // A big archive takes a while to come down, and the user is free to move the
+    // panel elsewhere meanwhile. Entering then would read ".." off whatever
+    // backend the panel had drifted onto, so the connection is checked on the way
+    // back in and a panel that has left is simply not disturbed.
+    const QString conn = panel->connectionId();
+    fetchRemoteCopy(panel, path, [this, guard, path, name, conn](const QString &localPath) {
+        if (!guard)
+            return; // the panel went away while the copy was in flight
+        if (guard->connectionId() != conn || guard->isArchive()) {
+            QFile::remove(localPath);
+            QDir().rmdir(QFileInfo(localPath).absolutePath());
+            return;
+        }
+        // The copy belongs to the browse: enterArchive() takes its lifetime and
+        // deletes it on the way out. If the file turns out not to be a readable
+        // archive, fall back to the desktop's handler, which is what a local tab
+        // does for the same file.
+        if (guard->enterArchive(localPath, path, true))
+            return;
+        // Named like an archive but not readable as one (corrupt, or a format
+        // libarchive won't open). The copy is already here, so hand it straight
+        // to the desktop rather than fetching the same bytes a second time.
+        openLocalCopyWithDesktop(localPath, name);
+    }, ensureArchiveTempDir());
+}
+
 void MainWindow::openWithAssociatedApp(FilePanel *panel, const QString &path) {
     if (path.isEmpty())
         return;
@@ -2295,28 +2396,32 @@ void MainWindow::openWithAssociatedApp(FilePanel *panel, const QString &path) {
     // it. Stream it into a local copy and hand the desktop that instead.
     const QString name = QFileInfo(path).fileName();
     fetchRemoteCopy(panel, path, [this, name](const QString &localPath) {
-        if (!QDesktopServices::openUrl(QUrl::fromLocalFile(localPath))) {
-            ttc::warning(this, tr("Open"),
-                                 tr("No application is associated with %1").arg(name));
-            return;
-        }
-        // The copy is a snapshot: nothing writes it back to the server. Say so
-        // once per session rather than on every open -- the read-only permission
-        // set in onRemoteFetchDone is what actually stops an editor from
-        // discarding the user's work, this explains why it happened.
-        if (!m_remoteCopyNoticeShown) {
-            m_remoteCopyNoticeShown = true;
-            ttc::information(this, tr("Open"),
-                             tr("%1 was downloaded to a read-only local copy, which is what the "
-                                "application opened.\n\nChanges made to it are not saved back to "
-                                "the server.")
-                                 .arg(name));
-        }
+        openLocalCopyWithDesktop(localPath, name);
     });
 }
 
+void MainWindow::openLocalCopyWithDesktop(const QString &localPath, const QString &name) {
+    if (!QDesktopServices::openUrl(QUrl::fromLocalFile(localPath))) {
+        ttc::warning(this, tr("Open"), tr("No application is associated with %1").arg(name));
+        return;
+    }
+    // The copy is a snapshot: nothing writes it back to the server. Say so once
+    // per session rather than on every open -- the read-only permission set in
+    // onRemoteFetchDone is what actually stops an editor from discarding the
+    // user's work, this explains why it happened.
+    if (!m_remoteCopyNoticeShown) {
+        m_remoteCopyNoticeShown = true;
+        ttc::information(this, tr("Open"),
+                         tr("%1 was downloaded to a read-only local copy, which is what the "
+                            "application opened.\n\nChanges made to it are not saved back to "
+                            "the server.")
+                             .arg(name));
+    }
+}
+
 void MainWindow::fetchRemoteCopy(FilePanel *panel, const QString &path,
-                                 std::function<void(const QString &)> onReady) {
+                                 std::function<void(const QString &)> onReady,
+                                 const QString &destRoot) {
     FileProvider *prov = panel ? panel->model()->provider() : nullptr;
     const QString name = QFileInfo(path).fileName();
     if (!prov || !prov->canStream()) {
@@ -2326,7 +2431,7 @@ void MainWindow::fetchRemoteCopy(FilePanel *panel, const QString &path,
                                  .arg(name));
         return;
     }
-    const QString root = ensureOpenTempDir();
+    const QString root = destRoot.isEmpty() ? ensureOpenTempDir() : destRoot;
     if (root.isEmpty()) {
         ttc::warning(this, tr("Open"),
                              tr("Could not create a temporary folder to download %1.").arg(name));
@@ -3358,7 +3463,7 @@ void MainWindow::deleteSelected(bool permanent) {
     // (Config menu). Permanent deletes (Shift+Del, or any remote delete) always
     // confirm -- they can't be undone from the trash.
     if (goesPermanent || m_settings.confirmDelete()) {
-        const qint64 total = sumSizes(paths);
+        const qint64 total = sumSizes(m_activePanel->model(), paths);
         const auto answer = ttc::question(
             this, tr("Confirm Delete"),
             tr("Delete %1 item(s) (%2 bytes)?%3")
@@ -3404,13 +3509,30 @@ void MainWindow::compressSelected() {
 void MainWindow::openSearch() {
     if (!m_activePanel)
         return;
-    auto *dlg = new SearchDialog(m_activePanel->currentPath(), this);
-    dlg->setAttribute(Qt::WA_DeleteOnClose);
     FilePanel *panel = m_activePanel;
-    connect(dlg, &SearchDialog::navigateRequested, this, [panel](const QString &path) {
-        QFileInfo info(path);
-        panel->navigateTo(info.isDir() ? path : info.absolutePath());
-    });
+    FileProvider *prov = panel->model()->provider();
+    const bool network = prov && !prov->displayName().isEmpty();
+    // A network tab browses provider-internal paths (an SMB share's "/share/docs"),
+    // which name nothing on this machine -- searching them with QDirIterator finds
+    // exactly zero files. Hand the dialog the backend so it walks that instead.
+    // Sharing ownership is what keeps it valid: the search is asynchronous and
+    // the tab may be closed or reconnected before it ends.
+    std::shared_ptr<FileProvider> searchProvider =
+        network ? panel->model()->providerPtr() : nullptr;
+    auto *dlg = new SearchDialog(panel->currentPath(), searchProvider, this);
+    dlg->setAttribute(Qt::WA_DeleteOnClose);
+    connect(dlg, &SearchDialog::navigateRequested, this,
+            [panel, searchProvider](const QString &path, bool isDir) {
+                if (isDir) {
+                    panel->navigateTo(path);
+                    return;
+                }
+                // Show the file in its own directory. parentPath() is pure string
+                // work in every backend (no lock, no round-trip), so calling it
+                // here on the GUI thread is safe.
+                panel->navigateTo(searchProvider ? searchProvider->parentPath(path)
+                                                 : QFileInfo(path).absolutePath());
+            });
     // "Send to panel": open every result as a flat cross-directory listing in a
     // NEW tab of the active panel, titled after the search keyword.
     connect(dlg, &SearchDialog::feedToPanelRequested, this,
@@ -3463,6 +3585,11 @@ void MainWindow::closeEvent(QCloseEvent *event) {
     for (auto it = m_remoteFetches.begin(); it != m_remoteFetches.end(); ++it)
         if (it->cancel)
             it->cancel->store(true);
+    // Downloaded archives, unlike those copies, ARE ours to clean up: nothing
+    // outside this process reads them. Destroying the QTemporaryDir sweeps up any
+    // whose browse the user never stepped out of.
+    delete m_archiveTempDir;
+    m_archiveTempDir = nullptr;
 
     m_settings.setWindowGeometry(saveGeometry());
     // Persist each panel's column layout independently: base widths + hidden

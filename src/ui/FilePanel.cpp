@@ -39,6 +39,7 @@
 #include "FileListView.h"
 #include "IconFileView.h"
 #include "FileProvider.h"
+#include "ArchiveLayout.h"
 #include "ArchiveProvider.h"
 #include "StatusBarWidget.h"
 #include "TabBar.h"
@@ -493,11 +494,11 @@ FilePanel::NavEntry FilePanel::currentLocation() const {
 
 void FilePanel::applyHistoryEntry(const NavEntry &entry) {
     // Restoring a history entry: never re-push (goBack/goForward manage the stacks).
-    if (m_archiveProvider) {
-        m_archiveProvider.reset();
-        m_archiveName.clear();
-        m_model->setProvider(nullptr);
-    }
+    // Leaving an archive first puts back the backend it was entered from; the
+    // attachConnection() below then installs the one this entry was viewed
+    // through, which for the entry the archive was entered from is the same
+    // still-running session.
+    leaveArchive();
     if (m_filterBar->isVisible()) {
         m_filterBar->blockSignals(true);
         m_filterBar->clear();
@@ -734,12 +735,9 @@ void FilePanel::showSearchResultsInNewTab(const QString &keyword, const QStringL
     m_tabBar->setCurrentIndex(idx);
     m_tabBar->blockSignals(false);
 
-    // Leave archive browsing if active: a flat listing is a plain local-path set.
-    if (m_archiveProvider) {
-        m_archiveProvider.reset();
-        m_archiveName.clear();
-        m_model->setProvider(nullptr); // back to the local provider
-    }
+    // Leave archive browsing if active: a flat listing is a set of paths on the
+    // backend the archive was entered from, not inside the archive.
+    leaveArchive();
     if (m_filterBar->isVisible()) {
         m_filterBar->blockSignals(true);
         m_filterBar->clear();
@@ -840,6 +838,12 @@ void FilePanel::exchangeLocationWith(FilePanel *other) {
     // thumbnail fetches are wanted any more.
     cancelRemoteThumbnails();
     other->cancelRemoteThumbnails();
+
+    // What moves below is each panel's backend, and an archive's isn't one the
+    // other panel can be given -- so a panel inside an archive swaps the location
+    // it entered it from, with its connection intact.
+    backOutOfArchive();
+    other->backOutOfArchive();
 
     const QString myPath = currentPath();
     const QString theirPath = other->currentPath();
@@ -1102,17 +1106,16 @@ void FilePanel::onActivated(const QModelIndex &index) {
     if (!info.isValid())
         return;
 
-    // Exiting an archive: ".." at the archive root (its provider reports the
-    // parent as a local dir it can't itself descend) switches back to the local
-    // filesystem at the directory the archive lives in.
-    if (info.isParentEntry() && m_archiveProvider && !m_model->provider()->isDir(info.path())) {
-        const QString exitDir = info.path();
+    // Exiting an archive: ".." at the archive root is the one entry whose path is
+    // the directory the archive was entered from -- on disk, or on the server the
+    // panel was browsing, in which case leaveArchive() puts that connection back
+    // before we navigate.
+    if (info.isParentEntry() && m_archiveProvider && info.path() == m_archiveExitDir) {
+        const QString exitDir = m_archiveExitDir;
         // Select the archive we're stepping out of, so leaving then re-entering is
         // one keystroke (matches going up out of a normal sub-directory).
-        const QString archiveFile = QDir(exitDir).filePath(m_archiveName);
-        m_archiveProvider.reset();
-        m_archiveName.clear();
-        m_model->setProvider(nullptr); // back to the local provider
+        const QString archiveFile = m_archiveSourcePath;
+        leaveArchive();
         navigateTo(exitDir);
         selectPathAfterReload(archiveFile);
         return;
@@ -1134,30 +1137,93 @@ void FilePanel::onActivated(const QModelIndex &index) {
         return;
     }
 
-    // Entering an archive: only from the local filesystem (no nested-archive
-    // browse yet). Read-only smart browse via ArchiveProvider. Disabled when the
-    // "archive as folder" preference is off -- archives then open as plain files.
-    if (m_archiveAsFolder && !m_archiveProvider && ArchiveProvider::isArchivePath(info.path())) {
-        QString error;
-        auto provider = std::make_shared<ArchiveProvider>(info.path(), &error);
-        if (provider->isValid()) {
-            // Record where we came from (a real dir or a flat search-results list)
-            // BEFORE switching to the archive provider, so Back returns to it.
-            // currentLocation() reports {} once m_archiveProvider is set, so the
-            // navigateTo("/") below can't snapshot it -- we must push it here.
-            const NavEntry from = currentLocation();
-            m_archiveProvider = provider;
-            m_archiveName = QFileInfo(info.path()).fileName();
-            m_model->setProvider(provider);
-            if (from.isValid())
-                pushHistory(from);
-            navigateTo(QStringLiteral("/")); // archive virtual root (won't re-push)
-            return;
+    // Entering an archive: no nested-archive browse, so not while already inside
+    // one. Read-only smart browse via ArchiveProvider. Disabled when the "archive
+    // as folder" preference is off -- archives then open as plain files.
+    if (m_archiveAsFolder && !m_archiveProvider) {
+        const bool network = m_model->hasNetworkSession();
+        // On a network tab only the suffix can decide: isArchivePath() also
+        // sniffs magic bytes for extension-less AppImages, and it reads them
+        // through the LOCAL filesystem, where a server path names nothing. (An
+        // AppImage on a share therefore opens as a plain file, as before.)
+        const bool isArchive = network ? ArchiveLayout::hasArchiveSuffix(info.path())
+                                       : ArchiveProvider::isArchivePath(info.path());
+        if (isArchive) {
+            if (network) {
+                // Nothing here can read the server's copy in place; ask for a
+                // local one. The browse starts when it lands (or never, if the
+                // user cancels the download).
+                emit archiveDownloadRequested(this, info.path());
+                return;
+            }
+            if (enterArchive(info.path(), info.path(), false))
+                return;
+            // Not a usable archive (or unreadable): fall through to opening it.
         }
-        // Not a usable archive (or unreadable): fall through to opening it.
     }
 
     emit openRequested(info.path());
+}
+
+bool FilePanel::enterArchive(const QString &localArchivePath, const QString &sourcePath,
+                             bool ownsLocalCopy) {
+    if (m_archiveProvider)
+        return false; // no nested-archive browse yet
+    QString error;
+    auto provider = std::make_shared<ArchiveProvider>(localArchivePath, &error);
+    if (!provider->isValid())
+        return false;
+
+    // Both of these have to be read through the CURRENT backend, before it is
+    // swapped out below: on a network tab the archive's directory is the
+    // server's answer to parentPath(), not this filesystem's.
+    const QString exitDir = m_model->provider()->parentPath(sourcePath);
+    // Record where we came from (a real dir or a flat search-results list) BEFORE
+    // switching to the archive provider, so Back returns to it. currentLocation()
+    // reports {} once m_archiveProvider is set, so the navigateTo("/") below
+    // can't snapshot it -- we must push it here.
+    const NavEntry from = currentLocation();
+
+    provider->setExitPath(exitDir);
+    provider->setOwnsArchiveFile(ownsLocalCopy);
+    // Park the server connection rather than let setProvider() tear it down: the
+    // archive is read off local disk, but ".." leads back onto the server and
+    // has to find it still connected.
+    m_archiveExitConn = m_model->detachConnection();
+    m_archiveProvider = provider;
+    m_archiveName = QFileInfo(sourcePath).fileName();
+    m_archiveSourcePath = sourcePath;
+    m_archiveExitDir = exitDir;
+    m_model->setProvider(provider);
+    if (from.isValid())
+        pushHistory(from);
+    navigateTo(QStringLiteral("/")); // archive virtual root (won't re-push)
+    return true;
+}
+
+void FilePanel::leaveArchive() {
+    if (!m_archiveProvider)
+        return;
+    m_archiveProvider.reset(); // last drop deletes a downloaded copy
+    m_archiveName.clear();
+    m_archiveSourcePath.clear();
+    m_archiveExitDir.clear();
+    // Re-adopt whatever was parked on the way in. An empty bundle means the
+    // archive came off local disk, and attaching it is the same "back to the
+    // local provider" that this used to do explicitly.
+    m_model->attachConnection(std::move(m_archiveExitConn));
+    m_archiveExitConn = FileSystemModel::NetworkConn();
+    if (!m_model->hasNetworkSession())
+        m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
+}
+
+void FilePanel::backOutOfArchive() {
+    if (!m_archiveProvider)
+        return;
+    const QString exitDir = m_archiveExitDir;
+    leaveArchive();
+    m_model->setRootPath(exitDir);
+    emit pathChanged(exitDir);
 }
 
 void FilePanel::onAddressBarEntered(const QString &path) {
@@ -1756,6 +1822,13 @@ void FilePanel::onTabBarCurrentChanged(int index) {
     // tab but left the OTHER panel active, so the next keyboard/F5 action ran on
     // the wrong pane. (The +/view/favorites paths already emit this.)
     emit panelActivated(this);
+    // Step out of any archive first. Archive browsing is panel state, not tab
+    // state, so it cannot travel with the tab going into the background: leaving
+    // it in place would park an empty connection (the real one is held aside for
+    // the archive's "..") and strand the tab on a backend it no longer owns.
+    // Backing out to the directory the archive was entered from is what the tab
+    // then saves and comes back to.
+    backOutOfArchive();
     const int prev = m_tabManager->activeIndex();
     saveCurrentTabState();
     if (prev != index && prev >= 0)
@@ -1772,6 +1845,11 @@ void FilePanel::openLocalInTab(int tabIndex, const QString &path) {
     if (tabIndex >= 0 && tabIndex < m_tabBar->count() &&
         tabIndex != m_tabBar->currentIndex())
         m_tabBar->setCurrentIndex(tabIndex); // drives onTabBarCurrentChanged()
+
+    // An archive has to be stepped out of before the snapshot below, or the
+    // connection it parked would never be handed to the history entry and the
+    // session would be stranded with nothing able to reach it.
+    backOutOfArchive();
 
     // Record where we're leaving -- INCLUDING the live server connection -- into
     // back history so a Back press returns to the server (and its "user@host"
@@ -1830,6 +1908,13 @@ void FilePanel::closeTabAt(int index) {
     // session, so it outlives the tab and its root would linger in the tree.
     if (m_connRegistry)
         m_connRegistry->unregisterConnection(connectionIdOfTab(index));
+    // An archive belongs to the active tab, so closing that tab has to leave it:
+    // otherwise the panel would go on reporting itself read-only over the tab
+    // that slides into its place, and the connection parked for the archive's
+    // ".." would survive with nothing able to reach it -- the hasNetworkSession()
+    // test below cannot see it, because it is not the model's any more.
+    if (index == m_tabManager->activeIndex())
+        backOutOfArchive();
     if (index == m_tabManager->activeIndex() && m_model->hasNetworkSession()) {
         cancelRemoteThumbnails();
         m_model->detachConnection(); // returned bundle drops here -> session stops
@@ -1887,6 +1972,10 @@ int FilePanel::closeTabsOnMount(const QString &mountRoot) {
 }
 
 void FilePanel::newTab() {
+    // This opens a tab rather than switching to one, so it does its own
+    // park/save instead of going through onTabBarCurrentChanged -- and has to
+    // step out of an archive for the same reason that does (see there).
+    backOutOfArchive();
     saveCurrentTabState();
     const bool wasNetwork = m_model->hasNetworkSession();
     // Park the outgoing tab's connection so its server stays alive in the
@@ -1975,6 +2064,10 @@ void FilePanel::disconnectTab(int index) {
     if (index < 0 || index >= m_tabManager->count())
         return;
     activateTab(index); // make it current so the model's active backend is this tab's
+    // If that tab is inside an archive its connection is parked with the archive,
+    // not in the model, and the detachConnection() below would find nothing to
+    // drop -- leaving the session running after an explicit disconnect.
+    backOutOfArchive();
     auto tab = m_tabManager->activeTab();
     // Take the connection out of the tree registry now. Its weak_ptr would expire
     // on its own once the session dies, but a deliberate disconnect should drop

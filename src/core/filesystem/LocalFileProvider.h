@@ -16,6 +16,9 @@ public:
     bool exists(const QString &path) const override;
     RenameResult rename(const QString &path, const QString &newName, QString *newPath) override;
 
+    // The one backend whose paths really are local-filesystem paths.
+    bool isLocalFilesystem() const override { return true; }
+
     // Streaming I/O (backed by QFile) so cross-provider transfers can read from
     // or write to the local filesystem.
     FileHandle *openRead(const QString &path) override;

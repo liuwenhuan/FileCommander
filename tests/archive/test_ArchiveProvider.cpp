@@ -190,3 +190,78 @@ TEST(ArchiveProviderTest, InvalidArchiveReportsError) {
     EXPECT_FALSE(provider.isValid());
     EXPECT_FALSE(err.isEmpty());
 }
+
+// --- Archives that live on a server ----------------------------------------
+// libarchive opens a file by name, so one of those is browsed through a copy
+// downloaded to /tmp. Two things then stop being derivable from the file's own
+// location: where ".." leads, and who deletes the copy.
+
+TEST(ArchiveProviderTest, ExitPathOverridesTheArchiveFilesOwnDirectory) {
+    QTemporaryDir srcDir, workDir;
+    ASSERT_TRUE(srcDir.isValid() && workDir.isValid());
+    writeFile(srcDir.path(), "pkg/a.txt", "a");
+    const QString archivePath = QDir(workDir.path()).filePath("bundle.zip");
+    QString err;
+    ASSERT_TRUE(ArchiveHandler::create(archivePath, {QDir(srcDir.path()).filePath("pkg")}, "zip",
+                                       &err))
+        << err.toStdString();
+
+    ArchiveProvider provider(archivePath, &err);
+    ASSERT_TRUE(provider.isValid()) << err.toStdString();
+    // Default: the ".." out of the root is the directory the file sits in.
+    EXPECT_EQ(provider.parentPath("/"), workDir.path());
+
+    // A remote archive's copy is in /tmp, but the user came from a share.
+    provider.setExitPath(QStringLiteral("/share/docs"));
+    EXPECT_EQ(provider.parentPath("/"), QString("/share/docs"));
+    // Only the root's parent changes: paths inside the archive still resolve
+    // within it, so the override cannot leak into normal navigation.
+    EXPECT_EQ(provider.parentPath("/a.txt"), QString("/"));
+}
+
+TEST(ArchiveProviderTest, OwnedArchiveFileIsDeletedWithTheProvider) {
+    QTemporaryDir srcDir, workDir;
+    ASSERT_TRUE(srcDir.isValid() && workDir.isValid());
+    writeFile(srcDir.path(), "pkg/a.txt", "a");
+    // The downloaded copy gets a directory to itself, exactly as the fetch does,
+    // so that both it and the directory should be gone afterwards.
+    const QString copyDir = QDir(workDir.path()).filePath("42");
+    ASSERT_TRUE(QDir().mkpath(copyDir));
+    const QString archivePath = QDir(copyDir).filePath("bundle.zip");
+    QString err;
+    ASSERT_TRUE(ArchiveHandler::create(archivePath, {QDir(srcDir.path()).filePath("pkg")}, "zip",
+                                       &err))
+        << err.toStdString();
+
+    {
+        ArchiveProvider provider(archivePath, &err);
+        ASSERT_TRUE(provider.isValid()) << err.toStdString();
+        provider.setOwnsArchiveFile(true);
+        // Extract something too: the entry temp dir must not be what keeps the
+        // copy's directory alive.
+        EXPECT_EQ(readEntry(provider, "/a.txt"), QByteArray("a"));
+        EXPECT_TRUE(QFile::exists(archivePath));
+    }
+    EXPECT_FALSE(QFile::exists(archivePath));
+    EXPECT_FALSE(QDir(copyDir).exists());
+}
+
+TEST(ArchiveProviderTest, LocalArchiveFileSurvivesItsProvider) {
+    QTemporaryDir srcDir, workDir;
+    ASSERT_TRUE(srcDir.isValid() && workDir.isValid());
+    writeFile(srcDir.path(), "pkg/a.txt", "a");
+    const QString archivePath = QDir(workDir.path()).filePath("bundle.zip");
+    QString err;
+    ASSERT_TRUE(ArchiveHandler::create(archivePath, {QDir(srcDir.path()).filePath("pkg")}, "zip",
+                                       &err))
+        << err.toStdString();
+
+    {
+        ArchiveProvider provider(archivePath, &err);
+        ASSERT_TRUE(provider.isValid()) << err.toStdString();
+        EXPECT_EQ(readEntry(provider, "/a.txt"), QByteArray("a"));
+    }
+    // Nobody said we owned it: browsing the user's own archive must not eat it.
+    EXPECT_TRUE(QFile::exists(archivePath));
+    EXPECT_TRUE(QDir(workDir.path()).exists());
+}

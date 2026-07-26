@@ -2256,6 +2256,36 @@ pip install --user msoffcrypto-tool</translation>
         <source>Cancelling...</source>
         <translation>正在取消...</translation>
     </message>
+    <message>
+        <location filename="../../src/search/SearchDialog.cpp" line="0"/>
+        <source>Searching %1... %2 found</source>
+        <translation>正在搜尋 %1... 已找到 %2</translation>
+    </message>
+    <message>
+        <location filename="../../src/search/SearchDialog.cpp" line="0"/>
+        <source>Not available for network locations</source>
+        <translation>網路位置不支援此功能</translation>
+    </message>
+    <message>
+        <location filename="../../src/search/SearchDialog.cpp" line="0"/>
+        <source>Searching... %1 found</source>
+        <translation>正在搜尋... 已找到 %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/search/SearchDialog.cpp" line="0"/>
+        <source>Stop search</source>
+        <translation>停止搜尋</translation>
+    </message>
+    <message>
+        <location filename="../../src/search/SearchDialog.cpp" line="0"/>
+        <source>Stopping...</source>
+        <translation>正在停止...</translation>
+    </message>
+    <message>
+        <location filename="../../src/search/SearchDialog.cpp" line="0"/>
+        <source>First %1 results (limit reached -- narrow the pattern)</source>
+        <translation>前 %1 筆結果（已達上限 —— 請縮小比對範圍）</translation>
+    </message>
 </context>
 <context>
     <name>SecureWipeDialog</name>

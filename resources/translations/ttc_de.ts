@@ -2256,6 +2256,36 @@ pip install --user msoffcrypto-tool</translation>
         <source>Cancelling...</source>
         <translation>Wird abgebrochen...</translation>
     </message>
+    <message>
+        <location filename="../../src/search/SearchDialog.cpp" line="0"/>
+        <source>Searching %1... %2 found</source>
+        <translation>Durchsuche %1... %2 gefunden</translation>
+    </message>
+    <message>
+        <location filename="../../src/search/SearchDialog.cpp" line="0"/>
+        <source>Not available for network locations</source>
+        <translation>Für Netzwerkorte nicht verfügbar</translation>
+    </message>
+    <message>
+        <location filename="../../src/search/SearchDialog.cpp" line="0"/>
+        <source>Searching... %1 found</source>
+        <translation>Suche läuft... %1 gefunden</translation>
+    </message>
+    <message>
+        <location filename="../../src/search/SearchDialog.cpp" line="0"/>
+        <source>Stop search</source>
+        <translation>Suche stoppen</translation>
+    </message>
+    <message>
+        <location filename="../../src/search/SearchDialog.cpp" line="0"/>
+        <source>Stopping...</source>
+        <translation>Wird gestoppt...</translation>
+    </message>
+    <message>
+        <location filename="../../src/search/SearchDialog.cpp" line="0"/>
+        <source>First %1 results (limit reached -- narrow the pattern)</source>
+        <translation>Erste %1 Ergebnisse (Grenze erreicht – Muster eingrenzen)</translation>
+    </message>
 </context>
 <context>
     <name>SecureWipeDialog</name>

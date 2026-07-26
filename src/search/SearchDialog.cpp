@@ -12,14 +12,25 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 
+#include "FileProvider.h"
 #include "SearchEngine.h"
 
-SearchDialog::SearchDialog(const QString &initialPath, QWidget *parent) : FramelessDialog(parent) {
+namespace {
+// Per-item flag recording whether a result is a directory, so activating one
+// navigates into it rather than to its parent. Stored on the item because the
+// path string alone cannot answer it for a remote hit.
+constexpr int kIsDirRole = Qt::UserRole + 1;
+} // namespace
+
+SearchDialog::SearchDialog(const QString &initialPath, std::shared_ptr<FileProvider> provider,
+                            QWidget *parent)
+    : FramelessDialog(parent), m_provider(std::move(provider)) {
     setWindowTitle(tr("Search Files"));
     resize(600, 500);
 
     m_engine = new SearchEngine(this);
     connect(m_engine, &SearchEngine::resultsFound, this, &SearchDialog::onResultsFound);
+    connect(m_engine, &SearchEngine::scanning, this, &SearchDialog::onScanning);
     connect(m_engine, &SearchEngine::finished, this, &SearchDialog::onFinished);
 
     m_pathEdit = new QLineEdit(initialPath, this);
@@ -53,6 +64,14 @@ SearchDialog::SearchDialog(const QString &initialPath, QWidget *parent) : Framel
     m_feedButton = new QPushButton(tr("Send to panel"), this);
     m_feedButton->setToolTip(tr("Show all results in the active panel as a flat list"));
     connect(m_feedButton, &QPushButton::clicked, this, &SearchDialog::feedToPanel);
+    if (m_provider) {
+        // A flat listing is built by re-statting each path on the local
+        // filesystem (FileSystemModel::setFlatEntries), which a remote path
+        // cannot answer -- the tab would come up empty. Disable the button
+        // rather than hand the user a blank tab; single results still open.
+        m_feedButton->setEnabled(false);
+        m_feedButton->setToolTip(tr("Not available for network locations"));
+    }
 
     auto *bottomRow = new QHBoxLayout;
     bottomRow->addWidget(m_statusLabel, 1);
@@ -85,13 +104,32 @@ void SearchDialog::startSearch() {
     m_statusLabel->setText(tr("Searching..."));
     m_searchButton->setText(tr("Stop search")); // becomes a cancel button while running
     m_engine->start(m_pathEdit->text(), m_patternEdit->text(), m_caseSensitiveCheck->isChecked(),
-                     m_subdirsCheck->isChecked());
+                     m_subdirsCheck->isChecked(), m_provider);
 }
 
-void SearchDialog::onResultsFound(const QStringList &paths) {
-    m_resultsList->addItems(paths);
-    m_resultCount += paths.size();
+void SearchDialog::onResultsFound(const QVector<SearchHit> &hits) {
+    for (const SearchHit &hit : hits) {
+        auto *item = new QListWidgetItem(hit.path, m_resultsList);
+        item->setData(kIsDirRole, hit.isDir);
+    }
+    m_resultCount += hits.size();
     m_statusLabel->setText(tr("Searching... %1 found").arg(m_resultCount));
+}
+
+void SearchDialog::onScanning(const QString &dir) {
+    // Only the engine's provider walk emits this, and only every few hundred
+    // milliseconds; a network search can spend seconds inside one directory, so
+    // without it the status line looks stuck at its last count.
+    m_statusLabel->setText(
+        tr("Searching %1... %2 found").arg(elideDir(dir)).arg(m_resultCount));
+}
+
+QString SearchDialog::elideDir(const QString &dir) const {
+    constexpr int kMaxChars = 48;
+    if (dir.size() <= kMaxChars)
+        return dir;
+    // Keep the tail: the deepest components are what change as the walk moves.
+    return QStringLiteral("...") + dir.right(kMaxChars);
 }
 
 void SearchDialog::onFinished() {
@@ -109,7 +147,7 @@ void SearchDialog::onFinished() {
 void SearchDialog::onResultActivated() {
     QListWidgetItem *item = m_resultsList->currentItem();
     if (item)
-        emit navigateRequested(item->text());
+        emit navigateRequested(item->text(), item->data(kIsDirRole).toBool());
 }
 
 void SearchDialog::feedToPanel() {

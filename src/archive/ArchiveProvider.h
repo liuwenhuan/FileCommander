@@ -38,10 +38,33 @@ class ArchiveProvider : public FileProvider {
 public:
     // Reads the entry list of `archivePath` and builds the virtual tree. On
     // failure writes a reason to *error (if non-null) and leaves isValid()==false.
+    //
+    // `archivePath` is always a path on THIS machine's filesystem: libarchive
+    // (archive_read_open_filename), unsquashfs and 7z all open an archive by
+    // name, so an archive that lives on a server has to be copied down first.
+    // See setExitPath()/setOwnsArchiveFile() for the two things that then differ.
     explicit ArchiveProvider(const QString &archivePath, QString *error = nullptr);
     ~ArchiveProvider() override;
 
     bool isValid() const { return m_valid; }
+
+    // Where ".." at the archive root leads. Defaults to the directory the
+    // archive file itself sits in, which is right whenever the user is looking
+    // at that same directory. It is NOT right for an archive on a network
+    // backend: the file the user double-clicked lives on the server, and the
+    // local path here is a downloaded copy in /tmp, so the caller passes the
+    // server-side directory (computed through the network provider, whose path
+    // syntax is its own) and stepping out returns to the share.
+    void setExitPath(const QString &dir) { m_exitPath = dir; }
+    QString exitPath() const { return m_exitPath; }
+
+    // Hands the archive FILE's lifetime to this provider: the destructor deletes
+    // it, and the directory holding it if that leaves it empty. Set for the
+    // downloaded copy of a remote archive, whose only purpose is this browse
+    // session -- a multi-GB copy sitting in /tmp until the process exits is not
+    // an acceptable price for having looked inside it. Never set for a local
+    // archive, which is the user's own file.
+    void setOwnsArchiveFile(bool owns) { m_ownsArchiveFile = owns; }
 
     // Suffix check: should a double-clicked file be treated as an archive?
     static bool isArchivePath(const QString &path);
@@ -101,6 +124,8 @@ private:
 
     QString m_archivePath;
     QString m_baseName;
+    QString m_exitPath;           // "" => derive from m_archivePath (local archive)
+    bool m_ownsArchiveFile = false;
     bool m_valid = false;
     bool m_extractAll = false;  // non-zip: extract everything on first read
     bool m_wholeExtracted = false;

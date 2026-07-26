@@ -3,6 +3,7 @@ add_executable(core_tests
     filesystem/test_FileInfo.cpp
     filesystem/test_FileSystemModel.cpp
     filesystem/test_IconCache.cpp
+    filesystem/test_ProviderLocality.cpp
     operations/test_FileOperations.cpp
     operations/test_OperationQueue.cpp
     operations/test_FileSplitter.cpp

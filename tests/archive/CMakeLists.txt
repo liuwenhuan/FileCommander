@@ -2,6 +2,7 @@ if(TARGET LibArchive::LibArchive)
     add_executable(archive_tests
         test_ArchiveHandler.cpp
         test_ArchiveProvider.cpp
+        test_ArchiveLocality.cpp
     )
 
     target_link_libraries(archive_tests PRIVATE

@@ -334,3 +334,159 @@ TEST(Mp4RangePlanTest, KeyframeRangeDeclinesWithoutAVideoTrack) {
     empty.append(QByteArrayLiteral("moov"));
     EXPECT_EQ(Mp4RangePlan::keyframeRange(empty, 0, 1000, 0.10).second, 0);
 }
+
+// --- Untrusted input --------------------------------------------------------
+// Every size below comes from the file's own bytes, and the buffer is only a
+// fetched slice of a remote file -- so it can be short, cut mid-box, or not an
+// MP4 at all. Nothing here may read outside the buffer; the answer is simply
+// "no keyframe", which the caller already treats as "use the fixed window".
+
+// The crash seen on a share full of films, reproduced from a real file's own
+// header ("Newcomer GDoL.mp4", 2,574,833,573 bytes: ftyp 32, free 8, then mdat
+// declaring 2,572,706,270).
+//
+// Nothing here is corrupt -- this is what ffmpeg writes for any file under
+// 4 GB, since a 32-bit size still fits. Past 2 GB it no longer fits an *int*,
+// and the walk advanced the cursor by the truncated value: 40 + (int)2572706270
+// = -1722260986, still small enough to pass the "inside the buffer" test, so
+// the next box header was read from well before the start of the buffer.
+//
+// The buffer is the front of the file because this layout puts the index last,
+// so the plan's first range is media and keyframeRangeFor() offers it to the
+// parser first. Every film of this size on the share hit it.
+TEST(Mp4RangePlanTest, KeyframeAtSurvivesAMdatBiggerThanAnInt) {
+    const qint64 fileSize = 2574833573LL;
+    const quint32 mdatSize = 2572706270u; // > 2^31, and 32-bit on disk
+
+    QByteArray buf;
+    buf.append(box(QByteArrayLiteral("ftyp"), 32));
+    buf.append(QByteArray(24, '\0'));
+    buf.append(box(QByteArrayLiteral("free"), 8));
+    buf.append(box(QByteArrayLiteral("mdat"), mdatSize));
+    buf.append(QByteArray(256 * 1024, '\xAB')); // media bytes, as actually fetched
+
+    EXPECT_EQ(Mp4RangePlan::keyframeAt(buf, 0, fileSize, 0.10).range.second, 0);
+
+    // plan() sees the same chain, and must still place the probe on the index
+    // that follows the media rather than on an offset folded through an int.
+    const Mp4RangePlan::Plan p = Mp4RangePlan::plan(buf, fileSize);
+    if (p.needsProbe)
+        EXPECT_EQ(p.probeOffset, 40 + qint64(mdatSize));
+}
+
+// Same shape, one step further: a size whose low bits land the cursor back
+// inside the buffer rather than merely below zero. Walking must still stop.
+TEST(Mp4RangePlanTest, KeyframeAtDoesNotLoopOnAWrappingBoxSize) {
+    QByteArray buf;
+    buf.append(box(QByteArrayLiteral("ftyp"), 16));
+    buf.append(QByteArray(8, '\0'));
+    buf.append(box(QByteArrayLiteral("mdat"), 0x80000000u)); // wraps to INT_MIN
+    buf.append(QByteArray(4096, '\x11'));
+
+    EXPECT_EQ(Mp4RangePlan::keyframeAt(buf, 0, 4LL * 1024 * 1024 * 1024, 0.10).range.second, 0);
+}
+
+// A box header cut in half by the end of the fetched range, at every length a
+// truncation can leave behind.
+TEST(Mp4RangePlanTest, KeyframeAtHandlesEveryTruncationOfAValidFile) {
+    QByteArray full;
+    full.append(box(QByteArrayLiteral("ftyp"), 16));
+    full.append(QByteArray(8, '\0'));
+    full.append(videoMoov(1000, 250, 4096, 100000));
+    const qint64 fileSize = 100000 + 1000LL * 4096 + 1;
+
+    // The whole thing works; every prefix of it must at worst decline.
+    ASSERT_TRUE(Mp4RangePlan::keyframeAt(full, 0, fileSize, 0.10).valid());
+    for (int n = 0; n < full.size(); ++n)
+        Mp4RangePlan::keyframeAt(full.left(n), 0, fileSize, 0.10); // must not read out of bounds
+}
+
+// The index itself declares a size, and a range request that came back short
+// leaves moov claiming more bytes than arrived. The tables inside are then cut
+// off wherever the buffer ends.
+TEST(Mp4RangePlanTest, KeyframeAtHandlesAnIndexTruncatedMidTable) {
+    const QByteArray moov = videoMoov(1000, 250, 4096, 100000);
+    const qint64 fileSize = 100000 + 1000LL * 4096 + 1;
+    // Keep moov's declared size but deliver only part of the payload.
+    for (int keep : {12, 40, 200, 1000, moov.size() / 2, moov.size() - 4})
+        Mp4RangePlan::keyframeAt(moov.left(keep), 0, fileSize, 0.10);
+}
+
+// A hostile or corrupt size field on any nested box: each one is rewritten to
+// claim it runs far past the end of the buffer.
+TEST(Mp4RangePlanTest, KeyframeAtRejectsNestedBoxesClaimingImpossibleSizes) {
+    const QByteArray good = videoMoov(200, 50, 4096, 100000);
+    const qint64 fileSize = 100000 + 200LL * 4096 + 1;
+
+    for (int pos = 0; pos + 8 <= good.size(); ++pos) {
+        QByteArray bad = good;
+        bad[pos] = char(0xFF);
+        bad[pos + 1] = char(0xFF);
+        bad[pos + 2] = char(0xFF);
+        bad[pos + 3] = char(0xF0);
+        Mp4RangePlan::keyframeAt(bad, 0, fileSize, 0.10);
+    }
+}
+
+// A table header can claim any entry count; the entries themselves may simply
+// not be there. Reading them must stop at the buffer, not at the count.
+TEST(Mp4RangePlanTest, KeyframeAtHandlesTablesClaimingMoreEntriesThanExist) {
+    QByteArray moov = videoMoov(200, 50, 4096, 100000);
+    const qint64 fileSize = 100000 + 200LL * 4096 + 1;
+
+    for (const QByteArray &table : {QByteArrayLiteral("stss"), QByteArrayLiteral("stco"),
+                                    QByteArrayLiteral("stsc"), QByteArrayLiteral("stsz"),
+                                    QByteArrayLiteral("stts")}) {
+        const int at = moov.indexOf(table);
+        ASSERT_GT(at, 0) << table.constData();
+        QByteArray bad = moov;
+        // Overwrite the count word that follows the version/flags word.
+        for (int i = 0; i < 4; ++i)
+            bad[at + 8 + i] = char(0x7F);
+        Mp4RangePlan::keyframeAt(bad, 0, fileSize, 0.10);
+    }
+}
+
+// Arbitrary bytes: a share holds files whose extension lies, and a failed range
+// read can hand back an error page. Whatever the bytes are, the parser walks
+// them, so it must never step outside the buffer -- and must finish quickly.
+TEST(Mp4RangePlanTest, KeyframeAtWalksArbitraryBytesWithoutReadingOutside) {
+    quint32 seed = 0x12345678u;
+    auto next = [&seed] {
+        seed = seed * 1664525u + 1013904223u;
+        return char((seed >> 16) & 0xFF);
+    };
+    for (int trial = 0; trial < 400; ++trial) {
+        QByteArray buf(1 + (trial % 517), '\0');
+        for (int i = 0; i < buf.size(); ++i)
+            buf[i] = next();
+        Mp4RangePlan::keyframeAt(buf, 0, 4LL * 1024 * 1024 * 1024, 0.10);
+        // Prefixed with a real ftyp, so the walk gets past the first box.
+        QByteArray withFtyp = box(QByteArrayLiteral("ftyp"), 16) + QByteArray(8, '\0') + buf;
+        Mp4RangePlan::keyframeAt(withFtyp, 0, 4LL * 1024 * 1024 * 1024, 0.10);
+    }
+}
+
+// plan() reads the same untrusted chain. A file past 4 GB whose boxes overflow
+// a 32-bit cursor must not be "planned" from a mis-parsed offset.
+TEST(Mp4RangePlanTest, PlanHandlesBoxChainsPastFourGigabytes) {
+    const qint64 fileSize = 6LL * 1024 * 1024 * 1024;
+    QByteArray head;
+    head.append(box(QByteArrayLiteral("ftyp"), 16));
+    head.append(QByteArray(8, '\0'));
+    // 64-bit mdat: size 1, type, then the real length.
+    head.append(box(QByteArrayLiteral("mdat"), 1));
+    const qint64 mdatSize = 5LL * 1024 * 1024 * 1024;
+    for (int i = 7; i >= 0; --i)
+        head.append(char((mdatSize >> (i * 8)) & 0xFF));
+
+    const Mp4RangePlan::Plan p = Mp4RangePlan::plan(head, fileSize);
+    for (const auto &r : p.ranges) {
+        EXPECT_GE(r.first, 0);
+        EXPECT_LE(r.first + r.second, fileSize);
+    }
+    if (p.needsProbe) {
+        EXPECT_GE(p.probeOffset, 0);
+        EXPECT_LE(p.probeOffset + p.probeLength, fileSize);
+    }
+}

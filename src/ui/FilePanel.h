@@ -202,6 +202,21 @@ public:
     // MainWindow blocks write ops (delete/rename/mkdir/move-in/paste) here.
     bool isArchive() const { return m_archiveProvider != nullptr; }
 
+    // Enters `localArchivePath` -- a real file on THIS machine -- as a virtual
+    // folder, listing its contents in place. `sourcePath` is where the archive
+    // the user actually double-clicked lives: the same path for a local tab, and
+    // the server-side path for a network one, where `localArchivePath` is a
+    // downloaded copy (see archiveDownloadRequested). ".." then returns to
+    // whichever of the two directories the user came from, with the server
+    // connection still live. `ownsLocalCopy` gives the copy's lifetime to the
+    // archive provider, which deletes it when the browse ends.
+    //
+    // Returns false (changing nothing) if the file is not a readable archive, or
+    // if this panel is already inside one -- nested-archive browse is not
+    // supported.
+    bool enterArchive(const QString &localArchivePath, const QString &sourcePath,
+                      bool ownsLocalCopy);
+
     // List <-> thumbnail (icon) view. The * menu offers the toggle with a label
     // that depends on the current mode.
     bool isThumbnailMode() const;
@@ -243,6 +258,13 @@ signals:
     void panelActivated(FilePanel *panel);
     // A file (not a directory) was double-clicked / Enter-pressed.
     void openRequested(const QString &path);
+    // An archive on a NETWORK tab was activated and should be browsed as a
+    // folder, but nothing here can read it: libarchive opens files by name and
+    // `path` belongs to the server. The receiver downloads a local copy (with
+    // progress and a Cancel button -- this can be gigabytes) and hands it back
+    // via enterArchive(). Emitted instead of openRequested, which would have
+    // launched the desktop's archive manager on the copy.
+    void archiveDownloadRequested(FilePanel *panel, const QString &path);
     // Tab pressed in the list: caller should activate the other panel.
     void switchPanelRequested();
     // The status-bar "登录" link was clicked after an auth cancel: caller should
@@ -439,6 +461,31 @@ private:
     // used as the tab label in place of the "/" virtual root. Empty when not in
     // an archive.
     QString m_archiveName;
+    // Where the archive being browsed really lives (a server path on a network
+    // tab), and its directory. The directory is what the archive provider hands
+    // back as the root's ".." entry, so comparing an activated parent entry
+    // against it is an exact test for "the user is stepping out of the archive"
+    // -- unlike asking the archive whether the path is one of its own
+    // directories, which a top-level entry sharing the name would answer yes to.
+    QString m_archiveSourcePath;
+    QString m_archiveExitDir;
+    // The server connection the archive was entered from, parked here for the
+    // duration. It has to be detached rather than left in place, because
+    // FileSystemModel::setProvider() tears a session down when the provider
+    // changes under it -- which would drop the connection the ".." leads back to.
+    // Empty bundle for a local tab, which re-attaches as "go local".
+    FileSystemModel::NetworkConn m_archiveExitConn;
+    // Restores the pre-archive backend (re-attaching a parked server connection)
+    // and drops the archive provider, which deletes a downloaded copy. Leaves
+    // the listing alone -- callers navigate somewhere themselves. No-op outside
+    // an archive.
+    void leaveArchive();
+    // leaveArchive() plus putting the listing back in the directory the archive
+    // was entered from. For the paths that are about to take this panel's backend
+    // away wholesale -- tab switch, panel swap, disconnect, opening a favourite --
+    // where the archive cannot travel with it and leaving it half-attached would
+    // strand both the listing and the parked connection.
+    void backOutOfArchive();
 
     // Whether archives open as browsable folders (config preference). Default on.
     bool m_archiveAsFolder = true;

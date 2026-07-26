@@ -318,14 +318,27 @@ private:
     QHash<quint64, RemoteFetch> m_remoteFetches; // in-flight fetches, keyed by request id
     bool m_remoteCopyNoticeShown = false;        // the read-only notice is once per session
     QString ensureOpenTempDir();
+    // Separate root for downloaded archives, which unlike the open-with copies
+    // are only ever read by this process and are deleted as soon as the user
+    // steps back out of the archive (see ArchiveProvider::setOwnsArchiveFile).
+    QTemporaryDir *m_archiveTempDir = nullptr;
+    QString ensureArchiveTempDir();
     // Opens `path` (as listed by `panel`) with the desktop's MIME-associated
     // application, fetching a local copy first when the panel is a network tab.
     void openWithAssociatedApp(FilePanel *panel, const QString &path);
+    // Launches the desktop's handler on an already-downloaded copy, warning if
+    // nothing is associated and explaining once that the copy is read-only.
+    void openLocalCopyWithDesktop(const QString &localPath, const QString &name);
+    // Downloads the archive at `path` off `panel`'s server and browses it in
+    // place as a virtual folder (FilePanel::archiveDownloadRequested).
+    void browseRemoteArchive(FilePanel *panel, const QString &path);
     // Streams `path` off `panel`'s provider into a local temp copy and calls
     // `onReady(localPath)` on the GUI thread once it is there. Reports its own
-    // failures; `onReady` never runs on failure or cancellation.
+    // failures; `onReady` never runs on failure or cancellation. `destRoot`
+    // overrides where the copy lands (default: the session-long open-with dir).
     void fetchRemoteCopy(FilePanel *panel, const QString &path,
-                         std::function<void(const QString &)> onReady);
+                         std::function<void(const QString &)> onReady,
+                         const QString &destRoot = QString());
     void cancelRemoteFetch(quint64 reqId); // Cancel button / shutdown
 
     QMap<QString, QShortcut *> m_shortcuts;

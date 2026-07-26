@@ -44,6 +44,24 @@ public:
     // Parent directory of path, or an empty string if path is already a root.
     virtual QString parentPath(const QString &path) const = 0;
 
+    // Whether this backend's paths ARE paths on this machine's filesystem, so
+    // handing one straight to QFile/QDir/QFileInfo operates on the very same
+    // entry the user is looking at. Only the local backend can say yes.
+    //
+    // Network backends use the server's paths and archive backends use their own
+    // in-archive paths (rooted at "/", so an archive holding an "etc/passwd"
+    // entry yields the path "/etc/passwd"). Passing either to QFile silently
+    // opens whatever LOCAL file happens to share that name -- it does not fail,
+    // which is what makes it dangerous rather than merely wrong. Any code that
+    // is about to bypass the provider and touch the path directly must ask this
+    // first.
+    //
+    // Deliberately NOT expressed as displayName().isEmpty(): that test is how
+    // network tabs are recognised elsewhere, but ArchiveProvider has no
+    // displayName either, so it reads as "local" there. The default here is
+    // false so a backend added later is refused until it opts in.
+    virtual bool isLocalFilesystem() const { return false; }
+
     // Concise human label for the connection this provider represents (e.g.
     // "user@host"), shown alongside the current directory on network tabs. The
     // default is empty: local/archive backends have no connection identity and

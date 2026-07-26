@@ -30,7 +30,18 @@ constexpr qint64 kKeyframeWindowBytes = 2 * 1024 * 1024;
 // corrupt or hostile field, and walking it would burn time and memory.
 constexpr quint32 kMaxTableEntries = 8u * 1000u * 1000u;
 
+// Every offset below is derived from a size the file itself declares, and the
+// buffer is only whatever slice of a remote file came back -- short reads and
+// boxes cut off mid-way are normal, not exceptional. So the raw reads are
+// bounded here, in one place: out of range reads as zero, which every caller
+// already treats as a malformed box and refuses.
+bool inRange(const QByteArray &data, int offset, int length) {
+    return offset >= 0 && static_cast<qint64>(offset) + length <= data.size();
+}
+
 quint32 beUint32(const QByteArray &data, int offset) {
+    if (!inRange(data, offset, 4))
+        return 0;
     return (static_cast<quint32>(static_cast<quint8>(data[offset])) << 24) |
            (static_cast<quint32>(static_cast<quint8>(data[offset + 1])) << 16) |
            (static_cast<quint32>(static_cast<quint8>(data[offset + 2])) << 8) |
@@ -38,6 +49,8 @@ quint32 beUint32(const QByteArray &data, int offset) {
 }
 
 quint64 beUint64(const QByteArray &data, int offset) {
+    if (!inRange(data, offset, 8))
+        return 0;
     quint64 v = 0;
     for (int i = 0; i < 8; ++i)
         v = (v << 8) | static_cast<quint8>(data[offset + i]);
@@ -53,7 +66,7 @@ struct Box {
 // Reads the box header at `pos`. Returns false when the header is truncated or
 // declares a size that cannot be right.
 bool readBoxHeader(const QByteArray &data, int pos, qint64 fileOffset, qint64 fileSize, Box *out) {
-    if (pos + kBoxHeaderSize > data.size())
+    if (!inRange(data, pos, kBoxHeaderSize))
         return false;
 
     qint64 size = beUint32(data, pos);
@@ -62,7 +75,7 @@ bool readBoxHeader(const QByteArray &data, int pos, qint64 fileOffset, qint64 fi
 
     if (size == 1) {
         // Size 1 means the real, 64-bit size follows the type.
-        if (pos + 16 > data.size())
+        if (!inRange(data, pos, 16))
             return false;
         size = static_cast<qint64>(beUint64(data, pos + 8));
         headerLen = 16;
@@ -118,17 +131,24 @@ Mp4RangePlan::Plan indexFoundAt(qint64 indexOffset, qint64 indexSize, qint64 fil
 // payload range. Boxes are laid end to end, each headed by size + type.
 bool findBox(const QByteArray &data, int from, int to, const char *type, int *payloadStart,
              int *payloadEnd) {
-    int pos = from;
+    if (from < 0)
+        return false;
+    // A parent's declared extent can reach past the bytes actually fetched, so
+    // never search beyond the buffer whatever the enclosing box claims.
+    to = qMin(to, data.size());
+    // 64-bit cursor: a box may declare a size larger than an int holds, and
+    // truncating that would step the cursor backwards instead of forwards.
+    qint64 pos = from;
     while (pos + kBoxHeaderSize <= to) {
-        const qint64 size = beUint32(data, pos);
+        const qint64 size = beUint32(data, static_cast<int>(pos));
         if (size < kBoxHeaderSize || pos + size > to)
             return false; // truncated or malformed: stop rather than guess
-        if (data.mid(pos + 4, 4) == QByteArray(type, 4)) {
-            *payloadStart = pos + kBoxHeaderSize;
-            *payloadEnd = pos + static_cast<int>(size);
+        if (data.mid(static_cast<int>(pos) + 4, 4) == QByteArray(type, 4)) {
+            *payloadStart = static_cast<int>(pos) + kBoxHeaderSize;
+            *payloadEnd = static_cast<int>(pos + size);
             return true;
         }
-        pos += static_cast<int>(size);
+        pos += size;
     }
     return false;
 }
@@ -177,7 +197,7 @@ bool readTables(const QByteArray &moov, int mdiaStart, int mdiaEnd, SampleTables
     int mdhdS = 0, mdhdE = 0;
     if (findBox(moov, mdiaStart, mdiaEnd, "mdhd", &mdhdS, &mdhdE) && mdhdE - mdhdS >= 20) {
         // Version 0 puts the timescale at +12, version 1 (64-bit times) at +20.
-        const quint8 version = static_cast<quint8>(moov[mdhdS]);
+        const quint8 version = static_cast<quint8>(beUint32(moov, mdhdS) >> 24);
         const int tsOffset = version == 1 ? 20 : 12;
         if (mdhdS + tsOffset + 4 <= mdhdE)
             out->timescale = beUint32(moov, mdhdS + tsOffset);
@@ -278,22 +298,30 @@ double timeOfSample(const SampleTables &t, quint32 sample) {
 qint64 offsetOfSample(const SampleTables &t, quint32 sample) {
     quint32 chunkIndex = 0;      // 0-based
     quint32 sampleInChunk = 0;   // 0-based within that chunk
-    quint32 seen = 0;            // samples accounted for so far
+    qint64 seen = 0;             // samples accounted for so far
 
+    const quint32 chunkCount = static_cast<quint32>(t.chunkOffsets.size());
     for (int r = 0; r < t.chunkRuns.size(); ++r) {
         const quint32 firstChunk = t.chunkRuns[r].first;          // 1-based
         const quint32 perChunk = t.chunkRuns[r].second;
-        const quint32 lastChunk = (r + 1 < t.chunkRuns.size())
-                                      ? t.chunkRuns[r + 1].first - 1
-                                      : static_cast<quint32>(t.chunkOffsets.size());
-        if (perChunk == 0 || lastChunk < firstChunk)
+        // Both fields come from the file. A next-run firstChunk of 0 would
+        // underflow to 4 billion chunks here, and a samples-per-chunk of the
+        // same order turns the skip loop below into a hang -- so neither is
+        // taken further than the chunk table actually goes. On a valid file the
+        // clamp and the bound never bite.
+        const quint32 lastChunk =
+            qMin(chunkCount, (r + 1 < t.chunkRuns.size()) ? t.chunkRuns[r + 1].first - 1
+                                                          : chunkCount);
+        if (perChunk == 0 || perChunk > kMaxTableEntries || lastChunk < firstChunk)
             continue;
         const quint32 chunks = lastChunk - firstChunk + 1;
-        const quint32 samplesHere = chunks * perChunk;
+        const qint64 samplesHere = static_cast<qint64>(chunks) * perChunk;
         if (seen + samplesHere >= sample) {
-            const quint32 into = sample - seen - 1;
-            chunkIndex = firstChunk - 1 + into / perChunk;
-            sampleInChunk = into % perChunk;
+            const qint64 into = static_cast<qint64>(sample) - seen - 1;
+            if (into < 0)
+                return -1; // a sync sample numbered 0: the table is not usable
+            chunkIndex = firstChunk - 1 + static_cast<quint32>(into / perChunk);
+            sampleInChunk = static_cast<quint32>(into % perChunk);
             break;
         }
         seen += samplesHere;
@@ -335,9 +363,12 @@ Plan plan(const QByteArray &head, qint64 fileSize) {
     Box last;
     bool haveLast = false;
     while (offset < fileSize) {
-        const int pos = static_cast<int>(offset);
-        if (pos < 0 || pos >= head.size())
+        // Compared in 64-bit before narrowing: a file past 4 GB reaches offsets
+        // an int cannot hold, and a wrapped one would land back inside the
+        // buffer and be parsed as if it were the next box.
+        if (offset < 0 || offset >= head.size())
             break; // ran past what we read
+        const int pos = static_cast<int>(offset);
         if (!readBoxHeader(head, pos, offset, fileSize, &box))
             break;
 
@@ -398,17 +429,24 @@ Keyframe keyframeAt(const QByteArray &moov, qint64 moovOffset, qint64 fileSize, 
     int start = 0;
     int end = moov.size();
     bool located = false;
-    for (int pos = 0; pos + kBoxHeaderSize <= moov.size();) {
-        const qint64 size = beUint32(moov, pos);
+    // The cursor is 64-bit on purpose. This buffer is usually the *front* of the
+    // file, where mdat declares the whole media run -- and ffmpeg writes that
+    // size as a plain 32-bit field for anything under 4 GB. Past 2 GB it no
+    // longer fits an int, so truncating it walked the cursor off the front of
+    // the buffer and read out of bounds on the next box. Films on a share hit
+    // this routinely.
+    for (qint64 pos = 0; pos + kBoxHeaderSize <= moov.size();) {
+        const int at = static_cast<int>(pos);
+        const qint64 size = beUint32(moov, at);
         if (size < kBoxHeaderSize)
             break; // malformed or a 64-bit/extends-to-EOF form we can skip past
-        if (moov.mid(pos + 4, 4) == QByteArrayLiteral("moov")) {
-            start = pos + kBoxHeaderSize;
+        if (moov.mid(at + 4, 4) == QByteArrayLiteral("moov")) {
+            start = at + kBoxHeaderSize;
             end = static_cast<int>(qMin<qint64>(pos + size, moov.size()));
             located = true;
             break;
         }
-        pos += static_cast<int>(size);
+        pos += size; // may leave the buffer, which the loop condition catches
     }
     // No box header found at all: assume the caller handed over moov's payload.
     if (!located && moov.mid(4, 4) != QByteArrayLiteral("moov") &&
