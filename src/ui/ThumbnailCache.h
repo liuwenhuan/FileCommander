@@ -91,6 +91,98 @@ public:
     // touch the filesystem.
     static bool canThumbnail(const QString &path);
 
+    // The pixel size the *disk* cache stores a `requested`-pixel thumbnail at:
+    // `requested` rounded UP to the next rung of a fixed doubling ladder.
+    //
+    // This is what lets the zoom steps share work. The icon size moves in 16px
+    // increments from 48 to 192 (FilePanel::zoomThumbnails), and every distinct
+    // size used to mean a distinct cache key -- ten sizes, ten independent
+    // regenerations of the same file, each one re-fetching a remote video and
+    // re-running ffmpeg. Quantising collapses those ten onto two or three
+    // rungs, so most zoom steps are served from disk.
+    //
+    // Rounding UP, never down, is the whole safety property: the stored bitmap
+    // is always at least as large as the one being displayed, so it is only
+    // ever scaled DOWN to fit. Scaling up is exactly the blur this cache was
+    // just fixed to stop producing, and no reuse scheme may reintroduce it.
+    //
+    // Generation cost barely moves as a result: a remote fetch pulls the same
+    // bytes and ffmpeg decodes the same frame whatever the target size -- only
+    // the final scale-down differs. Disk cost drops outright, because ten
+    // stored sizes become two.
+    static int storageSize(int requested);
+
+    // Drops the derived (possibly tinted) copies, keeping every stored bitmap.
+    // Called when the phosphor tint changes: the memory keys carry the tint, so
+    // stale entries would only linger until eviction otherwise.
+    void invalidateMemoryCache();
+
+    // ---- disk cache housekeeping -------------------------------------------
+    //
+    // The stored bitmaps are the expensive half of this cache, and nothing used
+    // to remove them: the directory was flat, unindexed and unbounded, and its
+    // only deletion was lookupCached() dropping a file it could not decode. Two
+    // separate things then go wrong, and they need two separate answers.
+    //
+    //   * Every stored file becomes unreachable the moment the key format
+    //     changes, and unreachable is NOT the same as deleted -- the old
+    //     entries can never be hit again, so nothing ever notices they are
+    //     there. purgeIfStale() is the answer: the format is stamped into the
+    //     directory, and a build that disagrees with the stamp wipes it.
+    //   * Reachable entries still accumulate without bound. pruneToLimit() is
+    //     the answer: a cap, enforced oldest-used first.
+    //
+    // How fast the second one grows is easy to get wrong by an order of
+    // magnitude, so it is worth stating in the units that matter. The rung
+    // ladder made each stored file bigger, but it also made a file need FEWER
+    // of them -- ten zoom steps used to mean ten stored bitmaps and now mean
+    // two or three -- and those two effects partly cancel. The figure to size a
+    // cache against is therefore the total per DISTINCT FILE, never the size of
+    // one bitmap. Measured over 69 real photographs and video clips, each
+    // walked across the full 48..192 zoom range (see the disabled
+    // MeasuresRealCacheFootprint test, which re-derives all of this):
+    //
+    //     dpr 1.0      2 rungs (96,192)     26 KB per file
+    //     dpr 1.25-2.0 3 rungs (96,192,384) 93 KB per file
+    //     dpr 2.5      3 rungs (192,384,768) 322 KB per file
+
+    // Wipes the whole cache directory if the format stamp written in it does
+    // not match this build's (see cacheFormatStamp() in the .cpp), then writes
+    // the current stamp. A no-op -- one small file read -- when they agree,
+    // which is every launch but the first after a key or rung-ladder change.
+    // Returns the number of files removed.
+    //
+    // Called from the constructor rather than deferred with the prune below,
+    // because it must happen before this session writes its first thumbnail:
+    // a wipe running afterwards would throw away work this session had just
+    // done and force it to be redone.
+    static int purgeIfStale();
+
+    // Trims the cache back under `limitBytes` by deleting least-recently-used
+    // entries -- oldest mtime first -- until it fits. Returns the number of
+    // files removed; 0 when the cache was already within the limit.
+    //
+    // Deletion runs down to a fraction of the limit rather than to the limit
+    // itself. Stopping exactly at the threshold would leave the cache sitting
+    // on it, so the next launch deletes another handful, and the one after
+    // that another -- a permanently thrashing cache that never gets to keep
+    // anything. The gap is what makes one sweep last.
+    static int pruneToLimit(qint64 limitBytes);
+
+    // Queues one pruneToLimit() run on the worker pool `delayMs` from now,
+    // against the limit from Settings. Deferred and off the GUI thread on
+    // purpose: it stats every file in the directory, which has no business
+    // happening on a scroll or a paint, nor competing with the rest of startup.
+    // Never runs the prune more than once per process.
+    void scheduleMaintenance(int delayMs = 5000);
+
+    // The directory holding the stored bitmaps. Exposed so tests can look at
+    // what housekeeping did without duplicating the path logic.
+    static QString cacheDirectory();
+
+    // The configured cap in bytes (Settings::thumbnailCacheLimitMb).
+    static qint64 diskCacheLimitBytes();
+
 signals:
     // Emitted (on the GUI thread) once a background generation attempt for
     // `path` completes, successfully or not. Listeners should re-query
@@ -103,7 +195,20 @@ private:
     // Cache key identifying one (path, mtime, size) combination -- md5 of
     // "absolutePath\nmtimeEpoch\nsize". Two different files (or the same
     // file after being modified) never collide on the same key.
+    //
+    // Two keys are derived per request and they are NOT interchangeable: the
+    // *memory* key uses the exact display size, so a lookup hit can be blitted
+    // 1:1 with no scaling at paint time, while the *disk* key uses
+    // storageSize() so neighbouring zoom steps share one stored bitmap. The
+    // memory entry is the cheap derived form; the disk entry is the expensive
+    // original.
     static QString cacheKey(const QString &absolutePath, qint64 mtimeEpoch, int size);
+
+    // Suffix identifying the active content tint, appended to the MEMORY key
+    // only so a theme switch never touches the disk cache. Empty when untinted.
+    static QString contentTintTag();
+    // Applies the active content tint (a no-op when there is none).
+    static QPixmap tintedForDisplay(const QPixmap &pixmap);
     // Remote key. The extra fields are what a remote path lacks on its own:
     // `connectionId` disambiguates the same path on two servers, `fileSize`
     // stands in for the local stat, and the "remote:" prefix guarantees a
@@ -112,10 +217,18 @@ private:
                                   qint64 mtimeEpoch, qint64 fileSize, int size);
     static QString diskCachePath(const QString &key);
 
-    // Shared tail of both generation paths: looks `key` up in memory, then on
-    // disk, and returns the pixmap if either hits. A disk hit is promoted into
-    // the memory cache. Null means "not cached -- generate it".
-    QPixmap lookupCached(const QString &key);
+    // Shared tail of both generation paths: returns a ready pixmap at exactly
+    // `displaySize` if one can be had without generating. Tries the memory
+    // cache at `memKey` first, then the stored bitmap at `diskKey`, which is
+    // scaled down to `displaySize` and promoted into memory so the next paint
+    // is a plain lookup. Null means "not cached -- generate it".
+    QPixmap lookupCached(const QString &memKey, const QString &diskKey, int displaySize);
+
+    // Scales `image` down to fit displaySize x displaySize, preserving aspect
+    // ratio. Never scales UP: a source smaller than the display box (a tiny
+    // icon, or a stored bitmap that hit decodeScaled's no-upscale rule) is
+    // returned untouched and simply draws at its own resolution.
+    static QImage scaledForDisplay(const QImage &image, int displaySize);
     // Claims `key` for generation, returning false if another request already
     // has it in flight (the caller then just waits for thumbnailReady).
     bool claimPending(const QString &key);
@@ -127,14 +240,16 @@ private:
     // QPixmap -- QPixmap construction/conversion is only safe on the GUI
     // thread on some platform backends, so that conversion happens in
     // storeResult() instead.
-    void generate(const QString &path, const QString &key, int size);
+    void generate(const QString &path, const QString &diskKey, const QString &memKey,
+                  int storedSize, int displaySize);
 
     // Runs on a RemoteThumbnailFetcher worker: fetches only as much of the
     // remote file as a thumbnail needs, decodes it exactly as generate() does,
     // then deletes the temp file and reports through storeResult(). A failure
     // to decode is reported as a miss, leaving the generic icon in place.
     void generateRemote(const RemoteThumbnailFetcher::Ticket &ticket, const QString &path,
-                        const QString &key, qint64 fileSize, int size);
+                        const QString &diskKey, const QString &memKey, qint64 fileSize,
+                        int storedSize, int displaySize);
 
     // What fetchVideoExcerpt() managed to pull.
     struct VideoExcerpt {
@@ -157,8 +272,15 @@ private:
     // to a QPixmap, stores it in the memory cache, and notifies listeners.
     // A null `image` means generation failed; the cache miss simply persists
     // and future thumbnail() calls keep falling back to the model's icon.
-    Q_INVOKABLE void storeResult(const QString &path, const QString &key, QImage image);
+    //
+    // The two keys differ deliberately: `pendingKey` is the disk-side key the
+    // work was claimed under (releasing it is what lets a retry happen), while
+    // `memKey` is the display-size key the already-scaled `image` belongs
+    // under. Releasing the claim under the memory key would strand the file.
+    Q_INVOKABLE void storeResult(const QString &path, const QString &pendingKey,
+                                 const QString &memKey, QImage image);
 
+    bool m_maintenanceScheduled = false; // GUI thread only; one prune per process
     QCache<QString, QPixmap> m_memCache; // cache key -> thumbnail; guarded by m_mutex
     QSet<QString> m_pending;             // cache keys currently generating; guarded by m_mutex
     QMutex m_mutex;

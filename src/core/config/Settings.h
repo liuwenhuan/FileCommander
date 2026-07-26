@@ -143,6 +143,38 @@ public:
     int listRowHeight(const QString &side) const;
     void setListRowHeight(const QString &side, int height);
 
+    // Cap on the thumbnail *disk* cache in MB, enforced by
+    // ThumbnailCache::pruneToLimit(). Clamped to 64..8192; defaults to 512.
+    //
+    // The default is a backstop, not a routine evictor, and that is what the
+    // size is chosen to buy. Lowering it has a cost that is not obvious: the
+    // disk cache is what lets the zoom steps share stored bitmaps, so a cache
+    // too small to hold a directory's rungs turns every zoom change back into a
+    // full regeneration -- measured on 12 remote videos across the ten zoom
+    // steps, 1804 ms served from cache against 6921 ms regenerating.
+    //
+    // Sized against measured per-file totals rather than per-bitmap ones (69
+    // real photographs and clips, whole zoom range walked; the rung-by-rung
+    // spread is in ThumbnailCache.h, and the disabled
+    // MeasuresRealCacheFootprint test re-derives it):
+    //
+    //   * a distinct file costs 93 KB across all three rungs it can reach at
+    //     the common HiDPI ratios (dpr 1.25..2.0), and 174 KB at the 90th
+    //     percentile of that corpus -- detailed photographs, which are the
+    //     files a cap actually has to survive;
+    //   * so a real browsing history the size of the one sampled here -- 4574
+    //     stored files under the old exact-size scheme, roughly 900..1500
+    //     distinct files once the duplicated sizes are collapsed -- lands
+    //     somewhere between 150 and 260 MB under this scheme;
+    //   * 512 MB (evicting down to 410 MB) is therefore about twice the
+    //     observed working set: normal use never reaches it, and a directory
+    //     the user is still browsing is never evicted out from under them.
+    //
+    // 256 MB was considered and rejected: its 205 MB floor sits INSIDE that
+    // 150..260 MB band, so ordinary use would start evicting live entries.
+    int thumbnailCacheLimitMb() const;
+    void setThumbnailCacheLimitMb(int mb);
+
     // Online-update bookkeeping: the yyyy-MM-dd date of the last update check,
     // so the background check runs only once on the first launch of a given day.
     QString updateLastCheckDate() const;

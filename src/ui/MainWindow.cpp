@@ -81,6 +81,7 @@
 #include "FileSplitter.h"
 #include "MpvStreamSource.h"
 #include "QuickView.h"
+#include "ThumbnailCache.h"
 #include "ViewerWindow.h"
 #include "FileListView.h"
 #include "FileSystemModel.h"
@@ -928,6 +929,12 @@ void MainWindow::setupFeatureBatch() {
                 [checker](const QString &) { checker->deleteLater(); });
         checker->checkForUpdates();
     }
+
+    // Trim the thumbnail disk cache back under its limit, once, a few seconds
+    // in. Deferred rather than immediate because it stats every stored file and
+    // startup has better things to do with the disk; see
+    // ThumbnailCache::scheduleMaintenance().
+    ThumbnailCache::instance().scheduleMaintenance();
 }
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event) {

@@ -8,6 +8,8 @@ add_library(core STATIC
     filesystem/LocalFileProvider.cpp
     filesystem/IconCache.h
     filesystem/IconCache.cpp
+    theme/Phosphor.h
+    theme/Phosphor.cpp
     filesystem/ExternalPaths.h
     filesystem/ExternalPaths.cpp
     operations/FileOpTypes.h

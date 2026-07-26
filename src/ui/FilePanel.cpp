@@ -591,7 +591,11 @@ void FilePanel::pumpThumbnailSweep() {
         return;
     }
 
-    const int iconSize = m_thumbnailDelegate->iconSize();
+    // Device pixels, not the logical icon size: the delegate paints what it
+    // asked for at that same size, and the thumbnail cache keys on it. Asking
+    // for the logical size here would fill the cache under a key paint() never
+    // looks up -- every row fetched twice, and the sweep never getting ahead.
+    const int iconSize = m_thumbnailDelegate->thumbnailPixelSize();
     std::shared_ptr<FileProvider> provider = m_model->providerPtr();
 
     // Feed rows in until the fetcher pushes back. Deferred means its queue is

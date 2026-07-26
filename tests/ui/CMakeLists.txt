@@ -20,6 +20,8 @@ add_executable(ui_tests
     test_TreeRootBuilder.cpp
     test_DirectoryTreeModel.cpp
     test_SlideSceneImageCache.cpp
+    test_ThumbnailCacheReuse.cpp
+    test_ThumbnailCachePrune.cpp
     test_MpvStreamSource.cpp
     test_SearchEngine.cpp
     test_DragPayload.cpp

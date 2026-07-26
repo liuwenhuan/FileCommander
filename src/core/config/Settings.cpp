@@ -269,6 +269,14 @@ void Settings::setThumbnailIconSize(const QString &side, int px) {
     m_settings.setValue(QStringLiteral("view/thumbnailIconSize/%1").arg(side), px);
 }
 
+int Settings::thumbnailCacheLimitMb() const {
+    return qBound(64, m_settings.value("thumbnails/diskCacheLimitMb", 512).toInt(), 8192);
+}
+
+void Settings::setThumbnailCacheLimitMb(int mb) {
+    m_settings.setValue("thumbnails/diskCacheLimitMb", qBound(64, mb, 8192));
+}
+
 int Settings::listRowHeight(const QString &side) const {
     return m_settings.value(QStringLiteral("view/listRowHeight/%1").arg(side), 0).toInt();
 }

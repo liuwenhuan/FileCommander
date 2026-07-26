@@ -105,6 +105,18 @@ ThumbnailDelegate::ThumbnailDelegate(QObject *parent) : QStyledItemDelegate(pare
 
 void ThumbnailDelegate::setIconSize(int px) { m_iconSize = px > 0 ? px : m_iconSize; }
 
+qreal ThumbnailDelegate::devicePixelRatio() const {
+    // The view's own ratio, not qApp's: with two displays at different scaling
+    // qApp reports the maximum, which would over-generate on the 1x screen.
+    // QWidget::devicePixelRatioF() follows the window between screens.
+    const qreal dpr = m_view ? m_view->devicePixelRatioF() : qreal(1.0);
+    return dpr > 0.0 ? dpr : qreal(1.0);
+}
+
+int ThumbnailDelegate::thumbnailPixelSize() const {
+    return qMax(1, qRound(m_iconSize * devicePixelRatio()));
+}
+
 void ThumbnailDelegate::setFontPointSize(int pt) { m_fontPointSize = pt; }
 
 void ThumbnailDelegate::setView(QAbstractItemView *view) { m_view = view; }
@@ -166,6 +178,15 @@ void ThumbnailDelegate::paint(QPainter *painter, const QStyleOptionViewItem &opt
         const FileInfo info = fileInfoForIndex(index);
         const QString path = info.path();
         QPixmap pixmap;
+        // Thumbnails are requested in device pixels so they map 1:1 onto the
+        // screen; `pixmapDpr` records how many device pixels of the result make
+        // up one logical pixel, which is what the layout below works in. The
+        // two sources disagree on this, so it is tracked per source rather than
+        // read off the pixmap: a generated thumbnail is an untagged (dpr=1)
+        // bitmap that happens to hold devicePx pixels, while QIcon::pixmap()
+        // returns a properly tagged HiDPI pixmap.
+        const int devicePx = thumbnailPixelSize();
+        qreal pixmapDpr = devicePixelRatio();
         if (!path.isEmpty() && !info.isDir() && ThumbnailCache::canThumbnail(path)) {
             // A network tab's paths are meaningless to the local filesystem, so
             // those rows go down the fetch-then-decode route with the metadata
@@ -175,28 +196,32 @@ void ThumbnailDelegate::paint(QPainter *painter, const QStyleOptionViewItem &opt
             if (!connectionId.isEmpty()) {
                 pixmap = ThumbnailCache::instance().remoteThumbnail(
                     model->providerPtr(), connectionId, path,
-                    info.modified().toSecsSinceEpoch(), info.size(), m_iconSize);
+                    info.modified().toSecsSinceEpoch(), info.size(), devicePx);
             } else {
-                pixmap = ThumbnailCache::instance().thumbnail(path, m_iconSize);
+                pixmap = ThumbnailCache::instance().thumbnail(path, devicePx);
             }
         }
 
         if (pixmap.isNull()) {
             // No thumbnail available (unsupported type, or generation still in
             // flight) -- fall back to the model's regular per-type/folder icon.
+            // QIcon::pixmap() takes a logical size and tags the result itself.
             const QIcon icon = index.data(Qt::DecorationRole).value<QIcon>();
-            if (!icon.isNull())
+            if (!icon.isNull()) {
                 pixmap = icon.pixmap(QSize(m_iconSize, m_iconSize));
+                pixmapDpr = pixmap.devicePixelRatio() > 0 ? pixmap.devicePixelRatio() : 1.0;
+            }
         }
 
         if (!pixmap.isNull()) {
-            // Lay out in logical (device-independent) pixels: the fallback
-            // QIcon::pixmap() returns a HiDPI-aware pixmap whose width()/height()
-            // are in *physical* pixels (2x on a scaled display), so using them
-            // directly made the icon render at double size and spill outside the
-            // cell (and its selection frame). Dividing by the device pixel ratio
-            // is a no-op for the dpr=1 thumbnail pixmaps.
-            const qreal dpr = pixmap.devicePixelRatio() > 0 ? pixmap.devicePixelRatio() : 1.0;
+            // Lay out in logical (device-independent) pixels: both sources hand
+            // back pixmaps measured in *physical* pixels, so using width()/
+            // height() directly made the icon render at dpr times its intended
+            // size and spill outside the cell (and its selection frame).
+            // Dividing collapses back to the logical box, and because the
+            // pixmap now holds exactly as many pixels as that box covers on
+            // screen, drawPixmap() blits it 1:1 instead of stretching it.
+            const qreal dpr = pixmapDpr;
             const int w = qRound(pixmap.width() / dpr);
             const int h = qRound(pixmap.height() / dpr);
             // Center within iconRect regardless of the pixmap's own aspect

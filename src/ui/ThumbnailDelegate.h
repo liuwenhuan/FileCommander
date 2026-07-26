@@ -26,10 +26,21 @@ class ThumbnailDelegate : public QStyledItemDelegate {
 public:
     explicit ThumbnailDelegate(QObject *parent = nullptr);
 
-    // Thumbnail/icon edge length in pixels; the cell grows to fit it plus
-    // the name label. Defaults to a reasonable icon-view size.
+    // Thumbnail/icon edge length in *logical* (device-independent) pixels; the
+    // cell grows to fit it plus the name label. Defaults to a reasonable
+    // icon-view size. This is the layout size -- see thumbnailPixelSize() for
+    // the size a thumbnail must actually be generated at.
     void setIconSize(int px);
     int iconSize() const { return m_iconSize; }
+
+    // The edge length, in *device* pixels, that a thumbnail for this delegate
+    // must be generated at: iconSize() scaled by the display's device pixel
+    // ratio. On a 1.5x display a 192px icon box covers 288 device pixels, so a
+    // 192px bitmap would be stretched by half again -- which is exactly the
+    // blur that grows worse at every zoom step. Anyone requesting a thumbnail
+    // on this delegate's behalf (FilePanel's network prefetch sweep) must ask
+    // for this size, or it fills the cache under a key paint() never reads.
+    int thumbnailPixelSize() const;
 
     // Point size for the name label drawn beneath each thumbnail.
     void setFontPointSize(int pt);
@@ -65,6 +76,13 @@ private:
     // path, because a remote thumbnail is keyed on the listing's own
     // size/mtime: there is no local file to stat for them.
     static FileInfo fileInfoForIndex(const QModelIndex &index);
+
+    // Device pixel ratio of the screen this delegate's view is currently on
+    // (1.0 with no view yet). Read fresh on every use rather than cached: a
+    // window dragged between displays of different scaling changes it at
+    // runtime, and the ratio is what decides both the pixel size requested and
+    // the logical size drawn.
+    qreal devicePixelRatio() const;
 
     int m_iconSize = 96;
     int m_fontPointSize = -1; // -1 == inherit the view's default font size
