@@ -5,9 +5,114 @@
 #include <QVector>
 #include <QWaitCondition>
 
+#include <cstdlib>
 #include <functional>
 #include <thread>
+#include <unistd.h>
 #include <utility>
+
+namespace connpool {
+
+// Process-global bookkeeping for the detached reaper threads that
+// shutdownAsync() spawns.
+//
+// A reaper runs protocol teardown (libssh2 -> OpenSSL, libsmbclient, ...) and
+// is deliberately not joined by its spawner, so without this it can still be
+// mid-disconnect when the process starts running its exit handlers. OpenSSL
+// tears its own global state down from an atexit handler registered the first
+// time it is used, i.e. during the initial connect -- long before any reaper
+// exists. atexit runs LIFO, so an exit handler registered here (at the first
+// reaper spawn) is guaranteed to run *before* OpenSSL's, which gives us a point
+// to drain outstanding reapers while the crypto globals are still alive.
+//
+// The budget is what keeps exit responsive: a healthy disconnect takes single
+// -digit milliseconds, and a stalled one is bounded by the protocol timeout the
+// destroyer installs, so the wait is invisible in practice and capped in the
+// worst case.
+class ReaperRegistry {
+public:
+    // Deliberately leaked: a reaper may outlive any static destructor ordering
+    // we could arrange, and destroying the registry underneath one is precisely
+    // the class of bug this exists to prevent.
+    static ReaperRegistry &instance() {
+        static ReaperRegistry *self = new ReaperRegistry;
+        return *self;
+    }
+
+    // Registers a reaper about to start. The first call installs the exit-time
+    // drain (function-local static => once per process, thread-safe).
+    bool enter() {
+        static const bool installed = []() {
+            std::atexit(&ReaperRegistry::drainAtExit);
+            return true;
+        }();
+        (void)installed;
+        QMutexLocker locker(&m_mutex);
+        if (m_draining)
+            return false;
+        ++m_active;
+        return true;
+    }
+
+    // Registers a reaper that has finished all of its teardown work.
+    void leave() {
+        QMutexLocker locker(&m_mutex);
+        if (--m_active <= 0)
+            m_cond.wakeAll();
+    }
+
+    // True once the process has begun its exit-time drain. Destroyers poll this
+    // to skip graceful (network round-trip) teardown for connections they have
+    // not started on yet: at this point the process is going away, so dropping
+    // the socket is both sufficient and immeasurably faster.
+    bool draining() const {
+        QMutexLocker locker(&m_mutex);
+        return m_draining;
+    }
+
+    // Waits up to timeoutMs for every registered reaper to finish. Returns false
+    // if some were still running when the budget ran out.
+    bool drain(int timeoutMs) {
+        QElapsedTimer clock;
+        clock.start();
+        QMutexLocker locker(&m_mutex);
+        m_draining = true;
+        while (m_active > 0) {
+            const qint64 left = timeoutMs - clock.elapsed();
+            if (left <= 0)
+                return false;
+            m_cond.wait(&m_mutex, static_cast<unsigned long>(left));
+        }
+        return true;
+    }
+
+private:
+    ReaperRegistry() = default;
+
+    static void drainAtExit() {
+        // Generous relative to the destroyers' own timeouts, so this only ever
+        // bites when teardown is genuinely wedged.
+        if (instance().drain(2500))
+            return;
+        // A reaper is still inside protocol/crypto code and would fault once the
+        // remaining exit handlers free the globals under it. Nothing left to
+        // flush at this point (main() has already returned), so end the process
+        // here rather than let it crash on the way out.
+        ::_exit(0);
+    }
+
+    mutable QMutex m_mutex;
+    QWaitCondition m_cond;
+    int m_active = 0;
+    bool m_draining = false;
+};
+
+// True once exit-time draining has begun; see ReaperRegistry::draining().
+inline bool processIsDraining() {
+    return ReaperRegistry::instance().draining();
+}
+
+} // namespace connpool
 
 // A small, generic pool of independent physical network connections, embedded
 // inside a FileProvider so that concurrent transfer workers can each borrow a
@@ -216,11 +321,27 @@ public:
         // Each disconnect can block on network I/O; detach so the caller (a
         // provider destructor) is never held up. The destroyer is self-contained
         // and the connections are independent, so this outliving the provider is
-        // safe.
-        std::thread([destroyer, toDestroy]() {
-            for (Conn *c : toDestroy)
-                destroyer(c);
-        }).detach();
+        // safe. It must NOT outlive the process's exit handlers, though -- the
+        // registry both bounds that (drain at exit) and tells the destroyer to
+        // stop being graceful once exit has begun.
+        connpool::ReaperRegistry &registry = connpool::ReaperRegistry::instance();
+        if (!registry.enter())
+            return;
+        try {
+            std::thread([destroyer, toDestroy]() {
+                struct ReaperLeave {
+                    ~ReaperLeave() { connpool::ReaperRegistry::instance().leave(); }
+                } leave;
+                for (Conn *c : toDestroy) {
+                    try {
+                        destroyer(c);
+                    } catch (...) {
+                    }
+                }
+            }).detach();
+        } catch (...) {
+            registry.leave();
+        }
     }
 
 private:

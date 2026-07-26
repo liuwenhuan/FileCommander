@@ -42,6 +42,7 @@ struct WebDavTransferState {
     bool noMoreInput = false;
     bool aborted = false;
     bool curlOk = false;
+    long httpCode = 0;
 };
 
 size_t downloadWriteCallback(char *ptr, size_t size, size_t nmemb, void *userdata) {
@@ -113,6 +114,7 @@ struct WebDavHandle : public FileHandle {
     QString password;
     bool useHttps = false;
     qint64 resumeOffset = 0;
+    qint64 uploadSize = -1; // total PUT body length, or -1 when the caller didn't say
     bool started = false;
     qint64 cachedSize = -1;
     int timeoutMs = 12000; // connect-phase timeout for the transfer
@@ -209,18 +211,35 @@ void startWebDavTransfer(WebDavHandle *h) {
         curl_easy_setopt(h->curl, CURLOPT_READDATA, state.get());
         // CURLOPT_UPLOAD alone is sufficient for an HTTP PUT (the deprecated
         // CURLOPT_PUT option is redundant with it and only needed pre-7.12.1).
-        // No CURLOPT_INFILESIZE_LARGE: the total size isn't known up front by
-        // this streaming API, so curl sends the upload chunked, which every
-        // mainstream WebDAV server (Apache mod_dav, nginx-dav, Nextcloud,
-        // etc.) accepts for PUT.
+        //
+        // Declare the body length whenever the caller knows it, so the PUT goes
+        // out with Content-Length instead of Transfer-Encoding: chunked. The
+        // origin server here accepts chunked fine, but a forward proxy in the
+        // path may not: measured against a real NAS through a local HTTP proxy,
+        // chunked PUTs died at ~16 KB and up (connection closed, empty reply)
+        // while the identical bodies sent with Content-Length succeeded at every
+        // size up to 8 MB. Chunked is also what makes an interrupted upload look
+        // complete, since there is no declared length for the server to check
+        // the truncated body against.
+        //
+        // Without a size (a caller that genuinely cannot know it) this falls
+        // back to the previous chunked behaviour rather than refusing the
+        // upload -- correctness there rests on the response-code check below.
+        if (h->uploadSize >= 0) {
+            curl_easy_setopt(h->curl, CURLOPT_INFILESIZE_LARGE,
+                             static_cast<curl_off_t>(h->uploadSize));
+        }
     }
 
     CURL *curl = h->curl;
     h->worker = std::thread([curl, state]() {
         const CURLcode res = curl_easy_perform(curl);
+        long httpCode = 0;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpCode);
         QMutexLocker locker(&state->mutex);
         state->curlFinished = true;
         state->curlOk = (res == CURLE_OK);
+        state->httpCode = httpCode;
         state->cond.wakeAll();
     });
     h->started = true;
@@ -830,6 +849,15 @@ FileHandle *CurlWebDavProvider::openWrite(const QString &path, bool /*truncate*/
     return handle;
 }
 
+void CurlWebDavProvider::setExpectedWriteSize(FileHandle *handle, qint64 totalSize) {
+    auto *h = static_cast<WebDavHandle *>(handle);
+    // Only meaningful before the PUT starts: once startWebDavTransfer() has run,
+    // the request headers are already on the wire and the framing is fixed.
+    if (!h || h->mode != WebDavHandle::Mode::Write || h->started)
+        return;
+    h->uploadSize = totalSize;
+}
+
 qint64 CurlWebDavProvider::read(FileHandle *handle, char *buffer, qint64 maxSize) {
     auto *h = static_cast<WebDavHandle *>(handle);
     if (!h || h->mode != WebDavHandle::Mode::Read || maxSize <= 0)
@@ -925,11 +953,26 @@ bool CurlWebDavProvider::closeHandleStatus(FileHandle *handle) {
             h->worker.join();
         // Only an upload's completion matters for correctness: the PUT result is
         // only known now, after the transfer thread has finished.
+        //
+        // A clean CURLcode is NOT enough to call the upload committed. A proxy
+        // that answers "100 Continue" and then closes without ever sending a
+        // final response leaves curl reporting CURLE_OK with a response code of
+        // 100, and the server holds a 0-byte file. Measured against a real NAS
+        // through a local HTTP proxy: 64 KB, 300 KB and 1.5 MB uploads all
+        // returned CURLE_OK here while PROPFIND read back getcontentlength 0.
+        // Reporting success for those silently destroys the user's file, which
+        // is the same class of bug as the 401-rewind data loss above.
+        //
+        // So require a real 2xx as well. RFC 4918 has PUT answer 201 Created for
+        // a new resource and 200/204 when replacing one; anything else (a 1xx
+        // that never completed, a 3xx, 4xx or 5xx) means the bytes did not land.
         if (h->mode == WebDavHandle::Mode::Write) {
-            ok = state.curlOk;
+            const bool httpOk = (state.httpCode >= 200 && state.httpCode < 300);
+            ok = state.curlOk && httpOk;
             if (!ok)
-                qWarning("CurlWebDavProvider: upload of %s did not complete successfully",
-                         qPrintable(h->path));
+                qWarning("CurlWebDavProvider: upload of %s did not complete successfully "
+                         "(curlOk=%d, HTTP %ld)",
+                         qPrintable(h->path), int(state.curlOk), state.httpCode);
         }
     }
     delete h;

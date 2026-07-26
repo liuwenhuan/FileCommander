@@ -15,6 +15,7 @@ add_executable(ui_tests
     test_IconFileView.cpp
     test_VideoRangePlan.cpp
     test_FilePanelFont.cpp
+    test_FilePanelTreeSync.cpp
     test_TreeRootBuilder.cpp
     test_DirectoryTreeModel.cpp
 )
