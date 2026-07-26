@@ -2346,16 +2346,43 @@ QString MainWindow::ensureArchiveTempDir() {
 void MainWindow::browseRemoteArchive(FilePanel *panel, const QString &path) {
     if (!panel || path.isEmpty())
         return;
-    // libarchive (and unsquashfs, and 7z) open an archive by file name, and every
-    // one of them would need a full pass over it per entry read anyway, so the
-    // archive is pulled down once and browsed from local disk -- after which
-    // listing, preview and extraction all run at local speed.
+    // libarchive (and unsquashfs, and 7z) open an archive by file name, so the
+    // whole question is where that name comes from.
+    //
+    // A gvfs mount answers it without moving a byte, and the difference is not
+    // marginal: a 686 MB 7z on SMB took 10.64 s to download and 44 ms to open
+    // through the mount point (240x); a 24.8 MB WebDAV zip, 430 ms against
+    // 325 ms. The mount is genuinely seekable, which is what these formats need
+    // -- they read a central directory at the end of the file and then jump.
+    // Downloading stays as the fallback for when there is no mount to be had.
+    QPointer<FilePanel> guard(panel);
+    // Resolving (and any download after it) takes a while, and the user is free
+    // to move the panel elsewhere meanwhile. Entering then would read ".." off
+    // whatever backend the panel had drifted onto, so the connection is checked
+    // on the way back in and a panel that has left is simply not disturbed.
+    const QString conn = panel->connectionId();
+    resolveRealPath(panel, path, [this, guard, path, conn](const QString &real) {
+        if (!guard || guard->connectionId() != conn || guard->isArchive())
+            return;
+        // ownsLocalCopy = false, and it matters more here than anywhere else:
+        // this is the user's own archive seen through the mount, so the "delete
+        // the copy on the way out" that a download gets would delete the file
+        // off their server.
+        if (!real.isEmpty() && guard->enterArchive(real, path, false))
+            return;
+        // No mount, or libarchive could not open it through one. Fall through to
+        // the download, which ends exactly where this used to: a browse if the
+        // bytes turn out to be a readable archive, the desktop's handler if not.
+        // Retrying costs a download that would have happened anyway.
+        browseRemoteArchiveByDownload(guard, path);
+    });
+}
+
+void MainWindow::browseRemoteArchiveByDownload(FilePanel *panel, const QString &path) {
+    if (!panel || path.isEmpty())
+        return;
     const QString name = QFileInfo(path).fileName();
     QPointer<FilePanel> guard(panel);
-    // A big archive takes a while to come down, and the user is free to move the
-    // panel elsewhere meanwhile. Entering then would read ".." off whatever
-    // backend the panel had drifted onto, so the connection is checked on the way
-    // back in and a panel that has left is simply not disturbed.
     const QString conn = panel->connectionId();
     fetchRemoteCopy(panel, path, [this, guard, path, name, conn](const QString &localPath) {
         if (!guard)
@@ -2378,6 +2405,48 @@ void MainWindow::browseRemoteArchive(FilePanel *panel, const QString &path) {
     }, ensureArchiveTempDir());
 }
 
+void MainWindow::resolveRealPath(FilePanel *panel, const QString &path,
+                                 std::function<void(const QString &)> then) {
+    if (!then)
+        return;
+    FileProvider *prov = panel ? panel->model()->provider() : nullptr;
+    if (!prov || path.isEmpty()) {
+        then(QString());
+        return;
+    }
+    // A local backend's paths already ARE paths on this machine. Ask the backend
+    // rather than infer it: an archive tab has no displayName either, and its
+    // in-archive "/etc/passwd" would otherwise be handed out as the real one.
+    if (prov->isLocalFilesystem()) {
+        then(path);
+        return;
+    }
+    if (panel->isArchive()) {
+        then(QString()); // an in-archive path names an entry, not a file
+        return;
+    }
+
+    // Hold the provider by shared ownership for the duration: the panel may be
+    // closed, or navigate to another connection, while the resolve is in flight.
+    // Reading the location on the worker thread also keeps its mutex -- which a
+    // large listing can hold for seconds -- off the GUI thread.
+    std::shared_ptr<FileProvider> provider = panel->model()->providerPtr();
+    QPointer<FilePanel> guard(panel);
+    auto *watcher = new QFutureWatcher<QString>(this);
+    QApplication::setOverrideCursor(Qt::BusyCursor);
+    connect(watcher, &QFutureWatcher<QString>::finished, this,
+            [watcher, guard, then = std::move(then)]() {
+                QApplication::restoreOverrideCursor();
+                const QString real = watcher->result();
+                watcher->deleteLater();
+                if (guard)
+                    then(real);
+            });
+    watcher->setFuture(QtConcurrent::run([provider, path] {
+        return GvfsMounter::localPathFor(provider.get(), path);
+    }));
+}
+
 void MainWindow::openWithAssociatedApp(FilePanel *panel, const QString &path) {
     if (path.isEmpty())
         return;
@@ -2392,11 +2461,25 @@ void MainWindow::openWithAssociatedApp(FilePanel *panel, const QString &path) {
         return;
     }
 
-    // Network tab: `path` is the provider's, and no local application can open
-    // it. Stream it into a local copy and hand the desktop that instead.
+    // Network tab. Prefer the gvfs mount: it gives the file a real name on this
+    // machine that the application opens directly off the server -- nothing is
+    // copied, a multi-gigabyte file opens as fast as a small one, and edits are
+    // saved back. The download below is the fallback, and it is a poor one by
+    // comparison: the copy is a read-only snapshot, so anything the user edits
+    // in it is lost.
     const QString name = QFileInfo(path).fileName();
-    fetchRemoteCopy(panel, path, [this, name](const QString &localPath) {
-        openLocalCopyWithDesktop(localPath, name);
+    QPointer<FilePanel> guard(panel);
+    resolveRealPath(panel, path, [this, guard, path, name](const QString &real) {
+        if (!real.isEmpty() && QDesktopServices::openUrl(QUrl::fromLocalFile(real)))
+            return;
+        // No mount, or the desktop had no handler for it. Either way the copy is
+        // worth trying: it lands with the same name and extension, and a handler
+        // that refused a path under /run/user/.../gvfs may still take this one.
+        if (!guard)
+            return;
+        fetchRemoteCopy(guard, path, [this, name](const QString &localPath) {
+            openLocalCopyWithDesktop(localPath, name);
+        });
     });
 }
 
@@ -3238,18 +3321,49 @@ void MainWindow::setActivePanel(FilePanel *panel) {
     }
 }
 
+bool MainWindow::currentEntryIsDir() const {
+    if (!m_activePanel)
+        return false;
+    const QString path = m_activePanel->currentEntryPath();
+    // The backend's own listing is the only thing that knows. QFileInfo asks
+    // THIS filesystem about a name that lives on a server (or inside an
+    // archive), where it answers "not a directory" for everything -- including
+    // directories -- and occasionally answers about a local file that happens to
+    // share the name.
+    const FileInfo info = m_activePanel->currentEntryInfo();
+    if (info.isValid() && info.path() == path)
+        return info.isDir();
+    return QFileInfo(path).isDir();
+}
+
 void MainWindow::viewCurrent() {
     if (!m_activePanel)
         return;
     const QString path = m_activePanel->currentEntryPath();
-    if (path.isEmpty() || QFileInfo(path).isDir())
+    if (path.isEmpty() || currentEntryIsDir())
         return;
     // F3 opens the shared preview widget in a top-level window -- same UI and
     // capabilities as the Ctrl+Q pane (image/text/video/PDF/markdown/office,
     // and a read-only archive listing). Archives are still browsed in-panel by
     // double-clicking into them, and extracted from the context menu.
-    auto *w = new ViewerWindow(m_settings, path, this);
-    w->show();
+    //
+    // ViewerWindow reads with QFile, so it needs a path that exists on this
+    // machine. It used to be handed the provider's path straight through, which
+    // on a network or archive tab is why F3 opened an empty window.
+    QPointer<FilePanel> guard(m_activePanel);
+    resolveRealPath(m_activePanel, path, [this, guard, path](const QString &real) {
+        if (!real.isEmpty()) {
+            (new ViewerWindow(m_settings, real, this))->show();
+            return;
+        }
+        if (!guard)
+            return;
+        // No mount to read through. Viewing is read-only anyway, so a temp copy
+        // loses nothing here -- unlike F4, where it would be a dead end.
+        fetchRemoteCopy(guard, path, [this](const QString &localPath) {
+            (new ViewerWindow(m_settings, localPath, this))->show();
+        });
+    });
 }
 
 void MainWindow::smartExtractArchive(const QString &archivePath, const QString &destDir) {
@@ -3310,7 +3424,7 @@ void MainWindow::editCurrent() {
     if (!m_activePanel)
         return;
     const QString path = m_activePanel->currentEntryPath();
-    if (path.isEmpty() || QFileInfo(path).isDir())
+    if (path.isEmpty() || currentEntryIsDir())
         return;
 
     if (ImageViewer::isImage(path)) {
@@ -3319,13 +3433,49 @@ void MainWindow::editCurrent() {
         return;
     }
 
-    auto *editor = new TextEditor();
-    if (editor->loadFile(path)) {
+    // Inside an archive there is nothing to edit in place and no mount that
+    // would change that, so say the thing that is actually true there ("copy it
+    // out") rather than the connection advice below.
+    if (blockArchiveWrite(m_activePanel))
+        return;
+
+    // Editing needs a path that is not only readable but WRITABLE, and that is
+    // exactly what a gvfs mount provides and a downloaded copy does not: Save
+    // goes back to the server. F4 used to hand TextEditor the provider's path,
+    // which QFile could not open, and the failure below then swallowed it -- so
+    // on a network tab F4 did nothing at all, with no message.
+    const QString name = QFileInfo(path).fileName();
+    resolveRealPath(m_activePanel, path, [this, name](const QString &real) {
+        if (real.isEmpty()) {
+            // Deliberately NOT a downloaded copy. The copy is read-only, and
+            // even if it were not, Save would write to a temp file the user
+            // never sees again -- losing the edit while looking like it worked.
+            ttc::warning(this, tr("Edit"),
+                         tr("%1 cannot be edited in place.\n\nEditing a file on this "
+                            "connection needs it mounted through GVfs (the gvfs-backends "
+                            "package). Copy the file to a local folder to edit it.")
+                             .arg(name));
+            return;
+        }
+        // Probe first: loadFile() announces the one refusal it knows about (the
+        // 50 MB cap) and returns false silently for everything else, so the
+        // unreadable case gets its own message here without doubling up on that
+        // one. A mount that died since it was resolved lands here.
+        QFile probe(real);
+        if (!probe.open(QIODevice::ReadOnly)) {
+            ttc::warning(this, tr("Edit"),
+                         tr("Could not open %1 for editing: %2").arg(name, probe.errorString()));
+            return;
+        }
+        probe.close();
+        auto *editor = new TextEditor();
+        if (!editor->loadFile(real)) {
+            delete editor; // loadFile already said why
+            return;
+        }
         editor->resize(900, 700);
         editor->show();
-    } else {
-        delete editor;
-    }
+    });
 }
 
 bool MainWindow::blockArchiveWrite(FilePanel *panel) {

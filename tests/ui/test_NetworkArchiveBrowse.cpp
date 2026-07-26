@@ -247,3 +247,79 @@ TEST(NetworkArchiveBrowseTest, ClosingTheArchivesTabLeavesTheArchive) {
     EXPECT_FALSE(panel.isArchive());
     EXPECT_NE(panel.currentPath(), QString("/"));
 }
+
+// Browsing a remote archive through its gvfs mount instead of a download.
+//
+// The mount hands back a real path -- /run/user/<uid>/gvfs/<mount>/bundle.zip --
+// that reads the file straight off the server, which is why this path exists at
+// all: a 686 MB 7z opened in 44 ms through the mount against 10.64 s downloaded.
+// What changes structurally is ownership. A downloaded copy is ours and is
+// deleted on the way out; a mounted path is the USER'S FILE ON THEIR SERVER, and
+// the same deletion there destroys it. The only thing separating the two is the
+// ownsLocalCopy=false that MainWindow::browseRemoteArchive passes, so pin it.
+TEST(NetworkArchiveBrowseTest, ArchiveOpenedThroughAMountIsNeverDeleted) {
+    QTemporaryDir srcDir, mountRoot;
+    ASSERT_TRUE(srcDir.isValid() && mountRoot.isValid());
+    // Stands in for the mount point: a path that is real on this machine but
+    // whose contents belong to the server, exactly like a gvfs mount's.
+    const QString mountedArchive = QDir(mountRoot.path()).filePath("bundle.zip");
+    ASSERT_TRUE(buildZip(srcDir.path(), mountedArchive));
+
+    const QString remoteDir = QStringLiteral("/share/docs");
+    const QString remotePath = remoteDir + QStringLiteral("/bundle.zip");
+
+    FilePanel panel;
+    auto share = std::make_shared<FakeShare>(remoteDir, QStringLiteral("bundle.zip"),
+                                             QFileInfo(mountedArchive).size());
+    panel.connectTabTo(0, share, [](QString *) { return true; }, remoteDir,
+                       QStringLiteral("tester@share"), SavedConnection{},
+                       FileSystemModel::AuthRetryFactory());
+    settle(panel);
+    ASSERT_TRUE(panel.model()->hasNetworkSession());
+    const QString connId = panel.connectionId();
+
+    // ownsLocalCopy = false: this is the mount, not a copy of it.
+    ASSERT_TRUE(panel.enterArchive(mountedArchive, remotePath, false));
+    settle(panel);
+    EXPECT_TRUE(panel.isArchive());
+    EXPECT_TRUE(listHasName(panel.model(), "greeting.txt"));
+    EXPECT_TRUE(listHasName(panel.model(), "nested"));
+
+    panel.navigateUp();
+    settle(panel);
+    EXPECT_FALSE(panel.isArchive());
+    // Same exit behaviour as the downloaded case: back to the server directory,
+    // on the connection that was parked, not to wherever the file sat locally.
+    EXPECT_EQ(panel.currentPath(), remoteDir);
+    EXPECT_TRUE(panel.model()->hasNetworkSession());
+    EXPECT_EQ(panel.connectionId(), connId);
+
+    EXPECT_TRUE(QFile::exists(mountedArchive))
+        << "a mounted archive is the user's file on their server -- leaving the browse "
+           "must never delete it";
+    EXPECT_TRUE(QDir(mountRoot.path()).exists()) << "nor take the directory holding it";
+}
+
+// The same guarantee where it is easiest to lose: the tab is closed (or switched
+// away from) rather than walked out of, so the teardown runs from a different
+// path than navigateUp().
+TEST(NetworkArchiveBrowseTest, ClosingTheTabDoesNotDeleteAMountedArchive) {
+    QTemporaryDir srcDir, mountRoot;
+    ASSERT_TRUE(srcDir.isValid() && mountRoot.isValid());
+    const QString mountedArchive = QDir(mountRoot.path()).filePath("bundle.zip");
+    ASSERT_TRUE(buildZip(srcDir.path(), mountedArchive));
+
+    FilePanel panel;
+    panel.newTab(); // a second tab, so the first one is closable
+    panel.prevTab();
+    QCoreApplication::processEvents();
+    navigate(panel, mountRoot.path());
+    ASSERT_TRUE(panel.enterArchive(mountedArchive, QStringLiteral("/share/bundle.zip"), false));
+    settle(panel);
+    ASSERT_TRUE(panel.isArchive());
+
+    panel.closeCurrentTab();
+    settle(panel);
+    EXPECT_FALSE(panel.isArchive());
+    EXPECT_TRUE(QFile::exists(mountedArchive));
+}

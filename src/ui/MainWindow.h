@@ -323,15 +323,40 @@ private:
     // steps back out of the archive (see ArchiveProvider::setOwnsArchiveFile).
     QTemporaryDir *m_archiveTempDir = nullptr;
     QString ensureArchiveTempDir();
+    // Whether the active panel's current entry is a directory, according to the
+    // backend that listed it rather than to QFileInfo (which knows nothing about
+    // a server's or an archive's paths).
+    bool currentEntryIsDir() const;
+    // Asks for a REAL path on this machine for `path` as `panel` lists it, and
+    // calls `then(realPath)` on the GUI thread -- with an empty string when
+    // there isn't one, which is a normal answer every caller must handle.
+    //
+    // Local tabs answer instantly with the path itself. Network tabs go through
+    // the gvfs mount (GvfsMounter::localPathFor), which is the only way a remote
+    // file gets a name another program can open, and unlike a downloaded copy
+    // that name is WRITABLE -- an editor saves back to the server through it.
+    // Archive tabs always answer empty: an in-archive path names an entry, not
+    // a file.
+    //
+    // Resolving can mount, and mounting a cold SFTP link took 2.4 s in testing,
+    // so it runs on a worker thread under a busy cursor rather than freezing the
+    // window. `then` is dropped if the panel goes away first.
+    void resolveRealPath(FilePanel *panel, const QString &path,
+                         std::function<void(const QString &)> then);
     // Opens `path` (as listed by `panel`) with the desktop's MIME-associated
-    // application, fetching a local copy first when the panel is a network tab.
+    // application: through the gvfs mount when there is one, otherwise falling
+    // back to fetching a read-only local copy.
     void openWithAssociatedApp(FilePanel *panel, const QString &path);
     // Launches the desktop's handler on an already-downloaded copy, warning if
     // nothing is associated and explaining once that the copy is read-only.
     void openLocalCopyWithDesktop(const QString &localPath, const QString &name);
-    // Downloads the archive at `path` off `panel`'s server and browses it in
-    // place as a virtual folder (FilePanel::archiveDownloadRequested).
+    // Browses the archive at `path` off `panel`'s server in place as a virtual
+    // folder (FilePanel::archiveDownloadRequested), through the gvfs mount when
+    // there is one and by downloading a copy when there isn't.
     void browseRemoteArchive(FilePanel *panel, const QString &path);
+    // The download half of the above, also used on its own when opening through
+    // the mount was not possible.
+    void browseRemoteArchiveByDownload(FilePanel *panel, const QString &path);
     // Streams `path` off `panel`'s provider into a local temp copy and calls
     // `onReady(localPath)` on the GUI thread once it is there. Reports its own
     // failures; `onReady` never runs on failure or cancellation. `destRoot`
