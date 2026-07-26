@@ -58,4 +58,21 @@ Container detect(const QByteArray &head);
 // this does not plan for (Unknown or Iso), so the caller falls back.
 QVector<Range> plan(Container kind, qint64 fileSize);
 
+// The one run of bytes a transport stream needs, to be written contiguously
+// rather than into a sparse file. Returns (0, 0) for a file too small to be
+// worth seeking into, meaning "just take the whole thing".
+//
+// MPEG-TS is the one container that a sparse excerpt actively breaks. It has no
+// index and no global header: a demuxer syncs by finding 0x47 every 188 bytes,
+// so holes read as zeroes, sync never happens, and it rescans byte by byte
+// across the file's entire apparent length -- 25.6 s on a 1.5 GB share file
+// against 0.2 s for the identical bytes laid out end to end. Dropping the true
+// offsets costs nothing here precisely because a stream has no absolute
+// pointers to preserve.
+//
+// The offset is rounded DOWN to a packet boundary so the demuxer's first sync
+// attempt lands on a 0x47 rather than mid-packet. Note 188 is not a power of
+// two, so this must be a division, not a bit mask.
+Range contiguousStreamRange(qint64 fileSize);
+
 } // namespace VideoRangePlan

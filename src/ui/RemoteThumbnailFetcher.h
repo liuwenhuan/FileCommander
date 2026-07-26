@@ -91,6 +91,20 @@ public:
         QString downloadRanges(const QString &path, qint64 fileSize,
                                const QVector<QPair<qint64, qint64>> &ranges) const;
 
+        // Fetches one run of bytes into a temp file that contains nothing else,
+        // so the result is a short contiguous file rather than a sparse view of
+        // a long one. The opposite trade to downloadRanges: absolute offsets are
+        // lost, so this only suits a container the demuxer can pick up mid-file.
+        //
+        // That is exactly what a stream format needs. MPEG-TS has no index and
+        // no global header -- a demuxer finds its way by scanning for the 0x47
+        // sync byte every 188 bytes. Handed a sparse file it reads holes as
+        // zeroes, fails to sync, and rescans byte by byte across the file's
+        // whole apparent length: measured at 25.6 s on a 1.5 GB share file,
+        // against 0.2 s for the same bytes laid out contiguously. The 15 s grab
+        // timeout turns that into no thumbnail at all.
+        QString downloadContiguous(const QString &path, qint64 offset, qint64 length) const;
+
     private:
         friend class RemoteThumbnailFetcher;
         Ticket(const RemoteThumbnailFetcher *owner, std::shared_ptr<FileProvider> provider,

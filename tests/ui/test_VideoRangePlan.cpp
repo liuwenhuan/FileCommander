@@ -204,3 +204,47 @@ TEST(VideoRangePlanTest, RangesAreInBoundsAndDisjoint) {
         }
     }
 }
+
+// --- Contiguous run for transport streams -----------------------------------
+//
+// MPEG-TS is the one container a sparse excerpt breaks: with no index and no
+// global header the demuxer syncs by finding 0x47 every 188 bytes, so holes
+// read as zeroes and it rescans byte by byte over the whole apparent length --
+// 25.6 s on a real 1.5 GB share file against 0.2 s for the same bytes written
+// end to end, well past the 15 s grab timeout.
+
+TEST(VideoRangePlanTest, ContiguousRunStartsOnAPacketBoundary) {
+    // 188 is not a power of two, so aligning with a bit mask silently lands
+    // mid-packet and the demuxer's first sync attempt misses. This pins the
+    // division that replaced exactly that bug.
+    for (const qint64 size : {1644032552LL, 124959708LL, 733065216LL, 55000000LL, 3773504356LL}) {
+        const VideoRangePlan::Range run = VideoRangePlan::contiguousStreamRange(size);
+        EXPECT_EQ(run.first % 188, 0) << "offset " << run.first << " for size " << size
+                                       << " is not on a packet boundary";
+    }
+}
+
+TEST(VideoRangePlanTest, ContiguousRunSeeksTenPercentIn) {
+    const qint64 size = 1644032552;
+    const VideoRangePlan::Range run = VideoRangePlan::contiguousStreamRange(size);
+    // Near a tenth of the way in -- the grab's own seek point -- give or take
+    // the rounding down to a packet.
+    EXPECT_GE(run.first, size / 10 - 188);
+    EXPECT_LE(run.first, size / 10);
+    EXPECT_GT(run.second, 0);
+    // Never runs off the end.
+    EXPECT_LE(run.first + run.second, size);
+}
+
+TEST(VideoRangePlanTest, ContiguousRunTakesShortFilesWhole) {
+    // Below the run length there is nothing to gain by seeking in, and a file
+    // shorter than the seek point would otherwise yield an empty range.
+    const VideoRangePlan::Range run = VideoRangePlan::contiguousStreamRange(500 * 1024);
+    EXPECT_EQ(run.first, 0);
+    EXPECT_EQ(run.second, 500 * 1024);
+}
+
+TEST(VideoRangePlanTest, ContiguousRunRejectsAnEmptyFile) {
+    const VideoRangePlan::Range run = VideoRangePlan::contiguousStreamRange(0);
+    EXPECT_EQ(run.second, 0);
+}

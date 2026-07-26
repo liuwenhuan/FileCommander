@@ -129,4 +129,23 @@ QVector<Range> plan(Container kind, qint64 fileSize) {
     return ranges;
 }
 
+Range contiguousStreamRange(qint64 fileSize) {
+    // An MPEG-TS packet. Not a power of two, so the alignment below is a
+    // division rather than a bit mask -- masking silently lands mid-packet.
+    constexpr qint64 kPacketSize = 188;
+    // Measured against a real share: 1 MB already decodes and 2 MB costs the
+    // same 0.2 s, while covering a wider keyframe interval. It is also less
+    // than the 2.3 MB the sparse plan pulled, so this is cheaper on the wire.
+    constexpr qint64 kRunBytes = 2 * 1024 * 1024;
+
+    if (fileSize <= 0)
+        return {0, 0};
+    // Small enough that seeking in saves nothing: take it from the start.
+    if (fileSize <= kRunBytes)
+        return {0, fileSize};
+
+    const qint64 offset = (static_cast<qint64>(fileSize * kSeekFraction) / kPacketSize) * kPacketSize;
+    return {offset, qMin(kRunBytes, fileSize - offset)};
+}
+
 } // namespace VideoRangePlan

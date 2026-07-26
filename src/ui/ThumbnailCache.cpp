@@ -540,6 +540,25 @@ QString ThumbnailCache::fetchVideoExcerpt(const RemoteThumbnailFetcher::Ticket &
                 if (!excerpt.isEmpty())
                     return excerpt;
             }
+        } else if (kind == VideoRangePlan::Container::MpegTs) {
+            // A transport stream is the one container that must NOT be handed a
+            // sparse excerpt. It carries no index and no global header: the
+            // demuxer syncs by finding 0x47 every 188 bytes, so the holes read
+            // as zeroes, sync is never found, and it rescans byte by byte over
+            // the file's whole apparent length. Measured on a 1.5 GB share
+            // file: 25.6 s sparse against 0.2 s for the very same bytes written
+            // contiguously -- and the 15 s grab timeout turns the former into
+            // no thumbnail at all.
+            //
+            // Nothing is lost by dropping the true offsets here, because a
+            // stream has no absolute pointers to honour. The duration is
+            // unknowable from an excerpt for the same reason (it is derived by
+            // scanning PTS), so the grab falls back to a fixed early seek --
+            // which is why one run from 10% in is all this needs.
+            const VideoRangePlan::Range run = VideoRangePlan::contiguousStreamRange(fileSize);
+            const QString excerpt = ticket.downloadContiguous(path, run.first, run.second);
+            if (!excerpt.isEmpty())
+                return excerpt;
         } else {
             // Everything else: headers, the frames the grab seeks to, and a
             // tail for the formats that index there. No per-format parsing --

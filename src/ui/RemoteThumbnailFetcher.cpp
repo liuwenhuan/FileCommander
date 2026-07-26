@@ -248,6 +248,33 @@ QString RemoteThumbnailFetcher::Ticket::downloadRanges(
     return outPath;
 }
 
+QString RemoteThumbnailFetcher::Ticket::downloadContiguous(const QString &path, qint64 offset,
+                                                            qint64 length) const {
+    if (length <= 0 || offset < 0 || cancelled())
+        return {};
+
+    const QByteArray chunk = readRange(path, offset, length);
+    if (chunk.isEmpty() || cancelled())
+        return {};
+
+    const QString suffix = QFileInfo(path).suffix();
+    QString templatePath = QDir::tempPath() + QStringLiteral("/FileCommander-rthumb-XXXXXX");
+    if (!suffix.isEmpty())
+        templatePath += QLatin1Char('.') + suffix;
+    QTemporaryFile temp(templatePath);
+    temp.setAutoRemove(false); // the caller decodes it, then removes it
+    if (!temp.open())
+        return {};
+    const QString outPath = temp.fileName();
+    if (temp.write(chunk) != chunk.size()) {
+        temp.close();
+        QFile::remove(outPath);
+        return {};
+    }
+    temp.close();
+    return outPath;
+}
+
 QString RemoteThumbnailFetcher::Ticket::downloadHeadAndTail(const QString &path, qint64 fileSize,
                                                             qint64 halfBytes) const {
     // Nothing to skip: fetching both ends would just fetch the whole file, and
