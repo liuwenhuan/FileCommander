@@ -38,9 +38,13 @@ void colorLine(QPlainTextEdit *edit, int lineIndex, const QColor &color) {
 } // namespace
 
 CompareDialog::CompareDialog(const QString &leftPath, const QString &rightPath, QWidget *parent)
+    : CompareDialog(leftPath, rightPath, leftPath, rightPath, parent) {}
+
+CompareDialog::CompareDialog(const QString &leftPath, const QString &rightPath,
+                             const QString &leftLabel, const QString &rightLabel, QWidget *parent)
     : FramelessDialog(parent) {
     setWindowTitle(tr("Compare: %1 vs %2")
-                        .arg(QFileInfo(leftPath).fileName(), QFileInfo(rightPath).fileName()));
+                        .arg(QFileInfo(leftLabel).fileName(), QFileInfo(rightLabel).fileName()));
     resize(1100, 700);
 
     m_leftEdit = makeReadOnlyEditor(this);
@@ -48,8 +52,8 @@ CompareDialog::CompareDialog(const QString &leftPath, const QString &rightPath, 
     m_summaryLabel = new QLabel(this);
 
     auto *header = new QHBoxLayout;
-    header->addWidget(new QLabel(leftPath, this), 1);
-    header->addWidget(new QLabel(rightPath, this), 1);
+    header->addWidget(new QLabel(leftLabel, this), 1);
+    header->addWidget(new QLabel(rightLabel, this), 1);
 
     auto *editors = new QHBoxLayout;
     editors->addWidget(m_leftEdit);

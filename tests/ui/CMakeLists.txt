@@ -27,6 +27,8 @@ add_executable(ui_tests
     test_PanelDiskInfo.cpp
     test_PanelRemoval.cpp
     test_OverwritePrompt.cpp
+    test_ProviderChecksum.cpp
+    test_SelectedEntryInfos.cpp
 )
 
 # test_MpvStreamSource drives a real libmpv core (headless: vo=null/ao=null) to

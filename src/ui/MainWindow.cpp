@@ -1822,15 +1822,20 @@ void MainWindow::showProperties() {
     const QStringList paths = m_activePanel->selectedPaths();
     if (paths.isEmpty())
         return;
-    // Single remote entry: build the dialog from the cached FileInfo so its
-    // owner/group/permissions/size come from the provider's listing (a local
-    // QFileInfo over a remote path would show nothing).
+    // Anything but a local tab: build the dialog from the cached FileInfos so
+    // owner/group/permissions/size come from the provider's listing. A local
+    // QFileInfo over a server path (or an in-archive one) reports nothing --
+    // which is how a three-file selection came out as "0 B" -- and the dialog's
+    // permission grid must stay read-only, since chmod-ing such a path either
+    // fails or hits a same-named local file.
+    //
+    // Gated on isLocalFilesystem() rather than displayName(): an archive tab has
+    // no displayName either, and its entries are no more local than a share's.
     FileProvider *prov = m_activePanel->model()->provider();
-    const bool network = prov && !prov->displayName().isEmpty();
-    if (network && paths.size() == 1) {
-        const FileInfo info = m_activePanel->currentEntryInfo();
-        if (info.isValid()) {
-            PropertiesDialog dlg(info, this);
+    if (prov && !prov->isLocalFilesystem()) {
+        const QVector<FileInfo> infos = m_activePanel->selectedEntryInfos();
+        if (!infos.isEmpty()) {
+            PropertiesDialog dlg(infos, this);
             dlg.exec();
             return;
         }
@@ -1848,6 +1853,35 @@ void MainWindow::calculateSizes() {
 void MainWindow::calculateChecksums() {
     if (!m_activePanel)
         return;
+
+    // A network/archive tab's paths are the server's (or the archive's), so
+    // QFileInfo::isFile() rejected every one of them and the user was told they
+    // had selected nothing -- and where a local file happened to share the name,
+    // it was that file's bytes that got hashed under the remote file's label.
+    // Hashing is worth having here, so stream the real bytes through the
+    // provider rather than refusing.
+    FileProvider *prov = m_activePanel->model()->provider();
+    if (prov && !prov->isLocalFilesystem()) {
+        QVector<FileInfo> entries;
+        for (const FileInfo &info : m_activePanel->selectedEntryInfos())
+            if (info.isValid() && !info.isDir())
+                entries.append(info);
+        if (entries.isEmpty()) {
+            ttc::information(this, tr("Checksums"), tr("Select one or more files first."));
+            return;
+        }
+        if (!prov->canStream()) {
+            ttc::warning(this, tr("Checksums"),
+                         tr("This connection cannot read file contents, so checksums "
+                            "cannot be computed for these files."));
+            return;
+        }
+        auto *dlg = new ChecksumDialog(entries, m_activePanel->model()->providerPtr(), this);
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
+        dlg->show();
+        return;
+    }
+
     // Files only (checksums of a directory are meaningless).
     QStringList files;
     for (const QString &p : m_activePanel->selectedPaths())
@@ -2442,6 +2476,31 @@ void MainWindow::resolveRealPath(FilePanel *panel, const QString &path,
     }));
 }
 
+void MainWindow::withLocalFile(FilePanel *panel, const QString &path,
+                               std::function<void(const QString &)> then) {
+    if (!then)
+        return;
+    FileProvider *prov = panel ? panel->model()->provider() : nullptr;
+    if (!prov || path.isEmpty())
+        return;
+    if (prov->isLocalFilesystem()) {
+        then(path); // already a real path; unchanged, synchronous behaviour
+        return;
+    }
+    QPointer<FilePanel> guard(panel);
+    resolveRealPath(panel, path, [this, guard, path, then](const QString &real) {
+        if (!real.isEmpty()) {
+            then(real);
+            return;
+        }
+        // No mount (or an archive entry, which never has one). A copy costs the
+        // bytes but always works, and fetchRemoteCopy reports its own failures.
+        if (!guard)
+            return;
+        fetchRemoteCopy(guard, path, then);
+    });
+}
+
 void MainWindow::openWithAssociatedApp(FilePanel *panel, const QString &path) {
     if (path.isEmpty())
         return;
@@ -2787,26 +2846,42 @@ void MainWindow::compareSelectedFiles() {
     if (!m_activePanel)
         return;
 
-    auto onlyFiles = [](const QStringList &paths) {
+    // "Which of these are files?" has to be asked of the backend that listed
+    // them. On a network or archive tab the paths belong to the server (or to
+    // the archive), so QFileInfo::isFile() rejected every one and the user was
+    // told to select two files they had already selected.
+    auto onlyFiles = [](FilePanel *panel) {
         QStringList files;
-        for (const QString &p : paths) {
-            if (QFileInfo(p).isFile())
-                files.append(p);
+        FileProvider *prov = panel ? panel->model()->provider() : nullptr;
+        if (!prov)
+            return files;
+        if (prov->isLocalFilesystem()) {
+            for (const QString &p : panel->selectedPaths())
+                if (QFileInfo(p).isFile())
+                    files.append(p);
+            return files;
         }
+        for (const FileInfo &info : panel->selectedEntryInfos())
+            if (info.isValid() && !info.isDir())
+                files.append(info.path());
         return files;
     };
 
-    const QStringList activeFiles = onlyFiles(m_activePanel->selectedPaths());
+    FilePanel *const other = otherPanel(m_activePanel);
+    const QStringList activeFiles = onlyFiles(m_activePanel);
+    FilePanel *leftPanel = m_activePanel;
+    FilePanel *rightPanel = m_activePanel;
     QString leftPath, rightPath;
 
     if (activeFiles.size() == 2) {
         leftPath = activeFiles.at(0);
         rightPath = activeFiles.at(1);
     } else {
-        const QStringList otherFiles = onlyFiles(otherPanel(m_activePanel)->selectedPaths());
+        const QStringList otherFiles = onlyFiles(other);
         if (activeFiles.size() == 1 && otherFiles.size() == 1) {
             leftPath = activeFiles.first();
             rightPath = otherFiles.first();
+            rightPanel = other;
         }
     }
 
@@ -2817,9 +2892,25 @@ void MainWindow::compareSelectedFiles() {
         return;
     }
 
-    auto *dlg = new CompareDialog(leftPath, rightPath, this);
-    dlg->setAttribute(Qt::WA_DeleteOnClose);
-    dlg->show();
+    // A diff needs the actual bytes, so each side first has to become a real
+    // path on this machine: the gvfs mount when the connection has one (nothing
+    // is copied), a downloaded read-only copy when it doesn't. Local paths go
+    // through withLocalFile() synchronously, so a local-vs-local compare behaves
+    // exactly as it always did. The dialog is still labelled with the paths the
+    // user sees in the panels, not with the mount point or the temp copy.
+    QPointer<FilePanel> rightGuard(rightPanel);
+    withLocalFile(leftPanel, leftPath,
+                  [this, rightGuard, leftPath, rightPath](const QString &leftReal) {
+                      if (!rightGuard)
+                          return;
+                      withLocalFile(rightGuard, rightPath,
+                                    [this, leftReal, leftPath, rightPath](const QString &rightReal) {
+                                        auto *dlg = new CompareDialog(leftReal, rightReal, leftPath,
+                                                                     rightPath, this);
+                                        dlg->setAttribute(Qt::WA_DeleteOnClose);
+                                        dlg->show();
+                                    });
+                  });
 }
 
 void MainWindow::populateFavoritesMenu(QMenu *menu, FilePanel *panel, int tabIndex) {

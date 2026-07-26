@@ -14,6 +14,12 @@ class CompareDialog : public FramelessDialog {
 
 public:
     CompareDialog(const QString &leftPath, const QString &rightPath, QWidget *parent = nullptr);
+    // Same, but labelled with something other than the paths it reads. A file on
+    // a share is diffed through its gvfs mount point or a temp copy, and naming
+    // /run/user/1000/gvfs/... (or /tmp/FileCommander-open-7/notes.txt) in the
+    // header would tell the user nothing about which file they are looking at.
+    CompareDialog(const QString &leftPath, const QString &rightPath, const QString &leftLabel,
+                  const QString &rightLabel, QWidget *parent = nullptr);
 
 private:
     static constexpr qint64 kMaxCompareBytes = 2 * 1024 * 1024; // 2 MB

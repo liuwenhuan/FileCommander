@@ -1331,6 +1331,20 @@ QStringList FilePanel::selectedPaths() const {
     return paths;
 }
 
+QVector<FileInfo> FilePanel::selectedEntryInfos() const {
+    QVector<FileInfo> infos;
+    for (int row : selectedRowNumbers())
+        infos.append(m_model->fileInfoAt(row));
+    // Same fall-back as selectedPaths(): with nothing ticked, the entry under
+    // the cursor is what the user means.
+    if (infos.isEmpty()) {
+        const FileInfo cur = currentEntryInfo();
+        if (cur.isValid() && !cur.isParentEntry())
+            infos.append(cur);
+    }
+    return infos;
+}
+
 QString FilePanel::currentPreviewPath() {
     const QString entry = currentEntryPath();
     if (entry.isEmpty() || !isArchive())

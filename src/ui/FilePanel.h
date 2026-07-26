@@ -91,6 +91,12 @@ public:
     // where a local QFileInfo over the remote path would yield nothing.
     FileInfo currentEntryInfo() const;
     QStringList selectedPaths() const;
+    // The cached FileInfo behind every entry selectedPaths() would return, in
+    // the same order. Callers on a network/archive tab need this rather than
+    // stat-ing the paths: size, permissions and isDir are only knowable from the
+    // provider's listing there, and a local stat of a server path reports the
+    // wrong thing (or, worse, a same-named local file's truth).
+    QVector<FileInfo> selectedEntryInfos() const;
 
     // Activates the current entry exactly as a double-click / Enter would: a
     // directory (or "..") is entered via the active provider (so network/archive

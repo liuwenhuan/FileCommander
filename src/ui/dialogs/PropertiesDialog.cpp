@@ -72,6 +72,29 @@ QFile::Permissions PropertiesDialog::fromOctal(int octal) {
     return perms;
 }
 
+qint64 PropertiesDialog::totalFileSize(const QVector<FileInfo> &infos) {
+    qint64 total = 0;
+    for (const FileInfo &info : infos)
+        if (!info.isDir())
+            total += info.size();
+    return total;
+}
+
+QVector<Qt::CheckState> PropertiesDialog::permissionStates(
+    const QVector<QFile::Permissions> &perms) {
+    QVector<Qt::CheckState> states(9, Qt::Unchecked);
+    for (int i = 0; i < 9; ++i) {
+        int set = 0;
+        for (QFile::Permissions p : perms)
+            if (p & kBits[i].flag)
+                ++set;
+        states[i] = set == 0 ? Qt::Unchecked
+                    : set == perms.size() ? Qt::Checked
+                                          : Qt::PartiallyChecked;
+    }
+    return states;
+}
+
 PropertiesDialog::PropertiesDialog(const QString &path, QWidget *parent)
     : PropertiesDialog(QStringList{path}, parent) {}
 
@@ -82,8 +105,13 @@ PropertiesDialog::PropertiesDialog(const QStringList &paths, QWidget *parent)
 }
 
 PropertiesDialog::PropertiesDialog(const FileInfo &info, QWidget *parent)
-    : FramelessDialog(parent), m_paths(QStringList{info.path()}), m_info(info),
-      m_hasInfo(true) {
+    : PropertiesDialog(QVector<FileInfo>{info}, parent) {}
+
+PropertiesDialog::PropertiesDialog(const QVector<FileInfo> &infos, QWidget *parent)
+    : FramelessDialog(parent), m_infos(infos), m_providerBacked(true) {
+    m_paths.reserve(infos.size());
+    for (const FileInfo &info : infos)
+        m_paths.append(info.path());
     setModal(true);
     buildUi();
 }
@@ -101,25 +129,26 @@ void PropertiesDialog::buildUi() {
         l->setCursor(Qt::IBeamCursor);
         return l;
     };
-    if (single && m_hasInfo) {
+    if (single && m_providerBacked) {
         // Remote / pre-fetched metadata: read everything off the FileInfo so we
         // never touch the (meaningless-for-remote) local filesystem.
-        const QString name = m_info.name();
+        const FileInfo &entry = m_infos.first();
+        const QString name = entry.name();
         setWindowTitle(tr("Properties — %1").arg(name));
         form->addRow(tr("Name:"), valueLabel(name));
-        form->addRow(tr("Location:"), valueLabel(QFileInfo(m_info.path()).path()));
-        const QString type = m_info.isSymLink() ? tr("Symbolic link")
-                             : m_info.isDir()   ? tr("Folder")
-                                                : tr("File");
+        form->addRow(tr("Location:"), valueLabel(QFileInfo(entry.path()).path()));
+        const QString type = entry.isSymLink() ? tr("Symbolic link")
+                             : entry.isDir()   ? tr("Folder")
+                                               : tr("File");
         form->addRow(tr("Type:"), valueLabel(type));
-        if (!m_info.isDir())
-            form->addRow(tr("Size:"), valueLabel(humanSize(m_info.size())));
-        if (m_info.modified().isValid())
+        if (!entry.isDir())
+            form->addRow(tr("Size:"), valueLabel(humanSize(entry.size())));
+        if (entry.modified().isValid())
             form->addRow(
                 tr("Modified:"),
-                valueLabel(m_info.modified().toString(QStringLiteral("yyyy-MM-dd HH:mm:ss"))));
-        form->addRow(tr("Owner:"), valueLabel(ownerGroupText(m_info.owner(), m_info.ownerId())));
-        form->addRow(tr("Group:"), valueLabel(ownerGroupText(m_info.group(), m_info.groupId())));
+                valueLabel(entry.modified().toString(QStringLiteral("yyyy-MM-dd HH:mm:ss"))));
+        form->addRow(tr("Owner:"), valueLabel(ownerGroupText(entry.owner(), entry.ownerId())));
+        form->addRow(tr("Group:"), valueLabel(ownerGroupText(entry.group(), entry.groupId())));
     } else if (single) {
         QFileInfo info(m_paths.first());
         setWindowTitle(tr("Properties — %1").arg(info.fileName()));
@@ -141,33 +170,35 @@ void PropertiesDialog::buildUi() {
                      valueLabel(ownerGroupText(info.group(), static_cast<int>(info.groupId()))));
     } else {
         setWindowTitle(tr("Properties — %1 items").arg(m_paths.size()));
+        // Provider-backed entries are sized from the cached listing. Stat-ing
+        // them locally is what used to report "0 B" for a multi-selection on a
+        // network tab -- the server's paths are not this machine's paths.
         qint64 total = 0;
-        for (const QString &p : m_paths) {
-            const QFileInfo fi(p);
-            if (fi.isFile())
-                total += fi.size();
+        if (m_providerBacked) {
+            total = totalFileSize(m_infos);
+        } else {
+            for (const QString &p : m_paths) {
+                const QFileInfo fi(p);
+                if (fi.isFile())
+                    total += fi.size();
+            }
         }
         form->addRow(tr("Selection:"), valueLabel(tr("%1 items").arg(m_paths.size())));
         form->addRow(tr("Total size:"), valueLabel(humanSize(total)));
     }
 
-    // For each permission bit, decide the initial state across all paths:
+    // For each permission bit, decide the initial state across all entries:
     // all-set -> Checked, all-clear -> Unchecked, otherwise mixed (tri-state).
-    Qt::CheckState initial[9];
-    for (int i = 0; i < 9; ++i) {
-        int set = 0;
-        if (m_hasInfo) {
-            if (m_info.permissions() & kBits[i].flag)
-                ++set;
-        } else {
-            for (const QString &p : m_paths)
-                if (QFileInfo(p).permissions() & kBits[i].flag)
-                    ++set;
-        }
-        initial[i] = set == 0 ? Qt::Unchecked
-                     : set == m_paths.size() ? Qt::Checked
-                                             : Qt::PartiallyChecked;
+    QVector<QFile::Permissions> perms;
+    perms.reserve(m_paths.size());
+    if (m_providerBacked) {
+        for (const FileInfo &info : m_infos)
+            perms.append(info.permissions());
+    } else {
+        for (const QString &p : m_paths)
+            perms.append(QFileInfo(p).permissions());
     }
+    const QVector<Qt::CheckState> initial = permissionStates(perms);
 
     auto *permsBox = new QGroupBox(tr("Permissions"), this);
     auto *grid = new QGridLayout(permsBox);
@@ -183,10 +214,26 @@ void PropertiesDialog::buildUi() {
             if (initial[i] == Qt::PartiallyChecked)
                 m_bits[i]->setTristate(true);
             m_bits[i]->setCheckState(initial[i]);
+            // Provider-backed entries only ever display their bits. Editing them
+            // would mean QFile::setPermissions on a path that names something on
+            // a server (or inside an archive): it fails, and where a local file
+            // happens to share the name it succeeds on the WRONG file. Most
+            // network protocols have no chmod to forward it to either, so this
+            // says so rather than pretending.
+            m_bits[i]->setEnabled(!m_providerBacked);
             connect(m_bits[i], &QCheckBox::stateChanged, this,
                     [this](int) { updateOctalLabel(); });
             grid->addWidget(m_bits[i], r + 1, c + 1);
         }
+    }
+    if (m_providerBacked) {
+        auto *note = new QLabel(
+            tr("Shown as reported by the source. These entries are not on this computer's "
+               "filesystem, so their permissions cannot be changed here."),
+            permsBox);
+        note->setWordWrap(true);
+        note->setEnabled(false);
+        grid->addWidget(note, 4, 0, 1, 4);
     }
 
     m_octalLabel = new QLabel(this);
@@ -218,6 +265,14 @@ void PropertiesDialog::updateOctalLabel() {
 }
 
 void PropertiesDialog::apply() {
+    // Nothing to write back for provider-backed entries: the grid is read-only,
+    // so OK just closes. Guarding here (and not only by disabling the boxes)
+    // keeps QFile::setPermissions off a remote/in-archive path for good.
+    if (m_providerBacked) {
+        accept();
+        return;
+    }
+
     QStringList failed;
     for (const QString &path : m_paths) {
         const QFile::Permissions orig = QFileInfo(path).permissions();

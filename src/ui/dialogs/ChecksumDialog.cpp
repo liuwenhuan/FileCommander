@@ -4,6 +4,8 @@
 #include <QClipboard>
 #include <QCryptographicHash>
 #include <QDialogButtonBox>
+
+#include "FileProvider.h"
 #include <QFile>
 #include <QFileInfo>
 #include <QHeaderView>
@@ -33,7 +35,100 @@ enum Column { ColFile = 0, ColMd5, ColCrc32, ColSha1, ColCount };
 ChecksumWorker::ChecksumWorker(QStringList paths, std::shared_ptr<std::atomic<bool>> cancel)
     : m_paths(std::move(paths)), m_cancel(std::move(cancel)) {}
 
+ChecksumWorker::ChecksumWorker(QVector<FileInfo> infos, std::shared_ptr<FileProvider> provider,
+                               std::shared_ptr<std::atomic<bool>> cancel)
+    : m_infos(std::move(infos)), m_provider(std::move(provider)), m_cancel(std::move(cancel)) {
+    m_paths.reserve(m_infos.size());
+    for (const FileInfo &info : m_infos)
+        m_paths.append(info.path());
+}
+
 void ChecksumWorker::process() {
+    if (m_provider)
+        processProvider();
+    else
+        processLocal();
+}
+
+void ChecksumWorker::processProvider() {
+    // Sizes come from the listing the panel already has -- no stat over the
+    // wire just to fill a progress bar.
+    qint64 total = 0;
+    for (const FileInfo &info : m_infos)
+        if (!info.isDir())
+            total += info.size();
+
+    qint64 done = 0;
+    emit progress(done, total);
+
+    QByteArray buf;
+    buf.resize(static_cast<int>(kChunkSize));
+
+    for (int row = 0; row < m_infos.size(); ++row) {
+        if (m_cancel->load())
+            return;
+
+        const FileInfo &info = m_infos.at(row);
+        if (info.isDir()) {
+            const QString dir = tr("(directory)");
+            emit rowReady(row, dir, dir, dir);
+            continue;
+        }
+
+        FileHandle *handle = m_provider->openRead(info.path());
+        if (!handle) {
+            const QString err = tr("(unreadable)");
+            emit rowReady(row, err, err, err);
+            continue;
+        }
+
+        QCryptographicHash md5(QCryptographicHash::Md5);
+        QCryptographicHash sha1(QCryptographicHash::Sha1);
+        uLong crc = crc32(0L, Z_NULL, 0);
+        bool failed = false;
+
+        while (true) {
+            if (m_cancel->load()) {
+                m_provider->closeHandle(handle);
+                return;
+            }
+            const qint64 n = m_provider->read(handle, buf.data(), buf.size());
+            if (n < 0) { // read error, as distinct from the 0 that means EOF
+                failed = true;
+                break;
+            }
+            if (n == 0)
+                break;
+
+            md5.addData(buf.constData(), static_cast<int>(n));
+            sha1.addData(buf.constData(), static_cast<int>(n));
+            crc = crc32(crc, reinterpret_cast<const Bytef *>(buf.constData()),
+                        static_cast<uInt>(n));
+
+            done += n;
+            emit progress(done, total);
+        }
+        m_provider->closeHandle(handle);
+
+        if (failed) {
+            const QString err = tr("(read error)");
+            emit rowReady(row, err, err, err);
+            continue;
+        }
+
+        const QString md5Hex = QString::fromLatin1(md5.result().toHex());
+        const QString sha1Hex = QString::fromLatin1(sha1.result().toHex());
+        const QString crcHex =
+            QStringLiteral("%1").arg(static_cast<quint32>(crc), 8, 16, QLatin1Char('0')).toUpper();
+
+        emit rowReady(row, md5Hex, crcHex, sha1Hex);
+    }
+
+    emit progress(total, total);
+    emit finished();
+}
+
+void ChecksumWorker::processLocal() {
     // First pass: total up the bytes we expect to read so the progress bar has
     // a meaningful denominator. Directories and stat failures contribute zero.
     qint64 total = 0;
@@ -120,11 +215,23 @@ void ChecksumWorker::process() {
 ChecksumDialog::ChecksumDialog(const QStringList &paths, QWidget *parent)
     : FramelessDialog(parent), m_paths(paths), m_cancel(std::make_shared<std::atomic<bool>>(false)) {
     buildUi();
+    startWorker(new ChecksumWorker(m_paths, m_cancel));
+}
 
+ChecksumDialog::ChecksumDialog(const QVector<FileInfo> &infos,
+                               std::shared_ptr<FileProvider> provider, QWidget *parent)
+    : FramelessDialog(parent), m_cancel(std::make_shared<std::atomic<bool>>(false)) {
+    m_paths.reserve(infos.size());
+    for (const FileInfo &info : infos)
+        m_paths.append(info.path());
+    buildUi();
+    startWorker(new ChecksumWorker(infos, std::move(provider), m_cancel));
+}
+
+void ChecksumDialog::startWorker(ChecksumWorker *worker) {
     // Spin up the worker on its own thread. The worker owns nothing that the UI
     // touches; it only communicates through queued signals.
     m_thread = new QThread(this);
-    auto *worker = new ChecksumWorker(m_paths, m_cancel);
     worker->moveToThread(m_thread);
 
     connect(m_thread, &QThread::started, worker, &ChecksumWorker::process);

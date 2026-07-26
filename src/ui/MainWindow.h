@@ -365,6 +365,15 @@ private:
                          std::function<void(const QString &)> onReady,
                          const QString &destRoot = QString());
     void cancelRemoteFetch(quint64 reqId); // Cancel button / shutdown
+    // Gets `path` (as `panel` lists it) a name on this machine that opens the
+    // same bytes, and hands it to `then`. Local tabs pass the path straight
+    // through; anything else prefers the gvfs mount (no copying, works for a
+    // multi-gigabyte file) and falls back to downloading a read-only copy.
+    //
+    // `then` does NOT run when neither works -- fetchRemoteCopy has already told
+    // the user why -- so callers chaining two of these get no half-open dialog.
+    void withLocalFile(FilePanel *panel, const QString &path,
+                       std::function<void(const QString &)> then);
 
     QMap<QString, QShortcut *> m_shortcuts;
     QMap<QString, QKeySequence> m_shortcutDefaults;
