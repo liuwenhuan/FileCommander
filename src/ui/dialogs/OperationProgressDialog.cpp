@@ -64,6 +64,10 @@ OperationProgressDialog::OperationProgressDialog(QWidget *parent) : FramelessDia
     layout->addWidget(buttons);
 }
 
+void OperationProgressDialog::setPauseVisible(bool visible) {
+    m_pauseButton->setVisible(visible);
+}
+
 void OperationProgressDialog::setQueuedCount(int pending) {
     m_queueLabel->setText(pending > 0 ? tr("%1 operation(s) queued").arg(pending) : QString());
 }

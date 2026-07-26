@@ -18,6 +18,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QStorageInfo>
 #include <QTemporaryDir>
 
 #include <atomic>
@@ -99,6 +100,7 @@
 #include "TextEditor.h"
 #include "dialogs/CompareDialog.h"
 #include "dialogs/MultiRenameDialog.h"
+#include "dialogs/OperationProgressDialog.h"
 #include "dialogs/TransferProgressDialog.h"
 #include "dialogs/OverwriteConfirmDialog.h"
 #include "dialogs/PropertiesDialog.h"
@@ -584,14 +586,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
                     else
                         showBlankContextMenu(panel, pos);
                 });
-        connect(panel, &FilePanel::openRequested, this, [this](const QString &path) {
+        connect(panel, &FilePanel::openRequested, this, [this, panel](const QString &path) {
             // Double-click opens with the system's MIME-associated application.
             // (Directories and local archives are handled earlier in
             // FilePanel::onActivated and never reach here; F3 is the in-app
-            // viewer.)
-            if (!QDesktopServices::openUrl(QUrl::fromLocalFile(path)))
-                ttc::warning(this, tr("Open"),
-                                     tr("No application is associated with %1").arg(path));
+            // viewer.) The emitting panel decides how to reach the file: on a
+            // network tab `path` belongs to the provider, not the filesystem.
+            openWithAssociatedApp(panel, path);
         });
     }
 
@@ -1985,8 +1986,18 @@ void MainWindow::openWith() {
     const QString app = ttc::getText(this, tr("Open With"),
                                               tr("Application command:"), QLineEdit::Normal,
                                               QString(), &ok);
-    if (ok && !app.isEmpty())
-        QProcess::startDetached(app, {path});
+    if (!ok || app.isEmpty())
+        return;
+    FileProvider *prov = m_activePanel->model()->provider();
+    if (prov && !prov->displayName().isEmpty()) {
+        // Network tab: the command needs a real file, not the provider's path.
+        fetchRemoteCopy(m_activePanel, path,
+                        [app](const QString &localPath) {
+                            QProcess::startDetached(app, {localPath});
+                        });
+        return;
+    }
+    QProcess::startDetached(app, {path});
 }
 
 void MainWindow::compareDirectories() {
@@ -2068,23 +2079,21 @@ void MainWindow::toggleQuickView() {
 }
 
 namespace {
-// Downloads a remote file to a real local temp file so the local viewers can
-// open it (images/text/media all need a real path). Streams through the provider
-// on the calling worker thread, reporting bytes via `progressCb` and aborting
-// promptly when *cancel becomes true. Returns the temp path, or an empty string
-// on failure/cancellation (the partial temp file is removed). `reqId` keeps
-// concurrent previews from colliding on a name.
+// Downloads a remote file to `outPath`, a real local file, so the local viewers
+// (or an external application) can open it -- images/text/media all need a real
+// path. Streams through the provider on the calling worker thread, reporting
+// bytes via `progressCb` and aborting promptly when *cancel becomes true.
+// Returns outPath, or an empty string on failure/cancellation (the partial temp
+// file is removed). The caller picks the name, so it can keep the file's own
+// basename where that is user-visible.
 QString downloadRemoteToTemp(FileProvider *provider, const QString &remotePath,
-                             const QString &destDir, quint64 reqId, std::atomic<bool> *cancel,
+                             const QString &outPath, std::atomic<bool> *cancel,
                              qint64 total, const std::function<void(qint64, qint64)> &progressCb) {
     if (!provider || !provider->canStream())
         return {};
     FileHandle *h = provider->openRead(remotePath);
     if (!h)
         return {};
-    const QString base = QFileInfo(remotePath).fileName();
-    const QString outPath =
-        QDir(destDir).filePath(QStringLiteral("%1_%2").arg(reqId).arg(base));
     QFile out(outPath);
     if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         provider->closeHandle(h);
@@ -2193,9 +2202,11 @@ void MainWindow::updateQuickView() {
                                       Q_ARG(quint64, reqId), Q_ARG(qint64, done),
                                       Q_ARG(qint64, tot));
         };
+        // The request id in the name keeps concurrent previews from colliding.
+        const QString outPath = QDir(destDir).filePath(
+            QStringLiteral("%1_%2").arg(reqId).arg(QFileInfo(entry).fileName()));
         const QString tmp =
-            downloadRemoteToTemp(provider.get(), entry, destDir, reqId, cancel.get(), total,
-                                 progressCb);
+            downloadRemoteToTemp(provider.get(), entry, outPath, cancel.get(), total, progressCb);
         const bool cancelled = cancel->load();
         QMetaObject::invokeMethod(self, "onPreviewDone", Qt::QueuedConnection,
                                   Q_ARG(quint64, reqId), Q_ARG(QString, tmp),
@@ -2224,6 +2235,198 @@ void MainWindow::cancelPreviewDownload() {
         m_previewCancel->store(true); // the worker's read loop aborts on the next chunk
     m_previewRunning = false;
     m_quickView->showDownloadCancelled(m_previewName);
+}
+
+QString MainWindow::ensureOpenTempDir() {
+    if (!m_openTempDir) {
+        m_openTempDir =
+            new QTemporaryDir(QDir::tempPath() + QStringLiteral("/FileCommander-open-XXXXXX"));
+        // Deliberately kept past shutdown: an application we launched may still
+        // be reading (or about to read) a copy, and pulling the file out from
+        // under a document the user is looking at is worse than leaving bytes in
+        // /tmp, which the system clears anyway. This is also why the dir is never
+        // deleted while the window lives -- we cannot know when a launched
+        // application is done with its file.
+        m_openTempDir->setAutoRemove(false);
+    }
+    return (m_openTempDir && m_openTempDir->isValid()) ? m_openTempDir->path() : QString();
+}
+
+void MainWindow::openWithAssociatedApp(FilePanel *panel, const QString &path) {
+    if (path.isEmpty())
+        return;
+    FileProvider *prov = panel ? panel->model()->provider() : nullptr;
+    // Same test the preview pane uses: only network backends name a connection.
+    const bool network = prov && !prov->displayName().isEmpty();
+    if (!network) {
+        // Local tab: `path` already is a filesystem path -- unchanged behaviour.
+        if (!QDesktopServices::openUrl(QUrl::fromLocalFile(path)))
+            ttc::warning(this, tr("Open"),
+                                 tr("No application is associated with %1").arg(path));
+        return;
+    }
+
+    // Network tab: `path` is the provider's, and no local application can open
+    // it. Stream it into a local copy and hand the desktop that instead.
+    const QString name = QFileInfo(path).fileName();
+    fetchRemoteCopy(panel, path, [this, name](const QString &localPath) {
+        if (!QDesktopServices::openUrl(QUrl::fromLocalFile(localPath))) {
+            ttc::warning(this, tr("Open"),
+                                 tr("No application is associated with %1").arg(name));
+            return;
+        }
+        // The copy is a snapshot: nothing writes it back to the server. Say so
+        // once per session rather than on every open -- the read-only permission
+        // set in onRemoteFetchDone is what actually stops an editor from
+        // discarding the user's work, this explains why it happened.
+        if (!m_remoteCopyNoticeShown) {
+            m_remoteCopyNoticeShown = true;
+            ttc::information(this, tr("Open"),
+                             tr("%1 was downloaded to a read-only local copy, which is what the "
+                                "application opened.\n\nChanges made to it are not saved back to "
+                                "the server.")
+                                 .arg(name));
+        }
+    });
+}
+
+void MainWindow::fetchRemoteCopy(FilePanel *panel, const QString &path,
+                                 std::function<void(const QString &)> onReady) {
+    FileProvider *prov = panel ? panel->model()->provider() : nullptr;
+    const QString name = QFileInfo(path).fileName();
+    if (!prov || !prov->canStream()) {
+        ttc::warning(this, tr("Open"),
+                             tr("This connection cannot download files, so %1 cannot be opened "
+                                "with a local application.")
+                                 .arg(name));
+        return;
+    }
+    const QString root = ensureOpenTempDir();
+    if (root.isEmpty()) {
+        ttc::warning(this, tr("Open"),
+                             tr("Could not create a temporary folder to download %1.").arg(name));
+        return;
+    }
+
+    const quint64 reqId = ++m_openReqId;
+    // One sub-directory per request, so the copy keeps the file's own name (the
+    // application shows it in its title bar and picks its handler from the
+    // extension) and a second open of the same file cannot overwrite a copy some
+    // other application still has open.
+    const QString destDir = QDir(root).filePath(QString::number(reqId));
+    if (!QDir().mkpath(destDir)) {
+        ttc::warning(this, tr("Open"),
+                             tr("Could not create a temporary folder to download %1.").arg(name));
+        return;
+    }
+    const QString outPath = QDir(destDir).filePath(name);
+
+    // Size comes from the cached listing (no remote round-trip); it only drives
+    // the progress bar and the free-space check, so an unknown size is fine --
+    // the bar just stays indeterminate. Unlike the preview there is no size cap:
+    // a double-click is an explicit request, so a big file gets progress and a
+    // Cancel button rather than silently doing nothing.
+    const FileInfo info = panel->currentEntryInfo();
+    const qint64 total = (info.isValid() && info.path() == path) ? info.size() : 0;
+    if (total > 0 && QStorageInfo(root).bytesAvailable() < total) {
+        ttc::warning(this, tr("Open"),
+                             tr("There is not enough free space in %1 to download %2.")
+                                 .arg(QDir::tempPath(), name));
+        return;
+    }
+
+    RemoteFetch fetch;
+    fetch.name = name;
+    fetch.destDir = destDir;
+    fetch.total = total;
+    fetch.cancel = std::make_shared<std::atomic<bool>>(false);
+    fetch.onReady = std::move(onReady);
+    m_remoteFetches.insert(reqId, fetch);
+
+    // Show progress only once the download has run for half a second, so opening
+    // a small file doesn't flash a dialog (same threshold as the preview pane).
+    QTimer::singleShot(500, this, [this, reqId] {
+        auto it = m_remoteFetches.find(reqId);
+        if (it == m_remoteFetches.end() || it->dialog)
+            return; // finished already, or a dialog is up
+        auto *dlg = new OperationProgressDialog(this);
+        dlg->setWindowTitle(tr("Open"));
+        dlg->setPauseVisible(false); // a one-shot download has nothing to pause
+        dlg->setDescription(tr("Downloading %1...").arg(it->name));
+        dlg->setProgress(0, 1, 0, it->total, it->name);
+        connect(dlg, &OperationProgressDialog::cancelRequested, this,
+                [this, reqId] { cancelRemoteFetch(reqId); });
+        it->dialog = dlg;
+        dlg->show();
+    });
+
+    std::shared_ptr<FileProvider> provider = panel->model()->providerPtr();
+    std::shared_ptr<std::atomic<bool>> cancel = fetch.cancel;
+    MainWindow *self = this; // outlives the fetch: closeEvent cancels every one
+    QtConcurrent::run([self, provider, path, outPath, reqId, cancel, total] {
+        auto progressCb = [self, reqId](qint64 done, qint64 tot) {
+            QMetaObject::invokeMethod(self, "onRemoteFetchProgress", Qt::QueuedConnection,
+                                      Q_ARG(quint64, reqId), Q_ARG(qint64, done),
+                                      Q_ARG(qint64, tot));
+        };
+        const QString local =
+            downloadRemoteToTemp(provider.get(), path, outPath, cancel.get(), total, progressCb);
+        QMetaObject::invokeMethod(self, "onRemoteFetchDone", Qt::QueuedConnection,
+                                  Q_ARG(quint64, reqId), Q_ARG(QString, local),
+                                  Q_ARG(bool, cancel->load()));
+    });
+}
+
+void MainWindow::onRemoteFetchProgress(quint64 reqId, qint64 done, qint64 total) {
+    auto it = m_remoteFetches.find(reqId);
+    if (it == m_remoteFetches.end() || !it->dialog)
+        return; // done, cancelled, or still inside the 0.5s quiet window
+    it->dialog->setProgress(0, 1, done, total, it->name);
+}
+
+void MainWindow::onRemoteFetchDone(quint64 reqId, const QString &localPath, bool cancelled) {
+    auto it = m_remoteFetches.find(reqId);
+    if (it == m_remoteFetches.end())
+        return;
+    // Copy out first: onReady may well start another fetch and rehash the table.
+    const RemoteFetch fetch = *it;
+    m_remoteFetches.erase(it);
+    if (fetch.dialog) {
+        fetch.dialog->close();
+        fetch.dialog->deleteLater();
+    }
+    if (cancelled || localPath.isEmpty()) {
+        // The partial copy is already removed, so the request's own directory is
+        // empty -- take it with us rather than leaving litter behind.
+        if (!fetch.destDir.isEmpty())
+            QDir().rmdir(fetch.destDir);
+        if (cancelled)
+            return; // the user asked to stop; nothing more to say
+        ttc::warning(this, tr("Open"),
+                             tr("Could not download %1 from the server.").arg(fetch.name));
+        return;
+    }
+    // Hand over a read-only copy. Nothing writes it back, so an editor finding
+    // it unwritable and refusing to save is the honest outcome -- the silent
+    // alternative is the user's edits landing in a file that is thrown away.
+    QFile::setPermissions(localPath, QFile::ReadOwner | QFile::ReadUser);
+    if (fetch.onReady)
+        fetch.onReady(localPath);
+}
+
+void MainWindow::cancelRemoteFetch(quint64 reqId) {
+    auto it = m_remoteFetches.find(reqId);
+    if (it == m_remoteFetches.end())
+        return;
+    if (it->cancel)
+        it->cancel->store(true); // the worker's read loop aborts on the next chunk
+    if (it->dialog) {
+        it->dialog->close();
+        it->dialog->deleteLater();
+        it->dialog = nullptr;
+    }
+    // The entry stays until the worker reports back, which is what stops the
+    // onReady callback from running for a cancelled fetch.
 }
 
 void MainWindow::splitFile() {
@@ -3228,6 +3431,14 @@ void MainWindow::refreshActivePanel() {
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) {
+    // Stop any in-flight "open a network file" download before the window that
+    // its worker reports back to goes away; the read loop checks the flag on
+    // every chunk. The downloaded copies themselves are left on disk on purpose
+    // (see ensureOpenTempDir).
+    for (auto it = m_remoteFetches.begin(); it != m_remoteFetches.end(); ++it)
+        if (it->cancel)
+            it->cancel->store(true);
+
     m_settings.setWindowGeometry(saveGeometry());
     // Persist each panel's column layout independently: base widths + hidden
     // mask + sort (replaces the old single left-panel blob shared to both).

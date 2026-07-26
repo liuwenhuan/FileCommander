@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <memory>
+#include <QHash>
 #include <QMap>
 #include <QPair>
 #include <QPixmap>
@@ -31,6 +32,7 @@ class FunctionKeyBar;
 class CommandBar;
 class CommandOutputDialog;
 class QuickView;
+class OperationProgressDialog;
 class OperationQueue;
 class TransferProgressDialog;
 class ThemeManager;
@@ -131,6 +133,12 @@ private slots:
     // queued invocation; reqId discards a stale download after the cursor moves).
     void onPreviewProgress(quint64 reqId, qint64 done, qint64 total);
     void onPreviewDone(quint64 reqId, const QString &tempPath, bool cancelled);
+    // Remote-copy callbacks for "open with the associated application" (same
+    // queued-invocation shape as the preview ones above, but one per in-flight
+    // request: every open the user asked for must complete, none supersedes
+    // another).
+    void onRemoteFetchProgress(quint64 reqId, qint64 done, qint64 total);
+    void onRemoteFetchDone(quint64 reqId, const QString &localPath, bool cancelled);
     void undoLast(); // Ctrl+Z
     void runCommand(const QString &command, const QString &directory);
     void openExternalConnections(); // external-connect command (leading button default)
@@ -285,8 +293,39 @@ private:
     bool m_previewRunning = false;                       // a remote fetch is in flight
     QString m_previewName;                               // current file's name (for messages)
     std::shared_ptr<std::atomic<bool>> m_previewCancel;  // current download's cancel flag
+    // The one file whose streamed preview failed, so retrying it downloads
+    // instead of streaming again (which would fail the same way, forever).
     QString ensurePreviewTempDir();
     void cancelPreviewDownload(); // Stop button: abort the current preview fetch
+
+    // "Open with the associated application" for a file that has no local path.
+    // A network tab's paths belong to the provider, not the filesystem, so the
+    // file is streamed into a local temp copy first and the copy is handed to the
+    // desktop. The copy is read-only and is NOT written back (see
+    // openWithAssociatedApp), so an editor refuses to save onto it instead of
+    // silently discarding the user's edits.
+    struct RemoteFetch {
+        QString name;                              // basename, for messages
+        QString destDir;                           // per-request dir, removed if nothing lands
+        qint64 total = 0;                          // expected bytes (0 = unknown)
+        std::shared_ptr<std::atomic<bool>> cancel; // flipped by the Cancel button
+        OperationProgressDialog *dialog = nullptr; // created only if slow (see 500ms timer)
+        std::function<void(const QString &)> onReady; // what to do with the local copy
+    };
+    QTemporaryDir *m_openTempDir = nullptr; // holds every fetched copy for the session
+    quint64 m_openReqId = 0;
+    QHash<quint64, RemoteFetch> m_remoteFetches; // in-flight fetches, keyed by request id
+    bool m_remoteCopyNoticeShown = false;        // the read-only notice is once per session
+    QString ensureOpenTempDir();
+    // Opens `path` (as listed by `panel`) with the desktop's MIME-associated
+    // application, fetching a local copy first when the panel is a network tab.
+    void openWithAssociatedApp(FilePanel *panel, const QString &path);
+    // Streams `path` off `panel`'s provider into a local temp copy and calls
+    // `onReady(localPath)` on the GUI thread once it is there. Reports its own
+    // failures; `onReady` never runs on failure or cancellation.
+    void fetchRemoteCopy(FilePanel *panel, const QString &path,
+                         std::function<void(const QString &)> onReady);
+    void cancelRemoteFetch(quint64 reqId); // Cancel button / shutdown
 
     QMap<QString, QShortcut *> m_shortcuts;
     QMap<QString, QKeySequence> m_shortcutDefaults;

@@ -16,6 +16,11 @@ class OperationProgressDialog : public FramelessDialog {
 public:
     explicit OperationProgressDialog(QWidget *parent = nullptr);
 
+    // Hides the Pause button for jobs that have nothing to pause -- the one-shot
+    // download behind "open a network file with its associated application" runs
+    // to completion or is cancelled, so offering Pause would be a dead control.
+    void setPauseVisible(bool visible);
+
 public slots:
     void setDescription(const QString &description);
     void setProgress(qint64 doneItems, qint64 totalItems, qint64 doneBytes, qint64 totalBytes,
