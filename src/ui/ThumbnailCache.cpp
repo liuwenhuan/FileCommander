@@ -227,10 +227,17 @@ double frameStdDev(const QString &imagePath) {
     return variance > 0.0 ? std::sqrt(variance) : 0.0;
 }
 
-// Extracts one representative frame (~10% into the video) to a temporary
-// PNG file via the system ffmpeg binary. Returns the temp file path (caller
-// must remove it) or an empty string on any failure.
-QString extractVideoFrame(const QString &path) {
+// Extracts one representative frame to a temporary PNG file via the system
+// ffmpeg binary. Returns the temp file path (caller must remove it) or an empty
+// string on any failure.
+//
+// `seekOverride` names the exact second to seek to. A remote excerpt passes the
+// timestamp of the keyframe it actually fetched, so the first frame decoded is
+// the one already on disk; without it the grab probes the duration and seeks to
+// 10%, which for a sparse excerpt generally lands between the fetched
+// keyframes -- and a decoder cannot reach a later point when the frames leading
+// to it were never pulled. Negative means "work it out from the duration".
+QString extractVideoFrame(const QString &path, double seekOverride = -1.0) {
     QTemporaryFile temp(QDir::tempPath() + QStringLiteral("/FileCommander-thumb-XXXXXX.png"));
     temp.setAutoRemove(false);
     if (!temp.open())
@@ -238,8 +245,11 @@ QString extractVideoFrame(const QString &path) {
     const QString framePath = temp.fileName();
     temp.close();
 
-    const double duration = videoDurationSeconds(path);
-    const double seekSeconds = duration > 0.0 ? duration * 0.10 : 1.0;
+    double seekSeconds = seekOverride;
+    if (seekSeconds < 0.0) {
+        const double duration = videoDurationSeconds(path);
+        seekSeconds = duration > 0.0 ? duration * 0.10 : 1.0;
+    }
 
     QProcess proc;
     const QStringList args = {
@@ -474,9 +484,9 @@ constexpr double kFrameSeekFraction = 0.10;
 // Fetches the index the plan already located, and asks it where the keyframe at
 // the seek point lives. Returns a zero-length range when the index cannot be
 // read or holds no usable video track, leaving the plan as it was.
-Mp4RangePlan::Range keyframeRangeFor(const RemoteThumbnailFetcher::Ticket &ticket,
-                                     const QString &path, const Mp4RangePlan::Plan &plan,
-                                     qint64 fileSize) {
+Mp4RangePlan::Keyframe keyframeRangeFor(const RemoteThumbnailFetcher::Ticket &ticket,
+                                        const QString &path, const Mp4RangePlan::Plan &plan,
+                                        qint64 fileSize) {
     // Both plan shapes put the index in a different slot, and neither position
     // nor size identifies it on its own:
     //   * index leading  -> [0, indexEnd] then a slice of frame data after it,
@@ -493,18 +503,18 @@ Mp4RangePlan::Range keyframeRangeFor(const RemoteThumbnailFetcher::Ticket &ticke
         const QByteArray buf = ticket.readRange(path, r.first, r.second);
         if (buf.isEmpty())
             continue;
-        const Mp4RangePlan::Range kf =
-            Mp4RangePlan::keyframeRange(buf, r.first, fileSize, kFrameSeekFraction);
-        if (kf.second > 0)
+        const Mp4RangePlan::Keyframe kf =
+            Mp4RangePlan::keyframeAt(buf, r.first, fileSize, kFrameSeekFraction);
+        if (kf.valid())
             return kf;
     }
-    return {0, 0};
+    return {};
 }
 
 } // namespace
 
-QString ThumbnailCache::fetchVideoExcerpt(const RemoteThumbnailFetcher::Ticket &ticket,
-                                          const QString &path, qint64 fileSize) {
+ThumbnailCache::VideoExcerpt ThumbnailCache::fetchVideoExcerpt(
+    const RemoteThumbnailFetcher::Ticket &ticket, const QString &path, qint64 fileSize) {
     // Ask the container where its index is instead of guessing. One small read
     // of the head names every top-level box; for a file whose index trails the
     // media that yields the index's offset, and a second tiny read gives its
@@ -532,13 +542,22 @@ QString ThumbnailCache::fetchVideoExcerpt(const RemoteThumbnailFetcher::Ticket &
                 // in. Read the index and let it name the exact keyframe there,
                 // so one small extra range replaces both a wrong guess and a
                 // wastefully wide window.
-                const Mp4RangePlan::Range keyframe = keyframeRangeFor(ticket, path, plan, fileSize);
-                if (keyframe.second > 0)
-                    plan.ranges.append(keyframe);
+                const Mp4RangePlan::Keyframe keyframe =
+                    keyframeRangeFor(ticket, path, plan, fileSize);
+                if (keyframe.valid())
+                    plan.ranges.append(keyframe.range);
 
                 const QString excerpt = ticket.downloadRanges(path, fileSize, plan.ranges);
-                if (!excerpt.isEmpty())
-                    return excerpt;
+                if (!excerpt.isEmpty()) {
+                    // Seek to the keyframe that was actually fetched. The
+                    // default 10% seek generally falls somewhere after it, and
+                    // reaching that point means decoding every frame in
+                    // between -- 4.2 MB on a 44 MB clip whose opening keyframe
+                    // runs five seconds, against the 2 MB the window holds. The
+                    // frame is no less representative: it is the keyframe
+                    // nearest 10%, not the file's first.
+                    return {excerpt, keyframe.seconds};
+                }
             }
         } else if (kind == VideoRangePlan::Container::MpegTs) {
             // A transport stream is the one container that must NOT be handed a
@@ -558,7 +577,7 @@ QString ThumbnailCache::fetchVideoExcerpt(const RemoteThumbnailFetcher::Ticket &
             const VideoRangePlan::Range run = VideoRangePlan::contiguousStreamRange(fileSize);
             const QString excerpt = ticket.downloadContiguous(path, run.first, run.second);
             if (!excerpt.isEmpty())
-                return excerpt;
+                return {excerpt, -1.0};
         } else {
             // Everything else: headers, the frames the grab seeks to, and a
             // tail for the formats that index there. No per-format parsing --
@@ -569,7 +588,7 @@ QString ThumbnailCache::fetchVideoExcerpt(const RemoteThumbnailFetcher::Ticket &
             if (!ranges.isEmpty()) {
                 const QString excerpt = ticket.downloadRanges(path, fileSize, ranges);
                 if (!excerpt.isEmpty())
-                    return excerpt;
+                    return {excerpt, -1.0};
             }
         }
     }
@@ -577,7 +596,7 @@ QString ThumbnailCache::fetchVideoExcerpt(const RemoteThumbnailFetcher::Ticket &
     // An unreadable head, an unrecognised container, or a plan whose ranges
     // did not come back: fall back to the fixed both-ends excerpt, which needs
     // no knowledge of the format.
-    return ticket.downloadHeadAndTail(path, fileSize, kRemoteVideoHalf);
+    return {ticket.downloadHeadAndTail(path, fileSize, kRemoteVideoHalf), -1.0};
 }
 
 void ThumbnailCache::generateRemote(const RemoteThumbnailFetcher::Ticket &ticket,
@@ -606,9 +625,15 @@ void ThumbnailCache::generateRemote(const RemoteThumbnailFetcher::Ticket &ticket
     // to the ordinary whole-file budget, and give up beyond it.
     const bool tooBigToFetchWhole = !isVideoPath(path) && fileSize > kRemoteImageBudget;
     QString localCopy;
+    double seekSeconds = -1.0;
     if (image.isNull() && !tooBigToFetchWhole) {
-        localCopy = isVideoPath(path) ? fetchVideoExcerpt(ticket, path, fileSize)
-                                      : ticket.download(path, fileSize);
+        if (isVideoPath(path)) {
+            const VideoExcerpt excerpt = fetchVideoExcerpt(ticket, path, fileSize);
+            localCopy = excerpt.path;
+            seekSeconds = excerpt.seekSeconds;
+        } else {
+            localCopy = ticket.download(path, fileSize);
+        }
     }
     if (!localCopy.isEmpty()) {
         // From here on the fetched excerpt is an ordinary local file, so the
@@ -616,7 +641,7 @@ void ThumbnailCache::generateRemote(const RemoteThumbnailFetcher::Ticket &ticket
         // ffmpeg's frame grab, which simply fails (empty frame path) on the rare
         // container whose index sits at neither end.
         if (isVideoPath(path)) {
-            const QString framePath = extractVideoFrame(localCopy);
+            const QString framePath = extractVideoFrame(localCopy, seekSeconds);
             if (!framePath.isEmpty()) {
                 image = decodeScaled(framePath, size);
                 QFile::remove(framePath);

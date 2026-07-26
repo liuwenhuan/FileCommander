@@ -72,4 +72,32 @@ Plan refine(const Plan &pending, const QByteArray &probe, qint64 fileSize);
 // index, leaving the caller to fall back to a fixed window.
 Range keyframeRange(const QByteArray &moov, qint64 moovOffset, qint64 fileSize, double fraction);
 
+// Where a keyframe sits in the file and when it plays.
+struct Keyframe {
+    Range range{0, 0};        // bytes to fetch; length 0 means "not found"
+    double seconds = -1.0;    // its presentation time, or < 0 if unknown
+    bool valid() const { return range.second > 0; }
+};
+
+// keyframeRange() with the keyframe's own timestamp reported alongside it.
+//
+// Knowing when the frame plays is what makes fetching only *it* sufficient. The
+// grab otherwise seeks to a fixed fraction of the duration, which generally
+// falls between keyframes -- and a decoder handed the keyframe alone cannot
+// reach a later point, because every frame in between is missing. It then needs
+// the whole run from the keyframe to the seek target: measured at 4.2 MB on a
+// 44 MB clip whose opening keyframe covers five seconds, against a 2 MB window.
+//
+// Seeking to the keyframe's own time instead makes the first frame decoded the
+// one already in hand. The picture is still representative -- it is the
+// keyframe nearest the requested fraction, not the file's first frame.
+//
+// One exception keeps that true. When the keyframe at or before the seek point
+// IS the file's first sample -- which happens whenever the opening keyframe
+// spans the whole first tenth, so a long GOP on a short clip -- the seek lands
+// on frame zero, exactly the title card or fade-in that seeking 10% in exists
+// to skip. The next keyframe is used instead: it costs no more bytes, because
+// the window is sized per keyframe rather than per file position.
+Keyframe keyframeAt(const QByteArray &moov, qint64 moovOffset, qint64 fileSize, double fraction);
+
 } // namespace Mp4RangePlan

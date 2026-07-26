@@ -219,6 +219,11 @@ QByteArray videoMoov(int samples, int gop, quint32 sampleBytes, qint64 mediaStar
 // The frame grab seeks to 10% of the duration, so the plan has to reach the
 // keyframe there -- not the start of the media. This is what a fixed window
 // cannot do reliably, since the keyframe spacing is set by the encoder.
+//
+// Here the opening keyframe spans the whole first tenth, so "the keyframe at or
+// before the seek point" is sample #1 -- the file's very first frame, which is
+// where title cards and fade-ins live. The next one is taken instead; see
+// KeyframeAtSkipsAFirstFrameThatWouldBeTheOpeningShot for why that matters.
 TEST(Mp4RangePlanTest, KeyframeRangeLandsOnTheSeekPoint) {
     constexpr int samples = 1000;
     constexpr int gop = 250;              // keyframes at 1, 251, 501, 751
@@ -229,9 +234,61 @@ TEST(Mp4RangePlanTest, KeyframeRangeLandsOnTheSeekPoint) {
     const qint64 fileSize = mediaStart + qint64(samples) * sampleBytes + 1;
     const Mp4RangePlan::Range r = Mp4RangePlan::keyframeRange(moov, 0, fileSize, 0.10);
 
-    // 10% of 1000 samples is sample 100; the keyframe at or before it is #1.
+    // 10% of 1000 samples is sample 100. The keyframe at or before it is #1, so
+    // the answer is #251 -- one GOP in, still near the requested point.
     ASSERT_GT(r.second, 0) << "no keyframe located";
-    EXPECT_EQ(r.first, mediaStart) << "should point at the keyframe covering the seek point";
+    EXPECT_EQ(r.first, mediaStart + 250 * qint64(sampleBytes))
+        << "should skip the opening keyframe and take the next one";
+}
+
+// A first keyframe that covers the seek point means seeking to it lands on
+// frame zero -- the one shot the 10% seek exists to avoid. Measured on a real
+// 44 MB clip (a 5-second opening GOP), that frame decodes to pure black from
+// the untouched original, so fetching more bytes cannot help; only choosing a
+// different keyframe can. The next one is free: the window is sized per
+// keyframe, not per file position.
+TEST(Mp4RangePlanTest, KeyframeAtSkipsAFirstFrameThatWouldBeTheOpeningShot) {
+    constexpr int samples = 1000;
+    constexpr int gop = 250;
+    constexpr quint32 sampleBytes = 4096;
+    constexpr qint64 mediaStart = 100000;
+    const QByteArray moov = videoMoov(samples, gop, sampleBytes, mediaStart);
+    const qint64 fileSize = mediaStart + qint64(samples) * sampleBytes + 1;
+
+    const Mp4RangePlan::Keyframe kf = Mp4RangePlan::keyframeAt(moov, 0, fileSize, 0.10);
+    ASSERT_TRUE(kf.valid());
+    EXPECT_EQ(kf.range.first, mediaStart + 250 * qint64(sampleBytes));
+    // Timescale is 1 Hz with one unit per sample, so sample #251 plays at 250 s.
+    EXPECT_DOUBLE_EQ(kf.seconds, 250.0)
+        << "the reported time must be the chosen keyframe's own, not the seek point";
+}
+
+// The skip must not fire when the seek point genuinely falls past a later
+// keyframe -- that would push the thumbnail away from the requested fraction
+// for no reason.
+TEST(Mp4RangePlanTest, KeyframeAtKeepsALaterKeyframeAsItIs) {
+    const QByteArray moov = videoMoov(1000, 250, 4096, 100000);
+    const qint64 fileSize = 100000 + 1000LL * 4096 + 1;
+
+    const Mp4RangePlan::Keyframe kf = Mp4RangePlan::keyframeAt(moov, 0, fileSize, 0.55);
+    ASSERT_TRUE(kf.valid());
+    // Sample 550 -> keyframe #501, which is not the first, so it stands.
+    EXPECT_EQ(kf.range.first, 100000 + 500LL * 4096);
+    EXPECT_DOUBLE_EQ(kf.seconds, 500.0);
+}
+
+// A file with exactly one keyframe has nothing to skip to. Reporting it is
+// still right: it is the only frame a decoder can start from, and the caller
+// needs the range regardless.
+TEST(Mp4RangePlanTest, KeyframeAtKeepsTheOnlyKeyframeItHas) {
+    constexpr qint64 mediaStart = 100000;
+    const QByteArray moov = videoMoov(100, 1000, 4096, mediaStart); // one keyframe: #1
+    const qint64 fileSize = mediaStart + 100LL * 4096 + 1;
+
+    const Mp4RangePlan::Keyframe kf = Mp4RangePlan::keyframeAt(moov, 0, fileSize, 0.10);
+    ASSERT_TRUE(kf.valid());
+    EXPECT_EQ(kf.range.first, mediaStart);
+    EXPECT_DOUBLE_EQ(kf.seconds, 0.0);
 }
 
 // Half way in, the answer must be the keyframe before that point (#501), not

@@ -253,6 +253,26 @@ quint32 sampleAtFraction(const SampleTables &t, double fraction) {
     return sample > 1 ? sample - 1 : 1;
 }
 
+// Presentation time of `sample` (1-based) in seconds, by summing the stts runs
+// that precede it. Returns -1 when the tables cannot answer.
+double timeOfSample(const SampleTables &t, quint32 sample) {
+    if (t.timescale == 0 || sample == 0)
+        return -1.0;
+    qint64 units = 0;
+    quint32 seen = 0;
+    for (const auto &run : t.timeRuns) {
+        const quint32 count = run.first;
+        if (sample <= seen + count) {
+            units += static_cast<qint64>(sample - 1 - seen) * run.second;
+            return static_cast<double>(units) / t.timescale;
+        }
+        units += static_cast<qint64>(count) * run.second;
+        seen += count;
+    }
+    // Past the last run: the tables are short, so the best answer is the end.
+    return static_cast<double>(units) / t.timescale;
+}
+
 // Byte offset of `sample` (1-based), by walking stsc's chunk runs and summing
 // the sizes of the samples that precede it inside its chunk.
 qint64 offsetOfSample(const SampleTables &t, quint32 sample) {
@@ -366,9 +386,9 @@ Plan refine(const Plan &pending, const QByteArray &probe, qint64 fileSize) {
 }
 
 
-Range keyframeRange(const QByteArray &moov, qint64 moovOffset, qint64 fileSize, double fraction) {
+Keyframe keyframeAt(const QByteArray &moov, qint64 moovOffset, qint64 fileSize, double fraction) {
     Q_UNUSED(moovOffset);
-    const Range none{0, 0};
+    const Keyframe none;
     if (moov.size() < kBoxHeaderSize || fileSize <= 0)
         return none;
 
@@ -421,16 +441,39 @@ Range keyframeRange(const QByteArray &moov, qint64 moovOffset, qint64 fileSize, 
     // decoder can only start from a keyframe.
     const quint32 target = sampleAtFraction(tables, fraction);
     quint32 keyframe = tables.syncSamples.first();
+    quint32 nextKeyframe = 0;
     for (const quint32 s : tables.syncSamples) {
-        if (s > target)
+        if (s > target) {
+            nextKeyframe = s;
             break;
+        }
         keyframe = s;
     }
+
+    // When the keyframe at or before the seek point is the file's very first
+    // sample, seeking to it undoes the reason the grab seeks into the file at
+    // all: the opening frame is where the title card and the fade-in live.
+    // Measured on a 44 MB clip whose first keyframe covers a full five seconds,
+    // that frame is pure black -- mean 0.00, stdev 0.000 -- and it decodes that
+    // way from the untouched original too, so no amount of fetching helps.
+    // Taking the next keyframe instead lands at 5.0 s on real picture
+    // (mean 102.43, stdev 26.08) for the same bytes, since the window is sized
+    // per keyframe rather than per file position.
+    if (nextKeyframe != 0 && keyframe == tables.syncSamples.first())
+        keyframe = nextKeyframe;
 
     const qint64 offset = offsetOfSample(tables, keyframe);
     if (offset < 0 || offset >= fileSize)
         return none;
-    return {offset, qMin(kKeyframeWindowBytes, fileSize - offset)};
+
+    Keyframe result;
+    result.range = {offset, qMin(kKeyframeWindowBytes, fileSize - offset)};
+    result.seconds = timeOfSample(tables, keyframe);
+    return result;
+}
+
+Range keyframeRange(const QByteArray &moov, qint64 moovOffset, qint64 fileSize, double fraction) {
+    return keyframeAt(moov, moovOffset, fileSize, fraction).range;
 }
 
 } // namespace Mp4RangePlan

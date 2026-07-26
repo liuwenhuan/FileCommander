@@ -136,12 +136,21 @@ private:
     void generateRemote(const RemoteThumbnailFetcher::Ticket &ticket, const QString &path,
                         const QString &key, qint64 fileSize, int size);
 
+    // What fetchVideoExcerpt() managed to pull.
+    struct VideoExcerpt {
+        QString path;           // temp file the caller must delete; empty on failure
+        double seekSeconds = -1.0; // when to seek, or < 0 for "derive from duration"
+    };
+
     // Fetches the part of a remote video a frame grab needs, following the
     // container's own index rather than a fixed budget (see Mp4RangePlan).
     // Falls back to a fixed both-ends excerpt for formats it cannot read.
-    // Returns a temp file path the caller must delete, or empty on failure.
-    static QString fetchVideoExcerpt(const RemoteThumbnailFetcher::Ticket &ticket,
-                                     const QString &path, qint64 fileSize);
+    //
+    // When the index named a keyframe, its timestamp comes back too so the grab
+    // can seek to that frame rather than to a fixed fraction that would land in
+    // an unfetched gap.
+    static VideoExcerpt fetchVideoExcerpt(const RemoteThumbnailFetcher::Ticket &ticket,
+                                          const QString &path, qint64 fileSize);
 
     // GUI-thread slot (invoked via QMetaObject::invokeMethod with
     // Qt::QueuedConnection from worker threads): converts the decoded image
