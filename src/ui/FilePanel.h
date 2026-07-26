@@ -126,6 +126,12 @@ public:
     // false if nothing matched (the caller should fall back to refresh()).
     bool removeDeletedAndSelectNext(const QStringList &paths);
 
+    // Settles the listing after a delete or move took `paths` out of this panel:
+    // drops exactly the rows that really went (keeping the cursor where it was),
+    // or relists when this backend cannot be asked which of them those were.
+    // Call once the operation has finished.
+    void settleAfterRemoval(const QStringList &paths);
+
     // Marks this panel as the active one (of the two). Softens the inactive
     // panel's selection colour so the active panel's cursor row stands out.
     void setActive(bool active);
@@ -313,6 +319,9 @@ private:
     void applyHistoryEntry(const NavEntry &entry);
     void pushHistory(const NavEntry &entry);
     void updateStatus();
+    // Refreshes (or blanks) the status strip's "N free of M" readout for the
+    // current listing. Blank is a real answer here -- see the definition.
+    void updateDiskInfo();
     // Maps a NetworkSession::State to the centred connection message in the
     // status line ("connecting / reconnecting(N/M) / failed+retry").
     void onNetworkStateChanged(int state, int attempt);

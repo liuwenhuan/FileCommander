@@ -49,9 +49,8 @@ SyncDialog::SyncDialog(const QString &leftDir, std::shared_ptr<FileProvider> lef
     buildUi();
 
     m_queue = new OperationQueue(this);
-    m_queue->setConflictHandler([this](const QString &src, const QString &dst) {
-        return OverwriteConfirmDialog::ask(this, src, dst);
-    });
+    m_queue->setConflictHandler(
+        [this](const FileConflict &conflict) { return OverwriteConfirmDialog::ask(this, conflict); });
     connect(m_queue, &OperationQueue::errorOccurred, this, [this](const QString &msg) {
         ttc::warning(this, tr("Synchronize"), msg);
     });

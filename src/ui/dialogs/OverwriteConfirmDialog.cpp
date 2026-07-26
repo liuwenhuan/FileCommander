@@ -6,22 +6,47 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 
-OverwriteConfirmDialog::OverwriteConfirmDialog(const QString &source, const QString &destination,
-                                                 QWidget *parent)
+namespace {
+
+// "1.2 MB", or "unknown size" for the -1 that means the operation could not
+// find out. Never a bare number for an unknown: the whole point of this prompt
+// is that the two sizes are what the user compares.
+QString sizeText(qint64 bytes) {
+    if (bytes < 0)
+        return QObject::tr("unknown size");
+    static const char *units[] = {"B", "KB", "MB", "GB", "TB"};
+    double size = static_cast<double>(bytes);
+    int unit = 0;
+    while (size >= 1024.0 && unit < 4) {
+        size /= 1024.0;
+        ++unit;
+    }
+    if (unit == 0)
+        return QStringLiteral("%1 B").arg(bytes);
+    // Exact byte count alongside the readable one: overwrite decisions turn on
+    // small differences, and "1.2 MB" versus "1.2 MB" hides them. No brackets
+    // here -- the caller already parenthesises this.
+    return QStringLiteral("%1 %2, %3 bytes").arg(size, 0, 'f', 1).arg(units[unit]).arg(bytes);
+}
+
+} // namespace
+
+QString OverwriteConfirmDialog::describe(const FileConflict &conflict) {
+    // The destination's file name, taken from the path as a string: the path may
+    // be the server's, so QFileInfo must not be asked anything about it beyond
+    // splitting it -- and QFileInfo::fileName() is pure string work.
+    const QString destName = QFileInfo(conflict.destPath).fileName();
+    return QObject::tr("%1 already exists.\n\nSource: %2 (%3)\nDestination: %4 (%5)")
+        .arg(destName, conflict.sourcePath, sizeText(conflict.sourceSize), conflict.destPath,
+             sizeText(conflict.destSize));
+}
+
+OverwriteConfirmDialog::OverwriteConfirmDialog(const FileConflict &conflict, QWidget *parent)
     : FramelessDialog(parent) {
     setWindowTitle(tr("Confirm Overwrite"));
     setModal(true);
 
-    QFileInfo srcInfo(source);
-    QFileInfo destInfo(destination);
-
-    auto *message = new QLabel(
-        tr("%1 already exists.\n\nSource: %2 (%3 bytes)\nDestination: %4 (%5 bytes)")
-            .arg(destInfo.fileName(), source)
-            .arg(srcInfo.size())
-            .arg(destination)
-            .arg(destInfo.size()),
-        this);
+    auto *message = new QLabel(describe(conflict), this);
     message->setWordWrap(true);
 
     auto *buttons = new QDialogButtonBox(this);
@@ -49,9 +74,8 @@ OverwriteConfirmDialog::OverwriteConfirmDialog(const QString &source, const QStr
     layout->addWidget(buttons);
 }
 
-ErrorAction OverwriteConfirmDialog::ask(QWidget *parent, const QString &source,
-                                         const QString &destination) {
-    OverwriteConfirmDialog dlg(source, destination, parent);
+ErrorAction OverwriteConfirmDialog::ask(QWidget *parent, const FileConflict &conflict) {
+    OverwriteConfirmDialog dlg(conflict, parent);
     dlg.exec();
     return dlg.m_result;
 }

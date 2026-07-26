@@ -34,13 +34,12 @@ OperationQueue::~OperationQueue() {
     m_transferWorkers.clear();
 }
 
-ErrorAction OperationQueue::askConflict(const QString &source, const QString &destination) {
+ErrorAction OperationQueue::askConflict(const FileConflict &conflict) {
     ErrorAction result = ErrorAction::Skip;
     QMetaObject::invokeMethod(
         this,
-        [this, &source, &destination, &result]() {
-            result = m_conflictHandler ? m_conflictHandler(source, destination)
-                                        : ErrorAction::Skip;
+        [this, &conflict, &result]() {
+            result = m_conflictHandler ? m_conflictHandler(conflict) : ErrorAction::Skip;
         },
         Qt::BlockingQueuedConnection);
     return result;
@@ -49,9 +48,7 @@ ErrorAction OperationQueue::askConflict(const QString &source, const QString &de
 void OperationQueue::enqueueCopy(const QStringList &sources, const QString &destDir) {
     Job job;
     job.description = tr("Copying %1 item(s) to %2").arg(sources.size()).arg(destDir);
-    ConflictResolver resolver = [this](const QString &s, const QString &d) {
-        return askConflict(s, d);
-    };
+    ConflictResolver resolver = [this](const FileConflict &c) { return askConflict(c); };
     job.run = [sources, destDir, resolver](FileOperations &ops, QString &err) {
         return ops.copyPaths(sources, destDir, resolver, &err);
     };
@@ -73,9 +70,7 @@ ErrorAction OperationQueue::askError(const QString &path, const QString &error) 
 void OperationQueue::enqueueCopyAs(const QString &source, const QString &destPath) {
     Job job;
     job.description = tr("Copying %1").arg(QFileInfo(source).fileName());
-    ConflictResolver resolver = [this](const QString &s, const QString &d) {
-        return askConflict(s, d);
-    };
+    ConflictResolver resolver = [this](const FileConflict &c) { return askConflict(c); };
     job.run = [source, destPath, resolver](FileOperations &ops, QString &err) {
         return ops.copyAs(source, destPath, resolver, &err);
     };
@@ -86,9 +81,7 @@ void OperationQueue::enqueueCopyAs(const QString &source, const QString &destPat
 void OperationQueue::enqueueMove(const QStringList &sources, const QString &destDir) {
     Job job;
     job.description = tr("Moving %1 item(s) to %2").arg(sources.size()).arg(destDir);
-    ConflictResolver resolver = [this](const QString &s, const QString &d) {
-        return askConflict(s, d);
-    };
+    ConflictResolver resolver = [this](const FileConflict &c) { return askConflict(c); };
     job.run = [sources, destDir, resolver](FileOperations &ops, QString &err) {
         return ops.movePaths(sources, destDir, resolver, &err);
     };
@@ -140,9 +133,7 @@ void OperationQueue::enqueueProviderCopy(FileProvider *src, const QStringList &s
                                          FileProvider *dst, const QString &destDir) {
     Job job;
     job.description = tr("Copying %1 item(s) to %2").arg(sources.size()).arg(destDir);
-    ConflictResolver resolver = [this](const QString &s, const QString &d) {
-        return askConflict(s, d);
-    };
+    ConflictResolver resolver = [this](const FileConflict &c) { return askConflict(c); };
     // Capture the borrowed provider pointers by value (raw pointer copy) — the
     // models own them; the job must not take ownership.
     job.run = [src, sources, dst, destDir, resolver](FileOperations &ops, QString &err) {
@@ -157,9 +148,7 @@ void OperationQueue::enqueueProviderMove(FileProvider *src, const QStringList &s
                                          FileProvider *dst, const QString &destDir) {
     Job job;
     job.description = tr("Moving %1 item(s) to %2").arg(sources.size()).arg(destDir);
-    ConflictResolver resolver = [this](const QString &s, const QString &d) {
-        return askConflict(s, d);
-    };
+    ConflictResolver resolver = [this](const FileConflict &c) { return askConflict(c); };
     job.run = [src, sources, dst, destDir, resolver](FileOperations &ops, QString &err) {
         return ops.copyAcrossProviders(src, sources, dst, destDir, /*removeSource=*/true,
                                        resolver, &err);

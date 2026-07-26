@@ -159,8 +159,15 @@ bool FileOperations::copyOne(const QString &source, const QString &destDir, bool
         destPath = QDir(destDir).filePath(uniqueDestination(destDir, destName));
     } else if (QFileInfo::exists(destPath)) {
         ErrorAction action = batchAction;
-        if (action != ErrorAction::OverwriteAll && action != ErrorAction::SkipAll)
-            action = resolver ? resolver(source, destPath) : ErrorAction::Skip;
+        if (action != ErrorAction::OverwriteAll && action != ErrorAction::SkipAll) {
+            // Local paths, so QFileInfo is the right instrument here -- but a
+            // directory has no meaningful single size, so leave that unknown.
+            const QFileInfo dstInfo(destPath);
+            const FileConflict conflict{source, destPath,
+                                        srcInfo.isDir() ? -1 : srcInfo.size(),
+                                        dstInfo.isDir() ? -1 : dstInfo.size()};
+            action = resolver ? resolver(conflict) : ErrorAction::Skip;
+        }
 
         if (action == ErrorAction::OverwriteAll || action == ErrorAction::SkipAll)
             batchAction = action;
@@ -247,7 +254,10 @@ bool FileOperations::copyAs(const QString &source, const QString &destPath,
     QString target = destPath;
 
     if (QFileInfo::exists(target) && QDir::cleanPath(target) != QDir::cleanPath(source)) {
-        ErrorAction action = resolver ? resolver(source, target) : ErrorAction::Skip;
+        const QFileInfo tgtInfo(target);
+        const FileConflict conflict{source, target, srcInfo.isDir() ? -1 : srcInfo.size(),
+                                    tgtInfo.isDir() ? -1 : tgtInfo.size()};
+        ErrorAction action = resolver ? resolver(conflict) : ErrorAction::Skip;
         if (action == ErrorAction::Cancel) {
             m_cancelled = true;
             return false;
@@ -807,8 +817,14 @@ FileOperations::transferFile(FileProvider *src, const QString &srcPath, FileProv
                 // The destination is unrelated (larger than, or a zero-length
                 // stand-in for, the source): fall back to conflict resolution.
                 ErrorAction action = batchAction;
-                if (action != ErrorAction::OverwriteAll && action != ErrorAction::SkipAll)
-                    action = resolver ? resolver(srcPath, target) : ErrorAction::Skip;
+                if (action != ErrorAction::OverwriteAll && action != ErrorAction::SkipAll) {
+                    // Both sizes are already in hand from the resume probe above,
+                    // read through the providers that own the two files. Nothing
+                    // downstream can obtain them again: these paths belong to a
+                    // server, where a QFileInfo means a same-named local file.
+                    const FileConflict conflict{srcPath, target, srcSize, dstSize};
+                    action = resolver ? resolver(conflict) : ErrorAction::Skip;
+                }
                 if (action == ErrorAction::OverwriteAll || action == ErrorAction::SkipAll)
                     batchAction = action;
 

@@ -53,7 +53,7 @@ TEST(FileOperationsTest, ConflictResolverSkipLeavesDestinationUntouched) {
     writeFile(dstDir.path(), "c.txt", "original");
 
     FileOperations ops;
-    ConflictResolver resolver = [](const QString &, const QString &) {
+    ConflictResolver resolver = [](const FileConflict &) {
         return ErrorAction::Skip;
     };
     QString err;
@@ -71,7 +71,7 @@ TEST(FileOperationsTest, ConflictResolverOverwriteReplacesDestination) {
     writeFile(dstDir.path(), "d.txt", "original");
 
     FileOperations ops;
-    ConflictResolver resolver = [](const QString &, const QString &) {
+    ConflictResolver resolver = [](const FileConflict &) {
         return ErrorAction::Overwrite;
     };
     QString err;
@@ -161,7 +161,7 @@ TEST(FileOperationsTest, RequestCancelStopsRemainingEntries) {
     writeFile(dstDir.path(), "a.txt", "existing");
 
     FileOperations ops;
-    ConflictResolver resolver = [&ops](const QString &, const QString &) {
+    ConflictResolver resolver = [&ops](const FileConflict &) {
         ops.requestCancel();
         return ErrorAction::Skip;
     };

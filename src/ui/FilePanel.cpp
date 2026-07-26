@@ -315,10 +315,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
         if (m_view->model()->rowCount() > 0 && !m_view->currentIndex().isValid())
             m_view->setCurrentIndex(m_view->model()->index(0, 0));
         updateStatus();
-        if (!flat) {
-            const QStorageInfo storage(m_model->rootPath());
-            m_statusBar->setDiskInfo(storage.bytesAvailable(), storage.bytesTotal());
-        }
+        updateDiskInfo();
         // A new set of rows: begin filling their thumbnails. Cheap and a no-op
         // on a local tab, so it costs nothing to call unconditionally.
         restartThumbnailSweep();
@@ -761,6 +758,37 @@ void FilePanel::updateNavButtons() {
     m_forwardButton->setEnabled(!m_forwardHistory.isEmpty());
 }
 
+void FilePanel::updateDiskInfo() {
+    // QStorageInfo answers about THIS machine's mount table, so it can only be
+    // asked about a path that is on this machine. Handing it a server's path
+    // does not fail -- it walks up until some local mount point matches, which
+    // is how a share sitting in "/home" reported this machine's /home partition
+    // byte for byte (the local panel beside it showed the identical numbers),
+    // a share in "/" reported the local root partition, and a share in "/video"
+    // reported nothing at all. The server's real free space was never among the
+    // answers.
+    //
+    // Blank instead. It is not a placeholder for a better answer: reading a
+    // server's free space means a per-protocol call that only some of these
+    // backends have (SMB has smbc_statvfs, FTP has nothing at all), so a number
+    // would appear on some tabs and not others with no way for the user to tell
+    // which kind they are looking at. An empty readout says "not known here",
+    // which is the truth, and it costs nothing to replace later.
+    //
+    // Flat search results span many directories and never had a readout either.
+    if (m_model->isFlatMode()) {
+        m_statusBar->setDiskInfo(0, 0);
+        return;
+    }
+    FileProvider *prov = m_model->provider();
+    if (!prov || !prov->isLocalFilesystem()) {
+        m_statusBar->setDiskInfo(0, 0);
+        return;
+    }
+    const QStorageInfo storage(m_model->rootPath());
+    m_statusBar->setDiskInfo(storage.bytesAvailable(), storage.bytesTotal());
+}
+
 void FilePanel::updateStatus() {
     const QModelIndexList rows = m_view->selectionModel()->selectedRows();
     int selectedCount = 0;
@@ -1074,9 +1102,28 @@ void FilePanel::activateTreeIndex(const QModelIndex &index) {
         return;
     const QString connId = m_dirTreeModel->connectionIdAt(index);
 
-    // A local node, or a node on the connection this tab is already using:
-    // navigate straight there through the active backend.
-    if (connId.isEmpty() || connId == m_model->connectionId()) {
+    // A local node: a disk, a removable volume, or a folder under one. The tree
+    // gives every non-network root an empty connection id, so this branch used
+    // to hand a LOCAL path to whatever backend the tab happened to be on -- and
+    // since every backend here is POSIX-rooted, clicking the local "/home" while
+    // the tab was on a share listed the *server's* /home instead, with no hint
+    // that it had. navigateTo() cannot catch it either: on a network tab it
+    // skips the isDir() guard on purpose (see the comment there).
+    //
+    // So take the tab local first. openLocalInTab() parks the connection into
+    // Back history rather than dropping it, which is what makes this safe to do
+    // silently: one Back press returns to the server, tab label and all.
+    if (connId.isEmpty()) {
+        FileProvider *prov = m_model->provider();
+        if (prov && !prov->isLocalFilesystem()) {
+            openLocalInTab(-1, path); // -1 = this tab
+            return;
+        }
+        navigateTo(path);
+        return;
+    }
+    // A node on the connection this tab is already using: straight there.
+    if (connId == m_model->connectionId()) {
         navigateTo(path);
         return;
     }
@@ -1441,6 +1488,36 @@ void FilePanel::deselectAll() {
 void FilePanel::selectPathAfterReload(const QString &path) {
     if (!path.isEmpty() && !m_pendingSelection.contains(path))
         m_pendingSelection.append(path);
+}
+
+void FilePanel::settleAfterRemoval(const QStringList &paths) {
+    FileProvider *prov = m_model->provider();
+    // QFileInfo::exists() answers about THIS machine, so on a network or archive
+    // tab it is answering about a different file than the one that was deleted.
+    // It says "still there" for every path that has a local namesake -- so
+    // nothing is dropped and the deleted rows sit there looking alive -- or
+    // "gone" for every path that has none, which takes the whole selection out
+    // of the listing, including the entries a partly-failed remote delete left
+    // standing on the server. And since the source panel was then deliberately
+    // NOT refreshed, that wrong answer was the last word.
+    //
+    // Asking the provider path by path would be a blocking round trip each, on
+    // the GUI thread. One relist costs a single round trip, answers for every
+    // entry at once, and is what the server actually says. The cursor returning
+    // to the top is the price; being told files are gone when they are still
+    // there is worse.
+    if (!prov || !prov->isLocalFilesystem()) {
+        refresh();
+        return;
+    }
+    QStringList gone;
+    for (const QString &path : paths)
+        if (!QFileInfo::exists(path)) // keep any that survived a failed delete/move
+            gone.append(path);
+    // Nothing matched in the listing (the rows were already gone, or the panel
+    // has since navigated): fall back to a full rescan, as before.
+    if (!removeDeletedAndSelectNext(gone))
+        refresh();
 }
 
 bool FilePanel::removeDeletedAndSelectNext(const QStringList &paths) {

@@ -109,7 +109,7 @@ private:
         bool busy = false;
     };
 
-    ErrorAction askConflict(const QString &source, const QString &destination);
+    ErrorAction askConflict(const FileConflict &conflict);
     ErrorAction askError(const QString &path, const QString &error);
     void maybeStartNext();
     void onWorkerJobDone(bool ok);

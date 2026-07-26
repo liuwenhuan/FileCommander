@@ -8,6 +8,8 @@ add_library(core STATIC
     filesystem/LocalFileProvider.cpp
     filesystem/IconCache.h
     filesystem/IconCache.cpp
+    filesystem/ExternalPaths.h
+    filesystem/ExternalPaths.cpp
     operations/FileOpTypes.h
     operations/FileOperations.h
     operations/FileOperations.cpp

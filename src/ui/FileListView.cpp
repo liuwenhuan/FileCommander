@@ -32,6 +32,7 @@
 #include <QVector>
 
 #include "DragPixmap.h"
+#include "ExternalPaths.h"
 #include "FileSystemModel.h"
 
 namespace {
@@ -44,7 +45,24 @@ constexpr int kDefaultColWidths[FileSystemModel::ColumnCount] = {280, 70, 100, 1
 // Header that paints its own (non-bold) section labels. The deepin (DTK)
 // style draws header text bold and ignores the widget font / qss font-weight,
 // so we bypass it here, matching the theme's section colours.
+//
+// Because the painting is ours, `QHeaderView::section { background-color: ... }`
+// in a stylesheet never reaches it -- the section colours below are picked from
+// the window lightness instead. That is fine for a theme that is simply light or
+// dark, but not for one with a hue of its own (the CRT theme's near-black green
+// would read as "dark" and get a grey header). The three qproperty hooks let a
+// stylesheet name the colours outright:
+//
+//     QHeaderView { qproperty-sectionBackground: #0d1a0d; ... }
+//
+// Each defaults to an invalid QColor, which means "not themed" and keeps the
+// original light/dark choice, so light.qss and dark.qss need no changes.
 class PlainHeaderView : public QHeaderView {
+    Q_OBJECT
+    Q_PROPERTY(QColor sectionBackground MEMBER m_sectionBg)
+    Q_PROPERTY(QColor sectionForeground MEMBER m_sectionFg)
+    Q_PROPERTY(QColor sectionBorder MEMBER m_sectionBorder)
+
 public:
     explicit PlainHeaderView(QWidget *parent = nullptr) : QHeaderView(Qt::Horizontal, parent) {}
 
@@ -80,12 +98,18 @@ protected:
         if (!rect.isValid() || !model())
             return;
         const bool light = palette().color(QPalette::Window).lightness() > 128;
-        const QColor bg = light ? QColor(0xec, 0xec, 0xec) : QColor(0x23, 0x23, 0x23);
-        const QColor fg = light ? QColor(0x20, 0x20, 0x20) : QColor(0xe0, 0xe0, 0xe0);
+        const QColor bg =
+            m_sectionBg.isValid() ? m_sectionBg
+                                  : (light ? QColor(0xec, 0xec, 0xec) : QColor(0x23, 0x23, 0x23));
+        const QColor fg =
+            m_sectionFg.isValid() ? m_sectionFg
+                                  : (light ? QColor(0x20, 0x20, 0x20) : QColor(0xe0, 0xe0, 0xe0));
         // Divider between header sections. In dark mode 0x1a was nearly
         // indistinguishable from the 0x23 header background, so the column
         // separators vanished; use a mid grey that reads clearly on both.
-        const QColor border = light ? QColor(0xd0, 0xd0, 0xd0) : QColor(0x50, 0x50, 0x50);
+        const QColor border = m_sectionBorder.isValid()
+                                  ? m_sectionBorder
+                                  : (light ? QColor(0xd0, 0xd0, 0xd0) : QColor(0x50, 0x50, 0x50));
 
         painter->save();
         painter->fillRect(rect, bg);
@@ -135,6 +159,10 @@ private:
 
     int m_pressIndex = -1;
     QPoint m_pressPos;
+    // Invalid until a stylesheet sets them -- see the class note.
+    QColor m_sectionBg;
+    QColor m_sectionFg;
+    QColor m_sectionBorder;
 };
 
 // Paints file-list cells directly (background, icon, text) with a QPainter
@@ -843,7 +871,7 @@ void FileListView::startDrag(Qt::DropActions supportedActions) {
     if (!fsModel)
         return;
 
-    QList<QUrl> urls;
+    QStringList paths;
     QModelIndex firstIdx;
     for (const QModelIndex &idx : selectionModel()->selectedRows()) {
         if (fsModel->isParentEntry(idx.row()))
@@ -851,13 +879,18 @@ void FileListView::startDrag(Qt::DropActions supportedActions) {
         // The drag icon shows the topmost (first-listed) selected item.
         if (!firstIdx.isValid() || idx.row() < firstIdx.row())
             firstIdx = idx;
-        urls.append(QUrl::fromLocalFile(fsModel->fileInfoAt(idx.row()).path()));
+        paths.append(fsModel->fileInfoAt(idx.row()).path());
     }
-    if (urls.isEmpty())
+    if (paths.isEmpty())
         return;
 
     auto *mimeData = new QMimeData;
-    mimeData->setUrls(urls);
+    // The private format carries the backend's own paths and is what an in-app
+    // drop reads. The public URL list is built separately and may legitimately
+    // come out empty: these paths belong to a server or to an archive, and a
+    // file:// URL over one of them would make the receiving application open a
+    // same-named LOCAL file (see fc::externalUrlsFor).
+    fc::setPathPayload(mimeData, fsModel->provider(), paths, /*cut=*/false);
 
     auto *drag = new QDrag(this);
     drag->setMimeData(mimeData);
@@ -865,18 +898,18 @@ void FileListView::startDrag(Qt::DropActions supportedActions) {
     // pile + count badge for a multi-item drag.
     const QIcon icon =
         fsModel->index(firstIdx.row(), FileSystemModel::NameColumn).data(Qt::DecorationRole).value<QIcon>();
-    drag->setPixmap(ttc::makeDragPixmap(icon, urls.size(), devicePixelRatioF()));
+    drag->setPixmap(ttc::makeDragPixmap(icon, paths.size(), devicePixelRatioF()));
     drag->setHotSpot(QPoint(12, 12));
     drag->exec(supportedActions, Qt::CopyAction);
 }
 
 void FileListView::dragEnterEvent(QDragEnterEvent *event) {
-    if (event->mimeData()->hasUrls())
+    if (fc::hasIncomingPaths(event->mimeData()))
         event->acceptProposedAction();
 }
 
 void FileListView::dragMoveEvent(QDragMoveEvent *event) {
-    if (event->mimeData()->hasUrls())
+    if (fc::hasIncomingPaths(event->mimeData()))
         event->acceptProposedAction();
 }
 
@@ -900,16 +933,9 @@ QString FileListView::destinationDirForDrop(const QPoint &pos) const {
 }
 
 void FileListView::dropEvent(QDropEvent *event) {
-    if (!event->mimeData()->hasUrls()) {
-        event->ignore();
-        return;
-    }
-
-    QStringList sourcePaths;
-    for (const QUrl &url : event->mimeData()->urls()) {
-        if (url.isLocalFile())
-            sourcePaths.append(url.toLocalFile());
-    }
+    // Prefer the private format: a drag out of a network or archive panel puts
+    // the backend's real paths there and nothing usable in the public URL list.
+    const QStringList sourcePaths = fc::incomingPaths(event->mimeData());
     if (sourcePaths.isEmpty()) {
         event->ignore();
         return;
@@ -957,3 +983,7 @@ void FileListView::dropEvent(QDropEvent *event) {
     emit filesDropped(sourcePaths, destDir, kind, srcProvider);
     event->acceptProposedAction();
 }
+
+// PlainHeaderView declares Q_OBJECT (for the qproperty theme hooks) and lives in
+// this .cpp, so AUTOMOC emits its meta-object here rather than in a header.
+#include "FileListView.moc"

@@ -9,7 +9,20 @@ public:
     FileInfo() = default;
     explicit FileInfo(const QString &path);
 
-    static FileInfo makeParentEntry(const QString &parentPath);
+    // The ".." row for a listing whose parent is `parentPath`.
+    //
+    // `localFilesystem` is the backend's FileProvider::isLocalFilesystem(): only
+    // then may the parent be stat'ed, because only then is `parentPath` a path
+    // on this machine. On a network or archive backend it names a directory on
+    // the server (or an entry inside an archive), and stat'ing it describes a
+    // same-named LOCAL directory instead -- which is how ".." on a share in
+    // "/home" came to show this machine's "/" timestamp, and how ".." with no
+    // local namesake at all came out as "0 B", type "File", "----------".
+    //
+    // With `localFilesystem` false the row carries only what is actually known:
+    // it is a directory, it is the parent, and nothing else. Size, timestamps
+    // and permissions stay unset, so the columns render empty rather than wrong.
+    static FileInfo makeParentEntry(const QString &parentPath, bool localFilesystem);
 
     // Builds a FileInfo from pre-fetched stat fields rather than probing the
     // local filesystem. Used by remote backends (e.g. SFTP) where a QFileInfo
@@ -47,6 +60,12 @@ public:
     // and most listings never need it), then cached.
     const QString &mimeType() const;
 
+    // Whether permissions() means anything. False only for a ".." row on a
+    // backend that cannot be stat'ed (see makeParentEntry): there, a bit-pattern
+    // of zero would render as "----------", i.e. "nobody may read this", which
+    // is a claim about the server nothing here is in a position to make.
+    bool hasPermissions() const { return m_permissionsKnown; }
+    // The "drwxr-xr-x" form, or an empty string when permissions are unknown.
     QString permissionsString() const;
     bool isValid() const { return !m_path.isEmpty(); }
 
@@ -58,7 +77,8 @@ private:
     qint64 m_size = 0;
     QDateTime m_modified;
     QDateTime m_created;
-    QFile::Permissions m_permissions;
+    QFile::Permissions m_permissions = {};
+    bool m_permissionsKnown = true;
     int m_ownerId = -1;
     int m_groupId = -1;
     QString m_owner;

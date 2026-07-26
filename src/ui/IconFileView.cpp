@@ -14,6 +14,7 @@
 #include <QUrl>
 
 #include "DragPixmap.h"
+#include "ExternalPaths.h"
 #include "FileSystemModel.h"
 
 namespace {
@@ -102,7 +103,7 @@ void IconFileView::startDrag(Qt::DropActions supportedActions) {
 
     // IconMode selects items, not rows, so selectedRows() is empty here.
     // selectedIndexes() can also repeat a row across columns, so de-dup by row.
-    QList<QUrl> urls;
+    QStringList paths;
     QSet<int> seenRows;
     QModelIndex firstIdx;
     for (const QModelIndex &idx : selectionModel()->selectedIndexes()) {
@@ -114,13 +115,16 @@ void IconFileView::startDrag(Qt::DropActions supportedActions) {
         // The drag icon shows the topmost (first-listed) selected item.
         if (!firstIdx.isValid() || idx.row() < firstIdx.row())
             firstIdx = idx;
-        urls.append(QUrl::fromLocalFile(fsModel->fileInfoAt(idx.row()).path()));
+        paths.append(fsModel->fileInfoAt(idx.row()).path());
     }
-    if (urls.isEmpty())
+    if (paths.isEmpty())
         return;
 
     auto *mimeData = new QMimeData;
-    mimeData->setUrls(urls);
+    // Same split as FileListView::startDrag: the private format holds the
+    // backend's own paths for an in-app drop, while the public URL list only
+    // ever names something that really resolves outside this process.
+    fc::setPathPayload(mimeData, fsModel->provider(), paths, /*cut=*/false);
 
     auto *drag = new QDrag(this);
     drag->setMimeData(mimeData);
@@ -128,18 +132,18 @@ void IconFileView::startDrag(Qt::DropActions supportedActions) {
     // pile + count badge for a multi-item drag.
     const QIcon icon =
         fsModel->index(firstIdx.row(), FileSystemModel::NameColumn).data(Qt::DecorationRole).value<QIcon>();
-    drag->setPixmap(ttc::makeDragPixmap(icon, urls.size(), devicePixelRatioF()));
+    drag->setPixmap(ttc::makeDragPixmap(icon, paths.size(), devicePixelRatioF()));
     drag->setHotSpot(QPoint(12, 12));
     drag->exec(supportedActions, Qt::CopyAction);
 }
 
 void IconFileView::dragEnterEvent(QDragEnterEvent *event) {
-    if (event->mimeData()->hasUrls())
+    if (fc::hasIncomingPaths(event->mimeData()))
         event->acceptProposedAction();
 }
 
 void IconFileView::dragMoveEvent(QDragMoveEvent *event) {
-    if (event->mimeData()->hasUrls())
+    if (fc::hasIncomingPaths(event->mimeData()))
         event->acceptProposedAction();
 }
 
@@ -163,16 +167,9 @@ QString IconFileView::destinationDirForDrop(const QPoint &pos) const {
 }
 
 void IconFileView::dropEvent(QDropEvent *event) {
-    if (!event->mimeData()->hasUrls()) {
-        event->ignore();
-        return;
-    }
-
-    QStringList sourcePaths;
-    for (const QUrl &url : event->mimeData()->urls()) {
-        if (url.isLocalFile())
-            sourcePaths.append(url.toLocalFile());
-    }
+    // Prefer the private format: a drag out of a network or archive panel puts
+    // the backend's real paths there and nothing usable in the public URL list.
+    const QStringList sourcePaths = fc::incomingPaths(event->mimeData());
     if (sourcePaths.isEmpty()) {
         event->ignore();
         return;

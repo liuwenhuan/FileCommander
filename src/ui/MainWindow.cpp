@@ -84,6 +84,7 @@
 #include "ViewerWindow.h"
 #include "FileListView.h"
 #include "FileSystemModel.h"
+#include "ExternalPaths.h"
 #include "LocalFileProvider.h"
 #include "FunctionKeyBar.h"
 #include "ImageViewer.h"
@@ -189,19 +190,24 @@ constexpr char kRemoteClipboardMime[] = "application/x-filecommander-remote-copy
 // round-tripping through those file managers, not just within FileCommander. When the
 // source is a remote provider, also attaches kRemoteClipboardMime so an in-app
 // paste can recover the true source provider (see pasteFromClipboard).
+//
+// The two public formats are built by fc::externalUrlsFor(), NOT from `paths`
+// directly: on a network or archive tab those paths belong to the server or to
+// the archive, and a file:// URL over one of them makes the receiving program
+// open a same-named LOCAL file. fc::kInternalPathsMime carries the real paths
+// for our own paste, which is why the public list can afford to be empty.
 QMimeData *buildFileClipboardData(const QStringList &paths, bool cut,
                                   FileProvider *srcProvider = nullptr) {
-    QList<QUrl> urls;
-    for (const QString &path : paths)
-        urls.append(QUrl::fromLocalFile(path));
-
     auto *mime = new QMimeData;
-    mime->setUrls(urls);
+    fc::setPathPayload(mime, srcProvider, paths, cut);
 
-    QByteArray gnomeFormat = cut ? "cut\n" : "copy\n";
-    for (const QUrl &url : urls)
-        gnomeFormat += url.toString().toUtf8() + "\n";
-    mime->setData(QStringLiteral("x-special/gnome-copied-files"), gnomeFormat);
+    const QList<QUrl> urls = mime->urls();
+    if (!urls.isEmpty()) {
+        QByteArray gnomeFormat = cut ? "cut\n" : "copy\n";
+        for (const QUrl &url : urls)
+            gnomeFormat += url.toString().toUtf8() + "\n";
+        mime->setData(QStringLiteral("x-special/gnome-copied-files"), gnomeFormat);
+    }
 
     // A remote source: tag it with scheme + displayName so paste binds it back to
     // the live connection rather than treating the path as a local file.
@@ -333,9 +339,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     // the function-key bar stays the bottom-most widget.
 
     m_queue = new OperationQueue(this);
-    m_queue->setConflictHandler([this](const QString &src, const QString &dst) {
-        return OverwriteConfirmDialog::ask(this, src, dst);
-    });
+    m_queue->setConflictHandler(
+        [this](const FileConflict &conflict) { return OverwriteConfirmDialog::ask(this, conflict); });
     m_queue->setErrorHandler([this](const QString &path, const QString &error) {
         // Custom-button message box (Retry / Skip / Skip All / Cancel), embedded
         // in the themed frameless chrome like the ttc::message() wrappers.
@@ -371,38 +376,28 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         bool handledPlan = false;
 
         if (m_pendingDeletePanel) {
-            // A delete just finished: drop the vanished rows from the active
-            // panel in place and move the cursor onto the next file, rather than
-            // rescanning (which would reset the selection to the first row).
+            // A delete just finished. On a local tab that means dropping the
+            // vanished rows in place and moving the cursor onto the next file
+            // rather than rescanning (which would reset the selection to the
+            // first row); on a network/archive tab the panel has to go and ask
+            // instead -- see FilePanel::settleAfterRemoval.
             FilePanel *panel = m_pendingDeletePanel;
             m_pendingDeletePanel = nullptr;
-            QStringList gone;
-            for (const QString &p : m_pendingDeletePaths)
-                if (!QFileInfo::exists(p)) // keep any that survived a failed delete
-                    gone.append(p);
+            panel->settleAfterRemoval(m_pendingDeletePaths);
             m_pendingDeletePaths.clear();
-            const bool handled = panel->removeDeletedAndSelectNext(gone);
             // The other panel may show the same directory, so refresh it fully.
             FilePanel *other = (panel == m_leftPanel) ? m_rightPanel : m_leftPanel;
             other->refresh();
-            if (!handled)
-                panel->refresh();
             handledPlan = true;
         }
 
         if (m_pendingMovePanel) {
-            // A move just finished: the source files vanished, so remove exactly
-            // those rows in place (like a delete) and select the next file --
-            // never a full rescan of the source directory.
+            // A move just finished: the source files vanished, so the source
+            // panel settles the same way a delete does.
             FilePanel *panel = m_pendingMovePanel;
             m_pendingMovePanel = nullptr;
-            QStringList gone;
-            for (const QString &p : m_pendingMovePaths)
-                if (!QFileInfo::exists(p)) // keep any that survived a failed move
-                    gone.append(p);
+            panel->settleAfterRemoval(m_pendingMovePaths);
             m_pendingMovePaths.clear();
-            if (!panel->removeDeletedAndSelectNext(gone))
-                panel->refresh();
             handledPlan = true;
         }
 
@@ -3193,6 +3188,14 @@ void MainWindow::pasteFromClipboard() {
                          tr("源连接（%1）已关闭，无法从远端粘贴。").arg(displayName));
             return;
         }
+    } else if (mime->hasFormat(QLatin1String(fc::kInternalPathsMime))) {
+        // Our own copy/cut from a tab with no live connection to bind: a local
+        // tab (where these are the same paths the public URLs carry) or an
+        // archive tab (where the public payload deliberately carries nothing at
+        // all, since an in-archive entry has no name outside this process).
+        // providerOwningPath below routes them to the right backend.
+        sources = fc::decodeInternalPaths(mime->data(QLatin1String(fc::kInternalPathsMime)),
+                                          &isCut);
     } else if (mime->hasFormat(QStringLiteral("x-special/gnome-copied-files"))) {
         const QByteArray data = mime->data(QStringLiteral("x-special/gnome-copied-files"));
         const QList<QByteArray> lines = data.split('\n');

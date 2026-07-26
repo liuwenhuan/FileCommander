@@ -22,6 +22,11 @@ add_executable(ui_tests
     test_SlideSceneImageCache.cpp
     test_MpvStreamSource.cpp
     test_SearchEngine.cpp
+    test_DragPayload.cpp
+    test_TreeNavigation.cpp
+    test_PanelDiskInfo.cpp
+    test_PanelRemoval.cpp
+    test_OverwritePrompt.cpp
 )
 
 # test_MpvStreamSource drives a real libmpv core (headless: vo=null/ao=null) to

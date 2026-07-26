@@ -230,6 +230,9 @@ private:
     void teardownSession();
     void sortEntries();
     void applyFilter();
+    // Decides whether a listing at `path` gets a ".." row and, if so, builds it
+    // through the active provider. Call wherever the listing is replaced.
+    void setParentEntryFor(const QString &path);
     // Formats a timestamp as "yyyy-MM-dd HH:mm", memoised by epoch-minute.
     QString cachedDateStr(const QDateTime &dt) const;
 
@@ -248,6 +251,12 @@ private:
     // clearing to bound its size (done at each directory scan).
     mutable QHash<qint64, QString> m_dateStrCache;
     bool m_hasParentEntry = false;
+    // The ".." row, built once per listing by setParentEntryFor(). It used to be
+    // constructed on the spot by every query that touched row 0 -- and on a
+    // local backend that constructor is a stat(), so a single repaint ran about
+    // twenty of them on the GUI thread. Harmless on a local disk, but enough to
+    // freeze the window on a wedged autofs/NFS mount.
+    FileInfo m_parentEntry;
     QFutureWatcher<QVector<FileInfo>> m_watcher;
     int m_sortColumn = NameColumn;
     Qt::SortOrder m_sortOrder = Qt::AscendingOrder;

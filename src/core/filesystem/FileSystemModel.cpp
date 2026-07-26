@@ -225,7 +225,7 @@ void FileSystemModel::setRootPath(const QString &path) {
         if (!isConnected()) {
             beginResetModel();
             m_allEntries.clear();
-            m_hasParentEntry = false;
+            setParentEntryFor(QString()); // nothing listed yet: no ".." either
             sortEntries();
             endResetModel();
             emit loadFinished(m_entries.size());
@@ -287,7 +287,7 @@ void FileSystemModel::onSessionListReady(quint64 reqId, const QString &path,
     }
     beginResetModel();
     m_allEntries = entries;
-    m_hasParentEntry = m_provider && !m_provider->parentPath(path).isEmpty();
+    setParentEntryFor(path);
     sortEntries();
     endResetModel();
     m_rootPath = path;
@@ -320,7 +320,7 @@ void FileSystemModel::setFlatEntries(const QStringList &paths) {
     m_nameFilter.clear();
     m_dirSizes.clear();
     m_compareStatus.clear();
-    m_hasParentEntry = false; // cross-directory list has no single ".." parent
+    setParentEntryFor(QString()); // cross-directory list has no single ".." parent
     m_allEntries.clear();
     m_allEntries.reserve(paths.size());
     for (const QString &p : paths) {
@@ -346,7 +346,7 @@ void FileSystemModel::onScanFinished() {
         return;
     beginResetModel();
     m_allEntries = m_watcher.result();
-    m_hasParentEntry = !m_provider->parentPath(m_rootPath).isEmpty();
+    setParentEntryFor(m_rootPath);
     sortEntries(); // sorts m_allEntries and rebuilds the visible m_entries
     endResetModel();
     emit loadFinished(m_entries.size());
@@ -462,9 +462,21 @@ bool FileSystemModel::isParentEntry(int row) const {
     return m_hasParentEntry && row == 0;
 }
 
+void FileSystemModel::setParentEntryFor(const QString &path) {
+    const QString parent =
+        (m_provider && !path.isEmpty()) ? m_provider->parentPath(path) : QString();
+    m_hasParentEntry = !parent.isEmpty();
+    // Built through the provider: only a local backend's parent path may be
+    // stat'ed, and only the provider knows whether this one is (see
+    // FileInfo::makeParentEntry).
+    m_parentEntry = m_hasParentEntry
+                        ? FileInfo::makeParentEntry(parent, m_provider->isLocalFilesystem())
+                        : FileInfo();
+}
+
 FileInfo FileSystemModel::fileInfoAt(int row) const {
     if (isParentEntry(row))
-        return FileInfo::makeParentEntry(m_provider->parentPath(m_rootPath));
+        return m_parentEntry;
     int idx = m_hasParentEntry ? row - 1 : row;
     if (idx < 0 || idx >= m_entries.size())
         return FileInfo();
@@ -530,11 +542,9 @@ QVariant FileSystemModel::data(const QModelIndex &index, int role) const {
     // heavy) FileInfo each time. Only the rare parent ".." row needs a
     // constructed value.
     const int row = index.row();
-    FileInfo parentHolder;
     const FileInfo *infoPtr;
     if (isParentEntry(row)) {
-        parentHolder = FileInfo::makeParentEntry(m_provider->parentPath(m_rootPath));
-        infoPtr = &parentHolder;
+        infoPtr = &m_parentEntry;
     } else {
         const int idx = m_hasParentEntry ? row - 1 : row;
         if (idx < 0 || idx >= m_entries.size())

@@ -70,15 +70,30 @@ FileInfo FileInfo::fromFields(const QString &path, const QString &name, qint64 s
     return info;
 }
 
-FileInfo FileInfo::makeParentEntry(const QString &parentPath) {
-    FileInfo info(parentPath);
+FileInfo FileInfo::makeParentEntry(const QString &parentPath, bool localFilesystem) {
+    FileInfo info;
+    if (localFilesystem) {
+        // The parent really is a directory on this machine: read it, exactly as
+        // before -- date, permissions and owner of ".." all come out right.
+        info = FileInfo(parentPath);
+    } else {
+        // A server's directory, or a directory inside an archive. Everything we
+        // could say about it beyond "it is the parent, and it is a directory"
+        // would be about a same-named local directory, so say nothing.
+        info.m_path = parentPath;
+        info.m_isDir = true;
+        info.m_permissionsKnown = false;
+    }
     info.m_name = QStringLiteral("..");
     info.m_baseName = QStringLiteral("..");
+    info.m_suffix.clear(); // a directory has no extension
     info.m_isParentEntry = true;
     return info;
 }
 
 QString FileInfo::permissionsString() const {
+    if (!m_permissionsKnown)
+        return {};
     QString s;
     s += m_isDir ? QLatin1Char('d') : (m_isSymLink ? QLatin1Char('l') : QLatin1Char('-'));
     s += (m_permissions & QFile::ReadOwner) ? QLatin1Char('r') : QLatin1Char('-');

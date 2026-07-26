@@ -4,12 +4,15 @@ add_executable(core_tests
     filesystem/test_FileSystemModel.cpp
     filesystem/test_IconCache.cpp
     filesystem/test_ProviderLocality.cpp
+    filesystem/test_ExternalPaths.cpp
+    filesystem/test_ParentEntry.cpp
     operations/test_FileOperations.cpp
     operations/test_OperationQueue.cpp
     operations/test_FileSplitter.cpp
     operations/test_ProviderTransfer.cpp
     operations/test_ServerSideMove.cpp
     operations/test_PreserveMtime.cpp
+    operations/test_ConflictSizes.cpp
     config/test_SessionManager.cpp
     config/test_Settings.cpp
     sync/test_DirectorySync.cpp

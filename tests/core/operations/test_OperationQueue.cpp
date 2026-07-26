@@ -66,7 +66,7 @@ TEST(OperationQueueTest, ConflictHandlerRunsAndOverwriteAllApplies) {
 
     OperationQueue queue;
     int prompts = 0;
-    queue.setConflictHandler([&prompts](const QString &, const QString &) {
+    queue.setConflictHandler([&prompts](const FileConflict &) {
         ++prompts;
         return ErrorAction::OverwriteAll;
     });

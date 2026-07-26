@@ -359,7 +359,7 @@ TEST(PreserveMtimeTest, OverwritingAnExistingFileAdoptsTheSourceTime) {
     writeFile(dstDir.path(), "both.txt", "stale");
 
     FileOperations ops;
-    ConflictResolver overwrite = [](const QString &, const QString &) {
+    ConflictResolver overwrite = [](const FileConflict &) {
         return ErrorAction::OverwriteAll;
     };
     QString err;
