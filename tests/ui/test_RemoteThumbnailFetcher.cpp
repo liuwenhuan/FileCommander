@@ -10,6 +10,7 @@
 #include <memory>
 
 #include "FileProvider.h"
+#include "MpvStreamSource.h"
 #include "RemoteThumbnailFetcher.h"
 
 // There is no SMB/SFTP server available here, so these tests drive the fetcher
@@ -237,6 +238,38 @@ TEST(RemoteThumbnailFetcherTest, NeverShrinksThePoolForASingleChannelBackend) {
     ASSERT_EQ(fetcher.maxConcurrent(), 4);
     ASSERT_TRUE(fetcher.submit(narrow, noop));
     EXPECT_EQ(fetcher.maxConcurrent(), 4);
+    waitFor([&] { return fetcher.outstanding() == 0; }, 20000);
+}
+
+TEST(RemoteThumbnailFetcherTest, ThumbnailsYieldToVideoPlaybackAndRecoverAfterIt) {
+    // A streamed video and the thumbnail grid pull on the same backend, and on
+    // SMB that contention is real. Playback is what the user is watching, so
+    // fetches drop to a single worker while it runs -- and take their width
+    // back once it stops, without anyone having to tell them.
+    auto provider = std::make_shared<FakeProvider>(payload(4096), /*readDelayMs=*/0);
+    provider->setReadChannels(4);
+    RemoteThumbnailFetcher fetcher;
+    auto noop = [](const RemoteThumbnailFetcher::Ticket &ticket) {
+        const QString p = ticket.download(QStringLiteral("/share/f.jpg"), 4096);
+        if (!p.isEmpty())
+            QFile::remove(p);
+    };
+
+    ASSERT_TRUE(fetcher.submit(provider, noop));
+    ASSERT_EQ(fetcher.maxConcurrent(), 4);
+    waitFor([&] { return fetcher.outstanding() == 0; }, 20000);
+
+    {
+        // Opening a stream is what a video preview does; nothing needs to be
+        // read from it for the contention to exist.
+        MpvStreamSource::Stream playing(provider, QStringLiteral("/share/clip.mp4"));
+        ASSERT_TRUE(fetcher.submit(provider, noop));
+        EXPECT_EQ(fetcher.maxConcurrent(), 1) << "thumbnails should stand aside while a clip plays";
+        waitFor([&] { return fetcher.outstanding() == 0; }, 20000);
+    }
+
+    ASSERT_TRUE(fetcher.submit(provider, noop));
+    EXPECT_EQ(fetcher.maxConcurrent(), 4) << "the pool must widen again once playback stops";
     waitFor([&] { return fetcher.outstanding() == 0; }, 20000);
 }
 
