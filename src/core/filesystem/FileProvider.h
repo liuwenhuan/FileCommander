@@ -21,6 +21,37 @@ public:
     virtual ~FileHandle() = default;
 };
 
+// Everything needed to name this backend's server to an *external*, URI-based
+// tool -- in practice gvfs, which is how a remote file gets a real path on this
+// machine that other programs and libraries can open by name.
+//
+// Deliberately structured rather than one URI string, because a gvfs mount spec
+// scatters the pieces: SMB's share becomes part of the mount's identity while
+// SFTP's path does not, the port only appears when it is non-default, and the
+// username sits in its own field. displayName() ("user@host") has already thrown
+// away enough of that to be unusable here, which is why this exists separately.
+struct RemoteLocation {
+    // The GVFS URI scheme, which is NOT FileProvider::scheme(): WebDAV splits
+    // into "dav" and "davs" by transport, a distinction "webdav" cannot carry.
+    QString scheme; // "sftp" | "smb" | "ftp" | "dav" | "davs"
+    QString host;
+    int port = 0;   // 0 = protocol default; then omitted from the URI entirely
+    QString user;   // empty = anonymous, i.e. no userinfo in the URI
+
+    // The login password, present for one purpose only: answering an on-demand
+    // `gio mount` so the user is not asked for a password they already gave us.
+    // Never log it, never persist it, never put it in a URI (gvfs records mount
+    // URIs in its own state). Backends already hold it in memory for reconnect(),
+    // so surfacing it here adds no new exposure.
+    QString password;
+
+    // True when the connection has a login the mount can be answered with;
+    // false means an anonymous/guest connection, which `gio mount -a` handles.
+    bool anonymous = false;
+
+    bool isValid() const { return !scheme.isEmpty() && !host.isEmpty(); }
+};
+
 class FileProvider {
 public:
     // Unsupported is distinct from Failed on purpose: it means "this backend
@@ -72,6 +103,19 @@ public:
     // "ftp", or "webdav". Used to pick the per-protocol tab icon so the user can
     // tell connection types apart at a glance. Empty for local/archive backends.
     virtual QString scheme() const { return {}; }
+
+    // How to name this backend's server to gvfs, so a caller that genuinely
+    // needs a real local path (handing a file to an external program, or to a
+    // library that opens by filename) can get one -- see GvfsMounter::
+    // localPathFor(). Invalid by default: only a live network connection has a
+    // server to name, and a backend that hasn't been taught this stays refused
+    // rather than yielding a half-built URI.
+    //
+    // Directory browsing must NOT go through this. gvfs lists a directory with
+    // one getattr per entry over FUSE, which is an order of magnitude slower
+    // than these backends' own list() -- measured at 139.7 ms per entry over
+    // SFTP on a 120 ms link. This is for single files that need a name on disk.
+    virtual RemoteLocation remoteLocation() const { return {}; }
 
     // Sets the connect/operation timeout (milliseconds) for network backends, so
     // a stalled connection or request fails instead of hanging indefinitely.

@@ -45,6 +45,12 @@ public:
     QString displayName() const override;
     QString scheme() const override { return QStringLiteral("sftp"); }
 
+    // host/port/user (plus the password already kept for reconnect) in the
+    // structured form gvfs needs to hand out a real local path -- see
+    // GvfsMounter::localPathFor(). SFTP paths are absolute on the server and a
+    // gvfs sftp mount is rooted at "/", so provider paths map across unchanged.
+    RemoteLocation remoteLocation() const override;
+
     // Bounds the TCP connect phase and every subsequent blocking libssh2 call.
     // Must be set before connectToHost(). Ignored if <= 0.
     void setTimeoutMs(int ms) override { m_timeoutMs = ms > 0 ? ms : m_timeoutMs; }

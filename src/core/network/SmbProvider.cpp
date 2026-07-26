@@ -413,6 +413,24 @@ QString SmbProvider::displayName() const {
     return m_displayName;
 }
 
+RemoteLocation SmbProvider::remoteLocation() const {
+    // Reads the credential snapshot WITHOUT m_mutex, the same discipline as
+    // userForAuth() below: these are written once in connectToHost() before the
+    // context goes live and never mutated after, while m_mutex can be held for
+    // seconds by a large listing on the session thread. m_identityMutex only
+    // guards m_displayName, so it is no help here.
+    RemoteLocation loc;
+    if (m_host.isEmpty())
+        return loc; // never connected -- stays invalid
+    loc.scheme = QStringLiteral("smb");
+    loc.host = m_host;
+    loc.port = 0; // always 445; a gvfs smb mount spec carries no port
+    loc.user = m_anonymous ? QString() : m_user;
+    loc.password = m_anonymous ? QString() : m_password;
+    loc.anonymous = m_anonymous || m_user.isEmpty();
+    return loc;
+}
+
 QString SmbProvider::userForAuth() const { return m_user; }
 QString SmbProvider::passwordForAuth() const { return m_password; }
 QString SmbProvider::workgroupForAuth() const { return m_workgroup; }

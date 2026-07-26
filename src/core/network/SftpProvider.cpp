@@ -368,6 +368,20 @@ QString SftpProvider::displayName() const {
     return m_user.isEmpty() ? m_host : m_user + QLatin1Char('@') + m_host;
 }
 
+RemoteLocation SftpProvider::remoteLocation() const {
+    QMutexLocker locker(&m_mutex);
+    RemoteLocation loc;
+    if (m_host.isEmpty())
+        return loc; // never connected -- stays invalid
+    loc.scheme = QStringLiteral("sftp");
+    loc.host = m_host;
+    loc.port = m_port;
+    loc.user = m_user;
+    loc.password = m_password;
+    loc.anonymous = m_user.isEmpty();
+    return loc;
+}
+
 QVector<FileInfo> SftpProvider::list(const QString &path, bool showHidden) const {
     QVector<FileInfo> result;
     const QString dirPath = cleanPath(path);

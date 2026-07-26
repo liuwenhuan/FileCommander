@@ -50,6 +50,12 @@ public:
     QString displayName() const override;
     QString scheme() const override { return QStringLiteral("ftp"); }
 
+    // host/port/user (plus the password already kept for reconnect) in the
+    // structured form gvfs needs to hand out a real local path -- see
+    // GvfsMounter::localPathFor(). A gvfs ftp mount is rooted at the login
+    // directory's server root, so provider paths map across unchanged.
+    RemoteLocation remoteLocation() const override;
+
     // Bounds the connect phase (and the control-plane requests) by ms. Must be
     // set before connectToHost(). Ignored if <= 0.
     void setTimeoutMs(int ms) override { m_timeoutMs = ms > 0 ? ms : m_timeoutMs; }

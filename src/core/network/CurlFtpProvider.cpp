@@ -320,6 +320,23 @@ QString CurlFtpProvider::displayName() const {
     return m_user.isEmpty() ? m_host : m_user + QLatin1Char('@') + m_host;
 }
 
+RemoteLocation CurlFtpProvider::remoteLocation() const {
+    QMutexLocker locker(&m_mutex);
+    RemoteLocation loc;
+    if (m_host.isEmpty())
+        return loc; // never connected -- stays invalid
+    loc.scheme = QStringLiteral("ftp");
+    loc.host = m_host;
+    loc.port = m_port;
+    loc.user = m_user;
+    loc.password = m_password;
+    // An FTP login of "anonymous" with no password is the protocol's guest
+    // mode; gvfs expresses it as `gio mount -a` rather than a password answer.
+    loc.anonymous = m_user.isEmpty() || m_user.compare(QLatin1String("anonymous"),
+                                                       Qt::CaseInsensitive) == 0;
+    return loc;
+}
+
 QString CurlFtpProvider::cleanPath(const QString &path) const {
     QString p = path;
     p.replace(QLatin1Char('\\'), QLatin1Char('/'));

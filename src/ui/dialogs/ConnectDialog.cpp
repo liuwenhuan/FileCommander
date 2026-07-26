@@ -390,7 +390,14 @@ void ConnectDialog::accept() {
     // Mounting can block briefly; give the user a busy cursor.
     setEnabled(false);
     QApplication::setOverrideCursor(Qt::WaitCursor);
-    const GvfsMounter::MountResult result = GvfsMounter::mount(uri, password);
+    RemoteLocation loc;
+    loc.scheme = GvfsMounter::scheme(protocol);
+    loc.host = host;
+    loc.port = m_portSpin->value();
+    loc.user = user;
+    loc.password = password;
+    loc.anonymous = user.isEmpty();
+    const GvfsMounter::MountResult result = GvfsMounter::mount(uri, loc);
     QApplication::restoreOverrideCursor();
     setEnabled(true);
 

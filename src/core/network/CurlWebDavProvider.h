@@ -50,6 +50,18 @@ public:
     QString displayName() const override;
     QString scheme() const override { return QStringLiteral("webdav"); }
 
+    // host/port/user in the structured form gvfs needs to hand out a real local
+    // path -- see GvfsMounter::localPathFor(). The scheme reported here is
+    // "dav"/"davs" rather than scheme()'s "webdav", because gvfs picks the
+    // transport from the URI scheme and has no single WebDAV one.
+    //
+    // A gvfs dav mount is rooted at whatever path it was mounted with (its
+    // `prefix=`), NOT necessarily the server root -- many servers refuse to be
+    // mounted at "/". This connection has no fixed root of its own (paths here
+    // are absolute from the server root), so GvfsMounter finds the shallowest
+    // mountable prefix instead of guessing one here.
+    RemoteLocation remoteLocation() const override;
+
     // Bounds the connect phase (and control-plane requests) by ms. Must be set
     // before connectToHost(). Ignored if <= 0.
     void setTimeoutMs(int ms) override { m_timeoutMs = ms > 0 ? ms : m_timeoutMs; }

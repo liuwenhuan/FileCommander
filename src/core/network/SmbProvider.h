@@ -50,6 +50,17 @@ public:
     QString displayName() const override;
     QString scheme() const override { return QStringLiteral("smb"); }
 
+    // host/user (plus the password already kept for reconnect) in the structured
+    // form gvfs needs to hand out a real local path -- see
+    // GvfsMounter::localPathFor(). No port: SMB is always 445 and a gvfs smb
+    // mount spec has no port field.
+    //
+    // Note that a gvfs SMB mount is per *share*, not per server: the first
+    // segment of a provider path ("/home/docs" -> share "home") is part of the
+    // mount's identity, not a directory under it. GvfsMounter splits that off;
+    // this only reports the server.
+    RemoteLocation remoteLocation() const override;
+
     // Bounds waits on connections and response data by ms (libsmbclient's
     // smbc_setTimeout). Must be set before connectToHost(). Ignored if <= 0.
     void setTimeoutMs(int ms) override { m_timeoutMs = ms > 0 ? ms : m_timeoutMs; }
