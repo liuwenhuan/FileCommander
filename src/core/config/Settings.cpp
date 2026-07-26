@@ -6,7 +6,7 @@
 QString Settings::configDir() {
     const QString dir =
         QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) +
-        QStringLiteral("/totalcommander");
+        QStringLiteral("/FileCommander");
     QDir().mkpath(dir);
     return dir;
 }

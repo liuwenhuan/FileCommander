@@ -35,7 +35,7 @@ The app also loads catalogs from an **external directory** (which takes priority
 over the bundled ones):
 
 ```
-~/.config/totalcommander/translations/ttc_<code>.qm
+~/.config/FileCommander/translations/ttc_<code>.qm
 ```
 
 Drop a compiled `ttc_<code>.qm` there and it appears in **View → Language** on the

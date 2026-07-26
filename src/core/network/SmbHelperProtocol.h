@@ -7,7 +7,7 @@
 // Wire format shared by the SMB helper subprocess (src/smbhelper) and its
 // in-app client (SmbHelperClient).
 //
-// Deliberately free of Qt and of every other ttc header: the helper is a tiny
+// Deliberately free of Qt and of every other FileCommander header: the helper is a tiny
 // standalone executable that links libsmbclient and nothing else, so that a
 // crash inside libsmbclient takes down only that process. Keeping this header
 // dependency-free is what lets both sides share one definition of the format

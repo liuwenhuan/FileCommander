@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(ttc VERSION 0.1.0 LANGUAGES CXX C)
+project(FileCommander VERSION 0.1.0 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -31,12 +31,12 @@ add_subdirectory(src/archive)
 add_subdirectory(src/search)
 add_subdirectory(src/smbhelper)
 
-add_executable(ttc
+add_executable(FileCommander
     src/main.cpp
     resources/resources.qrc
 )
 
-target_link_libraries(ttc PRIVATE
+target_link_libraries(FileCommander PRIVATE
     core ui viewer archive search widgets
     Qt5::Widgets Qt5::Core Qt5::Gui Qt5::Concurrent
 )
@@ -58,19 +58,19 @@ endif()
 # --- Installation -----------------------------------------------------------
 # Consumed by both packaging scripts (see packaging/ and docs/PACKAGING.md) via
 # `DESTDIR=<staging> cmake --install`. The desktop file must be named
-# ttc.desktop: src/main.cpp calls setDesktopFileName("ttc"), which is how the
-# window manager ties running windows back to the launcher entry.
+# FileCommander.desktop: src/main.cpp calls setDesktopFileName("FileCommander"),
+# which is how the window manager ties running windows back to the launcher entry.
 include(GNUInstallDirs)
 
-install(TARGETS ttc RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(FILES packaging/ttc.desktop
+install(TARGETS FileCommander RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES packaging/FileCommander.desktop
         DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/applications)
 # Note this SVG is deliberately NOT in resources.qrc -- the in-app window icon
 # is painted in code (src/main.cpp) so it needs no SVG plugin. This copy exists
-# purely for the desktop/launcher entry's Icon=ttc.
-install(FILES resources/icons/ttc.svg
+# purely for the desktop/launcher entry's Icon=FileCommander.
+install(FILES resources/icons/FileCommander.svg
         DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/apps)
-install(FILES packaging/ttc.metainfo.xml
+install(FILES packaging/FileCommander.metainfo.xml
         DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/metainfo)
 
 # --- Translations -----------------------------------------------------------
@@ -79,7 +79,7 @@ install(FILES packaging/ttc.metainfo.xml
 #   <edit ttc_<lang>.ts in Qt Linguist>
 #   cmake --build build --target release-translations   # compile .ts -> .qm
 # The .qm are bundled via resources.qrc; a translator can also drop a compiled
-# ttc_<lang>.qm into ~/.config/totalcommander/translations/ to add a language
+# ttc_<lang>.qm into ~/.config/FileCommander/translations/ to add a language
 # without rebuilding.
 file(GLOB TS_FILES ${CMAKE_SOURCE_DIR}/resources/translations/ttc_*.ts)
 # Resolve lupdate/lrelease. Prefer Qt5's LinguistTools cmake package; otherwise

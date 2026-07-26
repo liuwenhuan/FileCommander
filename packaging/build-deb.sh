@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Builds ttc_<version>_<arch>.deb.
+# Builds FileCommander_<version>_<arch>.deb.
 #
 # Deliberately uses dpkg-deb over a staging tree rather than a full
 # debhelper/dpkg-buildpackage source package: this repo has no Debian source
@@ -19,15 +19,15 @@ STAGE_DIR="$BUILD_DIR/stage"
 # Single source of truth for the version: the project() line. Keeping this
 # derived rather than hardcoded stops the package version from drifting away
 # from the TTC_VERSION compiled into the binary (used by the update checker).
-VERSION="$(sed -n 's/^project(ttc VERSION \([0-9.]*\).*/\1/p' "$REPO_ROOT/CMakeLists.txt")"
+VERSION="$(sed -n 's/^project(FileCommander VERSION \([0-9.]*\).*/\1/p' "$REPO_ROOT/CMakeLists.txt")"
 if [[ -z "$VERSION" ]]; then
     echo "error: could not read version from CMakeLists.txt project() line" >&2
     exit 1
 fi
 ARCH="$(dpkg --print-architecture)"
-PKG_NAME="ttc_${VERSION}_${ARCH}.deb"
+PKG_NAME="FileCommander_${VERSION}_${ARCH}.deb"
 
-echo "==> Building ttc $VERSION ($ARCH)"
+echo "==> Building FileCommander $VERSION ($ARCH)"
 
 # --- Build ------------------------------------------------------------------
 # Release matters: the project's CMakeLists defaults to Debug when no build type
@@ -39,19 +39,19 @@ cmake -S "$REPO_ROOT" -B "$BUILD_DIR" \
     -DTTC_BUILD_TESTS=OFF \
     -DTTC_BUILD_BENCH=OFF
 
-# ttc-smb-helper is a separate executable, so it needs naming here: without it
+# FileCommander-smb-helper is a separate executable, so it needs naming here: without it
 # SMB thumbnails silently fall back to the slower single-channel path.
-cmake --build "$BUILD_DIR" --target ttc ttc-smb-helper -j"$(nproc)"
+cmake --build "$BUILD_DIR" --target FileCommander FileCommander-smb-helper -j"$(nproc)"
 
 # --- Stage ------------------------------------------------------------------
 rm -rf "$STAGE_DIR"
 DESTDIR="$STAGE_DIR" cmake --install "$BUILD_DIR"
 
-strip --strip-unneeded "$STAGE_DIR/usr/bin/ttc"
-strip --strip-unneeded "$STAGE_DIR/usr/bin/ttc-smb-helper"
+strip --strip-unneeded "$STAGE_DIR/usr/bin/FileCommander"
+strip --strip-unneeded "$STAGE_DIR/usr/bin/FileCommander-smb-helper"
 
-install -d "$STAGE_DIR/usr/share/doc/ttc"
-gzip -9cn "$REPO_ROOT/docs/UPDATE_SERVER.md" > "$STAGE_DIR/usr/share/doc/ttc/UPDATE_SERVER.md.gz"
+install -d "$STAGE_DIR/usr/share/doc/filecommander"
+gzip -9cn "$REPO_ROOT/docs/UPDATE_SERVER.md" > "$STAGE_DIR/usr/share/doc/filecommander/UPDATE_SERVER.md.gz"
 
 # office-oxide renders Office documents for the preview pane. It is a separate
 # project with no distro package, so it ships here rather than as a dependency;
@@ -91,7 +91,7 @@ if command -v dpkg-shlibdeps >/dev/null 2>&1; then
     rm -rf "$SHLIBS_TMP" && mkdir -p "$SHLIBS_TMP/debian"
     touch "$SHLIBS_TMP/debian/control"
     if (cd "$SHLIBS_TMP" && dpkg-shlibdeps -O --ignore-missing-info \
-            "$STAGE_DIR/usr/bin/ttc" 2>/dev/null) > "$SHLIBS_TMP/out"; then
+            "$STAGE_DIR/usr/bin/FileCommander" 2>/dev/null) > "$SHLIBS_TMP/out"; then
         SHLIB_DEPS="$(sed -n 's/^shlibs:Depends=//p' "$SHLIBS_TMP/out")"
     fi
 fi
@@ -112,7 +112,7 @@ DEPENDS="$SHLIB_DEPS, policykit-1"
 INSTALLED_SIZE="$(du -sk "$STAGE_DIR" | cut -f1)"
 install -d "$STAGE_DIR/DEBIAN"
 cat > "$STAGE_DIR/DEBIAN/control" <<EOF
-Package: ttc
+Package: filecommander
 Version: $VERSION
 Section: utils
 Priority: optional
@@ -121,8 +121,8 @@ Depends: $DEPENDS
 Recommends: p7zip-full, squashfs-tools, ffmpeg, libjpeg-turbo-progs, udisks2
 Suggests: unrar, avahi-daemon, gvfs-backends
 Installed-Size: $INSTALLED_SIZE
-Maintainer: ttc developers <ttc@localhost>
-Description: Dual-pane file manager
+Maintainer: FileCommander developers <filecommander@localhost>
+Description: FileCommander - dual-pane file manager
  A dual-pane file manager for X11 desktops. Browses local directories,
  archives, and remote shares (SFTP, SMB, FTP, WebDAV) in the same view,
  with built-in preview for text, images, video, PDF, and office documents.

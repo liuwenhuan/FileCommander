@@ -9,7 +9,7 @@ class QCoreApplication;
 // Loads and (live-)switches the UI translation.
 //
 // Catalogs are looked up first in the user's external translations directory
-// (~/.config/totalcommander/translations/ttc_<code>.qm) and then in the bundled
+// (~/.config/FileCommander/translations/ttc_<code>.qm) and then in the bundled
 // resources (:/translations/...). The external dir lets translators drop in a
 // new/updated .qm without recompiling — see resources/translations/README.
 class TranslationManager {

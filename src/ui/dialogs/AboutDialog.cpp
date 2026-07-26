@@ -8,7 +8,7 @@
 #include "version.h"
 
 AboutDialog::AboutDialog(const QIcon &icon, QWidget *parent) : FramelessDialog(parent) {
-    setWindowTitle(tr("About ttc"));
+    setWindowTitle(tr("About FileCommander"));
     setModal(true);
 
     // Icon: prefer the caller-supplied one, fall back to the window icon.
@@ -17,7 +17,7 @@ AboutDialog::AboutDialog(const QIcon &icon, QWidget *parent) : FramelessDialog(p
     iconLabel->setPixmap(effectiveIcon.pixmap(64, 64));
     iconLabel->setAlignment(Qt::AlignCenter);
 
-    auto *nameLabel = new QLabel(tr("ttc — Total Commander for Linux"), this);
+    auto *nameLabel = new QLabel(tr("FileCommander — Total Commander for Linux"), this);
     nameLabel->setAlignment(Qt::AlignCenter);
     QFont nameFont = nameLabel->font();
     nameFont.setPointSizeF(nameFont.pointSizeF() * 1.3);

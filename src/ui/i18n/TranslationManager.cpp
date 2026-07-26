@@ -20,7 +20,7 @@ QTranslator *g_current = nullptr;
 // .qm without rebuilding.
 QString externalDir() {
     return QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) +
-           QStringLiteral("/totalcommander/translations");
+           QStringLiteral("/FileCommander/translations");
 }
 
 // Native language names shown in the menu (kept out of tr() so each reads the

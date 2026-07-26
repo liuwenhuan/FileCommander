@@ -175,7 +175,7 @@ double videoDurationSeconds(const QString &path) {
 // PNG file via the system ffmpeg binary. Returns the temp file path (caller
 // must remove it) or an empty string on any failure.
 QString extractVideoFrame(const QString &path) {
-    QTemporaryFile temp(QDir::tempPath() + QStringLiteral("/ttc-thumb-XXXXXX.png"));
+    QTemporaryFile temp(QDir::tempPath() + QStringLiteral("/FileCommander-thumb-XXXXXX.png"));
     temp.setAutoRemove(false);
     if (!temp.open())
         return {};
@@ -251,7 +251,7 @@ QString ThumbnailCache::remoteCacheKey(const QString &connectionId, const QStrin
 
 QString ThumbnailCache::diskCachePath(const QString &key) {
     const QString dir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
-                         + QStringLiteral("/ttc/thumbnails");
+                         + QStringLiteral("/FileCommander/thumbnails");
     return dir + QLatin1Char('/') + key + QStringLiteral(".png");
 }
 

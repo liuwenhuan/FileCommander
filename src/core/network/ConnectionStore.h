@@ -19,7 +19,7 @@ struct SavedConnection {
 };
 
 // Persists connection bookmarks: metadata lives in the app's INI file (the same
-// totalcommander/config.ini Settings uses), passwords live in the login keyring
+// FileCommander/config.ini Settings uses), passwords live in the login keyring
 // via libsecret. Passwords never touch the INI. All calls are synchronous,
 // which is fine for use from a modal dialog.
 class ConnectionStore {

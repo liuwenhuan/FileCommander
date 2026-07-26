@@ -508,7 +508,7 @@ QVector<TextSegment> readTextSegments(QXmlStreamReader &xml) {
             curSize = okSize ? sz : 0.0;
             // Contract v2 super/subscript: data-baseline is a permille offset
             // (30000 == +30% of ascent up; -25000 == -25% down). oxide keeps the
-            // run's parent font-size; ttc shrinks + shifts it (see layoutTextBox).
+            // run's parent font-size; FileCommander shrinks + shifts it (see layoutTextBox).
             bool okBl = false;
             const int bl = ta.value(QLatin1String("data-baseline")).toInt(&okBl);
             curShift = okBl ? bl : 0;
@@ -595,11 +595,11 @@ QFont buildTextFont(const QXmlStreamAttributes &attrs) {
 }
 
 // ---------------------------------------------------------------------------
-// Contract-v2 layout layer (ttc is the sole typesetter).
+// Contract-v2 layout layer (FileCommander is the sole typesetter).
 //
 // When oxide emits the v2 text contract (data-anchor / data-para present) it no
 // longer bakes a baseline y: it hands each paragraph's text box geometry and
-// leaves ALL layout to ttc -- line wrapping (with CJK kinsoku), line pitch,
+// leaves ALL layout to FileCommander -- line wrapping (with CJK kinsoku), line pitch,
 // vertical box anchoring, horizontal alignment, and super/subscript -- every one
 // computed here from real QFontMetricsF. The pre-v2 path (baked baseline y +
 // reflowTextBoxes) is untouched, so a deck from old oxide renders exactly as
@@ -1275,7 +1275,7 @@ void addText(const QXmlStreamAttributes &attrs, const QVector<TextSegment> &segm
     }
 
     // Contract v2: oxide emits box geometry (data-anchor / data-para) and NO baked
-    // baseline; ttc owns the whole layout. Collect the paragraph here and defer to
+    // baseline; FileCommander owns the whole layout. Collect the paragraph here and defer to
     // layoutV2Boxes() once the entire box has been read (so paragraphs can stack +
     // the block can be vertically anchored). Old oxide never emits these, so the
     // legacy baseline path below is untouched -> zero regression. (data-box is the
@@ -1477,7 +1477,7 @@ void addText(const QXmlStreamAttributes &attrs, const QVector<TextSegment> &segm
         const int box = attrs.value(QLatin1String("data-box")).toInt(&hasBox);
         // data-vc (EMU box centre Y) marks a vertically-centred box: oxide bakes
         // the baseline assuming no wrap, so reflowTextBoxes re-centres the block
-        // after ttc word-wraps it. Absent (< 0) for top/bottom-anchored boxes.
+        // after FileCommander word-wraps it. Absent (< 0) for top/bottom-anchored boxes.
         const double vc = attrNum(attrs, "data-vc", -1.0);
         entries->push_back({hasBox ? box : -1, item, vc >= 0.0 ? vc * S : -1.0});
     }
@@ -1537,7 +1537,7 @@ void reflowTextBoxes(const QVector<TextEntry> &entries) {
 
         // Re-centre a vertically-centred box after wrapping. oxide bakes the
         // baseline assuming each <text> is one line and centres that assumed
-        // block on the box centre. When ttc word-wraps a line into N lines the
+        // block on the box centre. When FileCommander word-wraps a line into N lines the
         // block grows downward (push-down above expands the bottom), so its
         // centre drifts below the box centre by half the total wrap overflow.
         // Shift the whole group up by that half so the real block re-centres --

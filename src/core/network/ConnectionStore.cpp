@@ -25,7 +25,7 @@ QSettings settings() {
 // attribute matching rules.
 const SecretSchema *passwordSchema() {
     static const SecretSchema schema = {
-        "org.ttc.Connection",
+        "org.FileCommander.Connection",
         SECRET_SCHEMA_NONE,
         {
             {"id", SECRET_SCHEMA_ATTRIBUTE_STRING},
@@ -116,7 +116,7 @@ bool ConnectionStore::storePassword(const QString &id, const QString &password) 
     if (id.isEmpty())
         return false;
     GError *error = nullptr;
-    const QString label = QStringLiteral("ttc connection %1").arg(id);
+    const QString label = QStringLiteral("FileCommander connection %1").arg(id);
     const bool ok = secret_password_store_sync(
         passwordSchema(), SECRET_COLLECTION_DEFAULT, label.toUtf8().constData(),
         password.toUtf8().constData(), nullptr /*cancellable*/, &error, "id",

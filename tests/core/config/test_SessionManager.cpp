@@ -8,7 +8,7 @@
 namespace {
 // Redirects QStandardPaths::GenericConfigLocation to an isolated temp dir
 // for the lifetime of the test, so this never touches the real user's
-// ~/.config/totalcommander/session.ini.
+// ~/.config/FileCommander/session.ini.
 //
 // Deliberately does NOT use QStandardPaths::setTestModeEnabled(true): that
 // makes GenericConfigLocation resolve to a fixed ~/.qttest/config path

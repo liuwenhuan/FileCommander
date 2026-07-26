@@ -1,5 +1,5 @@
 # Bundled-runtime fixups, sourced by AppRun before the app starts.
-# Installed into the AppDir as apprun-hooks/ttc-hook.sh by build-appimage.sh.
+# Installed into the AppDir as apprun-hooks/FileCommander-hook.sh by build-appimage.sh.
 
 # --- Platform plugin --------------------------------------------------------
 # Deepin/UOS sessions export QT_QPA_PLATFORM=dxcb (or "dxcb;xcb"), naming a
@@ -13,25 +13,25 @@
 # deliberately sets a supported platform still gets it. src/main.cpp defaults to
 # xcb when the variable ends up empty.
 if [ -n "${QT_QPA_PLATFORM:-}" ]; then
-    _ttc_kept=""
-    _ttc_plugin_dir="$this_dir/usr/plugins/platforms"
+    _fc_kept=""
+    _fc_plugin_dir="$this_dir/usr/plugins/platforms"
     # The value is a ';'-separated preference list.
-    _ttc_ifs_saved="$IFS"
+    _fc_ifs_saved="$IFS"
     IFS=';'
-    for _ttc_p in $QT_QPA_PLATFORM; do
-        [ -n "$_ttc_p" ] || continue
-        if [ -f "$_ttc_plugin_dir/libq${_ttc_p}.so" ]; then
-            _ttc_kept="${_ttc_kept:+$_ttc_kept;}$_ttc_p"
+    for _fc_p in $QT_QPA_PLATFORM; do
+        [ -n "$_fc_p" ] || continue
+        if [ -f "$_fc_plugin_dir/libq${_fc_p}.so" ]; then
+            _fc_kept="${_fc_kept:+$_fc_kept;}$_fc_p"
         fi
     done
-    IFS="$_ttc_ifs_saved"
+    IFS="$_fc_ifs_saved"
 
-    if [ -z "$_ttc_kept" ]; then
+    if [ -z "$_fc_kept" ]; then
         unset QT_QPA_PLATFORM
     else
-        export QT_QPA_PLATFORM="$_ttc_kept"
+        export QT_QPA_PLATFORM="$_fc_kept"
     fi
-    unset _ttc_kept _ttc_plugin_dir _ttc_p _ttc_ifs_saved
+    unset _fc_kept _fc_plugin_dir _fc_p _fc_ifs_saved
 fi
 
 # Same story for the platform theme: deepin/dde themes live in the host's Qt.
@@ -44,12 +44,12 @@ case "${QT_QPA_PLATFORMTHEME:-}" in
 esac
 
 # --- Bundled helper tools ---------------------------------------------------
-# ttc shells out to 7z (UDF disc images) and unsquashfs (AppImage browsing).
+# FileCommander shells out to 7z (UDF disc images) and unsquashfs (AppImage browsing).
 # Put the bundled copies first so those features work on a host without them.
 export PATH="$this_dir/usr/bin:$PATH"
 
 # The AppImage runtime points LD_LIBRARY_PATH at the bundled libraries. Child
-# processes inherit it, so a *host* binary launched from ttc (ffmpeg, gio, a
+# processes inherit it, so a *host* binary launched from FileCommander (ffmpeg, gio, a
 # terminal emulator, the user's "Open With" choice) can load our libstdc++/glib
 # and fail. Stash the original so a launcher can restore it; see docs/PACKAGING.md
 # for the known limitation.

@@ -1,4 +1,4 @@
-// ttc-smb-helper: a minimal, single-threaded SMB read server.
+// FileCommander-smb-helper: a minimal, single-threaded SMB read server.
 //
 // One instance owns exactly one libsmbclient context and serves read-only
 // requests for it over stdin/stdout. The parent (SmbHelperClient) runs a small
@@ -6,7 +6,7 @@
 // in-process connection pool cannot do, because libsmbclient's global talloc /
 // smb.conf state is corrupted by concurrent use even across separate contexts.
 //
-// Deliberately Qt-free and free of the rest of ttc: the whole point is that a
+// Deliberately Qt-free and free of the rest of FileCommander: the whole point is that a
 // libsmbclient abort takes down this process alone, so the parent must share as
 // little code (and no address space) with it.
 //

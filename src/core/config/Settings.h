@@ -7,7 +7,7 @@
 #include <QString>
 #include <QStringList>
 
-// Wraps QSettings at ~/.config/totalcommander/config.ini. Theme/language
+// Wraps QSettings at ~/.config/FileCommander/config.ini. Theme/language
 // are stored now and acted on starting in Phase 4 (theming/i18n).
 class Settings {
 public:
@@ -18,7 +18,7 @@ public:
     // Single source of truth for where configuration lives, so every store
     // (Settings, ConnectionStore, SessionManager) agrees on the directory
     // instead of each duplicating the path logic.
-    static QString configDir();       // ~/.config/totalcommander (created if missing)
+    static QString configDir();       // ~/.config/FileCommander (created if missing)
     static QString configFilePath();  // <configDir>/config.ini
 
     Theme theme() const;

@@ -18,7 +18,7 @@ namespace {
 // building — see docs/UPDATE_SERVER.md for the manifest schema and a deployment
 // walkthrough. The placeholder host below is intentionally unreachable.
 const QString kUpdateManifestUrl =
-    QStringLiteral("https://YOUR_SERVER/ttc/version.json");
+    QStringLiteral("https://YOUR_SERVER/FileCommander/version.json");
 
 // Split a dotted version into its numeric components, dropping a leading 'v' and
 // any pre-release suffix after the first '-' ("v1.2.3-beta" -> {1, 2, 3}).

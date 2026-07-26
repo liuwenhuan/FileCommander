@@ -24,7 +24,7 @@ using namespace smbhelper;
 
 namespace {
 
-constexpr const char *kHelperName = "ttc-smb-helper";
+constexpr const char *kHelperName = "FileCommander-smb-helper";
 
 // How long a single request may take before the helper is declared hung. Reads
 // are bounded chunks over a LAN share, so this only ever fires on a genuinely

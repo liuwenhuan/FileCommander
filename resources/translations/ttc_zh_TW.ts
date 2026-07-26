@@ -549,8 +549,8 @@ Extract it too?</source>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="158"/>
         <location filename="../../src/ui/MainWindow.cpp" line="1653"/>
-        <source>Total Commander for Linux</source>
-        <translation>Linux 版全能命令器</translation>
+        <source>FileCommander</source>
+        <translation>FileCommander-檔案指揮官</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1031"/>
@@ -2464,7 +2464,7 @@ Right: %2</source>
     <name>TitleBar</name>
     <message>
         <location filename="../../src/ui/TitleBar.cpp" line="218"/>
-        <source>File Commander</source>
+        <source>FileCommander</source>
         <translation>FileCommander-檔案指揮官</translation>
     </message>
 </context>

@@ -5,8 +5,8 @@
 #include "SmbHelperClient.h"
 #include "SmbHelperProtocol.h"
 
-// The wire format is the contract between two separately-compiled binaries (ttc
-// and ttc-smb-helper), so its codecs are worth pinning down: a silent change to
+// The wire format is the contract between two separately-compiled binaries (FileCommander
+// and FileCommander-smb-helper), so its codecs are worth pinning down: a silent change to
 // either side's byte order would desynchronise the stream rather than fail
 // loudly.
 using namespace smbhelper;

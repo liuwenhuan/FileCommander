@@ -165,7 +165,7 @@ void TitleBar::paintEvent(QPaintEvent *) {
     // Center on the text's own ascent/descent rather than the full line box:
     // Qt::AlignCenter uses the line height (including leading) and leaves the ink
     // sitting a couple pixels high. Compute the baseline so it's optically centred.
-    const QString title = tr("File Commander");
+    const QString title = tr("FileCommander");
     const QFontMetrics fm(p.font());
     const int x = (width() - fm.horizontalAdvance(title)) / 2;
     const int y = (height() + fm.ascent() - fm.descent()) / 2;

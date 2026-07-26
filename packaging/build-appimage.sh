@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Builds ttc-<version>-x86_64.AppImage.
+# Builds FileCommander-<version>-x86_64.AppImage.
 #
 # The resulting AppImage must be launched through a real type-2 runtime, because
 # src/core/update/Updater.cpp decides how to self-update by checking $APPIMAGE.
@@ -19,13 +19,13 @@ BUILD_DIR="$REPO_ROOT/build-appimage"
 APPDIR="$BUILD_DIR/AppDir"
 TOOLS_DIR="$REPO_ROOT/packaging/.tools"
 
-VERSION="$(sed -n 's/^project(ttc VERSION \([0-9.]*\).*/\1/p' "$REPO_ROOT/CMakeLists.txt")"
+VERSION="$(sed -n 's/^project(FileCommander VERSION \([0-9.]*\).*/\1/p' "$REPO_ROOT/CMakeLists.txt")"
 if [[ -z "$VERSION" ]]; then
     echo "error: could not read version from CMakeLists.txt project() line" >&2
     exit 1
 fi
 
-echo "==> Building ttc $VERSION AppImage"
+echo "==> Building FileCommander $VERSION AppImage"
 
 # --- Toolchain --------------------------------------------------------------
 fetch_tool() {
@@ -59,16 +59,16 @@ cmake -S "$REPO_ROOT" -B "$BUILD_DIR" \
     -DTTC_BUILD_TESTS=OFF \
     -DTTC_BUILD_BENCH=OFF
 
-# ttc-smb-helper is a separate executable, so it needs naming here: without it
+# FileCommander-smb-helper is a separate executable, so it needs naming here: without it
 # SMB thumbnails silently fall back to the slower single-channel path.
-cmake --build "$BUILD_DIR" --target ttc ttc-smb-helper -j"$(nproc)"
+cmake --build "$BUILD_DIR" --target FileCommander FileCommander-smb-helper -j"$(nproc)"
 
 rm -rf "$APPDIR"
 DESTDIR="$APPDIR" cmake --install "$BUILD_DIR"
-strip --strip-unneeded "$APPDIR/usr/bin/ttc"
-strip --strip-unneeded "$APPDIR/usr/bin/ttc-smb-helper"
+strip --strip-unneeded "$APPDIR/usr/bin/FileCommander"
+strip --strip-unneeded "$APPDIR/usr/bin/FileCommander-smb-helper"
 
-# --- Bundle the external tools ttc shells out to -----------------------------
+# --- Bundle the external tools FileCommander shells out to -----------------------------
 # 7z is what makes UDF disc images browsable (see ExternalArchiveTool), and
 # unsquashfs is what makes AppImages browsable. Bundling them keeps those
 # features working on a host that has neither.
@@ -129,7 +129,7 @@ fi
 # puts the bundled tools on PATH. Must be installed before linuxdeploy runs, so
 # it ends up inside the image.
 install -d "$APPDIR/apprun-hooks"
-install -m 0644 "$REPO_ROOT/packaging/apprun-hook.sh" "$APPDIR/apprun-hooks/ttc-hook.sh"
+install -m 0644 "$REPO_ROOT/packaging/apprun-hook.sh" "$APPDIR/apprun-hooks/FileCommander-hook.sh"
 
 # --- Package ----------------------------------------------------------------
 # linuxdeploy-plugin-qt supplies the platform plugin (libqxcb -- the app forces
@@ -143,19 +143,19 @@ cd "$BUILD_DIR"
 "$LINUXDEPLOY" \
     --appdir "$APPDIR" \
     --plugin qt \
-    --desktop-file "$APPDIR/usr/share/applications/ttc.desktop" \
-    --icon-file "$APPDIR/usr/share/icons/hicolor/scalable/apps/ttc.svg" \
+    --desktop-file "$APPDIR/usr/share/applications/FileCommander.desktop" \
+    --icon-file "$APPDIR/usr/share/icons/hicolor/scalable/apps/FileCommander.svg" \
     --output appimage
 
 # linuxdeploy names the output from the desktop entry + $VERSION; normalise it
 # to the name docs/UPDATE_SERVER.md commits to in the release checklist.
-PRODUCED="$(find "$BUILD_DIR" -maxdepth 1 -name '*.AppImage' -newer "$APPDIR/usr/bin/ttc" | head -1)"
+PRODUCED="$(find "$BUILD_DIR" -maxdepth 1 -name '*.AppImage' -newer "$APPDIR/usr/bin/FileCommander" | head -1)"
 if [[ -z "$PRODUCED" ]]; then
     echo "error: linuxdeploy did not produce an AppImage" >&2
     exit 1
 fi
 
-FINAL="$OUT_DIR/ttc-${VERSION}-x86_64.AppImage"
+FINAL="$OUT_DIR/FileCommander-${VERSION}-x86_64.AppImage"
 mv "$PRODUCED" "$FINAL"
 chmod +x "$FINAL"
 

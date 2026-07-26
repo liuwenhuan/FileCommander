@@ -49,8 +49,8 @@ void Updater::apply(const UpdateInfo &info) {
     const QString suffix = QFileInfo(QUrl(info.url).path()).suffix();
     const QString tmpDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
     const QString tmpTemplate =
-        QDir(tmpDir).filePath(suffix.isEmpty() ? QStringLiteral("ttc-update-XXXXXX")
-                                               : QStringLiteral("ttc-update-XXXXXX.") + suffix);
+        QDir(tmpDir).filePath(suffix.isEmpty() ? QStringLiteral("FileCommander-update-XXXXXX")
+                                               : QStringLiteral("FileCommander-update-XXXXXX.") + suffix);
 
     auto *tmp = new QTemporaryFile(tmpTemplate, this);
     tmp->setAutoRemove(true);
@@ -208,7 +208,7 @@ void Updater::installDeb(const QString &downloadedFile, const UpdateInfo &info) 
     const QString appPath = QCoreApplication::applicationFilePath();
     if (!QProcess::startDetached(appPath, QStringList())) {
         emit finished(false, tr("Updated to version %1, but could not restart automatically. "
-                                "Please start ttc again.")
+                                "Please start FileCommander again.")
                                  .arg(info.version));
         return;
     }

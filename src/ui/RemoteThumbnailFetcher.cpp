@@ -62,7 +62,7 @@ QString RemoteThumbnailFetcher::Ticket::download(const QString &path, qint64 max
     // both sniff content, but a matching suffix lets them pick the right
     // decoder first try instead of probing.
     const QString suffix = QFileInfo(path).suffix();
-    QString templatePath = QDir::tempPath() + QStringLiteral("/ttc-rthumb-XXXXXX");
+    QString templatePath = QDir::tempPath() + QStringLiteral("/FileCommander-rthumb-XXXXXX");
     if (!suffix.isEmpty())
         templatePath += QLatin1Char('.') + suffix;
     QTemporaryFile temp(templatePath);
@@ -190,7 +190,7 @@ QString RemoteThumbnailFetcher::Ticket::downloadRanges(
         return {};
 
     const QString suffix = QFileInfo(path).suffix();
-    QString templatePath = QDir::tempPath() + QStringLiteral("/ttc-rthumb-XXXXXX");
+    QString templatePath = QDir::tempPath() + QStringLiteral("/FileCommander-rthumb-XXXXXX");
     if (!suffix.isEmpty())
         templatePath += QLatin1Char('.') + suffix;
     QTemporaryFile temp(templatePath);

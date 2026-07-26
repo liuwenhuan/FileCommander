@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>ttc</id>
+  <id>FileCommander</id>
   <metadata_license>CC0-1.0</metadata_license>
-  <name>ttc</name>
+  <name>FileCommander</name>
+  <name xml:lang="zh_CN">文件指挥官</name>
+  <name xml:lang="zh_TW">檔案指揮官</name>
   <summary>Dual-pane file manager</summary>
   <summary xml:lang="zh_CN">双栏文件管理器</summary>
 
@@ -19,14 +21,14 @@
     </p>
   </description>
 
-  <launchable type="desktop-id">ttc.desktop</launchable>
+  <launchable type="desktop-id">FileCommander.desktop</launchable>
   <categories>
     <category>Utility</category>
     <category>FileTools</category>
   </categories>
 
   <provides>
-    <binary>ttc</binary>
+    <binary>FileCommander</binary>
   </provides>
 
   <releases>

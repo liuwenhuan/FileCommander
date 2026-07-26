@@ -1,0 +1,25 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=FileCommander
+Name[zh_CN]=文件指挥官
+Name[zh_TW]=檔案指揮官
+GenericName=File Manager
+GenericName[zh_CN]=文件管理器
+GenericName[zh_TW]=檔案管理員
+Comment=Dual-pane file manager
+Comment[zh_CN]=双栏文件管理器
+Comment[zh_TW]=雙欄檔案管理員
+# The basename here must stay "FileCommander": src/main.cpp calls
+# setDesktopFileName("FileCommander") so the window manager can match running
+# windows to this entry.
+Exec=FileCommander %F
+Icon=FileCommander
+Terminal=false
+Categories=Utility;Core;FileTools;FileManager;
+MimeType=inode/directory;
+Keywords=file;manager;explorer;commander;
+Keywords[zh_CN]=文件;管理器;资源管理器;指挥官;
+Keywords[zh_TW]=檔案;管理員;檔案總管;指揮官;
+StartupNotify=true
+StartupWMClass=FileCommander

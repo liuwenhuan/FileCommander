@@ -163,12 +163,12 @@ qint64 sumSizes(const QStringList &paths) {
 // than silently reading a same-named LOCAL file when the source connection is
 // gone. Layout: line0 "cut"|"copy", line1 scheme, line2 displayName (user@host),
 // then one remote path per line.
-constexpr char kRemoteClipboardMime[] = "application/x-ttc-remote-copy";
+constexpr char kRemoteClipboardMime[] = "application/x-filecommander-remote-copy";
 
 // Builds clipboard data with both the plain text/uri-list format (read by
 // virtually everything) and the GNOME x-special/gnome-copied-files
 // convention (read by Nautilus/Dolphin/PCManFM) so cut vs. copy survives
-// round-tripping through those file managers, not just within ttc. When the
+// round-tripping through those file managers, not just within FileCommander. When the
 // source is a remote provider, also attaches kRemoteClipboardMime so an in-app
 // paste can recover the true source provider (see pasteFromClipboard).
 QMimeData *buildFileClipboardData(const QStringList &paths, bool cut,
@@ -234,7 +234,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     // translucent so the shadow can fade into nothing at its edges.
     setWindowFlag(Qt::FramelessWindowHint);
     setAttribute(Qt::WA_TranslucentBackground);
-    setWindowTitle(tr("Total Commander for Linux"));
+    setWindowTitle(tr("FileCommander"));
     resize(1200, 700);
 
     const QByteArray savedGeometry = m_settings.windowGeometry();
@@ -2125,7 +2125,7 @@ QString downloadRemoteToTemp(FileProvider *provider, const QString &remotePath,
 
 QString MainWindow::ensurePreviewTempDir() {
     if (!m_previewTempDir)
-        m_previewTempDir = new QTemporaryDir(QDir::tempPath() + QStringLiteral("/ttc-preview-XXXXXX"));
+        m_previewTempDir = new QTemporaryDir(QDir::tempPath() + QStringLiteral("/FileCommander-preview-XXXXXX"));
     return (m_previewTempDir && m_previewTempDir->isValid()) ? m_previewTempDir->path()
                                                              : QString();
 }
@@ -2500,7 +2500,7 @@ void MainWindow::retranslateUi() {
     setupShortcuts();       // re-run is label-only now (shortcuts already built)
     buildTitleBarMenus();   // rebuilds Commands/View + the title bar app name
     updateFunctionKeyLabels();
-    setWindowTitle(tr("Total Commander for Linux"));
+    setWindowTitle(tr("FileCommander"));
     if (m_commandBar)
         m_commandBar->retranslate();
 

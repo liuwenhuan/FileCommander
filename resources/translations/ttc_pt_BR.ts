@@ -549,7 +549,7 @@ Extrair também?</translation>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="158"/>
         <location filename="../../src/ui/MainWindow.cpp" line="1653"/>
-        <source>Total Commander for Linux</source>
+        <source>FileCommander</source>
         <translation>Total Commander para Linux</translation>
     </message>
     <message>
@@ -2464,7 +2464,7 @@ Direita: %2</translation>
     <name>TitleBar</name>
     <message>
         <location filename="../../src/ui/TitleBar.cpp" line="218"/>
-        <source>File Commander</source>
+        <source>FileCommander</source>
         <translation>File Commander</translation>
     </message>
 </context>

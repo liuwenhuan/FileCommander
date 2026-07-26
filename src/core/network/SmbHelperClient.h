@@ -9,7 +9,7 @@
 
 #include <cstdint>
 
-// A small pool of ttc-smb-helper subprocesses, each owning one independent
+// A small pool of FileCommander-smb-helper subprocesses, each owning one independent
 // libsmbclient connection, used to read several files from a share at once.
 //
 // Why processes rather than threads: libsmbclient is not thread-safe even
