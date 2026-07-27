@@ -42,6 +42,9 @@ public:
     // 8..18; defaults to 12.
     int listFontSize() const;
     void setListFontSize(int pt);
+    // Empty means the platform/default font family.
+    QString listFontFamily() const;
+    void setListFontFamily(const QString &family);
 
     // Video-preview playback state, persisted so later previews reuse it.
     // Speed defaults to 1.0; volume 0..100 (default 70); muted defaults to true
@@ -109,6 +112,10 @@ public:
     void setShowCommandBar(bool show);
     bool showFunctionKeyBar() const;
     void setShowFunctionKeyBar(bool show);
+    bool showTabBar() const;
+    void setShowTabBar(bool show);
+    bool showShortcutLabels() const;
+    void setShowShortcutLabels(bool show);
     bool showFolderTree() const;
     void setShowFolderTree(bool show);
 
@@ -190,6 +197,8 @@ public:
     // so the background check runs only once on the first launch of a given day.
     QString updateLastCheckDate() const;
     void setUpdateLastCheckDate(const QString &date);
+    bool autoUpdateCheck() const;
+    void setAutoUpdateCheck(bool on);
 
     // Whether the quick-notepad third column was open when the app last closed,
     // so it reappears on restart.

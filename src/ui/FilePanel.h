@@ -115,6 +115,8 @@ public:
     // Sets the point size of the file-list font and rescales the row height /
     // header height to match. Point size is clamped to 7..24.
     void setListFontSize(int pt);
+    void setListFontFamily(const QString &family);
+    void setTabBarVisible(bool visible);
 
     void selectAll();
     void deselectAll();
@@ -454,6 +456,7 @@ private:
     // new visible rows, so the user always gets served first.
     ThumbnailSweep m_thumbSweep;
     QStackedWidget *m_bodyStack = nullptr;     // {list view, icon view}
+    QWidget *m_tabRow = nullptr;
     QToolButton *m_addTabButton; // "+" at the right end of the tab strip
     QLineEdit *m_filterBar;
     FileListView *m_view;

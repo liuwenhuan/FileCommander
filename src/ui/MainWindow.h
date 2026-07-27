@@ -126,10 +126,9 @@ private slots:
     void calculateSizes();
     void calculateChecksums(); // MD5 / CRC32 / SHA1 of the selected files
     void secureWipeSelected(); // overwrite on-disk bytes (HDD 1x / SSD 3x DoD) then delete
+    void chooseListFont();
     void syncOtherPanelToActive();
     void swapPanels();
-    void splitFile();
-    void combineFiles();
     void openTerminalHere();
     void openWithDefault();
     void openWith();
@@ -165,9 +164,12 @@ private slots:
     void pasteFromClipboard();
 
 private:
-    // (Re)builds the Commands/View menus and the title bar that hosts them.
+    // (Re)builds the Tools/Config/Interface menus and the title bar that hosts them.
     // Safe to call again on a language change (deletes the previous menus/bar).
     void buildTitleBarMenus();
+    QAction *addCommandAction(QMenu *menu, const QString &id, const QString &label,
+                              std::function<void()> handler = {});
+    QString commandText(const QString &id, const QString &label) const;
     // Re-applies every translatable string in the persistent UI after a live
     // language switch (menus, title bar, function keys, column headers, ...).
     void retranslateUi();
@@ -274,7 +276,7 @@ private:
     QSplitter *m_panelSplitter;
     QMenu *m_toolsMenu = nullptr;    // owned; rebuilt on language change
     QMenu *m_configMenu = nullptr;   // owned; rebuilt on language change
-    QMenu *m_viewMenu = nullptr;     // owned; rebuilt on language change
+    QMenu *m_interfaceMenu = nullptr; // owned; rebuilt on language change
     QAction *m_phosphorImagesAction = nullptr; // enabled only under the CRT theme
     bool m_shortcutsBuilt = false;   // one-shot guard for QShortcut creation
 

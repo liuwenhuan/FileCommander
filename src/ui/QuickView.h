@@ -100,6 +100,10 @@ public:
     // family, only the size changes.
     void setContentFontSize(int pt);
 
+    // Changes the proportional content family without overriding the text page's
+    // dedicated monospace family.
+    void setContentFontFamily(const QString &family);
+
     // Moves keyboard focus into the preview's current page (its primary
     // interactive widget). Used when the user Tabs from the file list into the
     // embedded preview pane, so the pane — not the panel it covers — takes focus.

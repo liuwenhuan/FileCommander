@@ -57,6 +57,14 @@ void Settings::setListFontSize(int pt) {
     m_settings.setValue("appearance/listFontSize", qBound(8, pt, 18));
 }
 
+QString Settings::listFontFamily() const {
+    return m_settings.value("appearance/listFontFamily").toString();
+}
+
+void Settings::setListFontFamily(const QString &family) {
+    m_settings.setValue("appearance/listFontFamily", family);
+}
+
 double Settings::videoSpeed() const {
     return m_settings.value("video/speed", 1.0).toDouble();
 }
@@ -202,6 +210,22 @@ void Settings::setShowFunctionKeyBar(bool show) {
     m_settings.setValue("view/showFunctionKeyBar", show);
 }
 
+bool Settings::showTabBar() const {
+    return m_settings.value("view/showTabBar", true).toBool();
+}
+
+void Settings::setShowTabBar(bool show) {
+    m_settings.setValue("view/showTabBar", show);
+}
+
+bool Settings::showShortcutLabels() const {
+    return m_settings.value("view/showShortcutLabels", true).toBool();
+}
+
+void Settings::setShowShortcutLabels(bool show) {
+    m_settings.setValue("view/showShortcutLabels", show);
+}
+
 bool Settings::showFolderTree() const {
     return m_settings.value("view/showFolderTree", false).toBool();
 }
@@ -315,6 +339,14 @@ QString Settings::updateLastCheckDate() const {
 
 void Settings::setUpdateLastCheckDate(const QString &date) {
     m_settings.setValue("update/lastCheckDate", date);
+}
+
+bool Settings::autoUpdateCheck() const {
+    return m_settings.value("update/autoCheck", true).toBool();
+}
+
+void Settings::setAutoUpdateCheck(bool on) {
+    m_settings.setValue("update/autoCheck", on);
 }
 
 bool Settings::notepadVisible() const {

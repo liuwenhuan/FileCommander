@@ -61,6 +61,26 @@ TEST(SettingsTest, ListFontSizeClampsToRange) {
     EXPECT_EQ(settings.listFontSize(), 18);
 }
 
+TEST(SettingsTest, InterfacePreferencesHaveCompatibleDefaultsAndRoundTrip) {
+    IsolatedConfigDir isolated;
+    Settings settings;
+
+    EXPECT_TRUE(settings.listFontFamily().isEmpty());
+    EXPECT_TRUE(settings.showTabBar());
+    EXPECT_TRUE(settings.showShortcutLabels());
+    EXPECT_TRUE(settings.autoUpdateCheck());
+
+    settings.setListFontFamily(QStringLiteral("Noto Sans CJK SC"));
+    settings.setShowTabBar(false);
+    settings.setShowShortcutLabels(false);
+    settings.setAutoUpdateCheck(false);
+
+    EXPECT_EQ(settings.listFontFamily(), QStringLiteral("Noto Sans CJK SC"));
+    EXPECT_FALSE(settings.showTabBar());
+    EXPECT_FALSE(settings.showShortcutLabels());
+    EXPECT_FALSE(settings.autoUpdateCheck());
+}
+
 TEST(SettingsTest, WindowGeometryRoundTrips) {
     IsolatedConfigDir isolated;
     Settings settings;

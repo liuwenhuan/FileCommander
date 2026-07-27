@@ -197,6 +197,21 @@ void QuickView::setContentFontSize(int pt) {
     }
 }
 
+void QuickView::setContentFontFamily(const QString &family) {
+    const QString effectiveFamily = family.isEmpty() ? QApplication::font().family() : family;
+    auto applyFamily = [&effectiveFamily](QWidget *widget) {
+        if (!widget)
+            return;
+        QFont font = widget->font();
+        font.setFamily(effectiveFamily);
+        widget->setFont(font);
+    };
+    applyFamily(m_markdown);
+    applyFamily(m_officeTabs);
+    for (int i = 0; m_officeTabs && i < m_officeTabs->count(); ++i)
+        applyFamily(m_officeTabs->widget(i));
+}
+
 void QuickView::focusPreview() {
     QWidget *page = m_stack->currentWidget();
     if (!page)

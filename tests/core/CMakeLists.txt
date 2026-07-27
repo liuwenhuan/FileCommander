@@ -9,7 +9,6 @@ add_executable(core_tests
     filesystem/test_ParentEntry.cpp
     operations/test_FileOperations.cpp
     operations/test_OperationQueue.cpp
-    operations/test_FileSplitter.cpp
     operations/test_ProviderTransfer.cpp
     operations/test_ServerSideMove.cpp
     operations/test_PreserveMtime.cpp

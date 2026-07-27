@@ -156,6 +156,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     // Tab row: [tree] at the head, then the tab strip (stretch), then the
     // trailing "+". Back/Forward and the ✳ menu live in the address row below.
     auto *tabRow = new QWidget(this);
+    m_tabRow = tabRow;
     auto *tabRowLayout = new QHBoxLayout(tabRow);
     tabRowLayout->setContentsMargins(0, 0, 0, 0);
     tabRowLayout->setSpacing(2);
@@ -1407,6 +1408,33 @@ void FilePanel::prefetchArchiveNeighbors() {
         QtConcurrent::run(
             [prov, p]() { static_cast<ArchiveProvider *>(prov.get())->materialize(p); });
     }
+}
+
+void FilePanel::setListFontFamily(const QString &family) {
+    const QString effectiveFamily = family.isEmpty() ? QApplication::font().family() : family;
+    auto applyFamily = [&effectiveFamily](QWidget *widget) {
+        if (!widget)
+            return;
+        QFont font = widget->font();
+        font.setFamily(effectiveFamily);
+        widget->setFont(font);
+    };
+    applyFamily(m_view);
+    applyFamily(m_view->viewport());
+    applyFamily(m_iconView);
+    if (m_iconView)
+        applyFamily(m_iconView->viewport());
+    applyFamily(m_dirTree);
+    if (m_dirTree)
+        applyFamily(m_dirTree->viewport());
+    setListFontSize(m_view->font().pointSize());
+}
+
+void FilePanel::setTabBarVisible(bool visible) {
+    if (m_tabBar)
+        m_tabBar->setVisible(visible);
+    if (m_addTabButton)
+        m_addTabButton->setVisible(visible);
 }
 
 void FilePanel::setListFontSize(int pt) {
