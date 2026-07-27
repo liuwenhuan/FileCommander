@@ -1819,6 +1819,14 @@ void MainWindow::setupShortcuts() {
                  });
     bindShortcut("compress", tr("Compress Selected"), QKeySequence(Qt::ALT | Qt::Key_F5),
                  [this] { compressSelected(); });
+    bindShortcut("copyPath", tr("Copy Path"), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_C),
+                 [this] {
+                     if (m_activePanel) {
+                         const QStringList paths = m_activePanel->selectedPaths();
+                         if (!paths.isEmpty())
+                             QGuiApplication::clipboard()->setText(paths.join('\n'));
+                     }
+                 });
     bindShortcut("refresh", tr("Refresh"), QKeySequence(Qt::CTRL | Qt::Key_R),
                  [this] { refreshActivePanel(); });
     bindShortcut("exit", tr("Exit"), QKeySequence(Qt::Key_F10), [this] { close(); });
