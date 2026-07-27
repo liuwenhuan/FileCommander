@@ -5,6 +5,7 @@
 #include "config/Settings.h"
 
 #include "ExifThumbnail.h"
+#include "FileInfo.h"
 #include "FileProvider.h" // canStream(): a backend that can't stream is never retried
 #include "Mp4RangePlan.h"
 #include "VideoRangePlan.h"
@@ -113,7 +114,9 @@ const QSet<QString> &imageExtensions() {
     return exts;
 }
 
-QString extensionOf(const QString &path) { return QFileInfo(path).suffix().toLower(); }
+QString extensionOf(const QString &path) {
+    return FileInfo::suffixForName(QFileInfo(path).fileName()).toLower();
+}
 
 // Byte budgets for a *remote* thumbnail, deliberately far below the 100 MB
 // QuickView allows: this runs unattended while the user scrolls, so it must

@@ -9,6 +9,8 @@
         <file alias="branch-open-light.svg">icons/branch-open-light.svg</file>
         <file alias="branch-closed-dark.svg">icons/branch-closed-dark.svg</file>
         <file alias="branch-open-dark.svg">icons/branch-open-dark.svg</file>
+        <file alias="branch-closed-green.svg">icons/branch-closed-green.svg</file>
+        <file alias="branch-open-green.svg">icons/branch-open-green.svg</file>
         <file alias="ext-connect.svg">icons/ext-connect.svg</file>
         <file alias="eject.svg">icons/eject.svg</file>
         <file alias="refresh.svg">icons/refresh.svg</file>

@@ -25,6 +25,15 @@ TitleBar::TitleBar(QWidget *window, const QList<QMenu *> &menus, QWidget *parent
     // background behind them (the window is frameless, xcb; see MainWindow).
     setAttribute(Qt::WA_TranslucentBackground);
 
+    // A transparent overlay keeps the title above the asymmetric controls while
+    // its geometry remains the complete title-bar rectangle. Mouse events pass
+    // through to the controls or the bar's window-drag handling underneath.
+    m_title = new QLabel(this);
+    m_title->setText(tr("FileCommander"));
+    m_title->setAlignment(Qt::AlignCenter);
+    m_title->setAttribute(Qt::WA_TransparentForMouseEvents);
+    positionTitle();
+
     auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(8, 0, 0, 0);
     layout->setSpacing(2);
@@ -92,6 +101,18 @@ TitleBar::TitleBar(QWidget *window, const QList<QMenu *> &menus, QWidget *parent
     connect(closeButton, &QAbstractButton::clicked, this, [this] { m_window->close(); });
 
     setFixedHeight(30);
+    positionTitle();
+    m_title->raise();
+}
+
+void TitleBar::positionTitle() {
+    if (m_title)
+        m_title->setGeometry(rect());
+}
+
+void TitleBar::resizeEvent(QResizeEvent *event) {
+    positionTitle();
+    QWidget::resizeEvent(event);
 }
 
 void TitleBar::syncWindowState() {
@@ -165,18 +186,4 @@ void TitleBar::paintEvent(QPaintEvent *) {
         p.fillPath(path, bg);
     }
 
-    // Centred application name, dimmed so it reads as chrome rather than a
-    // control. Centred on the full bar width; the menu buttons on the left and
-    // window buttons on the right are short enough not to overlap it.
-    QColor fg = palette().color(QPalette::WindowText);
-    fg.setAlpha(150);
-    p.setPen(fg);
-    // Center on the text's own ascent/descent rather than the full line box:
-    // Qt::AlignCenter uses the line height (including leading) and leaves the ink
-    // sitting a couple pixels high. Compute the baseline so it's optically centred.
-    const QString title = tr("FileCommander");
-    const QFontMetrics fm(p.font());
-    const int x = (width() - fm.horizontalAdvance(title)) / 2;
-    const int y = (height() + fm.ascent() - fm.descent()) / 2;
-    p.drawText(x, y, title);
 }

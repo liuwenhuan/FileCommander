@@ -52,6 +52,8 @@
 #include <QProcess>
 #include <QPushButton>
 #include <QShortcut>
+#include <QFontDialog>
+#include <QFontDatabase>
 #include <QIntValidator>
 #include <QTimer>
 #include <QSplitter>
@@ -77,8 +79,8 @@
 #include "TranslationManager.h"
 #include "CompressDialog.h"
 #include "FilePanel.h"
+#include "filesystem/IconCache.h"
 #include "IconFileView.h"
-#include "FileSplitter.h"
 #include "MpvStreamSource.h"
 #include "QuickView.h"
 #include "ThumbnailCache.h"
@@ -464,9 +466,19 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     restorePanelColumns(m_rightPanel, QStringLiteral("right"));
 
     // Optional bars + splitter layout. Applied before buildTitleBarMenus() so
-    // the View-menu checkmarks (which read the widgets' visibility) match.
+    // the Interface-menu checkmarks (which read the widgets' visibility) match.
     m_commandBar->setVisible(m_settings.showCommandBar());
     m_functionKeyBar->setVisible(m_settings.showFunctionKeyBar());
+    const QString listFontFamily = m_settings.listFontFamily();
+    for (FilePanel *panel : {m_leftPanel, m_rightPanel}) {
+        panel->setListFontFamily(listFontFamily);
+        panel->setListFontSize(m_settings.listFontSize());
+        panel->setTabBarVisible(m_settings.showTabBar());
+    }
+    if (m_quickView) {
+        m_quickView->setContentFontFamily(listFontFamily);
+        m_quickView->setContentFontSize(m_settings.listFontSize());
+    }
     if (const QByteArray s = m_settings.panelSplitterState(); !s.isEmpty())
         m_panelSplitter->restoreState(s);
 
@@ -624,11 +636,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     setTabOrder(m_leftPanel->view(), m_rightPanel->view());
     setTabOrder(m_rightPanel->view(), m_leftPanel->view());
 
-    buildTitleBarMenus();
     setupShortcuts();
+    buildTitleBarMenus();
 
     // Apply the persisted file-list font size now that both panels and the
-    // View-menu control exist.
+    // Interface-menu control exist.
     const int listFont = m_settings.listFontSize();
     m_leftPanel->setListFontSize(listFont);
     m_rightPanel->setListFontSize(listFont);
@@ -654,65 +666,71 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     });
 }
 
+QString MainWindow::commandText(const QString &id, const QString &label) const {
+    if (!m_settings.showShortcutLabels())
+        return label;
+    const QKeySequence sequence = m_shortcuts.value(id) ? m_shortcuts.value(id)->key()
+                                                         : m_shortcutDefaults.value(id);
+    const QString shortcut = sequence.toString(QKeySequence::NativeText);
+    return shortcut.isEmpty() ? label : label + QLatin1Char('\t') + shortcut;
+}
+
+QAction *MainWindow::addCommandAction(QMenu *menu, const QString &id, const QString &label,
+                                      std::function<void()> handler) {
+    if (!handler)
+        handler = m_shortcutHandlers.value(id);
+    QAction *action = menu->addAction(commandText(id, label));
+    connect(action, &QAction::triggered, this, [handler]() {
+        if (handler)
+            handler();
+    });
+    return action;
+}
+
 void MainWindow::buildTitleBarMenus() {
     // Re-runnable (called again on a live language change): drop the previous
     // menus so we don't leak them. setMenuWidget() deletes the old title bar.
     delete m_toolsMenu;
     delete m_configMenu;
-    delete m_viewMenu;
+    delete m_interfaceMenu;
 
-    // Standalone menus shown as buttons in the frameless title bar: Tools,
-    // Config and View (Exit lives on the title bar's close button).
     auto *toolsMenu = new QMenu(tr("&Tools"), this);
     m_toolsMenu = toolsMenu;
-    toolsMenu->addAction(tr("Open &Terminal Here"), this, &MainWindow::openTerminalHere);
-    toolsMenu->addAction(tr("Calculate &Checksums..."), this, &MainWindow::calculateChecksums);
-    toolsMenu->addAction(tr("Com&bine Files..."), this, &MainWindow::combineFiles);
-    toolsMenu->addAction(tr("S&plit File..."), this, &MainWindow::splitFile);
-    toolsMenu->addAction(tr("Compar&e Files..."), this, &MainWindow::compareSelectedFiles);
-    toolsMenu->addAction(tr("&Compress Selected..."), this, &MainWindow::compressSelected);
-    toolsMenu->addAction(tr("&Wipe Files (secure erase)..."), this,
-                         &MainWindow::secureWipeSelected);
+    addCommandAction(toolsMenu, QStringLiteral("notepad"), tr("Quick Notepad"));
+    addCommandAction(toolsMenu, QStringLiteral("checksums"), tr("Calculate Checksums"));
+    addCommandAction(toolsMenu, QStringLiteral("secureWipe"), tr("Secure Wipe"));
+    addCommandAction(toolsMenu, QStringLiteral("compareFiles"), tr("Compare Files"));
 
-    // Config menu: shortcuts, server connection, the delete-confirmation
-    // preference, plus the commands that previously lived only in the Commands
-    // menu and have no shortcut of their own (so they stay reachable).
     auto *configMenu = new QMenu(tr("Con&fig"), this);
     m_configMenu = configMenu;
-    configMenu->addAction(tr("Configure &Keyboard Shortcuts..."), this,
-                          &MainWindow::openShortcutsDialog);
-    configMenu->addAction(tr("Connect to &Server..."), this,
-                          [this] { openServerConnectDialog(false); });
-    {
-        // Skip the "Delete N items?" prompt for trash deletes when checked.
-        // (Permanent Shift+Del always confirms regardless -- see deleteSelected.)
-        QAction *noConfirm = configMenu->addAction(tr("&Delete to Trash Without Confirmation"));
-        noConfirm->setCheckable(true);
-        noConfirm->setChecked(!m_settings.confirmDelete());
-        connect(noConfirm, &QAction::toggled, this,
-                [this](bool on) { m_settings.setConfirmDelete(!on); });
-    }
-    {
-        // Browse archives (zip/7z/tar/...) in place as folders, or treat them as
-        // plain files. Applies to both panels immediately.
-        QAction *archiveFolder = configMenu->addAction(tr("Open &Archives as Folders"));
-        archiveFolder->setCheckable(true);
-        archiveFolder->setChecked(m_settings.archiveAsFolder());
-        connect(archiveFolder, &QAction::toggled, this, [this](bool on) {
-            m_settings.setArchiveAsFolder(on);
-            m_leftPanel->setArchiveAsFolder(on);
-            m_rightPanel->setArchiveAsFolder(on);
-        });
-    }
-    // Synchronize/Compare Directories now live in the "✳" shortcut menu; the
-    // Network Neighborhood entry was removed (SMB/FTP/etc. use Connect to
-    // Server instead of a gvfs browse).
+    addCommandAction(configMenu, QStringLiteral("keyboardShortcuts"), tr("Keyboard Shortcuts"));
+    addCommandAction(configMenu, QStringLiteral("connectionManager"), tr("Connection Manager"));
+    configMenu->addSeparator();
+    QAction *directArchives = configMenu->addAction(
+        commandText(QStringLiteral("toggleDirectArchives"), tr("Directly Open Archives")));
+    directArchives->setCheckable(true);
+    directArchives->setChecked(!m_settings.archiveAsFolder());
+    connect(directArchives, &QAction::toggled, this, [this](bool on) {
+        m_settings.setArchiveAsFolder(!on);
+        m_leftPanel->setArchiveAsFolder(!on);
+        m_rightPanel->setArchiveAsFolder(!on);
+    });
+    QAction *noConfirm = configMenu->addAction(
+        commandText(QStringLiteral("toggleDeleteConfirmation"), tr("No Delete Confirmation")));
+    noConfirm->setCheckable(true);
+    noConfirm->setChecked(!m_settings.confirmDelete());
+    connect(noConfirm, &QAction::toggled, this,
+            [this](bool on) { m_settings.setConfirmDelete(!on); });
+    QAction *autoUpdate = configMenu->addAction(
+        commandText(QStringLiteral("toggleAutoUpdate"), tr("Automatic Update Check")));
+    autoUpdate->setCheckable(true);
+    autoUpdate->setChecked(m_settings.autoUpdateCheck());
+    connect(autoUpdate, &QAction::toggled, this,
+            [this](bool on) { m_settings.setAutoUpdateCheck(on); });
 
-    auto *viewMenu = new QMenu(tr("&View"), this);
-    m_viewMenu = viewMenu;
-    viewMenu->addAction(tr("&Refresh"), this, &MainWindow::refreshActivePanel);
-    viewMenu->addSeparator();
-    QMenu *themeMenu = viewMenu->addMenu(tr("&Theme"));
+    auto *interfaceMenu = new QMenu(tr("&Interface"), this);
+    m_interfaceMenu = interfaceMenu;
+    QMenu *themeMenu = interfaceMenu->addMenu(tr("&Theme"));
     auto *themeGroup = new QActionGroup(this);
     themeGroup->setExclusive(true);
     struct ThemeEntry {
@@ -748,7 +766,7 @@ void MainWindow::buildTitleBarMenus() {
     connect(m_phosphorImagesAction, &QAction::triggered, this,
             &MainWindow::setPhosphorImages);
 
-    QMenu *languageMenu = viewMenu->addMenu(tr("&Language"));
+    QMenu *languageMenu = interfaceMenu->addMenu(tr("&Language"));
     auto *languageGroup = new QActionGroup(this);
     languageGroup->setExclusive(true);
     // Discovered from the bundled catalogs plus the user's external translations
@@ -763,12 +781,10 @@ void MainWindow::buildTitleBarMenus() {
                 [this, code = entry.first]() { setLanguage(code); });
     }
 
-    viewMenu->addSeparator();
-
     // File-list font size: caption + "[−] <number> [+]". The number field is
     // edited directly in place; the − / + buttons step it. Range 8..18.
     {
-        auto *fontWidget = new QWidget(viewMenu);
+        auto *fontWidget = new QWidget(interfaceMenu);
         auto *fontLayout = new QHBoxLayout(fontWidget);
         fontLayout->setContentsMargins(20, 2, 12, 2);
         fontLayout->setSpacing(4);
@@ -820,41 +836,49 @@ void MainWindow::buildTitleBarMenus() {
         connect(sizeEdit, &QLineEdit::textEdited, this,
                 [apply](const QString &t) { if (!t.isEmpty()) apply(t.toInt()); });
 
-        auto *fontAction = new QWidgetAction(viewMenu);
+        auto *fontAction = new QWidgetAction(interfaceMenu);
         fontAction->setDefaultWidget(fontWidget);
-        viewMenu->addAction(fontAction);
+        interfaceMenu->addAction(fontAction);
     }
 
-    viewMenu->addSeparator();
-    // Show / hide the command line and the function-key bar. Both default
-    // visible; use isHidden() (false until explicitly hidden) so the checkbox is
-    // right on first build (before show()) and preserved across a rebuild.
-    QAction *showCmdBar = viewMenu->addAction(tr("Command &Line"));
-    showCmdBar->setCheckable(true);
-    showCmdBar->setChecked(!m_commandBar->isHidden());
-    connect(showCmdBar, &QAction::toggled, this, [this](bool on) {
-        m_commandBar->setVisible(on);
-        m_settings.setShowCommandBar(on);
-    });
-    QAction *showFnBar = viewMenu->addAction(tr("Function &Key Bar"));
+    interfaceMenu->addAction(commandText(QStringLiteral("chooseFont"), tr("Choose Font")), this,
+                             &MainWindow::chooseListFont);
+    interfaceMenu->addSeparator();
+    QAction *showFnBar = interfaceMenu->addAction(
+        commandText(QStringLiteral("toggleFunctionKeyBar"), tr("Show Function Key Bar")));
     showFnBar->setCheckable(true);
     showFnBar->setChecked(!m_functionKeyBar->isHidden());
     connect(showFnBar, &QAction::toggled, this, [this](bool on) {
         m_functionKeyBar->setVisible(on);
         m_settings.setShowFunctionKeyBar(on);
     });
-
-    // (Folder tree is per-panel now, toggled by the button in each panel's
-    // address row — no global View-menu entry. Office document preview is an
-    // always-on integrated feature now, so it has no toggle here.)
-
-    viewMenu->addSeparator();
-    viewMenu->addAction(tr("Check for &Updates..."), this, &MainWindow::checkForUpdatesNow);
-    viewMenu->addAction(tr("&About this Program..."), this, &MainWindow::showAboutDialog);
+    QAction *showCmdBar = interfaceMenu->addAction(
+        commandText(QStringLiteral("toggleCommandBar"), tr("Show Command Bar")));
+    showCmdBar->setCheckable(true);
+    showCmdBar->setChecked(!m_commandBar->isHidden());
+    connect(showCmdBar, &QAction::toggled, this, [this](bool on) {
+        m_commandBar->setVisible(on);
+        m_settings.setShowCommandBar(on);
+    });
+    QAction *showTabBar = interfaceMenu->addAction(
+        commandText(QStringLiteral("toggleTabBar"), tr("Show File Tab Bar")));
+    showTabBar->setCheckable(true);
+    showTabBar->setChecked(m_settings.showTabBar());
+    connect(showTabBar, &QAction::toggled, this, [this](bool on) {
+        m_leftPanel->setTabBarVisible(on);
+        m_rightPanel->setTabBarVisible(on);
+        m_settings.setShowTabBar(on);
+    });
+    QAction *showShortcutLabels = interfaceMenu->addAction(
+        commandText(QStringLiteral("toggleShortcutLabels"), tr("Display Shortcut Labels")));
+    showShortcutLabels->setCheckable(true);
+    showShortcutLabels->setChecked(m_settings.showShortcutLabels());
+    connect(showShortcutLabels, &QAction::toggled, this,
+            [this](bool on) { m_settings.setShowShortcutLabels(on); });
 
     // Embed the menus in our self-drawn title bar (app icon + menu buttons +
     // window buttons), placed where the menu bar would normally sit.
-    m_titleBar = new TitleBar(this, {toolsMenu, configMenu, viewMenu});
+    m_titleBar = new TitleBar(this, {interfaceMenu, toolsMenu, configMenu});
     m_titleBar->setCursor(Qt::ArrowCursor); // don't inherit the window resize cursor
     setMenuWidget(m_titleBar);
     // Clicking the title-bar "New Version" badge opens the pending-update dialog.
@@ -927,7 +951,7 @@ void MainWindow::setupFeatureBatch() {
     // server quietly. A found update only lights the title-bar badge (no popup);
     // the user opens it when they choose.
     const QString today = QDate::currentDate().toString(Qt::ISODate);
-    if (m_settings.updateLastCheckDate() != today) {
+    if (m_settings.autoUpdateCheck() && m_settings.updateLastCheckDate() != today) {
         auto *checker = new UpdateChecker(this);
         auto stamp = [this, today] { m_settings.setUpdateLastCheckDate(today); };
         connect(checker, &UpdateChecker::updateAvailable, this,
@@ -1398,8 +1422,10 @@ void MainWindow::runExtraKey(const QString &slot) {
 void MainWindow::updateExtraKeyButtons() {
     m_leadingCommand = m_settings.extraKeyCommand("leading", "external-connect");
     m_trailingCommand = m_settings.extraKeyCommand("trailing", "notepad");
-    m_functionKeyBar->setLeadingIcon(QIcon(QStringLiteral(":/icons/ext-connect.svg")));
-    m_functionKeyBar->setTrailingIcon(QIcon(QStringLiteral(":/icons/notepad.svg")));
+    m_functionKeyBar->setLeadingIcon(
+        IconCache::instance().themedIcon(QIcon(QStringLiteral(":/icons/ext-connect.svg"))));
+    m_functionKeyBar->setTrailingIcon(
+        IconCache::instance().themedIcon(QIcon(QStringLiteral(":/icons/notepad.svg"))));
     m_functionKeyBar->setLeadingToolTip(m_commandLabels.value(m_leadingCommand, m_leadingCommand));
     m_functionKeyBar->setTrailingToolTip(
         m_commandLabels.value(m_trailingCommand, m_trailingCommand));
@@ -1622,80 +1648,25 @@ void MainWindow::showUpdateDialog() {
 
 void MainWindow::showShortcutMenu(FilePanel *panel, const QPoint &globalPos) {
     QMenu menu(this);
-
-    auto addEntry = [&](const QString &label, const QString &keyText, std::function<void()> act) {
-        // Description on the left, key right-aligned via the tab.
-        QAction *action = menu.addAction(label + QLatin1Char('\t') + keyText);
-        connect(action, &QAction::triggered, this, [act]() {
-            if (act)
-                act();
-        });
+    auto addCommand = [&](const QString &id, const QString &label, std::function<void()> handler = {}) {
+        addCommandAction(&menu, id, label, std::move(handler));
     };
 
-    // A curated set of useful-but-not-obvious, panel-scoped shortcuts (not the
-    // full list). Each references a registered shortcut by id for its key and
-    // action, but uses a clearer description here.
-    struct Item {
-        const char *id;
-        QString label;
-    };
-    const Item items[] = {
-        {"toggleHidden", tr("Show / hide hidden files")},
-        {"quickFilter", tr("Filter the current panel (type to narrow)")},
-        {"quickView", tr("Quick view (preview in the other panel)")},
-        {"syncOther", tr("Point the other panel at this directory")},
-        {"swapPanels", tr("Swap the two panels")},
-        {"calcSize", tr("Calculate folder size")},
-        {"undo", tr("Undo the last rename / move")},
-        {"multiRename", tr("Multi-rename tool")},
-        {"search", tr("Search files")},
-    };
-    for (const Item &item : items) {
-        const QString id = QString::fromLatin1(item.id);
-        auto handler = m_shortcutHandlers.constFind(id);
-        if (handler == m_shortcutHandlers.constEnd())
-            continue;
-        const QKeySequence seq =
-            m_shortcuts.value(id) ? m_shortcuts.value(id)->key() : m_shortcutDefaults.value(id);
-        addEntry(item.label, seq.toString(QKeySequence::NativeText), handler.value());
-    }
+    addCommand(QStringLiteral("quickView"), tr("Open Quick Preview"));
+    addCommand(QStringLiteral("calcSize"), tr("Calculate Folder Size"));
+    addCommand(QStringLiteral("toggleViewMode"),
+               panel && panel->isThumbnailMode() ? tr("Switch to List View")
+                                                 : tr("Switch to Thumbnail View"));
+    addCommand(QStringLiteral("toggleHidden"), tr("Show Hidden Files"));
+    addCommand(QStringLiteral("syncDirectories"), tr("Synchronize Directories"));
+    addCommand(QStringLiteral("compareDirectories"), tr("Compare Directories"));
+    addCommand(QStringLiteral("search"), tr("Find Files"));
+    addCommand(QStringLiteral("quickFilter"), tr("Filter Files"));
+    addCommand(QStringLiteral("selectPattern"), tr("Select by Pattern"));
+    addCommand(QStringLiteral("invertSelection"), tr("Invert Selection"));
+    addCommand(QStringLiteral("undo"), tr("Undo Previous Operation"));
+    addCommand(QStringLiteral("openTerminal"), tr("Open Terminal Here"));
 
-    // Select/unselect by wildcard mask -- these live on the panel (+/-), not in
-    // the registered shortcut table, so wire them explicitly.
-    addEntry(tr("Select files by pattern (e.g. *.zip)"), QStringLiteral("+"), [panel]() {
-        if (panel)
-            panel->selectByPattern(true);
-    });
-    addEntry(tr("Unselect files by pattern"), QStringLiteral("-"), [panel]() {
-        if (panel)
-            panel->selectByPattern(false);
-    });
-    addEntry(tr("Invert selection"), QStringLiteral("*"), [panel]() {
-        if (panel)
-            panel->invertSelection();
-    });
-    if (panel) {
-        const QString label = panel->isThumbnailMode() ? tr("Switch to list view")
-                                                        : tr("Switch to thumbnail view");
-        // Read the key back from the registered shortcut so a user rebind via
-        // Config > Keyboard Shortcuts is reflected here too.
-        const QKeySequence seq = m_shortcuts.value(QStringLiteral("toggleViewMode"))
-                                     ? m_shortcuts.value(QStringLiteral("toggleViewMode"))->key()
-                                     : m_shortcutDefaults.value(QStringLiteral("toggleViewMode"));
-        addEntry(label, seq.toString(QKeySequence::NativeText), [panel]() {
-            panel->toggleViewMode();
-        });
-    }
-
-    // Directory tools relocated here from the Config menu.
-    menu.addSeparator();
-    addEntry(tr("Synchronize directories..."), QString(), [this]() { openSyncDialog(); });
-    addEntry(tr("Compare directories (by time)"), QString(),
-             [this]() { compareDirectories(); });
-
-    // Align the menu's right edge with the active panel's right edge -- for the
-    // left panel that's the splitter between the two panels -- instead of
-    // letting it open rightward from the button and spill past the divider.
     QPoint pos = globalPos;
     if (panel) {
         const int menuWidth = menu.sizeHint().width();
@@ -1717,6 +1688,92 @@ void MainWindow::setupShortcuts() {
     registerCommand("external-connect", tr("Connect External / Devices"),
                     [this] { openExternalConnections(); });
     registerCommand("notepad", tr("Quick Notepad"), [this] { toggleNotepad(); });
+    bindShortcut("notepad", tr("Quick Notepad"),
+                 QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_N), [this] { toggleNotepad(); });
+    bindShortcut("checksums", tr("Calculate Checksums"),
+                 QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_H), [this] { calculateChecksums(); });
+    bindShortcut("secureWipe", tr("Secure Wipe"),
+                 QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_W), [this] { secureWipeSelected(); });
+    bindShortcut("compareFiles", tr("Compare Files"),
+                 QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_V), [this] { compareSelectedFiles(); });
+    bindShortcut("keyboardShortcuts", tr("Keyboard Shortcuts"),
+                 QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_K), [this] { openShortcutsDialog(); });
+    bindShortcut("connectionManager", tr("Connection Manager"),
+                 QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_O), [this] { openExternalConnections(); });
+    bindShortcut("chooseFont", tr("Choose Font"), QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_F),
+                 [this] { chooseListFont(); });
+    bindShortcut("increaseFontSize", tr("Increase Font Size"),
+                 QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_Equal), [this] {
+                     const int size = qMin(18, m_settings.listFontSize() + 1);
+                     m_settings.setListFontSize(size);
+                     m_leftPanel->setListFontSize(size);
+                     m_rightPanel->setListFontSize(size);
+                     if (m_quickView)
+                         m_quickView->setContentFontSize(size);
+                 });
+    bindShortcut("decreaseFontSize", tr("Decrease Font Size"),
+                 QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_Minus), [this] {
+                     const int size = qMax(8, m_settings.listFontSize() - 1);
+                     m_settings.setListFontSize(size);
+                     m_leftPanel->setListFontSize(size);
+                     m_rightPanel->setListFontSize(size);
+                     if (m_quickView)
+                         m_quickView->setContentFontSize(size);
+                 });
+    bindShortcut("cycleTheme", tr("Cycle Theme"), QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_T),
+                 [this] {
+                     const int next = (static_cast<int>(m_settings.theme()) + 1) % 4;
+                     setTheme(static_cast<Settings::Theme>(next));
+                 });
+    bindShortcut("toggleFunctionKeyBar", tr("Show Function Key Bar"),
+                 QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_J), [this] {
+                     const bool visible = m_functionKeyBar->isHidden();
+                     m_functionKeyBar->setVisible(visible);
+                     m_settings.setShowFunctionKeyBar(visible);
+                 });
+    bindShortcut("toggleCommandBar", tr("Show Command Bar"),
+                 QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_C), [this] {
+                     const bool visible = m_commandBar->isHidden();
+                     m_commandBar->setVisible(visible);
+                     m_settings.setShowCommandBar(visible);
+                 });
+    bindShortcut("toggleTabBar", tr("Show File Tab Bar"),
+                 QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_B), [this] {
+                     const bool visible = !m_settings.showTabBar();
+                     m_leftPanel->setTabBarVisible(visible);
+                     m_rightPanel->setTabBarVisible(visible);
+                     m_settings.setShowTabBar(visible);
+                 });
+    bindShortcut("toggleShortcutLabels", tr("Display Shortcut Labels"),
+                 QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_S), [this] {
+                     m_settings.setShowShortcutLabels(!m_settings.showShortcutLabels());
+                 });
+    bindShortcut("toggleDirectArchives", tr("Directly Open Archives"),
+                 QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_A), [this] {
+                     const bool direct = m_settings.archiveAsFolder();
+                     m_settings.setArchiveAsFolder(!direct);
+                     m_leftPanel->setArchiveAsFolder(!direct);
+                     m_rightPanel->setArchiveAsFolder(!direct);
+                 });
+    bindShortcut("toggleDeleteConfirmation", tr("No Delete Confirmation"),
+                 QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_D), [this] {
+                     m_settings.setConfirmDelete(!m_settings.confirmDelete());
+                 });
+    bindShortcut("toggleAutoUpdate", tr("Automatic Update Check"),
+                 QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_U), [this] {
+                     m_settings.setAutoUpdateCheck(!m_settings.autoUpdateCheck());
+                 });
+    bindShortcut("openTerminal", tr("Open Terminal Here"),
+                 QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_Return), [this] { openTerminalHere(); });
+    bindShortcut("syncDirectories", tr("Synchronize Directories"),
+                 QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_Y), [this] { openSyncDialog(); });
+    bindShortcut("compareDirectories", tr("Compare Directories"),
+                 QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_I), [this] { compareDirectories(); });
+    bindShortcut("selectPattern", tr("Select by Pattern"), QKeySequence(Qt::CTRL | Qt::Key_Plus),
+                 [this] { if (m_activePanel) m_activePanel->selectByPattern(true); });
+    bindShortcut("invertSelection", tr("Invert Selection"),
+                 QKeySequence(Qt::CTRL | Qt::Key_Asterisk),
+                 [this] { if (m_activePanel) m_activePanel->invertSelection(); });
     bindShortcut("deletePermanent", tr("Delete Permanently"),
                  QKeySequence(Qt::SHIFT | Qt::Key_Delete), [this] { deleteSelected(true); });
     bindShortcut("deleteAlt", tr("Delete (Del key)"), QKeySequence(Qt::Key_Delete),
@@ -1875,6 +1932,19 @@ void MainWindow::calculateSizes() {
         m_activePanel->calculateDirSizes();
 }
 
+void MainWindow::chooseListFont() {
+    QFont initial = m_leftPanel ? m_leftPanel->view()->font() : font();
+    bool accepted = false;
+    const QFont selected = QFontDialog::getFont(&accepted, initial, this, tr("Choose Font"));
+    if (!accepted)
+        return;
+    m_settings.setListFontFamily(selected.family());
+    for (FilePanel *panel : {m_leftPanel, m_rightPanel})
+        panel->setListFontFamily(selected.family());
+    if (m_quickView)
+        m_quickView->setContentFontFamily(selected.family());
+}
+
 void MainWindow::calculateChecksums() {
     if (!m_activePanel)
         return;
@@ -2017,20 +2087,14 @@ void MainWindow::syncOtherPanelToActive() {
 }
 
 void MainWindow::swapPanels() {
-    // While the preview is up it occupies one splitter slot and the panel it
-    // displaced is parked off-screen, so exchanging the two panels' paths would
-    // shuffle a pane the user cannot see -- from the user's side nothing moves
-    // except the file list under the preview. What "swap sides" means here is
-    // to move the preview to the other side: the visible panel and the preview
-    // trade places.
     if (m_quickViewActive) {
         const QList<int> sizes = m_panelSplitter->sizes();
         FilePanel *visible = otherPanel(m_quickViewPanel);
         const int visibleIndex = m_panelSplitter->indexOf(visible);
 
-        // Park the visible panel where the preview sat, then put the preview in
-        // the slot just vacated. Taking the preview out first would leave the
-        // splitter momentarily holding `visible` twice.
+        // The preview occupies one splitter slot while its FilePanel is parked
+        // off-screen. Swap that preview with the visible FilePanel, leaving the
+        // two folder panels' locations and backends untouched.
         m_panelSplitter->replaceWidget(m_quickViewIndex, m_quickViewPanel);
         m_quickViewPanel->show();
         m_panelSplitter->replaceWidget(visibleIndex, m_quickView);
@@ -2039,16 +2103,12 @@ void MainWindow::swapPanels() {
         m_quickViewPanel = visible;
         m_quickViewIndex = visibleIndex;
 
-        // The panel that just came back is now the only one on screen, so it
-        // takes focus -- the preview follows the active panel's selection, and
-        // leaving focus on the hidden panel would make the preview track a
-        // cursor nobody can see.
+        // The FilePanel revealed from behind the preview becomes active so the
+        // preview follows the visible panel's selection.
         FilePanel *revealed = otherPanel(visible);
         setActivePanel(revealed);
         revealed->view()->setFocus();
 
-        // Sides swapped, so the ratio has to swap with them or a narrow preview
-        // would stay narrow while changing sides.
         QList<int> swapped = sizes;
         std::reverse(swapped.begin(), swapped.end());
         m_panelSplitter->setSizes(swapped);
@@ -2059,8 +2119,6 @@ void MainWindow::swapPanels() {
     // Exchange the backends, not the path strings: a remote path resolved by the
     // other panel's backend would land it somewhere else (every backend here is
     // POSIX-rooted, so "/home" resolves on a share and on this machine alike).
-    // Moving the connections themselves makes the swap mean what it says, and
-    // costs nothing extra when both sides are local.
     m_leftPanel->exchangeLocationWith(m_rightPanel);
 }
 
@@ -2721,70 +2779,6 @@ void MainWindow::cancelRemoteFetch(quint64 reqId) {
     // onReady callback from running for a cancelled fetch.
 }
 
-void MainWindow::splitFile() {
-    if (!m_activePanel)
-        return;
-    const QString source = m_activePanel->currentEntryPath();
-    if (source.isEmpty() || QFileInfo(source).isDir()) {
-        ttc::information(this, tr("Split File"), tr("Select a file to split."));
-        return;
-    }
-    bool ok = false;
-    const int mb = ttc::getInt(this, tr("Split File"), tr("Part size (MB):"), 100, 1,
-                                         1000000, 1, &ok);
-    if (!ok)
-        return;
-    const QString destDir = otherPanel(m_activePanel)->currentPath();
-    const qint64 partSize = static_cast<qint64>(mb) * 1024 * 1024;
-
-    QApplication::setOverrideCursor(Qt::WaitCursor);
-    auto *watcher = new QFutureWatcher<QStringList>(this);
-    connect(watcher, &QFutureWatcher<QStringList>::finished, this, [this, watcher]() {
-        QApplication::restoreOverrideCursor();
-        const QStringList parts = watcher->result();
-        m_leftPanel->refresh();
-        m_rightPanel->refresh();
-        if (parts.isEmpty())
-            ttc::warning(this, tr("Split File"), tr("Failed to split the file."));
-        else
-            ttc::information(this, tr("Split File"),
-                                     tr("Created %1 part(s).").arg(parts.size()));
-        watcher->deleteLater();
-    });
-    watcher->setFuture(QtConcurrent::run(&FileSplitter::split, source, partSize, destDir,
-                                          static_cast<QString *>(nullptr)));
-}
-
-void MainWindow::combineFiles() {
-    if (!m_activePanel)
-        return;
-    const QString first = m_activePanel->currentEntryPath();
-    if (first.isEmpty())
-        return;
-    const QString base = FileSplitter::baseNameForPart(first);
-    if (base.isEmpty()) {
-        ttc::information(this, tr("Combine Files"),
-                                 tr("Select the first part (e.g. name.001) of a split file."));
-        return;
-    }
-    const QString destPath = QDir(otherPanel(m_activePanel)->currentPath()).filePath(base);
-
-    QApplication::setOverrideCursor(Qt::WaitCursor);
-    auto *watcher = new QFutureWatcher<bool>(this);
-    connect(watcher, &QFutureWatcher<bool>::finished, this, [this, watcher]() {
-        QApplication::restoreOverrideCursor();
-        m_leftPanel->refresh();
-        m_rightPanel->refresh();
-        if (!watcher->result())
-            ttc::warning(this, tr("Combine Files"), tr("Failed to merge the parts."));
-        else
-            ttc::information(this, tr("Combine Files"), tr("Parts merged."));
-        watcher->deleteLater();
-    });
-    watcher->setFuture(QtConcurrent::run(&FileSplitter::merge, first, destPath,
-                                          static_cast<QString *>(nullptr)));
-}
-
 void MainWindow::runCommand(const QString &command, const QString &directory) {
     // Run through a shell so pipes, globbing, and redirection work as typed.
     const QString cwd = directory.isEmpty() && m_activePanel ? m_activePanel->currentPath()
@@ -3032,9 +3026,13 @@ void MainWindow::applyTheme() {
     // re-decoded. Repaint so the panels ask for the new copies right away.
     ThumbnailCache::instance().invalidateMemoryCache();
     if (m_leftPanel)
-        m_leftPanel->update();
+        m_leftPanel->refreshThemeIcons();
     if (m_rightPanel)
-        m_rightPanel->update();
+        m_rightPanel->refreshThemeIcons();
+    if (m_functionKeyBar)
+        updateExtraKeyButtons();
+    for (ExternalConnectDialog *popup : findChildren<ExternalConnectDialog *>())
+        popup->refreshThemeIcons();
     // The preview pane holds bitmaps recoloured when the file was opened, so it
     // would otherwise keep the previous treatment until the next file. Both the
     // embedded pane and any open F3 viewer window.
@@ -3405,46 +3403,44 @@ void MainWindow::pasteFromClipboard() {
 }
 
 void MainWindow::showFileContextMenu(FilePanel *panel, const QPoint &viewPos) {
-    // Operate on whichever view (list or thumbnail) is actually showing --
-    // the caller resolved `viewPos` against that same view's coordinates.
     QAbstractItemView *view = panel->activeView();
-    // Right-clicking a row that isn't already selected replaces the
-    // selection with just that row, matching Explorer/Nautilus/TC.
     const QModelIndex idx = view->indexAt(viewPos);
     if (idx.isValid() && !view->selectionModel()->isSelected(idx))
         view->setCurrentIndex(idx);
+    setActivePanel(panel);
 
+    const FileInfo info = panel->currentEntryInfo();
+    const bool isDirectory = info.isValid() && info.isDir();
+    const bool isText = !isDirectory && info.mimeType().startsWith(QStringLiteral("text/"));
     QMenu menu(this);
-    menu.addAction(tr("Open"), this, &MainWindow::openWithDefault);
-    menu.addAction(tr("Open With..."), this, &MainWindow::openWith);
-    menu.addSeparator();
-    menu.addAction(tr("View"), this, &MainWindow::viewCurrent);
-    menu.addAction(tr("Edit"), this, &MainWindow::editCurrent);
-    menu.addSeparator();
-    menu.addAction(tr("Copy"), this, &MainWindow::copySelected);
-    menu.addAction(tr("Move"), this, &MainWindow::moveSelected);
-    menu.addAction(tr("Rename"), this, &MainWindow::renameCurrent);
-    menu.addAction(tr("Delete"), this, [this]() { deleteSelected(false); });
-    menu.addSeparator();
-    menu.addAction(tr("Cut"), this, &MainWindow::cutSelectionToClipboard);
-    menu.addAction(tr("Copy"), this, &MainWindow::copySelectionToClipboard);
-    menu.addSeparator();
-    menu.addAction(tr("Compress Selected..."), this, &MainWindow::compressSelected);
-    // Smart (Bandizip-style) extraction, offered only for a single archive row.
-    const QString cursorPath = panel->currentEntryPath();
-    if (!cursorPath.isEmpty() && ArchiveHandler::isSupportedArchive(cursorPath)) {
-        menu.addAction(tr("Extract Here"), this, &MainWindow::extractArchiveHere);
-        menu.addAction(tr("Extract To..."), this, &MainWindow::extractArchiveToDir);
+    auto add = [&](const QString &id, const QString &label, std::function<void()> handler = {}) {
+        addCommandAction(&menu, id, label, std::move(handler));
+    };
+
+    add(QStringLiteral("open"), tr("Open"), [this] { openWithDefault(); });
+    add(QStringLiteral("openWith"), tr("Open With"), [this] { openWith(); });
+    if (!isDirectory) {
+        if (isText)
+            add(QStringLiteral("view"), tr("View"), [this] { viewCurrent(); });
+        if (isText)
+            add(QStringLiteral("edit"), tr("Edit"), [this] { editCurrent(); });
     }
     menu.addSeparator();
-    menu.addAction(tr("Copy Path"), this, [panel]() {
+    add(QStringLiteral("copy"), tr("Copy"), [this] { copySelected(); });
+    add(QStringLiteral("cutClipboard"), tr("Cut"), [this] { cutSelectionToClipboard(); });
+    add(QStringLiteral("move"), tr("Move"), [this] { moveSelected(); });
+    add(QStringLiteral("rename"), tr("Rename"), [this] { renameCurrent(); });
+    add(QStringLiteral("delete"), tr("Delete"), [this] { deleteSelected(false); });
+    add(QStringLiteral("compress"), tr("Compress"), [this] { compressSelected(); });
+    menu.addSeparator();
+    if (isDirectory)
+        add(QStringLiteral("calcSize"), tr("Calculate Folder Size"));
+    add(QStringLiteral("copyPath"), tr("Copy Path"), [panel]() {
         const QStringList paths = panel->selectedPaths();
         if (!paths.isEmpty())
             QGuiApplication::clipboard()->setText(paths.join('\n'));
     });
-    menu.addSeparator();
-    menu.addAction(tr("Calculate Folder Size"), this, &MainWindow::calculateSizes);
-    menu.addAction(tr("Properties..."), this, &MainWindow::showProperties);
+    add(QStringLiteral("properties"), tr("Properties"));
     menu.exec(view->viewport()->mapToGlobal(viewPos));
 }
 

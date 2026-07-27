@@ -89,6 +89,23 @@ TEST(FileInfoTest, FromFieldsSplitsFileNameAndKeepsMetadata) {
     EXPECT_FALSE(info.created().isValid()); // SFTP has no creation time
 }
 
+TEST(FileInfoTest, HiddenNamesOnlyUseADotAfterTheLeadingDotAsExtension) {
+    const FileInfo hidden = FileInfo::fromFields(
+        "/remote/.bashrc", ".bashrc", 0, QDateTime(), /*isDir=*/false, QFile::ReadOwner);
+    EXPECT_EQ(hidden.baseName(), QStringLiteral(".bashrc"));
+    EXPECT_TRUE(hidden.suffix().isEmpty());
+
+    const FileInfo dottedHidden = FileInfo::fromFields(
+        "/remote/.config.json", ".config.json", 0, QDateTime(), /*isDir=*/false,
+        QFile::ReadOwner);
+    EXPECT_EQ(dottedHidden.baseName(), QStringLiteral(".config"));
+    EXPECT_EQ(dottedHidden.suffix(), QStringLiteral("json"));
+
+    const FileInfo localHidden("/tmp/.bashrc");
+    EXPECT_EQ(localHidden.baseName(), QStringLiteral(".bashrc"));
+    EXPECT_TRUE(localHidden.suffix().isEmpty());
+}
+
 TEST(FileInfoTest, FromFieldsTreatsDirectoryNameAsWholeBase) {
     const FileInfo info = FileInfo::fromFields(
         "/remote/my.data", "my.data", 0, QDateTime(), /*isDir=*/true, QFile::ReadOwner);

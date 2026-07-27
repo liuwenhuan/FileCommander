@@ -21,7 +21,10 @@ bool isImageFile(const QString &path) {
 bool ImageViewer::isImage(const QString &path) {
     static const QSet<QString> kImageSuffixes = {"png",  "jpg", "jpeg", "gif",
                                                    "bmp",  "svg", "webp", "ico"};
-    return kImageSuffixes.contains(QFileInfo(path).suffix().toLower());
+    const QString name = QFileInfo(path).fileName();
+    const int dot = name.lastIndexOf(QLatin1Char('.'));
+    const QString suffix = dot > 0 ? name.mid(dot + 1).toLower() : QString();
+    return kImageSuffixes.contains(suffix);
 }
 
 ImageViewer::ImageViewer(QWidget *parent) : QWidget(parent) {

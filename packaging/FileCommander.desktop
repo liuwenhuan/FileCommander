@@ -7,9 +7,9 @@ Name[zh_TW]=檔案指揮官
 GenericName=File Manager
 GenericName[zh_CN]=文件管理器
 GenericName[zh_TW]=檔案管理員
-Comment=Dual-pane file manager
-Comment[zh_CN]=双栏文件管理器
-Comment[zh_TW]=雙欄檔案管理員
+Comment=Powerful dual-pane file manager for local and network files
+Comment[zh_CN]=受 Total Commander 启发、面向高级用户的双栏文件管理器
+Comment[zh_TW]=受 Total Commander 啟發、面向進階使用者的雙欄檔案管理員
 # The basename here must stay "FileCommander": src/main.cpp calls
 # setDesktopFileName("FileCommander") so the window manager can match running
 # windows to this entry.

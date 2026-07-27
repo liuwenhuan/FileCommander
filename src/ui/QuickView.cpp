@@ -65,6 +65,8 @@
 #include "PackageInfo.h"
 #include "AudioPlayer.h"
 #include "ImageViewer.h"
+#include "IconCache.h"
+#include "FileInfo.h"
 #include "MpvStreamSource.h"
 #include "MpvWidget.h"
 #include "theme/Phosphor.h"
@@ -195,6 +197,21 @@ void QuickView::setContentFontSize(int pt) {
     }
 }
 
+void QuickView::setContentFontFamily(const QString &family) {
+    const QString effectiveFamily = family.isEmpty() ? QApplication::font().family() : family;
+    auto applyFamily = [&effectiveFamily](QWidget *widget) {
+        if (!widget)
+            return;
+        QFont font = widget->font();
+        font.setFamily(effectiveFamily);
+        widget->setFont(font);
+    };
+    applyFamily(m_markdown);
+    applyFamily(m_officeTabs);
+    for (int i = 0; m_officeTabs && i < m_officeTabs->count(); ++i)
+        applyFamily(m_officeTabs->widget(i));
+}
+
 void QuickView::focusPreview() {
     QWidget *page = m_stack->currentWidget();
     if (!page)
@@ -312,12 +329,9 @@ void QuickView::applyImageScale() {
     if (m_originalPixmap.isNull())
         return;
     const QSize target = m_originalPixmap.size() * m_imageScale;
-    // Recoloured HERE, after the fit-to-pane scale, not when the file was
-    // loaded. The quantisation grid is defined in screen pixels: applying it to
-    // the full-resolution source and then scaling down averages the cells away
-    // again, which is exactly what a 4000-pixel photo shown in a 600-pixel pane
-    // did -- correctly tinted and perfectly smooth.
-    m_imageLabel->setPixmap(fc::tintedPixmap(
+    // Recolour HERE, after fitting to the pane, so the scanlines remain visible
+    // at the dimensions actually shown without discarding source detail.
+    m_imageLabel->setPixmap(fc::scanlinedPhosphorPixmap(
         m_originalPixmap.scaled(target, Qt::KeepAspectRatio, Qt::SmoothTransformation),
         fc::contentTint()));
     m_imageLabel->resize(target);
@@ -356,7 +370,7 @@ void QuickView::rotateCurrentImage(int degrees) {
 
     // Persist losslessly back to disk, preserving format and precision.
     const QFileInfo fi(m_imagePath);
-    const QString suffix = fi.suffix().toLower();
+    const QString suffix = FileInfo::suffixForName(fi.fileName()).toLower();
     const int rot = ((degrees % 360) + 360) % 360; // +90 -> 90, -90 -> 270
     bool saved = false;
 
@@ -567,22 +581,23 @@ bool QuickView::isVideo(const QString &path) {
     static const QSet<QString> kVideoSuffixes = {
         "mp4", "mkv", "avi",  "mov", "webm", "flv", "wmv",
         "m4v", "mpg", "mpeg", "ts",  "m2ts", "3gp", "ogv"};
-    return kVideoSuffixes.contains(QFileInfo(path).suffix().toLower());
+    return kVideoSuffixes.contains(FileInfo::suffixForName(QFileInfo(path).fileName()).toLower());
 }
 
 bool QuickView::isMarkdown(const QString &path) {
     static const QSet<QString> kMarkdownSuffixes = {"md", "markdown", "mkd", "mdown"};
-    return kMarkdownSuffixes.contains(QFileInfo(path).suffix().toLower());
+    return kMarkdownSuffixes.contains(FileInfo::suffixForName(QFileInfo(path).fileName()).toLower());
 }
 
 bool QuickView::isPdf(const QString &path) {
-    return QFileInfo(path).suffix().toLower() == QLatin1String("pdf");
+    return FileInfo::suffixForName(QFileInfo(path).fileName()).compare(
+               QLatin1String("pdf"), Qt::CaseInsensitive) == 0;
 }
 
 bool QuickView::isAudio(const QString &path) {
     static const QSet<QString> kAudioSuffixes = {"mp3", "wav",  "flac", "ogg",
                                                  "aac", "m4a", "wma",  "opus"};
-    return kAudioSuffixes.contains(QFileInfo(path).suffix().toLower());
+    return kAudioSuffixes.contains(FileInfo::suffixForName(QFileInfo(path).fileName()).toLower());
 }
 
 QWidget *QuickView::buildVideoPage() {
@@ -672,10 +687,7 @@ QWidget *QuickView::buildVideoPage() {
     // instead of a tiny centred dot. This applies to every icon set on the
     // button (initial, toggle, and showFile), so it only needs setting once.
     m_muteButton->setIconSize(QSize(18, 18));
-    auto syncMuteIcon = [this]() {
-        m_muteButton->setIcon(style()->standardIcon(
-            m_muteButton->isChecked() ? QStyle::SP_MediaVolumeMuted : QStyle::SP_MediaVolume));
-    };
+    auto syncMuteIcon = [this]() { refreshMediaControlIcons(); };
     syncMuteIcon();
     connect(m_muteButton, &QPushButton::toggled, this, [this, syncMuteIcon](bool muted) {
         m_mpv->setMute(muted);
@@ -787,16 +799,34 @@ void QuickView::refreshPhosphor() {
     }
 
     applyVideoPhosphor();
+    refreshMediaControlIcons();
 }
 
 void QuickView::applyVideoPhosphor() {
     if (!m_mpv)
         return;
-    // Width in the same pixels the block is measured in: the widget's logical
-    // width times its device pixel ratio.
-    const int displayWidth = qRound(m_mpv->width() * m_mpv->devicePixelRatioF());
-    m_mpv->applyVideoFilter(
-        fc::mpvFilterFor(fc::contentTint(), fc::contentPixelBlock(), displayWidth));
+    m_mpv->applyVideoFilter(fc::mpvScanlinedPhosphorFilter(fc::contentTint()));
+}
+
+QIcon QuickView::mediaIcon(QStyle::StandardPixmap standardPixmap) const {
+    return IconCache::instance().themedIcon(style()->standardIcon(standardPixmap));
+}
+
+void QuickView::refreshMediaControlIcons() {
+    if (m_muteButton) {
+        m_muteButton->setIcon(mediaIcon(
+            m_muteButton->isChecked() ? QStyle::SP_MediaVolumeMuted : QStyle::SP_MediaVolume));
+    }
+    if (!m_audioPrevButton)
+        return;
+
+    m_audioPrevButton->setIcon(mediaIcon(QStyle::SP_MediaSkipBackward));
+    m_audioNextButton->setIcon(mediaIcon(QStyle::SP_MediaSkipForward));
+    m_audioMuteButton->setIcon(mediaIcon(
+        m_audioMuteButton->isChecked() ? QStyle::SP_MediaVolumeMuted : QStyle::SP_MediaVolume));
+    const bool playing = m_audio && !(m_audio->paused() || m_audio->ended());
+    m_audioPlayButton->setIcon(
+        mediaIcon(playing ? QStyle::SP_MediaPause : QStyle::SP_MediaPlay));
 }
 
 void QuickView::positionVideoInfoOverlay() {
@@ -904,13 +934,11 @@ QWidget *QuickView::buildAudioPage() {
 
     // Transport row: prev, play/pause, next, elapsed, seek, total.
     m_audioPrevButton = new QPushButton(m_audioPage);
-    m_audioPrevButton->setIcon(style()->standardIcon(QStyle::SP_MediaSkipBackward));
     m_audioPrevButton->setToolTip(tr("Previous track"));
     connect(m_audioPrevButton, &QPushButton::clicked, this,
             [this]() { showPrevSibling(); });
 
     m_audioPlayButton = new QPushButton(m_audioPage);
-    m_audioPlayButton->setIcon(style()->standardIcon(QStyle::SP_MediaPause));
     m_audioPlayButton->setToolTip(tr("Play / pause"));
     connect(m_audioPlayButton, &QPushButton::clicked, this, [this]() {
         m_audio->playPause();
@@ -918,7 +946,6 @@ QWidget *QuickView::buildAudioPage() {
     });
 
     m_audioNextButton = new QPushButton(m_audioPage);
-    m_audioNextButton->setIcon(style()->standardIcon(QStyle::SP_MediaSkipForward));
     m_audioNextButton->setToolTip(tr("Next track"));
     connect(m_audioNextButton, &QPushButton::clicked, this,
             [this]() { showNextSibling(); });
@@ -942,11 +969,7 @@ QWidget *QuickView::buildAudioPage() {
     m_audioMuteButton->setCheckable(true);
     m_audioMuteButton->setToolTip(tr("Mute / unmute"));
     m_audioMuteButton->setIconSize(QSize(18, 18));
-    auto syncAudioMuteIcon = [this]() {
-        m_audioMuteButton->setIcon(style()->standardIcon(
-            m_audioMuteButton->isChecked() ? QStyle::SP_MediaVolumeMuted
-                                           : QStyle::SP_MediaVolume));
-    };
+    auto syncAudioMuteIcon = [this]() { refreshMediaControlIcons(); };
     syncAudioMuteIcon();
     connect(m_audioMuteButton, &QPushButton::toggled, this,
             [this, syncAudioMuteIcon](bool muted) {
@@ -992,15 +1015,14 @@ QWidget *QuickView::buildAudioPage() {
     m_audioTimer->setInterval(250);
     connect(m_audioTimer, &QTimer::timeout, this, [this]() { updateAudioTransport(); });
 
+    refreshMediaControlIcons();
     return m_audioPage;
 }
 
 void QuickView::updateAudioTransport() {
     if (!m_audio)
         return;
-    const bool playing = !(m_audio->paused() || m_audio->ended());
-    m_audioPlayButton->setIcon(style()->standardIcon(
-        playing ? QStyle::SP_MediaPause : QStyle::SP_MediaPlay));
+    refreshMediaControlIcons();
     if (m_audioSeeking)
         return;
     const double dur = m_audio->durationSeconds();
@@ -1099,8 +1121,7 @@ void QuickView::showAudio(const QString &path) {
     m_audioVolumeSlider->blockSignals(false);
     m_audioMuteButton->blockSignals(true);
     m_audioMuteButton->setChecked(audioMute);
-    m_audioMuteButton->setIcon(style()->standardIcon(
-        audioMute ? QStyle::SP_MediaVolumeMuted : QStyle::SP_MediaVolume));
+    refreshMediaControlIcons();
     m_audioMuteButton->blockSignals(false);
     m_audio->setVolume(audioVol);
     m_audio->setMute(audioMute);
@@ -2085,8 +2106,8 @@ void QuickView::renderVisiblePdfPages() {
                 std::unique_ptr<Poppler::Page> page(m_pdfDoc->page(i));
                 const QImage image = page ? page->renderToImage(dpi, dpi) : QImage();
                 if (!image.isNull()) {
-                    bg->setPixmap(
-                        fc::tintedPixmap(QPixmap::fromImage(image), fc::contentTint()));
+                    bg->setPixmap(fc::scanlinedPhosphorPixmap(
+                        QPixmap::fromImage(image), fc::contentTint()));
                     m_pdfRenderedWidth[i] = targetW;
                 }
             }
@@ -2542,10 +2563,8 @@ bool QuickView::eventFilter(QObject *watched, QEvent *event) {
     }
     if (watched == m_mpv && event->type() == QEvent::Resize) {
         positionVideoInfoOverlay(); // keep the panel pinned to the top-right corner
-        // The phosphor quantisation is sized from how wide the video is drawn,
-        // so a resized pane needs a rebuilt chain or the cells stop matching
-        // the thumbnails'. Cheap and idempotent: applyVideoFilter compares the
-        // string and does nothing when the cell count has not actually moved.
+        // Reapply the preview filter after the output surface changes. This is
+        // idempotent: applyVideoFilter skips an unchanged filter string.
         applyVideoPhosphor();
         // fall through to default handling
     }
@@ -2683,8 +2702,7 @@ void QuickView::showFile(const QString &path) {
 
         m_muteButton->blockSignals(true);
         m_muteButton->setChecked(savedMuted);
-        m_muteButton->setIcon(style()->standardIcon(
-            savedMuted ? QStyle::SP_MediaVolumeMuted : QStyle::SP_MediaVolume));
+        refreshMediaControlIcons();
         m_muteButton->blockSignals(false);
         m_mpv->setMute(savedMuted);
 

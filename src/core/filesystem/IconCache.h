@@ -18,6 +18,10 @@ public:
 
     QIcon iconFor(const FileInfo &info);
 
+    // Applies the theme-owned tint and pixel grid to an arbitrary chrome icon.
+    // With no active tint, returns the icon unchanged.
+    QIcon themedIcon(const QIcon &icon) const;
+
     // Collapses every icon to one hue, scaled by the source pixel's brightness,
     // so the system icon theme's own colours (blue folders, red PDFs) do not
     // survive. Set by whoever owns theming; an invalid colour is the default and

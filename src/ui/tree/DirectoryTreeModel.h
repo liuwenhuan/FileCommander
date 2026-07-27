@@ -46,6 +46,10 @@ public:
     // Whether hidden directories are listed. Applies to subsequent fetches.
     void setShowHidden(bool show);
 
+    // Re-emits existing decorations after an icon-theme treatment changes without
+    // resetting nodes, so expanded branches remain expanded.
+    void refreshIcons();
+
     // The path behind an index, or an empty string for an invalid one.
     QString pathAt(const QModelIndex &index) const;
     // The connection an index belongs to ("" for local nodes).
@@ -108,6 +112,7 @@ private:
     // is no longer attached to the tree.
     QModelIndex indexOfNode(Node *node) const;
     void deleteNodeTree(Node *node);
+    void refreshIconsBelow(const QModelIndex &parent);
     QIcon iconForNode(const Node *node) const;
     Node *nodeFor(const QModelIndex &index) const;
 

@@ -6,6 +6,7 @@
 #include <QFileInfo>
 #include <QProcess>
 
+#include "FileInfo.h"
 #include "FileProvider.h"
 #include "LocalFileProvider.h"
 
@@ -89,9 +90,8 @@ ErrorAction FileOperations::resolveError(const QString &path, const QString &err
 }
 
 QString FileOperations::uniqueDestination(const QString &destDir, const QString &name) {
-    QFileInfo fi(name);
-    const QString base = fi.completeBaseName();
-    const QString suffix = fi.suffix();
+    const QString base = FileInfo::baseNameForName(name);
+    const QString suffix = FileInfo::suffixForName(name);
     int n = 1;
     QString candidate = name;
     while (QFileInfo::exists(QDir(destDir).filePath(candidate))) {
@@ -609,9 +609,8 @@ QString FileOperations::uniqueProviderDestination(FileProvider *dst, const QStri
     const QString parent = dst->parentPath(destPath);
     const QString dir = parent.isEmpty() ? QStringLiteral("/") : parent;
     const QString name = lastComponent(destPath);
-    const int dot = name.lastIndexOf(QLatin1Char('.'));
-    const QString base = dot > 0 ? name.left(dot) : name;
-    const QString suffix = dot > 0 ? name.mid(dot + 1) : QString();
+    const QString base = FileInfo::baseNameForName(name);
+    const QString suffix = FileInfo::suffixForName(name);
 
     int n = 1;
     QString candidate;

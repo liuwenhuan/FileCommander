@@ -28,7 +28,11 @@ AboutDialog::AboutDialog(const QIcon &icon, QWidget *parent) : FramelessDialog(p
     versionLabel->setAlignment(Qt::AlignCenter);
 
     auto *descLabel = new QLabel(
-        tr("A fast dual-pane file manager for Linux, in the spirit of Total Commander."), this);
+        tr("FileCommander is a powerful dual-pane file manager inspired by Total Commander and "
+           "developed from scratch. It manages local files efficiently, makes network file "
+           "services convenient to use, previews many file types, and is an efficiency tool "
+           "built for advanced users."),
+        this);
     descLabel->setAlignment(Qt::AlignCenter);
     descLabel->setWordWrap(true);
 

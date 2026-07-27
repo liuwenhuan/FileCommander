@@ -4,6 +4,7 @@
 #include "SmbHostBrowser.h"
 
 #include "ThemedDialogs.h"
+#include "filesystem/IconCache.h"
 
 #include <QApplication>
 #include <QFont>
@@ -22,6 +23,10 @@ namespace {
 // Maps a saved bookmark's protocol (SavedConnection::protocol, an int mirroring
 // GvfsMounter::Protocol) to a device icon. Enum order in GvfsMounter.h is:
 //   0 Sftp, 1 Smb, 2 WebDav, 3 WebDavs, 4 Ftp.
+QIcon themedResourceIcon(const QString &path) {
+    return IconCache::instance().themedIcon(QIcon(path));
+}
+
 QString iconForProtocol(int protocol) {
     switch (protocol) {
     case 0: // Sftp
@@ -128,6 +133,34 @@ void ExternalConnectDialog::popUpAbove(const QRect &anchorGlobalRect) {
     m_list->setFocus();
 }
 
+void ExternalConnectDialog::refreshThemeIcons() {
+    for (int i = 0; i < m_list->count(); ++i) {
+        QListWidgetItem *item = m_list->item(i);
+        const int kind = item->data(Qt::UserRole).toInt();
+        if (kind == KindSaved) {
+            const int savedIndex = item->data(Qt::UserRole + 1).toInt();
+            if (savedIndex >= 0 && savedIndex < m_saved.size())
+                item->setIcon(themedResourceIcon(iconForProtocol(m_saved.at(savedIndex).protocol)));
+        } else if (kind == KindHost) {
+            item->setIcon(themedResourceIcon(QStringLiteral(":/icons/dev-smb.svg")));
+        } else if (kind == KindDevice) {
+            if (QWidget *row = m_list->itemWidget(item)) {
+                if (auto *iconLabel = row->findChild<QLabel *>(QStringLiteral("DeviceIcon"))) {
+                    const QString path = iconLabel->property("iconPath").toString();
+                    iconLabel->setPixmap(themedResourceIcon(path).pixmap(m_list->iconSize()));
+                }
+            }
+        }
+    }
+
+    for (QToolButton *button : m_list->findChildren<QToolButton *>()) {
+        const QString path = button->property("iconPath").toString();
+        if (!path.isEmpty())
+            button->setIcon(themedResourceIcon(path));
+    }
+    m_list->viewport()->update();
+}
+
 void ExternalConnectDialog::addHeader(const QString &text, const QList<HeaderAction> &actions) {
     // A plain label header when there are no actions (cheapest, no item widget).
     if (actions.isEmpty()) {
@@ -159,8 +192,10 @@ void ExternalConnectDialog::addHeader(const QString &text, const QList<HeaderAct
     lay->addStretch(1);
     for (const HeaderAction &a : actions) {
         auto *btn = new QToolButton(row);
-        if (!a.iconPath.isEmpty())
-            btn->setIcon(QIcon(a.iconPath));
+        if (!a.iconPath.isEmpty()) {
+            btn->setProperty("iconPath", a.iconPath);
+            btn->setIcon(themedResourceIcon(a.iconPath));
+        }
         if (!a.text.isEmpty()) {
             btn->setText(a.text);
             btn->setToolButtonStyle(a.iconPath.isEmpty() ? Qt::ToolButtonTextOnly
@@ -178,7 +213,8 @@ void ExternalConnectDialog::addHeader(const QString &text, const QList<HeaderAct
 
 void ExternalConnectDialog::addDeviceRow(const RemovableDevice &dev) {
     // iconName is a bare alias ("dev-usb"); resolve it to its resource.
-    const QIcon icon(QStringLiteral(":/icons/%1.svg").arg(dev.iconName));
+    const QString iconPath = QStringLiteral(":/icons/%1.svg").arg(dev.iconName);
+    const QIcon icon = themedResourceIcon(iconPath);
     auto *item = new QListWidgetItem(m_list);
     item->setData(Qt::UserRole, KindDevice);
     item->setData(Qt::UserRole + 1, dev.id);
@@ -194,6 +230,8 @@ void ExternalConnectDialog::addDeviceRow(const RemovableDevice &dev) {
     lay->setContentsMargins(0, 0, 0, 0);
     lay->setSpacing(6);
     auto *iconLabel = new QLabel(row);
+    iconLabel->setObjectName(QStringLiteral("DeviceIcon"));
+    iconLabel->setProperty("iconPath", iconPath);
     iconLabel->setPixmap(icon.pixmap(m_list->iconSize()));
     iconLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
     auto *nameLabel = new QLabel(dev.name, row);
@@ -202,7 +240,9 @@ void ExternalConnectDialog::addDeviceRow(const RemovableDevice &dev) {
     lay->addWidget(nameLabel);
     lay->addStretch(1);
     auto *eject = new QToolButton(row);
-    eject->setIcon(QIcon(QStringLiteral(":/icons/eject.svg")));
+    const QString ejectIconPath = QStringLiteral(":/icons/eject.svg");
+    eject->setProperty("iconPath", ejectIconPath);
+    eject->setIcon(themedResourceIcon(ejectIconPath));
     eject->setAutoRaise(true);
     eject->setCursor(Qt::PointingHandCursor);
     eject->setToolTip(tr("弹出（安全移除）"));
@@ -289,7 +329,7 @@ void ExternalConnectDialog::rebuild() {
             const SavedConnection &c = m_saved.at(i);
             const QString label = c.name.isEmpty() ? c.host : c.name;
             auto *item =
-                new QListWidgetItem(QIcon(iconForProtocol(c.protocol)), label, m_list);
+                new QListWidgetItem(themedResourceIcon(iconForProtocol(c.protocol)), label, m_list);
             item->setData(Qt::UserRole, KindSaved);
             item->setData(Qt::UserRole + 1, i);
         }
@@ -320,8 +360,8 @@ void ExternalConnectDialog::rebuild() {
         else
             label = QStringLiteral("%1 (%2)").arg(h.name, h.address);
         const QString target = h.address.isEmpty() ? h.name : h.address;
-        auto *item = new QListWidgetItem(QIcon(QStringLiteral(":/icons/dev-smb.svg")),
-                                         label, m_list);
+        auto *item = new QListWidgetItem(
+            themedResourceIcon(QStringLiteral(":/icons/dev-smb.svg")), label, m_list);
         item->setData(Qt::UserRole, KindHost);
         item->setData(Qt::UserRole + 1, target);
     }

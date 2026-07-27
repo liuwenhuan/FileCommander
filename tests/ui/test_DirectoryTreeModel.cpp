@@ -76,6 +76,33 @@ TEST(DirectoryTreeModelTest, RootsAppearAsTopLevelRows) {
 
 // Nothing may be listed until a node is actually expanded: a tree that walked
 // the directories up front would stall for the whole of a remote connection.
+TEST(DirectoryTreeModelTest, RefreshIconsKeepsLoadedNodesAndOnlySignalsDecorationChanges) {
+    FakeLister *lister = nullptr;
+    DirectoryTreeModel model;
+    model.setRoots({localRoot()}, [&](const TreeRoot &) -> TreeDirLister * {
+        lister = new FakeLister;
+        return lister;
+    });
+
+    const QModelIndex root = model.index(0, 0);
+    model.fetchMore(root);
+    lister->deliver({"home"});
+    const QModelIndex child = model.index(0, 0, root);
+    ASSERT_TRUE(child.isValid());
+
+    QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
+    model.refreshIcons();
+
+    ASSERT_EQ(changed.count(), 2);
+    for (const QList<QVariant> &emission : changed) {
+        const QVector<int> roles = emission.at(2).value<QVector<int>>();
+        EXPECT_EQ(roles, QVector<int>({Qt::DecorationRole}));
+    }
+    EXPECT_TRUE(root.isValid());
+    EXPECT_TRUE(child.isValid());
+    EXPECT_EQ(model.rowCount(root), 1);
+}
+
 TEST(DirectoryTreeModelTest, NothingIsListedUntilANodeIsExpanded) {
     FakeLister *lister = nullptr;
     DirectoryTreeModel model;

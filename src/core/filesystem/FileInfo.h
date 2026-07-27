@@ -39,6 +39,12 @@ public:
                                int groupId = -1, const QString &owner = QString(),
                                const QString &group = QString());
 
+    // Splits a leaf name with POSIX hidden-file semantics: a leading dot alone
+    // does not begin an extension, while `.config.json` has base `.config` and
+    // suffix `json`.
+    static QString baseNameForName(const QString &name);
+    static QString suffixForName(const QString &name);
+
     const QString &name() const { return m_name; }        // full file name, e.g. "photo.jpg"
     const QString &baseName() const { return m_baseName; } // name without extension, e.g. "photo"
     const QString &path() const { return m_path; }

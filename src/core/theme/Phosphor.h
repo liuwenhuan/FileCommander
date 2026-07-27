@@ -114,4 +114,24 @@ QPixmap tintedPixmap(const QPixmap &src, const QColor &tint, int blockPixels = -
 // to skip quantisation and tint only. Empty when `tint` is invalid.
 QString mpvFilterFor(const QColor &tint, int blockPixels = 0, int displayWidthPixels = 0);
 
+// Preview-only CRT raster treatment. It darkens every `period`th image row
+// without reducing the image's detail and preserves source alpha.
+constexpr int kScanlinePeriod = 2;
+constexpr qreal kScanlineDarken = 0.28;
+void applyScanlines(QImage &image, int period = kScanlinePeriod,
+                    qreal darken = kScanlineDarken);
+
+// Preview-specific phosphor transform: colourise without quantising, then add
+// scanlines. This is deliberately separate from tintedPixmap(), whose callers
+// include thumbnails and other surfaces outside the preview treatment.
+QPixmap scanlinedPhosphorPixmap(const QPixmap &src, const QColor &tint,
+                                int period = kScanlinePeriod,
+                                qreal darken = kScanlineDarken);
+
+// libavfilter equivalent for video preview: colourise then attenuate every
+// alternate row, with no resize or sampling stage. Empty when `tint` is invalid.
+QString mpvScanlinedPhosphorFilter(const QColor &tint,
+                                   int period = kScanlinePeriod,
+                                   qreal darken = kScanlineDarken);
+
 } // namespace fc

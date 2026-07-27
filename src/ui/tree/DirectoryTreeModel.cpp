@@ -4,6 +4,7 @@
 #include <QStyle>
 
 #include "TreeDirLister.h"
+#include "filesystem/IconCache.h"
 
 namespace {
 
@@ -72,6 +73,22 @@ void DirectoryTreeModel::setShowHidden(bool show) {
     m_showHidden = show;
 }
 
+void DirectoryTreeModel::refreshIcons() {
+    refreshIconsBelow({});
+}
+
+void DirectoryTreeModel::refreshIconsBelow(const QModelIndex &parent) {
+    const int count = rowCount(parent);
+    if (count == 0)
+        return;
+
+    const QModelIndex first = index(0, 0, parent);
+    const QModelIndex last = index(count - 1, 0, parent);
+    emit dataChanged(first, last, {Qt::DecorationRole});
+    for (int row = 0; row < count; ++row)
+        refreshIconsBelow(index(row, 0, parent));
+}
+
 DirectoryTreeModel::Node *DirectoryTreeModel::nodeFor(const QModelIndex &index) const {
     if (!index.isValid())
         return nullptr;
@@ -114,9 +131,10 @@ int DirectoryTreeModel::columnCount(const QModelIndex &) const {
 }
 
 QIcon DirectoryTreeModel::iconForNode(const Node *node) const {
-    if (node->isRoot && !node->iconName.isEmpty())
-        return QIcon(QStringLiteral(":/icons/%1.svg").arg(node->iconName));
-    return QApplication::style()->standardIcon(QStyle::SP_DirIcon);
+    const QIcon icon = node->isRoot && !node->iconName.isEmpty()
+                           ? QIcon(QStringLiteral(":/icons/%1.svg").arg(node->iconName))
+                           : QApplication::style()->standardIcon(QStyle::SP_DirIcon);
+    return IconCache::instance().themedIcon(icon);
 }
 
 QVariant DirectoryTreeModel::data(const QModelIndex &index, int role) const {

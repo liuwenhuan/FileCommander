@@ -17,8 +17,6 @@ add_library(core STATIC
     operations/FileOperations.cpp
     operations/OperationQueue.h
     operations/OperationQueue.cpp
-    operations/FileSplitter.h
-    operations/FileSplitter.cpp
     config/Settings.h
     config/Settings.cpp
     config/SessionManager.h

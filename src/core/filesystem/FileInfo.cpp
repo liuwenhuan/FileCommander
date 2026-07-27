@@ -13,8 +13,8 @@ FileInfo::FileInfo(const QString &path) {
     // Directories are treated as having no extension: the whole name is the
     // base. For files, split off the trailing suffix so the Name and Ext
     // columns show complementary halves (e.g. "photo" + "jpg").
-    m_suffix = m_isDir ? QString() : qfi.suffix();
-    m_baseName = m_isDir ? m_name : qfi.completeBaseName();
+    m_suffix = m_isDir ? QString() : suffixForName(m_name);
+    m_baseName = m_isDir ? m_name : baseNameForName(m_name);
     m_size = qfi.size();
     m_modified = qfi.lastModified();
     m_created = qfi.birthTime();
@@ -27,6 +27,16 @@ FileInfo::FileInfo(const QString &path) {
     m_owner = qfi.owner();
     m_group = qfi.group();
     // m_mimeType is intentionally left empty here; see mimeType() below.
+}
+
+QString FileInfo::baseNameForName(const QString &name) {
+    const int dot = name.lastIndexOf(QLatin1Char('.'));
+    return dot > 0 ? name.left(dot) : name;
+}
+
+QString FileInfo::suffixForName(const QString &name) {
+    const int dot = name.lastIndexOf(QLatin1Char('.'));
+    return dot > 0 ? name.mid(dot + 1) : QString();
 }
 
 const QString &FileInfo::mimeType() const {
@@ -55,9 +65,8 @@ FileInfo FileInfo::fromFields(const QString &path, const QString &name, qint64 s
         info.m_suffix = QString();
         info.m_baseName = name;
     } else {
-        const QFileInfo qfi(name);
-        info.m_suffix = qfi.suffix();
-        info.m_baseName = qfi.completeBaseName();
+        info.m_suffix = suffixForName(name);
+        info.m_baseName = baseNameForName(name);
     }
     info.m_size = size;
     info.m_modified = modified;

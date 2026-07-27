@@ -2,10 +2,12 @@
 
 #include <QByteArray>
 #include <QHash>
+#include <QIcon>
 #include <QPixmap>
 #include <QPoint>
 #include <QPointer>
 #include <QSizeF>
+#include <QStyle>
 #include <QStringList>
 #include <QVector>
 #include <QWidget>
@@ -98,6 +100,10 @@ public:
     // family, only the size changes.
     void setContentFontSize(int pt);
 
+    // Changes the proportional content family without overriding the text page's
+    // dedicated monospace family.
+    void setContentFontFamily(const QString &family);
+
     // Moves keyboard focus into the preview's current page (its primary
     // interactive widget). Used when the user Tabs from the file list into the
     // embedded preview pane, so the pane — not the panel it covers — takes focus.
@@ -138,6 +144,8 @@ private:
     void loadAudioSiblings();             // list sibling audio files in the dir
     void stopAudio();                     // halt playback + timer
     void updateAudioTransport();          // sync play/pause label + seek + times
+    QIcon mediaIcon(QStyle::StandardPixmap standardPixmap) const;
+    void refreshMediaControlIcons();
     QWidget *buildMarkdownPage();
     // Reads, parses and lays out a .md file on a worker thread, then installs the
     // finished QTextDocument into m_markdown (keeps the GUI responsive on large or

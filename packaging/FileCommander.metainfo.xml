@@ -5,19 +5,20 @@
   <name>FileCommander</name>
   <name xml:lang="zh_CN">文件指挥官</name>
   <name xml:lang="zh_TW">檔案指揮官</name>
-  <summary>Dual-pane file manager</summary>
-  <summary xml:lang="zh_CN">双栏文件管理器</summary>
+  <summary>Powerful dual-pane file manager for advanced users</summary>
+  <summary xml:lang="zh_CN">面向高级用户的强大双栏文件管理器</summary>
 
   <description>
     <p>
-      A dual-pane file manager for X11 desktops. Browses local directories,
-      archives, and remote shares (SFTP, SMB, FTP, WebDAV) in the same view,
-      with built-in preview for text, images, video, PDF, and office documents.
+      A powerful dual-pane file manager inspired by Total Commander and developed
+      from scratch. It efficiently manages local files, conveniently uses network
+      file services, previews many file types, and is an efficiency tool for
+      advanced users.
     </p>
     <p xml:lang="zh_CN">
-      面向 X11 桌面的双栏文件管理器。在同一视图中浏览本地目录、压缩包以及
-      远程共享(SFTP、SMB、FTP、WebDAV),内置文本、图片、视频、PDF 与
-      办公文档预览。
+      文件指挥官（FileCommander）是受 Total Commander 启发、从头开发的功能强大的
+      双栏文件管理器。它可以高效管理本地文件，方便地使用网络文件服务，预览多种文件内容，
+      是一款专门为高级用户准备的效率工具。
     </p>
   </description>
 

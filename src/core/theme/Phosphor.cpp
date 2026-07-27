@@ -10,6 +10,28 @@ int g_pixelBlock = 0; // 0: no quantisation
 // the block is shrunk rather than the image being mangled, because an
 // unrecognisable icon is a worse outcome than one slightly too sharp.
 constexpr int kMinCells = 8;
+
+QString phosphorMixer(const QColor &tint) {
+    const qreal r = tint.redF(), g = tint.greenF(), b = tint.blueF();
+    const auto n = [](qreal v) { return QString::number(v, 'f', 4); };
+    return QStringLiteral("colorchannelmixer="
+                          "rr=%1:rg=%2:rb=%3:"
+                          "gr=%4:gg=%5:gb=%6:"
+                          "br=%7:bg=%8:bb=%9")
+        .arg(n(r * kLumaR), n(r * kLumaG), n(r * kLumaB))
+        .arg(n(g * kLumaR), n(g * kLumaG), n(g * kLumaB))
+        .arg(n(b * kLumaR), n(b * kLumaG), n(b * kLumaB));
+}
+
+QString scanlineStage(int period, qreal darken) {
+    if (period < 2 || darken <= 0.0)
+        return {};
+    const qreal attenuation = 1.0 - qBound(0.0, darken, 1.0);
+    const QString expression = QStringLiteral("if(eq(mod(y\\,%1)\\,0)\\,val*%2\\,val)")
+                                   .arg(period)
+                                   .arg(QString::number(attenuation, 'f', 3));
+    return QStringLiteral("lutrgb=r='%1':g='%1':b='%1'").arg(expression);
+}
 } // namespace
 
 QColor contentTint() {
@@ -127,6 +149,47 @@ QString mpvFilterFor(const QColor &tint, int blockPixels, int displayWidthPixels
                               .arg(n(g * kLumaR), n(g * kLumaG), n(g * kLumaB))
                               .arg(n(b * kLumaR), n(b * kLumaG), n(b * kLumaB));
     return QStringLiteral("lavfi=[%1%2]").arg(quantise, mixer);
+}
+
+void applyScanlines(QImage &image, int period, qreal darken) {
+    if (image.isNull() || period < 2 || darken <= 0.0)
+        return;
+    if (image.format() != QImage::Format_ARGB32)
+        image = image.convertToFormat(QImage::Format_ARGB32);
+
+    const qreal attenuation = 1.0 - qBound(0.0, darken, 1.0);
+    for (int y = 0; y < image.height(); ++y) {
+        if (y % period != 0)
+            continue;
+        auto *line = reinterpret_cast<QRgb *>(image.scanLine(y));
+        for (int x = 0; x < image.width(); ++x) {
+            const QRgb pixel = line[x];
+            line[x] = qRgba(qRound(qRed(pixel) * attenuation),
+                            qRound(qGreen(pixel) * attenuation),
+                            qRound(qBlue(pixel) * attenuation), qAlpha(pixel));
+        }
+    }
+}
+
+QPixmap scanlinedPhosphorPixmap(const QPixmap &src, const QColor &tint, int period,
+                                qreal darken) {
+    if (src.isNull() || !tint.isValid())
+        return src;
+    QImage image = src.toImage().convertToFormat(QImage::Format_ARGB32);
+    tintImage(image, tint);
+    applyScanlines(image, period, darken);
+    QPixmap result = QPixmap::fromImage(image);
+    result.setDevicePixelRatio(src.devicePixelRatio());
+    return result;
+}
+
+QString mpvScanlinedPhosphorFilter(const QColor &tint, int period, qreal darken) {
+    if (!tint.isValid())
+        return {};
+    const QString scanlines = scanlineStage(period, darken);
+    const QString chain = scanlines.isEmpty() ? phosphorMixer(tint)
+                                               : phosphorMixer(tint) + QLatin1Char(',') + scanlines;
+    return QStringLiteral("lavfi=[%1]").arg(chain);
 }
 
 } // namespace fc

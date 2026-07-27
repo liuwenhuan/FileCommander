@@ -1,5 +1,6 @@
 add_executable(core_tests
     test_main.cpp
+    test_Phosphor.cpp
     filesystem/test_FileInfo.cpp
     filesystem/test_FileSystemModel.cpp
     filesystem/test_IconCache.cpp
@@ -8,7 +9,6 @@ add_executable(core_tests
     filesystem/test_ParentEntry.cpp
     operations/test_FileOperations.cpp
     operations/test_OperationQueue.cpp
-    operations/test_FileSplitter.cpp
     operations/test_ProviderTransfer.cpp
     operations/test_ServerSideMove.cpp
     operations/test_PreserveMtime.cpp

@@ -39,6 +39,7 @@
 #include "FileListView.h"
 #include "IconFileView.h"
 #include "FileProvider.h"
+#include "filesystem/IconCache.h"
 #include "ArchiveLayout.h"
 #include "ArchiveProvider.h"
 #include "StatusBarWidget.h"
@@ -155,6 +156,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     // Tab row: [tree] at the head, then the tab strip (stretch), then the
     // trailing "+". Back/Forward and the ✳ menu live in the address row below.
     auto *tabRow = new QWidget(this);
+    m_tabRow = tabRow;
     auto *tabRowLayout = new QHBoxLayout(tabRow);
     tabRowLayout->setContentsMargins(0, 0, 0, 0);
     tabRowLayout->setSpacing(2);
@@ -1072,6 +1074,16 @@ void FilePanel::rebuildTreeRoots() {
         syncTreeToPath(m_model->rootPath());
 }
 
+void FilePanel::refreshThemeIcons() {
+    if (m_dirTreeModel)
+        m_dirTreeModel->refreshIcons();
+    refreshTabIcons();
+    if (m_view)
+        m_view->viewport()->update();
+    if (m_iconView)
+        m_iconView->viewport()->update();
+}
+
 void FilePanel::syncTreeToPath(const QString &path) {
     if (!m_dirTree || !m_dirTree->isVisible() || path.isEmpty())
         return;
@@ -1396,6 +1408,33 @@ void FilePanel::prefetchArchiveNeighbors() {
         QtConcurrent::run(
             [prov, p]() { static_cast<ArchiveProvider *>(prov.get())->materialize(p); });
     }
+}
+
+void FilePanel::setListFontFamily(const QString &family) {
+    const QString effectiveFamily = family.isEmpty() ? QApplication::font().family() : family;
+    auto applyFamily = [&effectiveFamily](QWidget *widget) {
+        if (!widget)
+            return;
+        QFont font = widget->font();
+        font.setFamily(effectiveFamily);
+        widget->setFont(font);
+    };
+    applyFamily(m_view);
+    applyFamily(m_view->viewport());
+    applyFamily(m_iconView);
+    if (m_iconView)
+        applyFamily(m_iconView->viewport());
+    applyFamily(m_dirTree);
+    if (m_dirTree)
+        applyFamily(m_dirTree->viewport());
+    setListFontSize(m_view->font().pointSize());
+}
+
+void FilePanel::setTabBarVisible(bool visible) {
+    if (m_tabBar)
+        m_tabBar->setVisible(visible);
+    if (m_addTabButton)
+        m_addTabButton->setVisible(visible);
 }
 
 void FilePanel::setListFontSize(int pt) {
@@ -1778,15 +1817,16 @@ void FilePanel::updateActiveTabLabel() {
 }
 
 static QIcon iconForScheme(const QString &scheme) {
+    QIcon icon;
     if (scheme == QLatin1String("sftp"))
-        return QIcon(QStringLiteral(":/icons/dev-sftp.svg"));
-    if (scheme == QLatin1String("smb"))
-        return QIcon(QStringLiteral(":/icons/dev-smb.svg"));
-    if (scheme == QLatin1String("ftp"))
-        return QIcon(QStringLiteral(":/icons/dev-ftp.svg"));
-    if (scheme == QLatin1String("webdav"))
-        return QIcon(QStringLiteral(":/icons/dev-webdav.svg"));
-    return QIcon();
+        icon = QIcon(QStringLiteral(":/icons/dev-sftp.svg"));
+    else if (scheme == QLatin1String("smb"))
+        icon = QIcon(QStringLiteral(":/icons/dev-smb.svg"));
+    else if (scheme == QLatin1String("ftp"))
+        icon = QIcon(QStringLiteral(":/icons/dev-ftp.svg"));
+    else if (scheme == QLatin1String("webdav"))
+        icon = QIcon(QStringLiteral(":/icons/dev-webdav.svg"));
+    return IconCache::instance().themedIcon(icon);
 }
 
 // The protocol icon with a small status dot overlaid so the tab shows connection
