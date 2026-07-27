@@ -2020,13 +2020,39 @@ void MainWindow::syncOtherPanelToActive() {
 }
 
 void MainWindow::swapPanels() {
+    if (m_quickViewActive) {
+        const QList<int> sizes = m_panelSplitter->sizes();
+        FilePanel *visible = otherPanel(m_quickViewPanel);
+        const int visibleIndex = m_panelSplitter->indexOf(visible);
+
+        // The preview occupies one splitter slot while its FilePanel is parked
+        // off-screen. Swap that preview with the visible FilePanel, leaving the
+        // two folder panels' locations and backends untouched.
+        m_panelSplitter->replaceWidget(m_quickViewIndex, m_quickViewPanel);
+        m_quickViewPanel->show();
+        m_panelSplitter->replaceWidget(visibleIndex, m_quickView);
+        m_quickView->show();
+
+        m_quickViewPanel = visible;
+        m_quickViewIndex = visibleIndex;
+
+        // The FilePanel revealed from behind the preview becomes active so the
+        // preview follows the visible panel's selection.
+        FilePanel *revealed = otherPanel(visible);
+        setActivePanel(revealed);
+        revealed->view()->setFocus();
+
+        QList<int> swapped = sizes;
+        std::reverse(swapped.begin(), swapped.end());
+        m_panelSplitter->setSizes(swapped);
+        updateQuickView();
+        return;
+    }
+
     // Exchange the backends, not the path strings: a remote path resolved by the
     // other panel's backend would land it somewhere else (every backend here is
     // POSIX-rooted, so "/home" resolves on a share and on this machine alike).
-    // The preview stays in its splitter slot; only the two folder states swap.
     m_leftPanel->exchangeLocationWith(m_rightPanel);
-    if (m_quickViewActive)
-        updateQuickView();
 }
 
 void MainWindow::openTerminalHere() {
