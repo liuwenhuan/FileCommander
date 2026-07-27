@@ -6,37 +6,37 @@
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="11"/>
         <source>About FileCommander</source>
-        <translation type="unfinished"></translation>
+        <translation>关于文件指挥官</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="20"/>
         <source>FileCommander — Total Commander for Linux</source>
-        <translation type="unfinished"></translation>
+        <translation>FileCommander — 面向 Linux 的 Total Commander 风格文件管理器</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="27"/>
         <source>Version %1</source>
-        <translation type="unfinished"></translation>
+        <translation>版本 %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="31"/>
         <source>FileCommander is a powerful dual-pane file manager inspired by Total Commander and developed from scratch. It manages local files efficiently, makes network file services convenient to use, previews many file types, and is an efficiency tool built for advanced users.</source>
-        <translation type="unfinished"></translation>
+        <translation>文件指挥官（FileCommander）是受 Total Commander 启发、从头开发的功能强大的双栏文件管理器。它可以高效管理本地文件，方便地使用网络文件服务，预览多种文件内容，是一款专门为高级用户准备的效率工具。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="40"/>
         <source>Free and open-source software, released under the GNU GPL v3.</source>
-        <translation type="unfinished"></translation>
+        <translation>自由开源软件，基于 GNU GPL v3 协议发布。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="45"/>
         <source>&lt;a href=&quot;https://github.com/ttc-fm/ttc&quot;&gt;Project home page&lt;/a&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation >&lt;a href=&quot;https://github.com/ttc-fm/ttc&quot;&gt;Project home page&lt;/a&gt;</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="50"/>
         <source>Close</source>
-        <translation type="unfinished"></translation>
+        <translation>关闭</translation>
     </message>
 </context>
 <context>
@@ -409,7 +409,7 @@ Extract it too?</source>
     <message>
         <location filename="../../src/ui/tree/DirectoryTreeModel.cpp" line="151"/>
         <source>This connection belongs to the other panel. Switch to it there, or open a new connection from the Connection Manager.</source>
-        <translation type="unfinished"></translation>
+        <translation>此连接属于另一个面板。请切换到该面板，或从连接管理器中打开新连接。</translation>
     </message>
 </context>
 <context>
@@ -417,81 +417,81 @@ Extract it too?</source>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="248"/>
         <source>弹出（安全移除）</source>
-        <translation type="unfinished"></translation>
+        <translation>弹出（安全移除）</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="263"/>
         <source>弹出失败</source>
-        <translation type="unfinished"></translation>
+        <translation>弹出失败</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="264"/>
         <source>无法弹出该设备。
 
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="305"/>
         <source>Removable Devices</source>
-        <translation type="unfinished"></translation>
+        <translation>可移动设备</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="309"/>
         <source>No removable devices</source>
-        <translation type="unfinished"></translation>
+        <translation>无可移动设备</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="318"/>
         <source>Saved Connections</source>
-        <translation type="unfinished"></translation>
+        <translation>已保存的连接</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="319"/>
         <source>连接管理器…</source>
-        <translation type="unfinished"></translation>
+        <translation>连接管理器…</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="325"/>
         <source>No saved connections</source>
-        <translation type="unfinished"></translation>
+        <translation>没有已保存的连接</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="343"/>
         <source>重新搜索网络共享</source>
-        <translation type="unfinished"></translation>
+        <translation>重新搜索网络共享</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="346"/>
         <source>正在搜索，点击停止</source>
-        <translation type="unfinished"></translation>
+        <translation>正在搜索，点击停止</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="347"/>
         <source>Searching…</source>
-        <translation type="unfinished"></translation>
+        <translation>正在搜索…</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="349"/>
         <source>Network Neighborhood</source>
-        <translation type="unfinished"></translation>
+        <translation>网上邻居</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="371"/>
         <source>未发现网络主机</source>
-        <translation type="unfinished"></translation>
+        <translation>未发现网络主机</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="428"/>
         <source>Mount Failed</source>
-        <translation type="unfinished"></translation>
+        <translation>挂载失败</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="429"/>
         <source>Could not mount the device.
 
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
 </context>
 <context>
@@ -545,7 +545,7 @@ Extract it too?</source>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="661"/>
         <source>Source shrank before resuming transfer of %1</source>
-        <translation type="unfinished"></translation>
+        <translation>恢复传输 %1 时源文件已缩小</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="670"/>
@@ -563,7 +563,7 @@ Extract it too?</source>
         <location filename="../../src/core/operations/FileOperations.cpp" line="701"/>
         <location filename="../../src/core/operations/FileOperations.cpp" line="737"/>
         <source>Unexpected end of %1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 意外结束</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="718"/>
@@ -575,22 +575,22 @@ Extract it too?</source>
         <location filename="../../src/core/operations/FileOperations.cpp" line="747"/>
         <location filename="../../src/core/operations/FileOperations.cpp" line="754"/>
         <source>Source changed during transfer of %1</source>
-        <translation type="unfinished"></translation>
+        <translation>传输 %1 期间源文件已变化</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="766"/>
         <source>Upload of %1 did not complete</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 上传未完成</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="896"/>
         <source>Moved contents but could not remove source %1</source>
-        <translation type="unfinished"></translation>
+        <translation>已移动内容，但无法删除源 %1</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="911"/>
         <source>Copied but could not remove source %1</source>
-        <translation type="unfinished"></translation>
+        <translation>已复制，但无法删除源 %1</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="951"/>
@@ -639,32 +639,32 @@ Extract it too?</source>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="687"/>
         <source>正在等待连接…</source>
-        <translation type="unfinished"></translation>
+        <translation>正在等待连接…</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="691"/>
         <source>断线，正在重连（%1/%2）…</source>
-        <translation type="unfinished"></translation>
+        <translation>断线，正在重连（%1/%2）…</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="699"/>
         <source>多次重连失败</source>
-        <translation type="unfinished"></translation>
+        <translation>多次重连失败</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="699"/>
         <source>连接失败：%1</source>
-        <translation type="unfinished"></translation>
+        <translation>连接失败：%1</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="725"/>
         <source>需要登录</source>
-        <translation type="unfinished"></translation>
+        <translation>需要登录</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="748"/>
         <source>Search results</source>
-        <translation type="unfinished"></translation>
+        <translation>搜索结果</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="1666"/>
@@ -700,7 +700,7 @@ Extract it too?</source>
     <message>
         <location filename="../../src/ui/FunctionKeyBar.cpp" line="33"/>
         <source>Change this button&apos;s function...</source>
-        <translation type="unfinished"></translation>
+        <translation>更改此按钮的功能…</translation>
     </message>
     <message>
         <location filename="../../src/ui/FunctionKeyBar.cpp" line="52"/>
@@ -1248,212 +1248,214 @@ Extract it too?</source>
         <location filename="../../src/ui/MainWindow.cpp" line="1690"/>
         <location filename="../../src/ui/MainWindow.cpp" line="1691"/>
         <source>Quick Notepad</source>
-        <translation type="unfinished"></translation>
+        <translation>快捷记事本</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="700"/>
         <location filename="../../src/ui/MainWindow.cpp" line="1693"/>
         <source>Calculate Checksums</source>
-        <translation type="unfinished"></translation>
+        <translation>计算校验和</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="702"/>
         <location filename="../../src/ui/MainWindow.cpp" line="1697"/>
         <source>Compare Files</source>
-        <translation type="unfinished"></translation>
+        <translation>对比文件</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="706"/>
         <location filename="../../src/ui/MainWindow.cpp" line="1699"/>
         <source>Keyboard Shortcuts</source>
-        <translation type="unfinished">键盘快捷键</translation>
+        <translation>键盘快捷键</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="707"/>
         <location filename="../../src/ui/MainWindow.cpp" line="1701"/>
         <source>Connection Manager</source>
-        <translation type="unfinished"></translation>
+        <translation>连接管理器</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="710"/>
         <location filename="../../src/ui/MainWindow.cpp" line="1751"/>
         <source>Directly Open Archives</source>
-        <translation type="unfinished"></translation>
+        <translation>直接打开压缩文件</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="719"/>
         <location filename="../../src/ui/MainWindow.cpp" line="1758"/>
         <source>No Delete Confirmation</source>
-        <translation type="unfinished"></translation>
+        <translation>不确认删除</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="725"/>
         <location filename="../../src/ui/MainWindow.cpp" line="1762"/>
         <source>Automatic Update Check</source>
-        <translation type="unfinished"></translation>
+        <translation>自动升级检测</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="731"/>
         <source>&amp;Interface</source>
-        <translation type="unfinished"></translation>
+        <translation>界面(&amp;I)</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="844"/>
         <location filename="../../src/ui/MainWindow.cpp" line="1703"/>
         <location filename="../../src/ui/MainWindow.cpp" line="1938"/>
         <source>Choose Font</source>
-        <translation type="unfinished"></translation>
+        <translation>字体选择</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="848"/>
         <location filename="../../src/ui/MainWindow.cpp" line="1728"/>
         <source>Show Function Key Bar</source>
-        <translation type="unfinished"></translation>
+        <translation>显示功能键栏</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="856"/>
         <location filename="../../src/ui/MainWindow.cpp" line="1734"/>
         <source>Show Command Bar</source>
-        <translation type="unfinished"></translation>
+        <translation>显示命令运行栏</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="864"/>
         <location filename="../../src/ui/MainWindow.cpp" line="1740"/>
         <source>Show File Tab Bar</source>
-        <translation type="unfinished"></translation>
+        <translation>显示文件标签栏</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="873"/>
         <location filename="../../src/ui/MainWindow.cpp" line="1747"/>
         <source>Display Shortcut Labels</source>
-        <translation type="unfinished"></translation>
+        <translation>显示快捷键</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1378"/>
         <source>Choose a function:</source>
-        <translation type="unfinished"></translation>
+        <translation>选择功能：</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1402"/>
         <source>Change Leading Button Function</source>
-        <translation type="unfinished"></translation>
+        <translation>更改前置按钮功能</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1402"/>
         <source>Change Trailing Button Function</source>
-        <translation type="unfinished"></translation>
+        <translation>更改后置按钮功能</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1530"/>
         <source>Connection Failed</source>
-        <translation type="unfinished">连接失败</translation>
+        <translation>连接失败</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1531"/>
         <source>Unsupported connection type.</source>
-        <translation type="unfinished"></translation>
+        <translation>不支持的连接类型。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1630"/>
         <location filename="../../src/ui/MainWindow.cpp" line="1635"/>
         <source>Check for Updates</source>
-        <translation type="unfinished"></translation>
+        <translation>检查更新</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1631"/>
         <source>You are running the latest version.</source>
-        <translation type="unfinished"></translation>
+        <translation>您正在运行最新版本。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1636"/>
         <source>Could not check for updates.
 
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>无法检查更新。
+
+%1</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1655"/>
         <source>Open Quick Preview</source>
-        <translation type="unfinished"></translation>
+        <translation>打开快速预览</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1658"/>
         <source>Switch to List View</source>
-        <translation type="unfinished"></translation>
+        <translation>切换到列表视图</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1659"/>
         <source>Switch to Thumbnail View</source>
-        <translation type="unfinished"></translation>
+        <translation>切换到缩略图视图</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1661"/>
         <location filename="../../src/ui/MainWindow.cpp" line="1768"/>
         <source>Synchronize Directories</source>
-        <translation type="unfinished">同步目录</translation>
+        <translation>同步目录</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1662"/>
         <location filename="../../src/ui/MainWindow.cpp" line="1770"/>
         <source>Compare Directories</source>
-        <translation type="unfinished"></translation>
+        <translation>比较目录</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1663"/>
         <source>Find Files</source>
-        <translation type="unfinished"></translation>
+        <translation>文件查找</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1664"/>
         <source>Filter Files</source>
-        <translation type="unfinished"></translation>
+        <translation>文件过滤</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1665"/>
         <location filename="../../src/ui/MainWindow.cpp" line="1772"/>
         <source>Select by Pattern</source>
-        <translation type="unfinished">按模式选择</translation>
+        <translation>按模式选择</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1666"/>
         <location filename="../../src/ui/MainWindow.cpp" line="1774"/>
         <source>Invert Selection</source>
-        <translation type="unfinished"></translation>
+        <translation>反选文件</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1667"/>
         <source>Undo Previous Operation</source>
-        <translation type="unfinished"></translation>
+        <translation>撤销上一步</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1688"/>
         <source>Connect External / Devices</source>
-        <translation type="unfinished"></translation>
+        <translation>连接外部/设备</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1705"/>
         <source>Increase Font Size</source>
-        <translation type="unfinished"></translation>
+        <translation>增大字体</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1714"/>
         <source>Decrease Font Size</source>
-        <translation type="unfinished"></translation>
+        <translation>减小字体</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1723"/>
         <source>Cycle Theme</source>
-        <translation type="unfinished"></translation>
+        <translation>循环切换主题</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1862"/>
         <source>List / Thumbnail View</source>
-        <translation type="unfinished"></translation>
+        <translation>列表/缩略图视图</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1970"/>
         <source>This connection cannot read file contents, so checksums cannot be computed for these files.</source>
-        <translation type="unfinished"></translation>
+        <translation>此连接无法读取文件内容，因此无法为这些文件计算校验和。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2020"/>
@@ -1461,7 +1463,9 @@ Extract it too?</source>
 The server owns their disk blocks, so overwriting them
 from here cannot guarantee the originals are gone.
 Delete them remotely instead.</source>
-        <translation type="unfinished"></translation>
+        <translation>这些项目位于 %1 上。
+磁盘块属于服务器，从此处覆盖无法保证原始数据被清除。
+请改为远程删除。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2026"/>
@@ -1469,20 +1473,25 @@ Delete them remotely instead.</source>
 not files on this disk.
 To destroy them, wipe the archive file itself
 from the folder that holds it.</source>
-        <translation type="unfinished"></translation>
+        <translation>这些项目是压缩包内的条目，
+而非此磁盘上的文件。
+要销毁它们，请从存放压缩包的文件夹中擦除压缩文件本身。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2031"/>
         <source>This tab is not the local filesystem,
 so there are no on-disk bytes here to overwrite.</source>
-        <translation type="unfinished"></translation>
+        <translation>此标签页不是本地文件系统，
+因此此处没有磁盘上的字节可供覆盖。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2034"/>
         <source>Secure wipe is only available on local files.
 
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>安全擦除仅适用于本地文件。
+
+%1</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2047"/>
@@ -1496,7 +1505,7 @@ Their contents will be overwritten on disk and then deleted. This is IRREVERSIBL
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2081"/>
         <source>The two panels are on different connections, so this directory has no meaning in the other one. Use Swap Panels (Ctrl+U) to move this connection across instead.</source>
-        <translation type="unfinished"></translation>
+        <translation>两个面板使用了不同的连接，此目录在另一个面板中没有意义。请使用左右栏互换（Ctrl+U）将连接整体移过去。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2141"/>
@@ -1692,94 +1701,96 @@ Their contents will be overwritten on disk and then deleted. This is IRREVERSIBL
         <source>%1 was downloaded to a read-only local copy, which is what the application opened.
 
 Changes made to it are not saved back to the server.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 已下载到只读本地副本，应用程序所打开的就是它。
+
+对其所做的更改不会保存回服务器。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2649"/>
         <source>This connection cannot download files, so %1 cannot be opened with a local application.</source>
-        <translation type="unfinished"></translation>
+        <translation>此连接无法下载文件，因此无法用本地应用程序打开 %1。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2657"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2669"/>
         <source>Could not create a temporary folder to download %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法创建临时文件夹来下载 %1。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2683"/>
         <source>There is not enough free space in %1 to download %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 的可用空间不足，无法下载 %2。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2705"/>
         <source>Downloading %1...</source>
-        <translation type="unfinished"></translation>
+        <translation>正在下载 %1…</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2756"/>
         <source>Could not download %1 from the server.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法从服务器下载 %1。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2984"/>
         <location filename="../../src/ui/MainWindow.cpp" line="3001"/>
         <source>重新连接</source>
-        <translation type="unfinished"></translation>
+        <translation>重新连接</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2987"/>
         <source>断开连接</source>
-        <translation type="unfinished"></translation>
+        <translation>断开连接</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3001"/>
         <source>不支持的连接类型。</source>
-        <translation type="unfinished"></translation>
+        <translation>不支持的连接类型。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3085"/>
         <source>需要密码</source>
-        <translation type="unfinished"></translation>
+        <translation>需要密码</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3088"/>
         <source>此连接需要用户名和密码。</source>
-        <translation type="unfinished"></translation>
+        <translation>此连接需要用户名和密码。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3089"/>
         <source>连接“%1”需要用户名和密码。</source>
-        <translation type="unfinished"></translation>
+        <translation >连接“%1”需要用户名和密码。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3104"/>
         <source>用户名：</source>
-        <translation type="unfinished"></translation>
+        <translation>用户名：</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3105"/>
         <source>密码：</source>
-        <translation type="unfinished"></translation>
+        <translation>密码：</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3263"/>
         <source>创建链接</source>
-        <translation type="unfinished"></translation>
+        <translation>创建链接</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3264"/>
         <source>无法为网络位置创建符号链接。</source>
-        <translation type="unfinished"></translation>
+        <translation>无法为网络位置创建符号链接。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3331"/>
         <source>粘贴</source>
-        <translation type="unfinished"></translation>
+        <translation>粘贴</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3332"/>
         <source>源连接（%1）已关闭，无法从远端粘贴。</source>
-        <translation type="unfinished"></translation>
+        <translation>源连接（%1）已关闭，无法从远端粘贴。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3522"/>
@@ -1828,12 +1839,14 @@ Extract it too?</source>
         <source>%1 cannot be edited in place.
 
 Editing a file on this connection needs it mounted through GVfs (the gvfs-backends package). Copy the file to a local folder to edit it.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 无法直接编辑。
+
+在此连接上编辑文件需通过 GVfs 挂载（gvfs-backends 包）。请将文件复制到本地文件夹后再编辑。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3612"/>
         <source>Could not open %1 for editing: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>无法打开 %1 进行编辑：%2</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3629"/>
@@ -2013,45 +2026,45 @@ This is permanent and will NOT go to the trash.</source>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="33"/>
         <source>Search notes...</source>
-        <translation type="unfinished"></translation>
+        <translation>搜索笔记…</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="35"/>
         <source>New</source>
-        <translation type="unfinished"></translation>
+        <translation>新建</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="36"/>
         <location filename="../../src/ui/NotepadPanel.cpp" line="217"/>
         <source>Delete</source>
-        <translation type="unfinished">删除</translation>
+        <translation>删除</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="62"/>
         <source>Write your note here...</source>
-        <translation type="unfinished"></translation>
+        <translation>在此撰写笔记…</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="108"/>
         <location filename="../../src/ui/NotepadPanel.cpp" line="207"/>
         <source>Note 1</source>
-        <translation type="unfinished"></translation>
+        <translation>笔记 1</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="126"/>
         <location filename="../../src/ui/NotepadPanel.cpp" line="241"/>
         <source>New note</source>
-        <translation type="unfinished"></translation>
+        <translation>新建笔记</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="179"/>
         <source>Note %1</source>
-        <translation type="unfinished"></translation>
+        <translation>笔记 %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="195"/>
         <source>Confirm?</source>
-        <translation type="unfinished"></translation>
+        <translation>确认？</translation>
     </message>
 </context>
 <context>
@@ -2149,7 +2162,7 @@ This is permanent and will NOT go to the trash.</source>
     <message>
         <location filename="../../src/core/operations/OperationQueue.cpp" line="189"/>
         <source>Failed to rename %1</source>
-        <translation type="unfinished">重命名 %1 失败</translation>
+        <translation>重命名 %1 失败</translation>
     </message>
 </context>
 <context>
@@ -2326,7 +2339,7 @@ Destination: %4 (%5 bytes)</source>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="231"/>
         <source>Shown as reported by the source. These entries are not on this computer&apos;s filesystem, so their permissions cannot be changed here.</source>
-        <translation type="unfinished"></translation>
+        <translation>按数据源报告显示。这些条目不在本计算机的文件系统上，因此无法在此更改其权限。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="263"/>
@@ -2470,7 +2483,7 @@ Destination: %4 (%5 bytes)</source>
     <message>
         <location filename="../../src/ui/dialogs/OverwriteConfirmDialog.cpp" line="16"/>
         <source>unknown size</source>
-        <translation type="unfinished"></translation>
+        <translation>未知大小</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OverwriteConfirmDialog.cpp" line="39"/>
@@ -2478,7 +2491,7 @@ Destination: %4 (%5 bytes)</source>
 
 Source: %2 (%3)
 Destination: %4 (%5)</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
 </context>
 <context>
@@ -2745,64 +2758,64 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="918"/>
         <source>No embedded lyrics.</source>
-        <translation type="unfinished"></translation>
+        <translation>没有内嵌歌词。</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="937"/>
         <source>Previous track</source>
-        <translation type="unfinished"></translation>
+        <translation>上一首</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="942"/>
         <source>Play / pause</source>
-        <translation type="unfinished"></translation>
+        <translation>播放/暂停</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="949"/>
         <source>Next track</source>
-        <translation type="unfinished"></translation>
+        <translation>下一首</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1098"/>
         <location filename="../../src/ui/QuickView.cpp" line="1154"/>
         <source>Artist</source>
-        <translation type="unfinished"></translation>
+        <translation>艺术家</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1099"/>
         <location filename="../../src/ui/QuickView.cpp" line="1155"/>
         <source>Album</source>
-        <translation type="unfinished"></translation>
+        <translation>专辑</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1100"/>
         <location filename="../../src/ui/QuickView.cpp" line="1156"/>
         <source>Album Artist</source>
-        <translation type="unfinished"></translation>
+        <translation>专辑艺术家</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1101"/>
         <location filename="../../src/ui/QuickView.cpp" line="1157"/>
         <source>Year</source>
-        <translation type="unfinished"></translation>
+        <translation>年份</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1102"/>
         <location filename="../../src/ui/QuickView.cpp" line="1158"/>
         <source>Genre</source>
-        <translation type="unfinished"></translation>
+        <translation>流派</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1103"/>
         <location filename="../../src/ui/QuickView.cpp" line="1159"/>
         <source>Track</source>
-        <translation type="unfinished"></translation>
+        <translation>曲目</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1104"/>
         <location filename="../../src/ui/QuickView.cpp" line="1160"/>
         <source>Composer</source>
-        <translation type="unfinished"></translation>
+        <translation>作曲者</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1310"/>
@@ -2817,19 +2830,19 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1354"/>
         <source>停止下载</source>
-        <translation type="unfinished"></translation>
+        <translation>停止下载</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1367"/>
         <source>正在下载到本地以便预览…
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1387"/>
         <source>已取消预览：本文件的预览下载被用户停止。
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1398"/>
@@ -2839,7 +2852,7 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1447"/>
         <source>Loading preview…</source>
-        <translation type="unfinished"></translation>
+        <translation>正在加载预览…</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1521"/>
@@ -2900,28 +2913,28 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1879"/>
         <source>Sheet %1</source>
-        <translation type="unfinished"></translation>
+        <translation>工作表 %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1908"/>
         <source>Copy Page</source>
-        <translation type="unfinished"></translation>
+        <translation>复制页面</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1910"/>
         <location filename="../../src/ui/QuickView.cpp" line="2222"/>
         <source>Copy All</source>
-        <translation type="unfinished"></translation>
+        <translation>全部复制</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="2220"/>
         <source>Copy Slide</source>
-        <translation type="unfinished"></translation>
+        <translation>复制幻灯片</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="2475"/>
         <source>Slide %1 / %2</source>
-        <translation type="unfinished"></translation>
+        <translation>幻灯片 %1 / %2</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="2867"/>
@@ -2935,13 +2948,13 @@ pip install --user msoffcrypto-tool</translation>
         <location filename="../../src/core/devices/RemovableDeviceMonitor.cpp" line="219"/>
         <location filename="../../src/core/devices/RemovableDeviceMonitor.cpp" line="259"/>
         <source>System D-Bus is not available</source>
-        <translation type="unfinished"></translation>
+        <translation>系统 D-Bus 不可用</translation>
     </message>
     <message>
         <location filename="../../src/core/devices/RemovableDeviceMonitor.cpp" line="226"/>
         <location filename="../../src/core/devices/RemovableDeviceMonitor.cpp" line="269"/>
         <source>Device is not a mountable filesystem</source>
-        <translation type="unfinished"></translation>
+        <translation>设备不是可挂载的文件系统</translation>
     </message>
 </context>
 <context>
@@ -3095,22 +3108,22 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/StatusBarWidget.cpp" line="35"/>
         <source>Smaller</source>
-        <translation type="unfinished"></translation>
+        <translation>较小</translation>
     </message>
     <message>
         <location filename="../../src/ui/StatusBarWidget.cpp" line="43"/>
         <source>Larger</source>
-        <translation type="unfinished"></translation>
+        <translation>较大</translation>
     </message>
     <message>
         <location filename="../../src/ui/StatusBarWidget.cpp" line="72"/>
         <source>登录</source>
-        <translation type="unfinished"></translation>
+        <translation>登录</translation>
     </message>
     <message>
         <location filename="../../src/ui/StatusBarWidget.cpp" line="72"/>
         <source>重试</source>
-        <translation type="unfinished"></translation>
+        <translation>重试</translation>
     </message>
 </context>
 <context>
@@ -3123,129 +3136,129 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="86"/>
         <source>Left: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>左侧：%1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="88"/>
         <source>Right: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>右侧：%1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="100"/>
         <source>Show identical files</source>
-        <translation type="unfinished"></translation>
+        <translation>显示相同文件</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="106"/>
         <source>All →</source>
-        <translation type="unfinished"></translation>
+        <translation>全部 →</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="107"/>
         <source>Set every difference to copy left → right</source>
-        <translation type="unfinished"></translation>
+        <translation>将所有差异设为从左复制到右</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="108"/>
         <source>All ←</source>
-        <translation type="unfinished"></translation>
+        <translation>全部 ←</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="109"/>
         <source>Set every difference to copy right → left</source>
-        <translation type="unfinished"></translation>
+        <translation>将所有差异设为从右复制到左</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="110"/>
         <source>Skip all</source>
-        <translation type="unfinished"></translation>
+        <translation>全部跳过</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="111"/>
         <source>Exclude every row from the sync</source>
-        <translation type="unfinished"></translation>
+        <translation>从同步中排除所有行</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="143"/>
         <source>Abort</source>
-        <translation type="unfinished"></translation>
+        <translation>中止</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="186"/>
         <source>Compare Again</source>
-        <translation type="unfinished"></translation>
+        <translation>再次比较</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="193"/>
         <source>Close</source>
-        <translation type="unfinished"></translation>
+        <translation>关闭</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="218"/>
         <source>Comparing…</source>
-        <translation type="unfinished"></translation>
+        <translation>比较中…</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="242"/>
         <source>Stopping…</source>
-        <translation type="unfinished"></translation>
+        <translation>正在停止…</translation>
     </message>
     <message numerus="yes">
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="272"/>
         <source>Comparing… %n item(s) scanned</source>
-        <translation type="unfinished">
+        <translation>
             <numerusform></numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="274"/>
         <source>Comparing… %n item(s) scanned — %1</source>
-        <translation type="unfinished">
+        <translation>
             <numerusform></numerusform>
         </translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="294"/>
         <source>Comparison stopped — results are incomplete.</source>
-        <translation type="unfinished"></translation>
+        <translation>比较已停止，结果不完整。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="305"/>
         <source>→ %1 · ← %2 · conflicts %3 · identical %4 · skipped %5    To sync: %6 file(s), %7</source>
-        <translation type="unfinished"></translation>
+        <translation>→ %1 · ← %2 · 冲突 %3 · 相同 %4 · 跳过 %5    待同步: %6 个文件, %7</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="325"/>
         <source>Start Sync (comparing…)</source>
-        <translation type="unfinished"></translation>
+        <translation>开始同步（比较中…）</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="328"/>
         <source>Available once the comparison finishes. To start now, press Abort first.
 Copying while the scan is still running would make it re-read the files it just wrote and report them as new differences.</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="335"/>
         <source>Start Sync (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>开始同步（%1）</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="335"/>
         <source>Start Sync</source>
-        <translation type="unfinished"></translation>
+        <translation>开始同步</translation>
     </message>
     <message numerus="yes">
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="337"/>
         <source>Copy the %n selected file(s).</source>
-        <translation type="unfinished">
+        <translation>
             <numerusform></numerusform>
         </translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="338"/>
         <source>Nothing to copy: no row is set to a direction.</source>
-        <translation type="unfinished"></translation>
+        <translation>无需复制：没有行被设置为某一方向。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="55"/>
@@ -3309,50 +3322,50 @@ Right: %2</source>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="237"/>
         <source>Copy left → right. Click to change direction or skip.</source>
-        <translation type="unfinished"></translation>
+        <translation>从左复制到右。点击可切换方向或跳过。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="239"/>
         <source>Copy right → left. Click to change direction or skip.</source>
-        <translation type="unfinished"></translation>
+        <translation>从右复制到左。点击可切换方向或跳过。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="241"/>
         <source>Skipped — this file will not be touched. Click to choose a direction.</source>
-        <translation type="unfinished"></translation>
+        <translation>已跳过 — 此文件不会被处理。点击可选择方向。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="243"/>
         <source>Both sides match; nothing to do.</source>
-        <translation type="unfinished"></translation>
+        <translation>两侧相同，无需操作。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="247"/>
         <source>Both sides were changed, or the clocks disagree: the contents differ but the timestamps look the same, so neither side is safe to assume newer. Click to pick a direction yourself.</source>
-        <translation type="unfinished"></translation>
+        <translation>两侧均已更改或时间戳不一致：内容不同但时间戳相同，无法判断哪侧更新。请自行选择方向。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="334"/>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="342"/>
         <source>Name</source>
-        <translation type="unfinished">名称</translation>
+        <translation>名称</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="336"/>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="344"/>
         <source>Size</source>
-        <translation type="unfinished">大小</translation>
+        <translation>大小</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="338"/>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="346"/>
         <source>Modified</source>
-        <translation type="unfinished">修改日期</translation>
+        <translation>修改日期</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="340"/>
         <source>Action</source>
-        <translation type="unfinished"></translation>
+        <translation>操作</translation>
     </message>
 </context>
 <context>
@@ -3437,7 +3450,7 @@ Right: %2</source>
     <message>
         <location filename="../../src/ui/TitleBar.cpp" line="70"/>
         <source>New Version</source>
-        <translation type="unfinished"></translation>
+        <translation>新版本</translation>
     </message>
 </context>
 <context>
@@ -3495,17 +3508,17 @@ Right: %2</source>
     <message>
         <location filename="../../src/core/update/UpdateChecker.cpp" line="78"/>
         <source>Malformed update manifest: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>更新清单格式错误：%1</translation>
     </message>
     <message>
         <location filename="../../src/core/update/UpdateChecker.cpp" line="85"/>
         <source>Update manifest is missing a version field.</source>
-        <translation type="unfinished"></translation>
+        <translation>更新清单缺少版本字段。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/UpdateChecker.cpp" line="103"/>
         <source>Update manifest has no %1 package for this installation.</source>
-        <translation type="unfinished"></translation>
+        <translation>更新清单中没有适用于此安装的 %1 包。</translation>
     </message>
 </context>
 <context>
@@ -3513,52 +3526,52 @@ Right: %2</source>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="16"/>
         <source>Software Update</source>
-        <translation type="unfinished"></translation>
+        <translation>软件更新</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="21"/>
         <source>Version %1 is available (you have %2).</source>
-        <translation type="unfinished"></translation>
+        <translation>版本 %1 可用（当前为 %2）。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="30"/>
         <source>Released: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>发布日期：%1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="32"/>
         <source>Release notes:</source>
-        <translation type="unfinished"></translation>
+        <translation>发布说明：</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="36"/>
         <source>No release notes provided.</source>
-        <translation type="unfinished"></translation>
+        <translation>未提供发布说明。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="47"/>
         <source>Update Now</source>
-        <translation type="unfinished"></translation>
+        <translation>立即更新</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="49"/>
         <source>Later</source>
-        <translation type="unfinished"></translation>
+        <translation>较新</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="75"/>
         <source>Downloading…</source>
-        <translation type="unfinished"></translation>
+        <translation>下载中…</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="82"/>
         <source>Verifying and installing…</source>
-        <translation type="unfinished"></translation>
+        <translation>正在验证并安装…</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="97"/>
         <source>Retry</source>
-        <translation type="unfinished">重试</translation>
+        <translation>重试</translation>
     </message>
 </context>
 <context>
@@ -3566,94 +3579,94 @@ Right: %2</source>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="43"/>
         <source>Update information is incomplete.</source>
-        <translation type="unfinished"></translation>
+        <translation>更新信息不完整。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="59"/>
         <source>Could not create a temporary file for the download.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法为下载创建临时文件。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="91"/>
         <source>Download failed: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>下载失败：%1</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="95"/>
         <source>The downloaded file could not be found.</source>
-        <translation type="unfinished"></translation>
+        <translation>找不到已下载的文件。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="102"/>
         <source>Could not read the downloaded file for verification.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法读取下载的文件以进行验证。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="107"/>
         <source>Checksum mismatch — the download may be corrupt or tampered with. Update aborted.</source>
-        <translation type="unfinished"></translation>
+        <translation>校验和不匹配 — 下载内容可能损坏或已被篡改。更新已中止。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="122"/>
         <source>Could not determine the AppImage path to replace.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法确定要替换的 AppImage 路径。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="131"/>
         <source>Could not stage the new AppImage next to %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法在 %1 旁边暂存新的 AppImage。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="138"/>
         <source>Could not make the new AppImage executable.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法使新的 AppImage 可执行。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="147"/>
         <source>Could not replace the running AppImage at %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法替换运行中的 AppImage（路径: %1）。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="152"/>
         <source>Updated, but could not relaunch %1 automatically. Please start it again manually.</source>
-        <translation type="unfinished"></translation>
+        <translation>已更新，但无法自动重新启动 %1。请手动启动。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="158"/>
         <location filename="../../src/core/update/Updater.cpp" line="216"/>
         <source>Updated to version %1. Restarting…</source>
-        <translation type="unfinished"></translation>
+        <translation>已更新到版本 %1，正在重新启动…</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="169"/>
         <source>Could not prepare the downloaded package for installation.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法准备已下载的包以进行安装。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="181"/>
         <source>Could not launch the installer (pkexec not available).</source>
-        <translation type="unfinished"></translation>
+        <translation>无法启动安装程序（pkexec 不可用）。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="192"/>
         <source>Installation failed and no fallback installer is available.</source>
-        <translation type="unfinished"></translation>
+        <translation>安装失败且没有备用的安装程序。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="200"/>
         <source>Package installation failed.</source>
-        <translation type="unfinished"></translation>
+        <translation>包安装失败。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="201"/>
         <source>Package installation failed:
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="210"/>
         <source>Updated to version %1, but could not restart automatically. Please start FileCommander again.</source>
-        <translation type="unfinished"></translation>
+        <translation>已更新到版本 %1，但无法自动重启。请手动启动 FileCommander。</translation>
     </message>
 </context>
 <context>
