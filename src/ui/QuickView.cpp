@@ -65,6 +65,7 @@
 #include "PackageInfo.h"
 #include "AudioPlayer.h"
 #include "ImageViewer.h"
+#include "IconCache.h"
 #include "MpvStreamSource.h"
 #include "MpvWidget.h"
 #include "theme/Phosphor.h"
@@ -669,10 +670,7 @@ QWidget *QuickView::buildVideoPage() {
     // instead of a tiny centred dot. This applies to every icon set on the
     // button (initial, toggle, and showFile), so it only needs setting once.
     m_muteButton->setIconSize(QSize(18, 18));
-    auto syncMuteIcon = [this]() {
-        m_muteButton->setIcon(style()->standardIcon(
-            m_muteButton->isChecked() ? QStyle::SP_MediaVolumeMuted : QStyle::SP_MediaVolume));
-    };
+    auto syncMuteIcon = [this]() { refreshMediaControlIcons(); };
     syncMuteIcon();
     connect(m_muteButton, &QPushButton::toggled, this, [this, syncMuteIcon](bool muted) {
         m_mpv->setMute(muted);
@@ -784,12 +782,34 @@ void QuickView::refreshPhosphor() {
     }
 
     applyVideoPhosphor();
+    refreshMediaControlIcons();
 }
 
 void QuickView::applyVideoPhosphor() {
     if (!m_mpv)
         return;
     m_mpv->applyVideoFilter(fc::mpvScanlinedPhosphorFilter(fc::contentTint()));
+}
+
+QIcon QuickView::mediaIcon(QStyle::StandardPixmap standardPixmap) const {
+    return IconCache::instance().themedIcon(style()->standardIcon(standardPixmap));
+}
+
+void QuickView::refreshMediaControlIcons() {
+    if (m_muteButton) {
+        m_muteButton->setIcon(mediaIcon(
+            m_muteButton->isChecked() ? QStyle::SP_MediaVolumeMuted : QStyle::SP_MediaVolume));
+    }
+    if (!m_audioPrevButton)
+        return;
+
+    m_audioPrevButton->setIcon(mediaIcon(QStyle::SP_MediaSkipBackward));
+    m_audioNextButton->setIcon(mediaIcon(QStyle::SP_MediaSkipForward));
+    m_audioMuteButton->setIcon(mediaIcon(
+        m_audioMuteButton->isChecked() ? QStyle::SP_MediaVolumeMuted : QStyle::SP_MediaVolume));
+    const bool playing = m_audio && !(m_audio->paused() || m_audio->ended());
+    m_audioPlayButton->setIcon(
+        mediaIcon(playing ? QStyle::SP_MediaPause : QStyle::SP_MediaPlay));
 }
 
 void QuickView::positionVideoInfoOverlay() {
@@ -897,13 +917,11 @@ QWidget *QuickView::buildAudioPage() {
 
     // Transport row: prev, play/pause, next, elapsed, seek, total.
     m_audioPrevButton = new QPushButton(m_audioPage);
-    m_audioPrevButton->setIcon(style()->standardIcon(QStyle::SP_MediaSkipBackward));
     m_audioPrevButton->setToolTip(tr("Previous track"));
     connect(m_audioPrevButton, &QPushButton::clicked, this,
             [this]() { showPrevSibling(); });
 
     m_audioPlayButton = new QPushButton(m_audioPage);
-    m_audioPlayButton->setIcon(style()->standardIcon(QStyle::SP_MediaPause));
     m_audioPlayButton->setToolTip(tr("Play / pause"));
     connect(m_audioPlayButton, &QPushButton::clicked, this, [this]() {
         m_audio->playPause();
@@ -911,7 +929,6 @@ QWidget *QuickView::buildAudioPage() {
     });
 
     m_audioNextButton = new QPushButton(m_audioPage);
-    m_audioNextButton->setIcon(style()->standardIcon(QStyle::SP_MediaSkipForward));
     m_audioNextButton->setToolTip(tr("Next track"));
     connect(m_audioNextButton, &QPushButton::clicked, this,
             [this]() { showNextSibling(); });
@@ -935,11 +952,7 @@ QWidget *QuickView::buildAudioPage() {
     m_audioMuteButton->setCheckable(true);
     m_audioMuteButton->setToolTip(tr("Mute / unmute"));
     m_audioMuteButton->setIconSize(QSize(18, 18));
-    auto syncAudioMuteIcon = [this]() {
-        m_audioMuteButton->setIcon(style()->standardIcon(
-            m_audioMuteButton->isChecked() ? QStyle::SP_MediaVolumeMuted
-                                           : QStyle::SP_MediaVolume));
-    };
+    auto syncAudioMuteIcon = [this]() { refreshMediaControlIcons(); };
     syncAudioMuteIcon();
     connect(m_audioMuteButton, &QPushButton::toggled, this,
             [this, syncAudioMuteIcon](bool muted) {
@@ -985,15 +998,14 @@ QWidget *QuickView::buildAudioPage() {
     m_audioTimer->setInterval(250);
     connect(m_audioTimer, &QTimer::timeout, this, [this]() { updateAudioTransport(); });
 
+    refreshMediaControlIcons();
     return m_audioPage;
 }
 
 void QuickView::updateAudioTransport() {
     if (!m_audio)
         return;
-    const bool playing = !(m_audio->paused() || m_audio->ended());
-    m_audioPlayButton->setIcon(style()->standardIcon(
-        playing ? QStyle::SP_MediaPause : QStyle::SP_MediaPlay));
+    refreshMediaControlIcons();
     if (m_audioSeeking)
         return;
     const double dur = m_audio->durationSeconds();
@@ -1092,8 +1104,7 @@ void QuickView::showAudio(const QString &path) {
     m_audioVolumeSlider->blockSignals(false);
     m_audioMuteButton->blockSignals(true);
     m_audioMuteButton->setChecked(audioMute);
-    m_audioMuteButton->setIcon(style()->standardIcon(
-        audioMute ? QStyle::SP_MediaVolumeMuted : QStyle::SP_MediaVolume));
+    refreshMediaControlIcons();
     m_audioMuteButton->blockSignals(false);
     m_audio->setVolume(audioVol);
     m_audio->setMute(audioMute);
@@ -2674,8 +2685,7 @@ void QuickView::showFile(const QString &path) {
 
         m_muteButton->blockSignals(true);
         m_muteButton->setChecked(savedMuted);
-        m_muteButton->setIcon(style()->standardIcon(
-            savedMuted ? QStyle::SP_MediaVolumeMuted : QStyle::SP_MediaVolume));
+        refreshMediaControlIcons();
         m_muteButton->blockSignals(false);
         m_mpv->setMute(savedMuted);
 

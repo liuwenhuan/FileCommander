@@ -30,6 +30,17 @@ TEST(IconCacheTest, ReturnsNonNullIconForDirectory) {
     EXPECT_FALSE(icon.isNull());
 }
 
+TEST(IconCacheTest, ThemedIconLeavesOriginalUntouchedWithoutTint) {
+    QPixmap source(16, 16);
+    source.fill(QColor(130, 80, 40, 173));
+    const QIcon raw(source);
+
+    IconCache::instance().setTint(QColor());
+    const QIcon result = IconCache::instance().themedIcon(raw);
+
+    EXPECT_EQ(result.cacheKey(), raw.cacheKey());
+}
+
 TEST(IconCacheTest, ThemedIconUsesConfiguredTintAndLeavesAlphaIntact) {
     QPixmap source(16, 16);
     source.fill(QColor(130, 80, 40, 173));
