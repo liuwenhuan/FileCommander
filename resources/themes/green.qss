@@ -420,17 +420,16 @@ QTreeView {
     selection-color: #04140a;
 }
 
-/* Branch arrows: the light-tinted SVGs are the readable pair against a near
-   black screen, same choice dark.qss makes. */
+/* Branch arrows are phosphor green too; gray would introduce a second hue. */
 QTreeView::branch:has-children:!has-siblings:closed,
 QTreeView::branch:closed:has-children:has-siblings {
     border-image: none;
-    image: url(:/icons/branch-closed-light.svg);
+    image: url(:/icons/branch-closed-green.svg);
 }
 QTreeView::branch:open:has-children:!has-siblings,
 QTreeView::branch:open:has-children:has-siblings {
     border-image: none;
-    image: url(:/icons/branch-open-light.svg);
+    image: url(:/icons/branch-open-green.svg);
 }
 
 QToolTip {

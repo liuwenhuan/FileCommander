@@ -66,6 +66,7 @@
 #include "AudioPlayer.h"
 #include "ImageViewer.h"
 #include "IconCache.h"
+#include "FileInfo.h"
 #include "MpvStreamSource.h"
 #include "MpvWidget.h"
 #include "theme/Phosphor.h"
@@ -354,7 +355,7 @@ void QuickView::rotateCurrentImage(int degrees) {
 
     // Persist losslessly back to disk, preserving format and precision.
     const QFileInfo fi(m_imagePath);
-    const QString suffix = fi.suffix().toLower();
+    const QString suffix = FileInfo::suffixForName(fi.fileName()).toLower();
     const int rot = ((degrees % 360) + 360) % 360; // +90 -> 90, -90 -> 270
     bool saved = false;
 
@@ -565,22 +566,23 @@ bool QuickView::isVideo(const QString &path) {
     static const QSet<QString> kVideoSuffixes = {
         "mp4", "mkv", "avi",  "mov", "webm", "flv", "wmv",
         "m4v", "mpg", "mpeg", "ts",  "m2ts", "3gp", "ogv"};
-    return kVideoSuffixes.contains(QFileInfo(path).suffix().toLower());
+    return kVideoSuffixes.contains(FileInfo::suffixForName(QFileInfo(path).fileName()).toLower());
 }
 
 bool QuickView::isMarkdown(const QString &path) {
     static const QSet<QString> kMarkdownSuffixes = {"md", "markdown", "mkd", "mdown"};
-    return kMarkdownSuffixes.contains(QFileInfo(path).suffix().toLower());
+    return kMarkdownSuffixes.contains(FileInfo::suffixForName(QFileInfo(path).fileName()).toLower());
 }
 
 bool QuickView::isPdf(const QString &path) {
-    return QFileInfo(path).suffix().toLower() == QLatin1String("pdf");
+    return FileInfo::suffixForName(QFileInfo(path).fileName()).compare(
+               QLatin1String("pdf"), Qt::CaseInsensitive) == 0;
 }
 
 bool QuickView::isAudio(const QString &path) {
     static const QSet<QString> kAudioSuffixes = {"mp3", "wav",  "flac", "ogg",
                                                  "aac", "m4a", "wma",  "opus"};
-    return kAudioSuffixes.contains(QFileInfo(path).suffix().toLower());
+    return kAudioSuffixes.contains(FileInfo::suffixForName(QFileInfo(path).fileName()).toLower());
 }
 
 QWidget *QuickView::buildVideoPage() {

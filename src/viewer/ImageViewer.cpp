@@ -1,5 +1,7 @@
 #include "ImageViewer.h"
 
+#include "FileInfo.h"
+
 #include <QDir>
 #include <QFileInfo>
 #include <QKeyEvent>
@@ -21,7 +23,8 @@ bool isImageFile(const QString &path) {
 bool ImageViewer::isImage(const QString &path) {
     static const QSet<QString> kImageSuffixes = {"png",  "jpg", "jpeg", "gif",
                                                    "bmp",  "svg", "webp", "ico"};
-    return kImageSuffixes.contains(QFileInfo(path).suffix().toLower());
+    return kImageSuffixes.contains(
+        FileInfo::suffixForName(QFileInfo(path).fileName()).toLower());
 }
 
 ImageViewer::ImageViewer(QWidget *parent) : QWidget(parent) {

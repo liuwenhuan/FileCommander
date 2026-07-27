@@ -6,6 +6,8 @@
 
 class QMenu;
 class QAbstractButton;
+class QLabel;
+class QResizeEvent;
 
 // Self-drawn window title bar for the frameless MainWindow: the app icon on the
 // left, menu buttons (Commands / View) next to it, and minimize /
@@ -46,12 +48,16 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void mouseDoubleClickEvent(QMouseEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
 
     QPixmap m_backgroundTile;
 
 private:
+    void positionTitle();
+
     QWidget *m_window;
+    QLabel *m_title = nullptr;
     QAbstractButton *m_maxButton = nullptr; // a TitleButton (cast in the .cpp)
     QAbstractButton *m_updateBadge = nullptr; // "New Version" badge, hidden until an update is found
     bool m_pressed = false;                 // left button down (for drag vs double-click)

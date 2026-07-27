@@ -2020,51 +2020,13 @@ void MainWindow::syncOtherPanelToActive() {
 }
 
 void MainWindow::swapPanels() {
-    // While the preview is up it occupies one splitter slot and the panel it
-    // displaced is parked off-screen, so exchanging the two panels' paths would
-    // shuffle a pane the user cannot see -- from the user's side nothing moves
-    // except the file list under the preview. What "swap sides" means here is
-    // to move the preview to the other side: the visible panel and the preview
-    // trade places.
-    if (m_quickViewActive) {
-        const QList<int> sizes = m_panelSplitter->sizes();
-        FilePanel *visible = otherPanel(m_quickViewPanel);
-        const int visibleIndex = m_panelSplitter->indexOf(visible);
-
-        // Park the visible panel where the preview sat, then put the preview in
-        // the slot just vacated. Taking the preview out first would leave the
-        // splitter momentarily holding `visible` twice.
-        m_panelSplitter->replaceWidget(m_quickViewIndex, m_quickViewPanel);
-        m_quickViewPanel->show();
-        m_panelSplitter->replaceWidget(visibleIndex, m_quickView);
-        m_quickView->show();
-
-        m_quickViewPanel = visible;
-        m_quickViewIndex = visibleIndex;
-
-        // The panel that just came back is now the only one on screen, so it
-        // takes focus -- the preview follows the active panel's selection, and
-        // leaving focus on the hidden panel would make the preview track a
-        // cursor nobody can see.
-        FilePanel *revealed = otherPanel(visible);
-        setActivePanel(revealed);
-        revealed->view()->setFocus();
-
-        // Sides swapped, so the ratio has to swap with them or a narrow preview
-        // would stay narrow while changing sides.
-        QList<int> swapped = sizes;
-        std::reverse(swapped.begin(), swapped.end());
-        m_panelSplitter->setSizes(swapped);
-        updateQuickView();
-        return;
-    }
-
     // Exchange the backends, not the path strings: a remote path resolved by the
     // other panel's backend would land it somewhere else (every backend here is
     // POSIX-rooted, so "/home" resolves on a share and on this machine alike).
-    // Moving the connections themselves makes the swap mean what it says, and
-    // costs nothing extra when both sides are local.
+    // The preview stays in its splitter slot; only the two folder states swap.
     m_leftPanel->exchangeLocationWith(m_rightPanel);
+    if (m_quickViewActive)
+        updateQuickView();
 }
 
 void MainWindow::openTerminalHere() {
