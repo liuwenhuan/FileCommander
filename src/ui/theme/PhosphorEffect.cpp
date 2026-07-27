@@ -25,10 +25,8 @@ void PhosphorEffect::draw(QPainter *painter) {
     }
 
     QImage image = source.toImage();
-    // Device coordinates above means the block is already in the right units:
-    // the same value the thumbnails and icons use, applied to the same pixels.
-    fc::pixelate(image, fc::contentPixelBlock());
     fc::tintImage(image, m_tint);
+    fc::applyScanlines(image);
 
     // sourcePixmap() in DeviceCoordinates hands back an already-transformed
     // bitmap, so it must be blitted with the painter's transform reset --

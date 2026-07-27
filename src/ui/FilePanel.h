@@ -265,6 +265,10 @@ public:
     // rather than by polling.
     void rebuildTreeRoots();
 
+    // Repaints cached file decorations and refreshes tree/tab chrome after a
+    // theme changes icon treatment, without replacing models or tab state.
+    void refreshThemeIcons();
+
 signals:
     void pathChanged(const QString &path);
     void panelActivated(FilePanel *panel);

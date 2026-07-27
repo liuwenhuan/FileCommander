@@ -54,6 +54,10 @@ public:
     // screen the anchor sits on.
     void popUpAbove(const QRect &anchorGlobalRect);
 
+    // Reapplies the current chrome-icon treatment without rebuilding this popup,
+    // preserving its rows, focus, scroll position, and anchored geometry.
+    void refreshThemeIcons();
+
 signals:
     // A removable device (already mounted, or mounted on demand by the panel):
     // its local mount point, ready to hand to a panel's navigateTo().

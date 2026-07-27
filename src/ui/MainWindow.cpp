@@ -77,6 +77,7 @@
 #include "TranslationManager.h"
 #include "CompressDialog.h"
 #include "FilePanel.h"
+#include "filesystem/IconCache.h"
 #include "IconFileView.h"
 #include "FileSplitter.h"
 #include "MpvStreamSource.h"
@@ -1398,8 +1399,10 @@ void MainWindow::runExtraKey(const QString &slot) {
 void MainWindow::updateExtraKeyButtons() {
     m_leadingCommand = m_settings.extraKeyCommand("leading", "external-connect");
     m_trailingCommand = m_settings.extraKeyCommand("trailing", "notepad");
-    m_functionKeyBar->setLeadingIcon(QIcon(QStringLiteral(":/icons/ext-connect.svg")));
-    m_functionKeyBar->setTrailingIcon(QIcon(QStringLiteral(":/icons/notepad.svg")));
+    m_functionKeyBar->setLeadingIcon(
+        IconCache::instance().themedIcon(QIcon(QStringLiteral(":/icons/ext-connect.svg"))));
+    m_functionKeyBar->setTrailingIcon(
+        IconCache::instance().themedIcon(QIcon(QStringLiteral(":/icons/notepad.svg"))));
     m_functionKeyBar->setLeadingToolTip(m_commandLabels.value(m_leadingCommand, m_leadingCommand));
     m_functionKeyBar->setTrailingToolTip(
         m_commandLabels.value(m_trailingCommand, m_trailingCommand));
@@ -3032,9 +3035,13 @@ void MainWindow::applyTheme() {
     // re-decoded. Repaint so the panels ask for the new copies right away.
     ThumbnailCache::instance().invalidateMemoryCache();
     if (m_leftPanel)
-        m_leftPanel->update();
+        m_leftPanel->refreshThemeIcons();
     if (m_rightPanel)
-        m_rightPanel->update();
+        m_rightPanel->refreshThemeIcons();
+    if (m_functionKeyBar)
+        updateExtraKeyButtons();
+    for (ExternalConnectDialog *popup : findChildren<ExternalConnectDialog *>())
+        popup->refreshThemeIcons();
     // The preview pane holds bitmaps recoloured when the file was opened, so it
     // would otherwise keep the previous treatment until the next file. Both the
     // embedded pane and any open F3 viewer window.

@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <QColor>
 #include <QFile>
+#include <QPixmap>
 #include <QTemporaryDir>
 
 #include "FileInfo.h"
@@ -26,6 +28,23 @@ TEST(IconCacheTest, ReturnsNonNullIconForDirectory) {
     FileInfo info(dir.path());
     QIcon icon = IconCache::instance().iconFor(info);
     EXPECT_FALSE(icon.isNull());
+}
+
+TEST(IconCacheTest, ThemedIconUsesConfiguredTintAndLeavesAlphaIntact) {
+    QPixmap source(16, 16);
+    source.fill(QColor(130, 80, 40, 173));
+    const QIcon raw(source);
+
+    IconCache::instance().setTint(QColor(0, 255, 0), 0);
+    const QPixmap tinted = IconCache::instance().themedIcon(raw).pixmap(source.size());
+    IconCache::instance().setTint(QColor());
+
+    ASSERT_FALSE(tinted.isNull());
+    const QColor pixel = tinted.toImage().pixelColor(0, 0);
+    EXPECT_EQ(pixel.red(), 0);
+    EXPECT_GT(pixel.green(), 0);
+    EXPECT_EQ(pixel.blue(), 0);
+    EXPECT_EQ(pixel.alpha(), 173);
 }
 
 TEST(IconCacheTest, SameExtensionReusesCachedIcon) {

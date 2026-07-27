@@ -39,6 +39,7 @@
 #include "FileListView.h"
 #include "IconFileView.h"
 #include "FileProvider.h"
+#include "filesystem/IconCache.h"
 #include "ArchiveLayout.h"
 #include "ArchiveProvider.h"
 #include "StatusBarWidget.h"
@@ -1072,6 +1073,16 @@ void FilePanel::rebuildTreeRoots() {
         syncTreeToPath(m_model->rootPath());
 }
 
+void FilePanel::refreshThemeIcons() {
+    if (m_dirTreeModel)
+        m_dirTreeModel->refreshIcons();
+    refreshTabIcons();
+    if (m_view)
+        m_view->viewport()->update();
+    if (m_iconView)
+        m_iconView->viewport()->update();
+}
+
 void FilePanel::syncTreeToPath(const QString &path) {
     if (!m_dirTree || !m_dirTree->isVisible() || path.isEmpty())
         return;
@@ -1778,15 +1789,16 @@ void FilePanel::updateActiveTabLabel() {
 }
 
 static QIcon iconForScheme(const QString &scheme) {
+    QIcon icon;
     if (scheme == QLatin1String("sftp"))
-        return QIcon(QStringLiteral(":/icons/dev-sftp.svg"));
-    if (scheme == QLatin1String("smb"))
-        return QIcon(QStringLiteral(":/icons/dev-smb.svg"));
-    if (scheme == QLatin1String("ftp"))
-        return QIcon(QStringLiteral(":/icons/dev-ftp.svg"));
-    if (scheme == QLatin1String("webdav"))
-        return QIcon(QStringLiteral(":/icons/dev-webdav.svg"));
-    return QIcon();
+        icon = QIcon(QStringLiteral(":/icons/dev-sftp.svg"));
+    else if (scheme == QLatin1String("smb"))
+        icon = QIcon(QStringLiteral(":/icons/dev-smb.svg"));
+    else if (scheme == QLatin1String("ftp"))
+        icon = QIcon(QStringLiteral(":/icons/dev-ftp.svg"));
+    else if (scheme == QLatin1String("webdav"))
+        icon = QIcon(QStringLiteral(":/icons/dev-webdav.svg"));
+    return IconCache::instance().themedIcon(icon);
 }
 
 // The protocol icon with a small status dot overlaid so the tab shows connection

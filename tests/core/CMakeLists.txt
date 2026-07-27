@@ -1,5 +1,6 @@
 add_executable(core_tests
     test_main.cpp
+    test_Phosphor.cpp
     filesystem/test_FileInfo.cpp
     filesystem/test_FileSystemModel.cpp
     filesystem/test_IconCache.cpp

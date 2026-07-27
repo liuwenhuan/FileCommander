@@ -40,11 +40,14 @@ QIcon IconCache::iconFor(const FileInfo &info) {
     static QFileIconProvider provider;
     QIcon icon = info.isDir() ? provider.icon(QFileIconProvider::Folder)
                               : provider.icon(QFileInfo(info.path()));
-    if (m_tint.isValid())
-        icon = tinted(icon);
+    icon = themedIcon(icon);
 
     m_cache.insert(key, new QIcon(icon));
     return icon;
+}
+
+QIcon IconCache::themedIcon(const QIcon &icon) const {
+    return m_tint.isValid() ? tinted(icon) : icon;
 }
 
 void IconCache::setTint(const QColor &tint, int blockPixels) {

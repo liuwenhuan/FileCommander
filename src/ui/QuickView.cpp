@@ -312,12 +312,9 @@ void QuickView::applyImageScale() {
     if (m_originalPixmap.isNull())
         return;
     const QSize target = m_originalPixmap.size() * m_imageScale;
-    // Recoloured HERE, after the fit-to-pane scale, not when the file was
-    // loaded. The quantisation grid is defined in screen pixels: applying it to
-    // the full-resolution source and then scaling down averages the cells away
-    // again, which is exactly what a 4000-pixel photo shown in a 600-pixel pane
-    // did -- correctly tinted and perfectly smooth.
-    m_imageLabel->setPixmap(fc::tintedPixmap(
+    // Recolour HERE, after fitting to the pane, so the scanlines remain visible
+    // at the dimensions actually shown without discarding source detail.
+    m_imageLabel->setPixmap(fc::scanlinedPhosphorPixmap(
         m_originalPixmap.scaled(target, Qt::KeepAspectRatio, Qt::SmoothTransformation),
         fc::contentTint()));
     m_imageLabel->resize(target);
@@ -792,11 +789,7 @@ void QuickView::refreshPhosphor() {
 void QuickView::applyVideoPhosphor() {
     if (!m_mpv)
         return;
-    // Width in the same pixels the block is measured in: the widget's logical
-    // width times its device pixel ratio.
-    const int displayWidth = qRound(m_mpv->width() * m_mpv->devicePixelRatioF());
-    m_mpv->applyVideoFilter(
-        fc::mpvFilterFor(fc::contentTint(), fc::contentPixelBlock(), displayWidth));
+    m_mpv->applyVideoFilter(fc::mpvScanlinedPhosphorFilter(fc::contentTint()));
 }
 
 void QuickView::positionVideoInfoOverlay() {
@@ -2085,8 +2078,8 @@ void QuickView::renderVisiblePdfPages() {
                 std::unique_ptr<Poppler::Page> page(m_pdfDoc->page(i));
                 const QImage image = page ? page->renderToImage(dpi, dpi) : QImage();
                 if (!image.isNull()) {
-                    bg->setPixmap(
-                        fc::tintedPixmap(QPixmap::fromImage(image), fc::contentTint()));
+                    bg->setPixmap(fc::scanlinedPhosphorPixmap(
+                        QPixmap::fromImage(image), fc::contentTint()));
                     m_pdfRenderedWidth[i] = targetW;
                 }
             }
@@ -2542,10 +2535,8 @@ bool QuickView::eventFilter(QObject *watched, QEvent *event) {
     }
     if (watched == m_mpv && event->type() == QEvent::Resize) {
         positionVideoInfoOverlay(); // keep the panel pinned to the top-right corner
-        // The phosphor quantisation is sized from how wide the video is drawn,
-        // so a resized pane needs a rebuilt chain or the cells stop matching
-        // the thumbnails'. Cheap and idempotent: applyVideoFilter compares the
-        // string and does nothing when the cell count has not actually moved.
+        // Reapply the preview filter after the output surface changes. This is
+        // idempotent: applyVideoFilter skips an unchanged filter string.
         applyVideoPhosphor();
         // fall through to default handling
     }
