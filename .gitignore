@@ -47,3 +47,4 @@ packaging/.tools/
 
 # CTest output
 Testing/
+build-live/
