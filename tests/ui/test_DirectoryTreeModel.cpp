@@ -5,6 +5,7 @@
 
 #include "tree/DirectoryTreeModel.h"
 #include "tree/TreeDirLister.h"
+#include "filesystem/IconCache.h"
 
 namespace {
 
@@ -72,6 +73,46 @@ TEST(DirectoryTreeModelTest, RootsAppearAsTopLevelRows) {
     EXPECT_EQ(model.index(0, 0).data(Qt::DisplayRole).toString(), QString("System"));
     EXPECT_EQ(model.index(1, 0).data(DirectoryTreeModel::ConnectionIdRole).toString(),
               QString("smb://host"));
+}
+
+TEST(DirectoryTreeModelTest, ThemeIconsAreCachedUntilRefresh) {
+    struct TintReset {
+        ~TintReset() { IconCache::instance().setTint(QColor()); }
+    } tintReset;
+
+    IconCache &icons = IconCache::instance();
+    icons.setTint(Qt::red);
+
+    DirectoryTreeModel model;
+    model.setRoots({localRoot()},
+                   [](const TreeRoot &) -> TreeDirLister * { return new FakeLister; });
+    const QModelIndex root = model.index(0, 0);
+
+    const QIcon first = root.data(Qt::DecorationRole).value<QIcon>();
+    const QIcon repeated = root.data(Qt::DecorationRole).value<QIcon>();
+    const QImage redImage = first.pixmap(32, 32).toImage();
+    ASSERT_FALSE(redImage.isNull());
+    EXPECT_EQ(repeated.cacheKey(), first.cacheKey());
+
+    icons.setTint(Qt::green);
+    model.refreshIcons();
+    const QImage greenImage = root.data(Qt::DecorationRole)
+                                  .value<QIcon>()
+                                  .pixmap(32, 32)
+                                  .toImage();
+    ASSERT_FALSE(greenImage.isNull());
+    EXPECT_NE(greenImage, redImage);
+
+    icons.setTint(Qt::blue);
+    model.setRoots({localRoot()},
+                   [](const TreeRoot &) -> TreeDirLister * { return new FakeLister; });
+    const QImage blueImage = model.index(0, 0)
+                                 .data(Qt::DecorationRole)
+                                 .value<QIcon>()
+                                 .pixmap(32, 32)
+                                 .toImage();
+    ASSERT_FALSE(blueImage.isNull());
+    EXPECT_NE(blueImage, greenImage);
 }
 
 // Nothing may be listed until a node is actually expanded: a tree that walked

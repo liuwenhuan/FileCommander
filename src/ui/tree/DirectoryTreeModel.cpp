@@ -43,6 +43,7 @@ void DirectoryTreeModel::setRoots(const QVector<TreeRoot> &roots, const ListerFa
     qDeleteAll(m_listers);
     m_listers.clear();
     m_pending.clear();
+    m_iconCache.clear();
     m_rootSpecs = roots;
 
     for (int i = 0; i < roots.size(); ++i) {
@@ -74,6 +75,7 @@ void DirectoryTreeModel::setShowHidden(bool show) {
 }
 
 void DirectoryTreeModel::refreshIcons() {
+    m_iconCache.clear();
     refreshIconsBelow({});
 }
 
@@ -131,10 +133,19 @@ int DirectoryTreeModel::columnCount(const QModelIndex &) const {
 }
 
 QIcon DirectoryTreeModel::iconForNode(const Node *node) const {
+    const QString key = node->isRoot && !node->iconName.isEmpty()
+                            ? QStringLiteral("root:") + node->iconName
+                            : QStringLiteral("folder");
+    const auto cached = m_iconCache.constFind(key);
+    if (cached != m_iconCache.cend())
+        return cached.value();
+
     const QIcon icon = node->isRoot && !node->iconName.isEmpty()
                            ? QIcon(QStringLiteral(":/icons/%1.svg").arg(node->iconName))
                            : QApplication::style()->standardIcon(QStyle::SP_DirIcon);
-    return IconCache::instance().themedIcon(icon);
+    const QIcon themed = IconCache::instance().themedIcon(icon);
+    m_iconCache.insert(key, themed);
+    return themed;
 }
 
 QVariant DirectoryTreeModel::data(const QModelIndex &index, int role) const {

@@ -119,6 +119,7 @@ private:
     QVector<Node *> m_roots;
     QVector<TreeRoot> m_rootSpecs;
     QVector<TreeDirLister *> m_listers; // parallel to m_roots; owned by this
+    mutable QHash<QString, QIcon> m_iconCache;
     quint64 m_nextToken = 1;
     bool m_showHidden = false;
     // Nodes with an outstanding fetch, by token, so a result finds its node in
