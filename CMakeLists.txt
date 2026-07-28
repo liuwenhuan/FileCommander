@@ -7,11 +7,27 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+include(cmake/FileCommanderOptions.cmake)
+
+add_compile_definitions(
+    FILECOMMANDER_HAS_NETWORK=${FILECOMMANDER_HAS_NETWORK}
+    FILECOMMANDER_HAS_PREVIEW_PDF=${FILECOMMANDER_HAS_PREVIEW_PDF}
+    FILECOMMANDER_HAS_PREVIEW_MEDIA=${FILECOMMANDER_HAS_PREVIEW_MEDIA}
+    FILECOMMANDER_HAS_PREVIEW_OFFICE=${FILECOMMANDER_HAS_PREVIEW_OFFICE}
+    FILECOMMANDER_HAS_LINUX_INTEGRATION=${FILECOMMANDER_HAS_LINUX_INTEGRATION}
+)
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
-find_package(Qt5 REQUIRED COMPONENTS Core Widgets Gui Concurrent Test DBus Network)
+find_package(Qt5 REQUIRED COMPONENTS Core Widgets Gui Concurrent Test Network)
+if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
+    find_package(Qt5 REQUIRED COMPONENTS DBus)
+endif()
 find_package(LibArchive)
 
 enable_testing()
@@ -29,7 +45,9 @@ add_subdirectory(src/ui)
 add_subdirectory(src/viewer)
 add_subdirectory(src/archive)
 add_subdirectory(src/search)
-add_subdirectory(src/smbhelper)
+if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION AND FILECOMMANDER_ENABLE_NETWORK)
+    add_subdirectory(src/smbhelper)
+endif()
 
 add_executable(FileCommander
     src/main.cpp
@@ -39,6 +57,13 @@ add_executable(FileCommander
 target_link_libraries(FileCommander PRIVATE
     core ui viewer archive search widgets
     Qt5::Widgets Qt5::Core Qt5::Gui Qt5::Concurrent
+)
+target_compile_definitions(FileCommander PRIVATE
+    FILECOMMANDER_HAS_NETWORK=${FILECOMMANDER_HAS_NETWORK}
+    FILECOMMANDER_HAS_PREVIEW_PDF=${FILECOMMANDER_HAS_PREVIEW_PDF}
+    FILECOMMANDER_HAS_PREVIEW_MEDIA=${FILECOMMANDER_HAS_PREVIEW_MEDIA}
+    FILECOMMANDER_HAS_PREVIEW_OFFICE=${FILECOMMANDER_HAS_PREVIEW_OFFICE}
+    FILECOMMANDER_HAS_LINUX_INTEGRATION=${FILECOMMANDER_HAS_LINUX_INTEGRATION}
 )
 
 # Tests and benchmarks default ON (the normal development build is unchanged),
@@ -69,15 +94,19 @@ endif()
 include(GNUInstallDirs)
 
 install(TARGETS FileCommander RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(FILES packaging/FileCommander.desktop
-        DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/applications)
+if(UNIX AND NOT APPLE)
+    install(FILES packaging/FileCommander.desktop
+            DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/applications)
+endif()
 # Note this SVG is deliberately NOT in resources.qrc -- the in-app window icon
 # is painted in code (src/main.cpp) so it needs no SVG plugin. This copy exists
 # purely for the desktop/launcher entry's Icon=FileCommander.
 install(FILES resources/icons/FileCommander.svg
         DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/apps)
-install(FILES packaging/FileCommander.metainfo.xml
-        DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/metainfo)
+if(UNIX AND NOT APPLE)
+    install(FILES packaging/FileCommander.metainfo.xml
+            DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/metainfo)
+endif()
 
 # --- Translations -----------------------------------------------------------
 # Contributor workflow (see resources/translations/README.md):
@@ -98,11 +127,9 @@ if(Qt5LinguistTools_FOUND)
     set(LRELEASE_CMD Qt5::lrelease)
 else()
     find_program(LUPDATE_CMD NAMES lupdate lupdate-qt5
-        PATHS /usr/lib/qt5/bin /usr/lib/qt6/bin /usr/lib/qt5/libexec /usr/lib/qt6/libexec
-        NO_DEFAULT_PATH)
+        PATHS /usr/lib/qt5/bin /usr/lib/qt6/bin /usr/lib/qt5/libexec /usr/lib/qt6/libexec)
     find_program(LRELEASE_CMD NAMES lrelease lrelease-qt5
-        PATHS /usr/lib/qt5/bin /usr/lib/qt6/bin /usr/lib/qt5/libexec /usr/lib/qt6/libexec
-        NO_DEFAULT_PATH)
+        PATHS /usr/lib/qt5/bin /usr/lib/qt6/bin /usr/lib/qt5/libexec /usr/lib/qt6/libexec)
 endif()
 if(LUPDATE_CMD AND LRELEASE_CMD)
     add_custom_target(update-translations

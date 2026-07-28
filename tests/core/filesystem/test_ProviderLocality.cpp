@@ -1,11 +1,15 @@
 #include <gtest/gtest.h>
 
-#include "CurlFtpProvider.h"
-#include "CurlWebDavProvider.h"
 #include "FileProvider.h"
 #include "LocalFileProvider.h"
+#if FILECOMMANDER_HAS_NETWORK
+#include "CurlFtpProvider.h"
+#include "CurlWebDavProvider.h"
 #include "SftpProvider.h"
+#endif
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
 #include "SmbProvider.h"
+#endif
 
 // FileProvider::isLocalFilesystem() decides whether a path may be handed
 // straight to QFile/QDir. Secure wipe relies on it: on a backend that answers
@@ -23,17 +27,20 @@ TEST(ProviderLocality, LocalBackendIsLocal) {
 TEST(ProviderLocality, NetworkBackendsAreNotLocal) {
     // Constructed but never connected: locality is a property of the backend's
     // path namespace, not of the current session, so it must hold either way.
+#if FILECOMMANDER_HAS_NETWORK
     SftpProvider sftp;
     EXPECT_FALSE(sftp.isLocalFilesystem());
-
-    SmbProvider smb;
-    EXPECT_FALSE(smb.isLocalFilesystem());
 
     CurlFtpProvider ftp;
     EXPECT_FALSE(ftp.isLocalFilesystem());
 
     CurlWebDavProvider dav;
     EXPECT_FALSE(dav.isLocalFilesystem());
+#endif
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
+    SmbProvider smb;
+    EXPECT_FALSE(smb.isLocalFilesystem());
+#endif
 }
 
 namespace {

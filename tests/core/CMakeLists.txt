@@ -1,4 +1,4 @@
-add_executable(core_tests
+set(CORE_TEST_SOURCES
     test_main.cpp
     test_Phosphor.cpp
     filesystem/test_FileInfo.cpp
@@ -18,22 +18,33 @@ add_executable(core_tests
     sync/test_DirectorySync.cpp
     sync/test_SyncScanner.cpp
     compare/test_TextDiff.cpp
-    network/test_GvfsMounter.cpp
-    network/test_ConnectionPool.cpp
-    network/test_SftpProvider.cpp
-    network/test_CurlFtpProvider.cpp
-    network/test_CurlWebDavProvider.cpp
-    network/test_WebDavUpload.cpp
-    network/test_WebDavChunkedUpload.cpp
-    network/test_NetworkSession.cpp
-    network/test_SmbClientGate.cpp
-    network/test_SmbHostBrowser.cpp
-    network/test_SmbHelperProtocol.cpp
 )
+
+if(FILECOMMANDER_ENABLE_NETWORK)
+    list(APPEND CORE_TEST_SOURCES
+        network/test_ConnectionPool.cpp
+        network/test_SftpProvider.cpp
+        network/test_CurlFtpProvider.cpp
+        network/test_CurlWebDavProvider.cpp
+        network/test_WebDavUpload.cpp
+        network/test_WebDavChunkedUpload.cpp
+        network/test_NetworkSession.cpp
+    )
+endif()
+if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
+    list(APPEND CORE_TEST_SOURCES
+        network/test_GvfsMounter.cpp
+        network/test_SmbClientGate.cpp
+        network/test_SmbHostBrowser.cpp
+        network/test_SmbHelperProtocol.cpp
+    )
+endif()
+
+add_executable(core_tests ${CORE_TEST_SOURCES})
 
 target_link_libraries(core_tests PRIVATE
     core
-    gtest
+    GTest::gtest
     Qt5::Widgets
     Qt5::Core
     Qt5::Test
@@ -49,7 +60,7 @@ if(TTC_BUILD_LIVE_SMB_TESTS)
 
     target_link_libraries(smb_live_tests PRIVATE
         core
-        gtest
+        GTest::gtest
         Qt5::Widgets
         Qt5::Core
         Qt5::Test
@@ -75,7 +86,7 @@ if(TTC_BUILD_LIVE_WEBDAV_TESTS)
 
     target_link_libraries(webdav_live_tests PRIVATE
         core
-        gtest
+        GTest::gtest
         Qt5::Widgets
         Qt5::Core
         Qt5::Test

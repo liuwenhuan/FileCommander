@@ -7,8 +7,8 @@ if(TARGET LibArchive::LibArchive)
 
     target_link_libraries(archive_tests PRIVATE
         archive
-        gtest
-        gtest_main
+        GTest::gtest
+        GTest::gtest_main
         Qt5::Core
     )
 

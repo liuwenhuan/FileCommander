@@ -1,4 +1,4 @@
-add_library(ui STATIC
+set(UI_SOURCES
     AppIcon.h
     AppIcon.cpp
     theme/PhosphorEffect.h
@@ -37,12 +37,6 @@ add_library(ui STATIC
     SlideSceneBuilder.cpp
     ViewerWindow.h
     ViewerWindow.cpp
-    MpvWidget.h
-    MpvWidget.cpp
-    MpvStreamSource.h
-    MpvStreamSource.cpp
-    AudioPlayer.h
-    AudioPlayer.cpp
     FunctionKeyBar.h
     FunctionKeyBar.cpp
     DragPixmap.h
@@ -87,45 +81,68 @@ add_library(ui STATIC
     dialogs/CompareDialog.cpp
     dialogs/PropertiesDialog.h
     dialogs/PropertiesDialog.cpp
-    dialogs/ConnectDialog.h
-    dialogs/ConnectDialog.cpp
     dialogs/CommandOutputDialog.h
     dialogs/CommandOutputDialog.cpp
     dialogs/ChecksumDialog.h
     dialogs/ChecksumDialog.cpp
-    dialogs/SecureWipeDialog.h
-    dialogs/SecureWipeDialog.cpp
     dialogs/TransferProgressDialog.h
     dialogs/TransferProgressDialog.cpp
-    dialogs/ExternalConnectDialog.h
-    dialogs/ExternalConnectDialog.cpp
     dialogs/AboutDialog.h
     dialogs/AboutDialog.cpp
-    dialogs/UpdateDialog.h
-    dialogs/UpdateDialog.cpp
 )
 
-# zlib provides crc32() for the checksum dialog. It is already pulled in
-# transitively (libarchive/Qt) but link it explicitly so <zlib.h> resolves.
+if(FILECOMMANDER_PREVIEW_MEDIA)
+    list(APPEND UI_SOURCES
+        MpvWidget.h
+        MpvWidget.cpp
+        MpvStreamSource.h
+        MpvStreamSource.cpp
+        AudioPlayer.h
+        AudioPlayer.cpp
+    )
+endif()
+
+if(NOT FILECOMMANDER_PREVIEW_MEDIA)
+    list(APPEND UI_SOURCES
+        MediaPreviewStubs.cpp
+        AudioPlayer.h
+        MpvWidget.h
+    )
+endif()
+
+if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
+    list(APPEND UI_SOURCES
+        dialogs/ConnectDialog.h
+        dialogs/ConnectDialog.cpp
+        dialogs/ExternalConnectDialog.h
+        dialogs/ExternalConnectDialog.cpp
+        dialogs/SecureWipeDialog.h
+        dialogs/SecureWipeDialog.cpp
+        dialogs/UpdateDialog.h
+        dialogs/UpdateDialog.cpp
+    )
+endif()
+
+add_library(ui STATIC ${UI_SOURCES})
+
 find_package(ZLIB REQUIRED)
-
-# libmpv (render API) for the QuickView video preview page.
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(MPV REQUIRED mpv)
-
-# poppler-qt5 for the QuickView PDF preview page. The .pc exposes
-# -I/usr/include/poppler/qt5 so <poppler-qt5.h> resolves directly.
-pkg_check_modules(POPPLER_QT5 REQUIRED poppler-qt5)
-
-# QOpenGLWidget lives in the Qt5::OpenGL module; the top-level find_package does
-# not request it, so pull it in here (bundled with qtbase5-dev).
 find_package(Qt5 COMPONENTS OpenGL REQUIRED)
 
-# Qt5::X11Extras (QX11Info) + libxcb: MainWindow sets the _NET_WM_OPAQUE_REGION
-# property directly on its X window so the compositor can skip alpha-blending
-# the opaque interior of the translucent (shadowed) frameless window.
-find_package(Qt5 COMPONENTS X11Extras REQUIRED)
-pkg_check_modules(XCB REQUIRED xcb)
+if(FILECOMMANDER_PREVIEW_MEDIA)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(MPV REQUIRED IMPORTED_TARGET mpv)
+endif()
+
+if(FILECOMMANDER_PREVIEW_PDF)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(POPPLER_QT5 REQUIRED IMPORTED_TARGET poppler-qt5)
+endif()
+
+if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
+    find_package(Qt5 COMPONENTS X11Extras REQUIRED)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(XCB REQUIRED IMPORTED_TARGET xcb)
+endif()
 
 target_include_directories(ui PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -134,8 +151,6 @@ target_include_directories(ui PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/theme
     ${CMAKE_CURRENT_SOURCE_DIR}/i18n
 )
-target_include_directories(ui PRIVATE ${MPV_INCLUDE_DIRS} ${POPPLER_QT5_INCLUDE_DIRS}
-    ${XCB_INCLUDE_DIRS})
 
 target_link_libraries(ui PUBLIC
     core
@@ -149,6 +164,14 @@ target_link_libraries(ui PUBLIC
     Qt5::OpenGL
     Qt5::Concurrent
 )
-target_link_libraries(ui PRIVATE ${MPV_LIBRARIES} ${POPPLER_QT5_LIBRARIES}
-    Qt5::X11Extras ${XCB_LIBRARIES} ZLIB::ZLIB)
-target_compile_options(ui PRIVATE ${MPV_CFLAGS_OTHER} ${POPPLER_QT5_CFLAGS_OTHER})
+target_link_libraries(ui PRIVATE ZLIB::ZLIB)
+
+if(FILECOMMANDER_PREVIEW_MEDIA)
+    target_link_libraries(ui PRIVATE PkgConfig::MPV)
+endif()
+if(FILECOMMANDER_PREVIEW_PDF)
+    target_link_libraries(ui PRIVATE PkgConfig::POPPLER_QT5)
+endif()
+if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
+    target_link_libraries(ui PRIVATE Qt5::X11Extras PkgConfig::XCB)
+endif()

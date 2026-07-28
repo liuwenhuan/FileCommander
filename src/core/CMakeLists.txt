@@ -1,4 +1,4 @@
-add_library(core STATIC
+set(CORE_SOURCES
     filesystem/FileInfo.h
     filesystem/FileInfo.cpp
     filesystem/FileSystemModel.h
@@ -29,53 +29,78 @@ add_library(core STATIC
     compare/TextDiff.cpp
     media/Id3Reader.h
     media/Id3Reader.cpp
-    network/GvfsMounter.h
-    network/GvfsMounter.cpp
-    network/ConnectionPool.h
-    network/SftpProvider.h
-    network/SftpProvider.cpp
-    network/CurlFtpProvider.h
-    network/CurlFtpProvider.cpp
-    network/CurlWebDavProvider.h
-    network/CurlWebDavProvider.cpp
-    network/SmbClientGate.h
-    network/SmbProvider.h
-    network/SmbProvider.cpp
-    network/SmbHelperProtocol.h
-    network/SmbHelperClient.h
-    network/SmbHelperClient.cpp
-    network/ConnectionStore.h
-    network/ConnectionStore.cpp
-    network/SmbHostBrowser.h
-    network/SmbHostBrowser.cpp
-    network/NetworkSession.h
-    network/NetworkSession.cpp
-    network/WsdDiscovery.h
-    network/WsdDiscovery.cpp
-    network/MdnsDiscovery.h
-    network/MdnsDiscovery.cpp
-    network/LanScan.h
-    network/LanScan.cpp
-    devices/RemovableDeviceMonitor.h
-    devices/RemovableDeviceMonitor.cpp
     notepad/NotepadStore.h
     notepad/NotepadStore.cpp
+    network/NetworkSession.h
+    network/NetworkSession.cpp
     update/UpdateChecker.h
     update/UpdateChecker.cpp
-    update/Updater.h
-    update/Updater.cpp
 )
 
-# libssh2 powers the SFTP file backend (network/SftpProvider); libsecret stores
-# saved-connection passwords in the login keyring (network/ConnectionStore);
-# libcurl powers the native FTP and WebDAV backends (network/CurlFtpProvider,
-# network/CurlWebDavProvider); libsmbclient powers the native SMB/CIFS backend
-# (network/SmbProvider).
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(LIBSSH2 REQUIRED libssh2)
-pkg_check_modules(LIBSECRET REQUIRED libsecret-1)
-pkg_check_modules(CURL REQUIRED libcurl)
-pkg_check_modules(SMBCLIENT REQUIRED smbclient)
+if(FILECOMMANDER_ENABLE_NETWORK)
+    list(APPEND CORE_SOURCES
+        network/ConnectionPool.h
+        network/SftpProvider.h
+        network/SftpProvider.cpp
+        network/CurlFtpProvider.h
+        network/CurlFtpProvider.cpp
+        network/CurlWebDavProvider.h
+        network/CurlWebDavProvider.cpp
+    )
+endif()
+
+if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
+    list(APPEND CORE_SOURCES
+        network/GvfsMounter.h
+        network/GvfsMounter.cpp
+        network/SmbClientGate.h
+        network/SmbProvider.h
+        network/SmbProvider.cpp
+        network/SmbHelperProtocol.h
+        network/SmbHelperClient.h
+        network/SmbHelperClient.cpp
+        network/ConnectionStore.h
+        network/ConnectionStore.cpp
+        network/SmbHostBrowser.h
+        network/SmbHostBrowser.cpp
+        network/WsdDiscovery.h
+        network/WsdDiscovery.cpp
+        network/MdnsDiscovery.h
+        network/MdnsDiscovery.cpp
+        network/LanScan.h
+        network/LanScan.cpp
+        devices/RemovableDeviceMonitor.h
+        devices/RemovableDeviceMonitor.cpp
+        update/Updater.h
+        update/Updater.cpp
+    )
+endif()
+
+if(WIN32)
+    list(APPEND CORE_SOURCES
+        devices/RemovableDeviceMonitor.h
+        devices/RemovableDeviceMonitor_windows.cpp
+    )
+endif()
+
+add_library(core STATIC ${CORE_SOURCES})
+
+if(FILECOMMANDER_ENABLE_NETWORK)
+    if(WIN32)
+        find_package(Libssh2 CONFIG REQUIRED)
+        find_package(CURL CONFIG REQUIRED)
+    else()
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(LIBSSH2 REQUIRED IMPORTED_TARGET libssh2)
+        pkg_check_modules(CURL REQUIRED IMPORTED_TARGET libcurl)
+    endif()
+endif()
+
+if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(LIBSECRET REQUIRED IMPORTED_TARGET libsecret-1)
+    pkg_check_modules(SMBCLIENT REQUIRED IMPORTED_TARGET smbclient)
+endif()
 
 target_include_directories(core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -89,10 +114,6 @@ target_include_directories(core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/devices
     ${CMAKE_CURRENT_SOURCE_DIR}/notepad
     ${CMAKE_CURRENT_SOURCE_DIR}/update
-    ${LIBSSH2_INCLUDE_DIRS}
-    ${LIBSECRET_INCLUDE_DIRS}
-    ${CURL_INCLUDE_DIRS}
-    ${SMBCLIENT_INCLUDE_DIRS}
 )
 
 target_link_libraries(core PUBLIC
@@ -100,10 +121,21 @@ target_link_libraries(core PUBLIC
     Qt5::Gui
     Qt5::Widgets
     Qt5::Concurrent
-    Qt5::DBus
     Qt5::Network
-    ${LIBSSH2_LIBRARIES}
-    ${LIBSECRET_LIBRARIES}
-    ${CURL_LIBRARIES}
-    ${SMBCLIENT_LIBRARIES}
 )
+
+if(FILECOMMANDER_ENABLE_NETWORK)
+    if(WIN32)
+        target_link_libraries(core PUBLIC Libssh2::libssh2 CURL::libcurl ws2_32)
+    else()
+        target_link_libraries(core PUBLIC PkgConfig::LIBSSH2 PkgConfig::CURL)
+    endif()
+endif()
+
+if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
+    target_link_libraries(core PUBLIC
+        Qt5::DBus
+        PkgConfig::LIBSECRET
+        PkgConfig::SMBCLIENT
+    )
+endif()

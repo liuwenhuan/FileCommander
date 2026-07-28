@@ -1,6 +1,8 @@
 #include "UpdateChecker.h"
 
+#ifndef Q_OS_WIN
 #include "Updater.h"
+#endif
 
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -93,8 +95,12 @@ void UpdateChecker::onManifestFinished(QNetworkReply *reply) {
 
     // Pick the package segment matching how this build is installed. An AppImage
     // updates itself in place; a system install uses the .deb.
+#ifdef Q_OS_WIN
+    const QString segmentKey = QStringLiteral("windows");
+#else
     const QString segmentKey = Updater::runningAsAppImage() ? QStringLiteral("appimage")
                                                             : QStringLiteral("deb");
+#endif
     const QJsonObject segment = root.value(segmentKey).toObject();
     const QString url = segment.value(QStringLiteral("url")).toString();
     const QString sha256 = segment.value(QStringLiteral("sha256")).toString();

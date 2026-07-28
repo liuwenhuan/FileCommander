@@ -58,7 +58,9 @@
 #include <QWheelEvent>
 #include <QtConcurrent>
 
+#if FILECOMMANDER_HAS_PREVIEW_PDF
 #include <poppler-qt5.h>
+#endif
 
 #include "ArchiveHandler.h"
 #include "ArchiveModel.h"
@@ -1960,6 +1962,7 @@ QWidget *QuickView::buildPdfPage() {
     return m_pdfPage;
 }
 
+#if FILECOMMANDER_HAS_PREVIEW_PDF
 void QuickView::loadPdfPages() {
     // Tear down any previous document's items first, then build one background item
     // per page of the freshly-loaded m_pdfDoc (its size read now, pixmap + text
@@ -2197,6 +2200,23 @@ void QuickView::closePdf() {
     if (m_pdfPageInfo)
         m_pdfPageInfo->clear();
 }
+#else
+void QuickView::loadPdfPages() {}
+void QuickView::relayoutPdfPages() {}
+void QuickView::buildPdfPageText(int) {}
+void QuickView::renderVisiblePdfPages() {}
+int QuickView::currentPdfPage() const { return -1; }
+void QuickView::copyPdfText(CopyScope) {}
+void QuickView::closePdf() {
+    if (m_pdfScene)
+        m_pdfScene->clear();
+    m_pdfBgItems.clear();
+    m_pdfPageSizes.clear();
+    m_pdfPageTop.clear();
+    m_pdfRenderedWidth.clear();
+    m_pdfTextBuilt.clear();
+}
+#endif
 
 QWidget *QuickView::buildSlidesPage() {
     m_slidesPage = new QWidget(this);
@@ -2745,6 +2765,7 @@ void QuickView::showFile(const QString &path) {
     stopAudio();
 
     if (isPdf(path)) {
+#if FILECOMMANDER_HAS_PREVIEW_PDF
         m_infoOverlay->hide(); // image overlay belongs to another page
         closePdf();            // drop any prior document before loading the new one
         closeSlides();         // and any prior slide deck
@@ -2769,6 +2790,11 @@ void QuickView::showFile(const QString &path) {
         m_stack->setCurrentWidget(m_pdfPage);
         loadPdfPages();
         return;
+#else
+        m_info->setText(tr("PDF preview is not enabled in this build: %1").arg(info.fileName()));
+        m_stack->setCurrentWidget(m_info);
+        return;
+#endif
     }
 
     // Office de-dup: the embedded preview follows the file-list cursor, which can

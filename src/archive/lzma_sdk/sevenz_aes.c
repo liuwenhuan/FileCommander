@@ -8,16 +8,39 @@
 #include <stdint.h>
 #include <string.h>
 
+#ifdef _MSC_VER
+#include <windows.h>
+#define TTC_THREAD_LOCAL __declspec(thread)
+#else
+#define TTC_THREAD_LOCAL __thread
+#endif
+
 /* Password + state are per-thread: preview decodes run on worker threads and
  * two archives may be open at once, so a shared global would race. */
-static __thread Byte   g_pw[2048];
-static __thread size_t g_pwSize = 0;
-static __thread int    g_pwSet = 0;
-static __thread int    g_aesSeen = 0;
+static TTC_THREAD_LOCAL Byte   g_pw[2048];
+static TTC_THREAD_LOCAL size_t g_pwSize = 0;
+static TTC_THREAD_LOCAL int    g_pwSet = 0;
+static TTC_THREAD_LOCAL int    g_aesSeen = 0;
 
 /* AesGenTables() fills process-global tables; run once, before threads start. */
+#ifdef _MSC_VER
+static INIT_ONCE g_aesInitOnce = INIT_ONCE_STATIC_INIT;
+static BOOL CALLBACK ttc_aes_init_once(PINIT_ONCE once, PVOID parameter, PVOID *context)
+{
+  (void)once;
+  (void)parameter;
+  (void)context;
+  AesGenTables();
+  return TRUE;
+}
+static void ttc_aes_init(void)
+{
+  InitOnceExecuteOnce(&g_aesInitOnce, ttc_aes_init_once, NULL, NULL);
+}
+#else
 static void ttc_aes_init(void) __attribute__((constructor));
 static void ttc_aes_init(void) { AesGenTables(); }
+#endif
 
 void Sevenz_SetPassword(const Byte *utf16le, size_t sizeBytes)
 {
@@ -90,6 +113,7 @@ int Sevenz_AesDecrypt(const Byte *props, size_t propsSize, Byte *data, size_t da
   UInt32 aesbuf[AES_NUM_IVMRK_WORDS + 4];
   UInt32 *aes;
 
+  ttc_aes_init();
   g_aesSeen = 1;
   if (!g_pwSet)
     return 0;

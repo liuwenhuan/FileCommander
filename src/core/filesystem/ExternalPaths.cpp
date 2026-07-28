@@ -2,7 +2,9 @@
 
 #include <QMimeData>
 
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
 #include "GvfsMounter.h"
+#endif
 
 namespace fc {
 
@@ -73,8 +75,20 @@ QUrl externalUrlFor(bool localFilesystem, const RemoteLocation &loc, const QStri
     // so by omission is the only honest answer.
     if (!loc.isValid())
         return {};
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
     const QString uri = GvfsMounter::uriForPath(loc, path);
     return uri.isEmpty() ? QUrl() : QUrl(uri);
+#else
+    QUrl url;
+    url.setScheme(loc.scheme);
+    url.setHost(loc.host);
+    if (loc.port > 0)
+        url.setPort(loc.port);
+    if (!loc.user.isEmpty())
+        url.setUserName(loc.user);
+    url.setPath(path.startsWith(QLatin1Char('/')) ? path : QLatin1Char('/') + path);
+    return url;
+#endif
 }
 
 void setPathPayload(QMimeData *mime, FileProvider *provider, const QStringList &paths, bool cut) {
@@ -107,9 +121,13 @@ QList<QUrl> externalUrlsFor(FileProvider *provider, const QStringList &paths) {
     for (const QString &path : paths) {
         QString mounted;
         if (!local && loc.isValid() && !mountUnavailable) {
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
             mounted = GvfsMounter::localPathFor(loc, path, GvfsMounter::ResolveFlags());
             if (mounted.isEmpty())
                 mountUnavailable = true;
+#else
+            mountUnavailable = true;
+#endif
         }
         const QUrl url = externalUrlFor(local, loc, path, mounted);
         if (!url.isEmpty())

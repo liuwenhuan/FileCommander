@@ -8,7 +8,6 @@
 #include <cstdlib>
 #include <functional>
 #include <thread>
-#include <unistd.h>
 #include <utility>
 
 namespace connpool {
@@ -98,7 +97,7 @@ private:
         // remaining exit handlers free the globals under it. Nothing left to
         // flush at this point (main() has already returned), so end the process
         // here rather than let it crash on the way out.
-        ::_exit(0);
+        std::_Exit(0);
     }
 
     mutable QMutex m_mutex;

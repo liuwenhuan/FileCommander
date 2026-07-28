@@ -389,7 +389,11 @@ private:
     QVector<int> m_pdfRenderedWidth;             // px width each page bitmap was rendered at (-1 == none)
     QVector<bool> m_pdfTextBuilt;                // whether a page's transparent text layer is present
     QTimer *m_pdfRelayoutTimer = nullptr;        // debounce viewport resizes before re-fitting
+#if FILECOMMANDER_HAS_PREVIEW_PDF
     std::unique_ptr<Poppler::Document> m_pdfDoc; // currently loaded document
+#else
+    bool m_pdfDoc = false; // keeps shared PDF UI guards valid in dependency-light builds
+#endif
     double m_pdfZoom = 1.0;                       // user zoom multiplier on top of fit-to-width; 1.0 == fit
 
     // Slides page (m_stack index 10): pptx rendered by office_oxide to one

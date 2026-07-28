@@ -1,4 +1,4 @@
-add_executable(ui_tests
+set(UI_TEST_SOURCES
     test_main.cpp
     test_TabManager.cpp
     test_PropertiesDialog.cpp
@@ -23,7 +23,6 @@ add_executable(ui_tests
     test_TreeRootBuilder.cpp
     test_DirectoryTreeModel.cpp
     test_SlideSceneImageCache.cpp
-    test_MpvStreamSource.cpp
     test_SearchEngine.cpp
     test_DragPayload.cpp
     test_TreeNavigation.cpp
@@ -34,13 +33,18 @@ add_executable(ui_tests
     test_SelectedEntryInfos.cpp
 )
 
+if(FILECOMMANDER_PREVIEW_MEDIA)
+    list(APPEND UI_TEST_SOURCES test_MpvStreamSource.cpp)
+endif()
+
+add_executable(ui_tests ${UI_TEST_SOURCES})
+
 # test_MpvStreamSource drives a real libmpv core (headless: vo=null/ao=null) to
 # measure what a streamed preview actually reads. src/ui keeps mpv PRIVATE, so
 # this target resolves <mpv/client.h> for itself.
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(MPV REQUIRED mpv)
-target_include_directories(ui_tests PRIVATE ${MPV_INCLUDE_DIRS})
-target_link_libraries(ui_tests PRIVATE ${MPV_LIBRARIES})
+if(FILECOMMANDER_PREVIEW_MEDIA)
+    target_link_libraries(ui_tests PRIVATE PkgConfig::MPV)
+endif()
 
 # resources.qrc is compiled into the app target, not this one, so a test that
 # needs a real theme stylesheet reads it from the source tree instead.
@@ -49,7 +53,7 @@ target_compile_definitions(ui_tests PRIVATE TTC_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
 # test_main.cpp supplies main() (with a QApplication), so gtest_main is not linked.
 target_link_libraries(ui_tests PRIVATE
     ui
-    gtest
+    GTest::gtest
     Qt5::Core
     Qt5::Widgets
     Qt5::Test

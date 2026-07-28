@@ -70,9 +70,11 @@
 #include <QFutureWatcher>
 #include <QtConcurrent/QtConcurrent>
 
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
 #include <QX11Info>     // Qt5::X11Extras: xcb connection for the opaque-region hint
 #include <xcb/xcb.h>
 #include <cstdlib>      // free() for xcb replies
+#endif
 
 #include "ArchiveHandler.h"
 #include "CommandBar.h"
@@ -81,7 +83,9 @@
 #include "FilePanel.h"
 #include "filesystem/IconCache.h"
 #include "IconFileView.h"
+#if FILECOMMANDER_HAS_PREVIEW_MEDIA
 #include "MpvStreamSource.h"
+#endif
 #include "QuickView.h"
 #include "ThumbnailCache.h"
 #include "ViewerWindow.h"
@@ -98,9 +102,9 @@
 #include "dialogs/ChecksumDialog.h"
 #include "dialogs/CommandOutputDialog.h"
 #include "dialogs/ConnectDialog.h"
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
 #include "dialogs/SecureWipeDialog.h"
-
-#include <unistd.h> // getuid() for the gvfs mount path
+#endif
 #include "Settings.h"
 #include "ThemeManager.h"
 #include "TextEditor.h"
@@ -118,16 +122,20 @@
 #include "dialogs/AboutDialog.h"
 #include "dialogs/ExternalConnectDialog.h"
 #include "dialogs/UpdateDialog.h"
-#include "devices/RemovableDeviceMonitor.h"
 #include "tree/NetworkTreeRegistry.h"
-#include "network/ConnectionStore.h"
+#if FILECOMMANDER_HAS_NETWORK
 #include "network/CurlFtpProvider.h"
 #include "network/CurlWebDavProvider.h"
-#include "network/GvfsMounter.h"
 #include "network/SftpProvider.h"
+#endif
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
+#include "devices/RemovableDeviceMonitor.h"
+#include "network/ConnectionStore.h"
+#include "network/GvfsMounter.h"
 #include "network/SmbHostBrowser.h"
 #include "network/SmbProvider.h"
 #include "update/UpdateChecker.h"
+#endif
 
 #include <QApplication>
 #include <QDate>
@@ -890,6 +898,7 @@ void MainWindow::buildTitleBarMenus() {
 // External-device hot-plug watcher, SMB neighbourhood browser, and the daily
 // background update check. Kept out of the (already large) constructor body.
 void MainWindow::setupFeatureBatch() {
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
     // Removable-device hot-plug: when a new USB stick / phone / drive appears and
     // the preference is on, mount it and open it in a fresh, activated tab.
     m_deviceMonitor = new RemovableDeviceMonitor(this);
@@ -946,6 +955,7 @@ void MainWindow::setupFeatureBatch() {
     // cache, only rescanning once the cache goes stale.
     m_smbBrowser = new SmbHostBrowser(this);
     m_smbBrowser->startDiscovery();
+#endif
 
     // Once-a-day background update check: if we haven't checked today, ask the
     // server quietly. A found update only lights the title-bar badge (no popup);
@@ -1177,6 +1187,7 @@ void MainWindow::applyRoundedMask() {
 }
 
 void MainWindow::updateOpaqueRegion() {
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
     // The property is an X11/NETWM hint; off X11 there's no connection to set it
     // on (QX11Info::connection() would be null), so bail.
     if (!QX11Info::isPlatformX11())
@@ -1234,6 +1245,7 @@ void MainWindow::updateOpaqueRegion() {
                         XCB_ATOM_CARDINAL, 32,
                         static_cast<uint32_t>(region.size()), region.constData());
     xcb_flush(conn);
+#endif
 }
 
 void MainWindow::showEvent(QShowEvent *event) {
@@ -1432,6 +1444,7 @@ void MainWindow::updateExtraKeyButtons() {
 }
 
 namespace {
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
 // A native backend built for a saved bookmark: the (UNCONNECTED) provider plus
 // the connect closure to run on the session worker thread. Empty provider means
 // the protocol isn't a native backend.
@@ -1507,9 +1520,11 @@ SavedNativeProvider providerForSaved(const SavedConnection &c) {
         return {};
     }
 }
+#endif
 } // namespace
 
 void MainWindow::openExternalConnections() {
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
     if (!m_activePanel)
         return;
     // A floating fly-out anchored above the launching (leading) button rather
@@ -1592,6 +1607,10 @@ void MainWindow::openExternalConnections() {
 
     // Pop up directly above the leading function-key button that launched it.
     dlg->popUpAbove(m_functionKeyBar->leadingButtonGlobalRect());
+#else
+    ttc::information(this, tr("External Connections"),
+                     tr("Network and removable-device connections are not enabled in this build."));
+#endif
 }
 
 void MainWindow::toggleNotepad() {
@@ -1641,9 +1660,16 @@ void MainWindow::checkForUpdatesNow() {
 void MainWindow::showUpdateDialog() {
     if (!m_hasUpdate)
         return;
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
     UpdateDialog dlg(m_pendingUpdate, this);
     connect(&dlg, &UpdateDialog::restartRequested, qApp, &QApplication::quit);
     dlg.exec();
+#else
+    ttc::information(this, tr("Update Available"),
+                     tr("Version %1 is available.\n\n%2\n\nDownload: %3")
+                         .arg(m_pendingUpdate.version, m_pendingUpdate.notes,
+                              m_pendingUpdate.url));
+#endif
 }
 
 void MainWindow::showShortcutMenu(FilePanel *panel, const QPoint &globalPos) {
@@ -2002,6 +2028,7 @@ void MainWindow::calculateChecksums() {
 }
 
 void MainWindow::secureWipeSelected() {
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
     if (!m_activePanel)
         return;
 
@@ -2069,6 +2096,10 @@ void MainWindow::secureWipeSelected() {
         m_rightPanel->refresh();
     });
     dlg->show();
+#else
+    ttc::information(this, tr("Secure Wipe"),
+                     tr("Secure wipe is not available on this platform."));
+#endif
 }
 
 void MainWindow::syncOtherPanelToActive() {
@@ -2359,6 +2390,7 @@ void MainWindow::updateQuickView() {
     // decodes through the provider instead of waiting out a whole download.
     // Nothing below this point runs for it -- including the size ceiling, which
     // only ever existed because previewing meant fetching the file entire.
+#if FILECOMMANDER_HAS_PREVIEW_MEDIA
     if (QuickView::canStreamPreview(entry) && entry != m_streamFailedEntry) {
         const QString url =
             MpvStreamSource::publish(m_activePanel->model()->providerPtr(), entry);
@@ -2367,6 +2399,7 @@ void MainWindow::updateQuickView() {
             return;
         }
     }
+#endif
 
     // Everything else still has to become a real local file first: Poppler, the
     // office converter, QImageReader and the archive reader all open a path.
@@ -2563,7 +2596,13 @@ void MainWindow::resolveRealPath(FilePanel *panel, const QString &path,
                     then(real);
             });
     watcher->setFuture(QtConcurrent::run([provider, path] {
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
         return GvfsMounter::localPathFor(provider.get(), path);
+#else
+        Q_UNUSED(provider)
+        Q_UNUSED(path)
+        return QString();
+#endif
     }));
 }
 
@@ -3001,6 +3040,7 @@ void MainWindow::showFavoritesMenu(const QPoint &globalPos, int tabIndex) {
 }
 
 void MainWindow::reconnectSavedTab(FilePanel *panel, int index) {
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
     const SavedConnection c = panel->tabConnInfo(index);
     if (c.host.isEmpty())
         return;
@@ -3013,6 +3053,12 @@ void MainWindow::reconnectSavedTab(FilePanel *panel, int index) {
     const QString label = c.user.isEmpty() ? c.host : c.user + QLatin1Char('@') + c.host;
     panel->connectTabTo(index, native.provider, native.connectFn, path, label, c,
                         native.authFactory);
+#else
+    Q_UNUSED(panel)
+    Q_UNUSED(index)
+    ttc::information(this, tr("Reconnect"),
+                     tr("Network connections are not enabled in this build."));
+#endif
 }
 
 
@@ -3039,8 +3085,10 @@ void MainWindow::applyTheme() {
         m_rightPanel->refreshThemeIcons();
     if (m_functionKeyBar)
         updateExtraKeyButtons();
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
     for (ExternalConnectDialog *popup : findChildren<ExternalConnectDialog *>())
         popup->refreshThemeIcons();
+#endif
     // The preview pane holds bitmaps recoloured when the file was opened, so it
     // would otherwise keep the previous treatment until the next file. Both the
     // embedded pane and any open F3 viewer window.
@@ -3135,6 +3183,7 @@ FilePanel *MainWindow::beginServerConnection() {
 }
 
 void MainWindow::openServerConnectDialog(bool preselectSmb) {
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
     ConnectDialog dlg(this);
     if (preselectSmb)
         dlg.selectProtocol(static_cast<int>(GvfsMounter::Protocol::Smb));
@@ -3160,6 +3209,11 @@ void MainWindow::openServerConnectDialog(bool preselectSmb) {
         FilePanel *panel = beginServerConnection();
         panel->navigateTo(dlg.mountedLocalPath());
     }
+#else
+    Q_UNUSED(preselectSmb)
+    ttc::information(this, tr("Server Connection"),
+                     tr("Network connections are not enabled in this build."));
+#endif
 }
 
 FilePanel *MainWindow::panelShowingDir(const QString &dir) const {
