@@ -12,7 +12,10 @@
         "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
         "VCPKG_TARGET_TRIPLET": "x64-windows",
         "TTC_BUILD_TESTS": "ON",
-        "TTC_BUILD_BENCH": "OFF"
+        "TTC_BUILD_BENCH": "OFF",
+        "FILECOMMANDER_ENABLE_NETWORK": "OFF",
+        "FILECOMMANDER_PREVIEW_PDF": "OFF",
+        "FILECOMMANDER_PREVIEW_MEDIA": "OFF"
       }
     },
     {

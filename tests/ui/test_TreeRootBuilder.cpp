@@ -40,12 +40,21 @@ NetworkTreeEntry smbEntry(const QString &id, const QString &label) {
 // header row appearing here would be a visible regression for nearly every user,
 // so this is the single most important rule in the builder.
 TEST(TreeRootBuilderTest, SingleDiskNoExternalsCollapsesToPlainFilesystemRoot) {
-    const auto roots = TreeRootBuilder::build({volume("System", "/")}, {}, {});
+    const auto roots =
+        TreeRootBuilder::build({volume("System", QDir::rootPath())}, {}, {});
 
     ASSERT_EQ(roots.size(), 1);
     EXPECT_EQ(roots.first().kind, TreeRoot::LocalFilesystem);
     EXPECT_EQ(roots.first().basePath, QDir::rootPath());
     EXPECT_TRUE(roots.first().activatable);
+}
+
+TEST(TreeRootBuilderTest, SingleWindowsVolumeCollapsesAtItsDriveRoot) {
+    const auto roots = TreeRootBuilder::build({volume("System", "C:/")}, {}, {});
+
+    ASSERT_EQ(roots.size(), 1);
+    EXPECT_EQ(roots.first().kind, TreeRoot::LocalFilesystem);
+    EXPECT_EQ(roots.first().basePath, QString("C:/"));
 }
 
 // No volumes at all (an environment where QStorageInfo reports nothing usable)

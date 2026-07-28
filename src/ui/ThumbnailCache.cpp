@@ -200,10 +200,10 @@ void touchIfStale(const QString &diskPath, const QDateTime &modified) {
     const QDateTime now = QDateTime::currentDateTime();
     if (modified.isValid() && modified.secsTo(now) < kTouchIntervalSecs)
         return;
-    // Opened read-only: futimens (which QFileDevice::setFileTime uses here)
-    // needs ownership, not write permission, and the cache belongs to the user.
+    // Windows requires a writable handle for SetFileTime. The cache is owned by
+    // this process, so opening read/write is safe and remains non-destructive.
     QFile file(diskPath);
-    if (file.open(QIODevice::ReadOnly))
+    if (file.open(QIODevice::ReadWrite))
         file.setFileTime(now, QFileDevice::FileModificationTime);
 }
 

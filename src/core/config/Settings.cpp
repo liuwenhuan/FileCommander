@@ -4,9 +4,12 @@
 #include <QStandardPaths>
 
 QString Settings::configDir() {
-    const QString dir =
-        QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) +
-        QStringLiteral("/FileCommander");
+    const QString override = qEnvironmentVariable("FILECOMMANDER_CONFIG_HOME");
+    const QString dir = override.isEmpty()
+                            ? QStandardPaths::writableLocation(
+                                  QStandardPaths::GenericConfigLocation) +
+                                  QStringLiteral("/FileCommander")
+                            : QDir(override).filePath(QStringLiteral("FileCommander"));
     QDir().mkpath(dir);
     return dir;
 }

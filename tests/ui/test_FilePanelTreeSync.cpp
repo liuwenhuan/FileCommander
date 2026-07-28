@@ -57,7 +57,8 @@ protected:
         m_alphaInner = root.filePath(QStringLiteral("alpha/inner"));
         m_beta = root.filePath(QStringLiteral("beta"));
     }
-    QTemporaryDir m_dir{QStringLiteral("/tmp/ttc-treesync-XXXXXX")};
+    QTemporaryDir m_dir{
+        QDir(QDir::tempPath()).filePath(QStringLiteral("ttc-treesync-XXXXXX"))};
     QString m_alpha;
     QString m_alphaInner;
     QString m_beta;

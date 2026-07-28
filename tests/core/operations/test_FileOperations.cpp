@@ -266,6 +266,9 @@ TEST(FileOperationsTest, CopyPathsCopiesDirectoryRecursively) {
 }
 
 TEST(FileOperationsTest, CreateSymlinksCreatesWorkingLink) {
+#ifdef Q_OS_WIN
+    GTEST_SKIP() << "Windows symbolic links require Developer Mode or elevation";
+#endif
     QTemporaryDir srcDir, dstDir;
     ASSERT_TRUE(srcDir.isValid() && dstDir.isValid());
     const QString target = writeFile(srcDir.path(), "target.txt", "link content");
@@ -283,6 +286,9 @@ TEST(FileOperationsTest, CreateSymlinksCreatesWorkingLink) {
 }
 
 TEST(FileOperationsTest, CreateSymlinksRenamesOnNameConflict) {
+#ifdef Q_OS_WIN
+    GTEST_SKIP() << "Windows symbolic links require Developer Mode or elevation";
+#endif
     QTemporaryDir srcDir, dstDir;
     ASSERT_TRUE(srcDir.isValid() && dstDir.isValid());
     const QString target = writeFile(srcDir.path(), "dup.txt", "original");

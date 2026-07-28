@@ -27,7 +27,9 @@ cmake -S $repo -B $build -G Ninja `
     "-DCMAKE_PREFIX_PATH=$QtRoot" `
     "-DCMAKE_TOOLCHAIN_FILE=$VcpkgRoot/scripts/buildsystems/vcpkg.cmake" `
     -DVCPKG_TARGET_TRIPLET=x64-windows `
-    -DTTC_BUILD_TESTS=OFF @previewArgs
+    -DTTC_BUILD_TESTS=OFF `
+    -DTTC_BUILD_BENCH=OFF `
+    -DFILECOMMANDER_ENABLE_NETWORK=OFF @previewArgs
 if ($LASTEXITCODE) { throw 'CMake configure failed.' }
 cmake --build $build --parallel
 if ($LASTEXITCODE) { throw 'Build failed.' }

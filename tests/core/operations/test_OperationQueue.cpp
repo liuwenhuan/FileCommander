@@ -82,6 +82,9 @@ TEST(OperationQueueTest, ConflictHandlerRunsAndOverwriteAllApplies) {
 }
 
 TEST(OperationQueueTest, EnqueueSymlinkCreatesLink) {
+#ifdef Q_OS_WIN
+    GTEST_SKIP() << "Windows symbolic links require Developer Mode or elevation";
+#endif
     QTemporaryDir src, dst;
     ASSERT_TRUE(src.isValid() && dst.isValid());
     const QString source = writeFile(src.path(), "t.txt", "linked");

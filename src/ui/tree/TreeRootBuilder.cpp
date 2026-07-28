@@ -1,10 +1,15 @@
 #include "TreeRootBuilder.h"
 
+#include <algorithm>
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QHash>
 #include <QRegularExpression>
+#ifdef Q_OS_WIN
+#include <QStorageInfo>
+#endif
 
 namespace {
 
@@ -131,10 +136,30 @@ QVector<LocalVolume> TreeRootBuilder::localVolumesFromMountInfo(
 }
 
 QVector<LocalVolume> TreeRootBuilder::enumerateLocalVolumes(const QStringList &removableMounts) {
+#ifdef Q_OS_WIN
+    QVector<LocalVolume> volumes;
+    for (const QStorageInfo &storage : QStorageInfo::mountedVolumes()) {
+        if (!storage.isValid() || !storage.isReady())
+            continue;
+        const QString root = QDir::fromNativeSeparators(storage.rootPath());
+        const bool isRemovable = std::any_of(
+            removableMounts.cbegin(), removableMounts.cend(), [&root](const QString &mount) {
+                return QDir::fromNativeSeparators(mount).compare(root, Qt::CaseInsensitive) == 0;
+            });
+        if (root.isEmpty() || isRemovable)
+            continue;
+        LocalVolume volume;
+        volume.name = storage.displayName().isEmpty() ? root : storage.displayName();
+        volume.mountPoint = root;
+        volumes.append(volume);
+    }
+    return volumes;
+#else
     QFile mountInfo(QStringLiteral("/proc/self/mountinfo"));
     if (!mountInfo.open(QIODevice::ReadOnly))
         return {};
     return localVolumesFromMountInfo(mountInfo.readAll(), removableMounts);
+#endif
 }
 
 QStringList TreeRootBuilder::networkBaseCandidates(const QString &currentPath) {
@@ -167,7 +192,7 @@ QVector<TreeRoot> TreeRootBuilder::build(const QVector<LocalVolume> &volumes,
         root.kind = TreeRoot::LocalFilesystem;
         root.label = volumes.isEmpty() ? QDir::rootPath() : volumes.first().name;
         root.iconName = QStringLiteral("dev-hdd");
-        root.basePath = QDir::rootPath();
+        root.basePath = volumes.isEmpty() ? QDir::rootPath() : volumes.first().mountPoint;
         roots.append(root);
         return roots;
     }

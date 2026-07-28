@@ -30,6 +30,11 @@ void setUp(IconFileView *view, QStandardItemModel *model) {
     pump(250);
 }
 
+QScrollBar *activeScrollBar(IconFileView *view) {
+    QScrollBar *vertical = view->verticalScrollBar();
+    return vertical->maximum() > vertical->minimum() ? vertical : view->horizontalScrollBar();
+}
+
 } // namespace
 
 // Thumbnails on a network share cost a round trip each, so a flick through a
@@ -40,8 +45,11 @@ TEST(IconFileViewTest, StaysQuietWhileScrollingAndReportsOnceAfterwards) {
     setUp(&view, &model);
 
     QSignalSpy spy(&view, &IconFileView::visibleRangeSettled);
+    QScrollBar *scrollBar = activeScrollBar(&view);
+    ASSERT_GT(scrollBar->maximum(), scrollBar->minimum());
+    const int step = qMax(1, (scrollBar->maximum() - scrollBar->minimum()) / 24);
     for (int i = 0; i < 12; ++i) {
-        view.verticalScrollBar()->setValue(view.verticalScrollBar()->value() + 60);
+        scrollBar->setValue(scrollBar->value() + step);
         pump(20); // faster than the settle interval
     }
     EXPECT_EQ(spy.count(), 0) << "queued work mid-scroll for rows the user flew past";
@@ -58,7 +66,9 @@ TEST(IconFileViewTest, ReportsTheRowsThatAreOnScreen) {
     setUp(&view, &model);
 
     QSignalSpy spy(&view, &IconFileView::visibleRangeSettled);
-    view.verticalScrollBar()->setValue(view.verticalScrollBar()->value() + 500);
+    QScrollBar *scrollBar = activeScrollBar(&view);
+    ASSERT_GT(scrollBar->maximum(), scrollBar->minimum());
+    scrollBar->setValue(scrollBar->value() + 500);
     pump(400);
     ASSERT_GE(spy.count(), 1);
 

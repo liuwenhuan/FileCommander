@@ -105,7 +105,9 @@ TEST(ParentEntryTest, RemoteParentIsNotStatedLocally) {
     // And nothing else is.
     EXPECT_FALSE(info.modified().isValid())
         << "took a timestamp from this machine's /home";
-    EXPECT_NE(info.modified(), QFileInfo(QStringLiteral("/home")).lastModified());
+    const QDateTime localModified = QFileInfo(QStringLiteral("/home")).lastModified();
+    if (localModified.isValid())
+        EXPECT_NE(info.modified(), localModified);
     EXPECT_EQ(info.size(), 0);
     EXPECT_FALSE(info.hasPermissions());
     EXPECT_TRUE(info.permissionsString().isEmpty())

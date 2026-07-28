@@ -16,7 +16,11 @@ namespace {
 // isolation this class exists to provide (and leaks state across runs).
 class IsolatedConfigDir {
 public:
-    IsolatedConfigDir() { qputenv("XDG_CONFIG_HOME", dir.path().toUtf8()); }
+    IsolatedConfigDir() {
+        qputenv("XDG_CONFIG_HOME", dir.path().toUtf8());
+        qputenv("FILECOMMANDER_CONFIG_HOME", dir.path().toUtf8());
+    }
+    ~IsolatedConfigDir() { qunsetenv("FILECOMMANDER_CONFIG_HOME"); }
 
     QTemporaryDir dir;
 };

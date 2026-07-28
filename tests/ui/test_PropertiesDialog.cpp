@@ -175,6 +175,7 @@ TEST(PropertiesDialogTest, OkOnARemoteEntryClosesWithoutTouchingASameNamedLocalF
     f.write("local bytes");
     f.close();
     ASSERT_TRUE(QFile::setPermissions(path, PropertiesDialog::fromOctal(0600)));
+    const QFileDevice::Permissions originalPermissions = QFileInfo(path).permissions();
 
     // The remote entry of the same name, with different bits.
     PropertiesDialog dlg(QVector<FileInfo>{remoteFile(path, 4096, PropertiesDialog::fromOctal(0744))});
@@ -183,6 +184,6 @@ TEST(PropertiesDialogTest, OkOnARemoteEntryClosesWithoutTouchingASameNamedLocalF
     buttons->button(QDialogButtonBox::Ok)->click();
 
     EXPECT_EQ(dlg.result(), QDialog::Accepted) << "OK must close the dialog, not error out";
-    EXPECT_EQ(PropertiesDialog::toOctal(QFileInfo(path).permissions()), 0600)
+    EXPECT_EQ(QFileInfo(path).permissions(), originalPermissions)
         << "the local file that happens to share the remote name must be left alone";
 }
