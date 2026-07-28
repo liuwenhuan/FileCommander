@@ -9,6 +9,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QHeaderView>
+#include <QHash>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QProgressBar>
@@ -21,8 +22,6 @@
 
 #include <zlib.h>
 
-#include <algorithm>
-
 namespace {
 
 // Read files a mebibyte at a time so multi-gigabyte inputs never sit in memory
@@ -30,6 +29,22 @@ namespace {
 constexpr qint64 kChunkSize = 1 << 20; // 1 MiB
 
 enum Column { ColFile = 0, ColMd5, ColCrc32, ColSha1, ColCount };
+
+quint64 cellKey(int row, int column) {
+    return (static_cast<quint64>(static_cast<quint32>(row)) << 32) |
+           static_cast<quint32>(column);
+}
+
+int progressPercent(qint64 done, qint64 total) {
+    if (total <= 0)
+        return 100;
+    if (done <= 0)
+        return 0;
+    if (done >= total)
+        return 100;
+    const long double ratio = static_cast<long double>(done) / static_cast<long double>(total);
+    return qBound(0, static_cast<int>(ratio * 100.0L), 100);
+}
 
 } // namespace
 
@@ -338,7 +353,7 @@ void ChecksumDialog::onRowReady(int row, const QString &md5, const QString &crc3
 void ChecksumDialog::onProgress(qint64 done, qint64 total) {
     if (!m_progress)
         return;
-    const int percent = total > 0 ? static_cast<int>((done * 100) / total) : 100;
+    const int percent = progressPercent(done, total);
     m_progress->setValue(percent);
     if (m_progressPercent)
         m_progressPercent->setText(QStringLiteral("%1%").arg(percent));
@@ -360,27 +375,31 @@ void ChecksumDialog::copySelection() {
     QModelIndexList indexes = m_table->selectionModel()->selectedIndexes();
     if (indexes.isEmpty())
         return;
-    std::sort(indexes.begin(), indexes.end(), [](const QModelIndex &a, const QModelIndex &b) {
-        return a.row() == b.row() ? a.column() < b.column() : a.row() < b.row();
-    });
-
     if (indexes.size() == 1) {
         QApplication::clipboard()->setText(indexes.first().data().toString());
         return;
     }
 
-    QStringList lines;
-    int row = indexes.first().row();
-    QStringList cells;
+    int firstRow = indexes.first().row();
+    int lastRow = firstRow;
+    int firstColumn = indexes.first().column();
+    int lastColumn = firstColumn;
+    QHash<quint64, QString> selectedValues;
     for (const QModelIndex &index : indexes) {
-        if (index.row() != row) {
-            lines.append(cells.join(QLatin1Char('\t')));
-            cells.clear();
-            row = index.row();
-        }
-        cells.append(index.data().toString());
+        firstRow = qMin(firstRow, index.row());
+        lastRow = qMax(lastRow, index.row());
+        firstColumn = qMin(firstColumn, index.column());
+        lastColumn = qMax(lastColumn, index.column());
+        selectedValues.insert(cellKey(index.row(), index.column()), index.data().toString());
     }
-    lines.append(cells.join(QLatin1Char('\t')));
+
+    QStringList lines;
+    for (int row = firstRow; row <= lastRow; ++row) {
+        QStringList cells;
+        for (int column = firstColumn; column <= lastColumn; ++column)
+            cells.append(selectedValues.value(cellKey(row, column)));
+        lines.append(cells.join(QLatin1Char('\t')));
+    }
     QApplication::clipboard()->setText(lines.join(QLatin1Char('\n')));
 }
 
