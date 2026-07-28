@@ -120,11 +120,99 @@ TEST(TextEncodingDetectorTest, DecodesBomPayloadWithoutAByteOrderMarkCharacter) 
 
 TEST(TextEncodingDetectorTest, SafelyCutsAnIncompleteUtf8CharacterAtThePreviewLimit) {
     const QByteArray source = QByteArray("A") + QString::fromUtf8(u8"中").toUtf8() + "tail";
-    const QByteArray prefix = TextEncodingDetector::safePrefix(source, 2);
-    const TextEncodingDetector::Result result = TextEncodingDetector::detect(prefix);
+    const TextEncodingDetector::Result result = TextEncodingDetector::detect(source);
+    const QByteArray prefix = TextEncodingDetector::safePrefix(source, 2, result);
 
     EXPECT_EQ(prefix, QByteArray("A"));
     EXPECT_EQ(TextEncodingDetector::decode(prefix, result), QStringLiteral("A"));
+}
+
+TEST(TextEncodingDetectorTest, RecognizesBomlessUtf32BeforeUtf16WhenTextQualityIsHigh) {
+    expectEncoding(QByteArray::fromHex("4800000069000000210000000A000000"), "UTF-32LE");
+    expectEncoding(QByteArray::fromHex("0000004800000069000000210000000A"), "UTF-32BE");
+    expectEncoding(QByteArray::fromHex("4800690021000A00"), "UTF-16LE");
+    expectEncoding(QByteArray::fromHex("004800690021000A"), "UTF-16BE");
+}
+
+TEST(TextEncodingDetectorTest, RejectsBomlessUnicodeShapedNulBinaryWithControlsOrInvalidScalars) {
+    // Stable NUL lanes alone are insufficient: controls, a malformed surrogate,
+    // and a noncharacter all remain binary rather than being promoted to Unicode.
+    for (const QByteArray &bytes : {QByteArray::fromHex("0100020003000400"),
+                                    QByteArray::fromHex("00000001000000020000000300000004"),
+                                    QByteArray::fromHex("410000D8420043004400"),
+                                    QByteArray::fromHex("48000000D0FD00006900000021000000")}) {
+        const TextEncodingDetector::Result result = TextEncodingDetector::detect(bytes);
+        EXPECT_TRUE(result.binary) << result.label.toStdString();
+        EXPECT_NE(result.label, QStringLiteral("UTF-16LE"));
+        EXPECT_NE(result.label, QStringLiteral("UTF-32BE"));
+    }
+}
+
+TEST(TextEncodingDetectorTest, SafePrefixUsesDetectedUnicodeBoundaryWithoutRedetection) {
+    const QByteArray utf16 = QByteArray::fromHex("4100420043004400");
+    const TextEncodingDetector::Result utf16Result = TextEncodingDetector::detect(utf16);
+    EXPECT_EQ(utf16Result.label, QStringLiteral("UTF-16LE"));
+    EXPECT_EQ(TextEncodingDetector::safePrefix(utf16 + QByteArray("tail"), 5, utf16Result),
+              QByteArray::fromHex("41004200"));
+
+    const QByteArray utf16Be = QByteArray::fromHex("0041004200430044");
+    const TextEncodingDetector::Result utf16BeResult = TextEncodingDetector::detect(utf16Be);
+    EXPECT_EQ(utf16BeResult.label, QStringLiteral("UTF-16BE"));
+    EXPECT_EQ(TextEncodingDetector::safePrefix(utf16Be + QByteArray("tail"), 5, utf16BeResult),
+              QByteArray::fromHex("00410042"));
+
+    const QByteArray utf32 = QByteArray::fromHex("41000000420000004300000044000000");
+    const TextEncodingDetector::Result utf32Result = TextEncodingDetector::detect(utf32);
+    EXPECT_EQ(utf32Result.label, QStringLiteral("UTF-32LE"));
+    EXPECT_EQ(TextEncodingDetector::safePrefix(utf32 + QByteArray("tail"), 6, utf32Result),
+              QByteArray::fromHex("41000000"));
+
+    const QByteArray utf32Be = QByteArray::fromHex("00000041000000420000004300000044");
+    const TextEncodingDetector::Result utf32BeResult = TextEncodingDetector::detect(utf32Be);
+    EXPECT_EQ(utf32BeResult.label, QStringLiteral("UTF-32BE"));
+    EXPECT_EQ(TextEncodingDetector::safePrefix(utf32Be + QByteArray("tail"), 6, utf32BeResult),
+              QByteArray::fromHex("00000041"));
+}
+
+TEST(TextEncodingDetectorTest, LimitsLegacyScoringToRepresentative64KiBSample) {
+    constexpr int sampleBytes = 64 * 1024;
+    EXPECT_EQ(TextEncodingDetector::legacyScoreSampleBytes(), sampleBytes);
+
+    const QByteArray source = QByteArray::fromHex("D6D0").repeated(5 * 1024 * 1024 / 2);
+    const TextEncodingDetector::Result result = TextEncodingDetector::detect(source);
+    EXPECT_EQ(result.label, QStringLiteral("GB18030"));
+    EXPECT_FALSE(result.binary);
+}
+
+TEST(TextEncodingDetectorTest, ValidatesLegacyGrammarAcrossWholeInputBeforeScoringSample) {
+    constexpr int sampleBytes = 64 * 1024;
+    const QByteArray validSample = QByteArray::fromHex("D6D0").repeated(sampleBytes / 2);
+    const TextEncodingDetector::Result result =
+        TextEncodingDetector::detect(validSample + QByteArray::fromHex("FF"));
+
+    EXPECT_NE(result.label, QStringLiteral("GB18030"));
+    EXPECT_TRUE(result.ambiguous || result.label == QStringLiteral("Unknown"));
+}
+
+TEST(TextEncodingDetectorTest, SafelyTruncatesLargeUtf8AndGb18030AtEncodingBoundaries) {
+    constexpr int previewBytes = 5 * 1024 * 1024;
+    const QByteArray utf8 = QByteArray(previewBytes - 1, 'A') +
+                           QString::fromUtf8(u8"中").toUtf8() + QByteArray("tail");
+    const TextEncodingDetector::Result utf8Result = TextEncodingDetector::detect(utf8);
+    const QByteArray utf8Prefix = TextEncodingDetector::safePrefix(utf8, previewBytes, utf8Result);
+    EXPECT_EQ(utf8Prefix.size(), previewBytes - 1);
+    EXPECT_FALSE(TextEncodingDetector::decode(utf8Prefix, utf8Result)
+                     .contains(QChar::ReplacementCharacter));
+
+    const QByteArray gb18030 = QByteArray(previewBytes - 1, 'A') +
+                               QByteArray::fromHex("D6D0") + QByteArray("tail");
+    const TextEncodingDetector::Result gb18030Result = TextEncodingDetector::detect(gb18030);
+    ASSERT_EQ(gb18030Result.label, QStringLiteral("GB18030"));
+    const QByteArray gb18030Prefix =
+        TextEncodingDetector::safePrefix(gb18030, previewBytes, gb18030Result);
+    EXPECT_EQ(gb18030Prefix.size(), previewBytes - 1);
+    EXPECT_FALSE(TextEncodingDetector::decode(gb18030Prefix, gb18030Result)
+                     .contains(QChar::ReplacementCharacter));
 }
 
 TEST(TextEncodingDetectorTest, QuickViewShowsAutoDetectionAndBinaryHexStatus) {

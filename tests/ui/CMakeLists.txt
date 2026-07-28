@@ -4,6 +4,7 @@ add_executable(ui_tests
     test_PropertiesDialog.cpp
     test_CommandHistory.cpp
     test_TextViewer.cpp
+    test_TextEncodingDetector.cpp
     test_SeekSlider.cpp
     test_RemoteThumbnailFetcher.cpp
     test_RemoteThumbnail.cpp

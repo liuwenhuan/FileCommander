@@ -530,7 +530,9 @@ void QuickView::renderText() {
     bool displayHex = m_textHex;
 
     if (autoEncoding) {
-        detected = TextEncodingDetector::detect(m_textRaw);
+        detected = m_textAutoResult;
+        if (!m_textAutoResultValid)
+            detected = {QStringLiteral("Unknown"), QByteArrayLiteral("UTF-8"), 0, false, true};
         if (detected.binary) {
             m_textEncodingStatus->setText(tr("Auto: Binary (Hex)"));
             displayHex = true;
@@ -2905,9 +2907,14 @@ void QuickView::showFile(const QString &path) {
     QFile file(path);
     if (file.open(QIODevice::ReadOnly)) {
         const QByteArray probe = file.read(m_textCap + kTextReadLookAheadBytes);
+        // Detect the complete probe once. renderText() only consumes this cached
+        // result, and safePrefix uses it to crop without re-running detection.
+        m_textAutoResult = TextEncodingDetector::detect(probe);
+        m_textAutoResultValid = true;
         m_textTruncated = probe.size() > m_textCap;
         m_textRaw = m_textTruncated
-                        ? TextEncodingDetector::safePrefix(probe, static_cast<int>(m_textCap))
+                        ? TextEncodingDetector::safePrefix(probe, static_cast<int>(m_textCap),
+                                                            m_textAutoResult)
                         : probe;
         if (!preserveTextEncoding) {
             m_textEncoding->blockSignals(true);

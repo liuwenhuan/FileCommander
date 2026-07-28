@@ -232,6 +232,105 @@ bool isControl(uint codePoint) {
            (codePoint >= 0x7f && codePoint <= 0x9f);
 }
 
+struct UnicodeQuality {
+    int codePoints = 0;
+    int printable = 0;
+    int controls = 0;
+    int noncharacters = 0;
+};
+
+void observeCodePoint(UnicodeQuality *quality, uint codePoint) {
+    ++quality->codePoints;
+    quality->controls += isControl(codePoint);
+    quality->noncharacters += isNoncharacter(codePoint);
+    quality->printable += QChar::isPrint(codePoint) || QChar::isSpace(codePoint);
+}
+
+bool hasTextQuality(const UnicodeQuality &quality, int minimumCodePoints) {
+    return quality.codePoints >= minimumCodePoints && quality.controls == 0 &&
+           quality.noncharacters == 0 && quality.printable * 4 >= quality.codePoints * 3;
+}
+
+bool hasStableZeroLanes(const QByteArray &data, int codeUnitBytes, bool littleEndian) {
+    const int codeUnits = data.size() / codeUnitBytes;
+    if (codeUnits < 4)
+        return false;
+
+    const QVector<int> zeroLanes =
+        codeUnitBytes == 2 ? QVector<int>{littleEndian ? 1 : 0}
+                           : (littleEndian ? QVector<int>{1, 2, 3} : QVector<int>{0, 1, 2});
+    for (const int lane : zeroLanes) {
+        int zeroCount = 0;
+        for (int offset = lane; offset < data.size(); offset += codeUnitBytes)
+            zeroCount += static_cast<uchar>(data.at(offset)) == 0;
+        if (zeroCount * 4 < codeUnits * 3)
+            return false;
+    }
+    return true;
+}
+
+bool hasHighQualityUtf8(const QByteArray &data) {
+    if (!isStrictUtf8(data))
+        return false;
+    UnicodeQuality quality;
+    for (int i = 0; i < data.size();) {
+        const uchar first = static_cast<uchar>(data.at(i++));
+        uint codePoint = first;
+        int continuationCount = 0;
+        if (first >= 0xc2 && first <= 0xdf) {
+            codePoint &= 0x1f;
+            continuationCount = 1;
+        } else if (first >= 0xe0 && first <= 0xef) {
+            codePoint &= 0x0f;
+            continuationCount = 2;
+        } else if (first >= 0xf0) {
+            codePoint &= 0x07;
+            continuationCount = 3;
+        }
+        for (int j = 0; j < continuationCount; ++j)
+            codePoint = (codePoint << 6) | (static_cast<uchar>(data.at(i++)) & 0x3f);
+        observeCodePoint(&quality, codePoint);
+    }
+    return hasTextQuality(quality, 1);
+}
+
+bool hasHighQualityUtf16(const QByteArray &data, bool littleEndian) {
+    if (!isStrictUtf16(data, littleEndian) || !hasStableZeroLanes(data, 2, littleEndian))
+        return false;
+
+    auto codeUnitAt = [&data, littleEndian](int offset) {
+        const uint first = static_cast<uchar>(data.at(offset));
+        const uint second = static_cast<uchar>(data.at(offset + 1));
+        return littleEndian ? first | (second << 8) : (first << 8) | second;
+    };
+    UnicodeQuality quality;
+    for (int i = 0; i < data.size(); i += 2) {
+        uint codePoint = codeUnitAt(i);
+        if (codePoint >= 0xd800 && codePoint <= 0xdbff) {
+            codePoint = 0x10000 + ((codePoint - 0xd800) << 10) + (codeUnitAt(i + 2) - 0xdc00);
+            i += 2;
+        }
+        observeCodePoint(&quality, codePoint);
+    }
+    return hasTextQuality(quality, 4);
+}
+
+bool hasHighQualityUtf32(const QByteArray &data, bool littleEndian) {
+    if (!isStrictUtf32(data, littleEndian) || !hasStableZeroLanes(data, 4, littleEndian))
+        return false;
+
+    UnicodeQuality quality;
+    for (int i = 0; i < data.size(); i += 4) {
+        uint codePoint = 0;
+        for (int byte = 0; byte < 4; ++byte) {
+            const uint value = static_cast<uchar>(data.at(i + byte));
+            codePoint |= littleEndian ? value << (byte * 8) : value << ((3 - byte) * 8);
+        }
+        observeCodePoint(&quality, codePoint);
+    }
+    return hasTextQuality(quality, 4);
+}
+
 int scriptQuality(const QString &text, ScriptPreference preference) {
     int score = 0;
     for (const QChar character : text) {
@@ -300,6 +399,82 @@ bool isLikelyBinary(const QByteArray &data) {
     return nulls > 0 || (data.size() >= 8 && controls * 4 > data.size());
 }
 
+int longestCompleteLegacyPrefix(const QByteArray &data, int length, const QByteArray &codecName) {
+    int i = 0;
+    while (i < length) {
+        const uchar first = static_cast<uchar>(data.at(i));
+        int bytes = 1;
+        if (codecName == "GB18030") {
+            if (first > 0x7f) {
+                if (first < 0x81 || first > 0xfe || i + 1 >= length)
+                    break;
+                const uchar second = static_cast<uchar>(data.at(i + 1));
+                if (second >= 0x30 && second <= 0x39) {
+                    if (i + 3 >= length || static_cast<uchar>(data.at(i + 2)) < 0x81 ||
+                        static_cast<uchar>(data.at(i + 2)) > 0xfe ||
+                        static_cast<uchar>(data.at(i + 3)) < 0x30 ||
+                        static_cast<uchar>(data.at(i + 3)) > 0x39)
+                        break;
+                    bytes = 4;
+                } else if ((second >= 0x40 && second <= 0xfe) && second != 0x7f) {
+                    bytes = 2;
+                } else {
+                    break;
+                }
+            }
+        } else if (codecName == "Big5") {
+            if (first > 0x7f) {
+                if (first < 0x81 || first > 0xfe || i + 1 >= length)
+                    break;
+                const uchar second = static_cast<uchar>(data.at(i + 1));
+                if (!((second >= 0x40 && second <= 0x7e) || (second >= 0xa1 && second <= 0xfe)))
+                    break;
+                bytes = 2;
+            }
+        } else if (codecName == "Shift-JIS") {
+            if (first >= 0xa1 && first <= 0xdf) {
+                bytes = 1;
+            } else if (first > 0x7f) {
+                if (!((first >= 0x81 && first <= 0x9f) || (first >= 0xe0 && first <= 0xfc)) ||
+                    i + 1 >= length)
+                    break;
+                const uchar second = static_cast<uchar>(data.at(i + 1));
+                if (!((second >= 0x40 && second <= 0x7e) || (second >= 0x80 && second <= 0xfc)))
+                    break;
+                bytes = 2;
+            }
+        } else if (codecName == "EUC-JP") {
+            if (first == 0x8e) {
+                if (i + 1 >= length || static_cast<uchar>(data.at(i + 1)) < 0xa1 ||
+                    static_cast<uchar>(data.at(i + 1)) > 0xdf)
+                    break;
+                bytes = 2;
+            } else if (first == 0x8f) {
+                if (i + 2 >= length || static_cast<uchar>(data.at(i + 1)) < 0xa1 ||
+                    static_cast<uchar>(data.at(i + 1)) > 0xfe ||
+                    static_cast<uchar>(data.at(i + 2)) < 0xa1 ||
+                    static_cast<uchar>(data.at(i + 2)) > 0xfe)
+                    break;
+                bytes = 3;
+            } else if (first > 0x7f) {
+                if (first < 0xa1 || first > 0xfe || i + 1 >= length ||
+                    static_cast<uchar>(data.at(i + 1)) < 0xa1 ||
+                    static_cast<uchar>(data.at(i + 1)) > 0xfe)
+                    break;
+                bytes = 2;
+            }
+        } else if (codecName == "EUC-KR" && first > 0x7f) {
+            if (first < 0xa1 || first > 0xfe || i + 1 >= length ||
+                static_cast<uchar>(data.at(i + 1)) < 0xa1 ||
+                static_cast<uchar>(data.at(i + 1)) > 0xfe)
+                break;
+            bytes = 2;
+        }
+        i += bytes;
+    }
+    return i;
+}
+
 TextEncodingDetector::Result bomResult(const char *label, const char *codecName, int bomBytes) {
     return {QString::fromLatin1(label), QByteArray(codecName), bomBytes, false, false};
 }
@@ -334,12 +509,28 @@ TextEncodingDetector::Result TextEncodingDetector::detect(const QByteArray &data
         return {QStringLiteral("Unknown"), QByteArrayLiteral("UTF-8"), 0, false, true};
     }
 
+    // UTF-32 must precede UTF-16: the Unicode grammar and persistent NUL lanes
+    // make this conservative enough to run before the generic binary heuristic.
+    if (hasHighQualityUtf32(data, true))
+        return {QStringLiteral("UTF-32LE"), QByteArrayLiteral("UTF-32LE"), 0, false, false};
+    if (hasHighQualityUtf32(data, false))
+        return {QStringLiteral("UTF-32BE"), QByteArrayLiteral("UTF-32BE"), 0, false, false};
+    if (hasHighQualityUtf16(data, true))
+        return {QStringLiteral("UTF-16LE"), QByteArrayLiteral("UTF-16LE"), 0, false, false};
+    if (hasHighQualityUtf16(data, false))
+        return {QStringLiteral("UTF-16BE"), QByteArrayLiteral("UTF-16BE"), 0, false, false};
+
     if (isLikelyBinary(data))
         return {QStringLiteral("Binary"), QByteArray(), 0, true, false};
     if (isAscii(data))
         return {QStringLiteral("ASCII"), QByteArrayLiteral("UTF-8"), 0, false, data.isEmpty()};
-    if (isStrictUtf8(data))
+    if (hasHighQualityUtf8(data))
         return {QStringLiteral("UTF-8"), QByteArrayLiteral("UTF-8"), 0, false, false};
+
+    // Grammar validation always covers the full input. Only the expensive
+    // decode/re-encode quality scoring uses the fixed representative sample.
+    const QByteArray scoreSample =
+        data.left(qMin(data.size(), TextEncodingDetector::legacyScoreSampleBytes()));
 
     // Order is the documented deterministic tie-break order after UTF-8.
     const Candidate candidates[] = {
@@ -357,7 +548,7 @@ TextEncodingDetector::Result TextEncodingDetector::detect(const QByteArray &data
         QTextCodec *codec = QTextCodec::codecForName(candidate.codecName);
         if (!codec)
             continue;
-        scores.append({&candidate, scoreDecodedText(data, codec, candidate.preference)});
+        scores.append({&candidate, scoreDecodedText(scoreSample, codec, candidate.preference)});
     }
 
     if (scores.isEmpty())
@@ -391,25 +582,43 @@ QString TextEncodingDetector::decode(const QByteArray &data, const Result &resul
     return codec->toUnicode(data.mid(result.bomBytes));
 }
 
-QByteArray TextEncodingDetector::safePrefix(const QByteArray &data, int maximumBytes) {
+QByteArray TextEncodingDetector::safePrefix(const QByteArray &data, int maximumBytes,
+                                             const Result &result) {
     if (maximumBytes <= 0)
         return QByteArray();
     if (data.size() <= maximumBytes)
         return data;
 
-    const int minimumBytes = qMax(0, maximumBytes - 3);
-    for (int length = maximumBytes; length >= minimumBytes; --length) {
-        const QByteArray prefix = data.left(length);
-        const Result result = detect(prefix);
-        if (result.binary || result.codecName.isEmpty())
-            continue;
-        QTextCodec *codec = QTextCodec::codecForName(result.codecName);
-        if (!codec)
-            continue;
-        const QByteArray payload = prefix.mid(result.bomBytes);
-        const QString decoded = codec->toUnicode(payload);
-        if (!decoded.contains(QChar::ReplacementCharacter) && codec->fromUnicode(decoded) == payload)
-            return prefix;
+    int length = maximumBytes;
+    const int payloadStart = qMin(result.bomBytes, length);
+    if (result.codecName == "UTF-32LE" || result.codecName == "UTF-32BE") {
+        length = payloadStart + (length - payloadStart) / 4 * 4;
+    } else if (result.codecName == "UTF-16LE" || result.codecName == "UTF-16BE") {
+        length = payloadStart + (length - payloadStart) / 2 * 2;
+        if (length - payloadStart >= 2) {
+            const bool littleEndian = result.codecName == "UTF-16LE";
+            const uchar first = static_cast<uchar>(data.at(length - 2));
+            const uchar second = static_cast<uchar>(data.at(length - 1));
+            const uint codeUnit = littleEndian ? first | (second << 8) : (first << 8) | second;
+            if (codeUnit >= 0xd800 && codeUnit <= 0xdbff)
+                length -= 2;
+        }
+    } else if (result.codecName == "UTF-8") {
+        if (length > payloadStart) {
+            int sequenceStart = length - 1;
+            while (sequenceStart > payloadStart &&
+                   (static_cast<uchar>(data.at(sequenceStart)) & 0xc0) == 0x80)
+                --sequenceStart;
+            const uchar first = static_cast<uchar>(data.at(sequenceStart));
+            const int sequenceBytes = first < 0x80 ? 1 : first < 0xe0 ? 2 : first < 0xf0 ? 3 : 4;
+            if (sequenceStart + sequenceBytes > length)
+                length = sequenceStart;
+        }
+    } else if (!result.codecName.isEmpty()) {
+        // Legacy encodings are variable-width. Re-run only the selected codec's
+        // byte grammar once to locate the boundary; no decode/re-encode and no
+        // candidate re-detection is performed for adjacent large prefixes.
+        length = longestCompleteLegacyPrefix(data, length, result.codecName);
     }
-    return data.left(maximumBytes);
+    return data.left(qMax(payloadStart, length));
 }

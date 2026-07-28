@@ -17,8 +17,12 @@ public:
     };
 
     static Result detect(const QByteArray &data);
+    // The scoring sample is bounded; grammar validation still covers all input.
+    static constexpr int legacyScoreSampleBytes() { return 64 * 1024; }
     // Decodes a detected byte sequence after removing a validated BOM.
     static QString decode(const QByteArray &data, const Result &result);
     // Limits a preview without leaving an incomplete multi-byte sequence at its end.
-    static QByteArray safePrefix(const QByteArray &data, int maximumBytes);
+    // `result` is the single detection performed for the current file, so trimming
+    // never re-scores adjacent multi-megabyte prefixes.
+    static QByteArray safePrefix(const QByteArray &data, int maximumBytes, const Result &result);
 };
