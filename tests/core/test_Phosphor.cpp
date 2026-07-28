@@ -1,7 +1,10 @@
 #include <gtest/gtest.h>
 
+#include <QByteArray>
 #include <QImage>
 #include <QPixmap>
+#include <QProcess>
+#include <QStandardPaths>
 
 #include "theme/Phosphor.h"
 
@@ -52,9 +55,36 @@ TEST(PhosphorScanlines, VideoFilterHasNoQuantisationStages) {
     const QString filter = fc::mpvScanlinedPhosphorFilter(QColor(0x33, 0xff, 0x88), 2, 0.25);
 
     EXPECT_TRUE(filter.startsWith(QStringLiteral("lavfi=[colorchannelmixer=")));
-    EXPECT_NE(filter.indexOf(QStringLiteral("lutrgb=")), -1);
-    EXPECT_NE(filter.indexOf(QStringLiteral("mod(y\\,2)")), -1);
+    EXPECT_NE(filter.indexOf(QStringLiteral("geq=")), -1);
+    EXPECT_NE(filter.indexOf(QStringLiteral("mod(Y\\,2)")), -1);
     EXPECT_EQ(filter.indexOf(QStringLiteral("scale")), -1);
     EXPECT_EQ(filter.indexOf(QStringLiteral("blend")), -1);
     EXPECT_TRUE(fc::mpvScanlinedPhosphorFilter(QColor()).isEmpty());
+}
+
+TEST(PhosphorScanlines, VideoFilterIsAcceptedByFfmpeg) {
+    const QString ffmpeg = QStandardPaths::findExecutable(QStringLiteral("ffmpeg"));
+    if (ffmpeg.isEmpty())
+        GTEST_SKIP() << "ffmpeg is not installed";
+
+    QString filter = fc::mpvScanlinedPhosphorFilter(QColor(0x33, 0xff, 0x88), 2, 0.25);
+    ASSERT_TRUE(filter.startsWith(QStringLiteral("lavfi=[")));
+    filter.chop(1);
+    filter.remove(0, QStringLiteral("lavfi=[").size());
+
+    QProcess process;
+    process.start(ffmpeg, {QStringLiteral("-hide_banner"), QStringLiteral("-loglevel"),
+                           QStringLiteral("error"), QStringLiteral("-f"),
+                           QStringLiteral("lavfi"), QStringLiteral("-i"),
+                           QStringLiteral("color=c=red:s=4x4:d=0.04"),
+                           QStringLiteral("-vf"), filter, QStringLiteral("-frames:v"),
+                           QStringLiteral("1"), QStringLiteral("-pix_fmt"),
+                           QStringLiteral("rgba"), QStringLiteral("-f"),
+                           QStringLiteral("rawvideo"), QStringLiteral("-")});
+    ASSERT_TRUE(process.waitForFinished(10'000));
+    const QByteArray pixels = process.readAllStandardOutput();
+    EXPECT_EQ(process.exitStatus(), QProcess::NormalExit) << process.readAllStandardError().toStdString();
+    ASSERT_EQ(process.exitCode(), 0) << process.readAllStandardError().toStdString();
+    ASSERT_EQ(pixels.size(), 4 * 4 * 4);
+    EXPECT_LT(static_cast<unsigned char>(pixels.at(1)), static_cast<unsigned char>(pixels.at(4 * 4 + 1)));
 }

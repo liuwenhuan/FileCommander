@@ -1,11 +1,13 @@
 #include "ThemeManager.h"
 
 #include <QApplication>
-#include <QScreen>
 #include <QFile>
+#include <QPixmap>
+#include <QScreen>
 #include <QWidget>
 
 #include "AppIcon.h"
+#include "TitleBar.h"
 #include "filesystem/IconCache.h"
 #include "theme/Phosphor.h"
 
@@ -79,6 +81,10 @@ void ThemeManager::apply(Settings::Theme theme, bool phosphorImages) {
     // TitleBar reads window->windowIcon()), so they all have to be re-set.
     const QIcon icon = ttc::appIcon(crt ? kPhosphor : QColor());
     qApp->setWindowIcon(icon);
-    for (QWidget *w : qApp->topLevelWidgets())
+    for (QWidget *w : qApp->topLevelWidgets()) {
         w->setWindowIcon(icon);
+        if (!crt)
+            for (TitleBar *titleBar : w->findChildren<TitleBar *>())
+                titleBar->setBackgroundTile(QPixmap());
+    }
 }

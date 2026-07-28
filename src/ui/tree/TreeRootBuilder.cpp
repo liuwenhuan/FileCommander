@@ -1,23 +1,34 @@
 #include "TreeRootBuilder.h"
 
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QHash>
 #include <QRegularExpression>
-#include <QStorageInfo>
 
 namespace {
 
-// Filesystem types that are never a place the user browses files: kernel and
-// container plumbing that QStorageInfo reports alongside real disks.
-bool isPseudoFilesystem(const QByteArray &type) {
-    static const QVector<QByteArray> kPseudo{"proc",     "sysfs",      "devtmpfs", "devpts",
-                                             "tmpfs",    "cgroup",     "cgroup2",  "securityfs",
-                                             "pstore",   "bpf",        "tracefs",  "debugfs",
-                                             "configfs", "fusectl",    "mqueue",   "hugetlbfs",
-                                             "squashfs", "ramfs",      "autofs",   "binfmt_misc",
-                                             "efivarfs", "fuse.gvfsd-fuse"};
-    return kPseudo.contains(type);
+// mountinfo escapes whitespace and backslashes as three-digit octal sequences.
+// Decode the field without resolving or statting the path: that is the property
+// this parser exists to preserve when a network mount has stopped responding.
+QByteArray decodeMountField(const QByteArray &field) {
+    QByteArray decoded;
+    decoded.reserve(field.size());
+    for (int i = 0; i < field.size(); ++i) {
+        if (field.at(i) == '\\' && i + 3 < field.size()
+            && field.at(i + 1) >= '0' && field.at(i + 1) <= '7'
+            && field.at(i + 2) >= '0' && field.at(i + 2) <= '7'
+            && field.at(i + 3) >= '0' && field.at(i + 3) <= '7') {
+            const int value = (field.at(i + 1) - '0') * 64
+                              + (field.at(i + 2) - '0') * 8
+                              + (field.at(i + 3) - '0');
+            decoded.append(static_cast<char>(value));
+            i += 3;
+        } else {
+            decoded.append(field.at(i));
+        }
+    }
+    return decoded;
 }
 
 // The physical drive behind a partition device node: "/dev/nvme0n1p4" and
@@ -47,41 +58,62 @@ QString physicalDriveOf(const QByteArray &device) {
     return node;
 }
 
-QString labelForVolume(const QStorageInfo &storage) {
-    const QString name = storage.name();
-    if (!name.isEmpty())
-        return name;
-    // An unlabelled volume: the mount point reads better than a bare device
-    // node, except for the root filesystem where the device says more.
-    const QString mount = storage.rootPath();
-    if (mount != QDir::rootPath())
-        return QFileInfo(mount).fileName().isEmpty() ? mount : QFileInfo(mount).fileName();
-    return QString::fromUtf8(storage.device());
+QString labelForVolume(const QByteArray &device, const QString &mount) {
+    // Keep this purely lexical. QFileInfo::fileName() does not query the path,
+    // whereas QStorageInfo::name()/isReady() may call statfs and hang on a dead
+    // mount before the main window has appeared.
+    if (mount != QDir::rootPath()) {
+        const QString name = QFileInfo(mount).fileName();
+        if (!name.isEmpty())
+            return name;
+    }
+    return QString::fromUtf8(device);
 }
 
 } // namespace
 
-QVector<LocalVolume> TreeRootBuilder::enumerateLocalVolumes(const QStringList &removableMounts) {
+QVector<LocalVolume> TreeRootBuilder::localVolumesFromMountInfo(
+    const QByteArray &mountInfo, const QStringList &removableMounts) {
     QVector<LocalVolume> volumes;
     QHash<QString, int> driveSlot; // physical drive -> index into `volumes`
 
-    for (const QStorageInfo &storage : QStorageInfo::mountedVolumes()) {
-        if (!storage.isValid() || !storage.isReady())
+    for (const QByteArray &line : mountInfo.split('\n')) {
+        const QList<QByteArray> fields = line.split(' ');
+        // Fields 0..5 are fixed, then zero or more optional fields, then a lone
+        // "-" separator followed by filesystem type, mount source and options.
+        const int separator = fields.indexOf(QByteArrayLiteral("-"));
+        if (fields.size() < 7 || separator < 6 || separator + 2 >= fields.size())
             continue;
-        if (isPseudoFilesystem(storage.fileSystemType()))
+
+        const QByteArray fileSystemType = fields.at(separator + 1);
+        if (fileSystemType == QByteArrayLiteral("fuse")
+            || fileSystemType.startsWith(QByteArrayLiteral("fuse.")))
             continue;
-        // Only filesystems backed by a real block device are disks; loop mounts
-        // (snap packages) and network mounts are not what "a hard disk" means
-        // here, and network shares reach the tree through their provider.
-        const QByteArray device = storage.device();
+
+        // A FUSE mount controls its displayed source name and can call itself
+        // "/dev/sdc1". The kernel-assigned major:minor field is not forgeable in
+        // that way: anonymous/network filesystems use major 0, block devices do
+        // not. Require both signals before treating a record as a local disk.
+        const int colon = fields.at(2).indexOf(':');
+        bool majorOk = false;
+        const uint major = colon > 0 ? fields.at(2).left(colon).toUInt(&majorOk) : 0;
+        if (!majorOk || major == 0)
+            continue;
+
+        const QByteArray device = decodeMountField(fields.at(separator + 2));
+        // Filter by source before doing anything with the mount point. CIFS,
+        // NFS, GVFS/FUSE, overlay and virtual filesystems do not use /dev nodes,
+        // so a dead network mount is discarded using mount-table text alone.
         if (!device.startsWith("/dev/") || device.startsWith("/dev/loop"))
             continue;
-        if (removableMounts.contains(storage.rootPath()))
+
+        const QString mountPoint = QString::fromUtf8(decodeMountField(fields.at(4)));
+        if (mountPoint.isEmpty() || removableMounts.contains(mountPoint))
             continue;
 
         LocalVolume volume;
-        volume.name = labelForVolume(storage);
-        volume.mountPoint = storage.rootPath();
+        volume.name = labelForVolume(device, mountPoint);
+        volume.mountPoint = mountPoint;
 
         // One root per physical drive, not per partition. Within a drive the
         // shallowest mount wins ("/" beats "/home", which beats "/home/x"):
@@ -96,6 +128,13 @@ QVector<LocalVolume> TreeRootBuilder::enumerateLocalVolumes(const QStringList &r
         }
     }
     return volumes;
+}
+
+QVector<LocalVolume> TreeRootBuilder::enumerateLocalVolumes(const QStringList &removableMounts) {
+    QFile mountInfo(QStringLiteral("/proc/self/mountinfo"));
+    if (!mountInfo.open(QIODevice::ReadOnly))
+        return {};
+    return localVolumesFromMountInfo(mountInfo.readAll(), removableMounts);
 }
 
 QStringList TreeRootBuilder::networkBaseCandidates(const QString &currentPath) {

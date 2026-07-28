@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QByteArray>
 #include <QString>
 #include <QStringList>
 #include <QVector>
@@ -47,7 +48,7 @@ struct TreeRoot {
 
 // A mounted local filesystem that is not removable -- an internal disk.
 struct LocalVolume {
-    QString name;       // volume label, or the device node when unlabelled
+    QString name;       // mount directory name, or device node for the root filesystem
     QString mountPoint; // "/", "/home", "/mnt/data", ...
 };
 
@@ -80,10 +81,18 @@ public:
                                    const QVector<RemovableDevice> &devices,
                                    const QVector<NetworkTreeEntry> &networks);
 
-    // Enumerates mounted non-removable local filesystems via QStorageInfo,
-    // excluding pseudo-filesystems and anything mounted from a removable device
-    // (those arrive through RemovableDeviceMonitor instead, with a better label
-    // and an eject affordance). `removableMounts` are the mount points to skip.
+    // Parses Linux /proc/self/mountinfo without touching any mounted path. Only
+    // block-device sources under /dev are returned; network/FUSE mounts are
+    // discarded from the text record itself, before a dead server can block the
+    // GUI thread. Public so the parser can be tested with a synthetic mount table.
+    static QVector<LocalVolume> localVolumesFromMountInfo(
+        const QByteArray &mountInfo, const QStringList &removableMounts);
+
+    // Enumerates mounted non-removable local filesystems from Linux mountinfo,
+    // excluding network/FUSE mounts without probing them. Anything mounted from
+    // a removable device is also skipped (those arrive through
+    // RemovableDeviceMonitor instead, with a better label and an eject affordance).
+    // `removableMounts` are the mount points to skip.
     static QVector<LocalVolume> enumerateLocalVolumes(const QStringList &removableMounts);
 
     // The candidate starting points for a network root, topmost first: "/" then

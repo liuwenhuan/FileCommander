@@ -26,11 +26,16 @@ QString phosphorMixer(const QColor &tint) {
 QString scanlineStage(int period, qreal darken) {
     if (period < 2 || darken <= 0.0)
         return {};
-    const qreal attenuation = 1.0 - qBound(0.0, darken, 1.0);
-    const QString expression = QStringLiteral("if(eq(mod(y\\,%1)\\,0)\\,val*%2\\,val)")
-                                   .arg(period)
-                                   .arg(QString::number(attenuation, 'f', 3));
-    return QStringLiteral("lutrgb=r='%1':g='%1':b='%1'").arg(expression);
+    const QString attenuation = QString::number(1.0 - qBound(0.0, darken, 1.0), 'f', 3);
+    const auto expressionFor = [period, &attenuation](QChar channel) {
+        return QStringLiteral("if(eq(mod(Y\\,%1)\\,0)\\,%2(X\\,Y)*%3\\,%2(X\\,Y))")
+            .arg(period)
+            .arg(channel)
+            .arg(attenuation);
+    };
+    return QStringLiteral("geq=r='%1':g='%2':b='%3'")
+        .arg(expressionFor(QLatin1Char('r')), expressionFor(QLatin1Char('g')),
+             expressionFor(QLatin1Char('b')));
 }
 } // namespace
 

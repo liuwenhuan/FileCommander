@@ -105,6 +105,13 @@ TitleBar::TitleBar(QWidget *window, const QList<QMenu *> &menus, QWidget *parent
     m_title->raise();
 }
 
+void TitleBar::setBackgroundTile(const QPixmap &tile) {
+    if (m_backgroundTile.cacheKey() == tile.cacheKey())
+        return;
+    m_backgroundTile = tile;
+    update();
+}
+
 void TitleBar::positionTitle() {
     if (m_title)
         m_title->setGeometry(rect());

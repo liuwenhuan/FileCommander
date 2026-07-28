@@ -26,10 +26,13 @@ class TitleBar : public QWidget {
     //
     // Null (the default) keeps the palette's window colour, so light.qss and
     // dark.qss need no changes.
-    Q_PROPERTY(QPixmap backgroundTile MEMBER m_backgroundTile)
+    Q_PROPERTY(QPixmap backgroundTile READ backgroundTile WRITE setBackgroundTile)
 
 public:
     TitleBar(QWidget *window, const QList<QMenu *> &menus, QWidget *parent = nullptr);
+
+    QPixmap backgroundTile() const { return m_backgroundTile; }
+    void setBackgroundTile(const QPixmap &tile);
 
     // Refreshes the maximize/restore glyph after an external state change.
     void syncWindowState();

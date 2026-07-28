@@ -184,6 +184,43 @@ TEST(TreeRootBuilderTest, NetworkBaseCandidatesForRootIsJustRoot) {
     EXPECT_EQ(candidates.first(), QString("/"));
 }
 
+// Mount discovery runs during FilePanel construction, before MainWindow::show().
+// It must inspect mount-table text without probing every mounted filesystem:
+// QStorageInfo::mountedVolumes() blocks the GUI thread indefinitely when a CIFS
+// server is offline. This synthetic table includes that exact failure case plus
+// escaped spaces and multiple partitions on one physical drive.
+TEST(TreeRootBuilderTest, MountInfoParsingNeverSurfacesNetworkMounts) {
+    const QByteArray mountInfo =
+        "32 1 259:4 / / rw,relatime shared:1 master:2 - ext4 /dev/nvme0n1p4 rw\n"
+        "33 32 259:5 / /home rw,relatime - ext4 /dev/nvme0n1p5 rw\n"
+        "34 32 8:1 / /mnt/data\\040disk rw,relatime shared:7 - ext4 /dev/sda1 rw\n"
+        "35 32 0:84 / /media/share rw,relatime shared:436 - cifs //offline/share rw\n"
+        "36 32 0:75 / /run/user/1000/gvfs rw - fuse.gvfsd-fuse gvfsd-fuse rw\n"
+        "37 32 0:91 / /mnt/disguised rw - fuse.sshfs /dev/sdc1 rw\n"
+        "38 32 7:0 / /snap/pkg rw - squashfs /dev/loop0 rw\n"
+        "malformed mountinfo line\n";
+
+    const auto volumes = TreeRootBuilder::localVolumesFromMountInfo(mountInfo, {});
+
+    ASSERT_EQ(volumes.size(), 2);
+    EXPECT_EQ(volumes.at(0).mountPoint, QStringLiteral("/"));
+    EXPECT_EQ(volumes.at(1).mountPoint, QStringLiteral("/mnt/data disk"));
+    for (const LocalVolume &volume : volumes)
+        EXPECT_FALSE(volume.mountPoint.startsWith(QStringLiteral("/media/share")));
+}
+
+TEST(TreeRootBuilderTest, MountInfoParsingSkipsKnownRemovableMounts) {
+    const QByteArray mountInfo =
+        "32 1 259:4 / / rw,relatime - ext4 /dev/nvme0n1p4 rw\n"
+        "33 32 8:17 / /media/My\\040Stick rw,relatime - vfat /dev/sdb1 rw\n";
+
+    const auto volumes = TreeRootBuilder::localVolumesFromMountInfo(
+        mountInfo, {QStringLiteral("/media/My Stick")});
+
+    ASSERT_EQ(volumes.size(), 1);
+    EXPECT_EQ(volumes.first().mountPoint, QStringLiteral("/"));
+}
+
 // Enumeration must never surface kernel/pseudo filesystems as browsable disks.
 // This runs against the real machine, so it asserts on properties rather than
 // an exact set. Note the prefixes are matched as whole path segments: "/sysroot"

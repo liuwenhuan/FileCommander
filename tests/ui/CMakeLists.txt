@@ -19,6 +19,7 @@ add_executable(ui_tests
     test_FilePanelFont.cpp
     test_NetworkArchiveBrowse.cpp
     test_FilePanelTreeSync.cpp
+    test_TitleBarTheme.cpp
     test_TreeRootBuilder.cpp
     test_DirectoryTreeModel.cpp
     test_SlideSceneImageCache.cpp
