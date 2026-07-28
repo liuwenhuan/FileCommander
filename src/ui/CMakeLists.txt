@@ -130,18 +130,18 @@ find_package(Qt5 COMPONENTS OpenGL REQUIRED)
 
 if(FILECOMMANDER_PREVIEW_MEDIA)
     find_package(PkgConfig REQUIRED)
-    pkg_check_modules(MPV REQUIRED IMPORTED_TARGET mpv)
+    pkg_check_modules(MPV REQUIRED IMPORTED_TARGET GLOBAL mpv)
 endif()
 
 if(FILECOMMANDER_PREVIEW_PDF)
     find_package(PkgConfig REQUIRED)
-    pkg_check_modules(POPPLER_QT5 REQUIRED IMPORTED_TARGET poppler-qt5)
+    pkg_check_modules(POPPLER_QT5 REQUIRED IMPORTED_TARGET GLOBAL poppler-qt5)
 endif()
 
 if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
     find_package(Qt5 COMPONENTS X11Extras REQUIRED)
     find_package(PkgConfig REQUIRED)
-    pkg_check_modules(XCB REQUIRED IMPORTED_TARGET xcb)
+    pkg_check_modules(XCB REQUIRED IMPORTED_TARGET GLOBAL xcb)
 endif()
 
 target_include_directories(ui PUBLIC

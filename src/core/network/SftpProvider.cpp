@@ -170,9 +170,14 @@ qintptr openSocket(const QString &host, int port, int timeoutMs, QString *error)
             }
             // Writable: confirm the connect actually succeeded via SO_ERROR.
             int soErr = 0;
+#ifdef Q_OS_WIN
             int len = sizeof(soErr);
             if (::getsockopt(fd, SOL_SOCKET, SO_ERROR, reinterpret_cast<char *>(&soErr),
                              &len) < 0 || soErr != 0) {
+#else
+            socklen_t len = sizeof(soErr);
+            if (::getsockopt(fd, SOL_SOCKET, SO_ERROR, &soErr, &len) < 0 || soErr != 0) {
+#endif
                 lastErrno = soErr != 0 ? soErr : socketError();
                 closeSocket(static_cast<qintptr>(fd));
                 continue;
