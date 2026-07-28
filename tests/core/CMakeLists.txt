@@ -40,3 +40,51 @@ target_link_libraries(core_tests PRIVATE
 )
 
 add_test(NAME core_tests COMMAND core_tests)
+
+if(TTC_BUILD_LIVE_SMB_TESTS)
+    add_executable(smb_live_tests
+        test_main.cpp
+        network/test_SmbLive.cpp
+    )
+
+    target_link_libraries(smb_live_tests PRIVATE
+        core
+        gtest
+        Qt5::Widgets
+        Qt5::Core
+        Qt5::Test
+    )
+    add_dependencies(smb_live_tests FileCommander-smb-helper)
+    set_target_properties(smb_live_tests PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+    )
+
+    add_test(NAME smb_live_tests COMMAND $<TARGET_FILE:smb_live_tests>)
+    set_tests_properties(smb_live_tests PROPERTIES
+        LABELS "live;smb"
+        RUN_SERIAL TRUE
+        TIMEOUT 1800
+    )
+endif()
+
+if(TTC_BUILD_LIVE_WEBDAV_TESTS)
+    add_executable(webdav_live_tests
+        test_main.cpp
+        network/test_WebDavLive.cpp
+    )
+
+    target_link_libraries(webdav_live_tests PRIVATE
+        core
+        gtest
+        Qt5::Widgets
+        Qt5::Core
+        Qt5::Test
+    )
+
+    add_test(NAME webdav_live_tests COMMAND $<TARGET_FILE:webdav_live_tests>)
+    set_tests_properties(webdav_live_tests PROPERTIES
+        LABELS "live;webdav"
+        RUN_SERIAL TRUE
+        TIMEOUT 900
+    )
+endif()

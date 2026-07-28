@@ -46,6 +46,12 @@ target_link_libraries(FileCommander PRIVATE
 # tests/ hard-requires /usr/src/googletest, which a clean package builder has no
 # reason to install.
 option(TTC_BUILD_TESTS "Build the unit test suites" ON)
+option(TTC_BUILD_LIVE_SMB_TESTS
+       "Build the opt-in live SMB integration test (runtime access still requires FC_SMB_E2E=1)"
+       OFF)
+option(TTC_BUILD_LIVE_WEBDAV_TESTS
+       "Build the opt-in live WebDAV integration test (runtime access still requires FC_WEBDAV_E2E=1)"
+       OFF)
 option(TTC_BUILD_BENCH "Build the benchmarks" ON)
 
 if(TTC_BUILD_TESTS)
