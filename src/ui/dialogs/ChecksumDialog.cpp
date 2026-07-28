@@ -9,14 +9,19 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QHeaderView>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QProgressBar>
+#include <QMenu>
+#include <QShortcut>
 #include <QPushButton>
 #include <QTableWidget>
 #include <QThread>
 #include <QVBoxLayout>
 
 #include <zlib.h>
+
+#include <algorithm>
 
 namespace {
 
@@ -273,7 +278,8 @@ void ChecksumDialog::buildUi() {
         {tr("File"), tr("MD5"), tr("CRC32"), tr("SHA1")});
     m_table->verticalHeader()->setVisible(false);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_table->setSelectionBehavior(QAbstractItemView::SelectItems);
+    m_table->setContextMenuPolicy(Qt::CustomContextMenu);
     m_table->horizontalHeader()->setSectionResizeMode(ColFile, QHeaderView::Stretch);
     m_table->horizontalHeader()->setSectionResizeMode(ColMd5, QHeaderView::ResizeToContents);
     m_table->horizontalHeader()->setSectionResizeMode(ColCrc32, QHeaderView::ResizeToContents);
@@ -290,10 +296,26 @@ void ChecksumDialog::buildUi() {
     }
     layout->addWidget(m_table);
 
+    auto *copySelectionShortcut = new QShortcut(QKeySequence::Copy, m_table);
+    copySelectionShortcut->setContext(Qt::WidgetWithChildrenShortcut);
+    connect(copySelectionShortcut, &QShortcut::activated, this, &ChecksumDialog::copySelection);
+    connect(m_table, &QWidget::customContextMenuRequested, this, [this](const QPoint &pos) {
+        QMenu menu(this);
+        QAction *copy = menu.addAction(tr("Copy"));
+        connect(copy, &QAction::triggered, this, &ChecksumDialog::copySelection);
+        menu.exec(m_table->viewport()->mapToGlobal(pos));
+    });
+
     m_progress = new QProgressBar(this);
     m_progress->setRange(0, 100);
     m_progress->setValue(0);
-    layout->addWidget(m_progress);
+    m_progress->setTextVisible(false);
+    m_progressPercent = new QLabel(QStringLiteral("0%"), this);
+    m_progressPercent->setObjectName(QStringLiteral("ChecksumProgressPercent"));
+    auto *progressRow = new QHBoxLayout;
+    progressRow->addWidget(m_progress, 1);
+    progressRow->addWidget(m_progressPercent);
+    layout->addLayout(progressRow);
 
     auto *buttons = new QDialogButtonBox(this);
     m_copyButton = buttons->addButton(tr("Copy all"), QDialogButtonBox::ActionRole);
@@ -318,13 +340,48 @@ void ChecksumDialog::onProgress(qint64 done, qint64 total) {
         return;
     const int percent = total > 0 ? static_cast<int>((done * 100) / total) : 100;
     m_progress->setValue(percent);
+    if (m_progressPercent)
+        m_progressPercent->setText(QStringLiteral("%1%").arg(percent));
 }
 
 void ChecksumDialog::onFinished() {
     if (m_progress)
         m_progress->setValue(100);
+    if (m_progressPercent)
+        m_progressPercent->setText(QStringLiteral("100%"));
     if (m_copyButton)
         m_copyButton->setEnabled(true);
+}
+
+void ChecksumDialog::copySelection() {
+    if (!m_table || !m_table->selectionModel())
+        return;
+
+    QModelIndexList indexes = m_table->selectionModel()->selectedIndexes();
+    if (indexes.isEmpty())
+        return;
+    std::sort(indexes.begin(), indexes.end(), [](const QModelIndex &a, const QModelIndex &b) {
+        return a.row() == b.row() ? a.column() < b.column() : a.row() < b.row();
+    });
+
+    if (indexes.size() == 1) {
+        QApplication::clipboard()->setText(indexes.first().data().toString());
+        return;
+    }
+
+    QStringList lines;
+    int row = indexes.first().row();
+    QStringList cells;
+    for (const QModelIndex &index : indexes) {
+        if (index.row() != row) {
+            lines.append(cells.join(QLatin1Char('\t')));
+            cells.clear();
+            row = index.row();
+        }
+        cells.append(index.data().toString());
+    }
+    lines.append(cells.join(QLatin1Char('\t')));
+    QApplication::clipboard()->setText(lines.join(QLatin1Char('\n')));
 }
 
 void ChecksumDialog::copyAll() {

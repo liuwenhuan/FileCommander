@@ -14,11 +14,14 @@ ShortcutsDialog::ShortcutsDialog(const QList<QPair<QString, QString>> &actionLab
     : FramelessDialog(parent), m_actionLabels(actionLabels), m_current(current),
       m_defaults(defaults) {
     setWindowTitle(tr("Keyboard Shortcuts"));
-    resize(500, 500);
+    setMinimumWidth(500);
+    resize(560, 500);
 
     m_table = new QTableWidget(actionLabels.size(), 2, this);
     m_table->setHorizontalHeaderLabels({tr("Command"), tr("Shortcut")});
     m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+    m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Interactive);
+    m_table->setColumnWidth(1, 220);
     m_table->verticalHeader()->hide();
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
 
@@ -31,6 +34,7 @@ ShortcutsDialog::ShortcutsDialog(const QList<QPair<QString, QString>> &actionLab
         m_table->setItem(row, 0, labelItem);
 
         auto *editor = new QKeySequenceEdit(current.value(id), m_table);
+        editor->setMinimumWidth(220);
         m_table->setCellWidget(row, 1, editor);
         connect(editor, &QKeySequenceEdit::editingFinished, this,
                 [this, row]() { onSequenceEdited(row); });

@@ -6,6 +6,7 @@
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QLineEdit>
+#include <QLayout>
 #include <QListWidget>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -75,12 +76,18 @@ NotepadPanel::NotepadPanel(QWidget *parent)
         if (sizes.size() == 2 && sizes.at(1) > 0) {
             m_editorHeight = sizes.at(1);
             Settings().setNotepadEditorHeight(m_editorHeight);
+            // Preserve the user-selected editor height by growing or shrinking
+            // the popup from its anchored bottom instead of stealing list space.
+            applyDynamicSize();
         }
     });
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(6, 6, 6, 6);
     layout->setSpacing(6);
+    // The anchor and screen bounds are hard limits for a popup. Let its dynamic
+    // geometry shrink below the layout's usual preferred minimum when required.
+    layout->setSizeConstraint(QLayout::SetNoConstraint);
     layout->addLayout(toolRow);
     layout->addWidget(m_splitter, 1);
 
@@ -296,8 +303,11 @@ void NotepadPanel::applyDynamicSize() {
     listFull = qMax(listFull, 24);
 
     const int toolH = m_search->sizeHint().height();
-    // Layout: top+bottom margin (6+6) + tool/splitter spacing (6) + splitter handle.
-    const int chrome = 6 + 6 + 6 + m_splitter->handleWidth();
+    const QMargins frameMargins = contentsMargins();
+    // Layout: frameless-dialog vertical margins + panel's top/bottom margins
+    // (6+6) + tool/splitter spacing (6) + splitter handle.
+    const int chrome = frameMargins.top() + frameMargins.bottom() + 6 + 6 + 6 +
+                       m_splitter->handleWidth();
 
     // Editor target: the user's persisted divider height if any, else the
     // preferred default. This is what the list is sized *around*, so the
@@ -306,9 +316,12 @@ void NotepadPanel::applyDynamicSize() {
 
     // Ideal height shows all rows and the target editor.
     const int desired = toolH + chrome + listFull + editorTarget;
-    // Ceiling: from the button's top up to the app window's visible top (the
-    // shadow margin is excluded -- m_appContentRect is the content rect).
-    const int maxAvail = qMax(kEditorMin + 60, m_anchorRect.top() - m_appContentRect.top());
+    // Ceiling: the popup cannot cross either the app content's top or the
+    // available screen's top. It always expands upward from the anchor.
+    int topLimit = m_appContentRect.top();
+    if (QScreen *scr = QGuiApplication::screenAt(m_anchorRect.center()))
+        topLimit = qMax(topLimit, scr->availableGeometry().top());
+    const int maxAvail = qMax(0, m_anchorRect.top() - topLimit);
     const int h = qMin(desired, maxAvail);
 
     resize(kPanelWidth, h);
@@ -316,14 +329,17 @@ void NotepadPanel::applyDynamicSize() {
     // Split the space: give the editor its target height and show the whole
     // list when both fit; otherwise cap the list (keeping the editor at least
     // its minimum) and let the list scroll for the overflow.
-    const int content = h - toolH - chrome; // shared by list + editor
-    int listShown, editorShown;
-    if (listFull + editorTarget <= content) {
-        listShown = listFull;
-        editorShown = content - listFull;
-    } else {
-        listShown = qBound(24, content - editorTarget, listFull);
-        editorShown = content - listShown;
+    const int content = qMax(0, h - toolH - chrome); // shared by list + editor
+    int listShown = 0;
+    int editorShown = content;
+    if (content >= 24) {
+        if (listFull + editorTarget <= content) {
+            listShown = listFull;
+            editorShown = content - listFull;
+        } else {
+            listShown = qBound(24, content - editorTarget, listFull);
+            editorShown = content - listShown;
+        }
     }
     m_splitter->setSizes({listShown, editorShown});
 

@@ -38,7 +38,8 @@ private:
     QLineEdit *m_nameEdit;
     QComboBox *m_formatCombo;
 
-    QWidget *m_zipOptions = nullptr;
+    QWidget *m_passwordOptions = nullptr;
+    QWidget *m_levelOptions = nullptr;
     QLineEdit *m_passphraseEdit = nullptr;
     QCheckBox *m_encryptHeadersCheck = nullptr;
     QSpinBox *m_levelSpinner = nullptr;

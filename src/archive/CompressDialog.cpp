@@ -17,11 +17,8 @@ constexpr int kDefaultLevel = 6;
 // keystroke doesn't silently produce an encrypted archive.
 constexpr int kMinPassphraseLength = 1;
 
-bool formatSupportsZipOptions(const QString &format) {
-    return format == QLatin1String("zip") ||
-           format == QLatin1String("7z")  ||
-           format == QLatin1String("tar.bz2") ||
-           format == QLatin1String("tar.xz");
+bool formatSupportsPassword(const QString &format) {
+    return format == QLatin1String("zip") || format == QLatin1String("7z");
 }
 
 bool formatSupportsLevel(const QString &format) {
@@ -43,41 +40,42 @@ CompressDialog::CompressDialog(const QString &destDir, const QString &defaultBas
     m_formatCombo->addItem(QStringLiteral("tar"), QStringLiteral("tar"));
     m_formatCombo->setCurrentIndex(0);
 
-    // --- ZIP-option block: passphrase + header encryption + compression level ---
-    m_zipOptions = new QWidget(this);
-    auto *zipLayout = new QFormLayout(m_zipOptions);
-    zipLayout->setContentsMargins(0, 4, 0, 0);
+    // --- Password block -------------------------------------------
+    m_passwordOptions = new QWidget(this);
+    auto *passwordLayout = new QFormLayout(m_passwordOptions);
+    passwordLayout->setContentsMargins(0, 4, 0, 0);
 
-    m_passphraseEdit = new QLineEdit(m_zipOptions);
+    m_passphraseEdit = new QLineEdit(m_passwordOptions);
     m_passphraseEdit->setEchoMode(QLineEdit::Password);
     m_passphraseEdit->setPlaceholderText(tr("Leave empty for no encryption"));
-    zipLayout->addRow(tr("Password:"), m_passphraseEdit);
+    passwordLayout->addRow(tr("Password:"), m_passphraseEdit);
 
-    m_encryptHeadersCheck = new QCheckBox(tr("Encrypt file list too"), m_zipOptions);
+    m_encryptHeadersCheck = new QCheckBox(tr("Encrypt file list too"), m_passwordOptions);
     m_encryptHeadersCheck->setToolTip(
         tr("When checked, individual file names inside the archive are encrypted. "
            "Uncheck to see the file list without the password (ZIP-style)."));
     // Only applicable to 7z header encryption.
     m_encryptHeadersCheck->setChecked(false);
-    zipLayout->addRow(m_encryptHeadersCheck);
+    passwordLayout->addRow(m_encryptHeadersCheck);
 
-    // Shared label + spinner for compression level.
-    auto *levelRow = new QHBoxLayout;
-    m_levelLabel = new QLabel(tr("Compression level:"), m_zipOptions);
-    m_levelSpinner = new QSpinBox(m_zipOptions);
+    // Compression tuning belongs to its own block: formats such as tar.gz do
+    // not support passwords but do support a compression level.
+    m_levelOptions = new QWidget(this);
+    auto *levelLayout = new QFormLayout(m_levelOptions);
+    levelLayout->setContentsMargins(0, 4, 0, 0);
+    m_levelLabel = new QLabel(tr("Compression level:"), m_levelOptions);
+    m_levelSpinner = new QSpinBox(m_levelOptions);
     m_levelSpinner->setRange(0, 9);
     m_levelSpinner->setValue(kDefaultLevel);
     m_levelSpinner->setToolTip(tr("0 = store only, 9 = best compression"));
-    levelRow->addWidget(m_levelLabel);
-    levelRow->addStretch(1);
-    levelRow->addWidget(m_levelSpinner);
-    zipLayout->addRow(levelRow);
+    levelLayout->addRow(m_levelLabel, m_levelSpinner);
 
     // --- Main form -----------------------------------------------
     auto *form = new QFormLayout;
     form->addRow(tr("Archive name:"), m_nameEdit);
     form->addRow(tr("Format:"), m_formatCombo);
-    form->addRow(m_zipOptions);
+    form->addRow(m_passwordOptions);
+    form->addRow(m_levelOptions);
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
@@ -94,14 +92,12 @@ CompressDialog::CompressDialog(const QString &destDir, const QString &defaultBas
 
 void CompressDialog::onFormatChanged(int /*index*/) {
     const QString fmt = format();
-    const bool showExtra = formatSupportsZipOptions(fmt);
-
-    m_zipOptions->setVisible(showExtra);
+    const bool showPassword = formatSupportsPassword(fmt);
+    m_passwordOptions->setVisible(showPassword);
     m_encryptHeadersCheck->setVisible(fmt == QLatin1String("7z"));
 
     const bool showLevel = formatSupportsLevel(fmt);
-    m_levelLabel->setVisible(showLevel);
-    m_levelSpinner->setVisible(showLevel);
+    m_levelOptions->setVisible(showLevel);
 }
 
 QString CompressDialog::format() const {
