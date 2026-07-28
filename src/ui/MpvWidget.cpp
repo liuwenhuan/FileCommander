@@ -15,8 +15,8 @@ MpvWidget::MpvWidget(QWidget *parent) : QOpenGLWidget(parent) {
     if (!m_mpv)
         throw std::runtime_error("could not create mpv context");
 
-    // Keep the core lean and quiet: no on-screen controls, no config files,
-    // start paused-friendly and muted (the UI exposes explicit controls).
+    // Keep the core lean and quiet: no on-screen controls, no config files.
+    // QuickView applies the user-persisted mute/volume state before loading.
     mpv_set_option_string(m_mpv, "config", "no");
     mpv_set_option_string(m_mpv, "osc", "no");
     mpv_set_option_string(m_mpv, "input-default-bindings", "no");
@@ -25,7 +25,7 @@ MpvWidget::MpvWidget(QWidget *parent) : QOpenGLWidget(parent) {
     // libmpv VO in a state where the *next* loadfile decoded audio but rendered
     // a black frame. Letting the clip end cleanly means each new load fully
     // re-inits the video chain; replay is handled by reloading (see playPause).
-    mpv_set_option_string(m_mpv, "mute", "yes"); // default muted
+    mpv_set_option_string(m_mpv, "mute", "no"); // default unmuted; QuickView overrides from Settings
     // Render into our QOpenGLWidget via the render API instead of letting mpv
     // spawn its own top-level window. Without this, mpv picks a windowed VO
     // (gpu) and the video pops out in a separate "… - mpv" window.
