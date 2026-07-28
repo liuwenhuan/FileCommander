@@ -74,6 +74,7 @@
 #include "OfficeConverter.h"
 #include "SeekSlider.h"
 #include "SlideSceneBuilder.h"
+#include "TextEncodingDetector.h"
 #include "config/Settings.h"
 #include "media/Id3Reader.h"
 
@@ -89,15 +90,25 @@ const QString kMarkdownDefaultCss =
     QStringLiteral("table { border-collapse: collapse; } "
                    "td, th { border: 1px solid #808080; padding: 2px 6px; }");
 
-// Selectable text encodings for the F3 window's text page. codec == nullptr
-// means "use the locale codec".
+// Selectable text encodings for the text-preview page. The Auto entry asks
+// TextEncodingDetector to choose for the current file; all other entries are
+// deliberate one-file overrides.
 struct TextEncoding {
     const char *label;
     const char *codec;
 };
 const TextEncoding kTextEncodings[] = {
-    {"UTF-8", "UTF-8"},       {"UTF-16", "UTF-16"},             {"ISO-8859-1", "ISO-8859-1"},
-    {"GB18030", "GB18030"},   {"Windows-1252", "Windows-1252"}, {"System", nullptr},
+    {"Auto", nullptr},
+    {"UTF-8", "UTF-8"},
+    {"UTF-16", "UTF-16"},
+    {"ISO-8859-1", "ISO-8859-1"},
+    {"GB18030", "GB18030"},
+    {"Big5", "Big5"},
+    {"Shift-JIS", "Shift-JIS"},
+    {"EUC-JP", "EUC-JP"},
+    {"EUC-KR", "EUC-KR"},
+    {"Windows-1252", "Windows-1252"},
+    {"System", nullptr},
 };
 constexpr double kZoomStep = 1.25;
 constexpr double kMinScale = 0.05;
@@ -511,12 +522,20 @@ void QuickView::renderText() {
     if (m_textHex) {
         content = toHexDump(m_textRaw);
     } else {
-        const char *codecName = kTextEncodings[m_textEncoding->currentIndex()].codec;
-        QTextCodec *codec =
-            codecName ? QTextCodec::codecForName(codecName) : QTextCodec::codecForLocale();
+        const int encodingIndex = m_textEncoding->currentIndex();
+        QTextCodec *codec = nullptr;
+        if (encodingIndex == 0) {
+            const TextEncodingDetector::Result detected =
+                TextEncodingDetector::detect(m_textRaw);
+            if (!detected.codecName.isEmpty())
+                codec = QTextCodec::codecForName(detected.codecName);
+        } else {
+            const char *codecName = kTextEncodings[encodingIndex].codec;
+            codec = codecName ? QTextCodec::codecForName(codecName) : QTextCodec::codecForLocale();
+        }
         if (!codec)
             codec = QTextCodec::codecForName("UTF-8");
-        content = codec->toUnicode(m_textRaw);
+        content = codec ? codec->toUnicode(m_textRaw) : QString::fromUtf8(m_textRaw);
     }
     if (m_textTruncated)
         content += tr("\n\n[... truncated ...]");
@@ -2657,6 +2676,12 @@ void QuickView::showFile(const QString &path) {
     // none of the local-filesystem questions below apply to it -- there is
     // deliberately no file on disk to stat.
     const bool streamed = MpvStreamSource::isStreamUrl(path);
+    // An explicit encoding override belongs to the currently displayed text file
+    // only. Re-selecting that same text page preserves it; every different file
+    // begins in Auto. Hex is intentionally separate and therefore persists.
+    const bool preserveTextEncoding =
+        path == m_textPath && m_stack->currentWidget() == m_textPage;
+    m_textPath.clear();
     // Any new selection invalidates a still-running office conversion so its result
     // can't paint over the newly selected file (renderOffice bumps this again).
     ++m_officeGen;
@@ -2859,6 +2884,12 @@ void QuickView::showFile(const QString &path) {
     if (file.open(QIODevice::ReadOnly)) {
         m_textRaw = file.read(m_textCap);
         m_textTruncated = !file.atEnd();
+        if (!preserveTextEncoding) {
+            m_textEncoding->blockSignals(true);
+            m_textEncoding->setCurrentIndex(0); // every new file starts in Auto
+            m_textEncoding->blockSignals(false);
+        }
+        m_textPath = path;
         renderText();
         m_stack->setCurrentWidget(m_textPage);
         return;
