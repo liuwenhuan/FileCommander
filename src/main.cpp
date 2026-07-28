@@ -1,6 +1,7 @@
 #include <QApplication>
 #include <QGuiApplication>
 #include <QIcon>
+#include <QTimer>
 
 #include <clocale>
 
@@ -61,6 +62,8 @@ int main(int argc, char *argv[]) {
     // DialogTitleBar reads its icon from the window it belongs to.
     window.setWindowIcon(app.windowIcon());
     window.show();
+    if (app.arguments().contains(QStringLiteral("--smoke-test")))
+        QTimer::singleShot(750, &app, &QCoreApplication::quit);
 
     return app.exec();
 }
