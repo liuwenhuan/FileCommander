@@ -288,6 +288,14 @@ QToolButton:pressed {
     color: #04140a;
 }
 
+TitleBar QToolButton#TitleMenuButton {
+    padding: 4px 8px;
+}
+
+TitleBar QToolButton#TitleMenuButton::menu-indicator {
+    image: none;
+}
+
 QTabBar::tab {
     background: url(:/icons/crt-scan-chrome.png) repeat;
     color: #1fa85c;

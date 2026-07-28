@@ -54,10 +54,8 @@ TitleBar::TitleBar(QWidget *window, const QList<QMenu *> &menus, QWidget *parent
         btn->setPopupMode(QToolButton::InstantPopup);
         btn->setAutoRaise(true);
         btn->setFocusPolicy(Qt::NoFocus);
+        btn->setObjectName(QStringLiteral("TitleMenuButton"));
         btn->setToolButtonStyle(Qt::ToolButtonTextOnly);
-        // Hide the little dropdown arrow so it reads like a menu-bar entry.
-        btn->setStyleSheet(QStringLiteral(
-            "QToolButton { padding: 4px 8px; } QToolButton::menu-indicator { image: none; }"));
         layout->addWidget(btn);
     }
 

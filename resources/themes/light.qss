@@ -57,6 +57,24 @@ QToolBar QToolButton:hover {
     background-color: #dcdcdc;
 }
 
+TitleBar QToolButton#TitleMenuButton {
+    background: transparent;
+    color: #202020;
+    padding: 4px 8px;
+}
+
+TitleBar QToolButton#TitleMenuButton:hover {
+    background-color: #dcdcdc;
+}
+
+TitleBar QToolButton#TitleMenuButton::menu-indicator {
+    image: none;
+}
+
+TitleBar QLabel {
+    background: transparent;
+}
+
 QTableView {
     background-color: #ffffff;
     color: #202020;
@@ -89,6 +107,12 @@ QHeaderView::section {
     border-right: 1px solid #d0d0d0;
     border-bottom: 1px solid #d0d0d0;
     font-weight: normal;
+}
+
+PlainHeaderView {
+    qproperty-sectionBackground: #ececec;
+    qproperty-sectionForeground: #202020;
+    qproperty-sectionBorder: #d0d0d0;
 }
 
 QLineEdit {
