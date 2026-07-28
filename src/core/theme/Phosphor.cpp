@@ -22,21 +22,6 @@ QString phosphorMixer(const QColor &tint) {
         .arg(n(g * kLumaR), n(g * kLumaG), n(g * kLumaB))
         .arg(n(b * kLumaR), n(b * kLumaG), n(b * kLumaB));
 }
-
-QString scanlineStage(int period, qreal darken) {
-    if (period < 2 || darken <= 0.0)
-        return {};
-    const QString attenuation = QString::number(1.0 - qBound(0.0, darken, 1.0), 'f', 3);
-    const auto expressionFor = [period, &attenuation](QChar channel) {
-        return QStringLiteral("if(eq(mod(Y\\,%1)\\,0)\\,%2(X\\,Y)*%3\\,%2(X\\,Y))")
-            .arg(period)
-            .arg(channel)
-            .arg(attenuation);
-    };
-    return QStringLiteral("geq=r='%1':g='%2':b='%3'")
-        .arg(expressionFor(QLatin1Char('r')), expressionFor(QLatin1Char('g')),
-             expressionFor(QLatin1Char('b')));
-}
 } // namespace
 
 QColor contentTint() {
@@ -140,20 +125,7 @@ QString mpvFilterFor(const QColor &tint, int blockPixels, int displayWidthPixels
                        .arg(cells)
                        .arg(cells * blockPixels);
     }
-    // colorchannelmixer computes each output channel as a weighted sum of the
-    // input channels. Setting row `c` to tint[c] * (lumaR, lumaG, lumaB) makes
-    // every output channel tint[c] * luma -- i.e. exactly tintImage() with a
-    // floor of 0. Nine coefficients, one filter, no chained format conversion.
-    const qreal r = tint.redF(), g = tint.greenF(), b = tint.blueF();
-    const auto n = [](qreal v) { return QString::number(v, 'f', 4); };
-    const QString mixer = QStringLiteral("colorchannelmixer="
-                                         "rr=%1:rg=%2:rb=%3:"
-                                         "gr=%4:gg=%5:gb=%6:"
-                                         "br=%7:bg=%8:bb=%9")
-                              .arg(n(r * kLumaR), n(r * kLumaG), n(r * kLumaB))
-                              .arg(n(g * kLumaR), n(g * kLumaG), n(g * kLumaB))
-                              .arg(n(b * kLumaR), n(b * kLumaG), n(b * kLumaB));
-    return QStringLiteral("lavfi=[%1%2]").arg(quantise, mixer);
+    return QStringLiteral("lavfi=[%1%2]").arg(quantise, phosphorMixer(tint));
 }
 
 void applyScanlines(QImage &image, int period, qreal darken) {
@@ -188,13 +160,12 @@ QPixmap scanlinedPhosphorPixmap(const QPixmap &src, const QColor &tint, int peri
     return result;
 }
 
-QString mpvScanlinedPhosphorFilter(const QColor &tint, int period, qreal darken) {
-    if (!tint.isValid())
-        return {};
-    const QString scanlines = scanlineStage(period, darken);
-    const QString chain = scanlines.isEmpty() ? phosphorMixer(tint)
-                                               : phosphorMixer(tint) + QLatin1Char(',') + scanlines;
-    return QStringLiteral("lavfi=[%1]").arg(chain);
+QString mpvScanlinedPhosphorFilter(const QColor &tint, int, qreal) {
+    // Per-pixel scanlines require geq and make video rendering disproportionately
+    // expensive. Keep the legacy entry point because QuickView calls it, but
+    // video deliberately uses the tint-only filter; still previews retain their
+    // QImage scanlines in scanlinedPhosphorPixmap().
+    return mpvFilterFor(tint);
 }
 
 } // namespace fc

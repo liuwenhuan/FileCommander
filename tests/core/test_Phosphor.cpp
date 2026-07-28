@@ -51,18 +51,23 @@ TEST(PhosphorScanlines, PreviewPixmapPreservesDprAndTintPassThrough) {
     EXPECT_EQ(fc::scanlinedPhosphorPixmap(source, QColor()).cacheKey(), source.cacheKey());
 }
 
-TEST(PhosphorScanlines, VideoFilterHasNoQuantisationStages) {
-    const QString filter = fc::mpvScanlinedPhosphorFilter(QColor(0x33, 0xff, 0x88), 2, 0.25);
+TEST(PhosphorScanlines, VideoFilterUsesTintOnlyWithoutPerPixelScanlines) {
+    const QColor tint(0x33, 0xff, 0x88);
+    const QString filter = fc::mpvScanlinedPhosphorFilter(tint, 2, 0.25);
 
+    // Keep the legacy preview entry point for QuickView, but video must use the
+    // inexpensive tint-only path. Static QImages retain their scanlines above.
+    EXPECT_EQ(filter, fc::mpvFilterFor(tint));
     EXPECT_TRUE(filter.startsWith(QStringLiteral("lavfi=[colorchannelmixer=")));
-    EXPECT_NE(filter.indexOf(QStringLiteral("geq=")), -1);
-    EXPECT_NE(filter.indexOf(QStringLiteral("mod(Y\\,2)")), -1);
+    EXPECT_EQ(filter.indexOf(QStringLiteral("geq=")), -1);
+    EXPECT_EQ(filter.indexOf(QStringLiteral("mod(")), -1);
+    EXPECT_EQ(filter.indexOf(QStringLiteral("Y\\,")), -1);
     EXPECT_EQ(filter.indexOf(QStringLiteral("scale")), -1);
     EXPECT_EQ(filter.indexOf(QStringLiteral("blend")), -1);
     EXPECT_TRUE(fc::mpvScanlinedPhosphorFilter(QColor()).isEmpty());
 }
 
-TEST(PhosphorScanlines, VideoFilterIsAcceptedByFfmpeg) {
+TEST(PhosphorScanlines, VideoFilterIsAcceptedByFfmpegWithoutScanlines) {
     const QString ffmpeg = QStandardPaths::findExecutable(QStringLiteral("ffmpeg"));
     if (ffmpeg.isEmpty())
         GTEST_SKIP() << "ffmpeg is not installed";
@@ -86,5 +91,6 @@ TEST(PhosphorScanlines, VideoFilterIsAcceptedByFfmpeg) {
     EXPECT_EQ(process.exitStatus(), QProcess::NormalExit) << process.readAllStandardError().toStdString();
     ASSERT_EQ(process.exitCode(), 0) << process.readAllStandardError().toStdString();
     ASSERT_EQ(pixels.size(), 4 * 4 * 4);
-    EXPECT_LT(static_cast<unsigned char>(pixels.at(1)), static_cast<unsigned char>(pixels.at(4 * 4 + 1)));
+    EXPECT_EQ(static_cast<unsigned char>(pixels.at(1)),
+              static_cast<unsigned char>(pixels.at(4 * 4 + 1)));
 }
