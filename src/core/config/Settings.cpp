@@ -82,7 +82,7 @@ void Settings::setVideoVolume(int volume) {
 }
 
 bool Settings::videoMuted() const {
-    return m_settings.value("video/muted", true).toBool();
+    return m_settings.value("video/muted", false).toBool();
 }
 
 void Settings::setVideoMuted(bool muted) {

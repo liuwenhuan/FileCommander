@@ -145,3 +145,44 @@ TEST(SettingsTest, MaxConcurrentTransfersClampsToRange) {
     settings.setMaxConcurrentTransfers(99);
     EXPECT_EQ(settings.maxConcurrentTransfers(), 8);
 }
+
+TEST(SettingsTest, VideoMutedDefaultsToFalse) {
+    IsolatedConfigDir iso;
+    Settings settings;
+    EXPECT_FALSE(settings.videoMuted())
+        << "A fresh install should preview with sound — the user unmutes once to discover it";
+}
+
+TEST(SettingsTest, VideoMutedRoundTripsExplicitTrue) {
+    IsolatedConfigDir iso;
+    Settings settings;
+    settings.setVideoMuted(true);
+    EXPECT_TRUE(settings.videoMuted()) << "Explicitly muted must survive reload";
+    Settings reloaded;
+    EXPECT_TRUE(reloaded.videoMuted()) << "Persisted mute must survive reload";
+}
+
+TEST(SettingsTest, VideoMutedRoundTripsExplicitFalse) {
+    IsolatedConfigDir iso;
+    Settings settings;
+    settings.setVideoMuted(true);  // from fresh default false
+    settings.setVideoMuted(false);
+    EXPECT_FALSE(settings.videoMuted());
+    Settings reloaded;
+    EXPECT_FALSE(reloaded.videoMuted());
+}
+
+TEST(SettingsTest, VideoVolumeDefaultsToSeventy) {
+    IsolatedConfigDir iso;
+    Settings settings;
+    EXPECT_EQ(settings.videoVolume(), 70);
+}
+
+TEST(SettingsTest, VideoVolumeClamps) {
+    IsolatedConfigDir iso;
+    Settings settings;
+    settings.setVideoVolume(-5);
+    EXPECT_EQ(settings.videoVolume(), 0);
+    settings.setVideoVolume(200);
+    EXPECT_EQ(settings.videoVolume(), 100);
+}

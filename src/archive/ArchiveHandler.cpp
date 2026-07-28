@@ -715,3 +715,71 @@ bool ArchiveHandler::create(const QString &archivePath, const QStringList &sourc
     archive_write_free(a);
     return ok;
 }
+
+bool ArchiveHandler::create(const QString &archivePath, const QStringList &sourcePaths,
+                             const QString &format, const QString &passphrase,
+                             bool encryptHeaders, int compressionLevel,
+                             QString *errorMessage) {
+    struct archive *a = archive_write_new();
+
+    if (format == QLatin1String("zip")) {
+        archive_write_set_format_zip(a);
+    } else {
+        archive_write_set_format_pax_restricted(a);
+        if (format == QLatin1String("tar.gz"))
+            archive_write_add_filter_gzip(a);
+        else if (format == QLatin1String("tar.bz2"))
+            archive_write_add_filter_bzip2(a);
+        else if (format == QLatin1String("tar.xz"))
+            archive_write_add_filter_xz(a);
+        // "tar" falls through with no compression filter.
+    }
+
+    // Passphrase-aware ZIP encryption: traditional ZipCrypto or AES256.
+    // We pick AES256 for portability with 7-Zip, WinRAR, etc.
+    if (!passphrase.isEmpty() && format == QLatin1String("zip")) {
+        archive_write_set_options(a, "zip:encryption=aes256");
+        archive_write_set_passphrase(a, passphrase.toUtf8().constData());
+        archive_write_set_format_option(a, "zip", "compression",
+                                        QString::number(compressionLevel).toUtf8().constData());
+    }
+
+    // Per-filter compression levels for the remaining formats.
+    if (format != QLatin1String("zip") && format != QLatin1String("tar")) {
+        if (format == QLatin1String("tar.gz"))
+            archive_write_set_filter_option(a, "gzip", "compression-level",
+                                            QString::number(compressionLevel).toUtf8().constData());
+        else if (format == QLatin1String("tar.bz2"))
+            archive_write_set_filter_option(a, "bzip2", "compression-level",
+                                            QString::number(compressionLevel).toUtf8().constData());
+        else if (format == QLatin1String("tar.xz"))
+            archive_write_set_filter_option(a, "xz", "compression-level",
+                                            QString::number(compressionLevel).toUtf8().constData());
+    }
+
+    // Unencrypted ZIP level (encrypted ZIP is handled above).
+    if (passphrase.isEmpty() && format == QLatin1String("zip")) {
+        archive_write_set_format_option(a, "zip", "compression",
+                                        QString::number(compressionLevel).toUtf8().constData());
+    }
+
+    if (archive_write_open_filename(a, archivePath.toUtf8().constData()) != ARCHIVE_OK) {
+        if (errorMessage)
+            *errorMessage = QString::fromUtf8(archive_error_string(a));
+        archive_write_free(a);
+        return false;
+    }
+
+    bool ok = true;
+    for (const QString &source : sourcePaths) {
+        const QString baseName = QFileInfo(source).fileName();
+        if (!addEntryRecursive(a, source, baseName, errorMessage)) {
+            ok = false;
+            break;
+        }
+    }
+
+    archive_write_close(a);
+    archive_write_free(a);
+    return ok;
+}

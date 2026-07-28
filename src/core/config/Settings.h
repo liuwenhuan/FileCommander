@@ -47,8 +47,7 @@ public:
     void setListFontFamily(const QString &family);
 
     // Video-preview playback state, persisted so later previews reuse it.
-    // Speed defaults to 1.0; volume 0..100 (default 70); muted defaults to true
-    // (a fresh install previews silently until the user unmutes).
+    // Speed defaults to 1.0; volume 0..100 (default 70); muted defaults to false.
     double videoSpeed() const;
     void setVideoSpeed(double speed);
     int videoVolume() const;
