@@ -62,6 +62,14 @@ public:
     // format: one of "zip", "tar", "tar.gz", "tar.bz2", "tar.xz".
     // Each entry in sourcePaths (file or directory) is added at the
     // archive root under its own basename.
+    // Requested passphrase / header-encryption / compression are forwarded to the
+    // underlying libarchive writer when the format supports them; otherwise they
+    // are ignored silently.
     static bool create(const QString &archivePath, const QStringList &sourcePaths,
                         const QString &format, QString *errorMessage = nullptr);
+
+    static bool create(const QString &archivePath, const QStringList &sourcePaths,
+                        const QString &format, const QString &passphrase,
+                        bool encryptHeaders, int compressionLevel,
+                        QString *errorMessage = nullptr);
 };

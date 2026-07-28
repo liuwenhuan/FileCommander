@@ -3802,7 +3802,8 @@ void MainWindow::compressSelected() {
         return;
 
     QString err;
-    if (!ArchiveHandler::create(dlg.archivePath(), sources, dlg.format(), &err)) {
+    if (!ArchiveHandler::create(dlg.archivePath(), sources, dlg.format(), dlg.passphrase(),
+                                 dlg.encryptHeaders(), dlg.compressionLevel(), &err)) {
         ttc::warning(this, tr("Compress"), tr("Compression failed: %1").arg(err));
         return;
     }
