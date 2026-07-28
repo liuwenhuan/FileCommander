@@ -1,10 +1,13 @@
 #include <gtest/gtest.h>
 
 #include <QApplication>
+#include <QCoreApplication>
 #include <QDialogButtonBox>
+#include <QEvent>
 #include <QFontDialog>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QTest>
 #include <QTimer>
 
 #include "ThemedDialogs.h"
@@ -109,6 +112,46 @@ TEST(StandardButtonLocalizationTest, FallsBackWhenTheQtCatalogReturnsAnEmptyLabe
     ttc::localizeStandardButtons(&buttons);
 
     EXPECT_EQ(dialogButtonText(buttons, QDialogButtonBox::Ok), QStringLiteral("确定"));
+    switchLanguage(QStringLiteral("en"));
+}
+
+TEST(StandardButtonLocalizationTest, PreservesExplicitCanonicalEnglishOverrideAcrossLanguageChange) {
+    switchLanguage(QStringLiteral("en"));
+    qApp->setProperty("ttc.uiLanguage", QStringLiteral("zh_CN"));
+    qApp->setProperty("ttc.qtBaseCatalogLoaded", false);
+
+    QDialogButtonBox buttons(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    ttc::setStandardButtonOverride(buttons.button(QDialogButtonBox::Cancel),
+                                   QStringLiteral("Cancel"));
+    ttc::localizeStandardButtons(&buttons);
+
+    EXPECT_EQ(dialogButtonText(buttons, QDialogButtonBox::Ok), QStringLiteral("确定"));
+    EXPECT_EQ(dialogButtonText(buttons, QDialogButtonBox::Cancel), QStringLiteral("Cancel"));
+
+    QEvent languageChange(QEvent::LanguageChange);
+    QCoreApplication::sendEvent(&buttons, &languageChange);
+    QTest::qWait(20);
+
+    EXPECT_EQ(dialogButtonText(buttons, QDialogButtonBox::Ok), QStringLiteral("确定"));
+    EXPECT_EQ(dialogButtonText(buttons, QDialogButtonBox::Cancel), QStringLiteral("Cancel"));
+    switchLanguage(QStringLiteral("en"));
+}
+
+TEST(StandardButtonLocalizationTest, PreservesExplicitCanonicalEnglishOverrideSetAfterFallback) {
+    switchLanguage(QStringLiteral("en"));
+    qApp->setProperty("ttc.uiLanguage", QStringLiteral("zh_CN"));
+    qApp->setProperty("ttc.qtBaseCatalogLoaded", false);
+
+    QDialogButtonBox buttons(QDialogButtonBox::Cancel);
+    ttc::localizeStandardButtons(&buttons);
+    EXPECT_EQ(dialogButtonText(buttons, QDialogButtonBox::Cancel), QStringLiteral("取消"));
+
+    buttons.button(QDialogButtonBox::Cancel)->setText(QStringLiteral("Cancel"));
+    QEvent languageChange(QEvent::LanguageChange);
+    QCoreApplication::sendEvent(&buttons, &languageChange);
+    qApp->processEvents();
+
+    EXPECT_EQ(dialogButtonText(buttons, QDialogButtonBox::Cancel), QStringLiteral("Cancel"));
     switchLanguage(QStringLiteral("en"));
 }
 

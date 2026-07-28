@@ -136,33 +136,89 @@ bool hasQtBaseCatalog() {
     return qApp->property("ttc.qtBaseCatalogLoaded").toBool();
 }
 
-void applyFallback(QAbstractButton *button, const ButtonDefinition &definition) {
+constexpr char kManagedProperty[] = "ttc.standardButtonManaged";
+constexpr char kManagedTextProperty[] = "ttc.standardButtonManagedText";
+constexpr char kOverrideProperty[] = "ttc.standardButtonOverrideText";
+constexpr char kFilterInstalledProperty[] = "ttc.standardButtonFilterInstalled";
+
+void applyFallback(QAbstractButton *button, const ButtonDefinition &definition,
+                   bool detectApplicationOverride) {
     if (!button)
         return;
 
+    const QVariant overrideText = button->property(kOverrideProperty);
+    if (overrideText.isValid()) {
+        button->setText(overrideText.toString());
+        return;
+    }
+
+    const QString canonical = QString::fromLatin1(definition.english);
+    const QVariant managed = button->property(kManagedProperty);
+    if (managed.isValid() && managed.toBool() && detectApplicationOverride &&
+        !hasQtBaseCatalog() &&
+        button->text() != button->property(kManagedTextProperty).toString()) {
+        // A caller changed a fallback-owned label since it was last rendered.
+        // Stop managing it rather than treating an English override as Qt's
+        // canonical source text.
+        button->setProperty(kManagedProperty, false);
+        return;
+    }
+
+    if (!managed.isValid()) {
+        // First localization records who owns each button. A non-standard label
+        // is application text; canonical source text is managed by the fallback.
+        button->setProperty(kManagedProperty,
+                            button->text().isEmpty() || button->text() == canonical);
+    }
+    if (!button->property(kManagedProperty).toBool())
+        return;
+
     // A loaded Qt catalog (or an app catalog installed after it) owns a non-empty
-    // label. When qtbase is unavailable, only replace canonical English source
-    // text, preserving any explicit application-provided label.
+    // label. The fallback only supplies text for the buttons it manages.
     if (hasQtBaseCatalog() && !button->text().isEmpty())
         return;
-    if (!button->text().isEmpty() && button->text() != QString::fromLatin1(definition.english))
-        return;
-    button->setText(fallbackText(definition));
+
+    const QString localized = fallbackText(definition);
+    button->setText(localized);
+    button->setProperty(kManagedTextProperty, localized);
 }
 
-void applyLocalization(QMessageBox *box) {
+void applyLocalization(QMessageBox *box, bool detectApplicationOverride = true) {
     if (!box)
         return;
     for (const ButtonDefinition &definition : kButtonDefinitions)
         applyFallback(box->button(static_cast<QMessageBox::StandardButton>(definition.button)),
-                      definition);
+                      definition, detectApplicationOverride);
 }
 
-void applyLocalization(QDialogButtonBox *box) {
+void applyLocalization(QDialogButtonBox *box, bool detectApplicationOverride = true) {
     if (!box)
         return;
     for (const ButtonDefinition &definition : kButtonDefinitions)
-        applyFallback(box->button(definition.button), definition);
+        applyFallback(box->button(definition.button), definition, detectApplicationOverride);
+}
+
+void recordApplicationOverride(QAbstractButton *button) {
+    if (!button || button->property(kOverrideProperty).isValid() || hasQtBaseCatalog())
+        return;
+    if (button->property(kManagedProperty).toBool() &&
+        button->text() != button->property(kManagedTextProperty).toString())
+        button->setProperty(kManagedProperty, false);
+}
+
+void recordApplicationOverrides(QMessageBox *box) {
+    if (!box)
+        return;
+    for (const ButtonDefinition &definition : kButtonDefinitions)
+        recordApplicationOverride(
+            box->button(static_cast<QMessageBox::StandardButton>(definition.button)));
+}
+
+void recordApplicationOverrides(QDialogButtonBox *box) {
+    if (!box)
+        return;
+    for (const ButtonDefinition &definition : kButtonDefinitions)
+        recordApplicationOverride(box->button(definition.button));
 }
 
 class StandardButtonLocalizationFilter final : public QObject {
@@ -175,11 +231,15 @@ public:
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override {
         if (event->type() == QEvent::LanguageChange) {
+            if (m_messageBox)
+                recordApplicationOverrides(m_messageBox);
+            if (m_buttonBox)
+                recordApplicationOverrides(m_buttonBox);
             QTimer::singleShot(0, this, [this] {
                 if (m_messageBox)
-                    applyLocalization(m_messageBox);
+                    applyLocalization(m_messageBox, false);
                 if (m_buttonBox)
-                    applyLocalization(m_buttonBox);
+                    applyLocalization(m_buttonBox, false);
             });
         }
         return QObject::eventFilter(watched, event);
@@ -191,8 +251,9 @@ private:
 };
 
 template <typename T> void installLanguageChangeFilter(T *box) {
-    if (!box || box->template findChild<StandardButtonLocalizationFilter *>())
+    if (!box || box->property(kFilterInstalledProperty).toBool())
         return;
+    box->setProperty(kFilterInstalledProperty, true);
     auto *filter = new StandardButtonLocalizationFilter(box);
     box->installEventFilter(filter);
 }
@@ -209,6 +270,14 @@ void localizeStandardButtons(QMessageBox *box) {
 void localizeStandardButtons(QDialogButtonBox *box) {
     applyLocalization(box);
     installLanguageChangeFilter(box);
+}
+
+void setStandardButtonOverride(QAbstractButton *button, const QString &text) {
+    if (!button)
+        return;
+    button->setProperty(kManagedProperty, false);
+    button->setProperty(kOverrideProperty, text);
+    button->setText(text);
 }
 
 QMessageBox::StandardButton message(QWidget *parent, QMessageBox::Icon icon, const QString &title,

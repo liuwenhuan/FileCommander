@@ -6,6 +6,7 @@
 #include <QMessageBox>
 #include <QString>
 
+class QAbstractButton;
 class QWidget;
 
 // Drop-in themed replacements for the QMessageBox / QInputDialog static
@@ -29,6 +30,11 @@ message(QWidget *parent, QMessageBox::Icon icon, const QString &title, const QSt
 // operation after QEvent::LanguageChange, so already-open dialogs stay current.
 void localizeStandardButtons(QMessageBox *box);
 void localizeStandardButtons(QDialogButtonBox *box);
+
+// Marks a standard button as an application-owned label. The supplied text is
+// restored after every language change instead of being replaced by Qt or the
+// fallback catalog; use this when an intentional label equals Qt's source text.
+void setStandardButtonOverride(QAbstractButton *button, const QString &text);
 
 inline QMessageBox::StandardButton
 information(QWidget *parent, const QString &title, const QString &text,

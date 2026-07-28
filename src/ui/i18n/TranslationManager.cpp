@@ -6,16 +6,35 @@
 #include <QLibraryInfo>
 #include <QLocale>
 #include <QMap>
+#include <QPointer>
 #include <QStandardPaths>
 #include <QStringList>
 #include <QTranslator>
 
 namespace {
 
-// Current translators are owned by the application. Keep both pointers so a
-// live switch can remove the old pair before adding the new pair.
-QTranslator *g_appTranslator = nullptr;
-QTranslator *g_qtTranslator = nullptr;
+// Translators are QObject children of the application that installed them. QPointer
+// clears itself when that application is destroyed, so a subsequent application in
+// the same process can never remove or delete a dangling translator.
+QPointer<QCoreApplication> g_owner;
+QPointer<QTranslator> g_appTranslator;
+QPointer<QTranslator> g_qtTranslator;
+
+void removeTrackedTranslators() {
+    if (g_owner) {
+        if (g_appTranslator)
+            g_owner->removeTranslator(g_appTranslator);
+        if (g_qtTranslator)
+            g_owner->removeTranslator(g_qtTranslator);
+    }
+    if (g_appTranslator)
+        delete g_appTranslator.data();
+    if (g_qtTranslator)
+        delete g_qtTranslator.data();
+    g_appTranslator.clear();
+    g_qtTranslator.clear();
+    g_owner.clear();
+}
 
 // External catalogs live alongside the config file so translators can drop in a
 // .qm without rebuilding.
@@ -72,17 +91,16 @@ void TranslationManager::install(QCoreApplication &app, const QString &language)
 }
 
 void TranslationManager::switchTo(QCoreApplication &app, const QString &language) {
-    // Remove app first and Qt second. Installing the replacement pair below in
-    // the opposite order makes the app catalog the highest-priority translator.
-    if (g_appTranslator) {
-        app.removeTranslator(g_appTranslator);
-        delete g_appTranslator;
-        g_appTranslator = nullptr;
-    }
-    if (g_qtTranslator) {
-        app.removeTranslator(g_qtTranslator);
-        delete g_qtTranslator;
-        g_qtTranslator = nullptr;
+    // Only the application that installed this pair may remove it. If callers
+    // switch to another live QCoreApplication, leave the old pair with its owner
+    // and forget our handles; the old application's QObject destruction cleans it
+    // up. This avoids mutating either application's translator list incorrectly.
+    if (g_owner == &app) {
+        removeTrackedTranslators();
+    } else {
+        g_appTranslator.clear();
+        g_qtTranslator.clear();
+        g_owner.clear();
     }
 
     QString effective = language;
@@ -103,6 +121,7 @@ void TranslationManager::switchTo(QCoreApplication &app, const QString &language
     for (const QString &code : candidatesFor(language)) {
         if (loadQtCatalog(qtTranslator, code)) {
             app.installTranslator(qtTranslator);
+            g_owner = &app;
             g_qtTranslator = qtTranslator;
             app.setProperty("ttc.qtBaseCatalogLoaded", true);
             qtTranslator = nullptr;
@@ -115,6 +134,7 @@ void TranslationManager::switchTo(QCoreApplication &app, const QString &language
     for (const QString &code : candidatesFor(language)) {
         if (loadCatalog(appTranslator, code)) {
             app.installTranslator(appTranslator);
+            g_owner = &app;
             g_appTranslator = appTranslator;
             return;
         }
