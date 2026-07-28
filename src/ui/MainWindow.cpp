@@ -1601,7 +1601,7 @@ void MainWindow::toggleNotepad() {
     // A floating fly-out anchored above the trailing function-key button that
     // launched it (mirrors the external-connection panel), rather than a docked
     // third column. Non-modal; it auto-saves and deletes itself on close.
-    auto *pad = new NotepadPanel(this);
+    auto *pad = new NotepadPanel(m_settings, this);
     // The app window's VISIBLE content rect in global coords: contentsRect()
     // excludes the frameless shadow margin, so the popup aligns to the real
     // window edges, not the shadow.

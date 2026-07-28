@@ -20,6 +20,7 @@ struct NotepadNote {
 class NotepadStore {
 public:
     NotepadStore();
+    explicit NotepadStore(const QString &directory);
 
     // All notes in their saved order.
     QVector<NotepadNote> notes() const;

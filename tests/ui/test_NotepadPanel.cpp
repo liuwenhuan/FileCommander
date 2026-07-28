@@ -9,63 +9,13 @@
 #include <QScrollBar>
 #include <QSignalSpy>
 #include <QSplitter>
-#include <QUuid>
+#include <QTemporaryDir>
 
 #include "NotepadPanel.h"
 #include "config/Settings.h"
+#include "notepad/NotepadStore.h"
 
 namespace {
-
-class IsolatedNotepadStore {
-public:
-    IsolatedNotepadStore() {
-        m_parent = Settings::configDir();
-        m_backupName = QStringLiteral("notepad-test-backup-") +
-                       QUuid::createUuid().toString(QUuid::WithoutBraces);
-        QDir parent(m_parent);
-        if (parent.exists(QStringLiteral("notepad")))
-            m_saved = parent.rename(QStringLiteral("notepad"), m_backupName);
-        else
-            m_saved = true;
-        m_ready = m_saved && parent.mkpath(QStringLiteral("notepad"));
-    }
-
-    ~IsolatedNotepadStore() {
-        if (!m_ready)
-            return;
-        QDir(m_parent + QStringLiteral("/notepad")).removeRecursively();
-        if (m_saved)
-            QDir(m_parent).rename(m_backupName, QStringLiteral("notepad"));
-    }
-
-    bool isReady() const { return m_ready; }
-
-private:
-    QString m_parent;
-    QString m_backupName;
-    bool m_saved = false;
-    bool m_ready = false;
-};
-
-class NotepadEditorHeightGuard {
-public:
-    NotepadEditorHeightGuard() : m_old(Settings().notepadEditorHeight()) {
-        Settings().setNotepadEditorHeight(120);
-    }
-
-    ~NotepadEditorHeightGuard() { Settings().setNotepadEditorHeight(m_old); }
-
-private:
-    int m_old;
-};
-
-QPushButton *newButton(NotepadPanel &panel) {
-    for (QPushButton *button : panel.findChildren<QPushButton *>()) {
-        if (button->text() == QStringLiteral("New"))
-            return button;
-    }
-    return nullptr;
-}
 
 void addNotes(QPushButton *button, int count) {
     for (int i = 0; i < count; ++i)
@@ -75,17 +25,39 @@ void addNotes(QPushButton *button, int count) {
 
 } // namespace
 
+TEST(NotepadPanelTest, SavesNotesUsingInjectedSettingsAndDirectory) {
+    QTemporaryDir temporaryDir;
+    ASSERT_TRUE(temporaryDir.isValid());
+
+    const QString notesPath = temporaryDir.filePath(QStringLiteral("panel-notes"));
+    Settings settings(temporaryDir.filePath(QStringLiteral("panel.ini")));
+    NotepadPanel panel(settings, notesPath);
+
+    auto *editor = panel.findChild<QPlainTextEdit *>(QStringLiteral("NotepadEditor"));
+    ASSERT_NE(editor, nullptr);
+    editor->setPlainText(QString::fromUtf8("隔离笔记\nwith Unicode"));
+    panel.saveAll();
+
+    NotepadStore reloadedStore(notesPath);
+    ASSERT_EQ(reloadedStore.notes().size(), 1);
+    EXPECT_EQ(reloadedStore.load(reloadedStore.notes().first().id),
+              QString::fromUtf8("隔离笔记\nwith Unicode"));
+    EXPECT_TRUE(QDir(notesPath).exists());
+}
+
 TEST(NotepadPanelTest, DraggingDividerGrowsUpwardAndKeepsBottomAtAnchor) {
-    IsolatedNotepadStore store;
-    ASSERT_TRUE(store.isReady());
-    NotepadEditorHeightGuard settings;
-    NotepadPanel panel;
+    QTemporaryDir temporaryDir;
+    ASSERT_TRUE(temporaryDir.isValid());
+
+    Settings settings(temporaryDir.filePath(QStringLiteral("divider.ini")));
+    settings.setNotepadEditorHeight(120);
+    NotepadPanel panel(settings, temporaryDir.filePath(QStringLiteral("divider-notes")));
     const QRect appContent(100, 100, 700, 700);
     const QRect anchor(700, 760, 40, 30);
     panel.popUpAbove(anchor, appContent);
     QCoreApplication::processEvents();
 
-    QPushButton *button = newButton(panel);
+    auto *button = panel.findChild<QPushButton *>(QStringLiteral("NotepadNewButton"));
     ASSERT_NE(button, nullptr);
     addNotes(button, 6);
 
@@ -103,9 +75,6 @@ TEST(NotepadPanelTest, DraggingDividerGrowsUpwardAndKeepsBottomAtAnchor) {
     const int draggedPosition = qMax(0, initialSizes.at(0) - 40);
     splitter->setSizes({draggedPosition, initialSizes.at(1) + 40});
 
-    // QSplitter updates sizes before emitting this signal for a genuine drag.
-    // Drive that public signal directly: unlike synthesized pointer input this
-    // behaves identically under both Xvfb and Qt's offscreen platform plugin.
     QSignalSpy moved(splitter, &QSplitter::splitterMoved);
     ASSERT_TRUE(QMetaObject::invokeMethod(splitter, "splitterMoved", Qt::DirectConnection,
                                           Q_ARG(int, draggedPosition), Q_ARG(int, 1)));
@@ -120,18 +89,21 @@ TEST(NotepadPanelTest, DraggingDividerGrowsUpwardAndKeepsBottomAtAnchor) {
 }
 
 TEST(NotepadPanelTest, AtHeightCapTheNoteListScrollsInsteadOfEscapingTheContentArea) {
-    IsolatedNotepadStore store;
-    ASSERT_TRUE(store.isReady());
-    NotepadEditorHeightGuard settings;
-    NotepadPanel panel;
+    QTemporaryDir temporaryDir;
+    ASSERT_TRUE(temporaryDir.isValid());
+
+    const QString notesPath = temporaryDir.filePath(QStringLiteral("cap-notes"));
+    NotepadStore store(notesPath);
+    for (int i = 0; i < 31; ++i)
+        store.create(QStringLiteral("Note %1").arg(i));
+
+    Settings settings(temporaryDir.filePath(QStringLiteral("cap.ini")));
+    settings.setNotepadEditorHeight(120);
+    NotepadPanel panel(settings, notesPath);
     const QRect appContent(100, 410, 700, 350);
     const QRect anchor(700, 760, 40, 30);
     panel.popUpAbove(anchor, appContent);
     QCoreApplication::processEvents();
-
-    QPushButton *button = newButton(panel);
-    ASSERT_NE(button, nullptr);
-    addNotes(button, 30);
 
     auto *list = panel.findChild<QListWidget *>(QStringLiteral("NotepadList"));
     ASSERT_NE(list, nullptr);
@@ -142,12 +114,12 @@ TEST(NotepadPanelTest, AtHeightCapTheNoteListScrollsInsteadOfEscapingTheContentA
 }
 
 TEST(NotepadPanelTest, DynamicResizeNeverEscapesItsAppContentOrScreenCap) {
-    IsolatedNotepadStore store;
-    ASSERT_TRUE(store.isReady());
-    NotepadEditorHeightGuard settings;
-    NotepadPanel panel;
-    // Deliberately less than the preferred content height: this is the case that
-    // used to be overruled by the 180px artificial lower cap.
+    QTemporaryDir temporaryDir;
+    ASSERT_TRUE(temporaryDir.isValid());
+
+    Settings settings(temporaryDir.filePath(QStringLiteral("resize.ini")));
+    settings.setNotepadEditorHeight(120);
+    NotepadPanel panel(settings, temporaryDir.filePath(QStringLiteral("resize-notes")));
     const QRect appContent(100, 700, 700, 90);
     const QRect anchor(700, 790, 40, 30);
     panel.popUpAbove(anchor, appContent);

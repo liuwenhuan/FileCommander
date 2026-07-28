@@ -23,8 +23,24 @@ constexpr int kEditorMin = 120;       // editor never shrinks below this
 } // namespace
 
 NotepadPanel::NotepadPanel(QWidget *parent)
-    // Qt::Popup: a top-level fly-out that closes as soon as focus leaves it.
-    : QWidget(parent, Qt::Popup) {
+    : QWidget(parent, Qt::Popup),
+      m_ownedSettings(std::make_unique<Settings>()),
+      m_settings(*m_ownedSettings),
+      m_store() {
+    initialize();
+}
+
+NotepadPanel::NotepadPanel(Settings &settings, QWidget *parent)
+    : QWidget(parent, Qt::Popup), m_settings(settings), m_store() {
+    initialize();
+}
+
+NotepadPanel::NotepadPanel(Settings &settings, const QString &notepadDirectory, QWidget *parent)
+    : QWidget(parent, Qt::Popup), m_settings(settings), m_store(notepadDirectory) {
+    initialize();
+}
+
+void NotepadPanel::initialize() {
     setObjectName(QStringLiteral("NotepadPanel"));
     setAttribute(Qt::WA_DeleteOnClose);
     setAttribute(Qt::WA_StyledBackground, true); // render the #objectName border
@@ -34,7 +50,9 @@ NotepadPanel::NotepadPanel(QWidget *parent)
     m_search->setPlaceholderText(tr("Search notes..."));
     m_search->setClearButtonEnabled(true);
     auto *newButton = new QPushButton(tr("New"), this);
+    newButton->setObjectName(QStringLiteral("NotepadNewButton"));
     m_deleteButton = new QPushButton(tr("Delete"), this);
+    m_deleteButton->setObjectName(QStringLiteral("NotepadDeleteButton"));
     newButton->setFocusPolicy(Qt::NoFocus);
     m_deleteButton->setFocusPolicy(Qt::NoFocus);
 
@@ -70,12 +88,12 @@ NotepadPanel::NotepadPanel(QWidget *parent)
     // Restore the user's last list/editor divider (persisted as the editor
     // height). A genuine drag emits splitterMoved -- our own setSizes() does
     // not -- so we can persist the new editor pane height straight from it.
-    m_editorHeight = Settings().notepadEditorHeight();
+    m_editorHeight = m_settings.notepadEditorHeight();
     connect(m_splitter, &QSplitter::splitterMoved, this, [this](int, int) {
         const QList<int> sizes = m_splitter->sizes();
         if (sizes.size() == 2 && sizes.at(1) > 0) {
             m_editorHeight = sizes.at(1);
-            Settings().setNotepadEditorHeight(m_editorHeight);
+            m_settings.setNotepadEditorHeight(m_editorHeight);
             // Preserve the user-selected editor height by growing or shrinking
             // the popup from its anchored bottom instead of stealing list space.
             applyDynamicSize();

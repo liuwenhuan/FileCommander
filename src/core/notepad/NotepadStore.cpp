@@ -23,7 +23,10 @@ QString notepadDir() {
 
 } // namespace
 
-NotepadStore::NotepadStore() : m_dir(notepadDir()) {
+NotepadStore::NotepadStore() : NotepadStore(notepadDir()) {}
+
+NotepadStore::NotepadStore(const QString &directory) : m_dir(directory) {
+    QDir().mkpath(m_dir);
     loadIndex();
 }
 

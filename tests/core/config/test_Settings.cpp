@@ -15,6 +15,18 @@ public:
 };
 } // namespace
 
+TEST(SettingsTest, ExplicitIniPathPersistsWithoutChangingGlobalConfigLocation) {
+    QTemporaryDir temporaryDir;
+    ASSERT_TRUE(temporaryDir.isValid());
+
+    const QString settingsPath = temporaryDir.filePath(QStringLiteral("isolated.ini"));
+    Settings settings(settingsPath);
+    settings.setNotepadEditorHeight(180);
+
+    Settings reloaded(settingsPath);
+    EXPECT_EQ(reloaded.notepadEditorHeight(), 180);
+}
+
 TEST(SettingsTest, ShortcutReturnsDefaultWhenUnset) {
     IsolatedConfigDir isolated;
     Settings settings;

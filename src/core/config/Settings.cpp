@@ -15,7 +15,9 @@ QString Settings::configFilePath() {
     return configDir() + QStringLiteral("/config.ini");
 }
 
-Settings::Settings() : m_settings(configFilePath(), QSettings::IniFormat) {
+Settings::Settings() : Settings(configFilePath()) {}
+
+Settings::Settings(const QString &iniFilePath) : m_settings(iniFilePath, QSettings::IniFormat) {
     // First run: seed the favorites with the user's home directory. Guarded by
     // a one-shot flag so clearing all favorites later doesn't re-add it.
     if (!m_settings.contains(QStringLiteral("favorites/initialized"))) {
