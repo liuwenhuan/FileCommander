@@ -63,9 +63,10 @@ QDialogButtonBox, QGroupBox {
     background: url(:/icons/crt-scan-chrome.png) repeat;
 }
 
-/* TitleBar paints its own rounded-top shape, so a `background:` rule cannot
-   reach it -- it takes the tile through a qproperty instead (see TitleBar.h). */
-TitleBar {
+/* TitleBar and FramelessDialog paint their own shapes, so a `background:` rule
+   cannot reach them -- they take the tile through qproperties instead. The
+   dialog forwards the same tile to its DialogTitleBar. */
+TitleBar, FramelessDialog {
     qproperty-backgroundTile: url(:/icons/crt-scan-chrome.png);
 }
 
@@ -201,6 +202,50 @@ QLineEdit:focus {
     border: 1px solid #33ff88;
 }
 
+QAbstractSpinBox {
+    background-color: #04140a;
+    color: #33ff88;
+    border: 1px solid #12602f;
+    border-radius: 0;
+    padding: 3px 20px 3px 6px;
+    selection-background-color: #33ff88;
+    selection-color: #04140a;
+}
+
+QAbstractSpinBox:hover {
+    border-color: #1fa85c;
+}
+
+QAbstractSpinBox:focus {
+    border-color: #33ff88;
+}
+
+QAbstractSpinBox:disabled {
+    background-color: #071108;
+    color: #12602f;
+    border-color: #12602f;
+}
+
+QAbstractSpinBox::up-button, QAbstractSpinBox::down-button {
+    subcontrol-origin: border;
+    width: 18px;
+    background: url(:/icons/crt-scan-chrome.png) repeat;
+    border-left: 1px solid #1fa85c;
+}
+
+QAbstractSpinBox::up-button {
+    subcontrol-position: top right;
+    border-bottom: 1px solid #1fa85c;
+}
+
+QAbstractSpinBox::down-button {
+    subcontrol-position: bottom right;
+}
+
+QAbstractSpinBox::up-button:hover, QAbstractSpinBox::down-button:hover {
+    background-color: #12602f;
+}
+
 QComboBox {
     background-color: #04140a;
     color: #33ff88;
@@ -286,6 +331,26 @@ QToolButton:hover {
 QToolButton:pressed {
     background-color: #33ff88;
     color: #04140a;
+}
+
+/* Only the tab-add and directory-tree toggles are chrome key caps. Navigation
+   buttons stay transparent so the toolbar does not turn into a solid strip. */
+QToolButton#PanelAddTabButton, QToolButton#PanelTreeButton {
+    background: url(:/icons/crt-scan-chrome.png) repeat;
+    color: #33ff88;
+    border: 1px solid #12602f;
+}
+
+QToolButton#PanelAddTabButton:hover, QToolButton#PanelTreeButton:hover {
+    background-color: #12602f;
+    border-color: #33ff88;
+}
+
+QToolButton#PanelAddTabButton:pressed, QToolButton#PanelTreeButton:pressed,
+QToolButton#PanelTreeButton:checked {
+    background-color: #33ff88;
+    color: #04140a;
+    border-color: #33ff88;
 }
 
 TitleBar QToolButton#TitleMenuButton {

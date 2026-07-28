@@ -1946,7 +1946,7 @@ void MainWindow::calculateSizes() {
 void MainWindow::chooseListFont() {
     QFont initial = m_leftPanel ? m_leftPanel->view()->font() : font();
     bool accepted = false;
-    const QFont selected = QFontDialog::getFont(&accepted, initial, this, tr("Choose Font"));
+    const QFont selected = ttc::getFont(&accepted, initial, this, tr("Choose Font"));
     if (!accepted)
         return;
     m_settings.setListFontFamily(selected.family());

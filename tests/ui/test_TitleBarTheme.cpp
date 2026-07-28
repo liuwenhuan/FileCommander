@@ -88,6 +88,29 @@ TEST(TitleBarThemeTest, DialogTitleBarSupportsCrtTileAndClearsItOutsideCrt) {
     qApp->setStyleSheet(originalSheet);
 }
 
+TEST(TitleBarThemeTest, DialogThemeSheetsSetAndClearCrtTileProperty) {
+    const QString originalSheet = qApp->styleSheet();
+    FramelessDialog dialog;
+    DialogTitleBar *titleBar = dialog.findChild<DialogTitleBar *>();
+    ASSERT_NE(titleBar, nullptr);
+
+    applyThemeSheet(QStringLiteral("green"));
+    ASSERT_FALSE(dialog.backgroundTile().isNull());
+    EXPECT_FALSE(titleBar->backgroundTile().isNull());
+
+    applyThemeSheet(QStringLiteral("dark"));
+    EXPECT_TRUE(dialog.backgroundTile().isNull());
+    EXPECT_TRUE(titleBar->backgroundTile().isNull());
+
+    applyThemeSheet(QStringLiteral("green"));
+    ASSERT_FALSE(dialog.backgroundTile().isNull());
+    applyThemeSheet(QStringLiteral("light"));
+    EXPECT_TRUE(dialog.backgroundTile().isNull());
+    EXPECT_TRUE(titleBar->backgroundTile().isNull());
+
+    qApp->setStyleSheet(originalSheet);
+}
+
 TEST(TitleBarThemeTest, LightAndDarkThemesResetMenuButtonsAndColumnHeaders) {
     const QString originalSheet = qApp->styleSheet();
     QWidget window;

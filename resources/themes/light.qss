@@ -126,6 +126,52 @@ QLineEdit:focus {
     border: 1px solid #3d7deb;
 }
 
+/* Numeric editors need their own rule: the platform spin-box frame otherwise
+   overrides the line-edit palette and can render its value like disabled text. */
+QAbstractSpinBox {
+    background-color: #ffffff;
+    color: #202020;
+    border: 1px solid #c8c8c8;
+    border-radius: 3px;
+    padding: 3px 20px 3px 6px;
+    selection-background-color: #3d7deb;
+    selection-color: #ffffff;
+}
+
+QAbstractSpinBox:hover {
+    border-color: #a8a8a8;
+}
+
+QAbstractSpinBox:focus {
+    border-color: #3d7deb;
+}
+
+QAbstractSpinBox:disabled {
+    background-color: #ececec;
+    color: #8a8a8a;
+    border-color: #d0d0d0;
+}
+
+QAbstractSpinBox::up-button, QAbstractSpinBox::down-button {
+    subcontrol-origin: border;
+    width: 18px;
+    background-color: #e4e4e4;
+    border-left: 1px solid #c8c8c8;
+}
+
+QAbstractSpinBox::up-button {
+    subcontrol-position: top right;
+    border-bottom: 1px solid #c8c8c8;
+}
+
+QAbstractSpinBox::down-button {
+    subcontrol-position: bottom right;
+}
+
+QAbstractSpinBox::up-button:hover, QAbstractSpinBox::down-button:hover {
+    background-color: #d6d6d6;
+}
+
 /* Combo boxes -- flat box + flat popup that matches the theme. Without these
    rules Qt falls back to the native platform style: a 3D/protruding drop-down
    and a popup whose text colour ignores the app theme. */
