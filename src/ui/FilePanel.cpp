@@ -73,6 +73,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     // "+" at the far right of the tab strip opens a new tab in this panel,
     // lined up directly above the address row's "✳" button.
     m_addTabButton = new QToolButton(this);
+    m_addTabButton->setObjectName(QStringLiteral("PanelAddTabButton"));
     m_addTabButton->setText(QStringLiteral("+"));
     m_addTabButton->setAutoRaise(true);
     m_addTabButton->setFocusPolicy(Qt::NoFocus);
@@ -90,6 +91,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     // fonts render in a fixed colour that clashes with the other chrome icons in
     // dark mode) so it follows the palette like ← → ★ ✳.
     m_treeButton = new QToolButton(this);
+    m_treeButton->setObjectName(QStringLiteral("PanelTreeButton"));
     m_treeButton->setText(QStringLiteral("☰"));
     m_treeButton->setAutoRaise(true);
     m_treeButton->setCheckable(true);
@@ -425,7 +427,8 @@ bool FilePanel::eventFilter(QObject *watched, QEvent *event) {
     // on press (only if it was already the sole selection), start the rename
     // timer on release over the same cell, and cancel on a double-click (which
     // opens instead via QAbstractItemView::activated).
-    if (watched == m_iconView->viewport() && event->type() == QEvent::MouseButtonPress) {
+    if (m_iconView && watched == m_iconView->viewport()
+        && event->type() == QEvent::MouseButtonPress) {
         auto *me = static_cast<QMouseEvent *>(event);
         m_iconRenameClickTimer->stop();
         m_iconRenameClickIndex = QModelIndex();
@@ -441,14 +444,16 @@ bool FilePanel::eventFilter(QObject *watched, QEvent *event) {
                 m_iconView->selectionModel()->selectedIndexes().size() == 1)
                 m_iconRenameClickIndex = idx;
         }
-    } else if (watched == m_iconView->viewport() && event->type() == QEvent::MouseButtonRelease) {
+    } else if (m_iconView && watched == m_iconView->viewport()
+               && event->type() == QEvent::MouseButtonRelease) {
         auto *me = static_cast<QMouseEvent *>(event);
         if (m_iconRenameClickIndex.isValid() &&
             m_iconView->indexAt(me->pos()) == QModelIndex(m_iconRenameClickIndex))
             m_iconRenameClickTimer->start(QApplication::doubleClickInterval() + 10);
         else
             m_iconRenameClickIndex = QModelIndex();
-    } else if (watched == m_iconView->viewport() && event->type() == QEvent::MouseButtonDblClick) {
+    } else if (m_iconView && watched == m_iconView->viewport()
+               && event->type() == QEvent::MouseButtonDblClick) {
         m_iconRenameClickTimer->stop();
         m_iconRenameClickIndex = QModelIndex();
     }
