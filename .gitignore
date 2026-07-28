@@ -44,6 +44,7 @@ packaging/.tools/
 
 # Editor / tooling
 .claude/
+.worktrees/
 
 # CTest output
 Testing/
