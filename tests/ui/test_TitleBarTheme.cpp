@@ -10,7 +10,9 @@
 #include <QToolButton>
 #include <QWidget>
 
+#include "DialogTitleBar.h"
 #include "FileListView.h"
+#include "FramelessDialog.h"
 
 #include "TitleBar.h"
 #include "theme/ThemeManager.h"
@@ -63,6 +65,26 @@ TEST(TitleBarThemeTest, LeavingCrtClearsTheBackgroundTile) {
     themeManager.apply(Settings::Theme::Light);
 
     EXPECT_TRUE(titleBar.backgroundTile().isNull());
+    qApp->setStyleSheet(originalSheet);
+}
+
+TEST(TitleBarThemeTest, DialogTitleBarSupportsCrtTileAndClearsItOutsideCrt) {
+    const QString originalSheet = qApp->styleSheet();
+    FramelessDialog dialog;
+    DialogTitleBar *titleBar = dialog.findChild<DialogTitleBar *>();
+    ASSERT_NE(titleBar, nullptr);
+
+    QPixmap crtTile(2, 2);
+    crtTile.fill(Qt::green);
+    dialog.setBackgroundTile(crtTile);
+    ASSERT_FALSE(dialog.backgroundTile().isNull());
+    ASSERT_FALSE(titleBar->backgroundTile().isNull());
+
+    ThemeManager themeManager;
+    themeManager.apply(Settings::Theme::Dark);
+
+    EXPECT_TRUE(dialog.backgroundTile().isNull());
+    EXPECT_TRUE(titleBar->backgroundTile().isNull());
     qApp->setStyleSheet(originalSheet);
 }
 

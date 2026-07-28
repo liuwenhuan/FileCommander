@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QDialogButtonBox>
+#include <QFontDialog>
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QString>
@@ -21,6 +23,12 @@ QMessageBox::StandardButton
 message(QWidget *parent, QMessageBox::Icon icon, const QString &title, const QString &text,
         QMessageBox::StandardButtons buttons = QMessageBox::Ok,
         QMessageBox::StandardButton defaultButton = QMessageBox::NoButton);
+
+// Applies Qt's translated standard-button labels, with an application fallback
+// for a missing or empty qtbase catalog. The installed event filter repeats the
+// operation after QEvent::LanguageChange, so already-open dialogs stay current.
+void localizeStandardButtons(QMessageBox *box);
+void localizeStandardButtons(QDialogButtonBox *box);
 
 inline QMessageBox::StandardButton
 information(QWidget *parent, const QString &title, const QString &text,
@@ -57,5 +65,9 @@ QString getText(QWidget *parent, const QString &title, const QString &label,
 
 int getInt(QWidget *parent, const QString &title, const QString &label, int value = 0,
            int min = -2147483647, int max = 2147483647, int step = 1, bool *ok = nullptr);
+
+QFont getFont(bool *ok, const QFont &initial, QWidget *parent = nullptr,
+              const QString &title = QString(),
+              QFontDialog::FontDialogOptions options = QFontDialog::FontDialogOptions());
 
 } // namespace ttc
