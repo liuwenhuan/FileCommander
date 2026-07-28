@@ -72,6 +72,45 @@ bool isStrictUtf8(const QByteArray &data) {
     return true;
 }
 
+bool isStrictUtf16(const QByteArray &data, bool littleEndian) {
+    if (data.size() % 2 != 0)
+        return false;
+    auto codeUnitAt = [&data, littleEndian](int offset) {
+        const uint first = static_cast<uchar>(data.at(offset));
+        const uint second = static_cast<uchar>(data.at(offset + 1));
+        return littleEndian ? first | (second << 8) : (first << 8) | second;
+    };
+    for (int i = 0; i < data.size(); i += 2) {
+        const uint codeUnit = codeUnitAt(i);
+        if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff)
+            return false;
+        if (codeUnit < 0xd800 || codeUnit > 0xdbff)
+            continue;
+        if (i + 2 >= data.size())
+            return false;
+        const uint lowSurrogate = codeUnitAt(i + 2);
+        if (lowSurrogate < 0xdc00 || lowSurrogate > 0xdfff)
+            return false;
+        i += 2;
+    }
+    return true;
+}
+
+bool isStrictUtf32(const QByteArray &data, bool littleEndian) {
+    if (data.size() % 4 != 0)
+        return false;
+    for (int i = 0; i < data.size(); i += 4) {
+        uint codePoint = 0;
+        for (int byte = 0; byte < 4; ++byte) {
+            const uint value = static_cast<uchar>(data.at(i + byte));
+            codePoint |= littleEndian ? value << (byte * 8) : value << ((3 - byte) * 8);
+        }
+        if (codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff))
+            return false;
+    }
+    return true;
+}
+
 bool isGb18030(const QByteArray &data) {
     for (int i = 0; i < data.size();) {
         const uchar first = static_cast<uchar>(data.at(i));
@@ -261,31 +300,46 @@ bool isLikelyBinary(const QByteArray &data) {
     return nulls > 0 || (data.size() >= 8 && controls * 4 > data.size());
 }
 
-TextEncodingDetector::Result bomResult(const char *label, const char *codecName) {
-    return {QString::fromLatin1(label), QByteArray(codecName), false, false};
+TextEncodingDetector::Result bomResult(const char *label, const char *codecName, int bomBytes) {
+    return {QString::fromLatin1(label), QByteArray(codecName), bomBytes, false, false};
 }
 
 } // namespace
 
 TextEncodingDetector::Result TextEncodingDetector::detect(const QByteArray &data) {
     // UTF-32 prefixes contain the UTF-16 BOM prefixes, so UTF-32 must win first.
-    if (data.startsWith(QByteArrayLiteral("\xFF\xFE\x00\x00")))
-        return bomResult("UTF-32LE", "UTF-32LE");
-    if (data.startsWith(QByteArrayLiteral("\x00\x00\xFE\xFF")))
-        return bomResult("UTF-32BE", "UTF-32BE");
-    if (data.startsWith(QByteArrayLiteral("\xEF\xBB\xBF")))
-        return bomResult("UTF-8", "UTF-8");
-    if (data.startsWith(QByteArrayLiteral("\xFF\xFE")))
-        return bomResult("UTF-16LE", "UTF-16LE");
-    if (data.startsWith(QByteArrayLiteral("\xFE\xFF")))
-        return bomResult("UTF-16BE", "UTF-16BE");
+    if (data.startsWith(QByteArrayLiteral("\xFF\xFE\x00\x00"))) {
+        if (isStrictUtf32(data.mid(4), true))
+            return bomResult("UTF-32LE", "UTF-32LE", 4);
+        return {QStringLiteral("Unknown"), QByteArrayLiteral("UTF-8"), 0, false, true};
+    }
+    if (data.startsWith(QByteArrayLiteral("\x00\x00\xFE\xFF"))) {
+        if (isStrictUtf32(data.mid(4), false))
+            return bomResult("UTF-32BE", "UTF-32BE", 4);
+        return {QStringLiteral("Unknown"), QByteArrayLiteral("UTF-8"), 0, false, true};
+    }
+    if (data.startsWith(QByteArrayLiteral("\xEF\xBB\xBF"))) {
+        if (isStrictUtf8(data.mid(3)))
+            return bomResult("UTF-8", "UTF-8", 3);
+        return {QStringLiteral("Unknown"), QByteArrayLiteral("UTF-8"), 0, false, true};
+    }
+    if (data.startsWith(QByteArrayLiteral("\xFF\xFE"))) {
+        if (isStrictUtf16(data.mid(2), true))
+            return bomResult("UTF-16LE", "UTF-16LE", 2);
+        return {QStringLiteral("Unknown"), QByteArrayLiteral("UTF-8"), 0, false, true};
+    }
+    if (data.startsWith(QByteArrayLiteral("\xFE\xFF"))) {
+        if (isStrictUtf16(data.mid(2), false))
+            return bomResult("UTF-16BE", "UTF-16BE", 2);
+        return {QStringLiteral("Unknown"), QByteArrayLiteral("UTF-8"), 0, false, true};
+    }
 
     if (isLikelyBinary(data))
-        return {QStringLiteral("Binary"), QByteArray(), true, false};
+        return {QStringLiteral("Binary"), QByteArray(), 0, true, false};
     if (isAscii(data))
-        return {QStringLiteral("ASCII"), QByteArrayLiteral("UTF-8"), false, data.isEmpty()};
+        return {QStringLiteral("ASCII"), QByteArrayLiteral("UTF-8"), 0, false, data.isEmpty()};
     if (isStrictUtf8(data))
-        return {QStringLiteral("UTF-8"), QByteArrayLiteral("UTF-8"), false, false};
+        return {QStringLiteral("UTF-8"), QByteArrayLiteral("UTF-8"), 0, false, false};
 
     // Order is the documented deterministic tie-break order after UTF-8.
     const Candidate candidates[] = {
@@ -307,7 +361,7 @@ TextEncodingDetector::Result TextEncodingDetector::detect(const QByteArray &data
     }
 
     if (scores.isEmpty())
-        return {QStringLiteral("Unknown"), QByteArrayLiteral("UTF-8"), false, true};
+        return {QStringLiteral("Unknown"), QByteArrayLiteral("UTF-8"), 0, false, true};
 
     int best = 0;
     int secondBest = -1;
@@ -324,6 +378,38 @@ TextEncodingDetector::Result TextEncodingDetector::detect(const QByteArray &data
                              scores.at(best).value - scores.at(secondBest).value <= 6;
     const bool shortSample = data.size() < 8;
     const Candidate *winner = scores.at(best).candidate;
-    return {QString::fromLatin1(winner->label), QByteArray(winner->codecName), false,
+    return {QString::fromLatin1(winner->label), QByteArray(winner->codecName), 0, false,
             shortSample || closeScores};
+}
+
+QString TextEncodingDetector::decode(const QByteArray &data, const Result &result) {
+    if (result.binary || result.codecName.isEmpty())
+        return QString();
+    QTextCodec *codec = QTextCodec::codecForName(result.codecName);
+    if (!codec)
+        return QString::fromUtf8(data.mid(result.bomBytes));
+    return codec->toUnicode(data.mid(result.bomBytes));
+}
+
+QByteArray TextEncodingDetector::safePrefix(const QByteArray &data, int maximumBytes) {
+    if (maximumBytes <= 0)
+        return QByteArray();
+    if (data.size() <= maximumBytes)
+        return data;
+
+    const int minimumBytes = qMax(0, maximumBytes - 3);
+    for (int length = maximumBytes; length >= minimumBytes; --length) {
+        const QByteArray prefix = data.left(length);
+        const Result result = detect(prefix);
+        if (result.binary || result.codecName.isEmpty())
+            continue;
+        QTextCodec *codec = QTextCodec::codecForName(result.codecName);
+        if (!codec)
+            continue;
+        const QByteArray payload = prefix.mid(result.bomBytes);
+        const QString decoded = codec->toUnicode(payload);
+        if (!decoded.contains(QChar::ReplacementCharacter) && codec->fromUnicode(decoded) == payload)
+            return prefix;
+    }
+    return data.left(maximumBytes);
 }

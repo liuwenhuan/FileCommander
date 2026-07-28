@@ -284,6 +284,7 @@ private:
     QWidget *m_textPage = nullptr;
     QToolBar *m_textToolbar = nullptr;
     QComboBox *m_textEncoding = nullptr;
+    QLabel *m_textEncodingStatus = nullptr;
     QLineEdit *m_textFind = nullptr;
     QByteArray m_textRaw;              // raw bytes of the current text file
     QString m_textPath;                // keeps manual encoding only for this selection

@@ -80,6 +80,9 @@
 
 namespace {
 constexpr qint64 kTextWindowBytes = 5 * 1024 * 1024; // text preview cap: 5 MiB
+// All supported encodings consume at most four bytes per code point. Reading
+// this small look-ahead lets safePrefix cut at a complete character boundary.
+constexpr qint64 kTextReadLookAheadBytes = 4;
 constexpr qint64 kMarkdownMaxBytes = 2 * 1024 * 1024; // cap markdown at 2 MiB
 
 // office_oxide (and Markdown) tables carry no cell borders; QTextDocument draws
@@ -457,6 +460,9 @@ QWidget *QuickView::buildTextPage() {
     for (const TextEncoding &e : kTextEncodings)
         m_textEncoding->addItem(QString::fromLatin1(e.label));
     m_textToolbar->addWidget(m_textEncoding);
+    m_textEncodingStatus = new QLabel(m_textToolbar);
+    m_textEncodingStatus->setObjectName(QStringLiteral("textEncodingStatus"));
+    m_textToolbar->addWidget(m_textEncodingStatus);
     connect(m_textEncoding, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             [this](int) { renderText(); });
 
@@ -518,21 +524,37 @@ QString QuickView::toHexDump(const QByteArray &data) {
 }
 
 void QuickView::renderText() {
-    QString content;
-    if (m_textHex) {
-        content = toHexDump(m_textRaw);
-    } else {
-        const int encodingIndex = m_textEncoding->currentIndex();
-        QTextCodec *codec = nullptr;
-        if (encodingIndex == 0) {
-            const TextEncodingDetector::Result detected =
-                TextEncodingDetector::detect(m_textRaw);
-            if (!detected.codecName.isEmpty())
-                codec = QTextCodec::codecForName(detected.codecName);
+    const int encodingIndex = m_textEncoding->currentIndex();
+    const bool autoEncoding = encodingIndex == 0;
+    TextEncodingDetector::Result detected;
+    bool displayHex = m_textHex;
+
+    if (autoEncoding) {
+        detected = TextEncodingDetector::detect(m_textRaw);
+        if (detected.binary) {
+            m_textEncodingStatus->setText(tr("Auto: Binary (Hex)"));
+            displayHex = true;
         } else {
-            const char *codecName = kTextEncodings[encodingIndex].codec;
-            codec = codecName ? QTextCodec::codecForName(codecName) : QTextCodec::codecForLocale();
+            QString status = tr("Auto: %1").arg(detected.label);
+            if (detected.ambiguous)
+                status += tr(" (ambiguous)");
+            m_textEncodingStatus->setText(status);
         }
+    } else {
+        const QString label = QString::fromLatin1(kTextEncodings[encodingIndex].label);
+        m_textEncodingStatus->setText(displayHex ? tr("Manual: %1 (Hex)").arg(label)
+                                              : tr("Manual: %1").arg(label));
+    }
+
+    QString content;
+    if (displayHex) {
+        content = toHexDump(m_textRaw);
+    } else if (autoEncoding) {
+        content = TextEncodingDetector::decode(m_textRaw, detected);
+    } else {
+        const char *codecName = kTextEncodings[encodingIndex].codec;
+        QTextCodec *codec = codecName ? QTextCodec::codecForName(codecName)
+                                      : QTextCodec::codecForLocale();
         if (!codec)
             codec = QTextCodec::codecForName("UTF-8");
         content = codec ? codec->toUnicode(m_textRaw) : QString::fromUtf8(m_textRaw);
@@ -2882,8 +2904,11 @@ void QuickView::showFile(const QString &path) {
     m_infoOverlay->hide(); // no image behind it on the text / no-preview pages
     QFile file(path);
     if (file.open(QIODevice::ReadOnly)) {
-        m_textRaw = file.read(m_textCap);
-        m_textTruncated = !file.atEnd();
+        const QByteArray probe = file.read(m_textCap + kTextReadLookAheadBytes);
+        m_textTruncated = probe.size() > m_textCap;
+        m_textRaw = m_textTruncated
+                        ? TextEncodingDetector::safePrefix(probe, static_cast<int>(m_textCap))
+                        : probe;
         if (!preserveTextEncoding) {
             m_textEncoding->blockSignals(true);
             m_textEncoding->setCurrentIndex(0); // every new file starts in Auto
