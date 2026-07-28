@@ -3189,7 +3189,8 @@ void MainWindow::openServerConnectDialog(bool preselectSmb) {
     if (preselectSmb)
         dlg.selectProtocol(static_cast<int>(GvfsMounter::Protocol::Smb));
 #else
-    Q_UNUSED(preselectSmb)
+    if (preselectSmb)
+        dlg.selectProtocol(1); // GvfsMounter::Protocol::Smb, kept stable in bookmarks.
 #endif
     if (dlg.exec() != QDialog::Accepted)
         return;

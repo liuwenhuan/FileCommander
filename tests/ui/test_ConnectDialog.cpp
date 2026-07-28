@@ -17,7 +17,7 @@ TEST(ConnectDialog, OffersOnlyBackedProtocols) {
     EXPECT_TRUE(labels.contains(QStringLiteral("FTP")));
     EXPECT_TRUE(labels.contains(QStringLiteral("WebDAV (HTTP)")));
     EXPECT_TRUE(labels.contains(QStringLiteral("WebDAV (HTTPS)")));
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION
+#if defined(Q_OS_WIN) || FILECOMMANDER_HAS_LINUX_INTEGRATION
     EXPECT_TRUE(labels.contains(QStringLiteral("SMB / Windows share")));
 #else
     EXPECT_FALSE(labels.contains(QStringLiteral("SMB / Windows share")));

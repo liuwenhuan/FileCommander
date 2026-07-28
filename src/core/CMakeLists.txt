@@ -81,6 +81,14 @@ if(WIN32)
         devices/RemovableDeviceMonitor.h
         devices/RemovableDeviceMonitor_windows.cpp
     )
+    if(FILECOMMANDER_ENABLE_NETWORK)
+        list(APPEND CORE_SOURCES
+            network/WindowsSmbSession.h
+            network/WindowsSmbSession.cpp
+            network/WindowsSmbProvider.h
+            network/WindowsSmbProvider.cpp
+        )
+    endif()
 endif()
 
 add_library(core STATIC ${CORE_SOURCES})
@@ -127,7 +135,7 @@ target_link_libraries(core PUBLIC
 
 if(FILECOMMANDER_ENABLE_NETWORK)
     if(WIN32)
-        target_link_libraries(core PUBLIC libssh2::libssh2 CURL::libcurl ws2_32)
+        target_link_libraries(core PUBLIC libssh2::libssh2 CURL::libcurl ws2_32 Mpr Netapi32)
     else()
         target_link_libraries(core PUBLIC PkgConfig::LIBSSH2 PkgConfig::CURL)
     endif()

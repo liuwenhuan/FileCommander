@@ -6,6 +6,10 @@
 #include "network/SftpProvider.h"
 #if FILECOMMANDER_HAS_LINUX_INTEGRATION
 #include "network/SmbProvider.h"
+using NativeSmbProvider = SmbProvider;
+#elif defined(Q_OS_WIN)
+#include "network/WindowsSmbProvider.h"
+using NativeSmbProvider = WindowsSmbProvider;
 #endif
 
 #include <QApplication>
@@ -38,7 +42,7 @@ struct ProtocolChoice {
 
 const ProtocolChoice kProtocols[] = {
     {"SFTP (SSH)", GvfsMounter::Protocol::Sftp},
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
     {"SMB / Windows share", GvfsMounter::Protocol::Smb},
 #endif
     {"WebDAV (HTTP)", GvfsMounter::Protocol::WebDav},
@@ -132,7 +136,7 @@ ConnectDialog::ConnectDialog(QWidget *parent) : FramelessDialog(parent) {
     auto *layout = new QVBoxLayout(this);
     layout->addWidget(savedBox);
     layout->addLayout(form);
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
     const QString hintText =
         tr("SFTP, FTP, WebDAV and SMB all connect through a built-in client.");
 #else
@@ -400,9 +404,9 @@ void ConnectDialog::accept() {
     }
 
     // SMB/CIFS (libsmbclient / SmbProvider). "/" lists the shares.
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
     if (protocol == GvfsMounter::Protocol::Smb) {
-        auto provider = std::make_shared<SmbProvider>();
+        auto provider = std::make_shared<NativeSmbProvider>();
         m_remoteProvider = provider;
         m_connectFn = [provider, host, user, password, anonymous](QString *error) {
             return provider->connectToHost(host, user, password, QString(), anonymous, error);
@@ -418,7 +422,9 @@ void ConnectDialog::accept() {
         QDialog::accept();
         return;
     }
+#endif
 
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
     const QString uri = GvfsMounter::buildUri(protocol, host, m_portSpin->value(),
                                               user, m_pathEdit->text());
     if (uri.isEmpty()) {
