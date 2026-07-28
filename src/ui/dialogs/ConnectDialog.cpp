@@ -4,7 +4,9 @@
 #include "network/CurlWebDavProvider.h"
 #include "network/GvfsMounter.h"
 #include "network/SftpProvider.h"
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
 #include "network/SmbProvider.h"
+#endif
 
 #include <QApplication>
 #include <QCheckBox>
@@ -36,7 +38,9 @@ struct ProtocolChoice {
 
 const ProtocolChoice kProtocols[] = {
     {"SFTP (SSH)", GvfsMounter::Protocol::Sftp},
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
     {"SMB / Windows share", GvfsMounter::Protocol::Smb},
+#endif
     {"WebDAV (HTTP)", GvfsMounter::Protocol::WebDav},
     {"WebDAV (HTTPS)", GvfsMounter::Protocol::WebDavs},
     {"FTP", GvfsMounter::Protocol::Ftp},
@@ -50,6 +54,17 @@ int protocolToIndex(int protocol) {
     return 0;
 }
 
+int defaultPort(GvfsMounter::Protocol protocol) {
+    switch (protocol) {
+    case GvfsMounter::Protocol::Sftp: return 22;
+    case GvfsMounter::Protocol::Smb: return 445;
+    case GvfsMounter::Protocol::WebDav: return 80;
+    case GvfsMounter::Protocol::WebDavs: return 443;
+    case GvfsMounter::Protocol::Ftp: return 21;
+    }
+    return 0;
+}
+
 } // namespace
 
 ConnectDialog::ConnectDialog(QWidget *parent) : FramelessDialog(parent) {
@@ -57,6 +72,7 @@ ConnectDialog::ConnectDialog(QWidget *parent) : FramelessDialog(parent) {
     setModal(true);
 
     m_protocolCombo = new QComboBox(this);
+    m_protocolCombo->setObjectName(QStringLiteral("protocolCombo"));
     for (const auto &choice : kProtocols)
         m_protocolCombo->addItem(tr(choice.label));
 
@@ -106,13 +122,24 @@ ConnectDialog::ConnectDialog(QWidget *parent) : FramelessDialog(parent) {
     auto *savedLayout = new QVBoxLayout(savedBox);
     savedLayout->addWidget(m_savedList);
     savedLayout->addLayout(savedButtons);
+#if !FILECOMMANDER_HAS_LINUX_INTEGRATION
+    // The Linux build stores passwords in libsecret. A Windows credential-store
+    // backend is a later phase-two increment, so do not expose non-functional
+    // bookmark controls in this test build.
+    savedBox->hide();
+#endif
 
     auto *layout = new QVBoxLayout(this);
     layout->addWidget(savedBox);
     layout->addLayout(form);
-    auto *hint = new QLabel(
-        tr("SFTP, FTP, WebDAV and SMB all connect through a built-in client."),
-        this);
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
+    const QString hintText =
+        tr("SFTP, FTP, WebDAV and SMB all connect through a built-in client.");
+#else
+    const QString hintText =
+        tr("SFTP, FTP and WebDAV connect through built-in cross-platform clients.");
+#endif
+    auto *hint = new QLabel(hintText, this);
     hint->setWordWrap(true);
     layout->addWidget(hint);
     layout->addWidget(m_buttons);
@@ -133,6 +160,7 @@ ConnectDialog::ConnectDialog(QWidget *parent) : FramelessDialog(parent) {
 }
 
 void ConnectDialog::reloadSavedList() {
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
     m_saved = ConnectionStore::loadAll();
     m_savedList->clear();
     for (const SavedConnection &c : m_saved) {
@@ -140,9 +168,11 @@ void ConnectDialog::reloadSavedList() {
         m_savedList->addItem(label);
     }
     m_deleteButton->setEnabled(false);
+#endif
 }
 
 void ConnectDialog::fillForm(const SavedConnection &conn) {
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
     m_protocolCombo->setCurrentIndex(protocolToIndex(conn.protocol));
     m_hostEdit->setText(conn.host);
     if (conn.port > 0)
@@ -152,6 +182,9 @@ void ConnectDialog::fillForm(const SavedConnection &conn) {
     m_anonymousCheck->setChecked(conn.anonymous);
     // Password lives in the keyring, not the INI.
     m_passwordEdit->setText(ConnectionStore::loadPassword(conn.id));
+#else
+    Q_UNUSED(conn)
+#endif
 }
 
 SavedConnection ConnectDialog::currentFormAsConnection() const {
@@ -169,6 +202,7 @@ SavedConnection ConnectDialog::currentFormAsConnection() const {
 }
 
 void ConnectDialog::onSavedSelectionChanged() {
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
     const int row = m_savedList->currentRow();
     if (row < 0 || row >= m_saved.size()) {
         m_deleteButton->setEnabled(false);
@@ -177,9 +211,11 @@ void ConnectDialog::onSavedSelectionChanged() {
     m_currentId = m_saved[row].id;
     m_deleteButton->setEnabled(true);
     fillForm(m_saved[row]);
+#endif
 }
 
 void ConnectDialog::onSaveConnection() {
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
     SavedConnection c = currentFormAsConnection();
     if (c.host.isEmpty()) {
         ttc::warning(this, tr("Save Connection"),
@@ -219,9 +255,11 @@ void ConnectDialog::onSaveConnection() {
             break;
         }
     }
+#endif
 }
 
 void ConnectDialog::onDeleteConnection() {
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
     const int row = m_savedList->currentRow();
     if (row < 0 || row >= m_saved.size())
         return;
@@ -235,12 +273,13 @@ void ConnectDialog::onDeleteConnection() {
     if (m_currentId == c.id)
         m_currentId.clear();
     reloadSavedList();
+#endif
 }
 
 void ConnectDialog::onProtocolChanged(int index) {
     if (index < 0 || index >= static_cast<int>(std::size(kProtocols)))
         return;
-    m_portSpin->setValue(GvfsMounter::defaultPort(kProtocols[index].protocol));
+    m_portSpin->setValue(defaultPort(kProtocols[index].protocol));
 }
 
 void ConnectDialog::onAnonymousToggled(bool anonymous) {
@@ -361,6 +400,7 @@ void ConnectDialog::accept() {
     }
 
     // SMB/CIFS (libsmbclient / SmbProvider). "/" lists the shares.
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
     if (protocol == GvfsMounter::Protocol::Smb) {
         auto provider = std::make_shared<SmbProvider>();
         m_remoteProvider = provider;
@@ -411,6 +451,7 @@ void ConnectDialog::accept() {
     m_mountedUri = result.uri;
     m_mountedLocalPath = result.localPath;
     QDialog::accept();
+#endif
 }
 
 QString ConnectDialog::runAndMount(QWidget *parent) {

@@ -3183,10 +3183,14 @@ FilePanel *MainWindow::beginServerConnection() {
 }
 
 void MainWindow::openServerConnectDialog(bool preselectSmb) {
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION
+#if FILECOMMANDER_HAS_NETWORK
     ConnectDialog dlg(this);
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
     if (preselectSmb)
         dlg.selectProtocol(static_cast<int>(GvfsMounter::Protocol::Smb));
+#else
+    Q_UNUSED(preselectSmb)
+#endif
     if (dlg.exec() != QDialog::Accepted)
         return;
     if (auto provider = dlg.remoteProvider()) {

@@ -110,10 +110,15 @@ if(NOT FILECOMMANDER_PREVIEW_MEDIA)
     )
 endif()
 
-if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
+if(FILECOMMANDER_ENABLE_NETWORK)
     list(APPEND UI_SOURCES
         dialogs/ConnectDialog.h
         dialogs/ConnectDialog.cpp
+    )
+endif()
+
+if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
+    list(APPEND UI_SOURCES
         dialogs/ExternalConnectDialog.h
         dialogs/ExternalConnectDialog.cpp
         dialogs/SecureWipeDialog.h

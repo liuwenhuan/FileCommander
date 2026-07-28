@@ -37,6 +37,10 @@ if(FILECOMMANDER_PREVIEW_MEDIA)
     list(APPEND UI_TEST_SOURCES test_MpvStreamSource.cpp)
 endif()
 
+if(FILECOMMANDER_ENABLE_NETWORK)
+    list(APPEND UI_TEST_SOURCES test_ConnectDialog.cpp)
+endif()
+
 add_executable(ui_tests ${UI_TEST_SOURCES})
 
 # test_MpvStreamSource drives a real libmpv core (headless: vo=null/ao=null) to
