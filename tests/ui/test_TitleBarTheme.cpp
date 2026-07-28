@@ -88,23 +88,27 @@ TEST(TitleBarThemeTest, DialogTitleBarSupportsCrtTileAndClearsItOutsideCrt) {
     qApp->setStyleSheet(originalSheet);
 }
 
-TEST(TitleBarThemeTest, DialogThemeSheetsSetAndClearCrtTileProperty) {
+TEST(TitleBarThemeTest, DialogThemeSwitchSetsAndClearsCrtTileProperty) {
     const QString originalSheet = qApp->styleSheet();
     FramelessDialog dialog;
     DialogTitleBar *titleBar = dialog.findChild<DialogTitleBar *>();
     ASSERT_NE(titleBar, nullptr);
+    ThemeManager themeManager;
+    dialog.show();
+    qApp->processEvents();
 
-    applyThemeSheet(QStringLiteral("green"));
+    themeManager.apply(Settings::Theme::Crt);
+    qApp->processEvents();
     ASSERT_FALSE(dialog.backgroundTile().isNull());
     EXPECT_FALSE(titleBar->backgroundTile().isNull());
 
-    applyThemeSheet(QStringLiteral("dark"));
+    themeManager.apply(Settings::Theme::Dark);
     EXPECT_TRUE(dialog.backgroundTile().isNull());
     EXPECT_TRUE(titleBar->backgroundTile().isNull());
 
-    applyThemeSheet(QStringLiteral("green"));
+    themeManager.apply(Settings::Theme::Crt);
     ASSERT_FALSE(dialog.backgroundTile().isNull());
-    applyThemeSheet(QStringLiteral("light"));
+    themeManager.apply(Settings::Theme::Light);
     EXPECT_TRUE(dialog.backgroundTile().isNull());
     EXPECT_TRUE(titleBar->backgroundTile().isNull());
 

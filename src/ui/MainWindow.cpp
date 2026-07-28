@@ -2121,12 +2121,14 @@ void MainWindow::swapPanels() {
         // The visible panel stays active: its selection remains the preview
         // source, and focus must not jump to the panel hidden behind the preview.
         setActivePanel(visible);
-        visible->view()->setFocus();
 
         QList<int> swapped = sizes;
         std::reverse(swapped.begin(), swapped.end());
         m_panelSplitter->setSizes(swapped);
         updateQuickView();
+        // showFile() may focus a freshly selected preview page. Restore keyboard
+        // ownership to the file panel only after the preview has finished updating.
+        visible->activeView()->setFocus();
         return;
     }
 
@@ -2253,6 +2255,8 @@ void MainWindow::toggleQuickView() {
         m_quickViewActive = false;
         m_quickViewPanel = nullptr;
         m_panelSplitter->setSizes(sizes);
+        if (m_activePanel)
+            m_activePanel->activeView()->setFocus();
         return;
     }
     if (!m_activePanel)

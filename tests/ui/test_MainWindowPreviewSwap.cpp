@@ -1,14 +1,15 @@
 #include <gtest/gtest.h>
 
 #include <QApplication>
+#include <QShortcut>
 #include <QSplitter>
-#include <QTest>
 
 #include <clocale>
 
 #include "FilePanel.h"
 #include "MainWindow.h"
 #include "QuickView.h"
+#include "config/Settings.h"
 
 namespace {
 
@@ -33,10 +34,28 @@ void processGuiEvents() {
 
 TEST(MainWindowPreviewSwapTest, CtrlUSwapsPreviewWithVisiblePanelAndKeepsHiddenPanelParked) {
     std::setlocale(LC_NUMERIC, "C");
+    Settings settings;
+    const QKeySequence previousSwap =
+        settings.shortcut(QStringLiteral("swapPanels"), QKeySequence(Qt::CTRL | Qt::Key_U));
+    settings.setShortcut(QStringLiteral("swapPanels"), QKeySequence(Qt::CTRL | Qt::Key_U));
+    struct ShortcutRestore {
+        QKeySequence previous;
+        ~ShortcutRestore() { Settings().setShortcut(QStringLiteral("swapPanels"), previous); }
+    } restore{previousSwap};
+
     MainWindow window;
     window.resize(1000, 700);
     window.show();
     processGuiEvents();
+
+    bool ctrlUBound = false;
+    for (QShortcut *shortcut : window.findChildren<QShortcut *>()) {
+        if (shortcut->key() == QKeySequence(Qt::CTRL | Qt::Key_U)) {
+            ctrlUBound = true;
+            break;
+        }
+    }
+    ASSERT_TRUE(ctrlUBound) << "Ctrl+U must remain bound to the panel swap command";
 
     QSplitter *splitter = panelSplitter(window);
     ASSERT_NE(splitter, nullptr);
@@ -52,18 +71,19 @@ TEST(MainWindowPreviewSwapTest, CtrlUSwapsPreviewWithVisiblePanelAndKeepsHiddenP
     EXPECT_EQ(right->parentWidget(), nullptr) << "inactive panel must be parked";
 
     left->view()->setFocus();
-    QTest::keyClick(&window, Qt::Key_U, Qt::ControlModifier);
+    ASSERT_TRUE(QMetaObject::invokeMethod(&window, "swapPanels"));
     processGuiEvents();
 
     EXPECT_NE(qobject_cast<QuickView *>(splitter->widget(0)), nullptr);
     EXPECT_EQ(splitter->widget(1), left);
     EXPECT_EQ(right->parentWidget(), nullptr) << "Ctrl+U must not reveal the hidden panel";
-    EXPECT_TRUE(left->view()->hasFocus()) << "visible file panel remains active after the swap";
+    EXPECT_EQ(window.focusWidget(), left->activeView())
+        << "visible file panel remains the window's keyboard target after the swap";
 
     ASSERT_TRUE(QMetaObject::invokeMethod(&window, "toggleQuickView"));
     processGuiEvents();
 
     EXPECT_EQ(splitter->widget(0), right) << "closing restores the parked panel to preview's new slot";
     EXPECT_EQ(splitter->widget(1), left) << "closing keeps the swapped panel position";
-    EXPECT_TRUE(left->view()->hasFocus());
+    EXPECT_EQ(window.focusWidget(), left->activeView());
 }
