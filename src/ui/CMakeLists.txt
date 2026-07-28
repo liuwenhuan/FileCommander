@@ -134,13 +134,54 @@ find_package(ZLIB REQUIRED)
 find_package(Qt5 COMPONENTS OpenGL REQUIRED)
 
 if(FILECOMMANDER_PREVIEW_MEDIA)
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(MPV REQUIRED IMPORTED_TARGET GLOBAL mpv)
+    if(WIN32)
+        set(FILECOMMANDER_MPV_ROOT "$ENV{FILECOMMANDER_MPV_ROOT}" CACHE PATH
+            "Windows libmpv SDK containing include/mpv/client.h and libmpv.lib")
+        if(NOT EXISTS "${FILECOMMANDER_MPV_ROOT}/include/mpv/client.h" OR
+           NOT EXISTS "${FILECOMMANDER_MPV_ROOT}/libmpv.lib")
+            message(FATAL_ERROR
+                "FILECOMMANDER_PREVIEW_MEDIA requires FILECOMMANDER_MPV_ROOT "
+                "to point to the prepared Windows libmpv SDK.")
+        endif()
+        add_library(FileCommander::Mpv SHARED IMPORTED GLOBAL)
+        set_target_properties(FileCommander::Mpv PROPERTIES
+            IMPORTED_IMPLIB "${FILECOMMANDER_MPV_ROOT}/libmpv.lib"
+            IMPORTED_LOCATION "${FILECOMMANDER_MPV_ROOT}/libmpv-2.dll"
+            INTERFACE_INCLUDE_DIRECTORIES "${FILECOMMANDER_MPV_ROOT}/include"
+        )
+    else()
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(MPV REQUIRED IMPORTED_TARGET GLOBAL mpv)
+        add_library(FileCommander::Mpv ALIAS PkgConfig::MPV)
+    endif()
 endif()
 
 if(FILECOMMANDER_PREVIEW_PDF)
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(POPPLER_QT5 REQUIRED IMPORTED_TARGET GLOBAL poppler-qt5)
+    if(WIN32)
+        set(FILECOMMANDER_POPPLER_QT5_ROOT
+            "$ENV{FILECOMMANDER_POPPLER_QT5_ROOT}" CACHE PATH
+            "Poppler Qt5 installation built against the selected Qt 5 SDK")
+        if(NOT FILECOMMANDER_POPPLER_QT5_ROOT AND DEFINED ENV{VCPKG_ROOT})
+            cmake_path(GET ENV{VCPKG_ROOT} PARENT_PATH _fc_sdk_root)
+            set(FILECOMMANDER_POPPLER_QT5_ROOT "${_fc_sdk_root}/poppler-qt5")
+        endif()
+        if(NOT EXISTS "${FILECOMMANDER_POPPLER_QT5_ROOT}/include/poppler/qt5/poppler-qt5.h")
+            message(FATAL_ERROR
+                "FILECOMMANDER_PREVIEW_PDF requires FILECOMMANDER_POPPLER_QT5_ROOT "
+                "to point to a Poppler Qt5 build made against this Qt 5 SDK.")
+        endif()
+        add_library(FileCommander::PopplerQt5 SHARED IMPORTED GLOBAL)
+        set_target_properties(FileCommander::PopplerQt5 PROPERTIES
+            IMPORTED_IMPLIB "${FILECOMMANDER_POPPLER_QT5_ROOT}/lib/poppler-qt5.lib"
+            IMPORTED_LOCATION "${FILECOMMANDER_POPPLER_QT5_ROOT}/bin/poppler-qt5.dll"
+            INTERFACE_INCLUDE_DIRECTORIES
+                "${FILECOMMANDER_POPPLER_QT5_ROOT}/include/poppler/qt5"
+        )
+    else()
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(POPPLER_QT5 REQUIRED IMPORTED_TARGET GLOBAL poppler-qt5)
+        add_library(FileCommander::PopplerQt5 ALIAS PkgConfig::POPPLER_QT5)
+    endif()
 endif()
 
 if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
@@ -172,10 +213,10 @@ target_link_libraries(ui PUBLIC
 target_link_libraries(ui PRIVATE ZLIB::ZLIB)
 
 if(FILECOMMANDER_PREVIEW_MEDIA)
-    target_link_libraries(ui PRIVATE PkgConfig::MPV)
+    target_link_libraries(ui PRIVATE FileCommander::Mpv)
 endif()
 if(FILECOMMANDER_PREVIEW_PDF)
-    target_link_libraries(ui PRIVATE PkgConfig::POPPLER_QT5)
+    target_link_libraries(ui PRIVATE FileCommander::PopplerQt5)
 endif()
 if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
     target_link_libraries(ui PRIVATE Qt5::X11Extras PkgConfig::XCB)

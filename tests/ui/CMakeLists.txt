@@ -47,7 +47,7 @@ add_executable(ui_tests ${UI_TEST_SOURCES})
 # measure what a streamed preview actually reads. src/ui keeps mpv PRIVATE, so
 # this target resolves <mpv/client.h> for itself.
 if(FILECOMMANDER_PREVIEW_MEDIA)
-    target_link_libraries(ui_tests PRIVATE PkgConfig::MPV)
+    target_link_libraries(ui_tests PRIVATE FileCommander::Mpv)
 endif()
 
 # resources.qrc is compiled into the app target, not this one, so a test that
