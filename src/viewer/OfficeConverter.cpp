@@ -1,6 +1,7 @@
 #include "OfficeConverter.h"
 
 #include <QDir>
+#include <QCoreApplication>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -22,8 +23,9 @@ QString suffixLower(const QString &path) {
 
 // Candidate binary names, tried in order at each search location.
 const QStringList &candidateNames() {
-    static const QStringList names = {QStringLiteral("office_oxide"), QStringLiteral("office-oxide"),
-                                       QStringLiteral("oxide")};
+    static const QStringList names = {QStringLiteral("office-oxide"),
+                                      QStringLiteral("office_oxide"),
+                                      QStringLiteral("oxide")};
     return names;
 }
 
@@ -86,15 +88,26 @@ bool OfficeConverter::isOfficeFile(const QString &path) {
 OfficeConverter::Kind OfficeConverter::kindFor(const QString &path) {
     const QString suffix = suffixLower(path);
     if (suffix == QLatin1String("doc") || suffix == QLatin1String("docx") ||
-        suffix == QLatin1String("ppt") || suffix == QLatin1String("pptx"))
+        suffix == QLatin1String("ppt") || suffix == QLatin1String("pptx") ||
+        suffix == QLatin1String("wps") || suffix == QLatin1String("wpt") ||
+        suffix == QLatin1String("dps") || suffix == QLatin1String("dpt"))
         return Kind::Document;
-    if (suffix == QLatin1String("xls") || suffix == QLatin1String("xlsx"))
+    if (suffix == QLatin1String("xls") || suffix == QLatin1String("xlsx") ||
+        suffix == QLatin1String("et") || suffix == QLatin1String("ett"))
         return Kind::Spreadsheet;
     return Kind::None;
 }
 
 QString OfficeConverter::resolveBinary() {
-    // 1. Explicit override. An unusable override falls through rather than
+    // 1. Bundled beside the application.
+    const QString appDir = QCoreApplication::applicationDirPath();
+    for (const QString &name : candidateNames()) {
+        const QString found = QStandardPaths::findExecutable(name, {appDir});
+        if (!found.isEmpty())
+            return found;
+    }
+
+    // 2. Explicit override. An unusable override falls through rather than
     // hard-failing resolution, so a stale env var doesn't break PATH lookup.
     const QString envPath = qEnvironmentVariable("TTC_OFFICE_OXIDE");
     if (!envPath.isEmpty()) {
@@ -103,14 +116,14 @@ QString OfficeConverter::resolveBinary() {
             return info.absoluteFilePath();
     }
 
-    // 2. PATH.
+    // 3. PATH.
     for (const QString &name : candidateNames()) {
         const QString found = QStandardPaths::findExecutable(name);
         if (!found.isEmpty())
             return found;
     }
 
-    // 3. Common install locations that aren't always on PATH.
+    // 4. Common install locations that aren't always on PATH.
     const QStringList extraDirs = {
         QDir::homePath() + QStringLiteral("/.local/bin"),
         QDir::homePath() + QStringLiteral("/.cargo/bin"),

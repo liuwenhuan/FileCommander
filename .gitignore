@@ -3,6 +3,8 @@ build/
 build-release/
 build-deb/
 build-appimage/
+build-*/
+aqtinstall.log
 
 # In-source CMake build artifacts (a stray `cmake .` at the repo root)
 /CMakeCache.txt

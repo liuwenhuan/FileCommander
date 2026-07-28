@@ -9,12 +9,17 @@
 #include <cerrno>
 #include <cstring>
 
+#ifdef Q_OS_WIN
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#endif
 
 // One independent SSH+SFTP physical connection: its own TCP socket, its own
 // libssh2 session (libssh2 sessions are NOT thread-safe, so concurrency needs a
@@ -22,7 +27,7 @@
 // SFTP subsystem handle. Forward-declared in the header; the pool only handles
 // SftpConn*, so the full definition can live here next to the libssh2 types.
 struct SftpConn {
-    int socket = -1;
+    qintptr socket = -1;
     LIBSSH2_SESSION *session = nullptr;
     LIBSSH2_SFTP *sftp = nullptr;
 };
@@ -69,7 +74,34 @@ QString sessionError(LIBSSH2_SESSION *session, const QString &fallback) {
 // The connect is issued non-blocking and waited on with select() so a dead or
 // firewalled host fails after timeoutMs instead of blocking on the OS default
 // (which can exceed a minute).
-int openSocket(const QString &host, int port, int timeoutMs, QString *error) {
+void closeSocket(qintptr socket) {
+#ifdef Q_OS_WIN
+    ::closesocket(static_cast<SOCKET>(socket));
+#else
+    ::close(static_cast<int>(socket));
+#endif
+}
+
+int socketError() {
+#ifdef Q_OS_WIN
+    return WSAGetLastError();
+#else
+    return errno;
+#endif
+}
+
+qintptr openSocket(const QString &host, int port, int timeoutMs, QString *error) {
+#ifdef Q_OS_WIN
+    static const bool winsockReady = [] {
+        WSADATA data{};
+        return WSAStartup(MAKEWORD(2, 2), &data) == 0;
+    }();
+    if (!winsockReady) {
+        if (error)
+            *error = QStringLiteral("Winsock initialization failed.");
+        return -1;
+    }
+#endif
     struct addrinfo hints;
     std::memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
@@ -83,54 +115,78 @@ int openSocket(const QString &host, int port, int timeoutMs, QString *error) {
     if (gai != 0) {
         if (error)
             *error = QStringLiteral("Cannot resolve host '%1': %2")
-                         .arg(host, QString::fromUtf8(gai_strerror(gai)));
+                         .arg(host, QString::fromLocal8Bit(gai_strerror(gai)));
         return -1;
     }
 
-    int sock = -1;
+    qintptr sock = -1;
     int lastErrno = 0;
     for (struct addrinfo *ai = result; ai != nullptr; ai = ai->ai_next) {
-        const int fd = ::socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+        const auto fd = ::socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+#ifdef Q_OS_WIN
+        if (fd == INVALID_SOCKET) {
+#else
         if (fd < 0) {
-            lastErrno = errno;
+#endif
+            lastErrno = socketError();
             continue;
         }
+#ifdef Q_OS_WIN
+        u_long nonBlocking = 1;
+        ::ioctlsocket(fd, FIONBIO, &nonBlocking);
+        const int origFlags = 0;
+#else
         const int origFlags = ::fcntl(fd, F_GETFL, 0);
         if (origFlags >= 0)
             ::fcntl(fd, F_SETFL, origFlags | O_NONBLOCK);
+#endif
 
-        if (::connect(fd, ai->ai_addr, ai->ai_addrlen) != 0 && errno != EINPROGRESS) {
-            lastErrno = errno;
-            ::close(fd);
+        const int connectResult = ::connect(fd, ai->ai_addr,
+                                            static_cast<int>(ai->ai_addrlen));
+        const int connectError = socketError();
+#ifdef Q_OS_WIN
+        const bool inProgress = connectError == WSAEWOULDBLOCK;
+#else
+        const bool inProgress = connectError == EINPROGRESS;
+#endif
+        if (connectResult != 0 && !inProgress) {
+            lastErrno = connectError;
+            closeSocket(static_cast<qintptr>(fd));
             continue;
         }
         // Wait (bounded) for the non-blocking connect to complete.
-        if (errno == EINPROGRESS) {
+        if (connectResult != 0 && inProgress) {
             fd_set wset;
             FD_ZERO(&wset);
             FD_SET(fd, &wset);
             struct timeval tv;
             tv.tv_sec = timeoutMs / 1000;
             tv.tv_usec = (timeoutMs % 1000) * 1000;
-            const int sel = ::select(fd + 1, nullptr, &wset, nullptr, &tv);
+            const int sel = ::select(static_cast<int>(fd + 1), nullptr, &wset, nullptr, &tv);
             if (sel <= 0) {
-                lastErrno = (sel == 0) ? ETIMEDOUT : errno;
-                ::close(fd);
+                lastErrno = (sel == 0) ? 10060 : socketError();
+                closeSocket(static_cast<qintptr>(fd));
                 continue;
             }
             // Writable: confirm the connect actually succeeded via SO_ERROR.
             int soErr = 0;
-            socklen_t len = sizeof(soErr);
-            if (::getsockopt(fd, SOL_SOCKET, SO_ERROR, &soErr, &len) < 0 || soErr != 0) {
-                lastErrno = soErr != 0 ? soErr : errno;
-                ::close(fd);
+            int len = sizeof(soErr);
+            if (::getsockopt(fd, SOL_SOCKET, SO_ERROR, reinterpret_cast<char *>(&soErr),
+                             &len) < 0 || soErr != 0) {
+                lastErrno = soErr != 0 ? soErr : socketError();
+                closeSocket(static_cast<qintptr>(fd));
                 continue;
             }
         }
         // Restore blocking mode so libssh2 (blocking session) works normally.
+#ifdef Q_OS_WIN
+        nonBlocking = 0;
+        ::ioctlsocket(fd, FIONBIO, &nonBlocking);
+#else
         if (origFlags >= 0)
             ::fcntl(fd, F_SETFL, origFlags);
-        sock = fd;
+#endif
+        sock = static_cast<qintptr>(fd);
         break;
     }
     ::freeaddrinfo(result);
@@ -139,7 +195,7 @@ int openSocket(const QString &host, int port, int timeoutMs, QString *error) {
         *error = QStringLiteral("Cannot connect to %1:%2: %3")
                      .arg(host)
                      .arg(port)
-                     .arg(QString::fromUtf8(std::strerror(lastErrno != 0 ? lastErrno : errno)));
+                     .arg(QStringLiteral("socket error %1").arg(lastErrno));
     return sock;
 }
 
@@ -169,7 +225,7 @@ SftpConn *SftpProvider::buildConnection(const QString &host, int port, const QSt
     if (!session) {
         if (error)
             *error = QStringLiteral("Failed to initialise SSH session");
-        ::close(sock);
+        closeSocket(sock);
         return nullptr;
     }
     // Blocking mode keeps the flow simple: every libssh2 call returns only once
@@ -183,7 +239,7 @@ SftpConn *SftpProvider::buildConnection(const QString &host, int port, const QSt
         if (error)
             *error = sessionError(session, QStringLiteral("SSH handshake failed"));
         libssh2_session_free(session);
-        ::close(sock);
+        closeSocket(sock);
         return nullptr;
     }
 
@@ -218,7 +274,7 @@ SftpConn *SftpProvider::buildConnection(const QString &host, int port, const QSt
                                 // invalid") may lack any auth keyword; flag it here.
         libssh2_session_disconnect(session, "auth failed");
         libssh2_session_free(session);
-        ::close(sock);
+        closeSocket(sock);
         return nullptr;
     }
 
@@ -228,7 +284,7 @@ SftpConn *SftpProvider::buildConnection(const QString &host, int port, const QSt
             *error = sessionError(session, QStringLiteral("Failed to start SFTP subsystem"));
         libssh2_session_disconnect(session, "sftp init failed");
         libssh2_session_free(session);
-        ::close(sock);
+        closeSocket(sock);
         return nullptr;
     }
 
@@ -249,7 +305,7 @@ void SftpProvider::destroyConnection(SftpConn *conn) {
     // reaps its side, the same as for any client that dies or loses its link.
     if (connpool::processIsDraining()) {
         if (conn->socket >= 0)
-            ::close(conn->socket);
+            closeSocket(conn->socket);
         delete conn; // deliberately leaks the libssh2 session; the process is going away
         return;
     }
@@ -260,7 +316,7 @@ void SftpProvider::destroyConnection(SftpConn *conn) {
         libssh2_session_free(conn->session);
     }
     if (conn->socket >= 0)
-        ::close(conn->socket);
+        closeSocket(conn->socket);
     delete conn;
 }
 
@@ -354,7 +410,7 @@ void SftpProvider::disconnect() {
         m_session = nullptr;
     }
     if (m_socket >= 0) {
-        ::close(m_socket);
+        closeSocket(m_socket);
         m_socket = -1;
     }
     m_host.clear();

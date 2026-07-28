@@ -1,4 +1,5 @@
 #include "FileOperations.h"
+#include "TrashService.h"
 
 #include <QDir>
 #include <QDirIterator>
@@ -346,16 +347,16 @@ bool FileOperations::deletePaths(const QStringList &paths, bool toTrash, QString
     m_errorBatch = ErrorAction::Retry;
 
     if (toTrash) {
-        QStringList args = QStringList(QStringLiteral("trash")) + paths;
-        QProcess proc;
-        proc.start(QStringLiteral("gio"), args);
-        proc.waitForFinished(-1);
-        if (proc.exitStatus() == QProcess::NormalExit && proc.exitCode() == 0) {
+        const PlatformResult result = createTrashService()->moveToTrash(paths);
+        if (result.ok) {
             m_doneItems = paths.size();
             emitProgress(QString());
             return true;
         }
-        // gio trash unavailable or failed: fall through to permanent delete.
+        if (errorMessage)
+            *errorMessage = result.message;
+        emit errorOccurred(result.message);
+        return false;
     }
 
     for (const QString &path : paths) {

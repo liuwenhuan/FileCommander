@@ -18,11 +18,12 @@ set(CORE_TEST_SOURCES
     sync/test_DirectorySync.cpp
     sync/test_SyncScanner.cpp
     compare/test_TextDiff.cpp
+    platform/test_PathSemantics.cpp
+    platform/test_FeatureCapabilities.cpp
 )
 
 if(FILECOMMANDER_ENABLE_NETWORK)
     list(APPEND CORE_TEST_SOURCES
-        network/test_ConnectionPool.cpp
         network/test_SftpProvider.cpp
         network/test_CurlFtpProvider.cpp
         network/test_CurlWebDavProvider.cpp
@@ -30,6 +31,9 @@ if(FILECOMMANDER_ENABLE_NETWORK)
         network/test_WebDavChunkedUpload.cpp
         network/test_NetworkSession.cpp
     )
+    if(NOT WIN32)
+        list(APPEND CORE_TEST_SOURCES network/test_ConnectionPool.cpp)
+    endif()
 endif()
 if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
     list(APPEND CORE_TEST_SOURCES

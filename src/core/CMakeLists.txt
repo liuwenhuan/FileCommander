@@ -87,7 +87,7 @@ add_library(core STATIC ${CORE_SOURCES})
 
 if(FILECOMMANDER_ENABLE_NETWORK)
     if(WIN32)
-        find_package(Libssh2 CONFIG REQUIRED)
+        find_package(libssh2 CONFIG REQUIRED)
         find_package(CURL CONFIG REQUIRED)
     else()
         find_package(PkgConfig REQUIRED)
@@ -117,6 +117,7 @@ target_include_directories(core PUBLIC
 )
 
 target_link_libraries(core PUBLIC
+    platform
     Qt5::Core
     Qt5::Gui
     Qt5::Widgets
@@ -126,7 +127,7 @@ target_link_libraries(core PUBLIC
 
 if(FILECOMMANDER_ENABLE_NETWORK)
     if(WIN32)
-        target_link_libraries(core PUBLIC Libssh2::libssh2 CURL::libcurl ws2_32)
+        target_link_libraries(core PUBLIC libssh2::libssh2 CURL::libcurl ws2_32)
     else()
         target_link_libraries(core PUBLIC PkgConfig::LIBSSH2 PkgConfig::CURL)
     endif()

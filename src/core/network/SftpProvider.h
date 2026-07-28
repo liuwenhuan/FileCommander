@@ -117,7 +117,7 @@ private:
 
     _LIBSSH2_SESSION *m_session = nullptr;
     _LIBSSH2_SFTP *m_sftp = nullptr;
-    int m_socket = -1;
+    qintptr m_socket = -1;
     QString m_host;
     int m_port = 22;
     QString m_user;

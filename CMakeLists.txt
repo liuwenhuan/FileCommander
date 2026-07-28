@@ -39,6 +39,7 @@ configure_file(${CMAKE_SOURCE_DIR}/src/version.h.in
                ${CMAKE_BINARY_DIR}/generated/version.h @ONLY)
 include_directories(${CMAKE_BINARY_DIR}/generated)
 
+add_subdirectory(src/platform)
 add_subdirectory(src/core)
 add_subdirectory(src/widgets)
 add_subdirectory(src/ui)

@@ -14,8 +14,10 @@ int main(int argc, char *argv[]) {
     // own frameless chrome (title bar, rounded corners, shadow) and relies on no
     // DTK/deepin platform behaviour, so it looks and works the same on any X11
     // desktop. Respect an explicit QT_QPA_PLATFORM override if the user set one.
+#ifdef Q_OS_LINUX
     if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM"))
         qputenv("QT_QPA_PLATFORM", "xcb");
+#endif
 
     // High-DPI support. Qt 5 leaves per-screen scaling off by default, so on a
     // HiDPI display the window would render at 1x and the compositor would

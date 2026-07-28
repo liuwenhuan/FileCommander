@@ -1,0 +1,3 @@
+repository=https://github.com/liuwenhuan/office_oxide-fork.git
+commit=f9146f4fb146617c8e88c49c74b83ab1631c40f8
+package=office_oxide_cli
