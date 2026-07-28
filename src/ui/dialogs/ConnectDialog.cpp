@@ -126,12 +126,6 @@ ConnectDialog::ConnectDialog(QWidget *parent) : FramelessDialog(parent) {
     auto *savedLayout = new QVBoxLayout(savedBox);
     savedLayout->addWidget(m_savedList);
     savedLayout->addLayout(savedButtons);
-#if !FILECOMMANDER_HAS_LINUX_INTEGRATION
-    // The Linux build stores passwords in libsecret. A Windows credential-store
-    // backend is a later phase-two increment, so do not expose non-functional
-    // bookmark controls in this test build.
-    savedBox->hide();
-#endif
 
     auto *layout = new QVBoxLayout(this);
     layout->addWidget(savedBox);
@@ -164,7 +158,6 @@ ConnectDialog::ConnectDialog(QWidget *parent) : FramelessDialog(parent) {
 }
 
 void ConnectDialog::reloadSavedList() {
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION
     m_saved = ConnectionStore::loadAll();
     m_savedList->clear();
     for (const SavedConnection &c : m_saved) {
@@ -172,11 +165,9 @@ void ConnectDialog::reloadSavedList() {
         m_savedList->addItem(label);
     }
     m_deleteButton->setEnabled(false);
-#endif
 }
 
 void ConnectDialog::fillForm(const SavedConnection &conn) {
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION
     m_protocolCombo->setCurrentIndex(protocolToIndex(conn.protocol));
     m_hostEdit->setText(conn.host);
     if (conn.port > 0)
@@ -186,9 +177,6 @@ void ConnectDialog::fillForm(const SavedConnection &conn) {
     m_anonymousCheck->setChecked(conn.anonymous);
     // Password lives in the keyring, not the INI.
     m_passwordEdit->setText(ConnectionStore::loadPassword(conn.id));
-#else
-    Q_UNUSED(conn)
-#endif
 }
 
 SavedConnection ConnectDialog::currentFormAsConnection() const {
@@ -206,7 +194,6 @@ SavedConnection ConnectDialog::currentFormAsConnection() const {
 }
 
 void ConnectDialog::onSavedSelectionChanged() {
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION
     const int row = m_savedList->currentRow();
     if (row < 0 || row >= m_saved.size()) {
         m_deleteButton->setEnabled(false);
@@ -215,11 +202,9 @@ void ConnectDialog::onSavedSelectionChanged() {
     m_currentId = m_saved[row].id;
     m_deleteButton->setEnabled(true);
     fillForm(m_saved[row]);
-#endif
 }
 
 void ConnectDialog::onSaveConnection() {
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION
     SavedConnection c = currentFormAsConnection();
     if (c.host.isEmpty()) {
         ttc::warning(this, tr("Save Connection"),
@@ -259,11 +244,9 @@ void ConnectDialog::onSaveConnection() {
             break;
         }
     }
-#endif
 }
 
 void ConnectDialog::onDeleteConnection() {
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION
     const int row = m_savedList->currentRow();
     if (row < 0 || row >= m_saved.size())
         return;
@@ -277,7 +260,6 @@ void ConnectDialog::onDeleteConnection() {
     if (m_currentId == c.id)
         m_currentId.clear();
     reloadSavedList();
-#endif
 }
 
 void ConnectDialog::onProtocolChanged(int index) {

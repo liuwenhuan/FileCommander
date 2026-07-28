@@ -46,6 +46,8 @@ if(FILECOMMANDER_ENABLE_NETWORK)
         network/CurlFtpProvider.cpp
         network/CurlWebDavProvider.h
         network/CurlWebDavProvider.cpp
+        network/ConnectionStore.h
+        network/ConnectionStore.cpp
     )
 endif()
 
@@ -59,8 +61,6 @@ if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
         network/SmbHelperProtocol.h
         network/SmbHelperClient.h
         network/SmbHelperClient.cpp
-        network/ConnectionStore.h
-        network/ConnectionStore.cpp
         network/SmbHostBrowser.h
         network/SmbHostBrowser.cpp
         network/WsdDiscovery.h
@@ -106,7 +106,6 @@ endif()
 
 if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
     find_package(PkgConfig REQUIRED)
-    pkg_check_modules(LIBSECRET REQUIRED IMPORTED_TARGET libsecret-1)
     pkg_check_modules(SMBCLIENT REQUIRED IMPORTED_TARGET smbclient)
 endif()
 
@@ -144,7 +143,6 @@ endif()
 if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
     target_link_libraries(core PUBLIC
         Qt5::DBus
-        PkgConfig::LIBSECRET
         PkgConfig::SMBCLIENT
     )
 endif()

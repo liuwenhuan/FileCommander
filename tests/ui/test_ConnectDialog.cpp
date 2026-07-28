@@ -3,6 +3,9 @@
 #include "dialogs/ConnectDialog.h"
 
 #include <QComboBox>
+#include <QGroupBox>
+
+#include <algorithm>
 
 TEST(ConnectDialog, OffersOnlyBackedProtocols) {
     ConnectDialog dialog;
@@ -22,4 +25,14 @@ TEST(ConnectDialog, OffersOnlyBackedProtocols) {
 #else
     EXPECT_FALSE(labels.contains(QStringLiteral("SMB / Windows share")));
 #endif
+}
+
+TEST(ConnectDialog, OffersSavedConnectionsWithNativeCredentialStore) {
+    ConnectDialog dialog;
+    const auto boxes = dialog.findChildren<QGroupBox *>();
+    auto it = std::find_if(boxes.cbegin(), boxes.cend(), [](const QGroupBox *box) {
+        return box->title() == QStringLiteral("Saved connections");
+    });
+    ASSERT_NE(it, boxes.cend());
+    EXPECT_FALSE((*it)->isHidden());
 }

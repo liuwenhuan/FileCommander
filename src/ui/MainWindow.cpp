@@ -126,11 +126,14 @@
 #if FILECOMMANDER_HAS_NETWORK
 #include "network/CurlFtpProvider.h"
 #include "network/CurlWebDavProvider.h"
+#include "network/ConnectionStore.h"
 #include "network/SftpProvider.h"
+#if defined(Q_OS_WIN)
+#include "network/WindowsSmbProvider.h"
+#endif
 #endif
 #if FILECOMMANDER_HAS_LINUX_INTEGRATION
 #include "devices/RemovableDeviceMonitor.h"
-#include "network/ConnectionStore.h"
 #include "network/GvfsMounter.h"
 #include "network/SmbHostBrowser.h"
 #include "network/SmbProvider.h"
@@ -1444,7 +1447,7 @@ void MainWindow::updateExtraKeyButtons() {
 }
 
 namespace {
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION
+#if FILECOMMANDER_HAS_NETWORK
 // A native backend built for a saved bookmark: the (UNCONNECTED) provider plus
 // the connect closure to run on the session worker thread. Empty provider means
 // the protocol isn't a native backend.
@@ -1461,10 +1464,10 @@ struct SavedNativeProvider {
 // FileSystemModel::connectNetwork, so reopening a bookmark never blocks the UI.
 // The password is pulled from the keyring by id.
 SavedNativeProvider providerForSaved(const SavedConnection &c) {
-    const auto protocol = static_cast<GvfsMounter::Protocol>(c.protocol);
+    const auto protocol = static_cast<ConnectionProtocol>(c.protocol);
     const QString password = c.anonymous ? QString() : ConnectionStore::loadPassword(c.id);
     switch (protocol) {
-    case GvfsMounter::Protocol::Sftp: {
+    case ConnectionProtocol::Sftp: {
         auto p = std::make_shared<SftpProvider>();
         auto factory = [p, c](const QString &u, const QString &pw) {
             return std::function<bool(QString *)>(
@@ -1476,7 +1479,7 @@ SavedNativeProvider providerForSaved(const SavedConnection &c) {
                 },
                 factory};
     }
-    case GvfsMounter::Protocol::Ftp: {
+    case ConnectionProtocol::Ftp: {
         auto p = std::make_shared<CurlFtpProvider>();
         auto factory = [p, c](const QString &u, const QString &pw) {
             return std::function<bool(QString *)>(
@@ -1488,10 +1491,10 @@ SavedNativeProvider providerForSaved(const SavedConnection &c) {
                 },
                 factory};
     }
-    case GvfsMounter::Protocol::WebDav:
-    case GvfsMounter::Protocol::WebDavs: {
+    case ConnectionProtocol::WebDav:
+    case ConnectionProtocol::WebDavs: {
         auto p = std::make_shared<CurlWebDavProvider>();
-        const bool useHttps = protocol == GvfsMounter::Protocol::WebDavs;
+        const bool useHttps = protocol == ConnectionProtocol::WebDavs;
         auto factory = [p, c, useHttps](const QString &u, const QString &pw) {
             return std::function<bool(QString *)>([p, c, u, pw, useHttps](QString *e) {
                 return p->connectToHost(c.host, c.port, u, pw, useHttps, e);
@@ -1503,8 +1506,14 @@ SavedNativeProvider providerForSaved(const SavedConnection &c) {
                 },
                 factory};
     }
-    case GvfsMounter::Protocol::Smb: {
+    case ConnectionProtocol::Smb: {
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
         auto p = std::make_shared<SmbProvider>();
+#elif defined(Q_OS_WIN)
+        auto p = std::make_shared<WindowsSmbProvider>();
+#else
+        return {};
+#endif
         auto factory = [p, c](const QString &u, const QString &pw) {
             return std::function<bool(QString *)>([p, c, u, pw](QString *e) {
                 return p->connectToHost(c.host, u, pw, QString(), /*anonymous=*/false, e);
@@ -3040,7 +3049,7 @@ void MainWindow::showFavoritesMenu(const QPoint &globalPos, int tabIndex) {
 }
 
 void MainWindow::reconnectSavedTab(FilePanel *panel, int index) {
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION
+#if FILECOMMANDER_HAS_NETWORK
     const SavedConnection c = panel->tabConnInfo(index);
     if (c.host.isEmpty())
         return;

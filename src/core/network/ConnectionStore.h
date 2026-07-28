@@ -3,6 +3,14 @@
 #include <QString>
 #include <QVector>
 
+enum class ConnectionProtocol {
+    Sftp = 0,
+    Smb = 1,
+    WebDav = 2,
+    WebDavs = 3,
+    Ftp = 4,
+};
+
 // A remote-server bookmark: everything needed to re-open a connection except
 // the password, which is kept in the system keyring (libsecret) and looked up
 // by id. Protocol is stored as an int matching GvfsMounter::Protocol so this
@@ -10,7 +18,7 @@
 struct SavedConnection {
     QString id;                              // stable UUID; keyring key
     QString name;                            // user-facing label, e.g. "Home NAS"
-    int protocol = 0;                        // GvfsMounter::Protocol as int
+    int protocol = 0;                        // ConnectionProtocol as int
     QString host;
     int port = 0;
     QString user;

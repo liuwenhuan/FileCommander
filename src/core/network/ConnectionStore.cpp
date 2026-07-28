@@ -3,14 +3,8 @@
 #include <QSettings>
 #include <QUuid>
 
+#include "CredentialStore.h"
 #include "config/Settings.h"
-
-// libsecret pulls in glib/gio headers that use `signals`/`slots` as ordinary
-// identifiers, which collide with Qt's keyword macros. This translation unit
-// has no Q_OBJECT, so undefining them for the libsecret include is harmless.
-#undef signals
-#undef slots
-#include <libsecret/secret.h>
 
 namespace {
 
@@ -18,23 +12,6 @@ namespace {
 // via Settings, so there's one source of truth for where config lives).
 QSettings settings() {
     return QSettings(Settings::configFilePath(), QSettings::IniFormat);
-}
-
-// libsecret schema for our passwords. A single "id" attribute keys each secret
-// to its bookmark. SECRET_SCHEMA_NONE keeps libsecret from imposing extra
-// attribute matching rules.
-const SecretSchema *passwordSchema() {
-    static const SecretSchema schema = {
-        "org.FileCommander.Connection",
-        SECRET_SCHEMA_NONE,
-        {
-            {"id", SECRET_SCHEMA_ATTRIBUTE_STRING},
-            {nullptr, SECRET_SCHEMA_ATTRIBUTE_STRING},
-        },
-        // Reserved trailing fields.
-        0, 0, 0, 0, 0, 0, 0, 0,
-    };
-    return &schema;
 }
 
 SavedConnection readGroup(QSettings &s, const QString &id) {
@@ -113,44 +90,15 @@ void ConnectionStore::remove(const QString &id) {
 }
 
 bool ConnectionStore::storePassword(const QString &id, const QString &password) {
-    if (id.isEmpty())
-        return false;
-    GError *error = nullptr;
-    const QString label = QStringLiteral("FileCommander connection %1").arg(id);
-    const bool ok = secret_password_store_sync(
-        passwordSchema(), SECRET_COLLECTION_DEFAULT, label.toUtf8().constData(),
-        password.toUtf8().constData(), nullptr /*cancellable*/, &error, "id",
-        id.toUtf8().constData(), nullptr);
-    if (error) {
-        g_error_free(error);
-        return false;
-    }
-    return ok;
+    return CredentialStore::save(id, password).ok;
 }
 
 QString ConnectionStore::loadPassword(const QString &id) {
-    if (id.isEmpty())
-        return QString();
-    GError *error = nullptr;
-    gchar *secret = secret_password_lookup_sync(passwordSchema(), nullptr, &error, "id",
-                                                id.toUtf8().constData(), nullptr);
-    if (error) {
-        g_error_free(error);
-        return QString();
-    }
-    if (!secret)
-        return QString();
-    const QString password = QString::fromUtf8(secret);
-    secret_password_free(secret);
+    QString password;
+    CredentialStore::load(id, &password);
     return password;
 }
 
 void ConnectionStore::clearPassword(const QString &id) {
-    if (id.isEmpty())
-        return;
-    GError *error = nullptr;
-    secret_password_clear_sync(passwordSchema(), nullptr, &error, "id",
-                               id.toUtf8().constData(), nullptr);
-    if (error)
-        g_error_free(error);
+    CredentialStore::remove(id);
 }

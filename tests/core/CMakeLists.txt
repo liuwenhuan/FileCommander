@@ -24,6 +24,7 @@ set(CORE_TEST_SOURCES
 
 if(FILECOMMANDER_ENABLE_NETWORK)
     list(APPEND CORE_TEST_SOURCES
+        platform/test_CredentialStore.cpp
         network/test_SftpProvider.cpp
         network/test_CurlFtpProvider.cpp
         network/test_CurlWebDavProvider.cpp
