@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QFile>
 #include <QHash>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <cstring>
 
@@ -52,6 +53,11 @@ public:
     struct WriteHandle : FileHandle {
         QString path;
         qint64 offset = 0;
+        StreamError error = StreamError::None;
+        QString errorDetail;
+
+        StreamError streamError() const override { return error; }
+        QString streamErrorDetail() const override { return errorDetail; }
     };
 
     QVector<FileInfo> list(const QString &, bool) const override { return {}; }
@@ -101,6 +107,11 @@ public:
     }
     qint64 write(FileHandle *handle, const char *buffer, qint64 size) override {
         auto *output = static_cast<WriteHandle *>(handle);
+        if (m_writeFailure != FileHandle::StreamError::None) {
+            output->error = m_writeFailure;
+            output->errorDetail = m_writeFailureDetail;
+            return -1;
+        }
         if (size == 0) {
             ++m_zeroWriteCalls;
             return m_failZeroWrites ? -1 : 0;
@@ -123,6 +134,7 @@ public:
         output->offset = offset;
         return true;
     }
+    bool supportsWriteResume() const override { return m_supportsWriteResume; }
     qint64 handleSize(FileHandle *handle) override {
         if (auto *input = dynamic_cast<ReadHandle *>(handle)) {
             const QVector<qint64> sizes = m_reportedSizeSequences.value(input->path);
@@ -143,9 +155,12 @@ public:
         delete handle;
     }
     bool closeHandleStatus(FileHandle *handle) override {
+        return closeHandleResult(handle).committed;
+    }
+    CloseHandleResult closeHandleResult(FileHandle *handle) override {
         ++m_closeWriteCalls;
         delete handle;
-        return true;
+        return {!m_failCloseWrites, m_closeFailure, m_closeFailureDetail};
     }
     bool canStream() const override { return true; }
     bool remove(const QString &path) override { return m_files.remove(path) > 0; }
@@ -163,6 +178,17 @@ public:
         m_shrinkAfterFirstReadSizes.insert(path, size);
     }
     void failZeroWrites() { m_failZeroWrites = true; }
+    void failWrites(FileHandle::StreamError error, const QString &detail = {}) {
+        m_writeFailure = error;
+        m_writeFailureDetail = detail;
+    }
+    void disableWriteResume() { m_supportsWriteResume = false; }
+    void failCloseWrites(FileHandle::StreamError error = FileHandle::StreamError::Other,
+                         const QString &detail = {}) {
+        m_failCloseWrites = true;
+        m_closeFailure = error;
+        m_closeFailureDetail = detail;
+    }
     void growOnFirstRead(const QByteArray &data) {
         m_growth = data;
         m_growthPending = true;
@@ -183,6 +209,12 @@ private:
     QByteArray m_growth;
     bool m_growthPending = false;
     bool m_failZeroWrites = false;
+    FileHandle::StreamError m_writeFailure = FileHandle::StreamError::None;
+    QString m_writeFailureDetail;
+    bool m_supportsWriteResume = true;
+    bool m_failCloseWrites = false;
+    FileHandle::StreamError m_closeFailure = FileHandle::StreamError::None;
+    QString m_closeFailureDetail;
     QVector<qint64> m_expectedWriteSizes;
     int m_closeWriteCalls = 0;
     int m_closeReadCalls = 0;
@@ -253,6 +285,25 @@ TEST(ProviderTransferTest, ResumesPartialDestination) {
     const QByteArray result = readFile(QDir(dstDir.path()).filePath("resume.bin"));
     EXPECT_EQ(result.size(), payload.size());
     EXPECT_EQ(result, payload);
+}
+
+TEST(ProviderTransferTest, NonResumableDestinationOverwritesPartialFile) {
+    InMemoryProvider src;
+    InMemoryProvider dst;
+    const QByteArray payload = patternedPayload(64 * 1024);
+    src.addFile("/source/payload.bin", payload);
+    dst.addFile("/destination/payload.bin", payload.left(16 * 1024));
+    dst.disableWriteResume();
+
+    FileOperations ops;
+    const ConflictResolver overwrite = [](const FileConflict &) { return ErrorAction::Overwrite; };
+    QString error;
+    ASSERT_TRUE(ops.copyAcrossProviders(&src, {"/source/payload.bin"}, &dst, "/destination",
+                                        /*removeSource=*/false, overwrite, &error));
+
+    EXPECT_EQ(dst.file("/destination/payload.bin"), payload);
+    ASSERT_EQ(dst.expectedWriteSizes().size(), 1);
+    EXPECT_EQ(dst.expectedWriteSizes().front(), payload.size());
 }
 
 TEST(ProviderTransferTest, MoveRemovesSource) {
@@ -430,6 +481,97 @@ TEST(ProviderTransferTest, EmptyKnownSizeCopyFailsWhenZeroByteWriteFails) {
     EXPECT_FALSE(error.isEmpty());
     EXPECT_EQ(dst.zeroWriteCalls(), 1);
     EXPECT_EQ(dst.closeWriteCalls(), 1);
+}
+
+TEST(ProviderTransferTest, FailedDestinationCloseRetainsMoveSource) {
+    InMemoryProvider src;
+    InMemoryProvider dst;
+    const QByteArray payload("close result must commit the upload");
+    src.addFile("/source/commit.bin", payload);
+    dst.failCloseWrites();
+
+    FileOperations ops;
+    ops.setErrorResolver([](const QString &, const QString &) { return ErrorAction::Cancel; });
+    QString error;
+    ASSERT_FALSE(ops.copyAcrossProviders(&src, {"/source/commit.bin"}, &dst, "/destination",
+                                          /*removeSource=*/true, nullptr, &error));
+
+    EXPECT_FALSE(error.isEmpty());
+    EXPECT_EQ(src.file("/source/commit.bin"), payload);
+    EXPECT_EQ(dst.file("/destination/commit.bin"), payload);
+    EXPECT_EQ(dst.closeWriteCalls(), 1);
+}
+
+TEST(ProviderTransferTest, WriteFailureReportsDestinationOutOfSpace) {
+    InMemoryProvider src;
+    InMemoryProvider dst;
+    src.addFile("/source/payload.bin", QByteArray("payload"));
+    dst.failWrites(FileHandle::StreamError::NoSpace);
+
+    FileOperations ops;
+    QSignalSpy errors(&ops, &FileOperations::errorOccurred);
+    ops.setErrorResolver([](const QString &, const QString &) { return ErrorAction::Cancel; });
+    QString error;
+    ASSERT_FALSE(ops.copyAcrossProviders(&src, {"/source/payload.bin"}, &dst, "/destination",
+                                          /*removeSource=*/false, nullptr, &error));
+
+    const QString expected = QStringLiteral("The destination has no space for /destination/payload.bin");
+    EXPECT_EQ(error, expected);
+    ASSERT_EQ(errors.count(), 1);
+    EXPECT_EQ(errors.at(0).at(0).toString(), expected);
+}
+
+TEST(ProviderTransferTest, WriteFailureReportsPermissionDenied) {
+    InMemoryProvider src;
+    InMemoryProvider dst;
+    src.addFile("/source/payload.bin", QByteArray("payload"));
+    dst.failWrites(FileHandle::StreamError::PermissionDenied);
+
+    FileOperations ops;
+    ops.setErrorResolver([](const QString &, const QString &) { return ErrorAction::Cancel; });
+    QString error;
+    ASSERT_FALSE(ops.copyAcrossProviders(&src, {"/source/payload.bin"}, &dst, "/destination",
+                                          /*removeSource=*/false, nullptr, &error));
+
+    EXPECT_EQ(error, QStringLiteral("You do not have permission to write /destination/payload.bin"));
+}
+
+TEST(ProviderTransferTest, WriteFailureReportsConnectionLost) {
+    InMemoryProvider src;
+    InMemoryProvider dst;
+    src.addFile("/source/payload.bin", QByteArray("payload"));
+    dst.failWrites(FileHandle::StreamError::ConnectionLost);
+
+    FileOperations ops;
+    ops.setErrorResolver([](const QString &, const QString &) { return ErrorAction::Cancel; });
+    QString error;
+    ASSERT_FALSE(ops.copyAcrossProviders(&src, {"/source/payload.bin"}, &dst, "/destination",
+                                          /*removeSource=*/false, nullptr, &error));
+
+    EXPECT_EQ(error,
+              QStringLiteral("Connection to the server was lost while transferring /destination/payload.bin"));
+}
+
+TEST(ProviderTransferTest, CloseFailureReportsCommitDetailAndRetainsMoveSource) {
+    InMemoryProvider src;
+    InMemoryProvider dst;
+    const QByteArray payload("payload");
+    src.addFile("/source/payload.bin", payload);
+    dst.failCloseWrites(FileHandle::StreamError::Other, QStringLiteral("Input/output error"));
+
+    FileOperations ops;
+    QSignalSpy errors(&ops, &FileOperations::errorOccurred);
+    ops.setErrorResolver([](const QString &, const QString &) { return ErrorAction::Cancel; });
+    QString error;
+    ASSERT_FALSE(ops.copyAcrossProviders(&src, {"/source/payload.bin"}, &dst, "/destination",
+                                          /*removeSource=*/true, nullptr, &error));
+
+    const QString expected =
+        QStringLiteral("Upload of /destination/payload.bin did not complete: Input/output error");
+    EXPECT_EQ(error, expected);
+    ASSERT_EQ(errors.count(), 1);
+    EXPECT_EQ(errors.at(0).at(0).toString(), expected);
+    EXPECT_EQ(src.file("/source/payload.bin"), payload);
 }
 
 TEST(ProviderTransferTest, UnknownSizeCopyKeepsStreamingUntilEof) {

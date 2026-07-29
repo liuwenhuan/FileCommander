@@ -8,8 +8,10 @@
 #include <QTemporaryDir>
 #include <QUuid>
 
+#include "ConnectionStore.h"
 #include "CurlWebDavProvider.h"
 #include "FileOperations.h"
+#include "GvfsMounter.h"
 #include "LocalFileProvider.h"
 #include "OperationQueue.h"
 
@@ -63,34 +65,65 @@ bool validateParent(const QString &path, QString *error) {
 
 void clearLiveEnvironment() {
     static const char *const names[] = {
-        "FC_WEBDAV_E2E", "FC_WEBDAV_HOST", "FC_WEBDAV_PORT", "FC_WEBDAV_PARENT",
-        "FC_WEBDAV_USER", "FC_WEBDAV_PASSWORD", "FC_WEBDAV_HTTPS", "FC_WEBDAV_ANONYMOUS",
+        "FC_WEBDAV_E2E", "FC_WEBDAV_CONNECTION_ID", "FC_WEBDAV_HOST",
+        "FC_WEBDAV_PORT", "FC_WEBDAV_PARENT", "FC_WEBDAV_USER", "FC_WEBDAV_PASSWORD",
+        "FC_WEBDAV_HTTPS", "FC_WEBDAV_ANONYMOUS",
     };
     for (const char *name : names)
         qunsetenv(name);
 }
 
 bool loadConfig(LiveConfig *config, QString *error) {
-    config->host = requiredEnvironment("FC_WEBDAV_HOST", error);
-    if (error->isEmpty()) {
-        bool ok = false;
-        const int port = requiredEnvironment("FC_WEBDAV_PORT", error).toInt(&ok);
-        if (error->isEmpty() && (!ok || port < 1 || port > 65535))
-            *error = QStringLiteral("FC_WEBDAV_PORT must be between 1 and 65535");
-        config->port = port;
+    const QString connectionId = qEnvironmentVariable("FC_WEBDAV_CONNECTION_ID");
+    config->parent = requiredEnvironment("FC_WEBDAV_PARENT", error);
+    if (!connectionId.isEmpty() && error->isEmpty()) {
+        const SavedConnection saved = ConnectionStore::load(connectionId);
+        if (saved.id.isEmpty()) {
+            *error = QStringLiteral("FC_WEBDAV_CONNECTION_ID does not name a saved connection");
+        } else if (saved.protocol != static_cast<int>(GvfsMounter::Protocol::WebDav) &&
+                   saved.protocol != static_cast<int>(GvfsMounter::Protocol::WebDavs)) {
+            *error = QStringLiteral("FC_WEBDAV_CONNECTION_ID must name a WebDAV connection");
+        } else if (saved.host.isEmpty() || saved.port < 1 || saved.port > 65535) {
+            *error = QStringLiteral("The saved WebDAV connection has invalid endpoint data");
+        } else {
+            config->host = saved.host;
+            config->port = saved.port;
+            config->user = saved.user;
+            config->https = saved.protocol == static_cast<int>(GvfsMounter::Protocol::WebDavs);
+            config->anonymous = saved.anonymous;
+            const QString endpointPath = saved.remotePath;
+            if (!endpointPath.isEmpty() && endpointPath != QStringLiteral("/") &&
+                config->parent != endpointPath &&
+                !config->parent.startsWith(endpointPath + QLatin1Char('/'))) {
+                config->parent = endpointPath.endsWith(QLatin1Char('/'))
+                                     ? endpointPath.chopped(1) + config->parent
+                                     : endpointPath + config->parent;
+            }
+            if (!config->anonymous) {
+                config->password = ConnectionStore::loadPassword(saved.id);
+                if (config->password.isEmpty())
+                    *error = QStringLiteral("The saved WebDAV connection has no password in the keyring");
+            }
+        }
+    } else if (connectionId.isEmpty() && error->isEmpty()) {
+        config->host = requiredEnvironment("FC_WEBDAV_HOST", error);
+        if (error->isEmpty()) {
+            bool ok = false;
+            const int port = requiredEnvironment("FC_WEBDAV_PORT", error).toInt(&ok);
+            if (error->isEmpty() && (!ok || port < 1 || port > 65535))
+                *error = QStringLiteral("FC_WEBDAV_PORT must be between 1 and 65535");
+            config->port = port;
+        }
+        const QString https = qEnvironmentVariable("FC_WEBDAV_HTTPS", QStringLiteral("0"));
+        if (https != QStringLiteral("0") && https != QStringLiteral("1"))
+            *error = QStringLiteral("FC_WEBDAV_HTTPS must be 0 or 1");
+        config->https = https == QStringLiteral("1");
+        config->anonymous = qEnvironmentVariable("FC_WEBDAV_ANONYMOUS") == QStringLiteral("1");
+        if (!config->anonymous && error->isEmpty())
+            config->user = requiredEnvironment("FC_WEBDAV_USER", error);
+        if (!config->anonymous && error->isEmpty())
+            config->password = requiredEnvironment("FC_WEBDAV_PASSWORD", error);
     }
-    if (error->isEmpty())
-        config->parent = requiredEnvironment("FC_WEBDAV_PARENT", error);
-
-    const QString https = qEnvironmentVariable("FC_WEBDAV_HTTPS", QStringLiteral("0"));
-    if (https != QStringLiteral("0") && https != QStringLiteral("1"))
-        *error = QStringLiteral("FC_WEBDAV_HTTPS must be 0 or 1");
-    config->https = https == QStringLiteral("1");
-    config->anonymous = qEnvironmentVariable("FC_WEBDAV_ANONYMOUS") == QStringLiteral("1");
-    if (!config->anonymous && error->isEmpty())
-        config->user = requiredEnvironment("FC_WEBDAV_USER", error);
-    if (!config->anonymous && error->isEmpty())
-        config->password = requiredEnvironment("FC_WEBDAV_PASSWORD", error);
 
     clearLiveEnvironment();
     return error->isEmpty() && validateParent(config->parent, error);
@@ -259,15 +292,64 @@ bool runScenario(CurlWebDavProvider *dav, const QString &root, const QString &so
         return false;
     }
 
+    OperationQueue moveQueue;
+    moveQueue.setMaxConcurrentTransfers(1);
+    moveQueue.setConflictHandler(overwrite);
+    moveQueue.setErrorHandler([](const QString &, const QString &) { return ErrorAction::Cancel; });
+    QSignalSpy moveFinished(&moveQueue, &OperationQueue::finished);
+    QSignalSpy moveErrors(&moveQueue, &OperationQueue::errorOccurred);
+    moveQueue.enqueueProviderMove(dav, {queuedFile}, dav, movedDir);
+    if (!waitForJobs(&moveFinished, &moveErrors, 1, error))
+        return false;
+    const QString movedQueuedFile = joinPath(movedDir, QFileInfo(queued).fileName());
+    if (dav->exists(queuedFile) || !dav->exists(movedQueuedFile)) {
+        *error = QStringLiteral("Queued WebDAV move produced the wrong remote state");
+        return false;
+    }
+
+    OperationQueue renameQueue;
+    renameQueue.setMaxConcurrentTransfers(1);
+    renameQueue.setErrorHandler([](const QString &, const QString &) { return ErrorAction::Cancel; });
+    QSignalSpy renameFinished(&renameQueue, &OperationQueue::finished);
+    QSignalSpy renameErrors(&renameQueue, &OperationQueue::errorOccurred);
+    const QString renamedName = QStringLiteral("queued-renamed.bin");
+    renameQueue.enqueueProviderRename(dav, movedQueuedFile, renamedName);
+    if (!waitForJobs(&renameFinished, &renameErrors, 1, error))
+        return false;
+    const QString renamedQueuedFile = joinPath(movedDir, renamedName);
+    if (dav->exists(movedQueuedFile) || !dav->exists(renamedQueuedFile)) {
+        *error = QStringLiteral("Queued WebDAV rename produced the wrong remote state");
+        return false;
+    }
+
+    OperationQueue downloadQueue;
+    downloadQueue.setMaxConcurrentTransfers(1);
+    downloadQueue.setConflictHandler(overwrite);
+    downloadQueue.setErrorHandler([](const QString &, const QString &) { return ErrorAction::Cancel; });
+    QSignalSpy downloadFinished(&downloadQueue, &OperationQueue::finished);
+    QSignalSpy downloadErrors(&downloadQueue, &OperationQueue::errorOccurred);
+    downloadQueue.enqueueProviderCopy(dav, {renamedQueuedFile}, local, downloadDir);
+    if (!waitForJobs(&downloadFinished, &downloadErrors, 1, error))
+        return false;
+    const QString downloadedQueued = QDir(downloadDir).filePath(renamedName);
+    QString queuedHashError;
+    if (sha256(queued, &queuedHashError) != sha256(downloadedQueued, &queuedHashError) ||
+        QFileInfo(queued).size() != QFileInfo(downloadedQueued).size()) {
+        *error = queuedHashError.isEmpty()
+                     ? QStringLiteral("Queued WebDAV download hash mismatch")
+                     : queuedHashError;
+        return false;
+    }
+
     OperationQueue deleteQueue;
     deleteQueue.setMaxConcurrentTransfers(1);
     deleteQueue.setErrorHandler([](const QString &, const QString &) { return ErrorAction::Cancel; });
     QSignalSpy deleteFinished(&deleteQueue, &OperationQueue::finished);
     QSignalSpy deleteErrors(&deleteQueue, &OperationQueue::errorOccurred);
-    deleteQueue.enqueueProviderDelete(dav, {movedFile, queuedFile});
+    deleteQueue.enqueueProviderDelete(dav, {movedFile, renamedQueuedFile});
     if (!waitForJobs(&deleteFinished, &deleteErrors, 1, error))
         return false;
-    if (dav->exists(movedFile) || dav->exists(queuedFile)) {
+    if (dav->exists(movedFile) || dav->exists(renamedQueuedFile)) {
         *error = QStringLiteral("Queued WebDAV delete left test files behind");
         return false;
     }

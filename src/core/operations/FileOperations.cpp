@@ -632,6 +632,27 @@ bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileP
     // Roll back progress accounting if the attempt fails so a retry starts from
     // a clean byte count rather than double-counting.
     const qint64 doneBytesAtStart = m_doneBytes;
+    const auto writeFailureMessage = [this](FileHandle::StreamError error, const QString &detail,
+                                            const QString &path, bool finalCommit) {
+        switch (error) {
+        case FileHandle::StreamError::NoSpace:
+            return tr("The destination has no space for %1").arg(path);
+        case FileHandle::StreamError::PermissionDenied:
+            return tr("You do not have permission to write %1").arg(path);
+        case FileHandle::StreamError::ConnectionLost:
+            return tr("Connection to the server was lost while transferring %1").arg(path);
+        case FileHandle::StreamError::Other:
+            if (!detail.isEmpty()) {
+                return finalCommit ? tr("Upload of %1 did not complete: %2").arg(path, detail)
+                                   : tr("Write error on %1: %2").arg(path, detail);
+            }
+            break;
+        case FileHandle::StreamError::None:
+            break;
+        }
+        return finalCommit ? tr("Upload of %1 did not complete").arg(path)
+                           : tr("Write error on %1").arg(path);
+    };
 
     FileHandle *in = src->openRead(srcPath);
     if (!in) {
@@ -715,7 +736,7 @@ bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileP
             const qint64 w = dst->write(out, buffer + written, got - written);
             if (w <= 0) {
                 ok = false;
-                *failMsg = tr("Write error on %1").arg(destPath);
+                *failMsg = writeFailureMessage(out->streamError(), out->streamErrorDetail(), destPath, false);
                 break;
             }
             written += w;
@@ -730,7 +751,7 @@ bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileP
 
     if (ok && expectedBytes == 0 && dst->write(out, "", 0) < 0) {
         ok = false;
-        *failMsg = tr("Write error on %1").arg(destPath);
+        *failMsg = writeFailureMessage(out->streamError(), out->streamErrorDetail(), destPath, false);
     }
     if (ok && remainingBytes > 0) {
         ok = false;
@@ -760,10 +781,10 @@ bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileP
     // when its transfer thread finishes here, at close time -- so even after a
     // clean read/write loop the commit can still fail (disk full, dropped link,
     // permission). Treat that as a failed transfer rather than a false success.
-    const bool committed = dst->closeHandleStatus(out);
-    if (ok && !committed) {
+    const CloseHandleResult closeResult = dst->closeHandleResult(out);
+    if (ok && !closeResult.committed) {
         ok = false;
-        *failMsg = tr("Upload of %1 did not complete").arg(destPath);
+        *failMsg = writeFailureMessage(closeResult.error, closeResult.detail, destPath, true);
     }
     if (!ok) {
         m_doneBytes = doneBytesAtStart;
@@ -807,7 +828,7 @@ FileOperations::transferFile(FileProvider *src, const QString &srcPath, FileProv
                 emitProgress(srcPath);
                 return FileResult::Done;
             }
-            if (dstSize > 0 && srcSize > 0 && dstSize < srcSize) {
+            if (dst->supportsWriteResume() && dstSize > 0 && srcSize > 0 && dstSize < srcSize) {
                 // A partial copy is present: resume from its end rather than
                 // restarting (断点续传).
                 truncate = false;

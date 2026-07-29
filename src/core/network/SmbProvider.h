@@ -108,6 +108,8 @@ public:
     bool seek(FileHandle *handle, qint64 offset) override;
     qint64 handleSize(FileHandle *handle) override;
     void closeHandle(FileHandle *handle) override;
+    bool closeHandleStatus(FileHandle *handle) override;
+    CloseHandleResult closeHandleResult(FileHandle *handle) override;
     bool canStream() const override { return true; }
 
     // The number of helper subprocesses that can serve reads in parallel, or 1
