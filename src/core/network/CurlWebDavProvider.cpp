@@ -1,4 +1,5 @@
 #include "CurlWebDavProvider.h"
+#include "TransferErrorMapping.h"
 
 #include <curl/curl.h>
 
@@ -41,8 +42,9 @@ struct WebDavTransferState {
     bool curlFinished = false;
     bool noMoreInput = false;
     bool aborted = false;
-    bool curlOk = false;
+    CURLcode curlCode = CURLE_OK;
     long httpCode = 0;
+    char errorBuffer[CURL_ERROR_SIZE] = {};
 };
 
 size_t downloadWriteCallback(char *ptr, size_t size, size_t nmemb, void *userdata) {
@@ -123,6 +125,32 @@ struct WebDavHandle : public FileHandle {
     std::thread worker;
     std::shared_ptr<WebDavTransferState> state = std::make_shared<WebDavTransferState>();
 
+    StreamError streamError() const override {
+        QMutexLocker locker(&state->mutex);
+        if (!state->curlFinished)
+            return StreamError::None;
+        if (state->curlCode != CURLE_OK)
+            return TransferErrorMapping::curlError(state->curlCode,
+                                                   QString::fromUtf8(state->errorBuffer))
+                .error;
+        if (mode == Mode::Write && (state->httpCode < 200 || state->httpCode >= 300))
+            return TransferErrorMapping::webDavHttpError(state->httpCode).error;
+        return StreamError::None;
+    }
+
+    QString streamErrorDetail() const override {
+        QMutexLocker locker(&state->mutex);
+        if (!state->curlFinished)
+            return {};
+        if (state->curlCode != CURLE_OK)
+            return TransferErrorMapping::curlError(state->curlCode,
+                                                   QString::fromUtf8(state->errorBuffer))
+                .detail;
+        if (mode == Mode::Write && (state->httpCode < 200 || state->httpCode >= 300))
+            return TransferErrorMapping::webDavHttpError(state->httpCode).detail;
+        return {};
+    }
+
     ~WebDavHandle() override {
         if (worker.joinable()) {
             {
@@ -146,7 +174,7 @@ void startWebDavTransfer(WebDavHandle *h) {
     if (!h->curl) {
         QMutexLocker locker(&state->mutex);
         state->curlFinished = true;
-        state->curlOk = false;
+        state->curlCode = CURLE_FAILED_INIT;
         h->started = true;
         return;
     }
@@ -154,6 +182,7 @@ void startWebDavTransfer(WebDavHandle *h) {
     const QString url = davUrl(h->host, h->port, h->useHttps, h->path, false);
     const QByteArray urlUtf8 = url.toUtf8();
     curl_easy_setopt(h->curl, CURLOPT_URL, urlUtf8.constData());
+    curl_easy_setopt(h->curl, CURLOPT_ERRORBUFFER, state->errorBuffer);
     curl_easy_setopt(h->curl, CURLOPT_NOSIGNAL, 1L);
     // Bound the connect phase only. No total CURLOPT_TIMEOUT_MS: a bulk GET/PUT
     // may legitimately run longer than the connect timeout, and a stalled
@@ -238,7 +267,7 @@ void startWebDavTransfer(WebDavHandle *h) {
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpCode);
         QMutexLocker locker(&state->mutex);
         state->curlFinished = true;
-        state->curlOk = (res == CURLE_OK);
+        state->curlCode = res;
         state->httpCode = httpCode;
         state->cond.wakeAll();
     });
@@ -891,7 +920,7 @@ qint64 CurlWebDavProvider::read(FileHandle *handle, char *buffer, qint64 maxSize
         state.cond.wakeAll();
         return n;
     }
-    return state.curlOk ? 0 : -1;
+    return state.curlCode == CURLE_OK ? 0 : -1;
 }
 
 qint64 CurlWebDavProvider::write(FileHandle *handle, const char *buffer, qint64 size) {
@@ -945,14 +974,19 @@ qint64 CurlWebDavProvider::handleSize(FileHandle *handle) {
 }
 
 void CurlWebDavProvider::closeHandle(FileHandle *handle) {
-    closeHandleStatus(handle);
+    (void)closeHandleResult(handle);
 }
 
 bool CurlWebDavProvider::closeHandleStatus(FileHandle *handle) {
+    return closeHandleResult(handle).committed;
+}
+
+CloseHandleResult CurlWebDavProvider::closeHandleResult(FileHandle *handle) {
     auto *h = static_cast<WebDavHandle *>(handle);
     if (!h)
-        return true;
-    bool ok = true;
+        return {};
+
+    CloseHandleResult result;
     if (h->started) {
         auto &state = *h->state;
         {
@@ -965,30 +999,12 @@ bool CurlWebDavProvider::closeHandleStatus(FileHandle *handle) {
         }
         if (h->worker.joinable())
             h->worker.join();
-        // Only an upload's completion matters for correctness: the PUT result is
-        // only known now, after the transfer thread has finished.
-        //
-        // A clean CURLcode is NOT enough to call the upload committed. A proxy
-        // that answers "100 Continue" and then closes without ever sending a
-        // final response leaves curl reporting CURLE_OK with a response code of
-        // 100, and the server holds a 0-byte file. Measured against a real NAS
-        // through a local HTTP proxy: 64 KB, 300 KB and 1.5 MB uploads all
-        // returned CURLE_OK here while PROPFIND read back getcontentlength 0.
-        // Reporting success for those silently destroys the user's file, which
-        // is the same class of bug as the 401-rewind data loss above.
-        //
-        // So require a real 2xx as well. RFC 4918 has PUT answer 201 Created for
-        // a new resource and 200/204 when replacing one; anything else (a 1xx
-        // that never completed, a 3xx, 4xx or 5xx) means the bytes did not land.
         if (h->mode == WebDavHandle::Mode::Write) {
-            const bool httpOk = (state.httpCode >= 200 && state.httpCode < 300);
-            ok = state.curlOk && httpOk;
-            if (!ok)
-                qWarning("CurlWebDavProvider: upload of %s did not complete successfully "
-                         "(curlOk=%d, HTTP %ld)",
-                         qPrintable(h->path), int(state.curlOk), state.httpCode);
+            result.error = h->streamError();
+            result.detail = h->streamErrorDetail();
+            result.committed = (result.error == FileHandle::StreamError::None);
         }
     }
     delete h;
-    return ok;
+    return result;
 }

@@ -40,7 +40,11 @@ public:
     enum class Reply {
         Created,           // a well-behaved 201, the success path
         ContinueThenClose, // "100 Continue" then hang up: the proxy's misbehaviour
-        ServiceUnavailable // a complete, well-formed, non-2xx response
+        ServiceUnavailable,
+        Unauthorized,
+        Forbidden,
+        ProxyAuthenticationRequired,
+        InsufficientStorage
     };
 
     explicit ScriptedHttpServer(Reply reply) : m_reply(reply) {
@@ -100,13 +104,32 @@ public:
             sock->write("HTTP/1.1 100 Continue\r\n\r\n");
         sock->flush();
 
-        if (m_reply == Reply::ServiceUnavailable) {
-            // A complete, well-formed response that simply isn't a success.
-            // curl reports CURLE_OK for this -- there is no transport error --
-            // so only the response code distinguishes it from a stored file.
+        if (m_reply != Reply::Created && m_reply != Reply::ContinueThenClose) {
+            // A complete, well-formed, non-2xx response. curl reports CURLE_OK
+            // for these responses, so the final HTTP status decides the result.
             sock->waitForReadyRead(500);
             sock->readAll();
-            sock->write("HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\n\r\n");
+            QByteArray status;
+            switch (m_reply) {
+            case Reply::ServiceUnavailable:
+                status = "503 Service Unavailable";
+                break;
+            case Reply::Unauthorized:
+                status = "401 Unauthorized";
+                break;
+            case Reply::Forbidden:
+                status = "403 Forbidden";
+                break;
+            case Reply::ProxyAuthenticationRequired:
+                status = "407 Proxy Authentication Required";
+                break;
+            case Reply::InsufficientStorage:
+                status = "507 Insufficient Storage";
+                break;
+            default:
+                break;
+            }
+            sock->write("HTTP/1.1 " + status + "\r\nContent-Length: 0\r\n\r\n");
             sock->flush();
             sock->waitForBytesWritten(timeoutMs);
             sock->disconnectFromHost();
@@ -227,20 +250,78 @@ TEST(WebDavChunkedUploadTest, NonSuccessResponseIsReportedAsFailure) {
         GTEST_SKIP() << "scripted server did not complete the connect handshake";
 
     const QByteArray payload(64 * 1024, 'x');
-    bool committed = true;
+    CloseHandleResult result;
     QThread *put = QThread::create([&]() {
         FileHandle *h = dav.openWrite(QStringLiteral("/rejected.bin"), true);
         ASSERT_NE(h, nullptr);
         dav.setExpectedWriteSize(h, payload.size());
         dav.write(h, payload.constData(), payload.size());
-        committed = dav.closeHandleStatus(h);
+        result = dav.closeHandleResult(h);
     });
     put->start();
     server.serveOnce();
     put->wait(20000);
     delete put;
 
-    EXPECT_FALSE(committed) << "a 503 upload was reported as successfully committed";
+    EXPECT_FALSE(result.committed) << "a 503 upload was reported as successfully committed";
+    EXPECT_EQ(result.error, FileHandle::StreamError::Other);
+    EXPECT_EQ(result.detail, QStringLiteral("HTTP 503"));
+}
+
+TEST(WebDavChunkedUploadTest, HttpStatusReportsSpecificStreamError) {
+    const auto uploadResult = [](ScriptedHttpServer::Reply reply) {
+        ScriptedHttpServer server(reply);
+        CurlWebDavProvider dav;
+        dav.setTimeoutMs(15000);
+
+        QThread *connect = QThread::create([&]() {
+            QString error;
+            dav.connectToHost("127.0.0.1", server.port(), QStringLiteral("u"),
+                              QStringLiteral("p"), false, &error);
+        });
+        connect->start();
+        server.serveHandshake();
+        connect->wait(20000);
+        delete connect;
+        if (!dav.isConnected())
+            return CloseHandleResult{false, FileHandle::StreamError::Other,
+                                     QStringLiteral("connection failed")};
+
+        CloseHandleResult result;
+        QThread *put = QThread::create([&]() {
+            const QByteArray payload(64 * 1024, 'x');
+            FileHandle *h = dav.openWrite(QStringLiteral("/rejected.bin"), true);
+            if (!h) {
+                result = {false, FileHandle::StreamError::Other,
+                          QStringLiteral("openWrite failed")};
+                return;
+            }
+            dav.setExpectedWriteSize(h, payload.size());
+            dav.write(h, payload.constData(), payload.size());
+            result = dav.closeHandleResult(h);
+        });
+        put->start();
+        server.serveOnce();
+        put->wait(20000);
+        delete put;
+        return result;
+    };
+
+    const auto noSpace = uploadResult(ScriptedHttpServer::Reply::InsufficientStorage);
+    EXPECT_FALSE(noSpace.committed);
+    EXPECT_EQ(noSpace.error, FileHandle::StreamError::NoSpace);
+
+    const auto unauthorized = uploadResult(ScriptedHttpServer::Reply::Unauthorized);
+    EXPECT_FALSE(unauthorized.committed);
+    EXPECT_EQ(unauthorized.error, FileHandle::StreamError::PermissionDenied);
+
+    const auto forbidden = uploadResult(ScriptedHttpServer::Reply::Forbidden);
+    EXPECT_FALSE(forbidden.committed);
+    EXPECT_EQ(forbidden.error, FileHandle::StreamError::PermissionDenied);
+
+    const auto proxyAuth = uploadResult(ScriptedHttpServer::Reply::ProxyAuthenticationRequired);
+    EXPECT_FALSE(proxyAuth.committed);
+    EXPECT_EQ(proxyAuth.error, FileHandle::StreamError::PermissionDenied);
 }
 
 // setExpectedWriteSize() must turn the PUT into a Content-Length request rather

@@ -23,6 +23,7 @@ add_executable(core_tests
     network/test_SftpProvider.cpp
     network/test_CurlFtpProvider.cpp
     network/test_CurlWebDavProvider.cpp
+    network/test_TransferErrorMapping.cpp
     network/test_WebDavUpload.cpp
     network/test_WebDavChunkedUpload.cpp
     network/test_NetworkSession.cpp

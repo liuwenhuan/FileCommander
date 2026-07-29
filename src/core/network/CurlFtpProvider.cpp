@@ -1,4 +1,5 @@
 #include "CurlFtpProvider.h"
+#include "TransferErrorMapping.h"
 
 #include <curl/curl.h>
 
@@ -45,7 +46,9 @@ struct FtpTransferState {
     bool curlFinished = false; // curl_easy_perform() thread has returned
     bool noMoreInput = false;  // write mode: caller signalled EOF (no more write() calls)
     bool aborted = false;      // caller wants to stop the transfer early
-    bool curlOk = false;
+    CURLcode curlCode = CURLE_OK;
+    long responseCode = 0;
+    char errorBuffer[CURL_ERROR_SIZE] = {};
 };
 
 // WRITEFUNCTION for a download: append incoming bytes to the pipe, blocking
@@ -126,6 +129,32 @@ struct FtpHandle : public FileHandle {
     std::thread worker;
     std::shared_ptr<FtpTransferState> state = std::make_shared<FtpTransferState>();
 
+    StreamError streamError() const override {
+        QMutexLocker locker(&state->mutex);
+        if (!state->curlFinished)
+            return StreamError::None;
+        if (state->responseCode >= 400)
+            return TransferErrorMapping::ftpResponseError(state->responseCode).error;
+        if (state->curlCode != CURLE_OK)
+            return TransferErrorMapping::curlError(state->curlCode,
+                                                   QString::fromUtf8(state->errorBuffer))
+                .error;
+        return StreamError::None;
+    }
+
+    QString streamErrorDetail() const override {
+        QMutexLocker locker(&state->mutex);
+        if (!state->curlFinished)
+            return {};
+        if (state->responseCode >= 400)
+            return TransferErrorMapping::ftpResponseError(state->responseCode).detail;
+        if (state->curlCode != CURLE_OK)
+            return TransferErrorMapping::curlError(state->curlCode,
+                                                   QString::fromUtf8(state->errorBuffer))
+                .detail;
+        return {};
+    }
+
     ~FtpHandle() override {
         if (worker.joinable()) {
             {
@@ -153,7 +182,7 @@ void startFtpTransfer(FtpHandle *h) {
     if (!h->curl) {
         QMutexLocker locker(&state->mutex);
         state->curlFinished = true;
-        state->curlOk = false;
+        state->curlCode = CURLE_FAILED_INIT;
         h->started = true;
         return;
     }
@@ -161,6 +190,7 @@ void startFtpTransfer(FtpHandle *h) {
     const QString url = ftpUrl(h->host, h->port, h->path, false);
     const QByteArray urlUtf8 = url.toUtf8();
     curl_easy_setopt(h->curl, CURLOPT_URL, urlUtf8.constData());
+    curl_easy_setopt(h->curl, CURLOPT_ERRORBUFFER, state->errorBuffer);
     curl_easy_setopt(h->curl, CURLOPT_NOSIGNAL, 1L);
     // Bound the connect phase only. A total CURLOPT_TIMEOUT_MS is deliberately
     // NOT set here: a legitimate bulk transfer may run far longer than the
@@ -195,9 +225,12 @@ void startFtpTransfer(FtpHandle *h) {
     const bool isRead = (h->mode == FtpHandle::Mode::Read);
     h->worker = std::thread([curl, state, isRead]() {
         const CURLcode res = curl_easy_perform(curl);
+        long responseCode = 0;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &responseCode);
         QMutexLocker locker(&state->mutex);
         state->curlFinished = true;
-        state->curlOk = (res == CURLE_OK);
+        state->curlCode = res;
+        state->responseCode = responseCode;
         if (isRead)
             state->cond.wakeAll(); // wake any read() blocked waiting for more bytes
         else
@@ -729,7 +762,7 @@ qint64 CurlFtpProvider::read(FileHandle *handle, char *buffer, qint64 maxSize) {
         state.cond.wakeAll();
         return n;
     }
-    return state.curlOk ? 0 : -1;
+    return state.curlCode == CURLE_OK ? 0 : -1;
 }
 
 qint64 CurlFtpProvider::write(FileHandle *handle, const char *buffer, qint64 size) {
@@ -780,14 +813,19 @@ qint64 CurlFtpProvider::handleSize(FileHandle *handle) {
 }
 
 void CurlFtpProvider::closeHandle(FileHandle *handle) {
-    closeHandleStatus(handle);
+    (void)closeHandleResult(handle);
 }
 
 bool CurlFtpProvider::closeHandleStatus(FileHandle *handle) {
+    return closeHandleResult(handle).committed;
+}
+
+CloseHandleResult CurlFtpProvider::closeHandleResult(FileHandle *handle) {
     auto *h = static_cast<FtpHandle *>(handle);
     if (!h)
-        return true;
-    bool ok = true;
+        return {};
+
+    CloseHandleResult result;
     if (h->started) {
         auto &state = *h->state;
         {
@@ -800,15 +838,12 @@ bool CurlFtpProvider::closeHandleStatus(FileHandle *handle) {
         }
         if (h->worker.joinable())
             h->worker.join();
-        // Only an upload's completion matters for correctness: the STOR/APPE
-        // result is only known now, after the transfer thread has finished.
         if (h->mode == FtpHandle::Mode::Write) {
-            ok = state.curlOk;
-            if (!ok)
-                qWarning("CurlFtpProvider: upload of %s did not complete successfully",
-                         qPrintable(h->path));
+            result.error = h->streamError();
+            result.detail = h->streamErrorDetail();
+            result.committed = (result.error == FileHandle::StreamError::None);
         }
     }
     delete h;
-    return ok;
+    return result;
 }

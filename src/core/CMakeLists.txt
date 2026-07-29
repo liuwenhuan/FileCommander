@@ -38,6 +38,8 @@ add_library(core STATIC
     network/CurlFtpProvider.cpp
     network/CurlWebDavProvider.h
     network/CurlWebDavProvider.cpp
+    network/TransferErrorMapping.h
+    network/TransferErrorMapping.cpp
     network/SmbClientGate.h
     network/SmbProvider.h
     network/SmbProvider.cpp
