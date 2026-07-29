@@ -3,6 +3,8 @@
 #include "FramelessDialog.h"
 #include <QString>
 
+class QEvent;
+
 #include <functional>
 #include <memory>
 
@@ -80,6 +82,9 @@ private slots:
     void onSavedSelectionChanged();
     void onSaveConnection();
     void onDeleteConnection();
+
+protected:
+    void changeEvent(QEvent *event) override;
 
 private:
     void accept() override; // performs the mount; keeps dialog open on failure

@@ -5,7 +5,6 @@
 class QLineEdit;
 class QComboBox;
 class QCheckBox;
-class QSpinBox;
 class QLabel;
 
 // Prompts for an archive name + format when compressing selected files.
@@ -42,6 +41,6 @@ private:
     QWidget *m_levelOptions = nullptr;
     QLineEdit *m_passphraseEdit = nullptr;
     QCheckBox *m_encryptHeadersCheck = nullptr;
-    QSpinBox *m_levelSpinner = nullptr;
+    QLineEdit *m_levelEdit = nullptr;
     QLabel *m_levelLabel = nullptr;
 };

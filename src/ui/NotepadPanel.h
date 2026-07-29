@@ -65,7 +65,8 @@ private:
     QListWidgetItem *addRow(const NotepadNote &note);
     QString currentId() const;
     // Writes the editor's text to its note and refreshes that row's preview.
-    void commitCurrentEditor();
+    // Returns false when persistence failed so callers do not discard the edit.
+    bool commitCurrentEditor();
     // Reverts the Delete button from its armed "confirm" state.
     void disarmDelete();
     // Preview shown in the list: the first non-empty line of the body, trimmed.
@@ -83,6 +84,7 @@ private:
     QTimer *m_deleteArmTimer = nullptr; // reverts the two-step delete confirm
 
     QString m_currentId;          // note bound to the editor
+    QString m_loadedBody;         // body version used for optimistic save checks
     bool m_dirty = false;         // editor has unsaved edits
     bool m_loadingEditor = false; // guard: suppress textChanged while loading
     bool m_deleteArmed = false;   // Delete clicked once, waiting for confirm

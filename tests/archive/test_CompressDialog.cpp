@@ -2,9 +2,10 @@
 
 #include <QApplication>
 #include <QComboBox>
+#include <QIntValidator>
 #include <QLabel>
 #include <QLineEdit>
-#include <QSpinBox>
+#include <QToolButton>
 
 #include "CompressDialog.h"
 
@@ -42,11 +43,24 @@ TEST(CompressDialogTest, CompressionLevelIsIndependentOfPasswordOptions) {
     dialog.show();
     QCoreApplication::processEvents();
 
-    auto *level = dialog.findChild<QSpinBox *>();
+    auto *level = dialog.findChild<QLineEdit *>(QStringLiteral("CompressionLevelEdit"));
+    auto *decrease = dialog.findChild<QToolButton *>(QStringLiteral("CompressionLevelDecrease"));
+    auto *increase = dialog.findChild<QToolButton *>(QStringLiteral("CompressionLevelIncrease"));
     auto *password = passwordEdit(dialog);
     ASSERT_NE(level, nullptr);
+    ASSERT_NE(decrease, nullptr);
+    ASSERT_NE(increase, nullptr);
     ASSERT_NE(password, nullptr);
     ASSERT_NE(levelLabel(dialog), nullptr);
+
+    EXPECT_EQ(level->text(), QStringLiteral("6"));
+    EXPECT_EQ(level->alignment(), Qt::AlignCenter);
+    EXPECT_TRUE(decrease->autoRaise());
+    EXPECT_TRUE(increase->autoRaise());
+    const auto *validator = qobject_cast<const QIntValidator *>(level->validator());
+    ASSERT_NE(validator, nullptr);
+    EXPECT_EQ(validator->bottom(), 0);
+    EXPECT_EQ(validator->top(), 9);
 
     selectFormat(dialog, QStringLiteral("tar.gz"));
     EXPECT_TRUE(level->isVisible());
@@ -55,8 +69,17 @@ TEST(CompressDialogTest, CompressionLevelIsIndependentOfPasswordOptions) {
     EXPECT_FALSE(password->isVisible())
         << "tar.gz can tune compression but must not inherit ZIP password controls";
 
-    level->setValue(9);
+    level->clear();
+    QCoreApplication::processEvents();
+    EXPECT_EQ(dialog.compressionLevel(), 6);
+
+    level->setText(QStringLiteral("9"));
+    ASSERT_TRUE(QMetaObject::invokeMethod(level, "editingFinished", Qt::DirectConnection));
     EXPECT_EQ(dialog.compressionLevel(), 9);
+    increase->click();
+    EXPECT_EQ(dialog.compressionLevel(), 9);
+    decrease->click();
+    EXPECT_EQ(dialog.compressionLevel(), 8);
 
     selectFormat(dialog, QStringLiteral("tar"));
     EXPECT_FALSE(level->isVisible());
@@ -68,7 +91,7 @@ TEST(CompressDialogTest, EveryCompressedTarFormatExposesAnEditableLevel) {
     dialog.show();
     QCoreApplication::processEvents();
 
-    auto *level = dialog.findChild<QSpinBox *>();
+    auto *level = dialog.findChild<QLineEdit *>(QStringLiteral("CompressionLevelEdit"));
     ASSERT_NE(level, nullptr);
 
     for (const QString &format : {QStringLiteral("tar.gz"), QStringLiteral("tar.bz2"),
@@ -76,7 +99,8 @@ TEST(CompressDialogTest, EveryCompressedTarFormatExposesAnEditableLevel) {
         selectFormat(dialog, format);
         EXPECT_TRUE(level->isVisible()) << format.toStdString();
         EXPECT_TRUE(level->isEnabled()) << format.toStdString();
-        level->setValue(3);
+        level->setText(QStringLiteral("3"));
+        ASSERT_TRUE(QMetaObject::invokeMethod(level, "editingFinished", Qt::DirectConnection));
         EXPECT_EQ(dialog.compressionLevel(), 3) << format.toStdString();
     }
 }

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <clocale>
+#include <limits>
 
 #include <QByteArray>
 #include <QFile>
@@ -95,6 +96,17 @@ TEST(TextEncodingDetectorTest, HandlesLargeValidTextWithoutClassifyingItAsBinary
     expectEncoding(text, "UTF-8");
 }
 
+TEST(TextEncodingDetectorTest, ClassifiesLargeBomlessUtf16CjkWithoutScoreOverflow) {
+    const int codePointCount = std::numeric_limits<int>::max() / 40 + 1;
+    const QByteArray utf16LeCjk = QByteArray::fromHex("2D4E").repeated(codePointCount);
+
+    const TextEncodingDetector::Result result = TextEncodingDetector::detect(utf16LeCjk);
+    EXPECT_EQ(result.label, QStringLiteral("UTF-16LE"));
+    EXPECT_FALSE(result.binary);
+    EXPECT_FALSE(result.incompleteTail);
+    EXPECT_EQ(result.completePrefixBytes, utf16LeCjk.size());
+}
+
 TEST(TextEncodingDetectorTest, RejectsBomWithInvalidPayload) {
     EXPECT_NE(detectHex("EFBBBFC328").label, QStringLiteral("UTF-8"));
     EXPECT_NE(detectHex("FFFE00D8").label, QStringLiteral("UTF-16LE"));
@@ -134,18 +146,46 @@ TEST(TextEncodingDetectorTest, RecognizesBomlessUtf32BeforeUtf16WhenTextQualityI
     expectEncoding(QByteArray::fromHex("004800690021000A"), "UTF-16BE");
 }
 
+TEST(TextEncodingDetectorTest, RecognizesBomlessUnicodeMadeOnlyOfNonLatinText) {
+    // A zero byte lane is only a useful ASCII shortcut. Real UTF-16 CJK has no
+    // zero lane at all, while BMP UTF-32 needs only its two scalar high lanes.
+    expectEncoding(QByteArray::fromHex("2D4E87652D4E8765"), "UTF-16LE"); // 中文中文
+    expectEncoding(QByteArray::fromHex("4E2D65874E2D6587"), "UTF-16BE");
+    expectEncoding(QByteArray::fromHex("2D4E0000876500002D4E000087650000"), "UTF-32LE");
+    expectEncoding(QByteArray::fromHex("00004E2D0000658700004E2D00006587"), "UTF-32BE");
+
+    expectEncoding(QByteArray::fromHex("4230443046304230"), "UTF-16LE"); // あいうあ
+    expectEncoding(QByteArray::fromHex("3042304430463042"), "UTF-16BE");
+    expectEncoding(QByteArray::fromHex("5CD56DAD5CD56DAD"), "UTF-16LE"); // 한국한국
+}
+
+TEST(TextEncodingDetectorTest, RecognizesBomlessUtf16CjkWithPunctuationAndWhitespace) {
+    // 中文， 测试\n -- neutral punctuation and whitespace are normal text,
+    // not evidence against an otherwise coherent non-Latin UTF-16 stream.
+    expectEncoding(QByteArray::fromHex("2D4E87650CFF20004B6DD58B0A00"), "UTF-16LE");
+    expectEncoding(QByteArray::fromHex("4E2D6587FF0C00206D4B8BD5000A"), "UTF-16BE");
+}
+
 TEST(TextEncodingDetectorTest, RejectsBomlessUnicodeShapedNulBinaryWithControlsOrInvalidScalars) {
     // Stable NUL lanes alone are insufficient: controls, a malformed surrogate,
     // and a noncharacter all remain binary rather than being promoted to Unicode.
     for (const QByteArray &bytes : {QByteArray::fromHex("0100020003000400"),
                                     QByteArray::fromHex("00000001000000020000000300000004"),
-                                    QByteArray::fromHex("410000D8420043004400"),
                                     QByteArray::fromHex("48000000D0FD00006900000021000000")}) {
         const TextEncodingDetector::Result result = TextEncodingDetector::detect(bytes);
         EXPECT_TRUE(result.binary) << result.label.toStdString();
         EXPECT_NE(result.label, QStringLiteral("UTF-16LE"));
         EXPECT_NE(result.label, QStringLiteral("UTF-32BE"));
     }
+
+    const QByteArray malformedUtf16Le = QByteArray::fromHex("410000D8420043004400");
+    const TextEncodingDetector::Result malformedResult =
+        TextEncodingDetector::detect(malformedUtf16Le);
+    EXPECT_TRUE(malformedResult.binary);
+    EXPECT_EQ(malformedResult.label, QStringLiteral("Binary"));
+    EXPECT_TRUE(malformedResult.codecName.isEmpty());
+    EXPECT_EQ(malformedResult.completePrefixBytes, 0);
+    EXPECT_NE(malformedResult.label, QStringLiteral("UTF-16BE"));
 }
 
 TEST(TextEncodingDetectorTest, SafePrefixUsesDetectedUnicodeBoundaryWithoutRedetection) {
@@ -192,6 +232,124 @@ TEST(TextEncodingDetectorTest, ValidatesLegacyGrammarAcrossWholeInputBeforeScori
 
     EXPECT_NE(result.label, QStringLiteral("GB18030"));
     EXPECT_TRUE(result.ambiguous || result.label == QStringLiteral("Unknown"));
+}
+
+TEST(TextEncodingDetectorTest, ToleratesOnlyAnIncompleteLegacySequenceAtATruncatedProbeTail) {
+    constexpr int previewBytes = 64;
+    const QByteArray completeFile = QByteArray::fromHex("D6D0").repeated((previewBytes - 2) / 2) +
+                                    QByteArray::fromHex("81308130") + QByteArray("A") +
+                                    QByteArray::fromHex("81308130");
+    const QByteArray truncatedProbe = completeFile.left(previewBytes + 4);
+    ASSERT_EQ(truncatedProbe.right(1), QByteArray::fromHex("81"));
+
+    const TextEncodingDetector::Result strictResult = TextEncodingDetector::detect(truncatedProbe);
+    EXPECT_NE(strictResult.label, QStringLiteral("GB18030"));
+
+    const TextEncodingDetector::Result probeResult =
+        TextEncodingDetector::detect(truncatedProbe,
+                                     TextEncodingDetector::InputEnd::MayBeTruncated);
+    ASSERT_EQ(probeResult.label, QStringLiteral("GB18030"));
+    const QByteArray preview =
+        TextEncodingDetector::safePrefix(truncatedProbe, previewBytes, probeResult);
+    EXPECT_EQ(preview.size(), previewBytes - 2);
+    EXPECT_FALSE(TextEncodingDetector::decode(preview, probeResult)
+                     .contains(QChar::ReplacementCharacter));
+
+    const QByteArray invalidMiddle = QByteArray::fromHex("D6D0FF") + truncatedProbe;
+    EXPECT_NE(TextEncodingDetector::detect(invalidMiddle,
+                                           TextEncodingDetector::InputEnd::MayBeTruncated)
+                  .label,
+              QStringLiteral("GB18030"));
+}
+
+TEST(TextEncodingDetectorTest, ReportsCompletePrefixForCompleteTextAndBoms) {
+    for (const QByteArray &bytes : {
+             QByteArray("plain ASCII"),
+             QString::fromUtf8(u8"中文").toUtf8(),
+             QByteArray::fromHex("EFBBBF4869"),
+             QByteArray::fromHex("FFFE48006900"),
+             QByteArray::fromHex("FFFE000048000000"),
+             QByteArray::fromHex("D6D0CEC4")}) {
+        const TextEncodingDetector::Result result = TextEncodingDetector::detect(bytes);
+        EXPECT_FALSE(result.binary);
+        EXPECT_EQ(result.completePrefixBytes, bytes.size()) << result.label.toStdString();
+        EXPECT_FALSE(result.incompleteTail) << result.label.toStdString();
+    }
+}
+
+TEST(TextEncodingDetectorTest, AcceptsTruncatedUnicodePayloadAfterValidatedBom) {
+    const struct {
+        QByteArray bom;
+        QByteArray completePayload;
+        QByteArray truncatedTail;
+        const char *label;
+    } cases[] = {
+        {QByteArray::fromHex("EFBBBF"), QString::fromUtf8(u8"文本").toUtf8(),
+         QByteArray::fromHex("F0"), "UTF-8"},
+        {QByteArray::fromHex("FFFE"), QByteArray::fromHex("2D4E8765"),
+         QByteArray::fromHex("4B"), "UTF-16LE"},
+        {QByteArray::fromHex("FEFF"), QByteArray::fromHex("4E2D6587"),
+         QByteArray::fromHex("6D"), "UTF-16BE"},
+        {QByteArray::fromHex("FFFE0000"), QByteArray::fromHex("2D4E000087650000"),
+         QByteArray::fromHex("4B6D"), "UTF-32LE"},
+        {QByteArray::fromHex("0000FEFF"), QByteArray::fromHex("00004E2D00006587"),
+         QByteArray::fromHex("00006D"), "UTF-32BE"},
+    };
+
+    for (const auto &test : cases) {
+        const QByteArray probe = test.bom + test.completePayload + test.truncatedTail;
+        const TextEncodingDetector::Result strict = TextEncodingDetector::detect(probe);
+        EXPECT_NE(strict.label, QString::fromLatin1(test.label));
+
+        const TextEncodingDetector::Result result = TextEncodingDetector::detect(
+            probe, TextEncodingDetector::InputEnd::MayBeTruncated);
+        ASSERT_EQ(result.label, QString::fromLatin1(test.label));
+        EXPECT_EQ(result.bomBytes, test.bom.size());
+        EXPECT_TRUE(result.incompleteTail);
+        EXPECT_EQ(result.completePrefixBytes, test.bom.size() + test.completePayload.size());
+        EXPECT_EQ(TextEncodingDetector::safePrefix(probe, probe.size(), result),
+                  test.bom + test.completePayload);
+    }
+}
+
+TEST(TextEncodingDetectorTest, TruncatedInputReportsAndRemovesIncompleteUtfTails) {
+    const struct {
+        QByteArray complete;
+        QByteArray truncated;
+        const char *label;
+    } cases[] = {
+        {QString::fromUtf8(u8"文本测试").toUtf8(), QByteArray::fromHex("E696"), "UTF-8"},
+        {QByteArray::fromHex("4100420043004400"), QByteArray::fromHex("2D"), "UTF-16LE"},
+        {QByteArray::fromHex("0041004200430044"), QByteArray::fromHex("4E"), "UTF-16BE"},
+        {QByteArray::fromHex("41000000420000004300000044000000"),
+         QByteArray::fromHex("2D4E00"), "UTF-32LE"},
+        {QByteArray::fromHex("00000041000000420000004300000044"),
+         QByteArray::fromHex("00004E"), "UTF-32BE"},
+    };
+
+    for (const auto &test : cases) {
+        const QByteArray probe = test.complete + test.truncated;
+        const TextEncodingDetector::Result strict = TextEncodingDetector::detect(probe);
+        EXPECT_NE(strict.label, QString::fromLatin1(test.label));
+
+        const TextEncodingDetector::Result result = TextEncodingDetector::detect(
+            probe, TextEncodingDetector::InputEnd::MayBeTruncated);
+        ASSERT_EQ(result.label, QString::fromLatin1(test.label));
+        EXPECT_TRUE(result.incompleteTail);
+        EXPECT_EQ(result.completePrefixBytes, test.complete.size());
+        EXPECT_EQ(TextEncodingDetector::safePrefix(probe, probe.size(), result), test.complete);
+    }
+}
+
+TEST(TextEncodingDetectorTest, ReportsSafeLegacyProbeTailEvenBelowPreviewLimit) {
+    const QByteArray probe = QByteArray::fromHex("D6D0CEC481");
+    const TextEncodingDetector::Result result = TextEncodingDetector::detect(
+        probe, TextEncodingDetector::InputEnd::MayBeTruncated);
+
+    ASSERT_EQ(result.label, QStringLiteral("GB18030"));
+    ASSERT_TRUE(result.incompleteTail);
+    EXPECT_EQ(result.completePrefixBytes, 4);
+    EXPECT_EQ(TextEncodingDetector::safePrefix(probe, 64, result), probe.left(4));
 }
 
 TEST(TextEncodingDetectorTest, SafelyTruncatesLargeUtf8AndGb18030AtEncodingBoundaries) {
@@ -256,6 +414,58 @@ TEST(TextEncodingDetectorTest, QuickViewShowsAutoDetectionAndBinaryHexStatus) {
     view.showFile(binaryPath);
     EXPECT_EQ(status->text(), QStringLiteral("Auto: Binary (Hex)"));
     EXPECT_TRUE(editor->toPlainText().startsWith(QStringLiteral("00000000")));
+}
+
+TEST(TextEncodingDetectorTest, QuickViewBoundsHexOutputBeforeTheTextPreviewLimit) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    QFile binary(dir.filePath(QStringLiteral("bounded-binary.bin")));
+    ASSERT_TRUE(binary.open(QIODevice::WriteOnly));
+    const QByteArray source(1024 * 1024, '\0');
+    ASSERT_EQ(binary.write(source), source.size());
+    binary.close();
+
+    Settings settings;
+    ASSERT_NE(std::setlocale(LC_NUMERIC, "C"), nullptr);
+    QuickView view(settings);
+    auto *status = view.findChild<QLabel *>(QStringLiteral("textEncodingStatus"));
+    auto *editor = view.findChild<QPlainTextEdit *>();
+    ASSERT_NE(status, nullptr);
+    ASSERT_NE(editor, nullptr);
+
+    view.showFile(binary.fileName());
+    EXPECT_EQ(status->text(), QStringLiteral("Auto: Binary (Hex)"));
+    const QString rendered = editor->toPlainText();
+    EXPECT_TRUE(rendered.startsWith(QStringLiteral("00000000")));
+    EXPECT_TRUE(rendered.endsWith(QStringLiteral("\n\n[... truncated ...]")));
+    EXPECT_LT(rendered.size(), 2 * 1024 * 1024);
+}
+
+TEST(TextEncodingDetectorTest, QuickViewSafelyTruncatesLargeGb18030ProbeTail) {
+    constexpr int previewBytes = 5 * 1024 * 1024;
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    QFile text(dir.filePath(QStringLiteral("gb18030-boundary.txt")));
+    ASSERT_TRUE(text.open(QIODevice::WriteOnly));
+    const QByteArray source = QByteArray::fromHex("D6D0").repeated(previewBytes / 2) +
+                              QByteArray::fromHex("81308130") + QByteArray("tail");
+    ASSERT_EQ(text.write(source), source.size());
+    text.close();
+
+    Settings settings;
+    ASSERT_NE(std::setlocale(LC_NUMERIC, "C"), nullptr);
+    QuickView view(settings);
+    auto *status = view.findChild<QLabel *>(QStringLiteral("textEncodingStatus"));
+    auto *editor = view.findChild<QPlainTextEdit *>();
+    ASSERT_NE(status, nullptr);
+    ASSERT_NE(editor, nullptr);
+
+    view.showFile(text.fileName());
+    EXPECT_TRUE(status->text().startsWith(QStringLiteral("Auto: GB18030")));
+    const QString rendered = editor->toPlainText();
+    EXPECT_FALSE(rendered.contains(QChar::ReplacementCharacter));
+    EXPECT_TRUE(rendered.endsWith(QStringLiteral("\n\n[... truncated ...]")));
+    EXPECT_EQ(rendered.count(QChar(0x4e2d)), previewBytes / 2);
 }
 
 TEST(TextEncodingDetectorTest, QuickViewSafelyTruncatesAtUtf8CharacterBoundary) {

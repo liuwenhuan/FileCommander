@@ -187,21 +187,43 @@ QString NotepadPanel::currentId() const {
 void NotepadPanel::onCurrentRowChanged() {
     disarmDelete(); // a different note is now selected
     // Persist the note we're leaving before swapping in the new one.
-    commitCurrentEditor();
+    if (!commitCurrentEditor()) {
+        m_list->blockSignals(true);
+        for (int row = 0; row < m_list->count(); ++row) {
+            if (m_list->item(row)->data(Qt::UserRole).toString() == m_currentId) {
+                m_list->setCurrentRow(row);
+                break;
+            }
+        }
+        m_list->blockSignals(false);
+        if (isVisible())
+            m_editor->setFocus();
+        return;
+    }
 
     const QString id = currentId();
     m_currentId = id;
 
     m_loadingEditor = true;
-    m_editor->setPlainText(id.isEmpty() ? QString() : m_store.load(id));
+    m_loadedBody = id.isEmpty() ? QString() : m_store.load(id);
+    m_editor->setPlainText(m_loadedBody);
     m_editor->setEnabled(!id.isEmpty());
     m_loadingEditor = false;
     m_dirty = false;
 }
 
 void NotepadPanel::onNewNote() {
-    commitCurrentEditor();
+    if (!commitCurrentEditor()) {
+        if (isVisible())
+            m_editor->setFocus();
+        return;
+    }
     const NotepadNote note = m_store.create(tr("Note %1").arg(m_store.notes().size() + 1));
+    if (note.id.isEmpty()) {
+        if (isVisible())
+            m_editor->setFocus();
+        return;
+    }
     m_search->clear(); // ensure the new row isn't filtered out
     reloadList(note.id);
     m_editor->setFocus();
@@ -223,9 +245,13 @@ void NotepadPanel::onDeleteCurrent() {
     }
 
     disarmDelete();
+    if (!m_store.remove(id)) {
+        if (isVisible())
+            m_editor->setFocus();
+        return;
+    }
     m_dirty = false;
     m_currentId.clear();
-    m_store.remove(id);
 
     // Never leave the notepad empty.
     if (m_store.notes().isEmpty())
@@ -249,14 +275,22 @@ void NotepadPanel::onEditorChanged() {
     m_saveTimer->start(); // restart the debounce window
 }
 
-void NotepadPanel::commitCurrentEditor() {
+bool NotepadPanel::commitCurrentEditor() {
     if (!m_dirty || m_currentId.isEmpty())
-        return;
+        return true;
     const QString body = m_editor->toPlainText();
-    m_store.save(m_currentId, body);
+    if (!m_store.save(m_currentId, body, m_loadedBody)) {
+        m_saveTimer->start();
+        return false;
+    }
+    m_loadedBody = body;
     // Keep the stored title in sync with the preview so the list stays useful
-    // even before the body is reloaded.
-    m_store.rename(m_currentId, previewOf(body));
+    // even before the body is reloaded. If the index write fails, keep the note
+    // dirty so the debounce retries metadata without overwriting the newer body.
+    if (!m_store.rename(m_currentId, previewOf(body))) {
+        m_saveTimer->start();
+        return false;
+    }
     m_dirty = false;
 
     // Refresh the current row's preview text in place.
@@ -266,6 +300,7 @@ void NotepadPanel::commitCurrentEditor() {
             label = tr("New note");
         item->setText(label);
     }
+    return true;
 }
 
 void NotepadPanel::flushPendingSaves() {
@@ -294,7 +329,11 @@ void NotepadPanel::saveAll() {
 }
 
 void NotepadPanel::closeEvent(QCloseEvent *event) {
-    saveAll();
+    m_saveTimer->stop();
+    if (!commitCurrentEditor()) {
+        event->ignore();
+        return;
+    }
     QWidget::closeEvent(event);
 }
 

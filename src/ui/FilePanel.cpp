@@ -296,7 +296,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_backButton->setFixedSize(rowH, rowH);
     m_forwardButton->setFixedSize(rowH, rowH);
     m_starButton->setFixedSize(rowH, rowH);
-    m_addTabButton->setFixedWidth(rowH); // width matches "✳"; height follows the tab strip
+    m_addTabButton->setFixedSize(rowH, rowH);
     updateNavButtons();
 
     connect(m_filterBar, &QLineEdit::textChanged, this,

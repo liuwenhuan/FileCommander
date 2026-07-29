@@ -2,6 +2,7 @@
 
 #include <QApplication>
 #include <QDir>
+#include <QFile>
 #include <QListWidget>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -43,6 +44,36 @@ TEST(NotepadPanelTest, SavesNotesUsingInjectedSettingsAndDirectory) {
     EXPECT_EQ(reloadedStore.load(reloadedStore.notes().first().id),
               QString::fromUtf8("隔离笔记\nwith Unicode"));
     EXPECT_TRUE(QDir(notesPath).exists());
+}
+
+TEST(NotepadPanelTest, FailedSaveKeepsEditorContentAndBlocksNoteSwitch) {
+    QTemporaryDir temporaryDir;
+    ASSERT_TRUE(temporaryDir.isValid());
+
+    const QString notesPath = temporaryDir.filePath(QStringLiteral("failed-save-notes"));
+    NotepadStore fixture(notesPath);
+    const NotepadNote first = fixture.create(QStringLiteral("first"));
+    const NotepadNote second = fixture.create(QStringLiteral("second"));
+    ASSERT_FALSE(first.id.isEmpty());
+    ASSERT_FALSE(second.id.isEmpty());
+
+    Settings settings(temporaryDir.filePath(QStringLiteral("failed-save.ini")));
+    NotepadPanel panel(settings, notesPath);
+    auto *editor = panel.findChild<QPlainTextEdit *>(QStringLiteral("NotepadEditor"));
+    auto *list = panel.findChild<QListWidget *>(QStringLiteral("NotepadList"));
+    ASSERT_NE(editor, nullptr);
+    ASSERT_NE(list, nullptr);
+    ASSERT_EQ(list->count(), 2);
+
+    editor->setPlainText(QStringLiteral("unsaved content"));
+    ASSERT_TRUE(QFile::remove(first.filePath));
+    ASSERT_TRUE(QDir().mkpath(first.filePath));
+
+    list->setCurrentRow(1);
+
+    EXPECT_EQ(list->currentRow(), 0);
+    EXPECT_EQ(editor->toPlainText(), QStringLiteral("unsaved content"));
+    EXPECT_TRUE(editor->isEnabled());
 }
 
 TEST(NotepadPanelTest, DraggingDividerGrowsUpwardAndKeepsBottomAtAnchor) {

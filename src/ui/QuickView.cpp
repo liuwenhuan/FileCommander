@@ -58,6 +58,8 @@
 #include <QWheelEvent>
 #include <QtConcurrent>
 
+#include <limits>
+
 #include <poppler-qt5.h>
 
 #include "ArchiveHandler.h"
@@ -80,6 +82,7 @@
 
 namespace {
 constexpr qint64 kTextWindowBytes = 5 * 1024 * 1024; // text preview cap: 5 MiB
+constexpr int kHexWindowBytes = 256 * 1024;           // hex expands to ~4x text
 // All supported encodings consume at most four bytes per code point. Reading
 // this small look-ahead lets safePrefix cut at a complete character boundary.
 constexpr qint64 kTextReadLookAheadBytes = 4;
@@ -505,7 +508,9 @@ QWidget *QuickView::buildTextPage() {
 
 QString QuickView::toHexDump(const QByteArray &data) {
     QString out;
-    out.reserve(data.size() * 4);
+    const qint64 reserveCharacters = static_cast<qint64>(data.size()) * 4;
+    out.reserve(static_cast<int>(qMin(reserveCharacters,
+                                      static_cast<qint64>(std::numeric_limits<int>::max()))));
     for (int offset = 0; offset < data.size(); offset += 16) {
         out += QStringLiteral("%1  ").arg(offset, 8, 16, QLatin1Char('0'));
         QString ascii;
@@ -549,8 +554,11 @@ void QuickView::renderText() {
     }
 
     QString content;
+    bool renderTruncated = m_textTruncated;
     if (displayHex) {
-        content = toHexDump(m_textRaw);
+        const int hexBytes = qMin(m_textRaw.size(), kHexWindowBytes);
+        content = toHexDump(m_textRaw.left(hexBytes));
+        renderTruncated = renderTruncated || hexBytes < m_textRaw.size();
     } else if (autoEncoding) {
         content = TextEncodingDetector::decode(m_textRaw, detected);
     } else {
@@ -561,7 +569,7 @@ void QuickView::renderText() {
             codec = QTextCodec::codecForName("UTF-8");
         content = codec ? codec->toUnicode(m_textRaw) : QString::fromUtf8(m_textRaw);
     }
-    if (m_textTruncated)
+    if (renderTruncated)
         content += tr("\n\n[... truncated ...]");
     m_text->setPlainText(content);
 }
@@ -2909,7 +2917,9 @@ void QuickView::showFile(const QString &path) {
         const QByteArray probe = file.read(m_textCap + kTextReadLookAheadBytes);
         // Detect the complete probe once. renderText() only consumes this cached
         // result, and safePrefix uses it to crop without re-running detection.
-        m_textAutoResult = TextEncodingDetector::detect(probe);
+        m_textAutoResult = TextEncodingDetector::detect(
+            probe, file.atEnd() ? TextEncodingDetector::InputEnd::Complete
+                                : TextEncodingDetector::InputEnd::MayBeTruncated);
         m_textAutoResultValid = true;
         m_textTruncated = probe.size() > m_textCap;
         m_textRaw = m_textTruncated

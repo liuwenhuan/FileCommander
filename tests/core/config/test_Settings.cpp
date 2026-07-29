@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <QDir>
+#include <QFileInfo>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 
@@ -10,8 +11,28 @@ namespace {
 // See test_SessionManager.cpp for why this avoids setTestModeEnabled().
 class IsolatedConfigDir {
 public:
-    IsolatedConfigDir() { qputenv("XDG_CONFIG_HOME", dir.path().toUtf8()); }
+    IsolatedConfigDir()
+        : wasSet(qEnvironmentVariableIsSet("XDG_CONFIG_HOME")),
+          previous(qgetenv("XDG_CONFIG_HOME")) {
+        if (dir.isValid())
+            qputenv("XDG_CONFIG_HOME", dir.path().toUtf8());
+    }
+
+    ~IsolatedConfigDir() {
+        if (!dir.isValid())
+            return;
+        if (wasSet)
+            qputenv("XDG_CONFIG_HOME", previous);
+        else
+            qunsetenv("XDG_CONFIG_HOME");
+    }
+
+    bool isValid() const { return dir.isValid(); }
     QTemporaryDir dir;
+
+private:
+    bool wasSet;
+    QByteArray previous;
 };
 } // namespace
 
@@ -27,8 +48,39 @@ TEST(SettingsTest, ExplicitIniPathPersistsWithoutChangingGlobalConfigLocation) {
     EXPECT_EQ(reloaded.notepadEditorHeight(), 180);
 }
 
+TEST(SettingsTest, EmptyExplicitIniPathUsesSafeDefaultLocation) {
+    IsolatedConfigDir isolated;
+    ASSERT_TRUE(isolated.isValid());
+    const QString expectedDir = isolated.dir.filePath(QStringLiteral("FileCommander"));
+    EXPECT_EQ(Settings::configDir(), expectedDir);
+
+    Settings settings{QString()};
+    settings.setNotepadEditorHeight(181);
+
+    Settings reloaded;
+    EXPECT_EQ(reloaded.notepadEditorHeight(), 181);
+}
+
+TEST(SettingsTest, DefaultConfigDirectoryAndFileArePrivate) {
+    IsolatedConfigDir isolated;
+    ASSERT_TRUE(isolated.isValid());
+
+    Settings settings;
+    settings.setNotepadEditorHeight(182);
+
+    const QFileDevice::Permissions privateDirectory =
+        QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner |
+        QFileDevice::ReadUser | QFileDevice::WriteUser | QFileDevice::ExeUser;
+    const QFileDevice::Permissions privateFile =
+        QFileDevice::ReadOwner | QFileDevice::WriteOwner |
+        QFileDevice::ReadUser | QFileDevice::WriteUser;
+    EXPECT_EQ(QFileInfo(Settings::configDir()).permissions(), privateDirectory);
+    EXPECT_EQ(QFileInfo(Settings::configFilePath()).permissions(), privateFile);
+}
+
 TEST(SettingsTest, ShortcutReturnsDefaultWhenUnset) {
     IsolatedConfigDir isolated;
+    ASSERT_TRUE(isolated.isValid());
     Settings settings;
     EXPECT_EQ(settings.shortcut("copy", QKeySequence(Qt::Key_F5)),
               QKeySequence(Qt::Key_F5));
@@ -36,6 +88,7 @@ TEST(SettingsTest, ShortcutReturnsDefaultWhenUnset) {
 
 TEST(SettingsTest, SetShortcutOverridesDefault) {
     IsolatedConfigDir isolated;
+    ASSERT_TRUE(isolated.isValid());
     Settings settings;
     settings.setShortcut("copy", QKeySequence(Qt::CTRL | Qt::Key_C));
     EXPECT_EQ(settings.shortcut("copy", QKeySequence(Qt::Key_F5)),
@@ -44,6 +97,7 @@ TEST(SettingsTest, SetShortcutOverridesDefault) {
 
 TEST(SettingsTest, ClearShortcutOverridesRestoresDefaults) {
     IsolatedConfigDir isolated;
+    ASSERT_TRUE(isolated.isValid());
     Settings settings;
     settings.setShortcut("copy", QKeySequence(Qt::CTRL | Qt::Key_C));
     settings.clearShortcutOverrides();
@@ -53,12 +107,14 @@ TEST(SettingsTest, ClearShortcutOverridesRestoresDefaults) {
 
 TEST(SettingsTest, ListFontSizeDefaultsToTwelve) {
     IsolatedConfigDir isolated;
+    ASSERT_TRUE(isolated.isValid());
     Settings settings;
     EXPECT_EQ(settings.listFontSize(), 12);
 }
 
 TEST(SettingsTest, ListFontSizeRoundTrips) {
     IsolatedConfigDir isolated;
+    ASSERT_TRUE(isolated.isValid());
     Settings settings;
     settings.setListFontSize(14);
     EXPECT_EQ(settings.listFontSize(), 14);
@@ -66,6 +122,7 @@ TEST(SettingsTest, ListFontSizeRoundTrips) {
 
 TEST(SettingsTest, ListFontSizeClampsToRange) {
     IsolatedConfigDir isolated;
+    ASSERT_TRUE(isolated.isValid());
     Settings settings;
     settings.setListFontSize(2);
     EXPECT_EQ(settings.listFontSize(), 8);
@@ -75,6 +132,7 @@ TEST(SettingsTest, ListFontSizeClampsToRange) {
 
 TEST(SettingsTest, InterfacePreferencesHaveCompatibleDefaultsAndRoundTrip) {
     IsolatedConfigDir isolated;
+    ASSERT_TRUE(isolated.isValid());
     Settings settings;
 
     EXPECT_TRUE(settings.listFontFamily().isEmpty());
@@ -95,6 +153,7 @@ TEST(SettingsTest, InterfacePreferencesHaveCompatibleDefaultsAndRoundTrip) {
 
 TEST(SettingsTest, WindowGeometryRoundTrips) {
     IsolatedConfigDir isolated;
+    ASSERT_TRUE(isolated.isValid());
     Settings settings;
     const QByteArray blob = "fake-geometry-bytes";
     settings.setWindowGeometry(blob);
@@ -103,12 +162,14 @@ TEST(SettingsTest, WindowGeometryRoundTrips) {
 
 TEST(SettingsTest, FavoriteDirectoriesDefaultToHomeOnFirstRun) {
     IsolatedConfigDir isolated;
+    ASSERT_TRUE(isolated.isValid());
     Settings settings;
     EXPECT_EQ(settings.favoriteDirectories(), QStringList({QDir::homePath()}));
 }
 
 TEST(SettingsTest, AddFavoriteDirectoryPersists) {
     IsolatedConfigDir isolated;
+    ASSERT_TRUE(isolated.isValid());
     Settings settings;
     settings.removeFavoriteDirectory(QDir::homePath()); // drop the first-run seed
     settings.addFavoriteDirectory("/home/user/projects");
@@ -119,6 +180,7 @@ TEST(SettingsTest, AddFavoriteDirectoryPersists) {
 
 TEST(SettingsTest, AddFavoriteDirectoryDoesNotDuplicate) {
     IsolatedConfigDir isolated;
+    ASSERT_TRUE(isolated.isValid());
     Settings settings;
     settings.removeFavoriteDirectory(QDir::homePath()); // drop the first-run seed
     settings.addFavoriteDirectory("/tmp");
@@ -128,6 +190,7 @@ TEST(SettingsTest, AddFavoriteDirectoryDoesNotDuplicate) {
 
 TEST(SettingsTest, RemoveFavoriteDirectoryRemovesIt) {
     IsolatedConfigDir isolated;
+    ASSERT_TRUE(isolated.isValid());
     Settings settings;
     settings.removeFavoriteDirectory(QDir::homePath()); // drop the first-run seed
     settings.addFavoriteDirectory("/tmp");
@@ -138,12 +201,14 @@ TEST(SettingsTest, RemoveFavoriteDirectoryRemovesIt) {
 
 TEST(SettingsTest, MaxConcurrentTransfersDefaultsToTwo) {
     IsolatedConfigDir isolated;
+    ASSERT_TRUE(isolated.isValid());
     Settings settings;
     EXPECT_EQ(settings.maxConcurrentTransfers(), 2);
 }
 
 TEST(SettingsTest, MaxConcurrentTransfersRoundTrips) {
     IsolatedConfigDir isolated;
+    ASSERT_TRUE(isolated.isValid());
     Settings settings;
     settings.setMaxConcurrentTransfers(4);
     EXPECT_EQ(settings.maxConcurrentTransfers(), 4);
@@ -151,6 +216,7 @@ TEST(SettingsTest, MaxConcurrentTransfersRoundTrips) {
 
 TEST(SettingsTest, MaxConcurrentTransfersClampsToRange) {
     IsolatedConfigDir isolated;
+    ASSERT_TRUE(isolated.isValid());
     Settings settings;
     settings.setMaxConcurrentTransfers(0);
     EXPECT_EQ(settings.maxConcurrentTransfers(), 1);

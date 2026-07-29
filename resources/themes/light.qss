@@ -240,6 +240,30 @@ QPushButton:pressed {
     background-color: #c4c4c4;
 }
 
+QTableWidget#ShortcutTable QKeySequenceEdit,
+QTableWidget#ShortcutTable QKeySequenceEdit QLineEdit {
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+
+QToolButton#PanelAddTabButton, QToolButton#PanelTreeButton {
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+
+QToolButton#PanelAddTabButton:hover, QToolButton#PanelTreeButton:hover {
+    background-color: #d6d6d6;
+    border: none;
+}
+
+QToolButton#PanelAddTabButton:pressed, QToolButton#PanelTreeButton:pressed,
+QToolButton#PanelTreeButton:checked {
+    background-color: #c4c4c4;
+    border: none;
+}
+
 QTabBar::tab {
     background-color: #e4e4e4;
     border: 1px solid #c8c8c8;

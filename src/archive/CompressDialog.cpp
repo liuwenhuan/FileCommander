@@ -1,13 +1,16 @@
 #include "CompressDialog.h"
+#include "ThemedDialogs.h"
 
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QFormLayout>
+#include <QHBoxLayout>
+#include <QIntValidator>
 #include <QLabel>
 #include <QLineEdit>
-#include <QSpinBox>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 namespace {
@@ -64,11 +67,52 @@ CompressDialog::CompressDialog(const QString &destDir, const QString &defaultBas
     auto *levelLayout = new QFormLayout(m_levelOptions);
     levelLayout->setContentsMargins(0, 4, 0, 0);
     m_levelLabel = new QLabel(tr("Compression level:"), m_levelOptions);
-    m_levelSpinner = new QSpinBox(m_levelOptions);
-    m_levelSpinner->setRange(0, 9);
-    m_levelSpinner->setValue(kDefaultLevel);
-    m_levelSpinner->setToolTip(tr("0 = store only, 9 = best compression"));
-    levelLayout->addRow(m_levelLabel, m_levelSpinner);
+
+    auto *levelControl = new QWidget(m_levelOptions);
+    levelControl->setObjectName(QStringLiteral("CompressionLevelControl"));
+    auto *levelControlLayout = new QHBoxLayout(levelControl);
+    levelControlLayout->setContentsMargins(0, 0, 0, 0);
+    levelControlLayout->setSpacing(4);
+
+    auto *decreaseButton = new QToolButton(levelControl);
+    decreaseButton->setObjectName(QStringLiteral("CompressionLevelDecrease"));
+    decreaseButton->setText(QStringLiteral("−"));
+    decreaseButton->setAutoRaise(true);
+    decreaseButton->setFocusPolicy(Qt::NoFocus);
+
+    m_levelEdit = new QLineEdit(QString::number(kDefaultLevel), levelControl);
+    m_levelEdit->setObjectName(QStringLiteral("CompressionLevelEdit"));
+    m_levelEdit->setFixedWidth(36);
+    m_levelEdit->setAlignment(Qt::AlignCenter);
+    m_levelEdit->setValidator(new QIntValidator(0, 9, m_levelEdit));
+    m_levelEdit->setToolTip(tr("0 = store only, 9 = best compression"));
+
+    auto *increaseButton = new QToolButton(levelControl);
+    increaseButton->setObjectName(QStringLiteral("CompressionLevelIncrease"));
+    increaseButton->setText(QStringLiteral("+"));
+    increaseButton->setAutoRaise(true);
+    increaseButton->setFocusPolicy(Qt::NoFocus);
+
+    levelControlLayout->addWidget(decreaseButton);
+    levelControlLayout->addWidget(m_levelEdit);
+    levelControlLayout->addWidget(increaseButton);
+    levelControlLayout->addStretch();
+    levelLayout->addRow(m_levelLabel, levelControl);
+
+    const auto applyLevel = [this](int level) {
+        const QString text = QString::number(qBound(0, level, 9));
+        if (m_levelEdit->text() != text)
+            m_levelEdit->setText(text);
+    };
+    connect(decreaseButton, &QToolButton::clicked, this,
+            [this, applyLevel] { applyLevel(compressionLevel() - 1); });
+    connect(increaseButton, &QToolButton::clicked, this,
+            [this, applyLevel] { applyLevel(compressionLevel() + 1); });
+    connect(m_levelEdit, &QLineEdit::editingFinished, this, [this, applyLevel] {
+        bool ok = false;
+        const int level = m_levelEdit->text().toInt(&ok);
+        applyLevel(ok ? level : kDefaultLevel);
+    });
 
     // --- Main form -----------------------------------------------
     auto *form = new QFormLayout;
@@ -78,6 +122,7 @@ CompressDialog::CompressDialog(const QString &destDir, const QString &defaultBas
     form->addRow(m_levelOptions);
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+    ttc::localizeStandardButtons(buttons);
     connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
@@ -122,5 +167,9 @@ bool CompressDialog::encryptHeaders() const {
 }
 
 int CompressDialog::compressionLevel() const {
-    return m_levelSpinner->value();
+    if (!m_levelEdit)
+        return kDefaultLevel;
+    bool ok = false;
+    const int level = m_levelEdit->text().toInt(&ok);
+    return ok ? qBound(0, level, 9) : kDefaultLevel;
 }

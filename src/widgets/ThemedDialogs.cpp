@@ -7,8 +7,11 @@
 #include <QCoreApplication>
 #include <QEvent>
 #include <QHash>
+#include <QIcon>
 #include <QInputDialog>
 #include <QLocale>
+#include <QPainter>
+#include <QPainterPath>
 #include <QPointer>
 #include <QPushButton>
 #include <QTimer>
@@ -141,6 +144,101 @@ constexpr char kManagedTextProperty[] = "ttc.standardButtonManagedText";
 constexpr char kOverrideProperty[] = "ttc.standardButtonOverrideText";
 constexpr char kFilterInstalledProperty[] = "ttc.standardButtonFilterInstalled";
 
+QIcon standardButtonIcon(QAbstractButton *button,
+                         QDialogButtonBox::StandardButton standardButton) {
+    if (!button)
+        return {};
+
+    const QColor color = button->palette().color(QPalette::ButtonText);
+    QIcon icon;
+    for (const int size : {16, 20, 24}) {
+        QPixmap pixmap(size, size);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        QPen pen(color, qMax(1.5, size / 9.0), Qt::SolidLine, Qt::RoundCap,
+                 Qt::RoundJoin);
+        painter.setPen(pen);
+        painter.setBrush(Qt::NoBrush);
+
+        const qreal scale = size / 16.0;
+        auto point = [scale](qreal x, qreal y) { return QPointF(x * scale, y * scale); };
+        auto rect = [scale](qreal x, qreal y, qreal w, qreal h) {
+            return QRectF(x * scale, y * scale, w * scale, h * scale);
+        };
+
+        switch (standardButton) {
+        case QDialogButtonBox::Ok:
+        case QDialogButtonBox::Yes:
+        case QDialogButtonBox::YesToAll:
+        case QDialogButtonBox::Apply: {
+            QPolygonF checkMark;
+            checkMark << point(3, 8) << point(6.5, 11.5) << point(13, 4.5);
+            painter.drawPolyline(checkMark);
+            break;
+        }
+        case QDialogButtonBox::No:
+        case QDialogButtonBox::NoToAll:
+        case QDialogButtonBox::Abort:
+        case QDialogButtonBox::Close:
+        case QDialogButtonBox::Cancel:
+        case QDialogButtonBox::Discard:
+            painter.drawLine(point(4, 4), point(12, 12));
+            painter.drawLine(point(12, 4), point(4, 12));
+            break;
+        case QDialogButtonBox::Save:
+        case QDialogButtonBox::SaveAll:
+            painter.drawRect(rect(3, 2.5, 10, 11));
+            painter.drawRect(rect(5, 3, 5, 3.5));
+            painter.drawRect(rect(5, 9, 6, 4));
+            break;
+        case QDialogButtonBox::Open: {
+            QPainterPath path;
+            path.moveTo(point(2.5, 12.5));
+            path.lineTo(point(4, 6));
+            path.lineTo(point(7, 6));
+            path.lineTo(point(8.5, 8));
+            path.lineTo(point(13.5, 8));
+            path.lineTo(point(12, 12.5));
+            path.closeSubpath();
+            painter.drawPath(path);
+            break;
+        }
+        case QDialogButtonBox::Retry:
+        case QDialogButtonBox::Reset:
+        case QDialogButtonBox::RestoreDefaults: {
+            painter.drawArc(rect(3, 3, 10, 10), 35 * 16, 285 * 16);
+            QPolygonF arrowHead;
+            arrowHead << point(3, 4) << point(3, 8) << point(7, 7);
+            painter.drawPolyline(arrowHead);
+            break;
+        }
+        case QDialogButtonBox::Ignore:
+            painter.drawLine(point(4, 8), point(12, 8));
+            break;
+        case QDialogButtonBox::Help:
+            painter.drawArc(rect(4.5, 2.5, 7, 6), 0, 180 * 16);
+            painter.drawLine(point(11.5, 5.5), point(8, 9));
+            painter.drawPoint(point(8, 12.5));
+            break;
+        default:
+            painter.drawEllipse(rect(4, 4, 8, 8));
+            break;
+        }
+        painter.end();
+        icon.addPixmap(pixmap);
+    }
+    return icon;
+}
+
+void applyButtonPresentation(QAbstractButton *button,
+                             const ButtonDefinition &definition) {
+    if (!button)
+        return;
+    button->setIcon(standardButtonIcon(button, definition.button));
+    button->setIconSize(QSize(16, 16));
+}
+
 void applyFallback(QAbstractButton *button, const ButtonDefinition &definition,
                    bool detectApplicationOverride) {
     if (!button)
@@ -186,16 +284,22 @@ void applyFallback(QAbstractButton *button, const ButtonDefinition &definition,
 void applyLocalization(QMessageBox *box, bool detectApplicationOverride = true) {
     if (!box)
         return;
-    for (const ButtonDefinition &definition : kButtonDefinitions)
-        applyFallback(box->button(static_cast<QMessageBox::StandardButton>(definition.button)),
-                      definition, detectApplicationOverride);
+    for (const ButtonDefinition &definition : kButtonDefinitions) {
+        QAbstractButton *button =
+            box->button(static_cast<QMessageBox::StandardButton>(definition.button));
+        applyFallback(button, definition, detectApplicationOverride);
+        applyButtonPresentation(button, definition);
+    }
 }
 
 void applyLocalization(QDialogButtonBox *box, bool detectApplicationOverride = true) {
     if (!box)
         return;
-    for (const ButtonDefinition &definition : kButtonDefinitions)
-        applyFallback(box->button(definition.button), definition, detectApplicationOverride);
+    for (const ButtonDefinition &definition : kButtonDefinitions) {
+        QAbstractButton *button = box->button(definition.button);
+        applyFallback(button, definition, detectApplicationOverride);
+        applyButtonPresentation(button, definition);
+    }
 }
 
 void recordApplicationOverride(QAbstractButton *button) {
@@ -235,17 +339,25 @@ protected:
                 recordApplicationOverrides(m_messageBox);
             if (m_buttonBox)
                 recordApplicationOverrides(m_buttonBox);
-            QTimer::singleShot(0, this, [this] {
-                if (m_messageBox)
-                    applyLocalization(m_messageBox, false);
-                if (m_buttonBox)
-                    applyLocalization(m_buttonBox, false);
-            });
+            scheduleRefresh(false);
+        } else if (event->type() == QEvent::PaletteChange ||
+                   event->type() == QEvent::StyleChange ||
+                   event->type() == QEvent::ApplicationPaletteChange) {
+            scheduleRefresh(true);
         }
         return QObject::eventFilter(watched, event);
     }
 
 private:
+    void scheduleRefresh(bool detectApplicationOverride) {
+        QTimer::singleShot(0, this, [this, detectApplicationOverride] {
+            if (m_messageBox)
+                applyLocalization(m_messageBox, detectApplicationOverride);
+            if (m_buttonBox)
+                applyLocalization(m_buttonBox, detectApplicationOverride);
+        });
+    }
+
     QPointer<QMessageBox> m_messageBox;
     QPointer<QDialogButtonBox> m_buttonBox;
 };

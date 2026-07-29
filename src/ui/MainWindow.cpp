@@ -1374,6 +1374,7 @@ QString MainWindow::pickCommandId(const QString &title, const QString &currentId
         tree->setCurrentItem(currentItem);
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+    ttc::localizeStandardButtons(buttons);
     connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
     connect(tree, &QTreeWidget::itemDoubleClicked, &dlg, &QDialog::accept);
@@ -3122,6 +3123,7 @@ bool MainWindow::promptCredentials(const QString &host, QString *user, QString *
     form->addRow(tr("用户名："), userEdit);
     form->addRow(tr("密码："), passEdit);
     auto *box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+    ttc::localizeStandardButtons(box);
     form->addRow(box);
     connect(box, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
     connect(box, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);

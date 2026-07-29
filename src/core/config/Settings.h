@@ -17,6 +17,7 @@ public:
 
     Settings();
     explicit Settings(const QString &iniFilePath);
+    ~Settings();
 
     // Single source of truth for where configuration lives, so every store
     // (Settings, ConnectionStore, SessionManager) agrees on the directory

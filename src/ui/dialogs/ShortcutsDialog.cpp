@@ -1,4 +1,5 @@
 #include "ShortcutsDialog.h"
+#include "ThemedDialogs.h"
 
 #include <QDialogButtonBox>
 #include <QHeaderView>
@@ -18,6 +19,7 @@ ShortcutsDialog::ShortcutsDialog(const QList<QPair<QString, QString>> &actionLab
     resize(560, 500);
 
     m_table = new QTableWidget(actionLabels.size(), 2, this);
+    m_table->setObjectName(QStringLiteral("ShortcutTable"));
     m_table->setHorizontalHeaderLabels({tr("Command"), tr("Shortcut")});
     m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Interactive);
@@ -34,6 +36,7 @@ ShortcutsDialog::ShortcutsDialog(const QList<QPair<QString, QString>> &actionLab
         m_table->setItem(row, 0, labelItem);
 
         auto *editor = new QKeySequenceEdit(current.value(id), m_table);
+        editor->setObjectName(QStringLiteral("ShortcutSequenceEdit"));
         editor->setMinimumWidth(220);
         m_table->setCellWidget(row, 1, editor);
         connect(editor, &QKeySequenceEdit::editingFinished, this,
@@ -47,6 +50,7 @@ ShortcutsDialog::ShortcutsDialog(const QList<QPair<QString, QString>> &actionLab
     connect(m_buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(m_buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     auto *restoreButton = m_buttons->addButton(tr("Restore Defaults"), QDialogButtonBox::ResetRole);
+    ttc::localizeStandardButtons(m_buttons);
     connect(restoreButton, &QPushButton::clicked, this, &ShortcutsDialog::restoreDefaults);
 
     auto *layout = new QVBoxLayout(this);

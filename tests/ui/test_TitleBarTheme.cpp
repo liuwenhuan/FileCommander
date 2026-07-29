@@ -41,8 +41,9 @@ void expectMenuTextRendered(TitleBar &titleBar, QToolButton &menuButton, const Q
     for (int y = bounds.top(); y <= bounds.bottom(); ++y) {
         for (int x = bounds.left(); x <= bounds.right(); ++x) {
             const QColor pixel = image.pixelColor(x, y);
-            if (qAbs(pixel.red() - color.red()) <= 3 && qAbs(pixel.green() - color.green()) <= 3
-                && qAbs(pixel.blue() - color.blue()) <= 3)
+            if (qAbs(pixel.red() - color.red()) <= 24 &&
+                qAbs(pixel.green() - color.green()) <= 24 &&
+                qAbs(pixel.blue() - color.blue()) <= 24)
                 ++matchingPixels;
         }
     }

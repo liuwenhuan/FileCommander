@@ -1,4 +1,5 @@
 #include "ChecksumDialog.h"
+#include "ThemedDialogs.h"
 
 #include <QApplication>
 #include <QClipboard>
@@ -336,6 +337,7 @@ void ChecksumDialog::buildUi() {
     m_copyButton = buttons->addButton(tr("Copy all"), QDialogButtonBox::ActionRole);
     m_copyButton->setEnabled(false);
     auto *closeButton = buttons->addButton(QDialogButtonBox::Close);
+    ttc::localizeStandardButtons(buttons);
     connect(m_copyButton, &QPushButton::clicked, this, &ChecksumDialog::copyAll);
     connect(closeButton, &QPushButton::clicked, this, &QDialog::reject);
     layout->addWidget(buttons);

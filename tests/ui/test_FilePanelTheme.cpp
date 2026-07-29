@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <QApplication>
+#include <QFile>
 #include <QToolButton>
 
 #include "FilePanel.h"
@@ -43,6 +45,26 @@ TEST(FilePanelThemeTest, TabAndTreeButtonsExposeDedicatedThemeSelectors) {
     EXPECT_TRUE(back->objectName().isEmpty());
     EXPECT_TRUE(forward->objectName().isEmpty());
     EXPECT_TRUE(star->objectName().isEmpty());
+
+    panel.show();
+    qApp->processEvents();
+    EXPECT_EQ(addTab->size(), tree->size());
+    EXPECT_EQ(addTab->width(), addTab->height());
+}
+
+TEST(FilePanelThemeTest, DedicatedTabRowButtonsAreBorderlessInEveryTheme) {
+    for (const QString &theme : {QStringLiteral("light"), QStringLiteral("dark"),
+                                 QStringLiteral("green")}) {
+        QFile file(QStringLiteral(TTC_SOURCE_DIR "/resources/themes/") + theme +
+                   QStringLiteral(".qss"));
+        ASSERT_TRUE(file.open(QIODevice::ReadOnly | QIODevice::Text))
+            << theme.toStdString();
+        const QString sheet = QString::fromUtf8(file.readAll());
+        EXPECT_TRUE(sheet.contains(QStringLiteral("QToolButton#PanelAddTabButton")))
+            << theme.toStdString();
+        EXPECT_TRUE(sheet.contains(QStringLiteral("QToolButton#PanelTreeButton")))
+            << theme.toStdString();
+    }
 }
 
 } // namespace

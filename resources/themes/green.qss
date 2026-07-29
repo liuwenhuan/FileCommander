@@ -333,24 +333,32 @@ QToolButton:pressed {
     color: #04140a;
 }
 
-/* Only the tab-add and directory-tree toggles are chrome key caps. Navigation
-   buttons stay transparent so the toolbar does not turn into a solid strip. */
+QTableWidget#ShortcutTable QKeySequenceEdit,
+QTableWidget#ShortcutTable QKeySequenceEdit QLineEdit {
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+
+/* Only the tab-add and directory-tree toggles keep the CRT chrome tile.
+   They remain flat controls: hover and checked state change the fill, not a frame. */
 QToolButton#PanelAddTabButton, QToolButton#PanelTreeButton {
     background: url(:/icons/crt-scan-chrome.png) repeat;
     color: #33ff88;
-    border: 1px solid #12602f;
+    border: none;
+    padding: 0;
 }
 
 QToolButton#PanelAddTabButton:hover, QToolButton#PanelTreeButton:hover {
     background-color: #12602f;
-    border-color: #33ff88;
+    border: none;
 }
 
 QToolButton#PanelAddTabButton:pressed, QToolButton#PanelTreeButton:pressed,
 QToolButton#PanelTreeButton:checked {
     background-color: #33ff88;
     color: #04140a;
-    border-color: #33ff88;
+    border: none;
 }
 
 TitleBar QToolButton#TitleMenuButton {
