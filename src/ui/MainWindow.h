@@ -52,6 +52,12 @@ class MainWindow : public QMainWindow {
 
 public:
     explicit MainWindow(QWidget *parent = nullptr);
+    // Packaging-only smoke flow: browse `directory`, load each supplied local
+    // preview fixture, then exit. It is intentionally not exposed through UI.
+    void runPackageSmoke(const QString &directory);
+    // Opens shell-activated local folders. The first two occupy the visible
+    // panes; further folders become tabs in the left pane.
+    void openFolders(const QStringList &folders);
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -125,8 +131,8 @@ private slots:
     void reconnectSavedTab(FilePanel *panel, int index);
     void calculateSizes();
     void calculateChecksums(); // MD5 / CRC32 / SHA1 of the selected files
-    void secureWipeSelected(); // overwrite on-disk bytes (HDD 1x / SSD 3x DoD) then delete
-    void chooseListFont();
+    void secureWipeSelected(); // overwrite local on-disk bytes, then delete
+    void chooseGlobalFont();
     void syncOtherPanelToActive();
     void swapPanels();
     void openTerminalHere();
@@ -170,6 +176,7 @@ private:
     QAction *addCommandAction(QMenu *menu, const QString &id, const QString &label,
                               std::function<void()> handler = {});
     QString commandText(const QString &id, const QString &label) const;
+    void applyInterfaceTypography();
     // Re-applies every translatable string in the persistent UI after a live
     // language switch (menus, title bar, function keys, column headers, ...).
     void retranslateUi();

@@ -13,10 +13,9 @@ class QThread;
 
 // Securely erases a batch of files/directories on a worker thread: it overwrites
 // each file's on-disk bytes before unlinking it, so the contents can't be
-// recovered. The number of overwrite passes adapts to the storage type of the
-// file's device -- rotational disks get a single random pass; SSDs / flash (and
-// anything whose type can't be determined) get a DoD-style three passes
-// (0x00, 0xFF, random). Progress is cumulative bytes-written across the whole
+// recovered. Linux adapts the pass count to the storage type; Windows uses the
+// conservative three-pass policy (0x00, 0xFF, random) because drive-letter
+// APIs cannot reliably classify every attached device. Progress is cumulative bytes-written across the whole
 // batch (size x passes). The shared atomic<bool> lets the owning dialog cancel a
 // run in flight; the loops poll it between chunks.
 class WipeWorker : public QObject {

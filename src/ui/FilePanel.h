@@ -435,6 +435,7 @@ private:
 
     BreadcrumbBar *m_addressBar;
     QToolButton *m_treeButton; // "🗀" toggles this panel's folder tree; first in the row
+    QToolButton *m_tabScrollLeftButton;
     QToolButton *m_backButton;
     QToolButton *m_forwardButton;
     QToolButton *m_starButton;

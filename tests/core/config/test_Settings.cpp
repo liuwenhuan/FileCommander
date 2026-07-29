@@ -137,28 +137,62 @@ TEST(SettingsTest, ListFontSizeClampsToRange) {
     settings.setListFontSize(2);
     EXPECT_EQ(settings.listFontSize(), 8);
     settings.setListFontSize(99);
-    EXPECT_EQ(settings.listFontSize(), 18);
+    EXPECT_EQ(settings.listFontSize(), 16);
 }
 
-TEST(SettingsTest, InterfacePreferencesHaveCompatibleDefaultsAndRoundTrip) {
+TEST(SettingsTest, MenuFontSizeDefaultsToTwelveAndRoundTrips) {
     IsolatedConfigDir isolated;
     ASSERT_TRUE(isolated.isValid());
     Settings settings;
 
-    EXPECT_TRUE(settings.listFontFamily().isEmpty());
+    EXPECT_EQ(settings.menuFontSize(), 12);
+
+    settings.setMenuFontSize(13);
+
+    EXPECT_EQ(settings.menuFontSize(), 13);
+}
+
+TEST(SettingsTest, MenuFontSizeClampsToRange) {
+    IsolatedConfigDir isolated;
+    ASSERT_TRUE(isolated.isValid());
+    Settings settings;
+
+    settings.setMenuFontSize(2);
+    EXPECT_EQ(settings.menuFontSize(), 8);
+    settings.setMenuFontSize(99);
+    EXPECT_EQ(settings.menuFontSize(), 16);
+}
+
+TEST(SettingsTest, GlobalFontFamilyDefaultsToSystemAndRoundTrips) {
+    IsolatedConfigDir isolated;
+    ASSERT_TRUE(isolated.isValid());
+    Settings settings;
+
+    EXPECT_TRUE(settings.globalFontFamily().isEmpty());
     EXPECT_TRUE(settings.showTabBar());
     EXPECT_TRUE(settings.showShortcutLabels());
     EXPECT_TRUE(settings.autoUpdateCheck());
 
-    settings.setListFontFamily(QStringLiteral("Noto Sans CJK SC"));
+    settings.setGlobalFontFamily(QStringLiteral("Noto Sans CJK SC"));
     settings.setShowTabBar(false);
     settings.setShowShortcutLabels(false);
     settings.setAutoUpdateCheck(false);
 
-    EXPECT_EQ(settings.listFontFamily(), QStringLiteral("Noto Sans CJK SC"));
+    EXPECT_EQ(settings.globalFontFamily(), QStringLiteral("Noto Sans CJK SC"));
     EXPECT_FALSE(settings.showTabBar());
     EXPECT_FALSE(settings.showShortcutLabels());
     EXPECT_FALSE(settings.autoUpdateCheck());
+}
+
+TEST(SettingsTest, FolderAssociationDefaultsOffAndRoundTrips) {
+    IsolatedConfigDir isolated;
+    Settings settings;
+    EXPECT_FALSE(settings.folderAssociationEnabled());
+
+    settings.setFolderAssociationEnabled(true);
+    EXPECT_TRUE(settings.folderAssociationEnabled());
+    Settings reloaded;
+    EXPECT_TRUE(reloaded.folderAssociationEnabled());
 }
 
 TEST(SettingsTest, WindowGeometryRoundTrips) {

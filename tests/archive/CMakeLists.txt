@@ -13,4 +13,5 @@ if(TARGET LibArchive::LibArchive)
     )
 
     add_test(NAME archive_tests COMMAND archive_tests)
+    filecommander_set_test_runtime(archive_tests)
 endif()

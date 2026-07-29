@@ -12,6 +12,28 @@ if(NOT TARGET GTest::gtest)
     endif()
 endif()
 
+if(WIN32)
+    set(_fc_test_runtime_dirs "$<TARGET_FILE_DIR:Qt5::Core>")
+    if(FILECOMMANDER_PREVIEW_MEDIA)
+        list(APPEND _fc_test_runtime_dirs "${FILECOMMANDER_MPV_ROOT}")
+    endif()
+    if(FILECOMMANDER_PREVIEW_PDF)
+        list(APPEND _fc_test_runtime_dirs "${FILECOMMANDER_POPPLER_QT5_ROOT}/bin")
+    endif()
+    if(DEFINED VCPKG_INSTALLED_DIR AND DEFINED VCPKG_TARGET_TRIPLET)
+        list(APPEND _fc_test_runtime_dirs
+            "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin")
+    endif()
+    list(JOIN _fc_test_runtime_dirs "\\;" FILECOMMANDER_WINDOWS_TEST_RUNTIME_PATH)
+endif()
+
+function(filecommander_set_test_runtime test_name)
+    if(WIN32)
+        set_tests_properties(${test_name} PROPERTIES
+            ENVIRONMENT "PATH=${FILECOMMANDER_WINDOWS_TEST_RUNTIME_PATH}\\;$ENV{PATH}")
+    endif()
+endfunction()
+
 add_subdirectory(core)
 add_subdirectory(ui)
 add_subdirectory(archive)

@@ -5,12 +5,14 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTreeView>
+#include <QMenu>
 
 #include <memory>
 
 #include "FilePanel.h"
 #include "FileProvider.h"
 #include "FileSystemModel.h"
+#include "MainWindow.h"
 #include "tree/DirectoryTreeModel.h"
 
 // Clicking a local disk in the folder tree while the tab is on a server.
@@ -198,3 +200,50 @@ TEST(TreeNavigationTest, LocalTabStillNavigatesStraightToTheClickedFolder) {
     settle(panel);
     EXPECT_EQ(panel.currentPath(), alpha);
 }
+
+TEST(MainWindowTest, FolderAssociationIsTheLastConfigAction) {
+    MainWindow window;
+    QAction *action = nullptr;
+    for (QMenu *menu : window.findChildren<QMenu *>()) {
+        if (!menu->actions().isEmpty() &&
+            menu->actions().last()->text() == QStringLiteral("Associate Folder Open Actions")) {
+            action = menu->actions().last();
+            break;
+        }
+    }
+    ASSERT_NE(action, nullptr);
+    EXPECT_TRUE(action->isCheckable());
+    EXPECT_EQ(action->text(), QStringLiteral("Associate Folder Open Actions"));
+}
+
+#if defined(Q_OS_WIN) && FILECOMMANDER_HAS_NETWORK
+TEST(MainWindowNetworkTest, ConnectedServerAppearsInTheFolderTree) {
+    MainWindow window;
+    const QList<FilePanel *> panels = window.findChildren<FilePanel *>();
+    ASSERT_GE(panels.size(), 2);
+
+    FilePanel *panel = panels.first();
+    panel->connectTabTo(0, std::make_shared<FakeShare>(), [](QString *) { return true; },
+                        QStringLiteral("/"), QStringLiteral("tester@share"),
+                        SavedConnection{}, FileSystemModel::AuthRetryFactory());
+    settle(*panel);
+    const QString connectionId = panel->connectionId();
+    ASSERT_FALSE(connectionId.isEmpty());
+
+    panel->rebuildTreeRoots();
+    QTreeView *tree = treeOf(*panel);
+    ASSERT_NE(tree, nullptr);
+    auto *treeModel = qobject_cast<DirectoryTreeModel *>(tree->model());
+    ASSERT_NE(treeModel, nullptr);
+
+    bool foundConnectionRoot = false;
+    for (int row = 0; row < treeModel->rowCount(); ++row) {
+        if (treeModel->connectionIdAt(treeModel->index(row, 0)) == connectionId) {
+            foundConnectionRoot = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(foundConnectionRoot);
+}
+
+#endif

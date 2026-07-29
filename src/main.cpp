@@ -6,8 +6,11 @@
 #include <clocale>
 
 #include "AppIcon.h"
+#include "FolderAssociation.h"
+#include "InstanceCoordinator.h"
 #include "MainWindow.h"
 #include "Settings.h"
+#include "Typography.h"
 #include "TranslationManager.h"
 
 int main(int argc, char *argv[]) {
@@ -37,6 +40,7 @@ int main(int argc, char *argv[]) {
     QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 
     QApplication app(argc, argv);
+    Typography::initializeSystemFont();
     // libmpv (video preview) refuses to create a context unless LC_NUMERIC is
     // "C". Qt/system locale otherwise sets it to the user's locale, which makes
     // mpv_create() throw. Reset just the numeric category (keeps the rest of the
@@ -50,7 +54,14 @@ int main(int argc, char *argv[]) {
     app.setDesktopFileName(QStringLiteral("FileCommander"));
     app.setWindowIcon(ttc::appIcon());
 
+    const QStringList arguments = app.arguments();
+    InstanceCoordinator instance;
+    const InstanceCoordinator::StartResult instanceResult = instance.startOrActivate(arguments);
+    if (instanceResult == InstanceCoordinator::StartResult::Forwarded)
+        return 0;
+
     Settings settings;
+    Typography::applyApplicationFont(settings);
     TranslationManager::install(app, settings.language());
 
     MainWindow window;
@@ -62,8 +73,26 @@ int main(int argc, char *argv[]) {
     // DialogTitleBar reads its icon from the window it belongs to.
     window.setWindowIcon(app.windowIcon());
     window.show();
-    if (app.arguments().contains(QStringLiteral("--smoke-test")))
+    QObject::connect(&instance, &InstanceCoordinator::activationRequested, &window,
+                     [&window](const QStringList &activationArguments) {
+                const QStringList folders = FolderAssociation::folderArguments(activationArguments);
+                if (!folders.isEmpty())
+                    window.openFolders(folders);
+                window.showNormal();
+                window.raise();
+                window.activateWindow();
+            });
+    const int packageSmoke = arguments.indexOf(QStringLiteral("--package-smoke"));
+    if (packageSmoke >= 0 && packageSmoke + 1 < arguments.size()) {
+        const QString directory = arguments.at(packageSmoke + 1);
+        QTimer::singleShot(250, &window, [&window, directory] { window.runPackageSmoke(directory); });
+    } else if (arguments.contains(QStringLiteral("--smoke-test"))) {
         QTimer::singleShot(750, &app, &QCoreApplication::quit);
+    } else {
+        const QStringList folders = FolderAssociation::folderArguments(arguments);
+        if (!folders.isEmpty())
+            QTimer::singleShot(0, &window, [&window, folders] { window.openFolders(folders); });
+    }
 
     return app.exec();
 }

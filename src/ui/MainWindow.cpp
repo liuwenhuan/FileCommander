@@ -52,6 +52,7 @@
 #include <QProcess>
 #include <QPushButton>
 #include <QShortcut>
+#include <QSignalBlocker>
 #include <QFontDialog>
 #include <QFontDatabase>
 #include <QIntValidator>
@@ -92,6 +93,7 @@
 #include "FileListView.h"
 #include "FileSystemModel.h"
 #include "ExternalPaths.h"
+#include "FolderAssociation.h"
 #include "LocalFileProvider.h"
 #include "FunctionKeyBar.h"
 #include "ImageViewer.h"
@@ -102,12 +104,13 @@
 #include "dialogs/ChecksumDialog.h"
 #include "dialogs/CommandOutputDialog.h"
 #include "dialogs/ConnectDialog.h"
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
 #include "dialogs/SecureWipeDialog.h"
 #endif
 #include "Settings.h"
 #include "ThemeManager.h"
 #include "TextEditor.h"
+#include "Typography.h"
 #include "dialogs/CompareDialog.h"
 #include "dialogs/MultiRenameDialog.h"
 #include "dialogs/OperationProgressDialog.h"
@@ -120,8 +123,12 @@
 // Feature batch: external-connection picker, quick notepad, online update.
 #include "NotepadPanel.h"
 #include "dialogs/AboutDialog.h"
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || (defined(Q_OS_WIN) && FILECOMMANDER_HAS_NETWORK)
 #include "dialogs/ExternalConnectDialog.h"
+#endif
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
 #include "dialogs/UpdateDialog.h"
+#endif
 #include "tree/NetworkTreeRegistry.h"
 #if FILECOMMANDER_HAS_NETWORK
 #include "network/CurlFtpProvider.h"
@@ -132,11 +139,17 @@
 #include "network/WindowsSmbProvider.h"
 #endif
 #endif
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
 #include "devices/RemovableDeviceMonitor.h"
+#endif
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
 #include "network/GvfsMounter.h"
-#include "network/SmbHostBrowser.h"
 #include "network/SmbProvider.h"
+#endif
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || (defined(Q_OS_WIN) && FILECOMMANDER_HAS_NETWORK)
+#include "network/SmbHostBrowser.h"
+#endif
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
 #include "update/UpdateChecker.h"
 #endif
 
@@ -480,14 +493,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     // the Interface-menu checkmarks (which read the widgets' visibility) match.
     m_commandBar->setVisible(m_settings.showCommandBar());
     m_functionKeyBar->setVisible(m_settings.showFunctionKeyBar());
-    const QString listFontFamily = m_settings.listFontFamily();
+    applyInterfaceTypography();
+    const QString globalFontFamily = m_settings.globalFontFamily();
     for (FilePanel *panel : {m_leftPanel, m_rightPanel}) {
-        panel->setListFontFamily(listFontFamily);
+        panel->setListFontFamily(globalFontFamily);
         panel->setListFontSize(m_settings.listFontSize());
         panel->setTabBarVisible(m_settings.showTabBar());
     }
     if (m_quickView) {
-        m_quickView->setContentFontFamily(listFontFamily);
+        m_quickView->setContentFontFamily(globalFontFamily);
         m_quickView->setContentFontSize(m_settings.listFontSize());
     }
     if (const QByteArray s = m_settings.panelSplitterState(); !s.isEmpty())
@@ -706,6 +720,7 @@ void MainWindow::buildTitleBarMenus() {
     delete m_interfaceMenu;
 
     auto *toolsMenu = new QMenu(tr("&Tools"), this);
+    Typography::applyChromeFont(toolsMenu, m_settings);
     m_toolsMenu = toolsMenu;
     addCommandAction(toolsMenu, QStringLiteral("notepad"), tr("Quick Notepad"));
     addCommandAction(toolsMenu, QStringLiteral("checksums"), tr("Calculate Checksums"));
@@ -713,6 +728,7 @@ void MainWindow::buildTitleBarMenus() {
     addCommandAction(toolsMenu, QStringLiteral("compareFiles"), tr("Compare Files"));
 
     auto *configMenu = new QMenu(tr("Con&fig"), this);
+    Typography::applyChromeFont(configMenu, m_settings);
     m_configMenu = configMenu;
     addCommandAction(configMenu, QStringLiteral("keyboardShortcuts"), tr("Keyboard Shortcuts"));
     addCommandAction(configMenu, QStringLiteral("connectionManager"), tr("Connection Manager"));
@@ -741,10 +757,29 @@ void MainWindow::buildTitleBarMenus() {
     autoUpdate->setChecked(m_settings.autoUpdateCheck());
     connect(autoUpdate, &QAction::toggled, this,
             [this](bool on) { m_settings.setAutoUpdateCheck(on); });
+    QAction *folderAssociation = configMenu->addAction(tr("Associate Folder Open Actions"));
+    folderAssociation->setCheckable(true);
+    folderAssociation->setChecked(m_settings.folderAssociationEnabled());
+    if (m_settings.folderAssociationEnabled()) {
+        QString ignored;
+        FolderAssociation::setEnabled(true, Settings::configFilePath(), &ignored);
+    }
+    connect(folderAssociation, &QAction::toggled, this, [this, folderAssociation](bool on) {
+        QString error;
+        if (FolderAssociation::setEnabled(on, Settings::configFilePath(), &error)) {
+            m_settings.setFolderAssociationEnabled(on);
+            return;
+        }
+        QSignalBlocker block(folderAssociation);
+        folderAssociation->setChecked(!on);
+        ttc::warning(this, tr("Folder Association"), error);
+    });
 
     auto *interfaceMenu = new QMenu(tr("&Interface"), this);
+    Typography::applyChromeFont(interfaceMenu, m_settings);
     m_interfaceMenu = interfaceMenu;
     QMenu *themeMenu = interfaceMenu->addMenu(tr("&Theme"));
+    Typography::applyChromeFont(themeMenu, m_settings);
     auto *themeGroup = new QActionGroup(this);
     themeGroup->setExclusive(true);
     struct ThemeEntry {
@@ -781,6 +816,7 @@ void MainWindow::buildTitleBarMenus() {
             &MainWindow::setPhosphorImages);
 
     QMenu *languageMenu = interfaceMenu->addMenu(tr("&Language"));
+    Typography::applyChromeFont(languageMenu, m_settings);
     auto *languageGroup = new QActionGroup(this);
     languageGroup->setExclusive(true);
     // Discovered from the bundled catalogs plus the user's external translations
@@ -796,14 +832,15 @@ void MainWindow::buildTitleBarMenus() {
     }
 
     // File-list font size: caption + "[−] <number> [+]". The number field is
-    // edited directly in place; the − / + buttons step it. Range 8..18.
+    // edited directly in place; the − / + buttons step it. Range 8..16.
     {
         auto *fontWidget = new QWidget(interfaceMenu);
+        Typography::applyChromeFont(fontWidget, m_settings);
         auto *fontLayout = new QHBoxLayout(fontWidget);
         fontLayout->setContentsMargins(20, 2, 12, 2);
         fontLayout->setSpacing(4);
 
-        auto *caption = new QLabel(tr("Font size:"), fontWidget);
+        auto *caption = new QLabel(tr("File List Font Size:"), fontWidget);
 
         auto *minusBtn = new QToolButton(fontWidget);
         minusBtn->setText(QStringLiteral("−"));
@@ -811,11 +848,11 @@ void MainWindow::buildTitleBarMenus() {
         minusBtn->setFocusPolicy(Qt::NoFocus);
 
         auto *sizeEdit = new QLineEdit(fontWidget);
-        sizeEdit->setValidator(new QIntValidator(8, 18, sizeEdit));
+        sizeEdit->setValidator(new QIntValidator(8, 16, sizeEdit));
         sizeEdit->setAlignment(Qt::AlignCenter);
         sizeEdit->setFixedWidth(36);
         sizeEdit->setText(QString::number(m_settings.listFontSize()));
-        sizeEdit->setToolTip(tr("Type a size, or use − / + (8-18)"));
+        sizeEdit->setToolTip(tr("Type a size, or use − / + (8-16)"));
 
         auto *plusBtn = new QToolButton(fontWidget);
         plusBtn->setText(QStringLiteral("+"));
@@ -831,7 +868,7 @@ void MainWindow::buildTitleBarMenus() {
         // Applies a clamped size to settings + both panels and reflects it back
         // into the field (so an out-of-range typed value snaps into view).
         auto apply = [this, sizeEdit](int pt) {
-            pt = qBound(8, pt, 18);
+            pt = qBound(8, pt, 16);
             if (pt != m_settings.listFontSize()) {
                 m_settings.setListFontSize(pt);
                 m_leftPanel->setListFontSize(pt);
@@ -855,8 +892,62 @@ void MainWindow::buildTitleBarMenus() {
         interfaceMenu->addAction(fontAction);
     }
 
-    interfaceMenu->addAction(commandText(QStringLiteral("chooseFont"), tr("Choose Font")), this,
-                             &MainWindow::chooseListFont);
+    {
+        auto *fontWidget = new QWidget(interfaceMenu);
+        Typography::applyChromeFont(fontWidget, m_settings);
+        auto *fontLayout = new QHBoxLayout(fontWidget);
+        fontLayout->setContentsMargins(20, 2, 12, 2);
+        fontLayout->setSpacing(4);
+
+        auto *caption = new QLabel(tr("Menu Font Size:"), fontWidget);
+        auto *minusBtn = new QToolButton(fontWidget);
+        minusBtn->setText(QStringLiteral("-"));
+        minusBtn->setAutoRaise(true);
+        minusBtn->setFocusPolicy(Qt::NoFocus);
+
+        auto *sizeEdit = new QLineEdit(fontWidget);
+        sizeEdit->setValidator(new QIntValidator(8, 16, sizeEdit));
+        sizeEdit->setAlignment(Qt::AlignCenter);
+        sizeEdit->setFixedWidth(36);
+        sizeEdit->setText(QString::number(m_settings.menuFontSize()));
+        sizeEdit->setToolTip(tr("Type a size, or use - / + (8-16)"));
+
+        auto *plusBtn = new QToolButton(fontWidget);
+        plusBtn->setText(QStringLiteral("+"));
+        plusBtn->setAutoRaise(true);
+        plusBtn->setFocusPolicy(Qt::NoFocus);
+
+        fontLayout->addWidget(caption);
+        fontLayout->addStretch(1);
+        fontLayout->addWidget(minusBtn);
+        fontLayout->addWidget(sizeEdit);
+        fontLayout->addWidget(plusBtn);
+
+        auto apply = [this, sizeEdit](int pt) {
+            pt = qBound(8, pt, 16);
+            if (pt != m_settings.menuFontSize()) {
+                m_settings.setMenuFontSize(pt);
+                applyInterfaceTypography();
+                QTimer::singleShot(0, this, &MainWindow::buildTitleBarMenus);
+            }
+            const QString text = QString::number(pt);
+            if (sizeEdit->text() != text)
+                sizeEdit->setText(text);
+        };
+        connect(minusBtn, &QToolButton::clicked, this,
+                [this, apply]() { apply(m_settings.menuFontSize() - 1); });
+        connect(plusBtn, &QToolButton::clicked, this,
+                [this, apply]() { apply(m_settings.menuFontSize() + 1); });
+        connect(sizeEdit, &QLineEdit::textEdited, this,
+                [apply](const QString &text) { if (!text.isEmpty()) apply(text.toInt()); });
+
+        auto *fontAction = new QWidgetAction(interfaceMenu);
+        fontAction->setDefaultWidget(fontWidget);
+        interfaceMenu->addAction(fontAction);
+    }
+
+    interfaceMenu->addAction(commandText(QStringLiteral("chooseFont"), tr("Choose Font")),
+                             this, &MainWindow::chooseGlobalFont);
     interfaceMenu->addSeparator();
     QAction *showFnBar = interfaceMenu->addAction(
         commandText(QStringLiteral("toggleFunctionKeyBar"), tr("Show Function Key Bar")));
@@ -904,18 +995,24 @@ void MainWindow::buildTitleBarMenus() {
 // External-device hot-plug watcher, SMB neighbourhood browser, and the daily
 // background update check. Kept out of the (already large) constructor body.
 void MainWindow::setupFeatureBatch() {
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
     // Removable-device hot-plug: when a new USB stick / phone / drive appears and
     // the preference is on, mount it and open it in a fresh, activated tab.
     m_deviceMonitor = new RemovableDeviceMonitor(this);
+#endif
 
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || FILECOMMANDER_HAS_NETWORK
     // The folder trees organise themselves around devices and live connections.
     // Both panels share one registry so each can see (and grey out) the other's
     // connections; hot-plug and connect/disconnect drive the rebuilds, no polling.
+#if FILECOMMANDER_HAS_NETWORK
     m_connRegistry = new NetworkTreeRegistry(this);
+#endif
     m_leftPanel->setTreeSources(m_deviceMonitor, m_connRegistry);
     m_rightPanel->setTreeSources(m_deviceMonitor, m_connRegistry);
+#endif
 
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
     connect(m_deviceMonitor, &RemovableDeviceMonitor::deviceAdded, this,
             [this](const RemovableDevice &dev) {
                 if (!m_settings.autoOpenNewDevice() || !m_activePanel)
@@ -955,6 +1052,9 @@ void MainWindow::setupFeatureBatch() {
                 m_removableMounts = fresh;
             });
 
+#endif
+
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || (defined(Q_OS_WIN) && FILECOMMANDER_HAS_NETWORK)
     // SMB neighbourhood discovery is owned here and injected into the
     // external-connection picker. Kick off one background scan at startup and
     // cache the results (4h): opening the picker then shows hosts instantly from
@@ -993,6 +1093,52 @@ void MainWindow::setupFeatureBatch() {
     // startup has better things to do with the disk; see
     // ThumbnailCache::scheduleMaintenance().
     ThumbnailCache::instance().scheduleMaintenance();
+}
+
+void MainWindow::openFolders(const QStringList &folders) {
+    for (int i = 0; i < folders.size(); ++i) {
+        FilePanel *panel = i == 1 ? m_rightPanel : m_leftPanel;
+        if (i >= 2)
+            panel->newTab();
+        panel->openLocalInTab(-1, folders.at(i));
+    }
+    if (!folders.isEmpty())
+        setActivePanel(m_leftPanel);
+}
+
+void MainWindow::runPackageSmoke(const QString &directory) {
+    const QDir dir(directory);
+    if (!dir.exists() || !m_leftPanel || !m_quickView) {
+        QTimer::singleShot(0, qApp, [] { QCoreApplication::exit(2); });
+        return;
+    }
+
+    // The order deliberately crosses all runtime preview boundaries. showFile()
+    // also works while the embedded pane is parked, which keeps this invisible
+    // to users but still instantiates each backend and its helper process.
+    QStringList files;
+    for (const QString &name : {QStringLiteral("smoke.png"), QStringLiteral("smoke.pdf"),
+                                QStringLiteral("smoke.docx"), QStringLiteral("smoke.wav")}) {
+        if (dir.exists(name))
+            files.append(name);
+    }
+    if (files.isEmpty()) {
+        QTimer::singleShot(0, qApp, [] { QCoreApplication::exit(2); });
+        return;
+    }
+    m_leftPanel->navigateTo(dir.absolutePath());
+
+    auto index = std::make_shared<int>(0);
+    auto next = std::make_shared<std::function<void()>>();
+    *next = [this, dir, files, index, next] {
+        if (*index >= files.size()) {
+            QTimer::singleShot(1200, qApp, [] { QCoreApplication::quit(); });
+            return;
+        }
+        m_quickView->showFile(dir.filePath(files.at((*index)++)));
+        QTimer::singleShot(3500, this, *next);
+    };
+    (*next)();
 }
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
@@ -1537,7 +1683,7 @@ SavedNativeProvider providerForSaved(const SavedConnection &c) {
 } // namespace
 
 void MainWindow::openExternalConnections() {
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || (defined(Q_OS_WIN) && FILECOMMANDER_HAS_NETWORK)
     if (!m_activePanel)
         return;
     // A floating fly-out anchored above the launching (leading) button rather
@@ -1588,7 +1734,11 @@ void MainWindow::openExternalConnections() {
             return;
         // Browse the host's shares anonymously; "/" lists the shares available.
         // Connect asynchronously so an unreachable host never freezes the UI.
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
         auto provider = std::make_shared<SmbProvider>();
+#elif defined(Q_OS_WIN)
+        auto provider = std::make_shared<WindowsSmbProvider>();
+#endif
         auto connectFn = [provider, hostName](QString *e) {
             return provider->connectToHost(hostName, QString(), QString(), QString(), true, e);
         };
@@ -1599,7 +1749,7 @@ void MainWindow::openExternalConnections() {
         panel->setConnectingLabel(hostName, QStringLiteral("smb"));
         // Record for session reconnect (anonymous SMB browse of this host).
         SavedConnection smbInfo;
-        smbInfo.protocol = static_cast<int>(GvfsMounter::Protocol::Smb);
+        smbInfo.protocol = static_cast<int>(ConnectionProtocol::Smb);
         smbInfo.host = hostName;
         smbInfo.anonymous = true;
         smbInfo.remotePath = QStringLiteral("/");
@@ -1620,6 +1770,8 @@ void MainWindow::openExternalConnections() {
 
     // Pop up directly above the leading function-key button that launched it.
     dlg->popUpAbove(m_functionKeyBar->leadingButtonGlobalRect());
+#elif FILECOMMANDER_HAS_NETWORK
+    openServerConnectDialog(false);
 #else
     ttc::information(this, tr("External Connections"),
                      tr("Network and removable-device connections are not enabled in this build."));
@@ -1673,7 +1825,7 @@ void MainWindow::checkForUpdatesNow() {
 void MainWindow::showUpdateDialog() {
     if (!m_hasUpdate)
         return;
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
     UpdateDialog dlg(m_pendingUpdate, this);
     connect(&dlg, &UpdateDialog::restartRequested, qApp, &QApplication::quit);
     dlg.exec();
@@ -1740,10 +1892,10 @@ void MainWindow::setupShortcuts() {
     bindShortcut("connectionManager", tr("Connection Manager"),
                  QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_O), [this] { openExternalConnections(); });
     bindShortcut("chooseFont", tr("Choose Font"), QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_F),
-                 [this] { chooseListFont(); });
+                 [this] { chooseGlobalFont(); });
     bindShortcut("increaseFontSize", tr("Increase Font Size"),
                  QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_Equal), [this] {
-                     const int size = qMin(18, m_settings.listFontSize() + 1);
+                     const int size = qMin(16, m_settings.listFontSize() + 1);
                      m_settings.setListFontSize(size);
                      m_leftPanel->setListFontSize(size);
                      m_rightPanel->setListFontSize(size);
@@ -1979,17 +2131,32 @@ void MainWindow::calculateSizes() {
         m_activePanel->calculateDirSizes();
 }
 
-void MainWindow::chooseListFont() {
-    QFont initial = m_leftPanel ? m_leftPanel->view()->font() : font();
+void MainWindow::chooseGlobalFont() {
+    QFont initial = Typography::chromeFont(m_settings);
     bool accepted = false;
     const QFont selected = ttc::getFont(&accepted, initial, this, tr("Choose Font"));
     if (!accepted)
         return;
-    m_settings.setListFontFamily(selected.family());
-    for (FilePanel *panel : {m_leftPanel, m_rightPanel})
+    m_settings.setGlobalFontFamily(selected.family());
+    applyInterfaceTypography();
+    for (FilePanel *panel : {m_leftPanel, m_rightPanel}) {
         panel->setListFontFamily(selected.family());
-    if (m_quickView)
+        panel->setListFontSize(m_settings.listFontSize());
+    }
+    if (m_quickView) {
         m_quickView->setContentFontFamily(selected.family());
+        m_quickView->setContentFontSize(m_settings.listFontSize());
+    }
+    QTimer::singleShot(0, this, &MainWindow::buildTitleBarMenus);
+}
+
+void MainWindow::applyInterfaceTypography() {
+    Typography::applyApplicationFont(m_settings);
+    Typography::applyChromeFont(this, m_settings);
+    Typography::applyChromeFont(m_leftPanel, m_settings);
+    Typography::applyChromeFont(m_rightPanel, m_settings);
+    Typography::applyChromeFont(m_commandBar, m_settings);
+    Typography::applyChromeFont(m_functionKeyBar, m_settings);
 }
 
 void MainWindow::calculateChecksums() {
@@ -2041,7 +2208,7 @@ void MainWindow::calculateChecksums() {
 }
 
 void MainWindow::secureWipeSelected() {
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
     if (!m_activePanel)
         return;
 
@@ -3105,7 +3272,7 @@ void MainWindow::applyTheme() {
         m_rightPanel->refreshThemeIcons();
     if (m_functionKeyBar)
         updateExtraKeyButtons();
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || (defined(Q_OS_WIN) && FILECOMMANDER_HAS_NETWORK)
     for (ExternalConnectDialog *popup : findChildren<ExternalConnectDialog *>())
         popup->refreshThemeIcons();
 #endif

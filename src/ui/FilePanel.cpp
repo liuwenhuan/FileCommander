@@ -62,6 +62,9 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     // declare `background: transparent` for this class so their appearance is
     // unchanged -- it shows the parent, exactly as it did before.
     setAttribute(Qt::WA_StyledBackground, true);
+    // Long tab and address text must clip inside this splitter pane rather
+    // than turning into a minimum width for the whole pane.
+    setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     m_model = new FileSystemModel(this);
     m_view = new FileListView(this);
     m_view->setModel(m_model);
@@ -69,6 +72,20 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
 
     m_tabManager = new TabManager(this);
     m_tabBar = new TabBar(this);
+    m_tabBar->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+
+    // The visible left overflow control lives outside QTabBar so it remains at
+    // the physical left edge. Qt's native right control stays inside the bar.
+    m_tabScrollLeftButton = new QToolButton(this);
+    m_tabScrollLeftButton->setObjectName(QStringLiteral("PanelTabScrollLeftButton"));
+    m_tabScrollLeftButton->setArrowType(Qt::LeftArrow);
+    m_tabScrollLeftButton->setAutoRaise(true);
+    m_tabScrollLeftButton->setFocusPolicy(Qt::NoFocus);
+    m_tabScrollLeftButton->setToolTip(tr("Scroll tabs left"));
+    m_tabScrollLeftButton->hide();
+    connect(m_tabScrollLeftButton, &QToolButton::clicked, m_tabBar, &TabBar::scrollLeft);
+    connect(m_tabBar, &TabBar::overflowScrollButtonsVisibleChanged,
+            m_tabScrollLeftButton, &QToolButton::setVisible);
 
     // "+" at the far right of the tab strip opens a new tab in this panel,
     // lined up directly above the address row's "✳" button.
@@ -82,12 +99,14 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
         emit panelActivated(this); // act on this panel
         newTab();
     });
+    m_tabScrollLeftButton->setFixedSize(m_addTabButton->sizeHint());
 
     m_addressBar = new BreadcrumbBar(this);
+    m_addressBar->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     m_addressBar->setFocusPolicy(Qt::ClickFocus); // keep it out of the Tab chain
 
-    // Folder-tree toggle: first item in the tab row. Shows/hides this panel's
-    // own directory tree. A monochrome BMP glyph (not the 🗀 emoji, which some
+    // Folder-tree toggle: first item in the address row. Shows/hides this
+    // panel's own directory tree. A monochrome BMP glyph (not the 🗀 emoji, which some
     // fonts render in a fixed colour that clashes with the other chrome icons in
     // dark mode) so it follows the palette like ← → ★ ✳.
     m_treeButton = new QToolButton(this);
@@ -131,6 +150,14 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
             this, m_starButton->mapToGlobal(QPoint(0, m_starButton->height())));
     });
 
+    // Keep the tree toggle visually aligned with the navigation controls even
+    // though the menu glyph has a different natural text width.
+    QSize addressButtonSize = m_treeButton->sizeHint();
+    for (QToolButton *button : {m_backButton, m_forwardButton, m_starButton})
+        addressButtonSize = addressButtonSize.expandedTo(button->sizeHint());
+    for (QToolButton *button : {m_treeButton, m_backButton, m_forwardButton, m_starButton})
+        button->setFixedSize(addressButtonSize);
+
     auto *addressRow = new QWidget(this);
     // Named so a theme can reach it. It is a bare QWidget, which Qt DOES paint
     // the sheet's `QWidget { background }` onto -- covering the panel behind it
@@ -142,6 +169,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     auto *addressLayout = new QHBoxLayout(addressRow);
     addressLayout->setContentsMargins(0, 0, 0, 0);
     addressLayout->setSpacing(2);
+    addressLayout->addWidget(m_treeButton);
     addressLayout->addWidget(m_backButton);
     addressLayout->addWidget(m_forwardButton);
     addressLayout->addWidget(m_addressBar, 1);
@@ -155,14 +183,14 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
 
     m_statusBar = new StatusBarWidget(this);
 
-    // Tab row: [tree] at the head, then the tab strip (stretch), then the
-    // trailing "+". Back/Forward and the ✳ menu live in the address row below.
+    // Tab row: overflow-left, tab strip, then the trailing "+".
+    // The tree toggle and navigation controls live together in the address row.
     auto *tabRow = new QWidget(this);
     m_tabRow = tabRow;
     auto *tabRowLayout = new QHBoxLayout(tabRow);
     tabRowLayout->setContentsMargins(0, 0, 0, 0);
     tabRowLayout->setSpacing(2);
-    tabRowLayout->addWidget(m_treeButton, 0, Qt::AlignVCenter);
+    tabRowLayout->addWidget(m_tabScrollLeftButton, 0, Qt::AlignVCenter);
     tabRowLayout->addWidget(m_tabBar, 1);
     tabRowLayout->addWidget(m_addTabButton, 0, Qt::AlignVCenter);
 

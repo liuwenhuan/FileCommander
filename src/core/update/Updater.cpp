@@ -12,8 +12,11 @@
 #include <QStandardPaths>
 #include <QTemporaryFile>
 #include <QUrl>
+#include <QUuid>
 
+#ifndef Q_OS_WIN
 #include <sys/stat.h> // chmod
+#endif
 
 namespace {
 
@@ -109,12 +112,95 @@ void Updater::onDownloadFinished(QNetworkReply *reply, const QString &tmpPath,
         return;
     }
 
+#ifdef Q_OS_WIN
+    installWindowsPortable(tmpPath, info);
+#else
     if (runningAsAppImage())
         installAppImage(tmpPath, info);
     else
         installDeb(tmpPath, info);
+#endif
 }
 
+#ifdef Q_OS_WIN
+void Updater::installWindowsPortable(const QString &downloadedFile, const UpdateInfo &info) {
+    if (!downloadedFile.endsWith(QStringLiteral(".zip"), Qt::CaseInsensitive)) {
+        emit finished(false, tr("Windows portable updates must be ZIP packages."));
+        return;
+    }
+
+    const QString targetDir = QCoreApplication::applicationDirPath();
+    QTemporaryFile writeProbe(QDir(targetDir).filePath(QStringLiteral(".FileCommander-update-XXXXXX")));
+    if (!writeProbe.open()) {
+        emit finished(false, tr("The application folder is not writable. Extract the update manually."));
+        return;
+    }
+    writeProbe.close();
+
+    const QString root = QDir(QStandardPaths::writableLocation(QStandardPaths::TempLocation))
+                             .filePath(QStringLiteral("FileCommander-update-%1")
+                                           .arg(QUuid::createUuid().toString(QUuid::WithoutBraces)));
+    if (!QDir().mkpath(root)) {
+        emit finished(false, tr("Could not create the update staging directory."));
+        return;
+    }
+    const QString archive = QDir(root).filePath(QStringLiteral("package.zip"));
+    if (!QFile::copy(downloadedFile, archive)) {
+        QDir(root).removeRecursively();
+        emit finished(false, tr("Could not stage the downloaded update."));
+        return;
+    }
+
+    const QString scriptPath = QDir(root).filePath(QStringLiteral("apply-update.ps1"));
+    QFile script(scriptPath);
+    if (!script.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QDir(root).removeRecursively();
+        emit finished(false, tr("Could not prepare the update installer."));
+        return;
+    }
+    static const char kScript[] = R"PS(param(
+    [int]$ProcessId,
+    [string]$Archive,
+    [string]$Target,
+    [string]$Executable,
+    [string]$Root
+)
+$ErrorActionPreference = 'Stop'
+while (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 200 }
+$stage = Join-Path $Root 'stage'
+Expand-Archive -LiteralPath $Archive -DestinationPath $stage -Force
+$payload = $stage
+if (-not (Test-Path -LiteralPath (Join-Path $payload $Executable))) {
+    $children = @(Get-ChildItem -LiteralPath $stage -Directory)
+    if ($children.Count -eq 1 -and (Test-Path -LiteralPath (Join-Path $children[0].FullName $Executable))) {
+        $payload = $children[0].FullName
+    } else {
+        throw 'The update archive does not contain the application executable.'
+    }
+}
+Get-ChildItem -LiteralPath $payload | Copy-Item -Destination $Target -Recurse -Force
+Start-Process -FilePath (Join-Path $Target $Executable) -WorkingDirectory $Target
+Remove-Item -LiteralPath $Root -Recurse -Force
+)PS";
+    script.write(kScript);
+    script.close();
+
+    const QString executable = QFileInfo(QCoreApplication::applicationFilePath()).fileName();
+    const QStringList args{QStringLiteral("-NoProfile"), QStringLiteral("-ExecutionPolicy"),
+                           QStringLiteral("Bypass"), QStringLiteral("-File"), scriptPath,
+                           QStringLiteral("-ProcessId"), QString::number(QCoreApplication::applicationPid()),
+                           QStringLiteral("-Archive"), archive, QStringLiteral("-Target"), targetDir,
+                           QStringLiteral("-Executable"), executable, QStringLiteral("-Root"), root};
+    if (!QProcess::startDetached(QStringLiteral("powershell.exe"), args)) {
+        QDir(root).removeRecursively();
+        emit finished(false, tr("Could not launch the Windows update installer."));
+        return;
+    }
+    emit finished(true, tr("Updated to version %1. Restarting...").arg(info.version));
+}
+#endif
+
+#ifndef Q_OS_WIN
 void Updater::installAppImage(const QString &downloadedFile, const UpdateInfo &info) {
     const QByteArray appImageEnv = qgetenv("APPIMAGE");
     const QString target = QString::fromLocal8Bit(appImageEnv);
@@ -157,6 +243,7 @@ void Updater::installAppImage(const QString &downloadedFile, const UpdateInfo &i
 
     emit finished(true, tr("Updated to version %1. Restarting…").arg(info.version));
 }
+#endif
 
 void Updater::installDeb(const QString &downloadedFile, const UpdateInfo &info) {
     // Give the package a stable, .deb-suffixed name so apt/dpkg accept it.

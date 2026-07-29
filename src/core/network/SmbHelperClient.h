@@ -5,8 +5,6 @@
 #include <QString>
 #include <QVector>
 
-#include <sys/types.h>
-
 #include <cstdint>
 
 // A small pool of FileCommander-smb-helper subprocesses, each owning one independent
@@ -54,7 +52,7 @@ public:
 
     private:
         friend class SmbHelperClient;
-        Channel(pid_t pid, int socket, int timeoutMs);
+        Channel(qint64 pid, int socket, int timeoutMs);
 
         // Sends one request frame and waits for its reply. Returns false on
         // timeout, a dead helper, or an Error status, having set m_broken for
@@ -74,7 +72,7 @@ public:
         // separate stdout and stderr the parent must drain both or a full 64 KiB
         // pipe deadlocks the helper mid-reply. The helper writes only frames, on
         // one channel, and inherits the parent's stderr for diagnostics.
-        pid_t m_pid = -1;
+        qint64 m_pid = -1;
         int m_socket = -1;
         int m_timeoutMs;
         std::uint64_t m_handle = 0; // 0 == no file open

@@ -41,6 +41,7 @@ set(UI_TEST_SOURCES
     test_NotepadPanel.cpp
     test_ShortcutsDialog.cpp
     test_StandardButtonLocalization.cpp
+    test_ChromeTypography.cpp
     ../archive/test_CompressDialog.cpp
     ../../resources/resources.qrc
 )
@@ -76,3 +77,4 @@ target_link_libraries(ui_tests PRIVATE
 )
 
 add_test(NAME ui_tests COMMAND ui_tests)
+filecommander_set_test_runtime(ui_tests)

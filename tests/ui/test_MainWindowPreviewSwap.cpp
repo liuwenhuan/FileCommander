@@ -6,9 +6,11 @@
 
 #include <clocale>
 
+#include "BreadcrumbBar.h"
 #include "FilePanel.h"
 #include "MainWindow.h"
 #include "QuickView.h"
+#include "TabBar.h"
 #include "config/Settings.h"
 
 namespace {
@@ -86,4 +88,30 @@ TEST(MainWindowPreviewSwapTest, CtrlUSwapsPreviewWithVisiblePanelAndKeepsHiddenP
     EXPECT_EQ(splitter->widget(0), right) << "closing restores the parked panel to preview's new slot";
     EXPECT_EQ(splitter->widget(1), left) << "closing keeps the swapped panel position";
     EXPECT_EQ(window.focusWidget(), left->activeView());
+}
+
+TEST(MainWindowLayoutTest, LongDirectoryNamesDoNotSetThePanelMinimumWidth) {
+    const QString longDirectory =
+        QStringLiteral("this-is-a-deliberately-long-directory-name-that-must-not-lock-the-panel-width");
+
+    QSplitter splitter(Qt::Horizontal);
+    auto *left = new FilePanel(&splitter);
+    auto *right = new FilePanel(&splitter);
+    splitter.addWidget(left);
+    splitter.addWidget(right);
+    splitter.resize(1200, 700);
+    splitter.show();
+    processGuiEvents();
+
+    TabBar *tabs = left->findChild<TabBar *>();
+    BreadcrumbBar *address = left->findChild<BreadcrumbBar *>();
+    ASSERT_NE(tabs, nullptr);
+    ASSERT_NE(address, nullptr);
+    tabs->setTabText(0, longDirectory);
+    address->setPath(QStringLiteral("/tmp/") + longDirectory);
+    processGuiEvents();
+
+    splitter.setSizes({260, 900});
+    processGuiEvents();
+    EXPECT_LE(splitter.sizes().at(0), 300);
 }

@@ -110,20 +110,44 @@ void Settings::setLanguage(const QString &language) {
     m_settings.setValue("appearance/language", language);
 }
 
+QString Settings::globalFontFamily() const {
+    const QString selected = m_settings.value("appearance/fontFamily").toString();
+    if (!selected.isEmpty())
+        return selected;
+
+    // Preserve the choice made by versions that exposed separate font selectors.
+    const QString legacyList = m_settings.value("appearance/listFontFamily").toString();
+    if (!legacyList.isEmpty())
+        return legacyList;
+    return m_settings.value("appearance/interfaceFontFamily").toString();
+}
+
+void Settings::setGlobalFontFamily(const QString &family) {
+    const QString trimmed = family.trimmed();
+    if (trimmed.isEmpty())
+        m_settings.remove("appearance/fontFamily");
+    else
+        m_settings.setValue("appearance/fontFamily", trimmed);
+    m_settings.remove("appearance/listFontFamily");
+    m_settings.remove("appearance/interfaceFontFamily");
+}
+
 int Settings::listFontSize() const {
-    return qBound(8, m_settings.value("appearance/listFontSize", 12).toInt(), 18);
+    return qBound(8, m_settings.value("appearance/listFontSize", 12).toInt(), 16);
 }
 
 void Settings::setListFontSize(int pt) {
-    m_settings.setValue("appearance/listFontSize", qBound(8, pt, 18));
+    m_settings.setValue("appearance/listFontSize", qBound(8, pt, 16));
 }
 
-QString Settings::listFontFamily() const {
-    return m_settings.value("appearance/listFontFamily").toString();
+int Settings::menuFontSize() const {
+    const int legacySize = m_settings.value("appearance/interfaceFontSize", 12).toInt();
+    return qBound(8, m_settings.value("appearance/menuFontSize", legacySize).toInt(), 16);
 }
 
-void Settings::setListFontFamily(const QString &family) {
-    m_settings.setValue("appearance/listFontFamily", family);
+void Settings::setMenuFontSize(int pt) {
+    m_settings.setValue("appearance/menuFontSize", qBound(8, pt, 16));
+    m_settings.remove("appearance/interfaceFontSize");
 }
 
 double Settings::videoSpeed() const {
@@ -408,6 +432,14 @@ bool Settings::autoUpdateCheck() const {
 
 void Settings::setAutoUpdateCheck(bool on) {
     m_settings.setValue("update/autoCheck", on);
+}
+
+bool Settings::folderAssociationEnabled() const {
+    return m_settings.value("integration/folderAssociationEnabled", false).toBool();
+}
+
+void Settings::setFolderAssociationEnabled(bool on) {
+    m_settings.setValue("integration/folderAssociationEnabled", on);
 }
 
 bool Settings::notepadVisible() const {

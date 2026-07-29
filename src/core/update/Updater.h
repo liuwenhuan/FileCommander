@@ -35,6 +35,9 @@ signals:
 private:
     void onDownloadFinished(QNetworkReply *reply, const QString &downloadedFile,
                             const UpdateInfo &info);
+#ifdef Q_OS_WIN
+    void installWindowsPortable(const QString &downloadedFile, const UpdateInfo &info);
+#endif
     void installAppImage(const QString &downloadedFile, const UpdateInfo &info);
     void installDeb(const QString &downloadedFile, const UpdateInfo &info);
 

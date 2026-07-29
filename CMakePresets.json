@@ -29,6 +29,24 @@
       }
     },
     {
+      "name": "windows-msvc-x86-debug",
+      "inherits": "windows-msvc-debug",
+      "displayName": "Windows MSVC x86 Debug",
+      "binaryDir": "${sourceDir}/build/windows-msvc-x86-debug",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x86-windows"
+      }
+    },
+    {
+      "name": "windows-msvc-arm64-debug",
+      "inherits": "windows-msvc-debug",
+      "displayName": "Windows MSVC ARM64 Debug",
+      "binaryDir": "${sourceDir}/build/windows-msvc-arm64-debug",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "arm64-windows"
+      }
+    },
+    {
       "name": "linux-debug",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/linux-debug",
@@ -42,6 +60,8 @@
   "buildPresets": [
     { "name": "windows-msvc-debug", "configurePreset": "windows-msvc-debug" },
     { "name": "windows-msvc-release", "configurePreset": "windows-msvc-release" },
+    { "name": "windows-msvc-x86-debug", "configurePreset": "windows-msvc-x86-debug" },
+    { "name": "windows-msvc-arm64-debug", "configurePreset": "windows-msvc-arm64-debug" },
     { "name": "linux-debug", "configurePreset": "linux-debug" }
   ],
   "testPresets": [

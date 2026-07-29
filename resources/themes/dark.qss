@@ -243,21 +243,74 @@ QTableWidget#ShortcutTable QKeySequenceEdit QLineEdit {
     padding: 0;
 }
 
-QToolButton#PanelAddTabButton, QToolButton#PanelTreeButton {
+QToolButton#PanelAddTabButton,
+QToolButton#PanelTabScrollLeftButton {
     background: transparent;
-    border: none;
+    color: #e0e0e0;
+    border: 1px solid transparent;
+    border-radius: 3px;
     padding: 0;
 }
 
-QToolButton#PanelAddTabButton:hover, QToolButton#PanelTreeButton:hover {
-    background-color: #454545;
-    border: none;
+QToolButton#PanelAddTabButton:hover,
+QToolButton#PanelTabScrollLeftButton:hover {
+    background: #454545;
+    border-color: #555555;
 }
 
-QToolButton#PanelAddTabButton:pressed, QToolButton#PanelTreeButton:pressed,
-QToolButton#PanelTreeButton:checked {
-    background-color: #2f2f2f;
-    border: none;
+QToolButton#PanelAddTabButton:pressed,
+QToolButton#PanelTabScrollLeftButton:pressed {
+    background: #2f2f2f;
+    border-color: #383838;
+}
+
+QToolButton#PanelAddTabButton:disabled,
+QToolButton#PanelTabScrollLeftButton:disabled {
+    background: transparent;
+    color: #777777;
+    border-color: transparent;
+}
+
+QWidget#PanelAddressRow QToolButton {
+    background: transparent;
+    color: #e0e0e0;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    padding: 0;
+}
+
+QWidget#PanelAddressRow QToolButton:hover {
+    background: #454545;
+    border-color: #555555;
+}
+
+QWidget#PanelAddressRow QToolButton:pressed {
+    background: #2f2f2f;
+    border-color: #383838;
+}
+
+QWidget#PanelAddressRow QToolButton:disabled {
+    background: transparent;
+    color: #777777;
+    border-color: transparent;
+}
+
+QWidget#PanelAddressRow QToolButton:checked {
+    background: #3d7deb;
+    color: #ffffff;
+    border-color: #2f6fd4;
+}
+
+QWidget#PanelAddressRow QToolButton:checked:hover {
+    background: #2f6fd4;
+    color: #ffffff;
+    border-color: #245fc0;
+}
+
+QWidget#PanelAddressRow QToolButton:checked:pressed {
+    background: #245fc0;
+    color: #ffffff;
+    border-color: #1f52a8;
 }
 
 QTabBar::tab {
@@ -311,6 +364,20 @@ QScrollBar::handle {
 
 QScrollBar::handle:hover {
     background: #5a5a5a;
+}
+
+QScrollBar::add-page, QScrollBar::sub-page {
+    background: #232323;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0;
+    background: #232323;
+}
+
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0;
+    background: #232323;
 }
 
 /* Directory-tree expand/collapse arrows. The platform style draws these with

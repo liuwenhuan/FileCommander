@@ -340,23 +340,73 @@ QTableWidget#ShortcutTable QKeySequenceEdit QLineEdit {
     padding: 0;
 }
 
-/* Only the tab-add and directory-tree toggles keep the CRT chrome tile.
-   They remain flat controls: hover and checked state change the fill, not a frame. */
-QToolButton#PanelAddTabButton, QToolButton#PanelTreeButton {
+/* The tab-add control keeps the CRT chrome tile at rest. */
+QToolButton#PanelAddTabButton,
+QToolButton#PanelTabScrollLeftButton {
     background: url(:/icons/crt-scan-chrome.png) repeat;
     color: #33ff88;
     border: none;
     padding: 0;
 }
 
-QToolButton#PanelAddTabButton:hover, QToolButton#PanelTreeButton:hover {
-    background-color: #12602f;
+QToolButton#PanelAddTabButton:hover,
+QToolButton#PanelTabScrollLeftButton:hover {
+    background: #12602f;
     border: none;
 }
 
-QToolButton#PanelAddTabButton:pressed, QToolButton#PanelTreeButton:pressed,
-QToolButton#PanelTreeButton:checked {
-    background-color: #33ff88;
+QToolButton#PanelAddTabButton:pressed,
+QToolButton#PanelTabScrollLeftButton:pressed {
+    background: #0a3f1f;
+    color: #33ff88;
+    border: none;
+}
+
+QToolButton#PanelAddTabButton:disabled,
+QToolButton#PanelTabScrollLeftButton:disabled {
+    background: url(:/icons/crt-scan-chrome.png) repeat;
+    color: #12602f;
+    border: none;
+}
+
+QWidget#PanelAddressRow QToolButton {
+    background: transparent;
+    color: #33ff88;
+    border: none;
+    padding: 0;
+}
+
+QWidget#PanelAddressRow QToolButton:hover {
+    background: #12602f;
+    border: none;
+}
+
+QWidget#PanelAddressRow QToolButton:pressed {
+    background: #0a3f1f;
+    color: #33ff88;
+    border: none;
+}
+
+QWidget#PanelAddressRow QToolButton:disabled {
+    background: transparent;
+    color: #12602f;
+    border: none;
+}
+
+QWidget#PanelAddressRow QToolButton:checked {
+    background: #1fa85c;
+    color: #04140a;
+    border: none;
+}
+
+QWidget#PanelAddressRow QToolButton:checked:hover {
+    background: #33ff88;
+    color: #04140a;
+    border: none;
+}
+
+QWidget#PanelAddressRow QToolButton:checked:pressed {
+    background: #147a42;
     color: #04140a;
     border: none;
 }
@@ -486,10 +536,18 @@ QScrollBar::handle:hover {
     background: #1fa85c;
 }
 
-QScrollBar::add-line, QScrollBar::sub-line {
+QScrollBar::add-page, QScrollBar::sub-page {
+    background: #04140a;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     height: 0;
+    background: #04140a;
+}
+
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
     width: 0;
-    background: transparent;
+    background: #04140a;
 }
 
 QTreeView {

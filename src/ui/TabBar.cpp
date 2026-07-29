@@ -7,6 +7,8 @@
 #include <QMenu>
 #include <QPaintEvent>
 #include <QPainter>
+#include <QStyle>
+#include <QStyleOptionTabBarBase>
 #include <QToolButton>
 
 namespace {
@@ -28,6 +30,8 @@ public:
 
 protected:
     void paintEvent(QPaintEvent *) override {
+        if (!isEnabled())
+            return;
         QPainter p(this);
         p.setRenderHint(QPainter::Antialiasing);
         p.setPen(QPen(underMouse() ? QColor(0xe0, 0x4b, 0x4b) : m_colour, 1.6));
@@ -50,10 +54,10 @@ TabBar::TabBar(QWidget *parent) : QTabBar(parent) {
 
     connect(this, &QTabBar::tabCloseRequested, this, &TabBar::closeTabRequested);
 
-    // The left/right scroll buttons QTabBar creates for overflow are QToolButtons
-    // whose arrows the style draws too large. Flatten them and take over their
-    // painting (see eventFilter). They exist from construction, before any tab.
-    const auto scrollButtons = findChildren<QToolButton *>();
+    // Qt still owns tab scrolling. FilePanel supplies the visible left control;
+    // the native right control remains in the tab bar.
+    const auto scrollButtons =
+        findChildren<QToolButton *>(QString(), Qt::FindDirectChildrenOnly);
     for (QToolButton *b : scrollButtons) {
         b->setAutoRaise(true);
         b->installEventFilter(this);
@@ -67,12 +71,8 @@ bool TabBar::eventFilter(QObject *watched, QEvent *event) {
             p.setRenderHint(QPainter::Antialiasing);
             const QRect r = btn->rect();
 
-            // DTK paints its (oversized) scroller arrow onto the tab bar itself,
-            // beneath these transparent buttons -- so fill the button with the
-            // tab-bar background first to hide it, then draw only our chevron.
             p.fillRect(r, palette().color(QPalette::Window));
 
-            // Subtle hover fill, theme-adaptive, echoing the flat tool buttons.
             if (btn->isEnabled() && btn->underMouse()) {
                 QColor hover = palette().color(QPalette::WindowText);
                 hover.setAlpha(28);
@@ -87,18 +87,16 @@ bool TabBar::eventFilter(QObject *watched, QEvent *event) {
             p.setBrush(Qt::NoBrush);
             const int cx = r.center().x();
             const int cy = r.center().y();
-            const int aw = 3; // chevron half-width
-            const int ah = 5; // chevron half-height
-            // The style leaves arrowType() == NoArrow on these, so decide the
-            // direction from the well-known object names instead.
-            if (btn->objectName() == QLatin1String("ScrollLeftButton")) {
+            const int aw = 3;
+            const int ah = 5;
+            if (btn->arrowType() == Qt::LeftArrow) {
                 p.drawLine(cx + aw, cy - ah, cx - aw, cy);
                 p.drawLine(cx - aw, cy, cx + aw, cy + ah);
             } else {
                 p.drawLine(cx - aw, cy - ah, cx + aw, cy);
                 p.drawLine(cx + aw, cy, cx - aw, cy + ah);
             }
-            return true; // painted; skip the style's default arrow
+            return true;
         }
     }
     return QTabBar::eventFilter(watched, event);
@@ -121,6 +119,17 @@ QAbstractButton *TabBar::createCloseButton() {
 void TabBar::tabInserted(int index) {
     QTabBar::tabInserted(index);
     setTabButton(index, QTabBar::RightSide, createCloseButton());
+    syncScrollButtons();
+}
+
+void TabBar::tabRemoved(int index) {
+    QTabBar::tabRemoved(index);
+    syncScrollButtons();
+}
+
+void TabBar::resizeEvent(QResizeEvent *event) {
+    QTabBar::resizeEvent(event);
+    syncScrollButtons();
 }
 
 void TabBar::paintEvent(QPaintEvent *event) {
@@ -143,27 +152,71 @@ void TabBar::paintEvent(QPaintEvent *event) {
                        palette().color(QPalette::Highlight));
         }
     }
+
+    // Some styles draw the left scroller glyph in QTabBar itself even after its
+    // helper widget is hidden. Clear that reserved rectangle; FilePanel owns
+    // the visible left control.
+    QStyleOptionTabBarBase option;
+    option.initFrom(this);
+    const QRect nativeLeft =
+        style()->subElementRect(QStyle::SE_TabBarScrollLeftButton, &option, this);
+    if (nativeLeft.isValid()) {
+        QPainter p(this);
+        p.fillRect(nativeLeft, palette().color(QPalette::Window));
+    }
 }
 
 void TabBar::refreshCloseButtons() {
-    // A lone tab can't be closed, so it shows no × at all. With 2+ tabs, every
-    // × matches the tab label colour (palette WindowText) so it is as legible
-    // as the text -- the active tab is no longer a blue fill, so it needs no
-    // special white ×.
+    // A lone tab cannot be closed, but its disabled button stays in the layout.
+    // Removing it changes QTabBar's height calculation and misaligns the two
+    // panel rows when the other panel has multiple tabs.
     const bool multiple = count() > 1;
     const QColor normal = palette().color(QPalette::WindowText);
     for (int i = 0; i < count(); ++i) {
         QWidget *existing = tabButton(i, QTabBar::RightSide);
         if (!multiple) {
-            if (existing)
-                setTabButton(i, QTabBar::RightSide, nullptr); // drop the × entirely
+            if (!existing) {
+                setTabButton(i, QTabBar::RightSide, createCloseButton());
+                existing = tabButton(i, QTabBar::RightSide);
+            }
+            existing->setEnabled(false);
             continue;
         }
         if (!existing) {
             setTabButton(i, QTabBar::RightSide, createCloseButton());
             existing = tabButton(i, QTabBar::RightSide);
         }
+        existing->setEnabled(true);
         static_cast<TabCloseButton *>(existing)->setColour(normal);
+    }
+}
+
+void TabBar::scrollLeft() {
+    const auto buttons =
+        findChildren<QToolButton *>(QString(), Qt::FindDirectChildrenOnly);
+    for (QToolButton *button : buttons) {
+        if (button->arrowType() == Qt::LeftArrow) {
+            button->click();
+            return;
+        }
+    }
+}
+
+void TabBar::syncScrollButtons() {
+    bool visible = false;
+    const auto buttons =
+        findChildren<QToolButton *>(QString(), Qt::FindDirectChildrenOnly);
+    for (QToolButton *button : buttons) {
+        if (button->arrowType() == Qt::LeftArrow) {
+            button->hide();
+        } else if (button->arrowType() == Qt::RightArrow) {
+            visible = button->isVisible();
+        }
+    }
+
+    if (visible != m_scrollButtonsVisible) {
+        m_scrollButtonsVisible = visible;
+        emit overflowScrollButtonsVisibleChanged(visible);
     }
 }
 

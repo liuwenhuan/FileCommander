@@ -1,0 +1,63 @@
+name: Windows
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      full_preview:
+        description: Run the self-hosted full-preview and package job
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  unit:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+      - id: qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 5.15.2
+          arch: win64_msvc2019_64
+      - name: Install test and provider dependencies
+        shell: pwsh
+        run: |
+          choco install ffmpeg --no-progress --yes
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install --triplet x64-windows libarchive libssh2 curl gtest zlib
+      - name: Configure and build
+        shell: pwsh
+        env:
+          FILECOMMANDER_QT_ROOT: ${{ steps.qt.outputs.dir }}
+        run: |
+          cmake --preset windows-msvc-debug
+          cmake --build --preset windows-msvc-debug --parallel
+      - name: Run contract and UI suites
+        shell: pwsh
+        env:
+          FILECOMMANDER_QT_ROOT: ${{ steps.qt.outputs.dir }}
+        run: ctest --preset windows-msvc-debug
+      - name: Validate source boundaries
+        shell: pwsh
+        run: |
+          git diff --check
+          if (rg -n '#include <(windows|winsock|sys/|xcb|QDBus)' src\platform\*.h src\core\*.h) { exit 1 }
+
+  full-preview-package:
+    if: github.event_name == 'workflow_dispatch' && inputs.full_preview
+    runs-on: [self-hosted, windows, filecommander-full-preview]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build, test, and smoke-test the full portable package
+        shell: pwsh
+        run: |
+          cmake -S . -B build/windows-full-ci -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$env:FILECOMMANDER_QT_ROOT" -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows -DTTC_BUILD_TESTS=ON -DTTC_BUILD_BENCH=OFF -DFILECOMMANDER_ENABLE_NETWORK=ON -DFILECOMMANDER_PREVIEW_PDF=ON -DFILECOMMANDER_PREVIEW_MEDIA=ON -DFILECOMMANDER_POPPLER_QT5_ROOT="$env:FILECOMMANDER_POPPLER_QT5_ROOT" -DFILECOMMANDER_MPV_ROOT="$env:FILECOMMANDER_MPV_ROOT"
+          cmake --build build/windows-full-ci --parallel
+          ctest --test-dir build/windows-full-ci --output-on-failure
+          ./packaging/build-windows.ps1 -WithFullPreviews
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FileCommander-windows-x64
+          path: dist/FileCommander-*-windows-x64.zip

@@ -54,6 +54,9 @@ add_executable(FileCommander
     src/main.cpp
     resources/resources.qrc
 )
+if(WIN32)
+    set_target_properties(FileCommander PROPERTIES WIN32_EXECUTABLE TRUE)
+endif()
 
 target_link_libraries(FileCommander PRIVATE
     core ui viewer archive search widgets

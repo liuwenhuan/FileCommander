@@ -63,16 +63,35 @@ if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
         network/SmbHelperProtocol.h
         network/SmbHelperClient.h
         network/SmbHelperClient.cpp
+        devices/RemovableDeviceMonitor.h
+        devices/RemovableDeviceMonitor.cpp
+    )
+endif()
+
+if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION OR (WIN32 AND FILECOMMANDER_ENABLE_NETWORK))
+    list(APPEND CORE_SOURCES
         network/SmbHostBrowser.h
         network/SmbHostBrowser.cpp
         network/WsdDiscovery.h
         network/WsdDiscovery.cpp
         network/MdnsDiscovery.h
-        network/MdnsDiscovery.cpp
         network/LanScan.h
-        network/LanScan.cpp
-        devices/RemovableDeviceMonitor.h
-        devices/RemovableDeviceMonitor.cpp
+    )
+    if(WIN32)
+        list(APPEND CORE_SOURCES
+            network/MdnsDiscovery_windows.cpp
+            network/LanScan_windows.cpp
+        )
+    else()
+        list(APPEND CORE_SOURCES
+            network/MdnsDiscovery.cpp
+            network/LanScan.cpp
+        )
+    endif()
+endif()
+
+if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION OR WIN32)
+    list(APPEND CORE_SOURCES
         update/Updater.h
         update/Updater.cpp
     )
@@ -82,6 +101,8 @@ if(WIN32)
     list(APPEND CORE_SOURCES
         devices/RemovableDeviceMonitor.h
         devices/RemovableDeviceMonitor_windows.cpp
+        devices/WindowsRemovableStorage.h
+        devices/WindowsRemovableStorage.cpp
     )
     if(FILECOMMANDER_ENABLE_NETWORK)
         list(APPEND CORE_SOURCES

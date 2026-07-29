@@ -1,6 +1,8 @@
 set(UI_SOURCES
     AppIcon.h
     AppIcon.cpp
+    Typography.h
+    Typography.cpp
     theme/PhosphorEffect.h
     theme/PhosphorEffect.cpp
     MainWindow.h
@@ -119,10 +121,15 @@ if(FILECOMMANDER_ENABLE_NETWORK)
     )
 endif()
 
-if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
+if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION OR (WIN32 AND FILECOMMANDER_ENABLE_NETWORK))
     list(APPEND UI_SOURCES
         dialogs/ExternalConnectDialog.h
         dialogs/ExternalConnectDialog.cpp
+    )
+endif()
+
+if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION OR WIN32)
+    list(APPEND UI_SOURCES
         dialogs/SecureWipeDialog.h
         dialogs/SecureWipeDialog.cpp
         dialogs/UpdateDialog.h

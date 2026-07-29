@@ -21,6 +21,8 @@ set(CORE_TEST_SOURCES
     compare/test_TextDiff.cpp
     platform/test_PathSemantics.cpp
     platform/test_FeatureCapabilities.cpp
+    platform/test_FolderAssociation.cpp
+    platform/test_InstanceCoordinator.cpp
 )
 
 if(FILECOMMANDER_ENABLE_NETWORK)
@@ -37,14 +39,21 @@ if(FILECOMMANDER_ENABLE_NETWORK)
     if(NOT WIN32)
         list(APPEND CORE_TEST_SOURCES network/test_ConnectionPool.cpp)
     else()
-        list(APPEND CORE_TEST_SOURCES network/test_WindowsSmbProvider.cpp)
+        list(APPEND CORE_TEST_SOURCES
+            network/test_WindowsSmbProvider.cpp
+            network/test_SmbHostBrowser.cpp
+        )
     endif()
+endif()
+if(WIN32)
+    list(APPEND CORE_TEST_SOURCES
+        devices/test_WindowsRemovableStorage.cpp
+    )
 endif()
 if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
     list(APPEND CORE_TEST_SOURCES
         network/test_GvfsMounter.cpp
         network/test_SmbClientGate.cpp
-        network/test_SmbHostBrowser.cpp
         network/test_SmbHelperProtocol.cpp
     )
 endif()
@@ -60,6 +69,7 @@ target_link_libraries(core_tests PRIVATE
 )
 
 add_test(NAME core_tests COMMAND core_tests)
+filecommander_set_test_runtime(core_tests)
 
 if(TTC_BUILD_LIVE_SMB_TESTS)
     add_executable(smb_live_tests
@@ -80,6 +90,7 @@ if(TTC_BUILD_LIVE_SMB_TESTS)
     )
 
     add_test(NAME smb_live_tests COMMAND $<TARGET_FILE:smb_live_tests>)
+    filecommander_set_test_runtime(smb_live_tests)
     set_tests_properties(smb_live_tests PROPERTIES
         LABELS "live;smb"
         RUN_SERIAL TRUE
@@ -102,6 +113,7 @@ if(TTC_BUILD_LIVE_WEBDAV_TESTS)
     )
 
     add_test(NAME webdav_live_tests COMMAND $<TARGET_FILE:webdav_live_tests>)
+    filecommander_set_test_runtime(webdav_live_tests)
     set_tests_properties(webdav_live_tests PROPERTIES
         LABELS "live;webdav"
         RUN_SERIAL TRUE

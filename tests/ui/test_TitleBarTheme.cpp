@@ -7,6 +7,7 @@
 #include <QLabel>
 #include <QMenu>
 #include <QPixmap>
+#include <QScrollBar>
 #include <QToolButton>
 #include <QWidget>
 
@@ -154,5 +155,32 @@ TEST(TitleBarThemeTest, LightAndDarkThemesResetMenuButtonsAndColumnHeaders) {
     expectMenuTextRendered(titleBar, *menuButton, QColor(0xe0, 0xe0, 0xe0));
     expectHeaderColors(view, QColor(0x23, 0x23, 0x23), QColor(0xe0, 0xe0, 0xe0),
                        QColor(0x50, 0x50, 0x50));
+    qApp->setStyleSheet(originalSheet);
+}
+
+TEST(TitleBarThemeTest, ExistingVerticalScrollBarFollowsThemeChanges) {
+    const QString originalSheet = qApp->styleSheet();
+    QScrollBar scrollBar(Qt::Vertical);
+    scrollBar.setRange(0, 100);
+    scrollBar.setPageStep(10);
+    scrollBar.resize(16, 220);
+    scrollBar.show();
+
+    ThemeManager themeManager;
+    themeManager.apply(Settings::Theme::Crt);
+    qApp->processEvents();
+    EXPECT_EQ(scrollBar.palette().color(QPalette::Window), QColor(0x04, 0x14, 0x0a));
+
+    themeManager.apply(Settings::Theme::Dark);
+    qApp->processEvents();
+    EXPECT_EQ(scrollBar.palette().color(QPalette::Window), QColor(0x23, 0x23, 0x23));
+
+    const QImage rendered = scrollBar.grab().toImage();
+    int brightestPixel = 0;
+    for (int y = 0; y < rendered.height(); ++y) {
+        for (int x = 0; x < rendered.width(); ++x)
+            brightestPixel = qMax(brightestPixel, rendered.pixelColor(x, y).lightness());
+    }
+    EXPECT_LE(brightestPixel, 100) << "scrollbar retained a bright CRT/native sub-control";
     qApp->setStyleSheet(originalSheet);
 }

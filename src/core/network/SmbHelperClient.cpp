@@ -111,7 +111,7 @@ QString SmbHelperClient::helperPath() {
 
 bool SmbHelperClient::available() { return !helperPath().isEmpty(); }
 
-SmbHelperClient::Channel::Channel(pid_t pid, int socket, int timeoutMs)
+SmbHelperClient::Channel::Channel(qint64 pid, int socket, int timeoutMs)
     : m_pid(pid), m_socket(socket), m_timeoutMs(timeoutMs) {}
 
 SmbHelperClient::Channel::~Channel() {

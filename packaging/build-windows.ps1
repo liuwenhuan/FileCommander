@@ -4,7 +4,10 @@ param(
     [string]$VcpkgRoot = $env:VCPKG_ROOT,
     [string]$PopplerQt5Root = $env:FILECOMMANDER_POPPLER_QT5_ROOT,
     [string]$MpvRoot = $env:FILECOMMANDER_MPV_ROOT,
-    [switch]$WithFullPreviews
+    [ValidateSet('x64', 'x86', 'arm64')]
+    [string]$Architecture = 'x64',
+    [switch]$WithFullPreviews,
+    [switch]$SkipArchive
 )
 
 $ErrorActionPreference = 'Stop'
@@ -22,8 +25,9 @@ if (-not $MpvRoot) {
     $MpvRoot = Join-Path $repo 'build/mpv-windows/sdk'
 }
 
-$build = Join-Path $repo 'build/windows-msvc-release'
-$stage = Join-Path $repo 'dist/FileCommander-windows-x64'
+$triplet = "$Architecture-windows"
+$build = Join-Path $repo "build/windows-msvc-release-$Architecture"
+$stage = Join-Path $repo "dist/FileCommander-windows-$Architecture"
 $previewArgs = if ($WithFullPreviews) {
     @('-DFILECOMMANDER_PREVIEW_PDF=ON', '-DFILECOMMANDER_PREVIEW_MEDIA=ON')
 } else {
@@ -34,7 +38,7 @@ cmake -S $repo -B $build -G Ninja `
     -DCMAKE_BUILD_TYPE=Release `
     "-DCMAKE_PREFIX_PATH=$QtRoot" `
     "-DCMAKE_TOOLCHAIN_FILE=$VcpkgRoot/scripts/buildsystems/vcpkg.cmake" `
-    -DVCPKG_TARGET_TRIPLET=x64-windows `
+    "-DVCPKG_TARGET_TRIPLET=$triplet" `
     -DTTC_BUILD_TESTS=OFF `
     -DTTC_BUILD_BENCH=OFF `
     -DFILECOMMANDER_ENABLE_NETWORK=ON `
@@ -58,12 +62,13 @@ if ($LASTEXITCODE) { throw 'windeployqt failed.' }
 Get-ChildItem -LiteralPath $build -Filter '*.dll' |
     Copy-Item -Destination $stage -Force
 if ($WithFullPreviews) {
+    Copy-Item -LiteralPath (Join-Path $QtRoot 'bin/Qt5Xml.dll') -Destination $stage -Force
     if (-not (Test-Path -LiteralPath (Join-Path $PopplerQt5Root 'bin/poppler-qt5.dll'))) {
         throw "Poppler Qt5 runtime not found at $PopplerQt5Root."
     }
     Get-ChildItem -LiteralPath (Join-Path $PopplerQt5Root 'bin') -Filter '*.dll' |
         Copy-Item -Destination $stage -Force
-    $vcpkgBin = Join-Path $VcpkgRoot 'installed/x64-windows/bin'
+    $vcpkgBin = Join-Path $VcpkgRoot "installed/$triplet/bin"
     foreach ($runtime in @('jpeg62.dll', 'openjp2.dll', 'libpng16.dll',
                             'tiff.dll', 'freetype.dll', 'brotlidec.dll',
                             'brotlicommon.dll')) {
@@ -81,7 +86,7 @@ if (Test-Path -LiteralPath $officeBinary) {
 $manifest = [ordered]@{
     product = 'FileCommander'
     version = '0.2.0-phase2-test'
-    platform = 'windows-x64'
+    platform = "windows-$Architecture"
     networkProtocols = @('sftp', 'smb', 'ftp', 'webdav', 'webdavs')
     officePreview = Test-Path -LiteralPath (Join-Path $stage 'office-oxide.exe')
     pdfPreview = [bool]$WithFullPreviews
@@ -91,6 +96,10 @@ $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stage 'manifes
 
 & (Join-Path $PSScriptRoot 'verify-windows-package.ps1') -Stage $stage
 if ($LASTEXITCODE) { throw 'Package verification failed.' }
-$zip = Join-Path $repo 'dist/FileCommander-0.2.0-phase2-test-windows-x64.zip'
-Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
-Write-Host "Created $zip"
+if ($SkipArchive) {
+    Write-Host "Prepared runnable directory $stage"
+} else {
+    $zip = Join-Path $repo "dist/FileCommander-0.2.0-phase2-test-windows-$Architecture.zip"
+    Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
+    Write-Host "Created $zip"
+}

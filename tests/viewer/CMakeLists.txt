@@ -10,3 +10,4 @@ target_link_libraries(viewer_tests PRIVATE
 )
 
 add_test(NAME viewer_tests COMMAND viewer_tests)
+filecommander_set_test_runtime(viewer_tests)

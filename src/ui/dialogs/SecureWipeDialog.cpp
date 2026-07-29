@@ -12,14 +12,21 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRandomGenerator>
+#include <QStorageInfo>
 #include <QTableWidget>
 #include <QThread>
 #include <QVBoxLayout>
 #include <QVector>
 
+#ifdef Q_OS_WIN
+#define NOMINMAX
+#include <windows.h>
+#include <io.h> // _get_osfhandle()
+#else
 #include <sys/stat.h>
 #include <sys/sysmacros.h> // major()/minor()
 #include <unistd.h>        // fsync()
+#endif
 
 namespace {
 
@@ -35,6 +42,7 @@ struct FileJob {
     int passes = 0;
 };
 
+#ifndef Q_OS_WIN
 // Passes for a device given its major:minor: 1 for a rotational disk, 3 for
 // SSD/flash, 3 (the safer, more thorough choice) when the type can't be read.
 int passesForDevice(unsigned maj, unsigned mn) {
@@ -77,6 +85,16 @@ int passesForPath(const QString &path, QHash<QString, int> &cache) {
     cache.insert(key, passes);
     return passes;
 }
+#else
+// Windows does not expose a reliable rotational-media bit for every mounted
+// volume. Use the conservative three-pass policy rather than guessing from the
+// drive letter or silently weakening an erase on USB/SSD storage.
+int passesForPath(const QString &path, QHash<QString, int> &cache) {
+    Q_UNUSED(path);
+    Q_UNUSED(cache);
+    return 3;
+}
+#endif
 
 // Flatten a selected path into the concrete files to wipe (recursing into
 // directories) and the directories to remove afterwards (children before
@@ -166,8 +184,15 @@ void WipeWorker::process() {
                 emit progress(done, total);
             }
             f.flush();
-            if (fd >= 0)
+            if (fd >= 0) {
+#ifdef Q_OS_WIN
+                const intptr_t handle = _get_osfhandle(fd);
+                if (handle != -1)
+                    FlushFileBuffers(reinterpret_cast<HANDLE>(handle));
+#else
                 ::fsync(fd);
+#endif
+            }
         }
         f.close();
         return QFile::remove(job.path);

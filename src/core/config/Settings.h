@@ -40,13 +40,20 @@ public:
     QString language() const;
     void setLanguage(const QString &language);
 
+    // The selected family is shared by every text surface in the application.
+    // Empty means the platform/default font family.
+    QString globalFontFamily() const;
+    void setGlobalFontFamily(const QString &family);
+
     // Point size of the file-list font, shared by both panels. Clamped to
-    // 8..18; defaults to 12.
+    // 8..16; defaults to 12.
     int listFontSize() const;
     void setListFontSize(int pt);
-    // Empty means the platform/default font family.
-    QString listFontFamily() const;
-    void setListFontFamily(const QString &family);
+
+    // Point size used by menus and other application chrome. Clamped to 8..16;
+    // defaults to 12.
+    int menuFontSize() const;
+    void setMenuFontSize(int pt);
 
     // Video-preview playback state, persisted so later previews reuse it.
     // Speed defaults to 1.0; volume 0..100 (default 70); muted defaults to false.
@@ -200,6 +207,12 @@ public:
     void setUpdateLastCheckDate(const QString &date);
     bool autoUpdateCheck() const;
     void setAutoUpdateCheck(bool on);
+
+    // The user explicitly opted into making FileCommander the per-user handler
+    // for folders and drives. Defaults off; platform registration is performed
+    // by FolderAssociation when this preference changes.
+    bool folderAssociationEnabled() const;
+    void setFolderAssociationEnabled(bool on);
 
     // Whether the quick-notepad third column was open when the app last closed,
     // so it reappears on restart.

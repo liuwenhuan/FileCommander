@@ -1,8 +1,6 @@
 #include "UpdateChecker.h"
 
-#ifndef Q_OS_WIN
 #include "Updater.h"
-#endif
 
 #include <QJsonDocument>
 #include <QJsonObject>

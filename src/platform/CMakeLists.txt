@@ -6,6 +6,10 @@ set(PLATFORM_SOURCES
     TrashService.h
     FeatureCapabilities.h
     FeatureCapabilities.cpp
+    FolderAssociation.h
+    FolderAssociation.cpp
+    InstanceCoordinator.h
+    InstanceCoordinator.cpp
 )
 if(WIN32)
     list(APPEND PLATFORM_SOURCES
@@ -21,7 +25,7 @@ endif()
 
 add_library(platform STATIC ${PLATFORM_SOURCES})
 target_include_directories(platform PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(platform PUBLIC Qt5::Core)
+target_link_libraries(platform PUBLIC Qt5::Core Qt5::Network)
 if(WIN32)
     target_link_libraries(platform PRIVATE shell32 ole32 Advapi32)
 else()
