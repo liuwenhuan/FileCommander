@@ -11,6 +11,7 @@
 
 class FileProvider;
 class QTableWidget;
+class QLabel;
 class QProgressBar;
 class QPushButton;
 class QThread;
@@ -82,6 +83,7 @@ private slots:
     void onRowReady(int row, const QString &md5, const QString &crc32, const QString &sha1);
     void onProgress(qint64 done, qint64 total);
     void onFinished();
+    void copySelection();
 
 private:
     void buildUi();
@@ -94,6 +96,7 @@ private:
     QStringList m_paths;
     QTableWidget *m_table = nullptr;
     QProgressBar *m_progress = nullptr;
+    QLabel *m_progressPercent = nullptr;
     QPushButton *m_copyButton = nullptr;
     QThread *m_thread = nullptr;
     std::shared_ptr<std::atomic<bool>> m_cancel;

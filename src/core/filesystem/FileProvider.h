@@ -18,7 +18,17 @@
 // openRead/openWrite and operates on it via read/write/seek/closeHandle.
 class FileHandle {
 public:
+    enum class StreamError { None, NoSpace, PermissionDenied, ConnectionLost, Other };
+
     virtual ~FileHandle() = default;
+    virtual StreamError streamError() const { return StreamError::None; }
+    virtual QString streamErrorDetail() const { return {}; }
+};
+
+struct CloseHandleResult {
+    bool committed = true;
+    FileHandle::StreamError error = FileHandle::StreamError::None;
+    QString detail;
 };
 
 // Everything needed to name this backend's server to an *external*, URI-based
@@ -207,6 +217,10 @@ public:
         return -1;
     }
     virtual bool seek(FileHandle * /*handle*/, qint64 /*offset*/) { return false; }
+    // Whether an existing partial destination may be continued by seeking an
+    // open write handle. WebDAV supports ranged reads but has no standard PUT
+    // resume, so it overrides this while local, SMB, SFTP, and FTP keep true.
+    virtual bool supportsWriteResume() const { return true; }
     // Size in bytes of an open handle's file, or -1 if unknown (used for resume).
     virtual qint64 handleSize(FileHandle * /*handle*/) { return -1; }
     virtual void closeHandle(FileHandle *handle) { delete handle; }
@@ -220,6 +234,11 @@ public:
     virtual bool closeHandleStatus(FileHandle *handle) {
         closeHandle(handle);
         return true;
+    }
+    // Closes a stream while retaining any backend-specific failure detected at
+    // final commit time. The default preserves the existing boolean contract.
+    virtual CloseHandleResult closeHandleResult(FileHandle *handle) {
+        return {closeHandleStatus(handle)};
     }
 
     // Capability probe: whether this provider supports the streaming I/O above.

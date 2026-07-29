@@ -1,4 +1,5 @@
 #include "OperationProgressDialog.h"
+#include "ThemedDialogs.h"
 
 #include <QDialogButtonBox>
 #include <QLabel>
@@ -45,6 +46,7 @@ OperationProgressDialog::OperationProgressDialog(QWidget *parent) : FramelessDia
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Cancel, this);
     m_pauseButton = buttons->addButton(tr("Pause"), QDialogButtonBox::ActionRole);
+    ttc::localizeStandardButtons(buttons);
     connect(m_pauseButton, &QPushButton::clicked, this, [this]() {
         m_paused = !m_paused;
         m_pauseButton->setText(m_paused ? tr("Resume") : tr("Pause"));

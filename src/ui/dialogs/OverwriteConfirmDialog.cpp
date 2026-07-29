@@ -1,4 +1,5 @@
 #include "OverwriteConfirmDialog.h"
+#include "ThemedDialogs.h"
 
 #include <QDialogButtonBox>
 #include <QFileInfo>
@@ -64,6 +65,7 @@ OverwriteConfirmDialog::OverwriteConfirmDialog(const FileConflict &conflict, QWi
     addAction(tr("Skip All"), ErrorAction::SkipAll);
     addAction(tr("Rename"), ErrorAction::Rename);
     QPushButton *cancelBtn = buttons->addButton(QDialogButtonBox::Cancel);
+    ttc::localizeStandardButtons(buttons);
     connect(cancelBtn, &QPushButton::clicked, this, [this]() {
         m_result = ErrorAction::Cancel;
         reject();

@@ -16,13 +16,33 @@ namespace {
 // isolation this class exists to provide (and leaks state across runs).
 class IsolatedConfigDir {
 public:
-    IsolatedConfigDir() {
+    IsolatedConfigDir()
+        : xdgWasSet(qEnvironmentVariableIsSet("XDG_CONFIG_HOME")),
+          previousXdg(qgetenv("XDG_CONFIG_HOME")),
+          overrideWasSet(qEnvironmentVariableIsSet("FILECOMMANDER_CONFIG_HOME")),
+          previousOverride(qgetenv("FILECOMMANDER_CONFIG_HOME")) {
         qputenv("XDG_CONFIG_HOME", dir.path().toUtf8());
         qputenv("FILECOMMANDER_CONFIG_HOME", dir.path().toUtf8());
     }
-    ~IsolatedConfigDir() { qunsetenv("FILECOMMANDER_CONFIG_HOME"); }
+
+    ~IsolatedConfigDir() {
+        if (xdgWasSet)
+            qputenv("XDG_CONFIG_HOME", previousXdg);
+        else
+            qunsetenv("XDG_CONFIG_HOME");
+        if (overrideWasSet)
+            qputenv("FILECOMMANDER_CONFIG_HOME", previousOverride);
+        else
+            qunsetenv("FILECOMMANDER_CONFIG_HOME");
+    }
 
     QTemporaryDir dir;
+
+private:
+    bool xdgWasSet;
+    QByteArray previousXdg;
+    bool overrideWasSet;
+    QByteArray previousOverride;
 };
 } // namespace
 

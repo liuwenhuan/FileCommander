@@ -15,6 +15,7 @@ set(CORE_TEST_SOURCES
     operations/test_ConflictSizes.cpp
     config/test_SessionManager.cpp
     config/test_Settings.cpp
+    notepad/test_NotepadStore.cpp
     sync/test_DirectorySync.cpp
     sync/test_SyncScanner.cpp
     compare/test_TextDiff.cpp
@@ -28,6 +29,7 @@ if(FILECOMMANDER_ENABLE_NETWORK)
         network/test_SftpProvider.cpp
         network/test_CurlFtpProvider.cpp
         network/test_CurlWebDavProvider.cpp
+        network/test_TransferErrorMapping.cpp
         network/test_WebDavUpload.cpp
         network/test_WebDavChunkedUpload.cpp
         network/test_NetworkSession.cpp

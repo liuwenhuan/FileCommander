@@ -1,24 +1,71 @@
 #include "Settings.h"
 
 #include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QStandardPaths>
+
+namespace {
+
+QString prepareConfigDirectory(const QString &basePath) {
+    if (basePath.isEmpty())
+        return QString();
+
+    const QString base = QDir::cleanPath(QFileInfo(basePath).absoluteFilePath());
+    if (base == QStringLiteral("/"))
+        return QString();
+
+    const QString directory = QDir(base).filePath(QStringLiteral("FileCommander"));
+    if (!QDir().mkpath(directory))
+        return QString();
+
+    const QFileInfo directoryInfo(directory);
+    if (!directoryInfo.isDir() || directoryInfo.isSymbolicLink())
+        return QString();
+
+    const QString canonicalDirectory = directoryInfo.canonicalFilePath();
+    const QString canonicalBase = QFileInfo(base).canonicalFilePath();
+    if (canonicalDirectory.isEmpty() || canonicalDirectory == QStringLiteral("/") ||
+        canonicalBase.isEmpty() || canonicalBase == QStringLiteral("/") ||
+        !canonicalDirectory.startsWith(canonicalBase + QLatin1Char('/'))) {
+        return QString();
+    }
+    if (!QFile::setPermissions(canonicalDirectory,
+                               QFileDevice::ReadOwner | QFileDevice::WriteOwner |
+                                   QFileDevice::ExeOwner)) {
+        return QString();
+    }
+    return canonicalDirectory;
+}
+
+} // namespace
 
 QString Settings::configDir() {
     const QString override = qEnvironmentVariable("FILECOMMANDER_CONFIG_HOME");
-    const QString dir = override.isEmpty()
-                            ? QStandardPaths::writableLocation(
-                                  QStandardPaths::GenericConfigLocation) +
-                                  QStringLiteral("/FileCommander")
-                            : QDir(override).filePath(QStringLiteral("FileCommander"));
-    QDir().mkpath(dir);
-    return dir;
+    if (!override.isEmpty())
+        return prepareConfigDirectory(override);
+
+    const QString standardBase =
+        QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
+    const QString standardDirectory = prepareConfigDirectory(standardBase);
+    if (!standardDirectory.isEmpty())
+        return standardDirectory;
+
+    const QString home = QDir::homePath();
+    if (home.isEmpty() || QDir::cleanPath(QFileInfo(home).absoluteFilePath()) == QStringLiteral("/"))
+        return QString();
+    return prepareConfigDirectory(QDir(home).filePath(QStringLiteral(".config")));
 }
 
 QString Settings::configFilePath() {
-    return configDir() + QStringLiteral("/config.ini");
+    const QString dir = configDir();
+    return dir.isEmpty() ? QString() : QDir(dir).filePath(QStringLiteral("config.ini"));
 }
 
-Settings::Settings() : m_settings(configFilePath(), QSettings::IniFormat) {
+Settings::Settings() : Settings(configFilePath()) {}
+
+Settings::Settings(const QString &iniFilePath)
+    : m_settings(iniFilePath.isEmpty() ? configFilePath() : iniFilePath, QSettings::IniFormat) {
     // First run: seed the favorites with the user's home directory. Guarded by
     // a one-shot flag so clearing all favorites later doesn't re-add it.
     if (!m_settings.contains(QStringLiteral("favorites/initialized"))) {
@@ -26,6 +73,17 @@ Settings::Settings() : m_settings(configFilePath(), QSettings::IniFormat) {
                             QStringList{QDir::homePath()});
         m_settings.setValue(QStringLiteral("favorites/initialized"), true);
     }
+    m_settings.sync();
+    const QString path = m_settings.fileName();
+    if (!path.isEmpty() && QFileInfo(path).isFile() && !QFileInfo(path).isSymbolicLink())
+        QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+}
+
+Settings::~Settings() {
+    m_settings.sync();
+    const QString path = m_settings.fileName();
+    if (!path.isEmpty() && QFileInfo(path).isFile() && !QFileInfo(path).isSymbolicLink())
+        QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
 }
 
 Settings::Theme Settings::theme() const {

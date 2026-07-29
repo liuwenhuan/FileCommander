@@ -128,8 +128,11 @@ QPixmap scanlinedPhosphorPixmap(const QPixmap &src, const QColor &tint,
                                 int period = kScanlinePeriod,
                                 qreal darken = kScanlineDarken);
 
-// libavfilter equivalent for video preview: colourise then attenuate every
-// alternate row, with no resize or sampling stage. Empty when `tint` is invalid.
+// Legacy video-preview entry point retained for QuickView compatibility. Video
+// deliberately applies only the low-cost phosphor tint: `period` and `darken`
+// are ignored so the filter never introduces geq/mod(Y) per-pixel scanlines.
+// Static QImage previews continue to receive scanlines via
+// scanlinedPhosphorPixmap(). Empty when `tint` is invalid.
 QString mpvScanlinedPhosphorFilter(const QColor &tint,
                                    int period = kScanlinePeriod,
                                    qreal darken = kScanlineDarken);

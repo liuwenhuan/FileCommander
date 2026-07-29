@@ -33,6 +33,8 @@ set(UI_SOURCES
     CommandHistory.cpp
     QuickView.h
     QuickView.cpp
+    TextEncodingDetector.h
+    TextEncodingDetector.cpp
     SlideSceneBuilder.h
     SlideSceneBuilder.cpp
     ViewerWindow.h

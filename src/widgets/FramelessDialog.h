@@ -19,8 +19,14 @@ class DialogTitleBar;
 // in the top margin strip outside the content rect, so it never overlaps.
 class FramelessDialog : public QDialog {
     Q_OBJECT
+    // Supplies the CRT texture to the self-painted dialog body and forwards it
+    // to DialogTitleBar. A null tile restores the palette background.
+    Q_PROPERTY(QPixmap backgroundTile READ backgroundTile WRITE setBackgroundTile)
 public:
     explicit FramelessDialog(QWidget *parent = nullptr);
+
+    QPixmap backgroundTile() const { return m_backgroundTile; }
+    void setBackgroundTile(const QPixmap &tile);
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -32,6 +38,7 @@ private:
     void ensureFrameCache();
 
     DialogTitleBar *m_titleBar = nullptr;
+    QPixmap m_backgroundTile;
     QPixmap m_frameCache;
     QColor m_frameCacheColor;
 };

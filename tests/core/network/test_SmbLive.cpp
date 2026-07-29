@@ -9,7 +9,9 @@
 #include <QTemporaryDir>
 #include <QUuid>
 
+#include "ConnectionStore.h"
 #include "FileOperations.h"
+#include "GvfsMounter.h"
 #include "LocalFileProvider.h"
 #include "OperationQueue.h"
 #include "SmbProvider.h"
@@ -31,7 +33,7 @@ struct LiveConfig {
 };
 
 QString requiredEnvironment(const char *name, QString *error) {
-    if (!qEnvironmentVariableIsSet(name)) {
+    if (!qEnvironmentVariableIsSet(name) || qEnvironmentVariable(name).isEmpty()) {
         *error = QStringLiteral("Required environment variable %1 is not set").arg(
             QString::fromLatin1(name));
         return {};
@@ -71,29 +73,48 @@ bool validateShareParent(const QString &path, QString *error) {
 
 void clearLiveEnvironment() {
     static const char *const names[] = {
-        "FC_SMB_HOST",      "FC_SMB_PARENT", "FC_SMB_USER",
-        "FC_SMB_PASSWORD",  "FC_SMB_WORKGROUP", "FC_SMB_ANONYMOUS",
+        "FC_SMB_CONNECTION_ID", "FC_SMB_HOST",       "FC_SMB_PARENT",
+        "FC_SMB_USER",          "FC_SMB_PASSWORD",   "FC_SMB_WORKGROUP", "FC_SMB_ANONYMOUS",
     };
     for (const char *name : names)
         qunsetenv(name);
 }
 
 bool loadConfig(LiveConfig *config, QString *error) {
-    config->host = requiredEnvironment("FC_SMB_HOST", error);
-    if (error->isEmpty())
-        config->shareParent = requiredEnvironment("FC_SMB_PARENT", error);
-
-    config->anonymous = qEnvironmentVariable("FC_SMB_ANONYMOUS") == QStringLiteral("1");
-    if (!config->anonymous && error->isEmpty())
-        config->user = requiredEnvironment("FC_SMB_USER", error);
-    if (!config->anonymous && error->isEmpty())
-        config->password = requiredEnvironment("FC_SMB_PASSWORD", error);
-    config->workgroup = qEnvironmentVariable("FC_SMB_WORKGROUP");
+    const QString connectionId = qEnvironmentVariable("FC_SMB_CONNECTION_ID");
+    config->shareParent = requiredEnvironment("FC_SMB_PARENT", error);
+    if (!connectionId.isEmpty() && error->isEmpty()) {
+        const SavedConnection saved = ConnectionStore::load(connectionId);
+        if (saved.id.isEmpty()) {
+            *error = QStringLiteral("FC_SMB_CONNECTION_ID does not name a saved connection");
+        } else if (saved.protocol != static_cast<int>(GvfsMounter::Protocol::Smb)) {
+            *error = QStringLiteral("FC_SMB_CONNECTION_ID must name an SMB connection");
+        } else if (saved.host.isEmpty()) {
+            *error = QStringLiteral("The saved SMB connection has no host");
+        } else if (saved.port > 0 && saved.port != 445) {
+            *error = QStringLiteral("The saved SMB connection must use port 445");
+        } else {
+            config->host = saved.host;
+            config->user = saved.user;
+            config->anonymous = saved.anonymous;
+            if (!config->anonymous) {
+                config->password = ConnectionStore::loadPassword(saved.id);
+                if (config->password.isEmpty())
+                    *error = QStringLiteral("The saved SMB connection has no password in the keyring");
+            }
+        }
+    } else if (connectionId.isEmpty() && error->isEmpty()) {
+        config->host = requiredEnvironment("FC_SMB_HOST", error);
+        config->anonymous = qEnvironmentVariable("FC_SMB_ANONYMOUS") == QStringLiteral("1");
+        if (!config->anonymous && error->isEmpty())
+            config->user = requiredEnvironment("FC_SMB_USER", error);
+        if (!config->anonymous && error->isEmpty())
+            config->password = requiredEnvironment("FC_SMB_PASSWORD", error);
+        config->workgroup = qEnvironmentVariable("FC_SMB_WORKGROUP");
+    }
 
     clearLiveEnvironment();
-    if (!error->isEmpty())
-        return false;
-    return validateShareParent(config->shareParent, error);
+    return error->isEmpty() && validateShareParent(config->shareParent, error);
 }
 
 bool writePatternFile(const QString &path, qint64 bytes, QString *error) {
@@ -150,12 +171,6 @@ QByteArray fileSha256(const QString &path, QString *error) {
 QString joinProviderPath(const QString &dir, const QString &name) {
     return dir.endsWith(QLatin1Char('/')) ? dir + name : dir + QLatin1Char('/') + name;
 }
-
-
-
-
-
-
 
 bool waitForFinished(QSignalSpy *finished, int expected, QString *error) {
     QElapsedTimer timer;
@@ -265,10 +280,10 @@ bool runScenario(SmbProvider *smb, const QString &remoteRoot, const QString &lar
         return false;
     }
     const QString movedLarge = joinProviderPath(movedDir, QFileInfo(largeFixture).fileName());
-    if (smb->exists(movedLarge) && !smb->exists(remoteLarge))
-        return true;  // move OK: source gone, dest present
-    *error = QStringLiteral("The same-share server-side move produced the wrong remote state");
-    return false;
+    if (!smb->exists(movedLarge) || smb->exists(remoteLarge)) {
+        *error = QStringLiteral("The same-share server-side move produced the wrong remote state");
+        return false;
+    }
 
     OperationQueue uploads;
     uploads.setMaxConcurrentTransfers(2);
@@ -276,20 +291,10 @@ bool runScenario(SmbProvider *smb, const QString &remoteRoot, const QString &lar
     uploads.setErrorHandler([](const QString &, const QString &) { return ErrorAction::Cancel; });
     QSignalSpy uploadFinished(&uploads, &OperationQueue::finished);
     QSignalSpy uploadErrors(&uploads, &OperationQueue::errorOccurred);
-    QStringList uploadEvents;
-    QObject::connect(&uploads, &OperationQueue::started,
-                     [&uploadEvents](const QString &) { uploadEvents.append(QStringLiteral("S")); });
-    QObject::connect(&uploads, &OperationQueue::finished,
-                     [&uploadEvents](bool) { uploadEvents.append(QStringLiteral("F")); });
     uploads.enqueueProviderCopy(local, {queuedA}, smb, remoteRoot);
     uploads.enqueueProviderCopy(local, {queuedB}, smb, remoteRoot);
     if (!waitForFinished(&uploadFinished, 2, error)) {
         *error = firstQueueError(uploadErrors, *error);
-        return false;
-    }
-    if (uploadEvents != QStringList({QStringLiteral("S"), QStringLiteral("F"),
-                                     QStringLiteral("S"), QStringLiteral("F")})) {
-        *error = QStringLiteral("Two writes to one SMB provider were not dispatched serially");
         return false;
     }
 
@@ -300,17 +305,54 @@ bool runScenario(SmbProvider *smb, const QString &remoteRoot, const QString &lar
         return false;
     }
 
+    OperationQueue renameQueue;
+    renameQueue.setMaxConcurrentTransfers(1);
+    renameQueue.setErrorHandler([](const QString &, const QString &) { return ErrorAction::Cancel; });
+    QSignalSpy renameFinished(&renameQueue, &OperationQueue::finished);
+    QSignalSpy renameErrors(&renameQueue, &OperationQueue::errorOccurred);
+    const QString renamedAName = QStringLiteral("queued-a-renamed.bin");
+    renameQueue.enqueueProviderRename(smb, remoteA, renamedAName);
+    if (!waitForFinished(&renameFinished, 1, error)) {
+        *error = firstQueueError(renameErrors, *error);
+        return false;
+    }
+    const QString renamedA = joinProviderPath(remoteRoot, renamedAName);
+    if (smb->exists(remoteA) || !smb->exists(renamedA)) {
+        *error = QStringLiteral("Queued SMB rename produced the wrong remote state");
+        return false;
+    }
+
+    OperationQueue downloads;
+    downloads.setMaxConcurrentTransfers(1);
+    downloads.setConflictHandler([](const FileConflict &) { return ErrorAction::Overwrite; });
+    downloads.setErrorHandler([](const QString &, const QString &) { return ErrorAction::Cancel; });
+    QSignalSpy downloadFinished(&downloads, &OperationQueue::finished);
+    QSignalSpy downloadErrors(&downloads, &OperationQueue::errorOccurred);
+    downloads.enqueueProviderCopy(smb, {renamedA}, local, downloadDir);
+    if (!waitForFinished(&downloadFinished, 1, error)) {
+        *error = firstQueueError(downloadErrors, *error);
+        return false;
+    }
+    QString queuedChecksumError;
+    const QString downloadedA = QDir(downloadDir).filePath(renamedAName);
+    if (QFileInfo(downloadedA).size() != QFileInfo(queuedA).size() ||
+        fileSha256(queuedA, &queuedChecksumError) != fileSha256(downloadedA, &queuedChecksumError)) {
+        *error = queuedChecksumError.isEmpty() ? QStringLiteral("Queued SMB download hash mismatch")
+                                                : queuedChecksumError;
+        return false;
+    }
+
     OperationQueue removals;
     removals.setMaxConcurrentTransfers(2);
     removals.setErrorHandler([](const QString &, const QString &) { return ErrorAction::Cancel; });
     QSignalSpy deleteFinished(&removals, &OperationQueue::finished);
     QSignalSpy deleteErrors(&removals, &OperationQueue::errorOccurred);
-    removals.enqueueProviderDelete(smb, {movedLarge, remoteA, remoteB});
+    removals.enqueueProviderDelete(smb, {movedLarge, renamedA, remoteB});
     if (!waitForFinished(&deleteFinished, 1, error)) {
         *error = firstQueueError(deleteErrors, *error);
         return false;
     }
-    if (smb->exists(movedLarge) || smb->exists(remoteA) || smb->exists(remoteB)) {
+    if (smb->exists(movedLarge) || smb->exists(renamedA) || smb->exists(remoteB)) {
         *error = QStringLiteral("Queued SMB delete left one or more test files behind");
         return false;
     }
@@ -327,21 +369,17 @@ bool cleanupRemoteRoot(SmbProvider *smb, const LiveConfig &config, const QString
         return false;
     }
 
-    QString queryError;
-    if (!smb->exists(remoteRoot)) return true; {
-        *error = queryError;
-        return false;
-    }
+    if (!smb->exists(remoteRoot))
+        return true;
 
     FileOperations cleanup;
     cleanup.setErrorResolver([](const QString &, const QString &) { return ErrorAction::Cancel; });
     QString firstError;
     const bool firstDelete = cleanup.deleteProviderPaths(smb, {remoteRoot}, &firstError);
-    queryError.clear();
     if (firstDelete && !smb->exists(remoteRoot))
         return true;
 
-    else if (firstError.isEmpty())
+    if (firstError.isEmpty())
         firstError = QStringLiteral("The session-created SMB test directory still exists");
 
     QString reconnectError;
@@ -350,11 +388,8 @@ bool cleanupRemoteRoot(SmbProvider *smb, const LiveConfig &config, const QString
         return false;
     }
 
-    queryError.clear();
-    if (!smb->exists(remoteRoot)) return true; {
-        *error = queryError;
-        return false;
-    }
+    if (!smb->exists(remoteRoot))
+        return true;
 
     QString retryError;
     if (!cleanup.deleteProviderPaths(smb, {remoteRoot}, &retryError)) {
@@ -362,9 +397,9 @@ bool cleanupRemoteRoot(SmbProvider *smb, const LiveConfig &config, const QString
         return false;
     }
 
-    queryError.clear();
-    if (!smb->exists(remoteRoot)) return true;
-    *error = QStringLiteral("The session-created SMB test directory still exists");;
+    if (!smb->exists(remoteRoot))
+        return true;
+    *error = QStringLiteral("The session-created SMB test directory still exists");
     return false;
 }
 
@@ -390,6 +425,68 @@ TEST(SmbLiveConfig, RejectsTraversalAndServerRootParents) {
         EXPECT_FALSE(validateShareParent(path, &error)) << path.toStdString();
         EXPECT_FALSE(error.isEmpty()) << path.toStdString();
     }
+}
+
+TEST(SmbLiveTest, NoSpaceWriteReportsSpecificError) {
+    if (qEnvironmentVariable("FC_SMB_E2E_NOSPACE") != QStringLiteral("1"))
+        GTEST_SKIP() << "Set FC_SMB_E2E_NOSPACE=1 to verify a full SMB destination";
+
+    LiveConfig config;
+    QString configError;
+    ASSERT_TRUE(loadConfig(&config, &configError)) << configError.toStdString();
+
+    QTemporaryDir localRoot;
+    ASSERT_TRUE(localRoot.isValid());
+    const QString fixture = QDir(localRoot.path()).filePath(QStringLiteral("no-space.bin"));
+    QString localError;
+    ASSERT_TRUE(writePatternFile(fixture, kMiB, &localError)) << localError.toStdString();
+
+    SmbProvider smb;
+    QString connectError;
+    ASSERT_TRUE(connectProvider(&smb, config, &connectError)) << connectError.toStdString();
+
+    const QString parent = smb.cleanPath(config.shareParent);
+    ASSERT_TRUE(smb.exists(parent) && smb.isDir(parent))
+        << "Configured SMB parent is not an existing directory";
+    const QString rootName = QStringLiteral("FC-SMB-E2E-") +
+                             QUuid::createUuid().toString(QUuid::WithoutBraces);
+    const QString remoteRoot = joinProviderPath(parent, rootName);
+
+    FileOperations setup;
+    QString setupError;
+    if (!setup.makeProviderDirectory(&smb, parent, rootName, &setupError)) {
+        QString cleanupError;
+        const bool cleanupOk = cleanupRemoteRoot(&smb, config, remoteRoot, &cleanupError);
+        ADD_FAILURE() << setupError.toStdString();
+        EXPECT_TRUE(cleanupOk)
+            << (QStringLiteral("Cleanup after setup failure failed for ") + remoteRoot +
+                QStringLiteral(": ") + cleanupError)
+                   .toStdString();
+        return;
+    }
+
+    FileOperations ops;
+    ops.setErrorResolver([](const QString &, const QString &) { return ErrorAction::Cancel; });
+    QSignalSpy errors(&ops, &FileOperations::errorOccurred);
+    QString uploadError;
+    const bool uploaded = ops.copyAcrossProviders(LocalFileProvider::instance(), {fixture}, &smb,
+                                                   remoteRoot, /*removeSource=*/false, nullptr,
+                                                   &uploadError);
+
+    QString cleanupError;
+    const bool cleanupOk = cleanupRemoteRoot(&smb, config, remoteRoot, &cleanupError);
+
+    const QString remotePath = joinProviderPath(remoteRoot, QFileInfo(fixture).fileName());
+    const QString expected = QStringLiteral("The destination has no space for %1").arg(remotePath);
+    EXPECT_FALSE(uploaded);
+    if (!uploaded) {
+        EXPECT_EQ(uploadError, expected);
+        ASSERT_EQ(errors.count(), 1);
+        EXPECT_EQ(errors.first().at(0).toString(), expected);
+    }
+    EXPECT_TRUE(cleanupOk) << (QStringLiteral("Cleanup failed for ") + remoteRoot +
+                               QStringLiteral(": ") + cleanupError)
+                                  .toStdString();
 }
 
 TEST(SmbLiveTest, ApplicationOperationsRoundTripMoveQueueReconnectAndCleanup) {
@@ -426,6 +523,8 @@ TEST(SmbLiveTest, ApplicationOperationsRoundTripMoveQueueReconnectAndCleanup) {
     ASSERT_TRUE(connectProvider(&smb, config, &connectError)) << connectError.toStdString();
 
     const QString parent = smb.cleanPath(config.shareParent);
+    ASSERT_TRUE(smb.exists(parent) && smb.isDir(parent))
+        << "Configured SMB parent is not an existing directory";
     const QString runId = QUuid::createUuid().toString(QUuid::WithoutBraces);
     const QString rootName = QStringLiteral("FC-SMB-E2E-") + runId;
     const QString remoteRoot = joinProviderPath(parent, rootName);

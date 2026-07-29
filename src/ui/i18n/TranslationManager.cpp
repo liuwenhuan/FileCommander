@@ -3,18 +3,38 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
+#include <QLibraryInfo>
 #include <QLocale>
 #include <QMap>
+#include <QPointer>
 #include <QStandardPaths>
 #include <QStringList>
 #include <QTranslator>
 
 namespace {
 
-// The currently installed app translator (owned by the QCoreApplication). Kept
-// so switchTo() can remove/replace it. Null when the UI is in the "en" source
-// language (no catalog).
-QTranslator *g_current = nullptr;
+// Translators are QObject children of the application that installed them. QPointer
+// clears itself when that application is destroyed, so a subsequent application in
+// the same process can never remove or delete a dangling translator.
+QPointer<QCoreApplication> g_owner;
+QPointer<QTranslator> g_appTranslator;
+QPointer<QTranslator> g_qtTranslator;
+
+void removeTrackedTranslators() {
+    if (g_owner) {
+        if (g_appTranslator)
+            g_owner->removeTranslator(g_appTranslator);
+        if (g_qtTranslator)
+            g_owner->removeTranslator(g_qtTranslator);
+    }
+    if (g_appTranslator)
+        delete g_appTranslator.data();
+    if (g_qtTranslator)
+        delete g_qtTranslator.data();
+    g_appTranslator.clear();
+    g_qtTranslator.clear();
+    g_owner.clear();
+}
 
 // External catalogs live alongside the config file so translators can drop in a
 // .qm without rebuilding.
@@ -61,34 +81,65 @@ bool TranslationManager::loadCatalog(QTranslator *t, const QString &code) {
     return t->load(QStringLiteral(":/translations/ttc_%1.qm").arg(code));
 }
 
+bool TranslationManager::loadQtCatalog(QTranslator *t, const QString &code) {
+    const QString translations = QLibraryInfo::location(QLibraryInfo::TranslationsPath);
+    return t->load(QStringLiteral("qtbase_%1").arg(code), translations);
+}
+
 void TranslationManager::install(QCoreApplication &app, const QString &language) {
     switchTo(app, language);
 }
 
 void TranslationManager::switchTo(QCoreApplication &app, const QString &language) {
-    // Drop whatever is installed now.
-    if (g_current) {
-        app.removeTranslator(g_current);
-        delete g_current;
-        g_current = nullptr;
+    // Only the application that installed this pair may remove it. If callers
+    // switch to another live QCoreApplication, leave the old pair with its owner
+    // and forget our handles; the old application's QObject destruction cleans it
+    // up. This avoids mutating either application's translator list incorrectly.
+    if (g_owner == &app) {
+        removeTrackedTranslators();
+    } else {
+        g_appTranslator.clear();
+        g_qtTranslator.clear();
+        g_owner.clear();
     }
 
-    // English is the tr() source language: no catalog, leave it removed.
     QString effective = language;
     if (effective.isEmpty() || effective == QStringLiteral("auto"))
         effective = QLocale::system().name();
+    app.setProperty("ttc.uiLanguage", effective);
+    app.setProperty("ttc.qtBaseCatalogLoaded", false);
+
+    // English is the source language. Keeping both translators absent also
+    // makes the standard-button fallback use the canonical English labels.
     if (effective.startsWith(QStringLiteral("en")))
         return;
 
-    auto *translator = new QTranslator(&app);
+    // Qt owns the standard widgets' source strings. Install it first, then the
+    // application catalog, so application translations deliberately win if they
+    // provide an overlapping context.
+    auto *qtTranslator = new QTranslator(&app);
     for (const QString &code : candidatesFor(language)) {
-        if (loadCatalog(translator, code)) {
-            app.installTranslator(translator);
-            g_current = translator;
+        if (loadQtCatalog(qtTranslator, code)) {
+            app.installTranslator(qtTranslator);
+            g_owner = &app;
+            g_qtTranslator = qtTranslator;
+            app.setProperty("ttc.qtBaseCatalogLoaded", true);
+            qtTranslator = nullptr;
+            break;
+        }
+    }
+    delete qtTranslator;
+
+    auto *appTranslator = new QTranslator(&app);
+    for (const QString &code : candidatesFor(language)) {
+        if (loadCatalog(appTranslator, code)) {
+            app.installTranslator(appTranslator);
+            g_owner = &app;
+            g_appTranslator = appTranslator;
             return;
         }
     }
-    delete translator; // nothing matched; stay in the source language
+    delete appTranslator;
 }
 
 QVector<std::pair<QString, QString>> TranslationManager::available() {

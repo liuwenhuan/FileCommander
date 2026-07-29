@@ -88,9 +88,11 @@ public:
     qint64 read(FileHandle *handle, char *buffer, qint64 maxSize) override;
     qint64 write(FileHandle *handle, const char *buffer, qint64 size) override;
     bool seek(FileHandle *handle, qint64 offset) override;
+    bool supportsWriteResume() const override { return false; }
     qint64 handleSize(FileHandle *handle) override;
     void closeHandle(FileHandle *handle) override;
     bool closeHandleStatus(FileHandle *handle) override;
+    CloseHandleResult closeHandleResult(FileHandle *handle) override;
     bool canStream() const override { return true; }
 
     // WebDAV is HTTP, so reads genuinely run side by side: openRead() takes the

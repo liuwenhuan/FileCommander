@@ -1,4 +1,5 @@
 #include "CommandOutputDialog.h"
+#include "ThemedDialogs.h"
 
 #include <QDialogButtonBox>
 #include <QFontDatabase>
@@ -22,6 +23,7 @@ CommandOutputDialog::CommandOutputDialog(QWidget *parent) : FramelessDialog(pare
     auto *buttons = new QDialogButtonBox(this);
     QPushButton *clearButton = buttons->addButton(tr("Clear"), QDialogButtonBox::ResetRole);
     buttons->addButton(QDialogButtonBox::Close);
+    ttc::localizeStandardButtons(buttons);
     connect(clearButton, &QPushButton::clicked, m_output, &QPlainTextEdit::clear);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::hide);
 

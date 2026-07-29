@@ -16,6 +16,7 @@ using NativeSmbProvider = WindowsSmbProvider;
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
+#include <QEvent>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -107,7 +108,8 @@ ConnectDialog::ConnectDialog(QWidget *parent) : FramelessDialog(parent) {
 
     m_buttons =
         new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
-    m_buttons->button(QDialogButtonBox::Ok)->setText(tr("Connect"));
+    ttc::setStandardButtonOverride(m_buttons->button(QDialogButtonBox::Ok), tr("Connect"));
+    ttc::localizeStandardButtons(m_buttons);
 
     // Saved-connections panel: a list of bookmarks with Save / Delete buttons.
     // Selecting one fills the form (and pulls its password from the keyring).
@@ -155,6 +157,15 @@ ConnectDialog::ConnectDialog(QWidget *parent) : FramelessDialog(parent) {
 
     onProtocolChanged(0); // seed default port
     reloadSavedList();
+}
+
+void ConnectDialog::changeEvent(QEvent *event) {
+    FramelessDialog::changeEvent(event);
+    if (event->type() != QEvent::LanguageChange || !m_buttons)
+        return;
+
+    ttc::setStandardButtonOverride(m_buttons->button(QDialogButtonBox::Ok), tr("Connect"));
+    ttc::localizeStandardButtons(m_buttons);
 }
 
 void ConnectDialog::reloadSavedList() {

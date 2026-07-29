@@ -16,6 +16,7 @@
 
 #include "ArchiveHandler.h" // ArchiveNode + ArchiveHandler::Status (async load result)
 #include "OfficeConverter.h" // OfficeConverter::Result (async conversion payload)
+#include "TextEncodingDetector.h"
 
 class QCheckBox;
 class QComboBox;
@@ -284,8 +285,12 @@ private:
     QWidget *m_textPage = nullptr;
     QToolBar *m_textToolbar = nullptr;
     QComboBox *m_textEncoding = nullptr;
+    QLabel *m_textEncodingStatus = nullptr;
     QLineEdit *m_textFind = nullptr;
     QByteArray m_textRaw;              // raw bytes of the current text file
+    QString m_textPath;                // keeps manual encoding only for this selection
+    TextEncodingDetector::Result m_textAutoResult; // detected once per loaded file
+    bool m_textAutoResultValid = false;
     bool m_textHex = false;           // hex-dump mode
     bool m_textTruncated = false;     // the read hit the cap
     qint64 m_textCap = 0;             // max bytes read (context-dependent)

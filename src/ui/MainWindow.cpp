@@ -727,9 +727,12 @@ void MainWindow::buildTitleBarMenus() {
         m_rightPanel->setArchiveAsFolder(!on);
     });
     QAction *noConfirm = configMenu->addAction(
-        commandText(QStringLiteral("toggleDeleteConfirmation"), tr("No Delete Confirmation")));
+        commandText(QStringLiteral("toggleDeleteConfirmation"), tr("Skip Trash Delete Confirmation")));
     noConfirm->setCheckable(true);
     noConfirm->setChecked(!m_settings.confirmDelete());
+    noConfirm->setToolTip(
+        tr("Skip confirmation only when deleting local files to the trash. "
+           "Shift+Delete and remote deletes always require confirmation."));
     connect(noConfirm, &QAction::toggled, this,
             [this](bool on) { m_settings.setConfirmDelete(!on); });
     QAction *autoUpdate = configMenu->addAction(
@@ -1386,6 +1389,7 @@ QString MainWindow::pickCommandId(const QString &title, const QString &currentId
         tree->setCurrentItem(currentItem);
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+    ttc::localizeStandardButtons(buttons);
     connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
     connect(tree, &QTreeWidget::itemDoubleClicked, &dlg, &QDialog::accept);
@@ -1626,7 +1630,7 @@ void MainWindow::toggleNotepad() {
     // A floating fly-out anchored above the trailing function-key button that
     // launched it (mirrors the external-connection panel), rather than a docked
     // third column. Non-modal; it auto-saves and deletes itself on close.
-    auto *pad = new NotepadPanel(this);
+    auto *pad = new NotepadPanel(m_settings, this);
     // The app window's VISIBLE content rect in global coords: contentsRect()
     // excludes the frameless shadow margin, so the popup aligns to the real
     // window edges, not the shadow.
@@ -1790,7 +1794,7 @@ void MainWindow::setupShortcuts() {
                      m_leftPanel->setArchiveAsFolder(!direct);
                      m_rightPanel->setArchiveAsFolder(!direct);
                  });
-    bindShortcut("toggleDeleteConfirmation", tr("No Delete Confirmation"),
+    bindShortcut("toggleDeleteConfirmation", tr("Skip Trash Delete Confirmation"),
                  QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_D), [this] {
                      m_settings.setConfirmDelete(!m_settings.confirmDelete());
                  });
@@ -1978,7 +1982,7 @@ void MainWindow::calculateSizes() {
 void MainWindow::chooseListFont() {
     QFont initial = m_leftPanel ? m_leftPanel->view()->font() : font();
     bool accepted = false;
-    const QFont selected = QFontDialog::getFont(&accepted, initial, this, tr("Choose Font"));
+    const QFont selected = ttc::getFont(&accepted, initial, this, tr("Choose Font"));
     if (!accepted)
         return;
     m_settings.setListFontFamily(selected.family());
@@ -2140,27 +2144,32 @@ void MainWindow::swapPanels() {
         FilePanel *visible = otherPanel(m_quickViewPanel);
         const int visibleIndex = m_panelSplitter->indexOf(visible);
 
-        // The preview occupies one splitter slot while its FilePanel is parked
-        // off-screen. Swap that preview with the visible FilePanel, leaving the
-        // two folder panels' locations and backends untouched.
-        m_panelSplitter->replaceWidget(m_quickViewIndex, m_quickViewPanel);
-        m_quickViewPanel->show();
-        m_panelSplitter->replaceWidget(visibleIndex, m_quickView);
+        // The preview must trade places with the visible FilePanel, not with the
+        // parked panel it replaced. Detach both visible widgets before inserting
+        // them so QSplitter never makes the parked panel visible as an
+        // intermediate replacement.
+        m_quickView->setParent(this);
+        visible->setParent(this);
+        m_panelSplitter->insertWidget(visibleIndex, m_quickView);
+        m_panelSplitter->insertWidget(m_quickViewIndex, visible);
         m_quickView->show();
+        visible->show();
 
-        m_quickViewPanel = visible;
+        // The original inactive panel remains parked. Only the preview's slot
+        // changes, so closing it restores that parked panel on the swapped side.
         m_quickViewIndex = visibleIndex;
 
-        // The FilePanel revealed from behind the preview becomes active so the
-        // preview follows the visible panel's selection.
-        FilePanel *revealed = otherPanel(visible);
-        setActivePanel(revealed);
-        revealed->view()->setFocus();
+        // The visible panel stays active: its selection remains the preview
+        // source, and focus must not jump to the panel hidden behind the preview.
+        setActivePanel(visible);
 
         QList<int> swapped = sizes;
         std::reverse(swapped.begin(), swapped.end());
         m_panelSplitter->setSizes(swapped);
         updateQuickView();
+        // showFile() may focus a freshly selected preview page. Restore keyboard
+        // ownership to the file panel only after the preview has finished updating.
+        visible->activeView()->setFocus();
         return;
     }
 
@@ -2287,6 +2296,8 @@ void MainWindow::toggleQuickView() {
         m_quickViewActive = false;
         m_quickViewPanel = nullptr;
         m_panelSplitter->setSizes(sizes);
+        if (m_activePanel)
+            m_activePanel->activeView()->setFocus();
         return;
     }
     if (!m_activePanel)
@@ -3169,6 +3180,7 @@ bool MainWindow::promptCredentials(const QString &host, QString *user, QString *
     form->addRow(tr("用户名："), userEdit);
     form->addRow(tr("密码："), passEdit);
     auto *box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+    ttc::localizeStandardButtons(box);
     form->addRow(box);
     connect(box, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
     connect(box, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);

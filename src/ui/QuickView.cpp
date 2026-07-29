@@ -58,6 +58,8 @@
 #include <QWheelEvent>
 #include <QtConcurrent>
 
+#include <limits>
+
 #if FILECOMMANDER_HAS_PREVIEW_PDF
 #include <poppler-qt5.h>
 #endif
@@ -76,11 +78,16 @@
 #include "OfficeConverter.h"
 #include "SeekSlider.h"
 #include "SlideSceneBuilder.h"
+#include "TextEncodingDetector.h"
 #include "config/Settings.h"
 #include "media/Id3Reader.h"
 
 namespace {
 constexpr qint64 kTextWindowBytes = 5 * 1024 * 1024; // text preview cap: 5 MiB
+constexpr int kHexWindowBytes = 256 * 1024;           // hex expands to ~4x text
+// All supported encodings consume at most four bytes per code point. Reading
+// this small look-ahead lets safePrefix cut at a complete character boundary.
+constexpr qint64 kTextReadLookAheadBytes = 4;
 constexpr qint64 kMarkdownMaxBytes = 2 * 1024 * 1024; // cap markdown at 2 MiB
 
 // office_oxide (and Markdown) tables carry no cell borders; QTextDocument draws
@@ -91,15 +98,25 @@ const QString kMarkdownDefaultCss =
     QStringLiteral("table { border-collapse: collapse; } "
                    "td, th { border: 1px solid #808080; padding: 2px 6px; }");
 
-// Selectable text encodings for the F3 window's text page. codec == nullptr
-// means "use the locale codec".
+// Selectable text encodings for the text-preview page. The Auto entry asks
+// TextEncodingDetector to choose for the current file; all other entries are
+// deliberate one-file overrides.
 struct TextEncoding {
     const char *label;
     const char *codec;
 };
 const TextEncoding kTextEncodings[] = {
-    {"UTF-8", "UTF-8"},       {"UTF-16", "UTF-16"},             {"ISO-8859-1", "ISO-8859-1"},
-    {"GB18030", "GB18030"},   {"Windows-1252", "Windows-1252"}, {"System", nullptr},
+    {"Auto", nullptr},
+    {"UTF-8", "UTF-8"},
+    {"UTF-16", "UTF-16"},
+    {"ISO-8859-1", "ISO-8859-1"},
+    {"GB18030", "GB18030"},
+    {"Big5", "Big5"},
+    {"Shift-JIS", "Shift-JIS"},
+    {"EUC-JP", "EUC-JP"},
+    {"EUC-KR", "EUC-KR"},
+    {"Windows-1252", "Windows-1252"},
+    {"System", nullptr},
 };
 constexpr double kZoomStep = 1.25;
 constexpr double kMinScale = 0.05;
@@ -448,6 +465,9 @@ QWidget *QuickView::buildTextPage() {
     for (const TextEncoding &e : kTextEncodings)
         m_textEncoding->addItem(QString::fromLatin1(e.label));
     m_textToolbar->addWidget(m_textEncoding);
+    m_textEncodingStatus = new QLabel(m_textToolbar);
+    m_textEncodingStatus->setObjectName(QStringLiteral("textEncodingStatus"));
+    m_textToolbar->addWidget(m_textEncodingStatus);
     connect(m_textEncoding, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             [this](int) { renderText(); });
 
@@ -490,7 +510,9 @@ QWidget *QuickView::buildTextPage() {
 
 QString QuickView::toHexDump(const QByteArray &data) {
     QString out;
-    out.reserve(data.size() * 4);
+    const qint64 reserveCharacters = static_cast<qint64>(data.size()) * 4;
+    out.reserve(static_cast<int>(qMin(reserveCharacters,
+                                      static_cast<qint64>(std::numeric_limits<int>::max()))));
     for (int offset = 0; offset < data.size(); offset += 16) {
         out += QStringLiteral("%1  ").arg(offset, 8, 16, QLatin1Char('0'));
         QString ascii;
@@ -509,18 +531,47 @@ QString QuickView::toHexDump(const QByteArray &data) {
 }
 
 void QuickView::renderText() {
-    QString content;
-    if (m_textHex) {
-        content = toHexDump(m_textRaw);
+    const int encodingIndex = m_textEncoding->currentIndex();
+    const bool autoEncoding = encodingIndex == 0;
+    TextEncodingDetector::Result detected;
+    bool displayHex = m_textHex;
+
+    if (autoEncoding) {
+        detected = m_textAutoResult;
+        if (!m_textAutoResultValid)
+            detected = {QStringLiteral("Unknown"), QByteArrayLiteral("UTF-8"), 0, false, true};
+        if (detected.binary) {
+            m_textEncodingStatus->setText(tr("Auto: Binary (Hex)"));
+            displayHex = true;
+        } else {
+            QString status = tr("Auto: %1").arg(detected.label);
+            if (detected.ambiguous)
+                status += tr(" (ambiguous)");
+            m_textEncodingStatus->setText(status);
+        }
     } else {
-        const char *codecName = kTextEncodings[m_textEncoding->currentIndex()].codec;
-        QTextCodec *codec =
-            codecName ? QTextCodec::codecForName(codecName) : QTextCodec::codecForLocale();
+        const QString label = QString::fromLatin1(kTextEncodings[encodingIndex].label);
+        m_textEncodingStatus->setText(displayHex ? tr("Manual: %1 (Hex)").arg(label)
+                                              : tr("Manual: %1").arg(label));
+    }
+
+    QString content;
+    bool renderTruncated = m_textTruncated;
+    if (displayHex) {
+        const int hexBytes = qMin(m_textRaw.size(), kHexWindowBytes);
+        content = toHexDump(m_textRaw.left(hexBytes));
+        renderTruncated = renderTruncated || hexBytes < m_textRaw.size();
+    } else if (autoEncoding) {
+        content = TextEncodingDetector::decode(m_textRaw, detected);
+    } else {
+        const char *codecName = kTextEncodings[encodingIndex].codec;
+        QTextCodec *codec = codecName ? QTextCodec::codecForName(codecName)
+                                      : QTextCodec::codecForLocale();
         if (!codec)
             codec = QTextCodec::codecForName("UTF-8");
-        content = codec->toUnicode(m_textRaw);
+        content = codec ? codec->toUnicode(m_textRaw) : QString::fromUtf8(m_textRaw);
     }
-    if (m_textTruncated)
+    if (renderTruncated)
         content += tr("\n\n[... truncated ...]");
     m_text->setPlainText(content);
 }
@@ -2677,6 +2728,12 @@ void QuickView::showFile(const QString &path) {
     // none of the local-filesystem questions below apply to it -- there is
     // deliberately no file on disk to stat.
     const bool streamed = MpvStreamSource::isStreamUrl(path);
+    // An explicit encoding override belongs to the currently displayed text file
+    // only. Re-selecting that same text page preserves it; every different file
+    // begins in Auto. Hex is intentionally separate and therefore persists.
+    const bool preserveTextEncoding =
+        path == m_textPath && m_stack->currentWidget() == m_textPage;
+    m_textPath.clear();
     // Any new selection invalidates a still-running office conversion so its result
     // can't paint over the newly selected file (renderOffice bumps this again).
     ++m_officeGen;
@@ -2883,8 +2940,24 @@ void QuickView::showFile(const QString &path) {
     m_infoOverlay->hide(); // no image behind it on the text / no-preview pages
     QFile file(path);
     if (file.open(QIODevice::ReadOnly)) {
-        m_textRaw = file.read(m_textCap);
-        m_textTruncated = !file.atEnd();
+        const QByteArray probe = file.read(m_textCap + kTextReadLookAheadBytes);
+        // Detect the complete probe once. renderText() only consumes this cached
+        // result, and safePrefix uses it to crop without re-running detection.
+        m_textAutoResult = TextEncodingDetector::detect(
+            probe, file.atEnd() ? TextEncodingDetector::InputEnd::Complete
+                                : TextEncodingDetector::InputEnd::MayBeTruncated);
+        m_textAutoResultValid = true;
+        m_textTruncated = probe.size() > m_textCap;
+        m_textRaw = m_textTruncated
+                        ? TextEncodingDetector::safePrefix(probe, static_cast<int>(m_textCap),
+                                                            m_textAutoResult)
+                        : probe;
+        if (!preserveTextEncoding) {
+            m_textEncoding->blockSignals(true);
+            m_textEncoding->setCurrentIndex(0); // every new file starts in Auto
+            m_textEncoding->blockSignals(false);
+        }
+        m_textPath = path;
         renderText();
         m_stack->setCurrentWidget(m_textPage);
         return;

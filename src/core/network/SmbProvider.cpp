@@ -91,9 +91,42 @@ struct SmbHandle : FileHandle {
     SMBCFILE *file = nullptr;
     SMBCCTX *conn = nullptr; // borrowed from the pool; null => shared-context fallback
     bool broken = false;     // an I/O error occurred -> discard the ctx, don't reuse
+    StreamError error = StreamError::None;
+    QString errorDetail;
+
     explicit SmbHandle(SMBCFILE *f) : file(f) {}
     SmbHandle(SMBCFILE *f, SMBCCTX *c) : file(f), conn(c) {}
+
+    StreamError streamError() const override { return error; }
+    QString streamErrorDetail() const override { return errorDetail; }
 };
+
+FileHandle::StreamError streamErrorForErrno(int error) {
+    switch (error) {
+    case ENOSPC:
+        return FileHandle::StreamError::NoSpace;
+    case EACCES:
+    case EPERM:
+        return FileHandle::StreamError::PermissionDenied;
+    case EPIPE:
+    case ECONNRESET:
+    case ECONNABORTED:
+    case ENOTCONN:
+    case ETIMEDOUT:
+    case ENETUNREACH:
+    case EHOSTUNREACH:
+        return FileHandle::StreamError::ConnectionLost;
+    default:
+        return FileHandle::StreamError::Other;
+    }
+}
+
+void recordStreamError(SmbHandle *handle, int error) {
+    if (!handle || handle->streamError() != FileHandle::StreamError::None)
+        return;
+    handle->error = streamErrorForErrno(error);
+    handle->errorDetail = QString::fromUtf8(std::strerror(error));
+}
 
 // libsmbclient keeps talloc and smb.conf state at process scope, so every
 // in-process call must pass through SmbClientGate. The helper read path runs in
@@ -777,8 +810,11 @@ qint64 SmbProvider::read(FileHandle *handle, char *buffer, qint64 maxSize) {
         QMutexLocker smbLocker(&SmbClientGate::mutex());
         smbc_read_fn readFn = smbc_getFunctionRead(h->conn);
         const ssize_t n = readFn(h->conn, h->file, buffer, static_cast<size_t>(maxSize));
-        if (n < 0)
+        const int readError = n < 0 ? errno : 0;
+        if (n < 0) {
             h->broken = true; // physical error -> discard the ctx at close
+            recordStreamError(h, readError);
+        }
         return n < 0 ? -1 : static_cast<qint64>(n);
     }
     QMutexLocker locker(&m_mutex);
@@ -787,6 +823,11 @@ qint64 SmbProvider::read(FileHandle *handle, char *buffer, qint64 maxSize) {
     QMutexLocker smbLocker(&SmbClientGate::mutex());
     smbc_read_fn readFn = smbc_getFunctionRead(m_ctx);
     const ssize_t n = readFn(m_ctx, h->file, buffer, static_cast<size_t>(maxSize));
+    const int readError = n < 0 ? errno : 0;
+    if (n < 0) {
+        h->broken = true;
+        recordStreamError(h, readError);
+    }
     return n < 0 ? -1 : static_cast<qint64>(n);
 }
 
@@ -798,8 +839,11 @@ qint64 SmbProvider::write(FileHandle *handle, const char *buffer, qint64 size) {
         QMutexLocker smbLocker(&SmbClientGate::mutex());
         smbc_write_fn writeFn = smbc_getFunctionWrite(h->conn);
         const ssize_t n = writeFn(h->conn, h->file, buffer, static_cast<size_t>(size));
-        if (n < 0)
+        const int writeError = n < 0 ? errno : 0;
+        if (n < 0) {
             h->broken = true;
+            recordStreamError(h, writeError);
+        }
         return n < 0 ? -1 : static_cast<qint64>(n);
     }
     QMutexLocker locker(&m_mutex);
@@ -808,6 +852,11 @@ qint64 SmbProvider::write(FileHandle *handle, const char *buffer, qint64 size) {
     QMutexLocker smbLocker(&SmbClientGate::mutex());
     smbc_write_fn writeFn = smbc_getFunctionWrite(m_ctx);
     const ssize_t n = writeFn(m_ctx, h->file, buffer, static_cast<size_t>(size));
+    const int writeError = n < 0 ? errno : 0;
+    if (n < 0) {
+        h->broken = true;
+        recordStreamError(h, writeError);
+    }
     return n < 0 ? -1 : static_cast<qint64>(n);
 }
 
@@ -855,6 +904,14 @@ qint64 SmbProvider::handleSize(FileHandle *handle) {
 }
 
 void SmbProvider::closeHandle(FileHandle *handle) {
+    closeHandleStatus(handle);
+}
+
+bool SmbProvider::closeHandleStatus(FileHandle *handle) {
+    return closeHandleResult(handle).committed;
+}
+
+CloseHandleResult SmbProvider::closeHandleResult(FileHandle *handle) {
     if (auto *hh = dynamic_cast<SmbHelperHandle *>(handle)) {
         if (hh->channel) {
             hh->channel->close();
@@ -863,35 +920,52 @@ void SmbProvider::closeHandle(FileHandle *handle) {
             m_helpers.release(hh->channel);
         }
         delete hh;
-        return;
+        return {};
     }
+
     auto *h = static_cast<SmbHandle *>(handle);
     if (!h)
-        return;
+        return {false, FileHandle::StreamError::Other, QStringLiteral("Invalid SMB file handle")};
+
+    bool closed = !h->file;
     if (h->conn) {
-        bool ok = true;
         if (h->file) {
             QMutexLocker smbLocker(&SmbClientGate::mutex());
             smbc_close_fn closeFn = smbc_getFunctionClose(h->conn);
-            ok = closeFn(h->conn, h->file) == 0;
+            if (closeFn(h->conn, h->file) != 0) {
+                closed = false;
+                recordStreamError(h, errno);
+            } else {
+                closed = true;
+            }
         }
-        if (h->broken || !ok)
-            m_pool.discard(h->conn);
-        else
+        const bool committed = !h->broken && closed;
+        const CloseHandleResult result{committed, h->streamError(), h->streamErrorDetail()};
+        if (committed)
             m_pool.release(h->conn);
+        else
+            m_pool.discard(h->conn);
         delete h;
-        return;
+        return result;
     }
-    // Fallback handle: shared context under m_mutex.
+
     {
         QMutexLocker locker(&m_mutex);
         if (m_ctx && h->file) {
             QMutexLocker smbLocker(&SmbClientGate::mutex());
             smbc_close_fn closeFn = smbc_getFunctionClose(m_ctx);
-            closeFn(m_ctx, h->file);
+            if (closeFn(m_ctx, h->file) != 0) {
+                closed = false;
+                recordStreamError(h, errno);
+            } else {
+                closed = true;
+            }
         }
     }
+    const bool committed = !h->broken && closed;
+    const CloseHandleResult result{committed, h->streamError(), h->streamErrorDetail()};
     delete h;
+    return result;
 }
 
 int SmbProvider::maxReadChannels() const {
