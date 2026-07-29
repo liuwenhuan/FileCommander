@@ -3,12 +3,11 @@
 #include <QApplication>
 #include <QStandardPaths>
 
-// The UI suite needs a QApplication rather than gtest's bare main(): the
-// thumbnail tests build QPixmaps and rely on queued invocations reaching the
-// main thread, both of which require a running Qt application object. Offscreen
-// so the suite runs headless in CI with no X display.
+// The suite defaults to offscreen for headless CI. A caller can explicitly set
+// QT_QPA_PLATFORM=xcb (with DISPLAY=:1) for real X11 geometry and theme tests.
 int main(int argc, char **argv) {
-    qputenv("QT_QPA_PLATFORM", "offscreen");
+    if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM"))
+        qputenv("QT_QPA_PLATFORM", "offscreen");
     // Every path QStandardPaths hands out moves to a throwaway test location for
     // the whole run. The thumbnail tests write to, count, and now DELETE files
     // in the cache directory; against the real one a test run would quietly

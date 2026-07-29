@@ -241,6 +241,7 @@ void PropertiesDialog::buildUi() {
 
     auto *buttons =
         new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+    ttc::localizeStandardButtons(buttons);
     connect(buttons, &QDialogButtonBox::accepted, this, &PropertiesDialog::apply);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
 

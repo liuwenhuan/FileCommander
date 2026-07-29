@@ -1,4 +1,5 @@
 #include "SecureWipeDialog.h"
+#include "ThemedDialogs.h"
 
 #include <QByteArray>
 #include <QDialogButtonBox>
@@ -256,6 +257,7 @@ void SecureWipeDialog::buildUi() {
 
     auto *buttons = new QDialogButtonBox(this);
     auto *closeButton = buttons->addButton(QDialogButtonBox::Close);
+    ttc::localizeStandardButtons(buttons);
     connect(closeButton, &QPushButton::clicked, this, &QDialog::reject);
     layout->addWidget(buttons);
 }

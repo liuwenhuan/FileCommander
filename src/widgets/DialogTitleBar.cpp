@@ -11,6 +11,9 @@
 
 DialogTitleBar::DialogTitleBar(QWidget *window, QWidget *parent)
     : QWidget(parent), m_window(window) {
+    // Let qproperty-backgroundTile from the CRT stylesheet reach this custom
+    // painted widget; flat themes retain the transparent stylesheet behaviour.
+    setAttribute(Qt::WA_StyledBackground, true);
     setAutoFillBackground(false);
     // Translucent so the rounded top corners reveal the dialog's shadow/rounded
     // background behind them (the dialog is frameless; see FramelessDialog).
@@ -36,6 +39,13 @@ DialogTitleBar::DialogTitleBar(QWidget *window, QWidget *parent)
     connect(closeButton, &QAbstractButton::clicked, this, [this] { m_window->close(); });
 
     setFixedHeight(30);
+}
+
+void DialogTitleBar::setBackgroundTile(const QPixmap &tile) {
+    if (m_backgroundTile.cacheKey() == tile.cacheKey())
+        return;
+    m_backgroundTile = tile;
+    update();
 }
 
 void DialogTitleBar::mousePressEvent(QMouseEvent *event) {
@@ -69,7 +79,9 @@ void DialogTitleBar::paintEvent(QPaintEvent *) {
     // with FramelessDialog's corner radius).
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
-    const QColor bg = palette().color(QPalette::Window);
+    const QBrush bg = m_backgroundTile.isNull()
+                          ? QBrush(palette().color(QPalette::Window))
+                          : QBrush(m_backgroundTile);
     constexpr int radius = 8;
     QPainterPath path;
     path.moveTo(0, height());

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QPixmap>
 #include <QWidget>
 
 class QMouseEvent;
@@ -12,8 +13,14 @@ class QPaintEvent;
 // from the host window's windowTitle().
 class DialogTitleBar : public QWidget {
     Q_OBJECT
+    // Mirrors TitleBar's CRT texture hook. A null tile keeps the palette window
+    // colour for light and dark themes.
+    Q_PROPERTY(QPixmap backgroundTile READ backgroundTile WRITE setBackgroundTile)
 public:
     explicit DialogTitleBar(QWidget *window, QWidget *parent = nullptr);
+
+    QPixmap backgroundTile() const { return m_backgroundTile; }
+    void setBackgroundTile(const QPixmap &tile);
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -24,5 +31,6 @@ protected:
 
 private:
     QWidget *m_window = nullptr;
+    QPixmap m_backgroundTile;
     bool m_pressed = false;
 };

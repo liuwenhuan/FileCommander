@@ -4,6 +4,7 @@ add_executable(ui_tests
     test_PropertiesDialog.cpp
     test_CommandHistory.cpp
     test_TextViewer.cpp
+    test_TextEncodingDetector.cpp
     test_SeekSlider.cpp
     test_RemoteThumbnailFetcher.cpp
     test_RemoteThumbnail.cpp
@@ -32,6 +33,17 @@ add_executable(ui_tests
     test_OverwritePrompt.cpp
     test_ProviderChecksum.cpp
     test_SelectedEntryInfos.cpp
+    test_MainWindowPreviewSwap.cpp
+    test_MainWindowActions.cpp
+    test_FilePanelTheme.cpp
+    test_FileListViewLayout.cpp
+    test_TextEncodingDetector.cpp
+    test_ChecksumDialog.cpp
+    test_NotepadPanel.cpp
+    test_ShortcutsDialog.cpp
+    test_StandardButtonLocalization.cpp
+    ../archive/test_CompressDialog.cpp
+    ../../resources/resources.qrc
 )
 
 # test_MpvStreamSource drives a real libmpv core (headless: vo=null/ao=null) to

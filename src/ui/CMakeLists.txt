@@ -33,6 +33,8 @@ add_library(ui STATIC
     CommandHistory.cpp
     QuickView.h
     QuickView.cpp
+    TextEncodingDetector.h
+    TextEncodingDetector.cpp
     SlideSceneBuilder.h
     SlideSceneBuilder.cpp
     ViewerWindow.h

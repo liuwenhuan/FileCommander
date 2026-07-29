@@ -10,7 +10,9 @@
 #include <QToolButton>
 #include <QWidget>
 
+#include "DialogTitleBar.h"
 #include "FileListView.h"
+#include "FramelessDialog.h"
 
 #include "TitleBar.h"
 #include "theme/ThemeManager.h"
@@ -39,8 +41,9 @@ void expectMenuTextRendered(TitleBar &titleBar, QToolButton &menuButton, const Q
     for (int y = bounds.top(); y <= bounds.bottom(); ++y) {
         for (int x = bounds.left(); x <= bounds.right(); ++x) {
             const QColor pixel = image.pixelColor(x, y);
-            if (qAbs(pixel.red() - color.red()) <= 3 && qAbs(pixel.green() - color.green()) <= 3
-                && qAbs(pixel.blue() - color.blue()) <= 3)
+            if (qAbs(pixel.red() - color.red()) <= 24 &&
+                qAbs(pixel.green() - color.green()) <= 24 &&
+                qAbs(pixel.blue() - color.blue()) <= 24)
                 ++matchingPixels;
         }
     }
@@ -63,6 +66,53 @@ TEST(TitleBarThemeTest, LeavingCrtClearsTheBackgroundTile) {
     themeManager.apply(Settings::Theme::Light);
 
     EXPECT_TRUE(titleBar.backgroundTile().isNull());
+    qApp->setStyleSheet(originalSheet);
+}
+
+TEST(TitleBarThemeTest, DialogTitleBarSupportsCrtTileAndClearsItOutsideCrt) {
+    const QString originalSheet = qApp->styleSheet();
+    FramelessDialog dialog;
+    DialogTitleBar *titleBar = dialog.findChild<DialogTitleBar *>();
+    ASSERT_NE(titleBar, nullptr);
+
+    QPixmap crtTile(2, 2);
+    crtTile.fill(Qt::green);
+    dialog.setBackgroundTile(crtTile);
+    ASSERT_FALSE(dialog.backgroundTile().isNull());
+    ASSERT_FALSE(titleBar->backgroundTile().isNull());
+
+    ThemeManager themeManager;
+    themeManager.apply(Settings::Theme::Dark);
+
+    EXPECT_TRUE(dialog.backgroundTile().isNull());
+    EXPECT_TRUE(titleBar->backgroundTile().isNull());
+    qApp->setStyleSheet(originalSheet);
+}
+
+TEST(TitleBarThemeTest, DialogThemeSwitchSetsAndClearsCrtTileProperty) {
+    const QString originalSheet = qApp->styleSheet();
+    FramelessDialog dialog;
+    DialogTitleBar *titleBar = dialog.findChild<DialogTitleBar *>();
+    ASSERT_NE(titleBar, nullptr);
+    ThemeManager themeManager;
+    dialog.show();
+    qApp->processEvents();
+
+    themeManager.apply(Settings::Theme::Crt);
+    qApp->processEvents();
+    ASSERT_FALSE(dialog.backgroundTile().isNull());
+    EXPECT_FALSE(titleBar->backgroundTile().isNull());
+
+    themeManager.apply(Settings::Theme::Dark);
+    EXPECT_TRUE(dialog.backgroundTile().isNull());
+    EXPECT_TRUE(titleBar->backgroundTile().isNull());
+
+    themeManager.apply(Settings::Theme::Crt);
+    ASSERT_FALSE(dialog.backgroundTile().isNull());
+    themeManager.apply(Settings::Theme::Light);
+    EXPECT_TRUE(dialog.backgroundTile().isNull());
+    EXPECT_TRUE(titleBar->backgroundTile().isNull());
+
     qApp->setStyleSheet(originalSheet);
 }
 

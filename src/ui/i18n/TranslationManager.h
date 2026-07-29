@@ -30,4 +30,7 @@ public:
 private:
     // Loads ttc_<code>.qm into `t` (external dir first, then resources).
     static bool loadCatalog(class QTranslator *t, const QString &code);
+
+    // Loads Qt's qtbase_<code>.qm from Qt's installed translations directory.
+    static bool loadQtCatalog(class QTranslator *t, const QString &code);
 };

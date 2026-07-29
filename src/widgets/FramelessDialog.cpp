@@ -57,6 +57,16 @@ FramelessDialog::FramelessDialog(QWidget *parent) : QDialog(parent) {
     m_titleBar->raise();
 }
 
+void FramelessDialog::setBackgroundTile(const QPixmap &tile) {
+    if (m_backgroundTile.cacheKey() == tile.cacheKey())
+        return;
+    m_backgroundTile = tile;
+    m_frameCache = QPixmap();
+    if (m_titleBar)
+        m_titleBar->setBackgroundTile(tile);
+    update();
+}
+
 void FramelessDialog::ensureFrameCache() {
     const QColor bg = palette().color(QPalette::Window);
     if (!m_frameCache.isNull() && m_frameCacheColor == bg)
@@ -82,7 +92,7 @@ void FramelessDialog::ensureFrameCache() {
         p.drawRoundedRect(QRectF(content).adjusted(-i, -i + 1, i, i + 1),
                           kCornerRadius + i, kCornerRadius + i);
     }
-    p.setBrush(bg);
+    p.setBrush(m_backgroundTile.isNull() ? QBrush(bg) : QBrush(m_backgroundTile));
     p.drawRoundedRect(content, kCornerRadius, kCornerRadius);
 }
 
@@ -105,7 +115,8 @@ void FramelessDialog::paintEvent(QPaintEvent *) {
     p.drawPixmap(QRect(c, h - c, w - 2 * c, c), src, QRect(c, sw - c, sw - 2 * c, c));
     p.drawPixmap(QRect(0, c, c, h - 2 * c), src, QRect(0, c, c, sw - 2 * c));
     p.drawPixmap(QRect(w - c, c, c, h - 2 * c), src, QRect(sw - c, c, c, sw - 2 * c));
-    p.fillRect(QRect(c, c, w - 2 * c, h - 2 * c), m_frameCacheColor);
+    p.fillRect(QRect(c, c, w - 2 * c, h - 2 * c),
+               m_backgroundTile.isNull() ? QBrush(m_frameCacheColor) : QBrush(m_backgroundTile));
 }
 
 void FramelessDialog::resizeEvent(QResizeEvent *event) {

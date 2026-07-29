@@ -4,6 +4,9 @@
 #include <QString>
 #include <QWidget>
 
+#include <memory>
+
+#include "config/Settings.h"
 #include "notepad/NotepadStore.h"
 
 class QLineEdit;
@@ -27,6 +30,8 @@ class NotepadPanel : public QWidget {
 
 public:
     explicit NotepadPanel(QWidget *parent = nullptr);
+    NotepadPanel(Settings &settings, QWidget *parent = nullptr);
+    NotepadPanel(Settings &settings, const QString &notepadDirectory, QWidget *parent = nullptr);
 
     // Shows the panel as a fly-out above the launching button: its RIGHT edge is
     // aligned to the app window's right edge, its bottom sits just above
@@ -50,6 +55,7 @@ private slots:
     void flushPendingSaves();                 // debounce timeout: persist the note
 
 private:
+    void initialize();
     // (Re)computes the dynamic height + splitter split from the current note
     // count and repositions the popup above its anchor. No-op until popUpAbove
     // has recorded an anchor.
@@ -59,12 +65,15 @@ private:
     QListWidgetItem *addRow(const NotepadNote &note);
     QString currentId() const;
     // Writes the editor's text to its note and refreshes that row's preview.
-    void commitCurrentEditor();
+    // Returns false when persistence failed so callers do not discard the edit.
+    bool commitCurrentEditor();
     // Reverts the Delete button from its armed "confirm" state.
     void disarmDelete();
     // Preview shown in the list: the first non-empty line of the body, trimmed.
     static QString previewOf(const QString &body);
 
+    std::unique_ptr<Settings> m_ownedSettings;
+    Settings &m_settings;
     NotepadStore m_store;
     QLineEdit *m_search = nullptr;
     QListWidget *m_list = nullptr;
@@ -75,6 +84,7 @@ private:
     QTimer *m_deleteArmTimer = nullptr; // reverts the two-step delete confirm
 
     QString m_currentId;          // note bound to the editor
+    QString m_loadedBody;         // body version used for optimistic save checks
     bool m_dirty = false;         // editor has unsaved edits
     bool m_loadingEditor = false; // guard: suppress textChanged while loading
     bool m_deleteArmed = false;   // Delete clicked once, waiting for confirm

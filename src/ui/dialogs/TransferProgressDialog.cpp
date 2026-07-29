@@ -1,4 +1,5 @@
 #include "TransferProgressDialog.h"
+#include "ThemedDialogs.h"
 
 #include <QDialogButtonBox>
 #include <QLabel>
@@ -54,6 +55,7 @@ TransferProgressDialog::TransferProgressDialog(OperationQueue *queue, QWidget *p
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Cancel, this);
     m_pauseButton = buttons->addButton(tr("Pause"), QDialogButtonBox::ActionRole);
+    ttc::localizeStandardButtons(buttons);
     connect(m_pauseButton, &QPushButton::clicked, this, &TransferProgressDialog::onPauseClicked);
     connect(buttons, &QDialogButtonBox::rejected, this, [this]() {
         if (m_queue)

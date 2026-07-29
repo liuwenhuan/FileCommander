@@ -7,6 +7,8 @@
 #include <QWidget>
 
 #include "AppIcon.h"
+#include "DialogTitleBar.h"
+#include "FramelessDialog.h"
 #include "TitleBar.h"
 #include "filesystem/IconCache.h"
 #include "theme/Phosphor.h"
@@ -83,8 +85,15 @@ void ThemeManager::apply(Settings::Theme theme, bool phosphorImages) {
     qApp->setWindowIcon(icon);
     for (QWidget *w : qApp->topLevelWidgets()) {
         w->setWindowIcon(icon);
-        if (!crt)
+        if (!crt) {
+            if (auto *dialog = qobject_cast<FramelessDialog *>(w))
+                dialog->setBackgroundTile(QPixmap());
+            for (FramelessDialog *dialog : w->findChildren<FramelessDialog *>())
+                dialog->setBackgroundTile(QPixmap());
             for (TitleBar *titleBar : w->findChildren<TitleBar *>())
                 titleBar->setBackgroundTile(QPixmap());
+            for (DialogTitleBar *titleBar : w->findChildren<DialogTitleBar *>())
+                titleBar->setBackgroundTile(QPixmap());
+        }
     }
 }

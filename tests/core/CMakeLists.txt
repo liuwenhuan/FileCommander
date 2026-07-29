@@ -15,6 +15,7 @@ add_executable(core_tests
     operations/test_ConflictSizes.cpp
     config/test_SessionManager.cpp
     config/test_Settings.cpp
+    notepad/test_NotepadStore.cpp
     sync/test_DirectorySync.cpp
     sync/test_SyncScanner.cpp
     compare/test_TextDiff.cpp

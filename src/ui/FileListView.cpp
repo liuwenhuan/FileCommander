@@ -533,16 +533,12 @@ void FileListView::applyLayout() {
     QHeaderView *header = horizontalHeader();
     if (!header || header->count() == 0)
         return;
-    // deepin/DTK uses OVERLAY scrollbars: the vertical bar floats over the right
-    // edge of the viewport instead of shrinking it, so viewport()->width() still
-    // counts the strip it covers. The bar is always-on (see the ctor), so always
-    // reserve its width -- unconditionally, not via isVisible(), which can lag a
-    // model reset -- so the last column's content isn't hidden under the bar.
-    // Use the style's standard scrollbar thickness (PM_ScrollBarExtent, ~15-20px)
-    // -- NOT verticalScrollBar()->width(), which the deepin overlay bar reports as
-    // a large hit-area (~100px), over-reserving and crushing the columns.
-    const int avail =
-        viewport()->width() - qBound(12, style()->pixelMetric(QStyle::PM_ScrollBarExtent), 24);
+    // The header and table viewport have the same usable width: on conventional
+    // styles Qt already removes the always-on scrollbar from both, while overlay
+    // styles intentionally leave it over the content. Do not subtract a style
+    // metric here; doing so leaves a permanent gap and unpins the last header
+    // section from the header viewport's right edge.
+    const int avail = viewport()->width();
     if (avail <= 0) // pre-show / zero width: defer to the next resize/reset
         return;
     if (m_baseWidth.size() != header->count())
@@ -572,14 +568,14 @@ void FileListView::applyLayout() {
             sumInfoBase += m_baseWidth[c];
 
     const int nameW = avail - sumInfoBase;
+    static const int kCompressOrder[] = {
+        FileSystemModel::CreatedColumn, FileSystemModel::PermissionsColumn,
+        FileSystemModel::ExtColumn,     FileSystemModel::TypeColumn,
+        FileSystemModel::ModifiedColumn, FileSystemModel::SizeColumn};
     if (nameW < m_nameFloor) {
         // Shrink phase: Name is pinned to its floor, so compress info columns by
         // priority (least important first) down to their smart-min.
         int deficit = sumInfoBase - (avail - m_nameFloor);
-        static const int kCompressOrder[] = {
-            FileSystemModel::CreatedColumn, FileSystemModel::PermissionsColumn,
-            FileSystemModel::ExtColumn,     FileSystemModel::TypeColumn,
-            FileSystemModel::ModifiedColumn, FileSystemModel::SizeColumn};
         for (int c : kCompressOrder) {
             if (deficit <= 0)
                 break;
@@ -596,15 +592,37 @@ void FileListView::applyLayout() {
     // info column (including the LAST) keeps its own width. That way each info
     // column shows its content and double-click auto-fit can actually widen the
     // last (Type) column -- unlike a "last column takes the remainder" scheme,
-    // where the last column's own width would be ignored. Integer math makes the
-    // total exactly `avail`, so the last column's right edge stays pinned.
+    // where the last column's own width would be ignored.
     int sumInfoDisp = 0;
     for (int c : visible)
         if (c != FileSystemModel::NameColumn)
             sumInfoDisp += disp[c];
+
+    // Smart minima preserve readable headers whenever the viewport can afford
+    // them. Below that point, keep the table's geometry exact rather than letting
+    // the sections overflow: reduce the least-important info columns to zero in
+    // the same priority order. The sections remain visible (not hidden), so their
+    // order and drag behavior are unchanged; a narrow panel merely clips the
+    // controls that have no width to paint.
+    const int infoBudget = qMax(0, avail - m_nameFloor);
+    int emergencyDeficit = sumInfoDisp - infoBudget;
+    if (emergencyDeficit > 0) {
+        for (int c : kCompressOrder) {
+            if (emergencyDeficit <= 0)
+                break;
+            if (c >= disp.size() || header->isSectionHidden(c))
+                continue;
+            const int take = qMin(disp[c], emergencyDeficit);
+            disp[c] -= take;
+            emergencyDeficit -= take;
+        }
+        sumInfoDisp = 0;
+        for (int c : visible)
+            if (c != FileSystemModel::NameColumn)
+                sumInfoDisp += disp[c];
+    }
     if (FileSystemModel::NameColumn < disp.size())
-        disp[FileSystemModel::NameColumn] =
-            qMax(m_smartMin[FileSystemModel::NameColumn], avail - sumInfoDisp);
+        disp[FileSystemModel::NameColumn] = avail - sumInfoDisp;
 
     m_adjustingColumns = true;
     for (int c = 0; c < header->count(); ++c) {

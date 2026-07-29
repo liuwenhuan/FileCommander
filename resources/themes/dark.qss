@@ -124,6 +124,50 @@ QLineEdit:focus {
     border: 1px solid #3d7deb;
 }
 
+QAbstractSpinBox {
+    background-color: #232323;
+    color: #e0e0e0;
+    border: 1px solid #444444;
+    border-radius: 3px;
+    padding: 3px 20px 3px 6px;
+    selection-background-color: #3d7deb;
+    selection-color: #ffffff;
+}
+
+QAbstractSpinBox:hover {
+    border-color: #555555;
+}
+
+QAbstractSpinBox:focus {
+    border-color: #3d7deb;
+}
+
+QAbstractSpinBox:disabled {
+    background-color: #2b2b2b;
+    color: #777777;
+    border-color: #383838;
+}
+
+QAbstractSpinBox::up-button, QAbstractSpinBox::down-button {
+    subcontrol-origin: border;
+    width: 18px;
+    background-color: #3a3a3a;
+    border-left: 1px solid #444444;
+}
+
+QAbstractSpinBox::up-button {
+    subcontrol-position: top right;
+    border-bottom: 1px solid #444444;
+}
+
+QAbstractSpinBox::down-button {
+    subcontrol-position: bottom right;
+}
+
+QAbstractSpinBox::up-button:hover, QAbstractSpinBox::down-button:hover {
+    background-color: #454545;
+}
+
 /* Combo boxes -- flat box + flat popup that matches the theme. Without these
    rules Qt falls back to the native platform style: a 3D/protruding drop-down
    and a popup whose text colour ignores the app theme. */
@@ -190,6 +234,30 @@ QPushButton:hover {
 
 QPushButton:pressed {
     background-color: #2f2f2f;
+}
+
+QTableWidget#ShortcutTable QKeySequenceEdit,
+QTableWidget#ShortcutTable QKeySequenceEdit QLineEdit {
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+
+QToolButton#PanelAddTabButton, QToolButton#PanelTreeButton {
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+
+QToolButton#PanelAddTabButton:hover, QToolButton#PanelTreeButton:hover {
+    background-color: #454545;
+    border: none;
+}
+
+QToolButton#PanelAddTabButton:pressed, QToolButton#PanelTreeButton:pressed,
+QToolButton#PanelTreeButton:checked {
+    background-color: #2f2f2f;
+    border: none;
 }
 
 QTabBar::tab {
