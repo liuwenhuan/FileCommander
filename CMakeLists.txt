@@ -9,6 +9,19 @@ set(CMAKE_AUTOUIC ON)
 
 include(cmake/FileCommanderOptions.cmake)
 
+# Tests and benchmarks default ON (the normal development build is unchanged),
+# but a packaging build turns them off: they roughly triple build time, and
+# tests/ hard-requires /usr/src/googletest, which a clean package builder has no
+# reason to install.
+option(TTC_BUILD_TESTS "Build the unit test suites" ON)
+option(TTC_BUILD_LIVE_SMB_TESTS
+       "Build the opt-in live SMB integration test (runtime access still requires FC_SMB_E2E=1)"
+       OFF)
+option(TTC_BUILD_LIVE_WEBDAV_TESTS
+       "Build the opt-in live WebDAV integration test (runtime access still requires FC_WEBDAV_E2E=1)"
+       OFF)
+option(TTC_BUILD_BENCH "Build the benchmarks" ON)
+
 add_compile_definitions(
     FILECOMMANDER_HAS_NETWORK=${FILECOMMANDER_HAS_NETWORK}
     FILECOMMANDER_HAS_PREVIEW_PDF=${FILECOMMANDER_HAS_PREVIEW_PDF}
@@ -24,13 +37,11 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
-find_package(Qt5 REQUIRED COMPONENTS Core Widgets Gui Concurrent Test Network)
+find_package(Qt5 REQUIRED COMPONENTS Core Widgets Gui Concurrent Network)
 if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
     find_package(Qt5 REQUIRED COMPONENTS DBus)
 endif()
 find_package(LibArchive)
-
-enable_testing()
 
 # Generated version header (TTC_VERSION etc.) derived from the project()
 # version above, so the About box and the online-update checker can read the
@@ -70,20 +81,9 @@ target_compile_definitions(FileCommander PRIVATE
     FILECOMMANDER_HAS_LINUX_INTEGRATION=${FILECOMMANDER_HAS_LINUX_INTEGRATION}
 )
 
-# Tests and benchmarks default ON (the normal development build is unchanged),
-# but a packaging build turns them off: they roughly triple build time, and
-# tests/ hard-requires /usr/src/googletest, which a clean package builder has no
-# reason to install.
-option(TTC_BUILD_TESTS "Build the unit test suites" ON)
-option(TTC_BUILD_LIVE_SMB_TESTS
-       "Build the opt-in live SMB integration test (runtime access still requires FC_SMB_E2E=1)"
-       OFF)
-option(TTC_BUILD_LIVE_WEBDAV_TESTS
-       "Build the opt-in live WebDAV integration test (runtime access still requires FC_WEBDAV_E2E=1)"
-       OFF)
-option(TTC_BUILD_BENCH "Build the benchmarks" ON)
-
 if(TTC_BUILD_TESTS)
+    find_package(Qt5 REQUIRED COMPONENTS Test)
+    enable_testing()
     add_subdirectory(tests)
 endif()
 if(TTC_BUILD_BENCH)

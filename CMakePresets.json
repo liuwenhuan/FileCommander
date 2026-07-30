@@ -25,7 +25,10 @@
       "binaryDir": "${sourceDir}/build/windows-msvc-release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "TTC_BUILD_TESTS": "OFF"
+        "TTC_BUILD_TESTS": "OFF",
+        "TTC_BUILD_BENCH": "OFF",
+        "FILECOMMANDER_PREVIEW_PDF": "OFF",
+        "FILECOMMANDER_PREVIEW_MEDIA": "OFF"
       }
     },
     {
@@ -55,6 +58,17 @@
         "TTC_BUILD_TESTS": "ON",
         "TTC_BUILD_BENCH": "OFF"
       }
+    },
+    {
+      "name": "linux-release",
+      "inherits": "linux-debug",
+      "displayName": "Linux Release",
+      "binaryDir": "${sourceDir}/build/linux-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "TTC_BUILD_TESTS": "OFF",
+        "TTC_BUILD_BENCH": "OFF"
+      }
     }
   ],
   "buildPresets": [
@@ -62,7 +76,8 @@
     { "name": "windows-msvc-release", "configurePreset": "windows-msvc-release" },
     { "name": "windows-msvc-x86-debug", "configurePreset": "windows-msvc-x86-debug" },
     { "name": "windows-msvc-arm64-debug", "configurePreset": "windows-msvc-arm64-debug" },
-    { "name": "linux-debug", "configurePreset": "linux-debug" }
+    { "name": "linux-debug", "configurePreset": "linux-debug" },
+    { "name": "linux-release", "configurePreset": "linux-release" }
   ],
   "testPresets": [
     {
