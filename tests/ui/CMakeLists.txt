@@ -39,6 +39,7 @@ set(UI_TEST_SOURCES
     test_OverwritePrompt.cpp
     test_ProviderChecksum.cpp
     test_SelectedEntryInfos.cpp
+    test_QuickViewLazyPages.cpp
     test_MainWindowPreviewSwap.cpp
     test_MainWindowActions.cpp
     test_FilePanelTheme.cpp

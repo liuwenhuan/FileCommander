@@ -11,6 +11,7 @@
 #include <QClipboard>
 #include <QCloseEvent>
 #include <QCursor>
+#include <QDebug>
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -332,6 +333,19 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         m_streamFailedEntry = m_activePanel->currentEntryPath();
         updateQuickView();
     });
+    m_mediaWarmTimer = new QTimer(this);
+    m_mediaWarmTimer->setObjectName(QStringLiteral("mediaWarmTimer"));
+    m_mediaWarmTimer->setSingleShot(true);
+    m_mediaWarmTimer->setInterval(750);
+    connect(m_mediaWarmTimer, &QTimer::timeout, m_quickView,
+            &QuickView::warmMediaEngine);
+    connect(m_quickView, &QuickView::mediaEngineWarmed, this,
+            [this](qint64 elapsedMs) {
+                m_mediaWarmComplete = true;
+                if (m_mediaWarmTimer->isActive())
+                    m_mediaWarmTimer->stop();
+                qInfo() << "Media engine warm-up completed in" << elapsedMs << "ms";
+            });
     // App-wide filter so Tab out of the preview pane returns to the file list
     // (the list->preview half is driven by FilePanel::switchPanelRequested).
     qApp->installEventFilter(this);
@@ -1306,6 +1320,7 @@ void MainWindow::paintEvent(QPaintEvent *) {
     // Maximized: fill the whole rect square (no shadow, no rounding).
     if (isMaximized() || contentsMargins().left() == 0) {
         p.fillRect(rect(), palette().color(QPalette::Window));
+        scheduleMediaWarmupAfterFirstPaint();
         return;
     }
 
@@ -1329,6 +1344,14 @@ void MainWindow::paintEvent(QPaintEvent *) {
     p.drawPixmap(QRect(w - c, c, c, h - 2 * c), src, QRect(sw - c, c, c, sw - 2 * c));
     // Centre (solid window colour; fillRect is cheaper than a stretched blit).
     p.fillRect(QRect(c, c, w - 2 * c, h - 2 * c), m_frameCacheColor);
+    scheduleMediaWarmupAfterFirstPaint();
+}
+
+void MainWindow::scheduleMediaWarmupAfterFirstPaint() {
+    if (!isVisible() || m_mediaWarmScheduled || m_mediaWarmComplete || !m_mediaWarmTimer)
+        return;
+    m_mediaWarmScheduled = true;
+    m_mediaWarmTimer->start();
 }
 
 void MainWindow::applyRoundedMask() {

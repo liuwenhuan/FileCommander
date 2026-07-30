@@ -1,13 +1,17 @@
 #include <gtest/gtest.h>
 
 #include <QApplication>
+#include <QElapsedTimer>
 #include <QSignalSpy>
 #include <QShortcut>
 #include <QSplitter>
 #include <QTemporaryDir>
+#include <QTest>
+#include <QTimer>
 
 #include <clocale>
 #include <memory>
+#include <string>
 
 #include "BreadcrumbBar.h"
 #include "FileProvider.h"
@@ -17,6 +21,7 @@
 #include "QuickView.h"
 #include "TabBar.h"
 #include "config/Settings.h"
+#include "media/MediaEngine.h"
 
 namespace {
 
@@ -84,6 +89,94 @@ void settle(FilePanel &panel) {
 }
 
 } // namespace
+
+TEST(MainWindowPreviewSwapTest, MediaWarmupStartsOnlyAfterFirstVisiblePaint) {
+    QElapsedTimer startup;
+    startup.start();
+    MainWindow window;
+    RecordProperty("main_window_construct_ms", std::to_string(startup.elapsed()));
+    auto *quickView = window.findChild<QuickView *>();
+    auto *warmTimer = window.findChild<QTimer *>(QStringLiteral("mediaWarmTimer"));
+    ASSERT_NE(quickView, nullptr);
+    ASSERT_NE(warmTimer, nullptr);
+    QSignalSpy warmed(quickView, &QuickView::mediaEngineWarmed);
+    EXPECT_FALSE(warmTimer->isActive());
+    EXPECT_TRUE(warmTimer->isSingleShot());
+    EXPECT_EQ(warmTimer->interval(), 750);
+#if FILECOMMANDER_HAS_PREVIEW_MEDIA
+    EXPECT_TRUE(quickView->findChildren<MediaEngine *>().isEmpty());
+#else
+    EXPECT_EQ(quickView->findChildren<MediaEngine *>().size(), 1);
+#endif
+    EXPECT_EQ(quickView->findChild<QWidget *>(QStringLiteral("quickViewVideoPage")), nullptr);
+    EXPECT_EQ(quickView->findChild<QWidget *>(QStringLiteral("quickViewAudioPage")), nullptr);
+
+    QElapsedTimer firstPaint;
+    firstPaint.start();
+    window.resize(1000, 700);
+    window.show();
+    processGuiEvents();
+    RecordProperty("show_to_first_paint_ms", std::to_string(firstPaint.elapsed()));
+
+    EXPECT_TRUE(warmTimer->isActive());
+    EXPECT_EQ(quickView->findChild<QWidget *>(QStringLiteral("quickViewVideoPage")), nullptr);
+    QTRY_COMPARE_WITH_TIMEOUT(warmed.count(), 1, 1500);
+    ASSERT_EQ(warmed.count(), 1);
+    const qint64 warmupMs = warmed.at(0).at(0).toLongLong();
+    RecordProperty("warmup_ms", std::to_string(warmupMs));
+    EXPECT_LE(warmupMs, 16);
+    EXPECT_FALSE(warmTimer->isActive());
+    EXPECT_EQ(quickView->findChildren<MediaEngine *>().size(), 1);
+    EXPECT_EQ(quickView->findChild<QWidget *>(QStringLiteral("quickViewVideoPage")), nullptr);
+    EXPECT_EQ(quickView->findChild<QWidget *>(QStringLiteral("quickViewAudioPage")), nullptr);
+    window.update();
+    processGuiEvents();
+    EXPECT_EQ(warmed.count(), 1);
+}
+
+TEST(MainWindowPreviewSwapTest, FirstMediaRequestWarmsImmediatelyAndCancelsScheduledWarmup) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString audio = dir.filePath(QStringLiteral("requested-first.wav"));
+    QFile file(audio);
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    file.write("audio");
+    file.close();
+
+    MainWindow window;
+    window.resize(1000, 700);
+    window.show();
+    processGuiEvents();
+    auto *quickView = window.findChild<QuickView *>();
+    auto *warmTimer = window.findChild<QTimer *>(QStringLiteral("mediaWarmTimer"));
+    ASSERT_NE(quickView, nullptr);
+    ASSERT_NE(warmTimer, nullptr);
+    ASSERT_TRUE(warmTimer->isActive());
+
+    quickView->showFile(audio);
+
+    EXPECT_FALSE(warmTimer->isActive());
+    EXPECT_NE(quickView->findChild<QWidget *>(QStringLiteral("quickViewAudioPage")), nullptr);
+    EXPECT_EQ(quickView->findChild<QWidget *>(QStringLiteral("quickViewVideoPage")), nullptr);
+    EXPECT_EQ(quickView->findChildren<MediaEngine *>().size(), 1);
+    QTest::qWait(800);
+    EXPECT_EQ(quickView->findChildren<MediaEngine *>().size(), 1);
+}
+
+TEST(MainWindowPreviewSwapTest, PendingWarmupIsCancelledByWindowTeardown) {
+    auto *window = new MainWindow;
+    window->resize(1000, 700);
+    window->show();
+    processGuiEvents();
+    auto *warmTimer = window->findChild<QTimer *>(QStringLiteral("mediaWarmTimer"));
+    ASSERT_NE(warmTimer, nullptr);
+    ASSERT_TRUE(warmTimer->isActive());
+
+    delete window;
+    QTest::qWait(800);
+
+    SUCCEED();
+}
 
 TEST(MainWindowPreviewSwapTest, CtrlUSwapsPreviewWithVisiblePanelAndKeepsHiddenPanelParked) {
     std::setlocale(LC_NUMERIC, "C");

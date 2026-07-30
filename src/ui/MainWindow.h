@@ -92,6 +92,7 @@ private:
     // and rounded corners) as _NET_WM_OPAQUE_REGION so the compositor skips
     // alpha-blending it. No-op off X11. Coordinates are in device pixels.
     void updateOpaqueRegion();
+    void scheduleMediaWarmupAfterFirstPaint();
 
 private slots:
     void setActivePanel(FilePanel *panel);
@@ -296,6 +297,9 @@ private:
     QTimer *m_quickViewDebounce = nullptr; // delays the Ctrl+Q preview until the
                                            // cursor settles (skip big files while
                                            // arrow-scrolling past them)
+    QTimer *m_mediaWarmTimer = nullptr;
+    bool m_mediaWarmScheduled = false;
+    bool m_mediaWarmComplete = false;
 
     QuickView *m_quickView = nullptr;
     FilePanel *m_quickViewPanel = nullptr; // panel replaced by the preview

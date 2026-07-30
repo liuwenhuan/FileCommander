@@ -74,6 +74,17 @@ public:
     ~QuickView() override;
 
     void showFile(const QString &path);
+    // Initializes the configured media backend once. MainWindow calls this after
+    // first paint; a media request calls it immediately when it wins that race.
+    // Audio/video controls remain lazy until their own first use.
+    void warmMediaEngine();
+
+    // Heavy document pages are created only when their content type is first
+    // needed. Each accessor is idempotent.
+    QWidget *ensurePdfPage();
+    QWidget *ensureOfficePage();
+    QWidget *ensureArchivePage();
+    QWidget *ensureSlidesPage();
 
     // Network-preview download states. A remote file must be fetched to a local
     // temp file before it can be previewed; while that runs, the preview pane
@@ -88,6 +99,10 @@ public:
     void stopPlayback();
 
 signals:
+    // Emitted once after the backend is ready. The host uses it to cancel a
+    // still-pending post-paint warm-up.
+    void mediaEngineWarmed(qint64 elapsedMs);
+
     // The Stop button on the download page was clicked: the host should cancel
     // the in-flight remote download for the current preview.
     void downloadCancelRequested();
@@ -143,7 +158,9 @@ private:
     void renderText();            // (re)render m_textRaw per the encoding/hex toggle
     void loadImageSiblings();     // list sibling images in the current dir
     QWidget *buildVideoPage();
+    QWidget *ensureVideoPage();
     QWidget *buildAudioPage();
+    QWidget *ensureAudioPage();
     void showAudio(const QString &path);  // load + populate the audio page
     void loadAudioSiblings();             // list sibling audio files in the dir
     void stopAudio();                     // halt playback + timer
@@ -309,7 +326,7 @@ private:
     QStringList m_imageSiblings;
     int m_imageSiblingIndex = -1;
 
-    // Markdown page (m_stack index 4): a rich-text browser that renders the
+    // Markdown page: a rich-text browser that renders the
     // file via QTextDocument's bundled MD4C support (Qt 5.14+), no extra deps.
     QTextBrowser *m_markdown = nullptr;
     int m_markdownGen = 0; // supersede stale async markdown renders
@@ -385,7 +402,7 @@ private:
     QHash<QString, CachedArchive> m_archiveCache;
     QStringList m_archiveCacheOrder;                    // FIFO eviction order
 
-    // PDF page (m_stack index 5): every page stacks vertically in one QGraphicsScene
+    // PDF page: every page stacks vertically in one QGraphicsScene
     // and the whole document scrolls continuously. Each page is a bitmap background
     // (Poppler renderToImage -> QGraphicsPixmapItem, kept sharp by re-rendering at
     // the zoomed resolution) with a transparent, selectable text layer on top
@@ -410,7 +427,7 @@ private:
 #endif
     double m_pdfZoom = 1.0;                       // user zoom multiplier on top of fit-to-width; 1.0 == fit
 
-    // Slides page (m_stack index 10): pptx rendered by office_oxide to one
+    // Slides page: pptx rendered by office_oxide to one
     // standalone SVG per slide. Each slide's SVG is parsed into native graphics
     // items (SlideSceneBuilder) and stacked vertically in a single QGraphicsScene,
     // so text stays selectable and shapes scale as vectors. Slides fit the viewport
@@ -441,7 +458,7 @@ private:
     // otherwise carry over the *previous* deck's scroll position on a file switch.
     bool m_slidesResetScroll = false;
 
-    // Video page (m_stack index 3).
+    // Video page.
     QString m_videoPath;            // path of the clip currently loaded (de-dup re-selects)
     QWidget *m_videoPage = nullptr;
     QWidget *m_videoSurface = nullptr;
@@ -455,7 +472,7 @@ private:
     QTimer *m_videoTimer = nullptr; // polls position while playing
     bool m_seeking = false;         // suppress timer updates while dragging
 
-    // Audio page (m_stack index 9): cover art + tags + lyrics + a transport row
+    // Audio page: cover art + tags + lyrics + a transport row
     // (play/pause, prev/next track, seek slider with elapsed/total labels).
     QWidget *m_audioPage = nullptr;
     QLabel *m_audioCover = nullptr;   // embedded cover art or a placeholder glyph
@@ -478,8 +495,12 @@ private:
     int m_audioSiblingIndex = -1;
 
     MediaEngine *m_mediaEngine = nullptr; // one configured backend shared by audio and video
+    std::unique_ptr<MediaEngine> m_pendingMediaEngine;
+    bool m_mediaEngineReady = false;
     Settings &m_settings; // persisted video speed / volume / mute
     Context m_context;    // Embedded (Ctrl+Q pane) vs Window (F3 viewer)
+    QString m_contentFontFamily;
+    int m_contentFontSize = -1;
 
     ImagePreviewLoader *m_imageLoader = nullptr;
     QImage m_originalImage;

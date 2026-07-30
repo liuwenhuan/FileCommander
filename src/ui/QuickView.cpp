@@ -7,6 +7,7 @@
 #include <QComboBox>
 #include <QListView>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QClipboard>
@@ -173,49 +174,23 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent,
             &QuickView::requestImageRender);
 
     m_stack = new QStackedWidget(this);
-    m_stack->addWidget(m_info);              // 0
+    m_stack->addWidget(m_info);
 
-    if (!mediaEngine) {
-#if FILECOMMANDER_HAS_PREVIEW_MEDIA
-        mediaEngine = std::make_unique<MpvMediaEngine>();
-#else
-        mediaEngine = std::make_unique<NullMediaEngine>();
+    if (mediaEngine) {
+        m_pendingMediaEngine = std::move(mediaEngine);
+    } else {
+#if !FILECOMMANDER_HAS_PREVIEW_MEDIA
+        // The null backend owns no native media resources. Keep disabled-backend
+        // selection observable while deferring initialization and media pages.
+        m_mediaEngine = new NullMediaEngine(this);
 #endif
     }
-    m_mediaEngine = mediaEngine.release();
-    m_mediaEngine->setParent(this);
-    connect(m_mediaEngine, &MediaEngine::errorOccurred, this,
-            [this](const QString &message) {
-                if (message.isEmpty())
-                    return;
-#if FILECOMMANDER_HAS_PREVIEW_MEDIA
-                const QString source = m_mediaEngine->currentSource().path;
-                if (MpvStreamSource::isStreamUrl(source)) {
-                    m_videoPath.clear();
-                    emit streamFailed(source);
-                    return;
-                }
-#endif
-                if (m_videoTimer)
-                    m_videoTimer->stop();
-                if (m_audioTimer)
-                    m_audioTimer->stop();
-                m_info->setText(message);
-                m_stack->setCurrentWidget(m_info);
-            });
-    m_mediaEngine->initialize();
 
-    m_stack->addWidget(buildImagePage());    // 1
-    m_stack->addWidget(buildTextPage());     // 2
-    m_stack->addWidget(buildVideoPage());    // 3
-    m_stack->addWidget(buildMarkdownPage());   // 4
-    m_stack->addWidget(buildPdfPage());        // 5
-    m_stack->addWidget(buildOfficeTablePage());  // 6
-    m_stack->addWidget(buildEncryptedPage());    // 7
-    m_stack->addWidget(buildArchivePage());      // 8
-    m_stack->addWidget(buildAudioPage());        // 9
-    m_stack->addWidget(buildSlidesPage());       // 10
-    m_stack->addWidget(buildDownloadPage());     // 11
+    m_stack->addWidget(buildImagePage());
+    m_stack->addWidget(buildTextPage());
+    m_stack->addWidget(buildMarkdownPage());
+    m_stack->addWidget(buildEncryptedPage());
+    m_stack->addWidget(buildDownloadPage());
 
     connect(m_imageLoader, &ImagePreviewLoader::loaded, this,
             [this](quint64 generation, QImage image, const ImageMetadata &metadata,
@@ -297,9 +272,79 @@ QuickView::~QuickView() {
     invalidateImageRequests();
 }
 
+void QuickView::warmMediaEngine() {
+    if (m_mediaEngineReady)
+        return;
+
+    QElapsedTimer elapsed;
+    elapsed.start();
+
+    if (!m_mediaEngine) {
+        if (m_pendingMediaEngine) {
+            m_mediaEngine = m_pendingMediaEngine.release();
+        } else {
+#if FILECOMMANDER_HAS_PREVIEW_MEDIA
+            m_mediaEngine = new MpvMediaEngine;
+#else
+            m_mediaEngine = new NullMediaEngine;
+#endif
+        }
+        m_mediaEngine->setParent(this);
+    }
+
+    connect(m_mediaEngine, &MediaEngine::errorOccurred, this,
+            [this](const QString &message) {
+                if (message.isEmpty())
+                    return;
+#if FILECOMMANDER_HAS_PREVIEW_MEDIA
+                const QString source = m_mediaEngine->currentSource().path;
+                if (MpvStreamSource::isStreamUrl(source)) {
+                    m_videoPath.clear();
+                    emit streamFailed(source);
+                    return;
+                }
+#endif
+                if (m_videoTimer)
+                    m_videoTimer->stop();
+                if (m_audioTimer)
+                    m_audioTimer->stop();
+                m_info->setText(message);
+                m_stack->setCurrentWidget(m_info);
+            });
+
+    m_mediaEngine->initialize();
+    m_mediaEngineReady = true;
+    emit mediaEngineWarmed(elapsed.elapsed());
+}
+
+QWidget *QuickView::ensurePdfPage() {
+    if (!m_pdfPage)
+        m_stack->addWidget(buildPdfPage());
+    return m_pdfPage;
+}
+
+QWidget *QuickView::ensureOfficePage() {
+    if (!m_officeTabs)
+        m_stack->addWidget(buildOfficeTablePage());
+    return m_officeTabs;
+}
+
+QWidget *QuickView::ensureArchivePage() {
+    if (!m_archivePage)
+        m_stack->addWidget(buildArchivePage());
+    return m_archivePage;
+}
+
+QWidget *QuickView::ensureSlidesPage() {
+    if (!m_slidesPage)
+        m_stack->addWidget(buildSlidesPage());
+    return m_slidesPage;
+}
+
 void QuickView::setContentFontSize(int pt) {
     if (pt <= 0)
         return;
+    m_contentFontSize = pt;
     // The widget font persists across setPlainText()/setHtml()/setMarkdown(), so
     // setting it here is enough for current and future content.
     if (m_text) {
@@ -334,6 +379,7 @@ void QuickView::setContentFontSize(int pt) {
 
 void QuickView::setContentFontFamily(const QString &family) {
     const QString effectiveFamily = family.isEmpty() ? QApplication::font().family() : family;
+    m_contentFontFamily = effectiveFamily;
     auto applyFamily = [&effectiveFamily](QWidget *widget) {
         if (!widget)
             return;
@@ -742,8 +788,15 @@ bool QuickView::isAudio(const QString &path) {
     return kAudioSuffixes.contains(FileInfo::suffixForName(QFileInfo(path).fileName()).toLower());
 }
 
+QWidget *QuickView::ensureVideoPage() {
+    if (!m_videoPage)
+        m_stack->addWidget(buildVideoPage());
+    return m_videoPage;
+}
+
 QWidget *QuickView::buildVideoPage() {
     m_videoPage = new QWidget(this);
+    m_videoPage->setObjectName(QStringLiteral("quickViewVideoPage"));
 
     m_videoSurface = m_mediaEngine->videoSurface();
     if (!m_videoSurface)
@@ -817,12 +870,14 @@ QWidget *QuickView::buildVideoPage() {
     // Mute toggle: checkable, checked == muted. The icon reflects the state so a
     // muted clip reads as muted at a glance.
     m_muteButton = new QPushButton(m_videoPage);
+    m_muteButton->setObjectName(QStringLiteral("quickViewVideoMute"));
     m_muteButton->setCheckable(true);
     m_muteButton->setToolTip(tr("Mute / unmute"));
     // Bump the icon size so the speaker glyph is proportionate to the button
     // instead of a tiny centred dot. This applies to every icon set on the
     // button (initial, toggle, and showFile), so it only needs setting once.
     m_muteButton->setIconSize(QSize(18, 18));
+    m_muteButton->setChecked(m_settings.videoMuted());
     auto syncMuteIcon = [this]() { refreshMediaControlIcons(); };
     syncMuteIcon();
     connect(m_muteButton, &QPushButton::toggled, this, [this, syncMuteIcon](bool muted) {
@@ -833,8 +888,9 @@ QWidget *QuickView::buildVideoPage() {
 
     auto *volumeLabel = new QLabel(tr("Vol"), m_videoPage);
     m_volumeSlider = new QSlider(Qt::Horizontal, m_videoPage);
+    m_volumeSlider->setObjectName(QStringLiteral("quickViewVideoVolume"));
     m_volumeSlider->setRange(0, 100);
-    m_volumeSlider->setValue(70);
+    m_volumeSlider->setValue(m_settings.videoVolume());
     m_volumeSlider->setFixedWidth(90);
     m_volumeSlider->setToolTip(tr("Volume"));
     connect(m_volumeSlider, &QSlider::valueChanged, this, [this](int value) {
@@ -1029,8 +1085,15 @@ QString formatClock(double seconds) {
 }
 } // namespace
 
+QWidget *QuickView::ensureAudioPage() {
+    if (!m_audioPage)
+        m_stack->addWidget(buildAudioPage());
+    return m_audioPage;
+}
+
 QWidget *QuickView::buildAudioPage() {
     m_audioPage = new QWidget(this);
+    m_audioPage->setObjectName(QStringLiteral("quickViewAudioPage"));
 
     // Left column: cover art with a placeholder when the file carries none.
     m_audioCover = new QLabel(m_audioPage);
@@ -1105,9 +1168,11 @@ QWidget *QuickView::buildAudioPage() {
     // Mute toggle + volume slider, mirroring the video preview's controls but
     // backed by the independent audio/* settings.
     m_audioMuteButton = new QPushButton(m_audioPage);
+    m_audioMuteButton->setObjectName(QStringLiteral("quickViewAudioMute"));
     m_audioMuteButton->setCheckable(true);
     m_audioMuteButton->setToolTip(tr("Mute / unmute"));
     m_audioMuteButton->setIconSize(QSize(18, 18));
+    m_audioMuteButton->setChecked(m_settings.audioMuted());
     auto syncAudioMuteIcon = [this]() { refreshMediaControlIcons(); };
     syncAudioMuteIcon();
     connect(m_audioMuteButton, &QPushButton::toggled, this,
@@ -1119,8 +1184,9 @@ QWidget *QuickView::buildAudioPage() {
 
     auto *audioVolumeLabel = new QLabel(tr("Vol"), m_audioPage);
     m_audioVolumeSlider = new QSlider(Qt::Horizontal, m_audioPage);
+    m_audioVolumeSlider->setObjectName(QStringLiteral("quickViewAudioVolume"));
     m_audioVolumeSlider->setRange(0, 100);
-    m_audioVolumeSlider->setValue(70);
+    m_audioVolumeSlider->setValue(m_settings.audioVolume());
     m_audioVolumeSlider->setFixedWidth(90);
     m_audioVolumeSlider->setToolTip(tr("Volume"));
     connect(m_audioVolumeSlider, &QSlider::valueChanged, this, [this](int value) {
@@ -1426,8 +1492,15 @@ QWidget *QuickView::buildOfficeTablePage() {
     // tabs are populated per file in populateSheets(); the bar hides itself for a
     // single-sheet workbook so a lone sheet reads as a plain grid.
     m_officeTabs = new QTabWidget(this);
+    m_officeTabs->setObjectName(QStringLiteral("quickViewOfficePage"));
     m_officeTabs->setTabPosition(QTabWidget::South);
     m_officeTabs->setDocumentMode(true);
+    QFont font = m_officeTabs->font();
+    if (!m_contentFontFamily.isEmpty())
+        font.setFamily(m_contentFontFamily);
+    if (m_contentFontSize > 0)
+        font.setPointSize(m_contentFontSize);
+    m_officeTabs->setFont(font);
     return m_officeTabs;
 }
 
@@ -1636,6 +1709,7 @@ void QuickView::handleOfficeResult(const OfficeConverter::Result &r, const QStri
 
     if (r.ok && r.kind == OfficeConverter::Kind::Presentation && !r.slideSvgs.isEmpty()) {
         // pptx rendered as slide images: stack them in the continuous slides page.
+        ensureSlidesPage();
         loadSlides(r.slideSvgs);
         m_stack->setCurrentWidget(m_slidesPage);
         m_officeShownPath = path; // de-dupe a spurious re-selection of this file
@@ -1652,6 +1726,7 @@ void QuickView::handleOfficeResult(const OfficeConverter::Result &r, const QStri
         return;
     }
     if (r.ok && r.kind == OfficeConverter::Kind::Spreadsheet) {
+        ensureOfficePage();
         populateSheets(r.sheets);
         m_stack->setCurrentWidget(m_officeTabs);
         m_officeShownPath = path;
@@ -1703,6 +1778,7 @@ void QuickView::handleOfficeResult(const OfficeConverter::Result &r, const QStri
 
 QWidget *QuickView::buildArchivePage() {
     m_archivePage = new QWidget(this);
+    m_archivePage->setObjectName(QStringLiteral("quickViewArchivePage"));
     m_archiveModel = new ArchiveModel(this);
 
     auto *toolbar = new QToolBar(m_archivePage);
@@ -2034,6 +2110,7 @@ void QuickView::populateSheets(const QVector<QPair<QString, QString>> &sheets) {
 
 QWidget *QuickView::buildPdfPage() {
     m_pdfPage = new QWidget(this);
+    m_pdfPage->setObjectName(QStringLiteral("quickViewPdfPage"));
 
     // A slim toolbar: zoom (fit-to-width is the implicit default), the copy-text
     // fallbacks, and the "page N / M" readout driven by scroll position.
@@ -2366,6 +2443,7 @@ void QuickView::closePdf() {
 
 QWidget *QuickView::buildSlidesPage() {
     m_slidesPage = new QWidget(this);
+    m_slidesPage->setObjectName(QStringLiteral("quickViewSlidesPage"));
 
     // A slim toolbar: zoom (fit-to-width is the implicit default), copy-text
     // fallbacks, and the "Slide N / M" readout driven by scroll position.
@@ -2865,11 +2943,14 @@ void QuickView::showFile(const QString &path) {
     // extraction). Checked first so an archive under the cursor shows its file
     // tree instead of falling through to a garbage text head.
     if (ArchiveHandler::isSupportedArchive(path)) {
+        ensureArchivePage();
         previewArchive(path);
         return;
     }
 
     if (isVideo(path)) {
+        warmMediaEngine();
+        ensureVideoPage();
         m_infoOverlay->hide(); // image overlay belongs to another page
         stopAudio();           // don't leave an audio track playing behind the video
 
@@ -2929,6 +3010,8 @@ void QuickView::showFile(const QString &path) {
     stopVideo();
 
     if (isAudio(path)) {
+        warmMediaEngine();
+        ensureAudioPage();
         showAudio(path);
         return;
     }
@@ -2957,6 +3040,7 @@ void QuickView::showFile(const QString &path) {
 
         m_pdfDoc = std::move(doc);
         m_pdfZoom = 1.0;
+        ensurePdfPage();
         // Switch first so the scroll viewport has its real width before we fit
         // pages to it; loadPdfPages still guards a minimum for the un-laid-out case.
         m_stack->setCurrentWidget(m_pdfPage);
