@@ -11,9 +11,14 @@
 namespace {
 
 std::atomic<int> reducedForTest{-1};
+std::atomic<int> systemReducedForTest{-1};
 std::atomic_bool applicationReduced{false};
 
 bool systemReducesMotion() {
+    const int testOverride = systemReducedForTest.load();
+    if (testOverride >= 0)
+        return testOverride != 0;
+
 #if defined(Q_OS_WIN)
     BOOL clientAreaAnimation = TRUE;
     return SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, &clientAreaAnimation, 0) &&
@@ -69,4 +74,12 @@ void MotionPolicy::setReducedForTest(bool reduced) {
 
 void MotionPolicy::clearReducedForTest() {
     reducedForTest.store(-1);
+}
+
+void MotionPolicy::setSystemReducedForTest(bool reduced) {
+    systemReducedForTest.store(reduced ? 1 : 0);
+}
+
+void MotionPolicy::clearSystemReducedForTest() {
+    systemReducedForTest.store(-1);
 }

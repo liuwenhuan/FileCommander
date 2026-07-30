@@ -15,11 +15,13 @@ public:
     MotionPolicyStateGuard() {
         m_disableAnimations = qgetenv("FILECOMMANDER_DISABLE_ANIMATIONS");
         MotionPolicy::clearReducedForTest();
+        MotionPolicy::clearSystemReducedForTest();
         MotionPolicy::setApplicationReduced(false);
     }
 
     ~MotionPolicyStateGuard() {
         MotionPolicy::clearReducedForTest();
+        MotionPolicy::clearSystemReducedForTest();
         MotionPolicy::setApplicationReduced(false);
         if (m_disableAnimations.isNull())
             qunsetenv("FILECOMMANDER_DISABLE_ANIMATIONS");
@@ -71,13 +73,24 @@ TEST(MotionPolicy, DisableAnimationsEnvironmentDisablesMotion) {
     EXPECT_EQ(MotionPolicy::duration(MotionDuration::Normal), 0);
 }
 
+TEST(MotionPolicy, SystemPreferenceTestOverrideIsDeterministic) {
+    MotionPolicyStateGuard guard;
+    qputenv("FILECOMMANDER_DISABLE_ANIMATIONS", "0");
+
+    MotionPolicy::setSystemReducedForTest(true);
+    EXPECT_TRUE(MotionPolicy::reduced());
+
+    MotionPolicy::setSystemReducedForTest(false);
+    EXPECT_FALSE(MotionPolicy::reduced());
+}
+
 TEST(MotionPolicy, ApplicationPreferenceUpdatesPolicyImmediately) {
     MotionPolicyStateGuard guard;
-    MotionPolicy::setReducedForTest(false);
-    EXPECT_FALSE(MotionPolicy::reduced());
-
     MotionPolicy::clearReducedForTest();
+    MotionPolicy::setSystemReducedForTest(false);
     qputenv("FILECOMMANDER_DISABLE_ANIMATIONS", "0");
+
+    EXPECT_FALSE(MotionPolicy::reduced());
     MotionPolicy::setApplicationReduced(true);
     EXPECT_TRUE(MotionPolicy::reduced());
 
@@ -97,11 +110,16 @@ TEST(MotionPolicy, PersistsReducedMotionPreference) {
     MotionPolicyStateGuard guard;
     QTemporaryDir temporaryDir;
     ASSERT_TRUE(temporaryDir.isValid());
-    Settings settings(temporaryDir.filePath(QStringLiteral("settings.ini")));
+    const QString settingsPath = temporaryDir.filePath(QStringLiteral("settings.ini"));
 
-    EXPECT_FALSE(settings.reduceMotion());
-    settings.setReduceMotion(true);
-    EXPECT_TRUE(settings.reduceMotion());
+    {
+        Settings writer(settingsPath);
+        EXPECT_FALSE(writer.reduceMotion());
+        writer.setReduceMotion(true);
+    }
+
+    Settings reader(settingsPath);
+    EXPECT_TRUE(reader.reduceMotion());
 }
 
 TEST(MotionPolicy, ReduceMotionActionUpdatesPolicyImmediately) {

@@ -21,4 +21,9 @@ public:
     // Deterministic tests may override all runtime reduction sources.
     static void setReducedForTest(bool reduced);
     static void clearReducedForTest();
+
+    // Lets tests isolate the application preference from the host system
+    // preference without changing production detection when unset.
+    static void setSystemReducedForTest(bool reduced);
+    static void clearSystemReducedForTest();
 };
