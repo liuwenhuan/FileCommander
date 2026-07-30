@@ -12,6 +12,7 @@
 #include "Settings.h"
 #include "Typography.h"
 #include "TranslationManager.h"
+#include "diagnostics/RuntimeCounters.h"
 
 int main(int argc, char *argv[]) {
     // Use the native Qt xcb platform rather than deepin's dxcb: the app draws its
@@ -64,17 +65,19 @@ int main(int argc, char *argv[]) {
     Typography::applyApplicationFont(settings);
     TranslationManager::install(app, settings.language());
 
-    MainWindow window;
-    // Belt-and-braces for WMs that read the per-window icon. Takes the
-    // application icon rather than painting a fresh one: MainWindow's
-    // constructor has already applied the theme, which may have replaced the
-    // app icon with a recoloured variant, and painting again here would put the
-    // untinted original back -- which every dialog then inherits, since
-    // DialogTitleBar reads its icon from the window it belongs to.
-    window.setWindowIcon(app.windowIcon());
-    window.show();
-    QObject::connect(&instance, &InstanceCoordinator::activationRequested, &window,
-                     [&window](const QStringList &activationArguments) {
+    int exitCode = 0;
+    {
+        MainWindow window;
+        // Belt-and-braces for WMs that read the per-window icon. Takes the
+        // application icon rather than painting a fresh one: MainWindow's
+        // constructor has already applied the theme, which may have replaced the
+        // app icon with a recoloured variant, and painting again here would put the
+        // untinted original back -- which every dialog then inherits, since
+        // DialogTitleBar reads its icon from the window it belongs to.
+        window.setWindowIcon(app.windowIcon());
+        window.show();
+        QObject::connect(&instance, &InstanceCoordinator::activationRequested, &window,
+                         [&window](const QStringList &activationArguments) {
                 const QStringList folders = FolderAssociation::folderArguments(activationArguments);
                 if (!folders.isEmpty())
                     window.openFolders(folders);
@@ -82,17 +85,21 @@ int main(int argc, char *argv[]) {
                 window.raise();
                 window.activateWindow();
             });
-    const int packageSmoke = arguments.indexOf(QStringLiteral("--package-smoke"));
-    if (packageSmoke >= 0 && packageSmoke + 1 < arguments.size()) {
-        const QString directory = arguments.at(packageSmoke + 1);
-        QTimer::singleShot(250, &window, [&window, directory] { window.runPackageSmoke(directory); });
-    } else if (arguments.contains(QStringLiteral("--smoke-test"))) {
-        QTimer::singleShot(750, &app, &QCoreApplication::quit);
-    } else {
-        const QStringList folders = FolderAssociation::folderArguments(arguments);
-        if (!folders.isEmpty())
-            QTimer::singleShot(0, &window, [&window, folders] { window.openFolders(folders); });
-    }
+        const int packageSmoke = arguments.indexOf(QStringLiteral("--package-smoke"));
+        if (packageSmoke >= 0 && packageSmoke + 1 < arguments.size()) {
+            const QString directory = arguments.at(packageSmoke + 1);
+            QTimer::singleShot(250, &window,
+                               [&window, directory] { window.runPackageSmoke(directory); });
+        } else if (arguments.contains(QStringLiteral("--smoke-test"))) {
+            QTimer::singleShot(750, &app, &QCoreApplication::quit);
+        } else {
+            const QStringList folders = FolderAssociation::folderArguments(arguments);
+            if (!folders.isEmpty())
+                QTimer::singleShot(0, &window, [&window, folders] { window.openFolders(folders); });
+        }
 
-    return app.exec();
+        exitCode = app.exec();
+    }
+    fc::reportRuntimeSnapshotIfEnabled();
+    return exitCode;
 }

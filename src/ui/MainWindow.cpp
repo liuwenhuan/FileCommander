@@ -11,7 +11,6 @@
 #include <QClipboard>
 #include <QCloseEvent>
 #include <QCursor>
-#include <QDebug>
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -718,18 +717,6 @@ QAction *MainWindow::addCommandAction(QMenu *menu, const QString &id, const QStr
             handler();
     });
     return action;
-}
-
-MainWindow::~MainWindow() {
-    if (qEnvironmentVariableIntValue("FILECOMMANDER_DIAGNOSTICS") != 1)
-        return;
-    const fc::RuntimeSnapshot snapshot = fc::runtimeSnapshot();
-    qInfo().nospace() << "FileCommander RuntimeSnapshot"
-                      << " networkSessions=" << snapshot.networkSessions
-                      << " networkThreads=" << snapshot.networkThreads
-                      << " activeHeartbeats=" << snapshot.activeHeartbeats
-                      << " transferWorkers=" << snapshot.transferWorkers
-                      << " curlTransfers=" << snapshot.curlTransfers;
 }
 
 void MainWindow::buildTitleBarMenus() {

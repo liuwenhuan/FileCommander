@@ -1,11 +1,13 @@
 #include <gtest/gtest.h>
 
 #include <QByteArray>
+#include <QElapsedTimer>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QThread>
 
 #include "CurlWebDavProvider.h"
+#include "diagnostics/RuntimeCounters.h"
 
 // Regression cover for a second silent data-loss bug on the WebDAV upload path,
 // distinct from the 401-rewind one in test_WebDavUpload.cpp.
@@ -209,6 +211,7 @@ TEST(WebDavChunkedUploadTest, ContinueThenCloseIsReportedAsFailure) {
     if (!dav.isConnected())
         GTEST_SKIP() << "scripted server did not complete the connect handshake";
 
+    const int curlTransfersBefore = fc::runtimeSnapshot().curlTransfers;
     QThread *put = QThread::create([&]() {
         FileHandle *h = dav.openWrite(QStringLiteral("/big.bin"), true);
         ASSERT_NE(h, nullptr);
@@ -216,9 +219,17 @@ TEST(WebDavChunkedUploadTest, ContinueThenCloseIsReportedAsFailure) {
         committed = dav.closeHandleStatus(h);
     });
     put->start();
+    QElapsedTimer counterWait;
+    counterWait.start();
+    while (fc::runtimeSnapshot().curlTransfers == curlTransfersBefore &&
+           counterWait.elapsed() < 4000) {
+        QThread::msleep(1);
+    }
+    EXPECT_EQ(fc::runtimeSnapshot().curlTransfers, curlTransfersBefore + 1);
     server.serveOnce();
     put->wait(20000);
     delete put;
+    EXPECT_EQ(fc::runtimeSnapshot().curlTransfers, curlTransfersBefore);
 
     // The whole point: no final response means the bytes did not land.
     EXPECT_FALSE(committed) << "upload with no server acknowledgement reported success";

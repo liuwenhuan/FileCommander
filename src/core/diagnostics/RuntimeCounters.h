@@ -19,6 +19,7 @@ struct RuntimeSnapshot {
 };
 
 RuntimeSnapshot runtimeSnapshot();
+void reportRuntimeSnapshotIfEnabled();
 
 class RuntimeCounterGuard final {
 public:

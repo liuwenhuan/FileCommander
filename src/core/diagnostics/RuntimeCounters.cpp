@@ -1,5 +1,7 @@
 #include "RuntimeCounters.h"
 
+#include <QDebug>
+
 #include <atomic>
 
 namespace {
@@ -45,6 +47,22 @@ RuntimeSnapshot runtimeSnapshot() {
             all.activeHeartbeats.load(std::memory_order_relaxed),
             all.transferWorkers.load(std::memory_order_relaxed),
             all.curlTransfers.load(std::memory_order_relaxed)};
+}
+
+void reportRuntimeSnapshotIfEnabled() {
+    if (qEnvironmentVariableIntValue("FILECOMMANDER_DIAGNOSTICS") != 1)
+        return;
+    static std::atomic_flag reported = ATOMIC_FLAG_INIT;
+    if (reported.test_and_set(std::memory_order_relaxed))
+        return;
+
+    const RuntimeSnapshot snapshot = runtimeSnapshot();
+    qInfo().nospace() << "FileCommander RuntimeSnapshot"
+                      << " networkSessions=" << snapshot.networkSessions
+                      << " networkThreads=" << snapshot.networkThreads
+                      << " activeHeartbeats=" << snapshot.activeHeartbeats
+                      << " transferWorkers=" << snapshot.transferWorkers
+                      << " curlTransfers=" << snapshot.curlTransfers;
 }
 
 RuntimeCounterGuard::RuntimeCounterGuard(RuntimeCounter counterValue) : m_counter(counterValue) {
