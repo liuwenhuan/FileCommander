@@ -41,6 +41,7 @@
 #include <QMessageBox>
 
 #include "FramelessDialog.h"
+#include "MotionPolicy.h"
 #include "ThemedDialogs.h"
 #include <QMimeData>
 #include <QPainter>
@@ -285,6 +286,8 @@ bool isMissingRemovablePath(const QString &path) {
 } // namespace
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
+    MotionPolicy::setApplicationReduced(m_settings.reduceMotion());
+
     // Frameless: we draw our own title bar (see setupMenuAndToolbar / TitleBar)
     // plus a rounded background and soft shadow in paintEvent. The window is
     // translucent so the shadow can fade into nothing at its edges.
@@ -758,6 +761,13 @@ void MainWindow::buildTitleBarMenus() {
            "Shift+Delete and remote deletes always require confirmation."));
     connect(noConfirm, &QAction::toggled, this,
             [this](bool on) { m_settings.setConfirmDelete(!on); });
+    QAction *reduceMotion = configMenu->addAction(tr("Reduce Motion"));
+    reduceMotion->setCheckable(true);
+    reduceMotion->setChecked(m_settings.reduceMotion());
+    connect(reduceMotion, &QAction::toggled, this, [this](bool on) {
+        m_settings.setReduceMotion(on);
+        MotionPolicy::setApplicationReduced(on);
+    });
     QAction *autoUpdate = configMenu->addAction(
         commandText(QStringLiteral("toggleAutoUpdate"), tr("Automatic Update Check")));
     autoUpdate->setCheckable(true);

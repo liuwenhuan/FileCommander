@@ -28,6 +28,11 @@ public:
     Theme theme() const;
     void setTheme(Theme theme);
 
+    // Explicit accessibility preference. System-level reduction still takes
+    // precedence when the platform exposes it.
+    bool reduceMotion() const;
+    void setReduceMotion(bool reduce);
+
     // Whether *content* -- thumbnails, image/PDF/slide previews, video -- is
     // recoloured to the phosphor hue along with the chrome. Only consulted for
     // Theme::Crt; the other themes never tint content whatever this says, so

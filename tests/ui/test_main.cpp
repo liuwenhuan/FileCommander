@@ -8,6 +8,7 @@
 int main(int argc, char **argv) {
     if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM"))
         qputenv("QT_QPA_PLATFORM", "offscreen");
+    qputenv("FILECOMMANDER_DISABLE_ANIMATIONS", "1");
     // Every path QStandardPaths hands out moves to a throwaway test location for
     // the whole run. The thumbnail tests write to, count, and now DELETE files
     // in the cache directory; against the real one a test run would quietly

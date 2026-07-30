@@ -3,6 +3,8 @@
 # search can all wear the same themed frameless look without introducing a
 # dependency cycle between them.
 add_library(widgets STATIC
+    MotionPolicy.h
+    MotionPolicy.cpp
     TitleButton.h
     DialogTitleBar.h
     DialogTitleBar.cpp

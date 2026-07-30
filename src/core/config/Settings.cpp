@@ -94,6 +94,14 @@ void Settings::setTheme(Theme theme) {
     m_settings.setValue("appearance/theme", static_cast<int>(theme));
 }
 
+bool Settings::reduceMotion() const {
+    return m_settings.value("appearance/reduceMotion", false).toBool();
+}
+
+void Settings::setReduceMotion(bool reduce) {
+    m_settings.setValue("appearance/reduceMotion", reduce);
+}
+
 bool Settings::phosphorImages() const {
     return m_settings.value("appearance/phosphorImages", true).toBool();
 }
