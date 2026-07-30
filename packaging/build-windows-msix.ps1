@@ -19,7 +19,7 @@ $repo = Split-Path -Parent $PSScriptRoot
 if (-not $SkipPortableBuild) {
     & (Join-Path $PSScriptRoot 'build-windows.ps1') -QtRoot $QtRoot -VcpkgRoot $VcpkgRoot `
         -PopplerQt5Root $PopplerQt5Root -MpvRoot $MpvRoot -Architecture $Architecture `
-        -WithFullPreviews:$WithFullPreviews
+        -Profile windows-full-portable -WithFullPreviews:$WithFullPreviews
     if ($LASTEXITCODE) { throw 'Portable package build failed.' }
 }
 
@@ -28,11 +28,33 @@ $stage = Join-Path $repo "dist/FileCommander-windows-$Architecture"
     -Stage $stage -Architecture $Architecture
 if ($LASTEXITCODE) { throw 'Staged package verification failed.' }
 
+$portableReleaseManifestPath = Join-Path $stage 'release-manifest.json'
+if (-not (Test-Path -LiteralPath $portableReleaseManifestPath)) {
+    throw 'Portable stage is missing release-manifest.json.'
+}
+$portableReleaseManifest = Get-Content -LiteralPath $portableReleaseManifestPath -Raw | ConvertFrom-Json
+$provenanceEntries = [System.Collections.Generic.List[object]]::new()
+foreach ($file in @($portableReleaseManifest.files)) {
+    [void]$provenanceEntries.Add([pscustomobject]@{ path = $file.path; provenance = $file.provenance })
+}
+function Add-MsixProvenance {
+    param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][string]$Group)
+
+    $root = (Resolve-Path -LiteralPath $stage).Path.TrimEnd('\')
+    $resolved = (Resolve-Path -LiteralPath $Path).Path
+    [void]$provenanceEntries.Add([pscustomobject]@{
+        path = $resolved.Substring($root.Length + 1).Replace('\', '/')
+        provenance = $Group
+    })
+}
+
 $assets = Join-Path $stage 'Assets'
 New-Item -ItemType Directory -Force -Path $assets | Out-Null
 $icon = [System.Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL9OwAAAABJRU5ErkJggg==')
 foreach ($name in @('Square44x44Logo.png', 'Square150x150Logo.png', 'Wide310x150Logo.png')) {
-    [System.IO.File]::WriteAllBytes((Join-Path $assets $name), $icon)
+    $iconPath = Join-Path $assets $name
+    [System.IO.File]::WriteAllBytes($iconPath, $icon)
+    Add-MsixProvenance -Path $iconPath -Group 'application'
 }
 
 $version = '0.2.0.0'
@@ -50,7 +72,13 @@ $manifest = @"
   <Capabilities><Capability Name="internetClient" /><rescap:Capability Name="runFullTrust" /></Capabilities>
 </Package>
 "@
-Set-Content -LiteralPath (Join-Path $stage 'AppxManifest.xml') -Value $manifest -Encoding UTF8
+$appxManifestPath = Join-Path $stage 'AppxManifest.xml'
+Set-Content -LiteralPath $appxManifestPath -Value $manifest -Encoding UTF8
+Add-MsixProvenance -Path $appxManifestPath -Group 'application'
+
+& (Join-Path $PSScriptRoot 'write-windows-manifest.ps1') -Stage $stage `
+    -ProfilePath (Join-Path $PSScriptRoot 'profiles/windows-full-msix.json') `
+    -Architecture $Architecture -BuildType Release -ProvenanceEntries $provenanceEntries.ToArray()
 
 $makeAppx = Get-Command MakeAppx.exe -ErrorAction SilentlyContinue
 if (-not $makeAppx) {

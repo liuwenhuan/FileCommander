@@ -6,12 +6,22 @@ param(
     [string]$MpvRoot = $env:FILECOMMANDER_MPV_ROOT,
     [ValidateSet('x64', 'x86', 'arm64')]
     [string]$Architecture = 'x64',
+    [ValidateSet('windows-full-portable', 'windows-lite-portable')]
+    [string]$Profile = 'windows-lite-portable',
     [switch]$WithFullPreviews,
     [switch]$SkipArchive
 )
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
+if ($WithFullPreviews) { $Profile = 'windows-full-portable' }
+$profilePath = Join-Path $PSScriptRoot "profiles/$Profile.json"
+if (-not (Test-Path -LiteralPath $profilePath)) { throw "Windows package profile not found: $profilePath" }
+$packageProfile = Get-Content -LiteralPath $profilePath -Raw | ConvertFrom-Json
+if ($packageProfile.packageType -ne 'portable') { throw "Profile $Profile is not a portable package profile." }
+$pdfPreview = [bool]$packageProfile.features.pdfPreview
+$mediaPreview = [bool]$packageProfile.features.mediaPreview
+
 if (-not $QtRoot -or -not (Test-Path -LiteralPath $QtRoot)) {
     throw 'Set FILECOMMANDER_QT_ROOT or pass -QtRoot with a Qt 5.15 MSVC installation.'
 }
@@ -28,10 +38,63 @@ if (-not $MpvRoot) {
 $triplet = "$Architecture-windows"
 $build = Join-Path $repo "build/windows-msvc-release-$Architecture"
 $stage = Join-Path $repo "dist/FileCommander-windows-$Architecture"
-$previewArgs = if ($WithFullPreviews) {
-    @('-DFILECOMMANDER_PREVIEW_PDF=ON', '-DFILECOMMANDER_PREVIEW_MEDIA=ON')
-} else {
-    @('-DFILECOMMANDER_PREVIEW_PDF=OFF', '-DFILECOMMANDER_PREVIEW_MEDIA=OFF')
+$pdfPreviewOption = if ($pdfPreview) { 'ON' } else { 'OFF' }
+$mediaPreviewOption = if ($mediaPreview) { 'ON' } else { 'OFF' }
+$provenanceEntries = [System.Collections.Generic.List[object]]::new()
+
+function Get-StageRelativePath {
+    param([Parameter(Mandatory)][string]$Path)
+
+    $resolvedStage = (Resolve-Path -LiteralPath $stage).Path.TrimEnd('\')
+    $resolvedPath = (Resolve-Path -LiteralPath $Path).Path
+    if (-not $resolvedPath.StartsWith($resolvedStage + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Package file is outside the stage: $resolvedPath"
+    }
+    return $resolvedPath.Substring($resolvedStage.Length + 1).Replace('\', '/')
+}
+
+function Add-StageProvenance {
+    param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][string]$Group)
+
+    [void]$provenanceEntries.Add([pscustomobject]@{
+        path = Get-StageRelativePath -Path $Path
+        provenance = $Group
+    })
+}
+
+function Copy-StageFile {
+    param(
+        [Parameter(Mandatory)][string]$Source,
+        [Parameter(Mandatory)][string]$Destination,
+        [Parameter(Mandatory)][string]$Group
+    )
+
+    if (-not (Test-Path -LiteralPath $Source -PathType Leaf)) { throw "Package source file not found: $Source" }
+    Copy-Item -LiteralPath $Source -Destination $Destination -Force
+    $destinationPath = if (Test-Path -LiteralPath $Destination -PathType Container) {
+        Join-Path $Destination (Split-Path -Leaf $Source)
+    } else {
+        $Destination
+    }
+    Add-StageProvenance -Path $destinationPath -Group $Group
+}
+
+function Get-RuntimeProvenanceGroup {
+    param([Parameter(Mandatory)][string]$Name)
+
+    if ($Name -like 'Qt5*.dll') { return 'qt' }
+    if ($Name -in @('poppler-qt5.dll', 'poppler.dll', 'freetype.dll', 'openjp2.dll', 'libpng16.dll',
+                     'jpeg62.dll', 'tiff.dll', 'brotlidec.dll', 'brotlicommon.dll')) { return 'pdf' }
+    if ($Name -eq 'libmpv-2.dll') { return 'media' }
+    return 'network'
+}
+
+function Get-WindeployProvenanceGroup {
+    param([Parameter(Mandatory)][string]$RelativePath)
+
+    if ($RelativePath.StartsWith('platforms/', [System.StringComparison]::OrdinalIgnoreCase)) { return 'platformPlugins' }
+    if ($RelativePath.StartsWith('imageformats/', [System.StringComparison]::OrdinalIgnoreCase)) { return 'imagePlugins' }
+    return 'qt'
 }
 
 cmake -S $repo -B $build -G Ninja `
@@ -43,7 +106,9 @@ cmake -S $repo -B $build -G Ninja `
     -DTTC_BUILD_BENCH=OFF `
     -DFILECOMMANDER_ENABLE_NETWORK=ON `
     "-DFILECOMMANDER_POPPLER_QT5_ROOT=$PopplerQt5Root" `
-    "-DFILECOMMANDER_MPV_ROOT=$MpvRoot" @previewArgs
+    "-DFILECOMMANDER_MPV_ROOT=$MpvRoot" `
+    "-DFILECOMMANDER_PREVIEW_PDF=$pdfPreviewOption" `
+    "-DFILECOMMANDER_PREVIEW_MEDIA=$mediaPreviewOption"
 if ($LASTEXITCODE) { throw 'CMake configure failed.' }
 cmake --build $build --parallel
 if ($LASTEXITCODE) { throw 'Build failed.' }
@@ -52,40 +117,63 @@ if (Test-Path -LiteralPath $stage) {
     Remove-Item -LiteralPath $stage -Recurse -Force
 }
 New-Item -ItemType Directory -Force -Path $stage | Out-Null
-Copy-Item -LiteralPath (Join-Path $build 'FileCommander.exe') -Destination $stage -Force
+Copy-StageFile -Source (Join-Path $build 'FileCommander.exe') -Destination $stage -Group 'application'
+
+$beforeWindeploy = @{}
+Get-ChildItem -LiteralPath $stage -Recurse -File | ForEach-Object { $beforeWindeploy[(Get-StageRelativePath -Path $_.FullName)] = $true }
 & (Join-Path $QtRoot 'bin/windeployqt.exe') --release --no-translations (Join-Path $stage 'FileCommander.exe')
 if ($LASTEXITCODE) { throw 'windeployqt failed.' }
+Get-ChildItem -LiteralPath $stage -Recurse -File | ForEach-Object {
+    $relativePath = Get-StageRelativePath -Path $_.FullName
+    if (-not $beforeWindeploy.ContainsKey($relativePath)) {
+        Add-StageProvenance -Path $_.FullName -Group (Get-WindeployProvenanceGroup -RelativePath $relativePath)
+    }
+}
 
 # CMake's runtime-dependency step has already copied the exact vcpkg DLL
 # closure beside the executable. Copying every DLL from vcpkg also pulled test
 # and compatibility runtimes into the package and could change DLL resolution.
-Get-ChildItem -LiteralPath $build -Filter '*.dll' |
-    Copy-Item -Destination $stage -Force
-if ($WithFullPreviews) {
-    Copy-Item -LiteralPath (Join-Path $QtRoot 'bin/Qt5Xml.dll') -Destination $stage -Force
+Get-ChildItem -LiteralPath $build -File -Filter '*.dll' | ForEach-Object {
+    $destination = Join-Path $stage $_.Name
+    if (-not (Test-Path -LiteralPath $destination)) {
+        Copy-StageFile -Source $_.FullName -Destination $stage -Group (Get-RuntimeProvenanceGroup -Name $_.Name)
+    }
+}
+
+if ($pdfPreview) {
+    Copy-StageFile -Source (Join-Path $QtRoot 'bin/Qt5Xml.dll') -Destination $stage -Group 'qt'
     if (-not (Test-Path -LiteralPath (Join-Path $PopplerQt5Root 'bin/poppler-qt5.dll'))) {
         throw "Poppler Qt5 runtime not found at $PopplerQt5Root."
     }
-    Get-ChildItem -LiteralPath (Join-Path $PopplerQt5Root 'bin') -Filter '*.dll' |
-        Copy-Item -Destination $stage -Force
-    $vcpkgBin = Join-Path $VcpkgRoot "installed/$triplet/bin"
-    foreach ($runtime in @('jpeg62.dll', 'openjp2.dll', 'libpng16.dll',
-                            'tiff.dll', 'freetype.dll', 'brotlidec.dll',
-                            'brotlicommon.dll')) {
-        Copy-Item -LiteralPath (Join-Path $vcpkgBin $runtime) -Destination $stage -Force
+    Get-ChildItem -LiteralPath (Join-Path $PopplerQt5Root 'bin') -Filter '*.dll' | ForEach-Object {
+        Copy-StageFile -Source $_.FullName -Destination $stage -Group 'pdf'
     }
+    $vcpkgBin = Join-Path $VcpkgRoot "installed/$triplet/bin"
+    foreach ($runtime in @('jpeg62.dll', 'openjp2.dll', 'libpng16.dll', 'tiff.dll', 'freetype.dll',
+                            'brotlidec.dll', 'brotlicommon.dll')) {
+        Copy-StageFile -Source (Join-Path $vcpkgBin $runtime) -Destination $stage -Group 'pdf'
+    }
+}
+if ($mediaPreview) {
     if (-not (Test-Path -LiteralPath (Join-Path $MpvRoot 'libmpv-2.dll'))) {
         throw "libmpv runtime not found at $MpvRoot."
     }
-    Copy-Item -LiteralPath (Join-Path $MpvRoot 'libmpv-2.dll') -Destination $stage -Force
+    Copy-StageFile -Source (Join-Path $MpvRoot 'libmpv-2.dll') -Destination $stage -Group 'media'
 }
+if (-not $mediaPreview -and (Test-Path -LiteralPath (Join-Path $stage 'libmpv-2.dll'))) {
+    throw "Profile $Profile forbids libmpv-2.dll in the Lite package."
+}
+
 $officeBinary = Join-Path $repo 'build/office-oxide/office-oxide.exe'
 if (Test-Path -LiteralPath $officeBinary) {
-    Copy-Item -LiteralPath $officeBinary -Destination $stage -Force
+    Copy-StageFile -Source $officeBinary -Destination $stage -Group 'office'
 }
 $runtime = & (Join-Path $PSScriptRoot 'collect-msvc-runtime.ps1') `
     -Stage $stage -Architecture $Architecture -Mode Portable
 if (-not $runtime.CopiedCrtDllPaths) { throw 'MSVC runtime collection did not copy any CRT DLLs.' }
+foreach ($runtimePath in $runtime.CopiedCrtDllPaths) {
+    Add-StageProvenance -Path $runtimePath -Group 'msvcRuntime'
+}
 
 # The installer is a prerequisite for bootstrapper-style installers, never a
 # portable app-local dependency. Keep the direct result directory runnable.
@@ -98,15 +186,19 @@ $manifest = [ordered]@{
     platform = "windows-$Architecture"
     networkProtocols = @('sftp', 'smb', 'ftp', 'webdav', 'webdavs')
     officePreview = Test-Path -LiteralPath (Join-Path $stage 'office-oxide.exe')
-    pdfPreview = [bool]$WithFullPreviews
-    mediaPreview = [bool]$WithFullPreviews
+    pdfPreview = $pdfPreview
+    mediaPreview = $mediaPreview
     runtime = [ordered]@{
         provenance = $runtime.Provenance
-        sourceRedistDirectory = $runtime.SourceRedistDirectory
         files = @($runtime.CopiedCrtDllPaths | ForEach-Object { Split-Path -Leaf $_ })
     }
 }
-$manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stage 'manifest.json') -Encoding UTF8
+$legacyManifestPath = Join-Path $stage 'manifest.json'
+$manifest | ConvertTo-Json | Set-Content -LiteralPath $legacyManifestPath -Encoding UTF8
+Add-StageProvenance -Path $legacyManifestPath -Group 'application'
+
+& (Join-Path $PSScriptRoot 'write-windows-manifest.ps1') -Stage $stage -ProfilePath $profilePath `
+    -Architecture $Architecture -BuildType Release -ProvenanceEntries $provenanceEntries.ToArray()
 
 & (Join-Path $PSScriptRoot 'verify-windows-package.ps1') -Stage $stage -Architecture $Architecture
 if ($LASTEXITCODE) { throw 'Package verification failed.' }
