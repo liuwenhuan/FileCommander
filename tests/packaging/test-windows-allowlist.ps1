@@ -20,6 +20,14 @@ function Assert-Matches {
     }
 }
 
+function Assert-BytesEqual {
+    param([byte[]]$Expected, [byte[]]$Actual, [string]$Message)
+
+    if (-not [System.Linq.Enumerable]::SequenceEqual($Expected, $Actual)) {
+        throw $Message
+    }
+}
+
 function New-PeFile {
     param(
         [string]$Path,
@@ -251,6 +259,28 @@ try {
     Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-lite-portable' -Provenance $fixture.Provenance
     Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $liteProfile -Pattern 'libmpv-2\.dll'
 
+    $fixture = New-ValidStage -Name 'runtime-rejection-preserves-baseline'
+    $previous = Join-Path $root 'runtime-rejection-previous-manifest.json'
+    $previousManifest = Get-Content -LiteralPath (Join-Path $fixture.Stage 'release-manifest.json') -Raw | ConvertFrom-Json
+    foreach ($file in $previousManifest.files) { $file.bytes = 1 }
+    $previousManifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $previous -Encoding UTF8
+    $expectedBaselineBytes = [System.IO.File]::ReadAllBytes($previous)
+    $legacyManifest = Get-Content -LiteralPath (Join-Path $fixture.Stage 'manifest.json') -Raw | ConvertFrom-Json
+    $legacyManifest.runtime.provenance = 'invalid'
+    $legacyManifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $fixture.Stage 'manifest.json') -Encoding UTF8
+    Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-full-portable' -Provenance $fixture.Provenance
+    try {
+        & $verifier -Stage $fixture.Stage -Profile $fullProfile `
+            -Manifest (Join-Path $fixture.Stage 'release-manifest.json') `
+            -PreviousManifest $previous -AcceptSizeChange -SkipSmoke
+        throw 'Expected invalid runtime provenance to reject the package.'
+    } catch {
+        Assert-Matches -Actual $_.Exception.Message -Pattern 'MSVC runtime provenance must be msvc-runtime' `
+            -Message 'Runtime-manifest fixture did not reach the retained runtime validation.'
+    }
+    Assert-BytesEqual -Expected $expectedBaselineBytes -Actual ([System.IO.File]::ReadAllBytes($previous)) `
+        -Message 'AcceptSizeChange modified the previous baseline before runtime validation succeeded.'
+
     $fixture = New-ValidStage -Name 'per-file-size-growth'
     Add-File -Stage $fixture.Stage -RelativePath 'network/known-large.bin' -Provenance $fixture.Provenance -Group 'network'
     Write-SizedFile -Path (Join-Path $fixture.Stage 'network/known-large.bin') -Bytes (21MB)
@@ -274,9 +304,9 @@ try {
     Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $fullProfile -PreviousManifest $previous -Pattern 'total package size'
     & $verifier -Stage $fixture.Stage -Profile $fullProfile -Manifest (Join-Path $fixture.Stage 'release-manifest.json') `
         -PreviousManifest $previous -AcceptSizeChange -SkipSmoke
-    $acceptedBaseline = Get-Content -LiteralPath $previous -Raw | ConvertFrom-Json
-    Assert-True -Condition (($acceptedBaseline.files | Where-Object { $_.path -eq 'network/one.bin' }).bytes -eq (4MB)) `
-        -Message 'AcceptSizeChange did not record the verified package as the new baseline.'
+    Assert-BytesEqual -Expected ([System.IO.File]::ReadAllBytes((Join-Path $fixture.Stage 'release-manifest.json'))) `
+        -Actual ([System.IO.File]::ReadAllBytes($previous)) `
+        -Message 'AcceptSizeChange did not atomically record the verified release manifest as the new baseline.'
 
     Write-Host 'Windows package allowlist tests passed.'
 } finally {

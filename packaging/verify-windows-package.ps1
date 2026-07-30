@@ -12,6 +12,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $resolved = (Resolve-Path -LiteralPath $Stage).Path
+$pendingBaselinePath = $null
+[byte[]]$pendingBaselineBytes = $null
 
 function Get-PeArchitecture {
     param(
@@ -125,6 +127,24 @@ function Get-ProfilePath {
         throw "Windows package profile was not found: $profilePath"
     }
     return (Resolve-Path -LiteralPath $profilePath).Path
+}
+
+function Set-BaselineAtomically {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][byte[]]$Bytes
+    )
+
+    $directory = Split-Path -Parent $Path
+    $temporaryPath = Join-Path $directory ('.' + [System.IO.Path]::GetFileName($Path) + '.' + [guid]::NewGuid() + '.tmp')
+    $backupPath = Join-Path $directory ('.' + [System.IO.Path]::GetFileName($Path) + '.' + [guid]::NewGuid() + '.bak')
+    try {
+        [System.IO.File]::WriteAllBytes($temporaryPath, $Bytes)
+        [System.IO.File]::Replace($temporaryPath, $Path, $backupPath)
+    } finally {
+        Remove-Item -LiteralPath $temporaryPath -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
+    }
 }
 
 $releaseManifestPath = if ($Manifest) {
@@ -254,8 +274,8 @@ if ($hasReleaseManifest) {
             throw ($sizeChanges -join "`n")
         }
         if ($AcceptSizeChange) {
-            [System.IO.File]::WriteAllText($previousManifestPath,
-                (Get-Content -LiteralPath $releaseManifestPath -Raw), [System.Text.UTF8Encoding]::new($false))
+            $pendingBaselinePath = $previousManifestPath
+            $pendingBaselineBytes = [System.IO.File]::ReadAllBytes($releaseManifestPath)
         }
     } elseif ($AcceptSizeChange) {
         throw 'AcceptSizeChange requires PreviousManifest so the verified baseline can be recorded.'
@@ -436,5 +456,8 @@ if (-not $SkipSmoke) {
         $env:QT_QPA_PLATFORM = $oldPlatform
         $env:PATH = $oldPath
     }
+}
+if ($pendingBaselinePath) {
+    Set-BaselineAtomically -Path $pendingBaselinePath -Bytes $pendingBaselineBytes
 }
 Write-Host 'Windows portable package verification passed.'
