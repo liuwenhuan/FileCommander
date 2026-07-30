@@ -11,12 +11,18 @@
 #include "RemoteThumbnailFetcher.h"
 
 class FileProvider;
+class QImage;
 class QThreadPool;
+
+enum class ThumbnailDiskFormat {
+    Jpeg,
+    Png,
+};
 
 // Async, disk+memory cached thumbnail service backing the icon-mode file
 // list. thumbnail() never blocks the calling (GUI) thread: it returns
 // whatever is already available -- from the small in-memory QCache or the
-// on-disk PNG cache -- and, if nothing is ready yet, schedules background
+// on-disk thumbnail cache -- and, if nothing is ready yet, schedules background
 // generation on a bounded QThreadPool and emits thumbnailReady(path) once
 // the result lands (in both the memory and disk cache).
 //
@@ -53,6 +59,13 @@ public:
     // The actual dimensions and depth are used because thumbnails are not all
     // square, nor guaranteed to use the same backing format.
     static int pixmapCostKiB(const QPixmap &pixmap);
+
+    // The on-disk representation is selected from the decoded image, before it
+    // is promoted into a GUI-thread QPixmap. Opaque thumbnails use JPEG; a
+    // thumbnail with visible transparency uses lossless PNG.
+    static ThumbnailDiskFormat diskFormatFor(const QImage &image);
+    static bool saveThumbnail(const QImage &image, const QString &key,
+                              ThumbnailDiskFormat format);
 
     // Test-only inspection and setup for the process-wide decoded-pixmap LRU.
     void setMemoryBudgetKiBForTest(int budgetKiB);
@@ -240,7 +253,7 @@ private:
     // remote entry can never be mistaken for the local file at the same path.
     static QString remoteCacheKey(const QString &connectionId, const QString &path,
                                   qint64 mtimeEpoch, qint64 fileSize, int size);
-    static QString diskCachePath(const QString &key);
+    static QString diskCachePath(const QString &key, ThumbnailDiskFormat format);
 
     // Shared tail of both generation paths: returns a ready pixmap at exactly
     // `displaySize` if one can be had without generating. Tries the memory

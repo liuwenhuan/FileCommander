@@ -34,8 +34,12 @@ namespace {
 
 QString cacheDir() { return ThumbnailCache::cacheDirectory(); }
 
+QStringList thumbnailFilters() {
+    return {QStringLiteral("*.jpg"), QStringLiteral("*.png")};
+}
+
 QStringList storedNames() {
-    return QDir(cacheDir()).entryList({QStringLiteral("*.png")}, QDir::Files);
+    return QDir(cacheDir()).entryList(thumbnailFilters(), QDir::Files);
 }
 
 // Lets any generation still in flight from a neighbouring test land before this
@@ -73,6 +77,10 @@ QString writeCacheFile(const QString &name, int bytes, qint64 ageSecs) {
                      QFileDevice::FileModificationTime);
     file.close();
     return path;
+}
+
+QString cacheFileName(int index, const QString &extension = QStringLiteral("jpg")) {
+    return QStringLiteral("2-%1.%2").arg(index, 32, 16, QLatin1Char('0')).arg(extension);
 }
 
 qint64 totalStoredBytes() {
@@ -133,7 +141,7 @@ void backdate(const QString &path, qint64 secs) {
 TEST(ThumbnailCacheVersionTest, WipesACacheStampedByAnIncompatibleBuild) {
     resetCacheDir();
     for (int i = 0; i < 5; ++i)
-        ASSERT_FALSE(writeCacheFile(QStringLiteral("old%1.png").arg(i), 1024, 0).isEmpty());
+        ASSERT_FALSE(writeCacheFile(cacheFileName(i), 1024, 0).isEmpty());
     writeStamp("keys=999 rungs=7,7,7");
 
     EXPECT_EQ(ThumbnailCache::purgeIfStale(), 5);
@@ -145,11 +153,22 @@ TEST(ThumbnailCacheVersionTest, WipesACacheStampedByAnIncompatibleBuild) {
 TEST(ThumbnailCacheVersionTest, WipesAnUnstampedCache) {
     resetCacheDir();
     for (int i = 0; i < 4; ++i)
-        ASSERT_FALSE(writeCacheFile(QStringLiteral("legacy%1.png").arg(i), 512, 0).isEmpty());
+        ASSERT_FALSE(writeCacheFile(cacheFileName(i), 512, 0).isEmpty());
     ASSERT_FALSE(QFileInfo::exists(cacheDir() + QStringLiteral("/version")));
 
     EXPECT_EQ(ThumbnailCache::purgeIfStale(), 4);
     EXPECT_TRUE(storedNames().isEmpty());
+}
+
+TEST(ThumbnailCacheVersionTest, LeavesFilesThatAreNotFileCommanderCacheEntries) {
+    resetCacheDir();
+    ASSERT_FALSE(writeCacheFile(cacheFileName(1, QStringLiteral("png")), 512, 0).isEmpty());
+    const QString unrelated = writeCacheFile(QStringLiteral("other-app.png"), 512, 0);
+    ASSERT_FALSE(unrelated.isEmpty());
+    writeStamp("keys=999 rungs=7,7,7");
+
+    EXPECT_EQ(ThumbnailCache::purgeIfStale(), 1);
+    EXPECT_TRUE(QFileInfo::exists(unrelated)) << "purge deleted a file it does not own";
 }
 
 // ...and the far more common case: the stamp agrees, so nothing is touched.
@@ -161,7 +180,7 @@ TEST(ThumbnailCacheVersionTest, KeepsACacheThisBuildWrote) {
     ASSERT_TRUE(QFileInfo::exists(stampPath)) << "purging did not leave a stamp behind";
 
     for (int i = 0; i < 3; ++i)
-        ASSERT_FALSE(writeCacheFile(QStringLiteral("mine%1.png").arg(i), 1024, 0).isEmpty());
+        ASSERT_FALSE(writeCacheFile(cacheFileName(i), 1024, 0).isEmpty());
 
     EXPECT_EQ(ThumbnailCache::purgeIfStale(), 0);
     EXPECT_EQ(storedNames().size(), 3) << "a compatible cache was wiped";
@@ -201,7 +220,7 @@ TEST(ThumbnailCachePruneTest, DeletesOldestFirstDownToTheHysteresisFloor) {
     // Ages 10 days .. 1 day, so file0 is the coldest and file9 the warmest.
     for (int i = 0; i < kFiles; ++i) {
         const qint64 age = qint64(kFiles - i) * 24 * 60 * 60;
-        ASSERT_FALSE(writeCacheFile(QStringLiteral("f%1.png").arg(i), kFileBytes, age).isEmpty());
+        ASSERT_FALSE(writeCacheFile(cacheFileName(i), kFileBytes, age).isEmpty());
     }
     const qint64 limit = 500 * 1024; // floor is 400 KB, so 600 KB has to go
     ASSERT_EQ(totalStoredBytes(), qint64(kFiles) * kFileBytes);
@@ -214,18 +233,28 @@ TEST(ThumbnailCachePruneTest, DeletesOldestFirstDownToTheHysteresisFloor) {
 
     const QStringList kept = storedNames();
     for (int i = 0; i < 6; ++i)
-        EXPECT_FALSE(kept.contains(QStringLiteral("f%1.png").arg(i))) << "kept a colder entry";
+        EXPECT_FALSE(kept.contains(cacheFileName(i))) << "kept a colder entry";
     for (int i = 6; i < kFiles; ++i)
-        EXPECT_TRUE(kept.contains(QStringLiteral("f%1.png").arg(i))) << "deleted a warmer entry";
+        EXPECT_TRUE(kept.contains(cacheFileName(i))) << "deleted a warmer entry";
 }
 
 TEST(ThumbnailCachePruneTest, LeavesACacheThatFitsAlone) {
     resetCacheDir();
     for (int i = 0; i < 5; ++i)
-        ASSERT_FALSE(writeCacheFile(QStringLiteral("s%1.png").arg(i), 10 * 1024, i).isEmpty());
+        ASSERT_FALSE(writeCacheFile(cacheFileName(i), 10 * 1024, i).isEmpty());
 
     EXPECT_EQ(ThumbnailCache::pruneToLimit(1024 * 1024), 0);
     EXPECT_EQ(storedNames().size(), 5);
+}
+
+TEST(ThumbnailCachePruneTest, LeavesFilesThatAreNotFileCommanderCacheEntries) {
+    resetCacheDir();
+    ASSERT_FALSE(writeCacheFile(cacheFileName(1), 100 * 1024, 1).isEmpty());
+    const QString unrelated = writeCacheFile(QStringLiteral("other-app.jpg"), 100 * 1024, 2);
+    ASSERT_FALSE(unrelated.isEmpty());
+
+    EXPECT_EQ(ThumbnailCache::pruneToLimit(50 * 1024), 1);
+    EXPECT_TRUE(QFileInfo::exists(unrelated)) << "prune deleted a file it does not own";
 }
 
 // The stamp must outlive a prune. It is the oldest file in the directory by
@@ -239,7 +268,7 @@ TEST(ThumbnailCachePruneTest, NeverDeletesTheFormatStamp) {
     backdate(stampPath, 365LL * 24 * 60 * 60);
 
     for (int i = 0; i < 4; ++i)
-        ASSERT_FALSE(writeCacheFile(QStringLiteral("p%1.png").arg(i), 100 * 1024, i).isEmpty());
+        ASSERT_FALSE(writeCacheFile(cacheFileName(i), 100 * 1024, i).isEmpty());
 
     EXPECT_GT(ThumbnailCache::pruneToLimit(100 * 1024), 0); // forces a deep cull
     EXPECT_TRUE(QFileInfo::exists(stampPath)) << "the prune ate the format stamp";
@@ -459,7 +488,7 @@ TEST(ThumbnailCachePruneTest, ScanAndDeleteCostAtRealisticSize) {
     constexpr int kFiles = 4000;
     constexpr int kFileBytes = 4 * 1024;
     for (int i = 0; i < kFiles; ++i)
-        ASSERT_FALSE(writeCacheFile(QStringLiteral("b%1.png").arg(i), kFileBytes, i).isEmpty());
+        ASSERT_FALSE(writeCacheFile(cacheFileName(i), kFileBytes, i).isEmpty());
 
     const qint64 stored = qint64(kFiles) * kFileBytes;
 

@@ -44,16 +44,16 @@ constexpr int kMaxWorkerThreads = 4;  // bounded so a folder full of videos
 // than something a future edit has to remember.
 constexpr int kRungLadder[] = {96, 192, 384, 768};
 
-// Bumped BY HAND whenever the bytes hashed into cacheKey()/remoteCacheKey()
-// change -- a new field, a different separator, a different hash. Those changes
-// are invisible to the ladder above, so nothing else can notice them.
+// Bumped BY HAND whenever the on-disk thumbnail representation or bytes hashed
+// into cacheKey()/remoteCacheKey() change. Those changes are invisible to the
+// ladder above, so nothing else can notice them.
 //
 // Getting this wrong is not a correctness bug (a key change simply makes every
 // stored file unreachable) but it is a silent, permanent leak: unreachable
 // entries are never looked up, so nothing ever deletes them. That has already
 // happened once for real -- ~98% of a 54 MB cache went unreachable in a single
 // commit and had to be removed by hand.
-constexpr int kKeyFormatVersion = 1;
+constexpr int kCacheFormatVersion = 2;
 
 // Fraction of the limit pruneToLimit() deletes down to. See the header for why
 // the gap has to exist; 80% of 512 MB leaves ~100 MB of headroom, which is
@@ -83,8 +83,8 @@ QString cacheFormatStamp() {
     QStringList rungs;
     for (const int rung : kRungLadder)
         rungs << QString::number(rung);
-    return QStringLiteral("keys=%1 rungs=%2")
-        .arg(kKeyFormatVersion)
+    return QStringLiteral("format=%1 rungs=%2")
+        .arg(kCacheFormatVersion)
         .arg(rungs.join(QLatin1Char(',')));
 }
 
@@ -165,26 +165,14 @@ qint64 remoteSizeLimit(const QString &path) {
                                                    : kRemoteImageBudget;
 }
 
-// Writes `image` to the disk cache atomically: QSaveFile stages the bytes in a
-// sibling temp file and renames it into place on commit(), so `diskPath` never
-// exists in a half-written state.
-//
-// That matters because a worker's write races the GUI thread's lookup of the
-// very same key: two zoom steps on one rung read the file the other is still
-// writing, and lookupCached() treats a QImage it cannot decode as a corrupt
-// leftover and DELETES it. A plain save() therefore loses a perfectly good
-// thumbnail every so often and regenerates it -- exactly the cost this cache
-// exists to avoid. Renaming is atomic, so the file is either absent or whole.
-bool saveThumbnail(const QImage &image, const QString &diskPath) {
-    QDir().mkpath(QFileInfo(diskPath).absolutePath());
-    QSaveFile file(diskPath);
-    if (!file.open(QIODevice::WriteOnly))
-        return false;
-    if (!image.save(&file, "PNG")) {
-        file.cancelWriting();
-        return false;
-    }
-    return file.commit();
+QString diskExtension(ThumbnailDiskFormat format) {
+    return format == ThumbnailDiskFormat::Jpeg ? QStringLiteral("jpg") : QStringLiteral("png");
+}
+
+bool isThumbnailCacheFileName(const QString &name) {
+    static const QRegularExpression cacheFileName(
+        QStringLiteral("^(?:[0-9]+-)?[0-9a-f]{32}\\.(?:jpg|png)$"));
+    return cacheFileName.match(name).hasMatch();
 }
 
 // Marks a cache file as used, so pruneToLimit() sees it as warm -- but only
@@ -420,6 +408,43 @@ int ThumbnailCache::pixmapCostKiB(const QPixmap &pixmap) {
     return int(qMin<qint64>(kib, std::numeric_limits<int>::max()));
 }
 
+ThumbnailDiskFormat ThumbnailCache::diskFormatFor(const QImage &image) {
+    if (!image.hasAlphaChannel())
+        return ThumbnailDiskFormat::Jpeg;
+
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            if (qAlpha(image.pixel(x, y)) != 255)
+                return ThumbnailDiskFormat::Png;
+        }
+    }
+    return ThumbnailDiskFormat::Jpeg;
+}
+
+bool ThumbnailCache::saveThumbnail(const QImage &image, const QString &key,
+                                   ThumbnailDiskFormat format) {
+    const QString diskPath = diskCachePath(key, format);
+    QDir().mkpath(QFileInfo(diskPath).absolutePath());
+    QSaveFile file(diskPath);
+    if (!file.open(QIODevice::WriteOnly))
+        return false;
+
+    const char *imageFormat = format == ThumbnailDiskFormat::Jpeg ? "JPEG" : "PNG";
+    const int quality = format == ThumbnailDiskFormat::Jpeg ? 85 : -1;
+    if (!image.save(&file, imageFormat, quality)) {
+        file.cancelWriting();
+        return false;
+    }
+    if (!file.commit())
+        return false;
+
+    const ThumbnailDiskFormat alternate =
+        format == ThumbnailDiskFormat::Jpeg ? ThumbnailDiskFormat::Png
+                                            : ThumbnailDiskFormat::Jpeg;
+    QFile::remove(diskCachePath(key, alternate));
+    return true;
+}
+
 void ThumbnailCache::setMemoryBudgetKiBForTest(int budgetKiB) {
     QMutexLocker locker(&m_mutex);
     m_memCache.clear();
@@ -476,7 +501,7 @@ QImage ThumbnailCache::scaledForDisplay(const QImage &image, int displaySize) {
 }
 
 QString ThumbnailCache::contentTintTag() {
-    // Appended to the MEMORY key only, never the disk key. The stored PNG stays
+    // Appended to the MEMORY key only, never the disk key. The stored bitmap stays
     // the untouched original, so switching the phosphor toggle costs nothing on
     // disk -- nothing is invalidated and nothing is regenerated; only the cheap
     // derived form in memory is rebuilt. Putting the tint in the disk key
@@ -519,8 +544,9 @@ QString ThumbnailCache::cacheDirectory() {
            + QStringLiteral("/FileCommander/thumbnails");
 }
 
-QString ThumbnailCache::diskCachePath(const QString &key) {
-    return cacheDirectory() + QLatin1Char('/') + key + QStringLiteral(".png");
+QString ThumbnailCache::diskCachePath(const QString &key, ThumbnailDiskFormat format) {
+    return cacheDirectory() + QLatin1Char('/') + QString::number(kCacheFormatVersion)
+           + QLatin1Char('-') + key + QLatin1Char('.') + diskExtension(format);
 }
 
 qint64 ThumbnailCache::diskCacheLimitBytes() {
@@ -539,12 +565,14 @@ int ThumbnailCache::purgeIfStale() {
 
     // Either no stamp (a cache from before this existed, or a fresh install) or
     // one from an incompatible build. Everything in there is unreachable, so
-    // there is nothing to weigh up -- it all goes. Only *.png, though: those are
-    // the files this cache writes, and a wipe has no business deleting anything
-    // it does not recognise.
+    // there is nothing to weigh up -- it all goes. The directory may be shared,
+    // so only names written by FileCommander (including the legacy PNG-only
+    // format) are eligible for removal.
     int removed = 0;
     QDir cache(dir);
-    for (const QString &name : cache.entryList({QStringLiteral("*.png")}, QDir::Files)) {
+    for (const QString &name : cache.entryList(QDir::Files)) {
+        if (!isThumbnailCacheFileName(name))
+            continue;
         if (QFile::remove(cache.absoluteFilePath(name)))
             ++removed;
     }
@@ -570,9 +598,11 @@ int ThumbnailCache::pruneToLimit(qint64 limitBytes) {
 
     QVector<Entry> entries;
     qint64 total = 0;
-    QDirIterator it(cacheDirectory(), {QStringLiteral("*.png")}, QDir::Files);
+    QDirIterator it(cacheDirectory(), QDir::Files);
     while (it.hasNext()) {
         it.next();
+        if (!isThumbnailCacheFileName(it.fileName()))
+            continue;
         const QFileInfo info = it.fileInfo();
         entries.append({info.absoluteFilePath(), info.size(),
                         info.lastModified().toSecsSinceEpoch()});
@@ -627,13 +657,22 @@ QPixmap ThumbnailCache::lookupCached(const QString &memKey, const QString &diskK
     }
 
     // Not in memory -- check disk before (re)generating. A hit here is still
-    // cheap enough to do on the GUI thread (one small PNG decode plus, when
+    // cheap enough to do on the GUI thread (one small image decode plus, when
     // the stored rung is larger than this zoom step, one scale-down). That
     // scale is the entire cost of changing zoom on an already-cached
     // directory, in place of re-fetching and re-decoding every file.
-    const QString diskPath = diskCachePath(diskKey);
-    const QFileInfo cachedFile(diskPath);
+    const QString jpegPath = diskCachePath(diskKey, ThumbnailDiskFormat::Jpeg);
+    const QString pngPath = diskCachePath(diskKey, ThumbnailDiskFormat::Png);
+    QString diskPath;
+    QFileInfo cachedFile(jpegPath);
     if (cachedFile.exists()) {
+        diskPath = jpegPath;
+    } else {
+        cachedFile.setFile(pngPath);
+        if (cachedFile.exists())
+            diskPath = pngPath;
+    }
+    if (!diskPath.isEmpty()) {
         if (intent == CacheIntent::PersistOnly) {
             // The background sweep only needs to know whether a stored result
             // exists. Decoding it here would put image I/O, scaling, and
@@ -807,7 +846,7 @@ void ThumbnailCache::generate(const QString &path, const QString &diskKey, const
         // happens to land on this exact key -- skip regeneration entirely.
         // Non-fatal on failure: the caller still gets the image below and the
         // next request regenerates; QSaveFile leaves nothing partial behind.
-        saveThumbnail(image, diskCachePath(diskKey));
+        saveThumbnail(image, diskKey, diskFormatFor(image));
     }
 
     // QPixmap must only be created/used on the GUI thread on some platform
@@ -1005,7 +1044,7 @@ void ThumbnailCache::generateRemote(const RemoteThumbnailFetcher::Ticket &ticket
     if (!image.isNull() && !ticket.cancelled()) {
         // Non-fatal on failure: the in-memory result still lands and the next
         // request regenerates; QSaveFile leaves nothing partial behind.
-        saveThumbnail(image, diskCachePath(diskKey));
+        saveThumbnail(image, diskKey, diskFormatFor(image));
     }
 
     // Reported even when cancelled or empty: storeResult clears the pending

@@ -50,7 +50,9 @@ QString cacheDir() {
 }
 
 int storedThumbnailCount() {
-    return QDir(cacheDir()).entryList({QStringLiteral("*.png")}, QDir::Files).count();
+    return QDir(cacheDir())
+        .entryList({QStringLiteral("*.jpg"), QStringLiteral("*.png")}, QDir::Files)
+        .count();
 }
 
 // Lets any generation still in flight from an earlier test finish and write
@@ -71,7 +73,9 @@ void drainPendingWork(int ms = 500) {
 void resetDiskCache() {
     drainPendingWork();
     QDir().mkpath(cacheDir());
-    for (const QString &f : QDir(cacheDir()).entryList({QStringLiteral("*.png")}, QDir::Files))
+    for (const QString &f : QDir(cacheDir())
+                                .entryList({QStringLiteral("*.jpg"), QStringLiteral("*.png")},
+                                           QDir::Files))
         QFile::remove(cacheDir() + QLatin1Char('/') + f);
 }
 

@@ -14,6 +14,7 @@ set(UI_TEST_SOURCES
     test_ThumbnailCacheReuse.cpp
     test_ThumbnailMemoryBudget.cpp
     test_ThumbnailCachePrune.cpp
+    test_ThumbnailDiskFormat.cpp
     test_ThumbnailSweepDrive.cpp
     test_Mp4RangePlan.cpp
     test_IconFileView.cpp
