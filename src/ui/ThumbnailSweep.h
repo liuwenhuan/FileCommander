@@ -1,16 +1,15 @@
 #pragma once
 
 #include <QBitArray>
+#include <QVector>
 
 // Decides the order in which a listing's thumbnails are fetched, so a network
 // directory fills in completely instead of stopping at whatever happened to be
 // on screen.
 //
-// The order is a single wrap-around scan starting at the first visible row:
-// the rows the user is looking at come first, the scan then runs to the end of
-// the listing, wraps to the top, and finishes just before where it began. That
-// one rule gives "visible first, then downward, then back-fill above" without
-// any special-casing.
+// The foreground order serves visible rows, then up to two viewport heights on
+// each side. The remaining rows use the regular wrap-around scan and can be
+// persisted without spending decoded-pixmap memory.
 //
 // Rows already taken are remembered, so refocusing costs nothing: when the user
 // scrolls, focusOn() simply moves the cursor to the new visible range and the
@@ -38,11 +37,15 @@ public:
     // but the scan needs only the start (it covers the whole listing anyway).
     void focusOn(int firstVisible, int lastVisible);
 
-    // The next row to fetch, or -1 when every row has been taken. Advances the
-    // cursor past the returned row, and marks it taken -- a row is handed out
-    // at most once per sweep, so a caller that decides to skip it (a directory,
-    // an unsupported type) simply does nothing and the sweep moves on.
-    int next();
+    // Puts visible rows first, followed by up to two viewport heights after
+    // and before them. The caller can mark this foreground band as display
+    // work while the rest of the directory continues as persistence-only.
+    void focusVisibleRowsWithAdjacentViewports(int firstVisible, int lastVisible);
+
+    // The next row to fetch, or -1 when every row has been taken. `foreground`
+    // reports whether the row is visible or near-visible display work; all
+    // other rows belong to the persistence-only directory sweep.
+    int next(bool *foreground = nullptr);
 
     // Returns a row taken by next() to the pool, so it is handed out again.
     // Normally the cursor rewinds to it -- the caller only puts a row back
@@ -65,4 +68,6 @@ private:
     int m_cursor = 0;    // where the scan resumes
     int m_takenAt = 0;   // m_cursor as next() left it; putBack compares to spot a focusOn
     int m_remaining = 0; // rows still to hand out
+    QVector<int> m_foregroundRows;
+    int m_nextForegroundRow = 0;
 };

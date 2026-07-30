@@ -37,6 +37,28 @@ class ThumbnailCache : public QObject {
 public:
     static ThumbnailCache &instance();
 
+    enum class CacheIntent {
+        Display,
+        PersistOnly,
+    };
+
+    static constexpr int kMemoryBudgetKiB = 96 * 1024;
+
+    struct ThumbnailMemoryStats {
+        int entries = 0;
+        qint64 estimatedBytes = 0;
+    };
+
+    // QCache accepts integral costs, so charge every decoded pixmap in KiB.
+    // The actual dimensions and depth are used because thumbnails are not all
+    // square, nor guaranteed to use the same backing format.
+    static int pixmapCostKiB(const QPixmap &pixmap);
+
+    // Test-only inspection and setup for the process-wide decoded-pixmap LRU.
+    void setMemoryBudgetKiBForTest(int budgetKiB);
+    void insertPixmapForTest(const QString &key, const QPixmap &pixmap);
+    ThumbnailMemoryStats memoryStatsForTest();
+
     // What a thumbnail request did, for callers that schedule rather than
     // paint. Painting ignores this -- a null pixmap tells it everything it
     // needs -- but a background fill must tell "a result is coming" apart from
@@ -77,7 +99,8 @@ public:
     Request requestRemoteThumbnail(const std::shared_ptr<FileProvider> &provider,
                                    const QString &connectionId, const QString &path,
                                    qint64 mtimeEpoch, qint64 fileSize, int size,
-                                   QPixmap *ready = nullptr);
+                                   QPixmap *ready = nullptr,
+                                   CacheIntent intent = CacheIntent::Display);
 
     // Abandons the remote fetches queued against `provider` -- called when a
     // panel navigates away or a tab disconnects, so bytes are not pulled for a
@@ -222,7 +245,11 @@ private:
     // cache at `memKey` first, then the stored bitmap at `diskKey`, which is
     // scaled down to `displaySize` and promoted into memory so the next paint
     // is a plain lookup. Null means "not cached -- generate it".
-    QPixmap lookupCached(const QString &memKey, const QString &diskKey, int displaySize);
+    QPixmap lookupCached(const QString &memKey, const QString &diskKey, int displaySize,
+                         CacheIntent intent);
+    // Caller holds m_mutex. This is only called on the GUI thread, where
+    // QPixmap creation and use are permitted.
+    void insertPixmap(const QString &key, const QPixmap &pixmap);
 
     // Scales `image` down to fit displaySize x displaySize, preserving aspect
     // ratio. Never scales UP: a source smaller than the display box (a tiny
@@ -249,7 +276,7 @@ private:
     // to decode is reported as a miss, leaving the generic icon in place.
     void generateRemote(const RemoteThumbnailFetcher::Ticket &ticket, const QString &path,
                         const QString &diskKey, const QString &memKey, qint64 fileSize,
-                        int storedSize, int displaySize);
+                        int storedSize, int displaySize, CacheIntent intent);
 
     // What fetchVideoExcerpt() managed to pull.
     struct VideoExcerpt {
@@ -278,7 +305,7 @@ private:
     // `memKey` is the display-size key the already-scaled `image` belongs
     // under. Releasing the claim under the memory key would strand the file.
     Q_INVOKABLE void storeResult(const QString &path, const QString &pendingKey,
-                                 const QString &memKey, QImage image);
+                                 const QString &memKey, QImage image, bool cacheForDisplay);
 
     bool m_maintenanceScheduled = false; // GUI thread only; one prune per process
     QCache<QString, QPixmap> m_memCache; // cache key -> thumbnail; guarded by m_mutex

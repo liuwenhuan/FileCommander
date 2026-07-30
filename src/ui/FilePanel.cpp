@@ -621,7 +621,7 @@ void FilePanel::restartThumbnailSweep() {
     // view often keeps its scroll position.
     int first = 0, last = 0;
     if (m_iconView && m_iconView->visibleRowRange(&first, &last))
-        m_thumbSweep.focusOn(first, last);
+        m_thumbSweep.focusVisibleRowsWithAdjacentViewports(first, last);
     pumpThumbnailSweep();
 }
 
@@ -629,7 +629,7 @@ void FilePanel::prefetchVisibleThumbnails(int firstRow, int lastRow) {
     // Scrolling stopped somewhere new: serve those rows next. Rows already
     // fetched stay fetched, and rows skipped past are picked up later when the
     // sweep wraps -- so this is a re-prioritisation, not a restart.
-    m_thumbSweep.focusOn(firstRow, lastRow);
+    m_thumbSweep.focusVisibleRowsWithAdjacentViewports(firstRow, lastRow);
     pumpThumbnailSweep();
 }
 
@@ -656,7 +656,8 @@ void FilePanel::pumpThumbnailSweep() {
     // fetch pumps again. This is the whole flow-control mechanism; without the
     // put-back a full queue would silently swallow rows.
     while (!m_thumbSweep.complete()) {
-        const int row = m_thumbSweep.next();
+        bool foreground = false;
+        const int row = m_thumbSweep.next(&foreground);
         if (row < 0)
             break;
         const FileInfo info = m_model->fileInfoAt(row);
@@ -665,7 +666,8 @@ void FilePanel::pumpThumbnailSweep() {
             continue; // nothing to fetch for this row; the sweep moves on
         const auto outcome = ThumbnailCache::instance().requestRemoteThumbnail(
             provider, connectionId, path, info.modified().toSecsSinceEpoch(), info.size(),
-            iconSize);
+            iconSize, nullptr, foreground ? ThumbnailCache::CacheIntent::Display
+                                           : ThumbnailCache::CacheIntent::PersistOnly);
         if (outcome == ThumbnailCache::Request::Busy) {
             m_thumbSweep.putBack(row);
             break;

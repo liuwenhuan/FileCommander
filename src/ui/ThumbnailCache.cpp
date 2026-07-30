@@ -34,7 +34,6 @@
 
 namespace {
 
-constexpr int kMemCacheBudget = 256;  // entries; QCache cost is 1 per pixmap
 constexpr int kMaxWorkerThreads = 4;  // bounded so a folder full of videos
                                        // can't starve the rest of the app
 
@@ -405,12 +404,36 @@ ThumbnailCache &ThumbnailCache::instance() {
 }
 
 ThumbnailCache::ThumbnailCache(QObject *parent)
-    : QObject(parent), m_memCache(kMemCacheBudget), m_pool(new QThreadPool(this)) {
+    : QObject(parent), m_memCache(kMemoryBudgetKiB), m_pool(new QThreadPool(this)) {
     m_pool->setMaxThreadCount(kMaxWorkerThreads);
     // Before the first thumbnail of the session is written, never after: see
     // purgeIfStale()'s declaration. Costs one small file read when the stamp
     // matches, which is every launch but the one following a format change.
     purgeIfStale();
+}
+
+int ThumbnailCache::pixmapCostKiB(const QPixmap &pixmap) {
+    const qint64 bits = qint64(qMax(0, pixmap.width())) * qMax(0, pixmap.height())
+                         * qMax(0, pixmap.depth());
+    const qint64 bytes = (bits + 7) / 8;
+    const qint64 kib = qMax<qint64>(1, (bytes + 1023) / 1024);
+    return int(qMin<qint64>(kib, std::numeric_limits<int>::max()));
+}
+
+void ThumbnailCache::setMemoryBudgetKiBForTest(int budgetKiB) {
+    QMutexLocker locker(&m_mutex);
+    m_memCache.clear();
+    m_memCache.setMaxCost(qMax(1, budgetKiB));
+}
+
+void ThumbnailCache::insertPixmapForTest(const QString &key, const QPixmap &pixmap) {
+    QMutexLocker locker(&m_mutex);
+    insertPixmap(key, pixmap);
+}
+
+ThumbnailCache::ThumbnailMemoryStats ThumbnailCache::memoryStatsForTest() {
+    QMutexLocker locker(&m_mutex);
+    return {m_memCache.size(), qint64(m_memCache.totalCost()) * 1024};
 }
 
 bool ThumbnailCache::canThumbnail(const QString &path) {
@@ -590,8 +613,8 @@ void ThumbnailCache::scheduleMaintenance(int delayMs) {
 }
 
 QPixmap ThumbnailCache::lookupCached(const QString &memKey, const QString &diskKey,
-                                     int displaySize) {
-    {
+                                     int displaySize, CacheIntent intent) {
+    if (intent == CacheIntent::Display) {
         QMutexLocker locker(&m_mutex);
         if (QPixmap *cached = m_memCache.object(memKey))
             return *cached;
@@ -616,8 +639,10 @@ QPixmap ThumbnailCache::lookupCached(const QString &memKey, const QString &diskK
             const QPixmap pixmap =
                 tintedForDisplay(QPixmap::fromImage(scaledForDisplay(stored, displaySize)));
             if (!pixmap.isNull()) {
-                QMutexLocker locker(&m_mutex);
-                m_memCache.insert(memKey, new QPixmap(pixmap));
+                if (intent == CacheIntent::Display) {
+                    QMutexLocker locker(&m_mutex);
+                    insertPixmap(memKey, pixmap);
+                }
                 return pixmap;
             }
         }
@@ -626,6 +651,10 @@ QPixmap ThumbnailCache::lookupCached(const QString &memKey, const QString &diskK
         QFile::remove(diskPath);
     }
     return {};
+}
+
+void ThumbnailCache::insertPixmap(const QString &key, const QPixmap &pixmap) {
+    m_memCache.insert(key, new QPixmap(pixmap), pixmapCostKiB(pixmap));
 }
 
 bool ThumbnailCache::claimPending(const QString &key) {
@@ -655,7 +684,7 @@ QPixmap ThumbnailCache::thumbnail(const QString &path, int size) {
     const QString memKey = cacheKey(absolutePath, mtimeEpoch, size) + contentTintTag();
     const QString diskKey = cacheKey(absolutePath, mtimeEpoch, stored);
 
-    if (QPixmap cached = lookupCached(memKey, diskKey, size); !cached.isNull())
+    if (QPixmap cached = lookupCached(memKey, diskKey, size, CacheIntent::Display); !cached.isNull())
         return cached;
     // Claimed on the disk key -- the rung is the unit of work, so two zoom
     // steps sharing one rung must not both generate it. The one that loses the
@@ -680,13 +709,15 @@ QPixmap ThumbnailCache::remoteThumbnail(const std::shared_ptr<FileProvider> &pro
                                         const QString &connectionId, const QString &path,
                                         qint64 mtimeEpoch, qint64 fileSize, int size) {
     QPixmap ready;
-    requestRemoteThumbnail(provider, connectionId, path, mtimeEpoch, fileSize, size, &ready);
+    requestRemoteThumbnail(provider, connectionId, path, mtimeEpoch, fileSize, size,
+                           &ready, CacheIntent::Display);
     return ready;
 }
 
 ThumbnailCache::Request ThumbnailCache::requestRemoteThumbnail(
     const std::shared_ptr<FileProvider> &provider, const QString &connectionId,
-    const QString &path, qint64 mtimeEpoch, qint64 fileSize, int size, QPixmap *ready) {
+    const QString &path, qint64 mtimeEpoch, qint64 fileSize, int size, QPixmap *ready,
+    CacheIntent intent) {
     // A backend with no streaming support can never serve a thumbnail, so this
     // is Skipped, not Busy -- retrying it would spin forever.
     if (!provider || !provider->canStream() || path.isEmpty() || size <= 0 || !canThumbnail(path))
@@ -700,7 +731,7 @@ ThumbnailCache::Request ThumbnailCache::requestRemoteThumbnail(
     const QString memKey =
         remoteCacheKey(connectionId, path, mtimeEpoch, fileSize, size) + contentTintTag();
     const QString diskKey = remoteCacheKey(connectionId, path, mtimeEpoch, fileSize, stored);
-    if (QPixmap cached = lookupCached(memKey, diskKey, size); !cached.isNull()) {
+    if (QPixmap cached = lookupCached(memKey, diskKey, size, intent); !cached.isNull()) {
         if (ready)
             *ready = cached;
         return Request::Ready;
@@ -713,9 +744,9 @@ ThumbnailCache::Request ThumbnailCache::requestRemoteThumbnail(
 
     ThumbnailCache *self = this;
     const bool queued =
-        m_remote.submit(provider, [self, path, diskKey, memKey, fileSize, stored,
-                                   size](const RemoteThumbnailFetcher::Ticket &ticket) {
-            self->generateRemote(ticket, path, diskKey, memKey, fileSize, stored, size);
+        m_remote.submit(provider, [self, path, diskKey, memKey, fileSize, stored, size,
+                                   intent](const RemoteThumbnailFetcher::Ticket &ticket) {
+            self->generateRemote(ticket, path, diskKey, memKey, fileSize, stored, size, intent);
         });
     if (!queued) {
         // Refused (backlog full, or the backend can't stream). Un-claim the key
@@ -759,7 +790,7 @@ void ThumbnailCache::generate(const QString &path, const QString &diskKey, const
     // GUI thread in storeResult().
     QMetaObject::invokeMethod(this, "storeResult", Qt::QueuedConnection, Q_ARG(QString, path),
                                Q_ARG(QString, diskKey), Q_ARG(QString, memKey),
-                               Q_ARG(QImage, scaledForDisplay(image, displaySize)));
+                               Q_ARG(QImage, scaledForDisplay(image, displaySize)), Q_ARG(bool, true));
 }
 
 namespace {
@@ -888,7 +919,7 @@ ThumbnailCache::VideoExcerpt ThumbnailCache::fetchVideoExcerpt(
 void ThumbnailCache::generateRemote(const RemoteThumbnailFetcher::Ticket &ticket,
                                     const QString &path, const QString &diskKey,
                                     const QString &memKey, qint64 fileSize, int storedSize,
-                                    int displaySize) {
+                                    int displaySize, CacheIntent intent) {
     // As in generate(): everything decodes at the rung, and only the copy
     // handed to the memory cache is brought down to the display size. Note
     // that none of the fetching below depends on the size at all -- the byte
@@ -954,15 +985,16 @@ void ThumbnailCache::generateRemote(const RemoteThumbnailFetcher::Ticket &ticket
     // claim, and leaving it set would block every later attempt at this file.
     QMetaObject::invokeMethod(this, "storeResult", Qt::QueuedConnection, Q_ARG(QString, path),
                                Q_ARG(QString, diskKey), Q_ARG(QString, memKey),
-                               Q_ARG(QImage, scaledForDisplay(image, displaySize)));
+                               Q_ARG(QImage, scaledForDisplay(image, displaySize)),
+                               Q_ARG(bool, intent == CacheIntent::Display));
 }
 
 void ThumbnailCache::storeResult(const QString &path, const QString &pendingKey,
-                                 const QString &memKey, QImage image) {
-    if (!image.isNull()) {
+                                 const QString &memKey, QImage image, bool cacheForDisplay) {
+    if (!image.isNull() && cacheForDisplay) {
         QMutexLocker locker(&m_mutex);
         m_pending.remove(pendingKey);
-        m_memCache.insert(memKey, new QPixmap(tintedForDisplay(QPixmap::fromImage(image))));
+        insertPixmap(memKey, tintedForDisplay(QPixmap::fromImage(image)));
     } else {
         QMutexLocker locker(&m_mutex);
         m_pending.remove(pendingKey);

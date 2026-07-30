@@ -12,6 +12,7 @@ set(UI_TEST_SOURCES
     test_VideoFrameQuality.cpp
     test_ThumbnailSweep.cpp
     test_ThumbnailCacheReuse.cpp
+    test_ThumbnailMemoryBudget.cpp
     test_ThumbnailCachePrune.cpp
     test_ThumbnailSweepDrive.cpp
     test_Mp4RangePlan.cpp

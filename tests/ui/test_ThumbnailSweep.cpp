@@ -38,6 +38,35 @@ TEST(ThumbnailSweepTest, StartsAtTheVisibleRowsThenRunsToTheEnd) {
     EXPECT_EQ(order[5], 9); // reached the end of the listing
 }
 
+TEST(ThumbnailSweepTest, PrioritizesVisibleRowsThenTwoViewportRangesBeforeTheBackgroundSweep) {
+    ThumbnailSweep sweep;
+    sweep.reset(30);
+    sweep.focusVisibleRowsWithAdjacentViewports(10, 12);
+
+    const QVector<int> order = drain(sweep);
+    const QVector<int> expectedForeground = {10, 11, 12, 13, 14, 15, 16, 17, 18,
+                                             9, 8, 7, 6, 5, 4};
+    ASSERT_GE(order.size(), expectedForeground.size());
+    for (int i = 0; i < expectedForeground.size(); ++i)
+        EXPECT_EQ(order[i], expectedForeground[i]);
+}
+
+TEST(ThumbnailSweepTest, MarksOnlyVisibleAndAdjacentRowsAsForegroundWork) {
+    ThumbnailSweep sweep;
+    sweep.reset(30);
+    sweep.focusVisibleRowsWithAdjacentViewports(10, 12);
+
+    for (int i = 0; i < 15; ++i) {
+        bool foreground = false;
+        EXPECT_NE(sweep.next(&foreground), -1);
+        EXPECT_TRUE(foreground);
+    }
+
+    bool foreground = true;
+    EXPECT_NE(sweep.next(&foreground), -1);
+    EXPECT_FALSE(foreground);
+}
+
 TEST(ThumbnailSweepTest, WrapsAroundToFillTheRowsAboveTheStart) {
     ThumbnailSweep sweep;
     sweep.reset(10);
