@@ -1,8 +1,5 @@
 #include "DirectorySizeTask.h"
 
-#include <QCoreApplication>
-#include <QMetaObject>
-#include <QPointer>
 #include <QtConcurrent/QtConcurrent>
 
 #include "FileProvider.h"
@@ -48,7 +45,11 @@ DirectorySizeTask::DirectorySizeTask(quint64 requestId, std::shared_ptr<FileProv
     m_state->provider = std::move(provider);
     m_state->roots = std::move(roots);
     m_state->symlinkRootSizes = std::move(symlinkRootSizes);
+    m_progressTimer.setInterval(10);
+    connect(&m_progressTimer, &QTimer::timeout, this, &DirectorySizeTask::drainProgress);
     connect(&m_watcher, &QFutureWatcher<Result>::finished, this, [this] {
+        m_progressTimer.stop();
+        drainProgress();
         const Result result = m_watcher.result();
         emit finished(m_requestId, result.bytes, result.cancelled);
     });
@@ -64,9 +65,8 @@ void DirectorySizeTask::start() {
     m_started = true;
 
     const std::shared_ptr<State> state = m_state;
-    const QPointer<DirectorySizeTask> task(this);
-    QObject *const eventLoop = QCoreApplication::instance();
-    m_watcher.setFuture(QtConcurrent::run([state, task, eventLoop] {
+    m_progressTimer.start();
+    m_watcher.setFuture(QtConcurrent::run([state] {
         Result result;
         const int totalRoots = state->roots.size();
         for (const QString &root : state->roots) {
@@ -87,14 +87,10 @@ void DirectorySizeTask::start() {
 
             result.bytes += rootBytes;
             ++result.completedRoots;
-            if (eventLoop) {
-                QMetaObject::invokeMethod(
-                    eventLoop,
-                    [task, completed = result.completedRoots, totalRoots, bytes = result.bytes] {
-                        if (task)
-                            emit task->progress(completed, totalRoots, bytes);
-                    },
-                    Qt::QueuedConnection);
+            {
+                std::lock_guard<std::mutex> lock(state->progressMutex);
+                state->progressUpdates.append(
+                    {result.completedRoots, totalRoots, result.bytes});
             }
         }
         result.cancelled = result.cancelled || state->cancelled.load(std::memory_order_relaxed);
@@ -104,4 +100,14 @@ void DirectorySizeTask::start() {
 
 void DirectorySizeTask::cancel() {
     m_state->cancelled.store(true, std::memory_order_relaxed);
+}
+
+void DirectorySizeTask::drainProgress() {
+    QVector<ProgressUpdate> updates;
+    {
+        std::lock_guard<std::mutex> lock(m_state->progressMutex);
+        updates.swap(m_state->progressUpdates);
+    }
+    for (const ProgressUpdate &update : updates)
+        emit progress(update.completedRoots, update.totalRoots, update.bytes);
 }

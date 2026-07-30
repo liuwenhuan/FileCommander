@@ -3,6 +3,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QEvent>
 #include <QFile>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -29,6 +30,8 @@ public:
             m_entered.notify_all();
             m_release.wait(lock, [this] { return m_firstRootReleased; });
         }
+        m_listReturned = true;
+        m_returned.notify_all();
         return {};
     }
 
@@ -52,6 +55,12 @@ public:
         m_release.notify_all();
     }
 
+    bool waitUntilListReturned(std::chrono::milliseconds timeout =
+                                   std::chrono::milliseconds(4000)) const {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        return m_returned.wait_for(lock, timeout, [this] { return m_listReturned; });
+    }
+
     QStringList listedPaths() const {
         std::lock_guard<std::mutex> lock(m_mutex);
         return m_listedPaths;
@@ -61,8 +70,10 @@ private:
     mutable std::mutex m_mutex;
     mutable std::condition_variable m_entered;
     mutable std::condition_variable m_release;
+    mutable std::condition_variable m_returned;
     mutable bool m_firstRootEntered = false;
     mutable bool m_firstRootReleased = false;
+    mutable bool m_listReturned = false;
     mutable QStringList m_listedPaths;
 };
 
@@ -126,11 +137,31 @@ TEST(DirectorySizeTask, DoesNotTraverseASymlinkDirectoryRoot) {
     EXPECT_EQ(finished.takeFirst().at(1).toLongLong(), 37);
 }
 
+TEST(DirectorySizeTask, ProgressSurvivesApplicationDispatchTargetTeardown) {
+    auto provider = std::make_shared<BlockingProvider>();
+    DirectorySizeTask task(44, provider, {QStringLiteral("/ready")});
+    QSignalSpy progress(&task, &DirectorySizeTask::progress);
+    QSignalSpy finished(&task, &DirectorySizeTask::finished);
+
+    task.start();
+    ASSERT_TRUE(provider->waitUntilListReturned());
+    QThread::msleep(50);
+
+    QCoreApplication::removePostedEvents(QCoreApplication::instance(), QEvent::MetaCall);
+
+    ASSERT_TRUE(finished.wait(4000));
+    ASSERT_EQ(progress.count(), 1);
+    const QList<QVariant> update = progress.takeFirst();
+    EXPECT_EQ(update.at(0).toInt(), 1);
+    EXPECT_EQ(update.at(1).toInt(), 1);
+    EXPECT_EQ(update.at(2).toLongLong(), 0);
+}
+
 TEST(DirectorySizeTask, DestructionWhileProviderIsBlockedCompletesAfterUnblock) {
     auto provider = std::make_shared<BlockingProvider>();
     const std::weak_ptr<BlockingProvider> providerLifetime = provider;
     auto *task =
-        new DirectorySizeTask(44, provider, {QStringLiteral("/first"), QStringLiteral("/second")});
+        new DirectorySizeTask(45, provider, {QStringLiteral("/first"), QStringLiteral("/second")});
     task->start();
     ASSERT_TRUE(provider->waitUntilFirstRootEntered());
 
