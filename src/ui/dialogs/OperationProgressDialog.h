@@ -6,6 +6,9 @@
 class QLabel;
 class QProgressBar;
 class QPushButton;
+class QGraphicsOpacityEffect;
+class QPropertyAnimation;
+class QShowEvent;
 
 // Modeless progress display for the currently running OperationQueue job.
 // Shows a byte- or item-based bar plus live throughput, elapsed time, and an
@@ -32,13 +35,19 @@ signals:
     void pauseRequested();
     void resumeRequested();
 
+protected:
+    void showEvent(QShowEvent *event) override;
+
 private:
+    void startRevealAnimation();
     QLabel *m_descriptionLabel;
     QLabel *m_statsLabel;
     QLabel *m_fileLabel;
     QLabel *m_queueLabel;
     QProgressBar *m_progressBar;
     QPushButton *m_pauseButton;
+    QGraphicsOpacityEffect *m_revealEffect = nullptr;
+    QPropertyAnimation *m_revealAnimation = nullptr;
     QElapsedTimer m_timer;
     bool m_paused = false;
 };

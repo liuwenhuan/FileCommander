@@ -2,12 +2,17 @@
 #include "ThemedDialogs.h"
 
 #include <QDialogButtonBox>
+#include <QGraphicsOpacityEffect>
 #include <QLabel>
+#include <QPalette>
+#include <QPropertyAnimation>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QTimer>
+#include <QVariantAnimation>
 #include <QVBoxLayout>
 
+#include "MotionPolicy.h"
 #include "OperationQueue.h"
 
 namespace {
@@ -52,6 +57,15 @@ TransferProgressDialog::TransferProgressDialog(OperationQueue *queue, QWidget *p
     m_errorLabel->setStyleSheet(QStringLiteral("color: #c0392b;"));
     m_progressBar = new QProgressBar(this);
     m_progressBar->setRange(0, 0); // indeterminate until we know a total
+    m_defaultProgressColor = m_progressBar->palette().color(QPalette::Highlight);
+    m_revealEffect = new QGraphicsOpacityEffect(this);
+    setGraphicsEffect(m_revealEffect);
+    m_revealAnimation = new QPropertyAnimation(m_revealEffect, "opacity", this);
+    m_revealAnimation->setObjectName(QStringLiteral("TransferProgressRevealAnimation"));
+    m_outcomeColorAnimation = new QVariantAnimation(this);
+    m_outcomeColorAnimation->setObjectName(QStringLiteral("TransferProgressOutcomeColorAnimation"));
+    connect(m_outcomeColorAnimation, &QVariantAnimation::valueChanged, this,
+            [this](const QVariant &value) { setProgressColor(value.value<QColor>()); });
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Cancel, this);
     m_pauseButton = buttons->addButton(tr("Pause"), QDialogButtonBox::ActionRole);
@@ -94,6 +108,47 @@ TransferProgressDialog::TransferProgressDialog(OperationQueue *queue, QWidget *p
     }
 }
 
+void TransferProgressDialog::showEvent(QShowEvent *event) {
+    FramelessDialog::showEvent(event);
+    startRevealAnimation();
+}
+
+void TransferProgressDialog::startRevealAnimation() {
+    m_revealAnimation->stop();
+    if (MotionPolicy::reduced()) {
+        m_revealEffect->setOpacity(1.0);
+        return;
+    }
+
+    m_revealEffect->setOpacity(0.0);
+    m_revealAnimation->setDuration(120);
+    m_revealAnimation->setEasingCurve(MotionPolicy::easing());
+    m_revealAnimation->setStartValue(0.0);
+    m_revealAnimation->setEndValue(1.0);
+    m_revealAnimation->start();
+}
+
+void TransferProgressDialog::setProgressColor(const QColor &color) {
+    QPalette palette = m_progressBar->palette();
+    palette.setColor(QPalette::Highlight, color);
+    m_progressBar->setPalette(palette);
+}
+
+void TransferProgressDialog::animateOutcomeColor(const QColor &target) {
+    m_outcomeColorAnimation->stop();
+    const QColor start = m_progressBar->palette().color(QPalette::Highlight);
+    if (MotionPolicy::reduced()) {
+        setProgressColor(target);
+        return;
+    }
+
+    m_outcomeColorAnimation->setDuration(180);
+    m_outcomeColorAnimation->setEasingCurve(MotionPolicy::easing());
+    m_outcomeColorAnimation->setStartValue(start);
+    m_outcomeColorAnimation->setEndValue(target);
+    m_outcomeColorAnimation->start();
+}
+
 void TransferProgressDialog::onPauseClicked() {
     m_paused = !m_paused;
     m_pauseButton->setText(m_paused ? tr("Resume") : tr("Pause"));
@@ -124,6 +179,8 @@ void TransferProgressDialog::onStarted(const QString &description) {
     m_paused = false;
     m_pauseButton->setText(tr("Pause"));
     m_progressBar->setRange(0, 0);
+    m_outcomeColorAnimation->stop();
+    setProgressColor(m_defaultProgressColor);
     m_timer.start(); // reset the clock for throughput/ETA of this job
     m_running = true;
     // Don't show yet: arm the deferred-show timer so a quick job never flashes a
@@ -186,16 +243,27 @@ void TransferProgressDialog::onFinished(bool ok) {
     // flag so a late timer tick can't pop an empty window.
     m_running = false;
     m_showTimer->stop();
+    animateOutcomeColor(ok ? QColor(0x2c, 0xa0, 0x44) : QColor(0xe0, 0x4a, 0x4a));
     // Auto-hide the dialog once done, unless an error is on display (then the
     // user closes it after reading). A quick job that never showed stays hidden.
     if (m_shown && ok && !m_hasError) {
-        m_shown = false;
-        hide();
+        if (MotionPolicy::reduced()) {
+            m_shown = false;
+            hide();
+        } else {
+            QTimer::singleShot(180, this, [this] {
+                if (!m_running && !m_hasError && m_shown) {
+                    m_shown = false;
+                    hide();
+                }
+            });
+        }
     }
 }
 
 void TransferProgressDialog::onErrorOccurred(const QString &message) {
     m_errorLabel->setText(message);
+    animateOutcomeColor(QColor(0xe0, 0x4a, 0x4a));
     // Only keep an already-visible dialog up past completion so the message is
     // readable. Don't pop the dialog just for an error: MainWindow already shows
     // a consolidated warning on finish, and a quick failed op shouldn't flash two

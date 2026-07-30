@@ -49,6 +49,8 @@ set(UI_TEST_SOURCES
     test_StandardButtonLocalization.cpp
     test_ChromeTypography.cpp
     test_MotionPolicy.cpp
+    test_NetworkStateMotion.cpp
+    test_OperationProgressMotion.cpp
     ../archive/test_CompressDialog.cpp
     ../../resources/resources.qrc
 )

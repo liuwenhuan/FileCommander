@@ -2,10 +2,15 @@
 #include "ThemedDialogs.h"
 
 #include <QDialogButtonBox>
+#include <QGraphicsOpacityEffect>
 #include <QLabel>
+#include <QPropertyAnimation>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QShowEvent>
 #include <QVBoxLayout>
+
+#include "MotionPolicy.h"
 
 namespace {
 
@@ -43,6 +48,10 @@ OperationProgressDialog::OperationProgressDialog(QWidget *parent) : FramelessDia
     m_queueLabel = new QLabel(this);
     m_progressBar = new QProgressBar(this);
     m_progressBar->setRange(0, 0); // indeterminate until we know a total
+    m_revealEffect = new QGraphicsOpacityEffect(this);
+    setGraphicsEffect(m_revealEffect);
+    m_revealAnimation = new QPropertyAnimation(m_revealEffect, "opacity", this);
+    m_revealAnimation->setObjectName(QStringLiteral("OperationProgressRevealAnimation"));
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Cancel, this);
     m_pauseButton = buttons->addButton(tr("Pause"), QDialogButtonBox::ActionRole);
@@ -64,6 +73,26 @@ OperationProgressDialog::OperationProgressDialog(QWidget *parent) : FramelessDia
     layout->addWidget(m_fileLabel);
     layout->addWidget(m_queueLabel);
     layout->addWidget(buttons);
+}
+
+void OperationProgressDialog::showEvent(QShowEvent *event) {
+    FramelessDialog::showEvent(event);
+    startRevealAnimation();
+}
+
+void OperationProgressDialog::startRevealAnimation() {
+    m_revealAnimation->stop();
+    if (MotionPolicy::reduced()) {
+        m_revealEffect->setOpacity(1.0);
+        return;
+    }
+
+    m_revealEffect->setOpacity(0.0);
+    m_revealAnimation->setDuration(120);
+    m_revealAnimation->setEasingCurve(MotionPolicy::easing());
+    m_revealAnimation->setStartValue(0.0);
+    m_revealAnimation->setEndValue(1.0);
+    m_revealAnimation->start();
 }
 
 void OperationProgressDialog::setPauseVisible(bool visible) {

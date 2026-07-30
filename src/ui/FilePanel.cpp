@@ -4,6 +4,7 @@
 
 #include <QApplication>
 #include <QClipboard>
+#include <QColor>
 #include <QDir>
 #include <QStandardPaths>
 #include <QEvent>
@@ -35,6 +36,7 @@
 #include <QTreeView>
 #include <QSplitter>
 #include <QToolButton>
+#include <QVariantAnimation>
 #include <QVBoxLayout>
 #include <QtConcurrent/QtConcurrent>
 
@@ -67,6 +69,20 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     // unchanged -- it shows the parent, exactly as it did before.
     setAttribute(Qt::WA_StyledBackground, true);
     m_focusAnimation = new QPropertyAnimation(this, "focusProgress", this);
+    m_networkStatusRevealTimer = new QTimer(this);
+    m_networkStatusRevealTimer->setSingleShot(true);
+    m_networkStatusRevealTimer->setInterval(150);
+    connect(m_networkStatusRevealTimer, &QTimer::timeout, this, [this] {
+        showNetworkStatus(m_pendingNetworkStatus, m_pendingNetworkAttempt);
+    });
+
+    m_networkStatusColorAnimation = new QVariantAnimation(this);
+    m_networkStatusColorAnimation->setObjectName(QStringLiteral("NetworkStatusColorAnimation"));
+    connect(m_networkStatusColorAnimation, &QVariantAnimation::valueChanged, this,
+            [this](const QVariant &value) {
+                m_networkStatusDotColor = value.value<QColor>();
+                refreshTabIcons();
+            });
     // Long tab and address text must clip inside this splitter pane rather
     // than turning into a minimum width for the whole pane.
     setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
@@ -626,8 +642,10 @@ void FilePanel::applyHistoryEntry(const NavEntry &entry) {
         tab->authFactory = entry.conn.authRetry;
         tab->connInfo = entry.connInfo;
     }
-    if (!m_model->hasNetworkSession())
+    if (!m_model->hasNetworkSession()) {
+        resetNetworkStatusFeedback();
         m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
+    }
 
     if (entry.flat) {
         m_flatPaths = entry.flatPaths;
@@ -777,27 +795,27 @@ void FilePanel::navigateTo(const QString &path) {
 void FilePanel::onNetworkStateChanged(int state, int attempt) {
     // Any genuine session state change supersedes a pending manual-login prompt.
     m_awaitingLogin = false;
-    // Map the session state to the centred status-line message. Connected/Idle
-    // clear it (the tab shows its normal selection/disk info again).
+
+    // Connecting feedback is intentionally deferred so a cached or local-network
+    // session does not flash a transient status. Failure remains immediate so its
+    // retry control can always be used at once.
     switch (state) {
     case NetworkSession::Connecting:
-        m_statusBar->setConnectionStatus(tr("正在等待连接…"), StatusBarWidget::ConnConnecting);
-        break;
     case NetworkSession::Reconnecting:
-        m_statusBar->setConnectionStatus(
-            tr("断线，正在重连（%1/%2）…").arg(attempt).arg(NetworkSession::kMaxReconnects),
-            StatusBarWidget::ConnReconnecting);
+        m_pendingNetworkStatus = state;
+        m_pendingNetworkAttempt = attempt;
+        m_networkStatusVisible = false;
+        m_networkStatusColorAnimation->stop();
+        m_networkStatusDotColor = QColor();
+        m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
+        m_networkStatusRevealTimer->start();
         break;
-    case NetworkSession::Failed: {
-        // Show the real reason (connection refused / host not found / timeout /
-        // auth / cert) when known, instead of a generic message.
-        const QString err = m_model->lastNetworkError();
-        m_statusBar->setConnectionStatus(
-            err.isEmpty() ? tr("多次重连失败") : tr("连接失败：%1").arg(err),
-            StatusBarWidget::ConnFailed);
+    case NetworkSession::Failed:
+        m_networkStatusRevealTimer->stop();
+        showNetworkStatus(state, attempt);
         break;
-    }
     case NetworkSession::Connected:
+        resetNetworkStatusFeedback();
         m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
         // displayName() (user@host) is only known once connected, and the tab
         // label was first built before that -- refresh it so the connected tab
@@ -806,11 +824,69 @@ void FilePanel::onNetworkStateChanged(int state, int attempt) {
         break;
     case NetworkSession::Idle:
     default:
+        resetNetworkStatusFeedback();
         m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
         break;
     }
     // Keep the active tab's status-dot badge in sync with the live session state.
     refreshTabIcons();
+}
+
+void FilePanel::showNetworkStatus(int state, int attempt) {
+    m_networkStatusVisible = true;
+    switch (state) {
+    case NetworkSession::Connecting:
+        m_statusBar->setConnectionStatus(tr("正在等待连接…"), StatusBarWidget::ConnConnecting);
+        animateNetworkStatusColor(QColor(0x9a, 0x9a, 0x9a));
+        break;
+    case NetworkSession::Reconnecting:
+        m_statusBar->setConnectionStatus(
+            tr("断线，正在重连（%1/%2）…").arg(attempt).arg(NetworkSession::kMaxReconnects),
+            StatusBarWidget::ConnReconnecting);
+        animateNetworkStatusColor(QColor(0xd0, 0x8a, 0x2a));
+        break;
+    case NetworkSession::Failed: {
+        const QString err = m_model->lastNetworkError();
+        m_statusBar->setConnectionStatus(
+            err.isEmpty() ? tr("多次重连失败") : tr("连接失败：%1").arg(err),
+            StatusBarWidget::ConnFailed);
+        animateNetworkStatusColor(QColor(0xe0, 0x4a, 0x4a));
+        break;
+    }
+    default:
+        m_networkStatusVisible = false;
+        break;
+    }
+    refreshTabIcons();
+}
+
+void FilePanel::animateNetworkStatusColor(const QColor &target) {
+    m_networkStatusColorAnimation->stop();
+    if (MotionPolicy::reduced()) {
+        m_networkStatusDotColor = target;
+        refreshTabIcons();
+        return;
+    }
+
+    QColor start = m_networkStatusDotColor;
+    if (!start.isValid()) {
+        start = target;
+        start.setAlpha(0);
+    }
+    m_networkStatusColorAnimation->setDuration(MotionPolicy::duration(MotionDuration::Normal));
+    m_networkStatusColorAnimation->setEasingCurve(MotionPolicy::easing());
+    m_networkStatusColorAnimation->setStartValue(start);
+    m_networkStatusColorAnimation->setEndValue(target);
+    m_networkStatusColorAnimation->start();
+}
+
+void FilePanel::resetNetworkStatusFeedback() {
+    m_networkStatusRevealTimer->stop();
+    m_networkStatusColorAnimation->stop();
+    m_networkStatusDotColor = QColor();
+    m_pendingNetworkStatus = -1;
+    m_pendingNetworkAttempt = 0;
+    m_networkStatusVisible = false;
 }
 
 void FilePanel::showLoginPrompt() {
@@ -819,7 +895,12 @@ void FilePanel::showLoginPrompt() {
     // looks connected. Set the flag AFTER any state-driven clear (the Idle state
     // change fires first and would otherwise wipe this).
     m_awaitingLogin = true;
+    m_networkStatusRevealTimer->stop();
+    m_networkStatusColorAnimation->stop();
+    m_networkStatusDotColor = QColor(0xd0, 0x8a, 0x2a);
+    m_networkStatusVisible = true;
     m_statusBar->setConnectionStatus(tr("需要登录"), StatusBarWidget::ConnNeedsAuth);
+    refreshTabIcons();
 }
 
 void FilePanel::navigateTabTo(int tabIndex, const QString &path) {
@@ -1411,8 +1492,10 @@ void FilePanel::leaveArchive() {
     // local provider" that this used to do explicitly.
     m_model->attachConnection(std::move(m_archiveExitConn));
     m_archiveExitConn = FileSystemModel::NetworkConn();
-    if (!m_model->hasNetworkSession())
+    if (!m_model->hasNetworkSession()) {
+        resetNetworkStatusFeedback();
         m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
+    }
 }
 
 void FilePanel::backOutOfArchive() {
@@ -1996,12 +2079,14 @@ static QIcon iconForScheme(const QString &scheme) {
 // The protocol icon with a small status dot overlaid so the tab shows connection
 // health at a glance: amber while connecting/reconnecting, red on failure. No dot
 // once connected (or for a local tab), keeping the plain protocol icon.
-static QIcon iconForConn(const QString &scheme, int state) {
+static QIcon iconForConn(const QString &scheme, int state, const QColor &statusColor = QColor()) {
     const QIcon base = iconForScheme(scheme);
     if (base.isNull())
         return base;
     QColor dot;
-    if (state == NetworkSession::Failed)
+    if (statusColor.isValid())
+        dot = statusColor;
+    else if (state == NetworkSession::Failed)
         dot = QColor(0xe0, 0x4a, 0x4a); // red
     else if (state == NetworkSession::Connecting || state == NetworkSession::Reconnecting)
         dot = QColor(0xd0, 0x8a, 0x2a); // amber
@@ -2038,7 +2123,13 @@ void FilePanel::refreshTabIcons() {
             state = m_model->sessionState();
         else if (tab->session)
             state = static_cast<int>(tab->session->state());
-        m_tabBar->setTabIcon(i, iconForConn(tab->connScheme, state));
+        const bool isLoading = state == NetworkSession::Connecting ||
+                               state == NetworkSession::Reconnecting;
+        if (i == activeIdx && isLoading && !m_networkStatusVisible)
+            m_tabBar->setTabIcon(i, iconForConn(tab->connScheme, NetworkSession::Connected));
+        else
+            m_tabBar->setTabIcon(i, iconForConn(
+                tab->connScheme, state, i == activeIdx && isLoading ? m_networkStatusDotColor : QColor()));
     }
 }
 
@@ -2132,8 +2223,10 @@ void FilePanel::adoptConnectionFrom(const QSharedPointer<TabState> &tab) {
     }
     m_model->attachConnection(std::move(c));
     // A tab with no session is local: clear any lingering connection status.
-    if (!m_model->hasNetworkSession())
+    if (!m_model->hasNetworkSession()) {
+        resetNetworkStatusFeedback();
         m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
+    }
     // A parked session still pending credentials is re-offered its prompt by the
     // subsequent loadTabState() re-list (which re-runs the connect and re-emits
     // authRequired now that the tab is active again), so nothing extra is needed
@@ -2203,6 +2296,7 @@ void FilePanel::openLocalInTab(int tabIndex, const QString &path) {
         tab->authFactory = nullptr;
         tab->connInfo = {}; // now a local tab: don't persist/reconnect it as remote
     }
+    resetNetworkStatusFeedback();
     m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
 
     // Navigate locally without re-pushing history (we already captured `from`).
@@ -2424,6 +2518,7 @@ void FilePanel::disconnectTab(int index) {
     m_backHistory.clear();
     m_forwardHistory.clear();
     updateNavButtons();
+    resetNetworkStatusFeedback();
     m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
     const int idx = m_tabManager->activeIndex();
     if (auto t = m_tabManager->activeTab())

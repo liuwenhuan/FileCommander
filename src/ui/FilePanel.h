@@ -5,6 +5,7 @@
 #include <QPersistentModelIndex>
 #include <QVector>
 #include <QWidget>
+#include <QColor>
 
 #include <memory>
 #include <optional>
@@ -32,6 +33,7 @@ class QAbstractItemView;
 class QPaintEvent;
 class QPropertyAnimation;
 class QTimer;
+class QVariantAnimation;
 class DirectorySizeTask;
 
 // One side of the dual-pane layout: address bar + file list + per-panel
@@ -358,6 +360,9 @@ private:
     // Maps a NetworkSession::State to the centred connection message in the
     // status line ("connecting / reconnecting(N/M) / failed+retry").
     void onNetworkStateChanged(int state, int attempt);
+    void showNetworkStatus(int state, int attempt);
+    void animateNetworkStatusColor(const QColor &target);
+    void resetNetworkStatusFeedback();
     void updateNavButtons();
     // Abandons the icon grid's outstanding remote thumbnail fetches for this
     // panel's current connection. Called wherever that connection stops being
@@ -509,6 +514,12 @@ private:
     TabBar *m_tabBar;
     qreal m_focusProgress = 0.0;
     QPropertyAnimation *m_focusAnimation = nullptr;
+    QTimer *m_networkStatusRevealTimer = nullptr;
+    QVariantAnimation *m_networkStatusColorAnimation = nullptr;
+    QColor m_networkStatusDotColor;
+    int m_pendingNetworkStatus = -1;
+    int m_pendingNetworkAttempt = 0;
+    bool m_networkStatusVisible = false;
     QStringList m_pendingSelection;
 
     // Non-null while this panel is browsing inside an archive (read-only). Held

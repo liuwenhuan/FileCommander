@@ -7,6 +7,11 @@ class QLabel;
 class QProgressBar;
 class QPushButton;
 class QTimer;
+class QGraphicsOpacityEffect;
+class QPropertyAnimation;
+class QVariantAnimation;
+class QShowEvent;
+class QColor;
 class OperationQueue;
 
 // Modeless progress display for OperationQueue's concurrent provider
@@ -44,9 +49,15 @@ private slots:
     void onErrorOccurred(const QString &message);
     void onPauseClicked();
 
+protected:
+    void showEvent(QShowEvent *event) override;
+
 private:
     // Reveal the dialog now (deferred-show timer fired, or a big total arrived).
     void showIfHidden();
+    void startRevealAnimation();
+    void animateOutcomeColor(const QColor &target);
+    void setProgressColor(const QColor &color);
 
     // Visibility policy thresholds.
     static constexpr int kShowDelayMs = 1000;                    // deferred-show delay
@@ -64,6 +75,10 @@ private:
     QLabel *m_errorLabel;
     QProgressBar *m_progressBar;
     QPushButton *m_pauseButton;
+    QGraphicsOpacityEffect *m_revealEffect = nullptr;
+    QPropertyAnimation *m_revealAnimation = nullptr;
+    QVariantAnimation *m_outcomeColorAnimation = nullptr;
+    QColor m_defaultProgressColor;
 
     QElapsedTimer m_timer;
     QTimer *m_showTimer;    // single-shot deferred-show timer (kShowDelayMs)
