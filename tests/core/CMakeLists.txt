@@ -5,6 +5,7 @@ set(CORE_TEST_SOURCES
     filesystem/test_FileSystemModel.cpp
     filesystem/test_DirectorySizeTask.cpp
     filesystem/test_IconCache.cpp
+    filesystem/test_ProviderPath.cpp
     filesystem/test_ProviderLocality.cpp
     filesystem/test_ExternalPaths.cpp
     filesystem/test_ParentEntry.cpp

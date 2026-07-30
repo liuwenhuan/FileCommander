@@ -30,7 +30,14 @@ TEST(WindowsSmbProvider, RejectsTraversalAndInvalidHosts) {
 TEST(WindowsSmbProvider, NormalizesProviderPathWithoutEscapingRoot) {
     EXPECT_EQ(WindowsSmbProvider::normalizeProviderPath(QStringLiteral("//share///dir/")),
               QStringLiteral("/share/dir"));
+    EXPECT_EQ(WindowsSmbProvider::normalizeProviderPath(QStringLiteral("/../../share")),
+              QStringLiteral("/share"));
+    EXPECT_EQ(WindowsSmbProvider::normalizeProviderPath(QStringLiteral("\\share\\dir")),
+              QStringLiteral("/share/dir"));
     EXPECT_EQ(WindowsSmbProvider::parentProviderPath(QStringLiteral("/share/dir")),
+              QStringLiteral("/share"));
+    EXPECT_EQ(WindowsSmbProvider::parentProviderPath(
+                  QStringLiteral("/share/dir/../file")),
               QStringLiteral("/share"));
     EXPECT_TRUE(WindowsSmbProvider::parentProviderPath(QStringLiteral("/")).isEmpty());
 }

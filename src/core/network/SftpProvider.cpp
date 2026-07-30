@@ -1,4 +1,5 @@
 #include "SftpProvider.h"
+#include "ProviderPath.h"
 #include "TransferErrorMapping.h"
 
 #include <QDateTime>
@@ -565,11 +566,9 @@ bool SftpProvider::exists(const QString &path) const {
 FileProvider::RenameResult SftpProvider::rename(const QString &path, const QString &newName,
                                                 QString *newPath) {
     const QString oldPath = cleanPath(path);
-    const QString parent = parentPath(oldPath);
-    // Sibling target: parent + "/" + newName, POSIX-normalised. parentPath()
-    // returns "" only for the root itself, in which case fall back to "/".
-    const QString parentDir = parent.isEmpty() ? QStringLiteral("/") : parent;
-    const QString destPath = cleanPath(parentDir + QLatin1Char('/') + newName);
+    const QString destPath = fc::ProviderPath::sibling(oldPath, newName);
+    if (destPath.isEmpty())
+        return RenameResult::Failed;
 
     QMutexLocker locker(&m_mutex);
     if (!m_sftp)
@@ -619,35 +618,11 @@ FileProvider::RenameResult SftpProvider::moveTo(const QString &srcPath, const QS
 }
 
 QString SftpProvider::cleanPath(const QString &path) const {
-    // POSIX normalisation, independent of the local platform (never QDir, which
-    // carries local-filesystem semantics). Collapses redundant slashes and
-    // resolves "." / ".." segments; always rooted at '/'.
-    const QStringList rawParts = path.split(QLatin1Char('/'), Qt::SkipEmptyParts);
-    QStringList stack;
-    for (const QString &part : rawParts) {
-        if (part == QStringLiteral(".")) {
-            continue;
-        } else if (part == QStringLiteral("..")) {
-            if (!stack.isEmpty())
-                stack.removeLast();
-            // ".." at root stays at root (can't go above '/').
-        } else {
-            stack.append(part);
-        }
-    }
-    if (stack.isEmpty())
-        return QStringLiteral("/");
-    return QLatin1Char('/') + stack.join(QLatin1Char('/'));
+    return fc::ProviderPath::normalizeRooted(path);
 }
 
 QString SftpProvider::parentPath(const QString &path) const {
-    const QString clean = cleanPath(path);
-    if (clean == QStringLiteral("/"))
-        return QString(); // already at the root
-    const int slash = clean.lastIndexOf(QLatin1Char('/'));
-    if (slash <= 0)
-        return QStringLiteral("/");
-    return clean.left(slash);
+    return fc::ProviderPath::parent(path);
 }
 
 FileHandle *SftpProvider::openRead(const QString &path) {

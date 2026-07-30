@@ -1,4 +1,5 @@
 #include "WindowsSmbProvider.h"
+#include "ProviderPath.h"
 
 #include <QDir>
 #include <QFile>
@@ -16,19 +17,19 @@ public:
 
 QStringList providerSegments(const QString &path, bool *valid = nullptr) {
     bool ok = true;
-    QStringList result;
     const QString normalized = QString(path).replace(QLatin1Char('\\'), QLatin1Char('/'));
     for (const QString &part : normalized.split(QLatin1Char('/'), Qt::SkipEmptyParts)) {
         if (part == QStringLiteral("..")) {
             ok = false;
             break;
         }
-        if (part != QStringLiteral("."))
-            result.append(part);
     }
     if (valid)
         *valid = ok;
-    return result;
+    if (!ok)
+        return {};
+    return fc::ProviderPath::normalizeRooted(normalized)
+        .split(QLatin1Char('/'), Qt::SkipEmptyParts);
 }
 
 QFile::Permissions permissionsFor(const QFileInfo &info) {
@@ -37,20 +38,13 @@ QFile::Permissions permissionsFor(const QFileInfo &info) {
 }
 
 QString WindowsSmbProvider::normalizeProviderPath(const QString &path) {
-    bool valid = false;
-    const QStringList parts = providerSegments(path, &valid);
-    if (!valid)
-        return {};
-    return parts.isEmpty() ? QStringLiteral("/")
-                           : QStringLiteral("/") + parts.join(QLatin1Char('/'));
+    QString normalized = path;
+    normalized.replace(QLatin1Char('\\'), QLatin1Char('/'));
+    return fc::ProviderPath::normalizeRooted(normalized);
 }
 
 QString WindowsSmbProvider::parentProviderPath(const QString &path) {
-    const QString clean = normalizeProviderPath(path);
-    if (clean.isEmpty() || clean == QStringLiteral("/"))
-        return {};
-    const int slash = clean.lastIndexOf(QLatin1Char('/'));
-    return slash <= 0 ? QStringLiteral("/") : clean.left(slash);
+    return fc::ProviderPath::parent(normalizeProviderPath(path));
 }
 
 QString WindowsSmbProvider::providerPathToUnc(const QString &host, const QString &path,
@@ -200,15 +194,11 @@ bool WindowsSmbProvider::exists(const QString &path) const {
 
 FileProvider::RenameResult WindowsSmbProvider::rename(
     const QString &path, const QString &newName, QString *newPath) {
-    if (newName.isEmpty() || newName.contains(QLatin1Char('/')) ||
-        newName.contains(QLatin1Char('\\')) || newName == QStringLiteral(".") ||
-        newName == QStringLiteral(".."))
+    const QString oldPath = cleanPath(path);
+    const QString destination = fc::ProviderPath::sibling(oldPath, newName);
+    if (destination.isEmpty())
         return RenameResult::Failed;
-    const QString parent = parentPath(path);
-    const QString destination =
-        parent == QStringLiteral("/") ? parent + newName
-                                      : parent + QLatin1Char('/') + newName;
-    const RenameResult result = moveTo(path, destination);
+    const RenameResult result = moveTo(oldPath, destination);
     if (result == RenameResult::Ok && newPath)
         *newPath = destination;
     return result;

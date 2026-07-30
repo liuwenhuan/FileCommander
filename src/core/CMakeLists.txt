@@ -8,6 +8,8 @@ set(CORE_SOURCES
     filesystem/DirectorySizeTask.h
     filesystem/DirectorySizeTask.cpp
     filesystem/FileProvider.h
+    filesystem/ProviderPath.h
+    filesystem/ProviderPath.cpp
     filesystem/LocalFileProvider.h
     filesystem/LocalFileProvider.cpp
     filesystem/IconCache.h

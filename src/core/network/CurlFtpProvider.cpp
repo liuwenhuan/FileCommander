@@ -1,4 +1,5 @@
 #include "CurlFtpProvider.h"
+#include "ProviderPath.h"
 #include "TransferErrorMapping.h"
 
 #include <curl/curl.h>
@@ -375,29 +376,11 @@ RemoteLocation CurlFtpProvider::remoteLocation() const {
 QString CurlFtpProvider::cleanPath(const QString &path) const {
     QString p = path;
     p.replace(QLatin1Char('\\'), QLatin1Char('/'));
-    QStringList parts = p.split(QLatin1Char('/'), Qt::SkipEmptyParts);
-    QStringList out;
-    for (const QString &part : parts) {
-        if (part == QStringLiteral("."))
-            continue;
-        if (part == QStringLiteral("..")) {
-            if (!out.isEmpty())
-                out.removeLast();
-            continue;
-        }
-        out << part;
-    }
-    return QLatin1Char('/') + out.join(QLatin1Char('/'));
+    return fc::ProviderPath::normalizeRooted(p);
 }
 
 QString CurlFtpProvider::parentPath(const QString &path) const {
-    const QString clean = cleanPath(path);
-    if (clean == QStringLiteral("/"))
-        return QString();
-    const int idx = clean.lastIndexOf(QLatin1Char('/'));
-    if (idx <= 0)
-        return QStringLiteral("/");
-    return clean.left(idx);
+    return fc::ProviderPath::parent(cleanPath(path));
 }
 
 QString CurlFtpProvider::buildUrl(const QString &path, bool isDirectory) const {
@@ -479,9 +462,9 @@ bool CurlFtpProvider::exists(const QString &path) const {
 FileProvider::RenameResult CurlFtpProvider::rename(const QString &path, const QString &newName,
                                                     QString *newPath) {
     const QString oldPath = cleanPath(path);
-    const QString parent = parentPath(oldPath);
-    const QString parentDir = parent.isEmpty() ? QStringLiteral("/") : parent;
-    const QString destPath = cleanPath(parentDir + QLatin1Char('/') + newName);
+    const QString destPath = fc::ProviderPath::sibling(oldPath, newName);
+    if (destPath.isEmpty())
+        return RenameResult::Failed;
 
     if (exists(destPath))
         return RenameResult::AlreadyExists;

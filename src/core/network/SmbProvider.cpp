@@ -1,4 +1,5 @@
 #include "SmbProvider.h"
+#include "ProviderPath.h"
 #include "SmbClientGate.h"
 
 #include <QDateTime>
@@ -637,9 +638,9 @@ bool SmbProvider::exists(const QString &path) const {
 FileProvider::RenameResult SmbProvider::rename(const QString &path, const QString &newName,
                                                QString *newPath) {
     const QString oldPath = cleanPath(path);
-    const QString parent = parentPath(oldPath);
-    const QString parentDir = parent.isEmpty() ? QStringLiteral("/") : parent;
-    const QString destPath = cleanPath(parentDir + QLatin1Char('/') + newName);
+    const QString destPath = fc::ProviderPath::sibling(oldPath, newName);
+    if (destPath.isEmpty())
+        return RenameResult::Failed;
 
     QMutexLocker locker(&m_mutex);
     if (!m_ctx)
@@ -698,34 +699,11 @@ FileProvider::RenameResult SmbProvider::moveTo(const QString &srcPath, const QSt
 }
 
 QString SmbProvider::cleanPath(const QString &path) const {
-    // POSIX normalisation, independent of the local platform (never QDir).
-    // Collapses redundant slashes and resolves "." / ".." segments; always
-    // rooted at '/'. Mirrors SftpProvider::cleanPath.
-    const QStringList rawParts = path.split(QLatin1Char('/'), Qt::SkipEmptyParts);
-    QStringList stack;
-    for (const QString &part : rawParts) {
-        if (part == QStringLiteral(".")) {
-            continue;
-        } else if (part == QStringLiteral("..")) {
-            if (!stack.isEmpty())
-                stack.removeLast();
-        } else {
-            stack.append(part);
-        }
-    }
-    if (stack.isEmpty())
-        return QStringLiteral("/");
-    return QLatin1Char('/') + stack.join(QLatin1Char('/'));
+    return fc::ProviderPath::normalizeRooted(path);
 }
 
 QString SmbProvider::parentPath(const QString &path) const {
-    const QString clean = cleanPath(path);
-    if (clean == QStringLiteral("/"))
-        return QString();
-    const int slash = clean.lastIndexOf(QLatin1Char('/'));
-    if (slash <= 0)
-        return QStringLiteral("/");
-    return clean.left(slash);
+    return fc::ProviderPath::parent(path);
 }
 
 FileHandle *SmbProvider::openRead(const QString &path) {
