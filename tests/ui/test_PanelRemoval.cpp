@@ -68,6 +68,15 @@ bool listHasName(FileSystemModel *model, const QString &name) {
     return false;
 }
 
+QStringList visibleEntryNames(FileSystemModel *model) {
+    QStringList names;
+    for (int row = 0; row < model->rowCount(); ++row) {
+        if (!model->isParentEntry(row))
+            names.append(model->fileInfoAt(row).name());
+    }
+    return names;
+}
+
 void touch(const QString &path) {
     QFile f(path);
     f.open(QIODevice::WriteOnly);
@@ -163,6 +172,9 @@ TEST(PanelRemovalTest, RemoteDeleteThatSucceededDropsTheRow) {
 TEST(PanelRemovalTest, ClosingAnInactiveRemoteTabLeavesTheActiveTabLocal) {
     auto share = std::make_shared<FakeShare>();
     share->names = QStringList{QStringLiteral("report.pdf")};
+    QTemporaryDir localDir;
+    ASSERT_TRUE(localDir.isValid());
+    touch(QDir(localDir.path()).filePath(QStringLiteral("survivor.txt")));
 
     FilePanel panel;
     panel.connectTabTo(0, share, [](QString *) { return true; },
@@ -172,8 +184,12 @@ TEST(PanelRemovalTest, ClosingAnInactiveRemoteTabLeavesTheActiveTabLocal) {
     ASSERT_TRUE(panel.model()->hasNetworkSession());
 
     panel.newTab();
+    panel.navigateTo(localDir.path());
     settle(panel);
     ASSERT_EQ(panel.activeTabIndex(), 1);
+    ASSERT_EQ(panel.currentPath(), localDir.path());
+    const QStringList visibleBefore = visibleEntryNames(panel.model());
+    ASSERT_EQ(visibleBefore, QStringList{QStringLiteral("survivor.txt")});
 
     auto *tabs = panel.findChild<TabBar *>();
     ASSERT_NE(tabs, nullptr);
@@ -184,4 +200,6 @@ TEST(PanelRemovalTest, ClosingAnInactiveRemoteTabLeavesTheActiveTabLocal) {
     EXPECT_EQ(panel.tabCount(), 1);
     EXPECT_FALSE(panel.tabHasConnection(0));
     EXPECT_FALSE(panel.model()->hasNetworkSession());
+    EXPECT_EQ(panel.currentPath(), localDir.path());
+    EXPECT_EQ(visibleEntryNames(panel.model()), visibleBefore);
 }
