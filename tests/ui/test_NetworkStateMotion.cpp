@@ -2,6 +2,7 @@
 
 #include <QApplication>
 #include <QLabel>
+#include <QSignalSpy>
 #include <QTest>
 #include <QVariantAnimation>
 
@@ -65,6 +66,57 @@ TEST(NetworkStateMotion, ConnectingThatCompletesBeforeDelayNeverShowsIndicator) 
     QTest::qWait(100);
 
     EXPECT_FALSE(indicator->isVisible());
+}
+
+TEST(NetworkStateMotion, ConnectingAppearsOnlyAfterNormalDelayBoundary) {
+    MotionPolicyStateGuard guard;
+    MotionPolicy::setReducedForTest(false);
+
+    FilePanel panel;
+    panel.resize(700, 500);
+    panel.show();
+    qApp->processEvents();
+
+    QLabel *indicator = connectionStatusLabel(panel);
+    ASSERT_NE(indicator, nullptr);
+
+    emitNetworkState(panel, NetworkSession::Connecting);
+    QTest::qWait(120);
+    EXPECT_FALSE(indicator->isVisible());
+
+    QTRY_VERIFY_WITH_TIMEOUT(indicator->isVisible(), 100);
+    QVariantAnimation *colorAnimation =
+        panel.findChild<QVariantAnimation *>(QStringLiteral("NetworkStatusColorAnimation"));
+    ASSERT_NE(colorAnimation, nullptr);
+    EXPECT_EQ(colorAnimation->duration(), 150);
+    EXPECT_EQ(colorAnimation->state(), QAbstractAnimation::Running);
+}
+
+TEST(NetworkStateMotion, FailureAndRetryAreAvailableImmediately) {
+    MotionPolicyStateGuard guard;
+    MotionPolicy::setReducedForTest(false);
+
+    FilePanel panel;
+    panel.resize(700, 500);
+    panel.show();
+    qApp->processEvents();
+
+    QLabel *indicator = connectionStatusLabel(panel);
+    StatusBarWidget *statusBar = panel.findChild<StatusBarWidget *>();
+    ASSERT_NE(indicator, nullptr);
+    ASSERT_NE(statusBar, nullptr);
+    QSignalSpy retrySpy(statusBar, &StatusBarWidget::retryRequested);
+
+    emitNetworkState(panel, NetworkSession::Connecting);
+    EXPECT_FALSE(indicator->isVisible());
+
+    emitNetworkState(panel, NetworkSession::Failed);
+    EXPECT_TRUE(indicator->isVisible());
+    EXPECT_TRUE(indicator->text().contains(QStringLiteral("#retry")));
+
+    ASSERT_TRUE(QMetaObject::invokeMethod(indicator, "linkActivated", Qt::DirectConnection,
+                                          Q_ARG(QString, QStringLiteral("#retry"))));
+    EXPECT_EQ(retrySpy.count(), 1);
 }
 
 TEST(NetworkStateMotion, ConnectingBeyondDelayShowsOneStaticIndicatorWithReducedMotion) {

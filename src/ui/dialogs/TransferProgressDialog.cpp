@@ -93,8 +93,20 @@ TransferProgressDialog::TransferProgressDialog(OperationQueue *queue, QWidget *p
     m_showTimer->setSingleShot(true);
     m_showTimer->setInterval(kShowDelayMs);
     connect(m_showTimer, &QTimer::timeout, this, [this] {
-        if (m_running)
+        if (m_batchActive)
             showIfHidden();
+    });
+
+    m_terminalHideTimer = new QTimer(this);
+    m_terminalHideTimer->setObjectName(
+        QStringLiteral("TransferProgressTerminalHideTimer"));
+    m_terminalHideTimer->setSingleShot(true);
+    m_terminalHideTimer->setInterval(kOutcomeDurationMs);
+    connect(m_terminalHideTimer, &QTimer::timeout, this, [this] {
+        if (!m_batchActive && !m_hasError && m_shown) {
+            m_shown = false;
+            hide();
+        }
     });
 
     if (m_queue) {
@@ -142,7 +154,7 @@ void TransferProgressDialog::animateOutcomeColor(const QColor &target) {
         return;
     }
 
-    m_outcomeColorAnimation->setDuration(180);
+    m_outcomeColorAnimation->setDuration(kOutcomeDurationMs);
     m_outcomeColorAnimation->setEasingCurve(MotionPolicy::easing());
     m_outcomeColorAnimation->setStartValue(start);
     m_outcomeColorAnimation->setEndValue(target);
@@ -174,15 +186,20 @@ void TransferProgressDialog::onStarted(const QString &description) {
     m_speedLabel->clear();
     m_etaLabel->clear();
     m_fileLabel->clear();
-    m_errorLabel->clear();
-    m_hasError = false;
-    m_paused = false;
-    m_pauseButton->setText(tr("Pause"));
     m_progressBar->setRange(0, 0);
-    m_outcomeColorAnimation->stop();
-    setProgressColor(m_defaultProgressColor);
+    if (!m_batchActive) {
+        m_terminalHideTimer->stop();
+        m_errorLabel->clear();
+        m_hasError = false;
+        m_batchOk = true;
+        m_paused = false;
+        m_pauseButton->setText(tr("Pause"));
+        m_outcomeColorAnimation->stop();
+        setProgressColor(m_defaultProgressColor);
+        m_batchActive = true;
+    }
+    ++m_activeJobs;
     m_timer.start(); // reset the clock for throughput/ETA of this job
-    m_running = true;
     // Don't show yet: arm the deferred-show timer so a quick job never flashes a
     // window. onProgress may reveal it sooner if the total turns out to be large.
     if (!m_shown && !m_showTimer->isActive())
@@ -234,31 +251,29 @@ void TransferProgressDialog::onProgress(qint64 doneItems, qint64 totalItems, qin
 }
 
 void TransferProgressDialog::onQueueChanged(int pendingCount) {
+    m_pendingJobs = pendingCount;
     m_queueLabel->setText(pendingCount > 0 ? tr("%1 operation(s) queued").arg(pendingCount)
                                            : QString());
 }
 
 void TransferProgressDialog::onFinished(bool ok) {
-    // The queue drained. Cancel any pending deferred-show and drop the running
-    // flag so a late timer tick can't pop an empty window.
-    m_running = false;
+    if (m_activeJobs > 0)
+        --m_activeJobs;
+    m_batchOk = m_batchOk && ok;
+
+    // OperationQueue emits finished once per worker job. Keep the batch active
+    // until no worker is in flight and no queued job remains.
+    if (m_activeJobs > 0 || m_pendingJobs > 0)
+        return;
+
+    m_batchActive = false;
     m_showTimer->stop();
-    animateOutcomeColor(ok ? QColor(0x2c, 0xa0, 0x44) : QColor(0xe0, 0x4a, 0x4a));
+    animateOutcomeColor(m_batchOk ? QColor(0x2c, 0xa0, 0x44)
+                                  : QColor(0xe0, 0x4a, 0x4a));
     // Auto-hide the dialog once done, unless an error is on display (then the
     // user closes it after reading). A quick job that never showed stays hidden.
-    if (m_shown && ok && !m_hasError) {
-        if (MotionPolicy::reduced()) {
-            m_shown = false;
-            hide();
-        } else {
-            QTimer::singleShot(180, this, [this] {
-                if (!m_running && !m_hasError && m_shown) {
-                    m_shown = false;
-                    hide();
-                }
-            });
-        }
-    }
+    if (m_shown && m_batchOk && !m_hasError)
+        m_terminalHideTimer->start();
 }
 
 void TransferProgressDialog::onErrorOccurred(const QString &message) {

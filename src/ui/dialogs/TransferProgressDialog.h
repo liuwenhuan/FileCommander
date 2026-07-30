@@ -61,6 +61,7 @@ private:
 
     // Visibility policy thresholds.
     static constexpr int kShowDelayMs = 1000;                    // deferred-show delay
+    static constexpr int kOutcomeDurationMs = 180;               // terminal-state lifetime
     static constexpr qint64 kBigBytes = 100LL * 1024 * 1024;     // >100 MiB shows at once
     static constexpr qint64 kBigItems = 200;                     // >200 items shows at once
 
@@ -82,8 +83,12 @@ private:
 
     QElapsedTimer m_timer;
     QTimer *m_showTimer;    // single-shot deferred-show timer (kShowDelayMs)
+    QTimer *m_terminalHideTimer; // owns the shared successful-outcome window
     bool m_paused = false;
     bool m_shown = false;   // dialog currently visible for the running batch
-    bool m_running = false; // a job is active (between started and finished)
+    bool m_batchActive = false;
+    bool m_batchOk = true;
     bool m_hasError = false; // keep the dialog up after finish if an error showed
+    int m_activeJobs = 0;
+    int m_pendingJobs = 0;
 };
