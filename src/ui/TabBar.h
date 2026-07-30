@@ -17,6 +17,10 @@ public:
     explicit TabBar(QWidget *parent = nullptr);
     qreal activationProgress() const { return m_activationProgress; }
 
+    // Runs the current-tab visual transition after a caller intentionally
+    // suppressed currentChanged while installing consistent tab state.
+    void animateCurrentTabActivation();
+
     // FilePanel owns the visible left overflow control. Delegate its click to
     // Qt's hidden native helper so scrolling behavior stays platform-correct.
     void scrollLeft();

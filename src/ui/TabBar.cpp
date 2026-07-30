@@ -59,10 +59,7 @@ TabBar::TabBar(QWidget *parent) : QTabBar(parent) {
 
     m_activationAnimation = new QPropertyAnimation(this, "activationProgress", this);
     connect(this, &QTabBar::currentChanged, this, [this](int) {
-        if (count() > 1)
-            animateActivation();
-        else
-            setActivationProgress(1.0);
+        animateCurrentTabActivation();
     });
 
     // Qt still owns tab scrolling. FilePanel supplies the visible left control;
@@ -184,6 +181,13 @@ void TabBar::setActivationProgress(qreal progress) {
         return;
     m_activationProgress = progress;
     update();
+}
+
+void TabBar::animateCurrentTabActivation() {
+    if (count() > 1 && currentIndex() >= 0)
+        animateActivation();
+    else
+        setActivationProgress(1.0);
 }
 
 void TabBar::animateActivation() {

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <QApplication>
+#include <QDir>
 #include <QSplitter>
 #include <QTest>
 #include <QToolButton>
@@ -116,6 +117,56 @@ TEST(TabMotion, ActivationProgressLeavesEveryTabRectUnchanged) {
     EXPECT_EQ(tabBar.minimumSizeHint(), minimumSizeHintBefore);
 }
 
+TEST(TabMotion, NewTabActivatesAfterItsStateIsInstalled) {
+    MotionPolicyStateGuard guard;
+    MotionPolicy::setReducedForTest(false);
+
+    FilePanel panel;
+    panel.resize(700, 500);
+    panel.show();
+    qApp->processEvents();
+
+    TabBar *tabBar = panel.findChild<TabBar *>();
+    ASSERT_NE(tabBar, nullptr);
+    ASSERT_EQ(tabBar->count(), 1);
+
+    panel.newTab();
+
+    EXPECT_EQ(tabBar->count(), 2);
+    EXPECT_EQ(tabBar->currentIndex(), 1);
+    QTest::qWait(45);
+    EXPECT_GT(progress(*tabBar, "activationProgress"), 0.0);
+    EXPECT_LT(progress(*tabBar, "activationProgress"), 1.0);
+
+    QTest::qWait(MotionPolicy::duration(MotionDuration::Fast));
+    EXPECT_DOUBLE_EQ(progress(*tabBar, "activationProgress"), 1.0);
+}
+
+TEST(TabMotion, RestoredActiveTabActivatesAfterStateIsInstalled) {
+    MotionPolicyStateGuard guard;
+    MotionPolicy::setReducedForTest(false);
+
+    FilePanel panel;
+    panel.resize(700, 500);
+    panel.show();
+    qApp->processEvents();
+
+    TabBar *tabBar = panel.findChild<TabBar *>();
+    ASSERT_NE(tabBar, nullptr);
+    ASSERT_EQ(tabBar->count(), 1);
+
+    panel.restoreTabs({{QDir::rootPath(), {}}, {QDir::homePath(), {}}}, 1);
+
+    EXPECT_EQ(tabBar->count(), 2);
+    EXPECT_EQ(tabBar->currentIndex(), 1);
+    QTest::qWait(45);
+    EXPECT_GT(progress(*tabBar, "activationProgress"), 0.0);
+    EXPECT_LT(progress(*tabBar, "activationProgress"), 1.0);
+
+    QTest::qWait(MotionPolicy::duration(MotionDuration::Fast));
+    EXPECT_DOUBLE_EQ(progress(*tabBar, "activationProgress"), 1.0);
+}
+
 TEST(TabMotion, FocusProgressLeavesDualPaneSplitterSizesUnchanged) {
     MotionPolicyStateGuard guard;
     MotionPolicy::setReducedForTest(false);
@@ -212,8 +263,7 @@ TEST(TabMotion, ReducedMotionAppliesFinalTabAndFocusStatesSynchronously) {
 
     TabBar *tabs = left->findChild<TabBar *>();
     ASSERT_NE(tabs, nullptr);
-    tabs->addTab(QStringLiteral("Two"));
-    tabs->setCurrentIndex(1);
+    left->newTab();
     right->view()->setFocus();
     qApp->processEvents();
 

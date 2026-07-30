@@ -866,6 +866,7 @@ void FilePanel::showSearchResultsInNewTab(const QString &keyword, const QStringL
     m_flatPaths = paths;
     m_model->setFlatEntries(paths);
     updateNavButtons();
+    m_tabBar->animateCurrentTabActivation();
 }
 
 void FilePanel::pushHistory(const NavEntry &entry) {
@@ -2054,6 +2055,7 @@ void FilePanel::syncTabBarFromManager() {
     m_tabBar->blockSignals(false);
     refreshTabIcons();
     loadTabState(m_tabManager->activeIndex());
+    m_tabBar->animateCurrentTabActivation();
 }
 
 void FilePanel::saveCurrentTabState() {
@@ -2322,6 +2324,7 @@ void FilePanel::newTab() {
     m_tabManager->setActiveIndex(idx);
     loadTabState(idx);
     updateActiveTabLabel(); // stamp the new (local) tab: no icon, plain label
+    m_tabBar->animateCurrentTabActivation();
 }
 
 void FilePanel::closeCurrentTab() {
