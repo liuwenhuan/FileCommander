@@ -1,13 +1,18 @@
 #include <gtest/gtest.h>
 
 #include <QApplication>
+#include <QSignalSpy>
 #include <QShortcut>
 #include <QSplitter>
+#include <QTemporaryDir>
 
 #include <clocale>
+#include <memory>
 
 #include "BreadcrumbBar.h"
+#include "FileProvider.h"
 #include "FilePanel.h"
+#include "FileSystemModel.h"
 #include "MainWindow.h"
 #include "QuickView.h"
 #include "TabBar.h"
@@ -30,6 +35,52 @@ QSplitter *panelSplitter(MainWindow &window) {
 
 void processGuiEvents() {
     QCoreApplication::processEvents(QEventLoop::AllEvents, 1000);
+}
+
+class FakeSwapShare : public FileProvider {
+public:
+    QString displayName() const override { return QStringLiteral("tester@swap-share"); }
+    QString scheme() const override { return QStringLiteral("smb"); }
+
+    QVector<FileInfo> list(const QString &path, bool) const override {
+        if (cleanPath(path) != QStringLiteral("/share/docs"))
+            return {};
+        return {FileInfo::fromFields(QStringLiteral("/share/docs/remote.txt"),
+                                     QStringLiteral("remote.txt"), 11,
+                                     QDateTime::fromSecsSinceEpoch(1000000), false,
+                                     QFile::ReadOwner)};
+    }
+    bool isDir(const QString &path) const override {
+        return cleanPath(path) == QStringLiteral("/share/docs");
+    }
+    QString cleanPath(const QString &path) const override {
+        QString clean = path;
+        while (clean.size() > 1 && clean.endsWith(QLatin1Char('/')))
+            clean.chop(1);
+        return clean;
+    }
+    QString parentPath(const QString &path) const override {
+        const QString clean = cleanPath(path);
+        const int slash = clean.lastIndexOf(QLatin1Char('/'));
+        if (slash < 0)
+            return {};
+        return slash == 0 ? QStringLiteral("/") : clean.left(slash);
+    }
+    bool exists(const QString &path) const override {
+        const QString clean = cleanPath(path);
+        return clean == QStringLiteral("/share/docs") ||
+               clean == QStringLiteral("/share/docs/remote.txt");
+    }
+    RenameResult rename(const QString &, const QString &, QString *) override {
+        return RenameResult::Failed;
+    }
+};
+
+void settle(FilePanel &panel) {
+    QSignalSpy spy(panel.model(), &FileSystemModel::loadFinished);
+    if (spy.isEmpty())
+        spy.wait(4000);
+    processGuiEvents();
 }
 
 } // namespace
@@ -114,4 +165,42 @@ TEST(MainWindowLayoutTest, LongDirectoryNamesDoNotSetThePanelMinimumWidth) {
     splitter.setSizes({260, 900});
     processGuiEvents();
     EXPECT_LE(splitter.sizes().at(0), 300);
+}
+
+TEST(MainWindowPreviewSwapTest, SwapPanelsMovesRemoteConnectionWithItsPath) {
+    QTemporaryDir localDir;
+    ASSERT_TRUE(localDir.isValid());
+
+    MainWindow window;
+    window.resize(1000, 700);
+    window.show();
+    processGuiEvents();
+
+    QSplitter *splitter = panelSplitter(window);
+    ASSERT_NE(splitter, nullptr);
+    auto *left = qobject_cast<FilePanel *>(splitter->widget(0));
+    auto *right = qobject_cast<FilePanel *>(splitter->widget(1));
+    ASSERT_NE(left, nullptr);
+    ASSERT_NE(right, nullptr);
+
+    auto share = std::make_shared<FakeSwapShare>();
+    left->connectTabTo(0, share, [](QString *) { return true; },
+                       QStringLiteral("/share/docs"), QStringLiteral("tester@swap-share"),
+                       SavedConnection{}, FileSystemModel::AuthRetryFactory());
+    settle(*left);
+    right->navigateTo(localDir.path());
+    settle(*right);
+    ASSERT_TRUE(left->model()->hasNetworkSession());
+    const QString connectionId = left->connectionId();
+
+    ASSERT_TRUE(QMetaObject::invokeMethod(&window, "swapPanels"));
+    processGuiEvents();
+    settle(*left);
+    settle(*right);
+
+    EXPECT_EQ(left->currentPath(), localDir.path());
+    EXPECT_FALSE(left->model()->hasNetworkSession());
+    EXPECT_EQ(right->currentPath(), QStringLiteral("/share/docs"));
+    EXPECT_TRUE(right->model()->hasNetworkSession());
+    EXPECT_EQ(right->connectionId(), connectionId);
 }

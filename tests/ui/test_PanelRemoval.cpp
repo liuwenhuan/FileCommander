@@ -10,6 +10,7 @@
 #include "FilePanel.h"
 #include "FileProvider.h"
 #include "FileSystemModel.h"
+#include "TabBar.h"
 
 // What the listing does once a delete or a move has finished.
 //
@@ -157,4 +158,30 @@ TEST(PanelRemovalTest, RemoteDeleteThatSucceededDropsTheRow) {
 
     EXPECT_FALSE(listHasName(panel.model(), QStringLiteral("report.pdf")));
     EXPECT_TRUE(listHasName(panel.model(), QStringLiteral("notes.txt")));
+}
+
+TEST(PanelRemovalTest, ClosingAnInactiveRemoteTabLeavesTheActiveTabLocal) {
+    auto share = std::make_shared<FakeShare>();
+    share->names = QStringList{QStringLiteral("report.pdf")};
+
+    FilePanel panel;
+    panel.connectTabTo(0, share, [](QString *) { return true; },
+                       QStringLiteral("/share/docs"), QStringLiteral("tester@share"),
+                       SavedConnection{}, FileSystemModel::AuthRetryFactory());
+    settle(panel);
+    ASSERT_TRUE(panel.model()->hasNetworkSession());
+
+    panel.newTab();
+    settle(panel);
+    ASSERT_EQ(panel.activeTabIndex(), 1);
+
+    auto *tabs = panel.findChild<TabBar *>();
+    ASSERT_NE(tabs, nullptr);
+    ASSERT_TRUE(QMetaObject::invokeMethod(tabs, "closeTabRequested", Qt::DirectConnection,
+                                          Q_ARG(int, 0)));
+    settle(panel);
+
+    EXPECT_EQ(panel.tabCount(), 1);
+    EXPECT_FALSE(panel.tabHasConnection(0));
+    EXPECT_FALSE(panel.model()->hasNetworkSession());
 }

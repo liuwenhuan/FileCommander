@@ -120,7 +120,7 @@ bool buildZip(const QString &srcRoot, const QString &outPath) {
 // The regression guard for the case that already worked: a local archive is
 // entered in place, ".." returns to the directory holding it, and the user's own
 // file is still there afterwards.
-TEST(NetworkArchiveBrowseTest, LocalArchiveEntersAndExitsUnchanged) {
+TEST(NetworkArchiveBrowse, LocalArchiveEntersAndExitsUnchanged) {
     QTemporaryDir srcDir, hostDir;
     ASSERT_TRUE(srcDir.isValid() && hostDir.isValid());
     const QString archivePath = QDir(hostDir.path()).filePath("bundle.zip");
@@ -146,7 +146,7 @@ TEST(NetworkArchiveBrowseTest, LocalArchiveEntersAndExitsUnchanged) {
 
 // The archive is on the share, so the copy is in /tmp -- but ".." has to lead
 // back to the share, with the connection that serves it still up.
-TEST(NetworkArchiveBrowseTest, RemoteArchiveExitsToTheShareWithTheConnectionIntact) {
+TEST(NetworkArchiveBrowse, RemoteArchiveExitsToTheShareWithTheConnectionIntact) {
     QTemporaryDir srcDir, copyRoot;
     ASSERT_TRUE(srcDir.isValid() && copyRoot.isValid());
     // The downloaded copy lands in a directory of its own, as the fetch arranges.
@@ -193,7 +193,7 @@ TEST(NetworkArchiveBrowseTest, RemoteArchiveExitsToTheShareWithTheConnectionInta
 
 // Switching tabs takes the panel's backend with it, so the archive cannot stay:
 // the tab goes back to the directory it was entered from and keeps its server.
-TEST(NetworkArchiveBrowseTest, TabSwitchBacksOutOfTheArchiveKeepingTheConnection) {
+TEST(NetworkArchiveBrowse, TabSwitchBacksOutOfTheArchiveKeepingTheConnection) {
     QTemporaryDir srcDir, copyRoot;
     ASSERT_TRUE(srcDir.isValid() && copyRoot.isValid());
     const QString localCopy = QDir(copyRoot.path()).filePath("bundle.zip");
@@ -227,7 +227,7 @@ TEST(NetworkArchiveBrowseTest, TabSwitchBacksOutOfTheArchiveKeepingTheConnection
 
 // Closing the tab an archive was entered from takes the archive with it: the
 // panel must not go on reporting itself read-only over whatever tab slides in.
-TEST(NetworkArchiveBrowseTest, ClosingTheArchivesTabLeavesTheArchive) {
+TEST(NetworkArchiveBrowse, ClosingTheArchivesTabLeavesTheArchive) {
     QTemporaryDir srcDir, hostDir;
     ASSERT_TRUE(srcDir.isValid() && hostDir.isValid());
     const QString archivePath = QDir(hostDir.path()).filePath("bundle.zip");
@@ -257,7 +257,7 @@ TEST(NetworkArchiveBrowseTest, ClosingTheArchivesTabLeavesTheArchive) {
 // deleted on the way out; a mounted path is the USER'S FILE ON THEIR SERVER, and
 // the same deletion there destroys it. The only thing separating the two is the
 // ownsLocalCopy=false that MainWindow::browseRemoteArchive passes, so pin it.
-TEST(NetworkArchiveBrowseTest, ArchiveOpenedThroughAMountIsNeverDeleted) {
+TEST(NetworkArchiveBrowse, ArchiveOpenedThroughAMountIsNeverDeleted) {
     QTemporaryDir srcDir, mountRoot;
     ASSERT_TRUE(srcDir.isValid() && mountRoot.isValid());
     // Stands in for the mount point: a path that is real on this machine but
@@ -303,7 +303,7 @@ TEST(NetworkArchiveBrowseTest, ArchiveOpenedThroughAMountIsNeverDeleted) {
 // The same guarantee where it is easiest to lose: the tab is closed (or switched
 // away from) rather than walked out of, so the teardown runs from a different
 // path than navigateUp().
-TEST(NetworkArchiveBrowseTest, ClosingTheTabDoesNotDeleteAMountedArchive) {
+TEST(NetworkArchiveBrowse, ClosingTheTabDoesNotDeleteAMountedArchive) {
     QTemporaryDir srcDir, mountRoot;
     ASSERT_TRUE(srcDir.isValid() && mountRoot.isValid());
     const QString mountedArchive = QDir(mountRoot.path()).filePath("bundle.zip");

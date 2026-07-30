@@ -18,6 +18,7 @@ set(UI_TEST_SOURCES
     test_IconFileView.cpp
     test_VideoRangePlan.cpp
     test_FilePanelFont.cpp
+    test_TabSessionLifecycle.cpp
     test_NetworkArchiveBrowse.cpp
     test_FilePanelTreeSync.cpp
     test_TitleBarTheme.cpp
