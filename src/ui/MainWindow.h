@@ -52,6 +52,7 @@ class MainWindow : public QMainWindow {
 
 public:
     explicit MainWindow(QWidget *parent = nullptr);
+    ~MainWindow() override;
     // Packaging-only smoke flow: browse `directory`, load each supplied local
     // preview fixture, then exit. It is intentionally not exposed through UI.
     void runPackageSmoke(const QString &directory);

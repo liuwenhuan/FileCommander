@@ -131,7 +131,6 @@ private:
 
     std::shared_ptr<FileProvider> m_provider;
     fc::RuntimeCounterGuard m_sessionCounter{fc::RuntimeCounter::NetworkSession};
-    fc::RuntimeCounterGuard m_threadCounter{fc::RuntimeCounter::NetworkThread};
     std::unique_ptr<fc::RuntimeCounterGuard> m_heartbeatCounter;
     QThread *m_thread = nullptr;
     QTimer *m_heartbeat = nullptr; // created/owned on the worker thread

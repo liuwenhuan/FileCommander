@@ -20,6 +20,16 @@ NetworkSession::NetworkSession(std::shared_ptr<FileProvider> provider, QObject *
     }
     m_thread = new QThread;
     m_thread->setObjectName(QStringLiteral("NetworkSession"));
+    auto threadCounter =
+        std::make_shared<std::unique_ptr<fc::RuntimeCounterGuard>>();
+    connect(m_thread, &QThread::started, m_thread,
+            [threadCounter] {
+                *threadCounter =
+                    std::make_unique<fc::RuntimeCounterGuard>(fc::RuntimeCounter::NetworkThread);
+            },
+            Qt::DirectConnection);
+    connect(m_thread, &QThread::finished, m_thread,
+            [threadCounter] { threadCounter->reset(); }, Qt::DirectConnection);
     moveToThread(m_thread);
     // Tear the worker QObject state down on the worker thread when it finishes.
     m_thread->start();
@@ -143,12 +153,12 @@ bool NetworkSession::reconnectCycle() {
             return false;
         if (ok) {
             m_everConnected = true;
+            setState(Connected);
             if (m_heartbeat && !m_heartbeat->isActive()) {
                 m_heartbeat->start();
                 m_heartbeatCounter =
                     std::make_unique<fc::RuntimeCounterGuard>(fc::RuntimeCounter::ActiveHeartbeat);
             }
-            setState(Connected);
             return true;
         }
         // Authentication needed on the initial connect: stop retrying anonymously

@@ -108,7 +108,11 @@ TEST(NetworkSessionLifecycle, CountersCoverConnectedSessionAndReturnToBaseline) 
     const fc::RuntimeSnapshot active = fc::runtimeSnapshot();
     EXPECT_EQ(active.networkSessions, before.networkSessions + 1);
     EXPECT_EQ(active.networkThreads, before.networkThreads + 1);
-    EXPECT_EQ(active.activeHeartbeats, before.activeHeartbeats + 1);
+    ASSERT_TRUE(spinUntil(
+        [&] {
+            return fc::runtimeSnapshot().activeHeartbeats == before.activeHeartbeats + 1;
+        },
+        3000));
 
     session.reset();
     ASSERT_TRUE(spinUntil([&] { return destroyed.load(); }, 3000));

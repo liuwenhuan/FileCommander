@@ -22,6 +22,17 @@ TEST(RuntimeCounters, MoveTransfersTheSingleOwnedIncrement) {
     EXPECT_EQ(fc::runtimeSnapshot().transferWorkers, before.transferWorkers);
 }
 
+TEST(RuntimeCounters, MoveAssignmentReleasesThePreviousIncrement) {
+    const fc::RuntimeSnapshot before = fc::runtimeSnapshot();
+    {
+        fc::RuntimeCounterGuard first(fc::RuntimeCounter::TransferWorker);
+        fc::RuntimeCounterGuard second(fc::RuntimeCounter::TransferWorker);
+        second = std::move(first);
+        EXPECT_EQ(fc::runtimeSnapshot().transferWorkers, before.transferWorkers + 1);
+    }
+    EXPECT_EQ(fc::runtimeSnapshot().transferWorkers, before.transferWorkers);
+}
+
 TEST(RuntimeCounters, OperationQueueTracksEveryTransferWorker) {
     const fc::RuntimeSnapshot before = fc::runtimeSnapshot();
     {
