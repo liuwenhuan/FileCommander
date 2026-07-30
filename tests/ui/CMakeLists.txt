@@ -39,6 +39,7 @@ set(UI_TEST_SOURCES
     test_MainWindowPreviewSwap.cpp
     test_MainWindowActions.cpp
     test_FilePanelTheme.cpp
+    test_TabMotion.cpp
     test_FileListViewLayout.cpp
     test_TextEncodingDetector.cpp
     test_ChecksumDialog.cpp

@@ -7,9 +7,12 @@
 #include <QMenu>
 #include <QPaintEvent>
 #include <QPainter>
+#include <QPropertyAnimation>
 #include <QStyle>
 #include <QStyleOptionTabBarBase>
 #include <QToolButton>
+
+#include "MotionPolicy.h"
 
 namespace {
 // A close button that paints its own "×" so the deepin (DTK) style can't
@@ -53,6 +56,14 @@ TabBar::TabBar(QWidget *parent) : QTabBar(parent) {
     setFocusPolicy(Qt::NoFocus);   // no dashed focus rectangle on the active tab
 
     connect(this, &QTabBar::tabCloseRequested, this, &TabBar::closeTabRequested);
+
+    m_activationAnimation = new QPropertyAnimation(this, "activationProgress", this);
+    connect(this, &QTabBar::currentChanged, this, [this](int) {
+        if (count() > 1)
+            animateActivation();
+        else
+            setActivationProgress(1.0);
+    });
 
     // Qt still owns tab scrolling. FilePanel supplies the visible left control;
     // the native right control remains in the tab bar.
@@ -148,8 +159,9 @@ void TabBar::paintEvent(QPaintEvent *event) {
         if (r.isValid()) {
             QPainter p(this);
             constexpr int thickness = 3;
-            p.fillRect(r.x(), r.y(), r.width(), thickness,
-                       palette().color(QPalette::Highlight));
+            QColor accent = palette().color(QPalette::Highlight);
+            accent.setAlphaF(accent.alphaF() * m_activationProgress);
+            p.fillRect(r.x(), r.y(), r.width(), thickness, accent);
         }
     }
 
@@ -164,6 +176,34 @@ void TabBar::paintEvent(QPaintEvent *event) {
         QPainter p(this);
         p.fillRect(nativeLeft, palette().color(QPalette::Window));
     }
+}
+
+void TabBar::setActivationProgress(qreal progress) {
+    progress = qBound<qreal>(0.0, progress, 1.0);
+    if (qFuzzyCompare(m_activationProgress, progress))
+        return;
+    m_activationProgress = progress;
+    update();
+}
+
+void TabBar::animateActivation() {
+    const bool wasRunning =
+        m_activationAnimation->state() == QAbstractAnimation::Running;
+    const qreal start = wasRunning ? m_activationProgress : 0.0;
+    m_activationAnimation->stop();
+
+    const int duration = MotionPolicy::duration(MotionDuration::Fast);
+    if (duration == 0) {
+        setActivationProgress(1.0);
+        return;
+    }
+
+    setActivationProgress(start);
+    m_activationAnimation->setDuration(duration);
+    m_activationAnimation->setEasingCurve(MotionPolicy::easing());
+    m_activationAnimation->setStartValue(start);
+    m_activationAnimation->setEndValue(1.0);
+    m_activationAnimation->start();
 }
 
 void TabBar::refreshCloseButtons() {

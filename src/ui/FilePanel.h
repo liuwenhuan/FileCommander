@@ -29,6 +29,8 @@ class IconFileView;
 class QStackedWidget;
 class ThumbnailDelegate;
 class QAbstractItemView;
+class QPaintEvent;
+class QPropertyAnimation;
 class QTimer;
 class DirectorySizeTask;
 
@@ -36,10 +38,12 @@ class DirectorySizeTask;
 // back/forward history. Two of these live in MainWindow (left/right).
 class FilePanel : public QWidget {
     Q_OBJECT
+    Q_PROPERTY(qreal focusProgress READ focusProgress WRITE setFocusProgress)
 
 public:
     explicit FilePanel(QWidget *parent = nullptr);
     ~FilePanel() override;
+    qreal focusProgress() const { return m_focusProgress; }
 
     QString currentPath() const { return m_model->rootPath(); }
     void navigateTo(const QString &path);
@@ -302,6 +306,7 @@ signals:
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
+    void paintEvent(QPaintEvent *event) override;
 
 private slots:
     void onActivated(const QModelIndex &index);
@@ -309,6 +314,8 @@ private slots:
     void onTabBarCurrentChanged(int index);
 
 private:
+    void setFocusProgress(qreal progress);
+    void animateFocus(bool focused);
     // A single back/forward history location: either a real directory, or a flat
     // "virtual directory" of arbitrary paths (Ctrl+F search results fed to the
     // panel). Modelling flat listings as history entries lets Back/Forward return
@@ -500,6 +507,8 @@ private:
 
     TabManager *m_tabManager;
     TabBar *m_tabBar;
+    qreal m_focusProgress = 0.0;
+    QPropertyAnimation *m_focusAnimation = nullptr;
     QStringList m_pendingSelection;
 
     // Non-null while this panel is browsing inside an archive (read-only). Held

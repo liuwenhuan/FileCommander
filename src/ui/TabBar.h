@@ -3,6 +3,7 @@
 #include <QTabBar>
 
 class QAbstractButton;
+class QPropertyAnimation;
 class QResizeEvent;
 
 // Visual tab strip for one FilePanel. Thin wrapper around QTabBar adding
@@ -10,9 +11,11 @@ class QResizeEvent;
 // synced with Ctrl+D). Tab state itself lives in TabManager, not here.
 class TabBar : public QTabBar {
     Q_OBJECT
+    Q_PROPERTY(qreal activationProgress READ activationProgress WRITE setActivationProgress)
 
 public:
     explicit TabBar(QWidget *parent = nullptr);
+    qreal activationProgress() const { return m_activationProgress; }
 
     // FilePanel owns the visible left overflow control. Delegate its click to
     // Qt's hidden native helper so scrolling behavior stays platform-correct.
@@ -37,6 +40,8 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
+    void setActivationProgress(qreal progress);
+    void animateActivation();
     // Keeps the "×" buttons in sync: they all use the tab label colour (palette
     // WindowText) for legibility, and a lone tab shows none at all. Driven from
     // paintEvent so it always sees the correct tab count, even when tabs are
@@ -45,4 +50,6 @@ private:
     void syncScrollButtons();
     QAbstractButton *createCloseButton();
     bool m_scrollButtonsVisible = false;
+    qreal m_activationProgress = 1.0;
+    QPropertyAnimation *m_activationAnimation = nullptr;
 };

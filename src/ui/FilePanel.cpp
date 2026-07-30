@@ -25,6 +25,7 @@
 #include <QPainter>
 #include <QPen>
 #include <QPixmap>
+#include <QPropertyAnimation>
 #include <QSet>
 #include <QStackedWidget>
 #include <QListView>
@@ -54,6 +55,7 @@
 #include "tree/TreeRootBuilder.h"
 #include "ThumbnailCache.h"
 #include "ThumbnailDelegate.h"
+#include "MotionPolicy.h"
 
 #include <algorithm>
 
@@ -64,6 +66,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     // declare `background: transparent` for this class so their appearance is
     // unchanged -- it shows the parent, exactly as it did before.
     setAttribute(Qt::WA_StyledBackground, true);
+    m_focusAnimation = new QPropertyAnimation(this, "focusProgress", this);
     // Long tab and address text must clip inside this splitter pane rather
     // than turning into a minimum width for the whole pane.
     setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
@@ -205,6 +208,7 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_dirTree->setModel(m_dirTreeModel);
     m_dirTree->setHeaderHidden(true);
     m_dirTree->setFocusPolicy(Qt::ClickFocus);
+    m_dirTree->installEventFilter(this);
     m_dirTree->hide();
     connect(m_dirTree, &QTreeView::activated, this, &FilePanel::activateTreeIndex);
     // The walk towards the current directory can only continue once a level has
@@ -439,8 +443,20 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
 }
 
 bool FilePanel::eventFilter(QObject *watched, QEvent *event) {
-    if ((watched == m_view || watched == m_iconView) && event->type() == QEvent::FocusIn)
-        emit panelActivated(this);
+    const bool panelInput = watched == m_view || watched == m_iconView ||
+                            watched == m_dirTree || watched == m_filterBar;
+    if (panelInput && event->type() == QEvent::FocusIn) {
+        animateFocus(true);
+        if (watched == m_view || watched == m_iconView)
+            emit panelActivated(this);
+    } else if (panelInput && event->type() == QEvent::FocusOut) {
+        // The focus widget is updated after the outgoing widget's event. Defer
+        // the check so focus moving inside this panel leaves its border intact.
+        QTimer::singleShot(0, this, [this] {
+            QWidget *focus = QApplication::focusWidget();
+            animateFocus(focus && (focus == this || isAncestorOf(focus)));
+        });
+    }
 
     // Plain Tab (not Ctrl+Tab, which cycles tabs) jumps to the other panel.
     // Both views, not just the list: the panel keeps working the same way after
@@ -507,6 +523,46 @@ bool FilePanel::eventFilter(QObject *watched, QEvent *event) {
         }
     }
     return QWidget::eventFilter(watched, event);
+}
+
+void FilePanel::paintEvent(QPaintEvent *event) {
+    QWidget::paintEvent(event);
+    if (m_focusProgress <= 0.0)
+        return;
+
+    QColor accent = palette().color(QPalette::Highlight);
+    accent.setAlphaF(accent.alphaF() * m_focusProgress);
+    QPainter painter(this);
+    painter.setPen(QPen(accent, 2));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRect(rect().adjusted(0, 0, -1, -1));
+}
+
+void FilePanel::setFocusProgress(qreal progress) {
+    progress = qBound<qreal>(0.0, progress, 1.0);
+    if (qFuzzyCompare(m_focusProgress, progress))
+        return;
+    m_focusProgress = progress;
+    update();
+}
+
+void FilePanel::animateFocus(bool focused) {
+    const qreal target = focused ? 1.0 : 0.0;
+    const qreal start = m_focusProgress;
+    m_focusAnimation->stop();
+
+    const int duration = MotionPolicy::duration(MotionDuration::Fast);
+    if (duration == 0) {
+        setFocusProgress(target);
+        return;
+    }
+
+    setFocusProgress(start);
+    m_focusAnimation->setDuration(duration);
+    m_focusAnimation->setEasingCurve(MotionPolicy::easing());
+    m_focusAnimation->setStartValue(start);
+    m_focusAnimation->setEndValue(target);
+    m_focusAnimation->start();
 }
 
 void FilePanel::showQuickFilter() {

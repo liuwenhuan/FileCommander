@@ -131,6 +131,15 @@ TEST(FilePanelThemeTest, TabBarsKeepTheSameHeightWithDifferentTabCounts) {
     EXPECT_EQ(singleTabBar->tabRect(0).height(), multipleTabBar->tabRect(0).height());
 }
 
+TEST(FilePanelThemeTest, MotionProgressPropertiesRemainAvailableToThemeAwarePainting) {
+    FilePanel panel;
+    TabBar *tabBar = panel.findChild<TabBar *>();
+    ASSERT_NE(tabBar, nullptr);
+
+    EXPECT_GE(panel.metaObject()->indexOfProperty("focusProgress"), 0);
+    EXPECT_GE(tabBar->metaObject()->indexOfProperty("activationProgress"), 0);
+}
+
 TEST(TabBarTest, OverflowKeepsOnlyTheNativeRightScrollerInTheTabBar) {
     TabBar tabBar;
     for (int index = 0; index < 20; ++index)
