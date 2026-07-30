@@ -16,6 +16,7 @@
 #include <QLabel>
 #include <QMutex>
 #include <QPointer>
+#include <QProcess>
 #include <QScrollArea>
 #include <QSemaphore>
 #include <QSignalSpy>
@@ -280,6 +281,67 @@ TEST(ImagePreviewLoader, CoalescesPendingRendersAndCancelsStaleWorkerBeforeTrans
     EXPECT_EQ(beforeTransform.at(1), latest);
     EXPECT_FALSE(beforeTransform.contains(middle));
     EXPECT_FALSE(afterTransform.contains(first));
+}
+
+TEST(ImagePreviewLoader, CancelledFileWaitReleasesDifferentPathAndSecondLoader) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QDir root(dir.path());
+    const QString blockedPath =
+        writeImage(root, QStringLiteral("blocked.png"), QSize(80, 50), Qt::red, "PNG");
+    const QString switchedPath =
+        writeImage(root, QStringLiteral("switched.png"), QSize(8, 6), Qt::green, "PNG");
+    const QString otherPath =
+        writeImage(root, QStringLiteral("other.png"), QSize(7, 5), Qt::blue, "PNG");
+    ASSERT_FALSE(blockedPath.isEmpty());
+    ASSERT_FALSE(switchedPath.isEmpty());
+    ASSERT_FALSE(otherPath.isEmpty());
+
+    ImagePreviewLoader firstLoader;
+    ImagePreviewLoader secondLoader;
+    QSignalSpy firstLoaded(&firstLoader, &ImagePreviewLoader::loaded);
+    QSignalSpy secondLoaded(&secondLoader, &ImagePreviewLoader::loaded);
+    QSemaphore writerEntered;
+    QSemaphore releaseWriter;
+    QSemaphore readerWaiting;
+    firstLoader.setWorkerCheckpointForTest(
+        [&](ImagePreviewLoader::WorkerCheckpoint checkpoint, quint64) {
+            if (checkpoint == ImagePreviewLoader::WorkerCheckpoint::RotationBeforeWrite) {
+                writerEntered.release();
+                releaseWriter.acquire();
+            } else if (checkpoint ==
+                       ImagePreviewLoader::WorkerCheckpoint::LoadWaitingForFile) {
+                readerWaiting.release();
+            }
+        });
+
+    firstLoader.persistRotation(blockedPath, 90);
+    ASSERT_TRUE(writerEntered.tryAcquire(1, 5000));
+    struct ReleaseOnExit {
+        QSemaphore &semaphore;
+        bool armed = true;
+        ~ReleaseOnExit() {
+            if (armed)
+                semaphore.release();
+        }
+    } releaseOnExit{releaseWriter};
+
+    firstLoader.load(blockedPath);
+    ASSERT_TRUE(readerWaiting.tryAcquire(1, 5000));
+    const quint64 switchedGeneration = firstLoader.load(switchedPath);
+    const quint64 otherGeneration = secondLoader.load(otherPath);
+
+    QTRY_COMPARE_WITH_TIMEOUT(firstLoaded.count(), 1, 1000);
+    QTRY_COMPARE_WITH_TIMEOUT(secondLoaded.count(), 1, 1000);
+    EXPECT_EQ(firstLoaded.first().at(0).toULongLong(), switchedGeneration);
+    EXPECT_EQ(secondLoaded.first().at(0).toULongLong(), otherGeneration);
+    EXPECT_EQ(qvariant_cast<QImage>(firstLoaded.first().at(1)).size(), QSize(8, 6));
+    EXPECT_EQ(qvariant_cast<QImage>(secondLoaded.first().at(1)).size(), QSize(7, 5));
+
+    releaseWriter.release();
+    releaseOnExit.armed = false;
+    EXPECT_TRUE(firstLoader.waitForIdleForTest(5000));
+    EXPECT_TRUE(secondLoader.waitForIdleForTest(5000));
 }
 
 TEST(ImagePreviewLoader, DamagedImageKeepsQuickViewOnNoPreviewPage) {
@@ -572,6 +634,21 @@ TEST(ImagePreviewLoader, DestroyingQuickViewDuringRenderDoesNotWaitOrDeliver) {
     releaseRender.release();
     EXPECT_TRUE(ImagePreviewLoader::waitForAllForTest(5000));
     QCoreApplication::processEvents();
+}
+
+TEST(ImagePreviewLoader, ApplicationShutdownDoesNotDestroyActiveWorkerPools) {
+    QProcess probe;
+    probe.start(QCoreApplication::applicationFilePath(),
+                {QStringLiteral("--image-preview-shutdown-probe")});
+    ASSERT_TRUE(probe.waitForStarted(5000));
+    const bool exited = probe.waitForFinished(2000);
+    if (!exited) {
+        probe.kill();
+        probe.waitForFinished(5000);
+    }
+    ASSERT_TRUE(exited) << probe.readAllStandardError().constData();
+    EXPECT_EQ(probe.exitStatus(), QProcess::NormalExit);
+    EXPECT_EQ(probe.exitCode(), 0) << probe.readAllStandardError().constData();
 }
 
 TEST(ImagePreviewLoader, FitModeRecomputesAfterQuarterTurn) {

@@ -18,6 +18,7 @@
 #include <QStandardPaths>
 #include <QThread>
 #include <QThreadPool>
+#include <QVector>
 #include <QWaitCondition>
 #include <QtConcurrent>
 
@@ -47,19 +48,48 @@ public:
     }
 };
 
+void wakeFileAccessWaiters();
+
+class PreviewWorkerService {
+public:
+    PreviewWorkerService() {
+        if (auto *application = QCoreApplication::instance()) {
+            QObject::connect(application, &QCoreApplication::aboutToQuit, application, [this] {
+                m_shuttingDown.store(true, std::memory_order_release);
+                wakeFileAccessWaiters();
+            });
+        }
+    }
+
+    bool shuttingDown() const {
+        return m_shuttingDown.load(std::memory_order_acquire);
+    }
+
+    PreviewWorkerPool loadPool;
+    PreviewWorkerPool renderPool;
+    PreviewWorkerPool rotationPool;
+
+private:
+    std::atomic_bool m_shuttingDown{false};
+};
+
+PreviewWorkerService *workerService() {
+    // Deliberately leaked like ThumbnailCache: active workers may survive their
+    // widgets, so pool destruction must never run after QApplication teardown.
+    static auto *service = new PreviewWorkerService;
+    return service;
+}
+
 QThreadPool *loadPool() {
-    static PreviewWorkerPool pool;
-    return &pool;
+    return &workerService()->loadPool;
 }
 
 QThreadPool *renderPool() {
-    static PreviewWorkerPool pool;
-    return &pool;
+    return &workerService()->renderPool;
 }
 
 QThreadPool *rotationPool() {
-    static PreviewWorkerPool pool;
-    return &pool;
+    return &workerService()->rotationPool;
 }
 
 struct FileAccessEntry {
@@ -70,38 +100,91 @@ struct FileAccessEntry {
     bool writerActive = false;
 };
 
+struct FileAccessRegistry {
+    QMutex mutex;
+    QHash<QString, std::weak_ptr<FileAccessEntry>> entries;
+};
+
+FileAccessRegistry *fileAccessRegistry() {
+    // Workers can still hold entries while the process exits. Keep the
+    // registry alive with the deliberately leaked worker service.
+    static auto *registry = new FileAccessRegistry;
+    return registry;
+}
+
 std::shared_ptr<FileAccessEntry> fileAccessEntry(const QString &path) {
-    static QMutex registryMutex;
-    static QHash<QString, std::weak_ptr<FileAccessEntry>> registry;
     QString key = QDir::cleanPath(QFileInfo(path).absoluteFilePath());
 #ifdef Q_OS_WIN
     key = key.toCaseFolded();
 #endif
-    QMutexLocker locker(&registryMutex);
-    if (auto existing = registry.value(key).lock())
+    FileAccessRegistry *registry = fileAccessRegistry();
+    QMutexLocker locker(&registry->mutex);
+    if (auto existing = registry->entries.value(key).lock())
         return existing;
     auto entry = std::make_shared<FileAccessEntry>();
-    registry.insert(key, entry);
+    registry->entries.insert(key, entry);
     return entry;
+}
+
+void wakeFileAccessWaiters() {
+    QVector<std::shared_ptr<FileAccessEntry>> entries;
+    {
+        FileAccessRegistry *registry = fileAccessRegistry();
+        QMutexLocker locker(&registry->mutex);
+        auto it = registry->entries.begin();
+        while (it != registry->entries.end()) {
+            if (auto entry = it.value().lock()) {
+                entries.append(std::move(entry));
+                ++it;
+            } else {
+                it = registry->entries.erase(it);
+            }
+        }
+    }
+    for (const auto &entry : entries) {
+        QMutexLocker locker(&entry->mutex);
+        entry->condition.wakeAll();
+    }
 }
 
 class FileReadLease {
 public:
-    explicit FileReadLease(const QString &path) : m_entry(fileAccessEntry(path)) {
+    FileReadLease(const QString &path, std::function<bool()> cancelled,
+                  std::function<void()> waiting)
+        : m_entry(fileAccessEntry(path)) {
         QMutexLocker locker(&m_entry->mutex);
-        while (m_entry->pendingWriters > 0 || m_entry->writerActive)
+        bool announcedWait = false;
+        while (m_entry->pendingWriters > 0 || m_entry->writerActive) {
+            if (cancelled())
+                return;
+            if (!announcedWait) {
+                announcedWait = true;
+                locker.unlock();
+                waiting();
+                locker.relock();
+                continue;
+            }
             m_entry->condition.wait(&m_entry->mutex);
+        }
+        if (cancelled())
+            return;
         ++m_entry->activeReaders;
+        m_acquired = true;
     }
 
     ~FileReadLease() {
+        if (!m_acquired)
+            return;
         QMutexLocker locker(&m_entry->mutex);
         --m_entry->activeReaders;
         m_entry->condition.wakeAll();
     }
 
+    explicit operator bool() const { return m_acquired; }
+
 private:
     std::shared_ptr<FileAccessEntry> m_entry;
+    bool m_acquired = false;
 };
 
 class FileWriteReservation {
@@ -116,18 +199,26 @@ public:
             finish();
     }
 
-    void begin() {
+    bool begin(const std::function<bool()> &cancelled) {
         QMutexLocker locker(&m_entry->mutex);
-        while (m_entry->activeReaders > 0 || m_entry->writerActive)
+        while (m_entry->activeReaders > 0 || m_entry->writerActive) {
+            if (cancelled())
+                return false;
             m_entry->condition.wait(&m_entry->mutex);
+        }
+        if (cancelled())
+            return false;
         m_entry->writerActive = true;
+        m_begun = true;
+        return true;
     }
 
     void finish() {
         if (m_finished)
             return;
         QMutexLocker locker(&m_entry->mutex);
-        m_entry->writerActive = false;
+        if (m_begun)
+            m_entry->writerActive = false;
         --m_entry->pendingWriters;
         m_finished = true;
         m_entry->condition.wakeAll();
@@ -135,6 +226,7 @@ public:
 
 private:
     std::shared_ptr<FileAccessEntry> m_entry;
+    bool m_begun = false;
     bool m_finished = false;
 };
 
@@ -207,7 +299,8 @@ struct ImagePreviewLoaderDeliveryToken {
 namespace {
 
 bool isCancelled(const std::shared_ptr<ImagePreviewLoaderState> &state, quint64 generation) {
-    return state->destroyed.load(std::memory_order_acquire) ||
+    return workerService()->shuttingDown() ||
+           state->destroyed.load(std::memory_order_acquire) ||
            generation < state->cancelBeforeGeneration.load(std::memory_order_acquire);
 }
 
@@ -236,6 +329,8 @@ void finishDelivery(const std::shared_ptr<ImagePreviewLoaderState> &state) {
 void postLoaded(const std::shared_ptr<ImagePreviewLoaderState> &state,
                 const std::shared_ptr<ImagePreviewLoaderDeliveryToken> &token,
                 quint64 generation, QImage image, ImageMetadata metadata, QString error) {
+    if (workerService()->shuttingDown())
+        return;
     beginDelivery(state);
     QObject *dispatcher = QCoreApplication::instance();
     if (!dispatcher) {
@@ -261,6 +356,8 @@ void postLoaded(const std::shared_ptr<ImagePreviewLoaderState> &state,
 void postRendered(const std::shared_ptr<ImagePreviewLoaderState> &state,
                   const std::shared_ptr<ImagePreviewLoaderDeliveryToken> &token,
                   quint64 generation, QImage image) {
+    if (workerService()->shuttingDown())
+        return;
     beginDelivery(state);
     QObject *dispatcher = QCoreApplication::instance();
     if (!dispatcher) {
@@ -284,6 +381,8 @@ void postRendered(const std::shared_ptr<ImagePreviewLoaderState> &state,
 void postRotationPersisted(
     const std::shared_ptr<ImagePreviewLoaderState> &state,
     const std::shared_ptr<ImagePreviewLoaderDeliveryToken> &token, QString path, bool saved) {
+    if (workerService()->shuttingDown())
+        return;
     beginDelivery(state);
     QObject *dispatcher = QCoreApplication::instance();
     if (!dispatcher) {
@@ -323,8 +422,14 @@ void runLoadLane(std::shared_ptr<ImagePreviewLoaderState> state,
         const quint64 generation = current->generation;
         runCheckpoint(state, ImagePreviewLoader::WorkerCheckpoint::LoadBeforeDecode, generation);
         if (!isCancelled(state, generation)) {
-            FileReadLease lease(current->path);
-            if (isCancelled(state, generation)) {
+            FileReadLease lease(
+                current->path, [state, generation] { return isCancelled(state, generation); },
+                [state, generation] {
+                    runCheckpoint(state,
+                                  ImagePreviewLoader::WorkerCheckpoint::LoadWaitingForFile,
+                                  generation);
+                });
+            if (!lease) {
                 current.reset();
                 finishLoadRequest(state, &current);
                 continue;
@@ -416,6 +521,7 @@ ImagePreviewLoader::ImagePreviewLoader(QObject *parent)
 ImagePreviewLoader::~ImagePreviewLoader() {
     m_deliveryToken->target.clear();
     m_state->destroyed.store(true, std::memory_order_release);
+    wakeFileAccessWaiters();
     QMutexLocker locker(&m_state->mutex);
     m_state->pendingLoad.reset();
     m_state->pendingRender.reset();
@@ -431,6 +537,8 @@ quint64 ImagePreviewLoader::nextGeneration() {
 quint64 ImagePreviewLoader::load(const QString &path) {
     LoadRequest request{nextGeneration(), path};
     const quint64 generation = request.generation;
+    if (workerService()->shuttingDown())
+        return generation;
     bool startWorker = false;
     {
         QMutexLocker locker(&m_state->mutex);
@@ -453,6 +561,8 @@ quint64 ImagePreviewLoader::load(const QString &path) {
 quint64 ImagePreviewLoader::render(const QImage &source, QSize target, QTransform transform) {
     RenderRequest request{nextGeneration(), source, target, transform};
     const quint64 generation = request.generation;
+    if (workerService()->shuttingDown())
+        return generation;
     bool startWorker = false;
     {
         QMutexLocker locker(&m_state->mutex);
@@ -473,6 +583,8 @@ quint64 ImagePreviewLoader::render(const QImage &source, QSize target, QTransfor
 }
 
 void ImagePreviewLoader::persistRotation(const QString &path, int degrees) {
+    if (workerService()->shuttingDown())
+        return;
     auto reservation = std::make_shared<FileWriteReservation>(path);
     quint64 sequence = 0;
     {
@@ -483,12 +595,21 @@ void ImagePreviewLoader::persistRotation(const QString &path, int degrees) {
     QtConcurrent::run(rotationPool(),
                       [state = m_state, token = m_deliveryToken, reservation = std::move(reservation),
                        path, degrees, sequence]() mutable {
-                          reservation->begin();
+                          if (!reservation->begin(
+                                  [] { return workerService()->shuttingDown(); })) {
+                              reservation->finish();
+                              QMutexLocker locker(&state->mutex);
+                              --state->activeRotations;
+                              state->idleCondition.wakeAll();
+                              return;
+                          }
                           runCheckpoint(state, WorkerCheckpoint::RotationBeforeWrite, sequence);
-                          const bool saved = persistImageRotation(path, degrees);
+                          const bool saved = !workerService()->shuttingDown() &&
+                                             persistImageRotation(path, degrees);
                           runCheckpoint(state, WorkerCheckpoint::RotationAfterWrite, sequence);
                           reservation->finish();
-                          postRotationPersisted(state, token, path, saved);
+                          if (!workerService()->shuttingDown())
+                              postRotationPersisted(state, token, path, saved);
                           QMutexLocker locker(&state->mutex);
                           --state->activeRotations;
                           state->idleCondition.wakeAll();
@@ -501,6 +622,7 @@ void ImagePreviewLoader::cancelBefore(quint64 generation) {
            !m_state->cancelBeforeGeneration.compare_exchange_weak(
                floor, generation, std::memory_order_release, std::memory_order_relaxed)) {
     }
+    wakeFileAccessWaiters();
     if (generation > m_nextGeneration)
         m_nextGeneration = generation - 1;
 

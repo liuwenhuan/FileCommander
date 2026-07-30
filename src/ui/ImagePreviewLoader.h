@@ -27,6 +27,7 @@ class ImagePreviewLoader : public QObject {
 public:
     enum class WorkerCheckpoint {
         LoadBeforeDecode,
+        LoadWaitingForFile,
         LoadAfterDecode,
         RenderBeforeTransform,
         RenderAfterTransform,
