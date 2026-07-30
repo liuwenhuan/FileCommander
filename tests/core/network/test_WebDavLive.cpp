@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <memory>
+
 #include <QCryptographicHash>
 #include <QDir>
 #include <QElapsedTimer>
@@ -231,9 +233,12 @@ bool cleanupRoot(CurlWebDavProvider *dav, const LiveConfig &config, const QStrin
     return true;
 }
 
-bool runScenario(CurlWebDavProvider *dav, const QString &root, const QString &source,
-                 const QString &prefix, const QString &downloadDir, QString *error) {
+bool runScenario(const std::shared_ptr<CurlWebDavProvider> &davOwner, const QString &root,
+                 const QString &source, const QString &prefix, const QString &downloadDir,
+                 QString *error) {
+    auto *dav = davOwner.get();
     auto *local = LocalFileProvider::instance();
+    const std::shared_ptr<FileProvider> localOwner(local, [](FileProvider *) {});
     const ConflictResolver overwrite = [](const FileConflict &) { return ErrorAction::Overwrite; };
     FileOperations ops;
     ops.setErrorResolver([](const QString &, const QString &) { return ErrorAction::Cancel; });
@@ -281,8 +286,9 @@ bool runScenario(CurlWebDavProvider *dav, const QString &root, const QString &so
     queue.setErrorHandler([](const QString &, const QString &) { return ErrorAction::Cancel; });
     QSignalSpy finished(&queue, &OperationQueue::finished);
     QSignalSpy errors(&queue, &OperationQueue::errorOccurred);
-    queue.enqueueProviderMkdir(dav, root, QStringLiteral("queued"));
-    queue.enqueueProviderCopy(local, {queued}, dav, joinPath(root, QStringLiteral("queued")));
+    queue.enqueueProviderMkdir(davOwner, root, QStringLiteral("queued"));
+    queue.enqueueProviderCopy(localOwner, {queued}, davOwner,
+                              joinPath(root, QStringLiteral("queued")));
     if (!waitForJobs(&finished, &errors, 2, error))
         return false;
     const QString queuedDir = joinPath(root, QStringLiteral("queued"));
@@ -298,7 +304,7 @@ bool runScenario(CurlWebDavProvider *dav, const QString &root, const QString &so
     moveQueue.setErrorHandler([](const QString &, const QString &) { return ErrorAction::Cancel; });
     QSignalSpy moveFinished(&moveQueue, &OperationQueue::finished);
     QSignalSpy moveErrors(&moveQueue, &OperationQueue::errorOccurred);
-    moveQueue.enqueueProviderMove(dav, {queuedFile}, dav, movedDir);
+    moveQueue.enqueueProviderMove(davOwner, {queuedFile}, davOwner, movedDir);
     if (!waitForJobs(&moveFinished, &moveErrors, 1, error))
         return false;
     const QString movedQueuedFile = joinPath(movedDir, QFileInfo(queued).fileName());
@@ -313,7 +319,7 @@ bool runScenario(CurlWebDavProvider *dav, const QString &root, const QString &so
     QSignalSpy renameFinished(&renameQueue, &OperationQueue::finished);
     QSignalSpy renameErrors(&renameQueue, &OperationQueue::errorOccurred);
     const QString renamedName = QStringLiteral("queued-renamed.bin");
-    renameQueue.enqueueProviderRename(dav, movedQueuedFile, renamedName);
+    renameQueue.enqueueProviderRename(davOwner, movedQueuedFile, renamedName);
     if (!waitForJobs(&renameFinished, &renameErrors, 1, error))
         return false;
     const QString renamedQueuedFile = joinPath(movedDir, renamedName);
@@ -328,7 +334,7 @@ bool runScenario(CurlWebDavProvider *dav, const QString &root, const QString &so
     downloadQueue.setErrorHandler([](const QString &, const QString &) { return ErrorAction::Cancel; });
     QSignalSpy downloadFinished(&downloadQueue, &OperationQueue::finished);
     QSignalSpy downloadErrors(&downloadQueue, &OperationQueue::errorOccurred);
-    downloadQueue.enqueueProviderCopy(dav, {renamedQueuedFile}, local, downloadDir);
+    downloadQueue.enqueueProviderCopy(davOwner, {renamedQueuedFile}, localOwner, downloadDir);
     if (!waitForJobs(&downloadFinished, &downloadErrors, 1, error))
         return false;
     const QString downloadedQueued = QDir(downloadDir).filePath(renamedName);
@@ -346,7 +352,7 @@ bool runScenario(CurlWebDavProvider *dav, const QString &root, const QString &so
     deleteQueue.setErrorHandler([](const QString &, const QString &) { return ErrorAction::Cancel; });
     QSignalSpy deleteFinished(&deleteQueue, &OperationQueue::finished);
     QSignalSpy deleteErrors(&deleteQueue, &OperationQueue::errorOccurred);
-    deleteQueue.enqueueProviderDelete(dav, {movedFile, renamedQueuedFile});
+    deleteQueue.enqueueProviderDelete(davOwner, {movedFile, renamedQueuedFile});
     if (!waitForJobs(&deleteFinished, &deleteErrors, 1, error))
         return false;
     if (dav->exists(movedFile) || dav->exists(renamedQueuedFile)) {
@@ -374,11 +380,11 @@ TEST(WebDavLiveTest, ApplicationOperationsRoundTripMoveQueueReconnectAndCleanup)
     QString configError;
     ASSERT_TRUE(loadConfig(&config, &configError)) << configError.toStdString();
 
-    CurlWebDavProvider dav;
+    auto dav = std::make_shared<CurlWebDavProvider>();
     QString connectError;
-    ASSERT_TRUE(connectProvider(&dav, config, &connectError)) << connectError.toStdString();
-    const QString parent = dav.cleanPath(config.parent);
-    ASSERT_TRUE(dav.exists(parent) && dav.isDir(parent))
+    ASSERT_TRUE(connectProvider(dav.get(), config, &connectError)) << connectError.toStdString();
+    const QString parent = dav->cleanPath(config.parent);
+    ASSERT_TRUE(dav->exists(parent) && dav->isDir(parent))
         << "Configured WebDAV parent is not an existing collection";
 
     QTemporaryDir localRoot;
@@ -397,13 +403,13 @@ TEST(WebDavLiveTest, ApplicationOperationsRoundTripMoveQueueReconnectAndCleanup)
                                       QUuid::createUuid().toString(QUuid::WithoutBraces));
     FileOperations setup;
     QString setupError;
-    const bool setupOk = setup.makeProviderDirectory(&dav, parent, QFileInfo(root).fileName(),
+    const bool setupOk = setup.makeProviderDirectory(dav.get(), parent, QFileInfo(root).fileName(),
                                                       &setupError);
     QString scenarioError;
-    const bool scenarioOk = setupOk && runScenario(&dav, root, source, prefix, downloadDir,
+    const bool scenarioOk = setupOk && runScenario(dav, root, source, prefix, downloadDir,
                                                     &scenarioError);
     QString cleanupError;
-    const bool cleanupOk = cleanupRoot(&dav, config, root, &cleanupError);
+    const bool cleanupOk = cleanupRoot(dav.get(), config, root, &cleanupError);
 
     EXPECT_TRUE(setupOk) << setupError.toStdString();
     EXPECT_TRUE(scenarioOk) << scenarioError.toStdString();

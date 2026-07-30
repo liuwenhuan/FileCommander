@@ -158,6 +158,10 @@
 #include <memory>
 
 namespace {
+std::shared_ptr<FileProvider> localProviderPtr() {
+    return std::shared_ptr<FileProvider>(LocalFileProvider::instance(), [](FileProvider *) {});
+}
+
 // A splitter whose handle paints its own grey line across the full panel
 // height (tabs, breadcrumb, list, status bar). The deepin (DTK) style ignores
 // the handle's palette/autoFillBackground, so we paint it ourselves.
@@ -565,8 +569,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         // refreshes the panels and its error path reports any failure.
         connect(model, &FileSystemModel::remoteRenameRequested, this,
                 [this, model](const QString &oldPath, const QString &newName) {
-                    if (FileProvider *prov = model->provider())
-                        m_queue->enqueueProviderRename(prov, oldPath, newName);
+                    if (model->provider())
+                        m_queue->enqueueProviderRename(model->providerPtr(), oldPath, newName);
                 });
         // The "登录" link on a cancelled-auth tab: prompt again and retry.
         connect(panel, &FilePanel::loginRequested, this, [this, model](FilePanel *p) {
@@ -617,7 +621,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
                     // Remember the backend so undo of a remote rename goes back
                     // through the provider, not the local filesystem.
                     FileProvider *prov = panel->model()->provider();
-                    m_lastUndo.provider = (prov == LocalFileProvider::instance()) ? nullptr : prov;
+                    m_lastUndo.provider = (prov == LocalFileProvider::instance())
+                                              ? std::shared_ptr<FileProvider>()
+                                              : panel->model()->providerPtr();
                     // Keep the cursor on the renamed entry after the reload
                     // (fired synchronously before the model's rescan starts).
                     panel->selectPathAfterReload(newPath);
@@ -3418,7 +3424,7 @@ FilePanel *MainWindow::panelShowingDir(const QString &dir) const {
     return nullptr;
 }
 
-FileProvider *MainWindow::providerOwningPath(const QString &path) const {
+std::shared_ptr<FileProvider> MainWindow::providerOwningPath(const QString &path) const {
     LocalFileProvider *local = LocalFileProvider::instance();
     const QString clean = QDir::cleanPath(path);
     for (FilePanel *p : {m_leftPanel, m_rightPanel}) {
@@ -3429,13 +3435,23 @@ FileProvider *MainWindow::providerOwningPath(const QString &path) const {
         // an ancestor of it (so sub-folder drops into a remote pane resolve too).
         const QString root = QDir::cleanPath(p->currentPath());
         if (clean == root || clean.startsWith(root + QLatin1Char('/')))
-            return pv;
+            return p->model()->providerPtr();
     }
-    return local;
+    return localProviderPtr();
 }
 
-FileProvider *MainWindow::findLiveRemoteProvider(const QString &scheme,
-                                                 const QString &displayName) const {
+std::shared_ptr<FileProvider> MainWindow::providerPtrFor(FileProvider *provider) const {
+    if (!provider || provider == LocalFileProvider::instance())
+        return localProviderPtr();
+    for (FilePanel *p : {m_leftPanel, m_rightPanel}) {
+        if (p->model()->provider() == provider)
+            return p->model()->providerPtr();
+    }
+    return {};
+}
+
+std::shared_ptr<FileProvider> MainWindow::findLiveRemoteProvider(
+    const QString &scheme, const QString &displayName) const {
     if (scheme.isEmpty() || displayName.isEmpty())
         return nullptr;
     // Match a clipboard-tagged remote source back to a still-live connection. We
@@ -3446,7 +3462,7 @@ FileProvider *MainWindow::findLiveRemoteProvider(const QString &scheme,
     for (FilePanel *p : {m_leftPanel, m_rightPanel}) {
         FileProvider *pv = p->model()->provider();
         if (pv && pv->scheme() == scheme && pv->displayName() == displayName)
-            return pv;
+            return p->model()->providerPtr();
     }
     return nullptr;
 }
@@ -3484,9 +3500,12 @@ void MainWindow::handleFilesDropped(const QStringList &sources, const QString &d
     // bogus local path and fail with a permission error. External drops carry no
     // source provider (null) and are plain local files.
     LocalFileProvider *local = LocalFileProvider::instance();
-    FileProvider *dstProv = providerOwningPath(destDir);
-    FileProvider *srcProv = srcProvider ? srcProvider : local;
-    const bool crossProvider = (srcProv != local) || (dstProv != local);
+    std::shared_ptr<FileProvider> dstProv = providerOwningPath(destDir);
+    std::shared_ptr<FileProvider> srcProv =
+        srcProvider ? providerPtrFor(srcProvider) : localProviderPtr();
+    if (!srcProv || !dstProv)
+        return;
+    const bool crossProvider = (srcProv.get() != local) || (dstProv.get() != local);
 
     switch (kind) {
     case FileListView::DropActionKind::Copy:
@@ -3559,7 +3578,7 @@ void MainWindow::pasteFromClipboard() {
     // remote and belong to this provider, so paste must NOT fall back to
     // providerOwningPath's path-ancestor guess (which could resolve to a local
     // file of the same name).
-    FileProvider *explicitSrcProv = nullptr;
+    std::shared_ptr<FileProvider> explicitSrcProv;
 
     if (mime->hasFormat(QLatin1String(kRemoteClipboardMime))) {
         // Our own remote tag wins: line0 cut/copy, line1 scheme, line2
@@ -3633,9 +3652,10 @@ void MainWindow::pasteFromClipboard() {
     // destination belong to a remote provider, stream through the provider engine
     // instead of the local-file path (which can't reach a network location).
     LocalFileProvider *local = LocalFileProvider::instance();
-    FileProvider *dstProv = providerOwningPath(destDir);
-    FileProvider *srcProv = explicitSrcProv ? explicitSrcProv : providerOwningPath(sources.first());
-    const bool crossProvider = (srcProv != local) || (dstProv != local);
+    std::shared_ptr<FileProvider> dstProv = providerOwningPath(destDir);
+    std::shared_ptr<FileProvider> srcProv =
+        explicitSrcProv ? explicitSrcProv : providerOwningPath(sources.first());
+    const bool crossProvider = (srcProv.get() != local) || (dstProv.get() != local);
 
     if (isCut) {
         FilePanel *srcPanel = panelShowingDir(QFileInfo(sources.first()).absolutePath());
@@ -3907,10 +3927,10 @@ void MainWindow::copySelected() {
     // When either panel is backed by a remote provider (e.g. SFTP), stream the
     // transfer through the provider engine (handles resume + progress) rather
     // than the local QFile path, which only understands the local filesystem.
-    FileProvider *srcProv = m_activePanel->model()->provider();
-    FileProvider *dstProv = dest->model()->provider();
+    std::shared_ptr<FileProvider> srcProv = m_activePanel->model()->providerPtr();
+    std::shared_ptr<FileProvider> dstProv = dest->model()->providerPtr();
     LocalFileProvider *local = LocalFileProvider::instance();
-    if (srcProv != local || dstProv != local) {
+    if (srcProv.get() != local || dstProv.get() != local) {
         m_queue->enqueueProviderCopy(srcProv, sources, dstProv, destDir);
         return;
     }
@@ -3956,10 +3976,10 @@ void MainWindow::moveSelected() {
     m_pendingDestPanel = dest;
     m_pendingDestPaths = destPathsFor(sources, destDir);
 
-    FileProvider *srcProv = m_activePanel->model()->provider();
-    FileProvider *dstProv = dest->model()->provider();
+    std::shared_ptr<FileProvider> srcProv = m_activePanel->model()->providerPtr();
+    std::shared_ptr<FileProvider> dstProv = dest->model()->providerPtr();
     LocalFileProvider *local = LocalFileProvider::instance();
-    if (srcProv != local || dstProv != local) {
+    if (srcProv.get() != local || dstProv.get() != local) {
         // Cross-provider move (copy + delete source); local undo doesn't apply.
         m_queue->enqueueProviderMove(srcProv, sources, dstProv, destDir);
         return;
@@ -3986,8 +4006,8 @@ void MainWindow::makeDirectory() {
         m_pendingDestPaths = QStringList{QDir(parent).filePath(name)};
         // On a network tab go through the provider so the folder is created on
         // the remote host; a plain enqueueMkdir would hit the local filesystem.
-        FileProvider *prov = m_activePanel->model()->provider();
-        if (prov != LocalFileProvider::instance())
+        std::shared_ptr<FileProvider> prov = m_activePanel->model()->providerPtr();
+        if (prov.get() != LocalFileProvider::instance())
             m_queue->enqueueProviderMkdir(prov, parent, name);
         else
             m_queue->enqueueMkdir(parent, name);
@@ -4005,8 +4025,8 @@ void MainWindow::deleteSelected(bool permanent) {
 
     // On a network tab, delete goes through the provider (recursively) on the
     // remote host. There is no trash remotely, so it is always permanent.
-    FileProvider *prov = m_activePanel->model()->provider();
-    const bool remote = prov != LocalFileProvider::instance();
+    std::shared_ptr<FileProvider> prov = m_activePanel->model()->providerPtr();
+    const bool remote = prov.get() != LocalFileProvider::instance();
     const bool goesPermanent = permanent || remote;
 
     // Trash deletes can skip the prompt when the user turned confirmation off

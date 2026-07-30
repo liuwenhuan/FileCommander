@@ -1,7 +1,11 @@
 #include <gtest/gtest.h>
 
+#include <atomic>
+#include <memory>
+
 #include <QDir>
 #include <QFile>
+#include <QSemaphore>
 #include <QTemporaryDir>
 #include <QtTest/QSignalSpy>
 
@@ -26,6 +30,29 @@ QString writeFile(const QString &dir, const QString &name, const QByteArray &dat
 bool waitFinished(QSignalSpy &spy) {
     return spy.count() > 0 || spy.wait(3000);
 }
+
+class BlockingLifetimeProvider : public LocalFileProvider {
+public:
+    BlockingLifetimeProvider(std::atomic<bool> *destroyed, QSemaphore *entered,
+                             QSemaphore *release)
+        : m_destroyed(destroyed), m_entered(entered), m_release(release) {}
+
+    ~BlockingLifetimeProvider() override { m_destroyed->store(true); }
+
+    FileHandle *openRead(const QString &path) override {
+        if (!m_blocked.exchange(true)) {
+            m_entered->release();
+            m_release->acquire();
+        }
+        return LocalFileProvider::openRead(path);
+    }
+
+private:
+    std::atomic<bool> *m_destroyed;
+    QSemaphore *m_entered;
+    QSemaphore *m_release;
+    std::atomic<bool> m_blocked{false};
+};
 
 } // namespace
 
@@ -111,13 +138,13 @@ TEST(OperationQueueTest, ProviderCopySingleWorkerCompletesAndCopiesFile) {
     ASSERT_TRUE(src.isValid() && dst.isValid());
     const QString source = writeFile(src.path(), "p.txt", "remote-payload");
 
-    LocalFileProvider srcProvider;
-    LocalFileProvider dstProvider;
+    auto srcProvider = std::make_shared<LocalFileProvider>();
+    auto dstProvider = std::make_shared<LocalFileProvider>();
 
     OperationQueue queue;
     queue.setMaxConcurrentTransfers(1); // pinned to the historical one-at-a-time behaviour
     QSignalSpy finished(&queue, &OperationQueue::finished);
-    queue.enqueueProviderCopy(&srcProvider, {source}, &dstProvider, dst.path());
+    queue.enqueueProviderCopy(srcProvider, {source}, dstProvider, dst.path());
 
     ASSERT_TRUE(waitFinished(finished));
     EXPECT_TRUE(finished.takeFirst().at(0).toBool());
@@ -125,17 +152,45 @@ TEST(OperationQueueTest, ProviderCopySingleWorkerCompletesAndCopiesFile) {
     EXPECT_TRUE(QFile::exists(QDir(dst.path()).filePath("p.txt")));
 }
 
+TEST(OperationQueueTest, QueuedProviderCopyRetainsProvidersUntilCompletion) {
+    QTemporaryDir src, dst;
+    ASSERT_TRUE(src.isValid() && dst.isValid());
+    const QString source = writeFile(src.path(), "owned.txt", "provider-owned");
+
+    std::atomic<bool> sourceDestroyed{false};
+    QSemaphore entered;
+    QSemaphore release;
+    auto srcProvider =
+        std::make_shared<BlockingLifetimeProvider>(&sourceDestroyed, &entered, &release);
+    auto dstProvider = std::make_shared<LocalFileProvider>();
+
+    OperationQueue queue;
+    queue.setMaxConcurrentTransfers(1);
+    QSignalSpy finished(&queue, &OperationQueue::finished);
+    queue.enqueueProviderCopy(srcProvider, {source}, dstProvider, dst.path());
+
+    ASSERT_TRUE(entered.tryAcquire(1, 3000));
+    srcProvider.reset();
+    dstProvider.reset();
+    EXPECT_FALSE(sourceDestroyed.load());
+
+    release.release();
+    ASSERT_TRUE(waitFinished(finished));
+    EXPECT_TRUE(finished.takeFirst().at(0).toBool());
+    EXPECT_TRUE(sourceDestroyed.load());
+}
+
 TEST(OperationQueueTest, ProviderMoveRemovesSource) {
     QTemporaryDir src, dst;
     ASSERT_TRUE(src.isValid() && dst.isValid());
     const QString source = writeFile(src.path(), "q.txt", "remote-move");
 
-    LocalFileProvider srcProvider;
-    LocalFileProvider dstProvider;
+    auto srcProvider = std::make_shared<LocalFileProvider>();
+    auto dstProvider = std::make_shared<LocalFileProvider>();
 
     OperationQueue queue;
     QSignalSpy finished(&queue, &OperationQueue::finished);
-    queue.enqueueProviderMove(&srcProvider, {source}, &dstProvider, dst.path());
+    queue.enqueueProviderMove(srcProvider, {source}, dstProvider, dst.path());
 
     ASSERT_TRUE(waitFinished(finished));
     EXPECT_FALSE(QFile::exists(source));
@@ -152,16 +207,16 @@ TEST(OperationQueueTest, ProviderTransfersRunConcurrentlyWithPoolOfTwo) {
     const QString sourceA = writeFile(src.path(), "a.txt", "AAAA");
     const QString sourceB = writeFile(src.path(), "b.txt", "BBBB");
 
-    LocalFileProvider srcProvider;
-    LocalFileProvider dstProvider;
+    auto srcProvider = std::make_shared<LocalFileProvider>();
+    auto dstProvider = std::make_shared<LocalFileProvider>();
 
     OperationQueue queue;
     queue.setMaxConcurrentTransfers(2);
     EXPECT_EQ(queue.maxConcurrentTransfers(), 2);
 
     QSignalSpy finished(&queue, &OperationQueue::finished);
-    queue.enqueueProviderCopy(&srcProvider, {sourceA}, &dstProvider, dst.path());
-    queue.enqueueProviderCopy(&srcProvider, {sourceB}, &dstProvider, dst.path());
+    queue.enqueueProviderCopy(srcProvider, {sourceA}, dstProvider, dst.path());
+    queue.enqueueProviderCopy(srcProvider, {sourceB}, dstProvider, dst.path());
 
     // Wait for both jobs to report finished.
     while (finished.count() < 2 && finished.wait(3000)) {
@@ -180,13 +235,13 @@ TEST(OperationQueueTest, ProviderAndLocalJobsBothCompleteIndependently) {
     const QString localSource = writeFile(src.path(), "local.txt", "local-data");
     const QString providerSource = writeFile(src.path(), "provider.txt", "provider-data");
 
-    LocalFileProvider srcProvider;
-    LocalFileProvider dstProvider;
+    auto srcProvider = std::make_shared<LocalFileProvider>();
+    auto dstProvider = std::make_shared<LocalFileProvider>();
 
     OperationQueue queue;
     QSignalSpy finished(&queue, &OperationQueue::finished);
     queue.enqueueCopy({localSource}, dst.path());
-    queue.enqueueProviderCopy(&srcProvider, {providerSource}, &dstProvider, dst.path());
+    queue.enqueueProviderCopy(srcProvider, {providerSource}, dstProvider, dst.path());
 
     while (finished.count() < 2 && finished.wait(3000)) {
     }

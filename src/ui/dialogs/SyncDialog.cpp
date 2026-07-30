@@ -348,15 +348,18 @@ void SyncDialog::startSync() {
         return;
 
     LocalFileProvider *local = LocalFileProvider::instance();
-    FileProvider *leftProv = m_leftProvider ? m_leftProvider.get() : local;
-    FileProvider *rightProv = m_rightProvider ? m_rightProvider.get() : local;
+    const std::shared_ptr<FileProvider> localProvider(local, [](FileProvider *) {});
+    const std::shared_ptr<FileProvider> leftProv =
+        m_leftProvider ? m_leftProvider : localProvider;
+    const std::shared_ptr<FileProvider> rightProv =
+        m_rightProvider ? m_rightProvider : localProvider;
 
     for (const SyncModel::Row &row : rows) {
         const bool toRight = row.direction == SyncModel::Direction::ToRight;
         const QString &srcBase = toRight ? m_leftDir : m_rightDir;
         const QString &dstBase = toRight ? m_rightDir : m_leftDir;
-        FileProvider *srcProv = toRight ? leftProv : rightProv;
-        FileProvider *dstProv = toRight ? rightProv : leftProv;
+        const std::shared_ptr<FileProvider> srcProv = toRight ? leftProv : rightProv;
+        const std::shared_ptr<FileProvider> dstProv = toRight ? rightProv : leftProv;
 
         const QString rel = row.entry.relativePath;
         const QString srcPath = srcBase + QLatin1Char('/') + rel;
@@ -368,8 +371,8 @@ void SyncDialog::startSync() {
 
         // A remote endpoint has to stream through the provider engine; treating
         // its path as a local file is what makes network transfers fail.
-        if (srcProv != local || dstProv != local) {
-            if (dstProv != local)
+        if (srcProv.get() != local || dstProv.get() != local) {
+            if (dstProv.get() != local)
                 m_queue->enqueueProviderMkdir(dstProv, dstBase, relDir);
             m_queue->enqueueProviderCopy(srcProv, {srcPath}, dstProv, destDir);
         } else {

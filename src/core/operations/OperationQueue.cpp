@@ -129,60 +129,67 @@ void OperationQueue::enqueueSymlink(const QStringList &sources, const QString &d
     maybeStartNext();
 }
 
-void OperationQueue::enqueueProviderCopy(FileProvider *src, const QStringList &sources,
-                                         FileProvider *dst, const QString &destDir) {
+void OperationQueue::enqueueProviderCopy(std::shared_ptr<FileProvider> src,
+                                         const QStringList &sources,
+                                         std::shared_ptr<FileProvider> dst,
+                                         const QString &destDir) {
     Job job;
     job.description = tr("Copying %1 item(s) to %2").arg(sources.size()).arg(destDir);
     ConflictResolver resolver = [this](const FileConflict &c) { return askConflict(c); };
-    // Capture the borrowed provider pointers by value (raw pointer copy) — the
-    // models own them; the job must not take ownership.
-    job.run = [src, sources, dst, destDir, resolver](FileOperations &ops, QString &err) {
-        return ops.copyAcrossProviders(src, sources, dst, destDir, /*removeSource=*/false,
+    job.run = [src = std::move(src), sources, dst = std::move(dst), destDir,
+               resolver](FileOperations &ops, QString &err) {
+        return ops.copyAcrossProviders(src.get(), sources, dst.get(), destDir,
+                                       /*removeSource=*/false,
                                        resolver, &err);
     };
     m_transferQueue.enqueue(job);
     maybeStartNextTransfer();
 }
 
-void OperationQueue::enqueueProviderMove(FileProvider *src, const QStringList &sources,
-                                         FileProvider *dst, const QString &destDir) {
+void OperationQueue::enqueueProviderMove(std::shared_ptr<FileProvider> src,
+                                         const QStringList &sources,
+                                         std::shared_ptr<FileProvider> dst,
+                                         const QString &destDir) {
     Job job;
     job.description = tr("Moving %1 item(s) to %2").arg(sources.size()).arg(destDir);
     ConflictResolver resolver = [this](const FileConflict &c) { return askConflict(c); };
-    job.run = [src, sources, dst, destDir, resolver](FileOperations &ops, QString &err) {
-        return ops.copyAcrossProviders(src, sources, dst, destDir, /*removeSource=*/true,
+    job.run = [src = std::move(src), sources, dst = std::move(dst), destDir,
+               resolver](FileOperations &ops, QString &err) {
+        return ops.copyAcrossProviders(src.get(), sources, dst.get(), destDir,
+                                       /*removeSource=*/true,
                                        resolver, &err);
     };
     m_transferQueue.enqueue(job);
     maybeStartNextTransfer();
 }
 
-void OperationQueue::enqueueProviderMkdir(FileProvider *dst, const QString &parentDir,
-                                          const QString &name) {
+void OperationQueue::enqueueProviderMkdir(std::shared_ptr<FileProvider> dst,
+                                          const QString &parentDir, const QString &name) {
     Job job;
     job.description = tr("Creating directory %1").arg(name);
-    job.run = [dst, parentDir, name](FileOperations &ops, QString &err) {
-        return ops.makeProviderDirectory(dst, parentDir, name, &err);
+    job.run = [dst = std::move(dst), parentDir, name](FileOperations &ops, QString &err) {
+        return ops.makeProviderDirectory(dst.get(), parentDir, name, &err);
     };
     m_transferQueue.enqueue(job);
     maybeStartNextTransfer();
 }
 
-void OperationQueue::enqueueProviderDelete(FileProvider *provider, const QStringList &paths) {
+void OperationQueue::enqueueProviderDelete(std::shared_ptr<FileProvider> provider,
+                                           const QStringList &paths) {
     Job job;
     job.description = tr("Deleting %1 item(s)").arg(paths.size());
-    job.run = [provider, paths](FileOperations &ops, QString &err) {
-        return ops.deleteProviderPaths(provider, paths, &err);
+    job.run = [provider = std::move(provider), paths](FileOperations &ops, QString &err) {
+        return ops.deleteProviderPaths(provider.get(), paths, &err);
     };
     m_transferQueue.enqueue(job);
     maybeStartNextTransfer();
 }
 
-void OperationQueue::enqueueProviderRename(FileProvider *provider, const QString &path,
-                                           const QString &newName) {
+void OperationQueue::enqueueProviderRename(std::shared_ptr<FileProvider> provider,
+                                           const QString &path, const QString &newName) {
     Job job;
     job.description = tr("Renaming %1").arg(path);
-    job.run = [provider, path, newName](FileOperations &, QString &err) {
+    job.run = [provider = std::move(provider), path, newName](FileOperations &, QString &err) {
         QString newPath;
         if (provider->rename(path, newName, &newPath) == FileProvider::RenameResult::Ok)
             return true;

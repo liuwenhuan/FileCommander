@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <memory>
+
 #include <QCryptographicHash>
 #include <QDir>
 #include <QElapsedTimer>
@@ -201,10 +203,13 @@ bool connectProvider(SmbProvider *provider, const LiveConfig &config, QString *e
                                    config.anonymous, error);
 }
 
-bool runScenario(SmbProvider *smb, const QString &remoteRoot, const QString &largeFixture,
-                 const QString &partialFixture, const QString &queuedA, const QString &queuedB,
-                 const QString &downloadDir, QString *error) {
+bool runScenario(const std::shared_ptr<SmbProvider> &smbOwner, const QString &remoteRoot,
+                 const QString &largeFixture, const QString &partialFixture,
+                 const QString &queuedA, const QString &queuedB, const QString &downloadDir,
+                 QString *error) {
+    auto *smb = smbOwner.get();
     auto *local = LocalFileProvider::instance();
+    const std::shared_ptr<FileProvider> localOwner(local, [](FileProvider *) {});
     const ConflictResolver overwrite = [](const FileConflict &) { return ErrorAction::Overwrite; };
 
     FileOperations ops;
@@ -291,8 +296,8 @@ bool runScenario(SmbProvider *smb, const QString &remoteRoot, const QString &lar
     uploads.setErrorHandler([](const QString &, const QString &) { return ErrorAction::Cancel; });
     QSignalSpy uploadFinished(&uploads, &OperationQueue::finished);
     QSignalSpy uploadErrors(&uploads, &OperationQueue::errorOccurred);
-    uploads.enqueueProviderCopy(local, {queuedA}, smb, remoteRoot);
-    uploads.enqueueProviderCopy(local, {queuedB}, smb, remoteRoot);
+    uploads.enqueueProviderCopy(localOwner, {queuedA}, smbOwner, remoteRoot);
+    uploads.enqueueProviderCopy(localOwner, {queuedB}, smbOwner, remoteRoot);
     if (!waitForFinished(&uploadFinished, 2, error)) {
         *error = firstQueueError(uploadErrors, *error);
         return false;
@@ -311,7 +316,7 @@ bool runScenario(SmbProvider *smb, const QString &remoteRoot, const QString &lar
     QSignalSpy renameFinished(&renameQueue, &OperationQueue::finished);
     QSignalSpy renameErrors(&renameQueue, &OperationQueue::errorOccurred);
     const QString renamedAName = QStringLiteral("queued-a-renamed.bin");
-    renameQueue.enqueueProviderRename(smb, remoteA, renamedAName);
+    renameQueue.enqueueProviderRename(smbOwner, remoteA, renamedAName);
     if (!waitForFinished(&renameFinished, 1, error)) {
         *error = firstQueueError(renameErrors, *error);
         return false;
@@ -328,7 +333,7 @@ bool runScenario(SmbProvider *smb, const QString &remoteRoot, const QString &lar
     downloads.setErrorHandler([](const QString &, const QString &) { return ErrorAction::Cancel; });
     QSignalSpy downloadFinished(&downloads, &OperationQueue::finished);
     QSignalSpy downloadErrors(&downloads, &OperationQueue::errorOccurred);
-    downloads.enqueueProviderCopy(smb, {renamedA}, local, downloadDir);
+    downloads.enqueueProviderCopy(smbOwner, {renamedA}, localOwner, downloadDir);
     if (!waitForFinished(&downloadFinished, 1, error)) {
         *error = firstQueueError(downloadErrors, *error);
         return false;
@@ -347,7 +352,7 @@ bool runScenario(SmbProvider *smb, const QString &remoteRoot, const QString &lar
     removals.setErrorHandler([](const QString &, const QString &) { return ErrorAction::Cancel; });
     QSignalSpy deleteFinished(&removals, &OperationQueue::finished);
     QSignalSpy deleteErrors(&removals, &OperationQueue::errorOccurred);
-    removals.enqueueProviderDelete(smb, {movedLarge, renamedA, remoteB});
+    removals.enqueueProviderDelete(smbOwner, {movedLarge, renamedA, remoteB});
     if (!waitForFinished(&deleteFinished, 1, error)) {
         *error = firstQueueError(deleteErrors, *error);
         return false;
@@ -441,12 +446,12 @@ TEST(SmbLiveTest, NoSpaceWriteReportsSpecificError) {
     QString localError;
     ASSERT_TRUE(writePatternFile(fixture, kMiB, &localError)) << localError.toStdString();
 
-    SmbProvider smb;
+    auto smb = std::make_shared<SmbProvider>();
     QString connectError;
-    ASSERT_TRUE(connectProvider(&smb, config, &connectError)) << connectError.toStdString();
+    ASSERT_TRUE(connectProvider(smb.get(), config, &connectError)) << connectError.toStdString();
 
-    const QString parent = smb.cleanPath(config.shareParent);
-    ASSERT_TRUE(smb.exists(parent) && smb.isDir(parent))
+    const QString parent = smb->cleanPath(config.shareParent);
+    ASSERT_TRUE(smb->exists(parent) && smb->isDir(parent))
         << "Configured SMB parent is not an existing directory";
     const QString rootName = QStringLiteral("FC-SMB-E2E-") +
                              QUuid::createUuid().toString(QUuid::WithoutBraces);
@@ -454,9 +459,9 @@ TEST(SmbLiveTest, NoSpaceWriteReportsSpecificError) {
 
     FileOperations setup;
     QString setupError;
-    if (!setup.makeProviderDirectory(&smb, parent, rootName, &setupError)) {
+    if (!setup.makeProviderDirectory(smb.get(), parent, rootName, &setupError)) {
         QString cleanupError;
-        const bool cleanupOk = cleanupRemoteRoot(&smb, config, remoteRoot, &cleanupError);
+        const bool cleanupOk = cleanupRemoteRoot(smb.get(), config, remoteRoot, &cleanupError);
         ADD_FAILURE() << setupError.toStdString();
         EXPECT_TRUE(cleanupOk)
             << (QStringLiteral("Cleanup after setup failure failed for ") + remoteRoot +
@@ -543,11 +548,11 @@ TEST(SmbLiveTest, ApplicationOperationsRoundTripMoveQueueReconnectAndCleanup) {
     }
 
     QString scenarioError;
-    const bool scenarioOk = runScenario(&smb, remoteRoot, largeFixture, partialFixture, queuedA,
+    const bool scenarioOk = runScenario(smb, remoteRoot, largeFixture, partialFixture, queuedA,
                                         queuedB, downloadDir, &scenarioError);
 
     QString cleanupError;
-    const bool cleanupOk = cleanupRemoteRoot(&smb, config, remoteRoot, &cleanupError);
+    const bool cleanupOk = cleanupRemoteRoot(smb.get(), config, remoteRoot, &cleanupError);
 
     EXPECT_TRUE(scenarioOk) << scenarioError.toStdString();
     EXPECT_TRUE(cleanupOk) << (QStringLiteral("Cleanup failed for ") + remoteRoot +

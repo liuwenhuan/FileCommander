@@ -6,6 +6,7 @@
 #include <QThread>
 #include <QVector>
 #include <functional>
+#include <memory>
 
 #include "FileOpTypes.h"
 
@@ -52,22 +53,22 @@ public:
     void enqueueSymlink(const QStringList &sources, const QString &destDir);
 
     // Cross-provider transfers (local<->remote) that stream through the
-    // FileProvider interface with resume support. The providers are borrowed
-    // (owned by the models); the queue captures the raw pointers and must not
-    // outlive them. Dispatched to the concurrent transfer worker pool (see
-    // setMaxConcurrentTransfers), not the local-job pipeline.
-    void enqueueProviderCopy(FileProvider *src, const QStringList &sources, FileProvider *dst,
-                             const QString &destDir);
-    void enqueueProviderMove(FileProvider *src, const QStringList &sources, FileProvider *dst,
-                             const QString &destDir);
+    // FileProvider interface with resume support. Shared ownership keeps both
+    // providers alive until the queued worker has completed.
+    void enqueueProviderCopy(std::shared_ptr<FileProvider> src, const QStringList &sources,
+                             std::shared_ptr<FileProvider> dst, const QString &destDir);
+    void enqueueProviderMove(std::shared_ptr<FileProvider> src, const QStringList &sources,
+                             std::shared_ptr<FileProvider> dst, const QString &destDir);
 
     // Remote directory create / delete / rename that act through the provider
     // (a network tab's new-folder / delete / rename-undo), dispatched to the
     // transfer pool so they never block on — or share the interactive session's
     // lock with — the local-job pipeline.
-    void enqueueProviderMkdir(FileProvider *dst, const QString &parentDir, const QString &name);
-    void enqueueProviderDelete(FileProvider *provider, const QStringList &paths);
-    void enqueueProviderRename(FileProvider *provider, const QString &path, const QString &newName);
+    void enqueueProviderMkdir(std::shared_ptr<FileProvider> dst, const QString &parentDir,
+                              const QString &name);
+    void enqueueProviderDelete(std::shared_ptr<FileProvider> provider, const QStringList &paths);
+    void enqueueProviderRename(std::shared_ptr<FileProvider> provider, const QString &path,
+                               const QString &newName);
 
     // Requests cancellation of all running/queued operations, both local and
     // provider transfers. Safe to call from the GUI thread; each worker stops
