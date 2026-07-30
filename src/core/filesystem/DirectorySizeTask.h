@@ -15,6 +15,7 @@ class DirectorySizeTask final : public QObject {
 public:
     DirectorySizeTask(quint64 requestId, std::shared_ptr<FileProvider> provider, QStringList roots,
                       QObject *parent = nullptr);
+    ~DirectorySizeTask() override;
 
     void start();
     void cancel();
@@ -38,6 +39,8 @@ private:
 
     static qint64 walkDirectory(const std::shared_ptr<State> &state, const QString &path,
                                 bool *cancelled);
+    static bool rootIsSymLink(const std::shared_ptr<State> &state, const QString &root,
+                              bool *cancelled);
 
     quint64 m_requestId;
     std::shared_ptr<State> m_state;
