@@ -37,6 +37,10 @@ set(UI_SOURCES
     ImagePreviewLoader.cpp
     QuickView.h
     QuickView.cpp
+    media/MediaEngine.h
+    media/MediaTypes.h
+    media/NullMediaEngine.h
+    media/NullMediaEngine.cpp
     TextEncodingDetector.h
     TextEncodingDetector.cpp
     SlideSceneBuilder.h
