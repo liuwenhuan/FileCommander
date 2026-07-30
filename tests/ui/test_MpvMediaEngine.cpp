@@ -217,6 +217,26 @@ TEST_F(MpvMediaEngine, AudioVideoAudioTransitionsReuseTheCurrentSourceSlot) {
     EXPECT_EQ(engine.currentKind(), MediaKind::Audio);
 }
 
+TEST_F(MpvMediaEngine, VideoSpeedDoesNotCarryIntoAudioAndIsRememberedForVideo) {
+    if (!fixturesReady())
+        GTEST_SKIP() << "ffmpeg could not generate the local media fixtures";
+    ::MpvMediaEngine engine(headlessOptions());
+    engine.initialize();
+    engine.setSpeed(2.0);
+
+    engine.load({videoPath, {}, false}, MediaKind::Video);
+    ASSERT_TRUE(waitForState(engine, MediaState::Playing));
+    EXPECT_DOUBLE_EQ(engine.playbackSpeed(), 2.0);
+
+    engine.load({audioPath, {}, false}, MediaKind::Audio);
+    ASSERT_TRUE(waitForState(engine, MediaState::Playing));
+    EXPECT_DOUBLE_EQ(engine.playbackSpeed(), 1.0);
+
+    engine.load({secondVideoPath, {}, false}, MediaKind::Video);
+    ASSERT_TRUE(waitForState(engine, MediaState::Playing));
+    EXPECT_DOUBLE_EQ(engine.playbackSpeed(), 2.0);
+}
+
 TEST_F(MpvMediaEngine, VideoToVideoKeepsOneStableSurface) {
     if (!fixturesReady())
         GTEST_SKIP() << "ffmpeg could not generate the local media fixtures";

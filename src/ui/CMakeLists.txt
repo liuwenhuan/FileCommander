@@ -39,8 +39,6 @@ set(UI_SOURCES
     QuickView.cpp
     media/MediaEngine.h
     media/MediaTypes.h
-    media/NullMediaEngine.h
-    media/NullMediaEngine.cpp
     TextEncodingDetector.h
     TextEncodingDetector.cpp
     SlideSceneBuilder.h
@@ -112,6 +110,8 @@ if(FILECOMMANDER_PREVIEW_MEDIA)
     )
 else()
     list(APPEND UI_SOURCES
+        media/NullMediaEngine.h
+        media/NullMediaEngine.cpp
         MpvStreamSource.h
         MpvStreamSourceDisabled.cpp
     )

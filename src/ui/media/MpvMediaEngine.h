@@ -52,6 +52,7 @@ public:
     QSize currentVideoSize() const override;
     QString videoCodec() const override;
     QString videoMode() const override;
+    double playbackSpeed() const;
 
 private slots:
     void processEvents();

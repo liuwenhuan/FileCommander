@@ -14,7 +14,9 @@
 #include "QuickView.h"
 #include "config/Settings.h"
 #include "media/MediaEngine.h"
+#if !FILECOMMANDER_HAS_PREVIEW_MEDIA
 #include "media/NullMediaEngine.h"
+#endif
 
 namespace {
 
@@ -200,6 +202,7 @@ TEST(MediaEngineContract, StopReturnsToIdleAndClearsMetadata) {
     EXPECT_EQ(engine.state(), MediaState::Idle);
 }
 
+#if !FILECOMMANDER_HAS_PREVIEW_MEDIA
 TEST(MediaEngineContract, NullEngineReportsUnsupportedLoadWithoutPlayback) {
     NullMediaEngine engine;
     QString error;
@@ -220,7 +223,6 @@ TEST(MediaEngineContract, NullEngineReportsUnsupportedLoadWithoutPlayback) {
     EXPECT_EQ(engine.videoSurface(), nullptr);
 }
 
-#if !FILECOMMANDER_HAS_PREVIEW_MEDIA
 TEST(MediaConfiguredPath, DisabledQuickViewUsesNullEngineAndShowsUnsupportedState) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());

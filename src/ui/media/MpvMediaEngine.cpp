@@ -112,7 +112,8 @@ void MpvMediaEngine::issueLoad() {
     mpv_command_async(m_mpv, 0, command);
     int unpaused = 0;
     mpv_set_property(m_mpv, "pause", MPV_FORMAT_FLAG, &unpaused);
-    mpv_set_property(m_mpv, "speed", MPV_FORMAT_DOUBLE, &m_speed);
+    double effectiveSpeed = m_kind == MediaKind::Audio ? 1.0 : m_speed;
+    mpv_set_property(m_mpv, "speed", MPV_FORMAT_DOUBLE, &effectiveSpeed);
 }
 
 void MpvMediaEngine::stop() {
@@ -201,6 +202,7 @@ QString MpvMediaEngine::metadataValue(const QString &key) const {
 QSize MpvMediaEngine::currentVideoSize() const { return m_videoSize; }
 QString MpvMediaEngine::videoCodec() const { return m_videoCodec; }
 QString MpvMediaEngine::videoMode() const { return m_videoMode; }
+double MpvMediaEngine::playbackSpeed() const { return getDouble("speed"); }
 
 void MpvMediaEngine::onWakeup(void *context) {
     auto *engine = static_cast<MpvMediaEngine *>(context);
