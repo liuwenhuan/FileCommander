@@ -143,9 +143,12 @@ bool NetworkSession::reconnectCycle() {
             return false;
         if (ok) {
             m_everConnected = true;
-            setState(Connected);
-            if (m_heartbeat && !m_heartbeat->isActive())
+            if (m_heartbeat && !m_heartbeat->isActive()) {
                 m_heartbeat->start();
+                m_heartbeatCounter =
+                    std::make_unique<fc::RuntimeCounterGuard>(fc::RuntimeCounter::ActiveHeartbeat);
+            }
+            setState(Connected);
             return true;
         }
         // Authentication needed on the initial connect: stop retrying anonymously
@@ -279,6 +282,8 @@ void NetworkSession::onHeartbeat() {
 
 void NetworkSession::onStop() {
     m_stopping = true;
-    if (m_heartbeat)
+    if (m_heartbeat) {
         m_heartbeat->stop();
+        m_heartbeatCounter.reset();
+    }
 }

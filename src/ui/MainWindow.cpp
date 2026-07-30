@@ -11,6 +11,7 @@
 #include <QClipboard>
 #include <QCloseEvent>
 #include <QCursor>
+#include <QDebug>
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -98,6 +99,7 @@
 #include "FunctionKeyBar.h"
 #include "ImageViewer.h"
 #include "OperationQueue.h"
+#include "diagnostics/RuntimeCounters.h"
 #include "SearchDialog.h"
 #include "SessionManager.h"
 #include "TitleBar.h"
@@ -4204,6 +4206,16 @@ void MainWindow::closeEvent(QCloseEvent *event) {
     SessionManager::save(leftSession, rightSession);
 
     QMainWindow::closeEvent(event);
+
+    if (qEnvironmentVariableIntValue("FILECOMMANDER_DIAGNOSTICS") == 1) {
+        const fc::RuntimeSnapshot snapshot = fc::runtimeSnapshot();
+        qInfo().nospace() << "FileCommander RuntimeSnapshot"
+                          << " networkSessions=" << snapshot.networkSessions
+                          << " networkThreads=" << snapshot.networkThreads
+                          << " activeHeartbeats=" << snapshot.activeHeartbeats
+                          << " transferWorkers=" << snapshot.transferWorkers
+                          << " curlTransfers=" << snapshot.curlTransfers;
+    }
 
     // MainWindow is the only window that should keep the app alive, but
     // other top-level widgets exist (e.g. m_progressDialog, constructed up

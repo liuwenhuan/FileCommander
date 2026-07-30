@@ -291,6 +291,8 @@ void OperationQueue::onWorkerJobDone(bool ok) {
 
 void OperationQueue::addTransferWorker() {
     auto *worker = new TransferWorker();
+    worker->counter =
+        std::make_unique<fc::RuntimeCounterGuard>(fc::RuntimeCounter::TransferWorker);
     worker->thread = new QThread();
     worker->ops = new FileOperations();
     worker->ops->moveToThread(worker->thread);

@@ -10,6 +10,7 @@
 
 #include "FileProvider.h"
 #include "NetworkSession.h"
+#include "diagnostics/RuntimeCounters.h"
 
 // These tests pin the P1.5 contract: tearing a NetworkSession down must never
 // block the calling (GUI) thread, even when its worker is stuck in a slow dial.
@@ -85,6 +86,36 @@ TEST(NetworkSessionLifecycle, ShutdownAsyncReturnsWhileWorkerStalled) {
     // leak, no hang.
     EXPECT_TRUE(spinUntil([&] { return destroyed.load(); }, 6000))
         << "session was never destroyed after the worker unwound";
+}
+
+TEST(NetworkSessionLifecycle, CountersCoverConnectedSessionAndReturnToBaseline) {
+    const fc::RuntimeSnapshot before = fc::runtimeSnapshot();
+    std::atomic<bool> connected{false};
+    std::atomic<bool> destroyed{false};
+
+    auto provider = std::make_shared<StubProvider>();
+    std::shared_ptr<NetworkSession> session(new NetworkSession(provider),
+                                            [](NetworkSession *s) { s->shutdownAsync(); });
+    QObject::connect(session.get(), &QObject::destroyed, [&destroyed] { destroyed = true; });
+    QObject::connect(session.get(), &NetworkSession::stateChanged, [&connected](int state, int) {
+        if (state == NetworkSession::Connected)
+            connected = true;
+    });
+
+    session->start([](QString *) { return true; }, QStringLiteral("/"));
+    ASSERT_TRUE(spinUntil([&] { return connected.load(); }, 3000));
+
+    const fc::RuntimeSnapshot active = fc::runtimeSnapshot();
+    EXPECT_EQ(active.networkSessions, before.networkSessions + 1);
+    EXPECT_EQ(active.networkThreads, before.networkThreads + 1);
+    EXPECT_EQ(active.activeHeartbeats, before.activeHeartbeats + 1);
+
+    session.reset();
+    ASSERT_TRUE(spinUntil([&] { return destroyed.load(); }, 3000));
+    const fc::RuntimeSnapshot after = fc::runtimeSnapshot();
+    EXPECT_EQ(after.networkSessions, before.networkSessions);
+    EXPECT_EQ(after.networkThreads, before.networkThreads);
+    EXPECT_EQ(after.activeHeartbeats, before.activeHeartbeats);
 }
 
 // One server rejection must raise exactly ONE credential prompt. The tab issues

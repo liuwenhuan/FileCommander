@@ -16,6 +16,7 @@
 #include <QWaitCondition>
 
 #include "FileInfo.h"
+#include "diagnostics/RuntimeCounters.h"
 
 namespace {
 
@@ -224,6 +225,7 @@ void startFtpTransfer(FtpHandle *h) {
     CURL *curl = h->curl;
     const bool isRead = (h->mode == FtpHandle::Mode::Read);
     h->worker = std::thread([curl, state, isRead]() {
+        fc::RuntimeCounterGuard counter(fc::RuntimeCounter::CurlTransfer);
         const CURLcode res = curl_easy_perform(curl);
         long responseCode = 0;
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &responseCode);

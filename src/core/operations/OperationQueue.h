@@ -8,6 +8,7 @@
 #include <functional>
 #include <memory>
 
+#include "diagnostics/RuntimeCounters.h"
 #include "FileOpTypes.h"
 
 class FileOperations;
@@ -107,6 +108,7 @@ private:
     struct TransferWorker {
         FileOperations *ops = nullptr;
         QThread *thread = nullptr;
+        std::unique_ptr<fc::RuntimeCounterGuard> counter;
         bool busy = false;
     };
 

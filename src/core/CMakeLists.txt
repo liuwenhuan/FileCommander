@@ -1,4 +1,6 @@
 set(CORE_SOURCES
+    diagnostics/RuntimeCounters.h
+    diagnostics/RuntimeCounters.cpp
     filesystem/FileInfo.h
     filesystem/FileInfo.cpp
     filesystem/FileSystemModel.h

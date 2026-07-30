@@ -15,6 +15,7 @@
 #include <QXmlStreamReader>
 
 #include "FileInfo.h"
+#include "diagnostics/RuntimeCounters.h"
 
 namespace {
 
@@ -262,6 +263,7 @@ void startWebDavTransfer(WebDavHandle *h) {
 
     CURL *curl = h->curl;
     h->worker = std::thread([curl, state]() {
+        fc::RuntimeCounterGuard counter(fc::RuntimeCounter::CurlTransfer);
         const CURLcode res = curl_easy_perform(curl);
         long httpCode = 0;
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpCode);

@@ -20,6 +20,7 @@ set(CORE_TEST_SOURCES
     sync/test_DirectorySync.cpp
     sync/test_SyncScanner.cpp
     compare/test_TextDiff.cpp
+    diagnostics/test_RuntimeCounters.cpp
     platform/test_PathSemantics.cpp
     platform/test_FeatureCapabilities.cpp
     platform/test_FolderAssociation.cpp
