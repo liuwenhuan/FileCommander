@@ -148,6 +148,35 @@ TEST(RemoteThumbnailTest, SecondRequestIsServedFromCacheWithoutRefetching) {
     EXPECT_EQ(provider->opens(), 1);
 }
 
+TEST(RemoteThumbnailTest, PersistOnlyDiskHitAvoidsDecodePixmapInsertionAndProviderReads) {
+    auto provider = std::make_shared<ImageProvider>(pngBytes());
+    const QString path = remotePath("persist-only.png");
+    const QString conn = QStringLiteral("smb://tester@fake-%1")
+                             .arg(QDateTime::currentMSecsSinceEpoch());
+    ThumbnailCache &cache = ThumbnailCache::instance();
+
+    QObject context;
+    std::atomic<bool> ready{false};
+    QObject::connect(&cache, &ThumbnailCache::thumbnailReady, &context,
+                     [&](const QString &completed) { ready = ready || completed == path; });
+    ASSERT_EQ(cache.requestRemoteThumbnail(provider, conn, path, 1700000000, 4096, 64),
+              ThumbnailCache::Request::Queued);
+    ASSERT_TRUE(spinUntil([&] { return ready.load(); }, 10000));
+    ASSERT_EQ(provider->opens(), 1);
+
+    // Prove this is a disk-only hit, rather than the display cache masking it.
+    cache.setMemoryBudgetKiBForTest(ThumbnailCache::kMemoryBudgetKiB);
+    cache.resetDiskDecodeCountForTest();
+    QPixmap readyPixmap;
+    EXPECT_EQ(cache.requestRemoteThumbnail(provider, conn, path, 1700000000, 4096, 64,
+                                            &readyPixmap, ThumbnailCache::CacheIntent::PersistOnly),
+              ThumbnailCache::Request::Ready);
+    EXPECT_TRUE(readyPixmap.isNull());
+    EXPECT_EQ(cache.diskDecodeCountForTest(), 0);
+    EXPECT_EQ(cache.memoryStatsForTest().entries, 0);
+    EXPECT_EQ(provider->opens(), 1);
+}
+
 TEST(RemoteThumbnailTest, ChangedMtimeInvalidatesTheCachedEntry) {
     auto provider = std::make_shared<ImageProvider>(pngBytes());
     const QString path = remotePath("edited.png");

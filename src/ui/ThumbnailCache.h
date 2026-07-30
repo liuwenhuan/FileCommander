@@ -58,6 +58,8 @@ public:
     void setMemoryBudgetKiBForTest(int budgetKiB);
     void insertPixmapForTest(const QString &key, const QPixmap &pixmap);
     ThumbnailMemoryStats memoryStatsForTest();
+    void resetDiskDecodeCountForTest();
+    int diskDecodeCountForTest() const;
 
     // What a thumbnail request did, for callers that schedule rather than
     // paint. Painting ignores this -- a null pixmap tells it everything it
@@ -246,7 +248,7 @@ private:
     // scaled down to `displaySize` and promoted into memory so the next paint
     // is a plain lookup. Null means "not cached -- generate it".
     QPixmap lookupCached(const QString &memKey, const QString &diskKey, int displaySize,
-                         CacheIntent intent);
+                         CacheIntent intent, bool *persistedHit = nullptr);
     // Caller holds m_mutex. This is only called on the GUI thread, where
     // QPixmap creation and use are permitted.
     void insertPixmap(const QString &key, const QPixmap &pixmap);
@@ -311,6 +313,7 @@ private:
     QCache<QString, QPixmap> m_memCache; // cache key -> thumbnail; guarded by m_mutex
     QSet<QString> m_pending;             // cache keys currently generating; guarded by m_mutex
     QMutex m_mutex;
+    int m_diskDecodeCountForTest = 0; // GUI thread only; observes QImage disk loads in tests
     QThreadPool *m_pool; // bounded worker pool; owned, but Qt manages its threads
     // Separate, much narrower pool for network fetches: a remote thumbnail is
     // bounded by the link rather than the CPU, so it gets its own limit instead

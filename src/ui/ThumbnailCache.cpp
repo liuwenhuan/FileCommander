@@ -436,6 +436,10 @@ ThumbnailCache::ThumbnailMemoryStats ThumbnailCache::memoryStatsForTest() {
     return {m_memCache.size(), qint64(m_memCache.totalCost()) * 1024};
 }
 
+void ThumbnailCache::resetDiskDecodeCountForTest() { m_diskDecodeCountForTest = 0; }
+
+int ThumbnailCache::diskDecodeCountForTest() const { return m_diskDecodeCountForTest; }
+
 bool ThumbnailCache::canThumbnail(const QString &path) {
     const QString ext = extensionOf(path);
     return imageExtensions().contains(ext) || videoExtensions().contains(ext);
@@ -613,7 +617,9 @@ void ThumbnailCache::scheduleMaintenance(int delayMs) {
 }
 
 QPixmap ThumbnailCache::lookupCached(const QString &memKey, const QString &diskKey,
-                                     int displaySize, CacheIntent intent) {
+                                     int displaySize, CacheIntent intent, bool *persistedHit) {
+    if (persistedHit)
+        *persistedHit = false;
     if (intent == CacheIntent::Display) {
         QMutexLocker locker(&m_mutex);
         if (QPixmap *cached = m_memCache.object(memKey))
@@ -628,6 +634,23 @@ QPixmap ThumbnailCache::lookupCached(const QString &memKey, const QString &diskK
     const QString diskPath = diskCachePath(diskKey);
     const QFileInfo cachedFile(diskPath);
     if (cachedFile.exists()) {
+        if (intent == CacheIntent::PersistOnly) {
+            // The background sweep only needs to know whether a stored result
+            // exists. Decoding it here would put image I/O, scaling, and
+            // QPixmap construction back on the GUI thread for rows nobody is
+            // about to paint. A zero-byte file is detectable without decoding
+            // and is discarded so the existing regeneration path still runs.
+            // Detecting malformed non-empty image data requires a decode and
+            // belongs to Task 3's worker-side validation.
+            if (cachedFile.size() > 0) {
+                if (persistedHit)
+                    *persistedHit = true;
+                return {};
+            }
+            QFile::remove(diskPath);
+            return {};
+        }
+        ++m_diskDecodeCountForTest;
         const QImage stored(diskPath);
         if (!stored.isNull()) {
             // This entry has just proved its worth, so record the use for the
@@ -731,11 +754,15 @@ ThumbnailCache::Request ThumbnailCache::requestRemoteThumbnail(
     const QString memKey =
         remoteCacheKey(connectionId, path, mtimeEpoch, fileSize, size) + contentTintTag();
     const QString diskKey = remoteCacheKey(connectionId, path, mtimeEpoch, fileSize, stored);
-    if (QPixmap cached = lookupCached(memKey, diskKey, size, intent); !cached.isNull()) {
+    bool persistedHit = false;
+    if (QPixmap cached = lookupCached(memKey, diskKey, size, intent, &persistedHit);
+        !cached.isNull()) {
         if (ready)
             *ready = cached;
         return Request::Ready;
     }
+    if (persistedHit)
+        return Request::Ready;
     // Already generating: someone else's request covers this row, and
     // thumbnailReady() will announce it. Nothing left for this caller to do.
     // Claimed on the rung, so a zoom step that shares one never re-fetches.
