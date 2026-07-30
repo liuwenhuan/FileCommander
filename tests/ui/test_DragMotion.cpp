@@ -3,14 +3,19 @@
 #include <QAbstractAnimation>
 #include <QApplication>
 #include <QColor>
+#include <QDir>
 #include <QDragLeaveEvent>
 #include <QDropEvent>
+#include <QFile>
 #include <QMimeData>
+#include <QPointer>
 #include <QScrollBar>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QUrl>
 #include <QVariantAnimation>
+
+#include <memory>
 
 #include "FileListView.h"
 #include "FileSystemModel.h"
@@ -32,6 +37,19 @@ public:
         MotionPolicy::clearSystemReducedForTest();
         MotionPolicy::setApplicationReduced(false);
     }
+};
+
+class ApplicationStyleSheetGuard {
+public:
+    ApplicationStyleSheetGuard() : m_original(qApp->styleSheet()) {}
+
+    ~ApplicationStyleSheetGuard() {
+        qApp->setStyleSheet(m_original);
+        qApp->processEvents();
+    }
+
+private:
+    QString m_original;
 };
 
 class DragMotionListView : public FileListView {
@@ -97,6 +115,12 @@ void setValidMime(QMimeData *mime) {
 template <typename View>
 QVariantAnimation *feedbackAnimation(View &view) {
     return view.findChild<QVariantAnimation *>(QStringLiteral("DragTargetFeedbackAnimation"));
+}
+
+template <typename View>
+QList<QVariantAnimation *> feedbackAnimations(View &view) {
+    return view.findChildren<QVariantAnimation *>(
+        QStringLiteral("DragTargetFeedbackAnimation"));
 }
 
 template <typename View>
@@ -201,6 +225,161 @@ void reducedMotionShowsStaticFinalFeedback() {
     EXPECT_NE(animation->state(), QAbstractAnimation::Running);
 }
 
+template <typename View>
+void directCancelAndDestructionClearActiveFeedback() {
+    MotionPolicyStateGuard guard;
+    MotionPolicy::setReducedForTest(false);
+
+    {
+        Panel<View> panel;
+        QMimeData mime;
+        setValidMime(&mime);
+        sendValidEnterAndMove(panel.view, &mime);
+
+        QVariantAnimation *animation = feedbackAnimation(panel.view);
+        ASSERT_NE(animation, nullptr);
+        ASSERT_EQ(animation->state(), QAbstractAnimation::Running);
+
+        QDragLeaveEvent cancel;
+        panel.view.dragLeaveEvent(&cancel);
+        EXPECT_TRUE(cancel.isAccepted());
+        EXPECT_EQ(panel.view.property("dragFeedbackState").toString(), QStringLiteral("none"));
+        EXPECT_FALSE(panel.view.property("dragFeedbackColor").value<QColor>().isValid());
+        EXPECT_NE(animation->state(), QAbstractAnimation::Running);
+
+        QTest::qWait(MotionPolicy::duration(MotionDuration::Normal) + 100);
+        EXPECT_EQ(panel.view.property("dragFeedbackState").toString(), QStringLiteral("none"));
+        EXPECT_FALSE(panel.view.property("dragFeedbackColor").value<QColor>().isValid());
+        EXPECT_NE(animation->state(), QAbstractAnimation::Running);
+    }
+
+    {
+        auto panel = std::make_unique<Panel<View>>();
+        QMimeData mime;
+        setValidMime(&mime);
+        sendValidEnterAndMove(panel->view, &mime);
+        ASSERT_EQ(feedbackAnimation(panel->view)->state(), QAbstractAnimation::Running);
+
+        QPointer<View> watched = &panel->view;
+        panel.reset();
+        EXPECT_TRUE(watched.isNull());
+        QTest::qWait(MotionPolicy::duration(MotionDuration::Normal) + 100);
+    }
+
+    MotionPolicy::setReducedForTest(true);
+    {
+        auto panel = std::make_unique<Panel<View>>();
+        QMimeData mime;
+        setValidMime(&mime);
+        sendValidEnterAndMove(panel->view, &mime);
+        sendDrop(panel->view, &mime);
+        ASSERT_EQ(panel->view.property("dragFeedbackState").toString(),
+                  QStringLiteral("success"));
+        ASSERT_NE(feedbackAnimation(panel->view)->state(), QAbstractAnimation::Running);
+
+        QPointer<View> watched = &panel->view;
+        panel.reset();
+        EXPECT_TRUE(watched.isNull());
+        QTest::qWait(MotionPolicy::duration(MotionDuration::Normal) + 100);
+    }
+}
+
+template <typename View>
+void burstDragMovesReuseOneAnimationWithoutRestarting() {
+    MotionPolicyStateGuard guard;
+    MotionPolicy::setReducedForTest(false);
+
+    Panel<View> panel;
+    QMimeData mime;
+    setValidMime(&mime);
+    QDragEnterEvent enter(QPoint(8, 8), Qt::CopyAction, &mime, Qt::LeftButton,
+                          Qt::NoModifier);
+    panel.view.dragEnterEvent(&enter);
+    ASSERT_TRUE(enter.isAccepted());
+
+    QList<QVariantAnimation *> animations = feedbackAnimations(panel.view);
+    ASSERT_EQ(animations.size(), 1);
+    QVariantAnimation *animation = animations.first();
+    ASSERT_EQ(animation->state(), QAbstractAnimation::Running);
+    QTRY_VERIFY_WITH_TIMEOUT(animation->currentTime() >= 20, 100);
+    const int timeBeforeBurst = animation->currentTime();
+
+    for (int i = 0; i < 8; ++i) {
+        QTest::qWait(5);
+        QDragMoveEvent move(QPoint(12 + i, 12), Qt::CopyAction, &mime, Qt::LeftButton,
+                            Qt::NoModifier);
+        panel.view.dragMoveEvent(&move);
+        EXPECT_TRUE(move.isAccepted());
+    }
+
+    EXPECT_EQ(feedbackAnimations(panel.view).size(), 1);
+    EXPECT_EQ(feedbackAnimation(panel.view), animation);
+    EXPECT_GE(animation->currentTime(), timeBeforeBurst);
+    QTRY_COMPARE_WITH_TIMEOUT(animation->state(), QAbstractAnimation::Stopped, 100);
+    EXPECT_EQ(panel.view.property("dragFeedbackState").toString(), QStringLiteral("accepted"));
+}
+
+QByteArray readTheme(const QString &name) {
+    QFile file(QDir(QStringLiteral(TTC_SOURCE_DIR))
+                   .filePath(QStringLiteral("resources/themes/%1.qss").arg(name)));
+    EXPECT_TRUE(file.open(QIODevice::ReadOnly)) << qPrintable(file.fileName());
+    return file.readAll();
+}
+
+template <typename View>
+void expectThemeFeedback(const QString &theme, const QColor &highlight, const QColor &text) {
+    SCOPED_TRACE(theme.toStdString());
+    qApp->setStyleSheet(QString::fromUtf8(readTheme(theme)));
+    qApp->processEvents();
+
+    Panel<View> panel;
+    EXPECT_EQ(panel.view.palette().color(QPalette::Highlight), highlight);
+    EXPECT_EQ(panel.view.palette().color(QPalette::Text), text);
+
+    QColor acceptedFinal = highlight;
+    acceptedFinal.setAlpha(210);
+    QMimeData accepted;
+    setValidMime(&accepted);
+    QDragEnterEvent acceptedEnter(QPoint(8, 8), Qt::CopyAction, &accepted, Qt::LeftButton,
+                                  Qt::NoModifier);
+    panel.view.dragEnterEvent(&acceptedEnter);
+    ASSERT_TRUE(acceptedEnter.isAccepted());
+    QTRY_COMPARE_WITH_TIMEOUT(panel.view.property("dragFeedbackColor").value<QColor>(),
+                              acceptedFinal, 150);
+
+    QDragLeaveEvent leave;
+    panel.view.dragLeaveEvent(&leave);
+
+    QColor rejectedFinal = text;
+    rejectedFinal.setAlpha(180);
+    QMimeData rejected;
+    rejected.setText(QStringLiteral("not a file payload"));
+    QDragEnterEvent rejectedEnter(QPoint(8, 8), Qt::CopyAction, &rejected, Qt::LeftButton,
+                                  Qt::NoModifier);
+    panel.view.dragEnterEvent(&rejectedEnter);
+    ASSERT_FALSE(rejectedEnter.isAccepted());
+
+    for (int elapsed = 0; elapsed <= 100; elapsed += 10) {
+        EXPECT_NE(panel.view.property("dragFeedbackColor").value<QColor>(), acceptedFinal);
+        QTest::qWait(10);
+    }
+    EXPECT_EQ(panel.view.property("dragFeedbackColor").value<QColor>(), rejectedFinal);
+}
+
+template <typename View>
+void themeStylesheetsDriveFinalFeedbackColors() {
+    MotionPolicyStateGuard motionGuard;
+    ApplicationStyleSheetGuard styleGuard;
+    MotionPolicy::setReducedForTest(false);
+
+    expectThemeFeedback<View>(QStringLiteral("dark"), QColor(QStringLiteral("#3d7deb")),
+                              QColor(QStringLiteral("#e0e0e0")));
+    expectThemeFeedback<View>(QStringLiteral("light"), QColor(QStringLiteral("#3d7deb")),
+                              QColor(QStringLiteral("#202020")));
+    expectThemeFeedback<View>(QStringLiteral("green"), QColor(QStringLiteral("#33ff88")),
+                              QColor(QStringLiteral("#33ff88")));
+}
+
 } // namespace
 
 TEST(DragMotion, FileListAcceptedTargetAndDropArePaintOnly) {
@@ -225,4 +404,28 @@ TEST(DragMotion, FileListReducedMotionShowsStaticFinalFeedback) {
 
 TEST(DragMotion, IconViewReducedMotionShowsStaticFinalFeedback) {
     reducedMotionShowsStaticFinalFeedback<DragMotionIconView>();
+}
+
+TEST(DragMotion, FileListDirectCancelAndDestructionClearActiveFeedback) {
+    directCancelAndDestructionClearActiveFeedback<DragMotionListView>();
+}
+
+TEST(DragMotion, IconViewDirectCancelAndDestructionClearActiveFeedback) {
+    directCancelAndDestructionClearActiveFeedback<DragMotionIconView>();
+}
+
+TEST(DragMotion, FileListBurstDragMovesReuseOneAnimationWithoutRestarting) {
+    burstDragMovesReuseOneAnimationWithoutRestarting<DragMotionListView>();
+}
+
+TEST(DragMotion, IconViewBurstDragMovesReuseOneAnimationWithoutRestarting) {
+    burstDragMovesReuseOneAnimationWithoutRestarting<DragMotionIconView>();
+}
+
+TEST(DragMotion, FileListThemeStylesheetsDriveFinalFeedbackColors) {
+    themeStylesheetsDriveFinalFeedbackColors<DragMotionListView>();
+}
+
+TEST(DragMotion, IconViewThemeStylesheetsDriveFinalFeedbackColors) {
+    themeStylesheetsDriveFinalFeedbackColors<DragMotionIconView>();
 }

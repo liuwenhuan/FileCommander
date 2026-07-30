@@ -12,6 +12,7 @@
 #include "FileListView.h"
 #include "FileProvider.h"
 #include "FileSystemModel.h"
+#include "IconFileView.h"
 #include "LocalFileProvider.h"
 
 // A drag out of a panel now carries two payloads: file:// URLs (or protocol
@@ -59,6 +60,12 @@ public:
     using FileListView::dropEvent;
 };
 
+class DroppableIconView : public IconFileView {
+public:
+    using IconFileView::dragEnterEvent;
+    using IconFileView::dropEvent;
+};
+
 // filesDropped carries an enum and a raw provider pointer; QSignalSpy warns on
 // every emission unless both are known to the meta-object system.
 void registerSignalTypes() {
@@ -72,12 +79,13 @@ void registerSignalTypes() {
 
 // A view showing a real local directory, so destinationDirForDrop() has a
 // destination to report.
-struct Panel {
+template <typename View>
+struct DropPanel {
     QTemporaryDir dir;
     FileSystemModel model;
-    DroppableView view;
+    View view;
 
-    Panel() {
+    DropPanel() {
         registerSignalTypes();
         model.setRootPath(dir.path());
         view.setModel(&model);
@@ -85,9 +93,14 @@ struct Panel {
     }
 };
 
-void sendDrop(DroppableView *view, QMimeData *mime) {
+using Panel = DropPanel<DroppableView>;
+using IconPanel = DropPanel<DroppableIconView>;
+
+template <typename View>
+bool sendDrop(View *view, QMimeData *mime) {
     QDropEvent event(QPoint(5, 5), Qt::CopyAction, mime, Qt::LeftButton, Qt::NoModifier);
     view->dropEvent(&event);
+    return event.isAccepted();
 }
 
 } // namespace
@@ -169,5 +182,61 @@ TEST(DragPayloadTest, DropWithNothingUsableIsIgnored) {
     QMimeData mime;
     mime.setText(QStringLiteral("just some text"));
     sendDrop(&panel.view, &mime);
+    EXPECT_EQ(spy.count(), 0);
+}
+
+TEST(DragPayloadTest, IconViewPrivatePayloadCarriesBackendPathsAndCopyAction) {
+    IconPanel panel;
+    QSignalSpy spy(&panel.view, &IconFileView::filesDropped);
+
+    FakeRemote remote;
+    QMimeData mime;
+    const QStringList paths = {QStringLiteral("/docs/report.pdf"),
+                               QStringLiteral("/docs/data.csv")};
+    fc::setPathPayload(&mime, &remote, paths, /*cut=*/false);
+    ASSERT_TRUE(sendDrop(&panel.view, &mime));
+
+    ASSERT_EQ(spy.count(), 1);
+    EXPECT_EQ(spy.at(0).at(0).toStringList(), paths);
+    EXPECT_EQ(qvariant_cast<FileListView::DropActionKind>(spy.at(0).at(2)),
+              FileListView::DropActionKind::Copy);
+}
+
+TEST(DragPayloadTest, IconViewExternalUrlsRemainUsable) {
+    IconPanel panel;
+    QSignalSpy spy(&panel.view, &IconFileView::filesDropped);
+
+    QMimeData mime;
+    mime.setUrls({QUrl::fromLocalFile(QStringLiteral("/tmp/one.txt")),
+                  QUrl::fromLocalFile(QStringLiteral("/tmp/two.txt"))});
+    ASSERT_TRUE(sendDrop(&panel.view, &mime));
+
+    ASSERT_EQ(spy.count(), 1);
+    EXPECT_EQ(spy.at(0).at(0).toStringList(),
+              QStringList({QStringLiteral("/tmp/one.txt"), QStringLiteral("/tmp/two.txt")}));
+    EXPECT_EQ(qvariant_cast<FileListView::DropActionKind>(spy.at(0).at(2)),
+              FileListView::DropActionKind::Copy);
+}
+
+TEST(DragPayloadTest, IconViewExternalDropSelectsCopyAction) {
+    IconPanel panel;
+    QSignalSpy spy(&panel.view, &IconFileView::filesDropped);
+
+    QMimeData mime;
+    mime.setUrls({QUrl::fromLocalFile(QStringLiteral("/tmp/copy-me.txt"))});
+    ASSERT_TRUE(sendDrop(&panel.view, &mime));
+
+    ASSERT_EQ(spy.count(), 1);
+    EXPECT_EQ(qvariant_cast<FileListView::DropActionKind>(spy.at(0).at(2)),
+              FileListView::DropActionKind::Copy);
+}
+
+TEST(DragPayloadTest, IconViewDropWithNothingUsableIsIgnored) {
+    IconPanel panel;
+    QSignalSpy spy(&panel.view, &IconFileView::filesDropped);
+
+    QMimeData mime;
+    mime.setText(QStringLiteral("just some text"));
+    EXPECT_FALSE(sendDrop(&panel.view, &mime));
     EXPECT_EQ(spy.count(), 0);
 }
