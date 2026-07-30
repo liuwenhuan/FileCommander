@@ -7,6 +7,7 @@
 #include <QWidget>
 
 #include <memory>
+#include <optional>
 
 #include "FileSystemModel.h"
 #include "TabManager.h"
@@ -407,7 +408,14 @@ private:
     // independent of font size. Shared by applyThumbnailFontSize() and the -/+
     // zoom handlers.
     void applyThumbnailIconSize(int iconPx);
+    struct DirectorySizeRequest {
+        quint64 requestId = 0;
+        std::shared_ptr<FileProvider> provider;
+        QStringList directories;
+        QHash<QString, qint64> symlinkRootSizes;
+    };
     void cancelDirectorySizeTask();
+    void startDirectorySizeTask(DirectorySizeRequest request);
     // Recomputes and applies the list view's row height from either
     // m_listRowHeightOverride or the current font/icon metrics.
     void applyListRowHeight();
@@ -467,6 +475,7 @@ private:
     StatusBarWidget *m_statusBar;
     FileSystemModel *m_model;
     DirectorySizeTask *m_directorySizeTask = nullptr;
+    std::optional<DirectorySizeRequest> m_pendingDirectorySizeRequest;
     quint64 m_directorySizeRequestId = 0;
     QVector<NavEntry> m_backHistory;
     QVector<NavEntry> m_forwardHistory;

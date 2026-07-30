@@ -148,6 +148,34 @@ bool listHasName(FileSystemModel *model, const QString &name) {
     return false;
 }
 
+DirectorySizeTask *startBlockedDirectorySize(FilePanel &panel,
+                                             const std::shared_ptr<SizeGate> &gate) {
+    auto *view = panel.findChild<FileListView *>();
+    if (!view)
+        return nullptr;
+    for (int row = 0; row < panel.model()->rowCount(); ++row) {
+        if (panel.model()->fileInfoAt(row).name() != QStringLiteral("folder"))
+            continue;
+        view->setCurrentIndex(panel.model()->index(row, FileSystemModel::NameColumn));
+        panel.calculateDirSizes();
+        QElapsedTimer elapsed;
+        elapsed.start();
+        while (!gate->entered.load() && elapsed.elapsed() < 5000)
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+        if (!gate->entered.load())
+            return nullptr;
+        return panel.findChild<DirectorySizeTask *>();
+    }
+    return nullptr;
+}
+
+bool waitForCancelledDirectorySize(QSignalSpy &finished) {
+    if (finished.isEmpty() && !finished.wait(4000))
+        return false;
+    return finished.count() == 1 && finished.first().size() == 3 &&
+           finished.first().at(2).toBool();
+}
+
 QStringList visibleEntryNames(FileSystemModel *model) {
     QStringList names;
     for (int row = 0; row < model->rowCount(); ++row) {
@@ -439,6 +467,103 @@ TEST(TabSessionLifecycle, ExchangeMovesRemoteBackendWithItsLocation) {
     EXPECT_TRUE(right.model()->hasNetworkSession());
     EXPECT_EQ(right.connectionId(), connectionId);
     EXPECT_TRUE(listHasName(right.model(), QStringLiteral("folder")));
+}
+
+TEST(TabSessionLifecycle, ExchangeInvalidatesRunningDirectorySizeGeneration) {
+    const QString remoteDir = QStringLiteral("/share/docs");
+    QTemporaryDir localDir;
+    ASSERT_TRUE(localDir.isValid());
+    auto gate = std::make_shared<SizeGate>();
+    auto share = std::make_shared<LifecycleShare>(remoteDir, gate);
+
+    FilePanel left;
+    FilePanel right;
+    left.connectTabTo(0, share, [](QString *) { return true; }, remoteDir,
+                      QStringLiteral("tester@share"), SavedConnection{},
+                      FileSystemModel::AuthRetryFactory());
+    settle(left);
+    right.navigateTo(localDir.path());
+    settle(right);
+
+    DirectorySizeTask *task = startBlockedDirectorySize(left, gate);
+    ASSERT_NE(task, nullptr);
+    QSignalSpy finished(task, &DirectorySizeTask::finished);
+    GateReleaseGuard releaseGate(gate->release);
+
+    left.exchangeLocationWith(&right);
+    releaseGate.release();
+
+    EXPECT_TRUE(waitForCancelledDirectorySize(finished));
+}
+
+TEST(TabSessionLifecycle, OpenLocalInvalidatesRunningDirectorySizeGeneration) {
+    const QString remoteDir = QStringLiteral("/share/docs");
+    QTemporaryDir localDir;
+    ASSERT_TRUE(localDir.isValid());
+    auto gate = std::make_shared<SizeGate>();
+    auto share = std::make_shared<LifecycleShare>(remoteDir, gate);
+
+    FilePanel panel;
+    panel.connectTabTo(0, share, [](QString *) { return true; }, remoteDir,
+                       QStringLiteral("tester@share"), SavedConnection{},
+                       FileSystemModel::AuthRetryFactory());
+    settle(panel);
+
+    DirectorySizeTask *task = startBlockedDirectorySize(panel, gate);
+    ASSERT_NE(task, nullptr);
+    QSignalSpy finished(task, &DirectorySizeTask::finished);
+    GateReleaseGuard releaseGate(gate->release);
+
+    panel.openLocalInTab(-1, localDir.path());
+    releaseGate.release();
+
+    EXPECT_TRUE(waitForCancelledDirectorySize(finished));
+}
+
+TEST(TabSessionLifecycle, NewTabInvalidatesRunningDirectorySizeGeneration) {
+    const QString remoteDir = QStringLiteral("/share/docs");
+    auto gate = std::make_shared<SizeGate>();
+    auto share = std::make_shared<LifecycleShare>(remoteDir, gate);
+
+    FilePanel panel;
+    panel.connectTabTo(0, share, [](QString *) { return true; }, remoteDir,
+                       QStringLiteral("tester@share"), SavedConnection{},
+                       FileSystemModel::AuthRetryFactory());
+    settle(panel);
+
+    DirectorySizeTask *task = startBlockedDirectorySize(panel, gate);
+    ASSERT_NE(task, nullptr);
+    QSignalSpy finished(task, &DirectorySizeTask::finished);
+    GateReleaseGuard releaseGate(gate->release);
+
+    panel.newTab();
+    releaseGate.release();
+
+    EXPECT_TRUE(waitForCancelledDirectorySize(finished));
+}
+
+TEST(TabSessionLifecycle, SearchResultsInvalidateRunningDirectorySizeGeneration) {
+    const QString remoteDir = QStringLiteral("/share/docs");
+    auto gate = std::make_shared<SizeGate>();
+    auto share = std::make_shared<LifecycleShare>(remoteDir, gate);
+
+    FilePanel panel;
+    panel.connectTabTo(0, share, [](QString *) { return true; }, remoteDir,
+                       QStringLiteral("tester@share"), SavedConnection{},
+                       FileSystemModel::AuthRetryFactory());
+    settle(panel);
+
+    DirectorySizeTask *task = startBlockedDirectorySize(panel, gate);
+    ASSERT_NE(task, nullptr);
+    QSignalSpy finished(task, &DirectorySizeTask::finished);
+    GateReleaseGuard releaseGate(gate->release);
+
+    panel.showSearchResultsInNewTab(
+        QStringLiteral("payload"),
+        {remoteDir + QStringLiteral("/folder/payload.bin")});
+    releaseGate.release();
+
+    EXPECT_TRUE(waitForCancelledDirectorySize(finished));
 }
 
 TEST(TabSessionLifecycle, SavedRemoteTabMetadataRoundTripsThroughSessionRestore) {

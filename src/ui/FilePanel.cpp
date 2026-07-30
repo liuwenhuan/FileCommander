@@ -777,6 +777,7 @@ void FilePanel::navigateTabTo(int tabIndex, const QString &path) {
 void FilePanel::showSearchResultsInNewTab(const QString &keyword, const QStringList &paths) {
     if (paths.isEmpty())
         return;
+    cancelDirectorySizeTask();
     // The results are a temporary virtual directory: give them their own tab
     // (titled after the search keyword) so the previously-browsed directory in
     // the current tab is left untouched.
@@ -939,6 +940,9 @@ void FilePanel::refresh() {
 void FilePanel::exchangeLocationWith(FilePanel *other) {
     if (!other || other == this)
         return;
+
+    cancelDirectorySizeTask();
+    other->cancelDirectorySizeTask();
 
     // Both panels are about to show a different listing, so neither's queued
     // thumbnail fetches are wanted any more.
@@ -1725,11 +1729,12 @@ FilePanel::~FilePanel() {
 
 void FilePanel::cancelDirectorySizeTask() {
     ++m_directorySizeRequestId;
+    m_pendingDirectorySizeRequest.reset();
     if (!m_directorySizeTask)
         return;
+    // Keep the task alive until its watcher reports completion. Its provider call
+    // may still be blocked, and destroying the watcher would lose the lane wakeup.
     m_directorySizeTask->cancel();
-    m_directorySizeTask->deleteLater();
-    m_directorySizeTask = nullptr;
 }
 
 void FilePanel::calculateDirSizes() {
@@ -1763,23 +1768,51 @@ void FilePanel::calculateDirSizes() {
     // new request generation makes every earlier progress/result callback stale.
     std::shared_ptr<FileProvider> provider = m_model->providerPtr();
     const quint64 requestId = ++m_directorySizeRequestId;
-    auto *task = new DirectorySizeTask(requestId, std::move(provider), dirs, this,
-                                       std::move(symlinkRootSizes));
+    DirectorySizeRequest request{requestId, std::move(provider), std::move(dirs),
+                                 std::move(symlinkRootSizes)};
+    if (m_directorySizeTask) {
+        // One running request owns the provider lane; repeated replacements only
+        // replace this pending slot.
+        m_pendingDirectorySizeRequest = std::move(request);
+        return;
+    }
+    startDirectorySizeTask(std::move(request));
+}
+
+void FilePanel::startDirectorySizeTask(DirectorySizeRequest request) {
+    const quint64 requestId = request.requestId;
+    const QStringList dirs = request.directories;
+    auto *task =
+        new DirectorySizeTask(requestId, std::move(request.provider),
+                              std::move(request.directories), this,
+                              std::move(request.symlinkRootSizes));
     m_directorySizeTask = task;
     auto completedBytes = std::make_shared<qint64>(0);
     connect(task, &DirectorySizeTask::progress, this,
-            [this, requestId, dirs, completedBytes](int completedRoots, int, qint64 bytes) {
-                if (requestId != m_directorySizeRequestId || completedRoots <= 0 ||
+            [this, task, requestId, dirs, completedBytes](int completedRoots, int,
+                                                         qint64 bytes) {
+                if (requestId != m_directorySizeRequestId ||
+                    m_directorySizeTask != task || completedRoots <= 0 ||
                     completedRoots > dirs.size())
                     return;
                 m_model->setComputedDirSize(dirs.at(completedRoots - 1), bytes - *completedBytes);
                 *completedBytes = bytes;
             });
     connect(task, &DirectorySizeTask::finished, this,
-            [this, task](quint64 requestId, qint64, bool) {
-                if (requestId == m_directorySizeRequestId && m_directorySizeTask == task)
-                    m_directorySizeTask = nullptr;
+            [this, task](quint64, qint64, bool) {
+                if (m_directorySizeTask != task) {
+                    task->deleteLater();
+                    return;
+                }
+                m_directorySizeTask = nullptr;
                 task->deleteLater();
+                if (!m_pendingDirectorySizeRequest)
+                    return;
+                DirectorySizeRequest pending =
+                    std::move(*m_pendingDirectorySizeRequest);
+                m_pendingDirectorySizeRequest.reset();
+                if (pending.requestId == m_directorySizeRequestId)
+                    startDirectorySizeTask(std::move(pending));
             });
     task->start();
 }
@@ -2075,6 +2108,7 @@ void FilePanel::onTabBarCurrentChanged(int index) {
 }
 
 void FilePanel::openLocalInTab(int tabIndex, const QString &path) {
+    cancelDirectorySizeTask();
     // Switch to the target tab (which swaps in its own connection) ...
     if (tabIndex >= 0 && tabIndex < m_tabBar->count() &&
         tabIndex != m_tabBar->currentIndex())
@@ -2207,6 +2241,7 @@ int FilePanel::closeTabsOnMount(const QString &mountRoot) {
 }
 
 void FilePanel::newTab() {
+    cancelDirectorySizeTask();
     // This opens a tab rather than switching to one, so it does its own
     // park/save instead of going through onTabBarCurrentChanged -- and has to
     // step out of an archive for the same reason that does (see there).

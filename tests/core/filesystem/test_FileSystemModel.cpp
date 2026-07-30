@@ -6,6 +6,7 @@
 #include <QtTest/QSignalSpy>
 #include <QTemporaryDir>
 
+#include <algorithm>
 #include <condition_variable>
 #include <memory>
 #include <mutex>
@@ -55,19 +56,29 @@ public:
             return {FileInfo::fromFields(QStringLiteral("/first"), QStringLiteral("first"), 0,
                                          {}, true, {}),
                     FileInfo::fromFields(QStringLiteral("/second"), QStringLiteral("second"), 0,
+                                         {}, true, {}),
+                    FileInfo::fromFields(QStringLiteral("/third"), QStringLiteral("third"), 0,
                                          {}, true, {})};
         }
+        ++m_activeRequests;
+        m_maxConcurrentRequests = std::max(m_maxConcurrentRequests, m_activeRequests);
+        m_requestedPaths.append(path);
+        QVector<FileInfo> result;
         if (path == QStringLiteral("/first")) {
             m_firstRequestStarted = true;
             m_firstRequest.notify_all();
             m_releaseFirst.wait(lock, [this] { return m_firstRequestReleased; });
-            return {FileInfo::fromFields(QStringLiteral("/first/old.bin"),
-                                         QStringLiteral("old.bin"), 10, {}, false, {})};
+            result = {FileInfo::fromFields(QStringLiteral("/first/old.bin"),
+                                           QStringLiteral("old.bin"), 10, {}, false, {})};
+        } else if (path == QStringLiteral("/second")) {
+            result = {FileInfo::fromFields(QStringLiteral("/second/new.bin"),
+                                           QStringLiteral("new.bin"), 20, {}, false, {})};
+        } else if (path == QStringLiteral("/third")) {
+            result = {FileInfo::fromFields(QStringLiteral("/third/latest.bin"),
+                                           QStringLiteral("latest.bin"), 30, {}, false, {})};
         }
-        if (path == QStringLiteral("/second"))
-            return {FileInfo::fromFields(QStringLiteral("/second/new.bin"),
-                                         QStringLiteral("new.bin"), 20, {}, false, {})};
-        return {};
+        --m_activeRequests;
+        return result;
     }
 
     bool isDir(const QString &) const override { return true; }
@@ -89,12 +100,25 @@ public:
         m_releaseFirst.notify_all();
     }
 
+    int maxConcurrentRequests() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_maxConcurrentRequests;
+    }
+
+    QStringList requestedPaths() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_requestedPaths;
+    }
+
 private:
     mutable std::mutex m_mutex;
     mutable std::condition_variable m_firstRequest;
     mutable std::condition_variable m_releaseFirst;
     mutable bool m_firstRequestStarted = false;
     mutable bool m_firstRequestReleased = false;
+    mutable int m_activeRequests = 0;
+    mutable int m_maxConcurrentRequests = 0;
+    mutable QStringList m_requestedPaths;
 };
 
 bool loadPanel(FilePanel &panel, const QString &path) {
@@ -278,6 +302,45 @@ TEST(FilePanelDirectorySize, OlderRequestCannotOverwriteNewerSelection) {
         panel.model()->data(panel.model()->index(1, FileSystemModel::SizeColumn)).toString(),
         QStringLiteral("20 B"), 4000);
     EXPECT_EQ(panel.model()->data(panel.model()->index(0, FileSystemModel::SizeColumn)).toString(),
+              QStringLiteral("<DIR>"));
+}
+
+TEST(FilePanelDirectorySize, RemoteReplacementsAreSerializedAndCoalescedToNewest) {
+    auto provider = std::make_shared<StaleSizeProvider>();
+    FilePanel panel;
+    panel.model()->setProvider(provider);
+    ASSERT_TRUE(loadPanel(panel, QStringLiteral("/")));
+
+    FileListView *view = panel.findChild<FileListView *>();
+    ASSERT_NE(view, nullptr);
+    const QModelIndex first = panel.model()->index(0, FileSystemModel::NameColumn);
+    const QModelIndex second = panel.model()->index(1, FileSystemModel::NameColumn);
+    const QModelIndex third = panel.model()->index(2, FileSystemModel::NameColumn);
+
+    view->setCurrentIndex(first);
+    panel.calculateDirSizes();
+    provider->waitUntilFirstRequestStarted();
+
+    view->setCurrentIndex(second);
+    panel.calculateDirSizes();
+    view->setCurrentIndex(third);
+    panel.calculateDirSizes();
+
+    QTest::qWait(100);
+    EXPECT_EQ(provider->maxConcurrentRequests(), 1);
+    EXPECT_EQ(provider->requestedPaths(), QStringList{QStringLiteral("/first")});
+
+    provider->releaseFirstRequest();
+    QTRY_COMPARE_WITH_TIMEOUT(
+        panel.model()->data(panel.model()->index(2, FileSystemModel::SizeColumn)).toString(),
+        QStringLiteral("30 B"), 4000);
+
+    EXPECT_EQ(provider->maxConcurrentRequests(), 1);
+    EXPECT_EQ(provider->requestedPaths(),
+              (QStringList{QStringLiteral("/first"), QStringLiteral("/third")}));
+    EXPECT_EQ(panel.model()->data(panel.model()->index(0, FileSystemModel::SizeColumn)).toString(),
+              QStringLiteral("<DIR>"));
+    EXPECT_EQ(panel.model()->data(panel.model()->index(1, FileSystemModel::SizeColumn)).toString(),
               QStringLiteral("<DIR>"));
 }
 
