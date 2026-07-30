@@ -3,6 +3,7 @@ set(CORE_TEST_SOURCES
     test_Phosphor.cpp
     filesystem/test_FileInfo.cpp
     filesystem/test_FileSystemModel.cpp
+    filesystem/test_DirectorySizeTask.cpp
     filesystem/test_IconCache.cpp
     filesystem/test_ProviderLocality.cpp
     filesystem/test_ExternalPaths.cpp
@@ -62,6 +63,7 @@ add_executable(core_tests ${CORE_TEST_SOURCES})
 
 target_link_libraries(core_tests PRIVATE
     core
+    ui
     GTest::gtest
     Qt5::Widgets
     Qt5::Core

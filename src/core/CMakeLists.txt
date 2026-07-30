@@ -3,6 +3,8 @@ set(CORE_SOURCES
     filesystem/FileInfo.cpp
     filesystem/FileSystemModel.h
     filesystem/FileSystemModel.cpp
+    filesystem/DirectorySizeTask.h
+    filesystem/DirectorySizeTask.cpp
     filesystem/FileProvider.h
     filesystem/LocalFileProvider.h
     filesystem/LocalFileProvider.cpp

@@ -2,9 +2,17 @@
 
 #include <QDir>
 #include <QFile>
+#include <QTest>
 #include <QtTest/QSignalSpy>
 #include <QTemporaryDir>
 
+#include <condition_variable>
+#include <memory>
+#include <mutex>
+
+#include "FileListView.h"
+#include "FilePanel.h"
+#include "FileProvider.h"
 #include "FileSystemModel.h"
 
 namespace {
@@ -37,6 +45,62 @@ int visibleFiles(const FileSystemModel &model) {
     if (rows > 0 && model.isParentEntry(0))
         --rows;
     return rows;
+}
+
+class StaleSizeProvider final : public FileProvider {
+public:
+    QVector<FileInfo> list(const QString &path, bool) const override {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        if (path == QStringLiteral("/")) {
+            return {FileInfo::fromFields(QStringLiteral("/first"), QStringLiteral("first"), 0,
+                                         {}, true, {}),
+                    FileInfo::fromFields(QStringLiteral("/second"), QStringLiteral("second"), 0,
+                                         {}, true, {})};
+        }
+        if (path == QStringLiteral("/first")) {
+            m_firstRequestStarted = true;
+            m_firstRequest.notify_all();
+            m_releaseFirst.wait(lock, [this] { return m_firstRequestReleased; });
+            return {FileInfo::fromFields(QStringLiteral("/first/old.bin"),
+                                         QStringLiteral("old.bin"), 10, {}, false, {})};
+        }
+        if (path == QStringLiteral("/second"))
+            return {FileInfo::fromFields(QStringLiteral("/second/new.bin"),
+                                         QStringLiteral("new.bin"), 20, {}, false, {})};
+        return {};
+    }
+
+    bool isDir(const QString &) const override { return true; }
+    QString cleanPath(const QString &path) const override { return path; }
+    QString parentPath(const QString &) const override { return {}; }
+    bool exists(const QString &) const override { return true; }
+    RenameResult rename(const QString &, const QString &, QString *) override {
+        return RenameResult::Failed;
+    }
+
+    void waitUntilFirstRequestStarted() const {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_firstRequest.wait(lock, [this] { return m_firstRequestStarted; });
+    }
+
+    void releaseFirstRequest() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_firstRequestReleased = true;
+        m_releaseFirst.notify_all();
+    }
+
+private:
+    mutable std::mutex m_mutex;
+    mutable std::condition_variable m_firstRequest;
+    mutable std::condition_variable m_releaseFirst;
+    mutable bool m_firstRequestStarted = false;
+    mutable bool m_firstRequestReleased = false;
+};
+
+bool loadPanel(FilePanel &panel, const QString &path) {
+    QSignalSpy spy(panel.model(), &FileSystemModel::loadFinished);
+    panel.navigateTo(path);
+    return spy.wait(4000) || spy.count() > 0;
 }
 
 } // namespace
@@ -190,4 +254,29 @@ TEST(FileSystemModelFilterTest, ChangingDirectoryClearsFilter) {
     ASSERT_TRUE(loadDir(model, dir.path()));
     EXPECT_TRUE(model.nameFilter().isEmpty());
     EXPECT_EQ(visibleFiles(model), 2);
+}
+
+TEST(FilePanelDirectorySize, OlderRequestCannotOverwriteNewerSelection) {
+    auto provider = std::make_shared<StaleSizeProvider>();
+    FilePanel panel;
+    panel.model()->setProvider(provider);
+    ASSERT_TRUE(loadPanel(panel, QStringLiteral("/")));
+
+    FileListView *view = panel.findChild<FileListView *>();
+    ASSERT_NE(view, nullptr);
+    const QModelIndex first = panel.model()->index(0, FileSystemModel::NameColumn);
+    const QModelIndex second = panel.model()->index(1, FileSystemModel::NameColumn);
+    view->setCurrentIndex(first);
+    panel.calculateDirSizes();
+    provider->waitUntilFirstRequestStarted();
+
+    view->setCurrentIndex(second);
+    panel.calculateDirSizes();
+    provider->releaseFirstRequest();
+
+    QTRY_COMPARE_WITH_TIMEOUT(
+        panel.model()->data(panel.model()->index(1, FileSystemModel::SizeColumn)).toString(),
+        QStringLiteral("20 B"), 4000);
+    EXPECT_EQ(panel.model()->data(panel.model()->index(0, FileSystemModel::SizeColumn)).toString(),
+              QStringLiteral("<DIR>"));
 }

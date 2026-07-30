@@ -162,10 +162,6 @@ public:
     // "<DIR>". Cleared automatically when the directory is rescanned.
     void setComputedDirSize(const QString &path, qint64 bytes);
     static qint64 directorySize(const QString &path);
-    // Provider-aware recursive size: local uses the fast QDirIterator path above;
-    // a remote provider (SFTP/FTP/WebDAV/SMB) is walked via provider->list so
-    // network folders can be sized too. Runs on a worker thread.
-    static qint64 directorySize(FileProvider *provider, const QString &path);
 
     // Colours rows per a name->CompareStatus map (from "Compare Directories").
     // Cleared automatically on rescan.

@@ -395,28 +395,6 @@ qint64 FileSystemModel::directorySize(const QString &path) {
     return total;
 }
 
-qint64 FileSystemModel::directorySize(FileProvider *provider, const QString &path) {
-    LocalFileProvider *local = LocalFileProvider::instance();
-    if (!provider || provider == local)
-        return directorySize(path); // local: fast QDirIterator recursion
-
-    // Remote backend: recurse through the provider (each list() call serialises
-    // on the provider's mutex, so this is safe alongside the session thread).
-    // Symlinked directories are NOT descended, to avoid infinite loops on the
-    // server; the link entry itself just contributes its own reported size.
-    qint64 total = 0;
-    const QVector<FileInfo> entries = provider->list(path, /*showHidden=*/true);
-    for (const FileInfo &e : entries) {
-        if (e.isParentEntry())
-            continue;
-        if (e.isDir() && !e.isSymLink())
-            total += directorySize(provider, e.path());
-        else
-            total += e.size();
-    }
-    return total;
-}
-
 void FileSystemModel::setCompareStatus(const QHash<QString, int> &statusByName) {
     beginResetModel();
     m_compareStatus = statusByName;

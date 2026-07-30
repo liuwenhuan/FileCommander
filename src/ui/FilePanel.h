@@ -29,6 +29,7 @@ class QStackedWidget;
 class ThumbnailDelegate;
 class QAbstractItemView;
 class QTimer;
+class DirectorySizeTask;
 
 // One side of the dual-pane layout: address bar + file list + per-panel
 // back/forward history. Two of these live in MainWindow (left/right).
@@ -37,6 +38,7 @@ class FilePanel : public QWidget {
 
 public:
     explicit FilePanel(QWidget *parent = nullptr);
+    ~FilePanel() override;
 
     QString currentPath() const { return m_model->rootPath(); }
     void navigateTo(const QString &path);
@@ -405,6 +407,7 @@ private:
     // independent of font size. Shared by applyThumbnailFontSize() and the -/+
     // zoom handlers.
     void applyThumbnailIconSize(int iconPx);
+    void cancelDirectorySizeTask();
     // Recomputes and applies the list view's row height from either
     // m_listRowHeightOverride or the current font/icon metrics.
     void applyListRowHeight();
@@ -463,6 +466,8 @@ private:
     FileListView *m_view;
     StatusBarWidget *m_statusBar;
     FileSystemModel *m_model;
+    DirectorySizeTask *m_directorySizeTask = nullptr;
+    quint64 m_directorySizeRequestId = 0;
     QVector<NavEntry> m_backHistory;
     QVector<NavEntry> m_forwardHistory;
     // Back/forward history is PER TAB: switching tabs saves the outgoing tab's

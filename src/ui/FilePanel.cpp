@@ -1,5 +1,7 @@
 #include "FilePanel.h"
 
+#include "DirectorySizeTask.h"
+
 #include <QApplication>
 #include <QClipboard>
 #include <QDir>
@@ -306,7 +308,10 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     layout->addWidget(m_statusBar);
 
     connect(m_view->selectionModel(), &QItemSelectionModel::selectionChanged, this,
-            [this] { updateStatus(); });
+            [this] {
+                cancelDirectorySizeTask();
+                updateStatus();
+            });
 
     connect(m_statusBar, &StatusBarWidget::zoomOutRequested, this, &FilePanel::zoomViewOut);
     connect(m_statusBar, &StatusBarWidget::zoomInRequested, this, &FilePanel::zoomViewIn);
@@ -669,6 +674,7 @@ void FilePanel::pumpThumbnailSweep() {
 }
 
 void FilePanel::navigateTo(const QString &path) {
+    cancelDirectorySizeTask();
     cancelRemoteThumbnails();
     // Go through the model's provider so this works for remote backends too;
     // for the local provider these are the same QDir/QFileInfo calls as before.
@@ -1713,6 +1719,19 @@ void FilePanel::selectByPattern(bool select) {
     }
 }
 
+FilePanel::~FilePanel() {
+    cancelDirectorySizeTask();
+}
+
+void FilePanel::cancelDirectorySizeTask() {
+    ++m_directorySizeRequestId;
+    if (!m_directorySizeTask)
+        return;
+    m_directorySizeTask->cancel();
+    m_directorySizeTask->deleteLater();
+    m_directorySizeTask = nullptr;
+}
+
 void FilePanel::calculateDirSizes() {
     QStringList dirs;
     for (int row : selectedRowNumbers()) {
@@ -1730,19 +1749,32 @@ void FilePanel::calculateDirSizes() {
         }
     }
 
-    // Capture the provider (shared) so a remote directory can be sized via the
-    // provider engine, and so it stays alive for the whole walk even if the model
-    // swaps providers meanwhile. Local paths take the fast QDirIterator path.
+    cancelDirectorySizeTask();
+    if (dirs.isEmpty())
+        return;
+
+    // Capture the provider (shared) so the task survives provider changes. A
+    // new request generation makes every earlier progress/result callback stale.
     std::shared_ptr<FileProvider> provider = m_model->providerPtr();
-    for (const QString &path : dirs) {
-        auto *watcher = new QFutureWatcher<qint64>(this);
-        connect(watcher, &QFutureWatcher<qint64>::finished, this, [this, watcher, path]() {
-            m_model->setComputedDirSize(path, watcher->result());
-            watcher->deleteLater();
-        });
-        watcher->setFuture(QtConcurrent::run(
-            [provider, path]() { return FileSystemModel::directorySize(provider.get(), path); }));
-    }
+    const quint64 requestId = ++m_directorySizeRequestId;
+    auto *task = new DirectorySizeTask(requestId, std::move(provider), dirs, this);
+    m_directorySizeTask = task;
+    auto completedBytes = std::make_shared<qint64>(0);
+    connect(task, &DirectorySizeTask::progress, this,
+            [this, requestId, dirs, completedBytes](int completedRoots, int, qint64 bytes) {
+                if (requestId != m_directorySizeRequestId || completedRoots <= 0 ||
+                    completedRoots > dirs.size())
+                    return;
+                m_model->setComputedDirSize(dirs.at(completedRoots - 1), bytes - *completedBytes);
+                *completedBytes = bytes;
+            });
+    connect(task, &DirectorySizeTask::finished, this,
+            [this, task](quint64 requestId, qint64, bool) {
+                if (requestId == m_directorySizeRequestId && m_directorySizeTask == task)
+                    m_directorySizeTask = nullptr;
+                task->deleteLater();
+            });
+    task->start();
 }
 
 QString FilePanel::tabLabelFor(const QSharedPointer<TabState> &tab) const {
@@ -2012,6 +2044,7 @@ void FilePanel::adoptConnectionFrom(const QSharedPointer<TabState> &tab) {
 void FilePanel::onTabBarCurrentChanged(int index) {
     if (index < 0)
         return;
+    cancelDirectorySizeTask();
     // Clicking a tab also activates its panel: otherwise the click switched the
     // tab but left the OTHER panel active, so the next keyboard/F5 action ran on
     // the wrong pane. (The +/view/favorites paths already emit this.)
@@ -2093,6 +2126,7 @@ void FilePanel::openLocalInTab(int tabIndex, const QString &path) {
 void FilePanel::closeTabAt(int index) {
     if (m_tabManager->count() <= 1)
         return; // always keep at least one tab open
+    cancelDirectorySizeTask();
     // Closing the active tab: drop its live connection from the model first, so
     // the model doesn't keep listing through a server whose tab is gone. (A
     // background tab's session is owned solely by its TabState and is torn down
