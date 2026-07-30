@@ -3,9 +3,6 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
-#include <QFutureWatcher>
-#include <QItemSelectionModel>
-#include <QPointer>
 #include <QSemaphore>
 #include <QSignalSpy>
 #include <QStandardPaths>
@@ -15,6 +12,7 @@
 #include <atomic>
 #include <memory>
 
+#include "DirectorySizeTask.h"
 #include "FilePanel.h"
 #include "FileProvider.h"
 #include "FileListView.h"
@@ -301,53 +299,42 @@ TEST(TabSessionLifecycle, ProviderSizeTaskCompletesAfterRemoteTabCloses) {
     settle(panel);
     ASSERT_TRUE(panel.model()->hasNetworkSession());
 
-    int folderRow = -1;
-    for (int row = 0; row < panel.model()->rowCount(); ++row) {
-        if (panel.model()->fileInfoAt(row).name() == QStringLiteral("folder")) {
-            folderRow = row;
-            break;
-        }
+    {
+        constexpr quint64 requestId = 73;
+        DirectorySizeTask task(requestId, share,
+                               {remoteDir + QStringLiteral("/folder")});
+        QSignalSpy finished(&task, &DirectorySizeTask::finished);
+        task.start();
+
+        QTRY_VERIFY_WITH_TIMEOUT(gate->entered.load(), 4000);
+        panel.newTab();
+        panel.navigateTo(localDir.path());
+        settle(panel);
+        EXPECT_FALSE(panel.model()->hasNetworkSession());
+        ASSERT_EQ(panel.currentPath(), localDir.path());
+        const QStringList visibleBeforeClose = visibleEntryNames(panel.model());
+        ASSERT_EQ(visibleBeforeClose, QStringList{QStringLiteral("local.txt")});
+
+        auto *tabs = panel.findChild<TabBar *>();
+        ASSERT_NE(tabs, nullptr);
+        ASSERT_TRUE(QMetaObject::invokeMethod(tabs, "closeTabRequested", Qt::DirectConnection,
+                                              Q_ARG(int, 0)));
+        settle(panel);
+
+        share.reset();
+        EXPECT_EQ(panel.tabCount(), 1);
+        EXPECT_EQ(panel.currentPath(), localDir.path());
+        EXPECT_EQ(visibleEntryNames(panel.model()), visibleBeforeClose);
+
+        gate->release.release();
+        ASSERT_TRUE(finished.wait(4000));
+        ASSERT_EQ(finished.count(), 1);
+        const QList<QVariant> result = finished.takeFirst();
+        EXPECT_EQ(result.at(0).toULongLong(), requestId);
+        EXPECT_EQ(result.at(1).toLongLong(), 17);
+        EXPECT_FALSE(result.at(2).toBool());
+        EXPECT_EQ(panel.currentPath(), localDir.path());
+        EXPECT_EQ(visibleEntryNames(panel.model()), visibleBeforeClose);
     }
-    ASSERT_GE(folderRow, 0);
-    panel.view()->selectionModel()->select(
-        panel.model()->index(folderRow, 0),
-        QItemSelectionModel::Select | QItemSelectionModel::Rows);
-    panel.calculateDirSizes();
-
-    const auto watchers = panel.findChildren<QFutureWatcher<qint64> *>();
-    ASSERT_EQ(watchers.size(), 1);
-    QPointer<QFutureWatcher<qint64>> watcher = watchers.first();
-    bool operationFinished = false;
-    qint64 operationResult = -1;
-    QObject::connect(watcher, &QFutureWatcher<qint64>::finished, &panel, [&]() {
-        operationResult = watcher->result();
-        operationFinished = true;
-    });
-
-    QTRY_VERIFY_WITH_TIMEOUT(gate->entered.load(), 4000);
-    panel.newTab();
-    panel.navigateTo(localDir.path());
-    settle(panel);
-    EXPECT_FALSE(panel.model()->hasNetworkSession());
-    ASSERT_EQ(panel.currentPath(), localDir.path());
-    const QStringList visibleBeforeClose = visibleEntryNames(panel.model());
-    ASSERT_EQ(visibleBeforeClose, QStringList{QStringLiteral("local.txt")});
-
-    auto *tabs = panel.findChild<TabBar *>();
-    ASSERT_NE(tabs, nullptr);
-    ASSERT_TRUE(QMetaObject::invokeMethod(tabs, "closeTabRequested", Qt::DirectConnection,
-                                          Q_ARG(int, 0)));
-    settle(panel);
-
-    share.reset();
-    EXPECT_EQ(panel.tabCount(), 1);
-    EXPECT_EQ(panel.currentPath(), localDir.path());
-    EXPECT_EQ(visibleEntryNames(panel.model()), visibleBeforeClose);
-
-    gate->release.release();
-    QTRY_VERIFY_WITH_TIMEOUT(operationFinished, 4000);
-    EXPECT_EQ(operationResult, 17);
-    EXPECT_EQ(panel.currentPath(), localDir.path());
-    EXPECT_EQ(visibleEntryNames(panel.model()), visibleBeforeClose);
     QTRY_VERIFY_WITH_TIMEOUT(weakShare.expired(), 4000);
 }
