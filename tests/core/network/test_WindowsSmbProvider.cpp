@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <QDateTime>
+
 #include "network/WindowsSmbProvider.h"
 
 namespace {
@@ -69,5 +71,29 @@ TEST(WindowsSmbProvider, RenamePreservesSourceTraversalForMoveValidation) {
 
     WindowsSmbProvider validatingProvider;
     EXPECT_EQ(validatingProvider.moveTo(source, QStringLiteral("/other/renamed")),
+              FileProvider::RenameResult::Unsupported);
+}
+
+TEST(WindowsSmbProvider, RejectsTraversalBeforeRootShortcuts) {
+    WindowsSmbProvider provider;
+    QString error;
+    ASSERT_TRUE(provider.connectToHost(QStringLiteral("nas.invalid"), {}, {}, {}, true, &error));
+
+    EXPECT_FALSE(provider.isDir(QStringLiteral("/share/..")));
+    EXPECT_FALSE(provider.exists(QStringLiteral("/share/..")));
+}
+
+TEST(WindowsSmbProvider, RejectsTraversalAcrossAccessAndMutationEntryPoints) {
+    WindowsSmbProvider provider;
+    const QString traversal = QStringLiteral("/share/../C$/secret");
+
+    EXPECT_EQ(provider.openRead(traversal), nullptr);
+    EXPECT_EQ(provider.openWrite(traversal, true), nullptr);
+    EXPECT_FALSE(provider.setModifiedTime(traversal, QDateTime::currentDateTime()));
+    EXPECT_FALSE(provider.remove(traversal));
+    EXPECT_FALSE(provider.mkdir(traversal));
+    EXPECT_EQ(provider.moveTo(traversal, QStringLiteral("/share/target")),
+              FileProvider::RenameResult::Unsupported);
+    EXPECT_EQ(provider.rename(traversal, QStringLiteral("renamed"), nullptr),
               FileProvider::RenameResult::Unsupported);
 }

@@ -32,6 +32,12 @@ QStringList providerSegments(const QString &path, bool *valid = nullptr) {
         .split(QLatin1Char('/'), Qt::SkipEmptyParts);
 }
 
+bool isValidProviderPath(const QString &path) {
+    bool valid = false;
+    providerSegments(path, &valid);
+    return valid;
+}
+
 QFile::Permissions permissionsFor(const QFileInfo &info) {
     return info.permissions();
 }
@@ -132,6 +138,8 @@ bool WindowsSmbProvider::ensureShareFor(const QString &path, QString *error) con
 
 QVector<FileInfo> WindowsSmbProvider::list(const QString &path, bool showHidden) const {
     QVector<FileInfo> result;
+    if (!isValidProviderPath(path))
+        return result;
     const QString clean = cleanPath(path);
     if (clean == QStringLiteral("/")) {
         SHARE_INFO_1 *buffer = nullptr;
@@ -173,6 +181,8 @@ QVector<FileInfo> WindowsSmbProvider::list(const QString &path, bool showHidden)
 }
 
 bool WindowsSmbProvider::isDir(const QString &path) const {
+    if (!isValidProviderPath(path))
+        return false;
     if (cleanPath(path) == QStringLiteral("/"))
         return true;
     return ensureShareFor(path) && QFileInfo(uncFor(path)).isDir();
@@ -187,6 +197,8 @@ QString WindowsSmbProvider::parentPath(const QString &path) const {
 }
 
 bool WindowsSmbProvider::exists(const QString &path) const {
+    if (!isValidProviderPath(path))
+        return false;
     if (cleanPath(path) == QStringLiteral("/"))
         return isConnected();
     return ensureShareFor(path) && QFileInfo::exists(uncFor(path));
