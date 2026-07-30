@@ -1,12 +1,18 @@
 #include <gtest/gtest.h>
 
 #include <QHash>
+#include <QFile>
+#include <QLabel>
 #include <QPointer>
 #include <QSignalSpy>
+#include <QStackedWidget>
+#include <QTemporaryDir>
 #include <QWidget>
 
 #include <memory>
 
+#include "QuickView.h"
+#include "config/Settings.h"
 #include "media/MediaEngine.h"
 #include "media/NullMediaEngine.h"
 
@@ -70,8 +76,8 @@ public:
     bool mutedAtLastLoad() const { return m_mutedAtLastLoad; }
     int restartCount() const { return m_restartCount; }
     double lastSeekFraction() const { return m_lastSeekFraction; }
-    const QHash<QString, QString> &metadata() const { return m_metadata; }
-    MediaState state() const { return m_state; }
+    QHash<QString, QString> metadata() const override { return m_metadata; }
+    MediaState state() const override { return m_state; }
     int videoSurfaceRequests() const { return m_videoSurfaceRequests; }
 
 private:
@@ -213,3 +219,37 @@ TEST(MediaEngineContract, NullEngineReportsUnsupportedLoadWithoutPlayback) {
     EXPECT_EQ(qvariant_cast<MediaState>(stateChanges.at(0).at(0)), MediaState::Failed);
     EXPECT_EQ(engine.videoSurface(), nullptr);
 }
+
+#if !FILECOMMANDER_HAS_PREVIEW_MEDIA
+TEST(MediaConfiguredPath, DisabledQuickViewUsesNullEngineAndShowsUnsupportedState) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString mediaPath = dir.filePath(QStringLiteral("disabled.wav"));
+    QFile file(mediaPath);
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    ASSERT_EQ(file.write("not decoded by the disabled backend"), 35);
+    file.close();
+
+    Settings settings(dir.filePath(QStringLiteral("settings.ini")));
+    QuickView view(settings);
+    auto *engine = view.findChild<MediaEngine *>();
+    ASSERT_NE(engine, nullptr);
+    EXPECT_NE(dynamic_cast<NullMediaEngine *>(engine), nullptr);
+
+    QSignalSpy states(engine, &MediaEngine::stateChanged);
+    QSignalSpy errors(engine, &MediaEngine::errorOccurred);
+    view.showFile(mediaPath);
+
+    ASSERT_EQ(states.count(), 1);
+    EXPECT_EQ(qvariant_cast<MediaState>(states.at(0).at(0)), MediaState::Failed);
+    ASSERT_EQ(errors.count(), 1);
+    EXPECT_TRUE(errors.at(0).at(0).toString().contains(QStringLiteral("not available"),
+                                                       Qt::CaseInsensitive));
+    auto *message = view.findChild<QLabel *>(QStringLiteral("previewInfoLabel"));
+    ASSERT_NE(message, nullptr);
+    EXPECT_TRUE(message->text().contains(QStringLiteral("not available"), Qt::CaseInsensitive));
+    auto *stack = view.findChild<QStackedWidget *>();
+    ASSERT_NE(stack, nullptr);
+    EXPECT_EQ(stack->currentWidget(), message);
+}
+#endif

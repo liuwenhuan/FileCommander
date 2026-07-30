@@ -8,5 +8,10 @@ public:
 
     void initialize() override;
     void load(const MediaSource &source, MediaKind kind) override;
+    void stop() override;
     QWidget *videoSurface() override;
+    MediaState state() const override;
+
+private:
+    MediaState m_state = MediaState::Idle;
 };

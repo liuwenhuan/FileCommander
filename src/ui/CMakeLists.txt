@@ -103,20 +103,17 @@ set(UI_SOURCES
 
 if(FILECOMMANDER_PREVIEW_MEDIA)
     list(APPEND UI_SOURCES
-        MpvWidget.h
-        MpvWidget.cpp
+        media/MpvMediaEngine.h
+        media/MpvMediaEngine.cpp
+        media/MpvVideoSurface.h
+        media/MpvVideoSurface.cpp
         MpvStreamSource.h
         MpvStreamSource.cpp
-        AudioPlayer.h
-        AudioPlayer.cpp
     )
-endif()
-
-if(NOT FILECOMMANDER_PREVIEW_MEDIA)
+else()
     list(APPEND UI_SOURCES
-        MediaPreviewStubs.cpp
-        AudioPlayer.h
-        MpvWidget.h
+        MpvStreamSource.h
+        MpvStreamSourceDisabled.cpp
     )
 endif()
 
@@ -211,6 +208,7 @@ target_include_directories(ui PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/tree
     ${CMAKE_CURRENT_SOURCE_DIR}/theme
     ${CMAKE_CURRENT_SOURCE_DIR}/i18n
+    ${CMAKE_CURRENT_SOURCE_DIR}/media
 )
 
 target_link_libraries(ui PUBLIC

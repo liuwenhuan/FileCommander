@@ -65,12 +65,15 @@
 #include "ArchiveHandler.h"
 #include "ArchiveModel.h"
 #include "PackageInfo.h"
-#include "AudioPlayer.h"
 #include "ImageViewer.h"
 #include "IconCache.h"
 #include "FileInfo.h"
+#if FILECOMMANDER_HAS_PREVIEW_MEDIA
 #include "MpvStreamSource.h"
-#include "MpvWidget.h"
+#include "media/MpvMediaEngine.h"
+#else
+#include "media/NullMediaEngine.h"
+#endif
 #include "theme/Phosphor.h"
 #include "theme/PhosphorEffect.h"
 #include "OfficeConverter.h"
@@ -79,6 +82,7 @@
 #include "TextEncodingDetector.h"
 #include "config/Settings.h"
 #include "media/Id3Reader.h"
+#include "media/MediaEngine.h"
 
 namespace {
 constexpr qint64 kTextWindowBytes = 5 * 1024 * 1024; // text preview cap: 5 MiB
@@ -134,7 +138,8 @@ constexpr int kFirstStageSlides = 3;
 
 } // namespace
 
-QuickView::QuickView(Settings &settings, Context context, QWidget *parent)
+QuickView::QuickView(Settings &settings, Context context, QWidget *parent,
+                     std::unique_ptr<MediaEngine> mediaEngine)
     : QWidget(parent), m_settings(settings), m_context(context) {
     // Both contexts read up to 5 MiB and show the same toolbar, so the embedded
     // Ctrl+Q pane and the F3 window preview text files identically.
@@ -142,6 +147,7 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent)
     m_textCap = kTextWindowBytes;
 
     m_info = new QLabel(tr("Select a file to preview"), this);
+    m_info->setObjectName(QStringLiteral("previewInfoLabel"));
     m_info->setAlignment(Qt::AlignCenter);
     m_info->setWordWrap(true);
 
@@ -168,6 +174,37 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent)
 
     m_stack = new QStackedWidget(this);
     m_stack->addWidget(m_info);              // 0
+
+    if (!mediaEngine) {
+#if FILECOMMANDER_HAS_PREVIEW_MEDIA
+        mediaEngine = std::make_unique<MpvMediaEngine>();
+#else
+        mediaEngine = std::make_unique<NullMediaEngine>();
+#endif
+    }
+    m_mediaEngine = mediaEngine.release();
+    m_mediaEngine->setParent(this);
+    connect(m_mediaEngine, &MediaEngine::errorOccurred, this,
+            [this](const QString &message) {
+                if (message.isEmpty())
+                    return;
+#if FILECOMMANDER_HAS_PREVIEW_MEDIA
+                const QString source = m_mediaEngine->currentSource().path;
+                if (MpvStreamSource::isStreamUrl(source)) {
+                    m_videoPath.clear();
+                    emit streamFailed(source);
+                    return;
+                }
+#endif
+                if (m_videoTimer)
+                    m_videoTimer->stop();
+                if (m_audioTimer)
+                    m_audioTimer->stop();
+                m_info->setText(message);
+                m_stack->setCurrentWidget(m_info);
+            });
+    m_mediaEngine->initialize();
+
     m_stack->addWidget(buildImagePage());    // 1
     m_stack->addWidget(buildTextPage());     // 2
     m_stack->addWidget(buildVideoPage());    // 3
@@ -708,24 +745,17 @@ bool QuickView::isAudio(const QString &path) {
 QWidget *QuickView::buildVideoPage() {
     m_videoPage = new QWidget(this);
 
-    m_mpv = new MpvWidget(m_videoPage);
-    m_mpv->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    m_mpv->setMinimumHeight(120);
-    m_mpv->installEventFilter(this); // reposition the overlay on resize
-
-    // A streamed remote clip that the core could not open is not a dead end:
-    // the host still has the old download-then-play path to fall back to. Only
-    // stream URLs are forwarded -- a local file that fails to open has nowhere
-    // better to go, and reporting it would just loop.
-    connect(m_mpv, &MpvWidget::loadFailed, this, [this](const QString &path) {
-        if (MpvStreamSource::isStreamUrl(path)) {
-            m_videoPath.clear(); // so the retry isn't mistaken for a re-selection
-            emit streamFailed(path);
-        }
-    });
+    m_videoSurface = m_mediaEngine->videoSurface();
+    if (!m_videoSurface)
+        m_videoSurface = new QWidget(m_videoPage);
+    else
+        m_videoSurface->setParent(m_videoPage);
+    m_videoSurface->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    m_videoSurface->setMinimumHeight(120);
+    m_videoSurface->installEventFilter(this); // reposition the overlay on resize
 
     // Floating metadata panel, parented to the video widget so it hovers on top.
-    m_videoInfoOverlay = new QLabel(m_mpv);
+    m_videoInfoOverlay = new QLabel(m_videoSurface);
     m_videoInfoOverlay->setStyleSheet(
         "background: rgba(0,0,0,160); color: white; padding: 6px; border-radius: 4px;");
     m_videoInfoOverlay->setTextFormat(Qt::RichText);
@@ -745,11 +775,12 @@ QWidget *QuickView::buildVideoPage() {
         m_playButton->setFixedWidth(textWidth + 24); // + padding for button chrome
     }
     connect(m_playButton, &QPushButton::clicked, this, [this]() {
-        m_mpv->playPause();
+        m_mediaEngine->playPause();
         // Reflect the resulting state; playPause is async so query after a beat.
         QTimer::singleShot(50, this, [this]() {
-            m_playButton->setText((m_mpv->paused() || m_mpv->ended()) ? tr("Play")
-                                                                           : tr("Pause"));
+            m_playButton->setText(
+                (m_mediaEngine->paused() || m_mediaEngine->ended()) ? tr("Play")
+                                                                    : tr("Pause"));
         });
     });
 
@@ -768,7 +799,7 @@ QWidget *QuickView::buildVideoPage() {
     connect(m_speedCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             [this](int index) {
                 const double speed = m_speedCombo->itemData(index).toDouble();
-                m_mpv->setSpeed(speed);
+                m_mediaEngine->setSpeed(speed);
                 m_settings.setVideoSpeed(speed); // persist for later previews
             });
 
@@ -779,7 +810,7 @@ QWidget *QuickView::buildVideoPage() {
     m_progressSlider->setToolTip(tr("Seek"));
     connect(m_progressSlider, &QSlider::sliderPressed, this, [this]() { m_seeking = true; });
     connect(m_progressSlider, &QSlider::sliderReleased, this, [this]() {
-        m_mpv->seekFraction(m_progressSlider->value() / 1000.0);
+        m_mediaEngine->seekFraction(m_progressSlider->value() / 1000.0);
         m_seeking = false;
     });
 
@@ -795,7 +826,7 @@ QWidget *QuickView::buildVideoPage() {
     auto syncMuteIcon = [this]() { refreshMediaControlIcons(); };
     syncMuteIcon();
     connect(m_muteButton, &QPushButton::toggled, this, [this, syncMuteIcon](bool muted) {
-        m_mpv->setMute(muted);
+        m_mediaEngine->setMute(muted);
         m_settings.setVideoMuted(muted);
         syncMuteIcon();
     });
@@ -807,7 +838,7 @@ QWidget *QuickView::buildVideoPage() {
     m_volumeSlider->setFixedWidth(90);
     m_volumeSlider->setToolTip(tr("Volume"));
     connect(m_volumeSlider, &QSlider::valueChanged, this, [this](int value) {
-        m_mpv->setVolume(value);
+        m_mediaEngine->setVolume(value);
         m_settings.setVideoVolume(value); // persist for later previews
         // Dragging the volume up is an intent to hear it: lift the mute.
         if (value > 0 && m_muteButton->isChecked())
@@ -838,7 +869,7 @@ QWidget *QuickView::buildVideoPage() {
 
     auto *layout = new QVBoxLayout(m_videoPage);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->addWidget(m_mpv, 1);
+    layout->addWidget(m_videoSurface, 1);
     layout->addLayout(controls);
 
     // Poll the playback position to advance the progress slider and refresh the
@@ -848,13 +879,14 @@ QWidget *QuickView::buildVideoPage() {
     connect(m_videoTimer, &QTimer::timeout, this, [this]() {
         // Keep the play/pause label in sync with the core: a clip that's paused
         // or sitting at EOF shows "Play" (clicking replays/resumes).
-        m_playButton->setText((m_mpv->paused() || m_mpv->ended()) ? tr("Play")
-                                                                       : tr("Pause"));
+        m_playButton->setText(
+            (m_mediaEngine->paused() || m_mediaEngine->ended()) ? tr("Play")
+                                                                : tr("Pause"));
         if (m_seeking)
             return;
-        const double dur = m_mpv->durationSeconds();
+        const double dur = m_mediaEngine->durationSeconds();
         if (dur > 0.0) {
-            const double frac = m_mpv->positionSeconds() / dur;
+            const double frac = m_mediaEngine->positionSeconds() / dur;
             m_progressSlider->setValue(qBound(0, static_cast<int>(frac * 1000.0), 1000));
         }
         if (m_videoInfoOverlay->isVisible())
@@ -908,9 +940,9 @@ void QuickView::refreshPhosphor() {
 }
 
 void QuickView::applyVideoPhosphor() {
-    if (!m_mpv)
+    if (!m_mediaEngine)
         return;
-    m_mpv->applyVideoFilter(fc::mpvScanlinedPhosphorFilter(fc::contentTint()));
+    m_mediaEngine->setVideoFilter(fc::mpvScanlinedPhosphorFilter(fc::contentTint()));
 }
 
 QIcon QuickView::mediaIcon(QStyle::StandardPixmap standardPixmap) const {
@@ -929,7 +961,9 @@ void QuickView::refreshMediaControlIcons() {
     m_audioNextButton->setIcon(mediaIcon(QStyle::SP_MediaSkipForward));
     m_audioMuteButton->setIcon(mediaIcon(
         m_audioMuteButton->isChecked() ? QStyle::SP_MediaVolumeMuted : QStyle::SP_MediaVolume));
-    const bool playing = m_audio && !(m_audio->paused() || m_audio->ended());
+    const bool playing =
+        m_mediaEngine && m_mediaEngine->currentKind() == MediaKind::Audio &&
+        !(m_mediaEngine->paused() || m_mediaEngine->ended());
     m_audioPlayButton->setIcon(
         mediaIcon(playing ? QStyle::SP_MediaPause : QStyle::SP_MediaPlay));
 }
@@ -938,22 +972,23 @@ void QuickView::positionVideoInfoOverlay() {
     if (!m_videoInfoOverlay->isVisible())
         return;
     m_videoInfoOverlay->adjustSize();
-    const int vw = m_mpv->width();
+    const int vw = m_videoSurface->width();
     const int x = qMax(8, vw - m_videoInfoOverlay->width() - 8);
     m_videoInfoOverlay->move(x, 8);
     m_videoInfoOverlay->raise();
 }
 
 void QuickView::updateVideoInfoOverlay() {
-    const double dur = m_mpv->durationSeconds();
+    const double dur = m_mediaEngine->durationSeconds();
     const int totalSec = static_cast<int>(dur + 0.5);
     const QString duration = QString("%1:%2:%3")
                                  .arg(totalSec / 3600, 2, 10, QChar('0'))
                                  .arg((totalSec % 3600) / 60, 2, 10, QChar('0'))
                                  .arg(totalSec % 60, 2, 10, QChar('0'));
-    const int w = m_mpv->videoWidth();
-    const int h = m_mpv->videoHeight();
-    const QString codec = m_mpv->videoCodec();
+    const QSize videoSize = m_mediaEngine->currentVideoSize();
+    const int w = videoSize.width();
+    const int h = videoSize.height();
+    const QString codec = m_mediaEngine->videoCodec();
 
     const QString text =
         tr("<b>Duration:</b> %1<br><b>Resolution:</b> %2 &times; %3<br><b>Codec:</b> %4")
@@ -966,11 +1001,12 @@ void QuickView::updateVideoInfoOverlay() {
 }
 
 void QuickView::stopVideo() {
-    if (!m_mpv)
+    if (!m_mediaEngine || m_mediaEngine->currentKind() != MediaKind::Video ||
+        m_mediaEngine->currentSource().path.isEmpty())
         return;
     if (m_videoTimer)
         m_videoTimer->stop();
-    m_mpv->stop();
+    m_mediaEngine->stop();
     m_videoInfoOverlay->hide();
 }
 
@@ -995,8 +1031,6 @@ QString formatClock(double seconds) {
 
 QWidget *QuickView::buildAudioPage() {
     m_audioPage = new QWidget(this);
-
-    m_audio = new AudioPlayer(this);
 
     // Left column: cover art with a placeholder when the file carries none.
     m_audioCover = new QLabel(m_audioPage);
@@ -1046,7 +1080,7 @@ QWidget *QuickView::buildAudioPage() {
     m_audioPlayButton = new QPushButton(m_audioPage);
     m_audioPlayButton->setToolTip(tr("Play / pause"));
     connect(m_audioPlayButton, &QPushButton::clicked, this, [this]() {
-        m_audio->playPause();
+        m_mediaEngine->playPause();
         QTimer::singleShot(50, this, [this]() { updateAudioTransport(); });
     });
 
@@ -1064,7 +1098,7 @@ QWidget *QuickView::buildAudioPage() {
     connect(m_audioSeek, &QSlider::sliderPressed, this,
             [this]() { m_audioSeeking = true; });
     connect(m_audioSeek, &QSlider::sliderReleased, this, [this]() {
-        m_audio->seekFraction(m_audioSeek->value() / 1000.0);
+        m_mediaEngine->seekFraction(m_audioSeek->value() / 1000.0);
         m_audioSeeking = false;
     });
 
@@ -1078,7 +1112,7 @@ QWidget *QuickView::buildAudioPage() {
     syncAudioMuteIcon();
     connect(m_audioMuteButton, &QPushButton::toggled, this,
             [this, syncAudioMuteIcon](bool muted) {
-                m_audio->setMute(muted);
+                m_mediaEngine->setMute(muted);
                 m_settings.setAudioMuted(muted);
                 syncAudioMuteIcon();
             });
@@ -1090,7 +1124,7 @@ QWidget *QuickView::buildAudioPage() {
     m_audioVolumeSlider->setFixedWidth(90);
     m_audioVolumeSlider->setToolTip(tr("Volume"));
     connect(m_audioVolumeSlider, &QSlider::valueChanged, this, [this](int value) {
-        m_audio->setVolume(value);
+        m_mediaEngine->setVolume(value);
         m_settings.setAudioVolume(value); // persist for later previews
         // Dragging the volume up is an intent to hear it: lift the mute.
         if (value > 0 && m_audioMuteButton->isChecked())
@@ -1125,13 +1159,13 @@ QWidget *QuickView::buildAudioPage() {
 }
 
 void QuickView::updateAudioTransport() {
-    if (!m_audio)
+    if (!m_mediaEngine)
         return;
     refreshMediaControlIcons();
     if (m_audioSeeking)
         return;
-    const double dur = m_audio->durationSeconds();
-    const double pos = m_audio->positionSeconds();
+    const double dur = m_mediaEngine->durationSeconds();
+    const double pos = m_mediaEngine->positionSeconds();
     if (dur > 0.0) {
         const double frac = pos / dur;
         m_audioSeek->setValue(qBound(0, static_cast<int>(frac * 1000.0), 1000));
@@ -1228,13 +1262,15 @@ void QuickView::showAudio(const QString &path) {
     m_audioMuteButton->setChecked(audioMute);
     refreshMediaControlIcons();
     m_audioMuteButton->blockSignals(false);
-    m_audio->setVolume(audioVol);
-    m_audio->setMute(audioMute);
+    m_mediaEngine->setVolume(audioVol);
+    m_mediaEngine->setMute(audioMute);
 
     m_audioSeek->setValue(0);
     m_audioElapsed->setText(QStringLiteral("0:00"));
     m_audioTotal->setText(QStringLiteral("0:00"));
-    m_audio->load(path);
+    m_mediaEngine->load(MediaSource{path, {}, false}, MediaKind::Audio);
+    if (m_mediaEngine->state() == MediaState::Failed)
+        return;
     m_stack->setCurrentWidget(m_audioPage);
     m_audioTimer->start();
 
@@ -1244,10 +1280,14 @@ void QuickView::showAudio(const QString &path) {
         QTimer::singleShot(300, this, [this, path, artist, album, tags]() {
             if (m_audioPath != path) // user moved on
                 return;
-            QString a = artist.isEmpty() ? m_audio->metadata("artist") : artist;
-            QString al = album.isEmpty() ? m_audio->metadata("album") : album;
+            QString a =
+                artist.isEmpty() ? m_mediaEngine->metadataValue(QStringLiteral("artist"))
+                                 : artist;
+            QString al =
+                album.isEmpty() ? m_mediaEngine->metadataValue(QStringLiteral("album"))
+                                : album;
             if (m_audioTitle->text().isEmpty() || tags.title.isEmpty()) {
-                const QString mt = m_audio->metadata("title");
+                const QString mt = m_mediaEngine->metadataValue(QStringLiteral("title"));
                 if (!mt.isEmpty())
                     m_audioTitle->setText(mt.toHtmlEscaped());
             }
@@ -1270,11 +1310,12 @@ void QuickView::showAudio(const QString &path) {
 }
 
 void QuickView::stopAudio() {
-    if (!m_audio)
+    if (!m_mediaEngine || m_mediaEngine->currentKind() != MediaKind::Audio ||
+        m_mediaEngine->currentSource().path.isEmpty())
         return;
     if (m_audioTimer)
         m_audioTimer->stop();
-    m_audio->stop();
+    m_mediaEngine->stop();
     m_audioPath.clear();
 }
 
@@ -2689,7 +2730,7 @@ bool QuickView::eventFilter(QObject *watched, QEvent *event) {
             }
         }
     }
-    if (watched == m_mpv && event->type() == QEvent::Resize) {
+    if (watched == m_videoSurface && event->type() == QEvent::Resize) {
         positionVideoInfoOverlay(); // keep the panel pinned to the top-right corner
         // Reapply the preview filter after the output surface changes. This is
         // idempotent: applyVideoFilter skips an unchanged filter string.
@@ -2771,13 +2812,18 @@ void QuickView::resizeEvent(QResizeEvent *event) {
 }
 
 bool QuickView::canStreamPreview(const QString &path) {
-    // Video only. Audio would work at the mpv level -- AudioPlayer is libmpv
-    // too -- but the audio page is built from bytes read off the local file:
+    // Video only. Audio would work at the mpv level too, but the audio page is
+    // built from bytes read off the local file:
     // Id3Reader::read() opens it with QFile for tags and cover art, and the
     // prev/next track buttons come from scanning the containing directory.
     // Streaming would silently empty all of that, and audio files are small
     // enough that downloading them was never the complaint.
+#if FILECOMMANDER_HAS_PREVIEW_MEDIA
     return isVideo(path);
+#else
+    Q_UNUSED(path);
+    return false;
+#endif
 }
 
 void QuickView::showFile(const QString &path) {
@@ -2790,7 +2836,11 @@ void QuickView::showFile(const QString &path) {
     // A stream URL names a remote file being read through its FileProvider, so
     // none of the local-filesystem questions below apply to it -- there is
     // deliberately no file on disk to stat.
+#if FILECOMMANDER_HAS_PREVIEW_MEDIA
     const bool streamed = MpvStreamSource::isStreamUrl(path);
+#else
+    const bool streamed = false;
+#endif
     // An explicit encoding override belongs to the currently displayed text file
     // only. Re-selecting that same text page preserves it; every different file
     // begins in Auto. Hex is intentionally separate and therefore persists.
@@ -2838,13 +2888,13 @@ void QuickView::showFile(const QString &path) {
         m_volumeSlider->blockSignals(true);
         m_volumeSlider->setValue(savedVolume);
         m_volumeSlider->blockSignals(false);
-        m_mpv->setVolume(savedVolume);
+        m_mediaEngine->setVolume(savedVolume);
 
         m_muteButton->blockSignals(true);
         m_muteButton->setChecked(savedMuted);
         refreshMediaControlIcons();
         m_muteButton->blockSignals(false);
-        m_mpv->setMute(savedMuted);
+        m_mediaEngine->setMute(savedMuted);
 
         int speedIndex = m_speedCombo->findData(savedSpeed);
         if (speedIndex < 0)
@@ -2852,7 +2902,7 @@ void QuickView::showFile(const QString &path) {
         m_speedCombo->blockSignals(true);
         m_speedCombo->setCurrentIndex(speedIndex);
         m_speedCombo->blockSignals(false);
-        m_mpv->setSpeed(m_speedCombo->itemData(speedIndex).toDouble());
+        m_mediaEngine->setSpeed(m_speedCombo->itemData(speedIndex).toDouble());
 
         m_progressSlider->setValue(0);
         m_playButton->setText(tr("Pause")); // loadfile starts playing
@@ -2860,7 +2910,9 @@ void QuickView::showFile(const QString &path) {
         // applyVideoFilter is a no-op when the chain is unchanged, which it is
         // for every load between theme switches.
         applyVideoPhosphor();
-        m_mpv->load(path);
+        m_mediaEngine->load(MediaSource{path, {}, streamed}, MediaKind::Video);
+        if (m_mediaEngine->state() == MediaState::Failed)
+            return;
         m_stack->setCurrentWidget(m_videoPage);
         if (m_videoInfoCheck->isChecked()) {
             updateVideoInfoOverlay();

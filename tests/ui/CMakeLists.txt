@@ -59,7 +59,10 @@ set(UI_TEST_SOURCES
 )
 
 if(FILECOMMANDER_PREVIEW_MEDIA)
-    list(APPEND UI_TEST_SOURCES test_MpvStreamSource.cpp)
+    list(APPEND UI_TEST_SOURCES
+        test_MpvMediaEngine.cpp
+        test_MpvStreamSource.cpp
+    )
 endif()
 
 if(FILECOMMANDER_ENABLE_NETWORK)

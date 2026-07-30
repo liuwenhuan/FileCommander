@@ -20,6 +20,7 @@
 #include "ImagePreviewLoader.h"
 #include "OfficeConverter.h" // OfficeConverter::Result (async conversion payload)
 #include "TextEncodingDetector.h"
+#include "media/MediaEngine.h"
 
 class QCheckBox;
 class QComboBox;
@@ -45,8 +46,6 @@ class QTextBrowser;
 class QTextEdit;
 class QTimer;
 class ArchiveModel;
-class MpvWidget;
-class AudioPlayer;
 class Settings;
 
 // Poppler's document type is only referenced through a unique_ptr member, so a
@@ -67,7 +66,8 @@ public:
     enum class Context { Embedded, Window };
 
     explicit QuickView(Settings &settings, Context context = Context::Embedded,
-                       QWidget *parent = nullptr);
+                       QWidget *parent = nullptr,
+                       std::unique_ptr<MediaEngine> mediaEngine = {});
     // Out-of-line so the unique_ptr<Poppler::Document> member can be destroyed
     // where the complete Poppler type is visible (it is only forward-declared
     // above).
@@ -444,7 +444,7 @@ private:
     // Video page (m_stack index 3).
     QString m_videoPath;            // path of the clip currently loaded (de-dup re-selects)
     QWidget *m_videoPage = nullptr;
-    MpvWidget *m_mpv = nullptr;
+    QWidget *m_videoSurface = nullptr;
     QPushButton *m_playButton = nullptr;
     QPushButton *m_muteButton = nullptr; // checkable: checked == muted
     QComboBox *m_speedCombo = nullptr;
@@ -456,10 +456,8 @@ private:
     bool m_seeking = false;         // suppress timer updates while dragging
 
     // Audio page (m_stack index 9): cover art + tags + lyrics + a transport row
-    // (play/pause, prev/next track, seek slider with elapsed/total labels). Uses
-    // an audio-only libmpv engine (AudioPlayer), separate from the video MpvWidget.
+    // (play/pause, prev/next track, seek slider with elapsed/total labels).
     QWidget *m_audioPage = nullptr;
-    AudioPlayer *m_audio = nullptr;
     QLabel *m_audioCover = nullptr;   // embedded cover art or a placeholder glyph
     QPixmap m_audioCoverSource;       // the cover as decoded, before any tint
     QLabel *m_audioTitle = nullptr;   // big title line
@@ -479,6 +477,7 @@ private:
     QStringList m_audioSiblings;     // sibling audio files for prev/next
     int m_audioSiblingIndex = -1;
 
+    MediaEngine *m_mediaEngine = nullptr; // one configured backend shared by audio and video
     Settings &m_settings; // persisted video speed / volume / mute
     Context m_context;    // Embedded (Ctrl+Q pane) vs Window (F3 viewer)
 
