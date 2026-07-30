@@ -173,9 +173,10 @@ TEST(ThumbnailCacheReuseTest, ZoomStepsOnOneRungShareASingleStoredThumbnail) {
     ASSERT_FALSE(first.isNull());
     EXPECT_EQ(storedThumbnailCount(), 1);
 
-    // The second size must come back WITHOUT a regeneration round trip: it is
-    // derived from the stored rung, so the very first call already has it.
-    const QPixmap second = ThumbnailCache::instance().thumbnail(image, larger);
+    // The second size is derived from the stored rung without regeneration,
+    // but disk I/O and scaling complete asynchronously.
+    EXPECT_TRUE(ThumbnailCache::instance().thumbnail(image, larger).isNull());
+    const QPixmap second = waitForThumbnail(image, larger);
     EXPECT_FALSE(second.isNull()) << "a neighbouring zoom step had to regenerate";
     EXPECT_EQ(storedThumbnailCount(), 1) << "a second bitmap was stored for the same rung";
 

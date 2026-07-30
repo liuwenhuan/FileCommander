@@ -6,6 +6,8 @@
 #include <QPixmap>
 #include <QSet>
 
+#include <atomic>
+#include <functional>
 #include <memory>
 
 #include "RemoteThumbnailFetcher.h"
@@ -21,10 +23,9 @@ enum class ThumbnailDiskFormat {
 
 // Async, disk+memory cached thumbnail service backing the icon-mode file
 // list. thumbnail() never blocks the calling (GUI) thread: it returns
-// whatever is already available -- from the small in-memory QCache or the
-// on-disk thumbnail cache -- and, if nothing is ready yet, schedules background
-// generation on a bounded QThreadPool and emits thumbnailReady(path) once
-// the result lands (in both the memory and disk cache).
+// whatever is already decoded in the in-memory QCache and, if nothing is ready
+// yet, schedules disk lookup/decode followed by generation on a bounded worker
+// pool. thumbnailReady(path) is emitted once that asynchronous pipeline lands.
 //
 // Images are decoded/scaled with QImageReader. Videos get one representative
 // frame extracted via the system `ffmpeg` binary. Both paths run entirely on
@@ -73,6 +74,8 @@ public:
     ThumbnailMemoryStats memoryStatsForTest();
     void resetDiskDecodeCountForTest();
     int diskDecodeCountForTest() const;
+    void setDiskDecodeHookForTest(std::function<void()> hook);
+    void setPixmapInsertHookForTest(std::function<void()> hook);
 
     // What a thumbnail request did, for callers that schedule rather than
     // paint. Painting ignores this -- a null pixmap tells it everything it
@@ -159,7 +162,8 @@ public:
     //
     // The stored bitmaps are the expensive half of this cache, and nothing used
     // to remove them: the directory was flat, unindexed and unbounded, and its
-    // only deletion was lookupCached() dropping a file it could not decode. Two
+    // only deletion was loadDiskThumbnail() dropping a file it could not
+    // decode. Two
     // separate things then go wrong, and they need two separate answers.
     //
     //   * Every stored file becomes unreachable the moment the key format
@@ -255,16 +259,25 @@ private:
                                   qint64 mtimeEpoch, qint64 fileSize, int size);
     static QString diskCachePath(const QString &key, ThumbnailDiskFormat format);
 
-    // Shared tail of both generation paths: returns a ready pixmap at exactly
-    // `displaySize` if one can be had without generating. Tries the memory
-    // cache at `memKey` first, then the stored bitmap at `diskKey`, which is
-    // scaled down to `displaySize` and promoted into memory so the next paint
-    // is a plain lookup. Null means "not cached -- generate it".
-    QPixmap lookupCached(const QString &memKey, const QString &diskKey, int displaySize,
-                         CacheIntent intent, bool *persistedHit = nullptr);
+    // The synchronous half of a disk request: a decoded-memory Display hit may
+    // be returned immediately. Every other result tells the caller to claim
+    // the disk key and queue loadDiskThumbnail() in its bounded worker pool.
+    // No filesystem access or image work occurs here.
+    Request requestDiskThumbnail(const QString &memKey, const QString &diskKey,
+                                 int displaySize, CacheIntent intent, QPixmap *ready);
+
+    // Worker-side disk lookup and validation. `found` is true only for a
+    // successfully decoded JPEG/PNG v2 entry. Corrupt entries are removed and
+    // reported as misses so the same worker can continue into normal
+    // generation exactly once. Display results are also scaled here; a
+    // PersistOnly hit is decoded for validation but returns no image.
+    QImage loadDiskThumbnail(const QString &diskKey, int displaySize, CacheIntent intent,
+                             bool *found);
     // Caller holds m_mutex. This is only called on the GUI thread, where
     // QPixmap creation and use are permitted.
     void insertPixmap(const QString &key, const QPixmap &pixmap);
+    void runDiskDecodeHookForTest();
+    void runPixmapInsertHookForTest();
 
     // Scales `image` down to fit displaySize x displaySize, preserving aspect
     // ratio. Never scales UP: a source smaller than the display box (a tiny
@@ -324,9 +337,12 @@ private:
 
     bool m_maintenanceScheduled = false; // GUI thread only; one prune per process
     QCache<QString, QPixmap> m_memCache; // cache key -> thumbnail; guarded by m_mutex
-    QSet<QString> m_pending;             // cache keys currently generating; guarded by m_mutex
+    QSet<QString> m_pending; // cache keys being loaded/generated; guarded by m_mutex
     QMutex m_mutex;
-    int m_diskDecodeCountForTest = 0; // GUI thread only; observes QImage disk loads in tests
+    std::atomic<int> m_diskDecodeCountForTest{0};
+    QMutex m_testHookMutex;
+    std::function<void()> m_diskDecodeHookForTest;
+    std::function<void()> m_pixmapInsertHookForTest;
     QThreadPool *m_pool; // bounded worker pool; owned, but Qt manages its threads
     // Separate, much narrower pool for network fetches: a remote thumbnail is
     // bounded by the link rather than the CPU, so it gets its own limit instead

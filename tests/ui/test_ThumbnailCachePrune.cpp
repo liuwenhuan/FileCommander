@@ -295,7 +295,7 @@ TEST(ThumbnailCacheTouchTest, ACacheHitRefreshesAStaleLastUsedStamp) {
     // Cleared so the lookup has to reach disk -- a memory hit never sees the
     // stored file at all, which is exactly why the throttle below is affordable.
     ThumbnailCache::instance().invalidateMemoryCache();
-    ASSERT_FALSE(ThumbnailCache::instance().thumbnail(image, 48).isNull());
+    ASSERT_FALSE(waitForThumbnail(image, 48).isNull());
 
     EXPECT_LT(QFileInfo(stored).lastModified().secsTo(QDateTime::currentDateTime()), 60)
         << "a disk hit left the entry looking three days cold";
@@ -318,7 +318,7 @@ TEST(ThumbnailCacheTouchTest, RepeatedHitsDoNotRewriteAWarmStamp) {
 
     for (int i = 0; i < 30; ++i) {
         ThumbnailCache::instance().invalidateMemoryCache(); // force a disk read
-        ASSERT_FALSE(ThumbnailCache::instance().thumbnail(image, 48).isNull());
+        ASSERT_FALSE(waitForThumbnail(image, 48).isNull());
     }
 
     EXPECT_EQ(QFileInfo(stored).lastModified(), written)
@@ -351,8 +351,11 @@ TEST(ThumbnailCacheTouchTest, ScrollingCostsOneWritePerFilePerDayAtMost) {
     // One "scroll": drop the derived copies, then look every row up again.
     auto scrollPass = [&images] {
         ThumbnailCache::instance().invalidateMemoryCache();
-        for (const QString &image : images)
-            ThumbnailCache::instance().thumbnail(image, 48);
+        for (const QString &image : images) {
+            if (waitForThumbnail(image, 48).isNull())
+                return false;
+        }
+        return true;
     };
     auto stamps = [] {
         QMap<QString, QDateTime> byName;
@@ -371,8 +374,8 @@ TEST(ThumbnailCacheTouchTest, ScrollingCostsOneWritePerFilePerDayAtMost) {
     };
 
     const QMap<QString, QDateTime> written = stamps();
-    scrollPass();
-    scrollPass();
+    ASSERT_TRUE(scrollPass());
+    ASSERT_TRUE(scrollPass());
     const int warmWrites = changedSince(written);
 
     // A day later, as far as the cache can tell.
@@ -380,11 +383,11 @@ TEST(ThumbnailCacheTouchTest, ScrollingCostsOneWritePerFilePerDayAtMost) {
     for (const QString &name : storedNames())
         backdate(dir.absoluteFilePath(name), 2 * 24 * 60 * 60);
     const QMap<QString, QDateTime> stale = stamps();
-    scrollPass();
+    ASSERT_TRUE(scrollPass());
     const int staleWrites = changedSince(stale);
     const QMap<QString, QDateTime> refreshed = stamps();
-    scrollPass();
-    scrollPass();
+    ASSERT_TRUE(scrollPass());
+    ASSERT_TRUE(scrollPass());
     const int repeatWrites = changedSince(refreshed);
 
     std::cout << "[ touch    ] " << kFiles << " cached files: 2 warm scroll passes -> "

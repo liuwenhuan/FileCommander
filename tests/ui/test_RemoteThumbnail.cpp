@@ -167,12 +167,14 @@ TEST(RemoteThumbnailTest, PersistOnlyDiskHitAvoidsDecodePixmapInsertionAndProvid
     // Prove this is a disk-only hit, rather than the display cache masking it.
     cache.setMemoryBudgetKiBForTest(ThumbnailCache::kMemoryBudgetKiB);
     cache.resetDiskDecodeCountForTest();
+    ready = false;
     QPixmap readyPixmap;
     EXPECT_EQ(cache.requestRemoteThumbnail(provider, conn, path, 1700000000, 4096, 64,
                                             &readyPixmap, ThumbnailCache::CacheIntent::PersistOnly),
-              ThumbnailCache::Request::Ready);
+              ThumbnailCache::Request::Queued);
     EXPECT_TRUE(readyPixmap.isNull());
-    EXPECT_EQ(cache.diskDecodeCountForTest(), 0);
+    ASSERT_TRUE(spinUntil([&] { return ready.load(); }, 10000));
+    EXPECT_EQ(cache.diskDecodeCountForTest(), 1);
     EXPECT_EQ(cache.memoryStatsForTest().entries, 0);
     EXPECT_EQ(provider->opens(), 1);
 }

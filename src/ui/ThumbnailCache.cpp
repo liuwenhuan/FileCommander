@@ -461,9 +461,39 @@ ThumbnailCache::ThumbnailMemoryStats ThumbnailCache::memoryStatsForTest() {
     return {m_memCache.size(), qint64(m_memCache.totalCost()) * 1024};
 }
 
-void ThumbnailCache::resetDiskDecodeCountForTest() { m_diskDecodeCountForTest = 0; }
+void ThumbnailCache::resetDiskDecodeCountForTest() { m_diskDecodeCountForTest.store(0); }
 
-int ThumbnailCache::diskDecodeCountForTest() const { return m_diskDecodeCountForTest; }
+int ThumbnailCache::diskDecodeCountForTest() const { return m_diskDecodeCountForTest.load(); }
+
+void ThumbnailCache::setDiskDecodeHookForTest(std::function<void()> hook) {
+    QMutexLocker locker(&m_testHookMutex);
+    m_diskDecodeHookForTest = std::move(hook);
+}
+
+void ThumbnailCache::setPixmapInsertHookForTest(std::function<void()> hook) {
+    QMutexLocker locker(&m_testHookMutex);
+    m_pixmapInsertHookForTest = std::move(hook);
+}
+
+void ThumbnailCache::runDiskDecodeHookForTest() {
+    std::function<void()> hook;
+    {
+        QMutexLocker locker(&m_testHookMutex);
+        hook = m_diskDecodeHookForTest;
+    }
+    if (hook)
+        hook();
+}
+
+void ThumbnailCache::runPixmapInsertHookForTest() {
+    std::function<void()> hook;
+    {
+        QMutexLocker locker(&m_testHookMutex);
+        hook = m_pixmapInsertHookForTest;
+    }
+    if (hook)
+        hook();
+}
 
 bool ThumbnailCache::canThumbnail(const QString &path) {
     const QString ext = extensionOf(path);
@@ -646,21 +676,25 @@ void ThumbnailCache::scheduleMaintenance(int delayMs) {
     });
 }
 
-QPixmap ThumbnailCache::lookupCached(const QString &memKey, const QString &diskKey,
-                                     int displaySize, CacheIntent intent, bool *persistedHit) {
-    if (persistedHit)
-        *persistedHit = false;
+ThumbnailCache::Request ThumbnailCache::requestDiskThumbnail(
+    const QString &memKey, const QString &diskKey, int displaySize, CacheIntent intent,
+    QPixmap *ready) {
+    Q_ASSERT(!diskKey.isEmpty());
+    Q_ASSERT(displaySize > 0);
     if (intent == CacheIntent::Display) {
         QMutexLocker locker(&m_mutex);
-        if (QPixmap *cached = m_memCache.object(memKey))
-            return *cached;
+        if (QPixmap *cached = m_memCache.object(memKey)) {
+            if (ready)
+                *ready = *cached;
+            return Request::Ready;
+        }
     }
+    return Request::Skipped;
+}
 
-    // Not in memory -- check disk before (re)generating. A hit here is still
-    // cheap enough to do on the GUI thread (one small image decode plus, when
-    // the stored rung is larger than this zoom step, one scale-down). That
-    // scale is the entire cost of changing zoom on an already-cached
-    // directory, in place of re-fetching and re-decoding every file.
+QImage ThumbnailCache::loadDiskThumbnail(const QString &diskKey, int displaySize,
+                                         CacheIntent intent, bool *found) {
+    *found = false;
     const QString jpegPath = diskCachePath(diskKey, ThumbnailDiskFormat::Jpeg);
     const QString pngPath = diskCachePath(diskKey, ThumbnailDiskFormat::Png);
     QString diskPath;
@@ -673,49 +707,22 @@ QPixmap ThumbnailCache::lookupCached(const QString &memKey, const QString &diskK
             diskPath = pngPath;
     }
     if (!diskPath.isEmpty()) {
-        if (intent == CacheIntent::PersistOnly) {
-            // The background sweep only needs to know whether a stored result
-            // exists. Decoding it here would put image I/O, scaling, and
-            // QPixmap construction back on the GUI thread for rows nobody is
-            // about to paint. A zero-byte file is detectable without decoding
-            // and is discarded so the existing regeneration path still runs.
-            // Detecting malformed non-empty image data requires a decode and
-            // belongs to Task 3's worker-side validation.
-            if (cachedFile.size() > 0) {
-                if (persistedHit)
-                    *persistedHit = true;
-                return {};
-            }
-            QFile::remove(diskPath);
-            return {};
-        }
         ++m_diskDecodeCountForTest;
+        runDiskDecodeHookForTest();
         const QImage stored(diskPath);
         if (!stored.isNull()) {
-            // This entry has just proved its worth, so record the use for the
-            // prune. Throttled hard -- see touchIfStale -- because this line
-            // sits on the scroll path.
+            *found = true;
             touchIfStale(diskPath, cachedFile.lastModified());
-            // Tint the derived copy, not the stored one: the disk bitmap is the
-            // expensive original and stays hue-neutral.
-            const QPixmap pixmap =
-                tintedForDisplay(QPixmap::fromImage(scaledForDisplay(stored, displaySize)));
-            if (!pixmap.isNull()) {
-                if (intent == CacheIntent::Display) {
-                    QMutexLocker locker(&m_mutex);
-                    insertPixmap(memKey, pixmap);
-                }
-                return pixmap;
-            }
+            return intent == CacheIntent::Display ? scaledForDisplay(stored, displaySize)
+                                                  : QImage();
         }
-        // Truncated/corrupt cache file (e.g. from a killed process) --
-        // remove it so we don't keep tripping over it.
         QFile::remove(diskPath);
     }
     return {};
 }
 
 void ThumbnailCache::insertPixmap(const QString &key, const QPixmap &pixmap) {
+    runPixmapInsertHookForTest();
     m_memCache.insert(key, new QPixmap(pixmap), pixmapCostKiB(pixmap));
 }
 
@@ -746,8 +753,10 @@ QPixmap ThumbnailCache::thumbnail(const QString &path, int size) {
     const QString memKey = cacheKey(absolutePath, mtimeEpoch, size) + contentTintTag();
     const QString diskKey = cacheKey(absolutePath, mtimeEpoch, stored);
 
-    if (QPixmap cached = lookupCached(memKey, diskKey, size, CacheIntent::Display); !cached.isNull())
-        return cached;
+    QPixmap ready;
+    if (requestDiskThumbnail(memKey, diskKey, size, CacheIntent::Display, &ready)
+        == Request::Ready)
+        return ready;
     // Claimed on the disk key -- the rung is the unit of work, so two zoom
     // steps sharing one rung must not both generate it. The one that loses the
     // race picks the result up from disk on the repaint thumbnailReady brings.
@@ -761,6 +770,16 @@ QPixmap ThumbnailCache::thumbnail(const QString &path, int size) {
     QThreadPool *pool = m_pool;
     ThumbnailCache *self = this;
     pool->start(QRunnable::create([self, path, diskKey, memKey, stored, size]() {
+        bool found = false;
+        QImage image =
+            self->loadDiskThumbnail(diskKey, size, CacheIntent::Display, &found);
+        if (found) {
+            QMetaObject::invokeMethod(
+                self, "storeResult", Qt::QueuedConnection, Q_ARG(QString, path),
+                Q_ARG(QString, diskKey), Q_ARG(QString, memKey), Q_ARG(QImage, image),
+                Q_ARG(bool, true));
+            return;
+        }
         self->generate(path, diskKey, memKey, stored, size);
     }));
 
@@ -793,14 +812,7 @@ ThumbnailCache::Request ThumbnailCache::requestRemoteThumbnail(
     const QString memKey =
         remoteCacheKey(connectionId, path, mtimeEpoch, fileSize, size) + contentTintTag();
     const QString diskKey = remoteCacheKey(connectionId, path, mtimeEpoch, fileSize, stored);
-    bool persistedHit = false;
-    if (QPixmap cached = lookupCached(memKey, diskKey, size, intent, &persistedHit);
-        !cached.isNull()) {
-        if (ready)
-            *ready = cached;
-        return Request::Ready;
-    }
-    if (persistedHit)
+    if (requestDiskThumbnail(memKey, diskKey, size, intent, ready) == Request::Ready)
         return Request::Ready;
     // Already generating: someone else's request covers this row, and
     // thumbnailReady() will announce it. Nothing left for this caller to do.
@@ -812,6 +824,35 @@ ThumbnailCache::Request ThumbnailCache::requestRemoteThumbnail(
     const bool queued =
         m_remote.submit(provider, [self, path, diskKey, memKey, fileSize, stored, size,
                                    intent](const RemoteThumbnailFetcher::Ticket &ticket) {
+            if (ticket.cancelled()) {
+                QMetaObject::invokeMethod(
+                    self, "storeResult", Qt::QueuedConnection, Q_ARG(QString, path),
+                    Q_ARG(QString, diskKey), Q_ARG(QString, memKey), Q_ARG(QImage, QImage()),
+                    Q_ARG(bool, false));
+                return;
+            }
+
+            bool found = false;
+            QImage image = self->loadDiskThumbnail(diskKey, size, intent, &found);
+            if (found) {
+                QMetaObject::invokeMethod(
+                    self,
+                    [self, ticket, path, diskKey, memKey, image = std::move(image), intent] {
+                        const bool accepted = !ticket.cancelled();
+                        self->storeResult(path, diskKey, memKey,
+                                          accepted ? image : QImage(),
+                                          accepted && intent == CacheIntent::Display);
+                    },
+                    Qt::QueuedConnection);
+                return;
+            }
+            if (ticket.cancelled()) {
+                QMetaObject::invokeMethod(
+                    self, "storeResult", Qt::QueuedConnection, Q_ARG(QString, path),
+                    Q_ARG(QString, diskKey), Q_ARG(QString, memKey), Q_ARG(QImage, QImage()),
+                    Q_ARG(bool, false));
+                return;
+            }
             self->generateRemote(ticket, path, diskKey, memKey, fileSize, stored, size, intent);
         });
     if (!queued) {
@@ -1047,12 +1088,15 @@ void ThumbnailCache::generateRemote(const RemoteThumbnailFetcher::Ticket &ticket
         saveThumbnail(image, diskKey, diskFormatFor(image));
     }
 
-    // Reported even when cancelled or empty: storeResult clears the pending
-    // claim, and leaving it set would block every later attempt at this file.
-    QMetaObject::invokeMethod(this, "storeResult", Qt::QueuedConnection, Q_ARG(QString, path),
-                               Q_ARG(QString, diskKey), Q_ARG(QString, memKey),
-                               Q_ARG(QImage, scaledForDisplay(image, displaySize)),
-                               Q_ARG(bool, intent == CacheIntent::Display));
+    QImage displayImage = scaledForDisplay(image, displaySize);
+    QMetaObject::invokeMethod(
+        this,
+        [this, ticket, path, diskKey, memKey, image = std::move(displayImage), intent] {
+            const bool accepted = !ticket.cancelled();
+            storeResult(path, diskKey, memKey, accepted ? image : QImage(),
+                        accepted && intent == CacheIntent::Display);
+        },
+        Qt::QueuedConnection);
 }
 
 void ThumbnailCache::storeResult(const QString &path, const QString &pendingKey,
