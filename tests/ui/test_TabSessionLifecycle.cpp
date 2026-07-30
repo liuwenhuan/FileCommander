@@ -2,6 +2,8 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QElapsedTimer>
+#include <QEventLoop>
 #include <QFile>
 #include <QSemaphore>
 #include <QSignalSpy>
@@ -10,8 +12,11 @@
 #include <QTest>
 
 #include <atomic>
+#include <algorithm>
 #include <memory>
+#include <vector>
 
+#include "diagnostics/RuntimeCounters.h"
 #include "DirectorySizeTask.h"
 #include "FilePanel.h"
 #include "FileProvider.h"
@@ -169,6 +174,67 @@ SavedConnection savedConnection(const QString &path) {
     saved.remotePath = path;
     return saved;
 }
+
+constexpr int kRuntimeWaitMs = 5000;
+
+bool sameRuntimeSnapshot(const fc::RuntimeSnapshot &lhs, const fc::RuntimeSnapshot &rhs) {
+    return lhs.networkSessions == rhs.networkSessions &&
+           lhs.networkThreads == rhs.networkThreads &&
+           lhs.activeHeartbeats == rhs.activeHeartbeats &&
+           lhs.transferWorkers == rhs.transferWorkers &&
+           lhs.curlTransfers == rhs.curlTransfers;
+}
+
+QString runtimeSnapshotText(const fc::RuntimeSnapshot &snapshot) {
+    return QStringLiteral("{networkSessions=%1, networkThreads=%2, activeHeartbeats=%3, "
+                          "transferWorkers=%4, curlTransfers=%5}")
+        .arg(snapshot.networkSessions)
+        .arg(snapshot.networkThreads)
+        .arg(snapshot.activeHeartbeats)
+        .arg(snapshot.transferWorkers)
+        .arg(snapshot.curlTransfers);
+}
+
+QString runtimeDeltaText(const fc::RuntimeSnapshot &snapshot,
+                         const fc::RuntimeSnapshot &baseline) {
+    return QStringLiteral("{networkSessions=%1, networkThreads=%2, activeHeartbeats=%3, "
+                          "transferWorkers=%4, curlTransfers=%5}")
+        .arg(snapshot.networkSessions - baseline.networkSessions)
+        .arg(snapshot.networkThreads - baseline.networkThreads)
+        .arg(snapshot.activeHeartbeats - baseline.activeHeartbeats)
+        .arg(snapshot.transferWorkers - baseline.transferWorkers)
+        .arg(snapshot.curlTransfers - baseline.curlTransfers);
+}
+
+void recordRuntimePeak(fc::RuntimeSnapshot &peak) {
+    const fc::RuntimeSnapshot current = fc::runtimeSnapshot();
+    peak.networkSessions = std::max(peak.networkSessions, current.networkSessions);
+    peak.networkThreads = std::max(peak.networkThreads, current.networkThreads);
+    peak.activeHeartbeats = std::max(peak.activeHeartbeats, current.activeHeartbeats);
+    peak.transferWorkers = std::max(peak.transferWorkers, current.transferWorkers);
+    peak.curlTransfers = std::max(peak.curlTransfers, current.curlTransfers);
+}
+
+class RuntimeCleanupGuard {
+public:
+    RuntimeCleanupGuard(const fc::RuntimeSnapshot &baseline,
+                        std::unique_ptr<FilePanel> &panel)
+        : m_baseline(baseline), m_panel(panel) {}
+
+    ~RuntimeCleanupGuard() {
+        m_panel.reset();
+        QElapsedTimer timer;
+        timer.start();
+        while (!sameRuntimeSnapshot(fc::runtimeSnapshot(), m_baseline) &&
+               timer.elapsed() < kRuntimeWaitMs) {
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+        }
+    }
+
+private:
+    fc::RuntimeSnapshot m_baseline;
+    std::unique_ptr<FilePanel> &m_panel;
+};
 
 } // namespace
 
@@ -354,4 +420,95 @@ TEST(TabSessionLifecycle, ProviderSizeTaskCompletesAfterRemoteTabCloses) {
         EXPECT_EQ(visibleEntryNames(panel.model()), visibleBeforeClose);
     }
     QTRY_VERIFY_WITH_TIMEOUT(weakShare.expired(), 4000);
+}
+
+TEST(TabSessionLifecycle, TenRemoteTabsReturnRuntimeResourcesToBaseline) {
+    constexpr int remoteTabCount = 10;
+    const fc::RuntimeSnapshot baseline = fc::runtimeSnapshot();
+    fc::RuntimeSnapshot peak = baseline;
+
+    std::vector<std::shared_ptr<LifecycleShare>> shares;
+    shares.reserve(remoteTabCount);
+    auto panel = std::make_unique<FilePanel>();
+    RuntimeCleanupGuard cleanup(baseline, panel);
+
+    for (int i = 0; i < remoteTabCount; ++i) {
+        if (i > 0)
+            panel->newTab();
+
+        const QString remoteDir = QStringLiteral("/share/docs%1").arg(i);
+        auto share = std::make_shared<LifecycleShare>(remoteDir);
+        shares.push_back(share);
+        panel->connectTabTo(i, share, [](QString *) { return true; }, remoteDir,
+                            QStringLiteral("tester@share%1").arg(i), SavedConnection{},
+                            FileSystemModel::AuthRetryFactory());
+        settle(*panel);
+
+        ASSERT_TRUE(panel->tabHasConnection(i));
+        ASSERT_TRUE(panel->model()->hasNetworkSession());
+        recordRuntimePeak(peak);
+        const fc::RuntimeSnapshot current = fc::runtimeSnapshot();
+        EXPECT_LE(current.networkSessions, baseline.networkSessions + i + 1);
+        EXPECT_LE(current.networkThreads, baseline.networkThreads + i + 1);
+        EXPECT_LE(current.activeHeartbeats, baseline.activeHeartbeats + i + 1);
+        EXPECT_LE(current.curlTransfers, baseline.curlTransfers + i + 1);
+    }
+
+    ASSERT_EQ(panel->tabCount(), remoteTabCount);
+
+    // Add a local survivor so every remote tab, including the last one, can be
+    // closed through the real TabBar close path.
+    panel->newTab();
+    settle(*panel);
+    ASSERT_EQ(panel->tabCount(), remoteTabCount + 1);
+    ASSERT_FALSE(panel->model()->hasNetworkSession());
+    recordRuntimePeak(peak);
+
+    // Exercise both active and parked ownership before closing anything.
+    for (int i = 0; i < remoteTabCount; ++i) {
+        panel->activateTab(i);
+        settle(*panel);
+        ASSERT_TRUE(panel->model()->hasNetworkSession());
+        recordRuntimePeak(peak);
+    }
+    panel->activateTab(remoteTabCount);
+    settle(*panel);
+    ASSERT_FALSE(panel->model()->hasNetworkSession());
+    recordRuntimePeak(peak);
+
+    auto *tabs = panel->findChild<TabBar *>();
+    ASSERT_NE(tabs, nullptr);
+    for (int i = remoteTabCount - 1; i >= 0; --i) {
+        ASSERT_TRUE(QMetaObject::invokeMethod(tabs, "closeTabRequested", Qt::DirectConnection,
+                                              Q_ARG(int, i)));
+        settle(*panel);
+        ASSERT_EQ(panel->tabCount(), i + 1);
+        EXPECT_FALSE(panel->tabHasConnection(i));
+        recordRuntimePeak(peak);
+    }
+    ASSERT_EQ(panel->tabCount(), 1);
+    EXPECT_FALSE(panel->tabHasConnection(0));
+
+    panel.reset();
+    shares.clear();
+    QTRY_VERIFY_WITH_TIMEOUT(sameRuntimeSnapshot(fc::runtimeSnapshot(), baseline),
+                             kRuntimeWaitMs);
+
+    const fc::RuntimeSnapshot finalSnapshot = fc::runtimeSnapshot();
+    RecordProperty("runtime_baseline", runtimeSnapshotText(baseline).toStdString());
+    RecordProperty("runtime_peak", runtimeSnapshotText(peak).toStdString());
+    RecordProperty("runtime_final", runtimeSnapshotText(finalSnapshot).toStdString());
+    RecordProperty("runtime_final_delta",
+                   runtimeDeltaText(finalSnapshot, baseline).toStdString());
+    qInfo().noquote() << "FoundationResourceBaseline baseline="
+                      << runtimeSnapshotText(baseline) << "peak="
+                      << runtimeSnapshotText(peak) << "final="
+                      << runtimeSnapshotText(finalSnapshot) << "finalDelta="
+                      << runtimeDeltaText(finalSnapshot, baseline);
+
+    EXPECT_EQ(finalSnapshot.networkSessions, baseline.networkSessions);
+    EXPECT_EQ(finalSnapshot.networkThreads, baseline.networkThreads);
+    EXPECT_EQ(finalSnapshot.activeHeartbeats, baseline.activeHeartbeats);
+    EXPECT_EQ(finalSnapshot.transferWorkers, baseline.transferWorkers);
+    EXPECT_EQ(finalSnapshot.curlTransfers, baseline.curlTransfers);
 }
