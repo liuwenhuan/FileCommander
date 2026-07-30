@@ -51,6 +51,7 @@
 #include <QTextEdit>
 #include <QTextCursor>
 #include <QTextDocument>
+#include <QThreadPool>
 #include <QTimer>
 #include <QToolBar>
 #include <QTransform>
@@ -59,6 +60,7 @@
 #include <QtConcurrent>
 
 #include <limits>
+#include <utility>
 
 #if FILECOMMANDER_HAS_PREVIEW_PDF
 #include <poppler-qt5.h>
@@ -133,6 +135,63 @@ constexpr int kPdfPageGap = 12;
 // Slides rendered in the fast first stage of a pptx preview; the rest stream in
 // afterwards (see QuickView::renderOffice).
 constexpr int kFirstStageSlides = 3;
+
+class ImageRotationPool : public QThreadPool {
+public:
+    ImageRotationPool() {
+        setMaxThreadCount(1);
+        setExpiryTimeout(-1);
+    }
+};
+
+QThreadPool *imageRotationPool() {
+    static ImageRotationPool pool;
+    return &pool;
+}
+
+bool persistImageRotation(const QString &path, int degrees) {
+    const QFileInfo fi(path);
+    const QString suffix = FileInfo::suffixForName(fi.fileName()).toLower();
+    const int rotation = ((degrees % 360) + 360) % 360;
+    QTransform transform;
+    transform.rotate(degrees);
+    bool saved = false;
+
+    if (suffix == QLatin1String("jpg") || suffix == QLatin1String("jpeg")) {
+        const QString jpegtran = QStandardPaths::findExecutable(QStringLiteral("jpegtran"));
+        if (!jpegtran.isEmpty()) {
+            const QString temporary =
+                fi.absoluteDir().filePath(QStringLiteral(".%1.rot.tmp").arg(fi.fileName()));
+            QProcess process;
+            process.start(jpegtran, {QStringLiteral("-rotate"), QString::number(rotation),
+                                     QStringLiteral("-copy"), QStringLiteral("all"),
+                                     QStringLiteral("-outfile"), temporary, path});
+            if (process.waitForFinished(15000) &&
+                process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0 &&
+                QFileInfo::exists(temporary)) {
+                if (QFile::remove(path) && QFile::rename(temporary, path))
+                    saved = true;
+                else
+                    QFile::remove(temporary);
+            } else {
+                QFile::remove(temporary);
+            }
+        }
+    }
+
+    if (!saved) {
+        QImageReader reader(path);
+        QImage image = reader.read();
+        if (!image.isNull()) {
+            image = image.transformed(transform, Qt::FastTransformation);
+            QImageWriter writer(path);
+            if (suffix == QLatin1String("jpg") || suffix == QLatin1String("jpeg"))
+                writer.setQuality(100);
+            saved = writer.write(image);
+        }
+    }
+    return saved;
+}
 } // namespace
 
 QuickView::QuickView(Settings &settings, Context context, QWidget *parent)
@@ -146,17 +205,26 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent)
     m_info->setAlignment(Qt::AlignCenter);
     m_info->setWordWrap(true);
 
+    m_imageLoader = new ImagePreviewLoader(this);
+
     // Coalesce rapid resizes (e.g. dragging the panel divider) into a single
     // smooth rescale so large images don't rescale on every pixel of the drag.
     m_refitTimer = new QTimer(this);
     m_refitTimer->setSingleShot(true);
     m_refitTimer->setInterval(40);
     connect(m_refitTimer, &QTimer::timeout, this, [this]() {
-        if (m_imageFitMode && !m_originalPixmap.isNull()) {
+        if (m_imageFitMode && !m_originalImage.isNull()) {
             m_imageScale = fitScale();
             applyImageScale();
         }
     });
+
+    m_imageWheelRenderTimer = new QTimer(this);
+    m_imageWheelRenderTimer->setObjectName(QStringLiteral("imageWheelRenderTimer"));
+    m_imageWheelRenderTimer->setSingleShot(true);
+    m_imageWheelRenderTimer->setInterval(50);
+    connect(m_imageWheelRenderTimer, &QTimer::timeout, this,
+            &QuickView::requestImageRender);
 
     m_stack = new QStackedWidget(this);
     m_stack->addWidget(m_info);              // 0
@@ -172,6 +240,66 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent)
     m_stack->addWidget(buildSlidesPage());       // 10
     m_stack->addWidget(buildDownloadPage());     // 11
 
+    connect(m_imageLoader, &ImagePreviewLoader::loaded, this,
+            [this](quint64 generation, QImage image, const ImageMetadata &metadata,
+                   const QString &error) {
+                if (generation != m_pendingImageLoadGeneration)
+                    return;
+                m_pendingImageLoadGeneration = 0;
+                if (!error.isEmpty() || image.isNull()) {
+                    m_originalImage = {};
+                    m_imageLabel->clear();
+                    m_infoOverlay->hide();
+                    m_info->setText(tr("No preview available for %1")
+                                        .arg(QFileInfo(m_pendingImagePath).fileName()));
+                    m_stack->setCurrentWidget(m_info);
+                    return;
+                }
+
+                m_originalImage = std::move(image);
+                m_imageMetadata = metadata;
+                m_imageTransform.reset();
+                m_imagePath = m_pendingImagePath;
+                loadImageSiblings();
+                m_stack->setCurrentWidget(m_imagePage);
+                updateImageInfoOverlay();
+                if (m_infoCheck->isChecked()) {
+                    m_infoOverlay->show();
+                    positionInfoOverlay();
+                } else {
+                    m_infoOverlay->hide();
+                }
+                if (m_lockZoomCheck->isChecked()) {
+                    m_imageFitMode = false;
+                } else {
+                    m_imageFitMode = true;
+                    m_imageScale = fitScale();
+                }
+                requestImageRender();
+            });
+    connect(m_imageLoader, &ImagePreviewLoader::rendered, this,
+            [this](quint64 generation, QImage image) {
+                if (generation != m_pendingImageRenderGeneration || image.isNull() ||
+                    m_stack->currentWidget() != m_imagePage)
+                    return;
+                m_pendingImageRenderGeneration = 0;
+
+                const QColor tint = fc::contentTint();
+                if (tint.isValid()) {
+                    if (image.format() != QImage::Format_ARGB32)
+                        image = image.convertToFormat(QImage::Format_ARGB32);
+                    fc::tintImage(image, tint);
+                    fc::applyScanlines(image);
+                }
+                m_imageLabel->setPixmap(QPixmap::fromImage(image));
+                m_imageLabel->resize(image.size());
+                updateImageCursor(image.size());
+            });
+    connect(m_stack, &QStackedWidget::currentChanged, this, [this](int index) {
+        if (m_stack->widget(index) != m_imagePage)
+            invalidateImageRequests();
+    });
+
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(m_stack);
@@ -179,7 +307,9 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent)
 
 // Defined here (not defaulted in the header) so the unique_ptr<Poppler::Document>
 // member is destroyed where the complete Poppler type is visible.
-QuickView::~QuickView() = default;
+QuickView::~QuickView() {
+    invalidateImageRequests();
+}
 
 void QuickView::setContentFontSize(int pt) {
     if (pt <= 0)
@@ -297,7 +427,7 @@ QWidget *QuickView::buildImagePage() {
     toolbar->addWidget(m_infoCheck);
     connect(m_infoCheck, &QCheckBox::toggled, this, [this](bool on) {
         // The overlay only makes sense over an actual image page.
-        if (on && m_stack->currentWidget() == m_imagePage && !m_originalPixmap.isNull()) {
+        if (on && m_stack->currentWidget() == m_imagePage && !m_originalImage.isNull()) {
             m_infoOverlay->show();
             positionInfoOverlay();
         } else {
@@ -308,6 +438,7 @@ QWidget *QuickView::buildImagePage() {
     m_imageLabel = new QLabel(m_imagePage);
     m_imageLabel->setAlignment(Qt::AlignCenter);
     m_imageScroll = new QScrollArea(m_imagePage);
+    m_imageScroll->setObjectName(QStringLiteral("imagePreviewScroll"));
     m_imageScroll->setWidget(m_imageLabel);
     m_imageScroll->setWidgetResizable(false);
     m_imageScroll->setAlignment(Qt::AlignCenter);
@@ -333,10 +464,10 @@ QWidget *QuickView::buildImagePage() {
 }
 
 double QuickView::fitScale() const {
-    if (m_originalPixmap.isNull())
+    if (m_originalImage.isNull())
         return 1.0;
     const QSize avail = m_imageScroll->viewport()->size();
-    const QSize pix = m_originalPixmap.size();
+    const QSize pix = transformedImageSize();
     if (pix.width() <= 0 || pix.height() <= 0)
         return 1.0;
     const double s = qMin(static_cast<double>(avail.width()) / pix.width(),
@@ -345,102 +476,86 @@ double QuickView::fitScale() const {
 }
 
 void QuickView::applyImageScale() {
-    if (m_originalPixmap.isNull())
+    requestImageRender();
+}
+
+QSize QuickView::transformedImageSize() const {
+    if (m_originalImage.isNull())
+        return {};
+    const QRectF bounds =
+        m_imageTransform.mapRect(QRectF(QPointF(0, 0), QSizeF(m_originalImage.size())));
+    return QSize(qRound(bounds.width()), qRound(bounds.height()));
+}
+
+void QuickView::requestImageRender() {
+    if (m_originalImage.isNull() || m_stack->currentWidget() != m_imagePage)
         return;
-    const QSize target = m_originalPixmap.size() * m_imageScale;
-    // Recolour HERE, after fitting to the pane, so the scanlines remain visible
-    // at the dimensions actually shown without discarding source detail.
-    m_imageLabel->setPixmap(fc::scanlinedPhosphorPixmap(
-        m_originalPixmap.scaled(target, Qt::KeepAspectRatio, Qt::SmoothTransformation),
-        fc::contentTint()));
-    m_imageLabel->resize(target);
-    // Hint that the image can be dragged when it overflows the viewport.
-    const bool pannable = target.width() > m_imageScroll->viewport()->width() ||
-                          target.height() > m_imageScroll->viewport()->height();
+
+    const QSize transformed = transformedImageSize();
+    const QSize target(qMax(1, qRound(transformed.width() * m_imageScale)),
+                       qMax(1, qRound(transformed.height() * m_imageScale)));
+    m_pendingImageRenderGeneration =
+        m_imageLoader->render(m_originalImage, target, m_imageTransform);
+    m_imageGeneration = qMax(m_imageGeneration, m_pendingImageRenderGeneration);
+}
+
+void QuickView::invalidateImageRequests() {
+    if (m_refitTimer)
+        m_refitTimer->stop();
+    if (m_imageWheelRenderTimer)
+        m_imageWheelRenderTimer->stop();
+    if (m_imageLoader)
+        m_imageLoader->cancelBefore(++m_imageGeneration);
+    m_pendingImageLoadGeneration = 0;
+    m_pendingImageRenderGeneration = 0;
+    m_pendingImagePath.clear();
+}
+
+void QuickView::updateImageInfoOverlay() {
+    if (m_originalImage.isNull() || m_imagePath.isEmpty())
+        return;
+    const QSize dimensions = transformedImageSize();
+    const QString format =
+        m_imageMetadata.format.isEmpty() ? tr("Unknown format") : m_imageMetadata.format;
+    m_infoOverlay->setText(tr("<b>%1</b><br>%2 &times; %3<br>%4<br>%5 bpp")
+                               .arg(QFileInfo(m_imagePath).fileName().toHtmlEscaped())
+                               .arg(dimensions.width())
+                               .arg(dimensions.height())
+                               .arg(format)
+                               .arg(m_imageMetadata.depth));
+    positionInfoOverlay();
+}
+
+void QuickView::updateImageCursor(const QSize &displaySize) {
+    const bool pannable = displaySize.width() > m_imageScroll->viewport()->width() ||
+                          displaySize.height() > m_imageScroll->viewport()->height();
     m_imageScroll->viewport()->setCursor(pannable ? Qt::OpenHandCursor : Qt::ArrowCursor);
 }
 
 void QuickView::rotateCurrentImage(int degrees) {
-    if (m_originalPixmap.isNull() || m_imagePath.isEmpty())
+    if (m_originalImage.isNull() || m_imagePath.isEmpty())
         return;
 
-    // Rotate what's on screen first for responsiveness. 90-degree multiples are
-    // exact, so a fast (nearest-neighbour) transform loses nothing.
-    QTransform t;
-    t.rotate(degrees);
-    m_originalPixmap = m_originalPixmap.transformed(t, Qt::FastTransformation);
+    m_imageTransform.rotate(degrees);
     if (m_imageFitMode)
         m_imageScale = fitScale();
-    applyImageScale();
+    requestImageRender();
+    updateImageInfoOverlay();
 
-    // The overlay's width/height are now swapped; rebuild it if it's showing.
-    if (m_infoOverlay->isVisible()) {
-        const QFileInfo fi(m_imagePath);
-        QImageReader reader(m_imagePath);
-        const QString format = QString::fromLatin1(reader.format()).toUpper();
-        m_infoOverlay->setText(tr("<b>%1</b><br>%2 &times; %3<br>%4<br>%5 bpp")
-                                   .arg(fi.fileName().toHtmlEscaped())
-                                   .arg(m_originalPixmap.width())
-                                   .arg(m_originalPixmap.height())
-                                   .arg(format.isEmpty() ? tr("Unknown format") : format)
-                                   .arg(m_originalPixmap.depth()));
-        positionInfoOverlay();
-    }
-
-    // Persist losslessly back to disk, preserving format and precision.
-    const QFileInfo fi(m_imagePath);
-    const QString suffix = FileInfo::suffixForName(fi.fileName()).toLower();
-    const int rot = ((degrees % 360) + 360) % 360; // +90 -> 90, -90 -> 270
-    bool saved = false;
-
-    if (suffix == QLatin1String("jpg") || suffix == QLatin1String("jpeg")) {
-        // Prefer true-lossless JPEG rotation via jpegtran (no re-encode of the
-        // DCT coefficients). Write to a same-directory temp file, then swap.
-        const QString jpegtran = QStandardPaths::findExecutable(QStringLiteral("jpegtran"));
-        if (!jpegtran.isEmpty()) {
-            const QString tmp =
-                fi.absoluteDir().filePath(QStringLiteral(".%1.rot.tmp").arg(fi.fileName()));
-            QProcess proc;
-            proc.start(jpegtran, {QStringLiteral("-rotate"), QString::number(rot),
-                                  QStringLiteral("-copy"), QStringLiteral("all"),
-                                  QStringLiteral("-outfile"), tmp, m_imagePath});
-            if (proc.waitForFinished(15000) && proc.exitStatus() == QProcess::NormalExit &&
-                proc.exitCode() == 0 && QFileInfo::exists(tmp)) {
-                if (QFile::remove(m_imagePath) && QFile::rename(tmp, m_imagePath))
-                    saved = true;
-                else
-                    QFile::remove(tmp); // leave the original in place on a failed swap
-            } else {
-                QFile::remove(tmp); // clean up a partial output
-            }
+    const QString path = m_imagePath;
+    auto *watcher = new QFutureWatcher<bool>(this);
+    connect(watcher, &QFutureWatcher<bool>::finished, this, [this, watcher, path]() {
+        const bool saved = watcher->result();
+        watcher->deleteLater();
+        if (!saved && path == m_imagePath && !m_originalImage.isNull()) {
+            m_infoOverlay->setText(tr("Rotated on screen only - could not save to disk."));
+            m_infoOverlay->show();
+            positionInfoOverlay();
         }
-        if (!saved) {
-            // jpegtran missing or failed: re-encode at max quality (near-lossless).
-            QImage img(m_imagePath);
-            if (!img.isNull()) {
-                img = img.transformed(t, Qt::FastTransformation);
-                QImageWriter writer(m_imagePath);
-                writer.setQuality(100);
-                saved = writer.write(img);
-            }
-        }
-    } else {
-        // png/bmp/tiff/webp/...: these round-trip losslessly through QImageWriter.
-        QImage img(m_imagePath);
-        if (!img.isNull()) {
-            img = img.transformed(t, Qt::FastTransformation);
-            QImageWriter writer(m_imagePath);
-            saved = writer.write(img);
-        }
-    }
-
-    if (!saved) {
-        // Read-only file or unsupported writer: keep the on-screen rotation but
-        // make clear the file on disk is unchanged.
-        m_infoOverlay->setText(tr("Rotated on screen only — could not save to disk."));
-        m_infoOverlay->show();
-        positionInfoOverlay();
-    }
+    });
+    watcher->setFuture(QtConcurrent::run(imageRotationPool(), [path, degrees]() {
+        return persistImageRotation(path, degrees);
+    }));
 }
 
 void QuickView::positionInfoOverlay() {
@@ -820,9 +935,9 @@ void QuickView::refreshPhosphor() {
     // is opened again. Each surface is re-derived here from what it kept.
     const QColor tint = fc::contentTint();
 
-    // Image: the source pixmap is untouched, so re-running the scale step is
+    // Image: the source image is untouched, so re-running the scale step is
     // the whole job.
-    if (!m_originalPixmap.isNull())
+    if (!m_originalImage.isNull())
         applyImageScale();
 
     // Audio cover: kept as decoded, for exactly this reason.
@@ -1417,6 +1532,7 @@ QWidget *QuickView::buildDownloadPage() {
 }
 
 void QuickView::showDownloading(const QString &name) {
+    invalidateImageRequests();
     m_downloadLabel->setText(tr("正在下载到本地以便预览…\n%1").arg(name));
     m_downloadProgress->setRange(0, 0); // reset to indeterminate
     m_downloadProgress->setVisible(true);
@@ -1437,6 +1553,7 @@ void QuickView::setDownloadProgress(qint64 done, qint64 total) {
 }
 
 void QuickView::showDownloadCancelled(const QString &name) {
+    invalidateImageRequests();
     m_downloadLabel->setText(tr("已取消预览：本文件的预览下载被用户停止。\n%1").arg(name));
     m_downloadProgress->setVisible(false);
     m_downloadStopButton->setVisible(false);
@@ -2613,10 +2730,13 @@ void QuickView::closeSlides() {
         m_slidesInfo->clear();
 }
 
-void QuickView::zoomImageBy(double factor) {
+void QuickView::zoomImageBy(double factor, bool debounce) {
     m_imageFitMode = false;
     m_imageScale = qBound(kMinScale, m_imageScale * factor, kMaxScale);
-    applyImageScale();
+    if (debounce)
+        m_imageWheelRenderTimer->start();
+    else
+        requestImageRender();
 }
 
 bool QuickView::eventFilter(QObject *watched, QEvent *event) {
@@ -2664,7 +2784,7 @@ bool QuickView::eventFilter(QObject *watched, QEvent *event) {
         switch (event->type()) {
         case QEvent::Wheel: {
             auto *we = static_cast<QWheelEvent *>(event);
-            zoomImageBy(we->angleDelta().y() > 0 ? kZoomStep : 1.0 / kZoomStep);
+            zoomImageBy(we->angleDelta().y() > 0 ? kZoomStep : 1.0 / kZoomStep, true);
             return true; // consume: wheel zooms rather than scrolls
         }
         case QEvent::MouseButtonPress: {
@@ -2692,7 +2812,8 @@ bool QuickView::eventFilter(QObject *watched, QEvent *event) {
         case QEvent::MouseButtonRelease: {
             if (m_panning) {
                 m_panning = false;
-                applyImageScale(); // restores the open/arrow cursor
+                const QPixmap *pixmap = m_imageLabel->pixmap();
+                updateImageCursor(pixmap ? pixmap->size() : QSize());
                 return true;
             }
             break;
@@ -2708,7 +2829,7 @@ void QuickView::resizeEvent(QResizeEvent *event) {
     QWidget::resizeEvent(event);
     // While in fit mode, keep the image sized to the pane, but debounce so a
     // divider drag triggers one rescale at the end rather than one per pixel.
-    if (m_imageFitMode && !m_originalPixmap.isNull() && m_stack->currentWidget() == m_imagePage)
+    if (m_imageFitMode && !m_originalImage.isNull() && m_stack->currentWidget() == m_imagePage)
         m_refitTimer->start();
 }
 
@@ -2723,6 +2844,11 @@ bool QuickView::canStreamPreview(const QString &path) {
 }
 
 void QuickView::showFile(const QString &path) {
+    invalidateImageRequests();
+    m_originalImage = {};
+    m_imageTransform.reset();
+    m_imagePath.clear();
+
     QFileInfo info(path);
     // A stream URL names a remote file being read through its FileProvider, so
     // none of the local-filesystem questions below apply to it -- there is
@@ -2896,47 +3022,16 @@ void QuickView::showFile(const QString &path) {
     }
 
     if (ImageViewer::isImage(path)) {
-        QImageReader reader(path);
-        const QSize dim = reader.size();
-        const QString format = QString::fromLatin1(reader.format()).toUpper();
-        QPixmap pm(path);
-        if (!pm.isNull()) {
-            // Kept as the untouched original. Recolouring happens in
-            // applyImageScale(), at display resolution -- see the note there.
-            m_originalPixmap = pm;
-            m_imagePath = path;
-            loadImageSiblings(); // enable prev/next among sibling images
-
-            // Build the metadata panel from what QImageReader/QPixmap expose.
-            const QString text =
-                tr("<b>%1</b><br>%2 &times; %3<br>%4<br>%5 bpp")
-                    .arg(info.fileName().toHtmlEscaped())
-                    .arg(dim.isValid() ? dim.width() : pm.width())
-                    .arg(dim.isValid() ? dim.height() : pm.height())
-                    .arg(format.isEmpty() ? tr("Unknown format") : format)
-                    .arg(pm.depth());
-            m_infoOverlay->setText(text);
-
-            m_stack->setCurrentWidget(m_imagePage);
-            if (m_infoCheck->isChecked()) {
-                m_infoOverlay->show();
-                positionInfoOverlay();
-            } else {
-                m_infoOverlay->hide();
-            }
-            if (m_lockZoomCheck->isChecked()) {
-                // Reuse the ratio the user locked in; don't refit.
-                m_imageFitMode = false;
-            } else {
-                m_imageFitMode = true;
-                m_imageScale = fitScale();
-            }
-            applyImageScale();
-            return;
-        }
+        m_imageLabel->clear();
+        m_infoOverlay->hide();
+        m_info->setText(tr("Loading preview..."));
+        m_stack->setCurrentWidget(m_info);
+        m_pendingImagePath = path;
+        m_pendingImageLoadGeneration = m_imageLoader->load(path);
+        m_imageGeneration = qMax(m_imageGeneration, m_pendingImageLoadGeneration);
+        return;
     }
 
-    m_originalPixmap = QPixmap();
     m_infoOverlay->hide(); // no image behind it on the text / no-preview pages
     QFile file(path);
     if (file.open(QIODevice::ReadOnly)) {

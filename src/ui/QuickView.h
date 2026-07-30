@@ -3,18 +3,21 @@
 #include <QByteArray>
 #include <QHash>
 #include <QIcon>
+#include <QImage>
 #include <QPixmap>
 #include <QPoint>
 #include <QPointer>
 #include <QSizeF>
 #include <QStyle>
 #include <QStringList>
+#include <QTransform>
 #include <QVector>
 #include <QWidget>
 
 #include <memory>
 
 #include "ArchiveHandler.h" // ArchiveNode + ArchiveHandler::Status (async load result)
+#include "ImagePreviewLoader.h"
 #include "OfficeConverter.h" // OfficeConverter::Result (async conversion payload)
 #include "TextEncodingDetector.h"
 
@@ -240,7 +243,12 @@ private:
     int currentPdfPage() const;   // page index under the current scroll position
     int currentSlide() const;     // slide index under the current scroll position
     void applyImageScale();
-    void zoomImageBy(double factor);
+    void requestImageRender();
+    void zoomImageBy(double factor, bool debounce = false);
+    void invalidateImageRequests();
+    QSize transformedImageSize() const;
+    void updateImageInfoOverlay();
+    void updateImageCursor(const QSize &displaySize);
     // Rotates the shown image by +/-90 degrees, then persists it losslessly back
     // to m_imagePath (jpegtran for JPEG when available, QImageWriter otherwise).
     void rotateCurrentImage(int degrees);
@@ -277,6 +285,7 @@ private:
     QCheckBox *m_infoCheck;     // when checked, overlay image metadata
     QLabel *m_infoOverlay;      // floating metadata panel over the image
     QTimer *m_refitTimer;       // coalesces refits during interactive resize
+    QTimer *m_imageWheelRenderTimer; // keeps the prior pixmap pending for exactly 50 ms
     QPlainTextEdit *m_text;
     QLabel *m_info;
 
@@ -473,7 +482,14 @@ private:
     Settings &m_settings; // persisted video speed / volume / mute
     Context m_context;    // Embedded (Ctrl+Q pane) vs Window (F3 viewer)
 
-    QPixmap m_originalPixmap;
+    ImagePreviewLoader *m_imageLoader = nullptr;
+    QImage m_originalImage;
+    ImageMetadata m_imageMetadata;
+    QTransform m_imageTransform;
+    quint64 m_imageGeneration = 0;
+    quint64 m_pendingImageLoadGeneration = 0;
+    quint64 m_pendingImageRenderGeneration = 0;
+    QString m_pendingImagePath;
     double m_imageScale = 1.0;
     bool m_imageFitMode = true; // re-fit on resize until the user zooms
 

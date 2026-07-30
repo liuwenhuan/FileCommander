@@ -33,6 +33,8 @@ set(UI_SOURCES
     CommandBar.cpp
     CommandHistory.h
     CommandHistory.cpp
+    ImagePreviewLoader.h
+    ImagePreviewLoader.cpp
     QuickView.h
     QuickView.cpp
     TextEncodingDetector.h

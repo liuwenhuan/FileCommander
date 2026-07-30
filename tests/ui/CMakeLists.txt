@@ -9,6 +9,7 @@ set(UI_TEST_SOURCES
     test_RemoteThumbnailFetcher.cpp
     test_RemoteThumbnail.cpp
     test_ThumbnailAsyncDiskHit.cpp
+    test_ImagePreviewLoader.cpp
     test_ExifThumbnail.cpp
     test_VideoFrameQuality.cpp
     test_ThumbnailSweep.cpp
