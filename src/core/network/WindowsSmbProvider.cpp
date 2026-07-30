@@ -198,7 +198,7 @@ FileProvider::RenameResult WindowsSmbProvider::rename(
     const QString destination = fc::ProviderPath::sibling(oldPath, newName);
     if (destination.isEmpty())
         return RenameResult::Failed;
-    const RenameResult result = moveTo(oldPath, destination);
+    const RenameResult result = moveTo(path, destination);
     if (result == RenameResult::Ok && newPath)
         *newPath = destination;
     return result;
