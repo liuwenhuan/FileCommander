@@ -40,7 +40,7 @@ $manifest = @"
          IgnorableNamespaces="uap rescap">
   <Identity Name="$IdentityName" Publisher="$Publisher" Version="$version" ProcessorArchitecture="$Architecture" />
   <Properties><DisplayName>FileCommander</DisplayName><PublisherDisplayName>FileCommander</PublisherDisplayName><Logo>Assets\Square150x150Logo.png</Logo></Properties>
-  <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" /></Dependencies>
+  <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" /><PackageDependency Name="Microsoft.VCLibs.140.00.UWPDesktop" Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US" MinVersion="14.0.0.0" /></Dependencies>
   <Resources><Resource Language="en-us" /></Resources>
   <Applications><Application Id="App" Executable="FileCommander.exe" EntryPoint="Windows.FullTrustApplication"><uap:VisualElements DisplayName="FileCommander" Description="FileCommander" BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" /></Application></Applications>
   <Capabilities><Capability Name="internetClient" /><rescap:Capability Name="runFullTrust" /></Capabilities>

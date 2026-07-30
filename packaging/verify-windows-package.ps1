@@ -1,8 +1,59 @@
 [CmdletBinding()]
-param([Parameter(Mandatory)][string]$Stage)
+param(
+    [Parameter(Mandatory)][string]$Stage,
+    [ValidateSet('x64', 'x86', 'arm64')]
+    [string]$Architecture = 'x64'
+)
 
 $ErrorActionPreference = 'Stop'
 $resolved = (Resolve-Path -LiteralPath $Stage).Path
+
+function Get-PeArchitecture {
+    param([Parameter(Mandatory)][string]$Path)
+
+    $stream = [System.IO.File]::OpenRead($Path)
+    $reader = [System.IO.BinaryReader]::new($stream)
+    try {
+        if ($reader.ReadUInt16() -ne 0x5A4D) { throw "Not a PE file: $Path" }
+        $stream.Position = 0x3C
+        $peOffset = $reader.ReadUInt32()
+        $stream.Position = $peOffset
+        if ($reader.ReadUInt32() -ne 0x00004550) { throw "Not a PE file: $Path" }
+        switch ($reader.ReadUInt16()) {
+            0x8664 { return 'x64' }
+            0x014C { return 'x86' }
+            0xAA64 { return 'arm64' }
+            default { throw "Unsupported PE architecture in $Path" }
+        }
+    } finally {
+        $reader.Dispose()
+        $stream.Dispose()
+    }
+}
+
+$installer = Get-ChildItem -LiteralPath $resolved -File -Filter 'vc_redist*.exe' |
+    Select-Object -First 1
+if ($installer) {
+    throw "$($installer.Name) does not satisfy app-local MSVC runtime dependencies. Deploy the CRT DLLs beside FileCommander.exe instead."
+}
+$runtimeFiles = @(Get-ChildItem -LiteralPath $resolved -File |
+    Where-Object { $_.Name -match '^(concrt|msvcp|vccorlib|vcruntime)140.*\.dll$' })
+if ($runtimeFiles | Where-Object { $_.Name -match 'd\.dll$' }) {
+    throw 'Debug MSVC runtime detected in release package.'
+}
+foreach ($runtime in @('vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll')) {
+    $runtimePath = Join-Path $resolved $runtime
+    if (-not (Test-Path -LiteralPath $runtimePath -PathType Leaf)) {
+        throw "Missing app-local MSVC runtime dependency: $runtime"
+    }
+}
+foreach ($runtimeFile in $runtimeFiles) {
+    $actualArchitecture = Get-PeArchitecture -Path $runtimeFile.FullName
+    if ($actualArchitecture -ne $Architecture) {
+        throw "MSVC runtime architecture mismatch: $($runtimeFile.Name) is $actualArchitecture, expected $Architecture."
+    }
+}
+
 foreach ($required in @('FileCommander.exe', 'Qt5Core.dll', 'Qt5Gui.dll',
                         'Qt5Widgets.dll', 'platforms/qwindows.dll', 'manifest.json')) {
     if (-not (Test-Path -LiteralPath (Join-Path $resolved $required))) {

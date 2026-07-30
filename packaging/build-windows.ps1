@@ -83,6 +83,15 @@ $officeBinary = Join-Path $repo 'build/office-oxide/office-oxide.exe'
 if (Test-Path -LiteralPath $officeBinary) {
     Copy-Item -LiteralPath $officeBinary -Destination $stage -Force
 }
+$runtime = & (Join-Path $PSScriptRoot 'collect-msvc-runtime.ps1') `
+    -Stage $stage -Architecture $Architecture -Mode Portable
+if (-not $runtime.CopiedCrtDllPaths) { throw 'MSVC runtime collection did not copy any CRT DLLs.' }
+
+# The installer is a prerequisite for bootstrapper-style installers, never a
+# portable app-local dependency. Keep the direct result directory runnable.
+Get-ChildItem -LiteralPath $stage -File -Filter 'vc_redist*.exe' |
+    Remove-Item -Force
+
 $manifest = [ordered]@{
     product = 'FileCommander'
     version = '0.2.0-phase2-test'
@@ -91,10 +100,15 @@ $manifest = [ordered]@{
     officePreview = Test-Path -LiteralPath (Join-Path $stage 'office-oxide.exe')
     pdfPreview = [bool]$WithFullPreviews
     mediaPreview = [bool]$WithFullPreviews
+    runtime = [ordered]@{
+        provenance = $runtime.Provenance
+        sourceRedistDirectory = $runtime.SourceRedistDirectory
+        files = @($runtime.CopiedCrtDllPaths | ForEach-Object { Split-Path -Leaf $_ })
+    }
 }
 $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stage 'manifest.json') -Encoding UTF8
 
-& (Join-Path $PSScriptRoot 'verify-windows-package.ps1') -Stage $stage
+& (Join-Path $PSScriptRoot 'verify-windows-package.ps1') -Stage $stage -Architecture $Architecture
 if ($LASTEXITCODE) { throw 'Package verification failed.' }
 if ($SkipArchive) {
     Write-Host "Prepared runnable directory $stage"
