@@ -27,6 +27,22 @@ struct SizeGate {
     QSemaphore release{0};
 };
 
+class GateReleaseGuard {
+public:
+    explicit GateReleaseGuard(QSemaphore &semaphore) : m_semaphore(&semaphore) {}
+    ~GateReleaseGuard() { release(); }
+
+    void release() {
+        if (!m_semaphore)
+            return;
+        m_semaphore->release();
+        m_semaphore = nullptr;
+    }
+
+private:
+    QSemaphore *m_semaphore;
+};
+
 class LifecycleShare : public FileProvider {
 public:
     explicit LifecycleShare(QString root, std::shared_ptr<SizeGate> gate = {})
@@ -307,6 +323,7 @@ TEST(TabSessionLifecycle, ProviderSizeTaskCompletesAfterRemoteTabCloses) {
         task.start();
 
         QTRY_VERIFY_WITH_TIMEOUT(gate->entered.load(), 4000);
+        GateReleaseGuard releaseGate(gate->release);
         panel.newTab();
         panel.navigateTo(localDir.path());
         settle(panel);
@@ -326,7 +343,7 @@ TEST(TabSessionLifecycle, ProviderSizeTaskCompletesAfterRemoteTabCloses) {
         EXPECT_EQ(panel.currentPath(), localDir.path());
         EXPECT_EQ(visibleEntryNames(panel.model()), visibleBeforeClose);
 
-        gate->release.release();
+        releaseGate.release();
         ASSERT_TRUE(finished.wait(4000));
         ASSERT_EQ(finished.count(), 1);
         const QList<QVariant> result = finished.takeFirst();
