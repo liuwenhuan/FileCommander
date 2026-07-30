@@ -1,6 +1,11 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$Stage,
+    [string]$Profile,
+    [string]$Manifest,
+    [string]$PreviousManifest,
+    [switch]$AcceptSizeChange,
+    [switch]$SkipSmoke,
     [ValidateSet('x64', 'x86', 'arm64')]
     [string]$Architecture = 'x64'
 )
@@ -9,25 +14,251 @@ $ErrorActionPreference = 'Stop'
 $resolved = (Resolve-Path -LiteralPath $Stage).Path
 
 function Get-PeArchitecture {
-    param([Parameter(Mandatory)][string]$Path)
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [string]$DisplayPath = $Path
+    )
 
     $stream = [System.IO.File]::OpenRead($Path)
     $reader = [System.IO.BinaryReader]::new($stream)
     try {
-        if ($reader.ReadUInt16() -ne 0x5A4D) { throw "Not a PE file: $Path" }
+        if ($reader.ReadUInt16() -ne 0x5A4D) { throw "Not a PE file: $DisplayPath" }
         $stream.Position = 0x3C
         $peOffset = $reader.ReadUInt32()
         $stream.Position = $peOffset
-        if ($reader.ReadUInt32() -ne 0x00004550) { throw "Not a PE file: $Path" }
+        if ($reader.ReadUInt32() -ne 0x00004550) { throw "Not a PE file: $DisplayPath" }
         switch ($reader.ReadUInt16()) {
             0x8664 { return 'x64' }
             0x014C { return 'x86' }
             0xAA64 { return 'arm64' }
-            default { throw "Unsupported PE architecture in $Path" }
+            default { throw "Unsupported PE architecture in $DisplayPath" }
         }
     } finally {
         $reader.Dispose()
         $stream.Dispose()
+    }
+}
+
+function Get-PeSubsystem {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [string]$DisplayPath = $Path
+    )
+
+    $stream = [System.IO.File]::OpenRead($Path)
+    $reader = [System.IO.BinaryReader]::new($stream)
+    try {
+        if ($reader.ReadUInt16() -ne 0x5A4D) { throw "Not a PE file: $DisplayPath" }
+        $stream.Position = 0x3C
+        $peOffset = $reader.ReadUInt32()
+        $stream.Position = $peOffset
+        if ($reader.ReadUInt32() -ne 0x00004550) { throw "Not a PE file: $DisplayPath" }
+        $stream.Position = $peOffset + 24
+        $magic = $reader.ReadUInt16()
+        if ($magic -notin @(0x010B, 0x020B)) { throw "Unsupported PE optional header in $DisplayPath" }
+        $stream.Position = $peOffset + 24 + 68
+        return $reader.ReadUInt16()
+    } finally {
+        $reader.Dispose()
+        $stream.Dispose()
+    }
+}
+
+function Get-NormalizedRelativePath {
+    param([Parameter(Mandatory)][string]$Path)
+
+    $normalized = $Path.Replace('\', '/').TrimStart('/')
+    if ([string]::IsNullOrWhiteSpace($normalized) -or
+        [System.IO.Path]::IsPathRooted($Path) -or
+        $normalized.Split('/') -contains '..') {
+        throw "Package manifest path must be stage-relative: $Path"
+    }
+    return $normalized
+}
+
+function Get-StageRelativePath {
+    param([Parameter(Mandatory)][string]$Path)
+
+    if (-not $Path.StartsWith($resolved + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Package file is outside the stage: $Path"
+    }
+    return $Path.Substring($resolved.Length + 1).Replace('\', '/')
+}
+
+function Get-ManifestFileMap {
+    param(
+        [Parameter(Mandatory)]$ReleaseManifest,
+        [Parameter(Mandatory)][string]$ManifestLabel
+    )
+
+    if ($null -eq $ReleaseManifest.files) {
+        throw "$ManifestLabel does not declare package files."
+    }
+    $filesByPath = @{}
+    foreach ($file in @($ReleaseManifest.files)) {
+        if ($null -eq $file -or [string]::IsNullOrWhiteSpace([string]$file.path)) {
+            throw "$ManifestLabel contains a package file without a path."
+        }
+        $path = Get-NormalizedRelativePath -Path ([string]$file.path)
+        if ($filesByPath.ContainsKey($path)) {
+            throw "$ManifestLabel declares package file more than once: $path"
+        }
+        if ($file.bytes -lt 0) {
+            throw "$ManifestLabel declares a negative size for $path."
+        }
+        $filesByPath[$path] = $file
+    }
+    return $filesByPath
+}
+
+function Get-ProfilePath {
+    param([string]$RequestedProfile, $ReleaseManifest)
+
+    $profilePath = $RequestedProfile
+    if (-not $profilePath) {
+        if (-not $ReleaseManifest.profile) { throw 'Release manifest does not declare a package profile.' }
+        $profilePath = Join-Path $PSScriptRoot "profiles/$($ReleaseManifest.profile).json"
+    } elseif (-not (Test-Path -LiteralPath $profilePath -PathType Leaf)) {
+        $profilePath = Join-Path $PSScriptRoot "profiles/$RequestedProfile.json"
+    }
+    if (-not (Test-Path -LiteralPath $profilePath -PathType Leaf)) {
+        throw "Windows package profile was not found: $profilePath"
+    }
+    return (Resolve-Path -LiteralPath $profilePath).Path
+}
+
+$releaseManifestPath = if ($Manifest) {
+    $Manifest
+} else {
+    Join-Path $resolved 'release-manifest.json'
+}
+$hasReleaseManifest = Test-Path -LiteralPath $releaseManifestPath -PathType Leaf
+if (($Manifest -or $Profile -or $PreviousManifest -or $AcceptSizeChange) -and -not $hasReleaseManifest) {
+    throw "Release manifest was not found: $releaseManifestPath"
+}
+if ($hasReleaseManifest) {
+    $releaseManifestPath = (Resolve-Path -LiteralPath $releaseManifestPath).Path
+    $releaseManifest = Get-Content -LiteralPath $releaseManifestPath -Raw | ConvertFrom-Json
+    $profilePath = Get-ProfilePath -RequestedProfile $Profile -ReleaseManifest $releaseManifest
+    $packageProfile = Get-Content -LiteralPath $profilePath -Raw | ConvertFrom-Json
+    if ($releaseManifest.profile -ne $packageProfile.profile) {
+        throw "Release manifest profile $($releaseManifest.profile) does not match selected profile $($packageProfile.profile)."
+    }
+    if ($releaseManifest.architecture -and $releaseManifest.architecture -ne $Architecture) {
+        throw "Release manifest architecture $($releaseManifest.architecture) does not match expected $Architecture."
+    }
+    if ($releaseManifest.buildType -and $releaseManifest.buildType -ne 'Release') {
+        throw "Release manifest build type must be Release, found $($releaseManifest.buildType)."
+    }
+
+    $groupNames = @('application', 'qt', 'platformPlugins', 'imagePlugins', 'network', 'pdf', 'media', 'office', 'msvcRuntime')
+    foreach ($groupName in $groupNames) {
+        if ($null -eq $packageProfile.groups.$groupName) {
+            throw "Package profile $($packageProfile.profile) does not define group $groupName."
+        }
+    }
+    $releaseFilesByPath = Get-ManifestFileMap -ReleaseManifest $releaseManifest -ManifestLabel 'Release manifest'
+    foreach ($file in @($releaseManifest.files)) {
+        $relativePath = Get-NormalizedRelativePath -Path ([string]$file.path)
+        if ($groupNames -notcontains [string]$file.provenance) {
+            throw "Release manifest declares an unknown provenance group for $relativePath."
+        }
+    }
+
+    $manifestStagePath = $null
+    if ($releaseManifestPath.StartsWith($resolved + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $manifestStagePath = Get-StageRelativePath -Path $releaseManifestPath
+    }
+    $stageFilesByPath = @{}
+    $stageFiles = @(Get-ChildItem -LiteralPath $resolved -Recurse -File | ForEach-Object {
+        $relativePath = Get-StageRelativePath -Path $_.FullName
+        if ($relativePath -ne $manifestStagePath) {
+            $stageFilesByPath[$relativePath] = $_
+            $_
+        }
+    })
+    foreach ($relativePath in $stageFilesByPath.Keys) {
+        if (-not $releaseFilesByPath.ContainsKey($relativePath)) {
+            throw "Undeclared package file: $relativePath"
+        }
+    }
+    foreach ($relativePath in $releaseFilesByPath.Keys) {
+        if (-not $stageFilesByPath.ContainsKey($relativePath)) {
+            throw "Manifest-declared package file is missing: $relativePath"
+        }
+        $actual = $stageFilesByPath[$relativePath]
+        $recorded = $releaseFilesByPath[$relativePath]
+        if ([int64]$actual.Length -ne [int64]$recorded.bytes) {
+            throw "Package file size differs from release manifest: $relativePath"
+        }
+        if ([string]$recorded.sha256 -notmatch '^[0-9A-Fa-f]{64}$' -or
+            (Get-FileHash -LiteralPath $actual.FullName -Algorithm SHA256).Hash -ne [string]$recorded.sha256) {
+            throw "Package file hash differs from release manifest: $relativePath"
+        }
+    }
+    foreach ($groupName in $groupNames) {
+        $group = $packageProfile.groups.$groupName
+        foreach ($required in @($group.required)) {
+            $relativePath = Get-NormalizedRelativePath -Path ([string]$required)
+            if (-not $releaseFilesByPath.ContainsKey($relativePath)) {
+                throw "Profile $($packageProfile.profile) requires package file: $relativePath"
+            }
+        }
+        foreach ($forbidden in @($group.forbidden)) {
+            $relativePath = Get-NormalizedRelativePath -Path ([string]$forbidden)
+            if ($releaseFilesByPath.ContainsKey($relativePath)) {
+                throw "Profile $($packageProfile.profile) forbids package file: $relativePath"
+            }
+        }
+    }
+    foreach ($file in $stageFiles) {
+        $relativePath = Get-StageRelativePath -Path $file.FullName
+        if ($file.Extension -ieq '.pdb') {
+            throw "Debug symbol file is not allowed in a release package: $relativePath"
+        }
+        if ($file.Name -match '^(Qt5.*d|gtestd|gtest_maind|zd|archived|concrt.*d|msvcp.*d|vccorlib.*d|vcruntime.*d)\.dll$') {
+            throw "Debug DLL is not allowed in a release package: $relativePath"
+        }
+        if ($file.Extension -in @('.exe', '.dll')) {
+            $actualArchitecture = Get-PeArchitecture -Path $file.FullName -DisplayPath $relativePath
+            if ($actualArchitecture -ne $Architecture) {
+                throw "Package PE architecture mismatch: $relativePath is $actualArchitecture, expected $Architecture."
+            }
+        }
+    }
+    if ($PreviousManifest) {
+        if (-not (Test-Path -LiteralPath $PreviousManifest -PathType Leaf)) {
+            throw "Previous release manifest was not found: $PreviousManifest"
+        }
+        $previousManifestPath = (Resolve-Path -LiteralPath $PreviousManifest).Path
+        $previousReleaseManifest = Get-Content -LiteralPath $previousManifestPath -Raw | ConvertFrom-Json
+        if ($previousReleaseManifest.profile -ne $releaseManifest.profile) {
+            throw "Previous release manifest profile $($previousReleaseManifest.profile) does not match $($releaseManifest.profile)."
+        }
+        $previousFilesByPath = Get-ManifestFileMap -ReleaseManifest $previousReleaseManifest -ManifestLabel 'Previous release manifest'
+        $sizeChanges = @()
+        foreach ($relativePath in $releaseFilesByPath.Keys) {
+            if ($previousFilesByPath.ContainsKey($relativePath)) {
+                $growth = [int64]$releaseFilesByPath[$relativePath].bytes - [int64]$previousFilesByPath[$relativePath].bytes
+                if ($growth -gt 20MB) {
+                    $sizeChanges += "Package file grew by more than 20 MiB: $relativePath"
+                }
+            }
+        }
+        $currentTotal = [int64](($releaseFilesByPath.Values | Measure-Object -Property bytes -Sum).Sum)
+        $previousTotal = [int64](($previousFilesByPath.Values | Measure-Object -Property bytes -Sum).Sum)
+        if ($previousTotal -gt 0 -and $currentTotal -gt [int64][Math]::Floor($previousTotal * 1.15)) {
+            $sizeChanges += "Release manifest total package size grew by more than 15%: $previousTotal bytes to $currentTotal bytes."
+        }
+        if ($sizeChanges.Count -gt 0 -and -not $AcceptSizeChange) {
+            throw ($sizeChanges -join "`n")
+        }
+        if ($AcceptSizeChange) {
+            [System.IO.File]::WriteAllText($previousManifestPath,
+                (Get-Content -LiteralPath $releaseManifestPath -Raw), [System.Text.UTF8Encoding]::new($false))
+        }
+    } elseif ($AcceptSizeChange) {
+        throw 'AcceptSizeChange requires PreviousManifest so the verified baseline can be recorded.'
     }
 }
 
@@ -57,11 +288,11 @@ foreach ($required in @('FileCommander.exe', 'manifest.json')) {
         throw "Missing package file: $required"
     }
 }
-$manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-if ($manifest.runtime.provenance -ne 'msvc-runtime') {
-    throw 'MSVC runtime provenance must be msvc-runtime.'
+$legacyManifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+if ($legacyManifest.runtime.provenance -ne 'msvc-runtime') {
+    throw "MSVC runtime provenance must be msvc-runtime, found '$($legacyManifest.runtime.provenance)'."
 }
-$declaredRuntimeNames = @($manifest.runtime.files)
+$declaredRuntimeNames = @($legacyManifest.runtime.files)
 if ($declaredRuntimeNames.Count -eq 0) {
     throw 'MSVC runtime manifest must declare collected CRT files.'
 }
@@ -96,14 +327,15 @@ foreach ($required in @('Qt5Core.dll', 'Qt5Gui.dll', 'Qt5Widgets.dll', 'platform
         throw "Missing package file: $required"
     }
 }
-& (Join-Path $PSScriptRoot '..\tests\packaging\test-windows-gui-subsystem.ps1') `
-    -Executable $executablePath
-if ($LASTEXITCODE) { throw 'Windows GUI subsystem check failed.' }
-if ($manifest.officePreview -and
+$executableSubsystem = Get-PeSubsystem -Path $executablePath -DisplayPath 'FileCommander.exe'
+if ($executableSubsystem -ne 2) {
+    throw "FileCommander.exe must use the Windows GUI subsystem; found subsystem value $executableSubsystem."
+}
+if ($legacyManifest.officePreview -and
     -not (Test-Path -LiteralPath (Join-Path $resolved 'office-oxide.exe'))) {
     throw 'Office preview is enabled but office-oxide.exe is missing.'
 }
-if ($manifest.pdfPreview) {
+if ($legacyManifest.pdfPreview) {
     foreach ($required in @('Qt5Xml.dll', 'poppler-qt5.dll', 'poppler.dll', 'freetype.dll',
                             'openjp2.dll', 'libpng16.dll')) {
         if (-not (Test-Path -LiteralPath (Join-Path $resolved $required))) {
@@ -111,7 +343,7 @@ if ($manifest.pdfPreview) {
         }
     }
 }
-if ($manifest.mediaPreview -and
+if ($legacyManifest.mediaPreview -and
     -not (Test-Path -LiteralPath (Join-Path $resolved 'libmpv-2.dll'))) {
     throw 'Media preview is enabled but libmpv-2.dll is missing.'
 }
@@ -179,28 +411,30 @@ function New-PackageSmokeFixtures {
     }
 }
 
-$fixtureRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("FileCommander-package-smoke-" + [guid]::NewGuid())
-New-PackageSmokeFixtures -Root $fixtureRoot -PackageManifest $manifest
-$oldPlatform = $env:QT_QPA_PLATFORM
-$oldPath = $env:PATH
-Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
-try {
-    # Keep the smoke test honest: no Qt, vcpkg, Poppler, or mpv development
-    # directory may satisfy a missing runtime dependency.
-    $env:PATH = "$resolved;$env:SystemRoot\System32;$env:SystemRoot"
-    $process = Start-Process -FilePath (Join-Path $resolved 'FileCommander.exe') `
-        -ArgumentList @('--package-smoke', $fixtureRoot) -WorkingDirectory $resolved -PassThru -WindowStyle Hidden
-    if (-not $process.WaitForExit(45000)) {
-        $process.Kill()
-        $process.WaitForExit()
-        throw 'Package preview smoke test timed out.'
+if (-not $SkipSmoke) {
+    $fixtureRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("FileCommander-package-smoke-" + [guid]::NewGuid())
+    New-PackageSmokeFixtures -Root $fixtureRoot -PackageManifest $legacyManifest
+    $oldPlatform = $env:QT_QPA_PLATFORM
+    $oldPath = $env:PATH
+    Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
+    try {
+        # Keep the smoke test honest: no Qt, vcpkg, Poppler, or mpv development
+        # directory may satisfy a missing runtime dependency.
+        $env:PATH = "$resolved;$env:SystemRoot\System32;$env:SystemRoot"
+        $process = Start-Process -FilePath (Join-Path $resolved 'FileCommander.exe') `
+            -ArgumentList @('--package-smoke', $fixtureRoot) -WorkingDirectory $resolved -PassThru -WindowStyle Hidden
+        if (-not $process.WaitForExit(45000)) {
+            $process.Kill()
+            $process.WaitForExit()
+            throw 'Package preview smoke test timed out.'
+        }
+        if ($process.ExitCode -ne 0) {
+            throw "Package preview smoke test failed with code $($process.ExitCode)."
+        }
+    } finally {
+        Remove-Item -LiteralPath $fixtureRoot -Recurse -Force -ErrorAction SilentlyContinue
+        $env:QT_QPA_PLATFORM = $oldPlatform
+        $env:PATH = $oldPath
     }
-    if ($process.ExitCode -ne 0) {
-        throw "Package preview smoke test failed with code $($process.ExitCode)."
-    }
-} finally {
-    Remove-Item -LiteralPath $fixtureRoot -Recurse -Force -ErrorAction SilentlyContinue
-    $env:QT_QPA_PLATFORM = $oldPlatform
-    $env:PATH = $oldPath
 }
 Write-Host 'Windows portable package verification passed.'
