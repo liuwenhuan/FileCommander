@@ -1,6 +1,11 @@
 #include "RuntimeCounters.h"
 
+#include <QCoreApplication>
 #include <QDebug>
+#include <QElapsedTimer>
+#include <QEvent>
+#include <QEventLoop>
+#include <QThread>
 
 #include <atomic>
 
@@ -36,6 +41,12 @@ std::atomic<int> &counter(fc::RuntimeCounter value) {
     return all.networkSessions;
 }
 
+bool isEmpty(const fc::RuntimeSnapshot &snapshot) {
+    return snapshot.networkSessions == 0 && snapshot.networkThreads == 0 &&
+           snapshot.activeHeartbeats == 0 && snapshot.transferWorkers == 0 &&
+           snapshot.curlTransfers == 0;
+}
+
 } // namespace
 
 namespace fc {
@@ -64,6 +75,29 @@ bool reportRuntimeSnapshotIfEnabled() {
                       << " transferWorkers=" << snapshot.transferWorkers
                       << " curlTransfers=" << snapshot.curlTransfers;
     return true;
+}
+
+bool reportFinalRuntimeSnapshotIfEnabled(int timeoutMs) {
+    if (qEnvironmentVariableIntValue("FILECOMMANDER_DIAGNOSTICS") != 1)
+        return false;
+
+    const int boundedTimeoutMs = qMax(0, timeoutMs);
+    QElapsedTimer elapsed;
+    elapsed.start();
+    while (!isEmpty(runtimeSnapshot()) && elapsed.elapsed() < boundedTimeoutMs) {
+        if (QCoreApplication::instance()) {
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+            const int remainingMs =
+                qMax(0, boundedTimeoutMs - static_cast<int>(elapsed.elapsed()));
+            QCoreApplication::processEvents(QEventLoop::AllEvents, qMin(10, remainingMs));
+        }
+        if (!isEmpty(runtimeSnapshot()) && elapsed.elapsed() < boundedTimeoutMs)
+            QThread::msleep(1);
+    }
+
+    if (QCoreApplication::instance())
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    return reportRuntimeSnapshotIfEnabled();
 }
 
 RuntimeCounterGuard::RuntimeCounterGuard(RuntimeCounter counterValue) : m_counter(counterValue) {

@@ -20,6 +20,7 @@ struct RuntimeSnapshot {
 
 RuntimeSnapshot runtimeSnapshot();
 bool reportRuntimeSnapshotIfEnabled();
+bool reportFinalRuntimeSnapshotIfEnabled(int timeoutMs = 1000);
 
 class RuntimeCounterGuard final {
 public:

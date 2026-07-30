@@ -100,6 +100,6 @@ int main(int argc, char *argv[]) {
 
         exitCode = app.exec();
     }
-    fc::reportRuntimeSnapshotIfEnabled();
+    fc::reportFinalRuntimeSnapshotIfEnabled();
     return exitCode;
 }
