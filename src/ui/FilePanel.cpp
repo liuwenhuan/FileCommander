@@ -61,6 +61,60 @@
 
 #include <algorithm>
 
+namespace {
+
+constexpr int kTreeAnimationVisibleRowLimit = 500;
+constexpr int kTreeKeyboardRapidIntervalMs = 100;
+constexpr int kTreeAnimationRestoreIntervalMs = 250;
+constexpr auto kTreeAnimationRestoreTimerName = "DirectoryTreeMotionRestoreTimer";
+constexpr auto kTreeKeyboardCadenceTimerName = "DirectoryTreeKeyboardCadenceTimer";
+
+bool treeHasFewerThanAnimationRowLimit(const QTreeView *tree) {
+    const QAbstractItemModel *model = tree->model();
+    if (!model)
+        return false;
+
+    QModelIndex index = model->index(0, 0, tree->rootIndex());
+    int rows = 0;
+    for (; index.isValid() && rows < kTreeAnimationVisibleRowLimit;
+         ++rows, index = tree->indexBelow(index)) {
+    }
+    return rows < kTreeAnimationVisibleRowLimit;
+}
+
+bool treeAnimationAllowed(const QTreeView *tree, InputCadence cadence) {
+    return MotionPolicy::allowFor(cadence) && treeHasFewerThanAnimationRowLimit(tree);
+}
+
+void prepareTreeExpansionAnimation(QTreeView *tree, InputCadence cadence) {
+    tree->setAnimated(treeAnimationAllowed(tree, cadence));
+    if (QTimer *restoreTimer =
+            tree->findChild<QTimer *>(QString::fromLatin1(kTreeAnimationRestoreTimerName)))
+        restoreTimer->start(kTreeAnimationRestoreIntervalMs);
+}
+
+bool keyboardEventWillExpandTree(const QTreeView *tree, const QKeyEvent *event) {
+    if (event->key() != Qt::Key_Right && event->key() != Qt::Key_Plus)
+        return false;
+
+    const QModelIndex current = tree->currentIndex();
+    return current.isValid() && tree->model()->hasChildren(current) && !tree->isExpanded(current);
+}
+
+bool pointerEventWillToggleTree(const QTreeView *tree, const QMouseEvent *event) {
+    if (event->button() != Qt::LeftButton)
+        return false;
+
+    const QModelIndex index = tree->indexAt(event->pos());
+    if (!index.isValid() || !tree->model()->hasChildren(index))
+        return false;
+
+    // The disclosure indicator is the indentation immediately before an item's row.
+    return event->pos().x() < tree->visualRect(index).left();
+}
+
+} // namespace
+
 FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     // A plain QWidget subclass does not paint a stylesheet background unless
     // it is told to; without this the CRT theme's scanline texture stops at
@@ -225,6 +279,18 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_dirTree->setHeaderHidden(true);
     m_dirTree->setFocusPolicy(Qt::ClickFocus);
     m_dirTree->installEventFilter(this);
+    m_dirTree->viewport()->installEventFilter(this);
+    m_dirTree->setAnimated(false);
+    auto *treeAnimationRestoreTimer = new QTimer(m_dirTree);
+    treeAnimationRestoreTimer->setObjectName(QString::fromLatin1(kTreeAnimationRestoreTimerName));
+    treeAnimationRestoreTimer->setSingleShot(true);
+    connect(treeAnimationRestoreTimer, &QTimer::timeout, m_dirTree, [tree = m_dirTree] {
+        tree->setAnimated(treeAnimationAllowed(tree, InputCadence::Normal));
+    });
+    auto *treeKeyboardCadenceTimer = new QTimer(m_dirTree);
+    treeKeyboardCadenceTimer->setObjectName(QString::fromLatin1(kTreeKeyboardCadenceTimerName));
+    treeKeyboardCadenceTimer->setSingleShot(true);
+    treeKeyboardCadenceTimer->setInterval(kTreeKeyboardRapidIntervalMs);
     m_dirTree->hide();
     connect(m_dirTree, &QTreeView::activated, this, &FilePanel::activateTreeIndex);
     // The walk towards the current directory can only continue once a level has
@@ -485,6 +551,24 @@ bool FilePanel::eventFilter(QObject *watched, QEvent *event) {
             emit switchPanelRequested();
             return true;
         }
+    }
+
+    if (watched == m_dirTree && event->type() == QEvent::KeyPress) {
+        auto *keyEvent = static_cast<QKeyEvent *>(event);
+        if (keyboardEventWillExpandTree(m_dirTree, keyEvent)) {
+            QTimer *cadenceTimer =
+                m_dirTree->findChild<QTimer *>(QString::fromLatin1(kTreeKeyboardCadenceTimerName));
+            const InputCadence cadence = cadenceTimer && cadenceTimer->isActive()
+                                             ? InputCadence::Rapid
+                                             : InputCadence::Normal;
+            if (cadenceTimer)
+                cadenceTimer->start();
+            prepareTreeExpansionAnimation(m_dirTree, cadence);
+        }
+    } else if (watched == m_dirTree->viewport() && event->type() == QEvent::MouseButtonPress) {
+        auto *mouseEvent = static_cast<QMouseEvent *>(event);
+        if (pointerEventWillToggleTree(m_dirTree, mouseEvent))
+            prepareTreeExpansionAnimation(m_dirTree, InputCadence::Normal);
     }
 
     // Single-click-on-already-selected-thumbnail rename, mirroring
