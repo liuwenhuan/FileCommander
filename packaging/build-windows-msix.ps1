@@ -24,6 +24,10 @@ if (-not $SkipPortableBuild) {
 }
 
 $stage = Join-Path $repo "dist/FileCommander-windows-$Architecture"
+& (Join-Path $PSScriptRoot 'verify-windows-package.ps1') `
+    -Stage $stage -Architecture $Architecture
+if ($LASTEXITCODE) { throw 'Staged package verification failed.' }
+
 $assets = Join-Path $stage 'Assets'
 New-Item -ItemType Directory -Force -Path $assets | Out-Null
 $icon = [System.Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL9OwAAAABJRU5ErkJggg==')

@@ -61,6 +61,9 @@ $copiedCrtDllPaths = foreach ($runtimeFile in $runtimeFiles) {
     (Resolve-Path -LiteralPath $destination).Path
 }
 
+Get-ChildItem -LiteralPath $Stage -Recurse -File -Filter 'vc_redist*.exe' |
+    Remove-Item -Force
+
 [pscustomobject]@{
     CopiedCrtDllPaths = @($copiedCrtDllPaths)
     SourceRedistDirectory = (Resolve-Path -LiteralPath $sourceRedistDirectory).Path

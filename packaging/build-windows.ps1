@@ -89,7 +89,7 @@ if (-not $runtime.CopiedCrtDllPaths) { throw 'MSVC runtime collection did not co
 
 # The installer is a prerequisite for bootstrapper-style installers, never a
 # portable app-local dependency. Keep the direct result directory runnable.
-Get-ChildItem -LiteralPath $stage -File -Filter 'vc_redist*.exe' |
+Get-ChildItem -LiteralPath $stage -Recurse -File -Filter 'vc_redist*.exe' |
     Remove-Item -Force
 
 $manifest = [ordered]@{

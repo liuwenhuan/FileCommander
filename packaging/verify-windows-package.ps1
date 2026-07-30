@@ -31,40 +31,74 @@ function Get-PeArchitecture {
     }
 }
 
-$installer = Get-ChildItem -LiteralPath $resolved -File -Filter 'vc_redist*.exe' |
+$installer = Get-ChildItem -LiteralPath $resolved -Recurse -File -Filter 'vc_redist*.exe' |
     Select-Object -First 1
 if ($installer) {
-    throw "$($installer.Name) does not satisfy app-local MSVC runtime dependencies. Deploy the CRT DLLs beside FileCommander.exe instead."
+    $relativeInstaller = $installer.FullName.Substring($resolved.TrimEnd('\').Length + 1)
+    throw "$relativeInstaller does not satisfy app-local MSVC runtime dependencies. Deploy the CRT DLLs beside FileCommander.exe instead."
 }
 $runtimeFiles = @(Get-ChildItem -LiteralPath $resolved -File |
     Where-Object { $_.Name -match '^(concrt|msvcp|vccorlib|vcruntime)140.*\.dll$' })
 if ($runtimeFiles | Where-Object { $_.Name -match 'd\.dll$' }) {
     throw 'Debug MSVC runtime detected in release package.'
 }
-foreach ($runtime in @('vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll')) {
+$requiredRuntimeNames = @('vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll')
+foreach ($runtime in $requiredRuntimeNames) {
     $runtimePath = Join-Path $resolved $runtime
     if (-not (Test-Path -LiteralPath $runtimePath -PathType Leaf)) {
         throw "Missing app-local MSVC runtime dependency: $runtime"
     }
 }
-foreach ($runtimeFile in $runtimeFiles) {
-    $actualArchitecture = Get-PeArchitecture -Path $runtimeFile.FullName
-    if ($actualArchitecture -ne $Architecture) {
-        throw "MSVC runtime architecture mismatch: $($runtimeFile.Name) is $actualArchitecture, expected $Architecture."
+
+$executablePath = Join-Path $resolved 'FileCommander.exe'
+$manifestPath = Join-Path $resolved 'manifest.json'
+foreach ($required in @('FileCommander.exe', 'manifest.json')) {
+    if (-not (Test-Path -LiteralPath (Join-Path $resolved $required) -PathType Leaf)) {
+        throw "Missing package file: $required"
     }
 }
+$manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+if ($manifest.runtime.provenance -ne 'msvc-runtime') {
+    throw 'MSVC runtime provenance must be msvc-runtime.'
+}
+$declaredRuntimeNames = @($manifest.runtime.files)
+if ($declaredRuntimeNames.Count -eq 0) {
+    throw 'MSVC runtime manifest must declare collected CRT files.'
+}
+foreach ($requiredRuntimeName in $requiredRuntimeNames) {
+    if ($declaredRuntimeNames -notcontains $requiredRuntimeName) {
+        throw "MSVC runtime manifest is missing required declaration: $requiredRuntimeName"
+    }
+}
+foreach ($declaredRuntimeName in $declaredRuntimeNames) {
+    if ($declaredRuntimeName -isnot [string] -or
+        [string]::IsNullOrWhiteSpace($declaredRuntimeName) -or
+        [System.IO.Path]::GetFileName($declaredRuntimeName) -ne $declaredRuntimeName -or
+        $declaredRuntimeName -notmatch '^(concrt140|msvcp140(?:_[A-Za-z0-9_]+)?|vccorlib140|vcruntime140(?:_[A-Za-z0-9_]+)?)\.dll$') {
+        throw "Manifest-declared MSVC runtime is not a release VC143 CRT DLL: $declaredRuntimeName"
+    }
+    $declaredRuntimePath = Join-Path $resolved $declaredRuntimeName
+    if (-not (Test-Path -LiteralPath $declaredRuntimePath -PathType Leaf)) {
+        throw "Manifest-declared MSVC runtime is missing: $declaredRuntimeName"
+    }
+    $actualArchitecture = Get-PeArchitecture -Path $declaredRuntimePath
+    if ($actualArchitecture -ne $Architecture) {
+        throw "MSVC runtime architecture mismatch: $declaredRuntimeName is $actualArchitecture, expected $Architecture."
+    }
+}
+$executableArchitecture = Get-PeArchitecture -Path $executablePath
+if ($executableArchitecture -ne $Architecture) {
+    throw "Package executable architecture mismatch: FileCommander.exe is $executableArchitecture, expected $Architecture."
+}
 
-foreach ($required in @('FileCommander.exe', 'Qt5Core.dll', 'Qt5Gui.dll',
-                        'Qt5Widgets.dll', 'platforms/qwindows.dll', 'manifest.json')) {
+foreach ($required in @('Qt5Core.dll', 'Qt5Gui.dll', 'Qt5Widgets.dll', 'platforms/qwindows.dll')) {
     if (-not (Test-Path -LiteralPath (Join-Path $resolved $required))) {
         throw "Missing package file: $required"
     }
 }
 & (Join-Path $PSScriptRoot '..\tests\packaging\test-windows-gui-subsystem.ps1') `
-    -Executable (Join-Path $resolved 'FileCommander.exe')
+    -Executable $executablePath
 if ($LASTEXITCODE) { throw 'Windows GUI subsystem check failed.' }
-$manifest = Get-Content -LiteralPath (Join-Path $resolved 'manifest.json') -Raw |
-    ConvertFrom-Json
 if ($manifest.officePreview -and
     -not (Test-Path -LiteralPath (Join-Path $resolved 'office-oxide.exe'))) {
     throw 'Office preview is enabled but office-oxide.exe is missing.'
