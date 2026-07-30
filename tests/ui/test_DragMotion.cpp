@@ -280,7 +280,7 @@ void directCancelAndDestructionClearActiveFeedback() {
         QPointer<View> watched = &panel->view;
         panel.reset();
         EXPECT_TRUE(watched.isNull());
-        QTest::qWait(MotionPolicy::duration(MotionDuration::Normal) + 100);
+        QTest::qWait(250);
     }
 }
 
