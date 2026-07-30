@@ -1,21 +1,26 @@
 #include "IconFileView.h"
 
 #include <QApplication>
+#include <QAbstractItemModel>
+#include <QColor>
 #include <QDrag>
 #include <QDragLeaveEvent>
 #include <QDropEvent>
 #include <QIcon>
 #include <QItemSelectionModel>
 #include <QMimeData>
+#include <QPainter>
 #include <QResizeEvent>
 #include <QScrollBar>
 #include <QSet>
 #include <QTimer>
 #include <QUrl>
+#include <QVariantAnimation>
 
 #include "DragPixmap.h"
 #include "ExternalPaths.h"
 #include "FileSystemModel.h"
+#include "MotionPolicy.h"
 
 namespace {
 
@@ -23,6 +28,8 @@ namespace {
 // user is looking at". Long enough not to fire mid-flick, short enough that
 // letting go feels like it starts work immediately.
 constexpr int kScrollSettleMs = 120;
+constexpr int kDragFeedbackEnterDurationMs = 80;
+constexpr int kDragFeedbackSuccessDurationMs = 150;
 
 } // namespace
 
@@ -38,6 +45,46 @@ IconFileView::IconFileView(QWidget *parent)
     m_settleTimer->setSingleShot(true);
     m_settleTimer->setInterval(kScrollSettleMs);
     connect(m_settleTimer, &QTimer::timeout, this, &IconFileView::announceVisibleRange);
+
+    m_dragFeedbackAnimation = new QVariantAnimation(this);
+    m_dragFeedbackAnimation->setObjectName(QStringLiteral("DragTargetFeedbackAnimation"));
+    connect(m_dragFeedbackAnimation, &QVariantAnimation::valueChanged, this,
+            [this](const QVariant &value) { setDragFeedbackColor(value.value<QColor>()); });
+    connect(m_dragFeedbackAnimation, &QVariantAnimation::finished, this, [this] {
+        if (m_dragFeedbackState == DragFeedbackState::Success)
+            clearDragFeedback();
+    });
+
+    m_dragFeedbackClearTimer = new QTimer(this);
+    m_dragFeedbackClearTimer->setSingleShot(true);
+    m_dragFeedbackClearTimer->setInterval(kDragFeedbackSuccessDurationMs);
+    connect(m_dragFeedbackClearTimer, &QTimer::timeout, this, &IconFileView::clearDragFeedback);
+
+    MotionPolicy::observeReduced(this, [this](bool reduced) {
+        if (reduced && m_dragFeedbackState != DragFeedbackState::None)
+            showDragFeedback(m_dragFeedbackState, 0);
+    });
+}
+
+QString IconFileView::dragFeedbackState() const {
+    switch (m_dragFeedbackState) {
+    case DragFeedbackState::Accepted:
+        return QStringLiteral("accepted");
+    case DragFeedbackState::Rejected:
+        return QStringLiteral("rejected");
+    case DragFeedbackState::Success:
+        return QStringLiteral("success");
+    case DragFeedbackState::None:
+        return QStringLiteral("none");
+    }
+    return QStringLiteral("none");
+}
+
+void IconFileView::setModel(QAbstractItemModel *model) {
+    clearDragFeedback();
+    QListView::setModel(model);
+    if (model)
+        connect(model, &QAbstractItemModel::modelReset, this, &IconFileView::clearDragFeedback);
 }
 
 bool IconFileView::visibleRows(int *firstRow, int *lastRow) const {
@@ -138,13 +185,21 @@ void IconFileView::startDrag(Qt::DropActions supportedActions) {
 }
 
 void IconFileView::dragEnterEvent(QDragEnterEvent *event) {
-    if (fc::hasIncomingPaths(event->mimeData()))
+    if (fc::hasIncomingPaths(event->mimeData())) {
         event->acceptProposedAction();
+        showDragFeedback(DragFeedbackState::Accepted, kDragFeedbackEnterDurationMs);
+    } else {
+        showDragFeedback(DragFeedbackState::Rejected, kDragFeedbackEnterDurationMs);
+    }
 }
 
 void IconFileView::dragMoveEvent(QDragMoveEvent *event) {
-    if (fc::hasIncomingPaths(event->mimeData()))
+    if (fc::hasIncomingPaths(event->mimeData())) {
         event->acceptProposedAction();
+        showDragFeedback(DragFeedbackState::Accepted, kDragFeedbackEnterDurationMs);
+    } else {
+        showDragFeedback(DragFeedbackState::Rejected, kDragFeedbackEnterDurationMs);
+    }
 }
 
 void IconFileView::dragLeaveEvent(QDragLeaveEvent *event) {
@@ -152,6 +207,7 @@ void IconFileView::dragLeaveEvent(QDragLeaveEvent *event) {
     // which repaints the entire viewport. That full repaint fired every time a
     // fast drag crossed out of this view (e.g. over the splitter into the other
     // panel), causing a visible stutter. Accepting without a repaint is enough.
+    clearDragFeedback();
     event->accept();
 }
 
@@ -171,12 +227,14 @@ void IconFileView::dropEvent(QDropEvent *event) {
     // the backend's real paths there and nothing usable in the public URL list.
     const QStringList sourcePaths = fc::incomingPaths(event->mimeData());
     if (sourcePaths.isEmpty()) {
+        clearDragFeedback();
         event->ignore();
         return;
     }
 
     const QString destDir = destinationDirForDrop(event->pos());
     if (destDir.isEmpty()) {
+        clearDragFeedback();
         event->ignore();
         return;
     }
@@ -204,6 +262,7 @@ void IconFileView::dropEvent(QDropEvent *event) {
     // Dropping a selection onto itself (same dir) is a no-op, not an error.
     auto *fsModel = qobject_cast<FileSystemModel *>(model());
     if (sameView && fsModel && destDir == fsModel->rootPath()) {
+        clearDragFeedback();
         event->ignore();
         return;
     }
@@ -214,4 +273,87 @@ void IconFileView::dropEvent(QDropEvent *event) {
             srcProvider = srcModel->provider();
     emit filesDropped(sourcePaths, destDir, kind, srcProvider);
     event->acceptProposedAction();
+    showDragFeedback(DragFeedbackState::Success, MotionPolicy::duration(MotionDuration::Normal));
+}
+
+void IconFileView::paintEvent(QPaintEvent *event) {
+    QListView::paintEvent(event);
+    if (m_dragFeedbackState == DragFeedbackState::None || m_dragFeedbackColor.alpha() == 0)
+        return;
+
+    QPainter painter(viewport());
+    painter.setRenderHint(QPainter::Antialiasing);
+    QPen pen(m_dragFeedbackColor, 2);
+    if (m_dragFeedbackState == DragFeedbackState::Rejected)
+        pen.setStyle(Qt::DashLine);
+    painter.setPen(pen);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRect(viewport()->rect().adjusted(1, 1, -2, -2));
+}
+
+QColor IconFileView::dragFeedbackColorFor(DragFeedbackState state) const {
+    QColor color;
+    switch (state) {
+    case DragFeedbackState::Accepted:
+        color = palette().color(QPalette::Highlight);
+        color.setAlpha(210);
+        break;
+    case DragFeedbackState::Rejected:
+        color = palette().color(QPalette::Text);
+        color.setAlpha(180);
+        break;
+    case DragFeedbackState::Success:
+        color = palette().color(QPalette::Highlight).lighter(125);
+        color.setAlpha(220);
+        break;
+    case DragFeedbackState::None:
+        break;
+    }
+    return color;
+}
+
+void IconFileView::setDragFeedbackColor(const QColor &color) {
+    if (m_dragFeedbackColor == color)
+        return;
+    m_dragFeedbackColor = color;
+    viewport()->update();
+}
+
+void IconFileView::showDragFeedback(DragFeedbackState state, int duration) {
+    if (m_dragFeedbackState == state && duration > 0)
+        return;
+
+    m_dragFeedbackClearTimer->stop();
+    const QColor target = dragFeedbackColorFor(state);
+    const bool continueFromAccepted =
+        state == DragFeedbackState::Success && m_dragFeedbackState == DragFeedbackState::Accepted;
+    const QColor start = continueFromAccepted ? m_dragFeedbackColor : QColor(target.red(), target.green(), target.blue(), 0);
+    m_dragFeedbackAnimation->stop();
+    m_dragFeedbackState = state;
+
+    if (MotionPolicy::reduced() || duration == 0) {
+        setDragFeedbackColor(target);
+        if (state == DragFeedbackState::Success) {
+            // Keep the final color visible for the same brief success window.
+            m_dragFeedbackClearTimer->setInterval(kDragFeedbackSuccessDurationMs);
+            m_dragFeedbackClearTimer->start();
+        }
+        return;
+    }
+
+    setDragFeedbackColor(start);
+    m_dragFeedbackAnimation->setDuration(duration);
+    m_dragFeedbackAnimation->setEasingCurve(MotionPolicy::easing());
+    m_dragFeedbackAnimation->setStartValue(start);
+    m_dragFeedbackAnimation->setEndValue(target);
+    m_dragFeedbackAnimation->start();
+}
+
+void IconFileView::clearDragFeedback() {
+    if (m_dragFeedbackState == DragFeedbackState::None && !m_dragFeedbackColor.isValid())
+        return;
+    m_dragFeedbackAnimation->stop();
+    m_dragFeedbackClearTimer->stop();
+    m_dragFeedbackState = DragFeedbackState::None;
+    setDragFeedbackColor(QColor());
 }

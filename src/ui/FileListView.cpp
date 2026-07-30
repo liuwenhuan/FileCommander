@@ -29,11 +29,13 @@
 #include <QStyle>
 #include <QTimer>
 #include <QUrl>
+#include <QVariantAnimation>
 #include <QVector>
 
 #include "DragPixmap.h"
 #include "ExternalPaths.h"
 #include "FileSystemModel.h"
+#include "MotionPolicy.h"
 
 namespace {
 // Baseline column proportions (Name, Ext, Size, Modified, Type, Created,
@@ -41,6 +43,8 @@ namespace {
 // content-aware auto-fit so no column ever collapses.
 constexpr int kDefaultColWidths[FileSystemModel::ColumnCount] = {280, 70, 100, 150,
                                                                  90,  150, 110};
+constexpr int kDragFeedbackEnterDurationMs = 80;
+constexpr int kDragFeedbackSuccessDurationMs = 150;
 
 // Header that paints its own (non-bold) section labels. The deepin (DTK)
 // style draws header text bold and ignores the widget font / qss font-weight,
@@ -288,9 +292,43 @@ FileListView::FileListView(QWidget *parent) : QTableView(parent) {
             && selectionModel()->isRowSelected(idx.row(), QModelIndex()))
             edit(idx);
     });
+
+    m_dragFeedbackAnimation = new QVariantAnimation(this);
+    m_dragFeedbackAnimation->setObjectName(QStringLiteral("DragTargetFeedbackAnimation"));
+    connect(m_dragFeedbackAnimation, &QVariantAnimation::valueChanged, this,
+            [this](const QVariant &value) { setDragFeedbackColor(value.value<QColor>()); });
+    connect(m_dragFeedbackAnimation, &QVariantAnimation::finished, this, [this] {
+        if (m_dragFeedbackState == DragFeedbackState::Success)
+            clearDragFeedback();
+    });
+
+    m_dragFeedbackClearTimer = new QTimer(this);
+    m_dragFeedbackClearTimer->setSingleShot(true);
+    m_dragFeedbackClearTimer->setInterval(kDragFeedbackSuccessDurationMs);
+    connect(m_dragFeedbackClearTimer, &QTimer::timeout, this, &FileListView::clearDragFeedback);
+
+    MotionPolicy::observeReduced(this, [this](bool reduced) {
+        if (reduced && m_dragFeedbackState != DragFeedbackState::None)
+            showDragFeedback(m_dragFeedbackState, 0);
+    });
+}
+
+QString FileListView::dragFeedbackState() const {
+    switch (m_dragFeedbackState) {
+    case DragFeedbackState::Accepted:
+        return QStringLiteral("accepted");
+    case DragFeedbackState::Rejected:
+        return QStringLiteral("rejected");
+    case DragFeedbackState::Success:
+        return QStringLiteral("success");
+    case DragFeedbackState::None:
+        return QStringLiteral("none");
+    }
+    return QStringLiteral("none");
 }
 
 void FileListView::setModel(QAbstractItemModel *model) {
+    clearDragFeedback();
     QTableView::setModel(model);
     // Sections only exist once the header has the model's column count, so
     // this must run after setModel(), not in the ctor.
@@ -343,8 +381,10 @@ void FileListView::setModel(QAbstractItemModel *model) {
         // On each directory load (the model resets), re-measure content widths
         // for the new listing and re-lay-out. User-set base widths are preserved
         // (measurement only refreshes non-user columns).
-        connect(model, &QAbstractItemModel::modelReset, this,
-                [this]() { recomputeContentWidths(); });
+        connect(model, &QAbstractItemModel::modelReset, this, [this]() {
+            recomputeContentWidths();
+            clearDragFeedback();
+        });
     }
 }
 
@@ -922,13 +962,21 @@ void FileListView::startDrag(Qt::DropActions supportedActions) {
 }
 
 void FileListView::dragEnterEvent(QDragEnterEvent *event) {
-    if (fc::hasIncomingPaths(event->mimeData()))
+    if (fc::hasIncomingPaths(event->mimeData())) {
         event->acceptProposedAction();
+        showDragFeedback(DragFeedbackState::Accepted, kDragFeedbackEnterDurationMs);
+    } else {
+        showDragFeedback(DragFeedbackState::Rejected, kDragFeedbackEnterDurationMs);
+    }
 }
 
 void FileListView::dragMoveEvent(QDragMoveEvent *event) {
-    if (fc::hasIncomingPaths(event->mimeData()))
+    if (fc::hasIncomingPaths(event->mimeData())) {
         event->acceptProposedAction();
+        showDragFeedback(DragFeedbackState::Accepted, kDragFeedbackEnterDurationMs);
+    } else {
+        showDragFeedback(DragFeedbackState::Rejected, kDragFeedbackEnterDurationMs);
+    }
 }
 
 void FileListView::dragLeaveEvent(QDragLeaveEvent *event) {
@@ -936,6 +984,7 @@ void FileListView::dragLeaveEvent(QDragLeaveEvent *event) {
     // which repaints the entire viewport. That full repaint fired every time a
     // fast drag crossed out of this view (e.g. over the splitter into the other
     // panel), causing a visible stutter. Accepting without a repaint is enough.
+    clearDragFeedback();
     event->accept();
 }
 
@@ -955,12 +1004,14 @@ void FileListView::dropEvent(QDropEvent *event) {
     // the backend's real paths there and nothing usable in the public URL list.
     const QStringList sourcePaths = fc::incomingPaths(event->mimeData());
     if (sourcePaths.isEmpty()) {
+        clearDragFeedback();
         event->ignore();
         return;
     }
 
     const QString destDir = destinationDirForDrop(event->pos());
     if (destDir.isEmpty()) {
+        clearDragFeedback();
         event->ignore();
         return;
     }
@@ -987,6 +1038,7 @@ void FileListView::dropEvent(QDropEvent *event) {
     // Dropping a selection onto itself (same dir) is a no-op, not an error.
     auto *fsModel = qobject_cast<FileSystemModel *>(model());
     if (sameView && fsModel && destDir == fsModel->rootPath()) {
+        clearDragFeedback();
         event->ignore();
         return;
     }
@@ -1000,6 +1052,89 @@ void FileListView::dropEvent(QDropEvent *event) {
             srcProvider = srcModel->provider();
     emit filesDropped(sourcePaths, destDir, kind, srcProvider);
     event->acceptProposedAction();
+    showDragFeedback(DragFeedbackState::Success, MotionPolicy::duration(MotionDuration::Normal));
+}
+
+void FileListView::paintEvent(QPaintEvent *event) {
+    QTableView::paintEvent(event);
+    if (m_dragFeedbackState == DragFeedbackState::None || m_dragFeedbackColor.alpha() == 0)
+        return;
+
+    QPainter painter(viewport());
+    painter.setRenderHint(QPainter::Antialiasing);
+    QPen pen(m_dragFeedbackColor, 2);
+    if (m_dragFeedbackState == DragFeedbackState::Rejected)
+        pen.setStyle(Qt::DashLine);
+    painter.setPen(pen);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRect(viewport()->rect().adjusted(1, 1, -2, -2));
+}
+
+QColor FileListView::dragFeedbackColorFor(DragFeedbackState state) const {
+    QColor color;
+    switch (state) {
+    case DragFeedbackState::Accepted:
+        color = palette().color(QPalette::Highlight);
+        color.setAlpha(210);
+        break;
+    case DragFeedbackState::Rejected:
+        color = palette().color(QPalette::Text);
+        color.setAlpha(180);
+        break;
+    case DragFeedbackState::Success:
+        color = palette().color(QPalette::Highlight).lighter(125);
+        color.setAlpha(220);
+        break;
+    case DragFeedbackState::None:
+        break;
+    }
+    return color;
+}
+
+void FileListView::setDragFeedbackColor(const QColor &color) {
+    if (m_dragFeedbackColor == color)
+        return;
+    m_dragFeedbackColor = color;
+    viewport()->update();
+}
+
+void FileListView::showDragFeedback(DragFeedbackState state, int duration) {
+    if (m_dragFeedbackState == state && duration > 0)
+        return;
+
+    m_dragFeedbackClearTimer->stop();
+    const QColor target = dragFeedbackColorFor(state);
+    const bool continueFromAccepted =
+        state == DragFeedbackState::Success && m_dragFeedbackState == DragFeedbackState::Accepted;
+    const QColor start = continueFromAccepted ? m_dragFeedbackColor : QColor(target.red(), target.green(), target.blue(), 0);
+    m_dragFeedbackAnimation->stop();
+    m_dragFeedbackState = state;
+
+    if (MotionPolicy::reduced() || duration == 0) {
+        setDragFeedbackColor(target);
+        if (state == DragFeedbackState::Success) {
+            // Keep the final color visible for the same brief success window.
+            m_dragFeedbackClearTimer->setInterval(kDragFeedbackSuccessDurationMs);
+            m_dragFeedbackClearTimer->start();
+        }
+        return;
+    }
+
+    setDragFeedbackColor(start);
+    m_dragFeedbackAnimation->setDuration(duration);
+    m_dragFeedbackAnimation->setEasingCurve(MotionPolicy::easing());
+    m_dragFeedbackAnimation->setStartValue(start);
+    m_dragFeedbackAnimation->setEndValue(target);
+    m_dragFeedbackAnimation->start();
+}
+
+void FileListView::clearDragFeedback() {
+    if (m_dragFeedbackState == DragFeedbackState::None && !m_dragFeedbackColor.isValid())
+        return;
+    m_dragFeedbackAnimation->stop();
+    m_dragFeedbackClearTimer->stop();
+    m_dragFeedbackState = DragFeedbackState::None;
+    setDragFeedbackColor(QColor());
 }
 
 // PlainHeaderView declares Q_OBJECT (for the qproperty theme hooks) and lives in

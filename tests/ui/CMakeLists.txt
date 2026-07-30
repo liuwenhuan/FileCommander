@@ -31,6 +31,7 @@ set(UI_TEST_SOURCES
     test_SlideSceneImageCache.cpp
     test_SearchEngine.cpp
     test_DragPayload.cpp
+    test_DragMotion.cpp
     test_TreeNavigation.cpp
     test_PanelDiskInfo.cpp
     test_PanelRemoval.cpp

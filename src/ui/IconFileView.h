@@ -1,10 +1,12 @@
 #pragma once
 
+#include <QColor>
 #include <QListView>
 
 #include "FileListView.h"
 
 class QTimer;
+class QVariantAnimation;
 
 // QListView in IconMode for the thumbnail/icon file view, with the same
 // drag-and-drop behavior as FileListView (drag files out to another panel,
@@ -13,9 +15,15 @@ class QTimer;
 // drag source builds its URL list from selectedIndexes() instead.
 class IconFileView : public QListView {
     Q_OBJECT
+    Q_PROPERTY(QString dragFeedbackState READ dragFeedbackState)
+    Q_PROPERTY(QColor dragFeedbackColor READ dragFeedbackColor)
 
 public:
     explicit IconFileView(QWidget *parent = nullptr);
+
+    QString dragFeedbackState() const;
+    QColor dragFeedbackColor() const { return m_dragFeedbackColor; }
+    void setModel(QAbstractItemModel *model) override;
 
     // Rows whose items intersect the viewport right now, for a caller that
     // needs the range without waiting for the next visibleRangeSettled (e.g.
@@ -45,11 +53,18 @@ protected:
     void dragMoveEvent(QDragMoveEvent *event) override;
     void dragLeaveEvent(QDragLeaveEvent *event) override;
     void dropEvent(QDropEvent *event) override;
+    void paintEvent(QPaintEvent *event) override;
     void scrollContentsBy(int dx, int dy) override;
     void resizeEvent(QResizeEvent *event) override;
 
 private:
+    enum class DragFeedbackState { None, Accepted, Rejected, Success };
+
     QString destinationDirForDrop(const QPoint &pos) const;
+    void showDragFeedback(DragFeedbackState state, int duration);
+    void clearDragFeedback();
+    QColor dragFeedbackColorFor(DragFeedbackState state) const;
+    void setDragFeedbackColor(const QColor &color);
 
     // Rows whose items intersect the viewport right now. Returns false when the
     // view has no model or nothing is laid out yet.
@@ -58,4 +73,8 @@ private:
     void announceVisibleRange();
 
     QTimer *m_settleTimer; // restarted on every scroll; fires once movement stops
+    QVariantAnimation *m_dragFeedbackAnimation = nullptr;
+    QTimer *m_dragFeedbackClearTimer = nullptr;
+    DragFeedbackState m_dragFeedbackState = DragFeedbackState::None;
+    QColor m_dragFeedbackColor;
 };

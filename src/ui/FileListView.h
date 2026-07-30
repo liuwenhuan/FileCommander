@@ -1,11 +1,13 @@
 #pragma once
 
+#include <QColor>
 #include <QPalette>
 #include <QPersistentModelIndex>
 #include <QTableView>
 #include <QVector>
 
 class QTimer;
+class QVariantAnimation;
 class QFontMetrics;
 class FileProvider;
 
@@ -16,12 +18,17 @@ class FileProvider;
 // those, including a plain filesystem drag from another file manager).
 class FileListView : public QTableView {
     Q_OBJECT
+    Q_PROPERTY(QString dragFeedbackState READ dragFeedbackState)
+    Q_PROPERTY(QColor dragFeedbackColor READ dragFeedbackColor)
 
 public:
     enum class DropActionKind { Copy, Move, Link };
     Q_ENUM(DropActionKind)
 
     explicit FileListView(QWidget *parent = nullptr);
+
+    QString dragFeedbackState() const;
+    QColor dragFeedbackColor() const { return m_dragFeedbackColor; }
 
     // Note: QAbstractItemView already provides an `activated(QModelIndex)`
     // signal (fired on double-click/Enter) — no need to redeclare it here.
@@ -84,13 +91,20 @@ protected:
     void dragMoveEvent(QDragMoveEvent *event) override;
     void dragLeaveEvent(QDragLeaveEvent *event) override;
     void dropEvent(QDropEvent *event) override;
+    void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     // Invalidates the cached active/inactive selection palettes when the app
     // stylesheet (theme) changes, then re-applies the current one.
     void changeEvent(QEvent *event) override;
 
 private:
+    enum class DragFeedbackState { None, Accepted, Rejected, Success };
+
     QString destinationDirForDrop(const QPoint &pos) const;
+    void showDragFeedback(DragFeedbackState state, int duration);
+    void clearDragFeedback();
+    QColor dragFeedbackColorFor(DragFeedbackState state) const;
+    void setDragFeedbackColor(const QColor &color);
     // Lazily derives the active + inactive selection palettes from the theme QSS
     // once (a one-time double repolish), so setPanelActive can later switch
     // between them with a cheap setPalette() instead of a full repolish.
@@ -150,4 +164,9 @@ private:
     // sure no double-click is following.
     QPersistentModelIndex m_renameClickIndex;
     QTimer *m_renameClickTimer = nullptr;
+
+    QVariantAnimation *m_dragFeedbackAnimation = nullptr;
+    QTimer *m_dragFeedbackClearTimer = nullptr;
+    DragFeedbackState m_dragFeedbackState = DragFeedbackState::None;
+    QColor m_dragFeedbackColor;
 };
