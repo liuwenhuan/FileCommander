@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QFutureWatcher>
+#include <QHash>
 #include <QObject>
 #include <QStringList>
 
@@ -15,6 +16,8 @@ class DirectorySizeTask final : public QObject {
 public:
     DirectorySizeTask(quint64 requestId, std::shared_ptr<FileProvider> provider, QStringList roots,
                       QObject *parent = nullptr);
+    DirectorySizeTask(quint64 requestId, std::shared_ptr<FileProvider> provider, QStringList roots,
+                      QHash<QString, qint64> symlinkRootSizes, QObject *parent = nullptr);
     ~DirectorySizeTask() override;
 
     void start();
@@ -28,6 +31,7 @@ private:
     struct State {
         std::shared_ptr<FileProvider> provider;
         QStringList roots;
+        QHash<QString, qint64> symlinkRootSizes;
         std::atomic_bool cancelled{false};
     };
 
@@ -39,8 +43,6 @@ private:
 
     static qint64 walkDirectory(const std::shared_ptr<State> &state, const QString &path,
                                 bool *cancelled);
-    static bool rootIsSymLink(const std::shared_ptr<State> &state, const QString &root,
-                              bool *cancelled);
 
     quint64 m_requestId;
     std::shared_ptr<State> m_state;

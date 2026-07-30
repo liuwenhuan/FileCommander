@@ -68,14 +68,10 @@ private:
 
 class SymlinkRootProvider final : public FileProvider {
 public:
-    explicit SymlinkRootProvider(QString root) : m_root(std::move(root)) {}
-
     QVector<FileInfo> list(const QString &path, bool) const override {
-        if (path == parentPath(m_root))
-            return {FileInfo(m_root)};
-        if (path == m_root) {
+        if (path == QStringLiteral("/link")) {
             ++m_rootListCount;
-            return {FileInfo::fromFields(QDir(m_root).filePath(QStringLiteral("inside.bin")),
+            return {FileInfo::fromFields(QStringLiteral("/link/inside.bin"),
                                          QStringLiteral("inside.bin"), 10, {}, false, {})};
         }
         return {};
@@ -92,7 +88,6 @@ public:
     int rootListCount() const { return m_rootListCount; }
 
 private:
-    QString m_root;
     mutable int m_rootListCount = 0;
 };
 
@@ -118,17 +113,9 @@ TEST(DirectorySizeTask, CancelStopsBeforeTheNextRoot) {
 }
 
 TEST(DirectorySizeTask, DoesNotTraverseASymlinkDirectoryRoot) {
-    QTemporaryDir temp;
-    ASSERT_TRUE(temp.isValid());
-    const QString target = QDir(temp.path()).filePath(QStringLiteral("target"));
-    const QString link = QDir(temp.path()).filePath(QStringLiteral("link.lnk"));
-    ASSERT_TRUE(QDir().mkdir(target));
-    if (!QFile::link(target, link))
-        GTEST_SKIP() << "filesystem does not support directory symlinks";
-    ASSERT_TRUE(QFileInfo(link).isSymLink());
-
-    auto provider = std::make_shared<SymlinkRootProvider>(link);
-    DirectorySizeTask task(43, provider, {link});
+    auto provider = std::make_shared<SymlinkRootProvider>();
+    DirectorySizeTask task(43, provider, {QStringLiteral("/link")},
+                           {{QStringLiteral("/link"), 37}});
     QSignalSpy finished(&task, &DirectorySizeTask::finished);
 
     task.start();
@@ -136,7 +123,7 @@ TEST(DirectorySizeTask, DoesNotTraverseASymlinkDirectoryRoot) {
     ASSERT_TRUE(finished.wait(4000));
     EXPECT_EQ(provider->rootListCount(), 0);
     ASSERT_EQ(finished.count(), 1);
-    EXPECT_EQ(finished.takeFirst().at(1).toLongLong(), 0);
+    EXPECT_EQ(finished.takeFirst().at(1).toLongLong(), 37);
 }
 
 TEST(DirectorySizeTask, DestructionWhileProviderIsBlockedCompletesAfterUnblock) {

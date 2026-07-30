@@ -1734,18 +1734,24 @@ void FilePanel::cancelDirectorySizeTask() {
 
 void FilePanel::calculateDirSizes() {
     QStringList dirs;
+    QHash<QString, qint64> symlinkRootSizes;
+    auto addDirectory = [&dirs, &symlinkRootSizes](const FileInfo &info) {
+        if (!info.isValid() || !info.isDir())
+            return;
+        dirs << info.path();
+        if (info.isSymLink())
+            symlinkRootSizes.insert(info.path(), info.size());
+    };
     for (int row : selectedRowNumbers()) {
         const FileInfo info = m_model->fileInfoAt(row);
-        if (info.isValid() && info.isDir())
-            dirs << info.path();
+        addDirectory(info);
     }
     if (dirs.isEmpty()) {
         // Nothing selected: fall back to the directory under the cursor.
         const QModelIndex cur = m_view->currentIndex();
         if (cur.isValid() && !m_model->isParentEntry(cur.row())) {
             const FileInfo info = m_model->fileInfoAt(cur.row());
-            if (info.isValid() && info.isDir())
-                dirs << info.path();
+            addDirectory(info);
         }
     }
 
@@ -1757,7 +1763,8 @@ void FilePanel::calculateDirSizes() {
     // new request generation makes every earlier progress/result callback stale.
     std::shared_ptr<FileProvider> provider = m_model->providerPtr();
     const quint64 requestId = ++m_directorySizeRequestId;
-    auto *task = new DirectorySizeTask(requestId, std::move(provider), dirs, this);
+    auto *task = new DirectorySizeTask(requestId, std::move(provider), dirs,
+                                       std::move(symlinkRootSizes), this);
     m_directorySizeTask = task;
     auto completedBytes = std::make_shared<qint64>(0);
     connect(task, &DirectorySizeTask::progress, this,

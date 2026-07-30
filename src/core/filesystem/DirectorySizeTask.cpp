@@ -41,39 +41,17 @@ qint64 DirectorySizeTask::walkDirectory(const std::shared_ptr<State> &state, con
     return total;
 }
 
-bool DirectorySizeTask::rootIsSymLink(const std::shared_ptr<State> &state, const QString &root,
-                                      bool *cancelled) {
-    if (state->cancelled.load(std::memory_order_relaxed)) {
-        *cancelled = true;
-        return false;
-    }
-
-    const QString cleanRoot = state->provider->cleanPath(root);
-    const QString parent = state->provider->parentPath(cleanRoot);
-    if (parent.isEmpty())
-        return false;
-
-    const QVector<FileInfo> entries = state->provider->list(parent, /*showHidden=*/true);
-    if (state->cancelled.load(std::memory_order_relaxed)) {
-        *cancelled = true;
-        return false;
-    }
-    for (const FileInfo &entry : entries) {
-        if (state->cancelled.load(std::memory_order_relaxed)) {
-            *cancelled = true;
-            return false;
-        }
-        if (!entry.isParentEntry() && state->provider->cleanPath(entry.path()) == cleanRoot)
-            return entry.isSymLink();
-    }
-    return false;
-}
-
 DirectorySizeTask::DirectorySizeTask(quint64 requestId, std::shared_ptr<FileProvider> provider,
                                      QStringList roots, QObject *parent)
+    : DirectorySizeTask(requestId, std::move(provider), std::move(roots), {}, parent) {}
+
+DirectorySizeTask::DirectorySizeTask(quint64 requestId, std::shared_ptr<FileProvider> provider,
+                                     QStringList roots,
+                                     QHash<QString, qint64> symlinkRootSizes, QObject *parent)
     : QObject(parent), m_requestId(requestId), m_state(std::make_shared<State>()) {
     m_state->provider = std::move(provider);
     m_state->roots = std::move(roots);
+    m_state->symlinkRootSizes = std::move(symlinkRootSizes);
     connect(&m_watcher, &QFutureWatcher<Result>::finished, this, [this] {
         const Result result = m_watcher.result();
         emit finished(m_requestId, result.bytes, result.cancelled);
@@ -102,9 +80,10 @@ void DirectorySizeTask::start() {
             }
 
             bool cancelled = false;
-            const bool symlinkRoot = DirectorySizeTask::rootIsSymLink(state, root, &cancelled);
-            const qint64 rootBytes =
-                symlinkRoot ? 0 : DirectorySizeTask::walkDirectory(state, root, &cancelled);
+            const auto symlinkSize = state->symlinkRootSizes.constFind(root);
+            const qint64 rootBytes = symlinkSize == state->symlinkRootSizes.cend()
+                                         ? DirectorySizeTask::walkDirectory(state, root, &cancelled)
+                                         : symlinkSize.value();
             if (cancelled) {
                 result.cancelled = true;
                 break;
