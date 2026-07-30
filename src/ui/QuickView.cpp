@@ -21,21 +21,18 @@
 #include <QHeaderView>
 #include <QImage>
 #include <QImageReader>
-#include <QImageWriter>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPlainTextEdit>
-#include <QProcess>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSet>
 #include <QShortcut>
-#include <QStandardPaths>
 #include <QSize>
 #include <QSizePolicy>
 #include <QSlider>
@@ -51,7 +48,6 @@
 #include <QTextEdit>
 #include <QTextCursor>
 #include <QTextDocument>
-#include <QThreadPool>
 #include <QTimer>
 #include <QToolBar>
 #include <QTransform>
@@ -136,62 +132,6 @@ constexpr int kPdfPageGap = 12;
 // afterwards (see QuickView::renderOffice).
 constexpr int kFirstStageSlides = 3;
 
-class ImageRotationPool : public QThreadPool {
-public:
-    ImageRotationPool() {
-        setMaxThreadCount(1);
-        setExpiryTimeout(-1);
-    }
-};
-
-QThreadPool *imageRotationPool() {
-    static ImageRotationPool pool;
-    return &pool;
-}
-
-bool persistImageRotation(const QString &path, int degrees) {
-    const QFileInfo fi(path);
-    const QString suffix = FileInfo::suffixForName(fi.fileName()).toLower();
-    const int rotation = ((degrees % 360) + 360) % 360;
-    QTransform transform;
-    transform.rotate(degrees);
-    bool saved = false;
-
-    if (suffix == QLatin1String("jpg") || suffix == QLatin1String("jpeg")) {
-        const QString jpegtran = QStandardPaths::findExecutable(QStringLiteral("jpegtran"));
-        if (!jpegtran.isEmpty()) {
-            const QString temporary =
-                fi.absoluteDir().filePath(QStringLiteral(".%1.rot.tmp").arg(fi.fileName()));
-            QProcess process;
-            process.start(jpegtran, {QStringLiteral("-rotate"), QString::number(rotation),
-                                     QStringLiteral("-copy"), QStringLiteral("all"),
-                                     QStringLiteral("-outfile"), temporary, path});
-            if (process.waitForFinished(15000) &&
-                process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0 &&
-                QFileInfo::exists(temporary)) {
-                if (QFile::remove(path) && QFile::rename(temporary, path))
-                    saved = true;
-                else
-                    QFile::remove(temporary);
-            } else {
-                QFile::remove(temporary);
-            }
-        }
-    }
-
-    if (!saved) {
-        QImageReader reader(path);
-        QImage image = reader.read();
-        if (!image.isNull()) {
-            image = image.transformed(transform, Qt::FastTransformation);
-            QImageWriter writer(path);
-            if (suffix == QLatin1String("jpg") || suffix == QLatin1String("jpeg"))
-                writer.setQuality(100);
-            saved = writer.write(image);
-        }
-    }
-    return saved;
-}
 } // namespace
 
 QuickView::QuickView(Settings &settings, Context context, QWidget *parent)
@@ -294,6 +234,15 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent)
                 m_imageLabel->setPixmap(QPixmap::fromImage(image));
                 m_imageLabel->resize(image.size());
                 updateImageCursor(image.size());
+            });
+    connect(m_imageLoader, &ImagePreviewLoader::rotationPersisted, this,
+            [this](const QString &path, bool saved) {
+                if (!saved && path == m_imagePath && !m_originalImage.isNull()) {
+                    m_infoOverlay->setText(
+                        tr("Rotated on screen only - could not save to disk."));
+                    m_infoOverlay->show();
+                    positionInfoOverlay();
+                }
             });
     connect(m_stack, &QStackedWidget::currentChanged, this, [this](int index) {
         if (m_stack->widget(index) != m_imagePage)
@@ -543,19 +492,7 @@ void QuickView::rotateCurrentImage(int degrees) {
     updateImageInfoOverlay();
 
     const QString path = m_imagePath;
-    auto *watcher = new QFutureWatcher<bool>(this);
-    connect(watcher, &QFutureWatcher<bool>::finished, this, [this, watcher, path]() {
-        const bool saved = watcher->result();
-        watcher->deleteLater();
-        if (!saved && path == m_imagePath && !m_originalImage.isNull()) {
-            m_infoOverlay->setText(tr("Rotated on screen only - could not save to disk."));
-            m_infoOverlay->show();
-            positionInfoOverlay();
-        }
-    });
-    watcher->setFuture(QtConcurrent::run(imageRotationPool(), [path, degrees]() {
-        return persistImageRotation(path, degrees);
-    }));
+    m_imageLoader->persistRotation(path, degrees);
 }
 
 void QuickView::positionInfoOverlay() {

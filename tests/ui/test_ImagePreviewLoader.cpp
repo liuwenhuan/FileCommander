@@ -2,23 +2,28 @@
 
 #include "QuickView.h"
 #include "Settings.h"
+#include "theme/Phosphor.h"
 
 #include <gtest/gtest.h>
 
+#include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QImage>
 #include <QLabel>
+#include <QMutex>
 #include <QPointer>
 #include <QScrollArea>
+#include <QSemaphore>
 #include <QSignalSpy>
 #include <QStackedWidget>
 #include <QTemporaryDir>
 #include <QTest>
-#include <QThreadPool>
 #include <QTimer>
+#include <QToolBar>
 #include <QWheelEvent>
 
 #include <memory>
@@ -33,9 +38,14 @@ QString writeImage(const QDir &dir, const QString &name, const QSize &size, cons
     return image.save(path, format) ? path : QString();
 }
 
-void drainPreviewWorkers() {
-    ASSERT_TRUE(QThreadPool::globalInstance()->waitForDone(15000));
-    QCoreApplication::processEvents();
+QString writeDirectionalImage(const QDir &dir, const QString &name, const QSize &size) {
+    QImage image(size, QImage::Format_ARGB32);
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x)
+            image.setPixelColor(x, y, x < image.width() / 2 ? Qt::red : Qt::green);
+    }
+    const QString path = dir.filePath(name);
+    return image.save(path, "PNG") ? path : QString();
 }
 
 QLabel *imageLabel(QuickView &view) {
@@ -49,6 +59,34 @@ QString previewInfoText(QuickView &view) {
         return {};
     auto *label = qobject_cast<QLabel *>(stack->currentWidget());
     return label ? label->text() : QString();
+}
+
+QAction *actionByText(QuickView &view, const QString &text) {
+    if (auto *scroll =
+            view.findChild<QScrollArea *>(QStringLiteral("imagePreviewScroll"))) {
+        const auto toolbars = scroll->parentWidget()->findChildren<QToolBar *>();
+        for (QToolBar *toolbar : toolbars) {
+            for (QAction *action : toolbar->actions()) {
+                if (action->text() == text)
+                    return action;
+            }
+        }
+    }
+    const auto actions = view.findChildren<QAction *>();
+    for (QAction *action : actions) {
+        if (action->text() == text)
+            return action;
+    }
+    return nullptr;
+}
+
+QCheckBox *checkBoxByText(QuickView &view, const QString &text) {
+    const auto checkBoxes = view.findChildren<QCheckBox *>();
+    for (QCheckBox *checkBox : checkBoxes) {
+        if (checkBox->text() == text)
+            return checkBox;
+    }
+    return nullptr;
 }
 
 } // namespace
@@ -99,7 +137,7 @@ TEST(ImagePreviewLoader, NewLoadSuppressesSlowerGeneration) {
     EXPECT_GT(fastGeneration, slowGeneration);
 
     ASSERT_TRUE(loaded.wait(5000));
-    drainPreviewWorkers();
+    ASSERT_TRUE(loader.waitForIdleForTest(5000));
     ASSERT_EQ(loaded.count(), 1);
     const QList<QVariant> result = loaded.takeFirst();
     EXPECT_EQ(result.at(0).toULongLong(), fastGeneration);
@@ -124,7 +162,7 @@ TEST(ImagePreviewLoader, NewestRenderIsTheOnlyAcceptedResult) {
     EXPECT_LT(second, third);
 
     ASSERT_TRUE(rendered.wait(5000));
-    drainPreviewWorkers();
+    ASSERT_TRUE(loader.waitForIdleForTest(5000));
     ASSERT_EQ(rendered.count(), 1);
     const QList<QVariant> result = rendered.takeFirst();
     EXPECT_EQ(result.at(0).toULongLong(), third);
@@ -135,6 +173,113 @@ TEST(ImagePreviewLoader, NewestRenderIsTheOnlyAcceptedResult) {
     EXPECT_NEAR(center.green(), 90, 1);
     EXPECT_NEAR(center.blue(), 170, 1);
     EXPECT_EQ(center.alpha(), 200);
+}
+
+TEST(ImagePreviewLoader, CoalescesPendingLoadsAndCancelsStaleWorkerBeforeDecode) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QDir root(dir.path());
+    const QString firstPath =
+        writeImage(root, QStringLiteral("first.png"), QSize(8, 8), Qt::red, "PNG");
+    const QString middlePath =
+        writeImage(root, QStringLiteral("middle.png"), QSize(8, 8), Qt::blue, "PNG");
+    const QString latestPath =
+        writeImage(root, QStringLiteral("latest.png"), QSize(8, 8), Qt::green, "PNG");
+    ASSERT_FALSE(firstPath.isEmpty());
+    ASSERT_FALSE(middlePath.isEmpty());
+    ASSERT_FALSE(latestPath.isEmpty());
+
+    ImagePreviewLoader loader;
+    QSignalSpy loaded(&loader, &ImagePreviewLoader::loaded);
+    QSemaphore firstEntered;
+    QSemaphore releaseFirst;
+    QMutex observedMutex;
+    QVector<quint64> beforeDecode;
+    QVector<quint64> afterDecode;
+    bool heldFirst = false;
+    loader.setWorkerCheckpointForTest(
+        [&](ImagePreviewLoader::WorkerCheckpoint checkpoint, quint64 generation) {
+            QMutexLocker locker(&observedMutex);
+            if (checkpoint == ImagePreviewLoader::WorkerCheckpoint::LoadBeforeDecode) {
+                beforeDecode.append(generation);
+                if (!heldFirst) {
+                    heldFirst = true;
+                    firstEntered.release();
+                    locker.unlock();
+                    releaseFirst.acquire();
+                }
+            } else if (checkpoint == ImagePreviewLoader::WorkerCheckpoint::LoadAfterDecode) {
+                afterDecode.append(generation);
+            }
+        });
+
+    const quint64 first = loader.load(firstPath);
+    ASSERT_TRUE(firstEntered.tryAcquire(1, 5000));
+    const quint64 middle = loader.load(middlePath);
+    const quint64 latest = loader.load(latestPath);
+    releaseFirst.release();
+
+    ASSERT_TRUE(loader.waitForIdleForTest(5000));
+    QCoreApplication::processEvents();
+    ASSERT_EQ(loaded.count(), 1);
+    EXPECT_EQ(loaded.first().at(0).toULongLong(), latest);
+    EXPECT_EQ(qvariant_cast<QImage>(loaded.first().at(1)).pixelColor(0, 0), QColor(Qt::green));
+
+    QMutexLocker locker(&observedMutex);
+    ASSERT_EQ(beforeDecode.size(), 2);
+    EXPECT_EQ(beforeDecode.at(0), first);
+    EXPECT_EQ(beforeDecode.at(1), latest);
+    EXPECT_FALSE(beforeDecode.contains(middle));
+    EXPECT_FALSE(afterDecode.contains(first));
+}
+
+TEST(ImagePreviewLoader, CoalescesPendingRendersAndCancelsStaleWorkerBeforeTransform) {
+    QImage source(QSize(80, 50), QImage::Format_ARGB32);
+    source.fill(Qt::cyan);
+
+    ImagePreviewLoader loader;
+    QSignalSpy rendered(&loader, &ImagePreviewLoader::rendered);
+    QSemaphore firstEntered;
+    QSemaphore releaseFirst;
+    QMutex observedMutex;
+    QVector<quint64> beforeTransform;
+    QVector<quint64> afterTransform;
+    bool heldFirst = false;
+    loader.setWorkerCheckpointForTest(
+        [&](ImagePreviewLoader::WorkerCheckpoint checkpoint, quint64 generation) {
+            QMutexLocker locker(&observedMutex);
+            if (checkpoint == ImagePreviewLoader::WorkerCheckpoint::RenderBeforeTransform) {
+                beforeTransform.append(generation);
+                if (!heldFirst) {
+                    heldFirst = true;
+                    firstEntered.release();
+                    locker.unlock();
+                    releaseFirst.acquire();
+                }
+            } else if (checkpoint ==
+                       ImagePreviewLoader::WorkerCheckpoint::RenderAfterTransform) {
+                afterTransform.append(generation);
+            }
+        });
+
+    const quint64 first = loader.render(source, QSize(70, 40), QTransform());
+    ASSERT_TRUE(firstEntered.tryAcquire(1, 5000));
+    const quint64 middle = loader.render(source, QSize(40, 25), QTransform());
+    const quint64 latest = loader.render(source, QSize(16, 10), QTransform());
+    releaseFirst.release();
+
+    ASSERT_TRUE(loader.waitForIdleForTest(5000));
+    QCoreApplication::processEvents();
+    ASSERT_EQ(rendered.count(), 1);
+    EXPECT_EQ(rendered.first().at(0).toULongLong(), latest);
+    EXPECT_EQ(qvariant_cast<QImage>(rendered.first().at(1)).size(), QSize(16, 10));
+
+    QMutexLocker locker(&observedMutex);
+    ASSERT_EQ(beforeTransform.size(), 2);
+    EXPECT_EQ(beforeTransform.at(0), first);
+    EXPECT_EQ(beforeTransform.at(1), latest);
+    EXPECT_FALSE(beforeTransform.contains(middle));
+    EXPECT_FALSE(afterTransform.contains(first));
 }
 
 TEST(ImagePreviewLoader, DamagedImageKeepsQuickViewOnNoPreviewPage) {
@@ -172,10 +317,12 @@ TEST(ImagePreviewLoader, QuickViewRejectsLateLoadAfterNewFile) {
     view.showFile(slow);
     view.showFile(fast);
 
+    auto *loader = view.findChild<ImagePreviewLoader *>();
     QLabel *label = imageLabel(view);
+    ASSERT_NE(loader, nullptr);
     ASSERT_NE(label, nullptr);
     QTRY_VERIFY_WITH_TIMEOUT(label->pixmap() && !label->pixmap()->isNull(), 5000);
-    drainPreviewWorkers();
+    ASSERT_TRUE(loader->waitForIdleForTest(5000));
     ASSERT_NE(label->pixmap(), nullptr);
     const QImage displayed = label->pixmap()->toImage();
     const QColor center = displayed.pixelColor(displayed.width() / 2, displayed.height() / 2);
@@ -196,10 +343,12 @@ TEST(ImagePreviewLoader, WheelDebouncesForFiftyMillisecondsAndKeepsDisplayedPixm
     view.show();
     view.showFile(path);
 
+    auto *loader = view.findChild<ImagePreviewLoader *>();
     QLabel *label = imageLabel(view);
+    ASSERT_NE(loader, nullptr);
     ASSERT_NE(label, nullptr);
     QTRY_VERIFY_WITH_TIMEOUT(label->pixmap() && !label->pixmap()->isNull(), 5000);
-    drainPreviewWorkers();
+    ASSERT_TRUE(loader->waitForIdleForTest(5000));
     const QSize before = label->pixmap()->size();
 
     auto *timer = view.findChild<QTimer *>(QStringLiteral("imageWheelRenderTimer"));
@@ -239,6 +388,343 @@ TEST(ImagePreviewLoader, DestroyingQuickViewInvalidatesInFlightWork) {
     view.reset();
     EXPECT_TRUE(guard.isNull());
 
-    drainPreviewWorkers();
+    ASSERT_TRUE(ImagePreviewLoader::waitForAllForTest(15000));
+    QCoreApplication::processEvents();
     SUCCEED();
+}
+
+TEST(ImagePreviewLoader, RotateThenSamePathReloadWaitsForPersistedImage) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QDir root(dir.path());
+    const QString path =
+        writeImage(root, QStringLiteral("rotate.png"), QSize(160, 100), Qt::magenta, "PNG");
+    ASSERT_FALSE(path.isEmpty());
+
+    Settings settings(root.filePath(QStringLiteral("settings.ini")));
+    QuickView view(settings);
+    view.resize(640, 480);
+    view.show();
+    view.showFile(path);
+
+    auto *loader = view.findChild<ImagePreviewLoader *>();
+    QLabel *label = imageLabel(view);
+    ASSERT_NE(loader, nullptr);
+    ASSERT_NE(label, nullptr);
+    QTRY_VERIFY_WITH_TIMEOUT(label->pixmap() && !label->pixmap()->isNull(), 5000);
+
+    QSemaphore writeReserved;
+    QSemaphore releaseWrite;
+    loader->setWorkerCheckpointForTest(
+        [&](ImagePreviewLoader::WorkerCheckpoint checkpoint, quint64) {
+            if (checkpoint == ImagePreviewLoader::WorkerCheckpoint::RotationBeforeWrite) {
+                writeReserved.release();
+                releaseWrite.acquire();
+            }
+        });
+    QAction *rotateRight = actionByText(view, QStringLiteral("Rotate Right"));
+    ASSERT_NE(rotateRight, nullptr);
+    rotateRight->trigger();
+    ASSERT_TRUE(writeReserved.tryAcquire(1, 5000));
+
+    view.showFile(path);
+    QTest::qWait(20);
+    EXPECT_FALSE(label->pixmap());
+    releaseWrite.release();
+
+    ASSERT_TRUE(loader->waitForIdleForTest(5000));
+    ASSERT_NE(label->pixmap(), nullptr);
+    EXPECT_LT(label->pixmap()->width(), label->pixmap()->height());
+    const QImage persisted(path);
+    ASSERT_FALSE(persisted.isNull());
+    EXPECT_EQ(persisted.size(), QSize(100, 160));
+}
+
+TEST(ImagePreviewLoader, QuickViewDisplaysOnlyLatestRenderRequest) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QDir root(dir.path());
+    const QString path =
+        writeImage(root, QStringLiteral("latest.png"), QSize(160, 100), Qt::blue, "PNG");
+    ASSERT_FALSE(path.isEmpty());
+
+    Settings settings(root.filePath(QStringLiteral("settings.ini")));
+    QuickView view(settings);
+    view.resize(640, 480);
+    view.show();
+    view.showFile(path);
+    auto *loader = view.findChild<ImagePreviewLoader *>();
+    QLabel *label = imageLabel(view);
+    ASSERT_NE(loader, nullptr);
+    ASSERT_NE(label, nullptr);
+    ASSERT_TRUE(loader->waitForIdleForTest(5000));
+    ASSERT_NE(label->pixmap(), nullptr);
+    const QSize initialSize = label->pixmap()->size();
+
+    QSemaphore firstRenderEntered;
+    QSemaphore releaseFirstRender;
+    bool heldFirst = false;
+    loader->setWorkerCheckpointForTest(
+        [&](ImagePreviewLoader::WorkerCheckpoint checkpoint, quint64) {
+            if (checkpoint == ImagePreviewLoader::WorkerCheckpoint::RenderBeforeTransform &&
+                !heldFirst) {
+                heldFirst = true;
+                firstRenderEntered.release();
+                releaseFirstRender.acquire();
+            }
+        });
+    QAction *zoomIn = actionByText(view, QStringLiteral("Zoom In"));
+    ASSERT_NE(zoomIn, nullptr);
+    zoomIn->trigger();
+    ASSERT_TRUE(firstRenderEntered.tryAcquire(1, 5000));
+    zoomIn->trigger();
+    EXPECT_EQ(label->pixmap()->size(), initialSize);
+    releaseFirstRender.release();
+
+    ASSERT_TRUE(loader->waitForIdleForTest(5000));
+    ASSERT_NE(label->pixmap(), nullptr);
+    EXPECT_GT(label->pixmap()->width(), qRound(initialSize.width() * 1.4));
+}
+
+TEST(ImagePreviewLoader, PageChangeInvalidatesInFlightRender) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QDir root(dir.path());
+    const QString imagePath =
+        writeImage(root, QStringLiteral("page.png"), QSize(160, 100), Qt::blue, "PNG");
+    const QString textPath = root.filePath(QStringLiteral("page.txt"));
+    QFile textFile(textPath);
+    ASSERT_TRUE(textFile.open(QIODevice::WriteOnly));
+    ASSERT_EQ(textFile.write("new page"), 8);
+    textFile.close();
+
+    Settings settings(root.filePath(QStringLiteral("settings.ini")));
+    QuickView view(settings);
+    view.resize(640, 480);
+    view.show();
+    view.showFile(imagePath);
+    auto *loader = view.findChild<ImagePreviewLoader *>();
+    QLabel *label = imageLabel(view);
+    ASSERT_NE(loader, nullptr);
+    ASSERT_NE(label, nullptr);
+    ASSERT_TRUE(loader->waitForIdleForTest(5000));
+    ASSERT_NE(label->pixmap(), nullptr);
+    const QSize displayedBeforePageChange = label->pixmap()->size();
+
+    QSemaphore renderEntered;
+    QSemaphore releaseRender;
+    loader->setWorkerCheckpointForTest(
+        [&](ImagePreviewLoader::WorkerCheckpoint checkpoint, quint64) {
+            if (checkpoint == ImagePreviewLoader::WorkerCheckpoint::RenderBeforeTransform) {
+                renderEntered.release();
+                releaseRender.acquire();
+            }
+        });
+    QAction *zoomIn = actionByText(view, QStringLiteral("Zoom In"));
+    ASSERT_NE(zoomIn, nullptr);
+    zoomIn->trigger();
+    ASSERT_TRUE(renderEntered.tryAcquire(1, 5000));
+    view.showFile(textPath);
+    releaseRender.release();
+
+    ASSERT_TRUE(loader->waitForIdleForTest(5000));
+    auto *stack = view.findChild<QStackedWidget *>();
+    ASSERT_NE(stack, nullptr);
+    EXPECT_NE(stack->currentWidget(), label->parentWidget());
+    ASSERT_NE(label->pixmap(), nullptr);
+    EXPECT_EQ(label->pixmap()->size(), displayedBeforePageChange);
+}
+
+TEST(ImagePreviewLoader, DestroyingQuickViewDuringRenderDoesNotWaitOrDeliver) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QDir root(dir.path());
+    const QString path =
+        writeImage(root, QStringLiteral("teardown.png"), QSize(160, 100), Qt::blue, "PNG");
+    ASSERT_FALSE(path.isEmpty());
+
+    Settings settings(root.filePath(QStringLiteral("settings.ini")));
+    auto view = std::make_unique<QuickView>(settings);
+    view->resize(640, 480);
+    view->show();
+    view->showFile(path);
+    auto *loader = view->findChild<ImagePreviewLoader *>();
+    ASSERT_NE(loader, nullptr);
+    ASSERT_TRUE(loader->waitForIdleForTest(5000));
+
+    QSemaphore renderEntered;
+    QSemaphore releaseRender;
+    loader->setWorkerCheckpointForTest(
+        [&](ImagePreviewLoader::WorkerCheckpoint checkpoint, quint64) {
+            if (checkpoint == ImagePreviewLoader::WorkerCheckpoint::RenderBeforeTransform) {
+                renderEntered.release();
+                releaseRender.acquire();
+            }
+        });
+    QAction *zoomIn = actionByText(*view, QStringLiteral("Zoom In"));
+    ASSERT_NE(zoomIn, nullptr);
+    zoomIn->trigger();
+    ASSERT_TRUE(renderEntered.tryAcquire(1, 5000));
+
+    QPointer<QuickView> guard(view.get());
+    view.reset();
+    EXPECT_TRUE(guard.isNull());
+    releaseRender.release();
+    EXPECT_TRUE(ImagePreviewLoader::waitForAllForTest(5000));
+    QCoreApplication::processEvents();
+}
+
+TEST(ImagePreviewLoader, FitModeRecomputesAfterQuarterTurn) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QDir root(dir.path());
+    const QString path =
+        writeImage(root, QStringLiteral("fit.png"), QSize(320, 100), Qt::yellow, "PNG");
+    ASSERT_FALSE(path.isEmpty());
+
+    Settings settings(root.filePath(QStringLiteral("settings.ini")));
+    QuickView view(settings);
+    view.resize(640, 480);
+    view.show();
+    view.showFile(path);
+    auto *loader = view.findChild<ImagePreviewLoader *>();
+    QLabel *label = imageLabel(view);
+    auto *scroll = view.findChild<QScrollArea *>(QStringLiteral("imagePreviewScroll"));
+    ASSERT_NE(loader, nullptr);
+    ASSERT_NE(label, nullptr);
+    ASSERT_NE(scroll, nullptr);
+    ASSERT_TRUE(loader->waitForIdleForTest(5000));
+
+    QAction *rotateRight = actionByText(view, QStringLiteral("Rotate Right"));
+    ASSERT_NE(rotateRight, nullptr);
+    rotateRight->trigger();
+    ASSERT_TRUE(loader->waitForIdleForTest(5000));
+
+    ASSERT_NE(label->pixmap(), nullptr);
+    EXPECT_LT(label->pixmap()->width(), label->pixmap()->height());
+    EXPECT_LE(label->pixmap()->width(), scroll->viewport()->width());
+    EXPECT_LE(label->pixmap()->height(), scroll->viewport()->height());
+}
+
+TEST(ImagePreviewLoader, LockedZoomCarriesScaleAcrossImages) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QDir root(dir.path());
+    const QString large =
+        writeImage(root, QStringLiteral("large.png"), QSize(160, 100), Qt::red, "PNG");
+    const QString small =
+        writeImage(root, QStringLiteral("small.png"), QSize(80, 50), Qt::green, "PNG");
+    ASSERT_FALSE(large.isEmpty());
+    ASSERT_FALSE(small.isEmpty());
+
+    Settings settings(root.filePath(QStringLiteral("settings.ini")));
+    QuickView view(settings);
+    view.resize(640, 480);
+    view.show();
+    view.showFile(large);
+    auto *loader = view.findChild<ImagePreviewLoader *>();
+    QLabel *label = imageLabel(view);
+    ASSERT_NE(loader, nullptr);
+    ASSERT_NE(label, nullptr);
+    ASSERT_TRUE(loader->waitForIdleForTest(5000));
+
+    QAction *zoomIn = actionByText(view, QStringLiteral("Zoom In"));
+    QCheckBox *lockZoom = checkBoxByText(view, QStringLiteral("Lock Zoom"));
+    ASSERT_NE(zoomIn, nullptr);
+    ASSERT_NE(lockZoom, nullptr);
+    zoomIn->trigger();
+    ASSERT_TRUE(loader->waitForIdleForTest(5000));
+    const QSize largeDisplay = label->pixmap()->size();
+    lockZoom->setChecked(true);
+
+    view.showFile(small);
+    ASSERT_TRUE(loader->waitForIdleForTest(5000));
+    ASSERT_NE(label->pixmap(), nullptr);
+    EXPECT_NEAR(label->pixmap()->width(), largeDisplay.width() / 2.0, 2.0);
+    EXPECT_NEAR(label->pixmap()->height(), largeDisplay.height() / 2.0, 2.0);
+}
+
+TEST(ImagePreviewLoader, RepeatedRotationIsCumulativeOnScreenAndDisk) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QDir root(dir.path());
+    const QString path =
+        writeDirectionalImage(root, QStringLiteral("repeat.png"), QSize(160, 100));
+    ASSERT_FALSE(path.isEmpty());
+
+    Settings settings(root.filePath(QStringLiteral("settings.ini")));
+    QuickView view(settings);
+    view.resize(640, 480);
+    view.show();
+    view.showFile(path);
+    auto *loader = view.findChild<ImagePreviewLoader *>();
+    QLabel *label = imageLabel(view);
+    ASSERT_NE(loader, nullptr);
+    ASSERT_NE(label, nullptr);
+    ASSERT_TRUE(loader->waitForIdleForTest(5000));
+
+    QAction *rotateRight = actionByText(view, QStringLiteral("Rotate Right"));
+    ASSERT_NE(rotateRight, nullptr);
+    rotateRight->trigger();
+    rotateRight->trigger();
+    ASSERT_TRUE(loader->waitForIdleForTest(5000));
+
+    ASSERT_NE(label->pixmap(), nullptr);
+    EXPECT_GT(label->pixmap()->width(), label->pixmap()->height());
+    const QImage persisted(path);
+    ASSERT_EQ(persisted.size(), QSize(160, 100));
+    EXPECT_EQ(persisted.pixelColor(10, 50), QColor(Qt::green));
+    EXPECT_EQ(persisted.pixelColor(150, 50), QColor(Qt::red));
+}
+
+TEST(ImagePreviewLoader, ThemeRefreshSupersedesPendingRender) {
+    struct TintReset {
+        ~TintReset() { fc::setContentTint(QColor()); }
+    } tintReset;
+    fc::setContentTint(QColor());
+
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QDir root(dir.path());
+    const QString path =
+        writeImage(root, QStringLiteral("theme.png"), QSize(160, 100), Qt::white, "PNG");
+    ASSERT_FALSE(path.isEmpty());
+
+    Settings settings(root.filePath(QStringLiteral("settings.ini")));
+    QuickView view(settings);
+    view.resize(640, 480);
+    view.show();
+    view.showFile(path);
+    auto *loader = view.findChild<ImagePreviewLoader *>();
+    QLabel *label = imageLabel(view);
+    ASSERT_NE(loader, nullptr);
+    ASSERT_NE(label, nullptr);
+    ASSERT_TRUE(loader->waitForIdleForTest(5000));
+
+    QSemaphore renderEntered;
+    QSemaphore releaseRender;
+    bool heldFirst = false;
+    loader->setWorkerCheckpointForTest(
+        [&](ImagePreviewLoader::WorkerCheckpoint checkpoint, quint64) {
+            if (checkpoint == ImagePreviewLoader::WorkerCheckpoint::RenderBeforeTransform &&
+                !heldFirst) {
+                heldFirst = true;
+                renderEntered.release();
+                releaseRender.acquire();
+            }
+        });
+    QAction *zoomIn = actionByText(view, QStringLiteral("Zoom In"));
+    ASSERT_NE(zoomIn, nullptr);
+    zoomIn->trigger();
+    ASSERT_TRUE(renderEntered.tryAcquire(1, 5000));
+    fc::setContentTint(QColor(0x33, 0xff, 0x88));
+    view.refreshPhosphor();
+    releaseRender.release();
+
+    ASSERT_TRUE(loader->waitForIdleForTest(5000));
+    ASSERT_NE(label->pixmap(), nullptr);
+    const QImage displayed = label->pixmap()->toImage();
+    const QColor center = displayed.pixelColor(displayed.width() / 2, displayed.height() / 2);
+    EXPECT_GT(center.green(), center.red());
+    EXPECT_GT(center.green(), center.blue());
 }
