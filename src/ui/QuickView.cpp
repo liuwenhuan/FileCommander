@@ -317,6 +317,29 @@ bool QuickView::isStaticPageEligible(QWidget *page) const {
     return true;
 }
 
+QWidget *QuickView::staticContentTarget(QWidget *page) const {
+    if (page == m_imagePage)
+        return m_imageScroll ? m_imageScroll->viewport() : nullptr;
+    if (page == m_textPage)
+        return m_text ? m_text->viewport() : nullptr;
+    if (page == m_markdown)
+        return m_markdown ? m_markdown->viewport() : nullptr;
+    if (page == m_pdfPage)
+        return m_pdfView ? m_pdfView->viewport() : nullptr;
+    if (page == m_archivePage)
+        return m_archiveView ? m_archiveView->viewport() : nullptr;
+    if (page == m_slidesPage)
+        return m_slidesView ? m_slidesView->viewport() : nullptr;
+    if (page == m_officeTabs) {
+        auto *table = qobject_cast<QAbstractScrollArea *>(
+            m_officeTabs ? m_officeTabs->currentWidget() : nullptr);
+        return table ? table->viewport() : nullptr;
+    }
+    if (page == m_info)
+        return m_info;
+    return nullptr;
+}
+
 void QuickView::finishStaticReveal() {
     QPropertyAnimation *animation = m_staticRevealAnimation;
     m_staticRevealAnimation = nullptr;
@@ -326,15 +349,15 @@ void QuickView::finishStaticReveal() {
         animation->deleteLater();
     }
 
-    QWidget *page = m_staticRevealPage.data();
-    m_staticRevealPage.clear();
-    if (!page)
+    QWidget *target = m_staticRevealTarget.data();
+    m_staticRevealTarget.clear();
+    if (!target)
         return;
-    auto *effect = qobject_cast<QGraphicsOpacityEffect *>(page->graphicsEffect());
+    auto *effect = qobject_cast<QGraphicsOpacityEffect *>(target->graphicsEffect());
     if (!effect)
         return;
     effect->setOpacity(1.0);
-    page->setGraphicsEffect(nullptr);
+    target->setGraphicsEffect(nullptr);
 }
 
 void QuickView::revealStaticPage(QWidget *page) {
@@ -347,6 +370,9 @@ void QuickView::revealStaticPage(QWidget *page) {
     }
     if (!isStaticPageEligible(page))
         return;
+    QWidget *target = staticContentTarget(page);
+    if (!target)
+        return;
 
     const int duration = MotionPolicy::duration(MotionDuration::Fast);
     if (duration <= 0)
@@ -354,7 +380,7 @@ void QuickView::revealStaticPage(QWidget *page) {
 
     auto *effect = new QGraphicsOpacityEffect;
     effect->setOpacity(0.85);
-    page->setGraphicsEffect(effect);
+    target->setGraphicsEffect(effect);
 
     auto *animation = new QPropertyAnimation(effect, "opacity", this);
     animation->setDuration(duration);
@@ -362,7 +388,7 @@ void QuickView::revealStaticPage(QWidget *page) {
     animation->setEndValue(1.0);
     animation->setEasingCurve(MotionPolicy::easing());
     m_staticRevealAnimation = animation;
-    m_staticRevealPage = page;
+    m_staticRevealTarget = target;
     connect(animation, &QPropertyAnimation::finished, this, [this, animation]() {
         if (animation == m_staticRevealAnimation)
             finishStaticReveal();

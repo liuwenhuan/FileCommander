@@ -73,6 +73,9 @@ endif()
 
 add_executable(ui_tests ${UI_TEST_SOURCES})
 
+add_executable(quickview_office_fixture fixtures/office_fixture_cli.cpp)
+add_dependencies(ui_tests quickview_office_fixture)
+
 # test_MpvStreamSource drives a real libmpv core (headless: vo=null/ao=null) to
 # measure what a streamed preview actually reads. src/ui keeps mpv PRIVATE, so
 # this target resolves <mpv/client.h> for itself.
@@ -82,7 +85,10 @@ endif()
 
 # resources.qrc is compiled into the app target, not this one, so a test that
 # needs a real theme stylesheet reads it from the source tree instead.
-target_compile_definitions(ui_tests PRIVATE TTC_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+target_compile_definitions(ui_tests PRIVATE
+    TTC_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+    TTC_OFFICE_FIXTURE_CLI="$<TARGET_FILE:quickview_office_fixture>"
+)
 
 # test_main.cpp supplies main() (with a QApplication), so gtest_main is not linked.
 target_link_libraries(ui_tests PRIVATE

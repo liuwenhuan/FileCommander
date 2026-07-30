@@ -164,6 +164,7 @@ protected:
 
 private:
     bool isStaticPageEligible(QWidget *page) const;
+    QWidget *staticContentTarget(QWidget *page) const;
     void finishStaticReveal();
     void releaseHiddenDocumentPages(QWidget *page);
     void cancelPendingPreviewWork();
@@ -305,7 +306,7 @@ private:
 
     QStackedWidget *m_stack;
     QPropertyAnimation *m_staticRevealAnimation = nullptr;
-    QPointer<QWidget> m_staticRevealPage;
+    QPointer<QWidget> m_staticRevealTarget;
 
     // Download page (remote preview): a centred message, a progress bar and a
     // Stop button. Shown while a network file is being fetched to a temp file.

@@ -64,3 +64,58 @@ The new tests were written before the implementation.
 - The task has no deterministic external Office converter fixture. Office
   readiness uses the same existing generation guard, and its accepted result
   paths now reveal only after conversion completes.
+
+## Fix Round 1/5
+
+### Status
+
+Addressed every finding in `task-5-review.md`. Static reveal effects now attach
+to content-only child surfaces instead of whole QuickView pages. Page chrome,
+toolbars, tabs, table widgets, headers, scrollbars, encrypted controls,
+audio/video surfaces, native/OpenGL surfaces, and progress controls remain
+effect-free, enabled, and immediately interactive.
+
+### Implementation
+
+- Added a page-to-content resolver for image, text, Markdown, PDF, archive,
+  slides, Office grids, and info outcomes.
+- Track the animated content target with `QPointer<QWidget>`. Replacement,
+  reduced motion, theme refresh, and teardown restore and detach only the
+  active target effect.
+- Kept accepted-result routing, preview generations, cancellation, lazy page
+  construction, `ImagePreviewLoader`, the single media engine, and first-use
+  media initialization unchanged.
+- Added a deterministic Office fixture executable that implements the existing
+  converter commands. Tests still cross the real debounce, worker, subprocess,
+  parser, generation, and accepted-result boundaries.
+
+### TDD Evidence
+
+The corrected boundary test was written first and failed because every
+approved whole page had an opacity effect while each expected content viewport
+had none. After moving the target, the boundary test and existing generation
+tests passed. Route and pending-work tests were then added for Markdown,
+archive, Office document/grid, slides, info, image render, and PDF paths.
+
+### Verification
+
+- Debug focused filter
+  `QuickViewMotion.*:QuickViewLazyPages.*:ImagePreviewLoader.*`: 41/41 passed.
+- Dependency-enabled Release focused filter
+  `QuickViewMotion.*:QuickViewLazyPages.*:ImagePreviewLoader.*:MediaEngineContract.*:MpvMediaEngine.*`:
+  52 passed, 11 skipped, 0 failed. All 16 QuickView motion tests, including the
+  two Poppler PDF tests, passed.
+- Both Debug and Release `ui_tests` targets built successfully.
+- `git diff --check`: passed; only repository line-ending conversion warnings
+  were reported.
+
+### Concerns
+
+- The 11 Release mpv integration tests were skipped because ffmpeg could not
+  generate their local media fixtures in this environment. The six media
+  contract tests and all lazy-page/media initialization tests passed.
+- The Office fixture validates File Commander routing, process handling,
+  parsing, generation checks, theme refresh, and teardown. It does not validate
+  the external converter's fidelity on real Office documents.
+- The previously observed unrelated full-suite environment/order-sensitive
+  failures were not changed by this focused correction.
