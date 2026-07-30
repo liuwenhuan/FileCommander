@@ -14,6 +14,7 @@
 #include <QFontMetrics>
 #include <QFutureWatcher>
 #include <QBuffer>
+#include <QGraphicsOpacityEffect>
 #include <QGraphicsPixmapItem>
 #include <QGraphicsScene>
 #include <QGraphicsTextItem>
@@ -29,6 +30,7 @@
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QProgressBar>
+#include <QPropertyAnimation>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -54,6 +56,7 @@
 #include <QTransform>
 #include <QVBoxLayout>
 #include <QWheelEvent>
+#include <QOpenGLWidget>
 #include <QtConcurrent>
 
 #include <exception>
@@ -79,6 +82,7 @@
 #include "theme/Phosphor.h"
 #include "theme/PhosphorEffect.h"
 #include "OfficeConverter.h"
+#include "MotionPolicy.h"
 #include "SeekSlider.h"
 #include "SlideSceneBuilder.h"
 #include "TextEncodingDetector.h"
@@ -202,10 +206,12 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent,
                 if (!error.isEmpty() || image.isNull()) {
                     m_originalImage = {};
                     m_imageLabel->clear();
+                    clearImageTransitionSnapshot();
                     m_infoOverlay->hide();
                     m_info->setText(tr("No preview available for %1")
                                         .arg(QFileInfo(m_pendingImagePath).fileName()));
-                    m_stack->setCurrentWidget(m_info);
+                    m_imageRevealPending = false;
+                    revealStaticPage(m_info);
                     return;
                 }
 
@@ -214,7 +220,6 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent,
                 m_imageTransform.reset();
                 m_imagePath = m_pendingImagePath;
                 loadImageSiblings();
-                m_stack->setCurrentWidget(m_imagePage);
                 updateImageInfoOverlay();
                 if (m_infoCheck->isChecked()) {
                     m_infoOverlay->show();
@@ -233,7 +238,7 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent,
     connect(m_imageLoader, &ImagePreviewLoader::rendered, this,
             [this](quint64 generation, QImage image) {
                 if (generation != m_pendingImageRenderGeneration || image.isNull() ||
-                    m_stack->currentWidget() != m_imagePage)
+                    (!m_imageRevealPending && m_stack->currentWidget() != m_imagePage))
                     return;
                 m_pendingImageRenderGeneration = 0;
 
@@ -246,10 +251,20 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent,
                 }
                 m_imageLabel->setPixmap(QPixmap::fromImage(image));
                 m_imageLabel->resize(image.size());
+                clearImageTransitionSnapshot();
                 updateImageCursor(image.size());
+                if (m_imageRevealPending) {
+                    m_imageRevealPending = false;
+                    revealStaticPage(m_imagePage);
+                }
             });
     connect(m_imageLoader, &ImagePreviewLoader::rotationPersisted, this,
             [this](const QString &path, bool saved) {
+                const int pending = m_pendingImageRotations.value(path);
+                if (pending <= 1)
+                    m_pendingImageRotations.remove(path);
+                else
+                    m_pendingImageRotations.insert(path, pending - 1);
                 if (!saved && path == m_imagePath && !m_originalImage.isNull()) {
                     m_infoOverlay->setText(
                         tr("Rotated on screen only - could not save to disk."));
@@ -261,16 +276,120 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent,
         if (m_stack->widget(index) != m_imagePage)
             invalidateImageRequests();
     });
+    MotionPolicy::observeReduced(this, [this](bool reduced) {
+        if (reduced)
+            finishStaticReveal();
+    });
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(m_stack);
 }
 
-// Defined here (not defaulted in the header) so the unique_ptr<Poppler::Document>
-// member is destroyed where the complete Poppler type is visible.
+// Defined here (not defaulted in the header) so the Poppler document holder is
+// destroyed where the complete Poppler type is visible.
 QuickView::~QuickView() {
+    finishStaticReveal();
     invalidateImageRequests();
+}
+
+bool QuickView::isStaticPageEligible(QWidget *page) const {
+    if (!page)
+        return false;
+
+    const bool approved =
+        page == m_imagePage || page == m_textPage || page == m_markdown ||
+        page == m_pdfPage || page == m_officeTabs || page == m_archivePage ||
+        page == m_slidesPage || page == m_info;
+    if (!approved)
+        return false;
+
+    const auto isForbiddenSurface = [](QWidget *widget) {
+        return qobject_cast<QOpenGLWidget *>(widget) ||
+               widget->inherits("MpvVideoSurface") || widget->inherits("QVideoWidget");
+    };
+    if (isForbiddenSurface(page))
+        return false;
+    for (QWidget *child : page->findChildren<QWidget *>()) {
+        if (isForbiddenSurface(child))
+            return false;
+    }
+    return true;
+}
+
+void QuickView::finishStaticReveal() {
+    QPropertyAnimation *animation = m_staticRevealAnimation;
+    m_staticRevealAnimation = nullptr;
+    if (animation) {
+        animation->stop();
+        animation->setTargetObject(nullptr);
+        animation->deleteLater();
+    }
+
+    QWidget *page = m_staticRevealPage.data();
+    m_staticRevealPage.clear();
+    if (!page)
+        return;
+    auto *effect = qobject_cast<QGraphicsOpacityEffect *>(page->graphicsEffect());
+    if (!effect)
+        return;
+    effect->setOpacity(1.0);
+    page->setGraphicsEffect(nullptr);
+}
+
+void QuickView::revealStaticPage(QWidget *page) {
+    finishStaticReveal();
+    if (!page)
+        return;
+    if (m_stack->indexOf(page) >= 0) {
+        m_stack->setCurrentWidget(page);
+        releaseHiddenDocumentPages(page);
+    }
+    if (!isStaticPageEligible(page))
+        return;
+
+    const int duration = MotionPolicy::duration(MotionDuration::Fast);
+    if (duration <= 0)
+        return;
+
+    auto *effect = new QGraphicsOpacityEffect;
+    effect->setOpacity(0.85);
+    page->setGraphicsEffect(effect);
+
+    auto *animation = new QPropertyAnimation(effect, "opacity", this);
+    animation->setDuration(duration);
+    animation->setStartValue(0.85);
+    animation->setEndValue(1.0);
+    animation->setEasingCurve(MotionPolicy::easing());
+    m_staticRevealAnimation = animation;
+    m_staticRevealPage = page;
+    connect(animation, &QPropertyAnimation::finished, this, [this, animation]() {
+        if (animation == m_staticRevealAnimation)
+            finishStaticReveal();
+    });
+    animation->start();
+}
+
+void QuickView::releaseHiddenDocumentPages(QWidget *page) {
+    if (page != m_pdfPage)
+        closePdf();
+    if (page != m_slidesPage)
+        closeSlides();
+}
+
+void QuickView::cancelPendingPreviewWork() {
+    finishStaticReveal();
+    invalidateImageRequests();
+    ++m_markdownGen;
+    ++m_archiveGen;
+    if (m_archiveCancel)
+        m_archiveCancel->store(true);
+    ++m_officeGen;
+    ++m_pdfGen;
+    if (m_officeConvertTimer)
+        m_officeConvertTimer->stop();
+    m_pendingOfficePath.clear();
+    m_pendingOfficePassword.clear();
 }
 
 void QuickView::warmMediaEngine() {
@@ -314,7 +433,7 @@ void QuickView::warmMediaEngine() {
                 if (m_audioTimer)
                     m_audioTimer->stop();
                 m_info->setText(message);
-                m_stack->setCurrentWidget(m_info);
+                revealStaticPage(m_info);
             });
 
     try {
@@ -346,7 +465,7 @@ void QuickView::showMediaEngineFailure() {
            "Restart File Commander to retry. If the problem continues, "
            "verify that the mpv media backend is installed correctly.")
             .arg(m_mediaEngineFailureMessage));
-    m_stack->setCurrentWidget(m_info);
+    revealStaticPage(m_info);
 }
 
 QWidget *QuickView::ensurePdfPage() {
@@ -552,7 +671,8 @@ QSize QuickView::transformedImageSize() const {
 }
 
 void QuickView::requestImageRender() {
-    if (m_originalImage.isNull() || m_stack->currentWidget() != m_imagePage)
+    if (m_originalImage.isNull() ||
+        (!m_imageRevealPending && m_stack->currentWidget() != m_imagePage))
         return;
 
     const QSize transformed = transformedImageSize();
@@ -561,6 +681,26 @@ void QuickView::requestImageRender() {
     m_pendingImageRenderGeneration =
         m_imageLoader->render(m_originalImage, target, m_imageTransform);
     m_imageGeneration = qMax(m_imageGeneration, m_pendingImageRenderGeneration);
+}
+
+void QuickView::preserveImageTransitionSnapshot() {
+    clearImageTransitionSnapshot();
+    if (!m_imageScroll || !m_imageScroll->viewport())
+        return;
+
+    QWidget *viewport = m_imageScroll->viewport();
+    m_imageTransitionSnapshot = new QLabel(viewport);
+    m_imageTransitionSnapshot->setObjectName(QStringLiteral("imageTransitionSnapshot"));
+    m_imageTransitionSnapshot->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_imageTransitionSnapshot->setGeometry(viewport->rect());
+    m_imageTransitionSnapshot->setPixmap(viewport->grab());
+    m_imageTransitionSnapshot->show();
+    m_imageTransitionSnapshot->raise();
+}
+
+void QuickView::clearImageTransitionSnapshot() {
+    delete m_imageTransitionSnapshot;
+    m_imageTransitionSnapshot = nullptr;
 }
 
 void QuickView::invalidateImageRequests() {
@@ -573,6 +713,8 @@ void QuickView::invalidateImageRequests() {
     m_pendingImageLoadGeneration = 0;
     m_pendingImageRenderGeneration = 0;
     m_pendingImagePath.clear();
+    m_imageRevealPending = false;
+    clearImageTransitionSnapshot();
 }
 
 void QuickView::updateImageInfoOverlay() {
@@ -607,6 +749,7 @@ void QuickView::rotateCurrentImage(int degrees) {
     updateImageInfoOverlay();
 
     const QString path = m_imagePath;
+    m_pendingImageRotations.insert(path, m_pendingImageRotations.value(path) + 1);
     m_imageLoader->persistRotation(path, degrees);
 }
 
@@ -1370,6 +1513,7 @@ void QuickView::showAudio(const QString &path) {
     if (m_mediaEngine->state() == MediaState::Failed)
         return;
     m_stack->setCurrentWidget(m_audioPage);
+    releaseHiddenDocumentPages(m_audioPage);
     m_audioTimer->start();
 
     // If the ID3 reader found no artist/album (non-mp3 formats), pull them from
@@ -1459,7 +1603,7 @@ void QuickView::loadMarkdownAsync(const QString &path) {
                 // browser: the previous child document is deleted on the next swap.
                 doc->setParent(m_markdown);
                 m_markdown->setDocument(doc);
-                m_stack->setCurrentWidget(m_markdown);
+                revealStaticPage(m_markdown);
             });
     watcher->setFuture(QtConcurrent::run([path, font, width]() -> QTextDocument * {
         QFile f(path);
@@ -1615,12 +1759,13 @@ QWidget *QuickView::buildDownloadPage() {
 }
 
 void QuickView::showDownloading(const QString &name) {
-    invalidateImageRequests();
+    cancelPendingPreviewWork();
     m_downloadLabel->setText(tr("正在下载到本地以便预览…\n%1").arg(name));
     m_downloadProgress->setRange(0, 0); // reset to indeterminate
     m_downloadProgress->setVisible(true);
     m_downloadStopButton->setVisible(true);
     m_stack->setCurrentWidget(m_downloadPage);
+    releaseHiddenDocumentPages(m_downloadPage);
 }
 
 void QuickView::setDownloadProgress(qint64 done, qint64 total) {
@@ -1636,11 +1781,12 @@ void QuickView::setDownloadProgress(qint64 done, qint64 total) {
 }
 
 void QuickView::showDownloadCancelled(const QString &name) {
-    invalidateImageRequests();
+    cancelPendingPreviewWork();
     m_downloadLabel->setText(tr("已取消预览：本文件的预览下载被用户停止。\n%1").arg(name));
     m_downloadProgress->setVisible(false);
     m_downloadStopButton->setVisible(false);
     m_stack->setCurrentWidget(m_downloadPage);
+    releaseHiddenDocumentPages(m_downloadPage);
 }
 
 void QuickView::tryUnlock() {
@@ -1697,9 +1843,6 @@ void QuickView::startOfficeRender(const QString &path, const QString &password) 
     const int gen = ++m_officeGen;
     m_officeShownPath.clear(); // not yet showing this file's content
 
-    m_info->setText(tr("Loading preview…"));
-    m_stack->setCurrentWidget(m_info);
-
     const int firstN = OfficeConverter::isPresentationFile(path) ? kFirstStageSlides : 0;
 
     auto *w1 = new QFutureWatcher<OfficeConverter::Result>(this);
@@ -1743,7 +1886,7 @@ void QuickView::handleOfficeResult(const OfficeConverter::Result &r, const QStri
         // pptx rendered as slide images: stack them in the continuous slides page.
         ensureSlidesPage();
         loadSlides(r.slideSvgs);
-        m_stack->setCurrentWidget(m_slidesPage);
+        revealStaticPage(m_slidesPage);
         m_officeShownPath = path; // de-dupe a spurious re-selection of this file
         return;
     }
@@ -1753,14 +1896,14 @@ void QuickView::handleOfficeResult(const OfficeConverter::Result &r, const QStri
         // stale until it's shown as the current page below.
         const int avail = qMax(200, m_stack->width() - 32);
         m_markdown->setHtml(fitImagesToWidth(r.html, avail));
-        m_stack->setCurrentWidget(m_markdown);
+        revealStaticPage(m_markdown);
         m_officeShownPath = path;
         return;
     }
     if (r.ok && r.kind == OfficeConverter::Kind::Spreadsheet) {
         ensureOfficePage();
         populateSheets(r.sheets);
-        m_stack->setCurrentWidget(m_officeTabs);
+        revealStaticPage(m_officeTabs);
         m_officeShownPath = path;
         return;
     }
@@ -1780,6 +1923,7 @@ void QuickView::handleOfficeResult(const OfficeConverter::Result &r, const QStri
         m_unlockButton->show();
         m_focusBeforeEncrypted = QApplication::focusWidget();
         m_stack->setCurrentWidget(m_encryptedPage);
+        releaseHiddenDocumentPages(m_encryptedPage);
         return;
     case OfficeConverter::Encryption::WrongPassword:
         // Stay on the page and report in place; let the user retype.
@@ -1789,6 +1933,7 @@ void QuickView::handleOfficeResult(const OfficeConverter::Result &r, const QStri
         m_passwordEdit->selectAll();
         m_passwordEdit->setFocus();
         m_stack->setCurrentWidget(m_encryptedPage);
+        releaseHiddenDocumentPages(m_encryptedPage);
         return;
     case OfficeConverter::Encryption::Unsupported:
         // No password can help (legacy .xls/.ppt): note it, hide the field.
@@ -1799,13 +1944,14 @@ void QuickView::handleOfficeResult(const OfficeConverter::Result &r, const QStri
         m_passwordEdit->hide();
         m_unlockButton->hide();
         m_stack->setCurrentWidget(m_encryptedPage);
+        releaseHiddenDocumentPages(m_encryptedPage);
         return;
     case OfficeConverter::Encryption::None:
         break;
     }
 
     m_info->setText(tr("Cannot preview %1:\n%2").arg(info.fileName(), r.error));
-    m_stack->setCurrentWidget(m_info);
+    revealStaticPage(m_info);
 }
 
 QWidget *QuickView::buildArchivePage() {
@@ -1851,8 +1997,6 @@ QWidget *QuickView::buildArchivePage() {
 void QuickView::previewArchive(const QString &path) {
     stopVideo();
     stopAudio();
-    closePdf();
-    closeSlides();
     m_infoOverlay->hide();
     // Fresh chain rooted at this archive; drop any previously extracted nesteds.
     m_archivePaths = QStringList{path};
@@ -1876,7 +2020,7 @@ void QuickView::tryLoadCurrentArchive() {
         m_archiveModel->setTree(cached->root, path, pw);
         updateArchivePathLabel();
         setArchivePackageInfo(cached->packageInfo);
-        m_stack->setCurrentWidget(m_archivePage);
+        revealStaticPage(m_archivePage);
         autoDescendArchive();
         return;
     }
@@ -1889,9 +2033,6 @@ void QuickView::tryLoadCurrentArchive() {
         m_archiveCancel->store(true);
     m_archiveCancel = std::make_shared<std::atomic<bool>>(false);
     auto cancel = m_archiveCancel;
-
-    m_info->setText(tr("Loading %1…").arg(fi.fileName()));
-    m_stack->setCurrentWidget(m_info);
 
     auto *watcher = new QFutureWatcher<ArchiveLoadResult>(this);
     connect(watcher, &QFutureWatcher<ArchiveLoadResult>::finished, this,
@@ -1929,7 +2070,7 @@ void QuickView::handleArchiveLoad(const ArchiveLoadResult &r, const QString &pat
         m_archiveModel->setTree(r.root, path, pw);
         updateArchivePathLabel();
         setArchivePackageInfo(r.packageInfo);
-        m_stack->setCurrentWidget(m_archivePage);
+        revealStaticPage(m_archivePage);
         autoDescendArchive();
         return;
     }
@@ -1952,6 +2093,7 @@ void QuickView::handleArchiveLoad(const ArchiveLoadResult &r, const QString &pat
         m_unlockButton->show();
         m_focusBeforeEncrypted = QApplication::focusWidget();
         m_stack->setCurrentWidget(m_encryptedPage);
+        releaseHiddenDocumentPages(m_encryptedPage);
         break;
     }
     case ArchiveHandler::Status::WrongPassword:
@@ -1961,15 +2103,16 @@ void QuickView::handleArchiveLoad(const ArchiveLoadResult &r, const QString &pat
         m_passwordEdit->selectAll();
         m_passwordEdit->setFocus();
         m_stack->setCurrentWidget(m_encryptedPage);
+        releaseHiddenDocumentPages(m_encryptedPage);
         break;
     case ArchiveHandler::Status::EncryptedUnsupported:
         m_info->setText(
             tr("“%1” uses an encryption that can't be previewed.").arg(name));
-        m_stack->setCurrentWidget(m_info);
+        revealStaticPage(m_info);
         break;
     default:
         m_info->setText(tr("Cannot open archive: %1").arg(name));
-        m_stack->setCurrentWidget(m_info);
+        revealStaticPage(m_info);
         break;
     }
 }
@@ -1979,7 +2122,7 @@ void QuickView::descendIntoNestedArchive(const QString &entryFullPath, const QSt
         m_nestedDir = std::make_unique<QTemporaryDir>();
     if (!m_nestedDir->isValid()) {
         m_info->setText(tr("Could not create a temporary directory."));
-        m_stack->setCurrentWidget(m_info);
+        revealStaticPage(m_info);
         return;
     }
     // Extract just this entry into a per-level subdir so names never collide.
@@ -1990,13 +2133,13 @@ void QuickView::descendIntoNestedArchive(const QString &entryFullPath, const QSt
     if (!ArchiveHandler::extract(m_archivePaths.last(), {entryFullPath}, sub,
                                  m_archivePasswords.last(), &err)) {
         m_info->setText(tr("Could not extract %1: %2").arg(entryName, err));
-        m_stack->setCurrentWidget(m_info);
+        revealStaticPage(m_info);
         return;
     }
     const QString nested = QDir(sub).filePath(entryFullPath);
     if (!QFileInfo::exists(nested)) {
         m_info->setText(tr("Could not read the nested archive %1.").arg(entryName));
-        m_stack->setCurrentWidget(m_info);
+        revealStaticPage(m_info);
         return;
     }
     m_archivePaths.append(nested);
@@ -2937,7 +3080,10 @@ bool QuickView::canStreamPreview(const QString &path) {
 }
 
 void QuickView::showFile(const QString &path) {
-    invalidateImageRequests();
+    const bool reloadWaitsForRotation =
+        path == m_imagePath && m_stack->currentWidget() == m_imagePage &&
+        m_pendingImageRotations.value(path) > 0 && m_imageLabel->pixmap();
+    cancelPendingPreviewWork();
     m_originalImage = {};
     m_imageTransform.reset();
     m_imagePath.clear();
@@ -2957,17 +3103,12 @@ void QuickView::showFile(const QString &path) {
     const bool preserveTextEncoding =
         path == m_textPath && m_stack->currentWidget() == m_textPage;
     m_textPath.clear();
-    // Any new selection invalidates a still-running office conversion so its result
-    // can't paint over the newly selected file (renderOffice bumps this again).
-    ++m_officeGen;
     if (path.isEmpty() || (!streamed && (!info.exists() || info.isDir()))) {
         stopVideo();
         stopAudio();
-        closePdf(); // don't keep a document loaded behind the "no preview" note
-        closeSlides();
         m_infoOverlay->hide();
         m_info->setText(tr("Select a file to preview"));
-        m_stack->setCurrentWidget(m_info);
+        revealStaticPage(m_info);
         return;
     }
 
@@ -3029,6 +3170,7 @@ void QuickView::showFile(const QString &path) {
         if (m_mediaEngine->state() == MediaState::Failed)
             return;
         m_stack->setCurrentWidget(m_videoPage);
+        releaseHiddenDocumentPages(m_videoPage);
         if (m_videoInfoCheck->isChecked()) {
             updateVideoInfoOverlay();
             m_videoInfoOverlay->show();
@@ -3058,33 +3200,41 @@ void QuickView::showFile(const QString &path) {
     if (isPdf(path)) {
 #if FILECOMMANDER_HAS_PREVIEW_PDF
         m_infoOverlay->hide(); // image overlay belongs to another page
-        closePdf();            // drop any prior document before loading the new one
-        closeSlides();         // and any prior slide deck
+        const int gen = ++m_pdfGen;
+        auto *watcher = new QFutureWatcher<std::shared_ptr<Poppler::Document>>(this);
+        connect(watcher,
+                &QFutureWatcher<std::shared_ptr<Poppler::Document>>::finished, this,
+                [this, watcher, gen, path]() {
+                    std::shared_ptr<Poppler::Document> doc = watcher->result();
+                    watcher->deleteLater();
+                    if (gen != m_pdfGen)
+                        return;
+                    if (!doc || doc->isLocked()) {
+                        m_info->setText(
+                            tr("Cannot open PDF: %1").arg(QFileInfo(path).fileName()));
+                        revealStaticPage(m_info);
+                        return;
+                    }
 
-        // Poppler::Document::load returns an owning pointer (nullptr on failure).
-        std::unique_ptr<Poppler::Document> doc(Poppler::Document::load(path));
-        if (!doc || doc->isLocked()) {
-            // Encrypted or unreadable PDFs fall back to the info page rather than
-            // showing a blank pane.
-            m_info->setText(tr("Cannot open PDF: %1").arg(info.fileName()));
-            m_stack->setCurrentWidget(m_info);
-            return;
-        }
-        // Smooth glyph/vector edges; cheap and greatly improves legibility.
-        doc->setRenderHint(Poppler::Document::Antialiasing, true);
-        doc->setRenderHint(Poppler::Document::TextAntialiasing, true);
-
-        m_pdfDoc = std::move(doc);
-        m_pdfZoom = 1.0;
-        ensurePdfPage();
-        // Switch first so the scroll viewport has its real width before we fit
-        // pages to it; loadPdfPages still guards a minimum for the un-laid-out case.
-        m_stack->setCurrentWidget(m_pdfPage);
-        loadPdfPages();
+                    doc->setRenderHint(Poppler::Document::Antialiasing, true);
+                    doc->setRenderHint(Poppler::Document::TextAntialiasing, true);
+                    closePdf();
+                    m_pdfDoc = std::move(doc);
+                    m_pdfZoom = 1.0;
+                    ensurePdfPage();
+                    // Give the lazy page its real stack geometry before fitting. The
+                    // event loop cannot paint this intermediate state.
+                    m_stack->setCurrentWidget(m_pdfPage);
+                    loadPdfPages();
+                    revealStaticPage(m_pdfPage);
+                });
+        watcher->setFuture(QtConcurrent::run([path]() {
+            return std::shared_ptr<Poppler::Document>(Poppler::Document::load(path));
+        }));
         return;
 #else
         m_info->setText(tr("PDF preview is not enabled in this build: %1").arg(info.fileName()));
-        m_stack->setCurrentWidget(m_info);
+        revealStaticPage(m_info);
         return;
 #endif
     }
@@ -3099,12 +3249,6 @@ void QuickView::showFile(const QString &path) {
          m_stack->currentWidget() == m_officeTabs)) {
         return;
     }
-
-    // Reaching here means the target is not a PDF: release any loaded document so
-    // we don't hold a large PDF in memory behind an image/text/markdown preview.
-    // Also drop any slide deck; renderOffice() reloads it for a fresh pptx.
-    closePdf();
-    closeSlides();
 
     // Office documents (integrated, always-on): docx/doc/pptx/ppt render as
     // Markdown, xlsx/xls as a grid, via the external office_oxide CLI. Silently
@@ -3131,10 +3275,12 @@ void QuickView::showFile(const QString &path) {
     }
 
     if (ImageViewer::isImage(path)) {
-        m_imageLabel->clear();
         m_infoOverlay->hide();
-        m_info->setText(tr("Loading preview..."));
-        m_stack->setCurrentWidget(m_info);
+        if (reloadWaitsForRotation) {
+            preserveImageTransitionSnapshot();
+            m_imageLabel->clear();
+        }
+        m_imageRevealPending = true;
         m_pendingImagePath = path;
         m_pendingImageLoadGeneration = m_imageLoader->load(path);
         m_imageGeneration = qMax(m_imageGeneration, m_pendingImageLoadGeneration);
@@ -3163,10 +3309,10 @@ void QuickView::showFile(const QString &path) {
         }
         m_textPath = path;
         renderText();
-        m_stack->setCurrentWidget(m_textPage);
+        revealStaticPage(m_textPage);
         return;
     }
 
     m_info->setText(tr("No preview available for %1").arg(info.fileName()));
-    m_stack->setCurrentWidget(m_info);
+    revealStaticPage(m_info);
 }

@@ -33,6 +33,7 @@ class QLineEdit;
 class QModelIndex;
 class QPlainTextEdit;
 class QProgressBar;
+class QPropertyAnimation;
 class QPushButton;
 class QScrollArea;
 class QSlider;
@@ -85,6 +86,10 @@ public:
     QWidget *ensureOfficePage();
     QWidget *ensureArchivePage();
     QWidget *ensureSlidesPage();
+
+    // Shows approved static content with the shared fast opacity reveal. Media,
+    // progress, encrypted-control, and native/OpenGL surfaces are shown directly.
+    void revealStaticPage(QWidget *page);
 
     // Network-preview download states. A remote file must be fetched to a local
     // temp file before it can be previewed; while that runs, the preview pane
@@ -158,6 +163,10 @@ protected:
     static bool isAudio(const QString &path);
 
 private:
+    bool isStaticPageEligible(QWidget *page) const;
+    void finishStaticReveal();
+    void releaseHiddenDocumentPages(QWidget *page);
+    void cancelPendingPreviewWork();
     QWidget *buildImagePage();
     QWidget *buildTextPage();     // toolbar (encoding/hex/wrap/find) + the editor
     void renderText();            // (re)render m_textRaw per the encoding/hex toggle
@@ -267,6 +276,8 @@ private:
     int currentSlide() const;     // slide index under the current scroll position
     void applyImageScale();
     void requestImageRender();
+    void preserveImageTransitionSnapshot();
+    void clearImageTransitionSnapshot();
     void zoomImageBy(double factor, bool debounce = false);
     void invalidateImageRequests();
     QSize transformedImageSize() const;
@@ -293,6 +304,8 @@ private:
     void stopVideo();                // unload + hide the video page
 
     QStackedWidget *m_stack;
+    QPropertyAnimation *m_staticRevealAnimation = nullptr;
+    QPointer<QWidget> m_staticRevealPage;
 
     // Download page (remote preview): a centred message, a progress bar and a
     // Stop button. Shown while a network file is being fetched to a temp file.
@@ -304,6 +317,7 @@ private:
     QWidget *m_imagePage;
     QScrollArea *m_imageScroll;
     QLabel *m_imageLabel;
+    QLabel *m_imageTransitionSnapshot = nullptr;
     QCheckBox *m_lockZoomCheck; // when checked, keep the ratio for later images
     QCheckBox *m_infoCheck;     // when checked, overlay image metadata
     QLabel *m_infoOverlay;      // floating metadata panel over the image
@@ -426,8 +440,9 @@ private:
     QVector<int> m_pdfRenderedWidth;             // px width each page bitmap was rendered at (-1 == none)
     QVector<bool> m_pdfTextBuilt;                // whether a page's transparent text layer is present
     QTimer *m_pdfRelayoutTimer = nullptr;        // debounce viewport resizes before re-fitting
+    int m_pdfGen = 0;                            // supersedes stale asynchronous document loads
 #if FILECOMMANDER_HAS_PREVIEW_PDF
-    std::unique_ptr<Poppler::Document> m_pdfDoc; // currently loaded document
+    std::shared_ptr<Poppler::Document> m_pdfDoc; // currently loaded document
 #else
     bool m_pdfDoc = false; // keeps shared PDF UI guards valid in dependency-light builds
 #endif
@@ -517,7 +532,9 @@ private:
     quint64 m_imageGeneration = 0;
     quint64 m_pendingImageLoadGeneration = 0;
     quint64 m_pendingImageRenderGeneration = 0;
+    bool m_imageRevealPending = false;
     QString m_pendingImagePath;
+    QHash<QString, int> m_pendingImageRotations;
     double m_imageScale = 1.0;
     bool m_imageFitMode = true; // re-fit on resize until the user zooms
 
