@@ -103,6 +103,11 @@ signals:
     // still-pending post-paint warm-up.
     void mediaEngineWarmed(qint64 elapsedMs);
 
+    // Emitted once when backend initialization fails. The failure remains
+    // stable for this QuickView; restarting the application creates a new
+    // backend and is the explicit retry boundary.
+    void mediaEngineWarmFailed(const QString &message);
+
     // The Stop button on the download page was clicked: the host should cancel
     // the in-flight remote download for the current preview.
     void downloadCancelRequested();
@@ -161,6 +166,7 @@ private:
     QWidget *ensureVideoPage();
     QWidget *buildAudioPage();
     QWidget *ensureAudioPage();
+    void showMediaEngineFailure();
     void showAudio(const QString &path);  // load + populate the audio page
     void loadAudioSiblings();             // list sibling audio files in the dir
     void stopAudio();                     // halt playback + timer
@@ -497,6 +503,8 @@ private:
     MediaEngine *m_mediaEngine = nullptr; // one configured backend shared by audio and video
     std::unique_ptr<MediaEngine> m_pendingMediaEngine;
     bool m_mediaEngineReady = false;
+    bool m_mediaEngineFailed = false;
+    QString m_mediaEngineFailureMessage;
     Settings &m_settings; // persisted video speed / volume / mute
     Context m_context;    // Embedded (Ctrl+Q pane) vs Window (F3 viewer)
     QString m_contentFontFamily;

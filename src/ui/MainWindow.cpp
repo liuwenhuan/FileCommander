@@ -161,6 +161,10 @@
 #include <memory>
 
 namespace {
+
+// Repeated Windows measurements recorded 19-25 ms outliers. Task 3 requires
+// pure first-use initialization when any supported-machine warm exceeds 16 ms.
+constexpr bool kAutomaticMediaWarmEnabled = false;
 std::shared_ptr<FileProvider> localProviderPtr() {
     return std::shared_ptr<FileProvider>(LocalFileProvider::instance(), [](FileProvider *) {});
 }
@@ -345,6 +349,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
                 if (m_mediaWarmTimer->isActive())
                     m_mediaWarmTimer->stop();
                 qInfo() << "Media engine warm-up completed in" << elapsedMs << "ms";
+            });
+    connect(m_quickView, &QuickView::mediaEngineWarmFailed, this,
+            [this](const QString &message) {
+                m_mediaWarmComplete = true;
+                if (m_mediaWarmTimer->isActive())
+                    m_mediaWarmTimer->stop();
+                qWarning() << "Media engine warm-up failed:" << message;
             });
     // App-wide filter so Tab out of the preview pane returns to the file list
     // (the list->preview half is driven by FilePanel::switchPanelRequested).
@@ -1348,6 +1359,8 @@ void MainWindow::paintEvent(QPaintEvent *) {
 }
 
 void MainWindow::scheduleMediaWarmupAfterFirstPaint() {
+    if (!kAutomaticMediaWarmEnabled)
+        return;
     if (!isVisible() || m_mediaWarmScheduled || m_mediaWarmComplete || !m_mediaWarmTimer)
         return;
     m_mediaWarmScheduled = true;

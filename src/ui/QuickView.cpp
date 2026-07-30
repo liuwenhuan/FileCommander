@@ -56,6 +56,7 @@
 #include <QWheelEvent>
 #include <QtConcurrent>
 
+#include <exception>
 #include <limits>
 #include <utility>
 
@@ -275,6 +276,10 @@ QuickView::~QuickView() {
 void QuickView::warmMediaEngine() {
     if (m_mediaEngineReady)
         return;
+    if (m_mediaEngineFailed) {
+        showMediaEngineFailure();
+        return;
+    }
 
     QElapsedTimer elapsed;
     elapsed.start();
@@ -312,9 +317,36 @@ void QuickView::warmMediaEngine() {
                 m_stack->setCurrentWidget(m_info);
             });
 
-    m_mediaEngine->initialize();
+    try {
+        m_mediaEngine->initialize();
+    } catch (const std::exception &error) {
+        m_mediaEngineFailed = true;
+        m_mediaEngineFailureMessage = QString::fromUtf8(error.what());
+        showMediaEngineFailure();
+        emit mediaEngineWarmFailed(m_mediaEngineFailureMessage);
+        return;
+    } catch (...) {
+        m_mediaEngineFailed = true;
+        m_mediaEngineFailureMessage = tr("Unknown media backend initialization error.");
+        showMediaEngineFailure();
+        emit mediaEngineWarmFailed(m_mediaEngineFailureMessage);
+        return;
+    }
     m_mediaEngineReady = true;
     emit mediaEngineWarmed(elapsed.elapsed());
+}
+
+void QuickView::showMediaEngineFailure() {
+    if (m_videoTimer)
+        m_videoTimer->stop();
+    if (m_audioTimer)
+        m_audioTimer->stop();
+    m_info->setText(
+        tr("Media preview could not start.\n\n%1\n\n"
+           "Restart File Commander to retry. If the problem continues, "
+           "verify that the mpv media backend is installed correctly.")
+            .arg(m_mediaEngineFailureMessage));
+    m_stack->setCurrentWidget(m_info);
 }
 
 QWidget *QuickView::ensurePdfPage() {
@@ -2950,6 +2982,8 @@ void QuickView::showFile(const QString &path) {
 
     if (isVideo(path)) {
         warmMediaEngine();
+        if (!m_mediaEngineReady)
+            return;
         ensureVideoPage();
         m_infoOverlay->hide(); // image overlay belongs to another page
         stopAudio();           // don't leave an audio track playing behind the video
@@ -3011,6 +3045,8 @@ void QuickView::showFile(const QString &path) {
 
     if (isAudio(path)) {
         warmMediaEngine();
+        if (!m_mediaEngineReady)
+            return;
         ensureAudioPage();
         showAudio(path);
         return;

@@ -2,6 +2,7 @@
 
 #include <QApplication>
 #include <QElapsedTimer>
+#include <QEvent>
 #include <QSignalSpy>
 #include <QShortcut>
 #include <QSplitter>
@@ -24,6 +25,23 @@
 #include "media/MediaEngine.h"
 
 namespace {
+
+class PaintObserver final : public QObject {
+public:
+    explicit PaintObserver(QElapsedTimer &elapsed) : elapsed(elapsed) {}
+
+    qint64 firstPaintMs = -1;
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (event->type() == QEvent::Paint && firstPaintMs < 0)
+            firstPaintMs = elapsed.elapsed();
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    QElapsedTimer &elapsed;
+};
 
 QSplitter *panelSplitter(MainWindow &window) {
     for (QSplitter *splitter : window.findChildren<QSplitter *>()) {
@@ -90,7 +108,7 @@ void settle(FilePanel &panel) {
 
 } // namespace
 
-TEST(MainWindowPreviewSwapTest, MediaWarmupStartsOnlyAfterFirstVisiblePaint) {
+TEST(MainWindowPreviewSwapTest, AutomaticMediaWarmupStaysDisabledAfterFirstVisiblePaint) {
     QElapsedTimer startup;
     startup.start();
     MainWindow window;
@@ -112,29 +130,33 @@ TEST(MainWindowPreviewSwapTest, MediaWarmupStartsOnlyAfterFirstVisiblePaint) {
     EXPECT_EQ(quickView->findChild<QWidget *>(QStringLiteral("quickViewAudioPage")), nullptr);
 
     QElapsedTimer firstPaint;
+    PaintObserver paintObserver(firstPaint);
+    window.installEventFilter(&paintObserver);
     firstPaint.start();
     window.resize(1000, 700);
     window.show();
-    processGuiEvents();
-    RecordProperty("show_to_first_paint_ms", std::to_string(firstPaint.elapsed()));
+    QTRY_VERIFY_WITH_TIMEOUT(paintObserver.firstPaintMs >= 0, 1000);
+    RecordProperty("show_to_first_paint_ms",
+                   std::to_string(paintObserver.firstPaintMs));
 
-    EXPECT_TRUE(warmTimer->isActive());
-    EXPECT_EQ(quickView->findChild<QWidget *>(QStringLiteral("quickViewVideoPage")), nullptr);
-    QTRY_COMPARE_WITH_TIMEOUT(warmed.count(), 1, 1500);
-    ASSERT_EQ(warmed.count(), 1);
-    const qint64 warmupMs = warmed.at(0).at(0).toLongLong();
-    RecordProperty("warmup_ms", std::to_string(warmupMs));
-    EXPECT_LE(warmupMs, 16);
     EXPECT_FALSE(warmTimer->isActive());
+    EXPECT_EQ(quickView->findChild<QWidget *>(QStringLiteral("quickViewVideoPage")), nullptr);
+    QTest::qWait(850);
+    EXPECT_EQ(warmed.count(), 0);
+    EXPECT_FALSE(warmTimer->isActive());
+#if FILECOMMANDER_HAS_PREVIEW_MEDIA
+    EXPECT_TRUE(quickView->findChildren<MediaEngine *>().isEmpty());
+#else
     EXPECT_EQ(quickView->findChildren<MediaEngine *>().size(), 1);
+#endif
     EXPECT_EQ(quickView->findChild<QWidget *>(QStringLiteral("quickViewVideoPage")), nullptr);
     EXPECT_EQ(quickView->findChild<QWidget *>(QStringLiteral("quickViewAudioPage")), nullptr);
     window.update();
     processGuiEvents();
-    EXPECT_EQ(warmed.count(), 1);
+    EXPECT_EQ(warmed.count(), 0);
 }
 
-TEST(MainWindowPreviewSwapTest, FirstMediaRequestWarmsImmediatelyAndCancelsScheduledWarmup) {
+TEST(MainWindowPreviewSwapTest, FirstMediaRequestWarmsImmediatelyWithAutomaticWarmupDisabled) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
     const QString audio = dir.filePath(QStringLiteral("requested-first.wav"));
@@ -151,7 +173,7 @@ TEST(MainWindowPreviewSwapTest, FirstMediaRequestWarmsImmediatelyAndCancelsSched
     auto *warmTimer = window.findChild<QTimer *>(QStringLiteral("mediaWarmTimer"));
     ASSERT_NE(quickView, nullptr);
     ASSERT_NE(warmTimer, nullptr);
-    ASSERT_TRUE(warmTimer->isActive());
+    ASSERT_FALSE(warmTimer->isActive());
 
     quickView->showFile(audio);
 
@@ -163,14 +185,14 @@ TEST(MainWindowPreviewSwapTest, FirstMediaRequestWarmsImmediatelyAndCancelsSched
     EXPECT_EQ(quickView->findChildren<MediaEngine *>().size(), 1);
 }
 
-TEST(MainWindowPreviewSwapTest, PendingWarmupIsCancelledByWindowTeardown) {
+TEST(MainWindowPreviewSwapTest, TeardownIsSafeWithAutomaticWarmupDisabled) {
     auto *window = new MainWindow;
     window->resize(1000, 700);
     window->show();
     processGuiEvents();
     auto *warmTimer = window->findChild<QTimer *>(QStringLiteral("mediaWarmTimer"));
     ASSERT_NE(warmTimer, nullptr);
-    ASSERT_TRUE(warmTimer->isActive());
+    ASSERT_FALSE(warmTimer->isActive());
 
     delete window;
     QTest::qWait(800);
