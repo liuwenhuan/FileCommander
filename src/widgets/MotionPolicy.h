@@ -2,6 +2,10 @@
 
 #include <QEasingCurve>
 
+#include <functional>
+
+class QObject;
+
 enum class MotionDuration { Fast, Normal, Slow };
 
 enum class InputCadence { Normal, Rapid };
@@ -14,6 +18,10 @@ public:
     static QEasingCurve easing();
     static bool reduced();
     static bool allowFor(InputCadence cadence);
+
+    // Context-bound observers are notified synchronously whenever the effective
+    // reduced-motion state changes. The connection is removed with `context`.
+    static void observeReduced(QObject *context, std::function<void(bool)> observer);
 
     // The application wires the persisted user preference into this policy.
     static void setApplicationReduced(bool reduced);

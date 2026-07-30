@@ -25,6 +25,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPen>
+#include <QPersistentModelIndex>
 #include <QPixmap>
 #include <QPropertyAnimation>
 #include <QSet>
@@ -64,54 +65,162 @@
 namespace {
 
 constexpr int kTreeAnimationVisibleRowLimit = 500;
-constexpr int kTreeKeyboardRapidIntervalMs = 100;
-constexpr int kTreeAnimationRestoreIntervalMs = 250;
-constexpr auto kTreeAnimationRestoreTimerName = "DirectoryTreeMotionRestoreTimer";
-constexpr auto kTreeKeyboardCadenceTimerName = "DirectoryTreeKeyboardCadenceTimer";
+constexpr int kTreeInputCadenceIntervalMs = 100;
+constexpr auto kTreeFeedbackAnimationName = "DirectoryTreeDisclosureFeedbackAnimation";
 
-bool treeHasFewerThanAnimationRowLimit(const QTreeView *tree) {
-    const QAbstractItemModel *model = tree->model();
-    if (!model)
-        return false;
+class DirectoryTreeView final : public QTreeView {
+public:
+    explicit DirectoryTreeView(QWidget *parent = nullptr) : QTreeView(parent) {
+        // The tree's built-in animation moves row geometry. Disclosure feedback
+        // is painted locally below, leaving every real expand/collapse immediate.
 
-    QModelIndex index = model->index(0, 0, tree->rootIndex());
-    int rows = 0;
-    for (; index.isValid() && rows < kTreeAnimationVisibleRowLimit;
-         ++rows, index = tree->indexBelow(index)) {
+        m_feedbackAnimation = new QVariantAnimation(this);
+        m_feedbackAnimation->setObjectName(QString::fromLatin1(kTreeFeedbackAnimationName));
+        m_feedbackAnimation->setStartValue(0.0);
+        m_feedbackAnimation->setEndValue(0.0);
+        connect(m_feedbackAnimation, &QVariantAnimation::valueChanged, this,
+                [this](const QVariant &value) {
+                    const QRect dirty = feedbackPaintRect();
+                    m_feedbackOpacity = value.toReal();
+                    m_lastFeedbackRect = feedbackPaintRect();
+                    viewport()->update(dirty.united(m_lastFeedbackRect));
+                });
+        connect(m_feedbackAnimation, &QVariantAnimation::finished, this,
+                [this] { finishFeedback(); });
+
+        m_inputCadenceTimer = new QTimer(this);
+        m_inputCadenceTimer->setSingleShot(true);
+        m_inputCadenceTimer->setInterval(kTreeInputCadenceIntervalMs);
+
+        MotionPolicy::observeReduced(this, [this](bool reduced) {
+            if (reduced)
+                finishFeedback();
+        });
     }
-    return rows < kTreeAnimationVisibleRowLimit;
-}
 
-bool treeAnimationAllowed(const QTreeView *tree, InputCadence cadence) {
-    return MotionPolicy::allowFor(cadence) && treeHasFewerThanAnimationRowLimit(tree);
-}
+protected:
+    void mousePressEvent(QMouseEvent *event) override {
+        const QPersistentModelIndex candidate(indexAt(event->pos()));
+        const bool disclosure = event->button() == Qt::LeftButton &&
+                                candidate.isValid() &&
+                                model()->hasChildren(candidate) &&
+                                disclosureRect(candidate).contains(event->pos());
+        const bool wasExpanded = disclosure && isExpanded(candidate);
+        const bool withinRowBound = disclosure && hasFewerThanFeedbackRowLimit();
 
-void prepareTreeExpansionAnimation(QTreeView *tree, InputCadence cadence) {
-    tree->setAnimated(treeAnimationAllowed(tree, cadence));
-    if (QTimer *restoreTimer =
-            tree->findChild<QTimer *>(QString::fromLatin1(kTreeAnimationRestoreTimerName)))
-        restoreTimer->start(kTreeAnimationRestoreIntervalMs);
-}
+        QTreeView::mousePressEvent(event);
 
-bool keyboardEventWillExpandTree(const QTreeView *tree, const QKeyEvent *event) {
-    if (event->key() != Qt::Key_Right && event->key() != Qt::Key_Plus)
-        return false;
+        if (disclosure && candidate.isValid() && isExpanded(candidate) != wasExpanded)
+            handleUserToggle(candidate, withinRowBound);
+    }
 
-    const QModelIndex current = tree->currentIndex();
-    return current.isValid() && tree->model()->hasChildren(current) && !tree->isExpanded(current);
-}
+    void keyPressEvent(QKeyEvent *event) override {
+        const QPersistentModelIndex candidate(currentIndex());
+        const bool wasExpanded = candidate.isValid() && isExpanded(candidate);
+        const bool withinRowBound =
+            candidate.isValid() && hasFewerThanFeedbackRowLimit();
 
-bool pointerEventWillToggleTree(const QTreeView *tree, const QMouseEvent *event) {
-    if (event->button() != Qt::LeftButton)
-        return false;
+        QTreeView::keyPressEvent(event);
 
-    const QModelIndex index = tree->indexAt(event->pos());
-    if (!index.isValid() || !tree->model()->hasChildren(index))
-        return false;
+        if (candidate.isValid() && isExpanded(candidate) != wasExpanded)
+            handleUserToggle(candidate, withinRowBound);
+    }
 
-    // The disclosure indicator is the indentation immediately before an item's row.
-    return event->pos().x() < tree->visualRect(index).left();
-}
+    void paintEvent(QPaintEvent *event) override {
+        QTreeView::paintEvent(event);
+        if (m_feedbackOpacity <= 0.0 || !m_feedbackIndex.isValid())
+            return;
+
+        const QRect indicator = disclosureRect(m_feedbackIndex);
+        if (!indicator.isValid() || !viewport()->rect().intersects(indicator))
+            return;
+
+        QColor accent = palette().color(QPalette::Highlight);
+        accent.setAlphaF(qBound<qreal>(0.0, accent.alphaF() * 0.55 * m_feedbackOpacity, 1.0));
+        QPainter painter(viewport());
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setPen(QPen(accent, 2));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawEllipse(indicator.adjusted(3, 3, -3, -3));
+    }
+
+private:
+    bool hasFewerThanFeedbackRowLimit() const {
+        if (!model())
+            return false;
+
+        QModelIndex index = model()->index(0, 0, rootIndex());
+        int rows = 0;
+        for (; index.isValid() && rows < kTreeAnimationVisibleRowLimit;
+             ++rows, index = indexBelow(index)) {
+        }
+        return rows < kTreeAnimationVisibleRowLimit;
+    }
+
+    QRect disclosureRect(const QModelIndex &index) const {
+        if (!index.isValid())
+            return {};
+        const QRect row = visualRect(index);
+        if (!row.isValid())
+            return {};
+        if (layoutDirection() == Qt::RightToLeft)
+            return QRect(row.right() + 1, row.top(), indentation(), row.height());
+        return QRect(row.left() - indentation(), row.top(), indentation(), row.height());
+    }
+
+    QRect feedbackPaintRect() const {
+        QRect current;
+        if (m_feedbackIndex.isValid())
+            current = disclosureRect(m_feedbackIndex).adjusted(-2, -2, 2, 2);
+        return m_lastFeedbackRect.united(current);
+    }
+
+    void handleUserToggle(const QModelIndex &index, bool withinRowBound) {
+        const InputCadence cadence =
+            m_inputCadenceTimer->isActive() ? InputCadence::Rapid : InputCadence::Normal;
+        m_inputCadenceTimer->start();
+
+        if (!withinRowBound || !MotionPolicy::allowFor(cadence)) {
+            finishFeedback();
+            return;
+        }
+
+        const int duration = MotionPolicy::duration(MotionDuration::Fast);
+        if (duration == 0) {
+            finishFeedback();
+            return;
+        }
+
+        finishFeedback();
+        m_feedbackIndex = index;
+        m_feedbackOpacity = 1.0;
+        m_lastFeedbackRect = feedbackPaintRect();
+        m_feedbackAnimation->setDuration(duration);
+        m_feedbackAnimation->setEasingCurve(MotionPolicy::easing());
+        m_feedbackAnimation->setStartValue(1.0);
+        m_feedbackAnimation->setEndValue(0.0);
+        m_feedbackAnimation->start();
+    }
+
+    void finishFeedback() {
+        const QRect dirty = feedbackPaintRect();
+        m_feedbackAnimation->stop();
+        m_feedbackAnimation->setStartValue(0.0);
+        m_feedbackAnimation->setEndValue(0.0);
+        m_feedbackAnimation->setCurrentTime(0);
+        m_feedbackOpacity = 0.0;
+        m_feedbackIndex = {};
+        m_lastFeedbackRect = {};
+        if (dirty.isValid())
+            viewport()->update(dirty);
+    }
+
+    QVariantAnimation *m_feedbackAnimation = nullptr;
+    QTimer *m_inputCadenceTimer = nullptr;
+    QPersistentModelIndex m_feedbackIndex;
+    QRect m_lastFeedbackRect;
+    qreal m_feedbackOpacity = 0.0;
+};
 
 } // namespace
 
@@ -274,23 +383,11 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     // level is a set of devices/connections rather than one filesystem root --
     // see rebuildTreeRoots() and DirectoryTreeModel.
     m_dirTreeModel = new DirectoryTreeModel(this);
-    m_dirTree = new QTreeView(this);
+    m_dirTree = new DirectoryTreeView(this);
     m_dirTree->setModel(m_dirTreeModel);
     m_dirTree->setHeaderHidden(true);
     m_dirTree->setFocusPolicy(Qt::ClickFocus);
     m_dirTree->installEventFilter(this);
-    m_dirTree->viewport()->installEventFilter(this);
-    m_dirTree->setAnimated(false);
-    auto *treeAnimationRestoreTimer = new QTimer(m_dirTree);
-    treeAnimationRestoreTimer->setObjectName(QString::fromLatin1(kTreeAnimationRestoreTimerName));
-    treeAnimationRestoreTimer->setSingleShot(true);
-    connect(treeAnimationRestoreTimer, &QTimer::timeout, m_dirTree, [tree = m_dirTree] {
-        tree->setAnimated(treeAnimationAllowed(tree, InputCadence::Normal));
-    });
-    auto *treeKeyboardCadenceTimer = new QTimer(m_dirTree);
-    treeKeyboardCadenceTimer->setObjectName(QString::fromLatin1(kTreeKeyboardCadenceTimerName));
-    treeKeyboardCadenceTimer->setSingleShot(true);
-    treeKeyboardCadenceTimer->setInterval(kTreeKeyboardRapidIntervalMs);
     m_dirTree->hide();
     connect(m_dirTree, &QTreeView::activated, this, &FilePanel::activateTreeIndex);
     // The walk towards the current directory can only continue once a level has
@@ -551,24 +648,6 @@ bool FilePanel::eventFilter(QObject *watched, QEvent *event) {
             emit switchPanelRequested();
             return true;
         }
-    }
-
-    if (watched == m_dirTree && event->type() == QEvent::KeyPress) {
-        auto *keyEvent = static_cast<QKeyEvent *>(event);
-        if (keyboardEventWillExpandTree(m_dirTree, keyEvent)) {
-            QTimer *cadenceTimer =
-                m_dirTree->findChild<QTimer *>(QString::fromLatin1(kTreeKeyboardCadenceTimerName));
-            const InputCadence cadence = cadenceTimer && cadenceTimer->isActive()
-                                             ? InputCadence::Rapid
-                                             : InputCadence::Normal;
-            if (cadenceTimer)
-                cadenceTimer->start();
-            prepareTreeExpansionAnimation(m_dirTree, cadence);
-        }
-    } else if (watched == m_dirTree->viewport() && event->type() == QEvent::MouseButtonPress) {
-        auto *mouseEvent = static_cast<QMouseEvent *>(event);
-        if (pointerEventWillToggleTree(m_dirTree, mouseEvent))
-            prepareTreeExpansionAnimation(m_dirTree, InputCadence::Normal);
     }
 
     // Single-click-on-already-selected-thumbnail rename, mirroring

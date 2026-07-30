@@ -1,8 +1,11 @@
 #include "MotionPolicy.h"
 
 #include <QByteArray>
+#include <QGlobalStatic>
+#include <QObject>
 
 #include <atomic>
+#include <utility>
 
 #if defined(Q_OS_WIN)
 #include <windows.h>
@@ -13,6 +16,18 @@ namespace {
 std::atomic<int> reducedForTest{-1};
 std::atomic<int> systemReducedForTest{-1};
 std::atomic_bool applicationReduced{false};
+
+class MotionPolicyNotifier : public QObject {
+    Q_OBJECT
+
+public:
+    void publish(bool reduced) { emit reducedChanged(reduced); }
+
+signals:
+    void reducedChanged(bool reduced);
+};
+
+Q_GLOBAL_STATIC(MotionPolicyNotifier, motionPolicyNotifier)
 
 bool systemReducesMotion() {
     const int testOverride = systemReducedForTest.load();
@@ -26,6 +41,12 @@ bool systemReducesMotion() {
 #else
     return false;
 #endif
+}
+
+void publishReducedChange(bool wasReduced) {
+    const bool isReduced = MotionPolicy::reduced();
+    if (isReduced != wasReduced)
+        motionPolicyNotifier()->publish(isReduced);
 }
 
 } // namespace
@@ -64,22 +85,39 @@ bool MotionPolicy::allowFor(InputCadence cadence) {
     return cadence == InputCadence::Normal && !reduced();
 }
 
+void MotionPolicy::observeReduced(QObject *context, std::function<void(bool)> observer) {
+    QObject::connect(motionPolicyNotifier(), &MotionPolicyNotifier::reducedChanged, context,
+                     std::move(observer));
+}
+
 void MotionPolicy::setApplicationReduced(bool reduced) {
+    const bool wasReduced = MotionPolicy::reduced();
     applicationReduced.store(reduced);
+    publishReducedChange(wasReduced);
 }
 
 void MotionPolicy::setReducedForTest(bool reduced) {
+    const bool wasReduced = MotionPolicy::reduced();
     reducedForTest.store(reduced ? 1 : 0);
+    publishReducedChange(wasReduced);
 }
 
 void MotionPolicy::clearReducedForTest() {
+    const bool wasReduced = MotionPolicy::reduced();
     reducedForTest.store(-1);
+    publishReducedChange(wasReduced);
 }
 
 void MotionPolicy::setSystemReducedForTest(bool reduced) {
+    const bool wasReduced = MotionPolicy::reduced();
     systemReducedForTest.store(reduced ? 1 : 0);
+    publishReducedChange(wasReduced);
 }
 
 void MotionPolicy::clearSystemReducedForTest() {
+    const bool wasReduced = MotionPolicy::reduced();
     systemReducedForTest.store(-1);
+    publishReducedChange(wasReduced);
 }
+
+#include "MotionPolicy.moc"

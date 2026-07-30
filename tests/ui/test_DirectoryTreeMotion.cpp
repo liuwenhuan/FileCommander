@@ -1,21 +1,33 @@
 #include <gtest/gtest.h>
 
 #include <QApplication>
+#include <QDir>
+#include <QPersistentModelIndex>
+#include <QPointer>
+#include <QScrollBar>
 #include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
 #include <QTreeView>
+#include <QVariantAnimation>
+
+#include <memory>
 
 #include "FilePanel.h"
+#include "FileSystemModel.h"
 #include "MotionPolicy.h"
 #include "tree/DirectoryTreeModel.h"
 #include "tree/TreeDirLister.h"
 
 namespace {
 
+constexpr auto kFeedbackAnimationName = "DirectoryTreeDisclosureFeedbackAnimation";
+
 class MotionPolicyStateGuard {
 public:
-    MotionPolicyStateGuard() {
+    MotionPolicyStateGuard() : m_disableAnimations(qgetenv("FILECOMMANDER_DISABLE_ANIMATIONS")) {
+        qputenv("FILECOMMANDER_DISABLE_ANIMATIONS", "0");
         MotionPolicy::clearReducedForTest();
         MotionPolicy::clearSystemReducedForTest();
         MotionPolicy::setApplicationReduced(false);
@@ -25,20 +37,28 @@ public:
         MotionPolicy::clearReducedForTest();
         MotionPolicy::clearSystemReducedForTest();
         MotionPolicy::setApplicationReduced(false);
+        if (m_disableAnimations.isNull())
+            qunsetenv("FILECOMMANDER_DISABLE_ANIMATIONS");
+        else
+            qputenv("FILECOMMANDER_DISABLE_ANIMATIONS", m_disableAnimations);
     }
+
+private:
+    QByteArray m_disableAnimations;
 };
 
 class TestTreeLister : public TreeDirLister {
 public:
-    explicit TestTreeLister(int childCount) : m_childCount(childCount) {}
+    TestTreeLister(int childCount, QString rootPath)
+        : m_childCount(childCount), m_rootPath(QDir::cleanPath(std::move(rootPath))) {}
 
     void requestDirs(quint64 token, const QString &path) override {
         QStringList children;
-        if (path == QLatin1String("/root")) {
+        if (QDir::cleanPath(path) == m_rootPath) {
             children.reserve(m_childCount);
             for (int row = 0; row < m_childCount; ++row)
                 children.append(QStringLiteral("branch%1").arg(row));
-        } else if (path.startsWith(QLatin1String("/root/branch"))) {
+        } else if (QDir::cleanPath(path).startsWith(m_rootPath + QLatin1Char('/'))) {
             children.append(QStringLiteral("child"));
         }
         QTimer::singleShot(0, this, [this, token, path, children] {
@@ -47,11 +67,12 @@ public:
     }
 
     QString childPath(const QString &parent, const QString &name) const override {
-        return parent + QLatin1Char('/') + name;
+        return QDir(parent).filePath(name);
     }
 
 private:
     int m_childCount;
+    QString m_rootPath;
 };
 
 QTreeView *directoryTree(FilePanel &panel) {
@@ -64,14 +85,22 @@ QTreeView *directoryTree(FilePanel &panel) {
     return nullptr;
 }
 
+QVariantAnimation *feedbackAnimation(QTreeView *tree) {
+    return tree ? tree->findChild<QVariantAnimation *>(
+                      QString::fromLatin1(kFeedbackAnimationName))
+                : nullptr;
+}
+
 struct TreeFixture {
     QTreeView *tree = nullptr;
     DirectoryTreeModel *model = nullptr;
+    QModelIndex root;
     QModelIndex firstBranch;
     QModelIndex secondBranch;
 };
 
-TreeFixture prepareTree(FilePanel &panel, int visibleRows) {
+TreeFixture prepareTree(FilePanel &panel, int visibleRows,
+                        const QString &rootPath = QStringLiteral("/root")) {
     QTreeView *tree = directoryTree(panel);
     EXPECT_NE(tree, nullptr);
     if (!tree)
@@ -84,14 +113,13 @@ TreeFixture prepareTree(FilePanel &panel, int visibleRows) {
 
     TreeRoot root;
     root.label = QStringLiteral("Root");
-    root.basePath = QStringLiteral("/root");
-    model->setRoots({root}, [childCount = visibleRows - 1](const TreeRoot &) {
-        return new TestTreeLister(childCount);
+    root.basePath = rootPath;
+    model->setRoots({root}, [childCount = visibleRows - 1, rootPath](const TreeRoot &) {
+        return new TestTreeLister(childCount, rootPath);
     });
 
     const QModelIndex rootIndex = model->index(0, 0);
     tree->setRootIndex(QModelIndex());
-    tree->setAnimated(false);
     QSignalSpy childrenLoaded(model, &DirectoryTreeModel::childrenLoaded);
     tree->expand(rootIndex);
     if (childrenLoaded.isEmpty())
@@ -104,7 +132,7 @@ TreeFixture prepareTree(FilePanel &panel, int visibleRows) {
     const QModelIndex secondBranch = model->index(1, 0, rootIndex);
     EXPECT_TRUE(firstBranch.isValid());
     EXPECT_TRUE(secondBranch.isValid());
-    return {tree, model, firstBranch, secondBranch};
+    return {tree, model, rootIndex, firstBranch, secondBranch};
 }
 
 QPoint disclosurePoint(const QTreeView &tree, const QModelIndex &index) {
@@ -112,7 +140,18 @@ QPoint disclosurePoint(const QTreeView &tree, const QModelIndex &index) {
     return {row.left() - tree.indentation() / 2, row.center().y()};
 }
 
-TEST(DirectoryTreeMotion, PointerExpansionEnablesAnimationBelowVisibleRowLimit) {
+void clickDisclosure(QTreeView *tree, const QModelIndex &index) {
+    tree->scrollTo(index);
+    qApp->processEvents();
+    QTest::mouseClick(tree->viewport(), Qt::LeftButton, Qt::NoModifier,
+                      disclosurePoint(*tree, index));
+}
+
+void activate(QTreeView *tree, const QModelIndex &index) {
+    QMetaObject::invokeMethod(tree, "activated", Q_ARG(QModelIndex, index));
+}
+
+TEST(DirectoryTreeMotion, PointerFeedbackIsPaintOnlyAndUsesMotionPolicyTiming) {
     MotionPolicyStateGuard guard;
     MotionPolicy::setReducedForTest(false);
 
@@ -123,16 +162,19 @@ TEST(DirectoryTreeMotion, PointerExpansionEnablesAnimationBelowVisibleRowLimit) 
     const TreeFixture fixture = prepareTree(panel, 100);
     ASSERT_NE(fixture.tree, nullptr);
 
-    fixture.tree->scrollTo(fixture.firstBranch);
-    qApp->processEvents();
-    QTest::mouseClick(fixture.tree->viewport(), Qt::LeftButton, Qt::NoModifier,
-                      disclosurePoint(*fixture.tree, fixture.firstBranch));
+    QVariantAnimation *feedback = feedbackAnimation(fixture.tree);
+    ASSERT_NE(feedback, nullptr);
+    clickDisclosure(fixture.tree, fixture.firstBranch);
 
-    QTRY_VERIFY_WITH_TIMEOUT(fixture.tree->isExpanded(fixture.firstBranch), 1000);
-    EXPECT_TRUE(fixture.tree->isAnimated());
+    EXPECT_TRUE(fixture.tree->isExpanded(fixture.firstBranch));
+    EXPECT_FALSE(fixture.tree->isAnimated());
+    EXPECT_EQ(feedback->duration(), 100);
+    EXPECT_EQ(feedback->easingCurve().type(), QEasingCurve::OutCubic);
+    EXPECT_EQ(feedback->state(), QAbstractAnimation::Running);
+    EXPECT_GT(feedback->currentValue().toReal(), 0.0);
 }
 
-TEST(DirectoryTreeMotion, ExpansionAtVisibleRowLimitDisablesAnimation) {
+TEST(DirectoryTreeMotion, VisibleRowLimitSkipsFeedbackAtFiveHundredRows) {
     MotionPolicyStateGuard guard;
     MotionPolicy::setReducedForTest(false);
 
@@ -143,16 +185,119 @@ TEST(DirectoryTreeMotion, ExpansionAtVisibleRowLimitDisablesAnimation) {
     const TreeFixture fixture = prepareTree(panel, 500);
     ASSERT_NE(fixture.tree, nullptr);
 
-    fixture.tree->scrollTo(fixture.firstBranch);
-    qApp->processEvents();
-    QTest::mouseClick(fixture.tree->viewport(), Qt::LeftButton, Qt::NoModifier,
-                      disclosurePoint(*fixture.tree, fixture.firstBranch));
+    QVariantAnimation *feedback = feedbackAnimation(fixture.tree);
+    ASSERT_NE(feedback, nullptr);
+    clickDisclosure(fixture.tree, fixture.firstBranch);
 
-    QTRY_VERIFY_WITH_TIMEOUT(fixture.tree->isExpanded(fixture.firstBranch), 1000);
+    EXPECT_TRUE(fixture.tree->isExpanded(fixture.firstBranch));
     EXPECT_FALSE(fixture.tree->isAnimated());
+    EXPECT_EQ(feedback->state(), QAbstractAnimation::Stopped);
+    EXPECT_DOUBLE_EQ(feedback->currentValue().toReal(), 0.0);
 }
 
-TEST(DirectoryTreeMotion, RapidKeyboardExpansionDisablesAnimation) {
+TEST(DirectoryTreeMotion, RapidPointerTogglesShareOneCadenceWindow) {
+    MotionPolicyStateGuard guard;
+    MotionPolicy::setReducedForTest(false);
+
+    FilePanel panel;
+    panel.resize(700, 500);
+    panel.show();
+    qApp->processEvents();
+    const TreeFixture fixture = prepareTree(panel, 100);
+    ASSERT_NE(fixture.tree, nullptr);
+    QVariantAnimation *feedback = feedbackAnimation(fixture.tree);
+    ASSERT_NE(feedback, nullptr);
+
+    clickDisclosure(fixture.tree, fixture.firstBranch);
+    ASSERT_EQ(feedback->state(), QAbstractAnimation::Running);
+    clickDisclosure(fixture.tree, fixture.firstBranch);
+
+    EXPECT_FALSE(fixture.tree->isExpanded(fixture.firstBranch));
+    EXPECT_FALSE(fixture.tree->isAnimated());
+    EXPECT_EQ(feedback->state(), QAbstractAnimation::Stopped);
+    EXPECT_DOUBLE_EQ(feedback->currentValue().toReal(), 0.0);
+}
+
+TEST(DirectoryTreeMotion, MixedKeyboardAndPointerTogglesShareOneCadenceWindow) {
+    MotionPolicyStateGuard guard;
+    MotionPolicy::setReducedForTest(false);
+
+    FilePanel panel;
+    panel.resize(700, 500);
+    panel.show();
+    qApp->processEvents();
+    const TreeFixture fixture = prepareTree(panel, 100);
+    ASSERT_NE(fixture.tree, nullptr);
+    QVariantAnimation *feedback = feedbackAnimation(fixture.tree);
+    ASSERT_NE(feedback, nullptr);
+
+    fixture.tree->setCurrentIndex(fixture.firstBranch);
+    QTest::keyClick(fixture.tree, Qt::Key_Right);
+    ASSERT_TRUE(fixture.tree->isExpanded(fixture.firstBranch));
+    ASSERT_EQ(feedback->state(), QAbstractAnimation::Running);
+
+    clickDisclosure(fixture.tree, fixture.secondBranch);
+
+    EXPECT_TRUE(fixture.tree->isExpanded(fixture.secondBranch));
+    EXPECT_FALSE(fixture.tree->isAnimated());
+    EXPECT_EQ(feedback->state(), QAbstractAnimation::Stopped);
+    EXPECT_DOUBLE_EQ(feedback->currentValue().toReal(), 0.0);
+}
+
+TEST(DirectoryTreeMotion, ProgrammaticExpansionAndAsyncChildrenDoNotStartFeedback) {
+    MotionPolicyStateGuard guard;
+    MotionPolicy::setReducedForTest(false);
+
+    FilePanel panel;
+    panel.resize(700, 500);
+    panel.show();
+    qApp->processEvents();
+    const TreeFixture fixture = prepareTree(panel, 100);
+    ASSERT_NE(fixture.tree, nullptr);
+    QVariantAnimation *feedback = feedbackAnimation(fixture.tree);
+    ASSERT_NE(feedback, nullptr);
+    QSignalSpy stateChanges(feedback, &QVariantAnimation::stateChanged);
+    QSignalSpy childrenLoaded(fixture.model, &DirectoryTreeModel::childrenLoaded);
+
+    fixture.tree->expand(fixture.firstBranch);
+    if (childrenLoaded.isEmpty())
+        ASSERT_TRUE(childrenLoaded.wait(1000));
+
+    EXPECT_TRUE(fixture.tree->isExpanded(fixture.firstBranch));
+    EXPECT_EQ(fixture.model->rowCount(fixture.firstBranch), 1);
+    EXPECT_FALSE(fixture.tree->isAnimated());
+    EXPECT_EQ(feedback->state(), QAbstractAnimation::Stopped);
+    EXPECT_EQ(stateChanges.count(), 0);
+}
+
+TEST(DirectoryTreeMotion, LiveReducedMotionFinishesPendingFeedbackSynchronously) {
+    MotionPolicyStateGuard guard;
+    MotionPolicy::clearReducedForTest();
+    MotionPolicy::setSystemReducedForTest(false);
+    MotionPolicy::setApplicationReduced(false);
+
+    FilePanel panel;
+    panel.resize(700, 500);
+    panel.show();
+    qApp->processEvents();
+    const TreeFixture fixture = prepareTree(panel, 100);
+    ASSERT_NE(fixture.tree, nullptr);
+    QVariantAnimation *feedback = feedbackAnimation(fixture.tree);
+    ASSERT_NE(feedback, nullptr);
+
+    clickDisclosure(fixture.tree, fixture.firstBranch);
+    ASSERT_EQ(feedback->state(), QAbstractAnimation::Running);
+    ASSERT_GT(feedback->currentValue().toReal(), 0.0);
+
+    MotionPolicy::setApplicationReduced(true);
+
+    EXPECT_TRUE(fixture.tree->isExpanded(fixture.firstBranch));
+    EXPECT_FALSE(fixture.tree->isAnimated());
+    EXPECT_EQ(feedback->state(), QAbstractAnimation::Stopped);
+    EXPECT_DOUBLE_EQ(feedback->currentValue().toReal(), 0.0);
+}
+
+TEST(DirectoryTreeMotion, FeedbackPreservesSelectionScrollAndSettledRowGeometry) {
     MotionPolicyStateGuard guard;
     MotionPolicy::setReducedForTest(false);
 
@@ -163,20 +308,124 @@ TEST(DirectoryTreeMotion, RapidKeyboardExpansionDisablesAnimation) {
     const TreeFixture fixture = prepareTree(panel, 100);
     ASSERT_NE(fixture.tree, nullptr);
 
-    fixture.tree->setCurrentIndex(fixture.firstBranch);
-    QTest::keyClick(fixture.tree, Qt::Key_Right);
-    QTRY_VERIFY_WITH_TIMEOUT(fixture.tree->isExpanded(fixture.firstBranch), 1000);
-    EXPECT_TRUE(fixture.tree->isAnimated());
+    const QModelIndex target = fixture.model->index(60, 0, fixture.root);
+    const QModelIndex selected = fixture.model->index(61, 0, fixture.root);
+    ASSERT_TRUE(target.isValid());
+    ASSERT_TRUE(selected.isValid());
+    fixture.tree->scrollTo(target, QAbstractItemView::PositionAtCenter);
+    fixture.tree->setCurrentIndex(selected);
+    fixture.tree->selectionModel()->select(selected, QItemSelectionModel::ClearAndSelect);
+    qApp->processEvents();
+    const QPersistentModelIndex expectedCurrent(selected);
 
-    fixture.tree->setCurrentIndex(fixture.secondBranch);
-    QTest::keyClick(fixture.tree, Qt::Key_Right);
-    QTRY_VERIFY_WITH_TIMEOUT(fixture.tree->isExpanded(fixture.secondBranch), 1000);
+    QSignalSpy childrenLoaded(fixture.model, &DirectoryTreeModel::childrenLoaded);
+    QTest::mouseClick(fixture.tree->viewport(), Qt::LeftButton, Qt::NoModifier,
+                      disclosurePoint(*fixture.tree, target));
+    if (childrenLoaded.isEmpty())
+        ASSERT_TRUE(childrenLoaded.wait(1000));
+    qApp->processEvents();
+
+    const int settledScroll = fixture.tree->verticalScrollBar()->value();
+    const QRect settledTargetRect = fixture.tree->visualRect(target);
+    const QRect settledSelectedRect = fixture.tree->visualRect(selected);
+    const QSize settledSizeHint = fixture.tree->sizeHint();
+    QTest::qWait(45);
+
+    EXPECT_EQ(fixture.tree->currentIndex(), QModelIndex(expectedCurrent));
+    EXPECT_TRUE(fixture.tree->selectionModel()->isSelected(expectedCurrent));
+    EXPECT_EQ(fixture.tree->verticalScrollBar()->value(), settledScroll);
+    EXPECT_EQ(fixture.tree->visualRect(target), settledTargetRect);
+    EXPECT_EQ(fixture.tree->visualRect(selected), settledSelectedRect);
+    EXPECT_EQ(fixture.tree->sizeHint(), settledSizeHint);
     EXPECT_FALSE(fixture.tree->isAnimated());
-
-    QTRY_VERIFY_WITH_TIMEOUT(fixture.tree->isAnimated(), 500);
 }
 
-TEST(DirectoryTreeMotion, ReducedMotionExpandsImmediatelyWithoutAnimation) {
+TEST(DirectoryTreeMotion, NavigationRemainsAvailableWhileFeedbackIsRunning) {
+    MotionPolicyStateGuard guard;
+    MotionPolicy::setReducedForTest(false);
+    QTemporaryDir temporary;
+    ASSERT_TRUE(temporary.isValid());
+    ASSERT_TRUE(QDir(temporary.path()).mkpath(QStringLiteral("branch0")));
+    const QString destination = QDir(temporary.path()).filePath(QStringLiteral("branch0"));
+
+    FilePanel panel;
+    panel.resize(700, 500);
+    panel.show();
+    qApp->processEvents();
+    const TreeFixture fixture = prepareTree(panel, 3, temporary.path());
+    ASSERT_NE(fixture.tree, nullptr);
+    QVariantAnimation *feedback = feedbackAnimation(fixture.tree);
+    ASSERT_NE(feedback, nullptr);
+
+    clickDisclosure(fixture.tree, fixture.firstBranch);
+    ASSERT_EQ(feedback->state(), QAbstractAnimation::Running);
+    QSignalSpy loaded(panel.model(), &FileSystemModel::loadFinished);
+    activate(fixture.tree, fixture.firstBranch);
+    if (loaded.isEmpty())
+        ASSERT_TRUE(loaded.wait(4000));
+
+    EXPECT_EQ(panel.currentPath(), destination);
+    EXPECT_FALSE(fixture.tree->isAnimated());
+}
+
+TEST(DirectoryTreeMotion, PendingFeedbackIsSafeDuringTeardown) {
+    MotionPolicyStateGuard guard;
+    MotionPolicy::setReducedForTest(false);
+    QPointer<QVariantAnimation> feedback;
+
+    {
+        auto panel = std::make_unique<FilePanel>();
+        panel->resize(700, 500);
+        panel->show();
+        qApp->processEvents();
+        const TreeFixture fixture = prepareTree(*panel, 100);
+        ASSERT_NE(fixture.tree, nullptr);
+        feedback = feedbackAnimation(fixture.tree);
+        ASSERT_FALSE(feedback.isNull());
+
+        clickDisclosure(fixture.tree, fixture.firstBranch);
+        ASSERT_EQ(feedback->state(), QAbstractAnimation::Running);
+    }
+
+    EXPECT_TRUE(feedback.isNull());
+    MotionPolicy::setReducedForTest(true);
+    QTest::qWait(125);
+    EXPECT_TRUE(feedback.isNull());
+}
+
+TEST(DirectoryTreeMotion, RepeatedExpandCollapseFeedbackSettlesAndRestarts) {
+    MotionPolicyStateGuard guard;
+    MotionPolicy::setReducedForTest(false);
+
+    FilePanel panel;
+    panel.resize(700, 500);
+    panel.show();
+    qApp->processEvents();
+    const TreeFixture fixture = prepareTree(panel, 100);
+    ASSERT_NE(fixture.tree, nullptr);
+    QVariantAnimation *feedback = feedbackAnimation(fixture.tree);
+    ASSERT_NE(feedback, nullptr);
+
+    clickDisclosure(fixture.tree, fixture.firstBranch);
+    EXPECT_TRUE(fixture.tree->isExpanded(fixture.firstBranch));
+    EXPECT_EQ(feedback->state(), QAbstractAnimation::Running);
+    QTRY_COMPARE_WITH_TIMEOUT(feedback->state(), QAbstractAnimation::Stopped, 250);
+    EXPECT_DOUBLE_EQ(feedback->currentValue().toReal(), 0.0);
+
+    clickDisclosure(fixture.tree, fixture.firstBranch);
+    EXPECT_FALSE(fixture.tree->isExpanded(fixture.firstBranch));
+    EXPECT_EQ(feedback->state(), QAbstractAnimation::Running);
+    QTRY_COMPARE_WITH_TIMEOUT(feedback->state(), QAbstractAnimation::Stopped, 250);
+
+    clickDisclosure(fixture.tree, fixture.firstBranch);
+    EXPECT_TRUE(fixture.tree->isExpanded(fixture.firstBranch));
+    EXPECT_EQ(feedback->state(), QAbstractAnimation::Running);
+    QTRY_COMPARE_WITH_TIMEOUT(feedback->state(), QAbstractAnimation::Stopped, 250);
+    EXPECT_DOUBLE_EQ(feedback->currentValue().toReal(), 0.0);
+    EXPECT_FALSE(fixture.tree->isAnimated());
+}
+
+TEST(DirectoryTreeMotion, ReducedMotionExpandsImmediatelyWithoutFeedback) {
     MotionPolicyStateGuard guard;
     MotionPolicy::setReducedForTest(true);
 
@@ -186,12 +435,16 @@ TEST(DirectoryTreeMotion, ReducedMotionExpandsImmediatelyWithoutAnimation) {
     qApp->processEvents();
     const TreeFixture fixture = prepareTree(panel, 100);
     ASSERT_NE(fixture.tree, nullptr);
+    QVariantAnimation *feedback = feedbackAnimation(fixture.tree);
+    ASSERT_NE(feedback, nullptr);
 
     fixture.tree->setCurrentIndex(fixture.firstBranch);
     QTest::keyClick(fixture.tree, Qt::Key_Right);
 
     EXPECT_TRUE(fixture.tree->isExpanded(fixture.firstBranch));
     EXPECT_FALSE(fixture.tree->isAnimated());
+    EXPECT_EQ(feedback->state(), QAbstractAnimation::Stopped);
+    EXPECT_DOUBLE_EQ(feedback->currentValue().toReal(), 0.0);
 }
 
 } // namespace
