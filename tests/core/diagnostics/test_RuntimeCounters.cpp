@@ -1,22 +1,11 @@
 #include <gtest/gtest.h>
 
-#include <QDebug>
-
-#include <atomic>
+#include <QCoreApplication>
+#include <QProcess>
+#include <QProcessEnvironment>
 
 #include "diagnostics/RuntimeCounters.h"
 #include "operations/OperationQueue.h"
-
-namespace {
-
-std::atomic<int> runtimeSnapshotMessages{0};
-
-void countRuntimeSnapshotMessages(QtMsgType, const QMessageLogContext &, const QString &message) {
-    if (message.startsWith(QStringLiteral("FileCommander RuntimeSnapshot")))
-        ++runtimeSnapshotMessages;
-}
-
-} // namespace
 
 TEST(RuntimeCounters, GuardTracksLifetime) {
     const fc::RuntimeSnapshot before = fc::runtimeSnapshot();
@@ -59,22 +48,32 @@ TEST(RuntimeCounters, OperationQueueTracksEveryTransferWorker) {
 }
 
 TEST(RuntimeCounters, DiagnosticsReporterIsOptInAndEmitsOnlyOnce) {
-    const QByteArray oldValue = qgetenv("FILECOMMANDER_DIAGNOSTICS");
-    qunsetenv("FILECOMMANDER_DIAGNOSTICS");
-    runtimeSnapshotMessages = 0;
-    QtMessageHandler previous = qInstallMessageHandler(countRuntimeSnapshotMessages);
+    if (qEnvironmentVariableIntValue("FC_RUNTIME_REPORTER_CHILD") == 1) {
+        const bool enabled = qEnvironmentVariableIntValue("FILECOMMANDER_DIAGNOSTICS") == 1;
+        EXPECT_EQ(fc::reportRuntimeSnapshotIfEnabled(), enabled);
+        EXPECT_FALSE(fc::reportRuntimeSnapshotIfEnabled());
+        return;
+    }
 
-    fc::reportRuntimeSnapshotIfEnabled();
-    EXPECT_EQ(runtimeSnapshotMessages.load(), 0);
+    auto runChild = [](bool diagnosticsEnabled) {
+        QProcess child;
+        child.setProcessChannelMode(QProcess::MergedChannels);
+        QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
+        environment.insert(QStringLiteral("FC_RUNTIME_REPORTER_CHILD"), QStringLiteral("1"));
+        if (diagnosticsEnabled)
+            environment.insert(QStringLiteral("FILECOMMANDER_DIAGNOSTICS"), QStringLiteral("1"));
+        else
+            environment.remove(QStringLiteral("FILECOMMANDER_DIAGNOSTICS"));
+        child.setProcessEnvironment(environment);
+        child.start(QCoreApplication::applicationFilePath(),
+                    {QStringLiteral("--gtest_filter="
+                                    "RuntimeCounters.DiagnosticsReporterIsOptInAndEmitsOnlyOnce")});
+        EXPECT_TRUE(child.waitForFinished(10000));
+        EXPECT_EQ(child.exitStatus(), QProcess::NormalExit);
+        EXPECT_EQ(child.exitCode(), 0);
+        return child.exitCode();
+    };
 
-    qputenv("FILECOMMANDER_DIAGNOSTICS", "1");
-    fc::reportRuntimeSnapshotIfEnabled();
-    fc::reportRuntimeSnapshotIfEnabled();
-    EXPECT_EQ(runtimeSnapshotMessages.load(), 1);
-
-    qInstallMessageHandler(previous);
-    if (oldValue.isNull())
-        qunsetenv("FILECOMMANDER_DIAGNOSTICS");
-    else
-        qputenv("FILECOMMANDER_DIAGNOSTICS", oldValue);
+    EXPECT_EQ(runChild(false), 0);
+    EXPECT_EQ(runChild(true), 0);
 }
