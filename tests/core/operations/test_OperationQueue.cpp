@@ -54,6 +54,35 @@ private:
     std::atomic<bool> m_blocked{false};
 };
 
+class DestructionTrackingProvider : public LocalFileProvider {
+public:
+    explicit DestructionTrackingProvider(std::atomic<bool> *destroyed) : m_destroyed(destroyed) {}
+    ~DestructionTrackingProvider() override { m_destroyed->store(true); }
+
+private:
+    std::atomic<bool> *m_destroyed;
+};
+
+class BlockingRenameLifetimeProvider : public LocalFileProvider {
+public:
+    BlockingRenameLifetimeProvider(std::atomic<bool> *destroyed, QSemaphore *entered,
+                                   QSemaphore *release)
+        : m_destroyed(destroyed), m_entered(entered), m_release(release) {}
+
+    ~BlockingRenameLifetimeProvider() override { m_destroyed->store(true); }
+
+    RenameResult rename(const QString &path, const QString &newName, QString *newPath) override {
+        m_entered->release();
+        m_release->acquire();
+        return LocalFileProvider::rename(path, newName, newPath);
+    }
+
+private:
+    std::atomic<bool> *m_destroyed;
+    QSemaphore *m_entered;
+    QSemaphore *m_release;
+};
+
 } // namespace
 
 TEST(OperationQueueTest, EnqueueCopyCompletesAndCopiesFile) {
@@ -158,11 +187,12 @@ TEST(OperationQueueTest, QueuedProviderCopyRetainsProvidersUntilCompletion) {
     const QString source = writeFile(src.path(), "owned.txt", "provider-owned");
 
     std::atomic<bool> sourceDestroyed{false};
+    std::atomic<bool> destinationDestroyed{false};
     QSemaphore entered;
     QSemaphore release;
     auto srcProvider =
         std::make_shared<BlockingLifetimeProvider>(&sourceDestroyed, &entered, &release);
-    auto dstProvider = std::make_shared<LocalFileProvider>();
+    auto dstProvider = std::make_shared<DestructionTrackingProvider>(&destinationDestroyed);
 
     OperationQueue queue;
     queue.setMaxConcurrentTransfers(1);
@@ -173,11 +203,39 @@ TEST(OperationQueueTest, QueuedProviderCopyRetainsProvidersUntilCompletion) {
     srcProvider.reset();
     dstProvider.reset();
     EXPECT_FALSE(sourceDestroyed.load());
+    EXPECT_FALSE(destinationDestroyed.load());
 
     release.release();
     ASSERT_TRUE(waitFinished(finished));
     EXPECT_TRUE(finished.takeFirst().at(0).toBool());
     EXPECT_TRUE(sourceDestroyed.load());
+    EXPECT_TRUE(destinationDestroyed.load());
+}
+
+TEST(OperationQueueTest, QueuedProviderRenameRetainsProviderUntilCompletion) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString source = writeFile(dir.path(), "before.txt", "rename-owned");
+
+    std::atomic<bool> providerDestroyed{false};
+    QSemaphore entered;
+    QSemaphore release;
+    auto provider =
+        std::make_shared<BlockingRenameLifetimeProvider>(&providerDestroyed, &entered, &release);
+
+    OperationQueue queue;
+    QSignalSpy finished(&queue, &OperationQueue::finished);
+    queue.enqueueProviderRename(provider, source, QStringLiteral("after.txt"));
+
+    ASSERT_TRUE(entered.tryAcquire(1, 3000));
+    provider.reset();
+    EXPECT_FALSE(providerDestroyed.load());
+
+    release.release();
+    ASSERT_TRUE(waitFinished(finished));
+    EXPECT_TRUE(finished.takeFirst().at(0).toBool());
+    EXPECT_TRUE(providerDestroyed.load());
+    EXPECT_TRUE(QFile::exists(QDir(dir.path()).filePath(QStringLiteral("after.txt"))));
 }
 
 TEST(OperationQueueTest, ProviderMoveRemovesSource) {
