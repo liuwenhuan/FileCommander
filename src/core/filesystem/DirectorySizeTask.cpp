@@ -42,12 +42,8 @@ qint64 DirectorySizeTask::walkDirectory(const std::shared_ptr<State> &state, con
 }
 
 DirectorySizeTask::DirectorySizeTask(quint64 requestId, std::shared_ptr<FileProvider> provider,
-                                     QStringList roots, QObject *parent)
-    : DirectorySizeTask(requestId, std::move(provider), std::move(roots), {}, parent) {}
-
-DirectorySizeTask::DirectorySizeTask(quint64 requestId, std::shared_ptr<FileProvider> provider,
-                                     QStringList roots,
-                                     QHash<QString, qint64> symlinkRootSizes, QObject *parent)
+                                     QStringList roots, QObject *parent,
+                                     QHash<QString, qint64> symlinkRootSizes)
     : QObject(parent), m_requestId(requestId), m_state(std::make_shared<State>()) {
     m_state->provider = std::move(provider);
     m_state->roots = std::move(roots);

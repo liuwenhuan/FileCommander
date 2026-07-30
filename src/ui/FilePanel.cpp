@@ -1763,8 +1763,8 @@ void FilePanel::calculateDirSizes() {
     // new request generation makes every earlier progress/result callback stale.
     std::shared_ptr<FileProvider> provider = m_model->providerPtr();
     const quint64 requestId = ++m_directorySizeRequestId;
-    auto *task = new DirectorySizeTask(requestId, std::move(provider), dirs,
-                                       std::move(symlinkRootSizes), this);
+    auto *task = new DirectorySizeTask(requestId, std::move(provider), dirs, this,
+                                       std::move(symlinkRootSizes));
     m_directorySizeTask = task;
     auto completedBytes = std::make_shared<qint64>(0);
     connect(task, &DirectorySizeTask::progress, this,

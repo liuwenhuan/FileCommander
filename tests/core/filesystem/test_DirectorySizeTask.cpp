@@ -114,7 +114,7 @@ TEST(DirectorySizeTask, CancelStopsBeforeTheNextRoot) {
 
 TEST(DirectorySizeTask, DoesNotTraverseASymlinkDirectoryRoot) {
     auto provider = std::make_shared<SymlinkRootProvider>();
-    DirectorySizeTask task(43, provider, {QStringLiteral("/link")},
+    DirectorySizeTask task(43, provider, {QStringLiteral("/link")}, nullptr,
                            {{QStringLiteral("/link"), 37}});
     QSignalSpy finished(&task, &DirectorySizeTask::finished);
 

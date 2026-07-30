@@ -15,9 +15,8 @@ class DirectorySizeTask final : public QObject {
 
 public:
     DirectorySizeTask(quint64 requestId, std::shared_ptr<FileProvider> provider, QStringList roots,
-                      QObject *parent = nullptr);
-    DirectorySizeTask(quint64 requestId, std::shared_ptr<FileProvider> provider, QStringList roots,
-                      QHash<QString, qint64> symlinkRootSizes, QObject *parent = nullptr);
+                      QObject *parent = nullptr,
+                      QHash<QString, qint64> symlinkRootSizes = {});
     ~DirectorySizeTask() override;
 
     void start();

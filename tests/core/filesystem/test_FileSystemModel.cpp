@@ -280,3 +280,45 @@ TEST(FilePanelDirectorySize, OlderRequestCannotOverwriteNewerSelection) {
     EXPECT_EQ(panel.model()->data(panel.model()->index(0, FileSystemModel::SizeColumn)).toString(),
               QStringLiteral("<DIR>"));
 }
+
+TEST(FilePanelDirectorySize, SymlinkRootUsesListingMetadataWithoutTraversingTarget) {
+    QTemporaryDir temp;
+    ASSERT_TRUE(temp.isValid());
+    const QString target = QDir(temp.path()).filePath(QStringLiteral("target"));
+    const QString link = QDir(temp.path()).filePath(QStringLiteral("link"));
+    ASSERT_TRUE(QDir().mkdir(target));
+
+    QFile payload(QDir(target).filePath(QStringLiteral("payload.bin")));
+    ASSERT_TRUE(payload.open(QIODevice::WriteOnly));
+    ASSERT_EQ(payload.write(QByteArray(4096, 'x')), 4096);
+    payload.close();
+
+    if (!QFile::link(target, link))
+        GTEST_SKIP() << "filesystem does not support directory links";
+    const FileInfo linkInfo(link);
+    if (!linkInfo.isSymLink() || !linkInfo.isDir())
+        GTEST_SKIP() << "platform does not expose directory links as directory symlinks";
+    ASSERT_LT(linkInfo.size(), 1024);
+
+    FilePanel panel;
+    ASSERT_TRUE(loadPanel(panel, temp.path()));
+    FileListView *view = panel.findChild<FileListView *>();
+    ASSERT_NE(view, nullptr);
+
+    int linkRow = -1;
+    for (int row = 0; row < panel.model()->rowCount(); ++row) {
+        if (panel.model()->fileInfoAt(row).path() == link) {
+            linkRow = row;
+            break;
+        }
+    }
+    ASSERT_GE(linkRow, 0);
+
+    view->setCurrentIndex(panel.model()->index(linkRow, FileSystemModel::NameColumn));
+    panel.calculateDirSizes();
+
+    const QString expected = QStringLiteral("%1 B").arg(linkInfo.size());
+    QTRY_COMPARE_WITH_TIMEOUT(
+        panel.model()->data(panel.model()->index(linkRow, FileSystemModel::SizeColumn)).toString(),
+        expected, 4000);
+}
