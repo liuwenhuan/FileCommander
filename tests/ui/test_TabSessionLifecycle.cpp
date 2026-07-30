@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <QAbstractButton>
 #include <QCoreApplication>
 #include <QDir>
 #include <QElapsedTimer>
@@ -195,17 +196,6 @@ QString runtimeSnapshotText(const fc::RuntimeSnapshot &snapshot) {
         .arg(snapshot.curlTransfers);
 }
 
-QString runtimeDeltaText(const fc::RuntimeSnapshot &snapshot,
-                         const fc::RuntimeSnapshot &baseline) {
-    return QStringLiteral("{networkSessions=%1, networkThreads=%2, activeHeartbeats=%3, "
-                          "transferWorkers=%4, curlTransfers=%5}")
-        .arg(snapshot.networkSessions - baseline.networkSessions)
-        .arg(snapshot.networkThreads - baseline.networkThreads)
-        .arg(snapshot.activeHeartbeats - baseline.activeHeartbeats)
-        .arg(snapshot.transferWorkers - baseline.transferWorkers)
-        .arg(snapshot.curlTransfers - baseline.curlTransfers);
-}
-
 void recordRuntimePeak(fc::RuntimeSnapshot &peak) {
     const fc::RuntimeSnapshot current = fc::runtimeSnapshot();
     peak.networkSessions = std::max(peak.networkSessions, current.networkSessions);
@@ -215,26 +205,153 @@ void recordRuntimePeak(fc::RuntimeSnapshot &peak) {
     peak.curlTransfers = std::max(peak.curlTransfers, current.curlTransfers);
 }
 
-class RuntimeCleanupGuard {
-public:
-    RuntimeCleanupGuard(const fc::RuntimeSnapshot &baseline,
-                        std::unique_ptr<FilePanel> &panel)
-        : m_baseline(baseline), m_panel(panel) {}
+template <typename Predicate>
+bool waitForCondition(Predicate predicate, int timeoutMs = kRuntimeWaitMs) {
+    QElapsedTimer timer;
+    timer.start();
+    while (!predicate()) {
+        if (timer.elapsed() >= timeoutMs)
+            return predicate();
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+    }
+    return true;
+}
 
-    ~RuntimeCleanupGuard() {
-        m_panel.reset();
-        QElapsedTimer timer;
-        timer.start();
-        while (!sameRuntimeSnapshot(fc::runtimeSnapshot(), m_baseline) &&
-               timer.elapsed() < kRuntimeWaitMs) {
-            QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
-        }
+bool requireScenario(bool condition, const QString &reason) {
+    if (!condition)
+        ADD_FAILURE() << reason.toStdString();
+    return condition;
+}
+
+bool waitForRemoteListing(FilePanel &panel, const QString &remoteDir,
+                          QSignalSpy &listingFinished) {
+    return waitForCondition([&panel, &remoteDir, &listingFinished] {
+        return listingFinished.count() > 0 && panel.model()->hasNetworkSession() &&
+               panel.currentPath() == remoteDir &&
+               listHasName(panel.model(), QStringLiteral("folder"));
+    });
+}
+
+bool waitForRuntimeResources(const fc::RuntimeSnapshot &baseline, int remoteTabCount) {
+    return waitForCondition([&baseline, remoteTabCount] {
+        const fc::RuntimeSnapshot current = fc::runtimeSnapshot();
+        return current.networkSessions == baseline.networkSessions + remoteTabCount &&
+               current.networkThreads == baseline.networkThreads + remoteTabCount &&
+               current.activeHeartbeats == baseline.activeHeartbeats + remoteTabCount &&
+               current.transferWorkers == baseline.transferWorkers &&
+               current.curlTransfers == baseline.curlTransfers;
+    });
+}
+
+struct RuntimeScenarioResult {
+    bool completed = false;
+    fc::RuntimeSnapshot peak;
+};
+
+RuntimeScenarioResult runTenRemoteTabScenario(const fc::RuntimeSnapshot &baseline) {
+    constexpr int remoteTabCount = 10;
+    fc::RuntimeSnapshot peak = baseline;
+    std::vector<std::shared_ptr<LifecycleShare>> shares;
+    QStringList remoteDirs;
+    shares.reserve(remoteTabCount);
+    remoteDirs.reserve(remoteTabCount);
+
+    // All owners live in this scope. Returning on a failed bounded wait destroys
+    // the panel and provider vector before the outer test checks final resources.
+    auto panel = std::make_unique<FilePanel>();
+    for (int i = 0; i < remoteTabCount; ++i) {
+        if (i > 0)
+            panel->newTab();
+        if (!requireScenario(panel->tabCount() == i + 1,
+                             QStringLiteral("tab count after creating remote tab %1").arg(i)))
+            return {false, peak};
+
+        const QString remoteDir = QStringLiteral("/share/docs%1").arg(i);
+        remoteDirs.append(remoteDir);
+        auto share = std::make_shared<LifecycleShare>(remoteDir);
+        shares.push_back(share);
+        QSignalSpy listingFinished(panel->model(), &FileSystemModel::loadFinished);
+        panel->connectTabTo(i, share, [](QString *) { return true; }, remoteDir,
+                            QStringLiteral("tester@share%1").arg(i), SavedConnection{},
+                            FileSystemModel::AuthRetryFactory());
+
+        if (!requireScenario(waitForRemoteListing(*panel, remoteDir, listingFinished),
+                             QStringLiteral("remote listing ready for tab %1").arg(i)) ||
+            !requireScenario(waitForRuntimeResources(baseline, i + 1),
+                             QStringLiteral("runtime resources reached %1 remote tabs").arg(i + 1)))
+            return {false, peak};
+        if (!requireScenario(panel->tabHasConnection(i),
+                             QStringLiteral("remote connection metadata for tab %1").arg(i)))
+            return {false, peak};
+        recordRuntimePeak(peak);
     }
 
-private:
-    fc::RuntimeSnapshot m_baseline;
-    std::unique_ptr<FilePanel> &m_panel;
-};
+    // Add a local survivor so every remote tab, including the last one, can be
+    // closed through the real close-button path.
+    panel->newTab();
+    if (!requireScenario(
+            waitForCondition([&] {
+                return panel->tabCount() == remoteTabCount + 1 &&
+                       !panel->model()->hasNetworkSession();
+            }),
+            QStringLiteral("local survivor ready")) ||
+        !requireScenario(waitForRuntimeResources(baseline, remoteTabCount),
+                         QStringLiteral("parked resources remain live with local survivor")))
+        return {false, peak};
+    recordRuntimePeak(peak);
+
+    // Exercise both active and parked ownership before closing anything.
+    for (int i = 0; i < remoteTabCount; ++i) {
+        QSignalSpy listingFinished(panel->model(), &FileSystemModel::loadFinished);
+        panel->activateTab(i);
+        if (!requireScenario(waitForRemoteListing(*panel, remoteDirs.at(i), listingFinished),
+                             QStringLiteral("remote listing restored for tab %1").arg(i)) ||
+            !requireScenario(waitForRuntimeResources(baseline, remoteTabCount),
+                             QStringLiteral("all ten resources remain live while tab %1 is active")
+                                 .arg(i)))
+            return {false, peak};
+        recordRuntimePeak(peak);
+    }
+    panel->activateTab(remoteTabCount);
+    if (!requireScenario(
+            waitForCondition([&] { return !panel->model()->hasNetworkSession(); }),
+            QStringLiteral("local survivor restored after activation sweep")) ||
+        !requireScenario(waitForRuntimeResources(baseline, remoteTabCount),
+                         QStringLiteral("all ten resources remain live while parked")))
+        return {false, peak};
+    recordRuntimePeak(peak);
+
+    auto *tabs = panel->findChild<TabBar *>();
+    if (!requireScenario(tabs != nullptr, QStringLiteral("tab bar exists for close-button path")))
+        return {false, peak};
+    for (int i = remoteTabCount - 1; i >= 0; --i) {
+        auto *closeButton = qobject_cast<QAbstractButton *>(
+            tabs->tabButton(i, QTabBar::RightSide));
+        if (!requireScenario(closeButton != nullptr && closeButton->isEnabled(),
+                             QStringLiteral("enabled close button exists for tab %1").arg(i)))
+            return {false, peak};
+
+        QSignalSpy closeRequested(tabs, &QTabBar::tabCloseRequested);
+        closeButton->click();
+        if (!requireScenario(
+                waitForCondition([&] {
+                    return closeRequested.count() == 1 && panel->tabCount() == i + 1;
+                }),
+                QStringLiteral("close button routed through QTabBar for tab %1").arg(i)) ||
+            !requireScenario(waitForRuntimeResources(baseline, i),
+                             QStringLiteral("runtime resources drained after closing tab %1").arg(i)))
+            return {false, peak};
+        if (!requireScenario(!panel->tabHasConnection(i),
+                             QStringLiteral("closed tab %1 no longer has a connection").arg(i)))
+            return {false, peak};
+        recordRuntimePeak(peak);
+    }
+
+    if (!requireScenario(panel->tabCount() == 1 && !panel->tabHasConnection(0),
+                         QStringLiteral("only local survivor remains after remote closes")))
+        return {false, peak};
+    return {true, peak};
+}
 
 } // namespace
 
@@ -425,86 +542,20 @@ TEST(TabSessionLifecycle, ProviderSizeTaskCompletesAfterRemoteTabCloses) {
 TEST(TabSessionLifecycle, TenRemoteTabsReturnRuntimeResourcesToBaseline) {
     constexpr int remoteTabCount = 10;
     const fc::RuntimeSnapshot baseline = fc::runtimeSnapshot();
-    fc::RuntimeSnapshot peak = baseline;
-
-    std::vector<std::shared_ptr<LifecycleShare>> shares;
-    shares.reserve(remoteTabCount);
-    auto panel = std::make_unique<FilePanel>();
-    RuntimeCleanupGuard cleanup(baseline, panel);
-
-    for (int i = 0; i < remoteTabCount; ++i) {
-        if (i > 0)
-            panel->newTab();
-
-        const QString remoteDir = QStringLiteral("/share/docs%1").arg(i);
-        auto share = std::make_shared<LifecycleShare>(remoteDir);
-        shares.push_back(share);
-        panel->connectTabTo(i, share, [](QString *) { return true; }, remoteDir,
-                            QStringLiteral("tester@share%1").arg(i), SavedConnection{},
-                            FileSystemModel::AuthRetryFactory());
-        settle(*panel);
-
-        ASSERT_TRUE(panel->tabHasConnection(i));
-        ASSERT_TRUE(panel->model()->hasNetworkSession());
-        recordRuntimePeak(peak);
-        const fc::RuntimeSnapshot current = fc::runtimeSnapshot();
-        EXPECT_LE(current.networkSessions, baseline.networkSessions + i + 1);
-        EXPECT_LE(current.networkThreads, baseline.networkThreads + i + 1);
-        EXPECT_LE(current.activeHeartbeats, baseline.activeHeartbeats + i + 1);
-        EXPECT_LE(current.curlTransfers, baseline.curlTransfers + i + 1);
-    }
-
-    ASSERT_EQ(panel->tabCount(), remoteTabCount);
-
-    // Add a local survivor so every remote tab, including the last one, can be
-    // closed through the real TabBar close path.
-    panel->newTab();
-    settle(*panel);
-    ASSERT_EQ(panel->tabCount(), remoteTabCount + 1);
-    ASSERT_FALSE(panel->model()->hasNetworkSession());
-    recordRuntimePeak(peak);
-
-    // Exercise both active and parked ownership before closing anything.
-    for (int i = 0; i < remoteTabCount; ++i) {
-        panel->activateTab(i);
-        settle(*panel);
-        ASSERT_TRUE(panel->model()->hasNetworkSession());
-        recordRuntimePeak(peak);
-    }
-    panel->activateTab(remoteTabCount);
-    settle(*panel);
-    ASSERT_FALSE(panel->model()->hasNetworkSession());
-    recordRuntimePeak(peak);
-
-    auto *tabs = panel->findChild<TabBar *>();
-    ASSERT_NE(tabs, nullptr);
-    for (int i = remoteTabCount - 1; i >= 0; --i) {
-        ASSERT_TRUE(QMetaObject::invokeMethod(tabs, "closeTabRequested", Qt::DirectConnection,
-                                              Q_ARG(int, i)));
-        settle(*panel);
-        ASSERT_EQ(panel->tabCount(), i + 1);
-        EXPECT_FALSE(panel->tabHasConnection(i));
-        recordRuntimePeak(peak);
-    }
-    ASSERT_EQ(panel->tabCount(), 1);
-    EXPECT_FALSE(panel->tabHasConnection(0));
-
-    panel.reset();
-    shares.clear();
-    QTRY_VERIFY_WITH_TIMEOUT(sameRuntimeSnapshot(fc::runtimeSnapshot(), baseline),
-                             kRuntimeWaitMs);
-
+    const RuntimeScenarioResult scenario = runTenRemoteTabScenario(baseline);
+    const bool returnedToBaseline = waitForCondition(
+        [&] { return sameRuntimeSnapshot(fc::runtimeSnapshot(), baseline); });
     const fc::RuntimeSnapshot finalSnapshot = fc::runtimeSnapshot();
-    RecordProperty("runtime_baseline", runtimeSnapshotText(baseline).toStdString());
-    RecordProperty("runtime_peak", runtimeSnapshotText(peak).toStdString());
-    RecordProperty("runtime_final", runtimeSnapshotText(finalSnapshot).toStdString());
-    RecordProperty("runtime_final_delta",
-                   runtimeDeltaText(finalSnapshot, baseline).toStdString());
-    qInfo().noquote() << "FoundationResourceBaseline baseline="
-                      << runtimeSnapshotText(baseline) << "peak="
-                      << runtimeSnapshotText(peak) << "final="
-                      << runtimeSnapshotText(finalSnapshot) << "finalDelta="
-                      << runtimeDeltaText(finalSnapshot, baseline);
+    EXPECT_TRUE(scenario.completed);
+    EXPECT_TRUE(returnedToBaseline)
+        << "final=" << runtimeSnapshotText(finalSnapshot).toStdString()
+        << " baseline=" << runtimeSnapshotText(baseline).toStdString();
+
+    EXPECT_EQ(scenario.peak.networkSessions, baseline.networkSessions + remoteTabCount);
+    EXPECT_EQ(scenario.peak.networkThreads, baseline.networkThreads + remoteTabCount);
+    EXPECT_EQ(scenario.peak.activeHeartbeats, baseline.activeHeartbeats + remoteTabCount);
+    EXPECT_EQ(scenario.peak.transferWorkers, baseline.transferWorkers);
+    EXPECT_EQ(scenario.peak.curlTransfers, baseline.curlTransfers);
 
     EXPECT_EQ(finalSnapshot.networkSessions, baseline.networkSessions);
     EXPECT_EQ(finalSnapshot.networkThreads, baseline.networkThreads);
