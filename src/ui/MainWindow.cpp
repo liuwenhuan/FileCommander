@@ -739,13 +739,16 @@ void MainWindow::buildTitleBarMenus() {
     Typography::applyChromeFont(configMenu, m_settings);
     m_configMenu = configMenu;
     connect(configMenu, &QMenu::aboutToShow, this, [this, configMenu] {
-    if (!configMenu->isEmpty())
+    if (!configMenu->isEmpty()) {
+        syncConfigMenuState();
         return;
+    }
     addCommandAction(configMenu, QStringLiteral("keyboardShortcuts"), tr("Keyboard Shortcuts"));
     addCommandAction(configMenu, QStringLiteral("connectionManager"), tr("Connection Manager"));
     configMenu->addSeparator();
     QAction *directArchives = configMenu->addAction(
         commandText(QStringLiteral("toggleDirectArchives"), tr("Directly Open Archives")));
+    directArchives->setObjectName(QStringLiteral("configDirectArchivesAction"));
     directArchives->setCheckable(true);
     directArchives->setChecked(!m_settings.archiveAsFolder());
     connect(directArchives, &QAction::toggled, this, [this](bool on) {
@@ -755,6 +758,7 @@ void MainWindow::buildTitleBarMenus() {
     });
     QAction *noConfirm = configMenu->addAction(
         commandText(QStringLiteral("toggleDeleteConfirmation"), tr("Skip Trash Delete Confirmation")));
+    noConfirm->setObjectName(QStringLiteral("configDeleteConfirmationAction"));
     noConfirm->setCheckable(true);
     noConfirm->setChecked(!m_settings.confirmDelete());
     noConfirm->setToolTip(
@@ -763,6 +767,7 @@ void MainWindow::buildTitleBarMenus() {
     connect(noConfirm, &QAction::toggled, this,
             [this](bool on) { m_settings.setConfirmDelete(!on); });
     QAction *reduceMotion = configMenu->addAction(tr("Reduce Motion"));
+    reduceMotion->setObjectName(QStringLiteral("configReduceMotionAction"));
     reduceMotion->setCheckable(true);
     reduceMotion->setChecked(m_settings.reduceMotion());
     connect(reduceMotion, &QAction::toggled, this, [this](bool on) {
@@ -771,11 +776,13 @@ void MainWindow::buildTitleBarMenus() {
     });
     QAction *autoUpdate = configMenu->addAction(
         commandText(QStringLiteral("toggleAutoUpdate"), tr("Automatic Update Check")));
+    autoUpdate->setObjectName(QStringLiteral("configAutoUpdateAction"));
     autoUpdate->setCheckable(true);
     autoUpdate->setChecked(m_settings.autoUpdateCheck());
     connect(autoUpdate, &QAction::toggled, this,
             [this](bool on) { m_settings.setAutoUpdateCheck(on); });
     QAction *folderAssociation = configMenu->addAction(tr("Associate Folder Open Actions"));
+    folderAssociation->setObjectName(QStringLiteral("configFolderAssociationAction"));
     folderAssociation->setCheckable(true);
     folderAssociation->setChecked(m_settings.folderAssociationEnabled());
     if (m_settings.folderAssociationEnabled()) {
@@ -792,14 +799,17 @@ void MainWindow::buildTitleBarMenus() {
         folderAssociation->setChecked(!on);
         ttc::warning(this, tr("Folder Association"), error);
     });
+    syncConfigMenuState();
     });
 
     auto *interfaceMenu = new QMenu(tr("&Interface"), this);
     Typography::applyChromeFont(interfaceMenu, m_settings);
     m_interfaceMenu = interfaceMenu;
     connect(interfaceMenu, &QMenu::aboutToShow, this, [this, interfaceMenu] {
-    if (!interfaceMenu->isEmpty())
+    if (!interfaceMenu->isEmpty()) {
+        syncInterfaceMenuState();
         return;
+    }
     QMenu *themeMenu = interfaceMenu->addMenu(tr("&Theme"));
     Typography::applyChromeFont(themeMenu, m_settings);
     auto *themeGroup = new QActionGroup(this);
@@ -816,6 +826,8 @@ void MainWindow::buildTitleBarMenus() {
     };
     for (const auto &entry : themeEntries) {
         QAction *action = themeMenu->addAction(entry.label);
+        action->setObjectName(
+            QStringLiteral("interfaceThemeAction%1").arg(static_cast<int>(entry.theme)));
         action->setCheckable(true);
         action->setChecked(m_settings.theme() == entry.theme);
         themeGroup->addAction(action);
@@ -828,6 +840,7 @@ void MainWindow::buildTitleBarMenus() {
     // applicable here", which is what it is.
     themeMenu->addSeparator();
     m_phosphorImagesAction = themeMenu->addAction(tr("Tint images to match"));
+    m_phosphorImagesAction->setObjectName(QStringLiteral("interfacePhosphorImagesAction"));
     m_phosphorImagesAction->setCheckable(true);
     m_phosphorImagesAction->setChecked(m_settings.phosphorImages());
     m_phosphorImagesAction->setEnabled(m_settings.theme() == Settings::Theme::Crt);
@@ -973,6 +986,7 @@ void MainWindow::buildTitleBarMenus() {
     interfaceMenu->addSeparator();
     QAction *showFnBar = interfaceMenu->addAction(
         commandText(QStringLiteral("toggleFunctionKeyBar"), tr("Show Function Key Bar")));
+    showFnBar->setObjectName(QStringLiteral("interfaceFunctionKeyBarAction"));
     showFnBar->setCheckable(true);
     showFnBar->setChecked(!m_functionKeyBar->isHidden());
     connect(showFnBar, &QAction::toggled, this, [this](bool on) {
@@ -981,6 +995,7 @@ void MainWindow::buildTitleBarMenus() {
     });
     QAction *showCmdBar = interfaceMenu->addAction(
         commandText(QStringLiteral("toggleCommandBar"), tr("Show Command Bar")));
+    showCmdBar->setObjectName(QStringLiteral("interfaceCommandBarAction"));
     showCmdBar->setCheckable(true);
     showCmdBar->setChecked(!m_commandBar->isHidden());
     connect(showCmdBar, &QAction::toggled, this, [this](bool on) {
@@ -989,6 +1004,7 @@ void MainWindow::buildTitleBarMenus() {
     });
     QAction *showTabBar = interfaceMenu->addAction(
         commandText(QStringLiteral("toggleTabBar"), tr("Show File Tab Bar")));
+    showTabBar->setObjectName(QStringLiteral("interfaceTabBarAction"));
     showTabBar->setCheckable(true);
     showTabBar->setChecked(m_settings.showTabBar());
     connect(showTabBar, &QAction::toggled, this, [this](bool on) {
@@ -998,10 +1014,12 @@ void MainWindow::buildTitleBarMenus() {
     });
     QAction *showShortcutLabels = interfaceMenu->addAction(
         commandText(QStringLiteral("toggleShortcutLabels"), tr("Display Shortcut Labels")));
+    showShortcutLabels->setObjectName(QStringLiteral("interfaceShortcutLabelsAction"));
     showShortcutLabels->setCheckable(true);
     showShortcutLabels->setChecked(m_settings.showShortcutLabels());
     connect(showShortcutLabels, &QAction::toggled, this,
             [this](bool on) { m_settings.setShowShortcutLabels(on); });
+    syncInterfaceMenuState();
     });
 
     // Embed the menus in our self-drawn title bar (app icon + menu buttons +
@@ -1014,6 +1032,49 @@ void MainWindow::buildTitleBarMenus() {
 
     // Device enumeration, SMB discovery and update checks are useful background
     // services, but none are required for the first visible frame.
+}
+
+void MainWindow::syncConfigMenuState() {
+    if (!m_configMenu)
+        return;
+
+    const auto syncChecked = [this](const QString &name, bool checked) {
+        if (QAction *action = m_configMenu->findChild<QAction *>(name)) {
+            QSignalBlocker block(action);
+            action->setChecked(checked);
+        }
+    };
+    syncChecked(QStringLiteral("configDirectArchivesAction"), !m_settings.archiveAsFolder());
+    syncChecked(QStringLiteral("configDeleteConfirmationAction"), !m_settings.confirmDelete());
+    syncChecked(QStringLiteral("configReduceMotionAction"), m_settings.reduceMotion());
+    syncChecked(QStringLiteral("configAutoUpdateAction"), m_settings.autoUpdateCheck());
+    syncChecked(QStringLiteral("configFolderAssociationAction"), m_settings.folderAssociationEnabled());
+}
+
+void MainWindow::syncInterfaceMenuState() {
+    if (!m_interfaceMenu)
+        return;
+
+    const auto syncChecked = [this](const QString &name, bool checked) {
+        if (QAction *action = m_interfaceMenu->findChild<QAction *>(name)) {
+            QSignalBlocker block(action);
+            action->setChecked(checked);
+        }
+    };
+    for (int theme = static_cast<int>(Settings::Theme::Auto);
+         theme <= static_cast<int>(Settings::Theme::Crt); ++theme) {
+        syncChecked(QStringLiteral("interfaceThemeAction%1").arg(theme),
+                    static_cast<int>(m_settings.theme()) == theme);
+    }
+    syncChecked(QStringLiteral("interfacePhosphorImagesAction"), m_settings.phosphorImages());
+    if (QAction *action = m_interfaceMenu->findChild<QAction *>(
+            QStringLiteral("interfacePhosphorImagesAction"))) {
+        action->setEnabled(m_settings.theme() == Settings::Theme::Crt);
+    }
+    syncChecked(QStringLiteral("interfaceFunctionKeyBarAction"), !m_functionKeyBar->isHidden());
+    syncChecked(QStringLiteral("interfaceCommandBarAction"), !m_commandBar->isHidden());
+    syncChecked(QStringLiteral("interfaceTabBarAction"), m_settings.showTabBar());
+    syncChecked(QStringLiteral("interfaceShortcutLabelsAction"), m_settings.showShortcutLabels());
 }
 
 QJsonObject MainWindow::startupMetrics() const {

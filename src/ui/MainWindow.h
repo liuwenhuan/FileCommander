@@ -185,6 +185,8 @@ private:
     // (Re)builds the Tools/Config/Interface menus and the title bar that hosts them.
     // Safe to call again on a language change (deletes the previous menus/bar).
     void buildTitleBarMenus();
+    void syncConfigMenuState();
+    void syncInterfaceMenuState();
     QAction *addCommandAction(QMenu *menu, const QString &id, const QString &label,
                               std::function<void()> handler = {});
     QString commandText(const QString &id, const QString &label) const;

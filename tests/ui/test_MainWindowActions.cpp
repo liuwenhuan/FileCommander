@@ -2,7 +2,9 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QKeySequence>
 #include <QMenu>
+#include <QShortcut>
 #include <QToolButton>
 #include <QWidgetAction>
 
@@ -39,6 +41,36 @@ QMenu *findMenu(MainWindow &window, const QString &title) {
 void openMenu(QMenu *menu) {
     ASSERT_NE(menu, nullptr);
     ASSERT_TRUE(QMetaObject::invokeMethod(menu, "aboutToShow", Qt::DirectConnection));
+}
+
+QShortcut *findShortcut(MainWindow &window, const QKeySequence &key) {
+    for (QShortcut *shortcut : window.findChildren<QShortcut *>()) {
+        if (shortcut->key() == key)
+            return shortcut;
+    }
+    return nullptr;
+}
+
+void activateShortcut(MainWindow &window, const QKeySequence &key) {
+    QShortcut *shortcut = findShortcut(window, key);
+    ASSERT_NE(shortcut, nullptr);
+    ASSERT_TRUE(QMetaObject::invokeMethod(shortcut, "activated", Qt::DirectConnection));
+}
+
+QAction *checkedThemeAction(QMenu *interfaceMenu) {
+    QAction *themeAction = findAction(interfaceMenu, QStringLiteral("&Theme"));
+    if (!themeAction)
+        return nullptr;
+    QMenu *themeMenu = themeAction->menu();
+    if (!themeMenu)
+        return nullptr;
+    for (QAction *action : themeMenu->actions()) {
+        if (action->isCheckable() && action->isChecked() &&
+            action->text() != QStringLiteral("Tint images to match")) {
+            return action;
+        }
+    }
+    return nullptr;
 }
 
 class ScopedUiLanguage final {
@@ -119,6 +151,70 @@ TEST(MainWindowActionsTest, FirstOpenBuildsEachMenuOnceWithCurrentState) {
     openMenu(interfaceMenu);
     EXPECT_EQ(interfaceMenu->actions().size(), interfaceActionCount);
     EXPECT_EQ(interfaceMenu->findChildren<QWidgetAction *>().size(), 2);
+}
+
+TEST(MainWindowActionsTest, ConfigMenuRefreshesDeleteConfirmationAfterRuntimeShortcut) {
+    ScopedUiLanguage language(QStringLiteral("en"));
+    MainWindow window;
+
+    QMenu *configMenu = findMenu(window, QStringLiteral("Con&fig"));
+    ASSERT_NE(configMenu, nullptr);
+    openMenu(configMenu);
+    QAction *noConfirm = findAction(configMenu, QStringLiteral("Skip Trash Delete Confirmation"));
+    ASSERT_NE(noConfirm, nullptr);
+    const bool initiallyChecked = noConfirm->isChecked();
+    const int actionCount = configMenu->actions().size();
+
+    activateShortcut(window, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_D));
+    openMenu(configMenu);
+
+    EXPECT_EQ(noConfirm->isChecked(), !initiallyChecked);
+    EXPECT_EQ(configMenu->actions().size(), actionCount);
+
+    activateShortcut(window, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_D));
+}
+
+TEST(MainWindowActionsTest, InterfaceMenuRefreshesFunctionKeyBarAfterRuntimeShortcut) {
+    ScopedUiLanguage language(QStringLiteral("en"));
+    MainWindow window;
+
+    QMenu *interfaceMenu = findMenu(window, QStringLiteral("&Interface"));
+    ASSERT_NE(interfaceMenu, nullptr);
+    openMenu(interfaceMenu);
+    QAction *showFunctions = findAction(interfaceMenu, QStringLiteral("Show Function Key Bar"));
+    FunctionKeyBar *functionKeyBar = window.findChild<FunctionKeyBar *>();
+    ASSERT_NE(showFunctions, nullptr);
+    ASSERT_NE(functionKeyBar, nullptr);
+    const int actionCount = interfaceMenu->actions().size();
+
+    activateShortcut(window, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_J));
+    openMenu(interfaceMenu);
+
+    EXPECT_EQ(showFunctions->isChecked(), !functionKeyBar->isHidden());
+    EXPECT_EQ(interfaceMenu->actions().size(), actionCount);
+
+    activateShortcut(window, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_J));
+}
+
+TEST(MainWindowActionsTest, InterfaceMenuRefreshesThemeAfterRuntimeShortcut) {
+    ScopedUiLanguage language(QStringLiteral("en"));
+    MainWindow window;
+
+    QMenu *interfaceMenu = findMenu(window, QStringLiteral("&Interface"));
+    ASSERT_NE(interfaceMenu, nullptr);
+    openMenu(interfaceMenu);
+    QAction *initialTheme = checkedThemeAction(interfaceMenu);
+    ASSERT_NE(initialTheme, nullptr);
+    const int actionCount = interfaceMenu->actions().size();
+
+    activateShortcut(window, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_T));
+    openMenu(interfaceMenu);
+
+    EXPECT_NE(checkedThemeAction(interfaceMenu), initialTheme);
+    EXPECT_EQ(interfaceMenu->actions().size(), actionCount);
+
+    for (int i = 0; i < 3; ++i)
+        activateShortcut(window, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_T));
 }
 
 TEST(MainWindowActionsTest, FirstOpenBuildsTranslatedMenuContents) {
