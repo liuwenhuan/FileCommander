@@ -14,6 +14,17 @@ New-Item -ItemType Directory -Path $runDirectory | Out-Null
 
 try {
     $results = @()
+    $phaseFields = @(
+        'applicationSetupMs',
+        'panelsConstructedMs',
+        'operationQueueConstructedMs',
+        'sessionNavigationDispatchedMs',
+        'shortcutsTitleBarReadyMs',
+        'startupThemeApplyStartedMs',
+        'startupThemeApplyFinishedMs',
+        'firstShowMs',
+        'readinessMs'
+    )
     foreach ($run in 1..7) {
         $outputPath = Join-Path $runDirectory ("startup-$run.json")
         $leftDirectory = Join-Path $runDirectory ("left-$run")
@@ -45,6 +56,13 @@ try {
                 throw "Startup probe run $run returned invalid ${field}: $value"
             }
         }
+        foreach ($field in $phaseFields) {
+            $value = $result.$field
+            if ($value -is [string] -or $null -eq $value -or
+                [math]::Truncate([double]$value) -ne [double]$value -or $value -lt 0) {
+                throw "Startup probe run $run returned invalid ${field}: $value"
+            }
+        }
 
         $results += [pscustomobject]@{
             Run = $run
@@ -54,6 +72,14 @@ try {
         }
         Write-Host ("Run {0}: visibleMs={1} panelsLoadedMs={2} interactiveMs={3}" -f
             $run, $result.visibleMs, $result.panelsLoadedMs, $result.interactiveMs)
+        $previous = 0
+        $segments = foreach ($field in $phaseFields) {
+            $value = [int]$result.$field
+            $delta = $value - $previous
+            $previous = $value
+            "${field}=${value}(+${delta})"
+        }
+        Write-Host ("  phases: " + ($segments -join ' '))
     }
 
     $interactive = @($results | ForEach-Object interactiveMs | Sort-Object)

@@ -485,7 +485,7 @@ TEST(MainWindowStartupTest, EmitsReadyAfterBothVisiblePanelsAreInteractive) {
         ASSERT_TRUE(file.open(QIODevice::WriteOnly));
     }
 
-    MainWindow window(nullptr, 10000);
+    MainWindow window(nullptr, 10000, true);
     QSplitter *splitter = panelSplitter(window);
     ASSERT_NE(splitter, nullptr);
     auto *left = qobject_cast<FilePanel *>(splitter->widget(0));
@@ -528,6 +528,28 @@ TEST(MainWindowStartupTest, EmitsReadyAfterBothVisiblePanelsAreInteractive) {
               metrics.value(QStringLiteral("visibleMs")).toInt());
     EXPECT_GE(metrics.value(QStringLiteral("interactiveMs")).toInt(),
               metrics.value(QStringLiteral("panelsLoadedMs")).toInt());
+    const QStringList phaseNames = {
+        QStringLiteral("applicationSetupMs"),
+        QStringLiteral("panelsConstructedMs"),
+        QStringLiteral("operationQueueConstructedMs"),
+        QStringLiteral("sessionNavigationDispatchedMs"),
+        QStringLiteral("shortcutsTitleBarReadyMs"),
+        QStringLiteral("startupThemeApplyStartedMs"),
+        QStringLiteral("startupThemeApplyFinishedMs"),
+        QStringLiteral("firstShowMs"),
+        QStringLiteral("readinessMs"),
+    };
+    qint64 previousPhaseMs = 10000;
+    for (const QString &phaseName : phaseNames) {
+        ASSERT_TRUE(metrics.contains(phaseName)) << qPrintable(phaseName);
+        const qint64 phaseMs = metrics.value(phaseName).toVariant().toLongLong();
+        EXPECT_GE(phaseMs, previousPhaseMs) << qPrintable(phaseName);
+        previousPhaseMs = phaseMs;
+    }
+    EXPECT_EQ(metrics.value(QStringLiteral("firstShowMs")),
+              metrics.value(QStringLiteral("visibleMs")));
+    EXPECT_EQ(metrics.value(QStringLiteral("readinessMs")),
+              metrics.value(QStringLiteral("interactiveMs")));
     processGuiEvents();
     EXPECT_EQ(ready.count(), 1);
 }
@@ -631,8 +653,11 @@ TEST(MainWindowStartupTest, EmitsReadyWhenBothPanelsFinishLoadingBeforeShow) {
     processGuiEvents();
     processGuiEvents();
     ASSERT_FALSE(window.isVisible());
-    ASSERT_EQ(window.startupMetrics().value(QStringLiteral("visibleMs")).toInt(), -1);
-    ASSERT_GE(window.startupMetrics().value(QStringLiteral("panelsLoadedMs")).toInt(), 0);
+    const QJsonObject metricsBeforeShow = window.startupMetrics();
+    ASSERT_EQ(metricsBeforeShow.value(QStringLiteral("visibleMs")).toInt(), -1);
+    ASSERT_GE(metricsBeforeShow.value(QStringLiteral("panelsLoadedMs")).toInt(), 0);
+    EXPECT_EQ(metricsBeforeShow.size(), 3)
+        << "phase metrics must remain opt-in so the legacy probe contract stays unchanged";
     std::vector<std::unique_ptr<QSignalBlocker>> modelBlockers;
     for (FileSystemModel *model : window.findChildren<FileSystemModel *>())
         modelBlockers.push_back(std::make_unique<QSignalBlocker>(model));

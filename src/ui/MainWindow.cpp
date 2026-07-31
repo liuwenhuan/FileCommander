@@ -292,9 +292,12 @@ bool isMissingRemovablePath(const QString &path) {
 }
 } // namespace
 
-MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs) : QMainWindow(parent) {
+MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectStartupPhases)
+    : QMainWindow(parent), m_collectStartupPhases(collectStartupPhases) {
     m_startupElapsed.start();
     m_startupElapsedOffsetMs = qMax<qint64>(0, startupElapsedMs);
+    if (m_collectStartupPhases)
+        m_startupApplicationSetupMs = m_startupElapsedOffsetMs;
     MotionPolicy::setApplicationReduced(m_settings.reduceMotion());
 
     // Frameless: we draw our own title bar (see setupMenuAndToolbar / TitleBar)
@@ -319,6 +322,8 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs) : QMainWindow(p
     m_panelSplitter = splitter;
     m_leftPanel = new FilePanel(splitter);
     m_rightPanel = new FilePanel(splitter);
+    if (m_collectStartupPhases)
+        m_startupPanelsConstructedMs = elapsedSinceStartup();
     splitter->addWidget(m_leftPanel);
     splitter->addWidget(m_rightPanel);
     splitter->setStretchFactor(0, 1);
@@ -376,6 +381,8 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs) : QMainWindow(p
     // the function-key bar stays the bottom-most widget.
 
     m_queue = new OperationQueue(this);
+    if (m_collectStartupPhases)
+        m_startupOperationQueueConstructedMs = elapsedSinceStartup();
     m_queue->setConflictHandler(
         [this](const FileConflict &conflict) { return OverwriteConfirmDialog::ask(this, conflict); });
     m_queue->setErrorHandler([this](const QString &path, const QString &error) {
@@ -545,6 +552,8 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs) : QMainWindow(p
         m_leftPanel->navigateTo(home);
         m_rightPanel->navigateTo(home);
     }
+    if (m_collectStartupPhases)
+        m_startupSessionNavigationDispatchedMs = elapsedSinceStartup();
 
     for (FilePanel *panel : {m_leftPanel, m_rightPanel}) {
         // The server wants credentials: prompt, then hand them to that panel's
@@ -670,6 +679,8 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs) : QMainWindow(p
 
     setupShortcuts();
     buildTitleBarMenus();
+    if (m_collectStartupPhases)
+        m_startupShortcutsTitleBarReadyMs = elapsedSinceStartup();
 
     // Apply the persisted file-list font size now that both panels and the
     // Interface-menu control exist.
@@ -696,7 +707,11 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs) : QMainWindow(p
 
     // Apply the startup stylesheet once, after every visible widget exists but
     // before main() can show the window. Runtime changes still use applyTheme().
+    if (m_collectStartupPhases)
+        m_startupThemeApplyStartedMs = elapsedSinceStartup();
     m_themeManager->apply(m_settings.theme(), m_settings.phosphorImages());
+    if (m_collectStartupPhases)
+        m_startupThemeApplyFinishedMs = elapsedSinceStartup();
 }
 
 QString MainWindow::commandText(const QString &id, const QString &label) const {
@@ -1088,9 +1103,26 @@ void MainWindow::syncInterfaceMenuState() {
 }
 
 QJsonObject MainWindow::startupMetrics() const {
-    return {{QStringLiteral("visibleMs"), m_startupVisibleMs},
-            {QStringLiteral("panelsLoadedMs"), m_startupPanelsLoadedMs},
-            {QStringLiteral("interactiveMs"), m_startupInteractiveMs}};
+    QJsonObject metrics = {{QStringLiteral("visibleMs"), m_startupVisibleMs},
+                           {QStringLiteral("panelsLoadedMs"), m_startupPanelsLoadedMs},
+                           {QStringLiteral("interactiveMs"), m_startupInteractiveMs}};
+    if (m_collectStartupPhases) {
+        metrics.insert(QStringLiteral("applicationSetupMs"), m_startupApplicationSetupMs);
+        metrics.insert(QStringLiteral("panelsConstructedMs"), m_startupPanelsConstructedMs);
+        metrics.insert(QStringLiteral("operationQueueConstructedMs"),
+                       m_startupOperationQueueConstructedMs);
+        metrics.insert(QStringLiteral("sessionNavigationDispatchedMs"),
+                       m_startupSessionNavigationDispatchedMs);
+        metrics.insert(QStringLiteral("shortcutsTitleBarReadyMs"),
+                       m_startupShortcutsTitleBarReadyMs);
+        metrics.insert(QStringLiteral("startupThemeApplyStartedMs"),
+                       m_startupThemeApplyStartedMs);
+        metrics.insert(QStringLiteral("startupThemeApplyFinishedMs"),
+                       m_startupThemeApplyFinishedMs);
+        metrics.insert(QStringLiteral("firstShowMs"), m_startupVisibleMs);
+        metrics.insert(QStringLiteral("readinessMs"), m_startupInteractiveMs);
+    }
+    return metrics;
 }
 
 qint64 MainWindow::elapsedSinceStartup() const {

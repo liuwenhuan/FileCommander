@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
 
     int exitCode = 0;
     {
-        MainWindow window(nullptr, startupElapsed.elapsed());
+        MainWindow window(nullptr, startupElapsed.elapsed(), !startupProbeOutput.isEmpty());
         // Belt-and-braces for WMs that read the per-window icon. Takes the
         // application icon rather than painting a fresh one: MainWindow's
         // constructor has already applied the theme, which may have replaced the

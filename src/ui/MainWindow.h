@@ -53,7 +53,8 @@ class MainWindow : public QMainWindow {
     Q_OBJECT
 
 public:
-    explicit MainWindow(QWidget *parent = nullptr, qint64 startupElapsedMs = 0);
+    explicit MainWindow(QWidget *parent = nullptr, qint64 startupElapsedMs = 0,
+                        bool collectStartupPhases = false);
     // Packaging-only smoke flow: browse `directory`, load each supplied local
     // preview fixture, then exit. It is intentionally not exposed through UI.
     void runPackageSmoke(const QString &directory);
@@ -325,6 +326,14 @@ private:
     qint64 m_startupVisibleMs = -1;
     qint64 m_startupPanelsLoadedMs = -1;
     qint64 m_startupInteractiveMs = -1;
+    bool m_collectStartupPhases = false;
+    qint64 m_startupApplicationSetupMs = -1;
+    qint64 m_startupPanelsConstructedMs = -1;
+    qint64 m_startupOperationQueueConstructedMs = -1;
+    qint64 m_startupSessionNavigationDispatchedMs = -1;
+    qint64 m_startupShortcutsTitleBarReadyMs = -1;
+    qint64 m_startupThemeApplyStartedMs = -1;
+    qint64 m_startupThemeApplyFinishedMs = -1;
 
     QuickView *m_quickView = nullptr;
     FilePanel *m_quickViewPanel = nullptr; // panel replaced by the preview
