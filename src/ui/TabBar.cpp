@@ -7,6 +7,9 @@
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPropertyAnimation>
+#include <QProxyStyle>
+#include <QStyleFactory>
+#include <QStyleOption>
 #include <QToolButton>
 
 #include "MotionPolicy.h"
@@ -43,6 +46,28 @@ protected:
 private:
     QColor m_colour = Qt::black;
 };
+
+class SplitTabScrollButtonStyle final : public QProxyStyle {
+public:
+    explicit SplitTabScrollButtonStyle(QStyle *baseStyle) : QProxyStyle(baseStyle) {}
+
+    QRect subElementRect(SubElement element, const QStyleOption *option,
+                         const QWidget *widget) const override {
+        QRect rect = QProxyStyle::subElementRect(element, option, widget);
+        if (!widget ||
+            (element != QStyle::SE_TabBarScrollLeftButton &&
+             element != QStyle::SE_TabBarScrollRightButton)) {
+            return rect;
+        }
+
+        const int buttonWidth = qMax(1, rect.width());
+        const int buttonHeight = rect.height() > 0 ? rect.height() : widget->height();
+        const int y = qMax(0, (widget->height() - buttonHeight) / 2);
+        if (element == QStyle::SE_TabBarScrollLeftButton)
+            return QRect(0, y, buttonWidth, buttonHeight);
+        return QRect(qMax(0, widget->width() - buttonWidth), y, buttonWidth, buttonHeight);
+    }
+};
 } // namespace
 
 TabBar::TabBar(QWidget *parent) : QTabBar(parent) {
@@ -51,6 +76,12 @@ TabBar::TabBar(QWidget *parent) : QTabBar(parent) {
     setMovable(true);
     setExpanding(true);            // tabs stretch to fill the panel width
     setFocusPolicy(Qt::NoFocus);   // no dashed focus rectangle on the active tab
+    QStyle *tabStyle = QStyleFactory::create(style()->objectName());
+    if (!tabStyle)
+        tabStyle = QStyleFactory::create(QStringLiteral("Fusion"));
+    m_scrollButtonStyle = new SplitTabScrollButtonStyle(tabStyle);
+    m_scrollButtonStyle->setParent(this);
+    setStyle(m_scrollButtonStyle);
 
     connect(this, &QTabBar::tabCloseRequested, this, &TabBar::closeTabRequested);
 

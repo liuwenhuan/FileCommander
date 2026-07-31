@@ -145,7 +145,9 @@ TEST(TabBarTest, OverflowUsesNativeScrollersInsideTheTabBar) {
         tabBar.addTab(QStringLiteral("Long tab title %1").arg(index));
 
     tabBar.resize(180, 36);
+    tabBar.setCurrentIndex(tabBar.count() - 1);
     tabBar.show();
+    qApp->processEvents();
     qApp->processEvents();
 
     QToolButton *left = nullptr;
@@ -162,9 +164,31 @@ TEST(TabBarTest, OverflowUsesNativeScrollersInsideTheTabBar) {
     ASSERT_NE(right, nullptr);
     EXPECT_TRUE(left->isVisible());
     EXPECT_TRUE(right->isVisible());
+    int maxTabRight = -1;
+    for (int index = 0; index < tabBar.count(); ++index) {
+        const QRect tab = tabBar.tabRect(index);
+        if (tab.isValid() && tab.left() < right->geometry().left())
+            maxTabRight = qMax(maxTabRight, tab.right());
+    }
     EXPECT_LE(left->geometry().left(), 1);
     EXPECT_GE(right->geometry().right(), tabBar.width() - 2);
     EXPECT_LT(left->geometry().right(), right->geometry().left());
+    EXPECT_GE(maxTabRight, right->geometry().left() - 1);
+    const QImage rendered = tabBar.grab().toImage();
+    const QColor accent = tabBar.palette().color(QPalette::Highlight);
+    bool accentBeforeRight = false;
+    for (int x = qMax(left->geometry().right() + 1, right->geometry().left() - 20);
+         x < right->geometry().left(); ++x) {
+        for (int y = 0; y < qMin(4, rendered.height()); ++y) {
+            const QColor pixel = rendered.pixelColor(x, y);
+            if (qAbs(pixel.red() - accent.red()) < 8 &&
+                qAbs(pixel.green() - accent.green()) < 8 &&
+                qAbs(pixel.blue() - accent.blue()) < 8) {
+                accentBeforeRight = true;
+            }
+        }
+    }
+    EXPECT_TRUE(accentBeforeRight);
 }
 
 TEST(FilePanelThemeTest, OverflowDoesNotCreateACustomLeftScrollControl) {
@@ -199,9 +223,16 @@ TEST(FilePanelThemeTest, OverflowDoesNotCreateACustomLeftScrollControl) {
     ASSERT_NE(nativeRight, nullptr);
     EXPECT_TRUE(nativeLeft->isVisible());
     EXPECT_TRUE(nativeRight->isVisible());
+    int maxTabRight = -1;
+    for (int index = 0; index < tabBar->count(); ++index) {
+        const QRect tab = tabBar->tabRect(index);
+        if (tab.isValid() && tab.left() < nativeRight->geometry().left())
+            maxTabRight = qMax(maxTabRight, tab.right());
+    }
     EXPECT_LE(nativeLeft->geometry().left(), 1);
     EXPECT_GE(nativeRight->geometry().right(), tabBar->width() - 2);
     EXPECT_LT(nativeLeft->geometry().right(), nativeRight->geometry().left());
+    EXPECT_GE(maxTabRight, nativeRight->geometry().left() - 1);
 }
 
 TEST(FilePanelThemeTest, NoCustomLeftScrollControlIsCreatedWithoutOverflow) {

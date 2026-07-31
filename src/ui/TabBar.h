@@ -4,6 +4,7 @@
 
 class QAbstractButton;
 class QPropertyAnimation;
+class QProxyStyle;
 class QResizeEvent;
 
 // Visual tab strip for one FilePanel. Thin wrapper around QTabBar adding
@@ -45,6 +46,7 @@ private:
     void refreshCloseButtons();
     void arrangeScrollButtons();
     QAbstractButton *createCloseButton();
+    QProxyStyle *m_scrollButtonStyle = nullptr;
     qreal m_activationProgress = 1.0;
     QPropertyAnimation *m_activationAnimation = nullptr;
 };
