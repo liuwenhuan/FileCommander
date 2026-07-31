@@ -7,23 +7,14 @@
 #include "Settings.h"
 
 OperationQueue::OperationQueue(QObject *parent) : QObject(parent) {
-    m_ops = new FileOperations();
-    m_ops->moveToThread(&m_workerThread);
-    connect(&m_workerThread, &QThread::finished, m_ops, &QObject::deleteLater);
-    connect(m_ops, &FileOperations::progress, this, &OperationQueue::progress);
-    connect(m_ops, &FileOperations::errorOccurred, this, &OperationQueue::errorOccurred);
-    m_ops->setErrorResolver(
-        [this](const QString &path, const QString &error) { return askError(path, error); });
-    m_workerThread.start();
-
     m_maxConcurrentTransfers = Settings().maxConcurrentTransfers();
-    for (int i = 0; i < m_maxConcurrentTransfers; ++i)
-        addTransferWorker();
 }
 
 OperationQueue::~OperationQueue() {
-    m_workerThread.quit();
-    m_workerThread.wait();
+    if (m_ops) {
+        m_workerThread.quit();
+        m_workerThread.wait();
+    }
 
     for (TransferWorker *worker : qAsConst(m_transferWorkers)) {
         worker->thread->quit();
@@ -46,6 +37,7 @@ ErrorAction OperationQueue::askConflict(const FileConflict &conflict) {
 }
 
 void OperationQueue::enqueueCopy(const QStringList &sources, const QString &destDir) {
+    ensureLocalWorkerStarted();
     Job job;
     job.description = tr("Copying %1 item(s) to %2").arg(sources.size()).arg(destDir);
     ConflictResolver resolver = [this](const FileConflict &c) { return askConflict(c); };
@@ -68,6 +60,7 @@ ErrorAction OperationQueue::askError(const QString &path, const QString &error) 
 }
 
 void OperationQueue::enqueueCopyAs(const QString &source, const QString &destPath) {
+    ensureLocalWorkerStarted();
     Job job;
     job.description = tr("Copying %1").arg(QFileInfo(source).fileName());
     ConflictResolver resolver = [this](const FileConflict &c) { return askConflict(c); };
@@ -79,6 +72,7 @@ void OperationQueue::enqueueCopyAs(const QString &source, const QString &destPat
 }
 
 void OperationQueue::enqueueMove(const QStringList &sources, const QString &destDir) {
+    ensureLocalWorkerStarted();
     Job job;
     job.description = tr("Moving %1 item(s) to %2").arg(sources.size()).arg(destDir);
     ConflictResolver resolver = [this](const FileConflict &c) { return askConflict(c); };
@@ -90,6 +84,7 @@ void OperationQueue::enqueueMove(const QStringList &sources, const QString &dest
 }
 
 void OperationQueue::enqueueDelete(const QStringList &paths, bool toTrash) {
+    ensureLocalWorkerStarted();
     Job job;
     job.description = tr("Deleting %1 item(s)").arg(paths.size());
     job.run = [paths, toTrash](FileOperations &ops, QString &err) {
@@ -100,6 +95,7 @@ void OperationQueue::enqueueDelete(const QStringList &paths, bool toTrash) {
 }
 
 void OperationQueue::enqueueMkdir(const QString &parentDir, const QString &name) {
+    ensureLocalWorkerStarted();
     Job job;
     job.description = tr("Creating directory %1").arg(name);
     job.run = [parentDir, name](FileOperations &ops, QString &err) {
@@ -110,6 +106,7 @@ void OperationQueue::enqueueMkdir(const QString &parentDir, const QString &name)
 }
 
 void OperationQueue::enqueueRename(const QString &path, const QString &newName) {
+    ensureLocalWorkerStarted();
     Job job;
     job.description = tr("Renaming %1").arg(path);
     job.run = [path, newName](FileOperations &ops, QString &err) {
@@ -120,6 +117,7 @@ void OperationQueue::enqueueRename(const QString &path, const QString &newName) 
 }
 
 void OperationQueue::enqueueSymlink(const QStringList &sources, const QString &destDir) {
+    ensureLocalWorkerStarted();
     Job job;
     job.description = tr("Linking %1 item(s) into %2").arg(sources.size()).arg(destDir);
     job.run = [sources, destDir](FileOperations &ops, QString &err) {
@@ -133,6 +131,7 @@ void OperationQueue::enqueueProviderCopy(std::shared_ptr<FileProvider> src,
                                          const QStringList &sources,
                                          std::shared_ptr<FileProvider> dst,
                                          const QString &destDir) {
+    ensureTransferWorkersStarted();
     Job job;
     job.description = tr("Copying %1 item(s) to %2").arg(sources.size()).arg(destDir);
     ConflictResolver resolver = [this](const FileConflict &c) { return askConflict(c); };
@@ -150,6 +149,7 @@ void OperationQueue::enqueueProviderMove(std::shared_ptr<FileProvider> src,
                                          const QStringList &sources,
                                          std::shared_ptr<FileProvider> dst,
                                          const QString &destDir) {
+    ensureTransferWorkersStarted();
     Job job;
     job.description = tr("Moving %1 item(s) to %2").arg(sources.size()).arg(destDir);
     ConflictResolver resolver = [this](const FileConflict &c) { return askConflict(c); };
@@ -165,6 +165,7 @@ void OperationQueue::enqueueProviderMove(std::shared_ptr<FileProvider> src,
 
 void OperationQueue::enqueueProviderMkdir(std::shared_ptr<FileProvider> dst,
                                           const QString &parentDir, const QString &name) {
+    ensureTransferWorkersStarted();
     Job job;
     job.description = tr("Creating directory %1").arg(name);
     job.run = [dst = std::move(dst), parentDir, name](FileOperations &ops, QString &err) {
@@ -176,6 +177,7 @@ void OperationQueue::enqueueProviderMkdir(std::shared_ptr<FileProvider> dst,
 
 void OperationQueue::enqueueProviderDelete(std::shared_ptr<FileProvider> provider,
                                            const QStringList &paths) {
+    ensureTransferWorkersStarted();
     Job job;
     job.description = tr("Deleting %1 item(s)").arg(paths.size());
     job.run = [provider = std::move(provider), paths](FileOperations &ops, QString &err) {
@@ -187,6 +189,7 @@ void OperationQueue::enqueueProviderDelete(std::shared_ptr<FileProvider> provide
 
 void OperationQueue::enqueueProviderRename(std::shared_ptr<FileProvider> provider,
                                            const QString &path, const QString &newName) {
+    ensureTransferWorkersStarted();
     Job job;
     job.description = tr("Renaming %1").arg(path);
     job.run = [provider = std::move(provider), path, newName](FileOperations &, QString &err) {
@@ -238,6 +241,8 @@ void OperationQueue::resumeCurrent() {
 void OperationQueue::setMaxConcurrentTransfers(int count) {
     const int clamped = qBound(1, count, 8);
     m_maxConcurrentTransfers = clamped;
+    if (m_transferWorkers.isEmpty())
+        return;
     while (m_transferWorkers.size() < clamped)
         addTransferWorker();
     // Shrinking never kills a worker mid-job; it just stops handing out new
@@ -264,6 +269,20 @@ int OperationQueue::queuedCount() const {
     return m_queue.size() + m_transferQueue.size();
 }
 
+void OperationQueue::ensureLocalWorkerStarted() {
+    if (m_ops)
+        return;
+
+    m_ops = new FileOperations();
+    m_ops->moveToThread(&m_workerThread);
+    connect(&m_workerThread, &QThread::finished, m_ops, &QObject::deleteLater);
+    connect(m_ops, &FileOperations::progress, this, &OperationQueue::progress);
+    connect(m_ops, &FileOperations::errorOccurred, this, &OperationQueue::errorOccurred);
+    m_ops->setErrorResolver(
+        [this](const QString &path, const QString &error) { return askError(path, error); });
+    m_workerThread.start();
+}
+
 void OperationQueue::maybeStartNext() {
     if (!m_busy && !m_queue.isEmpty()) {
         m_busy = true;
@@ -287,6 +306,14 @@ void OperationQueue::onWorkerJobDone(bool ok) {
     m_busy = false;
     emit finished(ok);
     maybeStartNext();
+}
+
+void OperationQueue::ensureTransferWorkersStarted() {
+    if (!m_transferWorkers.isEmpty())
+        return;
+
+    for (int i = 0; i < m_maxConcurrentTransfers; ++i)
+        addTransferWorker();
 }
 
 void OperationQueue::addTransferWorker() {

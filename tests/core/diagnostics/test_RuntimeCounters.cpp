@@ -80,12 +80,11 @@ TEST(RuntimeCounters, MoveAssignmentReleasesThePreviousIncrement) {
     EXPECT_EQ(fc::runtimeSnapshot().transferWorkers, before.transferWorkers);
 }
 
-TEST(RuntimeCounters, OperationQueueTracksEveryTransferWorker) {
+TEST(RuntimeCounters, ConstructingOperationQueueDoesNotCreateTransferWorkers) {
     const fc::RuntimeSnapshot before = fc::runtimeSnapshot();
     {
         OperationQueue queue;
-        EXPECT_EQ(fc::runtimeSnapshot().transferWorkers,
-                  before.transferWorkers + queue.maxConcurrentTransfers());
+        EXPECT_EQ(fc::runtimeSnapshot().transferWorkers, before.transferWorkers);
     }
     EXPECT_EQ(fc::runtimeSnapshot().transferWorkers, before.transferWorkers);
 }

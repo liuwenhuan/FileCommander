@@ -100,6 +100,27 @@ TEST(OperationQueueTest, EnqueueCopyCompletesAndCopiesFile) {
     EXPECT_TRUE(QFile::exists(QDir(dst.path()).filePath("x.txt")));
 }
 
+TEST(OperationQueueTest, FirstLocalEnqueueStartsOnlyTheLocalWorker) {
+    QTemporaryDir src, dst;
+    ASSERT_TRUE(src.isValid() && dst.isValid());
+    const QString source = writeFile(src.path(), "lazy-local.txt", "local-payload");
+
+    const fc::RuntimeSnapshot before = fc::runtimeSnapshot();
+    OperationQueue queue;
+    EXPECT_FALSE(queue.isLocalWorkerStarted());
+    EXPECT_EQ(queue.transferWorkerCount(), 0);
+
+    QSignalSpy finished(&queue, &OperationQueue::finished);
+    queue.enqueueCopy({source}, dst.path());
+
+    EXPECT_TRUE(queue.isLocalWorkerStarted());
+    EXPECT_EQ(queue.transferWorkerCount(), 0);
+    EXPECT_EQ(fc::runtimeSnapshot().transferWorkers, before.transferWorkers);
+    ASSERT_TRUE(waitFinished(finished));
+    EXPECT_TRUE(finished.takeFirst().at(0).toBool());
+    EXPECT_TRUE(QFile::exists(QDir(dst.path()).filePath("lazy-local.txt")));
+}
+
 TEST(OperationQueueTest, EnqueueMoveRemovesSource) {
     QTemporaryDir src, dst;
     ASSERT_TRUE(src.isValid() && dst.isValid());
@@ -179,6 +200,30 @@ TEST(OperationQueueTest, ProviderCopySingleWorkerCompletesAndCopiesFile) {
     EXPECT_TRUE(finished.takeFirst().at(0).toBool());
     EXPECT_TRUE(QFile::exists(source));
     EXPECT_TRUE(QFile::exists(QDir(dst.path()).filePath("p.txt")));
+}
+
+TEST(OperationQueueTest, PreStartTransferLimitCreatesConfiguredPoolOnFirstProviderEnqueue) {
+    QTemporaryDir src, dst;
+    ASSERT_TRUE(src.isValid() && dst.isValid());
+    const QString source = writeFile(src.path(), "lazy-provider.txt", "provider-payload");
+
+    auto srcProvider = std::make_shared<LocalFileProvider>();
+    auto dstProvider = std::make_shared<LocalFileProvider>();
+
+    const fc::RuntimeSnapshot before = fc::runtimeSnapshot();
+    OperationQueue queue;
+    queue.setMaxConcurrentTransfers(3);
+    EXPECT_EQ(queue.transferWorkerCount(), 0);
+
+    QSignalSpy finished(&queue, &OperationQueue::finished);
+    queue.enqueueProviderCopy(srcProvider, {source}, dstProvider, dst.path());
+
+    EXPECT_FALSE(queue.isLocalWorkerStarted());
+    EXPECT_EQ(queue.transferWorkerCount(), 3);
+    EXPECT_EQ(fc::runtimeSnapshot().transferWorkers, before.transferWorkers + 3);
+    ASSERT_TRUE(waitFinished(finished));
+    EXPECT_TRUE(finished.takeFirst().at(0).toBool());
+    EXPECT_TRUE(QFile::exists(QDir(dst.path()).filePath("lazy-provider.txt")));
 }
 
 TEST(OperationQueueTest, QueuedProviderCopyRetainsProvidersUntilCompletion) {

@@ -85,6 +85,9 @@ public:
     void setMaxConcurrentTransfers(int count);
     int maxConcurrentTransfers() const { return m_maxConcurrentTransfers; }
 
+    bool isLocalWorkerStarted() const { return m_ops != nullptr; }
+    int transferWorkerCount() const { return m_transferWorkers.size(); }
+
     bool isBusy() const;
     int queuedCount() const;
 
@@ -114,15 +117,17 @@ private:
 
     ErrorAction askConflict(const FileConflict &conflict);
     ErrorAction askError(const QString &path, const QString &error);
+    void ensureLocalWorkerStarted();
     void maybeStartNext();
     void onWorkerJobDone(bool ok);
 
+    void ensureTransferWorkersStarted();
     void addTransferWorker();
     void maybeStartNextTransfer();
     void onTransferWorkerJobDone(bool ok, TransferWorker *worker);
 
     QThread m_workerThread;
-    FileOperations *m_ops;
+    FileOperations *m_ops = nullptr;
     QQueue<Job> m_queue;
     bool m_busy = false;
 
