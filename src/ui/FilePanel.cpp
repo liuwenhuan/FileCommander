@@ -1802,6 +1802,10 @@ void FilePanel::setTabBarVisible(bool visible) {
         m_addTabButton->setVisible(visible);
 }
 
+void FilePanel::setDirectoryTreeVisible(bool visible) {
+    m_treeButton->setChecked(visible);
+}
+
 void FilePanel::setListFontSize(int pt) {
     pt = qBound(7, pt, 24);
     QFont f = m_view->font();

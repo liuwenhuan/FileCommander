@@ -127,6 +127,7 @@ public:
     void setListFontSize(int pt);
     void setListFontFamily(const QString &family);
     void setTabBarVisible(bool visible);
+    void setDirectoryTreeVisible(bool visible);
 
     void selectAll();
     void deselectAll();

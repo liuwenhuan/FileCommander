@@ -503,6 +503,7 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs) : QMainWindow(p
         panel->setListFontFamily(globalFontFamily);
         panel->setListFontSize(m_settings.listFontSize());
         panel->setTabBarVisible(m_settings.showTabBar());
+        panel->setDirectoryTreeVisible(m_settings.showFolderTree());
     }
     if (const QByteArray s = m_settings.panelSplitterState(); !s.isEmpty())
         m_panelSplitter->restoreState(s);

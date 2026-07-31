@@ -11,6 +11,7 @@
 #include <QTest>
 #include <QTextBrowser>
 #include <QTimer>
+#include <QTreeView>
 
 #include <clocale>
 #include <memory>
@@ -27,6 +28,7 @@
 #include "devices/RemovableDeviceMonitor.h"
 #include "media/MediaEngine.h"
 #include "network/SmbHostBrowser.h"
+#include "tree/DirectoryTreeModel.h"
 
 namespace {
 
@@ -125,6 +127,28 @@ private:
     QString family;
     int size;
 };
+
+class ScopedFolderTreeSettingRestore final {
+public:
+    explicit ScopedFolderTreeSettingRestore(Settings &settings)
+        : settings(settings), showFolderTree(settings.showFolderTree()) {}
+
+    ~ScopedFolderTreeSettingRestore() {
+        settings.setShowFolderTree(showFolderTree);
+    }
+
+private:
+    Settings &settings;
+    bool showFolderTree;
+};
+
+QTreeView *directoryTree(FilePanel &panel) {
+    for (QTreeView *tree : panel.findChildren<QTreeView *>()) {
+        if (qobject_cast<DirectoryTreeModel *>(tree->model()))
+            return tree;
+    }
+    return nullptr;
+}
 
 } // namespace
 
@@ -309,6 +333,66 @@ TEST(MainWindowStartupTest, EmitsReadyAfterBothVisiblePanelsAreInteractive) {
               metrics.value(QStringLiteral("panelsLoadedMs")).toInt());
     processGuiEvents();
     EXPECT_EQ(ready.count(), 1);
+}
+
+TEST(MainWindowStartupTest, RestoresFolderTreesBeforeReadinessWhenEnabled) {
+    Settings settings;
+    ScopedFolderTreeSettingRestore restore(settings);
+    settings.setShowFolderTree(true);
+
+    QTemporaryDir leftDirectory;
+    QTemporaryDir rightDirectory;
+    ASSERT_TRUE(leftDirectory.isValid());
+    ASSERT_TRUE(rightDirectory.isValid());
+    for (const QString &path : {leftDirectory.filePath(QStringLiteral("left.txt")),
+                                rightDirectory.filePath(QStringLiteral("right.txt"))}) {
+        QFile file(path);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    }
+
+    MainWindow window(nullptr, 10000);
+    QSplitter *splitter = panelSplitter(window);
+    ASSERT_NE(splitter, nullptr);
+    auto *left = qobject_cast<FilePanel *>(splitter->widget(0));
+    auto *right = qobject_cast<FilePanel *>(splitter->widget(1));
+    ASSERT_NE(left, nullptr);
+    ASSERT_NE(right, nullptr);
+    EXPECT_NE(directoryTree(*left), nullptr);
+    EXPECT_NE(directoryTree(*right), nullptr);
+
+    QSignalSpy ready(&window, &MainWindow::startupReady);
+    QSignalSpy leftLoaded(left->model(), &FileSystemModel::loadFinished);
+    QSignalSpy rightLoaded(right->model(), &FileSystemModel::loadFinished);
+    bool readyAfterBothLoads = false;
+    QObject::connect(&window, &MainWindow::startupReady, [&] {
+        readyAfterBothLoads = !leftLoaded.isEmpty() && !rightLoaded.isEmpty();
+    });
+
+    left->navigateTo(leftDirectory.path());
+    right->navigateTo(rightDirectory.path());
+    window.resize(1000, 700);
+    window.show();
+
+    QTRY_COMPARE_WITH_TIMEOUT(ready.count(), 1, 4000);
+    EXPECT_TRUE(readyAfterBothLoads);
+    processGuiEvents();
+    EXPECT_EQ(ready.count(), 1);
+}
+
+TEST(MainWindowStartupTest, KeepsFolderTreesLazyWhenRestoredSettingIsDisabled) {
+    Settings settings;
+    ScopedFolderTreeSettingRestore restore(settings);
+    settings.setShowFolderTree(false);
+
+    MainWindow window;
+    QSplitter *splitter = panelSplitter(window);
+    ASSERT_NE(splitter, nullptr);
+    auto *left = qobject_cast<FilePanel *>(splitter->widget(0));
+    auto *right = qobject_cast<FilePanel *>(splitter->widget(1));
+    ASSERT_NE(left, nullptr);
+    ASSERT_NE(right, nullptr);
+    EXPECT_EQ(directoryTree(*left), nullptr);
+    EXPECT_EQ(directoryTree(*right), nullptr);
 }
 
 TEST(MainWindowPreviewSwapTest, FirstMediaRequestWarmsImmediatelyWithAutomaticWarmupDisabled) {
