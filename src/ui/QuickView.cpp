@@ -73,9 +73,11 @@
 #include "ImageViewer.h"
 #include "IconCache.h"
 #include "FileInfo.h"
-#if FILECOMMANDER_HAS_PREVIEW_MEDIA
+#if FILECOMMANDER_MEDIA_BACKEND_MPV
 #include "MpvStreamSource.h"
 #include "media/MpvMediaEngine.h"
+#elif FILECOMMANDER_MEDIA_BACKEND_WINDOWSMF
+#include "media/WindowsMediaEngine.h"
 #else
 #include "media/NullMediaEngine.h"
 #endif
@@ -289,6 +291,7 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent,
 // Defined here (not defaulted in the header) so the Poppler document holder is
 // destroyed where the complete Poppler type is visible.
 QuickView::~QuickView() {
+    stopPlayback();
     finishStaticReveal();
     invalidateImageRequests();
 }
@@ -433,8 +436,10 @@ void QuickView::warmMediaEngine() {
         if (m_pendingMediaEngine) {
             m_mediaEngine = m_pendingMediaEngine.release();
         } else {
-#if FILECOMMANDER_HAS_PREVIEW_MEDIA
+#if FILECOMMANDER_MEDIA_BACKEND_MPV
             m_mediaEngine = new MpvMediaEngine;
+#elif FILECOMMANDER_MEDIA_BACKEND_WINDOWSMF
+            m_mediaEngine = new WindowsMediaEngine;
 #else
             m_mediaEngine = new NullMediaEngine;
 #endif
@@ -446,7 +451,7 @@ void QuickView::warmMediaEngine() {
             [this](const QString &message) {
                 if (message.isEmpty())
                     return;
-#if FILECOMMANDER_HAS_PREVIEW_MEDIA
+#if FILECOMMANDER_MEDIA_BACKEND_MPV
                 const QString source = m_mediaEngine->currentSource().path;
                 if (MpvStreamSource::isStreamUrl(source)) {
                     m_videoPath.clear();
@@ -1199,7 +1204,10 @@ void QuickView::refreshPhosphor() {
 void QuickView::applyVideoPhosphor() {
     if (!m_mediaEngine)
         return;
-    m_mediaEngine->setVideoFilter(fc::mpvScanlinedPhosphorFilter(fc::contentTint()));
+    VideoEffectSettings settings;
+    settings.tint = fc::contentTint();
+    settings.pixelBlock = fc::contentPixelBlock();
+    m_mediaEngine->setVideoEffect(settings);
 }
 
 QIcon QuickView::mediaIcon(QStyle::StandardPixmap standardPixmap) const {
@@ -3097,7 +3105,7 @@ bool QuickView::canStreamPreview(const QString &path) {
     // prev/next track buttons come from scanning the containing directory.
     // Streaming would silently empty all of that, and audio files are small
     // enough that downloading them was never the complaint.
-#if FILECOMMANDER_HAS_PREVIEW_MEDIA
+#if FILECOMMANDER_MEDIA_BACKEND_MPV
     return isVideo(path);
 #else
     Q_UNUSED(path);
@@ -3118,7 +3126,7 @@ void QuickView::showFile(const QString &path) {
     // A stream URL names a remote file being read through its FileProvider, so
     // none of the local-filesystem questions below apply to it -- there is
     // deliberately no file on disk to stat.
-#if FILECOMMANDER_HAS_PREVIEW_MEDIA
+#if FILECOMMANDER_MEDIA_BACKEND_MPV
     const bool streamed = MpvStreamSource::isStreamUrl(path);
 #else
     const bool streamed = false;

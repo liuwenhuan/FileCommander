@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <QHash>
+#include <QColor>
 #include <QFile>
 #include <QLabel>
 #include <QPointer>
@@ -59,6 +60,9 @@ public:
     void seekFraction(double fraction) override { m_lastSeekFraction = fraction; }
     void setVolume(int volume) override { m_volume = volume; }
     void setMute(bool mute) override { m_muted = mute; }
+    void setVideoEffect(const VideoEffectSettings &settings) override {
+        m_videoEffect = settings;
+    }
     QWidget *videoSurface() override {
         ++m_videoSurfaceRequests;
         if (!m_videoSurface)
@@ -81,6 +85,7 @@ public:
     QHash<QString, QString> metadata() const override { return m_metadata; }
     MediaState state() const override { return m_state; }
     int videoSurfaceRequests() const { return m_videoSurfaceRequests; }
+    VideoEffectSettings videoEffect() const { return m_videoEffect; }
 
 private:
     void setState(MediaState state) {
@@ -104,6 +109,7 @@ private:
     double m_lastSeekFraction = 0.0;
     QHash<QString, QString> m_metadata;
     int m_videoSurfaceRequests = 0;
+    VideoEffectSettings m_videoEffect;
 };
 
 class MediaPresenter {
@@ -200,6 +206,19 @@ TEST(MediaEngineContract, StopReturnsToIdleAndClearsMetadata) {
     EXPECT_FALSE(engine.hasSource());
     EXPECT_TRUE(engine.metadata().isEmpty());
     EXPECT_EQ(engine.state(), MediaState::Idle);
+}
+
+TEST(MediaEngineContract, VideoEffectCarriesTintAndPixelBlockWithoutBackendSyntax) {
+    FakeMediaEngine engine;
+    VideoEffectSettings settings;
+    settings.tint = QColor(0x33, 0xff, 0x88);
+    settings.pixelBlock = 2;
+
+    engine.setVideoEffect(settings);
+
+    EXPECT_TRUE(engine.videoEffect().enabled());
+    EXPECT_EQ(engine.videoEffect().tint, QColor(0x33, 0xff, 0x88));
+    EXPECT_EQ(engine.videoEffect().pixelBlock, 2);
 }
 
 #if !FILECOMMANDER_HAS_PREVIEW_MEDIA

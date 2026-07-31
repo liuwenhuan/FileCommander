@@ -37,7 +37,6 @@ function New-Stage {
         'freetype.dll' = 'freetype'
         'openjp2.dll' = 'openjpeg'
         'libpng16.dll' = 'png'
-        'libmpv-2.dll' = 'mpv'
         'vcruntime140.dll' = 'vcruntime'
         'vcruntime140_1.dll' = 'vcruntime-1'
         'msvcp140.dll' = 'msvcp'
@@ -61,7 +60,6 @@ function New-ProvenanceEntries {
         [pscustomobject]@{ path = 'freetype.dll'; provenance = 'pdf' }
         [pscustomobject]@{ path = 'openjp2.dll'; provenance = 'pdf' }
         [pscustomobject]@{ path = 'libpng16.dll'; provenance = 'pdf' }
-        [pscustomobject]@{ path = 'libmpv-2.dll'; provenance = 'media' }
         [pscustomobject]@{ path = 'vcruntime140.dll'; provenance = 'msvcRuntime' }
         [pscustomobject]@{ path = 'vcruntime140_1.dll'; provenance = 'msvcRuntime' }
         [pscustomobject]@{ path = 'msvcp140.dll'; provenance = 'msvcRuntime' }
@@ -74,10 +72,10 @@ try {
     New-Stage -Stage $stageB
     $provenanceA = New-ProvenanceEntries
     $provenanceB = New-ProvenanceEntries
-    $fullProfile = Join-Path $profiles 'windows-full-portable.json'
+    $portableProfile = Join-Path $profiles 'windows-portable.json'
 
-    & $writer -Stage $stageA -ProfilePath $fullProfile -Architecture x64 -BuildType Release -ProvenanceEntries $provenanceA
-    & $writer -Stage $stageB -ProfilePath $fullProfile -Architecture x64 -BuildType Release -ProvenanceEntries $provenanceB
+    & $writer -Stage $stageA -ProfilePath $portableProfile -Architecture x64 -BuildType Release -ProvenanceEntries $provenanceA
+    & $writer -Stage $stageB -ProfilePath $portableProfile -Architecture x64 -BuildType Release -ProvenanceEntries $provenanceB
 
     $first = [System.IO.File]::ReadAllBytes((Join-Path $stageA 'release-manifest.json'))
     $second = [System.IO.File]::ReadAllBytes((Join-Path $stageB 'release-manifest.json'))
@@ -93,8 +91,10 @@ try {
         -Message 'Release manifest contained an absolute Windows source path.'
 
     $manifest = $manifestText | ConvertFrom-Json
-    Assert-True -Condition ($manifest.profile -eq 'windows-full-portable') `
+    Assert-True -Condition ($manifest.profile -eq 'windows-portable') `
         -Message 'Release manifest did not record its profile.'
+    Assert-True -Condition ($manifest.mediaBackend -eq 'windowsmf') `
+        -Message 'Release manifest did not record the Windows Media Foundation backend.'
     Assert-True -Condition ($manifest.architecture -eq 'x64') `
         -Message 'Release manifest did not record its architecture.'
     Assert-True -Condition ($manifest.buildType -eq 'Release') `
@@ -104,44 +104,46 @@ try {
         -Message 'Release manifest files were not sorted by normalized relative path.'
     Assert-True -Condition ($paths -contains 'platforms/qwindows.dll') `
         -Message 'Release manifest did not normalize a nested path with forward slashes.'
-    $mpv = @($manifest.files | Where-Object { $_.path -eq 'libmpv-2.dll' })
-    Assert-True -Condition ($mpv.Count -eq 1 -and $mpv[0].provenance -eq 'media') `
-        -Message 'Release manifest did not record media provenance.'
-    Assert-True -Condition ($mpv[0].bytes -eq 3 -and $mpv[0].sha256 -match '^[0-9A-F]{64}$' -and $mpv[0].version -eq '') `
-        -Message 'Release manifest did not record deterministic file metadata.'
+    Assert-True -Condition ($paths -notcontains 'libmpv-2.dll') `
+        -Message 'Windows package manifest must not contain libmpv.'
 
-    $full = Get-Content -LiteralPath $fullProfile -Raw | ConvertFrom-Json
-    $lite = Get-Content -LiteralPath (Join-Path $profiles 'windows-lite-portable.json') -Raw | ConvertFrom-Json
-    $fullMsix = Get-Content -LiteralPath (Join-Path $profiles 'windows-full-msix.json') -Raw | ConvertFrom-Json
+    $portable = Get-Content -LiteralPath $portableProfile -Raw | ConvertFrom-Json
+    $msix = Get-Content -LiteralPath (Join-Path $profiles 'windows-msix.json') -Raw | ConvertFrom-Json
 
-    Assert-True -Condition ((Get-ProfileGroup $full 'media').required -contains 'libmpv-2.dll') `
-        -Message 'Full portable profile must require libmpv-2.dll.'
-    Assert-True -Condition ((Get-ProfileGroup $lite 'media').forbidden -contains 'libmpv-2.dll') `
-        -Message 'Lite portable profile must forbid libmpv-2.dll.'
-    foreach ($profile in @($full, $lite, $fullMsix)) {
+    foreach ($profile in @($portable, $msix)) {
+        Assert-True -Condition ($profile.features.mediaPreview -and $profile.features.mediaBackend -eq 'windowsmf') `
+            -Message "$($profile.profile) must use the Windows Media Foundation media backend."
+        Assert-True -Condition ((Get-ProfileGroup $profile 'media').forbidden -contains 'libmpv-2.dll') `
+            -Message "$($profile.profile) must forbid libmpv-2.dll."
         Assert-True -Condition ((Get-ProfileGroup $profile 'pdf').required -contains 'poppler-qt5.dll') `
             -Message "$($profile.profile) must require Poppler."
         Assert-True -Condition ((Get-ProfileGroup $profile 'qt').required -contains 'Qt5Xml.dll') `
             -Message "$($profile.profile) must require Qt5Xml."
     }
-    Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $profiles 'windows-lite-msix.json'))) `
-        -Message 'Lite MSIX profile must not be created until WMF acceptance is recorded.'
+    foreach ($legacyProfile in @('windows-full-portable.json', 'windows-lite-portable.json', 'windows-full-msix.json', 'windows-lite-msix.json')) {
+        Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $profiles $legacyProfile))) `
+            -Message "$legacyProfile must not exist after collapsing Windows packaging to one profile."
+    }
 
     $portableBuilder = Get-Content -LiteralPath (Join-Path $repo 'packaging/build-windows.ps1') -Raw
-    Assert-Matches -Actual $portableBuilder -Pattern "windows-lite-portable" `
-        -Message 'Portable builder must select the Lite profile when full previews are not requested.'
+    Assert-Matches -Actual $portableBuilder -Pattern "windows-portable" `
+        -Message 'Portable builder must select the single Windows profile.'
+    Assert-True -Condition ($portableBuilder -notmatch 'WithFullPreviews|windows-full|windows-lite|MpvRoot|FILECOMMANDER_MPV_ROOT') `
+        -Message 'Portable builder must not carry legacy Full/Lite or mpv SDK policy.'
+    Assert-True -Condition ($portableBuilder -notmatch 'Copy-StageFile[^\r\n]+libmpv') `
+        -Message 'Portable builder must not copy libmpv.'
     Assert-Matches -Actual $portableBuilder -Pattern 'write-windows-manifest\.ps1' `
         -Message 'Portable builder must write a release manifest.'
     Assert-Matches -Actual $portableBuilder -Pattern 'beforeWindeploy' `
         -Message 'Portable builder must record windeployqt output by stage diff.'
 
     $msixBuilder = Get-Content -LiteralPath (Join-Path $repo 'packaging/build-windows-msix.ps1') -Raw
-    Assert-Matches -Actual $msixBuilder -Pattern 'windows-full-portable' `
-        -Message 'MSIX builder must build the Full portable stage.'
-    Assert-Matches -Actual $msixBuilder -Pattern 'windows-full-msix' `
-        -Message 'MSIX builder must emit the Full MSIX release manifest.'
-    Assert-True -Condition ($msixBuilder -notmatch 'windows-lite-msix') `
-        -Message 'MSIX builder must not select an unaccepted Lite MSIX profile.'
+    Assert-Matches -Actual $msixBuilder -Pattern 'windows-portable' `
+        -Message 'MSIX builder must build the single portable stage.'
+    Assert-Matches -Actual $msixBuilder -Pattern 'windows-msix' `
+        -Message 'MSIX builder must emit the single MSIX release manifest.'
+    Assert-True -Condition ($msixBuilder -notmatch 'WithFullPreviews|windows-full|windows-lite|MpvRoot|FILECOMMANDER_MPV_ROOT') `
+        -Message 'MSIX builder must not carry legacy Full/Lite or mpv SDK policy.'
 
     Write-Host 'Windows package profile and manifest tests passed.'
 } finally {

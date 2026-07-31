@@ -26,6 +26,17 @@ TEST(CurlWebDavProviderPath, ParentOfRootIsEmpty) {
     EXPECT_EQ(p.parentPath("/"), QString());
 }
 
+#ifdef Q_OS_WIN
+TEST(CurlWebDavProviderPath, ConvertsHttpsUrlToWindowsWebDavUnc) {
+    const QString unc = CurlWebDavProvider::webDavUrlToUncForShell(
+        QStringLiteral("https://example.test:9443/dav/movie.mp4"));
+
+    EXPECT_TRUE(unc.startsWith(QStringLiteral("\\\\")));
+    EXPECT_TRUE(unc.contains(QStringLiteral("example.test")));
+    EXPECT_TRUE(unc.contains(QStringLiteral("movie.mp4")));
+}
+#endif
+
 // --- disconnected state -----------------------------------------------------
 
 TEST(CurlWebDavProviderState, FreshProviderIsNotConnected) {

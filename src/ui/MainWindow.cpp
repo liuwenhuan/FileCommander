@@ -86,7 +86,7 @@
 #include "FilePanel.h"
 #include "filesystem/IconCache.h"
 #include "IconFileView.h"
-#if FILECOMMANDER_HAS_PREVIEW_MEDIA
+#if FILECOMMANDER_MEDIA_BACKEND_MPV
 #include "MpvStreamSource.h"
 #endif
 #include "QuickView.h"
@@ -1160,7 +1160,8 @@ void MainWindow::runPackageSmoke(const QString &directory) {
     // to users but still instantiates each backend and its helper process.
     QStringList files;
     for (const QString &name : {QStringLiteral("smoke.png"), QStringLiteral("smoke.pdf"),
-                                QStringLiteral("smoke.docx"), QStringLiteral("smoke.wav")}) {
+                                QStringLiteral("smoke.docx"), QStringLiteral("smoke.zip"),
+                                QStringLiteral("smoke.wav"), QStringLiteral("smoke.mp4")}) {
         if (dir.exists(name))
             files.append(name);
     }
@@ -2630,7 +2631,10 @@ void MainWindow::updateQuickView() {
     // decodes through the provider instead of waiting out a whole download.
     // Nothing below this point runs for it -- including the size ceiling, which
     // only ever existed because previewing meant fetching the file entire.
-#if FILECOMMANDER_HAS_PREVIEW_MEDIA
+    // Windows Media Foundation deliberately never publishes provider streams:
+    // WebDAV videos fall through to the existing temp-file download below so
+    // the engine opens a seekable file:// URL, while SFTP/FTP remain non-streaming.
+#if FILECOMMANDER_MEDIA_BACKEND_MPV
     if (QuickView::canStreamPreview(entry) && entry != m_streamFailedEntry) {
         const QString url =
             MpvStreamSource::publish(m_activePanel->model()->providerPtr(), entry);

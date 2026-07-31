@@ -4,6 +4,7 @@
 #include <archive_entry.h>
 
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QVector>
 
@@ -410,7 +411,8 @@ QSharedPointer<ArchiveNode> ArchiveHandler::buildTree(const QString &archivePath
     if (!passphrase.isEmpty())
         archive_read_add_passphrase(a, passphrase.toUtf8().constData());
 
-    if (archive_read_open_filename(a, archivePath.toUtf8().constData(), 10240) != ARCHIVE_OK) {
+    const QByteArray localArchivePath = QFile::encodeName(archivePath);
+    if (archive_read_open_filename(a, localArchivePath.constData(), 10240) != ARCHIVE_OK) {
         const QString e = lastArchiveError(a);
         archive_read_free(a);
         return fallback(Status::Error, e);
@@ -533,7 +535,8 @@ bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entr
                                              ARCHIVE_EXTRACT_ACL | ARCHIVE_EXTRACT_FFLAGS);
     archive_write_disk_set_standard_lookup(ext);
 
-    if (archive_read_open_filename(a, archivePath.toUtf8().constData(), 10240) != ARCHIVE_OK) {
+    const QByteArray localArchivePath = QFile::encodeName(archivePath);
+    if (archive_read_open_filename(a, localArchivePath.constData(), 10240) != ARCHIVE_OK) {
         const QString e = lastArchiveError(a);
         archive_read_free(a);
         archive_write_free(ext);
@@ -695,7 +698,8 @@ bool ArchiveHandler::create(const QString &archivePath, const QStringList &sourc
         // "tar" falls through with no compression filter.
     }
 
-    if (archive_write_open_filename(a, archivePath.toUtf8().constData()) != ARCHIVE_OK) {
+    const QByteArray localArchivePath = QFile::encodeName(archivePath);
+    if (archive_write_open_filename(a, localArchivePath.constData()) != ARCHIVE_OK) {
         if (errorMessage)
             *errorMessage = QString::fromUtf8(archive_error_string(a));
         archive_write_free(a);
@@ -763,7 +767,8 @@ bool ArchiveHandler::create(const QString &archivePath, const QStringList &sourc
                                         QString::number(compressionLevel).toUtf8().constData());
     }
 
-    if (archive_write_open_filename(a, archivePath.toUtf8().constData()) != ARCHIVE_OK) {
+    const QByteArray localArchivePath = QFile::encodeName(archivePath);
+    if (archive_write_open_filename(a, localArchivePath.constData()) != ARCHIVE_OK) {
         if (errorMessage)
             *errorMessage = QString::fromUtf8(archive_error_string(a));
         archive_write_free(a);

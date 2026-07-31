@@ -4,6 +4,7 @@
 #include <limits>
 
 #include <QByteArray>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QLabel>
 #include <QPlainTextEdit>
@@ -81,6 +82,15 @@ TEST(TextEncodingDetectorTest, MarksControlHeavyDataAsBinary) {
     const TextEncodingDetector::Result result = TextEncodingDetector::detect(data);
 
     EXPECT_TRUE(result.binary);
+}
+
+TEST(TextEncodingDetectorTest, MarksNullFilledDataAsBinary) {
+    const QByteArray data(512 * 1024, '\0');
+
+    const TextEncodingDetector::Result result = TextEncodingDetector::detect(data);
+
+    EXPECT_TRUE(result.binary);
+    EXPECT_EQ(result.label, QStringLiteral("Binary"));
 }
 
 TEST(TextEncodingDetectorTest, FlagsShortOrNearTieLegacyInputAsAmbiguous) {
@@ -438,6 +448,36 @@ TEST(TextEncodingDetectorTest, QuickViewBoundsHexOutputBeforeTheTextPreviewLimit
     const QString rendered = editor->toPlainText();
     EXPECT_TRUE(rendered.startsWith(QStringLiteral("00000000")));
     EXPECT_TRUE(rendered.endsWith(QStringLiteral("\n\n[... truncated ...]")));
+    EXPECT_LT(rendered.size(), 2 * 1024 * 1024);
+}
+
+TEST(TextEncodingDetectorTest, QuickViewShowsRegistryTransactionLogsAsBoundedHex) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    QFile binary(dir.filePath(
+        QStringLiteral("NTUSER.DAT{f250fd3e-49f9-11f1-acef-b36cc46468ba}"
+                       ".TMContainer00000000000000000002.regtrans-ms")));
+    ASSERT_TRUE(binary.open(QIODevice::WriteOnly));
+    const QByteArray source(512 * 1024, '\0');
+    ASSERT_EQ(binary.write(source), source.size());
+    binary.close();
+
+    Settings settings;
+    ASSERT_NE(std::setlocale(LC_NUMERIC, "C"), nullptr);
+    QuickView view(settings);
+    auto *status = view.findChild<QLabel *>(QStringLiteral("textEncodingStatus"));
+    auto *editor = view.findChild<QPlainTextEdit *>();
+    ASSERT_NE(status, nullptr);
+    ASSERT_NE(editor, nullptr);
+
+    QElapsedTimer elapsed;
+    elapsed.start();
+    view.showFile(binary.fileName());
+
+    EXPECT_LT(elapsed.elapsed(), 1000);
+    EXPECT_EQ(status->text(), QStringLiteral("Auto: Binary (Hex)"));
+    const QString rendered = editor->toPlainText();
+    EXPECT_TRUE(rendered.startsWith(QStringLiteral("00000000")));
     EXPECT_LT(rendered.size(), 2 * 1024 * 1024);
 }
 

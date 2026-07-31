@@ -82,6 +82,7 @@ function Write-LegacyManifest {
         officePreview = $false
         pdfPreview = $true
         mediaPreview = $true
+        mediaBackend = 'windowsmf'
         runtime = [ordered]@{
             provenance = 'msvc-runtime'
             files = @('vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll')
@@ -127,7 +128,7 @@ function Write-ReleaseManifest {
 function New-ValidStage {
     param(
         [string]$Name,
-        [string]$Profile = 'windows-full-portable'
+        [string]$Profile = 'windows-portable'
     )
 
     $stage = Join-Path $root $Name
@@ -141,9 +142,6 @@ function New-ValidStage {
     Add-File -Stage $stage -RelativePath 'platforms/qwindows.dll' -Provenance $provenance -Group 'platformPlugins'
     foreach ($name in @('poppler-qt5.dll', 'poppler.dll', 'freetype.dll', 'openjp2.dll', 'libpng16.dll')) {
         Add-File -Stage $stage -RelativePath $name -Provenance $provenance -Group 'pdf'
-    }
-    if ($Profile -eq 'windows-full-portable') {
-        Add-File -Stage $stage -RelativePath 'libmpv-2.dll' -Provenance $provenance -Group 'media'
     }
     foreach ($name in @('vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll')) {
         Add-File -Stage $stage -RelativePath $name -Provenance $provenance -Group 'msvcRuntime'
@@ -187,8 +185,7 @@ function Write-SizedFile {
 }
 
 try {
-    $fullProfile = Join-Path $profiles 'windows-full-portable.json'
-    $liteProfile = Join-Path $profiles 'windows-lite-portable.json'
+    $windowsProfile = Join-Path $profiles 'windows-portable.json'
 
     foreach ($case in @(
         @{ name = 'probe'; path = 'probe.exe' },
@@ -205,30 +202,30 @@ try {
         } else {
             [System.IO.File]::WriteAllText($path, 'build residue')
         }
-        Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $fullProfile -Pattern ([regex]::Escape($case.path))
+        Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $windowsProfile -Pattern ([regex]::Escape($case.path))
     }
 
     $fixture = New-ValidStage -Name 'accepted-size-change-still-unknown'
     $previous = Join-Path $root 'accepted-size-change-previous-manifest.json'
     Copy-Item -LiteralPath (Join-Path $fixture.Stage 'release-manifest.json') -Destination $previous
     New-PeFile -Path (Join-Path $fixture.Stage 'probe.exe') -Subsystem 3
-    Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $fullProfile -PreviousManifest $previous `
+    Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $windowsProfile -PreviousManifest $previous `
         -AcceptSizeChange -Pattern 'probe\.exe'
 
     $fixture = New-ValidStage -Name 'debug-qt'
     Add-File -Stage $fixture.Stage -RelativePath 'Qt5Cored.dll' -Provenance $fixture.Provenance -Group 'qt'
-    Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-full-portable' -Provenance $fixture.Provenance
-    Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $fullProfile -Pattern 'Qt5Cored\.dll'
+    Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-portable' -Provenance $fixture.Provenance
+    Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $windowsProfile -Pattern 'Qt5Cored\.dll'
 
     $fixture = New-ValidStage -Name 'debug-symbols'
     Add-File -Stage $fixture.Stage -RelativePath 'debug.pdb' -Provenance $fixture.Provenance -Group 'application'
-    Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-full-portable' -Provenance $fixture.Provenance
-    Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $fullProfile -Pattern 'debug\.pdb'
+    Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-portable' -Provenance $fixture.Provenance
+    Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $windowsProfile -Pattern 'debug\.pdb'
 
     $fixture = New-ValidStage -Name 'wrong-architecture'
     Add-File -Stage $fixture.Stage -RelativePath 'plugins/wrong-arch.dll' -Provenance $fixture.Provenance -Group 'network' -Machine 0x014C
-    Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-full-portable' -Provenance $fixture.Provenance
-    Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $fullProfile -Pattern 'plugins/wrong-arch\.dll'
+    Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-portable' -Provenance $fixture.Provenance
+    Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $windowsProfile -Pattern 'plugins/wrong-arch\.dll'
 
     $fixture = New-ValidStage -Name 'console-subsystem'
     New-PeFile -Path (Join-Path $fixture.Stage 'FileCommander.exe') -Subsystem 3
@@ -245,19 +242,26 @@ try {
     $legacyManifest = Get-Content -LiteralPath (Join-Path $fixture.Stage 'manifest.json') -Raw | ConvertFrom-Json
     Assert-True -Condition ($legacyManifest.runtime.provenance -eq 'msvc-runtime') `
         -Message 'Console subsystem fixture unexpectedly changed the legacy runtime provenance.'
-    Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-full-portable' -Provenance $fixture.Provenance
-    Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $fullProfile -Pattern 'FileCommander\.exe'
+    Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-portable' -Provenance $fixture.Provenance
+    Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $windowsProfile -Pattern 'FileCommander\.exe'
 
     $fixture = New-ValidStage -Name 'missing-profile-requirement'
-    Remove-Item -LiteralPath (Join-Path $fixture.Stage 'libmpv-2.dll')
-    $fixture.Provenance.Remove('libmpv-2.dll')
-    Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-full-portable' -Provenance $fixture.Provenance
-    Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $fullProfile -Pattern 'libmpv-2\.dll'
+    Remove-Item -LiteralPath (Join-Path $fixture.Stage 'Qt5Xml.dll')
+    $fixture.Provenance.Remove('Qt5Xml.dll')
+    Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-portable' -Provenance $fixture.Provenance
+    Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $windowsProfile -Pattern 'Qt5Xml\.dll'
 
-    $fixture = New-ValidStage -Name 'forbidden-profile-file' -Profile 'windows-lite-portable'
+    $fixture = New-ValidStage -Name 'forbidden-profile-file'
     Add-File -Stage $fixture.Stage -RelativePath 'libmpv-2.dll' -Provenance $fixture.Provenance -Group 'media'
-    Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-lite-portable' -Provenance $fixture.Provenance
-    Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $liteProfile -Pattern 'libmpv-2\.dll'
+    Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-portable' -Provenance $fixture.Provenance
+    Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $windowsProfile -Pattern 'libmpv-2\.dll'
+
+    foreach ($forbiddenMedia in @('ffmpeg.exe', 'ffprobe.exe', 'avcodec-61.dll')) {
+        $fixture = New-ValidStage -Name "forbidden-$forbiddenMedia"
+        Add-File -Stage $fixture.Stage -RelativePath $forbiddenMedia -Provenance $fixture.Provenance -Group 'media'
+        Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-portable' -Provenance $fixture.Provenance
+        Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $windowsProfile -Pattern ([regex]::Escape($forbiddenMedia))
+    }
 
     $fixture = New-ValidStage -Name 'runtime-rejection-preserves-baseline'
     $previous = Join-Path $root 'runtime-rejection-previous-manifest.json'
@@ -268,9 +272,9 @@ try {
     $legacyManifest = Get-Content -LiteralPath (Join-Path $fixture.Stage 'manifest.json') -Raw | ConvertFrom-Json
     $legacyManifest.runtime.provenance = 'invalid'
     $legacyManifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $fixture.Stage 'manifest.json') -Encoding UTF8
-    Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-full-portable' -Provenance $fixture.Provenance
+    Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-portable' -Provenance $fixture.Provenance
     try {
-        & $verifier -Stage $fixture.Stage -Profile $fullProfile `
+        & $verifier -Stage $fixture.Stage -Profile $windowsProfile `
             -Manifest (Join-Path $fixture.Stage 'release-manifest.json') `
             -PreviousManifest $previous -AcceptSizeChange -SkipSmoke
         throw 'Expected invalid runtime provenance to reject the package.'
@@ -284,25 +288,25 @@ try {
     $fixture = New-ValidStage -Name 'per-file-size-growth'
     Add-File -Stage $fixture.Stage -RelativePath 'network/known-large.bin' -Provenance $fixture.Provenance -Group 'network'
     Write-SizedFile -Path (Join-Path $fixture.Stage 'network/known-large.bin') -Bytes (21MB)
-    Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-full-portable' -Provenance $fixture.Provenance
+    Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-portable' -Provenance $fixture.Provenance
     $previous = Join-Path $root 'per-file-previous-manifest.json'
     $previousManifest = Get-Content -LiteralPath (Join-Path $fixture.Stage 'release-manifest.json') -Raw | ConvertFrom-Json
     ($previousManifest.files | Where-Object { $_.path -eq 'network/known-large.bin' }).bytes = 0
     $previousManifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $previous -Encoding UTF8
-    Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $fullProfile -PreviousManifest $previous -Pattern 'network/known-large\.bin'
+    Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $windowsProfile -PreviousManifest $previous -Pattern 'network/known-large\.bin'
 
     $fixture = New-ValidStage -Name 'total-size-growth'
     foreach ($name in @('network/one.bin', 'network/two.bin', 'network/three.bin')) {
         Add-File -Stage $fixture.Stage -RelativePath $name -Provenance $fixture.Provenance -Group 'network'
         Write-SizedFile -Path (Join-Path $fixture.Stage $name) -Bytes (4MB)
     }
-    Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-full-portable' -Provenance $fixture.Provenance
+    Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-portable' -Provenance $fixture.Provenance
     $previous = Join-Path $root 'total-size-previous-manifest.json'
     $previousManifest = Get-Content -LiteralPath (Join-Path $fixture.Stage 'release-manifest.json') -Raw | ConvertFrom-Json
     foreach ($file in $previousManifest.files) { $file.bytes = 1 }
     $previousManifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $previous -Encoding UTF8
-    Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $fullProfile -PreviousManifest $previous -Pattern 'total package size'
-    & $verifier -Stage $fixture.Stage -Profile $fullProfile -Manifest (Join-Path $fixture.Stage 'release-manifest.json') `
+    Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $windowsProfile -PreviousManifest $previous -Pattern 'total package size'
+    & $verifier -Stage $fixture.Stage -Profile $windowsProfile -Manifest (Join-Path $fixture.Stage 'release-manifest.json') `
         -PreviousManifest $previous -AcceptSizeChange -SkipSmoke
     Assert-BytesEqual -Expected ([System.IO.File]::ReadAllBytes((Join-Path $fixture.Stage 'release-manifest.json'))) `
         -Actual ([System.IO.File]::ReadAllBytes($previous)) `

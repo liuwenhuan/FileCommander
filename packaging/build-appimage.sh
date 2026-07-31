@@ -155,9 +155,24 @@ if [[ -z "$PRODUCED" ]]; then
     exit 1
 fi
 
+APPDIR_MANIFEST="$BUILD_DIR/FileCommander-${VERSION}-x86_64.AppDir.manifest.json"
+bash "$REPO_ROOT/packaging/write-linux-manifest.sh" "$APPDIR" appimage "$APPDIR_MANIFEST"
+bash "$REPO_ROOT/packaging/verify-linux-package.sh" "$APPDIR" "$APPDIR_MANIFEST" x86_64
+
 FINAL="$OUT_DIR/FileCommander-${VERSION}-x86_64.AppImage"
 mv "$PRODUCED" "$FINAL"
 chmod +x "$FINAL"
+cp "$APPDIR_MANIFEST" "$FINAL.manifest.json"
+
+EXTRACT_DIR="$BUILD_DIR/appimage-extract-verify"
+rm -rf "$EXTRACT_DIR"
+mkdir -p "$EXTRACT_DIR"
+if (cd "$EXTRACT_DIR" && "$FINAL" --appimage-extract >/dev/null 2>&1); then
+    bash "$REPO_ROOT/packaging/verify-linux-package.sh" "$EXTRACT_DIR/squashfs-root" \
+        "$FINAL.manifest.json" x86_64
+else
+    echo "warning: could not extract AppImage for second-pass manifest verification" >&2
+fi
 
 echo
 echo "==> $FINAL"

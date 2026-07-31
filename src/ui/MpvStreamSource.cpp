@@ -45,7 +45,7 @@ struct Entry {
 //
 // Deliberately never destroyed: libmpv may call the open callback -- and so
 // reach this table -- from its own threads right up until mpv_terminate_destroy
-// returns, which happens inside MpvWidget's destructor. A function-local static
+// returns, which happens inside MpvMediaEngine's destructor. A function-local static
 // object would be a race against static destruction order; a leaked one cannot
 // be.
 class Registry {

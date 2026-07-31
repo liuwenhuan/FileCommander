@@ -105,6 +105,10 @@ public:
         // timeout turns that into no thumbnail at all.
         QString downloadContiguous(const QString &path, qint64 offset, qint64 length) const;
 
+        // Returns a native Windows Shell path for this remote entry when the
+        // backend can express one, such as SMB UNC or WebDAV WebClient UNC.
+        QString shellAccessiblePath(const QString &path) const;
+
     private:
         friend class RemoteThumbnailFetcher;
         Ticket(const RemoteThumbnailFetcher *owner, std::shared_ptr<FileProvider> provider,

@@ -22,6 +22,7 @@ set(UI_TEST_SOURCES
     test_IconFileView.cpp
     test_VideoRangePlan.cpp
     test_MediaEngineContract.cpp
+    test_WindowsMediaSurface.cpp
     test_FilePanelFont.cpp
     test_TabSessionLifecycle.cpp
     test_NetworkArchiveBrowse.cpp
@@ -60,7 +61,7 @@ set(UI_TEST_SOURCES
     ../../resources/resources.qrc
 )
 
-if(FILECOMMANDER_PREVIEW_MEDIA)
+if(FILECOMMANDER_MEDIA_BACKEND_MPV)
     list(APPEND UI_TEST_SOURCES
         test_MpvMediaEngine.cpp
         test_MpvStreamSource.cpp
@@ -73,13 +74,17 @@ endif()
 
 add_executable(ui_tests ${UI_TEST_SOURCES})
 
+if(FILECOMMANDER_MEDIA_BACKEND_WINDOWSMF)
+    target_sources(ui_tests PRIVATE test_WindowsMediaEngine.cpp)
+endif()
+
 add_executable(quickview_office_fixture fixtures/office_fixture_cli.cpp)
 add_dependencies(ui_tests quickview_office_fixture)
 
 # test_MpvStreamSource drives a real libmpv core (headless: vo=null/ao=null) to
 # measure what a streamed preview actually reads. src/ui keeps mpv PRIVATE, so
 # this target resolves <mpv/client.h> for itself.
-if(FILECOMMANDER_PREVIEW_MEDIA)
+if(FILECOMMANDER_MEDIA_BACKEND_MPV)
     target_link_libraries(ui_tests PRIVATE FileCommander::Mpv)
 endif()
 

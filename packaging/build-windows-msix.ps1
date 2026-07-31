@@ -3,23 +3,20 @@ param(
     [string]$QtRoot = $env:FILECOMMANDER_QT_ROOT,
     [string]$VcpkgRoot = $env:VCPKG_ROOT,
     [string]$PopplerQt5Root = $env:FILECOMMANDER_POPPLER_QT5_ROOT,
-    [string]$MpvRoot = $env:FILECOMMANDER_MPV_ROOT,
     [ValidateSet('x64', 'x86', 'arm64')]
     [string]$Architecture = 'x64',
     [string]$IdentityName = 'FileCommander',
     [string]$Publisher = 'CN=FileCommander',
     [string]$CertificatePath,
     [string]$CertificatePassword,
-    [switch]$SkipPortableBuild,
-    [switch]$WithFullPreviews
+    [switch]$SkipPortableBuild
 )
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 if (-not $SkipPortableBuild) {
     & (Join-Path $PSScriptRoot 'build-windows.ps1') -QtRoot $QtRoot -VcpkgRoot $VcpkgRoot `
-        -PopplerQt5Root $PopplerQt5Root -MpvRoot $MpvRoot -Architecture $Architecture `
-        -Profile windows-full-portable -WithFullPreviews:$WithFullPreviews
+        -PopplerQt5Root $PopplerQt5Root -Architecture $Architecture -Profile windows-portable
     if ($LASTEXITCODE) { throw 'Portable package build failed.' }
 }
 
@@ -77,7 +74,7 @@ Set-Content -LiteralPath $appxManifestPath -Value $manifest -Encoding UTF8
 Add-MsixProvenance -Path $appxManifestPath -Group 'application'
 
 & (Join-Path $PSScriptRoot 'write-windows-manifest.ps1') -Stage $stage `
-    -ProfilePath (Join-Path $PSScriptRoot 'profiles/windows-full-msix.json') `
+    -ProfilePath (Join-Path $PSScriptRoot 'profiles/windows-msix.json') `
     -Architecture $Architecture -BuildType Release -ProvenanceEntries $provenanceEntries.ToArray()
 
 $makeAppx = Get-Command MakeAppx.exe -ErrorAction SilentlyContinue

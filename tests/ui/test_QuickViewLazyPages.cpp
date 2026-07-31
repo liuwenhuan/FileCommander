@@ -27,7 +27,7 @@
 #include "QuickView.h"
 #include "config/Settings.h"
 #include "media/MediaEngine.h"
-#if FILECOMMANDER_HAS_PREVIEW_MEDIA
+#if FILECOMMANDER_MEDIA_BACKEND_MPV
 #include <mpv/client.h>
 
 #include "media/MpvMediaEngine.h"
@@ -67,6 +67,7 @@ public:
     void stop() override {
         current = {};
         currentState = MediaState::Idle;
+        ++(*stopCalls);
         emit stateChanged(currentState);
     }
 
@@ -86,6 +87,7 @@ public:
     int loadCalls = 0;
     int volume = 100;
     bool muted = false;
+    std::shared_ptr<int> stopCalls = std::make_shared<int>(0);
     MediaSource current;
     MediaKind currentMediaKind = MediaKind::Audio;
     MediaState currentState = MediaState::Idle;
@@ -393,7 +395,30 @@ TEST(QuickViewLazyPages, WarmedEngineHandlesRapidAudioVideoReplacementWithoutRec
     EXPECT_EQ(view.findChildren<MediaEngine *>().size(), 1);
 }
 
-#if FILECOMMANDER_HAS_PREVIEW_MEDIA
+TEST(QuickViewLazyPages, DestructorStopsActiveAudioBeforeDestroyingBackend) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString audio = dir.filePath(QStringLiteral("teardown.wav"));
+    QFile audioFile(audio);
+    ASSERT_TRUE(audioFile.open(QIODevice::WriteOnly));
+    audioFile.write("audio");
+    audioFile.close();
+
+    Settings settings(dir.filePath(QStringLiteral("settings.ini")));
+    auto engine = std::make_unique<CountingMediaEngine>();
+    std::shared_ptr<int> stopCalls = engine->stopCalls;
+
+    {
+        QuickView view(settings, QuickView::Context::Embedded, nullptr, std::move(engine));
+        view.warmMediaEngine();
+        view.showFile(audio);
+        ASSERT_EQ(*stopCalls, 0);
+    }
+
+    EXPECT_EQ(*stopCalls, 1);
+}
+
+#if FILECOMMANDER_MEDIA_BACKEND_MPV
 TEST(QuickViewLazyPages, RealMpvInitializeExceptionIsContainedByQuickView) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());

@@ -113,6 +113,11 @@ RemoteLocation WindowsSmbProvider::remoteLocation() const {
     return result;
 }
 
+QString WindowsSmbProvider::shellAccessiblePath(const QString &path) const {
+    QString error;
+    return uncFor(path, &error);
+}
+
 bool WindowsSmbProvider::reconnect(QString *error) {
     if (m_host.isEmpty()) {
         if (error)

@@ -61,6 +61,8 @@ public:
     // are absolute from the server root), so GvfsMounter finds the shallowest
     // mountable prefix instead of guessing one here.
     RemoteLocation remoteLocation() const override;
+    QString shellAccessiblePath(const QString &path) const override;
+    static QString webDavUrlToUncForShell(const QString &url);
 
     // Bounds the connect phase (and control-plane requests) by ms. Must be set
     // before connectToHost(). Ignored if <= 0.

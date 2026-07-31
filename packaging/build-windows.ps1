@@ -3,24 +3,30 @@ param(
     [string]$QtRoot = $env:FILECOMMANDER_QT_ROOT,
     [string]$VcpkgRoot = $env:VCPKG_ROOT,
     [string]$PopplerQt5Root = $env:FILECOMMANDER_POPPLER_QT5_ROOT,
-    [string]$MpvRoot = $env:FILECOMMANDER_MPV_ROOT,
     [ValidateSet('x64', 'x86', 'arm64')]
     [string]$Architecture = 'x64',
-    [ValidateSet('windows-full-portable', 'windows-lite-portable')]
-    [string]$Profile = 'windows-lite-portable',
-    [switch]$WithFullPreviews,
+    [ValidateSet('windows-portable')]
+    [string]$Profile = 'windows-portable',
     [switch]$SkipArchive
 )
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
-if ($WithFullPreviews) { $Profile = 'windows-full-portable' }
 $profilePath = Join-Path $PSScriptRoot "profiles/$Profile.json"
 if (-not (Test-Path -LiteralPath $profilePath)) { throw "Windows package profile not found: $profilePath" }
 $packageProfile = Get-Content -LiteralPath $profilePath -Raw | ConvertFrom-Json
 if ($packageProfile.packageType -ne 'portable') { throw "Profile $Profile is not a portable package profile." }
 $pdfPreview = [bool]$packageProfile.features.pdfPreview
 $mediaPreview = [bool]$packageProfile.features.mediaPreview
+$mediaBackend = [string]$packageProfile.features.mediaBackend
+if ([string]::IsNullOrWhiteSpace($mediaBackend)) {
+    $mediaBackend = if ($mediaPreview) { 'windowsmf' } else { 'none' }
+}
+$mediaBackend = $mediaBackend.ToLowerInvariant()
+if ($mediaBackend -notin @('windowsmf', 'none')) {
+    throw "Windows package profile $Profile must use mediaBackend windowsmf or none."
+}
+if ($mediaBackend -eq 'none') { $mediaPreview = $false }
 
 if (-not $QtRoot -or -not (Test-Path -LiteralPath $QtRoot)) {
     throw 'Set FILECOMMANDER_QT_ROOT or pass -QtRoot with a Qt 5.15 MSVC installation.'
@@ -31,10 +37,6 @@ if (-not $VcpkgRoot -or -not (Test-Path -LiteralPath $VcpkgRoot)) {
 if (-not $PopplerQt5Root) {
     $PopplerQt5Root = Join-Path (Split-Path -Parent $VcpkgRoot) 'poppler-qt5'
 }
-if (-not $MpvRoot) {
-    $MpvRoot = Join-Path $repo 'build/mpv-windows/sdk'
-}
-
 $triplet = "$Architecture-windows"
 $build = Join-Path $repo "build/windows-msvc-release-$Architecture"
 $stage = Join-Path $repo "dist/FileCommander-windows-$Architecture"
@@ -85,7 +87,6 @@ function Get-RuntimeProvenanceGroup {
     if ($Name -like 'Qt5*.dll') { return 'qt' }
     if ($Name -in @('poppler-qt5.dll', 'poppler.dll', 'freetype.dll', 'openjp2.dll', 'libpng16.dll',
                      'jpeg62.dll', 'tiff.dll', 'brotlidec.dll', 'brotlicommon.dll')) { return 'pdf' }
-    if ($Name -eq 'libmpv-2.dll') { return 'media' }
     return 'network'
 }
 
@@ -106,9 +107,9 @@ cmake -S $repo -B $build -G Ninja `
     -DTTC_BUILD_BENCH=OFF `
     -DFILECOMMANDER_ENABLE_NETWORK=ON `
     "-DFILECOMMANDER_POPPLER_QT5_ROOT=$PopplerQt5Root" `
-    "-DFILECOMMANDER_MPV_ROOT=$MpvRoot" `
     "-DFILECOMMANDER_PREVIEW_PDF=$pdfPreviewOption" `
-    "-DFILECOMMANDER_PREVIEW_MEDIA=$mediaPreviewOption"
+    "-DFILECOMMANDER_PREVIEW_MEDIA=$mediaPreviewOption" `
+    "-DFILECOMMANDER_MEDIA_BACKEND=$mediaBackend"
 if ($LASTEXITCODE) { throw 'CMake configure failed.' }
 cmake --build $build --parallel
 if ($LASTEXITCODE) { throw 'Build failed.' }
@@ -154,14 +155,8 @@ if ($pdfPreview) {
         Copy-StageFile -Source (Join-Path $vcpkgBin $runtime) -Destination $stage -Group 'pdf'
     }
 }
-if ($mediaPreview) {
-    if (-not (Test-Path -LiteralPath (Join-Path $MpvRoot 'libmpv-2.dll'))) {
-        throw "libmpv runtime not found at $MpvRoot."
-    }
-    Copy-StageFile -Source (Join-Path $MpvRoot 'libmpv-2.dll') -Destination $stage -Group 'media'
-}
-if (-not $mediaPreview -and (Test-Path -LiteralPath (Join-Path $stage 'libmpv-2.dll'))) {
-    throw "Profile $Profile forbids libmpv-2.dll in the Lite package."
+if (Test-Path -LiteralPath (Join-Path $stage 'libmpv-2.dll')) {
+    throw "Profile $Profile forbids libmpv-2.dll."
 }
 
 $officeBinary = Join-Path $repo 'build/office-oxide/office-oxide.exe'
@@ -188,6 +183,7 @@ $manifest = [ordered]@{
     officePreview = Test-Path -LiteralPath (Join-Path $stage 'office-oxide.exe')
     pdfPreview = $pdfPreview
     mediaPreview = $mediaPreview
+    mediaBackend = $mediaBackend
     runtime = [ordered]@{
         provenance = $runtime.Provenance
         files = @($runtime.CopiedCrtDllPaths | ForEach-Object { Split-Path -Leaf $_ })

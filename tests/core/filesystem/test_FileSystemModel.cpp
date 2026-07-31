@@ -263,6 +263,60 @@ TEST(FileSystemModelSizeTest, ComputedSizeReplacesDirPlaceholderInSizeColumn) {
     EXPECT_EQ(model.data(sizeIdx).toString().toStdString(), "2.0 KB");
 }
 
+TEST(FileSystemModelSizeTest, CalculatingMarkerIsReplacedByComputedSize) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    ASSERT_TRUE(QDir(dir.path()).mkdir("folder"));
+
+    FileSystemModel model;
+    ASSERT_TRUE(loadDir(model, dir.path()));
+
+    int folderRow = -1;
+    for (int r = 0; r < model.rowCount(); ++r) {
+        if (model.fileInfoAt(r).name() == "folder") {
+            folderRow = r;
+            break;
+        }
+    }
+    ASSERT_GE(folderRow, 0);
+
+    const QString folderPath = QDir(dir.path()).filePath("folder");
+    const QModelIndex sizeIdx = model.index(folderRow, FileSystemModel::SizeColumn);
+    model.setDirectorySizeCalculating(folderPath, true);
+    EXPECT_EQ(model.data(sizeIdx).toString(), QStringLiteral("计算中"));
+
+    model.setComputedDirSize(folderPath, 4096);
+    EXPECT_EQ(model.data(sizeIdx).toString(), QStringLiteral("4.0 KB"));
+}
+
+TEST(FilePanelDirectorySize, SlowRequestShowsCalculatingMarkerUntilFinished) {
+    auto provider = std::make_shared<StaleSizeProvider>();
+    FilePanel panel;
+    panel.model()->setProvider(provider);
+    ASSERT_TRUE(loadPanel(panel, QStringLiteral("/")));
+
+    FileListView *view = panel.findChild<FileListView *>();
+    ASSERT_NE(view, nullptr);
+    const QModelIndex first = panel.model()->index(0, FileSystemModel::NameColumn);
+    const QModelIndex second = panel.model()->index(1, FileSystemModel::NameColumn);
+    view->setCurrentIndex(first);
+    panel.calculateDirSizes();
+    provider->waitUntilFirstRequestStarted();
+
+    const QModelIndex sizeIdx = panel.model()->index(0, FileSystemModel::SizeColumn);
+    EXPECT_EQ(panel.model()->data(sizeIdx).toString(), QStringLiteral("<DIR>"));
+    QTRY_COMPARE_WITH_TIMEOUT(panel.model()->data(sizeIdx).toString(),
+                              QStringLiteral("计算中"), 2000);
+
+    view->setCurrentIndex(second);
+    QTest::qWait(50);
+    EXPECT_EQ(panel.model()->data(sizeIdx).toString(), QStringLiteral("计算中"));
+
+    provider->releaseFirstRequest();
+    QTRY_COMPARE_WITH_TIMEOUT(panel.model()->data(sizeIdx).toString(),
+                              QStringLiteral("10 B"), 4000);
+}
+
 TEST(FileSystemModelFilterTest, ChangingDirectoryClearsFilter) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());

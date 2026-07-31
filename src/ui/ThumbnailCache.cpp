@@ -32,6 +32,21 @@
 #include <cmath>
 #include <limits>
 
+#ifdef Q_OS_WIN
+#include <Shobjidl.h>
+#include <mfapi.h>
+#include <mfidl.h>
+#include <mfreadwrite.h>
+#include <objbase.h>
+#include <qt_windows.h>
+#ifdef min
+#undef min
+#endif
+#ifdef max
+#undef max
+#endif
+#endif
+
 namespace {
 
 constexpr int kMaxWorkerThreads = 4;  // bounded so a folder full of videos
@@ -220,6 +235,236 @@ QImage decodeScaled(const QString &imagePath, int size) {
         image = image.scaled(size, size, Qt::KeepAspectRatio, Qt::SmoothTransformation);
     return image;
 }
+
+#ifdef Q_OS_WIN
+class ComInitializer {
+public:
+    ComInitializer()
+        : m_hr(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE)) {}
+    ~ComInitializer() {
+        if (m_hr == S_OK || m_hr == S_FALSE)
+            CoUninitialize();
+    }
+
+    bool usable() const { return SUCCEEDED(m_hr) || m_hr == RPC_E_CHANGED_MODE; }
+
+private:
+    HRESULT m_hr;
+};
+
+QImage imageFromHBitmap(HBITMAP bitmap) {
+    if (!bitmap)
+        return {};
+
+    BITMAP bm = {};
+    if (GetObject(bitmap, sizeof(bm), &bm) == 0 || bm.bmWidth <= 0 || bm.bmHeight <= 0)
+        return {};
+
+    QImage image(bm.bmWidth, bm.bmHeight, QImage::Format_ARGB32);
+    if (image.isNull())
+        return {};
+
+    BITMAPINFO info = {};
+    info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    info.bmiHeader.biWidth = bm.bmWidth;
+    info.bmiHeader.biHeight = -bm.bmHeight;
+    info.bmiHeader.biPlanes = 1;
+    info.bmiHeader.biBitCount = 32;
+    info.bmiHeader.biCompression = BI_RGB;
+
+    HDC dc = GetDC(nullptr);
+    if (!dc)
+        return {};
+    const int lines = GetDIBits(dc, bitmap, 0, static_cast<UINT>(bm.bmHeight),
+                               image.bits(), &info, DIB_RGB_COLORS);
+    ReleaseDC(nullptr, dc);
+    if (lines != bm.bmHeight)
+        return {};
+
+    bool hasAlpha = false;
+    for (int y = 0; y < image.height() && !hasAlpha; ++y) {
+        const QRgb *line = reinterpret_cast<const QRgb *>(image.constScanLine(y));
+        for (int x = 0; x < image.width(); ++x) {
+            if (qAlpha(line[x]) != 0) {
+                hasAlpha = true;
+                break;
+            }
+        }
+    }
+    if (!hasAlpha) {
+        for (int y = 0; y < image.height(); ++y) {
+            QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
+            for (int x = 0; x < image.width(); ++x)
+                line[x] = qRgba(qRed(line[x]), qGreen(line[x]), qBlue(line[x]), 255);
+        }
+    }
+    return image;
+}
+
+QImage shellThumbnailImage(const QString &path, int size) {
+    if (path.isEmpty() || size <= 0)
+        return {};
+
+    ComInitializer com;
+    if (!com.usable())
+        return {};
+
+    IShellItem *item = nullptr;
+    const QString nativePath = QDir::toNativeSeparators(path);
+    HRESULT hr = SHCreateItemFromParsingName(reinterpret_cast<PCWSTR>(nativePath.utf16()),
+                                             nullptr, IID_PPV_ARGS(&item));
+    if (FAILED(hr) || !item)
+        return {};
+
+    IShellItemImageFactory *factory = nullptr;
+    hr = item->QueryInterface(IID_PPV_ARGS(&factory));
+    item->Release();
+    if (FAILED(hr) || !factory)
+        return {};
+
+    HBITMAP bitmap = nullptr;
+    SIZE requested = {size, size};
+    hr = factory->GetImage(requested,
+                           static_cast<SIIGBF>(SIIGBF_THUMBNAILONLY | SIIGBF_BIGGERSIZEOK),
+                           &bitmap);
+    factory->Release();
+    if (FAILED(hr) || !bitmap)
+        return {};
+
+    QImage image = imageFromHBitmap(bitmap);
+    DeleteObject(bitmap);
+    if (image.isNull())
+        return {};
+    if (image.width() > size || image.height() > size)
+        image = image.scaled(size, size, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    return image;
+}
+
+HRESULT ensureThumbnailMediaFoundationStarted() {
+    static const HRESULT hr = MFStartup(MF_VERSION);
+    return hr;
+}
+
+QImage mediaFoundationVideoThumbnailImage(const QString &path, int size) {
+    if (path.isEmpty() || size <= 0 || FAILED(ensureThumbnailMediaFoundationStarted()))
+        return {};
+
+    IMFAttributes *attrs = nullptr;
+    HRESULT hr = MFCreateAttributes(&attrs, 1);
+    if (FAILED(hr))
+        return {};
+    attrs->SetUINT32(MF_SOURCE_READER_ENABLE_VIDEO_PROCESSING, TRUE);
+
+    IMFSourceReader *reader = nullptr;
+    const QString nativePath = QDir::toNativeSeparators(path);
+    hr = MFCreateSourceReaderFromURL(reinterpret_cast<LPCWSTR>(nativePath.utf16()), attrs,
+                                     &reader);
+    attrs->Release();
+    if (FAILED(hr) || !reader)
+        return {};
+
+    reader->SetStreamSelection(MF_SOURCE_READER_ALL_STREAMS, FALSE);
+    reader->SetStreamSelection(MF_SOURCE_READER_FIRST_VIDEO_STREAM, TRUE);
+
+    IMFMediaType *wanted = nullptr;
+    hr = MFCreateMediaType(&wanted);
+    if (SUCCEEDED(hr)) {
+        wanted->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
+        wanted->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32);
+        hr = reader->SetCurrentMediaType(MF_SOURCE_READER_FIRST_VIDEO_STREAM, nullptr, wanted);
+        wanted->Release();
+    }
+    if (FAILED(hr)) {
+        reader->Release();
+        return {};
+    }
+
+    PROPVARIANT position;
+    PropVariantInit(&position);
+    position.vt = VT_I8;
+    position.hVal.QuadPart = 10 * 1000 * 1000;
+    reader->SetCurrentPosition(GUID_NULL, position);
+    PropVariantClear(&position);
+
+    IMFMediaType *current = nullptr;
+    UINT32 width = 0;
+    UINT32 height = 0;
+    hr = reader->GetCurrentMediaType(MF_SOURCE_READER_FIRST_VIDEO_STREAM, &current);
+    if (SUCCEEDED(hr))
+        hr = MFGetAttributeSize(current, MF_MT_FRAME_SIZE, &width, &height);
+    LONG stride = static_cast<LONG>(width) * 4;
+    if (SUCCEEDED(hr) && current) {
+        UINT32 rawStride = 0;
+        if (SUCCEEDED(current->GetUINT32(MF_MT_DEFAULT_STRIDE, &rawStride)))
+            stride = static_cast<LONG>(rawStride);
+    }
+    if (current)
+        current->Release();
+    if (FAILED(hr) || width == 0 || height == 0 || stride == 0) {
+        reader->Release();
+        return {};
+    }
+
+    QImage image;
+    for (int attempt = 0; attempt < 60 && image.isNull(); ++attempt) {
+        DWORD flags = 0;
+        IMFSample *sample = nullptr;
+        hr = reader->ReadSample(MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, nullptr, &flags,
+                                nullptr, &sample);
+        if (FAILED(hr) || (flags & MF_SOURCE_READERF_ENDOFSTREAM))
+            break;
+        if (!sample)
+            continue;
+
+        IMFMediaBuffer *buffer = nullptr;
+        hr = sample->ConvertToContiguousBuffer(&buffer);
+        sample->Release();
+        if (FAILED(hr) || !buffer)
+            continue;
+
+        BYTE *data = nullptr;
+        DWORD maxLength = 0;
+        DWORD currentLength = 0;
+        hr = buffer->Lock(&data, &maxLength, &currentLength);
+        if (SUCCEEDED(hr) && data && currentLength > 0) {
+            QImage frame(static_cast<int>(width), static_cast<int>(height), QImage::Format_ARGB32);
+            if (!frame.isNull()) {
+                const int bytesPerRow = qAbs(stride);
+                const int copyBytes = qMin<int>(frame.bytesPerLine(), bytesPerRow);
+                for (int y = 0; y < frame.height(); ++y) {
+                    const uchar *source =
+                        stride > 0 ? data + y * bytesPerRow
+                                   : data + (frame.height() - 1 - y) * bytesPerRow;
+                    if (source + copyBytes <= data + currentLength)
+                        std::memcpy(frame.scanLine(y), source, static_cast<size_t>(copyBytes));
+                }
+                for (int y = 0; y < frame.height(); ++y) {
+                    QRgb *line = reinterpret_cast<QRgb *>(frame.scanLine(y));
+                    for (int x = 0; x < frame.width(); ++x)
+                        line[x] = qRgba(qRed(line[x]), qGreen(line[x]), qBlue(line[x]), 255);
+                }
+                image = frame;
+            }
+            buffer->Unlock();
+        }
+        buffer->Release();
+    }
+    reader->Release();
+
+    if (image.isNull())
+        return {};
+    if (image.width() > size || image.height() > size)
+        image = image.scaled(size, size, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    return image;
+}
+
+QImage windowsNativeVideoThumbnailImage(const QString &path, int size) {
+    QImage image = shellThumbnailImage(path, size);
+    if (image.isNull())
+        image = mediaFoundationVideoThumbnailImage(path, size);
+    return image;
+}
+#endif
 
 // Parses "Duration: HH:MM:SS.xx" out of ffmpeg's banner text. Returns -1 if
 // not found.
@@ -873,11 +1118,15 @@ void ThumbnailCache::generate(const QString &path, const QString &diskKey, const
     // on disk and serves every zoom step that shares the rung.
     QImage image;
     if (isVideoPath(path)) {
+#ifdef Q_OS_WIN
+        image = windowsNativeVideoThumbnailImage(path, storedSize);
+#else
         const QString framePath = extractVideoFrame(path);
         if (!framePath.isEmpty()) {
             image = decodeScaled(framePath, storedSize);
             QFile::remove(framePath);
         }
+#endif
     } else {
         image = decodeScaled(path, storedSize);
     }
@@ -1033,11 +1282,27 @@ void ThumbnailCache::generateRemote(const RemoteThumbnailFetcher::Ticket &ticket
     // budgets and range plans are the same either way -- which is why storing
     // a larger rung costs no extra network.
     QImage image;
+#ifdef Q_OS_WIN
+    const QString shellPath = ticket.shellAccessiblePath(path);
+    if (!shellPath.isEmpty()) {
+        image = isVideoPath(path) ? windowsNativeVideoThumbnailImage(shellPath, storedSize)
+                                  : shellThumbnailImage(shellPath, storedSize);
+    }
+    if (isVideoPath(path) && image.isNull()) {
+        QMetaObject::invokeMethod(
+            this,
+            [this, ticket, path, diskKey, memKey] {
+                storeResult(path, diskKey, memKey, QImage(), !ticket.cancelled());
+            },
+            Qt::QueuedConnection);
+        return;
+    }
+#endif
     // Cheapest path first: a camera JPEG carries a complete preview in its
     // header, so a big photo can be thumbnailed from a fraction of its bytes.
     // Only worth the extra round trip when fetching the whole file would
     // actually hurt -- a small JPEG is cheaper to just pull.
-    if (isJpegPath(path) && fileSize > kExifProbeBytes * 2) {
+    if (image.isNull() && isJpegPath(path) && fileSize > kExifProbeBytes * 2) {
         const QByteArray preview = ExifThumbnail::extract(ticket.readHead(path, kExifProbeBytes));
         if (!preview.isEmpty()) {
             QImage embedded;

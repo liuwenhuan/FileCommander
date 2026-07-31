@@ -4,6 +4,64 @@
 #include <QFileInfo>
 #include <QMimeDatabase>
 
+#include <string>
+
+#ifdef Q_OS_WIN
+#include <aclapi.h>
+#include <sddl.h>
+#include <windows.h>
+#ifdef min
+#undef min
+#endif
+#ifdef max
+#undef max
+#endif
+#endif
+
+namespace {
+
+#ifdef Q_OS_WIN
+QString extendedWindowsPath(const QString &path) {
+    QString native = QDir::toNativeSeparators(QDir::cleanPath(path));
+    if (native.startsWith(QStringLiteral("\\\\?\\")))
+        return native;
+    if (native.startsWith(QStringLiteral("\\\\")))
+        return QStringLiteral("\\\\?\\UNC\\") + native.mid(2);
+    return QStringLiteral("\\\\?\\") + native;
+}
+
+QString sidText(PSID sid) {
+    if (!sid)
+        return {};
+
+    DWORD nameChars = 0;
+    DWORD domainChars = 0;
+    SID_NAME_USE use;
+    LookupAccountSidW(nullptr, sid, nullptr, &nameChars, nullptr, &domainChars, &use);
+    if (GetLastError() == ERROR_INSUFFICIENT_BUFFER && nameChars > 0) {
+        std::wstring name(nameChars, L'\0');
+        std::wstring domain(domainChars, L'\0');
+        if (LookupAccountSidW(nullptr, sid, name.data(), &nameChars, domain.data(),
+                              &domainChars, &use)) {
+            const QString account = QString::fromWCharArray(name.c_str());
+            const QString domainName = QString::fromWCharArray(domain.c_str());
+            return domainName.isEmpty() ? account
+                                        : domainName + QLatin1Char('\\') + account;
+        }
+    }
+
+    LPWSTR sidString = nullptr;
+    if (ConvertSidToStringSidW(sid, &sidString)) {
+        const QString result = QString::fromWCharArray(sidString);
+        LocalFree(sidString);
+        return result;
+    }
+    return {};
+}
+#endif
+
+} // namespace
+
 FileInfo::FileInfo(const QString &path) {
     QFileInfo qfi(path);
     m_name = qfi.fileName();
@@ -21,12 +79,58 @@ FileInfo::FileInfo(const QString &path) {
     if (!m_created.isValid())
         m_created = qfi.metadataChangeTime(); // birth time isn't always available
     m_permissions = qfi.permissions();
+#ifdef Q_OS_WIN
+    // QFileInfo::owner()/group() commonly return empty on Windows, and resolving
+    // ACL names for every directory entry is expensive. Defer it until a caller
+    // actually asks (normally the Properties dialog).
+    m_ownerId = -1;
+    m_groupId = -1;
+    m_ownerGroupResolved = m_path.isEmpty();
+#else
     // The local filesystem resolves both numeric ids and names.
     m_ownerId = static_cast<int>(qfi.ownerId());
     m_groupId = static_cast<int>(qfi.groupId());
     m_owner = qfi.owner();
     m_group = qfi.group();
+#endif
     // m_mimeType is intentionally left empty here; see mimeType() below.
+}
+
+const QString &FileInfo::owner() const {
+    ensureOwnerGroupResolved();
+    return m_owner;
+}
+
+const QString &FileInfo::group() const {
+    ensureOwnerGroupResolved();
+    return m_group;
+}
+
+void FileInfo::ensureOwnerGroupResolved() const {
+    if (m_ownerGroupResolved)
+        return;
+    m_ownerGroupResolved = true;
+
+#ifdef Q_OS_WIN
+    if (m_path.isEmpty())
+        return;
+
+    QString path = extendedWindowsPath(m_path);
+    std::wstring wide = path.toStdWString();
+    PSID ownerSid = nullptr;
+    PSID groupSid = nullptr;
+    PSECURITY_DESCRIPTOR descriptor = nullptr;
+    const DWORD status =
+        GetNamedSecurityInfoW(wide.data(), SE_FILE_OBJECT,
+                              OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION,
+                              &ownerSid, &groupSid, nullptr, nullptr, &descriptor);
+    if (status == ERROR_SUCCESS) {
+        m_owner = sidText(ownerSid);
+        m_group = sidText(groupSid);
+    }
+    if (descriptor)
+        LocalFree(descriptor);
+#endif
 }
 
 QString FileInfo::baseNameForName(const QString &name) {
@@ -76,6 +180,7 @@ FileInfo FileInfo::fromFields(const QString &path, const QString &name, qint64 s
     info.m_groupId = groupId;
     info.m_owner = owner;
     info.m_group = group;
+    info.m_ownerGroupResolved = true;
     return info;
 }
 

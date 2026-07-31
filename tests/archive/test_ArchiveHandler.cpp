@@ -67,6 +67,37 @@ TEST(ArchiveHandlerTest, BuildTreeParsesFilesAndDirectories) {
     EXPECT_EQ(b->fullPath, QString("sub/b.txt"));
 }
 
+TEST(ArchiveHandlerTest, BuildTreeOpensZipFromUnicodeFilesystemPath) {
+    QTemporaryDir srcDir, dir;
+    ASSERT_TRUE(srcDir.isValid() && dir.isValid());
+    const QString filePath = writeFile(srcDir.path(), "a.txt", "hello unicode zip");
+    const QString sourceArchive = QDir(dir.path()).filePath(QStringLiteral("ascii.zip"));
+    QString createErr;
+    ASSERT_TRUE(ArchiveHandler::create(sourceArchive, {filePath}, QStringLiteral("zip"),
+                                       &createErr))
+        << createErr.toStdString();
+    const QString unicodeArchive = QDir(dir.path()).filePath(QStringLiteral("语音输入法交互设计.zip"));
+    ASSERT_TRUE(QFile::copy(sourceArchive, unicodeArchive));
+
+    QString err;
+    auto root = ArchiveHandler::buildTree(unicodeArchive, &err);
+    ASSERT_TRUE(root) << err.toStdString();
+    EXPECT_TRUE(root->findChild("a.txt"));
+}
+
+TEST(ArchiveHandlerTest, EnvArchivePathBuildsTree) {
+    const QString archivePath = QString::fromLocal8Bit(qgetenv("FILECOMMANDER_ARCHIVE_TEST_PATH"));
+    if (archivePath.isEmpty()) {
+        GTEST_SKIP() << "FILECOMMANDER_ARCHIVE_TEST_PATH is not set";
+    }
+    ASSERT_TRUE(QFile::exists(archivePath)) << archivePath.toStdString();
+
+    QString err;
+    auto root = ArchiveHandler::buildTree(archivePath, &err);
+    ASSERT_TRUE(root) << err.toStdString();
+    EXPECT_FALSE(root->children.isEmpty());
+}
+
 TEST(ArchiveHandlerTest, ExtractAllWritesAllFiles) {
     QTemporaryDir dir, destDir;
     ASSERT_TRUE(dir.isValid() && destDir.isValid());

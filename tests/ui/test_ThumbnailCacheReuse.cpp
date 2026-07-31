@@ -44,6 +44,17 @@ private:
     bool m_previous;
 };
 
+class ScopedPath {
+public:
+    explicit ScopedPath(const QByteArray &value) : m_previous(qgetenv("PATH")) {
+        qputenv("PATH", value);
+    }
+    ~ScopedPath() { qputenv("PATH", m_previous); }
+
+private:
+    QByteArray m_previous;
+};
+
 QString cacheDir() {
     return QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
            + QStringLiteral("/FileCommander/thumbnails");
@@ -210,3 +221,20 @@ TEST(ThumbnailCacheReuseTest, CrossingARungStoresASecondThumbnail) {
     EXPECT_EQ(storedThumbnailCount(), 2);
     EXPECT_EQ(qMax(large.width(), large.height()), big);
 }
+
+#ifdef Q_OS_WIN
+TEST(ThumbnailCacheReuseTest, WindowsVideoThumbnailDoesNotNeedFfmpegOnPath) {
+    TestModePaths testPaths;
+    resetDiskCache();
+    ScopedPath noFfmpeg{QByteArray()};
+
+    const QString video =
+        QDir::current().filePath(QStringLiteral("../../../wmf-fixtures-local-av/video-h264.mp4"));
+    ASSERT_TRUE(QFileInfo::exists(video)) << video.toStdString();
+
+    const QPixmap thumbnail = waitForThumbnail(video, 96);
+    ASSERT_FALSE(thumbnail.isNull());
+    EXPECT_LE(thumbnail.width(), 96);
+    EXPECT_LE(thumbnail.height(), 96);
+}
+#endif

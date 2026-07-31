@@ -159,7 +159,8 @@ void ArchiveProvider::readEntryList(QString *error) {
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
 
-    if (archive_read_open_filename(a, m_archivePath.toUtf8().constData(), 10240) != ARCHIVE_OK) {
+    const QByteArray localArchivePath = QFile::encodeName(m_archivePath);
+    if (archive_read_open_filename(a, localArchivePath.constData(), 10240) != ARCHIVE_OK) {
         if (error)
             *error = lastArchiveError(a);
         archive_read_free(a);
@@ -466,7 +467,8 @@ bool ArchiveProvider::extractWhole() {
     archive_write_disk_set_options(ext, ARCHIVE_EXTRACT_TIME | ARCHIVE_EXTRACT_PERM);
     archive_write_disk_set_standard_lookup(ext);
 
-    if (archive_read_open_filename(a, m_archivePath.toUtf8().constData(), 10240) != ARCHIVE_OK) {
+    const QByteArray localArchivePath = QFile::encodeName(m_archivePath);
+    if (archive_read_open_filename(a, localArchivePath.constData(), 10240) != ARCHIVE_OK) {
         archive_read_free(a);
         archive_write_free(ext);
         return false;
@@ -555,7 +557,8 @@ QString ArchiveProvider::extractSingle(const QString &realPath) {
     archive_write_disk_set_options(ext, ARCHIVE_EXTRACT_TIME | ARCHIVE_EXTRACT_PERM);
     archive_write_disk_set_standard_lookup(ext);
 
-    if (archive_read_open_filename(a, m_archivePath.toUtf8().constData(), 10240) != ARCHIVE_OK) {
+    const QByteArray localArchivePath = QFile::encodeName(m_archivePath);
+    if (archive_read_open_filename(a, localArchivePath.constData(), 10240) != ARCHIVE_OK) {
         archive_read_free(a);
         archive_write_free(ext);
         return QString();

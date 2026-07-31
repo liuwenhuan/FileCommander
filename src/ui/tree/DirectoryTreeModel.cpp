@@ -1,9 +1,7 @@
 #include "DirectoryTreeModel.h"
 
-#include <QApplication>
-#include <QStyle>
-
 #include "TreeDirLister.h"
+#include "filesystem/FileInfo.h"
 #include "filesystem/IconCache.h"
 
 namespace {
@@ -140,10 +138,12 @@ QIcon DirectoryTreeModel::iconForNode(const Node *node) const {
     if (cached != m_iconCache.cend())
         return cached.value();
 
-    const QIcon icon = node->isRoot && !node->iconName.isEmpty()
-                           ? QIcon(QStringLiteral(":/icons/%1.svg").arg(node->iconName))
-                           : QApplication::style()->standardIcon(QStyle::SP_DirIcon);
-    const QIcon themed = IconCache::instance().themedIcon(icon);
+    const QIcon themed =
+        node->isRoot && !node->iconName.isEmpty()
+            ? IconCache::instance().themedIcon(QIcon(QStringLiteral(":/icons/%1.svg").arg(node->iconName)))
+            : IconCache::instance().iconFor(FileInfo::fromFields(node->path, node->name, 0,
+                                                                 QDateTime(), true,
+                                                                 QFile::Permissions()));
     m_iconCache.insert(key, themed);
     return themed;
 }

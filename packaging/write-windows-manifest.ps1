@@ -21,6 +21,10 @@ foreach ($groupName in $groupNames) {
         throw "Package profile $($profile.profile) does not define group $groupName."
     }
 }
+$mediaBackend = [string]$profile.features.mediaBackend
+if ([string]::IsNullOrWhiteSpace($mediaBackend)) {
+    $mediaBackend = if ([bool]$profile.features.mediaPreview) { 'mpv' } else { 'none' }
+}
 
 function Get-NormalizedRelativePath {
     param([Parameter(Mandatory)][string]$Path)
@@ -107,6 +111,7 @@ $manifest = [ordered]@{
     profile = [string]$profile.profile
     architecture = $Architecture
     buildType = $BuildType
+    mediaBackend = $mediaBackend
     files = $files
 }
 $outputPath = Join-Path $stageRoot 'release-manifest.json'

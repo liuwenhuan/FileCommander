@@ -629,6 +629,31 @@ TextEncodingDetector::Result TextEncodingDetector::detect(const QByteArray &data
     appendWide("UTF-16BE", "UTF-16BE", data.left(utf16BeGrammar.completePrefixBytes),
                utf16BeGrammar, false, 2, utf16LeGrammar.state == GrammarState::Invalid);
 
+    int bestWide = -1;
+    int secondWide = -1;
+    for (int i = 0; i < wideCandidates.size(); ++i) {
+        if (bestWide < 0 || wideCandidates.at(i).score > wideCandidates.at(bestWide).score) {
+            secondWide = bestWide;
+            bestWide = i;
+        } else if (secondWide < 0 ||
+                   wideCandidates.at(i).score > wideCandidates.at(secondWide).score) {
+            secondWide = i;
+        }
+    }
+
+    const bool likelyBinary = isLikelyBinary(data);
+    if (likelyBinary && bestWide >= 0) {
+        const WideCandidate &winner = wideCandidates.at(bestWide);
+        const bool closeWide = secondWide >= 0 &&
+                               winner.score - wideCandidates.at(secondWide).score <= 6;
+        return {QString::fromLatin1(winner.label), QByteArray(winner.codecName), 0, false,
+                closeWide, winner.grammar.completePrefixBytes,
+                winner.grammar.state == GrammarState::IncompleteAtEnd};
+    }
+
+    if (likelyBinary)
+        return {QStringLiteral("Binary"), QByteArray(), 0, true, false, 0, false};
+
     const Candidate candidates[] = {
         {"GB18030", "GB18030", ScriptPreference::Chinese},
         {"Big5", "Big5", ScriptPreference::Chinese},
@@ -670,18 +695,6 @@ TextEncodingDetector::Result TextEncodingDetector::detect(const QByteArray &data
         }
     }
 
-    int bestWide = -1;
-    int secondWide = -1;
-    for (int i = 0; i < wideCandidates.size(); ++i) {
-        if (bestWide < 0 || wideCandidates.at(i).score > wideCandidates.at(bestWide).score) {
-            secondWide = bestWide;
-            bestWide = i;
-        } else if (secondWide < 0 ||
-                   wideCandidates.at(i).score > wideCandidates.at(secondWide).score) {
-            secondWide = i;
-        }
-    }
-
     const bool strongLegacy = bestLegacy >= 0 &&
                               hasStrongLegacyEvidence(scores.at(bestLegacy).quality);
     if (bestWide >= 0 &&
@@ -710,8 +723,6 @@ TextEncodingDetector::Result TextEncodingDetector::detect(const QByteArray &data
                 winner.grammar.state == GrammarState::IncompleteAtEnd};
     }
 
-    if (isLikelyBinary(data))
-        return {QStringLiteral("Binary"), QByteArray(), 0, true, false, 0, false};
     return unknown();
 }
 

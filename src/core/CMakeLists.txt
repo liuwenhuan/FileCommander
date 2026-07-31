@@ -161,6 +161,10 @@ target_link_libraries(core PUBLIC
     Qt5::Network
 )
 
+if(WIN32)
+    target_link_libraries(core PUBLIC Advapi32 Shell32)
+endif()
+
 if(FILECOMMANDER_ENABLE_NETWORK)
     if(WIN32)
         target_link_libraries(core PUBLIC libssh2::libssh2 CURL::libcurl ws2_32 Mpr Netapi32)

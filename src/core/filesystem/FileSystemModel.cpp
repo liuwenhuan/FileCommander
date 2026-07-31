@@ -210,6 +210,7 @@ void FileSystemModel::setRootPath(const QString &path) {
     m_rootPath = path;
     m_nameFilter.clear();     // a fresh directory always starts unfiltered
     m_dirSizes.clear();       // computed folder sizes don't survive a rescan
+    m_calculatingDirSizes.clear();
     m_compareStatus.clear();  // comparison highlights are stale after a rescan
     m_dateStrCache.clear();   // bound the memo; new listing, new timestamps
     emit loadStarted();
@@ -425,6 +426,7 @@ void FileSystemModel::clearCompareStatus() {
 
 void FileSystemModel::setComputedDirSize(const QString &path, qint64 bytes) {
     m_dirSizes.insert(path, bytes);
+    m_calculatingDirSizes.remove(path);
     // Repaint the Size cell of the matching visible row, if it's shown.
     for (int i = 0; i < m_entries.size(); ++i) {
         if (m_entries.at(i).path() == path) {
@@ -432,6 +434,43 @@ void FileSystemModel::setComputedDirSize(const QString &path, qint64 bytes) {
             const QModelIndex idx = index(row, SizeColumn);
             emit dataChanged(idx, idx, {Qt::DisplayRole});
             break;
+        }
+    }
+}
+
+void FileSystemModel::setDirectorySizeCalculating(const QString &path, bool calculating) {
+    if (path.isEmpty())
+        return;
+    const bool changed =
+        calculating ? !m_calculatingDirSizes.contains(path)
+                    : m_calculatingDirSizes.contains(path);
+    if (!changed)
+        return;
+    if (calculating)
+        m_calculatingDirSizes.insert(path);
+    else
+        m_calculatingDirSizes.remove(path);
+
+    for (int i = 0; i < m_entries.size(); ++i) {
+        if (m_entries.at(i).path() == path) {
+            const int row = m_hasParentEntry ? i + 1 : i;
+            const QModelIndex idx = index(row, SizeColumn);
+            emit dataChanged(idx, idx, {Qt::DisplayRole});
+            break;
+        }
+    }
+}
+
+void FileSystemModel::clearDirectorySizeCalculating() {
+    if (m_calculatingDirSizes.isEmpty())
+        return;
+    const QSet<QString> paths = m_calculatingDirSizes;
+    m_calculatingDirSizes.clear();
+    for (int i = 0; i < m_entries.size(); ++i) {
+        if (paths.contains(m_entries.at(i).path())) {
+            const int row = m_hasParentEntry ? i + 1 : i;
+            const QModelIndex idx = index(row, SizeColumn);
+            emit dataChanged(idx, idx, {Qt::DisplayRole});
         }
     }
 }
@@ -552,8 +591,11 @@ QVariant FileSystemModel::data(const QModelIndex &index, int role) const {
         case SizeColumn:
             if (info.isDir()) {
                 auto it = m_dirSizes.constFind(info.path());
-                return it != m_dirSizes.constEnd() ? humanSize(it.value())
-                                                     : QStringLiteral("<DIR>");
+                if (it != m_dirSizes.constEnd())
+                    return humanSize(it.value());
+                if (m_calculatingDirSizes.contains(info.path()))
+                    return QStringLiteral("计算中");
+                return QStringLiteral("<DIR>");
             }
             return humanSize(info.size());
         case ModifiedColumn:

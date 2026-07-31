@@ -19,6 +19,7 @@ public:
     QString displayName() const override;
     QString scheme() const override { return QStringLiteral("smb"); }
     RemoteLocation remoteLocation() const override;
+    QString shellAccessiblePath(const QString &path) const override;
     bool reconnect(QString *error) override;
 
     QVector<FileInfo> list(const QString &path, bool showHidden) const override;

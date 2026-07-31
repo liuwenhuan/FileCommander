@@ -46,6 +46,15 @@ constexpr int kDefaultColWidths[FileSystemModel::ColumnCount] = {280, 70, 100, 1
 constexpr int kDragFeedbackEnterDurationMs = 80;
 constexpr int kDragFeedbackSuccessDurationMs = 150;
 
+int textInkWidth(const QFontMetrics &fm, const QString &text) {
+    if (text.isEmpty())
+        return 0;
+    // horizontalAdvance() is layout advance, not a strict ink bounding box. Some
+    // fonts draw a few pixels outside the advance; right-aligned columns then
+    // look clipped even after auto-fit. Use the larger value for column sizing.
+    return qMax(fm.horizontalAdvance(text), fm.boundingRect(text).width());
+}
+
 // Header that paints its own (non-bold) section labels. The deepin (DTK)
 // style draws header text bold and ignores the widget font / qss font-weight,
 // so we bypass it here, matching the theme's section colours.
@@ -84,18 +93,25 @@ protected:
         // the resize grip is a width adjustment, never a sort.
         if (e->button() == Qt::LeftButton && m_pressIndex >= 0 &&
             logicalIndexAt(e->pos().x()) == m_pressIndex &&
-            (e->pos() - m_pressPos).manhattanLength() < 4 && !onResizeGrip(m_pressPos.x())) {
+            (e->pos() - m_pressPos).manhattanLength() < 4 &&
+            resizeGripLeftSection(m_pressPos.x()) < 0) {
             if (auto *view = qobject_cast<FileListView *>(parentWidget()))
                 view->sortByHeaderSection(m_pressIndex);
         }
     }
     void mouseDoubleClickEvent(QMouseEvent *e) override {
-        // Let the base emit sectionHandleDoubleClicked (auto-fit) for a grip
-        // double-click. A double-click -- whether it auto-fits a column or lands
-        // on a label -- must not sort: clear the press index so the trailing
-        // release doesn't. (Auto-fit also shifts the borders, which would
-        // otherwise make that release look like a label click.)
-        QHeaderView::mouseDoubleClickEvent(e);
+        // Emit the handle signal ourselves for resize-grip double-clicks. The
+        // base implementation also performs a default section resize first,
+        // which looks like a user drag to FileListView and makes the adjacent
+        // column give up width before our content-fit rule runs.
+        const int handleLeft = resizeGripLeftSection(e->pos().x());
+        if (handleLeft >= 0) {
+            emit sectionHandleDoubleClicked(handleLeft);
+        } else {
+            QHeaderView::mouseDoubleClickEvent(e);
+        }
+        // A double-click -- whether it auto-fits a column or lands on a label --
+        // must not sort: clear the press index so the trailing release doesn't.
         m_pressIndex = -1;
     }
     void paintSection(QPainter *painter, const QRect &rect, int logicalIndex) const override {
@@ -148,7 +164,7 @@ protected:
 private:
     // True when x is within the resize grip of any visible section boundary, so
     // a click there is a width drag/auto-fit rather than a label click.
-    bool onResizeGrip(int x) const {
+    int resizeGripLeftSection(int x) const {
         const int grip =
             qMax(5, style()->pixelMetric(QStyle::PM_HeaderGripMargin, nullptr, this));
         for (int i = 0; i < count(); ++i) {
@@ -156,9 +172,9 @@ private:
                 continue;
             const int right = sectionViewportPosition(i) + sectionSize(i);
             if (qAbs(x - right) <= grip)
-                return true;
+                return i;
         }
-        return false;
+        return -1;
     }
 
     int m_pressIndex = -1;
@@ -519,7 +535,7 @@ int FileListView::measureVariableColumn(int column, const QFontMetrics &fm) cons
     for (int r = 0; r < scan; ++r) {
         const QString s = model()->index(r, column).data(Qt::DisplayRole).toString();
         if (!s.isEmpty())
-            w = qMax(w, fm.horizontalAdvance(s));
+            w = qMax(w, textInkWidth(fm, s));
     }
     return w;
 }
@@ -534,12 +550,12 @@ void FileListView::recomputeContentWidths() {
 
     const QFontMetrics fm = fontMetrics();
     const int kHeaderPad = 28; // paintSection insets 8 left / 20 right (arrow room)
-    const int kCellPad = 16;   // delegate insets ~4/4 + breathing room
+    const int kCellPad = 24;   // delegate insets 4/4 + room for right-aligned ink near dividers
 
     for (int c = 0; c < n; ++c) {
         const QString headerText =
             model()->headerData(c, Qt::Horizontal, Qt::DisplayRole).toString();
-        m_smartMin[c] = fm.horizontalAdvance(headerText) + kHeaderPad;
+        m_smartMin[c] = textInkWidth(fm, headerText) + kHeaderPad;
 
         int content = 0;
         switch (c) {
@@ -548,10 +564,10 @@ void FileListView::recomputeContentWidths() {
             break;
         case FileSystemModel::ModifiedColumn:
         case FileSystemModel::CreatedColumn:
-            content = fm.horizontalAdvance(QStringLiteral("0000-00-00 00:00")) + kCellPad;
+            content = textInkWidth(fm, QStringLiteral("0000-00-00 00:00")) + kCellPad;
             break;
         case FileSystemModel::PermissionsColumn:
-            content = fm.horizontalAdvance(QStringLiteral("drwxrwxrwx")) + kCellPad;
+            content = textInkWidth(fm, QStringLiteral("drwxrwxrwx")) + kCellPad;
             break;
         default: // Ext, Size, Type -> variable
             content = measureVariableColumn(c, fm) + kCellPad;
@@ -688,6 +704,12 @@ void FileListView::onSectionResized(int logical, int oldSize, int newSize) {
     QHeaderView *header = horizontalHeader();
     if (logical < 0 || logical >= m_baseWidth.size())
         return;
+    if ((QApplication::mouseButtons() & Qt::LeftButton) && m_preHandleResizeBaseWidth.isEmpty()) {
+        m_preHandleResizeBaseWidth = m_baseWidth;
+        QTimer::singleShot(QApplication::doubleClickInterval() + 50, this, [this] {
+            m_preHandleResizeBaseWidth.clear();
+        });
+    }
 
     // Find the next visible column after `logical`.
     int next = -1;
@@ -715,19 +737,23 @@ void FileListView::onSectionResized(int logical, int oldSize, int newSize) {
 }
 
 void FileListView::autoFitColumnRightOfHandle(int handleLeftLogical) {
-    // Qt reports the divider by the column to its LEFT; the user means the column
-    // to its RIGHT. Find the next visible column and fit that one. The rightmost
-    // divider (last visible column's right edge, pinned to the viewport) has no
-    // column to its right, so nothing happens there.
+    // Qt reports the divider by the column to its LEFT. FileCommander's
+    // double-click rule fits the visible column on the RIGHT of that divider,
+    // matching the user's target column while leaving the left column alone.
     QHeaderView *header = horizontalHeader();
-    if (!header)
+    if (!header || handleLeftLogical < 0 || handleLeftLogical >= header->count())
         return;
+    if (m_preHandleResizeBaseWidth.size() == m_baseWidth.size()) {
+        m_baseWidth = m_preHandleResizeBaseWidth;
+        m_preHandleResizeBaseWidth.clear();
+    }
     for (int c = handleLeftLogical + 1; c < header->count(); ++c) {
         if (!header->isSectionHidden(c)) {
             autoFitColumn(c);
             return;
         }
     }
+    applyLayout();
 }
 
 void FileListView::autoFitColumn(int logical) {

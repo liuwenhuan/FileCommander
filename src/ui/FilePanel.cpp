@@ -66,6 +66,7 @@ namespace {
 
 constexpr int kTreeAnimationVisibleRowLimit = 500;
 constexpr int kTreeInputCadenceIntervalMs = 100;
+constexpr int kDirectorySizeBusyDelayMs = 500;
 constexpr auto kTreeFeedbackAnimationName = "DirectoryTreeDisclosureFeedbackAnimation";
 
 class DirectoryTreeView final : public QTreeView {
@@ -209,7 +210,7 @@ private:
         m_feedbackAnimation->setEndValue(0.0);
         m_feedbackAnimation->setCurrentTime(0);
         m_feedbackOpacity = 0.0;
-        m_feedbackIndex = {};
+        m_feedbackIndex = QPersistentModelIndex();
         m_lastFeedbackRect = {};
         if (dirty.isValid())
             viewport()->update(dirty);
@@ -492,7 +493,6 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
 
     connect(m_view->selectionModel(), &QItemSelectionModel::selectionChanged, this,
             [this] {
-                cancelDirectorySizeTask();
                 updateStatus();
             });
 
@@ -2035,6 +2035,8 @@ FilePanel::~FilePanel() {
 void FilePanel::cancelDirectorySizeTask() {
     ++m_directorySizeRequestId;
     m_pendingDirectorySizeRequest.reset();
+    if (m_model)
+        m_model->clearDirectorySizeCalculating();
     if (!m_directorySizeTask)
         return;
     // Keep the task alive until its watcher reports completion. Its provider call
@@ -2092,16 +2094,11 @@ void FilePanel::startDirectorySizeTask(DirectorySizeRequest request) {
                               std::move(request.directories), this,
                               std::move(request.symlinkRootSizes));
     m_directorySizeTask = task;
-    auto completedBytes = std::make_shared<qint64>(0);
-    connect(task, &DirectorySizeTask::progress, this,
-            [this, task, requestId, dirs, completedBytes](int completedRoots, int,
-                                                         qint64 bytes) {
-                if (requestId != m_directorySizeRequestId ||
-                    m_directorySizeTask != task || completedRoots <= 0 ||
-                    completedRoots > dirs.size())
+    connect(task, &DirectorySizeTask::directorySizeReady, this,
+            [this, task, requestId](const QString &path, qint64 bytes) {
+                if (requestId != m_directorySizeRequestId || m_directorySizeTask != task)
                     return;
-                m_model->setComputedDirSize(dirs.at(completedRoots - 1), bytes - *completedBytes);
-                *completedBytes = bytes;
+                m_model->setComputedDirSize(path, bytes);
             });
     connect(task, &DirectorySizeTask::finished, this,
             [this, task](quint64, qint64, bool) {
@@ -2109,6 +2106,7 @@ void FilePanel::startDirectorySizeTask(DirectorySizeRequest request) {
                     task->deleteLater();
                     return;
                 }
+                m_model->clearDirectorySizeCalculating();
                 m_directorySizeTask = nullptr;
                 task->deleteLater();
                 if (!m_pendingDirectorySizeRequest)
@@ -2120,6 +2118,12 @@ void FilePanel::startDirectorySizeTask(DirectorySizeRequest request) {
                     startDirectorySizeTask(std::move(pending));
             });
     task->start();
+    QTimer::singleShot(kDirectorySizeBusyDelayMs, this, [this, task, requestId, dirs] {
+        if (requestId != m_directorySizeRequestId || m_directorySizeTask != task)
+            return;
+        for (const QString &dir : dirs)
+            m_model->setDirectorySizeCalculating(dir, true);
+    });
 }
 
 QString FilePanel::tabLabelFor(const QSharedPointer<TabState> &tab) const {

@@ -99,7 +99,21 @@ set(UI_SOURCES
     dialogs/AboutDialog.cpp
 )
 
-if(FILECOMMANDER_PREVIEW_MEDIA)
+if(WIN32)
+    list(APPEND UI_SOURCES
+        media/WindowsMediaSurface.h
+        media/WindowsMediaSurface.cpp
+    )
+endif()
+
+if(FILECOMMANDER_MEDIA_BACKEND_WINDOWSMF)
+    list(APPEND UI_SOURCES
+        media/WindowsMediaEngine.h
+        media/WindowsMediaEngine.cpp
+    )
+endif()
+
+if(FILECOMMANDER_MEDIA_BACKEND_MPV)
     list(APPEND UI_SOURCES
         media/MpvMediaEngine.h
         media/MpvMediaEngine.cpp
@@ -145,7 +159,7 @@ add_library(ui STATIC ${UI_SOURCES})
 find_package(ZLIB REQUIRED)
 find_package(Qt5 COMPONENTS OpenGL REQUIRED)
 
-if(FILECOMMANDER_PREVIEW_MEDIA)
+if(FILECOMMANDER_MEDIA_BACKEND_MPV)
     if(WIN32)
         set(FILECOMMANDER_MPV_ROOT "$ENV{FILECOMMANDER_MPV_ROOT}" CACHE PATH
             "Windows libmpv SDK containing include/mpv/client.h and libmpv.lib")
@@ -225,7 +239,22 @@ target_link_libraries(ui PUBLIC
 )
 target_link_libraries(ui PRIVATE ZLIB::ZLIB)
 
-if(FILECOMMANDER_PREVIEW_MEDIA)
+if(FILECOMMANDER_MEDIA_BACKEND_WINDOWSMF)
+    target_link_libraries(ui PRIVATE
+        mf
+        mfplat
+        mfreadwrite
+        mfuuid
+        windowscodecs
+        ole32
+        oleaut32
+    )
+endif()
+if(WIN32)
+    target_link_libraries(ui PRIVATE shell32 gdi32)
+endif()
+
+if(FILECOMMANDER_MEDIA_BACKEND_MPV)
     target_link_libraries(ui PRIVATE FileCommander::Mpv)
 endif()
 if(FILECOMMANDER_PREVIEW_PDF)

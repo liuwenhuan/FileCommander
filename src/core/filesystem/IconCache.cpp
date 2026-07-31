@@ -5,6 +5,19 @@
 #include <QPixmap>
 #include <QVector>
 
+#include <cstring>
+
+#ifdef Q_OS_WIN
+#include <qt_windows.h>
+#include <shellapi.h>
+#ifdef min
+#undef min
+#endif
+#ifdef max
+#undef max
+#endif
+#endif
+
 #include "FileInfo.h"
 #include "theme/Phosphor.h"
 
@@ -19,6 +32,67 @@ constexpr int kCacheBudget = 200;
 // none, so these are the fallback rungs -- the list view and the thumbnail grid
 // between them ask for everything from 16 up.
 constexpr int kTintSizes[] = {16, 22, 24, 32, 48, 64, 128, 256};
+
+#ifdef Q_OS_WIN
+QImage imageFromHIcon(HICON icon, int size) {
+    BITMAPINFO info = {};
+    info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    info.bmiHeader.biWidth = size;
+    info.bmiHeader.biHeight = -size;
+    info.bmiHeader.biPlanes = 1;
+    info.bmiHeader.biBitCount = 32;
+    info.bmiHeader.biCompression = BI_RGB;
+
+    void *bits = nullptr;
+    HDC screen = GetDC(nullptr);
+    HDC dc = CreateCompatibleDC(screen);
+    HBITMAP bitmap = CreateDIBSection(dc, &info, DIB_RGB_COLORS, &bits, nullptr, 0);
+    if (!screen || !dc || !bitmap || !bits) {
+        if (bitmap)
+            DeleteObject(bitmap);
+        if (dc)
+            DeleteDC(dc);
+        if (screen)
+            ReleaseDC(nullptr, screen);
+        return {};
+    }
+
+    HGDIOBJ old = SelectObject(dc, bitmap);
+    std::memset(bits, 0, static_cast<size_t>(size * size * 4));
+    DrawIconEx(dc, 0, 0, icon, size, size, 0, nullptr, DI_NORMAL);
+    QImage image(static_cast<uchar *>(bits), size, size, QImage::Format_ARGB32);
+    QImage copy = image.copy();
+    SelectObject(dc, old);
+    DeleteObject(bitmap);
+    DeleteDC(dc);
+    ReleaseDC(nullptr, screen);
+    return copy;
+}
+
+QPixmap shellFolderPixmap(int size) {
+    SHFILEINFOW fileInfo = {};
+    const UINT iconSize = size <= 16 ? SHGFI_SMALLICON : SHGFI_LARGEICON;
+    const DWORD_PTR ok = SHGetFileInfoW(
+        L"folder", FILE_ATTRIBUTE_DIRECTORY, &fileInfo, sizeof(fileInfo),
+        SHGFI_ICON | SHGFI_USEFILEATTRIBUTES | iconSize);
+    if (!ok || !fileInfo.hIcon)
+        return {};
+    QImage image = imageFromHIcon(fileInfo.hIcon, size);
+    DestroyIcon(fileInfo.hIcon);
+    return image.isNull() ? QPixmap() : QPixmap::fromImage(image);
+}
+
+QIcon shellFolderIcon() {
+    QIcon icon;
+    const int sizes[] = {16, 32};
+    for (int size : sizes) {
+        QPixmap pixmap = shellFolderPixmap(size);
+        if (!pixmap.isNull())
+            icon.addPixmap(pixmap);
+    }
+    return icon;
+}
+#endif
 } // namespace
 
 IconCache &IconCache::instance() {
@@ -38,8 +112,16 @@ QIcon IconCache::iconFor(const FileInfo &info) {
         return *cached;
 
     static QFileIconProvider provider;
-    QIcon icon = info.isDir() ? provider.icon(QFileIconProvider::Folder)
-                              : provider.icon(QFileInfo(info.path()));
+    QIcon icon;
+    if (info.isDir()) {
+#ifdef Q_OS_WIN
+        icon = shellFolderIcon();
+#endif
+        if (icon.isNull())
+            icon = provider.icon(QFileIconProvider::Folder);
+    } else {
+        icon = provider.icon(QFileInfo(info.path()));
+    }
     icon = themedIcon(icon);
 
     m_cache.insert(key, new QIcon(icon));

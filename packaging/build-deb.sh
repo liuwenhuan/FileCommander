@@ -161,9 +161,21 @@ EOF
 
 chmod 0755 "$STAGE_DIR/DEBIAN/postinst" "$STAGE_DIR/DEBIAN/postrm"
 
+RELEASE_MANIFEST="$BUILD_DIR/$PKG_NAME.manifest.json"
+bash "$REPO_ROOT/packaging/write-linux-manifest.sh" "$STAGE_DIR" deb "$RELEASE_MANIFEST"
+bash "$REPO_ROOT/packaging/verify-linux-package.sh" "$STAGE_DIR" "$RELEASE_MANIFEST" "$ARCH"
+
 # --- Package ----------------------------------------------------------------
 mkdir -p "$OUT_DIR"
 dpkg-deb --build --root-owner-group "$STAGE_DIR" "$OUT_DIR/$PKG_NAME"
+cp "$RELEASE_MANIFEST" "$OUT_DIR/$PKG_NAME.manifest.json"
+
+VERIFY_EXTRACT="$BUILD_DIR/deb-extract-verify"
+rm -rf "$VERIFY_EXTRACT"
+mkdir -p "$VERIFY_EXTRACT"
+dpkg-deb -R "$OUT_DIR/$PKG_NAME" "$VERIFY_EXTRACT"
+bash "$REPO_ROOT/packaging/verify-linux-package.sh" "$VERIFY_EXTRACT" \
+    "$OUT_DIR/$PKG_NAME.manifest.json" "$ARCH"
 
 echo
 echo "==> $OUT_DIR/$PKG_NAME"

@@ -1,9 +1,10 @@
 {
-  "profile": "windows-lite-portable",
+  "profile": "windows-portable",
   "packageType": "portable",
   "features": {
     "pdfPreview": true,
-    "mediaPreview": false
+    "mediaPreview": true,
+    "mediaBackend": "windowsmf"
   },
   "groups": {
     "application": { "required": ["FileCommander.exe"], "forbidden": [] },
@@ -12,7 +13,7 @@
     "imagePlugins": { "required": [], "forbidden": [] },
     "network": { "required": [], "forbidden": [] },
     "pdf": { "required": ["poppler-qt5.dll", "poppler.dll", "freetype.dll", "openjp2.dll", "libpng16.dll"], "forbidden": [] },
-    "media": { "required": [], "forbidden": ["libmpv-2.dll"] },
+    "media": { "required": [], "forbidden": ["libmpv-2.dll", "ffmpeg.exe", "ffprobe.exe"] },
     "office": { "required": [], "forbidden": [] },
     "msvcRuntime": { "required": ["vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll"], "forbidden": [] }
   }

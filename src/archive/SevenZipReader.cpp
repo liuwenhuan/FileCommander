@@ -4,6 +4,7 @@
 #include <QVector>
 
 #include <cstdlib>
+#include <string>
 
 // Vendored public-domain LZMA SDK (C). Its headers self-guard for C++.
 #include "lzma_sdk/7z.h"
@@ -93,7 +94,13 @@ SRes openArchive(const QString &path, Archive &a) {
     LookToRead2_CreateVTable(&a.look, False);
     a.look.buf = nullptr;
 
-    if (InFile_Open(&a.stream.file, path.toUtf8().constData()))
+#ifdef _WIN32
+    const std::wstring widePath = path.toStdWString();
+    if (InFile_OpenW(&a.stream.file, widePath.c_str()))
+#else
+    const QByteArray localPath = QFile::encodeName(path);
+    if (InFile_Open(&a.stream.file, localPath.constData()))
+#endif
         return SZ_ERROR_NO_ARCHIVE;
     a.fileOpen = true;
 

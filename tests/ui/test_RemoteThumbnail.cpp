@@ -258,3 +258,22 @@ TEST(RemoteThumbnailTest, NonImageAndDirectoryRequestsAreIgnored) {
         QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
     EXPECT_EQ(provider->opens(), 0);
 }
+
+#ifdef Q_OS_WIN
+TEST(RemoteThumbnailTest, WindowsRemoteVideoWithoutShellPathDoesNotDownloadForFfmpeg) {
+    auto provider = std::make_shared<ImageProvider>(pngBytes());
+    const QString path = remotePath("movie.mp4");
+    const QString conn = QStringLiteral("sftp://tester@fake-%1")
+                             .arg(QDateTime::currentMSecsSinceEpoch());
+
+    ThumbnailCache &cache = ThumbnailCache::instance();
+    QObject context;
+    std::atomic<bool> notified{false};
+    QObject::connect(&cache, &ThumbnailCache::thumbnailReady, &context,
+                     [&](const QString &ready) { notified = notified || ready == path; });
+
+    EXPECT_TRUE(cache.remoteThumbnail(provider, conn, path, 1700000000, 4096, 64).isNull());
+    ASSERT_TRUE(spinUntil([&] { return notified.load(); }, 3000));
+    EXPECT_EQ(provider->opens(), 0);
+}
+#endif

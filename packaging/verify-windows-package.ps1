@@ -12,6 +12,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $resolved = (Resolve-Path -LiteralPath $Stage).Path
+$repo = Split-Path -Parent $PSScriptRoot
 $pendingBaselinePath = $null
 [byte[]]$pendingBaselineBytes = $null
 
@@ -239,6 +240,9 @@ if ($hasReleaseManifest) {
         if ($file.Name -match '^(Qt5.*d|gtestd|gtest_maind|zd|archived|concrt.*d|msvcp.*d|vccorlib.*d|vcruntime.*d)\.dll$') {
             throw "Debug DLL is not allowed in a release package: $relativePath"
         }
+        if ($file.Name -match '^(ffmpeg|ffprobe)\.exe$|^(avcodec|avformat|avutil|swscale|swresample|avfilter|avdevice)-?\d*\.dll$') {
+            throw "Windows packages must not include FFmpeg runtime files: $relativePath"
+        }
         if ($file.Extension -in @('.exe', '.dll')) {
             $actualArchitecture = Get-PeArchitecture -Path $file.FullName -DisplayPath $relativePath
             if ($actualArchitecture -ne $Architecture) {
@@ -309,6 +313,14 @@ foreach ($required in @('FileCommander.exe', 'manifest.json')) {
     }
 }
 $legacyManifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+$mediaBackend = [string]$legacyManifest.mediaBackend
+if ([string]::IsNullOrWhiteSpace($mediaBackend)) {
+    $mediaBackend = if ($legacyManifest.mediaPreview) { 'mpv' } else { 'none' }
+}
+$mediaBackend = $mediaBackend.ToLowerInvariant()
+if ($mediaBackend -notin @('mpv', 'windowsmf', 'none')) {
+    throw "Unsupported media backend in manifest: $mediaBackend"
+}
 if ($legacyManifest.runtime.provenance -ne 'msvc-runtime') {
     throw "MSVC runtime provenance must be msvc-runtime, found '$($legacyManifest.runtime.provenance)'."
 }
@@ -363,9 +375,13 @@ if ($legacyManifest.pdfPreview) {
         }
     }
 }
-if ($legacyManifest.mediaPreview -and
+if ($legacyManifest.mediaPreview -and $mediaBackend -eq 'mpv' -and
     -not (Test-Path -LiteralPath (Join-Path $resolved 'libmpv-2.dll'))) {
-    throw 'Media preview is enabled but libmpv-2.dll is missing.'
+    throw 'mpv media preview is enabled but libmpv-2.dll is missing.'
+}
+if ($mediaBackend -eq 'windowsmf' -and
+    (Test-Path -LiteralPath (Join-Path $resolved 'libmpv-2.dll'))) {
+    throw 'Windows Media Foundation media preview must not package libmpv-2.dll.'
 }
 if (Get-ChildItem -LiteralPath $resolved -Recurse -Filter '*.dll' |
         Where-Object { $_.BaseName -match '^(Qt5.*d|gtestd|gtest_maind|zd|archived)$' }) {
@@ -384,6 +400,14 @@ function New-PackageSmokeFixtures {
     New-Item -ItemType Directory -Force -Path $Root | Out-Null
     [System.IO.File]::WriteAllBytes((Join-Path $Root 'smoke.png'),
         [System.Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL9OwAAAABJRU5ErkJggg=='))
+
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $zipSmoke = [System.IO.Compression.ZipFile]::Open((Join-Path $Root 'smoke.zip'),
+        [System.IO.Compression.ZipArchiveMode]::Create)
+    try {
+        Add-ZipText $zipSmoke 'hello.txt' 'FileCommander package archive smoke test'
+    } finally { $zipSmoke.Dispose() }
 
     if ($PackageManifest.pdfPreview) {
         $encoding = [System.Text.Encoding]::ASCII
@@ -407,8 +431,6 @@ function New-PackageSmokeFixtures {
     }
 
     if ($PackageManifest.officePreview) {
-        Add-Type -AssemblyName System.IO.Compression
-        Add-Type -AssemblyName System.IO.Compression.FileSystem
         $archive = [System.IO.Compression.ZipFile]::Open((Join-Path $Root 'smoke.docx'),
             [System.IO.Compression.ZipArchiveMode]::Create)
         try {
@@ -428,6 +450,16 @@ function New-PackageSmokeFixtures {
             $writer.Write([int]8000); $writer.Write([int]16000); $writer.Write([int16]2); $writer.Write([int16]16)
             $writer.Write([System.Text.Encoding]::ASCII.GetBytes('data')); $writer.Write([int]4); $writer.Write([int]0)
         } finally { $writer.Dispose() }
+
+        foreach ($candidate in @(
+            (Join-Path $repo 'build/wmf-fixtures-local/video-h264.mp4'),
+            (Join-Path $repo 'build/wmf-fixtures-local-av/video-h264.mp4')
+        )) {
+            if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+                Copy-Item -LiteralPath $candidate -Destination (Join-Path $Root 'smoke.mp4') -Force
+                break
+            }
+        }
     }
 }
 
@@ -438,7 +470,7 @@ if (-not $SkipSmoke) {
     $oldPath = $env:PATH
     Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
     try {
-        # Keep the smoke test honest: no Qt, vcpkg, Poppler, or mpv development
+        # Keep the smoke test honest: no Qt, vcpkg, Poppler, or media SDK
         # directory may satisfy a missing runtime dependency.
         $env:PATH = "$resolved;$env:SystemRoot\System32;$env:SystemRoot"
         $process = Start-Process -FilePath (Join-Path $resolved 'FileCommander.exe') `

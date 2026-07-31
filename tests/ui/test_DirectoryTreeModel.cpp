@@ -115,6 +115,32 @@ TEST(DirectoryTreeModelTest, ThemeIconsAreCachedUntilRefresh) {
     EXPECT_NE(blueImage, greenImage);
 }
 
+TEST(DirectoryTreeModelTest, FolderChildrenUseTheSharedFileIconCache) {
+    FakeLister *lister = nullptr;
+    DirectoryTreeModel model;
+    model.setRoots({localRoot()}, [&](const TreeRoot &) -> TreeDirLister * {
+        lister = new FakeLister;
+        return lister;
+    });
+
+    const QModelIndex root = model.index(0, 0);
+    model.fetchMore(root);
+    lister->deliver({"home"});
+    const QModelIndex child = model.index(0, 0, root);
+
+    const QImage treeIcon = child.data(Qt::DecorationRole).value<QIcon>().pixmap(32, 32).toImage();
+    const QImage sharedIcon =
+        IconCache::instance()
+            .iconFor(FileInfo::fromFields(QStringLiteral("/home"), QStringLiteral("home"), 0,
+                                          QDateTime(), true, QFile::Permissions()))
+            .pixmap(32, 32)
+            .toImage();
+
+    ASSERT_FALSE(treeIcon.isNull());
+    ASSERT_FALSE(sharedIcon.isNull());
+    EXPECT_EQ(treeIcon, sharedIcon);
+}
+
 // Nothing may be listed until a node is actually expanded: a tree that walked
 // the directories up front would stall for the whole of a remote connection.
 TEST(DirectoryTreeModelTest, RefreshIconsKeepsLoadedNodesAndOnlySignalsDecorationChanges) {

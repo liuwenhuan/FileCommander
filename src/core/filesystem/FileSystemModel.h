@@ -3,6 +3,7 @@
 #include <QAbstractTableModel>
 #include <QFutureWatcher>
 #include <QHash>
+#include <QSet>
 #include <QStringList>
 #include <QVector>
 
@@ -161,6 +162,8 @@ public:
     // column shows the recursive byte total for that folder instead of
     // "<DIR>". Cleared automatically when the directory is rescanned.
     void setComputedDirSize(const QString &path, qint64 bytes);
+    void setDirectorySizeCalculating(const QString &path, bool calculating);
+    void clearDirectorySizeCalculating();
     static qint64 directorySize(const QString &path);
 
     // Colours rows per a name->CompareStatus map (from "Compare Directories").
@@ -240,6 +243,7 @@ private:
     QVector<FileInfo> m_entries;    // visible subset after quick filter
     QString m_nameFilter;
     QHash<QString, qint64> m_dirSizes;    // path -> computed recursive size
+    QSet<QString> m_calculatingDirSizes;  // paths whose slow size task is still running
     QHash<QString, int> m_compareStatus;  // name -> CompareStatus
     // Memoises the formatted "yyyy-MM-dd HH:mm" string per epoch-minute so the
     // (expensive) QDateTime::toString runs once per distinct timestamp instead

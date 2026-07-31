@@ -18,6 +18,10 @@
 #include "FileInfo.h"
 #include "diagnostics/RuntimeCounters.h"
 
+#ifdef Q_OS_WIN
+#include <davclnt.h>
+#endif
+
 namespace {
 
 void ensureCurlGlobalInit() {
@@ -433,6 +437,40 @@ RemoteLocation CurlWebDavProvider::remoteLocation() const {
     loc.password = m_password;
     loc.anonymous = m_user.isEmpty();
     return loc;
+}
+
+QString CurlWebDavProvider::shellAccessiblePath(const QString &path) const {
+#ifdef Q_OS_WIN
+    QMutexLocker locker(&m_mutex);
+    if (!m_connected || m_host.isEmpty())
+        return {};
+    return webDavUrlToUncForShell(buildUrl(path, false));
+#else
+    Q_UNUSED(path);
+    return {};
+#endif
+}
+
+QString CurlWebDavProvider::webDavUrlToUncForShell(const QString &url) {
+#ifdef Q_OS_WIN
+    DWORD chars = 0;
+    const auto *input = reinterpret_cast<LPCWSTR>(url.utf16());
+    DWORD rc = DavGetUNCFromHTTPPath(input, nullptr, &chars);
+    if (rc != ERROR_INSUFFICIENT_BUFFER || chars == 0)
+        return {};
+
+    QString unc(static_cast<int>(chars), QChar());
+    rc = DavGetUNCFromHTTPPath(input, reinterpret_cast<LPWSTR>(unc.data()), &chars);
+    if (rc != ERROR_SUCCESS)
+        return {};
+    const int nul = unc.indexOf(QChar(0));
+    if (nul >= 0)
+        unc.truncate(nul);
+    return unc;
+#else
+    Q_UNUSED(url);
+    return {};
+#endif
 }
 
 QString CurlWebDavProvider::cleanPath(const QString &path) const {

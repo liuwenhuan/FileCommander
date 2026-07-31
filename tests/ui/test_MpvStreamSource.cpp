@@ -526,7 +526,7 @@ TEST(MpvStreamSource, PlayingThroughLibmpvReadsAFractionOfTheFile) {
     mpv_set_option_string(mpv, "vo", "null");
     mpv_set_option_string(mpv, "ao", "null");
     mpv_set_option_string(mpv, "mute", "yes");
-    // The same bounds MpvWidget applies; without them mpv reads ahead 150 MB
+    // The same bounds MpvMediaEngine applies; without them mpv reads ahead 150 MB
     // and the measurement below would be of the default, not of this feature.
     mpv_set_option_string(mpv, "cache", "yes");
     mpv_set_option_string(mpv, "demuxer-max-bytes", "8MiB");

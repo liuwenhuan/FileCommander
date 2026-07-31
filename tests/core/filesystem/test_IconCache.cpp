@@ -2,11 +2,90 @@
 
 #include <QColor>
 #include <QFile>
+#include <QFileIconProvider>
+#include <QImage>
 #include <QPixmap>
 #include <QTemporaryDir>
 
+#ifdef Q_OS_WIN
+#include <qt_windows.h>
+#include <shellapi.h>
+#ifdef min
+#undef min
+#endif
+#ifdef max
+#undef max
+#endif
+#endif
+
+#include <cstring>
+#include <cstdlib>
+
 #include "FileInfo.h"
 #include "IconCache.h"
+
+#ifdef Q_OS_WIN
+namespace {
+
+QImage imageFromHIcon(HICON icon, int size) {
+    BITMAPINFO info = {};
+    info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    info.bmiHeader.biWidth = size;
+    info.bmiHeader.biHeight = -size;
+    info.bmiHeader.biPlanes = 1;
+    info.bmiHeader.biBitCount = 32;
+    info.bmiHeader.biCompression = BI_RGB;
+
+    void *bits = nullptr;
+    HDC screen = GetDC(nullptr);
+    HDC dc = CreateCompatibleDC(screen);
+    HBITMAP bitmap = CreateDIBSection(dc, &info, DIB_RGB_COLORS, &bits, nullptr, 0);
+    HGDIOBJ old = SelectObject(dc, bitmap);
+    std::memset(bits, 0, static_cast<size_t>(size * size * 4));
+    DrawIconEx(dc, 0, 0, icon, size, size, 0, nullptr, DI_NORMAL);
+
+    QImage image(static_cast<uchar *>(bits), size, size, QImage::Format_ARGB32);
+    QImage copy = image.copy();
+    SelectObject(dc, old);
+    DeleteObject(bitmap);
+    DeleteDC(dc);
+    ReleaseDC(nullptr, screen);
+    return copy;
+}
+
+QImage shellGenericFolderImage(int size) {
+    SHFILEINFOW fileInfo = {};
+    const UINT iconSize = size <= 16 ? SHGFI_SMALLICON : SHGFI_LARGEICON;
+    const DWORD_PTR ok = SHGetFileInfoW(
+        L"folder", FILE_ATTRIBUTE_DIRECTORY, &fileInfo, sizeof(fileInfo),
+        SHGFI_ICON | SHGFI_USEFILEATTRIBUTES | iconSize);
+    if (!ok || !fileInfo.hIcon)
+        return {};
+    QImage image = imageFromHIcon(fileInfo.hIcon, size);
+    DestroyIcon(fileInfo.hIcon);
+    return image;
+}
+
+double meanRgbDifference(const QImage &a, const QImage &b) {
+    if (a.size() != b.size() || a.isNull() || b.isNull())
+        return 255.0;
+    QImage left = a.convertToFormat(QImage::Format_ARGB32);
+    QImage right = b.convertToFormat(QImage::Format_ARGB32);
+    quint64 total = 0;
+    for (int y = 0; y < left.height(); ++y) {
+        const QRgb *lp = reinterpret_cast<const QRgb *>(left.constScanLine(y));
+        const QRgb *rp = reinterpret_cast<const QRgb *>(right.constScanLine(y));
+        for (int x = 0; x < left.width(); ++x) {
+            total += static_cast<quint64>(std::abs(qRed(lp[x]) - qRed(rp[x])));
+            total += static_cast<quint64>(std::abs(qGreen(lp[x]) - qGreen(rp[x])));
+            total += static_cast<quint64>(std::abs(qBlue(lp[x]) - qBlue(rp[x])));
+        }
+    }
+    return static_cast<double>(total) / static_cast<double>(left.width() * left.height() * 3);
+}
+
+} // namespace
+#endif
 
 TEST(IconCacheTest, ReturnsNonNullIconForFile) {
     QTemporaryDir dir;
@@ -29,6 +108,38 @@ TEST(IconCacheTest, ReturnsNonNullIconForDirectory) {
     QIcon icon = IconCache::instance().iconFor(info);
     EXPECT_FALSE(icon.isNull());
 }
+
+TEST(IconCacheTest, DirectoryIconDoesNotUseDriveGlyph) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+
+    IconCache::instance().setTint(QColor());
+    const QImage folder =
+        IconCache::instance().iconFor(FileInfo(dir.path())).pixmap(32, 32).toImage();
+    const QImage drive = QFileIconProvider().icon(QFileIconProvider::Drive)
+                             .pixmap(32, 32)
+                             .toImage();
+
+    ASSERT_FALSE(folder.isNull());
+    ASSERT_FALSE(drive.isNull());
+    EXPECT_NE(folder, drive);
+}
+
+#ifdef Q_OS_WIN
+TEST(IconCacheTest, WindowsDirectoryIconUsesShellFolderGlyph) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+
+    IconCache::instance().setTint(QColor());
+    const QImage actual =
+        IconCache::instance().iconFor(FileInfo(dir.path())).pixmap(32, 32).toImage();
+    const QImage expected = shellGenericFolderImage(32);
+
+    ASSERT_FALSE(actual.isNull());
+    ASSERT_FALSE(expected.isNull());
+    EXPECT_LT(meanRgbDifference(actual, expected), 2.0);
+}
+#endif
 
 TEST(IconCacheTest, ThemedIconLeavesOriginalUntouchedWithoutTint) {
     QPixmap source(16, 16);

@@ -251,7 +251,7 @@ QString RemoteThumbnailFetcher::Ticket::downloadRanges(
 }
 
 QString RemoteThumbnailFetcher::Ticket::downloadContiguous(const QString &path, qint64 offset,
-                                                            qint64 length) const {
+                                                           qint64 length) const {
     if (length <= 0 || offset < 0 || cancelled())
         return {};
 
@@ -275,6 +275,13 @@ QString RemoteThumbnailFetcher::Ticket::downloadContiguous(const QString &path, 
     }
     temp.close();
     return outPath;
+}
+
+QString RemoteThumbnailFetcher::Ticket::shellAccessiblePath(const QString &path) const {
+    FileProvider *provider = m_provider.get();
+    if (!provider || cancelled())
+        return {};
+    return provider->shellAccessiblePath(path);
 }
 
 QString RemoteThumbnailFetcher::Ticket::downloadHeadAndTail(const QString &path, qint64 fileSize,

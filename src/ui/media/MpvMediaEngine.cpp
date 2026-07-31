@@ -2,6 +2,7 @@
 
 #include "MpvStreamSource.h"
 #include "MpvVideoSurface.h"
+#include "theme/Phosphor.h"
 
 #include <QDebug>
 #include <QMetaObject>
@@ -176,7 +177,11 @@ void MpvMediaEngine::setSpeed(double speed) {
         mpv_set_property(m_mpv, "speed", MPV_FORMAT_DOUBLE, &m_speed);
 }
 
-void MpvMediaEngine::setVideoFilter(const QString &filter) {
+void MpvMediaEngine::setVideoEffect(const VideoEffectSettings &settings) {
+    if (m_videoEffect.tint == settings.tint && m_videoEffect.pixelBlock == settings.pixelBlock)
+        return;
+    m_videoEffect = settings;
+    const QString filter = fc::mpvFilterFor(settings.tint, settings.pixelBlock, 0);
     if (m_videoFilter == filter)
         return;
     m_videoFilter = filter;

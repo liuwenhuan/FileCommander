@@ -4,6 +4,10 @@
 #include <QFile>
 #include <QTemporaryDir>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+
 #include "FileInfo.h"
 
 TEST(FileInfoTest, MimeTypeIsComputedLazilyAndCorrectly) {
@@ -113,3 +117,20 @@ TEST(FileInfoTest, FromFieldsTreatsDirectoryNameAsWholeBase) {
     EXPECT_TRUE(info.suffix().isEmpty());
     EXPECT_TRUE(info.isDir());
 }
+
+#ifdef Q_OS_WIN
+TEST(FileInfoWindowsTest, LocalEntriesResolveOwnerAndGroupNames) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+
+    const QString path = dir.filePath(QStringLiteral("owned.txt"));
+    QFile file(path);
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    file.write("owned");
+    file.close();
+
+    const FileInfo info(path);
+    EXPECT_FALSE(info.owner().isEmpty());
+    EXPECT_FALSE(info.group().isEmpty());
+}
+#endif

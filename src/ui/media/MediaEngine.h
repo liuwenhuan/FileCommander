@@ -27,7 +27,7 @@ public:
     virtual void setVolume(int) {}
     virtual void setMute(bool) {}
     virtual void setSpeed(double) {}
-    virtual void setVideoFilter(const QString &) {}
+    virtual void setVideoEffect(const VideoEffectSettings &) {}
     virtual QWidget *videoSurface() = 0;
 
     virtual MediaState state() const { return MediaState::Idle; }

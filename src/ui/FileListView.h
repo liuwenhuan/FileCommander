@@ -136,9 +136,8 @@ private:
     // width (Name is the flex column, so it is skipped).
     void autoFitColumn(int logical);
     // Slot for QHeaderView::sectionHandleDoubleClicked, whose argument is the
-    // column on the LEFT of the double-clicked divider. Fits the column on the
-    // RIGHT of that divider (the next visible one) -- what the user is pointing
-    // at -- to its content width.
+    // column on the LEFT of the double-clicked divider. Fits the next visible
+    // column on the RIGHT of that divider, leaving the left column unchanged.
     void autoFitColumnRightOfHandle(int handleLeftLogical);
     // Right-click on the header: toggle which columns are shown.
     void showColumnMenu(const QPoint &pos);
@@ -150,6 +149,7 @@ private:
     QVector<int> m_contentWidth; // measured natural content width (info cols)
     QVector<int> m_smartMin;     // compression floor = header text width + pad
     QVector<bool> m_userSet;     // user/restore set this base -> don't overwrite on load
+    QVector<int> m_preHandleResizeBaseWidth; // undo Qt resize side effects before handle auto-fit
     int m_nameFloor = 0;         // 16*avgChar + icon + pad, recomputed in applyLayout
 
     // Sort state owned by the view. The header's own sort-indicator is unreliable

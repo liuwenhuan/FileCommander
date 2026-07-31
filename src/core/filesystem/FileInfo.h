@@ -57,8 +57,8 @@ public:
     // empty when only numeric ids are available, as with SFTP).
     int ownerId() const { return m_ownerId; }
     int groupId() const { return m_groupId; }
-    const QString &owner() const { return m_owner; }
-    const QString &group() const { return m_group; }
+    const QString &owner() const;
+    const QString &group() const;
     bool isDir() const { return m_isDir; }
     bool isSymLink() const { return m_isSymLink; }
     bool isParentEntry() const { return m_isParentEntry; }
@@ -76,6 +76,8 @@ public:
     bool isValid() const { return !m_path.isEmpty(); }
 
 private:
+    void ensureOwnerGroupResolved() const;
+
     QString m_name;
     QString m_baseName;
     QString m_path;
@@ -87,8 +89,9 @@ private:
     bool m_permissionsKnown = true;
     int m_ownerId = -1;
     int m_groupId = -1;
-    QString m_owner;
-    QString m_group;
+    mutable QString m_owner;
+    mutable QString m_group;
+    mutable bool m_ownerGroupResolved = true;
     bool m_isDir = false;
     bool m_isSymLink = false;
     bool m_isParentEntry = false;

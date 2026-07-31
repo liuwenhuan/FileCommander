@@ -151,6 +151,7 @@ void PropertiesDialog::buildUi() {
         form->addRow(tr("Group:"), valueLabel(ownerGroupText(entry.group(), entry.groupId())));
     } else if (single) {
         QFileInfo info(m_paths.first());
+        const FileInfo entry(m_paths.first());
         setWindowTitle(tr("Properties — %1").arg(info.fileName()));
         form->addRow(tr("Name:"), valueLabel(info.fileName()));
         form->addRow(tr("Location:"), valueLabel(info.absolutePath()));
@@ -165,9 +166,9 @@ void PropertiesDialog::buildUi() {
         form->addRow(tr("Modified:"),
                      valueLabel(info.lastModified().toString(QStringLiteral("yyyy-MM-dd HH:mm:ss"))));
         form->addRow(tr("Owner:"),
-                     valueLabel(ownerGroupText(info.owner(), static_cast<int>(info.ownerId()))));
+                     valueLabel(ownerGroupText(entry.owner(), entry.ownerId())));
         form->addRow(tr("Group:"),
-                     valueLabel(ownerGroupText(info.group(), static_cast<int>(info.groupId()))));
+                     valueLabel(ownerGroupText(entry.group(), entry.groupId())));
     } else {
         setWindowTitle(tr("Properties — %1 items").arg(m_paths.size()));
         // Provider-backed entries are sized from the cached listing. Stat-ing

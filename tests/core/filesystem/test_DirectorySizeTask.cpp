@@ -9,6 +9,10 @@
 #include <QTemporaryDir>
 #include <QThread>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+
 #include <chrono>
 #include <condition_variable>
 #include <memory>
@@ -17,8 +21,45 @@
 
 #include "DirectorySizeTask.h"
 #include "FileProvider.h"
+#include "LocalFileProvider.h"
 
 namespace {
+
+#ifdef Q_OS_WIN
+QString extendedPath(const QString &path) {
+    QString native = QDir::toNativeSeparators(QDir::cleanPath(path));
+    if (native.startsWith(QStringLiteral("\\\\?\\")))
+        return native;
+    if (native.startsWith(QStringLiteral("\\\\")))
+        return QStringLiteral("\\\\?\\UNC\\") + native.mid(2);
+    return QStringLiteral("\\\\?\\") + native;
+}
+
+void createDirectoryWin32(const QString &path) {
+    const std::wstring wide = extendedPath(path).toStdWString();
+    ASSERT_TRUE(CreateDirectoryW(wide.c_str(), nullptr) ||
+                GetLastError() == ERROR_ALREADY_EXISTS)
+        << path.toStdString();
+}
+
+void writeFileWin32(const QString &path, const QByteArray &payload) {
+    const std::wstring wide = extendedPath(path).toStdWString();
+    HANDLE handle = CreateFileW(wide.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
+                                FILE_ATTRIBUTE_NORMAL, nullptr);
+    ASSERT_NE(handle, INVALID_HANDLE_VALUE) << path.toStdString();
+    DWORD written = 0;
+    ASSERT_TRUE(WriteFile(handle, payload.constData(), static_cast<DWORD>(payload.size()),
+                          &written, nullptr));
+    CloseHandle(handle);
+    ASSERT_EQ(written, static_cast<DWORD>(payload.size()));
+}
+#endif
+
+void writePayload(const QString &path, int bytes = 1) {
+    QFile file(path);
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    ASSERT_EQ(file.write(QByteArray(bytes, 'x')), bytes);
+}
 
 class BlockingProvider final : public FileProvider {
 public:
@@ -137,6 +178,56 @@ TEST(DirectorySizeTask, DoesNotTraverseASymlinkDirectoryRoot) {
     EXPECT_EQ(finished.takeFirst().at(1).toLongLong(), 37);
 }
 
+TEST(DirectorySizeTask, SingleLocalRootUsesOneWorker) {
+    EXPECT_EQ(DirectorySizeTask::localConcurrencyLimitForRoots({QStringLiteral("/only")}), 1);
+}
+
+TEST(DirectorySizeTask, MultipleLocalRootsAreBounded) {
+    const int limit = DirectorySizeTask::localConcurrencyLimitForRoots(
+        {QStringLiteral("/one"), QStringLiteral("/two"), QStringLiteral("/three")});
+    EXPECT_GE(limit, 2);
+    EXPECT_LE(limit, 4);
+}
+
+TEST(DirectorySizeTask, LocalParallelRootsReportEachDirectoryWhenItFinishes) {
+    QTemporaryDir temp;
+    ASSERT_TRUE(temp.isValid());
+    const QString slow = QDir(temp.path()).filePath(QStringLiteral("slow"));
+    const QString fast = QDir(temp.path()).filePath(QStringLiteral("fast"));
+    ASSERT_TRUE(QDir().mkdir(slow));
+    ASSERT_TRUE(QDir().mkdir(fast));
+
+    if (DirectorySizeTask::localConcurrencyLimitForRoots({slow, fast}) <= 1)
+        GTEST_SKIP() << "this volume is intentionally limited to serial directory sizing";
+
+    for (int i = 0; i < 3000; ++i)
+        writePayload(QDir(slow).filePath(QStringLiteral("file_%1.bin").arg(i)));
+    writePayload(QDir(fast).filePath(QStringLiteral("done.bin")), 7);
+
+    auto provider = std::shared_ptr<FileProvider>(LocalFileProvider::instance(),
+                                                  [](FileProvider *) {});
+    DirectorySizeTask task(47, provider, {slow, fast});
+    QSignalSpy ready(&task, &DirectorySizeTask::directorySizeReady);
+    QSignalSpy finished(&task, &DirectorySizeTask::finished);
+
+    task.start();
+
+    ASSERT_TRUE(ready.wait(4000));
+    ASSERT_GE(ready.count(), 1);
+    EXPECT_EQ(ready.at(0).at(0).toString(), fast);
+    EXPECT_EQ(ready.at(0).at(1).toLongLong(), 7);
+    ASSERT_TRUE(finished.wait(4000) || finished.count() > 0);
+}
+
+#ifdef Q_OS_WIN
+TEST(DirectorySizeTaskWindows, UncRootsStaySerial) {
+    EXPECT_EQ(DirectorySizeTask::localConcurrencyLimitForRoots(
+                  {QStringLiteral("\\\\server\\share\\one"),
+                   QStringLiteral("\\\\server\\share\\two")}),
+              1);
+}
+#endif
+
 TEST(DirectorySizeTask, ProgressSurvivesApplicationDispatchTargetTeardown) {
     auto provider = std::make_shared<BlockingProvider>();
     DirectorySizeTask task(44, provider, {QStringLiteral("/ready")});
@@ -187,3 +278,33 @@ TEST(DirectorySizeTask, DestructionWhileProviderIsBlockedCompletesAfterUnblock) 
     }
     EXPECT_TRUE(providerLifetime.expired());
 }
+
+#ifdef Q_OS_WIN
+TEST(DirectorySizeTaskWindows, LocalProviderTraversesLongPaths) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+
+    QString deep = dir.path();
+    for (int i = 0; deep.size() < 285; ++i) {
+        deep = QDir(deep).filePath(QStringLiteral("segment_%1_long_name").arg(i));
+        createDirectoryWin32(deep);
+    }
+    const QString payloadPath = QDir(deep).filePath(QStringLiteral("payload.bin"));
+    writeFileWin32(payloadPath, QByteArray(321, 'x'));
+    ASSERT_GT(payloadPath.size(), 260);
+
+    auto provider = std::shared_ptr<FileProvider>(LocalFileProvider::instance(),
+                                                  [](FileProvider *) {});
+    DirectorySizeTask task(46, provider, {dir.path()});
+    QSignalSpy finished(&task, &DirectorySizeTask::finished);
+
+    task.start();
+
+    ASSERT_TRUE(finished.wait(4000));
+    ASSERT_EQ(finished.count(), 1);
+    const QList<QVariant> result = finished.takeFirst();
+    EXPECT_EQ(result.at(0).toULongLong(), 46u);
+    EXPECT_EQ(result.at(1).toLongLong(), 321);
+    EXPECT_FALSE(result.at(2).toBool());
+}
+#endif

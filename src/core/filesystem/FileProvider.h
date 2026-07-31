@@ -127,6 +127,11 @@ public:
     // SFTP on a 120 ms link. This is for single files that need a name on disk.
     virtual RemoteLocation remoteLocation() const { return {}; }
 
+    // Path that the Windows Shell can open for thumbnail extraction. Local
+    // files are already named directly by their path, so the default is empty
+    // and only network backends with a native Windows path override it.
+    virtual QString shellAccessiblePath(const QString & /*path*/) const { return {}; }
+
     // Sets the connect/operation timeout (milliseconds) for network backends, so
     // a stalled connection or request fails instead of hanging indefinitely.
     // Local and archive backends ignore it. Must be set before connectToHost to
