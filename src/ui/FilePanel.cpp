@@ -288,8 +288,10 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_treeButton->setToolTip(tr("Folder tree"));
     connect(m_treeButton, &QToolButton::toggled, this, [this](bool on) {
         m_dirTree->setVisible(on);
-        if (on)
+        if (on) {
+            ensureTreeRootsReady();
             syncTreeToPath(m_model->rootPath());
+        }
     });
 
     // Back/Forward live inline at the head of the path row (no separate
@@ -379,7 +381,6 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     // actually arrived, which on a remote connection is some round trips later.
     connect(m_dirTreeModel, &DirectoryTreeModel::childrenLoaded, this,
             [this](const QModelIndex &) { advanceTreeSync(); });
-    rebuildTreeRoots();
 
     // Thumbnail/icon view: shares the model and (below) the selection model with
     // the list, so a mode switch keeps the current selection. Big icons come
@@ -606,6 +607,11 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
 }
 
 bool FilePanel::eventFilter(QObject *watched, QEvent *event) {
+    if (watched == m_dirTree && event->type() == QEvent::Show) {
+        ensureTreeRootsReady();
+        syncTreeToPath(m_model->rootPath());
+    }
+
     const bool panelInput = watched == m_view || watched == m_iconView ||
                             watched == m_dirTree || watched == m_filterBar;
     if (panelInput && event->type() == QEvent::FocusIn) {
@@ -1323,15 +1329,27 @@ void FilePanel::setTreeSources(RemovableDeviceMonitor *devices, NetworkTreeRegis
     // existing signals; nothing here polls.
     if (m_deviceMonitor)
         connect(m_deviceMonitor, &RemovableDeviceMonitor::devicesChanged, this,
-                &FilePanel::rebuildTreeRoots);
+                &FilePanel::markTreeRootsDirty);
     if (m_connRegistry)
-        connect(m_connRegistry, &NetworkTreeRegistry::changed, this, &FilePanel::rebuildTreeRoots);
-    rebuildTreeRoots();
+        connect(m_connRegistry, &NetworkTreeRegistry::changed, this, &FilePanel::markTreeRootsDirty);
+    markTreeRootsDirty();
+}
+
+void FilePanel::markTreeRootsDirty() {
+    m_treeRootsDirty = true;
+    if (m_dirTree && m_dirTree->isVisible())
+        ensureTreeRootsReady();
+}
+
+void FilePanel::ensureTreeRootsReady() {
+    if (m_treeRootsDirty)
+        rebuildTreeRoots();
 }
 
 void FilePanel::rebuildTreeRoots() {
     if (!m_dirTreeModel)
         return;
+    m_treeRootsDirty = false;
 
     QVector<RemovableDevice> devices;
     QStringList removableMounts;

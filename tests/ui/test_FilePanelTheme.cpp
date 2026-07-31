@@ -97,6 +97,26 @@ TEST(FilePanelThemeTest, AddTabAndAddressRowControlsDefineEveryInteractionStateI
     }
 }
 
+TEST(FilePanelThemeTest, TabScrollerControlsDefineEveryInteractionStateInEveryTheme) {
+    for (const QString &theme : {QStringLiteral("light"), QStringLiteral("dark"),
+                                 QStringLiteral("green")}) {
+        QFile file(QStringLiteral(TTC_SOURCE_DIR "/resources/themes/") + theme +
+                   QStringLiteral(".qss"));
+        ASSERT_TRUE(file.open(QIODevice::ReadOnly | QIODevice::Text))
+            << theme.toStdString();
+        const QString sheet = QString::fromUtf8(file.readAll());
+
+        const QString selector = QStringLiteral("QTabBar QToolButton");
+        EXPECT_TRUE(sheet.contains(selector)) << theme.toStdString();
+        EXPECT_TRUE(sheet.contains(selector + QStringLiteral(":hover")))
+            << theme.toStdString();
+        EXPECT_TRUE(sheet.contains(selector + QStringLiteral(":pressed")))
+            << theme.toStdString();
+        EXPECT_TRUE(sheet.contains(selector + QStringLiteral(":disabled")))
+            << theme.toStdString();
+    }
+}
+
 TEST(FilePanelThemeTest, TabBarsKeepTheSameHeightWithDifferentTabCounts) {
     QFile qss(QStringLiteral(TTC_SOURCE_DIR "/resources/themes/dark.qss"));
     ASSERT_TRUE(qss.open(QIODevice::ReadOnly)) << "theme qss missing";
@@ -189,6 +209,40 @@ TEST(TabBarTest, OverflowUsesNativeScrollersInsideTheTabBar) {
         }
     }
     EXPECT_TRUE(accentBeforeRight);
+}
+
+TEST(TabBarTest, OverflowScrollersReflectAvailableDirection) {
+    TabBar tabBar;
+    for (int index = 0; index < 20; ++index)
+        tabBar.addTab(QStringLiteral("Long tab title %1").arg(index));
+
+    tabBar.resize(180, 36);
+    tabBar.show();
+    qApp->processEvents();
+    qApp->processEvents();
+
+    QToolButton *left = nullptr;
+    QToolButton *right = nullptr;
+    for (QToolButton *button :
+         tabBar.findChildren<QToolButton *>(QString(), Qt::FindDirectChildrenOnly)) {
+        if (button->arrowType() == Qt::LeftArrow)
+            left = button;
+        else if (button->arrowType() == Qt::RightArrow)
+            right = button;
+    }
+
+    ASSERT_NE(left, nullptr);
+    ASSERT_NE(right, nullptr);
+    tabBar.setCurrentIndex(0);
+    qApp->processEvents();
+    EXPECT_FALSE(left->isEnabled());
+    EXPECT_TRUE(right->isEnabled());
+
+    tabBar.setCurrentIndex(tabBar.count() - 1);
+    qApp->processEvents();
+    qApp->processEvents();
+    EXPECT_TRUE(left->isEnabled());
+    EXPECT_FALSE(right->isEnabled());
 }
 
 TEST(FilePanelThemeTest, OverflowDoesNotCreateACustomLeftScrollControl) {

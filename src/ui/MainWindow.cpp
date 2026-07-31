@@ -23,6 +23,7 @@
 #include <QTemporaryDir>
 
 #include <atomic>
+#include <cstdlib>
 #include <functional>
 #include <QLabel>
 #include <QHBoxLayout>
@@ -165,6 +166,7 @@ namespace {
 // Repeated Windows measurements recorded 19-25 ms outliers. Task 3 requires
 // pure first-use initialization when any supported-machine warm exceeds 16 ms.
 constexpr bool kAutomaticMediaWarmEnabled = false;
+constexpr int kStartupFeatureDelayMs = 5000;
 std::shared_ptr<FileProvider> localProviderPtr() {
     return std::shared_ptr<FileProvider>(LocalFileProvider::instance(), [](FileProvider *) {});
 }
@@ -1031,12 +1033,17 @@ void MainWindow::buildTitleBarMenus() {
     // Clicking the title-bar "New Version" badge opens the pending-update dialog.
     connect(m_titleBar, &TitleBar::updateRequested, this, &MainWindow::showUpdateDialog);
 
-    setupFeatureBatch();
+    // Device enumeration, SMB discovery and update checks are useful background
+    // services, but none are required for the first visible frame.
 }
 
 // External-device hot-plug watcher, SMB neighbourhood browser, and the daily
 // background update check. Kept out of the (already large) constructor body.
 void MainWindow::setupFeatureBatch() {
+    if (m_featureBatchStarted)
+        return;
+    m_featureBatchStarted = true;
+
 #if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
     // Removable-device hot-plug: when a new USB stick / phone / drive appears and
     // the preference is on, mount it and open it in a fresh, activated tab.
@@ -1097,12 +1104,10 @@ void MainWindow::setupFeatureBatch() {
 #endif
 
 #if FILECOMMANDER_HAS_LINUX_INTEGRATION || (defined(Q_OS_WIN) && FILECOMMANDER_HAS_NETWORK)
-    // SMB neighbourhood discovery is owned here and injected into the
-    // external-connection picker. Kick off one background scan at startup and
-    // cache the results (4h): opening the picker then shows hosts instantly from
-    // cache, only rescanning once the cache goes stale.
+    // SMB neighbourhood discovery is injected into the external-connection
+    // picker, which starts scans on demand. Startup only creates the lightweight
+    // owner so the first visible frame and smoke-test shutdown stay quiet.
     m_smbBrowser = new SmbHostBrowser(this);
-    m_smbBrowser->startDiscovery();
 #endif
 
     // Once-a-day background update check: if we haven't checked today, ask the
@@ -1175,7 +1180,12 @@ void MainWindow::runPackageSmoke(const QString &directory) {
     auto next = std::make_shared<std::function<void()>>();
     *next = [this, dir, files, index, next] {
         if (*index >= files.size()) {
-            QTimer::singleShot(1200, qApp, [] { QCoreApplication::quit(); });
+            QTimer::singleShot(1200, qApp, [] {
+                // Package smoke has already exercised the preview stack. Return
+                // success without running process-wide teardown, which can be
+                // polluted by injected TSF/input-method DLLs on Windows.
+                std::_Exit(0);
+            });
             return;
         }
         m_quickView->showFile(dir.filePath(files.at((*index)++)));
@@ -1333,6 +1343,7 @@ void MainWindow::paintEvent(QPaintEvent *) {
     if (isMaximized() || contentsMargins().left() == 0) {
         p.fillRect(rect(), palette().color(QPalette::Window));
         scheduleMediaWarmupAfterFirstPaint();
+        scheduleFeatureBatchAfterFirstPaint();
         return;
     }
 
@@ -1357,6 +1368,7 @@ void MainWindow::paintEvent(QPaintEvent *) {
     // Centre (solid window colour; fillRect is cheaper than a stretched blit).
     p.fillRect(QRect(c, c, w - 2 * c, h - 2 * c), m_frameCacheColor);
     scheduleMediaWarmupAfterFirstPaint();
+    scheduleFeatureBatchAfterFirstPaint();
 }
 
 void MainWindow::scheduleMediaWarmupAfterFirstPaint() {
@@ -1366,6 +1378,13 @@ void MainWindow::scheduleMediaWarmupAfterFirstPaint() {
         return;
     m_mediaWarmScheduled = true;
     m_mediaWarmTimer->start();
+}
+
+void MainWindow::scheduleFeatureBatchAfterFirstPaint() {
+    if (!isVisible() || m_featureBatchScheduled || m_featureBatchStarted)
+        return;
+    m_featureBatchScheduled = true;
+    QTimer::singleShot(kStartupFeatureDelayMs, this, &MainWindow::setupFeatureBatch);
 }
 
 void MainWindow::applyRoundedMask() {
@@ -1740,6 +1759,7 @@ void MainWindow::openExternalConnections() {
 #if FILECOMMANDER_HAS_LINUX_INTEGRATION || (defined(Q_OS_WIN) && FILECOMMANDER_HAS_NETWORK)
     if (!m_activePanel)
         return;
+    setupFeatureBatch();
     // A floating fly-out anchored above the launching (leading) button rather
     // than a modal dialog: it aggregates removable devices, saved bookmarks and
     // discovered SMB hosts; activating a row emits one of three signals which we
@@ -3288,6 +3308,7 @@ void MainWindow::reconnectSavedTab(FilePanel *panel, int index) {
     const SavedConnection c = panel->tabConnInfo(index);
     if (c.host.isEmpty())
         return;
+    setupFeatureBatch();
     auto native = providerForSaved(c);
     if (!native.provider) {
         ttc::critical(this, tr("重新连接"), tr("不支持的连接类型。"));
@@ -3417,6 +3438,7 @@ bool MainWindow::promptCredentials(const QString &host, QString *user, QString *
 }
 
 FilePanel *MainWindow::beginServerConnection() {
+    setupFeatureBatch();
     // Server connections always land in a fresh tab on the LEFT panel, so they
     // never clobber whatever the (possibly right, possibly busy) active panel is
     // showing. Focus it so the user sees the new connection appear.

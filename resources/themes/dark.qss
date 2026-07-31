@@ -326,6 +326,29 @@ QTabBar::tab:selected {
     color: #e0e0e0;
 }
 
+QTabBar QToolButton {
+    background: transparent;
+    color: #e0e0e0;
+    border: 1px solid transparent;
+    padding: 0;
+}
+
+QTabBar QToolButton:hover {
+    background: #454545;
+    border-color: #555555;
+}
+
+QTabBar QToolButton:pressed {
+    background: #2f2f2f;
+    border-color: #383838;
+}
+
+QTabBar QToolButton:disabled {
+    background: transparent;
+    color: #777777;
+    border-color: transparent;
+}
+
 QStatusBar {
     background-color: #232323;
     border-top: 1px solid #1a1a1a;

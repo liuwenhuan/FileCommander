@@ -438,6 +438,30 @@ QTabBar::tab:hover {
     color: #33ff88;
 }
 
+QTabBar QToolButton {
+    background: transparent;
+    color: #33ff88;
+    border: 1px solid transparent;
+    padding: 0;
+}
+
+QTabBar QToolButton:hover {
+    background: #12602f;
+    border-color: #1fa85c;
+}
+
+QTabBar QToolButton:pressed {
+    background: #0a3f1f;
+    color: #33ff88;
+    border-color: #1fa85c;
+}
+
+QTabBar QToolButton:disabled {
+    background: transparent;
+    color: #12602f;
+    border-color: transparent;
+}
+
 QStatusBar {
     background: url(:/icons/crt-scan-chrome.png) repeat;
     border-top: 1px solid #1fa85c;

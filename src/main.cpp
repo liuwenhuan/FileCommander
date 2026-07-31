@@ -4,6 +4,7 @@
 #include <QTimer>
 
 #include <clocale>
+#include <cstdlib>
 
 #include "AppIcon.h"
 #include "FolderAssociation.h"
@@ -91,7 +92,12 @@ int main(int argc, char *argv[]) {
             QTimer::singleShot(250, &window,
                                [&window, directory] { window.runPackageSmoke(directory); });
         } else if (arguments.contains(QStringLiteral("--smoke-test"))) {
-            QTimer::singleShot(750, &app, &QCoreApplication::quit);
+            QTimer::singleShot(750, &app, [] {
+                // Smoke mode only proves the packaged binary can start and draw.
+                // Avoid third-party TSF/input-method DLL teardown crashes that can
+                // happen after verification has already completed.
+                std::_Exit(0);
+            });
         } else {
             const QStringList folders = FolderAssociation::folderArguments(arguments);
             if (!folders.isEmpty())

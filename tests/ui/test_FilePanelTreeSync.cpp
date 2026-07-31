@@ -88,6 +88,21 @@ TEST_F(FilePanelTreeSyncTest, TreeFollowsTabSwitchAfterEachLoad) {
     QTRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_beta, 4000);
 }
 
+TEST(FilePanelStartupTest, HiddenDirectoryTreeDoesNotBuildRootsUntilShown) {
+    FilePanel panel;
+    QTreeView *tree = showTree(panel);
+    ASSERT_NE(tree, nullptr);
+    auto *model = qobject_cast<DirectoryTreeModel *>(tree->model());
+    ASSERT_NE(model, nullptr);
+
+    tree->setVisible(false);
+    EXPECT_EQ(model->rowCount(), 0);
+
+    panel.show();
+    tree->setVisible(true);
+    QTRY_VERIFY_WITH_TIMEOUT(model->rowCount() > 0, 1000);
+}
+
 TEST_F(FilePanelTreeSyncTest, HiddenTreePreservesItsExistingSelectionUntilReopened) {
     FilePanel panel;
     panel.show();

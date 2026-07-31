@@ -22,7 +22,9 @@
 #include "QuickView.h"
 #include "TabBar.h"
 #include "config/Settings.h"
+#include "devices/RemovableDeviceMonitor.h"
 #include "media/MediaEngine.h"
+#include "network/SmbHostBrowser.h"
 
 namespace {
 
@@ -154,6 +156,29 @@ TEST(MainWindowPreviewSwapTest, AutomaticMediaWarmupStaysDisabledAfterFirstVisib
     window.update();
     processGuiEvents();
     EXPECT_EQ(warmed.count(), 0);
+}
+
+TEST(MainWindowStartupTest, DefersBackgroundFeatureBatchPastFirstPaint) {
+    MainWindow window;
+
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
+    EXPECT_EQ(window.findChild<RemovableDeviceMonitor *>(), nullptr);
+#endif
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || (defined(Q_OS_WIN) && FILECOMMANDER_HAS_NETWORK)
+    EXPECT_EQ(window.findChild<SmbHostBrowser *>(), nullptr);
+#endif
+
+    window.resize(1000, 700);
+    window.show();
+    processGuiEvents();
+    processGuiEvents();
+
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
+    EXPECT_EQ(window.findChild<RemovableDeviceMonitor *>(), nullptr);
+#endif
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || (defined(Q_OS_WIN) && FILECOMMANDER_HAS_NETWORK)
+    EXPECT_EQ(window.findChild<SmbHostBrowser *>(), nullptr);
+#endif
 }
 
 TEST(MainWindowPreviewSwapTest, FirstMediaRequestWarmsImmediatelyWithAutomaticWarmupDisabled) {

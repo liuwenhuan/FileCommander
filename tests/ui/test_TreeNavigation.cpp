@@ -4,6 +4,7 @@
 #include <QFileInfo>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QTest>
 #include <QTreeView>
 #include <QMenu>
 
@@ -14,6 +15,7 @@
 #include "FileSystemModel.h"
 #include "MainWindow.h"
 #include "tree/DirectoryTreeModel.h"
+#include "tree/NetworkTreeRegistry.h"
 
 // Clicking a local disk in the folder tree while the tab is on a server.
 //
@@ -219,6 +221,9 @@ TEST(MainWindowTest, FolderAssociationIsTheLastConfigAction) {
 #if defined(Q_OS_WIN) && FILECOMMANDER_HAS_NETWORK
 TEST(MainWindowNetworkTest, ConnectedServerAppearsInTheFolderTree) {
     MainWindow window;
+    window.resize(1000, 700);
+    window.show();
+    QTRY_VERIFY_WITH_TIMEOUT(window.findChild<NetworkTreeRegistry *>() != nullptr, 6000);
     const QList<FilePanel *> panels = window.findChildren<FilePanel *>();
     ASSERT_GE(panels.size(), 2);
 

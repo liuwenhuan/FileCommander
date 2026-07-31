@@ -455,6 +455,8 @@ private:
     // Installs `tab`'s parked connection as the model's active backend (or goes
     // local if `tab` has none), and syncs the connection status line.
     void adoptConnectionFrom(const QSharedPointer<TabState> &tab);
+    void markTreeRootsDirty();
+    void ensureTreeRootsReady();
 
     BreadcrumbBar *m_addressBar;
     QToolButton *m_treeButton; // "🗀" toggles this panel's folder tree; first in the row
@@ -465,6 +467,7 @@ private:
     DirectoryTreeModel *m_dirTreeModel = nullptr;
     RemovableDeviceMonitor *m_deviceMonitor = nullptr; // not owned; may be null
     NetworkTreeRegistry *m_connRegistry = nullptr;     // not owned; may be null
+    bool m_treeRootsDirty = true;
     // Path the tree is walking towards, one asynchronous level at a time, plus
     // the connection it belongs to. Cleared when reached or when it turns out to
     // be unreachable. Bounded by the path's depth, so it always terminates.

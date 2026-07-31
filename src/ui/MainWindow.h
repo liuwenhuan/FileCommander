@@ -93,6 +93,7 @@ private:
     // alpha-blending it. No-op off X11. Coordinates are in device pixels.
     void updateOpaqueRegion();
     void scheduleMediaWarmupAfterFirstPaint();
+    void scheduleFeatureBatchAfterFirstPaint();
 
 private slots:
     void setActivePanel(FilePanel *panel);
@@ -409,6 +410,8 @@ private:
 
     // Feature batch: external devices, quick notepad, online update.
     void setupFeatureBatch(); // constructor helper: wires the three subsystems below
+    bool m_featureBatchScheduled = false;
+    bool m_featureBatchStarted = false;
     RemovableDeviceMonitor *m_deviceMonitor = nullptr; // UDisks2 hot-plug watcher
     // Live network connections across both panels, so each panel's folder tree
     // can show a root per connection (and grey out the other panel's).
