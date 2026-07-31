@@ -372,14 +372,28 @@ QMessageBox {
     background-color: #f5f5f5;
 }
 
-QScrollBar:vertical, QScrollBar:horizontal {
+QScrollBar:vertical {
+    width: 12px;
     background: #ececec;
     border: none;
 }
 
-QScrollBar::handle {
+QScrollBar:horizontal {
+    height: 12px;
+    background: #ececec;
+    border: none;
+}
+
+QScrollBar::handle:vertical {
     background: #c0c0c0;
     border-radius: 4px;
+    min-height: 24px;
+}
+
+QScrollBar::handle:horizontal {
+    background: #c0c0c0;
+    border-radius: 4px;
+    min-width: 24px;
 }
 
 QScrollBar::handle:hover {

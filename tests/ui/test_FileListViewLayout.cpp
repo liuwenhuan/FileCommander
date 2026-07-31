@@ -7,6 +7,8 @@
 #include <QScrollBar>
 #include <QSignalSpy>
 #include <QStandardItemModel>
+#include <QStyle>
+#include <QStyleOptionSlider>
 #include <QTest>
 
 #include "FileListView.h"
@@ -25,6 +27,7 @@ void applyThemeSheet(const QString &name) {
 
 void populateModel(QStandardItemModel &model) {
     model.setColumnCount(kColumnCount);
+    model.setRowCount(64);
     for (int column = 0; column < kColumnCount; ++column)
         model.setHeaderData(column, Qt::Horizontal, QStringLiteral("Column %1").arg(column));
     for (int row = 0; row < 64; ++row)
@@ -53,6 +56,105 @@ void expectLastVisibleSectionAtContentRight(FileListView &view) {
     ASSERT_GT(header->viewport()->width(), 0);
     EXPECT_EQ(header->sectionViewportPosition(last) + header->sectionSize(last),
               columnContentRight(view));
+}
+
+QRect scrollbarSliderRect(QScrollBar &scrollbar) {
+    QStyleOptionSlider opt;
+    opt.initFrom(&scrollbar);
+    opt.orientation = scrollbar.orientation();
+    opt.minimum = scrollbar.minimum();
+    opt.maximum = scrollbar.maximum();
+    opt.sliderPosition = scrollbar.sliderPosition();
+    opt.sliderValue = scrollbar.value();
+    opt.pageStep = scrollbar.pageStep();
+    opt.singleStep = scrollbar.singleStep();
+    return scrollbar.style()->subControlRect(QStyle::CC_ScrollBar, &opt,
+                                             QStyle::SC_ScrollBarSlider, &scrollbar);
+}
+
+void expectStartupThemePaintsScrollbarHandle(const QString &theme, const QColor &handleColor) {
+    const QString originalSheet = qApp->styleSheet();
+    applyThemeSheet(theme);
+
+    QStandardItemModel model;
+    populateModel(model);
+    FileListView view;
+    view.setModel(&model);
+    view.resize(700, 320);
+    view.show();
+    view.setPanelActive(true);
+    qApp->processEvents();
+    qApp->processEvents();
+
+    QScrollBar *scrollbar = view.verticalScrollBar();
+    ASSERT_NE(scrollbar, nullptr);
+    ASSERT_TRUE(scrollbar->isVisible()) << theme.toStdString();
+    ASSERT_GT(scrollbar->maximum(), scrollbar->minimum()) << theme.toStdString();
+
+    const QRect slider = scrollbarSliderRect(*scrollbar);
+    ASSERT_TRUE(slider.isValid()) << theme.toStdString();
+    ASSERT_GT(slider.width(), 0) << theme.toStdString();
+    ASSERT_GT(slider.height(), 0) << theme.toStdString();
+
+    const QImage rendered = scrollbar->grab().toImage();
+    const QPoint handlePoint = slider.center();
+    ASSERT_TRUE(rendered.rect().contains(handlePoint)) << theme.toStdString();
+
+    const QColor pixel = rendered.pixelColor(handlePoint);
+    EXPECT_LE(qAbs(pixel.red() - handleColor.red()) +
+                  qAbs(pixel.green() - handleColor.green()) +
+                  qAbs(pixel.blue() - handleColor.blue()),
+              24)
+        << theme.toStdString() << " scrollbar handle is not painted at startup";
+
+    qApp->setStyleSheet(originalSheet);
+    qApp->processEvents();
+}
+
+void expectStartupThemePaintsScrollbarHandleAfterInitialLoad(const QString &theme,
+                                                             const QColor &handleColor) {
+    const QString originalSheet = qApp->styleSheet();
+    applyThemeSheet(theme);
+
+    QStandardItemModel model;
+    model.setColumnCount(kColumnCount);
+    for (int column = 0; column < kColumnCount; ++column)
+        model.setHeaderData(column, Qt::Horizontal, QStringLiteral("Column %1").arg(column));
+
+    FileListView view;
+    view.setModel(&model);
+    view.resize(700, 320);
+    view.show();
+    view.setPanelActive(true);
+    qApp->processEvents();
+
+    populateModel(model);
+    qApp->processEvents();
+    qApp->processEvents();
+
+    QScrollBar *scrollbar = view.verticalScrollBar();
+    ASSERT_NE(scrollbar, nullptr);
+    ASSERT_TRUE(scrollbar->isVisible()) << theme.toStdString();
+    ASSERT_GT(scrollbar->maximum(), scrollbar->minimum()) << theme.toStdString();
+
+    const QRect slider = scrollbarSliderRect(*scrollbar);
+    ASSERT_TRUE(slider.isValid()) << theme.toStdString();
+    ASSERT_GT(slider.width(), 0) << theme.toStdString();
+    ASSERT_GT(slider.height(), 0) << theme.toStdString();
+
+    const QImage rendered = scrollbar->grab().toImage();
+    const QPoint handlePoint = slider.center();
+    ASSERT_TRUE(rendered.rect().contains(handlePoint)) << theme.toStdString();
+
+    const QColor pixel = rendered.pixelColor(handlePoint);
+    EXPECT_LE(qAbs(pixel.red() - handleColor.red()) +
+                  qAbs(pixel.green() - handleColor.green()) +
+                  qAbs(pixel.blue() - handleColor.blue()),
+              24)
+        << theme.toStdString() << " scrollbar handle is not painted after initial load";
+
+    qApp->setStyleSheet(originalSheet);
+    qApp->processEvents();
 }
 
 class FileListViewLayoutTest : public ::testing::Test {
@@ -143,6 +245,23 @@ TEST_F(FileListViewLayoutTest, HeaderCoversScrollbarGutterAboveTheListBody) {
         << "the scrollbar gutter is visible above the column header";
 
     qApp->setStyleSheet(originalSheet);
+}
+
+TEST(FileListViewLayoutStartupThemeTest, DarkThemePaintsVerticalScrollbarHandleOnFirstShow) {
+    expectStartupThemePaintsScrollbarHandle(QStringLiteral("dark"), QColor(0x4a, 0x4a, 0x4a));
+}
+
+TEST(FileListViewLayoutStartupThemeTest, LightThemePaintsVerticalScrollbarHandleOnFirstShow) {
+    expectStartupThemePaintsScrollbarHandle(QStringLiteral("light"), QColor(0xc0, 0xc0, 0xc0));
+}
+
+TEST(FileListViewLayoutStartupThemeTest, GreenThemePaintsVerticalScrollbarHandleOnFirstShow) {
+    expectStartupThemePaintsScrollbarHandle(QStringLiteral("green"), QColor(0x12, 0x60, 0x2f));
+}
+
+TEST(FileListViewLayoutStartupThemeTest, GreenThemePaintsVerticalScrollbarHandleAfterInitialLoad) {
+    expectStartupThemePaintsScrollbarHandleAfterInitialLoad(QStringLiteral("green"),
+                                                            QColor(0x12, 0x60, 0x2f));
 }
 
 TEST_F(FileListViewLayoutTest, DoubleClickingDividerAutoFitsTheColumnOnItsRight) {

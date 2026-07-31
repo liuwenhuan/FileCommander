@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QFile>
 #include <QHBoxLayout>
+#include <QRegularExpression>
 #include <QToolButton>
 
 #include "FilePanel.h"
@@ -124,6 +125,30 @@ TEST(FilePanelThemeTest, TabScrollerControlsDefineEveryInteractionStateInEveryTh
         EXPECT_TRUE(sheet.contains(selector + QStringLiteral(":pressed")))
             << theme.toStdString();
         EXPECT_TRUE(sheet.contains(selector + QStringLiteral(":disabled")))
+            << theme.toStdString();
+    }
+}
+
+TEST(FilePanelThemeTest, ScrollbarsDefineStableExtentsAndHandleMinimumsInEveryTheme) {
+    for (const QString &theme : {QStringLiteral("light"), QStringLiteral("dark"),
+                                 QStringLiteral("green")}) {
+        QFile file(QStringLiteral(TTC_SOURCE_DIR "/resources/themes/") + theme +
+                   QStringLiteral(".qss"));
+        ASSERT_TRUE(file.open(QIODevice::ReadOnly | QIODevice::Text))
+            << theme.toStdString();
+        const QString sheet = QString::fromUtf8(file.readAll());
+
+        EXPECT_TRUE(sheet.contains(QRegularExpression(
+            QStringLiteral("QScrollBar:vertical\\s*\\{[^}]*\\bwidth\\s*:"))))
+            << theme.toStdString();
+        EXPECT_TRUE(sheet.contains(QRegularExpression(
+            QStringLiteral("QScrollBar:horizontal\\s*\\{[^}]*\\bheight\\s*:"))))
+            << theme.toStdString();
+        EXPECT_TRUE(sheet.contains(QRegularExpression(
+            QStringLiteral("QScrollBar::handle:vertical\\s*\\{[^}]*\\bmin-height\\s*:"))))
+            << theme.toStdString();
+        EXPECT_TRUE(sheet.contains(QRegularExpression(
+            QStringLiteral("QScrollBar::handle:horizontal\\s*\\{[^}]*\\bmin-width\\s*:"))))
             << theme.toStdString();
     }
 }

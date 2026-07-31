@@ -542,14 +542,28 @@ QPlainTextEdit, QTextEdit {
 }
 
 /* Square scrollbars with no rounding, so the trough reads as a channel. */
-QScrollBar:vertical, QScrollBar:horizontal {
+QScrollBar:vertical {
+    width: 12px;
     background: #04140a;
     border: none;
 }
 
-QScrollBar::handle {
+QScrollBar:horizontal {
+    height: 12px;
+    background: #04140a;
+    border: none;
+}
+
+QScrollBar::handle:vertical {
     background: #12602f;
     border-radius: 0;
+    min-height: 24px;
+}
+
+QScrollBar::handle:horizontal {
+    background: #12602f;
+    border-radius: 0;
+    min-width: 24px;
 }
 
 QScrollBar::handle:hover {
