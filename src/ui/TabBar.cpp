@@ -7,6 +7,7 @@
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPropertyAnimation>
+#include <QToolButton>
 
 #include "MotionPolicy.h"
 
@@ -77,14 +78,17 @@ QAbstractButton *TabBar::createCloseButton() {
 void TabBar::tabInserted(int index) {
     QTabBar::tabInserted(index);
     setTabButton(index, QTabBar::RightSide, createCloseButton());
+    arrangeScrollButtons();
 }
 
 void TabBar::tabRemoved(int index) {
     QTabBar::tabRemoved(index);
+    arrangeScrollButtons();
 }
 
 void TabBar::resizeEvent(QResizeEvent *event) {
     QTabBar::resizeEvent(event);
+    arrangeScrollButtons();
 }
 
 void TabBar::paintEvent(QPaintEvent *event) {
@@ -109,6 +113,7 @@ void TabBar::paintEvent(QPaintEvent *event) {
         }
     }
 
+    arrangeScrollButtons();
 }
 
 void TabBar::setActivationProgress(qreal progress) {
@@ -168,6 +173,28 @@ void TabBar::refreshCloseButtons() {
         }
         existing->setEnabled(true);
         static_cast<TabCloseButton *>(existing)->setColour(normal);
+    }
+}
+
+void TabBar::arrangeScrollButtons() {
+    QToolButton *left = nullptr;
+    QToolButton *right = nullptr;
+    for (QToolButton *button :
+         findChildren<QToolButton *>(QString(), Qt::FindDirectChildrenOnly)) {
+        if (button->arrowType() == Qt::LeftArrow)
+            left = button;
+        else if (button->arrowType() == Qt::RightArrow)
+            right = button;
+    }
+
+    if (left && left->isVisible()) {
+        left->move(0, qMax(0, (height() - left->height()) / 2));
+        left->raise();
+    }
+    if (right && right->isVisible()) {
+        right->move(qMax(0, width() - right->width()),
+                    qMax(0, (height() - right->height()) / 2));
+        right->raise();
     }
 }
 

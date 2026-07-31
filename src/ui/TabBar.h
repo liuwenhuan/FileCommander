@@ -43,6 +43,7 @@ private:
     // paintEvent so it always sees the correct tab count, even when tabs are
     // switched with signals blocked.
     void refreshCloseButtons();
+    void arrangeScrollButtons();
     QAbstractButton *createCloseButton();
     qreal m_activationProgress = 1.0;
     QPropertyAnimation *m_activationAnimation = nullptr;

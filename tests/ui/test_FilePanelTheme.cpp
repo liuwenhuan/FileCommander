@@ -162,6 +162,9 @@ TEST(TabBarTest, OverflowUsesNativeScrollersInsideTheTabBar) {
     ASSERT_NE(right, nullptr);
     EXPECT_TRUE(left->isVisible());
     EXPECT_TRUE(right->isVisible());
+    EXPECT_LE(left->geometry().left(), 1);
+    EXPECT_GE(right->geometry().right(), tabBar.width() - 2);
+    EXPECT_LT(left->geometry().right(), right->geometry().left());
 }
 
 TEST(FilePanelThemeTest, OverflowDoesNotCreateACustomLeftScrollControl) {
@@ -196,6 +199,9 @@ TEST(FilePanelThemeTest, OverflowDoesNotCreateACustomLeftScrollControl) {
     ASSERT_NE(nativeRight, nullptr);
     EXPECT_TRUE(nativeLeft->isVisible());
     EXPECT_TRUE(nativeRight->isVisible());
+    EXPECT_LE(nativeLeft->geometry().left(), 1);
+    EXPECT_GE(nativeRight->geometry().right(), tabBar->width() - 2);
+    EXPECT_LT(nativeLeft->geometry().right(), nativeRight->geometry().left());
 }
 
 TEST(FilePanelThemeTest, NoCustomLeftScrollControlIsCreatedWithoutOverflow) {
