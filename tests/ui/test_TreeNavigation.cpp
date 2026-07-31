@@ -5,6 +5,7 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QToolButton>
 #include <QTreeView>
 #include <QMenu>
 
@@ -72,6 +73,11 @@ void settle(FilePanel &panel) {
 }
 
 QTreeView *treeOf(FilePanel &panel) {
+    for (QTreeView *t : panel.findChildren<QTreeView *>())
+        if (qobject_cast<DirectoryTreeModel *>(t->model()))
+            return t;
+    if (auto *button = panel.findChild<QToolButton *>(QStringLiteral("PanelTreeButton")))
+        button->click();
     for (QTreeView *t : panel.findChildren<QTreeView *>())
         if (qobject_cast<DirectoryTreeModel *>(t->model()))
             return t;

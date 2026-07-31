@@ -6,6 +6,7 @@
 #include <QLineEdit>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QToolButton>
 #include <QTreeView>
 
 #include "FilePanel.h"
@@ -35,6 +36,11 @@ QTreeView *showTree(FilePanel &panel) {
             t->setVisible(true);
             return t;
         }
+    if (auto *button = panel.findChild<QToolButton *>(QStringLiteral("PanelTreeButton")))
+        button->click();
+    for (QTreeView *t : panel.findChildren<QTreeView *>())
+        if (qobject_cast<DirectoryTreeModel *>(t->model()))
+            return t;
     return nullptr;
 }
 

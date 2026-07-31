@@ -6,11 +6,40 @@
 #include <QHBoxLayout>
 #include <QRegularExpression>
 #include <QToolButton>
+#include <QTreeView>
 
 #include "FilePanel.h"
+#include "IconFileView.h"
 #include "TabBar.h"
 
 namespace {
+
+TEST(FilePanelStartupTest, DetailsModeDoesNotConstructHiddenPanelSurfaces) {
+    FilePanel panel;
+
+    EXPECT_EQ(panel.findChild<QTreeView *>(), nullptr);
+    EXPECT_EQ(panel.findChild<IconFileView *>(), nullptr);
+    EXPECT_EQ(panel.iconView(), nullptr);
+}
+
+TEST(FilePanelThemeTest, LazilyCreatedIconViewInheritsCurrentPalette) {
+    const QString previousStyleSheet = qApp->styleSheet();
+    struct RestoreStyleSheet {
+        QString value;
+        ~RestoreStyleSheet() { qApp->setStyleSheet(value); }
+    } restore{previousStyleSheet};
+    FilePanel panel;
+    const QColor text(19, 87, 143);
+    const QColor base(231, 226, 211);
+    qApp->setStyleSheet(QStringLiteral(
+        "IconFileView { color: rgb(19, 87, 143); background-color: rgb(231, 226, 211); }"));
+
+    panel.toggleViewMode();
+    IconFileView *iconView = panel.iconView();
+    ASSERT_NE(iconView, nullptr);
+    EXPECT_EQ(iconView->palette().color(QPalette::Text), text);
+    EXPECT_EQ(iconView->palette().color(QPalette::Base), base);
+}
 
 TEST(FilePanelThemeTest, TreeButtonSharesTheAddressRowWithNavigationButtons) {
     FilePanel panel;

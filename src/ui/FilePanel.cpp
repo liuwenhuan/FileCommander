@@ -101,6 +101,8 @@ protected:
     }
 };
 
+} // namespace
+
 class DirectoryTreeView final : public QTreeView {
 public:
     explicit DirectoryTreeView(QWidget *parent = nullptr) : QTreeView(parent) {
@@ -255,8 +257,6 @@ private:
     qreal m_feedbackOpacity = 0.0;
 };
 
-} // namespace
-
 FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     // A plain QWidget subclass does not paint a stylesheet background unless
     // it is told to; without this the CRT theme's scanline texture stops at
@@ -317,7 +317,9 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_treeButton->setFocusPolicy(Qt::NoFocus);
     m_treeButton->setToolTip(tr("Folder tree"));
     connect(m_treeButton, &QToolButton::toggled, this, [this](bool on) {
-        m_dirTree->setVisible(on);
+        DirectoryTreeView *tree = on ? ensureDirectoryTree() : m_dirTree;
+        if (tree)
+            tree->setVisible(on);
         if (on) {
             ensureTreeRootsReady();
             syncTreeToPath(m_model->rootPath());
@@ -395,107 +397,12 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     tabRowLayout->addWidget(m_tabBar, 1);
     tabRowLayout->addWidget(m_addTabButton, 0, Qt::AlignVCenter);
 
-    // Per-panel folder tree, to the left of the list in a splitter. Hidden until
-    // the tree button is toggled on. Navigating it drives this panel. Its top
-    // level is a set of devices/connections rather than one filesystem root --
-    // see rebuildTreeRoots() and DirectoryTreeModel.
-    m_dirTreeModel = new DirectoryTreeModel(this);
-    m_dirTree = new DirectoryTreeView(this);
-    m_dirTree->setModel(m_dirTreeModel);
-    m_dirTree->setHeaderHidden(true);
-    m_dirTree->setFocusPolicy(Qt::ClickFocus);
-    m_dirTree->installEventFilter(this);
-    m_dirTree->hide();
-    connect(m_dirTree, &QTreeView::activated, this, &FilePanel::activateTreeIndex);
-    // The walk towards the current directory can only continue once a level has
-    // actually arrived, which on a remote connection is some round trips later.
-    connect(m_dirTreeModel, &DirectoryTreeModel::childrenLoaded, this,
-            [this](const QModelIndex &) { advanceTreeSync(); });
-
-    // Thumbnail/icon view: shares the model and (below) the selection model with
-    // the list, so a mode switch keeps the current selection. Big icons come
-    // from the model's DecorationRole (IconCache).
-    m_iconView = new IconFileView(this);
-    m_iconView->setModel(m_model);
-    m_iconView->setModelColumn(0); // Name column carries the icon + label
-    m_iconView->setViewMode(QListView::IconMode);
-    m_iconView->setIconSize(QSize(64, 64));
-    // Grid size is set from the delegate's cell metrics once it's installed
-    // (see applyThumbnailIconSize() below), not hard-coded -- a too-short grid
-    // makes the selection tile overlap adjacent rows.
-    m_iconView->setResizeMode(QListView::Adjust);
-    m_iconView->setMovement(QListView::Static);
-    // QListView::setMovement(Static) has a side-effect: it calls
-    // setDragEnabled(false) and viewport->setAcceptDrops(false), which silently
-    // disables ALL drag-and-drop (a Static-layout icon view is assumed to be
-    // non-draggable). We want the Static grid layout but the same cross-panel
-    // DnD as the list view, so re-assert drag/drop here, after setMovement.
-    m_iconView->setDragEnabled(true);
-    m_iconView->setDragDropMode(QAbstractItemView::DragDrop);
-    m_iconView->setDefaultDropAction(Qt::CopyAction);
-    m_iconView->viewport()->setAcceptDrops(true);
-    m_iconView->setUniformItemSizes(true);
-    m_iconView->setWordWrap(true);
-    m_iconView->setSelectionMode(QAbstractItemView::ExtendedSelection);
-    // No inline rename on double-click: like the list view, double-click / Enter
-    // must activate (enter dir / open file). Rename stays on F2.
-    m_iconView->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_iconView->setSelectionModel(m_view->selectionModel()); // shared: mode switch keeps selection
-    m_iconView->installEventFilter(this);
-    // Mouse events are delivered to the viewport, not the view widget, so the
-    // click-to-rename handling below must filter the viewport.
-    m_iconView->viewport()->installEventFilter(this);
-    connect(m_iconView, &QAbstractItemView::activated, this, &FilePanel::onActivated);
-    // Once scrolling settles, ask for the rows now on screen. Painting alone
-    // would get there eventually, but only for rows that happen to repaint;
-    // after a fast scroll the queue can still be working through rows the user
-    // has left behind, and over a network those are expensive fetches spent on
-    // nothing anyone is looking at.
-    connect(m_iconView, &IconFileView::visibleRangeSettled, this,
-            &FilePanel::prefetchVisibleThumbnails);
-    // Every finished thumbnail frees a fetch slot, so this is what carries the
-    // sweep past the first screenful and through the rest of the directory --
-    // each completion pumps the next row in. No timer, and no work queued
-    // beyond what the fetcher can hold, so a huge listing costs no more memory
-    // than a small one.
-    connect(&ThumbnailCache::instance(), &ThumbnailCache::thumbnailReady, this,
-            [this](const QString &) { pumpThumbnailSweep(); });
-    // Real image/video thumbnails (with a generic-icon fallback), generated + disk
-    // cached off-thread. The delegate's icon/text sizes track the View-menu font.
-    m_thumbnailDelegate = new ThumbnailDelegate(m_iconView);
-    m_thumbnailDelegate->setView(m_iconView);
-    m_thumbnailDelegate->setIconSize(64);
-    m_thumbnailDelegate->setFontPointSize(m_iconView->font().pointSize());
-    m_iconView->setItemDelegate(m_thumbnailDelegate);
-    // Now that the delegate is installed, size the grid from its cell metrics
-    // (single source of truth) so the selection tile frames exactly one cell.
-    applyThumbnailIconSize(64);
-
-    // Single-click-on-already-selected-thumbnail starts an inline rename after
-    // the double-click interval, mirroring FileListView's mouse handling (see
-    // eventFilter() below); a double-click cancels it and opens instead.
-    m_iconRenameClickTimer = new QTimer(this);
-    m_iconRenameClickTimer->setSingleShot(true);
-    connect(m_iconRenameClickTimer, &QTimer::timeout, this, [this]() {
-        const QModelIndex idx(m_iconRenameClickIndex);
-        m_iconRenameClickIndex = QModelIndex();
-        // Only if it's still the sole selection (nothing changed while we waited).
-        if (idx.isValid() && m_iconView->selectionModel()
-            && m_iconView->selectionModel()->selectedIndexes().size() == 1
-            && m_iconView->selectionModel()->isSelected(idx))
-            m_iconView->edit(idx);
-    });
-
     m_bodyStack = new QStackedWidget(this);
-    m_bodyStack->addWidget(m_view);     // index 0: list
-    m_bodyStack->addWidget(m_iconView); // index 1: thumbnails
+    m_bodyStack->addWidget(m_view);
 
     m_bodySplitter = new QSplitter(Qt::Horizontal, this);
-    m_bodySplitter->addWidget(m_dirTree);
     m_bodySplitter->addWidget(m_bodyStack);
-    m_bodySplitter->setStretchFactor(0, 0);
-    m_bodySplitter->setStretchFactor(1, 1);
-    m_bodySplitter->setSizes({200, 600});
+    m_bodySplitter->setStretchFactor(0, 1);
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -1325,6 +1232,81 @@ bool FilePanel::isThumbnailMode() const {
     return m_bodyStack && m_bodyStack->currentWidget() == m_iconView;
 }
 
+DirectoryTreeView *FilePanel::ensureDirectoryTree() {
+    if (m_dirTree)
+        return m_dirTree;
+
+    m_dirTreeModel = new DirectoryTreeModel(this);
+    m_dirTree = new DirectoryTreeView(this);
+    m_dirTree->setModel(m_dirTreeModel);
+    m_dirTree->setHeaderHidden(true);
+    m_dirTree->setFocusPolicy(Qt::ClickFocus);
+    m_dirTree->setFont(m_view->font());
+    m_dirTree->viewport()->setFont(m_view->viewport()->font());
+    m_dirTree->installEventFilter(this);
+    m_dirTree->hide();
+    connect(m_dirTree, &QTreeView::activated, this, &FilePanel::activateTreeIndex);
+    connect(m_dirTreeModel, &DirectoryTreeModel::childrenLoaded, this,
+            [this](const QModelIndex &) { advanceTreeSync(); });
+
+    m_bodySplitter->insertWidget(0, m_dirTree);
+    m_bodySplitter->setStretchFactor(0, 0);
+    m_bodySplitter->setStretchFactor(1, 1);
+    m_bodySplitter->setSizes({200, 600});
+    return m_dirTree;
+}
+
+IconFileView *FilePanel::ensureIconView() {
+    if (m_iconView)
+        return m_iconView;
+
+    m_iconView = new IconFileView(this);
+    m_iconView->setModel(m_model);
+    m_iconView->setModelColumn(0);
+    m_iconView->setViewMode(QListView::IconMode);
+    m_iconView->setIconSize(QSize(64, 64));
+    m_iconView->setResizeMode(QListView::Adjust);
+    m_iconView->setMovement(QListView::Static);
+    m_iconView->setDragEnabled(true);
+    m_iconView->setDragDropMode(QAbstractItemView::DragDrop);
+    m_iconView->setDefaultDropAction(Qt::CopyAction);
+    m_iconView->viewport()->setAcceptDrops(true);
+    m_iconView->setUniformItemSizes(true);
+    m_iconView->setWordWrap(true);
+    m_iconView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    m_iconView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_iconView->setSelectionModel(m_view->selectionModel());
+    m_iconView->setFont(m_view->font());
+    m_iconView->viewport()->setFont(m_view->viewport()->font());
+    m_iconView->installEventFilter(this);
+    m_iconView->viewport()->installEventFilter(this);
+    connect(m_iconView, &QAbstractItemView::activated, this, &FilePanel::onActivated);
+    connect(m_iconView, &IconFileView::visibleRangeSettled, this,
+            &FilePanel::prefetchVisibleThumbnails);
+    connect(&ThumbnailCache::instance(), &ThumbnailCache::thumbnailReady, this,
+            [this](const QString &) { pumpThumbnailSweep(); });
+
+    m_thumbnailDelegate = new ThumbnailDelegate(m_iconView);
+    m_thumbnailDelegate->setView(m_iconView);
+    m_iconView->setItemDelegate(m_thumbnailDelegate);
+    applyThumbnailFontSize(m_view->font().pointSize());
+
+    m_iconRenameClickTimer = new QTimer(this);
+    m_iconRenameClickTimer->setSingleShot(true);
+    connect(m_iconRenameClickTimer, &QTimer::timeout, this, [this]() {
+        const QModelIndex idx(m_iconRenameClickIndex);
+        m_iconRenameClickIndex = QModelIndex();
+        if (idx.isValid() && m_iconView->selectionModel()
+            && m_iconView->selectionModel()->selectedIndexes().size() == 1
+            && m_iconView->selectionModel()->isSelected(idx))
+            m_iconView->edit(idx);
+    });
+
+    m_bodyStack->addWidget(m_iconView);
+    emit iconViewCreated(m_iconView);
+    return m_iconView;
+}
+
 QAbstractItemView *FilePanel::activeView() const {
     return isThumbnailMode() ? static_cast<QAbstractItemView *>(m_iconView)
                               : static_cast<QAbstractItemView *>(m_view);
@@ -1342,14 +1324,17 @@ void FilePanel::toggleViewMode() {
     if (!m_bodyStack)
         return;
     const bool toThumb = !isThumbnailMode();
-    m_bodyStack->setCurrentWidget(toThumb ? static_cast<QWidget *>(m_iconView)
+    IconFileView *iconView = toThumb ? ensureIconView() : m_iconView;
+    m_bodyStack->setCurrentWidget(toThumb ? static_cast<QWidget *>(iconView)
                                           : static_cast<QWidget *>(m_view));
+    if (toThumb)
+        restartThumbnailSweep();
     // Carry the keyboard cursor across so arrow keys resume where they were.
     if (const QModelIndex cur = m_view->currentIndex(); cur.isValid())
-        (toThumb ? static_cast<QAbstractItemView *>(m_iconView)
+        (toThumb ? static_cast<QAbstractItemView *>(iconView)
                  : static_cast<QAbstractItemView *>(m_view))
             ->setCurrentIndex(cur);
-    (toThumb ? static_cast<QWidget *>(m_iconView) : static_cast<QWidget *>(m_view))->setFocus();
+    (toThumb ? static_cast<QWidget *>(iconView) : static_cast<QWidget *>(m_view))->setFocus();
 }
 
 void FilePanel::setTreeSources(RemovableDeviceMonitor *devices, NetworkTreeRegistry *connections) {
@@ -1863,9 +1848,9 @@ void FilePanel::setListFontSize(int pt) {
 }
 
 void FilePanel::applyThumbnailFontSize(int pt) {
+    m_lastFontPt = pt;
     if (!m_iconView)
         return;
-    m_lastFontPt = pt; // remembered so setThumbnailIconSize() can re-derive without a font change
     // Grow the thumbnail cell with the font: icon scales from a 64px baseline at
     // 12pt; the grid reserves room for the icon plus a two-line elided label.
     // An explicit m_thumbIconSize (from the -/+ buttons) overrides the

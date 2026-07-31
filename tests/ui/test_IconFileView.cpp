@@ -1,11 +1,14 @@
 #include <gtest/gtest.h>
 
 #include <QElapsedTimer>
+#include <QItemSelectionModel>
 #include <QListView>
 #include <QScrollBar>
 #include <QSignalSpy>
 #include <QStandardItemModel>
 
+#include "FilePanel.h"
+#include "FileSystemModel.h"
 #include "IconFileView.h"
 
 namespace {
@@ -100,4 +103,28 @@ TEST(IconFileViewTest, ReportsAfterAResize) {
     view.resize(300, 620);
     pump(400);
     EXPECT_GE(spy.count(), 1);
+}
+
+TEST(FilePanelStartupTest, IconViewIsCreatedOnceOnFirstSwitchWithCurrentState) {
+    FilePanel panel;
+    panel.setListFontFamily(QStringLiteral("Courier New"));
+    panel.setListFontSize(17);
+    QItemSelectionModel *selection = panel.view()->selectionModel();
+    FileProvider *provider = panel.model()->provider();
+
+    EXPECT_EQ(panel.iconView(), nullptr);
+    panel.toggleViewMode();
+    IconFileView *iconView = panel.iconView();
+    ASSERT_NE(iconView, nullptr);
+    EXPECT_TRUE(panel.isThumbnailMode());
+    EXPECT_EQ(iconView->model(), panel.model());
+    EXPECT_EQ(iconView->selectionModel(), selection);
+    EXPECT_EQ(static_cast<FileSystemModel *>(iconView->model())->provider(), provider);
+    EXPECT_EQ(iconView->font().family(), panel.view()->font().family());
+    EXPECT_EQ(iconView->font().pointSize(), 17);
+    EXPECT_EQ(iconView->viewport()->font().pointSize(), 17);
+
+    panel.toggleViewMode();
+    panel.toggleViewMode();
+    EXPECT_EQ(panel.iconView(), iconView);
 }

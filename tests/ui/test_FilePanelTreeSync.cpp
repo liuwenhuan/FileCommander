@@ -5,9 +5,11 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QToolButton>
 #include <QTreeView>
 
 #include "FilePanel.h"
+#include "FileListView.h"
 #include "FileSystemModel.h"
 #include "tree/DirectoryTreeModel.h"
 
@@ -30,13 +32,23 @@ bool waitForLoad(QSignalSpy &spy) {
 
 // The tree has no accessor on FilePanel, so find it by its model type: it is
 // the panel's only QTreeView over a DirectoryTreeModel.
-QTreeView *showTree(FilePanel &panel) {
+QTreeView *directoryTree(FilePanel &panel) {
     for (QTreeView *t : panel.findChildren<QTreeView *>())
-        if (qobject_cast<DirectoryTreeModel *>(t->model())) {
-            t->setVisible(true);
+        if (qobject_cast<DirectoryTreeModel *>(t->model()))
             return t;
-        }
     return nullptr;
+}
+
+QTreeView *showTree(FilePanel &panel) {
+    if (QTreeView *tree = directoryTree(panel)) {
+        tree->setVisible(true);
+        return tree;
+    }
+    auto *button = panel.findChild<QToolButton *>(QStringLiteral("PanelTreeButton"));
+    if (!button)
+        return nullptr;
+    button->click();
+    return directoryTree(panel);
 }
 
 // The path the tree's current row stands for, or empty when nothing is current.
@@ -88,18 +100,34 @@ TEST_F(FilePanelTreeSyncTest, TreeFollowsTabSwitchAfterEachLoad) {
     QTRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_beta, 4000);
 }
 
-TEST(FilePanelStartupTest, HiddenDirectoryTreeDoesNotBuildRootsUntilShown) {
+TEST(FilePanelStartupTest, DirectoryTreeIsCreatedOnceOnFirstToggleWithCurrentFont) {
     FilePanel panel;
+    panel.setListFontFamily(QStringLiteral("Courier New"));
+    panel.setListFontSize(17);
+
+    EXPECT_EQ(directoryTree(panel), nullptr);
+    QTreeView *tree = showTree(panel);
+    ASSERT_NE(tree, nullptr);
+    EXPECT_EQ(tree->font().family(), panel.view()->font().family());
+    EXPECT_EQ(tree->font().pointSize(), 17);
+    EXPECT_EQ(tree->viewport()->font().pointSize(), 17);
+
+    auto *button = panel.findChild<QToolButton *>(QStringLiteral("PanelTreeButton"));
+    ASSERT_NE(button, nullptr);
+    button->click();
+    button->click();
+    EXPECT_EQ(directoryTree(panel), tree);
+}
+
+TEST(FilePanelStartupTest, DirectoryTreeBuildsRootsWhenFirstShown) {
+    FilePanel panel;
+    EXPECT_EQ(directoryTree(panel), nullptr);
+    panel.show();
     QTreeView *tree = showTree(panel);
     ASSERT_NE(tree, nullptr);
     auto *model = qobject_cast<DirectoryTreeModel *>(tree->model());
     ASSERT_NE(model, nullptr);
 
-    tree->setVisible(false);
-    EXPECT_EQ(model->rowCount(), 0);
-
-    panel.show();
-    tree->setVisible(true);
     QTRY_VERIFY_WITH_TIMEOUT(model->rowCount() > 0, 1000);
 }
 

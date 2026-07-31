@@ -598,10 +598,22 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs) : QMainWindow(p
                 m_commandBar->setDirectory(path);
         });
         connect(panel->view(), &FileListView::filesDropped, this, &MainWindow::handleFilesDropped);
-        // The thumbnail view supports the same drag-and-drop; route it through
-        // the same handler (its filesDropped signature matches FileListView's).
-        connect(panel->iconView(), &IconFileView::filesDropped, this,
-                &MainWindow::handleFilesDropped);
+        auto configureIconView = [this, panel](IconFileView *iconView) {
+            connect(iconView, &IconFileView::filesDropped, this,
+                    &MainWindow::handleFilesDropped);
+            iconView->setContextMenuPolicy(Qt::CustomContextMenu);
+            connect(iconView, &QWidget::customContextMenuRequested, this,
+                    [this, panel, iconView](const QPoint &pos) {
+                        setActivePanel(panel);
+                        if (iconView->indexAt(pos).isValid())
+                            showFileContextMenu(panel, pos);
+                        else
+                            showBlankContextMenu(panel, pos);
+                    });
+        };
+        connect(panel, &FilePanel::iconViewCreated, this, configureIconView);
+        if (IconFileView *iconView = panel->iconView())
+            configureIconView(iconView);
         connect(panel->view()->selectionModel(), &QItemSelectionModel::currentRowChanged, this,
                 [this]() {
                     if (m_quickViewActive)
@@ -636,15 +648,6 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs) : QMainWindow(p
                 [this, panel](const QPoint &pos) {
                     setActivePanel(panel);
                     if (panel->view()->indexAt(pos).isValid())
-                        showFileContextMenu(panel, pos);
-                    else
-                        showBlankContextMenu(panel, pos);
-                });
-        panel->iconView()->setContextMenuPolicy(Qt::CustomContextMenu);
-        connect(panel->iconView(), &QWidget::customContextMenuRequested, this,
-                [this, panel](const QPoint &pos) {
-                    setActivePanel(panel);
-                    if (panel->iconView()->indexAt(pos).isValid())
                         showFileContextMenu(panel, pos);
                     else
                         showBlankContextMenu(panel, pos);

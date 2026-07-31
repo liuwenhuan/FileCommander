@@ -22,6 +22,7 @@ class QLineEdit;
 class QToolButton;
 class QTreeView;
 class DirectoryTreeModel;
+class DirectoryTreeView;
 class NetworkTreeRegistry;
 class RemovableDeviceMonitor;
 class QSplitter;
@@ -305,6 +306,7 @@ signals:
     // The status-bar -/+ buttons changed this panel's thumbnail size or list
     // row height: caller (MainWindow) should persist the new value.
     void viewScaleChanged();
+    void iconViewCreated(IconFileView *view);
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -316,6 +318,8 @@ private slots:
     void onTabBarCurrentChanged(int index);
 
 private:
+    DirectoryTreeView *ensureDirectoryTree();
+    IconFileView *ensureIconView();
     void setFocusProgress(qreal progress);
     void animateFocus(bool focused);
     // A single back/forward history location: either a real directory, or a flat
@@ -463,7 +467,7 @@ private:
     QToolButton *m_backButton;
     QToolButton *m_forwardButton;
     QToolButton *m_starButton;
-    QTreeView *m_dirTree = nullptr;            // per-panel folder tree (hidden by default)
+    DirectoryTreeView *m_dirTree = nullptr;    // per-panel folder tree (hidden by default)
     DirectoryTreeModel *m_dirTreeModel = nullptr;
     RemovableDeviceMonitor *m_deviceMonitor = nullptr; // not owned; may be null
     NetworkTreeRegistry *m_connRegistry = nullptr;     // not owned; may be null

@@ -9,6 +9,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
+#include <QToolButton>
 #include <QTreeView>
 #include <QVariantAnimation>
 
@@ -82,6 +83,11 @@ QTreeView *directoryTree(FilePanel &panel) {
             return tree;
         }
     }
+    if (auto *button = panel.findChild<QToolButton *>(QStringLiteral("PanelTreeButton")))
+        button->click();
+    for (QTreeView *tree : panel.findChildren<QTreeView *>())
+        if (qobject_cast<DirectoryTreeModel *>(tree->model()))
+            return tree;
     return nullptr;
 }
 
