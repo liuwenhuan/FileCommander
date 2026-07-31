@@ -8,6 +8,10 @@
 #include <QLocalSocket>
 #include <QStandardPaths>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+
 namespace {
 constexpr int kConnectTimeoutMs = 400;
 constexpr int kWriteTimeoutMs = 1500;
@@ -18,6 +22,21 @@ QByteArray activationPayload(const QStringList &arguments) {
     stream.setVersion(QDataStream::Qt_5_15);
     stream << arguments;
     return payload;
+}
+
+void allowPrimaryToSetForeground(QLockFile *lock) {
+#ifdef Q_OS_WIN
+    if (!lock)
+        return;
+    qint64 pid = 0;
+    QString hostname;
+    QString appname;
+    if (!lock->getLockInfo(&pid, &hostname, &appname) || pid <= 0)
+        return;
+    AllowSetForegroundWindow(static_cast<DWORD>(pid));
+#else
+    Q_UNUSED(lock);
+#endif
 }
 } // namespace
 
@@ -37,6 +56,7 @@ InstanceCoordinator::StartResult InstanceCoordinator::startOrActivate(const QStr
         // The primary may still be setting up its event loop. It already owns
         // the process role, so never turn this late activation into a second
         // window merely because its message cannot be delivered immediately.
+        allowPrimaryToSetForeground(m_lock.get());
         forwardToPrimary(arguments);
         m_lock.reset();
         return StartResult::Forwarded;
