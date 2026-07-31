@@ -328,39 +328,6 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs) : QMainWindow(p
     splitter->setStretchFactor(0, 1);
     splitter->setStretchFactor(1, 1);
     splitter->setHandleWidth(2);
-    m_quickView = new QuickView(m_settings, QuickView::Context::Embedded, this);
-    m_quickView->hide(); // parked until Ctrl+Q swaps it into a panel slot
-    // Stop button on the remote-preview download page cancels the in-flight fetch.
-    connect(m_quickView, &QuickView::downloadCancelRequested, this,
-            &MainWindow::cancelPreviewDownload);
-    // A streamed remote clip that wouldn't play falls back to the download path
-    // by re-running the preview with streaming suppressed for that one file.
-    connect(m_quickView, &QuickView::streamFailed, this, [this](const QString &) {
-        if (!m_activePanel)
-            return;
-        m_streamFailedEntry = m_activePanel->currentEntryPath();
-        updateQuickView();
-    });
-    m_mediaWarmTimer = new QTimer(this);
-    m_mediaWarmTimer->setObjectName(QStringLiteral("mediaWarmTimer"));
-    m_mediaWarmTimer->setSingleShot(true);
-    m_mediaWarmTimer->setInterval(750);
-    connect(m_mediaWarmTimer, &QTimer::timeout, m_quickView,
-            &QuickView::warmMediaEngine);
-    connect(m_quickView, &QuickView::mediaEngineWarmed, this,
-            [this](qint64 elapsedMs) {
-                m_mediaWarmComplete = true;
-                if (m_mediaWarmTimer->isActive())
-                    m_mediaWarmTimer->stop();
-                qInfo() << "Media engine warm-up completed in" << elapsedMs << "ms";
-            });
-    connect(m_quickView, &QuickView::mediaEngineWarmFailed, this,
-            [this](const QString &message) {
-                m_mediaWarmComplete = true;
-                if (m_mediaWarmTimer->isActive())
-                    m_mediaWarmTimer->stop();
-                qWarning() << "Media engine warm-up failed:" << message;
-            });
     // App-wide filter so Tab out of the preview pane returns to the file list
     // (the list->preview half is driven by FilePanel::switchPanelRequested).
     qApp->installEventFilter(this);
@@ -537,10 +504,6 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs) : QMainWindow(p
         panel->setListFontSize(m_settings.listFontSize());
         panel->setTabBarVisible(m_settings.showTabBar());
     }
-    if (m_quickView) {
-        m_quickView->setContentFontFamily(globalFontFamily);
-        m_quickView->setContentFontSize(m_settings.listFontSize());
-    }
     if (const QByteArray s = m_settings.panelSplitterState(); !s.isEmpty())
         m_panelSplitter->restoreState(s);
 
@@ -710,9 +673,6 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs) : QMainWindow(p
     const int listFont = m_settings.listFontSize();
     m_leftPanel->setListFontSize(listFont);
     m_rightPanel->setListFontSize(listFont);
-    if (m_quickView)
-        m_quickView->setContentFontSize(listFont);
-
     // Per-side, per-mode view scale (status-bar -/+ buttons): restore whatever
     // was last saved, then persist again whenever a panel's -/+ click changes
     // it. Applied after setListFontSize() above since it can override the
@@ -1205,10 +1165,11 @@ void MainWindow::openFolders(const QStringList &folders) {
 
 void MainWindow::runPackageSmoke(const QString &directory) {
     const QDir dir(directory);
-    if (!dir.exists() || !m_leftPanel || !m_quickView) {
+    if (!dir.exists() || !m_leftPanel) {
         QTimer::singleShot(0, qApp, [] { QCoreApplication::exit(2); });
         return;
     }
+    QuickView *const quickView = ensureQuickView();
 
     // The order deliberately crosses all runtime preview boundaries. showFile()
     // also works while the embedded pane is parked, which keeps this invisible
@@ -1228,7 +1189,7 @@ void MainWindow::runPackageSmoke(const QString &directory) {
 
     auto index = std::make_shared<int>(0);
     auto next = std::make_shared<std::function<void()>>();
-    *next = [this, dir, files, index, next] {
+    *next = [this, quickView, dir, files, index, next] {
         if (*index >= files.size()) {
             QTimer::singleShot(1200, qApp, [] {
                 // Package smoke has already exercised the preview stack. Return
@@ -1238,7 +1199,7 @@ void MainWindow::runPackageSmoke(const QString &directory) {
             });
             return;
         }
-        m_quickView->showFile(dir.filePath(files.at((*index)++)));
+        quickView->showFile(dir.filePath(files.at((*index)++)));
         QTimer::singleShot(3500, this, *next);
     };
     (*next)();
@@ -1428,6 +1389,48 @@ void MainWindow::scheduleMediaWarmupAfterFirstPaint() {
         return;
     m_mediaWarmScheduled = true;
     m_mediaWarmTimer->start();
+}
+
+QuickView *MainWindow::ensureQuickView() {
+    if (m_quickView)
+        return m_quickView;
+
+    m_quickView = new QuickView(m_settings, QuickView::Context::Embedded, this);
+    m_quickView->hide(); // parked until Ctrl+Q swaps it into a panel slot
+    m_quickView->setContentFontFamily(m_settings.globalFontFamily());
+    m_quickView->setContentFontSize(m_settings.listFontSize());
+    // Stop button on the remote-preview download page cancels the in-flight fetch.
+    connect(m_quickView, &QuickView::downloadCancelRequested, this,
+            &MainWindow::cancelPreviewDownload);
+    // A streamed remote clip that wouldn't play falls back to the download path
+    // by re-running the preview with streaming suppressed for that one file.
+    connect(m_quickView, &QuickView::streamFailed, this, [this](const QString &) {
+        if (!m_activePanel)
+            return;
+        m_streamFailedEntry = m_activePanel->currentEntryPath();
+        updateQuickView();
+    });
+    m_mediaWarmTimer = new QTimer(this);
+    m_mediaWarmTimer->setObjectName(QStringLiteral("mediaWarmTimer"));
+    m_mediaWarmTimer->setSingleShot(true);
+    m_mediaWarmTimer->setInterval(750);
+    connect(m_mediaWarmTimer, &QTimer::timeout, m_quickView,
+            &QuickView::warmMediaEngine);
+    connect(m_quickView, &QuickView::mediaEngineWarmed, this,
+            [this](qint64 elapsedMs) {
+                m_mediaWarmComplete = true;
+                if (m_mediaWarmTimer && m_mediaWarmTimer->isActive())
+                    m_mediaWarmTimer->stop();
+                qInfo() << "Media engine warm-up completed in" << elapsedMs << "ms";
+            });
+    connect(m_quickView, &QuickView::mediaEngineWarmFailed, this,
+            [this](const QString &message) {
+                m_mediaWarmComplete = true;
+                if (m_mediaWarmTimer && m_mediaWarmTimer->isActive())
+                    m_mediaWarmTimer->stop();
+                qWarning() << "Media engine warm-up failed:" << message;
+            });
+    return m_quickView;
 }
 
 void MainWindow::scheduleFeatureBatchAfterFirstPaint() {
@@ -2445,7 +2448,7 @@ void MainWindow::syncOtherPanelToActive() {
 }
 
 void MainWindow::swapPanels() {
-    if (m_quickViewActive) {
+    if (m_quickViewActive && m_quickView) {
         const QList<int> sizes = m_panelSplitter->sizes();
         FilePanel *visible = otherPanel(m_quickViewPanel);
         const int visibleIndex = m_panelSplitter->indexOf(visible);
@@ -2591,7 +2594,7 @@ void MainWindow::toggleQuickView() {
     // otherwise redistributes space based on the new widget's size hint.
     const QList<int> sizes = m_panelSplitter->sizes();
 
-    if (m_quickViewActive) {
+    if (m_quickViewActive && m_quickView) {
         // Stop any playing media so it doesn't keep running behind the hidden pane.
         m_quickView->stopPlayback();
         // Put the previewed panel back where it was.
@@ -2608,11 +2611,12 @@ void MainWindow::toggleQuickView() {
     }
     if (!m_activePanel)
         return;
+    QuickView *const quickView = ensureQuickView();
     // Replace the *inactive* panel with the preview.
     m_quickViewPanel = otherPanel(m_activePanel);
     m_quickViewIndex = m_panelSplitter->indexOf(m_quickViewPanel);
-    m_panelSplitter->replaceWidget(m_quickViewIndex, m_quickView);
-    m_quickView->show();
+    m_panelSplitter->replaceWidget(m_quickViewIndex, quickView);
+    quickView->show();
     m_quickViewActive = true;
     m_panelSplitter->setSizes(sizes);
     updateQuickView();

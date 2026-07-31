@@ -9,6 +9,7 @@
 #include <QSplitter>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QTextBrowser>
 #include <QTimer>
 
 #include <clocale>
@@ -116,6 +117,22 @@ TEST(MainWindowPreviewSwapTest, AutomaticMediaWarmupStaysDisabledAfterFirstVisib
     startup.start();
     MainWindow window;
     RecordProperty("main_window_construct_ms", std::to_string(startup.elapsed()));
+    EXPECT_TRUE(window.findChildren<QuickView *>().isEmpty());
+
+    QElapsedTimer firstPaint;
+    PaintObserver paintObserver(firstPaint);
+    window.installEventFilter(&paintObserver);
+    firstPaint.start();
+    window.resize(1000, 700);
+    window.show();
+    QTRY_VERIFY_WITH_TIMEOUT(paintObserver.firstPaintMs >= 0, 1000);
+    RecordProperty("show_to_first_paint_ms",
+                   std::to_string(paintObserver.firstPaintMs));
+
+    EXPECT_TRUE(window.findChildren<QuickView *>().isEmpty());
+    ASSERT_TRUE(QMetaObject::invokeMethod(&window, "toggleQuickView"));
+    processGuiEvents();
+
     auto *quickView = window.findChild<QuickView *>();
     auto *warmTimer = window.findChild<QTimer *>(QStringLiteral("mediaWarmTimer"));
     ASSERT_NE(quickView, nullptr);
@@ -131,18 +148,6 @@ TEST(MainWindowPreviewSwapTest, AutomaticMediaWarmupStaysDisabledAfterFirstVisib
 #endif
     EXPECT_EQ(quickView->findChild<QWidget *>(QStringLiteral("quickViewVideoPage")), nullptr);
     EXPECT_EQ(quickView->findChild<QWidget *>(QStringLiteral("quickViewAudioPage")), nullptr);
-
-    QElapsedTimer firstPaint;
-    PaintObserver paintObserver(firstPaint);
-    window.installEventFilter(&paintObserver);
-    firstPaint.start();
-    window.resize(1000, 700);
-    window.show();
-    QTRY_VERIFY_WITH_TIMEOUT(paintObserver.firstPaintMs >= 0, 1000);
-    RecordProperty("show_to_first_paint_ms",
-                   std::to_string(paintObserver.firstPaintMs));
-
-    EXPECT_FALSE(warmTimer->isActive());
     EXPECT_EQ(quickView->findChild<QWidget *>(QStringLiteral("quickViewVideoPage")), nullptr);
     QTest::qWait(850);
     EXPECT_EQ(warmed.count(), 0);
@@ -157,6 +162,35 @@ TEST(MainWindowPreviewSwapTest, AutomaticMediaWarmupStaysDisabledAfterFirstVisib
     window.update();
     processGuiEvents();
     EXPECT_EQ(warmed.count(), 0);
+}
+
+TEST(MainWindowPreviewSwapTest, FirstQuickViewUseCreatesOneInstanceWithCurrentTypography) {
+    Settings settings;
+    settings.setGlobalFontFamily(QStringLiteral("Arial"));
+    settings.setListFontSize(15);
+
+    MainWindow window;
+
+    EXPECT_TRUE(window.findChildren<QuickView *>().isEmpty());
+
+    ASSERT_TRUE(QMetaObject::invokeMethod(&window, "toggleQuickView"));
+    processGuiEvents();
+
+    const QList<QuickView *> firstQuickViews = window.findChildren<QuickView *>();
+    ASSERT_EQ(firstQuickViews.size(), 1);
+    QuickView *const quickView = firstQuickViews.constFirst();
+    auto *markdown = quickView->findChild<QTextBrowser *>();
+    ASSERT_NE(markdown, nullptr);
+    EXPECT_EQ(markdown->font().family(), QStringLiteral("Arial"));
+    EXPECT_EQ(markdown->font().pointSize(), 15);
+
+    ASSERT_TRUE(QMetaObject::invokeMethod(&window, "toggleQuickView"));
+    ASSERT_TRUE(QMetaObject::invokeMethod(&window, "toggleQuickView"));
+    processGuiEvents();
+
+    const QList<QuickView *> secondQuickViews = window.findChildren<QuickView *>();
+    ASSERT_EQ(secondQuickViews.size(), 1);
+    EXPECT_EQ(secondQuickViews.constFirst(), quickView);
 }
 
 TEST(MainWindowStartupTest, DefersBackgroundFeatureBatchPastFirstPaint) {
@@ -255,6 +289,8 @@ TEST(MainWindowPreviewSwapTest, FirstMediaRequestWarmsImmediatelyWithAutomaticWa
     window.resize(1000, 700);
     window.show();
     processGuiEvents();
+    ASSERT_TRUE(QMetaObject::invokeMethod(&window, "toggleQuickView"));
+    processGuiEvents();
     auto *quickView = window.findChild<QuickView *>();
     auto *warmTimer = window.findChild<QTimer *>(QStringLiteral("mediaWarmTimer"));
     ASSERT_NE(quickView, nullptr);
@@ -276,9 +312,7 @@ TEST(MainWindowPreviewSwapTest, TeardownIsSafeWithAutomaticWarmupDisabled) {
     window->resize(1000, 700);
     window->show();
     processGuiEvents();
-    auto *warmTimer = window->findChild<QTimer *>(QStringLiteral("mediaWarmTimer"));
-    ASSERT_NE(warmTimer, nullptr);
-    ASSERT_FALSE(warmTimer->isActive());
+    EXPECT_TRUE(window->findChildren<QuickView *>().isEmpty());
 
     delete window;
     QTest::qWait(800);

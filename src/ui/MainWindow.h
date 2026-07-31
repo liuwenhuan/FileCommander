@@ -98,6 +98,7 @@ private:
     // and rounded corners) as _NET_WM_OPAQUE_REGION so the compositor skips
     // alpha-blending it. No-op off X11. Coordinates are in device pixels.
     void updateOpaqueRegion();
+    QuickView *ensureQuickView();
     void scheduleMediaWarmupAfterFirstPaint();
     void scheduleFeatureBatchAfterFirstPaint();
     void markStartupPanelLoaded(FilePanel *panel);
