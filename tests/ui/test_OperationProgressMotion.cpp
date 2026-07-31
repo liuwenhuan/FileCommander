@@ -2,17 +2,25 @@
 
 #include <QApplication>
 #include <QColor>
+#include <QDir>
+#include <QFile>
+#include <QItemSelectionModel>
 #include <QPalette>
 #include <QPointer>
 #include <QPropertyAnimation>
 #include <QProgressBar>
+#include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
 #include <QVariantAnimation>
 
+#include "FilePanel.h"
+#include "FileSystemModel.h"
+#include "MainWindow.h"
 #include "dialogs/OperationProgressDialog.h"
 #include "dialogs/TransferProgressDialog.h"
 #include "MotionPolicy.h"
+#include "operations/OperationQueue.h"
 
 namespace {
 
@@ -48,6 +56,70 @@ void finishTransfer(TransferProgressDialog &dialog, bool ok) {
     ASSERT_TRUE(QMetaObject::invokeMethod(&dialog, "onFinished", Qt::DirectConnection,
                                           Q_ARG(bool, ok)));
     qApp->processEvents();
+}
+
+FilePanel *panelAtPath(MainWindow &window, const QString &path) {
+    const QString cleanPath = QDir::cleanPath(path);
+    for (FilePanel *panel : window.findChildren<FilePanel *>()) {
+        if (QDir::cleanPath(panel->currentPath()) == cleanPath)
+            return panel;
+    }
+    return nullptr;
+}
+
+int rowNamed(FilePanel *panel, const QString &name) {
+    for (int row = 0; row < panel->model()->rowCount(); ++row) {
+        if (panel->model()->fileInfoAt(row).name() == name)
+            return row;
+    }
+    return -1;
+}
+
+void writeFile(const QString &path, const QByteArray &contents) {
+    QFile file(path);
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    ASSERT_EQ(file.write(contents), contents.size());
+}
+
+TEST(OperationProgressMotion, MainWindowKeepsOperationQueueEagerButDefersTransferDialog) {
+    MainWindow window;
+
+    EXPECT_EQ(window.findChildren<OperationQueue *>().size(), 1);
+    EXPECT_TRUE(window.findChildren<TransferProgressDialog *>().isEmpty());
+}
+
+TEST(OperationProgressMotion, FirstCopyCommandCreatesExactlyOneTransferDialog) {
+    QTemporaryDir root;
+    ASSERT_TRUE(root.isValid());
+    QDir dir(root.path());
+    ASSERT_TRUE(dir.mkdir(QStringLiteral("source")));
+    ASSERT_TRUE(dir.mkdir(QStringLiteral("destination")));
+    const QString source = dir.filePath(QStringLiteral("source"));
+    const QString destination = dir.filePath(QStringLiteral("destination"));
+    writeFile(QDir(source).filePath(QStringLiteral("first.txt")), QByteArray("first"));
+    writeFile(QDir(source).filePath(QStringLiteral("second.txt")), QByteArray("second"));
+
+    MainWindow window;
+    window.openFolders({source, destination});
+    FilePanel *sourcePanel = panelAtPath(window, source);
+    ASSERT_NE(sourcePanel, nullptr);
+    QTRY_COMPARE_WITH_TIMEOUT(sourcePanel->model()->rowCount(), 2, 4000);
+    ASSERT_EQ(window.findChildren<OperationQueue *>().size(), 1);
+    EXPECT_TRUE(window.findChildren<TransferProgressDialog *>().isEmpty());
+
+    int row = rowNamed(sourcePanel, QStringLiteral("first.txt"));
+    ASSERT_GE(row, 0);
+    sourcePanel->view()->setCurrentIndex(
+        sourcePanel->model()->index(row, FileSystemModel::NameColumn));
+    ASSERT_TRUE(QMetaObject::invokeMethod(&window, "copySelected", Qt::DirectConnection));
+    EXPECT_EQ(window.findChildren<TransferProgressDialog *>().size(), 1);
+
+    row = rowNamed(sourcePanel, QStringLiteral("second.txt"));
+    ASSERT_GE(row, 0);
+    sourcePanel->view()->setCurrentIndex(
+        sourcePanel->model()->index(row, FileSystemModel::NameColumn));
+    ASSERT_TRUE(QMetaObject::invokeMethod(&window, "copySelected", Qt::DirectConnection));
+    EXPECT_EQ(window.findChildren<TransferProgressDialog *>().size(), 1);
 }
 
 TEST(OperationProgressMotion, ProgressValuesAreAppliedImmediatelyDuringOperationReveal) {

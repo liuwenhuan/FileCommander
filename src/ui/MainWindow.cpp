@@ -400,10 +400,6 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs) : QMainWindow(p
             return ErrorAction::SkipAll;
         return ErrorAction::Cancel;
     });
-    // Self-wiring progress dialog: shows itself on started, tracks bytes/speed/ETA
-    // + queue depth, and drives cancel/pause/resume. It covers local operations
-    // and (with speed/ETA) large remote SFTP/FTP/WebDAV transfers.
-    m_progressDialog = new TransferProgressDialog(m_queue, this);
     connect(m_queue, &OperationQueue::started, this,
             [this](const QString &) { m_operationErrors.clear(); });
     connect(m_queue, &OperationQueue::finished, this, [this](bool) {
@@ -568,8 +564,10 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs) : QMainWindow(p
         // refreshes the panels and its error path reports any failure.
         connect(model, &FileSystemModel::remoteRenameRequested, this,
                 [this, model](const QString &oldPath, const QString &newName) {
-                    if (model->provider())
+                    if (model->provider()) {
+                        ensureTransferProgressDialog();
                         m_queue->enqueueProviderRename(model->providerPtr(), oldPath, newName);
+                    }
                 });
         // The "登录" link on a cancelled-auth tab: prompt again and retry.
         connect(panel, &FilePanel::loginRequested, this, [this, model](FilePanel *p) {
@@ -722,19 +720,27 @@ void MainWindow::buildTitleBarMenus() {
     // menus so we don't leak them. setMenuWidget() deletes the old title bar.
     delete m_toolsMenu;
     delete m_configMenu;
+    m_phosphorImagesAction = nullptr;
     delete m_interfaceMenu;
 
     auto *toolsMenu = new QMenu(tr("&Tools"), this);
     Typography::applyChromeFont(toolsMenu, m_settings);
     m_toolsMenu = toolsMenu;
-    addCommandAction(toolsMenu, QStringLiteral("notepad"), tr("Quick Notepad"));
-    addCommandAction(toolsMenu, QStringLiteral("checksums"), tr("Calculate Checksums"));
-    addCommandAction(toolsMenu, QStringLiteral("secureWipe"), tr("Secure Wipe"));
-    addCommandAction(toolsMenu, QStringLiteral("compareFiles"), tr("Compare Files"));
+    connect(toolsMenu, &QMenu::aboutToShow, this, [this, toolsMenu] {
+        if (!toolsMenu->isEmpty())
+            return;
+        addCommandAction(toolsMenu, QStringLiteral("notepad"), tr("Quick Notepad"));
+        addCommandAction(toolsMenu, QStringLiteral("checksums"), tr("Calculate Checksums"));
+        addCommandAction(toolsMenu, QStringLiteral("secureWipe"), tr("Secure Wipe"));
+        addCommandAction(toolsMenu, QStringLiteral("compareFiles"), tr("Compare Files"));
+    });
 
     auto *configMenu = new QMenu(tr("Con&fig"), this);
     Typography::applyChromeFont(configMenu, m_settings);
     m_configMenu = configMenu;
+    connect(configMenu, &QMenu::aboutToShow, this, [this, configMenu] {
+    if (!configMenu->isEmpty())
+        return;
     addCommandAction(configMenu, QStringLiteral("keyboardShortcuts"), tr("Keyboard Shortcuts"));
     addCommandAction(configMenu, QStringLiteral("connectionManager"), tr("Connection Manager"));
     configMenu->addSeparator();
@@ -786,10 +792,14 @@ void MainWindow::buildTitleBarMenus() {
         folderAssociation->setChecked(!on);
         ttc::warning(this, tr("Folder Association"), error);
     });
+    });
 
     auto *interfaceMenu = new QMenu(tr("&Interface"), this);
     Typography::applyChromeFont(interfaceMenu, m_settings);
     m_interfaceMenu = interfaceMenu;
+    connect(interfaceMenu, &QMenu::aboutToShow, this, [this, interfaceMenu] {
+    if (!interfaceMenu->isEmpty())
+        return;
     QMenu *themeMenu = interfaceMenu->addMenu(tr("&Theme"));
     Typography::applyChromeFont(themeMenu, m_settings);
     auto *themeGroup = new QActionGroup(this);
@@ -992,6 +1002,7 @@ void MainWindow::buildTitleBarMenus() {
     showShortcutLabels->setChecked(m_settings.showShortcutLabels());
     connect(showShortcutLabels, &QAction::toggled, this,
             [this](bool on) { m_settings.setShowShortcutLabels(on); });
+    });
 
     // Embed the menus in our self-drawn title bar (app icon + menu buttons +
     // window buttons), placed where the menu bar would normally sit.
@@ -1435,6 +1446,12 @@ QuickView *MainWindow::ensureQuickView() {
                 qWarning() << "Media engine warm-up failed:" << message;
             });
     return m_quickView;
+}
+
+TransferProgressDialog *MainWindow::ensureTransferProgressDialog() {
+    if (!m_progressDialog)
+        m_progressDialog = new TransferProgressDialog(m_queue, this);
+    return m_progressDialog;
 }
 
 void MainWindow::scheduleFeatureBatchAfterFirstPaint() {
@@ -2580,12 +2597,14 @@ void MainWindow::undoLast() {
     m_lastUndo = UndoRecord{}; // consume, so undo isn't itself undoable
     switch (rec.type) {
     case UndoRecord::Rename:
+        ensureTransferProgressDialog();
         if (rec.provider)
             m_queue->enqueueProviderRename(rec.provider, rec.fromPath, rec.toName);
         else
             m_queue->enqueueRename(rec.fromPath, rec.toName);
         break;
     case UndoRecord::Move:
+        ensureTransferProgressDialog();
         m_queue->enqueueMove(rec.movedPaths, rec.restoreDir);
         break;
     case UndoRecord::None:
@@ -3655,6 +3674,7 @@ void MainWindow::handleFilesDropped(const QStringList &sources, const QString &d
 
     switch (kind) {
     case FileListView::DropActionKind::Copy:
+        ensureTransferProgressDialog();
         if (crossProvider)
             m_queue->enqueueProviderCopy(srcProv, sources, dstProv, destDir);
         else
@@ -3668,6 +3688,7 @@ void MainWindow::handleFilesDropped(const QStringList &sources, const QString &d
             m_pendingMovePanel = srcPanel;
             m_pendingMovePaths = sources;
         }
+        ensureTransferProgressDialog();
         if (crossProvider) {
             // Cross-provider move (copy + delete source); local undo doesn't apply.
             m_queue->enqueueProviderMove(srcProv, sources, dstProv, destDir);
@@ -3683,6 +3704,7 @@ void MainWindow::handleFilesDropped(const QStringList &sources, const QString &d
             ttc::warning(this, tr("创建链接"),
                          tr("无法为网络位置创建符号链接。"));
         } else {
+            ensureTransferProgressDialog();
             m_queue->enqueueSymlink(sources, destDir);
         }
         break;
@@ -3809,6 +3831,7 @@ void MainWindow::pasteFromClipboard() {
             m_pendingMovePanel = srcPanel;
             m_pendingMovePaths = sources;
         }
+        ensureTransferProgressDialog();
         if (crossProvider) {
             m_queue->enqueueProviderMove(srcProv, sources, dstProv, destDir);
         } else {
@@ -3817,8 +3840,10 @@ void MainWindow::pasteFromClipboard() {
         }
         QGuiApplication::clipboard()->clear();
     } else if (crossProvider) {
+        ensureTransferProgressDialog();
         m_queue->enqueueProviderCopy(srcProv, sources, dstProv, destDir);
     } else {
+        ensureTransferProgressDialog();
         m_queue->enqueueCopy(sources, destDir);
     }
 }
@@ -4077,6 +4102,7 @@ void MainWindow::copySelected() {
     std::shared_ptr<FileProvider> dstProv = dest->model()->providerPtr();
     LocalFileProvider *local = LocalFileProvider::instance();
     if (srcProv.get() != local || dstProv.get() != local) {
+        ensureTransferProgressDialog();
         m_queue->enqueueProviderCopy(srcProv, sources, dstProv, destDir);
         return;
     }
@@ -4096,9 +4122,11 @@ void MainWindow::copySelected() {
         }
         const QString target = QDir(destDir).filePath(newName);
         m_pendingDestPaths = QStringList{target};
+        ensureTransferProgressDialog();
         m_queue->enqueueCopyAs(sources.first(), target);
         return;
     }
+    ensureTransferProgressDialog();
     m_queue->enqueueCopy(sources, destDir);
 }
 
@@ -4125,6 +4153,7 @@ void MainWindow::moveSelected() {
     std::shared_ptr<FileProvider> srcProv = m_activePanel->model()->providerPtr();
     std::shared_ptr<FileProvider> dstProv = dest->model()->providerPtr();
     LocalFileProvider *local = LocalFileProvider::instance();
+    ensureTransferProgressDialog();
     if (srcProv.get() != local || dstProv.get() != local) {
         // Cross-provider move (copy + delete source); local undo doesn't apply.
         m_queue->enqueueProviderMove(srcProv, sources, dstProv, destDir);
@@ -4153,6 +4182,7 @@ void MainWindow::makeDirectory() {
         // On a network tab go through the provider so the folder is created on
         // the remote host; a plain enqueueMkdir would hit the local filesystem.
         std::shared_ptr<FileProvider> prov = m_activePanel->model()->providerPtr();
+        ensureTransferProgressDialog();
         if (prov.get() != LocalFileProvider::instance())
             m_queue->enqueueProviderMkdir(prov, parent, name);
         else
@@ -4194,6 +4224,7 @@ void MainWindow::deleteSelected(bool permanent) {
     // removes exactly these rows and selects the next file without a full rescan.
     m_pendingDeletePanel = m_activePanel;
     m_pendingDeletePaths = paths;
+    ensureTransferProgressDialog();
     if (remote)
         m_queue->enqueueProviderDelete(prov, paths);
     else

@@ -99,6 +99,7 @@ private:
     // alpha-blending it. No-op off X11. Coordinates are in device pixels.
     void updateOpaqueRegion();
     QuickView *ensureQuickView();
+    TransferProgressDialog *ensureTransferProgressDialog();
     void scheduleMediaWarmupAfterFirstPaint();
     void scheduleFeatureBatchAfterFirstPaint();
     void markStartupPanelLoaded(FilePanel *panel);
@@ -273,7 +274,7 @@ private:
     CommandBar *m_commandBar;
     CommandOutputDialog *m_commandOutput = nullptr; // lazily created on first command
     OperationQueue *m_queue;
-    TransferProgressDialog *m_progressDialog;
+    TransferProgressDialog *m_progressDialog = nullptr;
     QStringList m_operationErrors; // accumulated per-file errors for the running job
     // Set while a delete is in flight so the queue-finished handler can remove
     // just those rows and select the next file, instead of a full rescan that
