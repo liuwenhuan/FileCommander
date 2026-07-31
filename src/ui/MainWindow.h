@@ -53,7 +53,7 @@ class MainWindow : public QMainWindow {
     Q_OBJECT
 
 public:
-    explicit MainWindow(QWidget *parent = nullptr);
+    explicit MainWindow(QWidget *parent = nullptr, qint64 startupElapsedMs = 0);
     // Packaging-only smoke flow: browse `directory`, load each supplied local
     // preview fixture, then exit. It is intentionally not exposed through UI.
     void runPackageSmoke(const QString &directory);
@@ -101,6 +101,7 @@ private:
     void scheduleMediaWarmupAfterFirstPaint();
     void scheduleFeatureBatchAfterFirstPaint();
     void markStartupPanelLoaded(FilePanel *panel);
+    qint64 elapsedSinceStartup() const;
 
 private slots:
     void setActivePanel(FilePanel *panel);
@@ -310,6 +311,7 @@ private:
     bool m_mediaWarmComplete = false;
     bool m_initialThemeRepolishScheduled = false;
     QElapsedTimer m_startupElapsed;
+    qint64 m_startupElapsedOffsetMs = 0;
     bool m_startupVisible = false;
     bool m_startupPanelLoaded[2] = {};
     bool m_startupPanelInteractive[2] = {};

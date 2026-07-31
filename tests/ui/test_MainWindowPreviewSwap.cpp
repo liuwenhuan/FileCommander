@@ -3,6 +3,7 @@
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QEvent>
+#include <QItemSelectionModel>
 #include <QSignalSpy>
 #include <QShortcut>
 #include <QSplitter>
@@ -186,8 +187,15 @@ TEST(MainWindowStartupTest, EmitsReadyAfterBothVisiblePanelsAreInteractive) {
     QTemporaryDir rightDirectory;
     ASSERT_TRUE(leftDirectory.isValid());
     ASSERT_TRUE(rightDirectory.isValid());
+    for (const QString &path : {leftDirectory.filePath(QStringLiteral("left-a.txt")),
+                                leftDirectory.filePath(QStringLiteral("left-b.txt")),
+                                rightDirectory.filePath(QStringLiteral("right-a.txt")),
+                                rightDirectory.filePath(QStringLiteral("right-b.txt"))}) {
+        QFile file(path);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    }
 
-    MainWindow window;
+    MainWindow window(nullptr, 10000);
     QSplitter *splitter = panelSplitter(window);
     ASSERT_NE(splitter, nullptr);
     auto *left = qobject_cast<FilePanel *>(splitter->widget(0));
@@ -198,12 +206,18 @@ TEST(MainWindowStartupTest, EmitsReadyAfterBothVisiblePanelsAreInteractive) {
     QSignalSpy ready(&window, &MainWindow::startupReady);
     QSignalSpy leftLoaded(left->model(), &FileSystemModel::loadFinished);
     QSignalSpy rightLoaded(right->model(), &FileSystemModel::loadFinished);
+    QSignalSpy leftCurrentChanged(left->activeView()->selectionModel(),
+                                  &QItemSelectionModel::currentChanged);
+    QSignalSpy rightCurrentChanged(right->activeView()->selectionModel(),
+                                   &QItemSelectionModel::currentChanged);
     bool readyAfterBothLoads = false;
     bool readyAfterSelectionProbes = false;
     QObject::connect(&window, &MainWindow::startupReady, [&] {
         readyAfterBothLoads = !leftLoaded.isEmpty() && !rightLoaded.isEmpty();
-        readyAfterSelectionProbes = left->activeView()->currentIndex().isValid() &&
-                                   right->activeView()->currentIndex().isValid();
+        readyAfterSelectionProbes = leftCurrentChanged.count() >= 2 &&
+                                    rightCurrentChanged.count() >= 2 &&
+                                    left->activeView()->currentIndex().row() == 1 &&
+                                    right->activeView()->currentIndex().row() == 1;
     });
 
     left->navigateTo(leftDirectory.path());
@@ -216,8 +230,14 @@ TEST(MainWindowStartupTest, EmitsReadyAfterBothVisiblePanelsAreInteractive) {
     EXPECT_GE(rightLoaded.count(), 1);
     EXPECT_TRUE(readyAfterBothLoads);
     EXPECT_TRUE(readyAfterSelectionProbes);
-    EXPECT_TRUE(left->activeView()->currentIndex().isValid());
-    EXPECT_TRUE(right->activeView()->currentIndex().isValid());
+    EXPECT_EQ(left->activeView()->currentIndex().row(), 1);
+    EXPECT_EQ(right->activeView()->currentIndex().row(), 1);
+    const QJsonObject metrics = window.startupMetrics();
+    EXPECT_GE(metrics.value(QStringLiteral("visibleMs")).toInt(), 10000);
+    EXPECT_GE(metrics.value(QStringLiteral("panelsLoadedMs")).toInt(),
+              metrics.value(QStringLiteral("visibleMs")).toInt());
+    EXPECT_GE(metrics.value(QStringLiteral("interactiveMs")).toInt(),
+              metrics.value(QStringLiteral("panelsLoadedMs")).toInt());
     processGuiEvents();
     EXPECT_EQ(ready.count(), 1);
 }

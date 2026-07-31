@@ -292,8 +292,9 @@ bool isMissingRemovablePath(const QString &path) {
 }
 } // namespace
 
-MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
+MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs) : QMainWindow(parent) {
     m_startupElapsed.start();
+    m_startupElapsedOffsetMs = qMax<qint64>(0, startupElapsedMs);
     MotionPolicy::setApplicationReduced(m_settings.reduceMotion());
 
     // Frameless: we draw our own title bar (see setupMenuAndToolbar / TitleBar)
@@ -1046,6 +1047,10 @@ QJsonObject MainWindow::startupMetrics() const {
             {QStringLiteral("interactiveMs"), m_startupInteractiveMs}};
 }
 
+qint64 MainWindow::elapsedSinceStartup() const {
+    return m_startupElapsedOffsetMs + m_startupElapsed.elapsed();
+}
+
 void MainWindow::markStartupPanelLoaded(FilePanel *panel) {
     const int panelIndex = panel == m_leftPanel ? 0 : panel == m_rightPanel ? 1 : -1;
     if (!m_startupVisible || panelIndex < 0 || m_startupPanelLoaded[panelIndex])
@@ -1053,18 +1058,25 @@ void MainWindow::markStartupPanelLoaded(FilePanel *panel) {
 
     m_startupPanelLoaded[panelIndex] = true;
     if (m_startupPanelLoaded[0] && m_startupPanelLoaded[1])
-        m_startupPanelsLoadedMs = m_startupElapsed.elapsed();
+        m_startupPanelsLoadedMs = elapsedSinceStartup();
 
     QTimer::singleShot(0, this, [this, panel, panelIndex] {
         QAbstractItemView *view = panel->activeView();
-        const QModelIndex firstEntry = panel->model()->index(0, 0);
-        if (view && firstEntry.isValid())
-            view->setCurrentIndex(firstEntry);
+        if (!view || panel->model()->rowCount() < 2)
+            return;
+
+        const QModelIndex current = view->currentIndex();
+        const QModelIndex target = panel->model()->index(current.isValid() && current.row() == 0 ? 1 : 0, 0);
+        if (!current.isValid() || !target.isValid() || target == current)
+            return;
+        view->setCurrentIndex(target);
+        if (view->currentIndex() != target)
+            return;
 
         m_startupPanelInteractive[panelIndex] = true;
         if (m_startupPanelInteractive[0] && m_startupPanelInteractive[1] &&
             m_startupInteractiveMs < 0) {
-            m_startupInteractiveMs = m_startupElapsed.elapsed();
+            m_startupInteractiveMs = elapsedSinceStartup();
             emit startupReady();
         }
     });
@@ -1515,7 +1527,7 @@ void MainWindow::showEvent(QShowEvent *event) {
     QMainWindow::showEvent(event);
     if (!m_startupVisible) {
         m_startupVisible = true;
-        m_startupVisibleMs = m_startupElapsed.elapsed();
+        m_startupVisibleMs = elapsedSinceStartup();
     }
     // On Windows, QStyleSheetStyle can create the first native scrollbar before
     // the application's stylesheet has gone through a real native-window

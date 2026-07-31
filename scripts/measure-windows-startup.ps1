@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [string]$ExecutablePath
+    [string]$ExecutablePath,
+    [ValidateRange(1, 120)]
+    [int]$TimeoutSeconds = 15
 )
 
 $ErrorActionPreference = 'Stop'
@@ -14,8 +16,20 @@ try {
     $results = @()
     foreach ($run in 1..7) {
         $outputPath = Join-Path $runDirectory ("startup-$run.json")
-        $process = Start-Process -FilePath $executable -ArgumentList "--startup-probe `"$outputPath`"" `
-            -PassThru -Wait
+        $leftDirectory = Join-Path $runDirectory ("left-$run")
+        $rightDirectory = Join-Path $runDirectory ("right-$run")
+        New-Item -ItemType Directory -Path $leftDirectory, $rightDirectory | Out-Null
+        [System.IO.File]::WriteAllText((Join-Path $leftDirectory 'first.txt'), 'first')
+        [System.IO.File]::WriteAllText((Join-Path $leftDirectory 'second.txt'), 'second')
+        [System.IO.File]::WriteAllText((Join-Path $rightDirectory 'first.txt'), 'first')
+        [System.IO.File]::WriteAllText((Join-Path $rightDirectory 'second.txt'), 'second')
+        $arguments = "--startup-probe `"$outputPath`" `"$leftDirectory`" `"$rightDirectory`""
+        $process = Start-Process -FilePath $executable -ArgumentList $arguments -PassThru
+        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+            $process.Kill()
+            $process.WaitForExit()
+            throw "Startup probe run $run timed out after $TimeoutSeconds seconds."
+        }
         if ($process.ExitCode -ne 0) {
             throw "Startup probe run $run exited with code $($process.ExitCode)."
         }

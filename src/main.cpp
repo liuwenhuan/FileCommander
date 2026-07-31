@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QGuiApplication>
 #include <QIcon>
@@ -6,6 +7,7 @@
 #include <QTimer>
 
 #include <clocale>
+#include <cstdio>
 #include <cstdlib>
 
 #include "AppIcon.h"
@@ -19,6 +21,8 @@
 #include "diagnostics/RuntimeCounters.h"
 
 int main(int argc, char *argv[]) {
+    QElapsedTimer startupElapsed;
+    startupElapsed.start();
     // Use the native Qt xcb platform rather than deepin's dxcb: the app draws its
     // own frameless chrome (title bar, rounded corners, shadow) and relies on no
     // DTK/deepin platform behaviour, so it looks and works the same on any X11
@@ -80,7 +84,7 @@ int main(int argc, char *argv[]) {
 
     int exitCode = 0;
     {
-        MainWindow window;
+        MainWindow window(nullptr, startupElapsed.elapsed());
         // Belt-and-braces for WMs that read the per-window icon. Takes the
         // application icon rather than painting a fresh one: MainWindow's
         // constructor has already applied the theme, which may have replaced the
@@ -88,6 +92,9 @@ int main(int argc, char *argv[]) {
         // untinted original back -- which every dialog then inherits, since
         // DialogTitleBar reads its icon from the window it belongs to.
         window.setWindowIcon(app.windowIcon());
+        const QStringList folders = FolderAssociation::folderArguments(arguments);
+        if (!startupProbeOutput.isEmpty() && !folders.isEmpty())
+            window.openFolders(folders);
         window.show();
         ttc::requestWindowForeground(&window);
         if (startupProbeOutput.isEmpty()) {
@@ -103,12 +110,28 @@ int main(int argc, char *argv[]) {
                              [&app, &window, startupProbeOutput] {
                     QFile output(startupProbeOutput);
                     if (!output.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-                        qCritical() << "Cannot write startup probe:" << startupProbeOutput;
+                        std::fprintf(stderr, "FileCommander startup probe: cannot open %s: %s\n",
+                                     qPrintable(startupProbeOutput), qPrintable(output.errorString()));
                         QTimer::singleShot(0, &app, [&app] { app.exit(1); });
                         return;
                     }
-                    output.write(QJsonDocument(window.startupMetrics()).toJson(QJsonDocument::Compact));
+                    const QByteArray json =
+                        QJsonDocument(window.startupMetrics()).toJson(QJsonDocument::Compact);
+                    if (output.write(json) != json.size() || !output.flush() ||
+                        output.error() != QFileDevice::NoError) {
+                        std::fprintf(stderr, "FileCommander startup probe: cannot write %s: %s\n",
+                                     qPrintable(startupProbeOutput), qPrintable(output.errorString()));
+                        output.close();
+                        QTimer::singleShot(0, &app, [&app] { app.exit(1); });
+                        return;
+                    }
                     output.close();
+                    if (output.error() != QFileDevice::NoError) {
+                        std::fprintf(stderr, "FileCommander startup probe: cannot close %s: %s\n",
+                                     qPrintable(startupProbeOutput), qPrintable(output.errorString()));
+                        QTimer::singleShot(0, &app, [&app] { app.exit(1); });
+                        return;
+                    }
                     QTimer::singleShot(0, &app, [&app] { app.exit(0); });
                 });
         }
@@ -125,7 +148,6 @@ int main(int argc, char *argv[]) {
                 std::_Exit(0);
             });
         } else {
-            const QStringList folders = FolderAssociation::folderArguments(arguments);
             if (!folders.isEmpty())
                 QTimer::singleShot(0, &window, [&window, folders] { window.openFolders(folders); });
         }
