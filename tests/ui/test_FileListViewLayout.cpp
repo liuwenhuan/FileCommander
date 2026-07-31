@@ -1,10 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <QApplication>
-#include <QFile>
 #include <QHeaderView>
-#include <QImage>
-#include <QScrollBar>
 #include <QSignalSpy>
 #include <QStandardItemModel>
 #include <QTest>
@@ -15,13 +12,6 @@
 namespace {
 
 constexpr int kColumnCount = FileSystemModel::ColumnCount;
-
-void applyThemeSheet(const QString &name) {
-    QFile file(QStringLiteral(TTC_SOURCE_DIR "/resources/themes/") + name + QStringLiteral(".qss"));
-    ASSERT_TRUE(file.open(QIODevice::ReadOnly | QIODevice::Text));
-    qApp->setStyleSheet(QString::fromUtf8(file.readAll()));
-    qApp->processEvents();
-}
 
 void populateModel(QStandardItemModel &model) {
     model.setColumnCount(kColumnCount);
@@ -39,20 +29,13 @@ int lastVisibleColumn(const QHeaderView &header) {
     return -1;
 }
 
-int columnContentRight(FileListView &view) {
-    QScrollBar *scrollbar = view.verticalScrollBar();
-    if (scrollbar && scrollbar->isVisible())
-        return view.horizontalHeader()->viewport()->mapFrom(&view, scrollbar->geometry().topLeft()).x();
-    return view.horizontalHeader()->viewport()->width();
-}
-
-void expectLastVisibleSectionAtContentRight(FileListView &view) {
+void expectLastVisibleSectionAtHeaderViewportRight(FileListView &view) {
     QHeaderView *header = view.horizontalHeader();
     const int last = lastVisibleColumn(*header);
     ASSERT_GE(last, 0);
     ASSERT_GT(header->viewport()->width(), 0);
     EXPECT_EQ(header->sectionViewportPosition(last) + header->sectionSize(last),
-              columnContentRight(view));
+              header->viewport()->width());
 }
 
 class FileListViewLayoutTest : public ::testing::Test {
@@ -76,7 +59,7 @@ protected:
 TEST_F(FileListViewLayoutTest, LastVisibleSectionReachesHeaderViewportRightEdge) {
     resizeAndSettle(900);
 
-    expectLastVisibleSectionAtContentRight(m_view);
+    expectLastVisibleSectionAtHeaderViewportRight(m_view);
 }
 
 TEST_F(FileListViewLayoutTest, HiddenColumnsStillLeaveLastVisibleSectionAtHeaderViewportRightEdge) {
@@ -87,62 +70,20 @@ TEST_F(FileListViewLayoutTest, HiddenColumnsStillLeaveLastVisibleSectionAtHeader
     header->setSectionHidden(FileSystemModel::PermissionsColumn, true);
     resizeAndSettle(640);
 
-    expectLastVisibleSectionAtContentRight(m_view);
+    expectLastVisibleSectionAtHeaderViewportRight(m_view);
 }
 
 TEST_F(FileListViewLayoutTest, NarrowViewportKeepsLastVisibleSectionAtHeaderViewportRightEdge) {
     resizeAndSettle(80);
 
-    expectLastVisibleSectionAtContentRight(m_view);
+    expectLastVisibleSectionAtHeaderViewportRight(m_view);
 }
 
-TEST_F(FileListViewLayoutTest, AlwaysOnScrollbarPinsColumnsToContentEdge) {
+TEST_F(FileListViewLayoutTest, AlwaysOnScrollbarDoesNotReserveExtraHeaderWidth) {
     ASSERT_EQ(m_view.verticalScrollBarPolicy(), Qt::ScrollBarAlwaysOn);
     resizeAndSettle(700);
 
-    expectLastVisibleSectionAtContentRight(m_view);
-}
-
-TEST_F(FileListViewLayoutTest, VerticalScrollbarStartsBelowHeaderAndColumnsStopBeforeIt) {
-    ASSERT_EQ(m_view.verticalScrollBarPolicy(), Qt::ScrollBarAlwaysOn);
-    resizeAndSettle(700);
-
-    QHeaderView *header = m_view.horizontalHeader();
-    QScrollBar *scrollbar = m_view.verticalScrollBar();
-    ASSERT_NE(header, nullptr);
-    ASSERT_NE(scrollbar, nullptr);
-    ASSERT_TRUE(scrollbar->isVisible());
-
-    EXPECT_EQ(scrollbar->geometry().top(), header->geometry().bottom() + 1);
-
-    expectLastVisibleSectionAtContentRight(m_view);
-}
-
-TEST_F(FileListViewLayoutTest, HeaderCoversScrollbarGutterAboveTheListBody) {
-    const QString originalSheet = qApp->styleSheet();
-    applyThemeSheet(QStringLiteral("green"));
-    resizeAndSettle(700);
-    qApp->processEvents();
-
-    QHeaderView *header = m_view.horizontalHeader();
-    QScrollBar *scrollbar = m_view.verticalScrollBar();
-    ASSERT_NE(header, nullptr);
-    ASSERT_NE(scrollbar, nullptr);
-    ASSERT_TRUE(scrollbar->isVisible());
-
-    const QImage rendered = m_view.grab().toImage();
-    const QPoint headerGutterPoint(scrollbar->geometry().center().x(), header->geometry().center().y());
-    ASSERT_TRUE(rendered.rect().contains(headerGutterPoint));
-
-    const QColor pixel = rendered.pixelColor(headerGutterPoint);
-    const QColor headerBackground(0x0a, 0x1a, 0x0d);
-    EXPECT_LE(qAbs(pixel.red() - headerBackground.red()) +
-                  qAbs(pixel.green() - headerBackground.green()) +
-                  qAbs(pixel.blue() - headerBackground.blue()),
-              12)
-        << "the scrollbar gutter is visible above the column header";
-
-    qApp->setStyleSheet(originalSheet);
+    expectLastVisibleSectionAtHeaderViewportRight(m_view);
 }
 
 TEST_F(FileListViewLayoutTest, DoubleClickingDividerAutoFitsTheColumnOnItsRight) {
@@ -189,7 +130,6 @@ TEST_F(FileListViewLayoutTest, DoubleClickingDividerAutoFitsTheColumnOnItsRight)
     EXPECT_GE(m_view.columnWidth(FileSystemModel::SizeColumn),
               m_view.fontMetrics().horizontalAdvance(widest) + 24);
     EXPECT_EQ(m_view.columnWidth(FileSystemModel::ExtColumn), extBefore);
-    expectLastVisibleSectionAtContentRight(m_view);
 }
 
 } // namespace

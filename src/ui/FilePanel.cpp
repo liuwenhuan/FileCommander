@@ -68,38 +68,6 @@ constexpr int kTreeAnimationVisibleRowLimit = 500;
 constexpr int kTreeInputCadenceIntervalMs = 100;
 constexpr int kDirectorySizeBusyDelayMs = 500;
 constexpr auto kTreeFeedbackAnimationName = "DirectoryTreeDisclosureFeedbackAnimation";
-constexpr int kTreeGlyphMaxWidth = 14;
-constexpr qreal kTreeGlyphLineWidth = 1.2;
-
-class TreeToggleButton final : public QToolButton {
-public:
-    explicit TreeToggleButton(QWidget *parent = nullptr) : QToolButton(parent) {
-        setProperty("compactTreeGlyph", true);
-        setProperty("treeGlyphMaxWidth", kTreeGlyphMaxWidth);
-        setText(QString());
-        setToolButtonStyle(Qt::ToolButtonIconOnly);
-    }
-
-protected:
-    void paintEvent(QPaintEvent *event) override {
-        QToolButton::paintEvent(event);
-
-        QPainter painter(this);
-        painter.setRenderHint(QPainter::Antialiasing);
-        const QPalette::ColorGroup group = isEnabled() ? QPalette::Active : QPalette::Disabled;
-        QColor fg = palette().color(group, QPalette::ButtonText);
-        if (!fg.isValid())
-            fg = palette().color(group, QPalette::WindowText);
-        painter.setPen(QPen(fg, kTreeGlyphLineWidth, Qt::SolidLine, Qt::SquareCap));
-
-        const qreal lineWidth = qMin<qreal>(kTreeGlyphMaxWidth, qMax<qreal>(8.0, width() * 0.46));
-        const qreal left = (width() - lineWidth) / 2.0;
-        const qreal right = left + lineWidth;
-        const qreal centerY = height() / 2.0;
-        for (qreal y : {centerY - 5.0, centerY, centerY + 5.0})
-            painter.drawLine(QPointF(left, y), QPointF(right, y));
-    }
-};
 
 class DirectoryTreeView final : public QTreeView {
 public:
@@ -307,11 +275,13 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_addressBar->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     m_addressBar->setFocusPolicy(Qt::ClickFocus); // keep it out of the Tab chain
 
-    // Folder-tree toggle: first item in the address row. The button paints a
-    // compact three-line glyph itself so it stays visually aligned with the
-    // lightweight back/forward arrows in every theme.
-    m_treeButton = new TreeToggleButton(this);
+    // Folder-tree toggle: first item in the address row. Shows/hides this
+    // panel's own directory tree. A monochrome BMP glyph (not the 🗀 emoji, which some
+    // fonts render in a fixed colour that clashes with the other chrome icons in
+    // dark mode) so it follows the palette like ← → ★ ✳.
+    m_treeButton = new QToolButton(this);
     m_treeButton->setObjectName(QStringLiteral("PanelTreeButton"));
+    m_treeButton->setText(QStringLiteral("☰"));
     m_treeButton->setAutoRaise(true);
     m_treeButton->setCheckable(true);
     m_treeButton->setFocusPolicy(Qt::NoFocus);

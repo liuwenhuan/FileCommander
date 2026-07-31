@@ -31,7 +31,6 @@
 #include <QUrl>
 #include <QVariantAnimation>
 #include <QVector>
-#include <QWidget>
 
 #include "DragPixmap.h"
 #include "ExternalPaths.h"
@@ -186,37 +185,6 @@ private:
     QColor m_sectionBorder;
 };
 
-class ScrollbarHeaderCover : public QWidget {
-public:
-    explicit ScrollbarHeaderCover(QWidget *parent = nullptr) : QWidget(parent) {
-        setObjectName(QStringLiteral("ScrollbarHeaderCover"));
-        setAutoFillBackground(false);
-    }
-
-protected:
-    void paintEvent(QPaintEvent *event) override {
-        Q_UNUSED(event);
-        const auto *view = qobject_cast<const FileListView *>(parentWidget());
-        const QHeaderView *header = view ? view->horizontalHeader() : nullptr;
-        QColor bg;
-        QColor border;
-        if (header) {
-            bg = header->property("sectionBackground").value<QColor>();
-            border = header->property("sectionBorder").value<QColor>();
-        }
-        if (!bg.isValid())
-            bg = palette().color(QPalette::Window);
-        if (!border.isValid())
-            border = palette().color(QPalette::Mid);
-
-        QPainter painter(this);
-        painter.fillRect(rect(), bg);
-        painter.setPen(border);
-        painter.drawLine(rect().bottomLeft(), rect().bottomRight());
-        painter.drawLine(rect().topLeft(), rect().bottomLeft());
-    }
-};
-
 // Paints file-list cells directly (background, icon, text) with a QPainter
 // instead of letting the item go through QStyleSheetStyle. The app sets a global
 // stylesheet for theming, which otherwise routes every cell through the CSS
@@ -305,8 +273,6 @@ FileListView::FileListView(QWidget *parent) : QTableView(parent) {
     // right edge stays pinned (Qt otherwise flashes the bar at the exact-fit
     // boundary). In the extreme-narrow case the last column simply clips.
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    m_scrollbarHeaderCover = new ScrollbarHeaderCover(this);
-    m_scrollbarHeaderCover->hide();
     verticalHeader()->hide();
     setHorizontalHeader(new PlainHeaderView(this)); // non-bold, self-painted labels
     horizontalHeader()->setSortIndicatorShown(true);
@@ -550,18 +516,10 @@ void FileListView::showColumnMenu(const QPoint &pos) {
 
 void FileListView::resizeEvent(QResizeEvent *event) {
     QTableView::resizeEvent(event);
-    placeVerticalScrollBarBelowHeader();
-    scheduleVerticalScrollBarPlacement();
     // applyLayout() is pure arithmetic over the cached content-mins/base widths
     // (no per-row measurement), so it's cheap enough to run synchronously on
     // every interactive resize step -- no debounce or last-column-only shortcut.
     applyLayout();
-}
-
-void FileListView::updateGeometries() {
-    QTableView::updateGeometries();
-    placeVerticalScrollBarBelowHeader();
-    scheduleVerticalScrollBarPlacement();
 }
 
 int FileListView::measureVariableColumn(int column, const QFontMetrics &fm) const {
@@ -631,7 +589,12 @@ void FileListView::applyLayout() {
     QHeaderView *header = horizontalHeader();
     if (!header || header->count() == 0)
         return;
-    const int avail = columnLayoutWidth();
+    // The header and table viewport have the same usable width: on conventional
+    // styles Qt already removes the always-on scrollbar from both, while overlay
+    // styles intentionally leave it over the content. Do not subtract a style
+    // metric here; doing so leaves a permanent gap and unpins the last header
+    // section from the header viewport's right edge.
+    const int avail = viewport()->width();
     if (avail <= 0) // pre-show / zero width: defer to the next resize/reset
         return;
     if (m_baseWidth.size() != header->count())
@@ -733,63 +696,6 @@ void FileListView::applyLayout() {
         }
     }
     m_adjustingColumns = false;
-}
-
-int FileListView::columnLayoutWidth() const {
-    int avail = viewport()->width();
-    const QScrollBar *bar = verticalScrollBar();
-    if (bar && bar->isVisible()) {
-        const int barLeftInViewport = viewport()->mapFrom(this, bar->geometry().topLeft()).x();
-        if (barLeftInViewport > 0)
-            avail = qMin(avail, barLeftInViewport);
-    }
-    return avail;
-}
-
-void FileListView::placeVerticalScrollBarBelowHeader() {
-    QScrollBar *bar = verticalScrollBar();
-    if (!bar || !bar->isVisible()) {
-        if (m_scrollbarHeaderCover)
-            m_scrollbarHeaderCover->hide();
-        return;
-    }
-
-    const QHeaderView *header = horizontalHeader();
-    const QRect content = contentsRect();
-    const int top = header && header->isVisible()
-                        ? header->geometry().bottom() + 1
-                        : viewport()->geometry().top();
-    const int width = qMax(1, bar->sizeHint().width());
-    const int left = content.right() - width + 1;
-    const int bottom = content.bottom();
-    if (bottom < top) {
-        if (m_scrollbarHeaderCover)
-            m_scrollbarHeaderCover->hide();
-        return;
-    }
-    bar->setGeometry(left, top, width, bottom - top + 1);
-    bar->raise();
-
-    if (m_scrollbarHeaderCover) {
-        const int coverHeight = qMax(0, top - content.top());
-        if (coverHeight > 0) {
-            m_scrollbarHeaderCover->setGeometry(left, content.top(), width, coverHeight);
-            m_scrollbarHeaderCover->show();
-            m_scrollbarHeaderCover->raise();
-        } else {
-            m_scrollbarHeaderCover->hide();
-        }
-    }
-}
-
-void FileListView::scheduleVerticalScrollBarPlacement() {
-    if (m_scrollbarPlacementPending)
-        return;
-    m_scrollbarPlacementPending = true;
-    QTimer::singleShot(0, this, [this] {
-        m_scrollbarPlacementPending = false;
-        placeVerticalScrollBarBelowHeader();
-    });
 }
 
 void FileListView::onSectionResized(int logical, int oldSize, int newSize) {
@@ -967,9 +873,6 @@ void FileListView::changeEvent(QEvent *event) {
             ensureSelectionPalettes();
             setPalette(m_panelActive ? m_activePalette : m_inactivePalette);
         }
-        if (m_scrollbarHeaderCover)
-            m_scrollbarHeaderCover->update();
-        scheduleVerticalScrollBarPlacement();
     } else if (event->type() == QEvent::FontChange) {
         // The list font drives content-width measurement; a font change (the
         // panel applies the configured list font after construction, or the user
