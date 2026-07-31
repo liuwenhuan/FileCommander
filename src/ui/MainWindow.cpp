@@ -1094,25 +1094,46 @@ qint64 MainWindow::elapsedSinceStartup() const {
 
 void MainWindow::markStartupPanelLoaded(FilePanel *panel) {
     const int panelIndex = panel == m_leftPanel ? 0 : panel == m_rightPanel ? 1 : -1;
-    if (!m_startupVisible || panelIndex < 0 || m_startupPanelLoaded[panelIndex])
+    if (panelIndex < 0 || m_startupPanelInteractive[panelIndex])
         return;
 
     m_startupPanelLoaded[panelIndex] = true;
     if (m_startupPanelLoaded[0] && m_startupPanelLoaded[1])
         m_startupPanelsLoadedMs = elapsedSinceStartup();
 
+    if (m_startupVisible) {
+        m_startupPanelInteractionScheduled[panelIndex] = false;
+        scheduleStartupPanelInteraction(panel);
+    }
+}
+
+void MainWindow::scheduleStartupPanelInteraction(FilePanel *panel) {
+    const int panelIndex = panel == m_leftPanel ? 0 : panel == m_rightPanel ? 1 : -1;
+    if (!m_startupVisible || panelIndex < 0 || !m_startupPanelLoaded[panelIndex] ||
+        m_startupPanelInteractionScheduled[panelIndex] || m_startupPanelInteractive[panelIndex])
+        return;
+
+    m_startupPanelInteractionScheduled[panelIndex] = true;
     QTimer::singleShot(0, this, [this, panel, panelIndex] {
-        QAbstractItemView *view = panel->activeView();
-        if (!view || panel->model()->rowCount() < 2)
+        if (m_startupPanelInteractive[panelIndex])
             return;
+        QAbstractItemView *view = panel->activeView();
+        if (!view || panel->model()->rowCount() < 2) {
+            m_startupPanelInteractionScheduled[panelIndex] = false;
+            return;
+        }
 
         const QModelIndex current = view->currentIndex();
         const QModelIndex target = panel->model()->index(current.isValid() && current.row() == 0 ? 1 : 0, 0);
-        if (!current.isValid() || !target.isValid() || target == current)
+        if (!current.isValid() || !target.isValid() || target == current) {
+            m_startupPanelInteractionScheduled[panelIndex] = false;
             return;
+        }
         view->setCurrentIndex(target);
-        if (view->currentIndex() != target)
+        if (view->currentIndex() != target) {
+            m_startupPanelInteractionScheduled[panelIndex] = false;
             return;
+        }
 
         m_startupPanelInteractive[panelIndex] = true;
         if (m_startupPanelInteractive[0] && m_startupPanelInteractive[1] &&
@@ -1618,6 +1639,10 @@ void MainWindow::showEvent(QShowEvent *event) {
     if (!m_startupVisible) {
         m_startupVisible = true;
         m_startupVisibleMs = elapsedSinceStartup();
+        if (m_startupPanelLoaded[0] && m_startupPanelLoaded[1])
+            m_startupPanelsLoadedMs = qMax(m_startupPanelsLoadedMs, m_startupVisibleMs);
+        scheduleStartupPanelInteraction(m_leftPanel);
+        scheduleStartupPanelInteraction(m_rightPanel);
     }
     // A window restored maximized only reports isMaximized() reliably once it's
     // mapped; the constructor's setContentsMargins ran before that and left the

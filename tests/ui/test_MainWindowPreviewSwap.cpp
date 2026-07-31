@@ -6,6 +6,7 @@
 #include <QImage>
 #include <QItemSelectionModel>
 #include <QScrollBar>
+#include <QSignalBlocker>
 #include <QSignalSpy>
 #include <QShortcut>
 #include <QSplitter>
@@ -478,6 +479,82 @@ TEST(MainWindowStartupTest, EmitsReadyAfterBothVisiblePanelsAreInteractive) {
               metrics.value(QStringLiteral("visibleMs")).toInt());
     EXPECT_GE(metrics.value(QStringLiteral("interactiveMs")).toInt(),
               metrics.value(QStringLiteral("panelsLoadedMs")).toInt());
+    processGuiEvents();
+    EXPECT_EQ(ready.count(), 1);
+}
+
+TEST(MainWindowStartupTest, EmitsReadyWhenBothPanelsFinishLoadingBeforeShow) {
+    QTemporaryDir leftDirectory;
+    QTemporaryDir rightDirectory;
+    ASSERT_TRUE(leftDirectory.isValid());
+    ASSERT_TRUE(rightDirectory.isValid());
+    const QString leftFirst = QStringLiteral("task5-left-before-show-a.txt");
+    const QString leftSecond = QStringLiteral("task5-left-before-show-b.txt");
+    const QString rightFirst = QStringLiteral("task5-right-before-show-a.txt");
+    const QString rightSecond = QStringLiteral("task5-right-before-show-b.txt");
+    for (const QString &path : {leftDirectory.filePath(leftFirst),
+                                leftDirectory.filePath(leftSecond),
+                                rightDirectory.filePath(rightFirst),
+                                rightDirectory.filePath(rightSecond)}) {
+        QFile file(path);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    }
+
+    MainWindow window;
+    QSplitter *splitter = panelSplitter(window);
+    ASSERT_NE(splitter, nullptr);
+    auto *left = qobject_cast<FilePanel *>(splitter->widget(0));
+    auto *right = qobject_cast<FilePanel *>(splitter->widget(1));
+    ASSERT_NE(left, nullptr);
+    ASSERT_NE(right, nullptr);
+
+    QSignalSpy leftLoaded(left->model(), &FileSystemModel::loadFinished);
+    QSignalSpy rightLoaded(right->model(), &FileSystemModel::loadFinished);
+    left->navigateTo(leftDirectory.path());
+    right->navigateTo(rightDirectory.path());
+    QTRY_VERIFY_WITH_TIMEOUT(!leftLoaded.isEmpty(), 4000);
+    QTRY_VERIFY_WITH_TIMEOUT(!rightLoaded.isEmpty(), 4000);
+    const auto modelContains = [](FileSystemModel *model, const QString &name) {
+        for (int row = 0; row < model->rowCount(); ++row) {
+            if (model->data(model->index(row, 0), Qt::DisplayRole).toString() == name)
+                return true;
+        }
+        return false;
+    };
+    QTRY_VERIFY_WITH_TIMEOUT(modelContains(left->model(), leftFirst) &&
+                                 modelContains(left->model(), leftSecond),
+                             4000);
+    QTRY_VERIFY_WITH_TIMEOUT(modelContains(right->model(), rightFirst) &&
+                                 modelContains(right->model(), rightSecond),
+                             4000);
+    ASSERT_FALSE(window.isVisible());
+    ASSERT_GE(left->model()->rowCount(), 2);
+    ASSERT_GE(right->model()->rowCount(), 2);
+    const QModelIndex leftBeforeShow = left->activeView()->currentIndex();
+    const QModelIndex rightBeforeShow = right->activeView()->currentIndex();
+    ASSERT_TRUE(leftBeforeShow.isValid());
+    ASSERT_TRUE(rightBeforeShow.isValid());
+    const int expectedLeftRow = leftBeforeShow.row() == 0 ? 1 : 0;
+    const int expectedRightRow = rightBeforeShow.row() == 0 ? 1 : 0;
+    processGuiEvents();
+    processGuiEvents();
+    ASSERT_FALSE(window.isVisible());
+    ASSERT_EQ(window.startupMetrics().value(QStringLiteral("visibleMs")).toInt(), -1);
+    ASSERT_GE(window.startupMetrics().value(QStringLiteral("panelsLoadedMs")).toInt(), 0);
+    std::vector<std::unique_ptr<QSignalBlocker>> modelBlockers;
+    for (FileSystemModel *model : window.findChildren<FileSystemModel *>())
+        modelBlockers.push_back(std::make_unique<QSignalBlocker>(model));
+    ASSERT_GE(modelBlockers.size(), 2);
+
+    QSignalSpy ready(&window, &MainWindow::startupReady);
+    window.resize(1000, 700);
+    window.show();
+
+    QTRY_COMPARE_WITH_TIMEOUT(ready.count(), 1, 1000);
+    EXPECT_EQ(left->activeView()->currentIndex().row(), expectedLeftRow);
+    EXPECT_EQ(right->activeView()->currentIndex().row(), expectedRightRow);
+    EXPECT_GE(window.startupMetrics().value(QStringLiteral("panelsLoadedMs")).toInt(),
+              window.startupMetrics().value(QStringLiteral("visibleMs")).toInt());
     processGuiEvents();
     EXPECT_EQ(ready.count(), 1);
 }

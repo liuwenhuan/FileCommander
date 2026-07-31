@@ -93,19 +93,7 @@ int main(int argc, char *argv[]) {
         // DialogTitleBar reads its icon from the window it belongs to.
         window.setWindowIcon(app.windowIcon());
         const QStringList folders = FolderAssociation::folderArguments(arguments);
-        if (!startupProbeOutput.isEmpty() && !folders.isEmpty())
-            window.openFolders(folders);
-        window.show();
-        ttc::requestWindowForeground(&window);
-        if (startupProbeOutput.isEmpty()) {
-            QObject::connect(&instance, &InstanceCoordinator::activationRequested, &window,
-                             [&window](const QStringList &activationArguments) {
-                    const QStringList folders = FolderAssociation::folderArguments(activationArguments);
-                    if (!folders.isEmpty())
-                        window.openFolders(folders);
-                    ttc::requestWindowForeground(&window);
-                });
-        } else {
+        if (!startupProbeOutput.isEmpty()) {
             QObject::connect(&window, &MainWindow::startupReady, &app,
                              [&app, &window, startupProbeOutput] {
                     QFile output(startupProbeOutput);
@@ -133,6 +121,19 @@ int main(int argc, char *argv[]) {
                         return;
                     }
                     QTimer::singleShot(0, &app, [&app] { app.exit(0); });
+                });
+        }
+        if (!startupProbeOutput.isEmpty() && !folders.isEmpty())
+            window.openFolders(folders);
+        window.show();
+        ttc::requestWindowForeground(&window);
+        if (startupProbeOutput.isEmpty()) {
+            QObject::connect(&instance, &InstanceCoordinator::activationRequested, &window,
+                             [&window](const QStringList &activationArguments) {
+                    const QStringList folders = FolderAssociation::folderArguments(activationArguments);
+                    if (!folders.isEmpty())
+                        window.openFolders(folders);
+                    ttc::requestWindowForeground(&window);
                 });
         }
         const int packageSmoke = arguments.indexOf(QStringLiteral("--package-smoke"));

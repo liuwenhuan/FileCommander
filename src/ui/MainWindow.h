@@ -103,6 +103,7 @@ private:
     void scheduleMediaWarmupAfterFirstPaint();
     void scheduleFeatureBatchAfterFirstPaint();
     void markStartupPanelLoaded(FilePanel *panel);
+    void scheduleStartupPanelInteraction(FilePanel *panel);
     qint64 elapsedSinceStartup() const;
 
 private slots:
@@ -317,6 +318,7 @@ private:
     qint64 m_startupElapsedOffsetMs = 0;
     bool m_startupVisible = false;
     bool m_startupPanelLoaded[2] = {};
+    bool m_startupPanelInteractionScheduled[2] = {};
     bool m_startupPanelInteractive[2] = {};
     qint64 m_startupVisibleMs = -1;
     qint64 m_startupPanelsLoadedMs = -1;
