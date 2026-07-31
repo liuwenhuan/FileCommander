@@ -110,6 +110,22 @@ void settle(FilePanel &panel) {
     processGuiEvents();
 }
 
+class ScopedTypographySettingsRestore final {
+public:
+    explicit ScopedTypographySettingsRestore(Settings &settings)
+        : settings(settings), family(settings.globalFontFamily()), size(settings.listFontSize()) {}
+
+    ~ScopedTypographySettingsRestore() {
+        settings.setGlobalFontFamily(family);
+        settings.setListFontSize(size);
+    }
+
+private:
+    Settings &settings;
+    QString family;
+    int size;
+};
+
 } // namespace
 
 TEST(MainWindowPreviewSwapTest, AutomaticMediaWarmupStaysDisabledAfterFirstVisiblePaint) {
@@ -166,6 +182,7 @@ TEST(MainWindowPreviewSwapTest, AutomaticMediaWarmupStaysDisabledAfterFirstVisib
 
 TEST(MainWindowPreviewSwapTest, FirstQuickViewUseCreatesOneInstanceWithCurrentTypography) {
     Settings settings;
+    ScopedTypographySettingsRestore restore(settings);
     settings.setGlobalFontFamily(QStringLiteral("Arial"));
     settings.setListFontSize(15);
 
@@ -191,6 +208,24 @@ TEST(MainWindowPreviewSwapTest, FirstQuickViewUseCreatesOneInstanceWithCurrentTy
     const QList<QuickView *> secondQuickViews = window.findChildren<QuickView *>();
     ASSERT_EQ(secondQuickViews.size(), 1);
     EXPECT_EQ(secondQuickViews.constFirst(), quickView);
+}
+
+TEST(MainWindowPreviewSwapTest, TypographySettingsDoNotLeakPastTestScope) {
+    Settings settings;
+    const QString originalFamily = settings.globalFontFamily();
+    const int originalSize = settings.listFontSize();
+    const int changedSize = originalSize == 15 ? 14 : 15;
+
+    {
+        Settings changed;
+        ScopedTypographySettingsRestore restore(changed);
+        changed.setGlobalFontFamily(QStringLiteral("Task2QuickViewTypographySentinel"));
+        changed.setListFontSize(changedSize);
+    }
+
+    Settings after;
+    EXPECT_EQ(after.globalFontFamily(), originalFamily);
+    EXPECT_EQ(after.listFontSize(), originalSize);
 }
 
 TEST(MainWindowStartupTest, DefersBackgroundFeatureBatchPastFirstPaint) {
