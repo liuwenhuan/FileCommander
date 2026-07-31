@@ -121,6 +121,51 @@ private:
     mutable QStringList m_requestedPaths;
 };
 
+class BlockingListingProvider final : public FileProvider {
+public:
+    QVector<FileInfo> list(const QString &path, bool) const override {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        if (path == QStringLiteral("A")) {
+            m_firstRequestStarted = true;
+            m_firstRequest.notify_all();
+            m_releaseFirst.wait(lock, [this] { return m_firstRequestReleased; });
+            return {FileInfo::fromFields(QStringLiteral("A/stale.txt"),
+                                         QStringLiteral("stale.txt"), 0, {}, false, {})};
+        }
+        if (path == QStringLiteral("B")) {
+            return {FileInfo::fromFields(QStringLiteral("B/current.txt"),
+                                         QStringLiteral("current.txt"), 0, {}, false, {})};
+        }
+        return {};
+    }
+
+    bool isDir(const QString &) const override { return true; }
+    QString cleanPath(const QString &path) const override { return path; }
+    QString parentPath(const QString &) const override { return {}; }
+    bool exists(const QString &) const override { return true; }
+    RenameResult rename(const QString &, const QString &, QString *) override {
+        return RenameResult::Failed;
+    }
+
+    void waitUntilFirstRequestStarted() const {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_firstRequest.wait(lock, [this] { return m_firstRequestStarted; });
+    }
+
+    void releaseFirstRequest() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_firstRequestReleased = true;
+        m_releaseFirst.notify_all();
+    }
+
+private:
+    mutable std::mutex m_mutex;
+    mutable std::condition_variable m_firstRequest;
+    mutable std::condition_variable m_releaseFirst;
+    mutable bool m_firstRequestStarted = false;
+    mutable bool m_firstRequestReleased = false;
+};
+
 bool loadPanel(FilePanel &panel, const QString &path) {
     QSignalSpy spy(panel.model(), &FileSystemModel::loadFinished);
     panel.navigateTo(path);
@@ -332,6 +377,33 @@ TEST(FileSystemModelFilterTest, ChangingDirectoryClearsFilter) {
     ASSERT_TRUE(loadDir(model, dir.path()));
     EXPECT_TRUE(model.nameFilter().isEmpty());
     EXPECT_EQ(visibleFiles(model), 2);
+}
+
+TEST(FileSystemModelLoadTest, DiscardsStaleLocalResultAfterNewerNavigation) {
+    auto provider = std::make_shared<BlockingListingProvider>();
+    FileSystemModel model;
+    model.setProvider(provider);
+    QSignalSpy finished(&model, &FileSystemModel::loadFinished);
+
+    model.setRootPath(QStringLiteral("A"));
+    provider->waitUntilFirstRequestStarted();
+    const quint64 staleGeneration = model.loadGeneration();
+
+    model.setRootPath(QStringLiteral("B"));
+    const quint64 currentGeneration = model.loadGeneration();
+    ASSERT_GT(currentGeneration, staleGeneration);
+    ASSERT_TRUE(finished.wait(2000) || finished.count() > 0);
+    ASSERT_EQ(finished.last().at(1).toULongLong(), currentGeneration);
+    ASSERT_EQ(model.rootPath(), QStringLiteral("B"));
+    ASSERT_EQ(model.rowCount(), 1);
+    ASSERT_EQ(model.fileInfoAt(0).name(), QStringLiteral("current.txt"));
+
+    provider->releaseFirstRequest();
+    QTest::qWait(100);
+    EXPECT_EQ(model.loadGeneration(), currentGeneration);
+    EXPECT_EQ(model.rootPath(), QStringLiteral("B"));
+    EXPECT_EQ(model.rowCount(), 1);
+    EXPECT_EQ(model.fileInfoAt(0).name(), QStringLiteral("current.txt"));
 }
 
 TEST(FilePanelDirectorySize, OlderRequestCannotOverwriteNewerSelection) {

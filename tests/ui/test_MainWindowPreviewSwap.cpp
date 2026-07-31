@@ -19,7 +19,9 @@
 #include <QTreeView>
 
 #include <clocale>
+#include <condition_variable>
 #include <memory>
+#include <mutex>
 #include <string>
 
 #include "BreadcrumbBar.h"
@@ -68,6 +70,53 @@ protected:
             ++styleChangesAfterShow;
         return false;
     }
+};
+
+class BlockingStartupProvider final : public FileProvider {
+public:
+    QVector<FileInfo> list(const QString &path, bool) const override {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        if (path == QStringLiteral("A")) {
+            m_firstRequestStarted = true;
+            m_firstRequest.notify_all();
+            m_releaseFirst.wait(lock, [this] { return m_firstRequestReleased; });
+            return {FileInfo::fromFields(QStringLiteral("A/stale.txt"),
+                                         QStringLiteral("stale.txt"), 0, {}, false, {})};
+        }
+        if (path == QStringLiteral("B")) {
+            return {FileInfo::fromFields(QStringLiteral("B/first.txt"),
+                                         QStringLiteral("first.txt"), 0, {}, false, {}),
+                    FileInfo::fromFields(QStringLiteral("B/second.txt"),
+                                         QStringLiteral("second.txt"), 0, {}, false, {})};
+        }
+        return {};
+    }
+
+    bool isDir(const QString &) const override { return true; }
+    QString cleanPath(const QString &path) const override { return path; }
+    QString parentPath(const QString &) const override { return {}; }
+    bool exists(const QString &) const override { return true; }
+    RenameResult rename(const QString &, const QString &, QString *) override {
+        return RenameResult::Failed;
+    }
+
+    void waitUntilFirstRequestStarted() const {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_firstRequest.wait(lock, [this] { return m_firstRequestStarted; });
+    }
+
+    void releaseFirstRequest() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_firstRequestReleased = true;
+        m_releaseFirst.notify_all();
+    }
+
+private:
+    mutable std::mutex m_mutex;
+    mutable std::condition_variable m_firstRequest;
+    mutable std::condition_variable m_releaseFirst;
+    mutable bool m_firstRequestStarted = false;
+    mutable bool m_firstRequestReleased = false;
 };
 
 QSplitter *panelSplitter(MainWindow &window) {
@@ -557,6 +606,79 @@ TEST(MainWindowStartupTest, EmitsReadyWhenBothPanelsFinishLoadingBeforeShow) {
               window.startupMetrics().value(QStringLiteral("visibleMs")).toInt());
     processGuiEvents();
     EXPECT_EQ(ready.count(), 1);
+}
+
+TEST(MainWindowStartupTest, IgnoresStaleLocalLoadBeforeReadiness) {
+    QTemporaryDir rightDirectory;
+    ASSERT_TRUE(rightDirectory.isValid());
+    for (const QString &name : {QStringLiteral("right-a.txt"), QStringLiteral("right-b.txt")}) {
+        QFile file(rightDirectory.filePath(name));
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    }
+
+    MainWindow window;
+    QSplitter *splitter = panelSplitter(window);
+    ASSERT_NE(splitter, nullptr);
+    auto *left = qobject_cast<FilePanel *>(splitter->widget(0));
+    auto *right = qobject_cast<FilePanel *>(splitter->widget(1));
+    ASSERT_NE(left, nullptr);
+    ASSERT_NE(right, nullptr);
+
+    auto provider = std::make_shared<BlockingStartupProvider>();
+    left->model()->setProvider(provider);
+    left->model()->setRootPath(QStringLiteral("A"));
+    provider->waitUntilFirstRequestStarted();
+    left->model()->setRootPath(QStringLiteral("B"));
+    right->navigateTo(rightDirectory.path());
+
+    QSignalSpy ready(&window, &MainWindow::startupReady);
+    window.resize(1000, 700);
+    window.show();
+
+    QTRY_VERIFY_WITH_TIMEOUT(left->model()->rowCount() >= 2 && right->model()->rowCount() >= 2,
+                              4000);
+    provider->releaseFirstRequest();
+    QTRY_COMPARE_WITH_TIMEOUT(ready.count(), 1, 4000);
+    EXPECT_EQ(left->model()->rootPath(), QStringLiteral("B"));
+    EXPECT_EQ(left->model()->fileInfoAt(0).name(), QStringLiteral("first.txt"));
+    processGuiEvents();
+    EXPECT_EQ(ready.count(), 1);
+}
+
+TEST(MainWindowStartupTest, ThumbnailViewDoesNotSatisfyDetailsReadiness) {
+    QTemporaryDir leftDirectory;
+    QTemporaryDir rightDirectory;
+    ASSERT_TRUE(leftDirectory.isValid());
+    ASSERT_TRUE(rightDirectory.isValid());
+    for (const QString &path : {leftDirectory.filePath(QStringLiteral("left-a.txt")),
+                                leftDirectory.filePath(QStringLiteral("left-b.txt")),
+                                rightDirectory.filePath(QStringLiteral("right-a.txt")),
+                                rightDirectory.filePath(QStringLiteral("right-b.txt"))}) {
+        QFile file(path);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    }
+
+    MainWindow window;
+    QSplitter *splitter = panelSplitter(window);
+    ASSERT_NE(splitter, nullptr);
+    auto *left = qobject_cast<FilePanel *>(splitter->widget(0));
+    auto *right = qobject_cast<FilePanel *>(splitter->widget(1));
+    ASSERT_NE(left, nullptr);
+    ASSERT_NE(right, nullptr);
+
+    left->navigateTo(leftDirectory.path());
+    right->navigateTo(rightDirectory.path());
+    left->toggleViewMode();
+    ASSERT_TRUE(left->isThumbnailMode());
+
+    QSignalSpy ready(&window, &MainWindow::startupReady);
+    window.resize(1000, 700);
+    window.show();
+
+    QTRY_VERIFY_WITH_TIMEOUT(left->model()->rowCount() >= 2 && right->model()->rowCount() >= 2,
+                              4000);
+    QTest::qWait(250);
+    EXPECT_EQ(ready.count(), 0);
 }
 
 TEST(MainWindowStartupTest, RestoresFolderTreesBeforeReadinessWhenEnabled) {

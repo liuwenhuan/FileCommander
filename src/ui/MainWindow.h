@@ -102,7 +102,8 @@ private:
     TransferProgressDialog *ensureTransferProgressDialog();
     void scheduleMediaWarmupAfterFirstPaint();
     void scheduleFeatureBatchAfterFirstPaint();
-    void markStartupPanelLoaded(FilePanel *panel);
+    void resetStartupPanelLoad(FilePanel *panel, quint64 generation);
+    void markStartupPanelLoaded(FilePanel *panel, quint64 generation);
     void scheduleStartupPanelInteraction(FilePanel *panel);
     qint64 elapsedSinceStartup() const;
 
@@ -320,6 +321,7 @@ private:
     bool m_startupPanelLoaded[2] = {};
     bool m_startupPanelInteractionScheduled[2] = {};
     bool m_startupPanelInteractive[2] = {};
+    quint64 m_startupPanelGeneration[2] = {};
     qint64 m_startupVisibleMs = -1;
     qint64 m_startupPanelsLoadedMs = -1;
     qint64 m_startupInteractiveMs = -1;

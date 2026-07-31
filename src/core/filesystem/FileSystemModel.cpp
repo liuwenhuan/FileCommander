@@ -42,7 +42,7 @@ std::shared_ptr<FileProvider> localProviderPtr() {
 
 FileSystemModel::FileSystemModel(QObject *parent) : QAbstractTableModel(parent) {
     m_provider = localProviderPtr();
-    connect(&m_watcher, &QFutureWatcher<QVector<FileInfo>>::finished, this,
+    connect(&m_watcher, &QFutureWatcher<LocalScanResult>::finished, this,
             &FileSystemModel::onScanFinished);
 }
 
@@ -206,6 +206,7 @@ void FileSystemModel::retryNetwork() {
 }
 
 void FileSystemModel::setRootPath(const QString &path) {
+    ++m_loadGeneration;
     m_flatMode = false;       // leaving any flat search-results listing
     m_rootPath = path;
     m_nameFilter.clear();     // a fresh directory always starts unfiltered
@@ -229,7 +230,7 @@ void FileSystemModel::setRootPath(const QString &path) {
             setParentEntryFor(QString()); // nothing listed yet: no ".." either
             sortEntries();
             endResetModel();
-            emit loadFinished(m_entries.size());
+            emit loadFinished(m_entries.size(), m_loadGeneration);
         }
         m_session->requestList(++m_reqId, path, m_showHidden);
         return;
@@ -240,8 +241,10 @@ void FileSystemModel::setRootPath(const QString &path) {
     // switches providers meanwhile.
     std::shared_ptr<FileProvider> provider = m_provider;
     const bool showHidden = m_showHidden;
-    QFuture<QVector<FileInfo>> future =
-        QtConcurrent::run([provider, path, showHidden] { return provider->list(path, showHidden); });
+    const quint64 generation = m_loadGeneration;
+    QFuture<LocalScanResult> future = QtConcurrent::run([provider, path, showHidden, generation] {
+        return LocalScanResult{generation, path, provider->list(path, showHidden)};
+    });
     m_watcher.setFuture(future);
 }
 
@@ -292,7 +295,7 @@ void FileSystemModel::onSessionListReady(quint64 reqId, const QString &path,
     sortEntries();
     endResetModel();
     m_rootPath = path;
-    emit loadFinished(m_entries.size());
+    emit loadFinished(m_entries.size(), m_loadGeneration);
 }
 
 void FileSystemModel::onSessionListFailed(quint64 reqId, const QString &path) {
@@ -303,7 +306,7 @@ void FileSystemModel::onSessionListFailed(quint64 reqId, const QString &path) {
         return;
     // Keep the current view intact (don't blank it); the status line already
     // reflects the reconnect/failed state. End any loading indicator.
-    emit loadFinished(m_entries.size());
+    emit loadFinished(m_entries.size(), m_loadGeneration);
 }
 
 void FileSystemModel::setShowHiddenFiles(bool show) {
@@ -331,7 +334,7 @@ void FileSystemModel::setFlatEntries(const QStringList &paths) {
     }
     sortEntries();           // sorts m_allEntries and rebuilds the visible m_entries
     endResetModel();
-    emit loadFinished(m_entries.size());
+    emit loadFinished(m_entries.size(), m_loadGeneration);
 }
 
 void FileSystemModel::onScanFinished() {
@@ -345,12 +348,15 @@ void FileSystemModel::onScanFinished() {
     // remote tab blank instead of briefly showing the local directory.
     if (m_session)
         return;
+    const LocalScanResult result = m_watcher.result();
+    if (result.generation != m_loadGeneration || result.path != m_rootPath)
+        return;
     beginResetModel();
-    m_allEntries = m_watcher.result();
-    setParentEntryFor(m_rootPath);
+    m_allEntries = result.entries;
+    setParentEntryFor(result.path);
     sortEntries(); // sorts m_allEntries and rebuilds the visible m_entries
     endResetModel();
-    emit loadFinished(m_entries.size());
+    emit loadFinished(m_entries.size(), result.generation);
 }
 
 bool FileSystemModel::matchesFilter(const QString &name, const QString &filter) {

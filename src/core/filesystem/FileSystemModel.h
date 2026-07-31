@@ -50,6 +50,7 @@ public:
 
     void setRootPath(const QString &path);
     QString rootPath() const { return m_rootPath; }
+    quint64 loadGeneration() const { return m_loadGeneration; }
 
     // Network connection lifecycle. Wraps `provider` in a NetworkSession running
     // on its own worker thread and starts an asynchronous connect via the
@@ -190,7 +191,7 @@ public:
 
 signals:
     void loadStarted();
-    void loadFinished(int count);
+    void loadFinished(int count, quint64 generation);
     void renameFailed(const QString &message);
     void renamed(const QString &oldPath, const QString &newPath);
     // An inline rename on a REMOTE tab: the actual provider->rename() is a
@@ -223,6 +224,12 @@ private slots:
     void onSessionStateChanged(int state, int attempt);
 
 private:
+    struct LocalScanResult {
+        quint64 generation = 0;
+        QString path;
+        QVector<FileInfo> entries;
+    };
+
     // (Re)subscribes this model to m_session's signals. Idempotent, so adopting
     // the same session repeatedly cannot stack duplicate deliveries.
     void wireSessionSignals();
@@ -257,9 +264,10 @@ private:
     // twenty of them on the GUI thread. Harmless on a local disk, but enough to
     // freeze the window on a wedged autofs/NFS mount.
     FileInfo m_parentEntry;
-    QFutureWatcher<QVector<FileInfo>> m_watcher;
+    QFutureWatcher<LocalScanResult> m_watcher;
     int m_sortColumn = NameColumn;
     Qt::SortOrder m_sortOrder = Qt::AscendingOrder;
+    quint64 m_loadGeneration = 0;
 
     // Network tab: worker-thread session owning the network provider. Null for
     // local/archive tabs (which keep the QtConcurrent scan path above).

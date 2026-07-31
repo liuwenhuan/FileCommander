@@ -324,6 +324,13 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs) : QMainWindow(p
     splitter->setStretchFactor(0, 1);
     splitter->setStretchFactor(1, 1);
     splitter->setHandleWidth(2);
+    for (FilePanel *panel : {m_leftPanel, m_rightPanel}) {
+        FileSystemModel *model = panel->model();
+        connect(model, &FileSystemModel::loadStarted, this,
+                [this, panel, model] { resetStartupPanelLoad(panel, model->loadGeneration()); });
+        connect(model, &FileSystemModel::loadFinished, this,
+                [this, panel](int, quint64 generation) { markStartupPanelLoaded(panel, generation); });
+    }
     // App-wide filter so Tab out of the preview pane returns to the file list
     // (the list->preview half is driven by FilePanel::switchPanelRequested).
     qApp->installEventFilter(this);
@@ -543,8 +550,6 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs) : QMainWindow(p
         // The server wants credentials: prompt, then hand them to that panel's
         // model to retry the connection with a username/password.
         FileSystemModel *model = panel->model();
-        connect(model, &FileSystemModel::loadFinished, this,
-                [this, panel](int) { markStartupPanelLoaded(panel); });
         connect(model, &FileSystemModel::networkAuthRequired, this,
                 [this, model, panel](const QString &host, const QString &error) {
                     QString user, pass;
@@ -1092,9 +1097,23 @@ qint64 MainWindow::elapsedSinceStartup() const {
     return m_startupElapsedOffsetMs + m_startupElapsed.elapsed();
 }
 
-void MainWindow::markStartupPanelLoaded(FilePanel *panel) {
+void MainWindow::resetStartupPanelLoad(FilePanel *panel, quint64 generation) {
     const int panelIndex = panel == m_leftPanel ? 0 : panel == m_rightPanel ? 1 : -1;
-    if (panelIndex < 0 || m_startupPanelInteractive[panelIndex])
+    if (panelIndex < 0)
+        return;
+
+    m_startupPanelGeneration[panelIndex] = generation;
+    m_startupPanelLoaded[panelIndex] = false;
+    m_startupPanelInteractionScheduled[panelIndex] = false;
+    m_startupPanelInteractive[panelIndex] = false;
+    if (!m_startupPanelLoaded[0] || !m_startupPanelLoaded[1])
+        m_startupPanelsLoadedMs = -1;
+}
+
+void MainWindow::markStartupPanelLoaded(FilePanel *panel, quint64 generation) {
+    const int panelIndex = panel == m_leftPanel ? 0 : panel == m_rightPanel ? 1 : -1;
+    if (panelIndex < 0 || generation != panel->model()->loadGeneration() ||
+        generation != m_startupPanelGeneration[panelIndex])
         return;
 
     m_startupPanelLoaded[panelIndex] = true;
@@ -1113,12 +1132,16 @@ void MainWindow::scheduleStartupPanelInteraction(FilePanel *panel) {
         m_startupPanelInteractionScheduled[panelIndex] || m_startupPanelInteractive[panelIndex])
         return;
 
+    const quint64 generation = m_startupPanelGeneration[panelIndex];
     m_startupPanelInteractionScheduled[panelIndex] = true;
-    QTimer::singleShot(0, this, [this, panel, panelIndex] {
-        if (m_startupPanelInteractive[panelIndex])
+    QTimer::singleShot(0, this, [this, panel, panelIndex, generation] {
+        if (m_startupPanelInteractive[panelIndex] ||
+            generation != m_startupPanelGeneration[panelIndex] ||
+            generation != panel->model()->loadGeneration())
             return;
-        QAbstractItemView *view = panel->activeView();
-        if (!view || panel->model()->rowCount() < 2) {
+        FileListView *view = panel->view();
+        if (!isVisible() || !panel->isVisible() || !view || !view->isVisible() ||
+            panel->model()->rowCount() < 2) {
             m_startupPanelInteractionScheduled[panelIndex] = false;
             return;
         }
@@ -1130,7 +1153,8 @@ void MainWindow::scheduleStartupPanelInteraction(FilePanel *panel) {
             return;
         }
         view->setCurrentIndex(target);
-        if (view->currentIndex() != target) {
+        if (generation != m_startupPanelGeneration[panelIndex] ||
+            generation != panel->model()->loadGeneration() || view->currentIndex() != target) {
             m_startupPanelInteractionScheduled[panelIndex] = false;
             return;
         }
