@@ -54,7 +54,8 @@ class MainWindow : public QMainWindow {
 
 public:
     explicit MainWindow(QWidget *parent = nullptr, qint64 startupElapsedMs = 0,
-                        bool collectStartupPhases = false);
+                        bool collectStartupPhases = false,
+                        const QElapsedTimer *startupClock = nullptr);
     // Packaging-only smoke flow: browse `directory`, load each supplied local
     // preview fixture, then exit. It is intentionally not exposed through UI.
     void runPackageSmoke(const QString &directory);
@@ -317,6 +318,7 @@ private:
     bool m_mediaWarmScheduled = false;
     bool m_mediaWarmComplete = false;
     QElapsedTimer m_startupElapsed;
+    QElapsedTimer m_startupClock;
     qint64 m_startupElapsedOffsetMs = 0;
     bool m_startupVisible = false;
     bool m_startupPanelLoaded[2] = {};
@@ -328,8 +330,16 @@ private:
     qint64 m_startupInteractiveMs = -1;
     bool m_collectStartupPhases = false;
     qint64 m_startupApplicationSetupMs = -1;
+    qint64 m_startupMainWindowBodyStartedMs = -1;
+    qint64 m_startupPanelsConstructionStartedMs = -1;
+    qint64 m_startupLeftPanelConstructedMs = -1;
     qint64 m_startupPanelsConstructedMs = -1;
     qint64 m_startupOperationQueueConstructedMs = -1;
+    qint64 m_startupPanelPreferencesRestoredMs = -1;
+    qint64 m_startupInterfaceTypographyAppliedMs = -1;
+    qint64 m_startupPanelVisibilityRestoredMs = -1;
+    qint64 m_startupViewSettingsRestoredMs = -1;
+    qint64 m_startupSessionDataLoadedMs = -1;
     qint64 m_startupSessionNavigationDispatchedMs = -1;
     qint64 m_startupShortcutsTitleBarReadyMs = -1;
     qint64 m_startupThemeApplyStartedMs = -1;

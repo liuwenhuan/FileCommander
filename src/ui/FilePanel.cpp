@@ -257,7 +257,9 @@ private:
     qreal m_feedbackOpacity = 0.0;
 };
 
-FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
+FilePanel::FilePanel(QWidget *parent) : FilePanel(QFont(), parent) {}
+
+FilePanel::FilePanel(const QFont &initialListFont, QWidget *parent) : QWidget(parent) {
     // A plain QWidget subclass does not paint a stylesheet background unless
     // it is told to; without this the CRT theme's scanline texture stops at
     // the Qt-provided widgets and this one stays flat. light.qss/dark.qss
@@ -284,6 +286,13 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     m_model = new FileSystemModel(this);
     m_view = new FileListView(this);
+    if (!initialListFont.family().isEmpty() && initialListFont.pointSize() > 0) {
+        m_view->viewport()->setFont(initialListFont);
+        m_view->setFont(initialListFont);
+        m_lastFontPt = initialListFont.pointSize();
+        const int iconPx = qBound(16, QFontMetrics(initialListFont).height() + 4, 48);
+        m_view->setIconSize(QSize(iconPx, iconPx));
+    }
     m_view->setModel(m_model);
     m_view->installEventFilter(this);
 
@@ -1776,23 +1785,46 @@ void FilePanel::prefetchArchiveNeighbors() {
 }
 
 void FilePanel::setListFontFamily(const QString &family) {
+    setListTypography(family, m_view->font().pointSize());
+}
+
+void FilePanel::setListTypography(const QString &family, int pt) {
     const QString effectiveFamily = family.isEmpty() ? QApplication::font().family() : family;
-    auto applyFamily = [&effectiveFamily](QWidget *widget) {
-        if (!widget)
-            return;
+    pt = qBound(7, pt, 24);
+    auto resolvedFont = [&effectiveFamily, pt](QWidget *widget) {
         QFont font = widget->font();
         font.setFamily(effectiveFamily);
-        widget->setFont(font);
+        font.setPointSize(pt);
+        return font;
     };
-    applyFamily(m_view);
-    applyFamily(m_view->viewport());
-    applyFamily(m_iconView);
-    if (m_iconView)
-        applyFamily(m_iconView->viewport());
-    applyFamily(m_dirTree);
-    if (m_dirTree)
-        applyFamily(m_dirTree->viewport());
-    setListFontSize(m_view->font().pointSize());
+    auto applyFont = [](QWidget *widget, const QFont &font) {
+        if (widget && widget->font() != font)
+            widget->setFont(font);
+    };
+
+    const QFont listFont = resolvedFont(m_view);
+    // Set the explicit viewport font first. The following parent change then
+    // cannot propagate another FontChange into the inline-editor surface.
+    applyFont(m_view->viewport(), listFont);
+    applyFont(m_view, listFont);
+
+    const QFontMetrics fm(listFont);
+    const int iconPx = qBound(16, fm.height() + 4, 48);
+    m_view->setIconSize(QSize(iconPx, iconPx));
+    applyListRowHeight();
+
+    if (m_iconView) {
+        const QFont iconFont = resolvedFont(m_iconView);
+        applyFont(m_iconView->viewport(), iconFont);
+        applyFont(m_iconView, iconFont);
+        applyThumbnailFontSize(pt);
+    }
+
+    if (m_dirTree) {
+        const QFont treeFont = resolvedFont(m_dirTree);
+        applyFont(m_dirTree->viewport(), treeFont);
+        applyFont(m_dirTree, treeFont);
+    }
 }
 
 void FilePanel::setTabBarVisible(bool visible) {
@@ -1807,48 +1839,7 @@ void FilePanel::setDirectoryTreeVisible(bool visible) {
 }
 
 void FilePanel::setListFontSize(int pt) {
-    pt = qBound(7, pt, 24);
-    QFont f = m_view->font();
-    f.setPointSize(pt);
-    m_view->setFont(f);
-    // The inline-rename editor is a child of the VIEWPORT, not the view, so it
-    // inherits the viewport's font -- and the viewport does not inherit ours.
-    // QStyleSheetStyle::polish() (run by ensureSelectionPalettes(), and again on
-    // every theme switch) re-resolves the viewport font from the global
-    // stylesheet and clears its resolve mask, severing the inheritance link that
-    // would otherwise carry setFont() down. Set it explicitly on both.
-    m_view->viewport()->setFont(f);
-
-    // Scale the row icons with the font so a larger font doesn't leave tiny
-    // icons stranded in tall rows. The delegate honours the view's iconSize
-    // (decorationSize); the row height tracks whichever of icon/text is taller,
-    // unless the -/+ buttons have set an explicit override.
-    const QFontMetrics fm(f);
-    const int fontH = fm.height();
-    const int iconPx = qBound(16, fontH + 4, 48);
-    m_view->setIconSize(QSize(iconPx, iconPx));
-    applyListRowHeight();
-
-    // Thumbnail (icon) view follows the same font; its grid icon size and the
-    // delegate's text point size are set when the thumbnail delegate is wired.
-    if (m_iconView) {
-        QFont gf = m_iconView->font();
-        gf.setPointSize(pt);
-        m_iconView->setFont(gf);
-        m_iconView->viewport()->setFont(gf); // same editor-inheritance reason as above
-        applyThumbnailFontSize(pt);
-    }
-
-    // The folder tree is part of the same list surface, so it tracks the same
-    // setting. Indentation is deliberately left at the style default: scaling it
-    // with the font costs a deep path several pixels of name per level, in a
-    // pane that is already the narrowest thing on screen.
-    if (m_dirTree) {
-        QFont tf = m_dirTree->font();
-        tf.setPointSize(pt);
-        m_dirTree->setFont(tf);
-        m_dirTree->viewport()->setFont(tf);
-    }
+    setListTypography(m_view->font().family(), pt);
 }
 
 void FilePanel::applyThumbnailFontSize(int pt) {

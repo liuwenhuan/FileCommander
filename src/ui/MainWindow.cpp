@@ -292,12 +292,17 @@ bool isMissingRemovablePath(const QString &path) {
 }
 } // namespace
 
-MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectStartupPhases)
+MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectStartupPhases,
+                       const QElapsedTimer *startupClock)
     : QMainWindow(parent), m_collectStartupPhases(collectStartupPhases) {
+    if (startupClock)
+        m_startupClock = *startupClock;
     m_startupElapsed.start();
     m_startupElapsedOffsetMs = qMax<qint64>(0, startupElapsedMs);
-    if (m_collectStartupPhases)
+    if (m_collectStartupPhases) {
         m_startupApplicationSetupMs = m_startupElapsedOffsetMs;
+        m_startupMainWindowBodyStartedMs = elapsedSinceStartup();
+    }
     MotionPolicy::setApplicationReduced(m_settings.reduceMotion());
 
     // Frameless: we draw our own title bar (see setupMenuAndToolbar / TitleBar)
@@ -320,8 +325,14 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
     // slow their repaints, so we paint just the handle.)
     auto *splitter = new PanelSplitter(this);
     m_panelSplitter = splitter;
-    m_leftPanel = new FilePanel(splitter);
-    m_rightPanel = new FilePanel(splitter);
+    if (m_collectStartupPhases)
+        m_startupPanelsConstructionStartedMs = elapsedSinceStartup();
+    QFont initialListFont = Typography::chromeFont(m_settings);
+    initialListFont.setPointSize(m_settings.listFontSize());
+    m_leftPanel = new FilePanel(initialListFont, splitter);
+    if (m_collectStartupPhases)
+        m_startupLeftPanelConstructedMs = elapsedSinceStartup();
+    m_rightPanel = new FilePanel(initialListFont, splitter);
     if (m_collectStartupPhases)
         m_startupPanelsConstructedMs = elapsedSinceStartup();
     splitter->addWidget(m_leftPanel);
@@ -498,25 +509,33 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
     };
     restorePanelColumns(m_leftPanel, QStringLiteral("left"));
     restorePanelColumns(m_rightPanel, QStringLiteral("right"));
+    if (m_collectStartupPhases)
+        m_startupPanelPreferencesRestoredMs = elapsedSinceStartup();
 
     // Optional bars + splitter layout. Applied before buildTitleBarMenus() so
     // the Interface-menu checkmarks (which read the widgets' visibility) match.
     m_commandBar->setVisible(m_settings.showCommandBar());
     m_functionKeyBar->setVisible(m_settings.showFunctionKeyBar());
     applyInterfaceTypography();
-    const QString globalFontFamily = m_settings.globalFontFamily();
+    if (m_collectStartupPhases)
+        m_startupInterfaceTypographyAppliedMs = elapsedSinceStartup();
     for (FilePanel *panel : {m_leftPanel, m_rightPanel}) {
-        panel->setListFontFamily(globalFontFamily);
-        panel->setListFontSize(m_settings.listFontSize());
         panel->setTabBarVisible(m_settings.showTabBar());
         panel->setDirectoryTreeVisible(m_settings.showFolderTree());
     }
+    if (m_collectStartupPhases)
+        m_startupPanelVisibilityRestoredMs = elapsedSinceStartup();
     if (const QByteArray s = m_settings.panelSplitterState(); !s.isEmpty())
         m_panelSplitter->restoreState(s);
+    if (m_collectStartupPhases)
+        m_startupViewSettingsRestoredMs = elapsedSinceStartup();
 
     const QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
     SessionPanelData leftSession, rightSession;
-    if (SessionManager::load(leftSession, rightSession)) {
+    const bool sessionLoaded = SessionManager::load(leftSession, rightSession);
+    if (m_collectStartupPhases)
+        m_startupSessionDataLoadedMs = elapsedSinceStartup();
+    if (sessionLoaded) {
         // Network tabs are not restored at all -- reconnecting during startup
         // blocks on an unreachable server or pops a password dialog before the
         // window is even usable. See SessionManager::dropNetworkTabs().
@@ -682,14 +701,9 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
     if (m_collectStartupPhases)
         m_startupShortcutsTitleBarReadyMs = elapsedSinceStartup();
 
-    // Apply the persisted file-list font size now that both panels and the
-    // Interface-menu control exist.
-    const int listFont = m_settings.listFontSize();
-    m_leftPanel->setListFontSize(listFont);
-    m_rightPanel->setListFontSize(listFont);
     // Per-side, per-mode view scale (status-bar -/+ buttons): restore whatever
     // was last saved, then persist again whenever a panel's -/+ click changes
-    // it. Applied after setListFontSize() above since it can override the
+    // it. Applied after startup typography since it can override the
     // font-derived thumbnail/row size.
     m_leftPanel->setThumbnailIconSize(m_settings.thumbnailIconSize(QStringLiteral("left")));
     m_leftPanel->setListRowHeight(m_settings.listRowHeight(QStringLiteral("left")));
@@ -1108,9 +1122,24 @@ QJsonObject MainWindow::startupMetrics() const {
                            {QStringLiteral("interactiveMs"), m_startupInteractiveMs}};
     if (m_collectStartupPhases) {
         metrics.insert(QStringLiteral("applicationSetupMs"), m_startupApplicationSetupMs);
+        metrics.insert(QStringLiteral("mainWindowBodyStartedMs"),
+                       m_startupMainWindowBodyStartedMs);
+        metrics.insert(QStringLiteral("panelsConstructionStartedMs"),
+                       m_startupPanelsConstructionStartedMs);
+        metrics.insert(QStringLiteral("leftPanelConstructedMs"),
+                       m_startupLeftPanelConstructedMs);
         metrics.insert(QStringLiteral("panelsConstructedMs"), m_startupPanelsConstructedMs);
         metrics.insert(QStringLiteral("operationQueueConstructedMs"),
                        m_startupOperationQueueConstructedMs);
+        metrics.insert(QStringLiteral("panelPreferencesRestoredMs"),
+                       m_startupPanelPreferencesRestoredMs);
+        metrics.insert(QStringLiteral("interfaceTypographyAppliedMs"),
+                       m_startupInterfaceTypographyAppliedMs);
+        metrics.insert(QStringLiteral("panelVisibilityRestoredMs"),
+                       m_startupPanelVisibilityRestoredMs);
+        metrics.insert(QStringLiteral("viewSettingsRestoredMs"),
+                       m_startupViewSettingsRestoredMs);
+        metrics.insert(QStringLiteral("sessionDataLoadedMs"), m_startupSessionDataLoadedMs);
         metrics.insert(QStringLiteral("sessionNavigationDispatchedMs"),
                        m_startupSessionNavigationDispatchedMs);
         metrics.insert(QStringLiteral("shortcutsTitleBarReadyMs"),
@@ -1126,6 +1155,8 @@ QJsonObject MainWindow::startupMetrics() const {
 }
 
 qint64 MainWindow::elapsedSinceStartup() const {
+    if (m_startupClock.isValid())
+        return m_startupClock.elapsed();
     return m_startupElapsedOffsetMs + m_startupElapsed.elapsed();
 }
 
@@ -2444,10 +2475,8 @@ void MainWindow::chooseGlobalFont() {
         return;
     m_settings.setGlobalFontFamily(selected.family());
     applyInterfaceTypography();
-    for (FilePanel *panel : {m_leftPanel, m_rightPanel}) {
-        panel->setListFontFamily(selected.family());
-        panel->setListFontSize(m_settings.listFontSize());
-    }
+    for (FilePanel *panel : {m_leftPanel, m_rightPanel})
+        panel->setListTypography(selected.family(), m_settings.listFontSize());
     if (m_quickView) {
         m_quickView->setContentFontFamily(selected.family());
         m_quickView->setContentFontSize(m_settings.listFontSize());
@@ -2456,12 +2485,13 @@ void MainWindow::chooseGlobalFont() {
 }
 
 void MainWindow::applyInterfaceTypography() {
-    Typography::applyApplicationFont(m_settings);
-    Typography::applyChromeFont(this, m_settings);
-    Typography::applyChromeFont(m_leftPanel, m_settings);
-    Typography::applyChromeFont(m_rightPanel, m_settings);
-    Typography::applyChromeFont(m_commandBar, m_settings);
-    Typography::applyChromeFont(m_functionKeyBar, m_settings);
+    const QFont chrome = Typography::chromeFont(m_settings);
+    Typography::applyApplicationFont(chrome);
+    Typography::applyChromeFont(this, chrome);
+    Typography::applyChromeFont(m_leftPanel, chrome);
+    Typography::applyChromeFont(m_rightPanel, chrome);
+    Typography::applyChromeFont(m_commandBar, chrome);
+    Typography::applyChromeFont(m_functionKeyBar, chrome);
 }
 
 void MainWindow::calculateChecksums() {

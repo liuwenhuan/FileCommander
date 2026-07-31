@@ -530,8 +530,16 @@ TEST(MainWindowStartupTest, EmitsReadyAfterBothVisiblePanelsAreInteractive) {
               metrics.value(QStringLiteral("panelsLoadedMs")).toInt());
     const QStringList phaseNames = {
         QStringLiteral("applicationSetupMs"),
+        QStringLiteral("mainWindowBodyStartedMs"),
+        QStringLiteral("panelsConstructionStartedMs"),
+        QStringLiteral("leftPanelConstructedMs"),
         QStringLiteral("panelsConstructedMs"),
         QStringLiteral("operationQueueConstructedMs"),
+        QStringLiteral("panelPreferencesRestoredMs"),
+        QStringLiteral("interfaceTypographyAppliedMs"),
+        QStringLiteral("panelVisibilityRestoredMs"),
+        QStringLiteral("viewSettingsRestoredMs"),
+        QStringLiteral("sessionDataLoadedMs"),
         QStringLiteral("sessionNavigationDispatchedMs"),
         QStringLiteral("shortcutsTitleBarReadyMs"),
         QStringLiteral("startupThemeApplyStartedMs"),

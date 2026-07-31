@@ -13,5 +13,7 @@ public:
     static QFont systemFont();
     static QFont chromeFont(const Settings &settings);
     static void applyApplicationFont(const Settings &settings);
+    static void applyApplicationFont(const QFont &font);
     static void applyChromeFont(QWidget *widget, const Settings &settings);
+    static void applyChromeFont(QWidget *widget, const QFont &font);
 };

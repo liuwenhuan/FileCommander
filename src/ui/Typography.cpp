@@ -51,10 +51,19 @@ QFont Typography::chromeFont(const Settings &settings) {
 }
 
 void Typography::applyApplicationFont(const Settings &settings) {
-    QApplication::setFont(chromeFont(settings));
+    applyApplicationFont(chromeFont(settings));
+}
+
+void Typography::applyApplicationFont(const QFont &font) {
+    if (QApplication::font() != font)
+        QApplication::setFont(font);
 }
 
 void Typography::applyChromeFont(QWidget *widget, const Settings &settings) {
-    if (widget)
-        widget->setFont(chromeFont(settings));
+    applyChromeFont(widget, chromeFont(settings));
+}
+
+void Typography::applyChromeFont(QWidget *widget, const QFont &font) {
+    if (widget && widget->font() != font)
+        widget->setFont(font);
 }

@@ -2,6 +2,7 @@
 
 #include <QDir>
 #include <QApplication>
+#include <QEvent>
 #include <QFile>
 #include <QLineEdit>
 #include <QSignalSpy>
@@ -18,6 +19,18 @@
 // font size, and both silently missed it. Neither is reachable through a public
 // accessor, so drive the widgets directly here.
 namespace {
+
+class FontChangeCounter final : public QObject {
+public:
+    int changes = 0;
+
+protected:
+    bool eventFilter(QObject *, QEvent *event) override {
+        if (event->type() == QEvent::FontChange)
+            ++changes;
+        return false;
+    }
+};
 
 // Waits for the panel's asynchronous directory load to land.
 void settle(FilePanel &panel, const QString &path) {
@@ -70,6 +83,64 @@ TEST_F(FilePanelFontTest, TreeFontFollowsListFontSize) {
     panel.setListFontSize(9); // live change, no restart
     EXPECT_EQ(tree->font().pointSize(), 9);
     EXPECT_EQ(tree->viewport()->font().pointSize(), 9);
+}
+
+TEST_F(FilePanelFontTest, CombinedTypographyAppliesFamilyAndSizeOnceToTheDetailsSurface) {
+    FilePanel panel;
+    const QString initialFamily = panel.view()->font().family();
+    const QString family = initialFamily == QStringLiteral("FileCommander Typography Test")
+                               ? QStringLiteral("FileCommander Alternate Typography Test")
+                               : QStringLiteral("FileCommander Typography Test");
+    FontChangeCounter viewCounter;
+    FontChangeCounter viewportCounter;
+    panel.view()->installEventFilter(&viewCounter);
+    panel.view()->viewport()->installEventFilter(&viewportCounter);
+
+    panel.setListTypography(family, 15);
+
+    EXPECT_EQ(viewCounter.changes, 1);
+    // QAbstractItemView forwards one parent-font event to its viewport in
+    // addition to the explicit viewport font required by inline editors.
+    EXPECT_EQ(viewportCounter.changes, 2);
+    EXPECT_EQ(panel.view()->font().family(), family);
+    EXPECT_EQ(panel.view()->font().pointSize(), 15);
+    EXPECT_EQ(panel.view()->viewport()->font().family(), family);
+    EXPECT_EQ(panel.view()->viewport()->font().pointSize(), 15);
+}
+
+TEST_F(FilePanelFontTest, InitialTypographyAvoidsACompletedViewFontChange) {
+    QFont initialFont = QApplication::font();
+    initialFont.setPointSize(15);
+    FilePanel panel(initialFont);
+    FontChangeCounter viewCounter;
+    FontChangeCounter viewportCounter;
+    panel.view()->installEventFilter(&viewCounter);
+    panel.view()->viewport()->installEventFilter(&viewportCounter);
+
+    panel.setListTypography(initialFont.family(), initialFont.pointSize());
+
+    EXPECT_EQ(viewCounter.changes, 0);
+    EXPECT_EQ(viewportCounter.changes, 0);
+    EXPECT_EQ(panel.view()->font().pointSize(), 15);
+    EXPECT_EQ(panel.view()->viewport()->font().pointSize(), 15);
+}
+
+TEST_F(FilePanelFontTest, InitialTypographySurvivesThemePolishAndActivation) {
+    QFont initialFont = QApplication::font();
+    initialFont.setPointSize(15);
+    FilePanel panel(initialFont);
+    panel.view()->setPanelActive(true);
+    QFile qss(QStringLiteral(TTC_SOURCE_DIR "/resources/themes/dark.qss"));
+    ASSERT_TRUE(qss.open(QIODevice::ReadOnly));
+    qApp->setStyleSheet(QString::fromUtf8(qss.readAll()));
+    struct ClearSheet {
+        ~ClearSheet() { qApp->setStyleSheet(QString()); }
+    } clearSheet;
+
+    QCoreApplication::processEvents();
+
+    EXPECT_EQ(panel.view()->font().pointSize(), 15);
+    EXPECT_EQ(panel.view()->viewport()->font().pointSize(), 15);
 }
 
 TEST_F(FilePanelFontTest, RenameEditorUsesListFontSize) {

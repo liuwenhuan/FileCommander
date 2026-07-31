@@ -9,6 +9,7 @@
 #include <clocale>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 
 #include "AppIcon.h"
 #include "FolderAssociation.h"
@@ -23,6 +24,13 @@
 int main(int argc, char *argv[]) {
     QElapsedTimer startupElapsed;
     startupElapsed.start();
+    bool startupProbeRequested = false;
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--startup-probe") == 0) {
+            startupProbeRequested = true;
+            break;
+        }
+    }
     // Use the native Qt xcb platform rather than deepin's dxcb: the app draws its
     // own frameless chrome (title bar, rounded corners, shadow) and relies on no
     // DTK/deepin platform behaviour, so it looks and works the same on any X11
@@ -49,7 +57,10 @@ int main(int argc, char *argv[]) {
     QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 
     QApplication app(argc, argv);
+    const qint64 qApplicationConstructedMs =
+        startupProbeRequested ? startupElapsed.elapsed() : -1;
     Typography::initializeSystemFont();
+    const qint64 systemFontCapturedMs = startupProbeRequested ? startupElapsed.elapsed() : -1;
     // libmpv (video preview) refuses to create a context unless LC_NUMERIC is
     // "C". Qt/system locale otherwise sets it to the user's locale, which makes
     // mpv_create() throw. Reset just the numeric category (keeps the rest of the
@@ -62,6 +73,8 @@ int main(int argc, char *argv[]) {
     // FileCommander.desktop with Icon=FileCommander). Harmless on other desktops.
     app.setDesktopFileName(QStringLiteral("FileCommander"));
     app.setWindowIcon(ttc::appIcon());
+    const qint64 applicationIdentityReadyMs =
+        startupProbeRequested ? startupElapsed.elapsed() : -1;
 
     const QStringList arguments = app.arguments();
     const int startupProbe = arguments.indexOf(QStringLiteral("--startup-probe"));
@@ -79,12 +92,29 @@ int main(int argc, char *argv[]) {
     }
 
     Settings settings;
+    const qint64 settingsReadyMs = startupProbeRequested ? startupElapsed.elapsed() : -1;
     Typography::applyApplicationFont(settings);
+    const qint64 applicationFontReadyMs = startupProbeRequested ? startupElapsed.elapsed() : -1;
     TranslationManager::install(app, settings.language());
+    const qint64 translationReadyMs = startupProbeRequested ? startupElapsed.elapsed() : -1;
+    QJsonObject startupPhases;
+    if (startupProbeRequested) {
+        startupPhases = {
+            {QStringLiteral("qApplicationConstructedMs"), qApplicationConstructedMs},
+            {QStringLiteral("systemFontCapturedMs"), systemFontCapturedMs},
+            {QStringLiteral("applicationIdentityReadyMs"), applicationIdentityReadyMs},
+            {QStringLiteral("settingsReadyMs"), settingsReadyMs},
+            {QStringLiteral("applicationFontReadyMs"), applicationFontReadyMs},
+            {QStringLiteral("translationReadyMs"), translationReadyMs},
+        };
+    }
 
     int exitCode = 0;
     {
-        MainWindow window(nullptr, startupElapsed.elapsed(), !startupProbeOutput.isEmpty());
+        MainWindow window(nullptr, startupElapsed.elapsed(), !startupProbeOutput.isEmpty(),
+                          &startupElapsed);
+        if (!startupProbeOutput.isEmpty())
+            startupPhases.insert(QStringLiteral("mainWindowConstructedMs"), startupElapsed.elapsed());
         // Belt-and-braces for WMs that read the per-window icon. Takes the
         // application icon rather than painting a fresh one: MainWindow's
         // constructor has already applied the theme, which may have replaced the
@@ -95,7 +125,7 @@ int main(int argc, char *argv[]) {
         const QStringList folders = FolderAssociation::folderArguments(arguments);
         if (!startupProbeOutput.isEmpty()) {
             QObject::connect(&window, &MainWindow::startupReady, &app,
-                             [&app, &window, startupProbeOutput] {
+                             [&app, &window, startupProbeOutput, &startupPhases] {
                     QFile output(startupProbeOutput);
                     if (!output.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
                         std::fprintf(stderr, "FileCommander startup probe: cannot open %s: %s\n",
@@ -103,8 +133,13 @@ int main(int argc, char *argv[]) {
                         QTimer::singleShot(0, &app, [&app] { app.exit(1); });
                         return;
                     }
+                    QJsonObject metrics = window.startupMetrics();
+                    for (auto it = startupPhases.constBegin();
+                         it != startupPhases.constEnd(); ++it) {
+                        metrics.insert(it.key(), it.value());
+                    }
                     const QByteArray json =
-                        QJsonDocument(window.startupMetrics()).toJson(QJsonDocument::Compact);
+                        QJsonDocument(metrics).toJson(QJsonDocument::Compact);
                     if (output.write(json) != json.size() || !output.flush() ||
                         output.error() != QFileDevice::NoError) {
                         std::fprintf(stderr, "FileCommander startup probe: cannot write %s: %s\n",
@@ -125,7 +160,12 @@ int main(int argc, char *argv[]) {
         }
         if (!startupProbeOutput.isEmpty() && !folders.isEmpty())
             window.openFolders(folders);
+        if (!startupProbeOutput.isEmpty())
+            startupPhases.insert(QStringLiteral("folderArgumentsProcessedMs"),
+                                 startupElapsed.elapsed());
         window.show();
+        if (!startupProbeOutput.isEmpty())
+            startupPhases.insert(QStringLiteral("showReturnedMs"), startupElapsed.elapsed());
         ttc::requestWindowForeground(&window);
         if (startupProbeOutput.isEmpty()) {
             QObject::connect(&instance, &InstanceCoordinator::activationRequested, &window,

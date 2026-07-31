@@ -3,7 +3,8 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$ExecutablePath,
     [ValidateRange(1, 120)]
-    [int]$TimeoutSeconds = 15
+    [int]$TimeoutSeconds = 15,
+    [switch]$UseRealSession
 )
 
 $ErrorActionPreference = 'Stop'
@@ -15,37 +16,63 @@ New-Item -ItemType Directory -Path $runDirectory | Out-Null
 try {
     $results = @()
     $phaseFields = @(
+        'qApplicationConstructedMs',
+        'systemFontCapturedMs',
+        'applicationIdentityReadyMs',
+        'settingsReadyMs',
+        'applicationFontReadyMs',
+        'translationReadyMs',
         'applicationSetupMs',
+        'mainWindowBodyStartedMs',
+        'panelsConstructionStartedMs',
+        'leftPanelConstructedMs',
         'panelsConstructedMs',
         'operationQueueConstructedMs',
+        'panelPreferencesRestoredMs',
+        'interfaceTypographyAppliedMs',
+        'panelVisibilityRestoredMs',
+        'viewSettingsRestoredMs',
+        'sessionDataLoadedMs',
         'sessionNavigationDispatchedMs',
         'shortcutsTitleBarReadyMs',
         'startupThemeApplyStartedMs',
         'startupThemeApplyFinishedMs',
+        'mainWindowConstructedMs',
+        'folderArgumentsProcessedMs',
         'firstShowMs',
+        'showReturnedMs',
         'readinessMs'
     )
-    foreach ($run in 1..7) {
-        $outputPath = Join-Path $runDirectory ("startup-$run.json")
-        $leftDirectory = Join-Path $runDirectory ("left-$run")
-        $rightDirectory = Join-Path $runDirectory ("right-$run")
-        New-Item -ItemType Directory -Path $leftDirectory, $rightDirectory | Out-Null
-        [System.IO.File]::WriteAllText((Join-Path $leftDirectory 'first.txt'), 'first')
-        [System.IO.File]::WriteAllText((Join-Path $leftDirectory 'second.txt'), 'second')
-        [System.IO.File]::WriteAllText((Join-Path $rightDirectory 'first.txt'), 'first')
-        [System.IO.File]::WriteAllText((Join-Path $rightDirectory 'second.txt'), 'second')
-        $arguments = "--startup-probe `"$outputPath`" `"$leftDirectory`" `"$rightDirectory`""
+    $warmupRuns = 2
+    $measuredRuns = 7
+    foreach ($attempt in 1..($warmupRuns + $measuredRuns)) {
+        $isWarmup = $attempt -le $warmupRuns
+        $run = $attempt - $warmupRuns
+        $label = if ($isWarmup) { "warmup $attempt" } else { "run $run" }
+        $outputPath = Join-Path $runDirectory ("startup-$attempt.json")
+        $leftDirectory = Join-Path $runDirectory ("left-$attempt")
+        $rightDirectory = Join-Path $runDirectory ("right-$attempt")
+        if ($UseRealSession) {
+            $arguments = "--startup-probe `"$outputPath`""
+        } else {
+            New-Item -ItemType Directory -Path $leftDirectory, $rightDirectory | Out-Null
+            [System.IO.File]::WriteAllText((Join-Path $leftDirectory 'first.txt'), 'first')
+            [System.IO.File]::WriteAllText((Join-Path $leftDirectory 'second.txt'), 'second')
+            [System.IO.File]::WriteAllText((Join-Path $rightDirectory 'first.txt'), 'first')
+            [System.IO.File]::WriteAllText((Join-Path $rightDirectory 'second.txt'), 'second')
+            $arguments = "--startup-probe `"$outputPath`" `"$leftDirectory`" `"$rightDirectory`""
+        }
         $process = Start-Process -FilePath $executable -ArgumentList $arguments -PassThru
         if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
             $process.Kill()
             $process.WaitForExit()
-            throw "Startup probe run $run timed out after $TimeoutSeconds seconds."
+            throw "Startup probe $label timed out after $TimeoutSeconds seconds."
         }
         if ($process.ExitCode -ne 0) {
-            throw "Startup probe run $run exited with code $($process.ExitCode)."
+            throw "Startup probe $label exited with code $($process.ExitCode)."
         }
         if (-not (Test-Path -LiteralPath $outputPath -PathType Leaf)) {
-            throw "Startup probe run $run did not create $outputPath."
+            throw "Startup probe $label did not create $outputPath."
         }
 
         $result = Get-Content -LiteralPath $outputPath -Raw | ConvertFrom-Json
@@ -53,15 +80,25 @@ try {
             $value = $result.$field
             if ($value -is [string] -or $null -eq $value -or
                 [math]::Truncate([double]$value) -ne [double]$value -or $value -lt 0) {
-                throw "Startup probe run $run returned invalid ${field}: $value"
+                throw "Startup probe $label returned invalid ${field}: $value"
             }
         }
+        $validatedPrevious = -1
         foreach ($field in $phaseFields) {
             $value = $result.$field
             if ($value -is [string] -or $null -eq $value -or
                 [math]::Truncate([double]$value) -ne [double]$value -or $value -lt 0) {
-                throw "Startup probe run $run returned invalid ${field}: $value"
+                throw "Startup probe $label returned invalid ${field}: $value"
             }
+            if ([int]$value -lt $validatedPrevious) {
+                throw "Startup probe $label returned a non-monotonic ${field}: $value after $validatedPrevious"
+            }
+            $validatedPrevious = [int]$value
+        }
+
+        if ($isWarmup) {
+            Write-Host ("Warmup {0}: interactiveMs={1}" -f $attempt, $result.interactiveMs)
+            continue
         }
 
         $results += [pscustomobject]@{

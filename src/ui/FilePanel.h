@@ -19,6 +19,7 @@ class FileListView;
 class StatusBarWidget;
 class TabBar;
 class QLineEdit;
+class QFont;
 class QToolButton;
 class QTreeView;
 class DirectoryTreeModel;
@@ -45,6 +46,7 @@ class FilePanel : public QWidget {
 
 public:
     explicit FilePanel(QWidget *parent = nullptr);
+    explicit FilePanel(const QFont &initialListFont, QWidget *parent = nullptr);
     ~FilePanel() override;
     qreal focusProgress() const;
 
@@ -126,6 +128,7 @@ public:
     // header height to match. Point size is clamped to 7..24.
     void setListFontSize(int pt);
     void setListFontFamily(const QString &family);
+    void setListTypography(const QString &family, int pt);
     void setTabBarVisible(bool visible);
     void setDirectoryTreeVisible(bool visible);
 
