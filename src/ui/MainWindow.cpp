@@ -1104,10 +1104,15 @@ void MainWindow::setupFeatureBatch() {
 #endif
 
 #if FILECOMMANDER_HAS_LINUX_INTEGRATION || (defined(Q_OS_WIN) && FILECOMMANDER_HAS_NETWORK)
-    // SMB neighbourhood discovery is injected into the external-connection
-    // picker, which starts scans on demand. Startup only creates the lightweight
-    // owner so the first visible frame and smoke-test shutdown stay quiet.
+    // Warm the SMB-neighbourhood cache after the first frame's deferred feature
+    // batch has started. The picker still starts/rescans on demand, but a quiet
+    // background pass restores the pre-startup-optimization behaviour where
+    // nearby devices are usually already listed when the user opens it.
     m_smbBrowser = new SmbHostBrowser(this);
+    QTimer::singleShot(0, this, [browser = QPointer<SmbHostBrowser>(m_smbBrowser)] {
+        if (browser)
+            browser->startDiscovery(false);
+    });
 #endif
 
     // Once-a-day background update check: if we haven't checked today, ask the

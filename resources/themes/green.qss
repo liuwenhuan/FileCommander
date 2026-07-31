@@ -439,9 +439,9 @@ QTabBar::tab:hover {
 }
 
 QTabBar QToolButton {
-    background: transparent;
+    background: url(:/icons/crt-scan-chrome.png) repeat;
     color: #33ff88;
-    border: 1px solid transparent;
+    border: 1px solid #12602f;
     padding: 0;
 }
 
@@ -457,9 +457,9 @@ QTabBar QToolButton:pressed {
 }
 
 QTabBar QToolButton:disabled {
-    background: transparent;
+    background: url(:/icons/crt-scan-chrome.png) repeat;
     color: #12602f;
-    border-color: transparent;
+    border-color: #12602f;
 }
 
 QStatusBar {

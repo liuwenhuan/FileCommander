@@ -8,6 +8,7 @@
 #include <QPainter>
 #include <QPropertyAnimation>
 #include <QProxyStyle>
+#include <QRegion>
 #include <QStyleFactory>
 #include <QStyleOption>
 #include <QToolButton>
@@ -123,6 +124,7 @@ void TabBar::resizeEvent(QResizeEvent *event) {
 }
 
 void TabBar::paintEvent(QPaintEvent *event) {
+    arrangeScrollButtons();
     // Reconcile the close-button colours on every repaint: currentIndex() is
     // always authoritative here, so this self-corrects even when a tab was
     // added/switched with signals blocked. setColour() no-ops when unchanged,
@@ -133,6 +135,14 @@ void TabBar::paintEvent(QPaintEvent *event) {
     // Mark the active tab with a thick accent line along its top edge, rather
     // than a filled background, so its label reads the same as the other tabs.
     const int current = currentIndex();
+    QRegion scrollButtonRegion;
+    for (QToolButton *button :
+         findChildren<QToolButton *>(QString(), Qt::FindDirectChildrenOnly)) {
+        if ((button->arrowType() == Qt::LeftArrow || button->arrowType() == Qt::RightArrow) &&
+            button->isVisible()) {
+            scrollButtonRegion += button->geometry();
+        }
+    }
     if (current >= 0) {
         const QRect r = tabRect(current);
         if (r.isValid()) {
@@ -140,8 +150,18 @@ void TabBar::paintEvent(QPaintEvent *event) {
             constexpr int thickness = 3;
             QColor accent = palette().color(QPalette::Highlight);
             accent.setAlphaF(accent.alphaF() * m_activationProgress);
+            if (!scrollButtonRegion.isEmpty())
+                p.setClipRegion(QRegion(r).subtracted(scrollButtonRegion));
             p.fillRect(r.x(), r.y(), r.width(), thickness, accent);
         }
+    }
+
+    if (!scrollButtonRegion.isEmpty()) {
+        QPainter p(this);
+        p.setClipRegion(scrollButtonRegion);
+        const auto rects = scrollButtonRegion.rects();
+        for (const QRect &rect : rects)
+            p.fillRect(rect, palette().color(QPalette::Window));
     }
 
     arrangeScrollButtons();
@@ -219,10 +239,16 @@ void TabBar::arrangeScrollButtons() {
     }
 
     if (left && left->isVisible()) {
+        left->setAutoFillBackground(true);
+        left->setAttribute(Qt::WA_StyledBackground, true);
+        left->setFocusPolicy(Qt::NoFocus);
         left->move(0, qMax(0, (height() - left->height()) / 2));
         left->raise();
     }
     if (right && right->isVisible()) {
+        right->setAutoFillBackground(true);
+        right->setAttribute(Qt::WA_StyledBackground, true);
+        right->setFocusPolicy(Qt::NoFocus);
         right->move(qMax(0, width() - right->width()),
                     qMax(0, (height() - right->height()) / 2));
         right->raise();

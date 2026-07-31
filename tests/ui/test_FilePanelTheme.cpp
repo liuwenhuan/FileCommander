@@ -211,6 +211,51 @@ TEST(TabBarTest, OverflowUsesNativeScrollersInsideTheTabBar) {
     EXPECT_TRUE(accentBeforeRight);
 }
 
+TEST(TabBarTest, OverflowAccentDoesNotPaintUnderNativeScrollers) {
+    TabBar tabBar;
+    for (int index = 0; index < 20; ++index)
+        tabBar.addTab(QStringLiteral("Long tab title %1").arg(index));
+
+    tabBar.resize(240, 36);
+    tabBar.setCurrentIndex(tabBar.count() - 1);
+    tabBar.show();
+    qApp->processEvents();
+    qApp->processEvents();
+
+    QToolButton *left = nullptr;
+    QToolButton *right = nullptr;
+    for (QToolButton *button :
+         tabBar.findChildren<QToolButton *>(QString(), Qt::FindDirectChildrenOnly)) {
+        if (button->arrowType() == Qt::LeftArrow)
+            left = button;
+        else if (button->arrowType() == Qt::RightArrow)
+            right = button;
+    }
+
+    ASSERT_NE(left, nullptr);
+    ASSERT_NE(right, nullptr);
+    ASSERT_TRUE(left->isVisible());
+    ASSERT_TRUE(right->isVisible());
+
+    const QImage rendered = tabBar.grab().toImage();
+    const QColor accent = tabBar.palette().color(QPalette::Highlight);
+    auto containsAccent = [&](const QRect &rect) {
+        for (int x = rect.left(); x <= rect.right() && x < rendered.width(); ++x) {
+            for (int y = rect.top(); y <= qMin(rect.bottom(), 3); ++y) {
+                const QColor pixel = rendered.pixelColor(x, y);
+                if (qAbs(pixel.red() - accent.red()) < 8 &&
+                    qAbs(pixel.green() - accent.green()) < 8 &&
+                    qAbs(pixel.blue() - accent.blue()) < 8)
+                    return true;
+            }
+        }
+        return false;
+    };
+
+    EXPECT_FALSE(containsAccent(left->geometry()));
+    EXPECT_FALSE(containsAccent(right->geometry()));
+}
+
 TEST(TabBarTest, OverflowScrollersReflectAvailableDirection) {
     TabBar tabBar;
     for (int index = 0; index < 20; ++index)
