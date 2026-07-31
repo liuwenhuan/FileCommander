@@ -13,6 +13,7 @@
 #include "Settings.h"
 #include "Typography.h"
 #include "TranslationManager.h"
+#include "WindowActivation.h"
 #include "diagnostics/RuntimeCounters.h"
 
 int main(int argc, char *argv[]) {
@@ -77,14 +78,13 @@ int main(int argc, char *argv[]) {
         // DialogTitleBar reads its icon from the window it belongs to.
         window.setWindowIcon(app.windowIcon());
         window.show();
+        ttc::requestWindowForeground(&window);
         QObject::connect(&instance, &InstanceCoordinator::activationRequested, &window,
                          [&window](const QStringList &activationArguments) {
                 const QStringList folders = FolderAssociation::folderArguments(activationArguments);
                 if (!folders.isEmpty())
                     window.openFolders(folders);
-                window.showNormal();
-                window.raise();
-                window.activateWindow();
+                ttc::requestWindowForeground(&window);
             });
         const int packageSmoke = arguments.indexOf(QStringLiteral("--package-smoke"));
         if (packageSmoke >= 0 && packageSmoke + 1 < arguments.size()) {

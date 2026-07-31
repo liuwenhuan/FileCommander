@@ -45,6 +45,8 @@ set(UI_SOURCES
     SlideSceneBuilder.cpp
     ViewerWindow.h
     ViewerWindow.cpp
+    WindowActivation.h
+    WindowActivation.cpp
     FunctionKeyBar.h
     FunctionKeyBar.cpp
     DragPixmap.h

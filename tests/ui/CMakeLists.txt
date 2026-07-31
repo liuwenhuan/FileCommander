@@ -44,6 +44,7 @@ set(UI_TEST_SOURCES
     test_QuickViewMotion.cpp
     test_MainWindowPreviewSwap.cpp
     test_MainWindowActions.cpp
+    test_WindowActivation.cpp
     test_FilePanelTheme.cpp
     test_TabMotion.cpp
     test_FileListViewLayout.cpp
