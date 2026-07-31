@@ -58,6 +58,17 @@ TEST(FilePanelThemeTest, TreeButtonSharesTheAddressRowWithNavigationButtons) {
     EXPECT_EQ(addTab->width(), addTab->height());
 }
 
+TEST(FilePanelThemeTest, TreeButtonUsesCompactPaintedGlyph) {
+    FilePanel panel;
+
+    QToolButton *tree = panel.findChild<QToolButton *>(QStringLiteral("PanelTreeButton"));
+    ASSERT_NE(tree, nullptr);
+
+    EXPECT_TRUE(tree->text().isEmpty());
+    EXPECT_TRUE(tree->property("compactTreeGlyph").toBool());
+    EXPECT_LE(tree->property("treeGlyphMaxWidth").toInt(), 14);
+}
+
 TEST(FilePanelThemeTest, TabAndAddressRowButtonsUseTheirOwnThemeSelectors) {
     for (const QString &theme : {QStringLiteral("light"), QStringLiteral("dark"),
                                  QStringLiteral("green")}) {

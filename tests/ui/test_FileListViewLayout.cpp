@@ -2,6 +2,7 @@
 
 #include <QApplication>
 #include <QHeaderView>
+#include <QScrollBar>
 #include <QSignalSpy>
 #include <QStandardItemModel>
 #include <QTest>
@@ -29,13 +30,20 @@ int lastVisibleColumn(const QHeaderView &header) {
     return -1;
 }
 
-void expectLastVisibleSectionAtHeaderViewportRight(FileListView &view) {
+int columnContentRight(FileListView &view) {
+    QScrollBar *scrollbar = view.verticalScrollBar();
+    if (scrollbar && scrollbar->isVisible())
+        return view.horizontalHeader()->viewport()->mapFrom(&view, scrollbar->geometry().topLeft()).x();
+    return view.horizontalHeader()->viewport()->width();
+}
+
+void expectLastVisibleSectionAtContentRight(FileListView &view) {
     QHeaderView *header = view.horizontalHeader();
     const int last = lastVisibleColumn(*header);
     ASSERT_GE(last, 0);
     ASSERT_GT(header->viewport()->width(), 0);
     EXPECT_EQ(header->sectionViewportPosition(last) + header->sectionSize(last),
-              header->viewport()->width());
+              columnContentRight(view));
 }
 
 class FileListViewLayoutTest : public ::testing::Test {
@@ -59,7 +67,7 @@ protected:
 TEST_F(FileListViewLayoutTest, LastVisibleSectionReachesHeaderViewportRightEdge) {
     resizeAndSettle(900);
 
-    expectLastVisibleSectionAtHeaderViewportRight(m_view);
+    expectLastVisibleSectionAtContentRight(m_view);
 }
 
 TEST_F(FileListViewLayoutTest, HiddenColumnsStillLeaveLastVisibleSectionAtHeaderViewportRightEdge) {
@@ -70,20 +78,35 @@ TEST_F(FileListViewLayoutTest, HiddenColumnsStillLeaveLastVisibleSectionAtHeader
     header->setSectionHidden(FileSystemModel::PermissionsColumn, true);
     resizeAndSettle(640);
 
-    expectLastVisibleSectionAtHeaderViewportRight(m_view);
+    expectLastVisibleSectionAtContentRight(m_view);
 }
 
 TEST_F(FileListViewLayoutTest, NarrowViewportKeepsLastVisibleSectionAtHeaderViewportRightEdge) {
     resizeAndSettle(80);
 
-    expectLastVisibleSectionAtHeaderViewportRight(m_view);
+    expectLastVisibleSectionAtContentRight(m_view);
 }
 
-TEST_F(FileListViewLayoutTest, AlwaysOnScrollbarDoesNotReserveExtraHeaderWidth) {
+TEST_F(FileListViewLayoutTest, AlwaysOnScrollbarPinsColumnsToContentEdge) {
     ASSERT_EQ(m_view.verticalScrollBarPolicy(), Qt::ScrollBarAlwaysOn);
     resizeAndSettle(700);
 
-    expectLastVisibleSectionAtHeaderViewportRight(m_view);
+    expectLastVisibleSectionAtContentRight(m_view);
+}
+
+TEST_F(FileListViewLayoutTest, VerticalScrollbarStartsBelowHeaderAndColumnsStopBeforeIt) {
+    ASSERT_EQ(m_view.verticalScrollBarPolicy(), Qt::ScrollBarAlwaysOn);
+    resizeAndSettle(700);
+
+    QHeaderView *header = m_view.horizontalHeader();
+    QScrollBar *scrollbar = m_view.verticalScrollBar();
+    ASSERT_NE(header, nullptr);
+    ASSERT_NE(scrollbar, nullptr);
+    ASSERT_TRUE(scrollbar->isVisible());
+
+    EXPECT_EQ(scrollbar->geometry().top(), header->geometry().bottom() + 1);
+
+    expectLastVisibleSectionAtContentRight(m_view);
 }
 
 TEST_F(FileListViewLayoutTest, DoubleClickingDividerAutoFitsTheColumnOnItsRight) {
@@ -130,6 +153,7 @@ TEST_F(FileListViewLayoutTest, DoubleClickingDividerAutoFitsTheColumnOnItsRight)
     EXPECT_GE(m_view.columnWidth(FileSystemModel::SizeColumn),
               m_view.fontMetrics().horizontalAdvance(widest) + 24);
     EXPECT_EQ(m_view.columnWidth(FileSystemModel::ExtColumn), extBefore);
+    expectLastVisibleSectionAtContentRight(m_view);
 }
 
 } // namespace

@@ -516,10 +516,16 @@ void FileListView::showColumnMenu(const QPoint &pos) {
 
 void FileListView::resizeEvent(QResizeEvent *event) {
     QTableView::resizeEvent(event);
+    placeVerticalScrollBarBelowHeader();
     // applyLayout() is pure arithmetic over the cached content-mins/base widths
     // (no per-row measurement), so it's cheap enough to run synchronously on
     // every interactive resize step -- no debounce or last-column-only shortcut.
     applyLayout();
+}
+
+void FileListView::updateGeometries() {
+    QTableView::updateGeometries();
+    placeVerticalScrollBarBelowHeader();
 }
 
 int FileListView::measureVariableColumn(int column, const QFontMetrics &fm) const {
@@ -589,12 +595,7 @@ void FileListView::applyLayout() {
     QHeaderView *header = horizontalHeader();
     if (!header || header->count() == 0)
         return;
-    // The header and table viewport have the same usable width: on conventional
-    // styles Qt already removes the always-on scrollbar from both, while overlay
-    // styles intentionally leave it over the content. Do not subtract a style
-    // metric here; doing so leaves a permanent gap and unpins the last header
-    // section from the header viewport's right edge.
-    const int avail = viewport()->width();
+    const int avail = columnLayoutWidth();
     if (avail <= 0) // pre-show / zero width: defer to the next resize/reset
         return;
     if (m_baseWidth.size() != header->count())
@@ -696,6 +697,36 @@ void FileListView::applyLayout() {
         }
     }
     m_adjustingColumns = false;
+}
+
+int FileListView::columnLayoutWidth() const {
+    int avail = viewport()->width();
+    const QScrollBar *bar = verticalScrollBar();
+    if (bar && bar->isVisible()) {
+        const int barLeftInViewport = viewport()->mapFrom(this, bar->geometry().topLeft()).x();
+        if (barLeftInViewport > 0)
+            avail = qMin(avail, barLeftInViewport);
+    }
+    return avail;
+}
+
+void FileListView::placeVerticalScrollBarBelowHeader() {
+    QScrollBar *bar = verticalScrollBar();
+    if (!bar || !bar->isVisible())
+        return;
+
+    const QHeaderView *header = horizontalHeader();
+    const QRect content = contentsRect();
+    const int top = header && header->isVisible()
+                        ? header->geometry().bottom() + 1
+                        : viewport()->geometry().top();
+    const int width = qMax(1, bar->sizeHint().width());
+    const int left = content.right() - width + 1;
+    const int bottom = content.bottom();
+    if (bottom < top)
+        return;
+    bar->setGeometry(left, top, width, bottom - top + 1);
+    bar->raise();
 }
 
 void FileListView::onSectionResized(int logical, int oldSize, int newSize) {
