@@ -313,7 +313,6 @@ private:
     QTimer *m_mediaWarmTimer = nullptr;
     bool m_mediaWarmScheduled = false;
     bool m_mediaWarmComplete = false;
-    bool m_initialThemeRepolishScheduled = false;
     QElapsedTimer m_startupElapsed;
     qint64 m_startupElapsedOffsetMs = 0;
     bool m_startupVisible = false;

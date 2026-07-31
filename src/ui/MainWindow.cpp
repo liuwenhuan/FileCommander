@@ -310,10 +310,6 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs) : QMainWindow(p
         restoreGeometry(savedGeometry);
 
     m_themeManager = new ThemeManager(this);
-    // Not applyTheme() yet: the panels and the menu action it refreshes do not
-    // exist this early. The stylesheet and the tints do have to be in place
-    // before any widget is built, though, or the first paint uses the wrong one.
-    m_themeManager->apply(m_settings.theme(), m_settings.phosphorImages());
 
     // A self-painted splitter so the divider line runs the full panel height
     // -- up through the breadcrumb and tab row -- clearly separating the two
@@ -692,6 +688,10 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs) : QMainWindow(p
         m_settings.setThumbnailIconSize(QStringLiteral("right"), m_rightPanel->thumbnailIconSize());
         m_settings.setListRowHeight(QStringLiteral("right"), m_rightPanel->listRowHeight());
     });
+
+    // Apply the startup stylesheet once, after every visible widget exists but
+    // before main() can show the window. Runtime changes still use applyTheme().
+    m_themeManager->apply(m_settings.theme(), m_settings.phosphorImages());
 }
 
 QString MainWindow::commandText(const QString &id, const QString &label) const {
@@ -1618,17 +1618,6 @@ void MainWindow::showEvent(QShowEvent *event) {
     if (!m_startupVisible) {
         m_startupVisible = true;
         m_startupVisibleMs = elapsedSinceStartup();
-    }
-    // On Windows, QStyleSheetStyle can create the first native scrollbar before
-    // the application's stylesheet has gone through a real native-window
-    // polish. Re-applying the already-selected theme on the next event turn
-    // performs that polish once the HWND exists; later user theme changes use
-    // this same path naturally.
-    if (!m_initialThemeRepolishScheduled && m_themeManager) {
-        m_initialThemeRepolishScheduled = true;
-        QTimer::singleShot(0, this, [this] {
-            m_themeManager->apply(m_settings.theme(), m_settings.phosphorImages());
-        });
     }
     // A window restored maximized only reports isMaximized() reliably once it's
     // mapped; the constructor's setContentsMargins ran before that and left the

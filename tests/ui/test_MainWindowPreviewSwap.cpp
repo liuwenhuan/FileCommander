@@ -3,10 +3,14 @@
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QEvent>
+#include <QImage>
 #include <QItemSelectionModel>
+#include <QScrollBar>
 #include <QSignalSpy>
 #include <QShortcut>
 #include <QSplitter>
+#include <QStyle>
+#include <QStyleOptionSlider>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTextBrowser>
@@ -49,6 +53,22 @@ private:
     QElapsedTimer &elapsed;
 };
 
+class StartupThemeObserver final : public QObject {
+public:
+    bool firstPaintSeen = false;
+    int styleChangesAfterShow = 0;
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        Q_UNUSED(watched);
+        if (event->type() == QEvent::Paint)
+            firstPaintSeen = true;
+        else if (event->type() == QEvent::StyleChange)
+            ++styleChangesAfterShow;
+        return false;
+    }
+};
+
 QSplitter *panelSplitter(MainWindow &window) {
     for (QSplitter *splitter : window.findChildren<QSplitter *>()) {
         if (splitter->orientation() != Qt::Horizontal || splitter->count() != 2)
@@ -64,6 +84,73 @@ QSplitter *panelSplitter(MainWindow &window) {
 
 void processGuiEvents() {
     QCoreApplication::processEvents(QEventLoop::AllEvents, 1000);
+}
+
+QRect scrollbarSliderRect(QScrollBar &scrollbar) {
+    QStyleOptionSlider option;
+    option.initFrom(&scrollbar);
+    option.orientation = scrollbar.orientation();
+    option.minimum = scrollbar.minimum();
+    option.maximum = scrollbar.maximum();
+    option.sliderPosition = scrollbar.sliderPosition();
+    option.sliderValue = scrollbar.value();
+    option.pageStep = scrollbar.pageStep();
+    option.singleStep = scrollbar.singleStep();
+    return scrollbar.style()->subControlRect(QStyle::CC_ScrollBar, &option,
+                                             QStyle::SC_ScrollBarSlider, &scrollbar);
+}
+
+struct StartupThemeCase {
+    Settings::Theme theme;
+    const char *name;
+    QColor handleColor;
+};
+
+class ScopedStartupThemeRestore final {
+public:
+    explicit ScopedStartupThemeRestore(Settings &settings)
+        : settings(settings), theme(settings.theme()), styleSheet(qApp->styleSheet()) {}
+
+    ~ScopedStartupThemeRestore() {
+        settings.setTheme(theme);
+        qApp->setStyleSheet(styleSheet);
+        processGuiEvents();
+    }
+
+private:
+    Settings &settings;
+    Settings::Theme theme;
+    QString styleSheet;
+};
+
+void populateStartupDirectory(const QTemporaryDir &directory, const QString &prefix) {
+    for (int index = 0; index < 96; ++index) {
+        QFile file(directory.filePath(QStringLiteral("%1-%2.txt").arg(prefix).arg(index, 3, 10,
+                                                                                  QLatin1Char('0'))));
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+        ASSERT_EQ(file.write("x"), 1);
+    }
+}
+
+void expectThemedScrollbar(FileListView &view, const StartupThemeCase &themeCase) {
+    ASSERT_TRUE(view.isVisible());
+    QScrollBar *scrollbar = view.verticalScrollBar();
+    ASSERT_NE(scrollbar, nullptr);
+    ASSERT_TRUE(scrollbar->isVisible()) << themeCase.name;
+    ASSERT_GT(scrollbar->maximum(), scrollbar->minimum()) << themeCase.name;
+
+    const QRect slider = scrollbarSliderRect(*scrollbar);
+    ASSERT_FALSE(slider.isEmpty()) << themeCase.name;
+
+    const QImage rendered = scrollbar->grab().toImage();
+    const QPoint handlePoint = slider.center();
+    ASSERT_TRUE(rendered.rect().contains(handlePoint)) << themeCase.name;
+    const QColor pixel = rendered.pixelColor(handlePoint);
+    EXPECT_LE(qAbs(pixel.red() - themeCase.handleColor.red()) +
+                  qAbs(pixel.green() - themeCase.handleColor.green()) +
+                  qAbs(pixel.blue() - themeCase.handleColor.blue()),
+              24)
+        << themeCase.name << " scrollbar handle is not themed on the first paint";
 }
 
 class FakeSwapShare : public FileProvider {
@@ -151,6 +238,66 @@ QTreeView *directoryTree(FilePanel &panel) {
 }
 
 } // namespace
+
+class MainWindowStartupThemeTest : public ::testing::TestWithParam<StartupThemeCase> {};
+
+TEST_P(MainWindowStartupThemeTest, FirstShowPaintsBothScrollbarsWithoutASecondGlobalStyleChange) {
+    if (qApp->platformName() != QStringLiteral("windows"))
+        GTEST_SKIP() << "requires the Windows QPA plugin";
+
+    Settings settings;
+    ScopedStartupThemeRestore restore(settings);
+    settings.setTheme(GetParam().theme);
+    qApp->setStyleSheet(QString());
+    processGuiEvents();
+    ASSERT_TRUE(qApp->styleSheet().isEmpty());
+
+    QTemporaryDir leftDirectory;
+    QTemporaryDir rightDirectory;
+    ASSERT_TRUE(leftDirectory.isValid());
+    ASSERT_TRUE(rightDirectory.isValid());
+    populateStartupDirectory(leftDirectory, QStringLiteral("left"));
+    populateStartupDirectory(rightDirectory, QStringLiteral("right"));
+
+    MainWindow window;
+    QSplitter *splitter = panelSplitter(window);
+    ASSERT_NE(splitter, nullptr);
+    auto *left = qobject_cast<FilePanel *>(splitter->widget(0));
+    auto *right = qobject_cast<FilePanel *>(splitter->widget(1));
+    ASSERT_NE(left, nullptr);
+    ASSERT_NE(right, nullptr);
+
+    left->navigateTo(leftDirectory.path());
+    right->navigateTo(rightDirectory.path());
+    QTRY_VERIFY_WITH_TIMEOUT(left->model()->rowCount() >= 96, 4000);
+    QTRY_VERIFY_WITH_TIMEOUT(right->model()->rowCount() >= 96, 4000);
+
+    StartupThemeObserver observer;
+    window.installEventFilter(&observer);
+    window.resize(1000, 700);
+    window.show();
+    QTRY_VERIFY_WITH_TIMEOUT(observer.firstPaintSeen, 1000);
+
+    expectThemedScrollbar(*left->view(), GetParam());
+    expectThemedScrollbar(*right->view(), GetParam());
+
+    processGuiEvents();
+    processGuiEvents();
+    EXPECT_EQ(observer.styleChangesAfterShow, 0)
+        << "startup must not reapply the application stylesheet after show begins";
+
+    QFile expected(QStringLiteral(TTC_SOURCE_DIR "/resources/themes/") +
+                   QString::fromLatin1(GetParam().name) + QStringLiteral(".qss"));
+    ASSERT_TRUE(expected.open(QIODevice::ReadOnly | QIODevice::Text));
+    EXPECT_EQ(qApp->styleSheet(), QString::fromUtf8(expected.readAll()));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    WindowsQpa, MainWindowStartupThemeTest,
+    ::testing::Values(StartupThemeCase{Settings::Theme::Dark, "dark", QColor(0x4a, 0x4a, 0x4a)},
+                      StartupThemeCase{Settings::Theme::Light, "light", QColor(0xc0, 0xc0, 0xc0)},
+                      StartupThemeCase{Settings::Theme::Crt, "green", QColor(0x12, 0x60, 0x2f)}),
+    [](const ::testing::TestParamInfo<StartupThemeCase> &info) { return info.param.name; });
 
 TEST(MainWindowPreviewSwapTest, AutomaticMediaWarmupStaysDisabledAfterFirstVisiblePaint) {
     QElapsedTimer startup;
