@@ -792,6 +792,16 @@ void FileListView::scheduleVerticalScrollBarPlacement() {
     });
 }
 
+void FileListView::refreshScrollBarStyle() {
+    for (QScrollBar *bar : {verticalScrollBar(), horizontalScrollBar()}) {
+        if (!bar)
+            continue;
+        bar->style()->unpolish(bar);
+        bar->style()->polish(bar);
+        bar->update();
+    }
+}
+
 void FileListView::onSectionResized(int logical, int oldSize, int newSize) {
     if (m_adjustingColumns) // our own applyLayout() resizeSection -> ignore
         return;
@@ -954,6 +964,7 @@ void FileListView::setPanelActive(bool active) {
     ensureSelectionPalettes();
     setProperty("panelActive", active);
     setPalette(active ? m_activePalette : m_inactivePalette);
+    refreshScrollBarStyle();
     viewport()->update();
 }
 
@@ -969,6 +980,7 @@ void FileListView::changeEvent(QEvent *event) {
         }
         if (m_scrollbarHeaderCover)
             m_scrollbarHeaderCover->update();
+        refreshScrollBarStyle();
         scheduleVerticalScrollBarPlacement();
     } else if (event->type() == QEvent::FontChange) {
         // The list font drives content-width measurement; a font change (the

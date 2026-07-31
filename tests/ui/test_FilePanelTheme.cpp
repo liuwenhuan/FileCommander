@@ -4,13 +4,42 @@
 #include <QDir>
 #include <QFile>
 #include <QHBoxLayout>
+#include <QImage>
 #include <QRegularExpression>
+#include <QScrollBar>
+#include <QStandardItemModel>
 #include <QToolButton>
 
 #include "FilePanel.h"
+#include "FileListView.h"
+#include "FileSystemModel.h"
 #include "TabBar.h"
 
 namespace {
+
+void applyThemeForPanelTest(const QString &theme) {
+    QFile file(QStringLiteral(TTC_SOURCE_DIR "/resources/themes/") + theme +
+               QStringLiteral(".qss"));
+    ASSERT_TRUE(file.open(QIODevice::ReadOnly | QIODevice::Text))
+        << theme.toStdString();
+    qApp->setStyleSheet(QString::fromUtf8(file.readAll()));
+}
+
+bool imageContainsColorNear(const QImage &image, const QColor &expected, int tolerance,
+                            int requiredPixels) {
+    int matching = 0;
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            const QColor pixel = image.pixelColor(x, y);
+            if (qAbs(pixel.red() - expected.red()) <= tolerance &&
+                qAbs(pixel.green() - expected.green()) <= tolerance &&
+                qAbs(pixel.blue() - expected.blue()) <= tolerance &&
+                ++matching >= requiredPixels)
+                return true;
+        }
+    }
+    return false;
+}
 
 TEST(FilePanelThemeTest, TreeButtonSharesTheAddressRowWithNavigationButtons) {
     FilePanel panel;
@@ -151,6 +180,91 @@ TEST(FilePanelThemeTest, ScrollbarsDefineStableExtentsAndHandleMinimumsInEveryTh
             QStringLiteral("QScrollBar::handle:horizontal\\s*\\{[^}]*\\bmin-width\\s*:"))))
             << theme.toStdString();
     }
+}
+
+TEST(FilePanelThemeTest, StartupFileListVerticalScrollbarHandleIsVisibleAfterPanelActivation) {
+    const QString originalSheet = qApp->styleSheet();
+    struct RestoreSheet {
+        QString sheet;
+        ~RestoreSheet() { qApp->setStyleSheet(sheet); }
+    } restore{originalSheet};
+
+    applyThemeForPanelTest(QStringLiteral("dark"));
+
+    QStandardItemModel model(160, FileSystemModel::ColumnCount);
+    for (int row = 0; row < model.rowCount(); ++row) {
+        for (int col = 0; col < model.columnCount(); ++col)
+            model.setData(model.index(row, col), QStringLiteral("row %1 col %2").arg(row).arg(col));
+    }
+
+    FileListView view;
+    view.setModel(&model);
+    view.resize(520, 220);
+    view.show();
+    view.setPanelActive(true);
+    qApp->processEvents();
+    qApp->processEvents();
+
+    QScrollBar *bar = view.verticalScrollBar();
+    ASSERT_NE(bar, nullptr);
+    ASSERT_TRUE(bar->isVisible());
+    ASSERT_GT(bar->maximum(), 0);
+
+    const QImage rendered = bar->grab().toImage();
+    EXPECT_TRUE(imageContainsColorNear(rendered, QColor(0x4a, 0x4a, 0x4a), 10, 24))
+        << "the dark theme handle should be painted during initial startup styling";
+}
+
+TEST(FilePanelThemeTest, FileListPanelActivationRefreshesVerticalScrollbarStyle) {
+    const QString originalSheet = qApp->styleSheet();
+    struct RestoreSheet {
+        QString sheet;
+        ~RestoreSheet() { qApp->setStyleSheet(sheet); }
+    } restore{originalSheet};
+
+    qApp->setStyleSheet(QStringLiteral(R"(
+        FileListView {
+            background: #101010;
+            color: #eeeeee;
+        }
+        QScrollBar:vertical {
+            width: 12px;
+            background: #101010;
+        }
+        QScrollBar::handle:vertical {
+            min-height: 24px;
+            background: #ff0000;
+        }
+        FileListView[panelActive="false"] QScrollBar::handle:vertical {
+            background: #0000ff;
+        }
+    )"));
+
+    QStandardItemModel model(160, FileSystemModel::ColumnCount);
+    for (int row = 0; row < model.rowCount(); ++row) {
+        for (int col = 0; col < model.columnCount(); ++col)
+            model.setData(model.index(row, col), QStringLiteral("row %1 col %2").arg(row).arg(col));
+    }
+
+    FileListView view;
+    view.setModel(&model);
+    view.resize(520, 220);
+    view.show();
+    view.setPanelActive(true);
+    qApp->processEvents();
+    qApp->processEvents();
+
+    QScrollBar *bar = view.verticalScrollBar();
+    ASSERT_NE(bar, nullptr);
+    ASSERT_TRUE(bar->isVisible());
+    ASSERT_TRUE(imageContainsColorNear(bar->grab().toImage(), QColor(0xff, 0x00, 0x00), 16, 24));
+
+    view.setPanelActive(false);
+    qApp->processEvents();
+    qApp->processEvents();
+
+    EXPECT_TRUE(imageContainsColorNear(bar->grab().toImage(), QColor(0x00, 0x00, 0xff), 16, 24))
+        << "panelActive changes must repolish descendant scrollbars, not only the table";
 }
 
 TEST(FilePanelThemeTest, TabBarsKeepTheSameHeightWithDifferentTabCounts) {

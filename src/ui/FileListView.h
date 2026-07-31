@@ -134,6 +134,7 @@ private:
     int columnLayoutWidth() const;
     void placeVerticalScrollBarBelowHeader();
     void scheduleVerticalScrollBarPlacement();
+    void refreshScrollBarStyle();
     // User dragged a column border: adjacent give-and-take keeping the total
     // pinned to the viewport (see the connect in the ctor).
     void onSectionResized(int logical, int oldSize, int newSize);
