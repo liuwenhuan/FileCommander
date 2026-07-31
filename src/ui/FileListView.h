@@ -9,6 +9,7 @@
 class QTimer;
 class QVariantAnimation;
 class QFontMetrics;
+class QWidget;
 class FileProvider;
 
 // QTableView with the header/selection behavior a file panel needs
@@ -93,6 +94,7 @@ protected:
     void dropEvent(QDropEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
+    void updateGeometries() override;
     // Invalidates the cached active/inactive selection palettes when the app
     // stylesheet (theme) changes, then re-applies the current one.
     void changeEvent(QEvent *event) override;
@@ -129,6 +131,9 @@ private:
     // then the shrink policy (Name to a 16-char floor, then priority-compress the
     // info columns) kicks in when cramped.
     void applyLayout();
+    int columnLayoutWidth() const;
+    void placeVerticalScrollBarBelowHeader();
+    void scheduleVerticalScrollBarPlacement();
     // User dragged a column border: adjacent give-and-take keeping the total
     // pinned to the viewport (see the connect in the ctor).
     void onSectionResized(int logical, int oldSize, int newSize);
@@ -167,6 +172,8 @@ private:
 
     QVariantAnimation *m_dragFeedbackAnimation = nullptr;
     QTimer *m_dragFeedbackClearTimer = nullptr;
+    QWidget *m_scrollbarHeaderCover = nullptr;
+    bool m_scrollbarPlacementPending = false;
     DragFeedbackState m_dragFeedbackState = DragFeedbackState::None;
     QColor m_dragFeedbackColor;
 };
