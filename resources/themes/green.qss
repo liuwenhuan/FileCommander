@@ -341,29 +341,25 @@ QTableWidget#ShortcutTable QKeySequenceEdit QLineEdit {
 }
 
 /* The tab-add control keeps the CRT chrome tile at rest. */
-QToolButton#PanelAddTabButton,
-QToolButton#PanelTabScrollLeftButton {
+QToolButton#PanelAddTabButton {
     background: url(:/icons/crt-scan-chrome.png) repeat;
     color: #33ff88;
     border: none;
     padding: 0;
 }
 
-QToolButton#PanelAddTabButton:hover,
-QToolButton#PanelTabScrollLeftButton:hover {
+QToolButton#PanelAddTabButton:hover {
     background: #12602f;
     border: none;
 }
 
-QToolButton#PanelAddTabButton:pressed,
-QToolButton#PanelTabScrollLeftButton:pressed {
+QToolButton#PanelAddTabButton:pressed {
     background: #0a3f1f;
     color: #33ff88;
     border: none;
 }
 
-QToolButton#PanelAddTabButton:disabled,
-QToolButton#PanelTabScrollLeftButton:disabled {
+QToolButton#PanelAddTabButton:disabled {
     background: url(:/icons/crt-scan-chrome.png) repeat;
     color: #12602f;
     border: none;

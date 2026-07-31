@@ -66,22 +66,20 @@ QToolButton *nativeScrollButton(TabBar *tabBar, Qt::ArrowType direction) {
 }
 
 struct OverflowControls {
-    ButtonState customLeft;
     ButtonState nativeLeft;
     ButtonState nativeRight;
 };
 
 OverflowControls overflowControls(FilePanel *panel, TabBar *tabBar) {
-    QToolButton *customLeft =
-        panel->findChild<QToolButton *>(QStringLiteral("PanelTabScrollLeftButton"));
+    EXPECT_EQ(panel->findChild<QToolButton *>(QStringLiteral("PanelTabScrollLeftButton")),
+              nullptr);
     QToolButton *nativeLeft = nativeScrollButton(tabBar, Qt::LeftArrow);
     QToolButton *nativeRight = nativeScrollButton(tabBar, Qt::RightArrow);
-    EXPECT_NE(customLeft, nullptr);
     EXPECT_NE(nativeLeft, nullptr);
     EXPECT_NE(nativeRight, nullptr);
-    if (!customLeft || !nativeLeft || !nativeRight)
+    if (!nativeLeft || !nativeRight)
         return {};
-    return {buttonState(customLeft), buttonState(nativeLeft), buttonState(nativeRight)};
+    return {buttonState(nativeLeft), buttonState(nativeRight)};
 }
 
 TEST(TabMotion, ActivationProgressLeavesEveryTabRectUnchanged) {
@@ -242,7 +240,6 @@ TEST(TabMotion, OverflowControlsStayFixedDuringActivationProgress) {
         EXPECT_GT(progress(*tabBar, "activationProgress"), 0.0);
         EXPECT_LT(progress(*tabBar, "activationProgress"), 1.0);
         const OverflowControls during = overflowControls(panel, tabBar);
-        expectEqual(during.customLeft, before.customLeft);
         expectEqual(during.nativeLeft, before.nativeLeft);
         expectEqual(during.nativeRight, before.nativeRight);
     }

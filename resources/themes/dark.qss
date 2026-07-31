@@ -243,8 +243,7 @@ QTableWidget#ShortcutTable QKeySequenceEdit QLineEdit {
     padding: 0;
 }
 
-QToolButton#PanelAddTabButton,
-QToolButton#PanelTabScrollLeftButton {
+QToolButton#PanelAddTabButton {
     background: transparent;
     color: #e0e0e0;
     border: 1px solid transparent;
@@ -252,20 +251,17 @@ QToolButton#PanelTabScrollLeftButton {
     padding: 0;
 }
 
-QToolButton#PanelAddTabButton:hover,
-QToolButton#PanelTabScrollLeftButton:hover {
+QToolButton#PanelAddTabButton:hover {
     background: #454545;
     border-color: #555555;
 }
 
-QToolButton#PanelAddTabButton:pressed,
-QToolButton#PanelTabScrollLeftButton:pressed {
+QToolButton#PanelAddTabButton:pressed {
     background: #2f2f2f;
     border-color: #383838;
 }
 
-QToolButton#PanelAddTabButton:disabled,
-QToolButton#PanelTabScrollLeftButton:disabled {
+QToolButton#PanelAddTabButton:disabled {
     background: transparent;
     color: #777777;
     border-color: transparent;

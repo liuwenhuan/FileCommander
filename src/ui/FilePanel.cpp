@@ -259,19 +259,6 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
     m_tabBar = new TabBar(this);
     m_tabBar->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 
-    // The visible left overflow control lives outside QTabBar so it remains at
-    // the physical left edge. Qt's native right control stays inside the bar.
-    m_tabScrollLeftButton = new QToolButton(this);
-    m_tabScrollLeftButton->setObjectName(QStringLiteral("PanelTabScrollLeftButton"));
-    m_tabScrollLeftButton->setArrowType(Qt::LeftArrow);
-    m_tabScrollLeftButton->setAutoRaise(true);
-    m_tabScrollLeftButton->setFocusPolicy(Qt::NoFocus);
-    m_tabScrollLeftButton->setToolTip(tr("Scroll tabs left"));
-    m_tabScrollLeftButton->hide();
-    connect(m_tabScrollLeftButton, &QToolButton::clicked, m_tabBar, &TabBar::scrollLeft);
-    connect(m_tabBar, &TabBar::overflowScrollButtonsVisibleChanged,
-            m_tabScrollLeftButton, &QToolButton::setVisible);
-
     // "+" at the far right of the tab strip opens a new tab in this panel,
     // lined up directly above the address row's "✳" button.
     m_addTabButton = new QToolButton(this);
@@ -284,8 +271,6 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
         emit panelActivated(this); // act on this panel
         newTab();
     });
-    m_tabScrollLeftButton->setFixedSize(m_addTabButton->sizeHint());
-
     m_addressBar = new BreadcrumbBar(this);
     m_addressBar->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     m_addressBar->setFocusPolicy(Qt::ClickFocus); // keep it out of the Tab chain
@@ -368,14 +353,13 @@ FilePanel::FilePanel(QWidget *parent) : QWidget(parent) {
 
     m_statusBar = new StatusBarWidget(this);
 
-    // Tab row: overflow-left, tab strip, then the trailing "+".
+    // Tab row: tab strip, then the trailing "+".
     // The tree toggle and navigation controls live together in the address row.
     auto *tabRow = new QWidget(this);
     m_tabRow = tabRow;
     auto *tabRowLayout = new QHBoxLayout(tabRow);
     tabRowLayout->setContentsMargins(0, 0, 0, 0);
     tabRowLayout->setSpacing(2);
-    tabRowLayout->addWidget(m_tabScrollLeftButton, 0, Qt::AlignVCenter);
     tabRowLayout->addWidget(m_tabBar, 1);
     tabRowLayout->addWidget(m_addTabButton, 0, Qt::AlignVCenter);
 
@@ -2030,6 +2014,22 @@ void FilePanel::selectByPattern(bool select) {
 
 FilePanel::~FilePanel() {
     cancelDirectorySizeTask();
+}
+
+qreal FilePanel::focusProgress() const {
+    return m_focusProgress;
+}
+
+QString FilePanel::currentPath() const {
+    return m_model->rootPath();
+}
+
+QString FilePanel::connectionId() const {
+    return m_model->connectionId();
+}
+
+FileSystemModel *FilePanel::model() const {
+    return m_model;
 }
 
 void FilePanel::cancelDirectorySizeTask() {

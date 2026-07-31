@@ -21,13 +21,8 @@ public:
     // suppressed currentChanged while installing consistent tab state.
     void animateCurrentTabActivation();
 
-    // FilePanel owns the visible left overflow control. Delegate its click to
-    // Qt's hidden native helper so scrolling behavior stays platform-correct.
-    void scrollLeft();
-
 signals:
     void closeTabRequested(int index);
-    void overflowScrollButtonsVisibleChanged(bool visible);
     // Right-click on the tab strip opens the directory-favorites menu at this
     // point; the panel/window builds and shows it (toggle + saved favorites).
     // tabIndex is the tab under the cursor (-1 if the click missed the tabs).
@@ -39,9 +34,6 @@ protected:
     void tabRemoved(int index) override;
     void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
-    // Repaints Qt's native overflow controls with compact theme-aware
-    // chevrons; the hidden left helper is still used for scrolling.
-    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
     void setActivationProgress(qreal progress);
@@ -51,9 +43,7 @@ private:
     // paintEvent so it always sees the correct tab count, even when tabs are
     // switched with signals blocked.
     void refreshCloseButtons();
-    void syncScrollButtons();
     QAbstractButton *createCloseButton();
-    bool m_scrollButtonsVisible = false;
     qreal m_activationProgress = 1.0;
     QPropertyAnimation *m_activationAnimation = nullptr;
 };

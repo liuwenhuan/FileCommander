@@ -73,7 +73,7 @@ TEST(FilePanelThemeTest, TabAndAddressRowButtonsUseTheirOwnThemeSelectors) {
     }
 }
 
-TEST(FilePanelThemeTest, TabAndAddressRowControlsDefineEveryInteractionStateInEveryTheme) {
+TEST(FilePanelThemeTest, AddTabAndAddressRowControlsDefineEveryInteractionStateInEveryTheme) {
     for (const QString &theme : {QStringLiteral("light"), QStringLiteral("dark"),
                                  QStringLiteral("green")}) {
         QFile file(QStringLiteral(TTC_SOURCE_DIR "/resources/themes/") + theme +
@@ -82,8 +82,7 @@ TEST(FilePanelThemeTest, TabAndAddressRowControlsDefineEveryInteractionStateInEv
             << theme.toStdString();
         const QString sheet = QString::fromUtf8(file.readAll());
 
-        const QString selector =
-            QStringLiteral("QToolButton#PanelTabScrollLeftButton");
+        const QString selector = QStringLiteral("QToolButton#PanelAddTabButton");
         EXPECT_TRUE(sheet.contains(selector)) << theme.toStdString();
         EXPECT_TRUE(sheet.contains(selector + QStringLiteral(":hover")))
             << theme.toStdString();
@@ -140,7 +139,7 @@ TEST(FilePanelThemeTest, MotionProgressPropertiesRemainAvailableToThemeAwarePain
     EXPECT_GE(tabBar->metaObject()->indexOfProperty("activationProgress"), 0);
 }
 
-TEST(TabBarTest, OverflowKeepsOnlyTheNativeRightScrollerInTheTabBar) {
+TEST(TabBarTest, OverflowUsesNativeScrollersInsideTheTabBar) {
     TabBar tabBar;
     for (int index = 0; index < 20; ++index)
         tabBar.addTab(QStringLiteral("Long tab title %1").arg(index));
@@ -161,11 +160,11 @@ TEST(TabBarTest, OverflowKeepsOnlyTheNativeRightScrollerInTheTabBar) {
 
     ASSERT_NE(left, nullptr);
     ASSERT_NE(right, nullptr);
-    EXPECT_FALSE(left->isVisible());
+    EXPECT_TRUE(left->isVisible());
     EXPECT_TRUE(right->isVisible());
 }
 
-TEST(FilePanelThemeTest, OverflowUsesCustomLeftControlAtPhysicalLeftEdge) {
+TEST(FilePanelThemeTest, OverflowDoesNotCreateACustomLeftScrollControl) {
     FilePanel panel;
     panel.resize(300, 600);
     panel.show();
@@ -179,30 +178,36 @@ TEST(FilePanelThemeTest, OverflowUsesCustomLeftControlAtPhysicalLeftEdge) {
     qApp->processEvents();
     qApp->processEvents(); // QTabBar lays out its native buttons asynchronously.
 
-    QToolButton *outerLeft =
-        panel.findChild<QToolButton *>(QStringLiteral("PanelTabScrollLeftButton"));
-    QToolButton *outerRight =
-        panel.findChild<QToolButton *>(QStringLiteral("PanelTabScrollRightButton"));
-    ASSERT_NE(outerLeft, nullptr);
-    EXPECT_EQ(outerRight, nullptr);
-    EXPECT_TRUE(outerLeft->isVisible());
-    EXPECT_LT(outerLeft->geometry().right(), tabBar->geometry().left());
-    EXPECT_EQ(outerLeft->arrowType(), Qt::LeftArrow);
+    EXPECT_EQ(panel.findChild<QToolButton *>(QStringLiteral("PanelTabScrollLeftButton")),
+              nullptr);
+    EXPECT_EQ(panel.findChild<QToolButton *>(QStringLiteral("PanelTabScrollRightButton")),
+              nullptr);
+
+    QToolButton *nativeLeft = nullptr;
+    QToolButton *nativeRight = nullptr;
+    for (QToolButton *button :
+         tabBar->findChildren<QToolButton *>(QString(), Qt::FindDirectChildrenOnly)) {
+        if (button->arrowType() == Qt::LeftArrow)
+            nativeLeft = button;
+        else if (button->arrowType() == Qt::RightArrow)
+            nativeRight = button;
+    }
+    ASSERT_NE(nativeLeft, nullptr);
+    ASSERT_NE(nativeRight, nullptr);
+    EXPECT_TRUE(nativeLeft->isVisible());
+    EXPECT_TRUE(nativeRight->isVisible());
 }
 
-TEST(FilePanelThemeTest, CustomLeftScrollControlStaysHiddenWithoutOverflow) {
+TEST(FilePanelThemeTest, NoCustomLeftScrollControlIsCreatedWithoutOverflow) {
     FilePanel panel;
     panel.resize(900, 600);
     panel.show();
     qApp->processEvents();
 
-    QToolButton *outerLeft =
-        panel.findChild<QToolButton *>(QStringLiteral("PanelTabScrollLeftButton"));
-    QToolButton *outerRight =
-        panel.findChild<QToolButton *>(QStringLiteral("PanelTabScrollRightButton"));
-    ASSERT_NE(outerLeft, nullptr);
-    EXPECT_EQ(outerRight, nullptr);
-    EXPECT_FALSE(outerLeft->isVisible());
+    EXPECT_EQ(panel.findChild<QToolButton *>(QStringLiteral("PanelTabScrollLeftButton")),
+              nullptr);
+    EXPECT_EQ(panel.findChild<QToolButton *>(QStringLiteral("PanelTabScrollRightButton")),
+              nullptr);
 }
 
 } // namespace

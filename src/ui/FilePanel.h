@@ -45,15 +45,15 @@ class FilePanel : public QWidget {
 public:
     explicit FilePanel(QWidget *parent = nullptr);
     ~FilePanel() override;
-    qreal focusProgress() const { return m_focusProgress; }
+    qreal focusProgress() const;
 
-    QString currentPath() const { return m_model->rootPath(); }
+    QString currentPath() const;
     void navigateTo(const QString &path);
 
     // Identity of the backend this panel is browsing: "scheme://user@host" for a
     // network tab, empty for a local one. Two panels sharing it are looking at
     // the same server, which is what makes a bare path meaningful in both.
-    QString connectionId() const { return m_model->connectionId(); }
+    QString connectionId() const;
 
     // Exchanges this panel's backend and location with `other`, so a network
     // connection moves between panels instead of a path string being handed to
@@ -212,7 +212,7 @@ public:
     // NOT keep the server in Back history.
     void disconnectTab(int index);
 
-    FileSystemModel *model() const { return m_model; }
+    FileSystemModel *model() const;
     FileListView *view() const { return m_view; }
     // The icon (thumbnail-mode) view, for callers (MainWindow's context menu)
     // that need to wire it up alongside view().
@@ -458,7 +458,6 @@ private:
 
     BreadcrumbBar *m_addressBar;
     QToolButton *m_treeButton; // "🗀" toggles this panel's folder tree; first in the row
-    QToolButton *m_tabScrollLeftButton;
     QToolButton *m_backButton;
     QToolButton *m_forwardButton;
     QToolButton *m_starButton;

@@ -3,14 +3,10 @@
 #include <QAbstractButton>
 #include <QColor>
 #include <QContextMenuEvent>
-#include <QEvent>
 #include <QMenu>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPropertyAnimation>
-#include <QStyle>
-#include <QStyleOptionTabBarBase>
-#include <QToolButton>
 
 #include "MotionPolicy.h"
 
@@ -62,52 +58,6 @@ TabBar::TabBar(QWidget *parent) : QTabBar(parent) {
         animateCurrentTabActivation();
     });
 
-    // Qt still owns tab scrolling. FilePanel supplies the visible left control;
-    // the native right control remains in the tab bar.
-    const auto scrollButtons =
-        findChildren<QToolButton *>(QString(), Qt::FindDirectChildrenOnly);
-    for (QToolButton *b : scrollButtons) {
-        b->setAutoRaise(true);
-        b->installEventFilter(this);
-    }
-}
-
-bool TabBar::eventFilter(QObject *watched, QEvent *event) {
-    if (event->type() == QEvent::Paint) {
-        if (auto *btn = qobject_cast<QToolButton *>(watched)) {
-            QPainter p(btn);
-            p.setRenderHint(QPainter::Antialiasing);
-            const QRect r = btn->rect();
-
-            p.fillRect(r, palette().color(QPalette::Window));
-
-            if (btn->isEnabled() && btn->underMouse()) {
-                QColor hover = palette().color(QPalette::WindowText);
-                hover.setAlpha(28);
-                p.setPen(Qt::NoPen);
-                p.setBrush(hover);
-                p.drawRoundedRect(r.adjusted(1, 1, -1, -1), 3, 3);
-            }
-
-            const QColor fg = btn->isEnabled() ? palette().color(QPalette::WindowText)
-                                               : palette().color(QPalette::Mid);
-            p.setPen(QPen(fg, 1.6));
-            p.setBrush(Qt::NoBrush);
-            const int cx = r.center().x();
-            const int cy = r.center().y();
-            const int aw = 3;
-            const int ah = 5;
-            if (btn->arrowType() == Qt::LeftArrow) {
-                p.drawLine(cx + aw, cy - ah, cx - aw, cy);
-                p.drawLine(cx - aw, cy, cx + aw, cy + ah);
-            } else {
-                p.drawLine(cx - aw, cy - ah, cx + aw, cy);
-                p.drawLine(cx + aw, cy, cx - aw, cy + ah);
-            }
-            return true;
-        }
-    }
-    return QTabBar::eventFilter(watched, event);
 }
 
 QAbstractButton *TabBar::createCloseButton() {
@@ -127,17 +77,14 @@ QAbstractButton *TabBar::createCloseButton() {
 void TabBar::tabInserted(int index) {
     QTabBar::tabInserted(index);
     setTabButton(index, QTabBar::RightSide, createCloseButton());
-    syncScrollButtons();
 }
 
 void TabBar::tabRemoved(int index) {
     QTabBar::tabRemoved(index);
-    syncScrollButtons();
 }
 
 void TabBar::resizeEvent(QResizeEvent *event) {
     QTabBar::resizeEvent(event);
-    syncScrollButtons();
 }
 
 void TabBar::paintEvent(QPaintEvent *event) {
@@ -162,17 +109,6 @@ void TabBar::paintEvent(QPaintEvent *event) {
         }
     }
 
-    // Some styles draw the left scroller glyph in QTabBar itself even after its
-    // helper widget is hidden. Clear that reserved rectangle; FilePanel owns
-    // the visible left control.
-    QStyleOptionTabBarBase option;
-    option.initFrom(this);
-    const QRect nativeLeft =
-        style()->subElementRect(QStyle::SE_TabBarScrollLeftButton, &option, this);
-    if (nativeLeft.isValid()) {
-        QPainter p(this);
-        p.fillRect(nativeLeft, palette().color(QPalette::Window));
-    }
 }
 
 void TabBar::setActivationProgress(qreal progress) {
@@ -232,35 +168,6 @@ void TabBar::refreshCloseButtons() {
         }
         existing->setEnabled(true);
         static_cast<TabCloseButton *>(existing)->setColour(normal);
-    }
-}
-
-void TabBar::scrollLeft() {
-    const auto buttons =
-        findChildren<QToolButton *>(QString(), Qt::FindDirectChildrenOnly);
-    for (QToolButton *button : buttons) {
-        if (button->arrowType() == Qt::LeftArrow) {
-            button->click();
-            return;
-        }
-    }
-}
-
-void TabBar::syncScrollButtons() {
-    bool visible = false;
-    const auto buttons =
-        findChildren<QToolButton *>(QString(), Qt::FindDirectChildrenOnly);
-    for (QToolButton *button : buttons) {
-        if (button->arrowType() == Qt::LeftArrow) {
-            button->hide();
-        } else if (button->arrowType() == Qt::RightArrow) {
-            visible = button->isVisible();
-        }
-    }
-
-    if (visible != m_scrollButtonsVisible) {
-        m_scrollButtonsVisible = visible;
-        emit overflowScrollButtonsVisibleChanged(visible);
     }
 }
 
