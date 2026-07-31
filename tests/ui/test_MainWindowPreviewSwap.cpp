@@ -181,6 +181,47 @@ TEST(MainWindowStartupTest, DefersBackgroundFeatureBatchPastFirstPaint) {
 #endif
 }
 
+TEST(MainWindowStartupTest, EmitsReadyAfterBothVisiblePanelsAreInteractive) {
+    QTemporaryDir leftDirectory;
+    QTemporaryDir rightDirectory;
+    ASSERT_TRUE(leftDirectory.isValid());
+    ASSERT_TRUE(rightDirectory.isValid());
+
+    MainWindow window;
+    QSplitter *splitter = panelSplitter(window);
+    ASSERT_NE(splitter, nullptr);
+    auto *left = qobject_cast<FilePanel *>(splitter->widget(0));
+    auto *right = qobject_cast<FilePanel *>(splitter->widget(1));
+    ASSERT_NE(left, nullptr);
+    ASSERT_NE(right, nullptr);
+
+    QSignalSpy ready(&window, &MainWindow::startupReady);
+    QSignalSpy leftLoaded(left->model(), &FileSystemModel::loadFinished);
+    QSignalSpy rightLoaded(right->model(), &FileSystemModel::loadFinished);
+    bool readyAfterBothLoads = false;
+    bool readyAfterSelectionProbes = false;
+    QObject::connect(&window, &MainWindow::startupReady, [&] {
+        readyAfterBothLoads = !leftLoaded.isEmpty() && !rightLoaded.isEmpty();
+        readyAfterSelectionProbes = left->activeView()->currentIndex().isValid() &&
+                                   right->activeView()->currentIndex().isValid();
+    });
+
+    left->navigateTo(leftDirectory.path());
+    right->navigateTo(rightDirectory.path());
+    window.resize(1000, 700);
+    window.show();
+
+    QTRY_VERIFY_WITH_TIMEOUT(ready.count() == 1, 4000);
+    EXPECT_GE(leftLoaded.count(), 1);
+    EXPECT_GE(rightLoaded.count(), 1);
+    EXPECT_TRUE(readyAfterBothLoads);
+    EXPECT_TRUE(readyAfterSelectionProbes);
+    EXPECT_TRUE(left->activeView()->currentIndex().isValid());
+    EXPECT_TRUE(right->activeView()->currentIndex().isValid());
+    processGuiEvents();
+    EXPECT_EQ(ready.count(), 1);
+}
+
 TEST(MainWindowPreviewSwapTest, FirstMediaRequestWarmsImmediatelyWithAutomaticWarmupDisabled) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());

@@ -3,6 +3,8 @@
 #include <QKeySequence>
 #include <QList>
 #include <QMainWindow>
+#include <QElapsedTimer>
+#include <QJsonObject>
 
 #include <atomic>
 #include <memory>
@@ -58,6 +60,10 @@ public:
     // Opens shell-activated local folders. The first two occupy the visible
     // panes; further folders become tabs in the left pane.
     void openFolders(const QStringList &folders);
+    QJsonObject startupMetrics() const;
+
+signals:
+    void startupReady();
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -94,6 +100,7 @@ private:
     void updateOpaqueRegion();
     void scheduleMediaWarmupAfterFirstPaint();
     void scheduleFeatureBatchAfterFirstPaint();
+    void markStartupPanelLoaded(FilePanel *panel);
 
 private slots:
     void setActivePanel(FilePanel *panel);
@@ -302,6 +309,13 @@ private:
     bool m_mediaWarmScheduled = false;
     bool m_mediaWarmComplete = false;
     bool m_initialThemeRepolishScheduled = false;
+    QElapsedTimer m_startupElapsed;
+    bool m_startupVisible = false;
+    bool m_startupPanelLoaded[2] = {};
+    bool m_startupPanelInteractive[2] = {};
+    qint64 m_startupVisibleMs = -1;
+    qint64 m_startupPanelsLoadedMs = -1;
+    qint64 m_startupInteractiveMs = -1;
 
     QuickView *m_quickView = nullptr;
     FilePanel *m_quickViewPanel = nullptr; // panel replaced by the preview

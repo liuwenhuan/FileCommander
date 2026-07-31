@@ -293,6 +293,7 @@ bool isMissingRemovablePath(const QString &path) {
 } // namespace
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
+    m_startupElapsed.start();
     MotionPolicy::setApplicationReduced(m_settings.reduceMotion());
 
     // Frameless: we draw our own title bar (see setupMenuAndToolbar / TitleBar)
@@ -585,6 +586,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         // The server wants credentials: prompt, then hand them to that panel's
         // model to retry the connection with a username/password.
         FileSystemModel *model = panel->model();
+        connect(model, &FileSystemModel::loadFinished, this,
+                [this, panel](int) { markStartupPanelLoaded(panel); });
         connect(model, &FileSystemModel::networkAuthRequired, this,
                 [this, model, panel](const QString &host, const QString &error) {
                     QString user, pass;
@@ -1037,6 +1040,36 @@ void MainWindow::buildTitleBarMenus() {
     // services, but none are required for the first visible frame.
 }
 
+QJsonObject MainWindow::startupMetrics() const {
+    return {{QStringLiteral("visibleMs"), m_startupVisibleMs},
+            {QStringLiteral("panelsLoadedMs"), m_startupPanelsLoadedMs},
+            {QStringLiteral("interactiveMs"), m_startupInteractiveMs}};
+}
+
+void MainWindow::markStartupPanelLoaded(FilePanel *panel) {
+    const int panelIndex = panel == m_leftPanel ? 0 : panel == m_rightPanel ? 1 : -1;
+    if (!m_startupVisible || panelIndex < 0 || m_startupPanelLoaded[panelIndex])
+        return;
+
+    m_startupPanelLoaded[panelIndex] = true;
+    if (m_startupPanelLoaded[0] && m_startupPanelLoaded[1])
+        m_startupPanelsLoadedMs = m_startupElapsed.elapsed();
+
+    QTimer::singleShot(0, this, [this, panel, panelIndex] {
+        QAbstractItemView *view = panel->activeView();
+        const QModelIndex firstEntry = panel->model()->index(0, 0);
+        if (view && firstEntry.isValid())
+            view->setCurrentIndex(firstEntry);
+
+        m_startupPanelInteractive[panelIndex] = true;
+        if (m_startupPanelInteractive[0] && m_startupPanelInteractive[1] &&
+            m_startupInteractiveMs < 0) {
+            m_startupInteractiveMs = m_startupElapsed.elapsed();
+            emit startupReady();
+        }
+    });
+}
+
 // External-device hot-plug watcher, SMB neighbourhood browser, and the daily
 // background update check. Kept out of the (already large) constructor body.
 void MainWindow::setupFeatureBatch() {
@@ -1480,6 +1513,10 @@ void MainWindow::updateOpaqueRegion() {
 
 void MainWindow::showEvent(QShowEvent *event) {
     QMainWindow::showEvent(event);
+    if (!m_startupVisible) {
+        m_startupVisible = true;
+        m_startupVisibleMs = m_startupElapsed.elapsed();
+    }
     // On Windows, QStyleSheetStyle can create the first native scrollbar before
     // the application's stylesheet has gone through a real native-window
     // polish. Re-applying the already-selected theme on the next event turn

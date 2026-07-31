@@ -1,6 +1,8 @@
 #include <QApplication>
+#include <QFile>
 #include <QGuiApplication>
 #include <QIcon>
+#include <QJsonDocument>
 #include <QTimer>
 
 #include <clocale>
@@ -58,10 +60,19 @@ int main(int argc, char *argv[]) {
     app.setWindowIcon(ttc::appIcon());
 
     const QStringList arguments = app.arguments();
+    const int startupProbe = arguments.indexOf(QStringLiteral("--startup-probe"));
+    if (startupProbe >= 0 && startupProbe + 1 >= arguments.size()) {
+        qCritical("--startup-probe requires an output file path");
+        return 2;
+    }
+    const QString startupProbeOutput = startupProbe >= 0 ? arguments.at(startupProbe + 1)
+                                                         : QString();
     InstanceCoordinator instance;
-    const InstanceCoordinator::StartResult instanceResult = instance.startOrActivate(arguments);
-    if (instanceResult == InstanceCoordinator::StartResult::Forwarded)
-        return 0;
+    if (startupProbeOutput.isEmpty()) {
+        const InstanceCoordinator::StartResult instanceResult = instance.startOrActivate(arguments);
+        if (instanceResult == InstanceCoordinator::StartResult::Forwarded)
+            return 0;
+    }
 
     Settings settings;
     Typography::applyApplicationFont(settings);
@@ -79,13 +90,28 @@ int main(int argc, char *argv[]) {
         window.setWindowIcon(app.windowIcon());
         window.show();
         ttc::requestWindowForeground(&window);
-        QObject::connect(&instance, &InstanceCoordinator::activationRequested, &window,
-                         [&window](const QStringList &activationArguments) {
-                const QStringList folders = FolderAssociation::folderArguments(activationArguments);
-                if (!folders.isEmpty())
-                    window.openFolders(folders);
-                ttc::requestWindowForeground(&window);
-            });
+        if (startupProbeOutput.isEmpty()) {
+            QObject::connect(&instance, &InstanceCoordinator::activationRequested, &window,
+                             [&window](const QStringList &activationArguments) {
+                    const QStringList folders = FolderAssociation::folderArguments(activationArguments);
+                    if (!folders.isEmpty())
+                        window.openFolders(folders);
+                    ttc::requestWindowForeground(&window);
+                });
+        } else {
+            QObject::connect(&window, &MainWindow::startupReady, &app,
+                             [&app, &window, startupProbeOutput] {
+                    QFile output(startupProbeOutput);
+                    if (!output.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                        qCritical() << "Cannot write startup probe:" << startupProbeOutput;
+                        QTimer::singleShot(0, &app, [&app] { app.exit(1); });
+                        return;
+                    }
+                    output.write(QJsonDocument(window.startupMetrics()).toJson(QJsonDocument::Compact));
+                    output.close();
+                    QTimer::singleShot(0, &app, [&app] { app.exit(0); });
+                });
+        }
         const int packageSmoke = arguments.indexOf(QStringLiteral("--package-smoke"));
         if (packageSmoke >= 0 && packageSmoke + 1 < arguments.size()) {
             const QString directory = arguments.at(packageSmoke + 1);
