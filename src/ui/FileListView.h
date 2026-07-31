@@ -9,6 +9,7 @@
 class QTimer;
 class QVariantAnimation;
 class QFontMetrics;
+class QWidget;
 class FileProvider;
 
 // QTableView with the header/selection behavior a file panel needs
@@ -171,6 +172,7 @@ private:
 
     QVariantAnimation *m_dragFeedbackAnimation = nullptr;
     QTimer *m_dragFeedbackClearTimer = nullptr;
+    QWidget *m_scrollbarHeaderCover = nullptr;
     bool m_scrollbarPlacementPending = false;
     DragFeedbackState m_dragFeedbackState = DragFeedbackState::None;
     QColor m_dragFeedbackColor;
