@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 
 #include <QApplication>
+#include <QFile>
 #include <QHeaderView>
+#include <QImage>
 #include <QScrollBar>
 #include <QSignalSpy>
 #include <QStandardItemModel>
@@ -13,6 +15,13 @@
 namespace {
 
 constexpr int kColumnCount = FileSystemModel::ColumnCount;
+
+void applyThemeSheet(const QString &name) {
+    QFile file(QStringLiteral(TTC_SOURCE_DIR "/resources/themes/") + name + QStringLiteral(".qss"));
+    ASSERT_TRUE(file.open(QIODevice::ReadOnly | QIODevice::Text));
+    qApp->setStyleSheet(QString::fromUtf8(file.readAll()));
+    qApp->processEvents();
+}
 
 void populateModel(QStandardItemModel &model) {
     model.setColumnCount(kColumnCount);
@@ -107,6 +116,33 @@ TEST_F(FileListViewLayoutTest, VerticalScrollbarStartsBelowHeaderAndColumnsStopB
     EXPECT_EQ(scrollbar->geometry().top(), header->geometry().bottom() + 1);
 
     expectLastVisibleSectionAtContentRight(m_view);
+}
+
+TEST_F(FileListViewLayoutTest, HeaderCoversScrollbarGutterAboveTheListBody) {
+    const QString originalSheet = qApp->styleSheet();
+    applyThemeSheet(QStringLiteral("green"));
+    resizeAndSettle(700);
+    qApp->processEvents();
+
+    QHeaderView *header = m_view.horizontalHeader();
+    QScrollBar *scrollbar = m_view.verticalScrollBar();
+    ASSERT_NE(header, nullptr);
+    ASSERT_NE(scrollbar, nullptr);
+    ASSERT_TRUE(scrollbar->isVisible());
+
+    const QImage rendered = m_view.grab().toImage();
+    const QPoint headerGutterPoint(scrollbar->geometry().center().x(), header->geometry().center().y());
+    ASSERT_TRUE(rendered.rect().contains(headerGutterPoint));
+
+    const QColor pixel = rendered.pixelColor(headerGutterPoint);
+    const QColor headerBackground(0x0a, 0x1a, 0x0d);
+    EXPECT_LE(qAbs(pixel.red() - headerBackground.red()) +
+                  qAbs(pixel.green() - headerBackground.green()) +
+                  qAbs(pixel.blue() - headerBackground.blue()),
+              12)
+        << "the scrollbar gutter is visible above the column header";
+
+    qApp->setStyleSheet(originalSheet);
 }
 
 TEST_F(FileListViewLayoutTest, DoubleClickingDividerAutoFitsTheColumnOnItsRight) {

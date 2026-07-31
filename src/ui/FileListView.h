@@ -9,6 +9,7 @@
 class QTimer;
 class QVariantAnimation;
 class QFontMetrics;
+class QWidget;
 class FileProvider;
 
 // QTableView with the header/selection behavior a file panel needs
@@ -132,6 +133,7 @@ private:
     void applyLayout();
     int columnLayoutWidth() const;
     void placeVerticalScrollBarBelowHeader();
+    void scheduleVerticalScrollBarPlacement();
     // User dragged a column border: adjacent give-and-take keeping the total
     // pinned to the viewport (see the connect in the ctor).
     void onSectionResized(int logical, int oldSize, int newSize);
@@ -170,6 +172,8 @@ private:
 
     QVariantAnimation *m_dragFeedbackAnimation = nullptr;
     QTimer *m_dragFeedbackClearTimer = nullptr;
+    QWidget *m_scrollbarHeaderCover = nullptr;
+    bool m_scrollbarPlacementPending = false;
     DragFeedbackState m_dragFeedbackState = DragFeedbackState::None;
     QColor m_dragFeedbackColor;
 };
