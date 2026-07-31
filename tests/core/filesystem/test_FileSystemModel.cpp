@@ -406,6 +406,42 @@ TEST(FileSystemModelLoadTest, DiscardsStaleLocalResultAfterNewerNavigation) {
     EXPECT_EQ(model.fileInfoAt(0).name(), QStringLiteral("current.txt"));
 }
 
+TEST(FileSystemModelLoadTest, FlatEntriesStartNewGenerationAndIgnorePriorScan) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString flatPath = dir.filePath(QStringLiteral("flat-current.txt"));
+    touch(dir.path(), QStringLiteral("flat-current.txt"));
+
+    auto provider = std::make_shared<BlockingListingProvider>();
+    FileSystemModel model;
+    model.setProvider(provider);
+    QSignalSpy started(&model, &FileSystemModel::loadStarted);
+    QSignalSpy finished(&model, &FileSystemModel::loadFinished);
+
+    model.setRootPath(QStringLiteral("A"));
+    provider->waitUntilFirstRequestStarted();
+    const quint64 scanGeneration = model.loadGeneration();
+
+    model.setFlatEntries({flatPath});
+    const quint64 flatGeneration = model.loadGeneration();
+    provider->releaseFirstRequest();
+    QTest::qWait(100);
+
+    ASSERT_GT(flatGeneration, scanGeneration);
+    ASSERT_EQ(started.count(), 2);
+    ASSERT_EQ(finished.count(), 1);
+    EXPECT_EQ(finished.last().at(1).toULongLong(), flatGeneration);
+    ASSERT_TRUE(model.isFlatMode());
+    ASSERT_EQ(model.rowCount(), 1);
+    EXPECT_EQ(model.fileInfoAt(0).path(), flatPath);
+
+    EXPECT_EQ(model.loadGeneration(), flatGeneration);
+    EXPECT_EQ(finished.count(), 1);
+    ASSERT_TRUE(model.isFlatMode());
+    ASSERT_EQ(model.rowCount(), 1);
+    EXPECT_EQ(model.fileInfoAt(0).path(), flatPath);
+}
+
 TEST(FilePanelDirectorySize, OlderRequestCannotOverwriteNewerSelection) {
     auto provider = std::make_shared<StaleSizeProvider>();
     FilePanel panel;

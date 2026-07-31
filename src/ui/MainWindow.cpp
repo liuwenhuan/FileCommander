@@ -1098,6 +1098,8 @@ qint64 MainWindow::elapsedSinceStartup() const {
 }
 
 void MainWindow::resetStartupPanelLoad(FilePanel *panel, quint64 generation) {
+    if (m_startupInteractiveMs >= 0)
+        return;
     const int panelIndex = panel == m_leftPanel ? 0 : panel == m_rightPanel ? 1 : -1;
     if (panelIndex < 0)
         return;
@@ -1111,6 +1113,8 @@ void MainWindow::resetStartupPanelLoad(FilePanel *panel, quint64 generation) {
 }
 
 void MainWindow::markStartupPanelLoaded(FilePanel *panel, quint64 generation) {
+    if (m_startupInteractiveMs >= 0)
+        return;
     const int panelIndex = panel == m_leftPanel ? 0 : panel == m_rightPanel ? 1 : -1;
     if (panelIndex < 0 || generation != panel->model()->loadGeneration() ||
         generation != m_startupPanelGeneration[panelIndex])
@@ -1127,6 +1131,8 @@ void MainWindow::markStartupPanelLoaded(FilePanel *panel, quint64 generation) {
 }
 
 void MainWindow::scheduleStartupPanelInteraction(FilePanel *panel) {
+    if (m_startupInteractiveMs >= 0)
+        return;
     const int panelIndex = panel == m_leftPanel ? 0 : panel == m_rightPanel ? 1 : -1;
     if (!m_startupVisible || panelIndex < 0 || !m_startupPanelLoaded[panelIndex] ||
         m_startupPanelInteractionScheduled[panelIndex] || m_startupPanelInteractive[panelIndex])
@@ -1135,7 +1141,7 @@ void MainWindow::scheduleStartupPanelInteraction(FilePanel *panel) {
     const quint64 generation = m_startupPanelGeneration[panelIndex];
     m_startupPanelInteractionScheduled[panelIndex] = true;
     QTimer::singleShot(0, this, [this, panel, panelIndex, generation] {
-        if (m_startupPanelInteractive[panelIndex] ||
+        if (m_startupInteractiveMs >= 0 || m_startupPanelInteractive[panelIndex] ||
             generation != m_startupPanelGeneration[panelIndex] ||
             generation != panel->model()->loadGeneration())
             return;

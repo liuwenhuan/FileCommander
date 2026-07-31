@@ -532,6 +532,49 @@ TEST(MainWindowStartupTest, EmitsReadyAfterBothVisiblePanelsAreInteractive) {
     EXPECT_EQ(ready.count(), 1);
 }
 
+TEST(MainWindowStartupTest, RefreshAfterReadyDoesNotRunAnotherInteractionProbe) {
+    QTemporaryDir leftDirectory;
+    QTemporaryDir rightDirectory;
+    ASSERT_TRUE(leftDirectory.isValid());
+    ASSERT_TRUE(rightDirectory.isValid());
+    for (const QString &path : {leftDirectory.filePath(QStringLiteral("left-a.txt")),
+                                leftDirectory.filePath(QStringLiteral("left-b.txt")),
+                                rightDirectory.filePath(QStringLiteral("right-a.txt")),
+                                rightDirectory.filePath(QStringLiteral("right-b.txt"))}) {
+        QFile file(path);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    }
+
+    MainWindow window(nullptr, 10000);
+    QSplitter *splitter = panelSplitter(window);
+    ASSERT_NE(splitter, nullptr);
+    auto *left = qobject_cast<FilePanel *>(splitter->widget(0));
+    auto *right = qobject_cast<FilePanel *>(splitter->widget(1));
+    ASSERT_NE(left, nullptr);
+    ASSERT_NE(right, nullptr);
+
+    QSignalSpy ready(&window, &MainWindow::startupReady);
+    left->navigateTo(leftDirectory.path());
+    right->navigateTo(rightDirectory.path());
+    window.resize(1000, 700);
+    window.show();
+    QTRY_COMPARE_WITH_TIMEOUT(ready.count(), 1, 4000);
+
+    left->view()->setCurrentIndex(left->model()->index(0, 0));
+    const int currentRowAfterReady = left->view()->currentIndex().row();
+    ASSERT_EQ(currentRowAfterReady, 0);
+
+    QSignalSpy refreshed(left->model(), &FileSystemModel::loadFinished);
+    left->refresh();
+    QTRY_VERIFY_WITH_TIMEOUT(!refreshed.isEmpty(), 4000);
+    ASSERT_EQ(left->view()->currentIndex().row(), currentRowAfterReady);
+
+    processGuiEvents();
+    processGuiEvents();
+    EXPECT_EQ(left->view()->currentIndex().row(), currentRowAfterReady);
+    EXPECT_EQ(ready.count(), 1);
+}
+
 TEST(MainWindowStartupTest, EmitsReadyWhenBothPanelsFinishLoadingBeforeShow) {
     QTemporaryDir leftDirectory;
     QTemporaryDir rightDirectory;

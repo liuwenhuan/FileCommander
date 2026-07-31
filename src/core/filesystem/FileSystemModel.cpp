@@ -318,6 +318,8 @@ void FileSystemModel::setShowHiddenFiles(bool show) {
 }
 
 void FileSystemModel::setFlatEntries(const QStringList &paths) {
+    ++m_loadGeneration;
+    emit loadStarted();
     beginResetModel();
     m_flatMode = true;
     m_rootPath.clear();      // no single directory backs a flat listing
