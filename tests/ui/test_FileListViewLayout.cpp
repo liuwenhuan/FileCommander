@@ -118,6 +118,17 @@ TEST_F(FileListViewLayoutTest, VerticalScrollbarStartsBelowHeaderAndColumnsStopB
     expectLastVisibleSectionAtContentRight(m_view);
 }
 
+TEST_F(FileListViewLayoutTest, HeaderRowExtendsAcrossTheScrollbarGutter) {
+    ASSERT_EQ(m_view.verticalScrollBarPolicy(), Qt::ScrollBarAlwaysOn);
+    resizeAndSettle(700);
+
+    QHeaderView *header = m_view.horizontalHeader();
+    ASSERT_NE(header, nullptr);
+
+    EXPECT_EQ(header->geometry().right(), m_view.contentsRect().right());
+    expectLastVisibleSectionAtContentRight(m_view);
+}
+
 TEST_F(FileListViewLayoutTest, HeaderCoversScrollbarGutterAboveTheListBody) {
     const QString originalSheet = qApp->styleSheet();
     applyThemeSheet(QStringLiteral("green"));

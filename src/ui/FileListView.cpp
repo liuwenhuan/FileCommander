@@ -31,7 +31,6 @@
 #include <QUrl>
 #include <QVariantAnimation>
 #include <QVector>
-#include <QWidget>
 
 #include "DragPixmap.h"
 #include "ExternalPaths.h"
@@ -81,6 +80,11 @@ public:
     explicit PlainHeaderView(QWidget *parent = nullptr) : QHeaderView(Qt::Horizontal, parent) {}
 
 protected:
+    void paintEvent(QPaintEvent *event) override {
+        QHeaderView::paintEvent(event);
+        paintTrailingFill();
+    }
+
     void mousePressEvent(QMouseEvent *e) override {
         m_pressIndex = logicalIndexAt(e->pos().x());
         m_pressPos = e->pos();
@@ -178,43 +182,38 @@ private:
         return -1;
     }
 
+    void paintTrailingFill() const {
+        int trailingLeft = 0;
+        for (int i = 0; i < count(); ++i) {
+            if (isSectionHidden(i))
+                continue;
+            trailingLeft = qMax(trailingLeft, sectionViewportPosition(i) + sectionSize(i));
+        }
+        if (trailingLeft >= viewport()->width())
+            return;
+
+        const bool light = palette().color(QPalette::Window).lightness() > 128;
+        const QColor bg =
+            m_sectionBg.isValid() ? m_sectionBg
+                                  : (light ? QColor(0xec, 0xec, 0xec) : QColor(0x23, 0x23, 0x23));
+        const QColor border = m_sectionBorder.isValid()
+                                  ? m_sectionBorder
+                                  : (light ? QColor(0xd0, 0xd0, 0xd0) : QColor(0x50, 0x50, 0x50));
+
+        const QRect r = viewport()->rect().adjusted(trailingLeft, 0, 0, 0);
+        QPainter painter(viewport());
+        painter.fillRect(r, bg);
+        painter.setPen(border);
+        painter.drawLine(r.bottomLeft(), r.bottomRight());
+        painter.drawLine(r.topLeft(), r.bottomLeft());
+    }
+
     int m_pressIndex = -1;
     QPoint m_pressPos;
     // Invalid until a stylesheet sets them -- see the class note.
     QColor m_sectionBg;
     QColor m_sectionFg;
     QColor m_sectionBorder;
-};
-
-class ScrollbarHeaderCover : public QWidget {
-public:
-    explicit ScrollbarHeaderCover(QWidget *parent = nullptr) : QWidget(parent) {
-        setObjectName(QStringLiteral("ScrollbarHeaderCover"));
-        setAutoFillBackground(false);
-    }
-
-protected:
-    void paintEvent(QPaintEvent *event) override {
-        Q_UNUSED(event);
-        const auto *view = qobject_cast<const FileListView *>(parentWidget());
-        const QHeaderView *header = view ? view->horizontalHeader() : nullptr;
-        QColor bg;
-        QColor border;
-        if (header) {
-            bg = header->property("sectionBackground").value<QColor>();
-            border = header->property("sectionBorder").value<QColor>();
-        }
-        if (!bg.isValid())
-            bg = palette().color(QPalette::Window);
-        if (!border.isValid())
-            border = palette().color(QPalette::Mid);
-
-        QPainter painter(this);
-        painter.fillRect(rect(), bg);
-        painter.setPen(border);
-        painter.drawLine(rect().bottomLeft(), rect().bottomRight());
-        painter.drawLine(rect().topLeft(), rect().bottomLeft());
-    }
 };
 
 // Paints file-list cells directly (background, icon, text) with a QPainter
@@ -305,8 +304,6 @@ FileListView::FileListView(QWidget *parent) : QTableView(parent) {
     // right edge stays pinned (Qt otherwise flashes the bar at the exact-fit
     // boundary). In the extreme-narrow case the last column simply clips.
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    m_scrollbarHeaderCover = new ScrollbarHeaderCover(this);
-    m_scrollbarHeaderCover->hide();
     verticalHeader()->hide();
     setHorizontalHeader(new PlainHeaderView(this)); // non-bold, self-painted labels
     horizontalHeader()->setSortIndicatorShown(true);
@@ -748,38 +745,27 @@ int FileListView::columnLayoutWidth() const {
 
 void FileListView::placeVerticalScrollBarBelowHeader() {
     QScrollBar *bar = verticalScrollBar();
-    if (!bar || !bar->isVisible()) {
-        if (m_scrollbarHeaderCover)
-            m_scrollbarHeaderCover->hide();
+    if (!bar || !bar->isVisible())
         return;
+
+    QHeaderView *header = horizontalHeader();
+    const QRect content = contentsRect();
+    if (header && header->isVisible()) {
+        const QRect hg = header->geometry();
+        header->setGeometry(content.left(), hg.top(), content.width(), hg.height());
+        header->raise();
     }
 
-    const QHeaderView *header = horizontalHeader();
-    const QRect content = contentsRect();
     const int top = header && header->isVisible()
                         ? header->geometry().bottom() + 1
                         : viewport()->geometry().top();
     const int width = qMax(1, bar->sizeHint().width());
     const int left = content.right() - width + 1;
     const int bottom = content.bottom();
-    if (bottom < top) {
-        if (m_scrollbarHeaderCover)
-            m_scrollbarHeaderCover->hide();
+    if (bottom < top)
         return;
-    }
     bar->setGeometry(left, top, width, bottom - top + 1);
     bar->raise();
-
-    if (m_scrollbarHeaderCover) {
-        const int coverHeight = qMax(0, top - content.top());
-        if (coverHeight > 0) {
-            m_scrollbarHeaderCover->setGeometry(left, content.top(), width, coverHeight);
-            m_scrollbarHeaderCover->show();
-            m_scrollbarHeaderCover->raise();
-        } else {
-            m_scrollbarHeaderCover->hide();
-        }
-    }
 }
 
 void FileListView::scheduleVerticalScrollBarPlacement() {
@@ -967,8 +953,6 @@ void FileListView::changeEvent(QEvent *event) {
             ensureSelectionPalettes();
             setPalette(m_panelActive ? m_activePalette : m_inactivePalette);
         }
-        if (m_scrollbarHeaderCover)
-            m_scrollbarHeaderCover->update();
         scheduleVerticalScrollBarPlacement();
     } else if (event->type() == QEvent::FontChange) {
         // The list font drives content-width measurement; a font change (the
