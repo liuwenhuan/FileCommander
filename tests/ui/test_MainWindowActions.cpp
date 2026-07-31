@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <QAction>
+#include <QActionGroup>
 #include <QApplication>
 #include <QKeySequence>
 #include <QMenu>
@@ -12,6 +13,8 @@
 
 #include "FunctionKeyBar.h"
 #include "MainWindow.h"
+#include "Settings.h"
+#include "ThemeManager.h"
 #include "TranslationManager.h"
 
 namespace {
@@ -69,6 +72,26 @@ QAction *checkedThemeAction(QMenu *interfaceMenu) {
             action->text() != QStringLiteral("Tint images to match")) {
             return action;
         }
+    }
+    return nullptr;
+}
+
+Settings::Theme themeForAction(const QAction *action) {
+    if (action->text() == QStringLiteral("Auto"))
+        return Settings::Theme::Auto;
+    if (action->text() == QStringLiteral("Light"))
+        return Settings::Theme::Light;
+    if (action->text() == QStringLiteral("Dark"))
+        return Settings::Theme::Dark;
+    return Settings::Theme::Crt;
+}
+
+QAction *anotherThemeAction(QMenu *interfaceMenu, QAction *first, QAction *second) {
+    for (const QString &label : {QStringLiteral("Auto"), QStringLiteral("Light"),
+                                 QStringLiteral("Dark"), QStringLiteral("Green CRT")}) {
+        QAction *action = findAction(interfaceMenu, label);
+        if (action && action != first && action != second)
+            return action;
     }
     return nullptr;
 }
@@ -215,6 +238,45 @@ TEST(MainWindowActionsTest, InterfaceMenuRefreshesThemeAfterRuntimeShortcut) {
 
     for (int i = 0; i < 3; ++i)
         activateShortcut(window, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_T));
+}
+
+TEST(MainWindowActionsTest, InterfaceThemeGroupRemainsExclusiveAfterRuntimeSync) {
+    ScopedUiLanguage language(QStringLiteral("en"));
+    MainWindow window;
+
+    QMenu *interfaceMenu = findMenu(window, QStringLiteral("&Interface"));
+    ASSERT_NE(interfaceMenu, nullptr);
+    openMenu(interfaceMenu);
+    QAction *initialTheme = checkedThemeAction(interfaceMenu);
+    ASSERT_NE(initialTheme, nullptr);
+    QActionGroup *themeGroup = initialTheme->actionGroup();
+    ASSERT_NE(themeGroup, nullptr);
+    const int actionCount = interfaceMenu->actions().size();
+
+    activateShortcut(window, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_T));
+    openMenu(interfaceMenu);
+    QAction *runtimeTheme = checkedThemeAction(interfaceMenu);
+    ASSERT_NE(runtimeTheme, nullptr);
+    ASSERT_NE(runtimeTheme, initialTheme);
+    QAction *selectedTheme = anotherThemeAction(interfaceMenu, initialTheme, runtimeTheme);
+    ASSERT_NE(selectedTheme, nullptr);
+    const Settings::Theme expectedTheme = themeForAction(selectedTheme);
+
+    selectedTheme->trigger();
+
+    int checkedThemes = 0;
+    for (QAction *action : themeGroup->actions())
+        checkedThemes += action->isChecked();
+    EXPECT_EQ(checkedThemes, 1);
+    EXPECT_EQ(themeGroup->checkedAction(), selectedTheme);
+    EXPECT_EQ(checkedThemeAction(interfaceMenu), selectedTheme);
+    EXPECT_EQ(Settings().theme(), expectedTheme);
+    ThemeManager *themeManager = window.findChild<ThemeManager *>();
+    ASSERT_NE(themeManager, nullptr);
+    EXPECT_EQ(themeManager->requestedTheme(), expectedTheme);
+    EXPECT_EQ(interfaceMenu->actions().size(), actionCount);
+
+    initialTheme->trigger();
 }
 
 TEST(MainWindowActionsTest, FirstOpenBuildsTranslatedMenuContents) {

@@ -1061,10 +1061,15 @@ void MainWindow::syncInterfaceMenuState() {
             action->setChecked(checked);
         }
     };
-    for (int theme = static_cast<int>(Settings::Theme::Auto);
-         theme <= static_cast<int>(Settings::Theme::Crt); ++theme) {
-        syncChecked(QStringLiteral("interfaceThemeAction%1").arg(theme),
-                    static_cast<int>(m_settings.theme()) == theme);
+    if (QAction *themeAction = m_interfaceMenu->findChild<QAction *>(
+            QStringLiteral("interfaceThemeAction%1").arg(static_cast<int>(m_settings.theme())))) {
+        // QActionGroup updates its current action from QAction::toggled. Theme
+        // handlers use triggered, so this cannot re-enter setTheme().
+        if (QActionGroup *group = themeAction->actionGroup();
+            group && group->checkedAction() != themeAction && themeAction->isChecked()) {
+            themeAction->setChecked(false);
+        }
+        themeAction->setChecked(true);
     }
     syncChecked(QStringLiteral("interfacePhosphorImagesAction"), m_settings.phosphorImages());
     if (QAction *action = m_interfaceMenu->findChild<QAction *>(
