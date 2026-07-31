@@ -301,6 +301,7 @@ private:
     QTimer *m_mediaWarmTimer = nullptr;
     bool m_mediaWarmScheduled = false;
     bool m_mediaWarmComplete = false;
+    bool m_initialThemeRepolishScheduled = false;
 
     QuickView *m_quickView = nullptr;
     FilePanel *m_quickViewPanel = nullptr; // panel replaced by the preview

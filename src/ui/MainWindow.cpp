@@ -1480,6 +1480,17 @@ void MainWindow::updateOpaqueRegion() {
 
 void MainWindow::showEvent(QShowEvent *event) {
     QMainWindow::showEvent(event);
+    // On Windows, QStyleSheetStyle can create the first native scrollbar before
+    // the application's stylesheet has gone through a real native-window
+    // polish. Re-applying the already-selected theme on the next event turn
+    // performs that polish once the HWND exists; later user theme changes use
+    // this same path naturally.
+    if (!m_initialThemeRepolishScheduled && m_themeManager) {
+        m_initialThemeRepolishScheduled = true;
+        QTimer::singleShot(0, this, [this] {
+            m_themeManager->apply(m_settings.theme(), m_settings.phosphorImages());
+        });
+    }
     // A window restored maximized only reports isMaximized() reliably once it's
     // mapped; the constructor's setContentsMargins ran before that and left the
     // shadow margin in place, showing a blank ring around a maximized window.
