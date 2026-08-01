@@ -1,6 +1,7 @@
 set(UI_TEST_SOURCES
     test_main.cpp
     test_TabManager.cpp
+    test_BreadcrumbBar.cpp
     test_PropertiesDialog.cpp
     test_CommandHistory.cpp
     test_TextViewer.cpp

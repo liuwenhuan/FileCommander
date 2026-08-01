@@ -88,13 +88,24 @@ void BreadcrumbBar::rebuildSegments() {
             .arg(target.toHtmlEscaped(), colour, label.toHtmlEscaped());
     };
 
-    QString html = segment(QStringLiteral("/"), QStringLiteral("/"));
-    const QString cleanPath = QDir::cleanPath(m_path);
-    const QStringList parts = cleanPath.split(QLatin1Char('/'), Qt::SkipEmptyParts);
+    const QString cleanPath = QDir::cleanPath(QDir::fromNativeSeparators(m_path));
+    const bool hasDriveRoot = cleanPath.size() >= 2 && cleanPath.at(0).isLetter() &&
+                              cleanPath.at(1) == QLatin1Char(':');
+    QString html;
     QString accumulated;
+    QString remainder = cleanPath;
+    if (hasDriveRoot) {
+        accumulated = cleanPath.left(2);
+        html = segment(accumulated + QLatin1Char('/'), accumulated);
+        remainder.remove(0, 2);
+    } else {
+        html = segment(QStringLiteral("/"), QStringLiteral("/"));
+    }
+
+    const QStringList parts = remainder.split(QLatin1Char('/'), Qt::SkipEmptyParts);
     for (int i = 0; i < parts.size(); ++i) {
         accumulated += QLatin1Char('/') + parts.at(i);
-        if (i > 0) // "/" between segments; the root segment already is "/"
+        if (hasDriveRoot || i > 0) // "/" between segments; POSIX root already is "/"
             html += QLatin1Char('/');
         html += segment(accumulated, parts.at(i));
     }

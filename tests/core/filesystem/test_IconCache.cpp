@@ -139,6 +139,20 @@ TEST(IconCacheTest, WindowsDirectoryIconUsesShellFolderGlyph) {
     ASSERT_FALSE(expected.isNull());
     EXPECT_LT(meanRgbDifference(actual, expected), 2.0);
 }
+
+TEST(IconCacheTest, WindowsDirectoryIconFillsLargeThumbnailSlot) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+
+    IconCache::instance().setTint(QColor());
+    const QPixmap large =
+        IconCache::instance().iconFor(FileInfo(dir.path())).pixmap(QSize(192, 192));
+
+    ASSERT_FALSE(large.isNull());
+    const qreal dpr = large.devicePixelRatio() > 0.0 ? large.devicePixelRatio() : 1.0;
+    EXPECT_EQ(QSize(qRound(large.width() / dpr), qRound(large.height() / dpr)),
+              QSize(192, 192));
+}
 #endif
 
 TEST(IconCacheTest, ThemedIconLeavesOriginalUntouchedWithoutTint) {

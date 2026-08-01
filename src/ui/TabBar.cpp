@@ -1,6 +1,7 @@
 #include "TabBar.h"
 
 #include <QAbstractButton>
+#include <QApplication>
 #include <QColor>
 #include <QContextMenuEvent>
 #include <QMenu>
@@ -68,7 +69,19 @@ public:
             return QRect(0, y, buttonWidth, buttonHeight);
         return QRect(qMax(0, widget->width() - buttonWidth), y, buttonWidth, buttonHeight);
     }
+
+    void drawControl(ControlElement element, const QStyleOption *option, QPainter *painter,
+                     const QWidget *widget) const override {
+        if (!qApp->styleSheet().isEmpty() &&
+            (element == QStyle::CE_TabBarTab || element == QStyle::CE_TabBarTabShape ||
+             element == QStyle::CE_TabBarTabLabel)) {
+            qApp->style()->drawControl(element, option, painter, widget);
+            return;
+        }
+        QProxyStyle::drawControl(element, option, painter, widget);
+    }
 };
+
 } // namespace
 
 TabBar::TabBar(QWidget *parent) : QTabBar(parent) {

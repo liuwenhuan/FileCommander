@@ -215,6 +215,45 @@ TEST(FilePanelThemeTest, TabBarsKeepTheSameHeightWithDifferentTabCounts) {
     EXPECT_EQ(singleTabBar->tabRect(0).height(), multipleTabBar->tabRect(0).height());
 }
 
+TEST(TabBarTest, AppliesDarkAndGreenThemesWhenStylesheetArrivesAfterConstruction) {
+    const QString previousStyleSheet = qApp->styleSheet();
+    struct RestoreStyleSheet {
+        QString value;
+        ~RestoreStyleSheet() { qApp->setStyleSheet(value); }
+    } restore{previousStyleSheet};
+    qApp->setStyleSheet(QString());
+
+    TabBar tabBar;
+    tabBar.addTab(QStringLiteral("Themed tab"));
+    tabBar.resize(360, 36);
+    tabBar.show();
+
+    const auto darkSurfaceRatio = [&tabBar]() {
+        const QImage rendered = tabBar.grab().toImage();
+        const QRect sample = tabBar.tabRect(0).adjusted(3, 5, -3, -3);
+        int dark = 0;
+        int total = 0;
+        for (int y = sample.top(); y <= sample.bottom(); ++y) {
+            for (int x = sample.left(); x <= sample.right(); ++x) {
+                ++total;
+                if (rendered.pixelColor(x, y).lightness() < 128)
+                    ++dark;
+            }
+        }
+        return total > 0 ? static_cast<double>(dark) / total : 0.0;
+    };
+
+    for (const QString &theme : {QStringLiteral("dark"), QStringLiteral("green")}) {
+        QFile qss(QStringLiteral(TTC_SOURCE_DIR "/resources/themes/") + theme +
+                  QStringLiteral(".qss"));
+        ASSERT_TRUE(qss.open(QIODevice::ReadOnly)) << theme.toStdString();
+        qApp->setStyleSheet(QString::fromUtf8(qss.readAll()));
+        qApp->processEvents();
+
+        EXPECT_GT(darkSurfaceRatio(), 0.65) << theme.toStdString();
+    }
+}
+
 TEST(FilePanelThemeTest, MotionProgressPropertiesRemainAvailableToThemeAwarePainting) {
     FilePanel panel;
     TabBar *tabBar = panel.findChild<TabBar *>();

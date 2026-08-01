@@ -9,6 +9,8 @@
 
 #ifdef Q_OS_WIN
 #include <qt_windows.h>
+#include <commctrl.h>
+#include <commoncontrols.h>
 #include <shellapi.h>
 #ifdef min
 #undef min
@@ -71,20 +73,36 @@ QImage imageFromHIcon(HICON icon, int size) {
 
 QPixmap shellFolderPixmap(int size) {
     SHFILEINFOW fileInfo = {};
-    const UINT iconSize = size <= 16 ? SHGFI_SMALLICON : SHGFI_LARGEICON;
     const DWORD_PTR ok = SHGetFileInfoW(
         L"folder", FILE_ATTRIBUTE_DIRECTORY, &fileInfo, sizeof(fileInfo),
-        SHGFI_ICON | SHGFI_USEFILEATTRIBUTES | iconSize);
-    if (!ok || !fileInfo.hIcon)
+        SHGFI_SYSICONINDEX | SHGFI_USEFILEATTRIBUTES);
+    if (!ok)
         return {};
-    QImage image = imageFromHIcon(fileInfo.hIcon, size);
-    DestroyIcon(fileInfo.hIcon);
+
+    const int imageListSize = size <= 16   ? SHIL_SMALL
+                              : size <= 32 ? SHIL_LARGE
+                              : size <= 48 ? SHIL_EXTRALARGE
+                                           : SHIL_JUMBO;
+    IImageList *imageList = nullptr;
+    const HRESULT listResult = SHGetImageList(
+        imageListSize, __uuidof(IImageList), reinterpret_cast<void **>(&imageList));
+    if (FAILED(listResult) || !imageList)
+        return {};
+
+    HICON shellIcon = nullptr;
+    const HRESULT iconResult = imageList->GetIcon(fileInfo.iIcon, ILD_TRANSPARENT, &shellIcon);
+    imageList->Release();
+    if (FAILED(iconResult) || !shellIcon)
+        return {};
+
+    QImage image = imageFromHIcon(shellIcon, size);
+    DestroyIcon(shellIcon);
     return image.isNull() ? QPixmap() : QPixmap::fromImage(image);
 }
 
 QIcon shellFolderIcon() {
     QIcon icon;
-    const int sizes[] = {16, 32};
+    const int sizes[] = {16, 32, 48, 256};
     for (int size : sizes) {
         QPixmap pixmap = shellFolderPixmap(size);
         if (!pixmap.isNull())
