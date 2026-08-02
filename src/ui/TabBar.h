@@ -1,10 +1,12 @@
 #pragma once
 
+#include <QColor>
 #include <QTabBar>
 
 class QAbstractButton;
 class QPropertyAnimation;
 class QProxyStyle;
+class QMouseEvent;
 class QResizeEvent;
 
 // Visual tab strip for one FilePanel. Thin wrapper around QTabBar adding
@@ -17,6 +19,11 @@ class TabBar : public QTabBar {
 public:
     explicit TabBar(QWidget *parent = nullptr);
     qreal activationProgress() const { return m_activationProgress; }
+    // Qt 5 does not reliably repolish qproperty values after a runtime theme
+    // switch. ThemeManager updates this shared palette for all tab bars.
+    static void setThemeColors(const QColor &accent, const QColor &close,
+                               const QColor &selectedClose, const QColor &hoverClose,
+                               const QColor &pressedClose, const QColor &disabledClose);
 
     // Runs the current-tab visual transition after a caller intentionally
     // suppressed currentChanged while installing consistent tab state.
@@ -31,6 +38,7 @@ signals:
 
 protected:
     void contextMenuEvent(QContextMenuEvent *event) override;
+    void mouseDoubleClickEvent(QMouseEvent *event) override;
     void tabInserted(int index) override;
     void tabRemoved(int index) override;
     void paintEvent(QPaintEvent *event) override;

@@ -18,9 +18,13 @@ class IsolatedConfigDir {
 public:
     IsolatedConfigDir()
         : wasSet(qEnvironmentVariableIsSet("XDG_CONFIG_HOME")),
-          previous(qgetenv("XDG_CONFIG_HOME")) {
-        if (dir.isValid())
+          previous(qgetenv("XDG_CONFIG_HOME")),
+          overrideWasSet(qEnvironmentVariableIsSet("FILECOMMANDER_CONFIG_HOME")),
+          previousOverride(qgetenv("FILECOMMANDER_CONFIG_HOME")) {
+        if (dir.isValid()) {
             qputenv("XDG_CONFIG_HOME", dir.path().toUtf8());
+            qputenv("FILECOMMANDER_CONFIG_HOME", dir.path().toUtf8());
+        }
     }
 
     ~IsolatedConfigDir() {
@@ -30,6 +34,10 @@ public:
             qputenv("XDG_CONFIG_HOME", previous);
         else
             qunsetenv("XDG_CONFIG_HOME");
+        if (overrideWasSet)
+            qputenv("FILECOMMANDER_CONFIG_HOME", previousOverride);
+        else
+            qunsetenv("FILECOMMANDER_CONFIG_HOME");
     }
 
     bool isValid() const { return dir.isValid(); }
@@ -38,6 +46,8 @@ public:
 private:
     bool wasSet;
     QByteArray previous;
+    bool overrideWasSet;
+    QByteArray previousOverride;
 };
 
 void writeFile(const QString &path, const QByteArray &data) {
@@ -60,9 +70,12 @@ TEST(NotepadStoreTest, ExplicitDirectoryPersistsNotes) {
 
     const QString notesPath = temporaryDir.filePath(QStringLiteral("isolated-notes"));
     NotepadStore store(notesPath);
+    ASSERT_TRUE(store.isAvailable());
     const NotepadNote note = store.create(QString::fromUtf8("计划"));
     store.save(note.id, QString::fromUtf8("独立内容"), QString());
 
+    ASSERT_FALSE(note.id.isEmpty());
+    ASSERT_FALSE(store.load(note.id).isEmpty());
     NotepadStore reloaded(notesPath);
     ASSERT_EQ(reloaded.notes().size(), 1);
     EXPECT_EQ(reloaded.notes().first().title, QString::fromUtf8("计划"));
@@ -184,7 +197,7 @@ TEST(NotepadStoreTest, RecoversValidOrphanBodyIntoExistingIndex) {
     EXPECT_EQ(reloaded.load(orphanId), QStringLiteral("orphan body"));
 }
 
-TEST(NotepadStoreTest, CreatesPrivateDirectoryIndexAndBodyPermissions) {
+TEST(NotepadStoreTest, CreatesPlatformPrivateDirectoryIndexAndBody) {
     QTemporaryDir root;
     ASSERT_TRUE(root.isValid());
     const QString notesPath = root.filePath(QStringLiteral("notes"));
@@ -193,6 +206,14 @@ TEST(NotepadStoreTest, CreatesPrivateDirectoryIndexAndBodyPermissions) {
     ASSERT_FALSE(note.id.isEmpty());
     ASSERT_TRUE(store.save(note.id, QStringLiteral("secret"), QString()));
 
+#ifdef Q_OS_WIN
+    EXPECT_TRUE(QFileInfo(notesPath).isReadable());
+    EXPECT_TRUE(QFileInfo(notesPath).isWritable());
+    EXPECT_TRUE(QFileInfo(notesPath + QStringLiteral("/index.json")).isReadable());
+    EXPECT_TRUE(QFileInfo(notesPath + QStringLiteral("/index.json")).isWritable());
+    EXPECT_TRUE(QFileInfo(note.filePath).isReadable());
+    EXPECT_TRUE(QFileInfo(note.filePath).isWritable());
+#else
     const QFileDevice::Permissions privateDirectory =
         QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner |
         QFileDevice::ReadUser | QFileDevice::WriteUser | QFileDevice::ExeUser;
@@ -202,6 +223,7 @@ TEST(NotepadStoreTest, CreatesPrivateDirectoryIndexAndBodyPermissions) {
     EXPECT_EQ(QFileInfo(notesPath).permissions(), privateDirectory);
     EXPECT_EQ(QFileInfo(notesPath + QStringLiteral("/index.json")).permissions(), privateFile);
     EXPECT_EQ(QFileInfo(note.filePath).permissions(), privateFile);
+#endif
 }
 
 TEST(NotepadStoreTest, SaveReportsCommitFailureWhenBodyPathIsDirectory) {

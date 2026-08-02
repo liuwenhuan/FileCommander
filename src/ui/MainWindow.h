@@ -282,6 +282,7 @@ private:
     OperationQueue *m_queue;
     TransferProgressDialog *m_progressDialog = nullptr;
     QStringList m_operationErrors; // accumulated per-file errors for the running job
+    bool m_operationAbortRequested = false;
     // Set while a delete is in flight so the queue-finished handler can remove
     // just those rows and select the next file, instead of a full rescan that
     // would snap the cursor back to the top of the list.

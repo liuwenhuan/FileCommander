@@ -8,6 +8,7 @@
 #include <QDropEvent>
 #include <QIcon>
 #include <QItemSelectionModel>
+#include <QKeyEvent>
 #include <QMimeData>
 #include <QPainter>
 #include <QResizeEvent>
@@ -16,6 +17,7 @@
 #include <QTimer>
 #include <QUrl>
 #include <QVariantAnimation>
+#include <QWheelEvent>
 
 #include "DragPixmap.h"
 #include "ExternalPaths.h"
@@ -87,6 +89,35 @@ void IconFileView::setModel(QAbstractItemModel *model) {
         connect(model, &QAbstractItemModel::modelReset, this, &IconFileView::clearDragFeedback);
 }
 
+void IconFileView::keyPressEvent(QKeyEvent *event) {
+    if (event->key() == Qt::Key_Space) {
+        const QModelIndex index = currentIndex();
+        if (index.isValid() && selectionModel()) {
+            selectionModel()->select(index, QItemSelectionModel::Toggle);
+            const QModelIndex next = index.sibling(index.row() + 1, index.column());
+            if (next.isValid()) {
+                selectionModel()->setCurrentIndex(next, QItemSelectionModel::NoUpdate);
+                scrollTo(next, QAbstractItemView::EnsureVisible);
+            }
+        }
+        event->accept();
+        return;
+    }
+    QListView::keyPressEvent(event);
+}
+
+void IconFileView::wheelEvent(QWheelEvent *event) {
+    int delta = event->angleDelta().y();
+    if (delta == 0)
+        delta = event->pixelDelta().y();
+    if ((event->modifiers() & Qt::ControlModifier) && delta != 0) {
+        emit zoomRequested(delta > 0 ? 1 : -1);
+        event->accept();
+        return;
+    }
+    QListView::wheelEvent(event);
+}
+
 bool IconFileView::visibleRows(int *firstRow, int *lastRow) const {
     if (!model() || model()->rowCount() == 0)
         return false;
@@ -100,8 +131,12 @@ bool IconFileView::visibleRows(int *firstRow, int *lastRow) const {
 
     int lo = -1;
     int hi = -1;
-    constexpr int kSamplesX = 8;
-    constexpr int kSamplesY = 8;
+    // A sparse 8x8 probe can alias perfectly with a regular icon grid after a
+    // scroll and land only in the gaps. Keep this bounded, but dense enough to
+    // cross the smallest text/icon hit area used by the view. This only runs
+    // after the settle timer, never for each scroll event.
+    constexpr int kSamplesX = 32;
+    constexpr int kSamplesY = 32;
     for (int iy = 0; iy <= kSamplesY; ++iy) {
         const int y = area.top() + iy * (area.height() - 1) / kSamplesY;
         for (int ix = 0; ix <= kSamplesX; ++ix) {

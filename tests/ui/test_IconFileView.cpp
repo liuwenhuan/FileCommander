@@ -6,8 +6,11 @@
 #include <QScrollBar>
 #include <QSignalSpy>
 #include <QStandardItemModel>
+#include <QTest>
+#include <QWheelEvent>
 
 #include "FilePanel.h"
+#include "FileListView.h"
 #include "FileSystemModel.h"
 #include "IconFileView.h"
 
@@ -38,7 +41,129 @@ QScrollBar *activeScrollBar(IconFileView *view) {
     return vertical->maximum() > vertical->minimum() ? vertical : view->horizontalScrollBar();
 }
 
+bool sendWheel(QWidget *target, int angleDeltaY, Qt::KeyboardModifiers modifiers) {
+    const QPointF local(target->rect().center());
+    const QPointF global(target->mapToGlobal(local.toPoint()));
+    QWheelEvent event(local, global, QPoint(), QPoint(0, angleDeltaY), Qt::NoButton,
+                      modifiers, Qt::NoScrollPhase, false);
+    event.setAccepted(false);
+    QCoreApplication::sendEvent(target, &event);
+    return event.isAccepted();
+}
+
+QSet<int> selectedRows(const QItemSelectionModel &selection) {
+    QSet<int> rows;
+    for (const QModelIndex &index : selection.selectedIndexes())
+        rows.insert(index.row());
+    return rows;
+}
+
 } // namespace
+
+TEST(FileViewSelectionTest, SpaceTogglesCurrentListRowAndMovesDownWithoutChangingOtherSelections) {
+    QStandardItemModel model(4, 3);
+    FileListView view;
+    view.setModel(&model);
+    view.setSelectionMode(QAbstractItemView::ExtendedSelection);
+
+    QItemSelectionModel *selection = view.selectionModel();
+    const QModelIndex kept = model.index(0, 0);
+    const QModelIndex current = model.index(2, 0);
+    selection->select(kept, QItemSelectionModel::Select | QItemSelectionModel::Rows);
+    selection->setCurrentIndex(current, QItemSelectionModel::NoUpdate);
+
+    QTest::keyClick(&view, Qt::Key_Space);
+    EXPECT_EQ(selectedRows(*selection), (QSet<int>{0, 2}));
+    EXPECT_EQ(selection->currentIndex(), model.index(3, 0));
+
+    selection->setCurrentIndex(current, QItemSelectionModel::NoUpdate);
+    QTest::keyClick(&view, Qt::Key_Space);
+    EXPECT_EQ(selectedRows(*selection), (QSet<int>{0}));
+    EXPECT_EQ(selection->currentIndex(), model.index(3, 0));
+}
+
+TEST(FileViewSelectionTest, SpaceTogglesCurrentThumbnailAndMovesDownWithoutChangingOtherSelections) {
+    QStandardItemModel model(4, 1);
+    IconFileView view;
+    view.setModel(&model);
+    view.setSelectionMode(QAbstractItemView::ExtendedSelection);
+
+    QItemSelectionModel *selection = view.selectionModel();
+    const QModelIndex kept = model.index(0, 0);
+    const QModelIndex current = model.index(2, 0);
+    selection->select(kept, QItemSelectionModel::Select);
+    selection->setCurrentIndex(current, QItemSelectionModel::NoUpdate);
+
+    QTest::keyClick(&view, Qt::Key_Space);
+    EXPECT_EQ(selectedRows(*selection), (QSet<int>{0, 2}));
+    EXPECT_EQ(selection->currentIndex(), model.index(3, 0));
+
+    selection->setCurrentIndex(current, QItemSelectionModel::NoUpdate);
+    QTest::keyClick(&view, Qt::Key_Space);
+    EXPECT_EQ(selectedRows(*selection), (QSet<int>{0}));
+    EXPECT_EQ(selection->currentIndex(), model.index(3, 0));
+}
+
+TEST(FileViewWheelTest, CtrlWheelRequestsZoomAndOrdinaryWheelStillScrolls) {
+    QStandardItemModel listModel(200, 1);
+    FileListView list;
+    list.setModel(&listModel);
+    list.resize(320, 180);
+    list.show();
+    pump(50);
+    QSignalSpy listZoom(&list, &FileListView::zoomRequested);
+
+    EXPECT_TRUE(sendWheel(list.viewport(), 120, Qt::ControlModifier));
+    EXPECT_TRUE(sendWheel(list.viewport(), -120, Qt::ControlModifier));
+    ASSERT_EQ(listZoom.count(), 2);
+    EXPECT_EQ(listZoom.at(0).at(0).toInt(), 1);
+    EXPECT_EQ(listZoom.at(1).at(0).toInt(), -1);
+
+    const int listBefore = list.verticalScrollBar()->value();
+    sendWheel(list.viewport(), -120, Qt::NoModifier);
+    EXPECT_GT(list.verticalScrollBar()->value(), listBefore);
+    EXPECT_EQ(listZoom.count(), 2);
+
+    QStandardItemModel iconModel;
+    IconFileView icons;
+    setUp(&icons, &iconModel);
+    QSignalSpy iconZoom(&icons, &IconFileView::zoomRequested);
+
+    EXPECT_TRUE(sendWheel(icons.viewport(), 120, Qt::ControlModifier));
+    EXPECT_TRUE(sendWheel(icons.viewport(), -120, Qt::ControlModifier));
+    ASSERT_EQ(iconZoom.count(), 2);
+    EXPECT_EQ(iconZoom.at(0).at(0).toInt(), 1);
+    EXPECT_EQ(iconZoom.at(1).at(0).toInt(), -1);
+
+    QScrollBar *iconScrollBar = activeScrollBar(&icons);
+    const int iconBefore = iconScrollBar->value();
+    sendWheel(icons.viewport(), -120, Qt::NoModifier);
+    EXPECT_GT(iconScrollBar->value(), iconBefore);
+    EXPECT_EQ(iconZoom.count(), 2);
+}
+
+TEST(FileViewWheelTest, PanelRoutesCtrlWheelThroughExistingScaleControls) {
+    FilePanel panel;
+    panel.resize(800, 600);
+    panel.show();
+    pump(50);
+    QSignalSpy scaleChanged(&panel, &FilePanel::viewScaleChanged);
+
+    sendWheel(panel.view()->viewport(), 120, Qt::ControlModifier);
+    const int enlargedRowHeight = panel.listRowHeight();
+    EXPECT_GT(enlargedRowHeight, 0);
+    sendWheel(panel.view()->viewport(), -120, Qt::ControlModifier);
+    EXPECT_LT(panel.listRowHeight(), enlargedRowHeight);
+
+    panel.toggleViewMode();
+    ASSERT_NE(panel.iconView(), nullptr);
+    const int initialThumbnailSize = panel.iconView()->iconSize().width();
+    sendWheel(panel.iconView()->viewport(), 120, Qt::ControlModifier);
+    EXPECT_GT(panel.thumbnailIconSize(), initialThumbnailSize);
+    sendWheel(panel.iconView()->viewport(), -120, Qt::ControlModifier);
+    EXPECT_EQ(panel.thumbnailIconSize(), initialThumbnailSize);
+    EXPECT_EQ(scaleChanged.count(), 4);
+}
 
 // Thumbnails on a network share cost a round trip each, so a flick through a
 // directory must not queue every row it sweeps past -- only where it lands.

@@ -5,6 +5,9 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
+#include <QResizeEvent>
+#include <QScreen>
+#include <QSizePolicy>
 
 #include "ThemedDialogs.h"
 #include <QPlainTextEdit>
@@ -16,6 +19,38 @@
 #include "TextDiff.h"
 
 namespace {
+class ElidingPathLabel final : public QLabel {
+public:
+    ElidingPathLabel(const QString &fullPath, QWidget *parent)
+        : QLabel(parent), m_fullPath(fullPath) {
+        setToolTip(fullPath);
+        setMinimumWidth(0);
+        setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        updateElision();
+    }
+
+    QSize sizeHint() const override {
+        return {0, fontMetrics().height()};
+    }
+
+    QSize minimumSizeHint() const override {
+        return {0, fontMetrics().height()};
+    }
+
+protected:
+    void resizeEvent(QResizeEvent *event) override {
+        QLabel::resizeEvent(event);
+        updateElision();
+    }
+
+private:
+    void updateElision() {
+        QLabel::setText(fontMetrics().elidedText(m_fullPath, Qt::ElideMiddle, width()));
+    }
+
+    QString m_fullPath;
+};
+
 QPlainTextEdit *makeReadOnlyEditor(QWidget *parent) {
     auto *edit = new QPlainTextEdit(parent);
     edit->setReadOnly(true);
@@ -45,15 +80,20 @@ CompareDialog::CompareDialog(const QString &leftPath, const QString &rightPath,
     : FramelessDialog(parent) {
     setWindowTitle(tr("Compare: %1 vs %2")
                         .arg(QFileInfo(leftLabel).fileName(), QFileInfo(rightLabel).fileName()));
-    resize(1100, 700);
+    const QSize availableSize = screen()->availableGeometry().size();
+    setMaximumWidth(availableSize.width());
+    resize(QSize(1100, 700).boundedTo(availableSize));
 
     m_leftEdit = makeReadOnlyEditor(this);
     m_rightEdit = makeReadOnlyEditor(this);
     m_summaryLabel = new QLabel(this);
+    m_summaryLabel->setWordWrap(true);
+    m_summaryLabel->setMinimumWidth(0);
+    m_summaryLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 
     auto *header = new QHBoxLayout;
-    header->addWidget(new QLabel(leftLabel, this), 1);
-    header->addWidget(new QLabel(rightLabel, this), 1);
+    header->addWidget(new ElidingPathLabel(leftLabel, this), 1);
+    header->addWidget(new ElidingPathLabel(rightLabel, this), 1);
 
     auto *editors = new QHBoxLayout;
     editors->addWidget(m_leftEdit);
@@ -167,5 +207,6 @@ bool CompareDialog::loadAndCompare(const QString &leftPath, const QString &right
         m_summaryLabel->setText(
             tr("%1 line(s) only in left, %2 line(s) only in right").arg(removedCount).arg(addedCount));
 
+    m_summaryLabel->setToolTip(m_summaryLabel->text());
     return true;
 }

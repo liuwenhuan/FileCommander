@@ -79,8 +79,13 @@ signals:
     void filesDropped(const QStringList &sourcePaths, const QString &destDir,
                        FileListView::DropActionKind kind, FileProvider *srcProvider);
 
+    // Ctrl+wheel asks the owning panel to use the same scale step as its
+    // status-bar -/+ controls. Positive means larger, negative means smaller.
+    void zoomRequested(int direction);
+
 protected:
     void keyPressEvent(QKeyEvent *event) override;
+    void wheelEvent(QWheelEvent *event) override;
     // Click-on-already-selected-name/ext starts an inline rename, the way most
     // file managers do -- deferred by the double-click interval so a
     // double-click still opens the file instead of renaming it.
@@ -95,6 +100,7 @@ protected:
     void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     void updateGeometries() override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
     // Invalidates the cached active/inactive selection palettes when the app
     // stylesheet (theme) changes, then re-applies the current one.
     void changeEvent(QEvent *event) override;
@@ -130,7 +136,7 @@ private:
     // fill it exactly (last column pinned to the right edge): Name absorbs slack,
     // then the shrink policy (Name to a 16-char floor, then priority-compress the
     // info columns) kicks in when cramped.
-    void applyLayout();
+    void applyLayout(int protectedLeftColumn = -1, int protectedTargetColumn = -1);
     int columnLayoutWidth() const;
     void placeVerticalScrollBarBelowHeader();
     void scheduleVerticalScrollBarPlacement();
@@ -154,6 +160,8 @@ private:
     QVector<int> m_contentWidth; // measured natural content width (info cols)
     QVector<int> m_smartMin;     // compression floor = header text width + pad
     QVector<bool> m_userSet;     // user/restore set this base -> don't overwrite on load
+    QVector<int> m_expectedProgrammaticWidth; // filters delayed resizeSection signals
+    QVector<int> m_lastStableBaseWidth; // fallback when a platform omits handle press events
     QVector<int> m_preHandleResizeBaseWidth; // undo Qt resize side effects before handle auto-fit
     int m_nameFloor = 0;         // 16*avgChar + icon + pad, recomputed in applyLayout
 
@@ -172,7 +180,7 @@ private:
 
     QVariantAnimation *m_dragFeedbackAnimation = nullptr;
     QTimer *m_dragFeedbackClearTimer = nullptr;
-    QWidget *m_scrollbarHeaderCover = nullptr;
+    QWidget *m_verticalScrollBarContainer = nullptr;
     bool m_scrollbarPlacementPending = false;
     DragFeedbackState m_dragFeedbackState = DragFeedbackState::None;
     QColor m_dragFeedbackColor;

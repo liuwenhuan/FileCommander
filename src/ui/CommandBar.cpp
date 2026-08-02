@@ -17,6 +17,7 @@ CommandBar::CommandBar(QWidget *parent) : QWidget(parent) {
     m_prompt->setTextInteractionFlags(Qt::TextSelectableByMouse);
 
     m_input = new QLineEdit(this);
+    m_input->setObjectName(QStringLiteral("CommandInput"));
     m_input->setPlaceholderText(tr("Run a command in the current directory…"));
     m_input->installEventFilter(this);
 

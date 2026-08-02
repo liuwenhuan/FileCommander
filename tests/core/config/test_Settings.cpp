@@ -2,12 +2,79 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QSettings>
 #include <QStandardPaths>
 #include <QTemporaryDir>
+
+#ifdef Q_OS_WIN
+#include <aclapi.h>
+#include <windows.h>
+#endif
 
 #include "Settings.h"
 
 namespace {
+#ifdef Q_OS_WIN
+bool hasPrivateWindowsAcl(const QString &path) {
+    std::wstring widePath = path.toStdWString();
+    PSECURITY_DESCRIPTOR descriptor = nullptr;
+    PSID owner = nullptr;
+    PACL dacl = nullptr;
+    const DWORD status = GetNamedSecurityInfoW(
+        widePath.data(), SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+        &owner, nullptr, &dacl, nullptr, &descriptor);
+    if (status != ERROR_SUCCESS || !descriptor || !owner || !dacl) {
+        if (descriptor)
+            LocalFree(descriptor);
+        return false;
+    }
+
+    SECURITY_DESCRIPTOR_CONTROL control = 0;
+    DWORD revision = 0;
+    ACL_SIZE_INFORMATION aclInfo{};
+    const bool protectedDacl = GetSecurityDescriptorControl(descriptor, &control, &revision) &&
+                               (control & SE_DACL_PROTECTED) &&
+                               GetAclInformation(dacl, &aclInfo, sizeof(aclInfo), AclSizeInformation);
+
+    BYTE systemBuffer[SECURITY_MAX_SID_SIZE];
+    DWORD systemSize = sizeof(systemBuffer);
+    BYTE administratorsBuffer[SECURITY_MAX_SID_SIZE];
+    DWORD administratorsSize = sizeof(administratorsBuffer);
+    const bool knownSids = CreateWellKnownSid(WinLocalSystemSid, nullptr, systemBuffer, &systemSize) &&
+                           CreateWellKnownSid(WinBuiltinAdministratorsSid, nullptr,
+                                             administratorsBuffer, &administratorsSize);
+
+    bool ownerHasFullAccess = false;
+    bool onlyPrivatePrincipals = protectedDacl && knownSids;
+    for (DWORD index = 0; onlyPrivatePrincipals && index < aclInfo.AceCount; ++index) {
+        void *rawAce = nullptr;
+        if (!GetAce(dacl, index, &rawAce)) {
+            onlyPrivatePrincipals = false;
+            break;
+        }
+        const auto *header = static_cast<const ACE_HEADER *>(rawAce);
+        if (header->AceType != ACCESS_ALLOWED_ACE_TYPE) {
+            onlyPrivatePrincipals = false;
+            break;
+        }
+        const auto *ace = static_cast<const ACCESS_ALLOWED_ACE *>(rawAce);
+        const PSID sid = reinterpret_cast<PSID>(const_cast<DWORD *>(&ace->SidStart));
+        const bool isOwner = EqualSid(sid, owner);
+        const bool isSystem = EqualSid(sid, systemBuffer);
+        const bool isAdministrators = EqualSid(sid, administratorsBuffer);
+        if (!isOwner && !isSystem && !isAdministrators) {
+            onlyPrivatePrincipals = false;
+            break;
+        }
+        if (isOwner && ((ace->Mask & GENERIC_ALL) == GENERIC_ALL ||
+                        (ace->Mask & FILE_ALL_ACCESS) == FILE_ALL_ACCESS))
+            ownerHasFullAccess = true;
+    }
+    LocalFree(descriptor);
+    return onlyPrivatePrincipals && ownerHasFullAccess;
+}
+#endif
+
 // See test_SessionManager.cpp for why this avoids setTestModeEnabled().
 class IsolatedConfigDir {
 public:
@@ -71,13 +138,19 @@ TEST(SettingsTest, EmptyExplicitIniPathUsesSafeDefaultLocation) {
     EXPECT_EQ(reloaded.notepadEditorHeight(), 181);
 }
 
-TEST(SettingsTest, DefaultConfigDirectoryAndFileArePrivate) {
+TEST(SettingsTest, DefaultConfigDirectoryAndFileUsePlatformPrivateStorage) {
     IsolatedConfigDir isolated;
     ASSERT_TRUE(isolated.isValid());
 
-    Settings settings;
-    settings.setNotepadEditorHeight(182);
+    {
+        Settings settings;
+        settings.setNotepadEditorHeight(182);
+    }
 
+#ifdef Q_OS_WIN
+    EXPECT_TRUE(hasPrivateWindowsAcl(Settings::configDir()));
+    EXPECT_TRUE(hasPrivateWindowsAcl(Settings::configFilePath()));
+#else
     const QFileDevice::Permissions privateDirectory =
         QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner |
         QFileDevice::ReadUser | QFileDevice::WriteUser | QFileDevice::ExeUser;
@@ -86,6 +159,7 @@ TEST(SettingsTest, DefaultConfigDirectoryAndFileArePrivate) {
         QFileDevice::ReadUser | QFileDevice::WriteUser;
     EXPECT_EQ(QFileInfo(Settings::configDir()).permissions(), privateDirectory);
     EXPECT_EQ(QFileInfo(Settings::configFilePath()).permissions(), privateFile);
+#endif
 }
 
 TEST(SettingsTest, ShortcutReturnsDefaultWhenUnset) {
@@ -161,6 +235,23 @@ TEST(SettingsTest, MenuFontSizeClampsToRange) {
     EXPECT_EQ(settings.menuFontSize(), 8);
     settings.setMenuFontSize(99);
     EXPECT_EQ(settings.menuFontSize(), 16);
+}
+
+TEST(SettingsTest, RemovesLegacyReduceMotionPreference) {
+    QTemporaryDir temporaryDir;
+    ASSERT_TRUE(temporaryDir.isValid());
+    const QString settingsPath = temporaryDir.filePath(QStringLiteral("settings.ini"));
+
+    {
+        QSettings legacy(settingsPath, QSettings::IniFormat);
+        legacy.setValue(QStringLiteral("appearance/reduceMotion"), true);
+        legacy.sync();
+    }
+
+    { Settings migrated(settingsPath); }
+
+    QSettings stored(settingsPath, QSettings::IniFormat);
+    EXPECT_FALSE(stored.contains(QStringLiteral("appearance/reduceMotion")));
 }
 
 TEST(SettingsTest, GlobalFontFamilyDefaultsToSystemAndRoundTrips) {

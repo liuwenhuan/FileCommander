@@ -2,17 +2,43 @@
 
 #include <QApplication>
 #include <QDir>
+#include <QEvent>
 #include <QFile>
 #include <QHBoxLayout>
+#include <QImage>
 #include <QRegularExpression>
+#include <QSignalSpy>
+#include <QTest>
 #include <QToolButton>
 #include <QTreeView>
 
 #include "FilePanel.h"
 #include "IconFileView.h"
 #include "TabBar.h"
+#include "theme/ThemeManager.h"
 
 namespace {
+
+bool containsColorNear(const QImage &image, const QColor &expected, int tolerance = 24) {
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            const QColor pixel = image.pixelColor(x, y);
+            if (pixel.alpha() > 0 && qAbs(pixel.red() - expected.red()) <= tolerance &&
+                qAbs(pixel.green() - expected.green()) <= tolerance &&
+                qAbs(pixel.blue() - expected.blue()) <= tolerance)
+                return true;
+        }
+    }
+    return false;
+}
+
+void applyThemeSheet(const QString &name) {
+    QFile file(QStringLiteral(TTC_SOURCE_DIR "/resources/themes/") + name +
+               QStringLiteral(".qss"));
+    ASSERT_TRUE(file.open(QIODevice::ReadOnly | QIODevice::Text));
+    qApp->setStyleSheet(QString::fromUtf8(file.readAll()));
+    qApp->processEvents();
+}
 
 TEST(FilePanelStartupTest, DetailsModeDoesNotConstructHiddenPanelSurfaces) {
     FilePanel panel;
@@ -254,6 +280,141 @@ TEST(TabBarTest, AppliesDarkAndGreenThemesWhenStylesheetArrivesAfterConstruction
     }
 }
 
+TEST(TabBarTest, CrtActiveTabAccentUsesLitPhosphor) {
+    const QString previousStyleSheet = qApp->styleSheet();
+    struct RestoreStyleSheet {
+        QString value;
+        ~RestoreStyleSheet() { qApp->setStyleSheet(value); }
+    } restore{previousStyleSheet};
+
+    TabBar tabBar;
+    tabBar.addTab(QStringLiteral("Active tab"));
+    tabBar.resize(320, 36);
+    tabBar.show();
+    ThemeManager themeManager;
+    themeManager.apply(Settings::Theme::Crt);
+
+    const QImage rendered = tabBar.grab().toImage();
+    const QRect accentRect(tabBar.tabRect(0).x(), tabBar.tabRect(0).y(),
+                           tabBar.tabRect(0).width(), 3);
+    EXPECT_TRUE(containsColorNear(rendered.copy(accentRect), QColor(0x33, 0xff, 0x88), 8));
+    EXPECT_FALSE(containsColorNear(rendered.copy(accentRect), QColor(0x3d, 0x7d, 0xeb), 8));
+}
+
+TEST(TabBarTest, CrtCloseButtonsUsePhosphorForEveryInteractionState) {
+    const QString previousStyleSheet = qApp->styleSheet();
+    struct RestoreStyleSheet {
+        QString value;
+        ~RestoreStyleSheet() { qApp->setStyleSheet(value); }
+    } restore{previousStyleSheet};
+
+    TabBar tabBar;
+    tabBar.addTab(QStringLiteral("Selected"));
+    tabBar.addTab(QStringLiteral("Inactive"));
+    tabBar.resize(520, 36);
+    tabBar.setCurrentIndex(0);
+    tabBar.show();
+    ThemeManager themeManager;
+    themeManager.apply(Settings::Theme::Crt);
+
+    auto *selected = qobject_cast<QAbstractButton *>(
+        tabBar.tabButton(0, QTabBar::RightSide));
+    auto *inactive = qobject_cast<QAbstractButton *>(
+        tabBar.tabButton(1, QTabBar::RightSide));
+    ASSERT_NE(selected, nullptr);
+    ASSERT_NE(inactive, nullptr);
+
+    EXPECT_TRUE(containsColorNear(selected->grab().toImage(), QColor(0x33, 0xff, 0x88)));
+    EXPECT_TRUE(containsColorNear(inactive->grab().toImage(), QColor(0x1f, 0xa8, 0x5c)));
+
+    QEvent enter(QEvent::Enter);
+    QApplication::sendEvent(inactive, &enter);
+    qApp->processEvents();
+    EXPECT_TRUE(containsColorNear(inactive->grab().toImage(), QColor(0x33, 0xff, 0x88)));
+    EXPECT_FALSE(containsColorNear(inactive->grab().toImage(), QColor(0xe0, 0x4b, 0x4b)));
+
+    QTest::mousePress(inactive, Qt::LeftButton, Qt::NoModifier, inactive->rect().center());
+    qApp->processEvents();
+    EXPECT_TRUE(containsColorNear(inactive->grab().toImage(), QColor(0x7c, 0xe8, 0xac)));
+    QTest::mouseRelease(inactive, Qt::LeftButton, Qt::NoModifier,
+                        inactive->rect().center());
+
+    TabBar singleTabBar;
+    singleTabBar.addTab(QStringLiteral("Only tab"));
+    singleTabBar.resize(260, 36);
+    singleTabBar.show();
+    qApp->processEvents();
+    auto *disabled = qobject_cast<QAbstractButton *>(
+        singleTabBar.tabButton(0, QTabBar::RightSide));
+    ASSERT_NE(disabled, nullptr);
+    EXPECT_FALSE(disabled->isEnabled());
+    EXPECT_TRUE(containsColorNear(disabled->grab().toImage(), QColor(0x12, 0x60, 0x2f)));
+}
+
+TEST(TabBarTest, LightAndDarkKeepTheirExistingAccentAndCloseColours) {
+    const QString previousStyleSheet = qApp->styleSheet();
+    struct RestoreStyleSheet {
+        QString value;
+        ~RestoreStyleSheet() { qApp->setStyleSheet(value); }
+    } restore{previousStyleSheet};
+
+    struct ThemeColours {
+        QString name;
+        QColor close;
+        QColor disabled;
+    };
+    const QList<ThemeColours> cases = {
+        {QStringLiteral("light"), QColor(0x20, 0x20, 0x20), QColor(0xa0, 0xa0, 0xa0)},
+        {QStringLiteral("dark"), QColor(0xe0, 0xe0, 0xe0), QColor(0x77, 0x77, 0x77)},
+    };
+
+    for (const ThemeColours &theme : cases) {
+        TabBar tabBar;
+        tabBar.addTab(QStringLiteral("Selected"));
+        tabBar.addTab(QStringLiteral("Inactive"));
+        tabBar.resize(520, 36);
+        tabBar.setCurrentIndex(0);
+        tabBar.show();
+        ThemeManager themeManager;
+        themeManager.apply(theme.name == QStringLiteral("light")
+                               ? Settings::Theme::Light
+                               : Settings::Theme::Dark);
+
+        const QImage rendered = tabBar.grab().toImage();
+        const QRect accentRect(tabBar.tabRect(0).x(), tabBar.tabRect(0).y(),
+                               tabBar.tabRect(0).width(), 3);
+        EXPECT_TRUE(containsColorNear(rendered.copy(accentRect), QColor(0x3d, 0x7d, 0xeb), 8))
+            << theme.name.toStdString();
+
+        auto *selected = qobject_cast<QAbstractButton *>(
+            tabBar.tabButton(0, QTabBar::RightSide));
+        auto *inactive = qobject_cast<QAbstractButton *>(
+            tabBar.tabButton(1, QTabBar::RightSide));
+        ASSERT_NE(selected, nullptr);
+        ASSERT_NE(inactive, nullptr);
+        EXPECT_TRUE(containsColorNear(selected->grab().toImage(), theme.close))
+            << theme.name.toStdString();
+
+        QEvent enter(QEvent::Enter);
+        QApplication::sendEvent(inactive, &enter);
+        qApp->processEvents();
+        EXPECT_TRUE(containsColorNear(inactive->grab().toImage(), QColor(0xe0, 0x4b, 0x4b)))
+            << theme.name.toStdString();
+
+        TabBar singleTabBar;
+        singleTabBar.addTab(QStringLiteral("Only tab"));
+        singleTabBar.resize(260, 36);
+        singleTabBar.show();
+        qApp->processEvents();
+        auto *disabled = qobject_cast<QAbstractButton *>(
+            singleTabBar.tabButton(0, QTabBar::RightSide));
+        ASSERT_NE(disabled, nullptr);
+        EXPECT_FALSE(disabled->isEnabled());
+        EXPECT_TRUE(containsColorNear(disabled->grab().toImage(), theme.disabled))
+            << theme.name.toStdString();
+    }
+}
+
 TEST(FilePanelThemeTest, MotionProgressPropertiesRemainAvailableToThemeAwarePainting) {
     FilePanel panel;
     TabBar *tabBar = panel.findChild<TabBar *>();
@@ -264,6 +425,8 @@ TEST(FilePanelThemeTest, MotionProgressPropertiesRemainAvailableToThemeAwarePain
 }
 
 TEST(TabBarTest, OverflowUsesNativeScrollersInsideTheTabBar) {
+    ThemeManager themeManager;
+    themeManager.apply(Settings::Theme::Dark);
     TabBar tabBar;
     for (int index = 0; index < 20; ++index)
         tabBar.addTab(QStringLiteral("Long tab title %1").arg(index));
@@ -316,6 +479,8 @@ TEST(TabBarTest, OverflowUsesNativeScrollersInsideTheTabBar) {
 }
 
 TEST(TabBarTest, OverflowAccentDoesNotPaintUnderNativeScrollers) {
+    ThemeManager themeManager;
+    themeManager.apply(Settings::Theme::Dark);
     TabBar tabBar;
     for (int index = 0; index < 20; ++index)
         tabBar.addTab(QStringLiteral("Long tab title %1").arg(index));
@@ -451,3 +616,21 @@ TEST(FilePanelThemeTest, NoCustomLeftScrollControlIsCreatedWithoutOverflow) {
 }
 
 } // namespace
+
+TEST(TabBarTest, DoubleClickingATabTitleRequestsThatTabClose) {
+    TabBar tabBar;
+    tabBar.addTab(QStringLiteral("First"));
+    tabBar.addTab(QStringLiteral("Second"));
+    tabBar.resize(420, 40);
+    tabBar.show();
+    qApp->processEvents();
+
+    QSignalSpy closeRequested(&tabBar, &TabBar::closeTabRequested);
+    const QPoint titlePoint = tabBar.tabRect(1).center();
+    ASSERT_EQ(tabBar.tabAt(titlePoint), 1);
+
+    QTest::mouseDClick(&tabBar, Qt::LeftButton, Qt::NoModifier, titlePoint);
+
+    ASSERT_EQ(closeRequested.count(), 1);
+    EXPECT_EQ(closeRequested.first().first().toInt(), 1);
+}

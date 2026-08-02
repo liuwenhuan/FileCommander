@@ -5,6 +5,7 @@
 #include <QApplication>
 #include <QKeySequence>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QShortcut>
 #include <QToolButton>
 #include <QWidgetAction>
@@ -123,6 +124,38 @@ TEST(MainWindowActionsTest, StartupKeepsMenuButtonsButDefersMenuContents) {
         EXPECT_TRUE(menu->actions().isEmpty()) << title.toStdString();
     }
     EXPECT_TRUE(window.findChildren<QWidgetAction *>().isEmpty());
+}
+
+TEST(MainWindowActionsTest, ReplayedMenuMouseMoveDoesNotLeaveResizeCursor) {
+    ScopedUiLanguage language(QStringLiteral("en"));
+    MainWindow window;
+    window.resize(900, 600);
+    window.show();
+    qApp->processEvents();
+
+    QToolButton *menuButton =
+        window.findChild<QToolButton *>(QStringLiteral("TitleMenuButton"));
+    ASSERT_NE(menuButton, nullptr);
+    ASSERT_TRUE(menuButton->isVisible());
+
+    // A popup menu can replay its closing mouse event to the parent window.
+    // The upper part of this button overlaps the frameless resize grab band,
+    // but it is occupied title-bar chrome rather than an exposed window edge.
+    const QPoint buttonTop = menuButton->mapTo(&window, QPoint(menuButton->width() / 2, 0));
+    const QPoint exposedEdge(buttonTop.x(), buttonTop.y() - 1);
+    ASSERT_EQ(window.childAt(exposedEdge), nullptr);
+    QMouseEvent edgeMove(QEvent::MouseMove, exposedEdge, Qt::NoButton, Qt::NoButton,
+                         Qt::NoModifier);
+    QApplication::sendEvent(&window, &edgeMove);
+    EXPECT_EQ(window.cursor().shape(), Qt::SizeVerCursor);
+
+    const QPoint windowPos = buttonTop + QPoint(0, 1);
+    ASSERT_NE(window.childAt(windowPos), nullptr);
+    QMouseEvent replayedMove(QEvent::MouseMove, windowPos, Qt::NoButton, Qt::NoButton,
+                             Qt::NoModifier);
+    QApplication::sendEvent(&window, &replayedMove);
+
+    EXPECT_NE(window.cursor().shape(), Qt::SizeVerCursor);
 }
 
 TEST(MainWindowActionsTest, FirstOpenBuildsEachMenuOnceWithCurrentState) {

@@ -29,13 +29,11 @@ public:
     MotionPolicyStateGuard() {
         MotionPolicy::clearReducedForTest();
         MotionPolicy::clearSystemReducedForTest();
-        MotionPolicy::setApplicationReduced(false);
     }
 
     ~MotionPolicyStateGuard() {
         MotionPolicy::clearReducedForTest();
         MotionPolicy::clearSystemReducedForTest();
-        MotionPolicy::setApplicationReduced(false);
     }
 };
 

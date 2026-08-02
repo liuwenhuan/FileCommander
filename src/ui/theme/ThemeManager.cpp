@@ -9,6 +9,7 @@
 #include "AppIcon.h"
 #include "DialogTitleBar.h"
 #include "FramelessDialog.h"
+#include "TabBar.h"
 #include "TitleBar.h"
 #include "filesystem/IconCache.h"
 #include "theme/Phosphor.h"
@@ -44,6 +45,20 @@ void ThemeManager::apply(Settings::Theme theme, bool phosphorImages) {
         path = ":/themes/dark.qss";
     else if (effective == Settings::Theme::Crt)
         path = ":/themes/green.qss";
+
+    if (effective == Settings::Theme::Crt) {
+        TabBar::setThemeColors(kPhosphor, QColor(0x1f, 0xa8, 0x5c), kPhosphor,
+                               kPhosphor, QColor(0x7c, 0xe8, 0xac),
+                               QColor(0x12, 0x60, 0x2f));
+    } else if (effective == Settings::Theme::Dark) {
+        TabBar::setThemeColors(QColor(0x3d, 0x7d, 0xeb), QColor(0xe0, 0xe0, 0xe0),
+                               QColor(0xe0, 0xe0, 0xe0), QColor(0xe0, 0x4b, 0x4b),
+                               QColor(0xe0, 0x4b, 0x4b), QColor(0x77, 0x77, 0x77));
+    } else {
+        TabBar::setThemeColors(QColor(0x3d, 0x7d, 0xeb), QColor(0x20, 0x20, 0x20),
+                               QColor(0x20, 0x20, 0x20), QColor(0xe0, 0x4b, 0x4b),
+                               QColor(0xe0, 0x4b, 0x4b), QColor(0xa0, 0xa0, 0xa0));
+    }
     QFile file(path);
     if (file.open(QIODevice::ReadOnly | QIODevice::Text))
         qApp->setStyleSheet(QString::fromUtf8(file.readAll()));

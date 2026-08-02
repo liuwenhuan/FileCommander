@@ -226,6 +226,67 @@ TEST(OperationQueueTest, PreStartTransferLimitCreatesConfiguredPoolOnFirstProvid
     EXPECT_TRUE(QFile::exists(QDir(dst.path()).filePath("lazy-provider.txt")));
 }
 
+TEST(OperationQueueTest, CancelActiveJobsPreservesQueuedProviderJob) {
+    QTemporaryDir src, dst;
+    ASSERT_TRUE(src.isValid() && dst.isValid());
+    const QString sourceA = writeFile(src.path(), "cancel-active-a.txt", "a");
+    const QString sourceB = writeFile(src.path(), "cancel-active-b.txt", "b");
+
+    std::atomic<bool> destroyed{false};
+    QSemaphore entered;
+    QSemaphore release;
+    auto srcProvider =
+        std::make_shared<BlockingLifetimeProvider>(&destroyed, &entered, &release);
+    auto dstProvider = std::make_shared<LocalFileProvider>();
+
+    OperationQueue queue;
+    queue.setMaxConcurrentTransfers(1);
+    QSignalSpy finished(&queue, &OperationQueue::finished);
+    queue.enqueueProviderCopy(srcProvider, {sourceA}, dstProvider, dst.path());
+    queue.enqueueProviderCopy(srcProvider, {sourceB}, dstProvider, dst.path());
+
+    ASSERT_TRUE(entered.tryAcquire(1, 3000));
+    ASSERT_EQ(queue.queuedCount(), 1);
+    queue.cancelActiveJobs();
+    EXPECT_EQ(queue.queuedCount(), 1);
+    release.release();
+
+    while (finished.count() < 2)
+        ASSERT_TRUE(finished.wait(3000));
+    EXPECT_TRUE(QFile::exists(QDir(dst.path()).filePath("cancel-active-b.txt")));
+}
+
+TEST(OperationQueueTest, AbortAllClearsQueuedJobsAndEmitsOnce) {
+    QTemporaryDir src, dst;
+    ASSERT_TRUE(src.isValid() && dst.isValid());
+    const QString sourceA = writeFile(src.path(), "abort-a.txt", "a");
+    const QString sourceB = writeFile(src.path(), "abort-b.txt", "b");
+
+    std::atomic<bool> destroyed{false};
+    QSemaphore entered;
+    QSemaphore release;
+    auto srcProvider =
+        std::make_shared<BlockingLifetimeProvider>(&destroyed, &entered, &release);
+    auto dstProvider = std::make_shared<LocalFileProvider>();
+
+    OperationQueue queue;
+    queue.setMaxConcurrentTransfers(1);
+    QSignalSpy aborted(&queue, &OperationQueue::aborted);
+    QSignalSpy finished(&queue, &OperationQueue::finished);
+    queue.enqueueProviderCopy(srcProvider, {sourceA}, dstProvider, dst.path());
+    queue.enqueueProviderCopy(srcProvider, {sourceB}, dstProvider, dst.path());
+
+    ASSERT_TRUE(entered.tryAcquire(1, 3000));
+    ASSERT_EQ(queue.queuedCount(), 1);
+    queue.abortAll();
+    EXPECT_EQ(queue.queuedCount(), 0);
+    EXPECT_EQ(aborted.count(), 1);
+    release.release();
+
+    ASSERT_TRUE(waitFinished(finished));
+    EXPECT_FALSE(QFile::exists(QDir(dst.path()).filePath("abort-b.txt")));
+}
+
 TEST(OperationQueueTest, QueuedProviderCopyRetainsProvidersUntilCompletion) {
     QTemporaryDir src, dst;
     ASSERT_TRUE(src.isValid() && dst.isValid());

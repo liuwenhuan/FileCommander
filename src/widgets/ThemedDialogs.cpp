@@ -495,11 +495,15 @@ QFont getFont(bool *ok, const QFont &initial, QWidget *parent, const QString &ti
     dlg.setWindowTitle(title);
 
     auto *input = new QFontDialog(initial, &dlg);
+    input->setObjectName(QStringLiteral("ThemedFontDialog"));
     input->setWindowFlags(Qt::Widget);
     input->setOptions(options | QFontDialog::DontUseNativeDialog);
     localizeStandardButtons(input->findChild<QDialogButtonBox *>());
 
     bool accepted = false;
+    QFont selectedFont = initial;
+    QObject::connect(input, &QFontDialog::currentFontChanged, &dlg,
+                     [&selectedFont](const QFont &font) { selectedFont = font; });
     QObject::connect(input, &QFontDialog::accepted, &dlg, [&] {
         accepted = true;
         dlg.accept();
@@ -513,7 +517,7 @@ QFont getFont(bool *ok, const QFont &initial, QWidget *parent, const QString &ti
     dlg.exec();
     if (ok)
         *ok = accepted;
-    return accepted ? input->currentFont() : initial;
+    return accepted ? selectedFont : initial;
 }
 
 } // namespace ttc

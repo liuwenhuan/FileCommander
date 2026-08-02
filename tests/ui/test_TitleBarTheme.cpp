@@ -11,6 +11,7 @@
 #include <QToolButton>
 #include <QWidget>
 
+#include "AppIcon.h"
 #include "DialogTitleBar.h"
 #include "FileListView.h"
 #include "FramelessDialog.h"
@@ -60,7 +61,50 @@ void expectMenuTextRendered(TitleBar &titleBar, QToolButton &menuButton, const Q
     EXPECT_GT(matchingPixels, 5) << "menu text is obscured by the title overlay";
 }
 
+bool imageContainsPhosphor(const QImage &image) {
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            const QColor pixel = image.pixelColor(x, y);
+            if (pixel.alpha() > 0 && pixel.green() > pixel.red() * 2 &&
+                pixel.green() * 2 > pixel.blue() * 3)
+                return true;
+        }
+    }
+    return false;
+}
+
 } // namespace
+
+TEST(TitleBarThemeTest, ExistingApplicationIconFollowsRuntimeCrtThemeChange) {
+    const QString originalSheet = qApp->styleSheet();
+    const QIcon originalIcon = qApp->windowIcon();
+    QWidget window;
+    window.setWindowIcon(ttc::appIcon());
+    TitleBar titleBar(&window, {}, &window);
+    titleBar.show();
+    qApp->processEvents();
+
+    QLabel *iconLabel = nullptr;
+    for (QLabel *label : titleBar.findChildren<QLabel *>()) {
+        if (label->pixmap() && !label->pixmap()->isNull()) {
+            iconLabel = label;
+            break;
+        }
+    }
+    ASSERT_NE(iconLabel, nullptr);
+    ASSERT_FALSE(imageContainsPhosphor(iconLabel->pixmap()->toImage()));
+
+    ThemeManager themeManager;
+    themeManager.apply(Settings::Theme::Crt);
+    qApp->processEvents();
+
+    EXPECT_TRUE(imageContainsPhosphor(window.windowIcon().pixmap(32, 32).toImage()));
+    ASSERT_NE(iconLabel->pixmap(), nullptr);
+    EXPECT_TRUE(imageContainsPhosphor(iconLabel->pixmap()->toImage()));
+
+    qApp->setStyleSheet(originalSheet);
+    qApp->setWindowIcon(originalIcon);
+}
 
 TEST(TitleBarThemeTest, LeavingCrtClearsTheBackgroundTile) {
     const QString originalSheet = qApp->styleSheet();

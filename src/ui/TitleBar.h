@@ -6,6 +6,7 @@
 
 class QMenu;
 class QAbstractButton;
+class QEvent;
 class QLabel;
 class QResizeEvent;
 
@@ -47,6 +48,7 @@ signals:
     void updateRequested();
 
 protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
@@ -58,8 +60,10 @@ protected:
 
 private:
     void positionTitle();
+    void syncWindowIcon();
 
     QWidget *m_window;
+    QLabel *m_icon = nullptr;
     QLabel *m_title = nullptr;
     QAbstractButton *m_maxButton = nullptr; // a TitleButton (cast in the .cpp)
     QAbstractButton *m_updateBadge = nullptr; // "New Version" badge, hidden until an update is found

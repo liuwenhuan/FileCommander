@@ -42,11 +42,10 @@ int lastVisibleColumn(const QHeaderView &header) {
     return -1;
 }
 
-int columnContentRight(FileListView &view) {
-    QScrollBar *scrollbar = view.verticalScrollBar();
-    if (scrollbar && scrollbar->isVisible())
-        return view.horizontalHeader()->viewport()->mapFrom(&view, scrollbar->geometry().topLeft()).x();
-    return view.horizontalHeader()->viewport()->width();
+int columnHeaderRight(FileListView &view) {
+    QHeaderView *header = view.horizontalHeader();
+    return header->viewport()->mapFrom(&view,
+                                       QPoint(view.contentsRect().right() + 1, 0)).x();
 }
 
 void expectLastVisibleSectionAtContentRight(FileListView &view) {
@@ -55,7 +54,7 @@ void expectLastVisibleSectionAtContentRight(FileListView &view) {
     ASSERT_GE(last, 0);
     ASSERT_GT(header->viewport()->width(), 0);
     EXPECT_EQ(header->sectionViewportPosition(last) + header->sectionSize(last),
-              columnContentRight(view));
+              columnHeaderRight(view));
 }
 
 QRect scrollbarSliderRect(QScrollBar &scrollbar) {
@@ -70,6 +69,11 @@ QRect scrollbarSliderRect(QScrollBar &scrollbar) {
     opt.singleStep = scrollbar.singleStep();
     return scrollbar.style()->subControlRect(QStyle::CC_ScrollBar, &opt,
                                              QStyle::SC_ScrollBarSlider, &scrollbar);
+}
+
+QString rectDescription(const QRect &rect) {
+    return QStringLiteral("(%1,%2 %3x%4)")
+        .arg(rect.x()).arg(rect.y()).arg(rect.width()).arg(rect.height());
 }
 
 void expectStartupThemePaintsScrollbarHandle(const QString &theme, const QColor &handleColor) {
@@ -95,6 +99,12 @@ void expectStartupThemePaintsScrollbarHandle(const QString &theme, const QColor 
     ASSERT_TRUE(slider.isValid()) << theme.toStdString();
     ASSERT_GT(slider.width(), 0) << theme.toStdString();
     ASSERT_GT(slider.height(), 0) << theme.toStdString();
+
+    QHeaderView *header = view.horizontalHeader();
+    ASSERT_NE(header, nullptr);
+    const QRect sliderInView(scrollbar->mapTo(&view, slider.topLeft()), slider.size());
+    EXPECT_GE(sliderInView.top(), header->geometry().bottom() + 1)
+        << theme.toStdString() << " scrollbar enters the column header at startup";
 
     const QImage rendered = scrollbar->grab().toImage();
     const QPoint handlePoint = slider.center();
@@ -181,6 +191,17 @@ TEST_F(FileListViewLayoutTest, LastVisibleSectionReachesHeaderViewportRightEdge)
     expectLastVisibleSectionAtContentRight(m_view);
 }
 
+TEST_F(FileListViewLayoutTest, LastVisibleSectionFillsThePanelHeaderWidth) {
+    resizeAndSettle(900);
+
+    QHeaderView *header = m_view.horizontalHeader();
+    const int last = lastVisibleColumn(*header);
+    ASSERT_GE(last, 0);
+    const int lastRightInView = header->viewport()->mapTo(
+        &m_view, QPoint(header->sectionViewportPosition(last) + header->sectionSize(last), 0)).x();
+    EXPECT_EQ(lastRightInView, m_view.contentsRect().right() + 1);
+}
+
 TEST_F(FileListViewLayoutTest, HiddenColumnsStillLeaveLastVisibleSectionAtHeaderViewportRightEdge) {
     QHeaderView *header = m_view.horizontalHeader();
     header->setSectionHidden(FileSystemModel::ExtColumn, true);
@@ -198,16 +219,17 @@ TEST_F(FileListViewLayoutTest, NarrowViewportKeepsLastVisibleSectionAtHeaderView
     expectLastVisibleSectionAtContentRight(m_view);
 }
 
-TEST_F(FileListViewLayoutTest, AlwaysOnScrollbarPinsColumnsToContentEdge) {
+TEST_F(FileListViewLayoutTest, AlwaysOnScrollbarPinsColumnsToPanelHeaderEdge) {
     ASSERT_EQ(m_view.verticalScrollBarPolicy(), Qt::ScrollBarAlwaysOn);
     resizeAndSettle(700);
 
     expectLastVisibleSectionAtContentRight(m_view);
 }
 
-TEST_F(FileListViewLayoutTest, VerticalScrollbarStartsBelowHeaderAndColumnsStopBeforeIt) {
+TEST_F(FileListViewLayoutTest, VerticalScrollbarStartsBelowHeaderAndColumnsFillTheHeaderGutter) {
     ASSERT_EQ(m_view.verticalScrollBarPolicy(), Qt::ScrollBarAlwaysOn);
     resizeAndSettle(700);
+    QTest::qWait(50);
 
     QHeaderView *header = m_view.horizontalHeader();
     QScrollBar *scrollbar = m_view.verticalScrollBar();
@@ -215,9 +237,61 @@ TEST_F(FileListViewLayoutTest, VerticalScrollbarStartsBelowHeaderAndColumnsStopB
     ASSERT_NE(scrollbar, nullptr);
     ASSERT_TRUE(scrollbar->isVisible());
 
-    EXPECT_EQ(scrollbar->geometry().top(), header->geometry().bottom() + 1);
+    EXPECT_GE(scrollbar->mapTo(&m_view, QPoint(0, 0)).y(),
+              header->geometry().bottom() + 1);
 
     expectLastVisibleSectionAtContentRight(m_view);
+}
+
+TEST_F(FileListViewLayoutTest, ScrollbarSliderNeverEntersTheColumnHeader) {
+    resizeAndSettle(700);
+    QTest::qWait(50); // Cover the deferred QAbstractScrollArea geometry pass.
+
+    QHeaderView *header = m_view.horizontalHeader();
+    QScrollBar *scrollbar = m_view.verticalScrollBar();
+    ASSERT_NE(header, nullptr);
+    ASSERT_NE(scrollbar, nullptr);
+    ASSERT_TRUE(scrollbar->isVisible());
+
+    const QRect sliderInScrollbar = scrollbarSliderRect(*scrollbar);
+    const QRect sliderInView(scrollbar->mapTo(&m_view, sliderInScrollbar.topLeft()),
+                             sliderInScrollbar.size());
+    EXPECT_GE(sliderInView.top(), header->geometry().bottom() + 1);
+    EXPECT_EQ(header->geometry().right(), m_view.contentsRect().right());
+}
+
+TEST_F(FileListViewLayoutTest, RuntimeThemeSwitchKeepsScrollbarBelowTheColumnHeader) {
+    const QString originalSheet = qApp->styleSheet();
+    applyThemeSheet(QStringLiteral("green"));
+    resizeAndSettle(700);
+    applyThemeSheet(QStringLiteral("light"));
+    QTest::qWait(100);
+
+    QHeaderView *header = m_view.horizontalHeader();
+    QScrollBar *scrollbar = m_view.verticalScrollBar();
+    ASSERT_NE(header, nullptr);
+    ASSERT_NE(scrollbar, nullptr);
+    ASSERT_TRUE(scrollbar->isVisible());
+
+    const QRect sliderInScrollbar = scrollbarSliderRect(*scrollbar);
+    const QRect sliderInView(scrollbar->mapTo(&m_view, sliderInScrollbar.topLeft()),
+                             sliderInScrollbar.size());
+    const QWidget *scrollbarParent = scrollbar->parentWidget();
+    const QString geometryTrace =
+        QStringLiteral("header=%1 bar=%2 mappedBarTop=%3 parent=%4 parentGeometry=%5")
+            .arg(rectDescription(header->geometry()))
+            .arg(rectDescription(scrollbar->geometry()))
+            .arg(scrollbar->mapTo(&m_view, QPoint(0, 0)).y())
+            .arg(scrollbarParent ? scrollbarParent->objectName() : QStringLiteral("<null>"))
+            .arg(scrollbarParent ? rectDescription(scrollbarParent->geometry())
+                                 : QStringLiteral("<null>"));
+    SCOPED_TRACE(geometryTrace.toStdString());
+    EXPECT_GE(scrollbar->mapTo(&m_view, QPoint(0, 0)).y(),
+              header->geometry().bottom() + 1);
+    EXPECT_GE(sliderInView.top(), header->geometry().bottom() + 1);
+
+    qApp->setStyleSheet(originalSheet);
+    qApp->processEvents();
 }
 
 TEST_F(FileListViewLayoutTest, HeaderCoversScrollbarGutterAboveTheListBody) {
@@ -300,9 +374,12 @@ TEST_F(FileListViewLayoutTest, DoubleClickingDividerAutoFitsTheColumnOnItsRight)
     QStringList handleEvents;
     for (const auto &event : handleSpy)
         handleEvents << QString::number(event.at(0).toInt());
-    SCOPED_TRACE(QStringLiteral("handles=[%1] resizes=[%2]")
+    const QVector<int> baseAfter = m_view.columnBaseWidths();
+    SCOPED_TRACE(QStringLiteral("handles=[%1] resizes=[%2] baseExt=%3 baseSize=%4")
                      .arg(handleEvents.join(QLatin1String(", ")),
                           resizeEvents.join(QLatin1String(", ")))
+                     .arg(baseAfter.value(FileSystemModel::ExtColumn))
+                     .arg(baseAfter.value(FileSystemModel::SizeColumn))
                      .toStdString());
     EXPECT_EQ(handleSpy.first().first().toInt(), FileSystemModel::ExtColumn);
     EXPECT_GE(m_view.columnWidth(FileSystemModel::SizeColumn),

@@ -55,8 +55,12 @@ WindowsMediaSurface *findWindowsMediaSurface(QObject *root) {
 }
 
 QFileInfo wmfFixture(const QString &name) {
-    return QFileInfo(QDir::current().filePath(QStringLiteral("../../../wmf-fixtures-local-av/%1")
-                                                 .arg(name)));
+    return QFileInfo(QStringLiteral(TTC_WMF_FIXTURE_DIR "/%1").arg(name));
+}
+
+QFileInfo configuredWmfFixture(const QString &name) {
+    const QString configured = QString::fromLocal8Bit(qgetenv("FILECOMMANDER_WMF_TEST_VIDEO"));
+    return configured.isEmpty() ? wmfFixture(name) : QFileInfo(configured);
 }
 
 void expectLocalVideoPlaybackAndFrame(const QString &path) {
@@ -223,12 +227,11 @@ TEST(WindowsMediaEngine, LocalH264Mp4ReachesPlaybackAndProducesFrame) {
 }
 
 TEST(WindowsMediaEngine, EnvLocalVideoPathReachesPlaybackAndProducesFrame) {
-    const QString path = QString::fromLocal8Bit(qgetenv("FILECOMMANDER_WMF_TEST_VIDEO"));
-    if (path.isEmpty()) {
-        GTEST_SKIP() << "FILECOMMANDER_WMF_TEST_VIDEO is not set";
-    }
+    const QFileInfo fixture = configuredWmfFixture(QStringLiteral("video-h264.mp4"));
+    if (!fixture.exists())
+        GTEST_SKIP() << "configured WMF video and build fixture are both unavailable";
 
-    expectLocalVideoPlaybackAndFrame(path);
+    expectLocalVideoPlaybackAndFrame(fixture.absoluteFilePath());
 }
 
 TEST(WindowsMediaEngine, LocalH264Mp4KeepsProducingDistinctFramesAcrossLoads) {
@@ -261,11 +264,10 @@ TEST(WindowsMediaEngine, LocalH264Mp4KeepsProducingDistinctFramesAcrossLoads) {
 }
 
 TEST(WindowsMediaEngine, EnvLocalVideoPathPreviewsThroughQuickView) {
-    const QString path = QString::fromLocal8Bit(qgetenv("FILECOMMANDER_WMF_TEST_VIDEO"));
-    if (path.isEmpty()) {
-        GTEST_SKIP() << "FILECOMMANDER_WMF_TEST_VIDEO is not set";
-    }
-    ASSERT_TRUE(QFileInfo::exists(path)) << path.toStdString();
+    const QFileInfo fixture = configuredWmfFixture(QStringLiteral("video-h264.mp4"));
+    if (!fixture.exists())
+        GTEST_SKIP() << "configured WMF video and build fixture are both unavailable";
+    const QString path = fixture.absoluteFilePath();
 
     Settings settings;
     QuickView view(settings);
@@ -292,11 +294,10 @@ TEST(WindowsMediaEngine, EnvLocalVideoPathPreviewsThroughQuickView) {
 }
 
 TEST(WindowsMediaEngine, EnvLocalVideoPathKeepsMovingThroughQuickView) {
-    const QString path = QString::fromLocal8Bit(qgetenv("FILECOMMANDER_WMF_TEST_VIDEO"));
-    if (path.isEmpty()) {
-        GTEST_SKIP() << "FILECOMMANDER_WMF_TEST_VIDEO is not set";
-    }
-    ASSERT_TRUE(QFileInfo::exists(path)) << path.toStdString();
+    const QFileInfo fixture = configuredWmfFixture(QStringLiteral("video-h264.mp4"));
+    if (!fixture.exists())
+        GTEST_SKIP() << "configured WMF video and build fixture are both unavailable";
+    const QString path = fixture.absoluteFilePath();
 
     Settings settings;
     QuickView view(settings);

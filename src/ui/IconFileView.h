@@ -39,6 +39,9 @@ signals:
     void filesDropped(const QStringList &sourcePaths, const QString &destDir,
                       FileListView::DropActionKind kind, FileProvider *srcProvider);
 
+    // Same contract as FileListView::zoomRequested().
+    void zoomRequested(int direction);
+
 signals:
     // Emitted a moment after scrolling stops, with the rows now on screen.
     // Thumbnails are fetched over the network, so the rows the user has come to
@@ -48,6 +51,8 @@ signals:
     void visibleRangeSettled(int firstRow, int lastRow);
 
 protected:
+    void keyPressEvent(QKeyEvent *event) override;
+    void wheelEvent(QWheelEvent *event) override;
     void startDrag(Qt::DropActions supportedActions) override;
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dragMoveEvent(QDragMoveEvent *event) override;

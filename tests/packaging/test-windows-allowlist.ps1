@@ -1,3 +1,8 @@
+[CmdletBinding()]
+param(
+    [string]$Executable
+)
+
 $ErrorActionPreference = 'Stop'
 
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -244,6 +249,12 @@ try {
         -Message 'Console subsystem fixture unexpectedly changed the legacy runtime provenance.'
     Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-portable' -Provenance $fixture.Provenance
     Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $windowsProfile -Pattern 'FileCommander\.exe'
+
+    $fixture = New-ValidStage -Name 'standalone-privileged-helper'
+    Add-File -Stage $fixture.Stage -RelativePath 'FileCommanderHelper.exe' -Provenance $fixture.Provenance `
+        -Group 'application' -Subsystem 2
+    Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-portable' -Provenance $fixture.Provenance
+    Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $windowsProfile -Pattern 'FileCommanderHelper\.exe'
 
     $fixture = New-ValidStage -Name 'missing-profile-requirement'
     Remove-Item -LiteralPath (Join-Path $fixture.Stage 'Qt5Xml.dll')

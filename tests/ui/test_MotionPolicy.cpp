@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 
 #include <QAction>
+#include <QApplication>
 #include <QMenu>
+#include <QSettings>
 #include <QTemporaryDir>
 
 #include "MainWindow.h"
@@ -16,13 +18,11 @@ public:
         m_disableAnimations = qgetenv("FILECOMMANDER_DISABLE_ANIMATIONS");
         MotionPolicy::clearReducedForTest();
         MotionPolicy::clearSystemReducedForTest();
-        MotionPolicy::setApplicationReduced(false);
     }
 
     ~MotionPolicyStateGuard() {
         MotionPolicy::clearReducedForTest();
         MotionPolicy::clearSystemReducedForTest();
-        MotionPolicy::setApplicationReduced(false);
         if (m_disableAnimations.isNull())
             qunsetenv("FILECOMMANDER_DISABLE_ANIMATIONS");
         else
@@ -30,6 +30,30 @@ public:
     }
 
     QByteArray m_disableAnimations;
+};
+
+class ConfigHomeGuard {
+public:
+    ConfigHomeGuard()
+        : m_wasSet(qEnvironmentVariableIsSet("FILECOMMANDER_CONFIG_HOME")),
+          m_previous(qgetenv("FILECOMMANDER_CONFIG_HOME")) {
+        if (m_dir.isValid())
+            qputenv("FILECOMMANDER_CONFIG_HOME", m_dir.path().toUtf8());
+    }
+
+    ~ConfigHomeGuard() {
+        if (m_wasSet)
+            qputenv("FILECOMMANDER_CONFIG_HOME", m_previous);
+        else
+            qunsetenv("FILECOMMANDER_CONFIG_HOME");
+    }
+
+    bool isValid() const { return m_dir.isValid(); }
+
+private:
+    QTemporaryDir m_dir;
+    bool m_wasSet;
+    QByteArray m_previous;
 };
 
 QAction *findAction(QMenu *menu, const QString &text) {
@@ -84,17 +108,21 @@ TEST(MotionPolicy, SystemPreferenceTestOverrideIsDeterministic) {
     EXPECT_FALSE(MotionPolicy::reduced());
 }
 
-TEST(MotionPolicy, ApplicationPreferenceUpdatesPolicyImmediately) {
+TEST(MotionPolicy, LegacyApplicationPreferenceCannotDisableMotion) {
     MotionPolicyStateGuard guard;
+    ConfigHomeGuard configHome;
+    ASSERT_TRUE(configHome.isValid());
     MotionPolicy::clearReducedForTest();
     MotionPolicy::setSystemReducedForTest(false);
     qputenv("FILECOMMANDER_DISABLE_ANIMATIONS", "0");
 
-    EXPECT_FALSE(MotionPolicy::reduced());
-    MotionPolicy::setApplicationReduced(true);
-    EXPECT_TRUE(MotionPolicy::reduced());
+    {
+        QSettings legacy(Settings::configFilePath(), QSettings::IniFormat);
+        legacy.setValue(QStringLiteral("appearance/reduceMotion"), true);
+        legacy.sync();
+    }
 
-    MotionPolicy::setApplicationReduced(false);
+    MainWindow window;
     EXPECT_FALSE(MotionPolicy::reduced());
 }
 
@@ -106,23 +134,7 @@ TEST(MotionPolicy, RapidInputSkipsMotion) {
     EXPECT_FALSE(MotionPolicy::allowFor(InputCadence::Rapid));
 }
 
-TEST(MotionPolicy, PersistsReducedMotionPreference) {
-    MotionPolicyStateGuard guard;
-    QTemporaryDir temporaryDir;
-    ASSERT_TRUE(temporaryDir.isValid());
-    const QString settingsPath = temporaryDir.filePath(QStringLiteral("settings.ini"));
-
-    {
-        Settings writer(settingsPath);
-        EXPECT_FALSE(writer.reduceMotion());
-        writer.setReduceMotion(true);
-    }
-
-    Settings reader(settingsPath);
-    EXPECT_TRUE(reader.reduceMotion());
-}
-
-TEST(MotionPolicy, ReduceMotionActionUpdatesPolicyImmediately) {
+TEST(MotionPolicy, ConfigurationMenuDoesNotExposeReduceMotion) {
     MotionPolicyStateGuard guard;
     qputenv("FILECOMMANDER_DISABLE_ANIMATIONS", "0");
     MainWindow window;
@@ -136,21 +148,14 @@ TEST(MotionPolicy, ReduceMotionActionUpdatesPolicyImmediately) {
     }
     ASSERT_NE(configMenu, nullptr);
 
+    configMenu->popup(QPoint(10, 10));
+    QApplication::processEvents();
+    configMenu->hide();
+
     QAction *action = findAction(configMenu, QStringLiteral("Reduce Motion"));
-    ASSERT_NE(action, nullptr);
-    EXPECT_TRUE(action->isCheckable());
-
-    const bool originallyEnabled = action->isChecked();
-    if (originallyEnabled)
-        action->trigger();
-
-    action->trigger();
-    EXPECT_TRUE(action->isChecked());
-    EXPECT_TRUE(MotionPolicy::reduced());
-
-    action->trigger();
-    if (originallyEnabled)
-        action->trigger();
+    ASSERT_NE(configMenu->findChild<QAction *>(QStringLiteral("configAutoUpdateAction")), nullptr);
+    EXPECT_EQ(action, nullptr);
+    EXPECT_EQ(configMenu->findChild<QAction *>(QStringLiteral("configReduceMotionAction")), nullptr);
 }
 
 } // namespace

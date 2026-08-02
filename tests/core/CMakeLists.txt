@@ -10,6 +10,7 @@ set(CORE_TEST_SOURCES
     filesystem/test_ExternalPaths.cpp
     filesystem/test_ParentEntry.cpp
     operations/test_FileOperations.cpp
+    operations/test_OperationError.cpp
     operations/test_OperationQueue.cpp
     operations/test_ProviderTransfer.cpp
     operations/test_ServerSideMove.cpp

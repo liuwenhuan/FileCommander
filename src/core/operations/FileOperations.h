@@ -9,6 +9,7 @@
 #include <QWaitCondition>
 
 #include "FileOpTypes.h"
+#include "privilege/PrivilegeBroker.h"
 
 class FileProvider;
 
@@ -73,6 +74,19 @@ public:
     // Optional callback consulted when an entry fails to copy/delete. Without
     // it, failures are reported and skipped (the previous behaviour).
     void setErrorResolver(ErrorResolver resolver) { m_errorResolver = std::move(resolver); }
+    void setErrorResolver(LegacyErrorResolver resolver) {
+        m_errorResolver = [resolver = std::move(resolver)](const OperationError &error) {
+            return resolver(error.sourcePath, error.message);
+        };
+    }
+    void setPrivilegeExecutor(
+        std::function<PrivilegeResult(const PrivilegedOperationRequest &)> executor) {
+        m_privilegeExecutor = std::move(executor);
+    }
+    void setNativeErrorOverrideForTesting(
+        std::function<qint64(OperationType, const QString &, const QString &, qint64)> override) {
+        m_nativeErrorOverrideForTesting = std::move(override);
+    }
 
 signals:
     // doneItems/totalItems count the top-level selected entries; doneBytes/
@@ -86,7 +100,10 @@ private:
     bool copyOne(const QString &source, const QString &destDir, bool removeSource,
                   const ConflictResolver &resolver, ErrorAction &batchAction,
                   QString *errorMessage);
-    bool copyRecursively(const QString &sourceDir, const QString &destDir);
+    bool copyRecursively(const QString &sourceDir, const QString &destDir,
+                         qint64 *nativeCode);
+    bool copyDirectorySafely(const QString &sourceDir, const QString &destDir,
+                             bool overwrite, qint64 *nativeCode);
     // The single local file-copy primitive: replaces `target`, copies `source`
     // onto it, and carries the source's modification time across. Every local
     // copy goes through here so the timestamp behaviour can't diverge between
@@ -96,13 +113,24 @@ private:
     // best-effort and deliberately cannot fail the operation: on a filesystem
     // that won't accept it, the result is a copied file with a fresh timestamp,
     // which is exactly the pre-existing behaviour.
-    static bool copyFilePreservingTime(const QString &source, const QString &target);
+    static bool copyFilePreservingTime(const QString &source, const QString &target,
+                                       bool overwrite, qint64 *nativeCode);
     void emitProgress(const QString &currentFile);
     void waitIfPaused(); // blocks the worker while paused, until resume/cancel
     // Returns true if the caller should treat the failed entry as handled
     // (retried successfully is handled by the caller's loop; here Skip/SkipAll
     // return true, Retry signals retry, Cancel sets m_cancelled).
-    ErrorAction resolveError(const QString &path, const QString &error);
+    ErrorAction resolveError(const OperationError &error);
+    ErrorAction resolveError(OperationType operation, const QString &sourcePath,
+                             const QString &targetPath, qint64 nativeCode,
+                             const QString &message, bool localOperation);
+    enum class FailureResolution { Retry, Elevated, Failed };
+    FailureResolution resolveLocalFailure(OperationError error,
+                                          const PrivilegedOperationRequest &request);
+    qint64 overrideNativeErrorForTesting(OperationType operation,
+                                         const QString &sourcePath,
+                                         const QString &targetPath,
+                                         qint64 nativeCode) const;
     static qint64 countEntries(const QStringList &paths);
     static qint64 countBytes(const QStringList &paths);
     static QString uniqueDestination(const QString &destDir, const QString &name);
@@ -166,6 +194,9 @@ private:
     QWaitCondition m_pauseCond;
     bool m_paused = false;
     ErrorResolver m_errorResolver;
+    std::function<PrivilegeResult(const PrivilegedOperationRequest &)> m_privilegeExecutor;
+    std::function<qint64(OperationType, const QString &, const QString &, qint64)>
+        m_nativeErrorOverrideForTesting;
     ErrorAction m_errorBatch = ErrorAction::Retry; // sentinel: ask each time
     qint64 m_totalItems = 0;
     qint64 m_doneItems = 0;

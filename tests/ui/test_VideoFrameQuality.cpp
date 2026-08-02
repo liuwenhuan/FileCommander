@@ -1,15 +1,21 @@
 #include <gtest/gtest.h>
 
 #include <QDir>
+#include <QDateTime>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QProcess>
+#include <QSignalSpy>
 #include <QStandardPaths>
 #include <QString>
 #include <QTemporaryDir>
-#include <QThread>
+#include <QTest>
 
+#include "FileProvider.h"
 #include "ThumbnailCache.h"
+
+#include <atomic>
 
 // A remote video thumbnail is taken from a *sparse excerpt* -- only some byte
 // ranges of the file are fetched, each written at its true offset, the rest
@@ -113,22 +119,79 @@ bool makeSparseCopy(const QString &source, const QString &dest,
     return true;
 }
 
-// The production frame grab, reached through the public cache API: a local
-// video goes down thumbnail() -> generate() -> extractVideoFrame(). A non-null
-// result means the frame was accepted.
-bool thumbnailAccepted(const QString &videoPath) {
+struct ThumbnailAttempt {
+    bool completed = false;
+    bool accepted = false;
+};
+
+// The production frame grab, reached through the public cache API. Completion
+// is delivered to the cache's GUI-thread slot, so this must pump the event loop
+// while waiting; sleeping alone only observes an artificial cache miss.
+ThumbnailAttempt thumbnailAttempt(const QString &videoPath) {
     ThumbnailCache &cache = ThumbnailCache::instance();
-    // Poll rather than spin on a signal: generation runs on the shared pool and
-    // a rejected frame produces no pixmap at all, so the signal alone cannot
-    // distinguish "still working" from "refused".
+    QSignalSpy ready(&cache, &ThumbnailCache::thumbnailReady);
     cache.thumbnail(videoPath, 64);
-    for (int i = 0; i < 400; ++i) {
-        if (!cache.thumbnail(videoPath, 64).isNull())
-            return true;
-        QThread::msleep(25);
+    QElapsedTimer timer;
+    timer.start();
+    while (timer.elapsed() < 10000) {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+        for (const QList<QVariant> &arguments : ready) {
+            if (arguments.at(0).toString() != videoPath)
+                continue;
+            return {true, !cache.thumbnail(videoPath, 64).isNull()};
+        }
+        QTest::qWait(25);
     }
-    return false;
+    return {};
 }
+
+#ifdef Q_OS_WIN
+class NoShellVideoProvider final : public FileProvider {
+public:
+    QVector<FileInfo> list(const QString &, bool) const override { return {}; }
+    bool isDir(const QString &) const override { return false; }
+    QString cleanPath(const QString &path) const override { return path; }
+    QString parentPath(const QString &) const override { return {}; }
+    bool exists(const QString &) const override { return true; }
+    RenameResult rename(const QString &, const QString &, QString *) override {
+        return RenameResult::Failed;
+    }
+    bool canStream() const override { return true; }
+    FileHandle *openRead(const QString &) override {
+        ++m_openCount;
+        return nullptr;
+    }
+    int openCount() const { return m_openCount.load(); }
+
+private:
+    std::atomic<int> m_openCount{0};
+};
+
+ThumbnailAttempt remoteThumbnailAttempt(const std::shared_ptr<FileProvider> &provider,
+                                        const QString &path, qint64 fileSize) {
+    ThumbnailCache &cache = ThumbnailCache::instance();
+    QSignalSpy ready(&cache, &ThumbnailCache::thumbnailReady);
+    const QString connectionId = QStringLiteral("wmf-test-%1")
+                                     .arg(QDateTime::currentMSecsSinceEpoch());
+    if (cache.requestRemoteThumbnail(provider, connectionId, path,
+                                     QDateTime::currentSecsSinceEpoch(), fileSize, 64) !=
+        ThumbnailCache::Request::Queued) {
+        return {};
+    }
+
+    QElapsedTimer timer;
+    timer.start();
+    while (timer.elapsed() < 10000) {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+        for (const QList<QVariant> &arguments : ready) {
+            if (arguments.at(0).toString() == path)
+                return {true, false};
+        }
+        QTest::qWait(25);
+    }
+    return {};
+}
+#endif
 
 } // namespace
 
@@ -136,6 +199,19 @@ bool thumbnailAccepted(const QString &videoPath) {
 // this passes -- ffmpeg exits 0 and writes a real PNG -- and the user gets a
 // grey rectangle cached forever.
 TEST(VideoFrameQualityTest, RejectsAFrameDecodedFromAHoleInTheExcerpt) {
+#ifdef Q_OS_WIN
+    // Windows never feeds a sparse excerpt to a decoder. The Shell can only
+    // open a provider's native path, so a remote video without one must finish
+    // as a miss rather than falling back to a partially downloaded temp file.
+    const auto provider = std::make_shared<NoShellVideoProvider>();
+    const ThumbnailAttempt attempt = remoteThumbnailAttempt(
+        provider, QStringLiteral("/quality-fixture/sparse-hole.mp4"), 32LL * 1024 * 1024);
+    ASSERT_TRUE(attempt.completed) << "remote video rejection did not complete";
+    EXPECT_FALSE(attempt.accepted)
+        << "a sparse remote video without a Shell path was handed to a decoder";
+    EXPECT_EQ(provider->openCount(), 0)
+        << "a remote video without a Shell path fell back to partial downloading";
+#else
     if (!haveFfmpeg())
         GTEST_SKIP() << "ffmpeg/ffprobe not installed";
 
@@ -158,8 +234,11 @@ TEST(VideoFrameQualityTest, RejectsAFrameDecodedFromAHoleInTheExcerpt) {
     ASSERT_TRUE(makeSparseCopy(source, holed, {{0, edge}, {size - edge, edge}}));
     ASSERT_EQ(QFileInfo(holed).size(), size) << "sparse copy must keep the apparent size";
 
-    EXPECT_FALSE(thumbnailAccepted(holed))
+    const ThumbnailAttempt attempt = thumbnailAttempt(holed);
+    ASSERT_TRUE(attempt.completed) << "thumbnail generation did not complete";
+    EXPECT_FALSE(attempt.accepted)
         << "a grey frame decoded from a hole was accepted as a thumbnail";
+#endif
 }
 
 // The other half of the contract, and the reason the check is not a plain
@@ -180,7 +259,9 @@ TEST(VideoFrameQualityTest, AcceptsLegitimatelyFlatFrames) {
                           Case{"navy.mp4", "0x1a1a2e"}}) {
         const QString path = dir.filePath(QString::fromLatin1(c.name));
         ASSERT_TRUE(makeSolidVideo(path, QString::fromLatin1(c.colour))) << c.name;
-        EXPECT_TRUE(thumbnailAccepted(path))
+        const ThumbnailAttempt attempt = thumbnailAttempt(path);
+        ASSERT_TRUE(attempt.completed) << c.name << ": thumbnail generation did not complete";
+        EXPECT_TRUE(attempt.accepted)
             << c.name << ": a legitimately single-colour frame was rejected as a grey screen";
     }
 }
@@ -196,5 +277,7 @@ TEST(VideoFrameQualityTest, AcceptsAnIntactVideo) {
     const QString path = dir.filePath(QStringLiteral("intact.mp4"));
     ASSERT_TRUE(makeBusyVideo(path));
 
-    EXPECT_TRUE(thumbnailAccepted(path)) << "an intact video lost its thumbnail";
+    const ThumbnailAttempt attempt = thumbnailAttempt(path);
+    ASSERT_TRUE(attempt.completed) << "thumbnail generation did not complete";
+    EXPECT_TRUE(attempt.accepted) << "an intact video lost its thumbnail";
 }

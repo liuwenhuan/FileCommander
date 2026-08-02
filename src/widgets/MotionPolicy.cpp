@@ -15,7 +15,6 @@ namespace {
 
 std::atomic<int> reducedForTest{-1};
 std::atomic<int> systemReducedForTest{-1};
-std::atomic_bool applicationReduced{false};
 
 class MotionPolicyNotifier : public QObject {
     Q_OBJECT
@@ -78,7 +77,7 @@ bool MotionPolicy::reduced() {
     if (qgetenv("FILECOMMANDER_DISABLE_ANIMATIONS") == QByteArrayLiteral("1"))
         return true;
 
-    return applicationReduced.load() || systemReducesMotion();
+    return systemReducesMotion();
 }
 
 bool MotionPolicy::allowFor(InputCadence cadence) {
@@ -88,12 +87,6 @@ bool MotionPolicy::allowFor(InputCadence cadence) {
 void MotionPolicy::observeReduced(QObject *context, std::function<void(bool)> observer) {
     QObject::connect(motionPolicyNotifier(), &MotionPolicyNotifier::reducedChanged, context,
                      std::move(observer));
-}
-
-void MotionPolicy::setApplicationReduced(bool reduced) {
-    const bool wasReduced = MotionPolicy::reduced();
-    applicationReduced.store(reduced);
-    publishReducedChange(wasReduced);
 }
 
 void MotionPolicy::setReducedForTest(bool reduced) {

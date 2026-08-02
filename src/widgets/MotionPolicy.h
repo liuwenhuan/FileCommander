@@ -23,15 +23,12 @@ public:
     // reduced-motion state changes. The connection is removed with `context`.
     static void observeReduced(QObject *context, std::function<void(bool)> observer);
 
-    // The application wires the persisted user preference into this policy.
-    static void setApplicationReduced(bool reduced);
-
     // Deterministic tests may override all runtime reduction sources.
     static void setReducedForTest(bool reduced);
     static void clearReducedForTest();
 
-    // Lets tests isolate the application preference from the host system
-    // preference without changing production detection when unset.
+    // Lets tests isolate the host system preference without changing
+    // production detection when unset.
     static void setSystemReducedForTest(bool reduced);
     static void clearSystemReducedForTest();
 };

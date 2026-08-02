@@ -228,8 +228,7 @@ TEST(ThumbnailCacheReuseTest, WindowsVideoThumbnailDoesNotNeedFfmpegOnPath) {
     resetDiskCache();
     ScopedPath noFfmpeg{QByteArray()};
 
-    const QString video =
-        QDir::current().filePath(QStringLiteral("../../../wmf-fixtures-local-av/video-h264.mp4"));
+    const QString video = QStringLiteral(TTC_WMF_FIXTURE_DIR "/video-h264.mp4");
     ASSERT_TRUE(QFileInfo::exists(video)) << video.toStdString();
 
     const QPixmap thumbnail = waitForThumbnail(video, 96);

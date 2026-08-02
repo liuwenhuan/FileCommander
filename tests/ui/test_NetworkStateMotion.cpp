@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 
 #include <QApplication>
+#include <QFile>
 #include <QLabel>
+#include <QPalette>
 #include <QSignalSpy>
 #include <QTest>
 #include <QVariantAnimation>
@@ -18,13 +20,11 @@ public:
     MotionPolicyStateGuard() {
         MotionPolicy::clearReducedForTest();
         MotionPolicy::clearSystemReducedForTest();
-        MotionPolicy::setApplicationReduced(false);
     }
 
     ~MotionPolicyStateGuard() {
         MotionPolicy::clearReducedForTest();
         MotionPolicy::clearSystemReducedForTest();
-        MotionPolicy::setApplicationReduced(false);
     }
 };
 
@@ -142,6 +142,35 @@ TEST(NetworkStateMotion, ConnectingBeyondDelayShowsOneStaticIndicatorWithReduced
         panel.findChild<QVariantAnimation *>(QStringLiteral("NetworkStatusColorAnimation"));
     ASSERT_NE(colorAnimation, nullptr);
     EXPECT_NE(colorAnimation->state(), QAbstractAnimation::Running);
+}
+
+TEST(NetworkStateMotion, ConnectionStatusTextUsesThemeSemanticColors) {
+    const QString previousStyleSheet = qApp->styleSheet();
+    struct RestoreStyleSheet {
+        QString value;
+        ~RestoreStyleSheet() { qApp->setStyleSheet(value); }
+    } restore{previousStyleSheet};
+
+    QFile theme(QStringLiteral(TTC_SOURCE_DIR "/resources/themes/green.qss"));
+    ASSERT_TRUE(theme.open(QIODevice::ReadOnly | QIODevice::Text));
+    qApp->setStyleSheet(QString::fromUtf8(theme.readAll()));
+
+    StatusBarWidget statusBar;
+    statusBar.setConnectionStatus(QStringLiteral("Connection failed"),
+                                  StatusBarWidget::ConnFailed);
+    qApp->processEvents();
+
+    QLabel *indicator = nullptr;
+    for (QLabel *label : statusBar.findChildren<QLabel *>()) {
+        if (label->textFormat() == Qt::RichText) {
+            indicator = label;
+            break;
+        }
+    }
+    ASSERT_NE(indicator, nullptr);
+    EXPECT_EQ(indicator->property("semanticState").toString(), QStringLiteral("error"));
+    EXPECT_EQ(indicator->palette().color(QPalette::WindowText), QColor(0x33, 0xff, 0x88));
+    EXPECT_FALSE(indicator->text().contains(QStringLiteral("style='color:#")));
 }
 
 } // namespace

@@ -12,6 +12,7 @@
 #include <QUuid>
 
 #include "config/Settings.h"
+#include "config/PrivatePath.h"
 
 namespace {
 
@@ -46,9 +47,7 @@ NotepadStore::NotepadStore(const QString &directory)
     if (!dirInfo.isDir() || dirInfo.isSymbolicLink())
         return;
     m_dir = dirInfo.canonicalFilePath();
-    if (m_dir.isEmpty() || !QFile::setPermissions(
-                               m_dir, QFileDevice::ReadOwner | QFileDevice::WriteOwner |
-                                          QFileDevice::ExeOwner))
+    if (m_dir.isEmpty() || !PrivatePath::restrictDirectory(m_dir))
         return;
 
     QLockFile lock(lockPath());
@@ -102,7 +101,7 @@ bool NotepadStore::recoverPendingDeletes() {
         if (indexOf(id) >= 0) {
             if (QFileInfo::exists(body) || !QFile::rename(tombstone, body))
                 return false;
-            if (!QFile::setPermissions(body, QFileDevice::ReadOwner | QFileDevice::WriteOwner))
+            if (!PrivatePath::restrictFile(body))
                 return false;
         } else if (!QFile::remove(tombstone)) {
             return false;
@@ -266,20 +265,22 @@ bool NotepadStore::saveIndex(const QVector<NotepadNote> &notes) const {
     // QSaveFile writes atomically, so a crash mid-write can't leave a truncated
     // index behind (loadIndex would otherwise rebuild it).
     QSaveFile file(path);
-    if (!file.open(QIODevice::WriteOnly) ||
-        !file.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner)) {
+    if (!file.open(QIODevice::WriteOnly)) {
         file.cancelWriting();
         return false;
     }
+#ifndef Q_OS_WIN
+    if (!file.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner)) {
+        file.cancelWriting();
+        return false;
+    }
+#endif
     const QByteArray data = QJsonDocument(array).toJson(QJsonDocument::Indented);
     if (file.write(data) != data.size()) {
         file.cancelWriting();
         return false;
     }
-    const bool committed = file.commit();
-    if (committed)
-        QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
-    return committed;
+    return file.commit() && PrivatePath::restrictFile(path);
 }
 
 bool NotepadStore::saveIndex() const {
@@ -307,8 +308,7 @@ NotepadNote NotepadStore::create(const QString &title) {
 
     QSaveFile file(note.filePath);
     if (!file.open(QIODevice::WriteOnly) || !file.commit() ||
-        !QFile::setPermissions(note.filePath,
-                               QFileDevice::ReadOwner | QFileDevice::WriteOwner)) {
+        !PrivatePath::restrictFile(note.filePath)) {
         QFile::remove(note.filePath);
         return {};
     }
@@ -336,26 +336,28 @@ bool NotepadStore::save(const QString &id, const QString &content,
         return false;
 
     QFile current(path);
-    if (!current.open(QIODevice::ReadOnly) ||
-        QString::fromUtf8(current.readAll()) != expectedContent) {
+    if (!current.open(QIODevice::ReadOnly))
         return false;
-    }
+    const QString currentContent = QString::fromUtf8(current.readAll());
+    current.close();
+    if (currentContent != expectedContent)
+        return false;
 
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly))
         return false;
+#ifndef Q_OS_WIN
     if (!file.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner)) {
         file.cancelWriting();
         return false;
     }
+#endif
     const QByteArray data = content.toUtf8();
     if (file.write(data) != data.size()) {
         file.cancelWriting();
         return false;
     }
-    if (!file.commit())
-        return false;
-    return true;
+    return file.commit() && PrivatePath::restrictFile(path);
 }
 
 QString NotepadStore::load(const QString &id) const {

@@ -20,7 +20,6 @@
 #include "TranslationManager.h"
 #include "WindowActivation.h"
 #include "diagnostics/RuntimeCounters.h"
-
 int main(int argc, char *argv[]) {
     QElapsedTimer startupElapsed;
     startupElapsed.start();
@@ -57,6 +56,7 @@ int main(int argc, char *argv[]) {
     QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 
     QApplication app(argc, argv);
+    const QStringList arguments = app.arguments();
     const qint64 qApplicationConstructedMs =
         startupProbeRequested ? startupElapsed.elapsed() : -1;
     Typography::initializeSystemFont();
@@ -76,7 +76,6 @@ int main(int argc, char *argv[]) {
     const qint64 applicationIdentityReadyMs =
         startupProbeRequested ? startupElapsed.elapsed() : -1;
 
-    const QStringList arguments = app.arguments();
     const int startupProbe = arguments.indexOf(QStringLiteral("--startup-probe"));
     if (startupProbe >= 0 && startupProbe + 1 >= arguments.size()) {
         qCritical("--startup-probe requires an output file path");

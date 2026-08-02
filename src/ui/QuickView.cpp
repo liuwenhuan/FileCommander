@@ -149,6 +149,11 @@ constexpr int kFirstStageSlides = 3;
 QuickView::QuickView(Settings &settings, Context context, QWidget *parent,
                      std::unique_ptr<MediaEngine> mediaEngine)
     : QWidget(parent), m_settings(settings), m_context(context) {
+    // QuickView is the single painted surface behind its stacked pages. The CRT
+    // theme tiles this widget once and keeps the default page/stack transparent,
+    // so scanlines stay continuous instead of restarting in each child.
+    setAttribute(Qt::WA_StyledBackground, true);
+    setObjectName(QStringLiteral("QuickViewSurface"));
     // Both contexts read up to 5 MiB and show the same toolbar, so the embedded
     // Ctrl+Q pane and the F3 window preview text files identically.
     Q_UNUSED(context);
@@ -181,6 +186,7 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent,
             &QuickView::requestImageRender);
 
     m_stack = new QStackedWidget(this);
+    m_stack->setObjectName(QStringLiteral("QuickViewStack"));
     m_stack->addWidget(m_info);
 
     if (mediaEngine) {
@@ -1750,7 +1756,7 @@ QWidget *QuickView::buildEncryptedPage() {
     m_encryptedFeedback = new QLabel(m_encryptedPage);
     m_encryptedFeedback->setAlignment(Qt::AlignCenter);
     m_encryptedFeedback->setWordWrap(true);
-    m_encryptedFeedback->setStyleSheet(QStringLiteral("color: #d33;"));
+    m_encryptedFeedback->setProperty("semanticState", QStringLiteral("error"));
     column->addWidget(m_encryptedFeedback);
 
     outer->addLayout(column);

@@ -353,6 +353,12 @@ $executableArchitecture = Get-PeArchitecture -Path $executablePath
 if ($executableArchitecture -ne $Architecture) {
     throw "Package executable architecture mismatch: FileCommander.exe is $executableArchitecture, expected $Architecture."
 }
+$standaloneHelperArtifacts = @(Get-ChildItem -LiteralPath $resolved -Recurse -File |
+    Where-Object { $_.Name -match '(?i)(helper|broker).*\.(exe|dll)$' })
+if ($standaloneHelperArtifacts.Count -gt 0) {
+    $paths = $standaloneHelperArtifacts | ForEach-Object { Get-StageRelativePath -Path $_.FullName }
+    throw "Windows elevation uses the system file-operation broker; standalone package artifacts are forbidden: $($paths -join ', ')."
+}
 
 foreach ($required in @('Qt5Core.dll', 'Qt5Gui.dll', 'Qt5Widgets.dll', 'platforms/qwindows.dll')) {
     if (-not (Test-Path -LiteralPath (Join-Path $resolved $required))) {

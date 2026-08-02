@@ -5,6 +5,7 @@
 
 class QMouseEvent;
 class QPaintEvent;
+class QAbstractButton;
 
 // A slim self-drawn title bar for frameless dialogs. Mirrors the main window's
 // TitleBar chrome (theme-following background, rounded top corners, centred
@@ -22,7 +23,11 @@ public:
     QPixmap backgroundTile() const { return m_backgroundTile; }
     void setBackgroundTile(const QPixmap &tile);
 
+signals:
+    void heightChanged(int height);
+
 protected:
+    void changeEvent(QEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
@@ -30,7 +35,10 @@ protected:
     void mouseDoubleClickEvent(QMouseEvent *event) override;
 
 private:
+    void updateMetrics();
+
     QWidget *m_window = nullptr;
+    QAbstractButton *m_closeButton = nullptr;
     QPixmap m_backgroundTile;
     bool m_pressed = false;
 };

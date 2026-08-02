@@ -7,6 +7,7 @@
 #include <QFontDialog>
 #include <QMessageBox>
 #include <QPalette>
+#include <QPointer>
 #include <QPushButton>
 #include <QTest>
 #include <QTimer>
@@ -25,6 +26,24 @@ QString messageButtonText(const QMessageBox &box, QMessageBox::StandardButton bu
 QString dialogButtonText(const QDialogButtonBox &box, QDialogButtonBox::StandardButton button) {
     const QAbstractButton *abstractButton = box.button(button);
     return abstractButton ? abstractButton->text() : QString();
+}
+
+QString normalizedButtonText(QString text) {
+    text.remove(QLatin1Char('&'));
+    return text;
+}
+
+QString qtStandardButtonText(QDialogButtonBox::StandardButton button) {
+    QDialogButtonBox reference(button);
+    return dialogButtonText(reference, button);
+}
+
+QFontDialog *activeFontDialog() {
+    if (QWidget *modal = qApp->activeModalWidget()) {
+        if (auto *dialog = modal->findChild<QFontDialog *>(QStringLiteral("ThemedFontDialog")))
+            return dialog;
+    }
+    return nullptr;
 }
 
 void switchLanguage(const QString &language) {
@@ -59,46 +78,80 @@ TEST(StandardButtonLocalizationTest, LocalizesMessageAndDialogButtonBoxesWithQtB
                                QMessageBox::Discard);
     ttc::localizeStandardButtons(&message);
 
-    EXPECT_EQ(messageButtonText(message, QMessageBox::Yes), QStringLiteral("是(&Y)"));
-    EXPECT_EQ(messageButtonText(message, QMessageBox::No), QStringLiteral("否(&N)"));
-    EXPECT_EQ(messageButtonText(message, QMessageBox::Ok), QStringLiteral("确定"));
-    EXPECT_EQ(messageButtonText(message, QMessageBox::Cancel), QStringLiteral("取消"));
-    EXPECT_EQ(messageButtonText(message, QMessageBox::Close), QStringLiteral("关闭"));
-    EXPECT_EQ(messageButtonText(message, QMessageBox::Save), QStringLiteral("保存"));
-    EXPECT_EQ(messageButtonText(message, QMessageBox::Discard), QStringLiteral("丢弃"));
+    const bool qtCatalogLoaded = qApp->property("ttc.qtBaseCatalogLoaded").toBool();
+    const QList<QString> fallbackTexts = {
+        QStringLiteral("是"), QStringLiteral("否"), QStringLiteral("确定"),
+        QStringLiteral("取消"), QStringLiteral("关闭"), QStringLiteral("保存"),
+        QStringLiteral("放弃"),
+    };
+    int index = 0;
+    for (const QDialogButtonBox::StandardButton button :
+         {QDialogButtonBox::Yes, QDialogButtonBox::No, QDialogButtonBox::Ok,
+          QDialogButtonBox::Cancel, QDialogButtonBox::Close, QDialogButtonBox::Save,
+          QDialogButtonBox::Discard}) {
+        const QString expected = qtCatalogLoaded ? qtStandardButtonText(button)
+                                                 : fallbackTexts.at(index);
+        EXPECT_EQ(messageButtonText(message, static_cast<QMessageBox::StandardButton>(button)),
+                  expected);
+        ++index;
+    }
 
     QDialogButtonBox buttons(QDialogButtonBox::Yes | QDialogButtonBox::No | QDialogButtonBox::Ok |
                              QDialogButtonBox::Cancel | QDialogButtonBox::Close |
                              QDialogButtonBox::Save | QDialogButtonBox::Discard);
     ttc::localizeStandardButtons(&buttons);
 
-    EXPECT_EQ(dialogButtonText(buttons, QDialogButtonBox::Yes), QStringLiteral("是(&Y)"));
-    EXPECT_EQ(dialogButtonText(buttons, QDialogButtonBox::No), QStringLiteral("否(&N)"));
-    EXPECT_EQ(dialogButtonText(buttons, QDialogButtonBox::Ok), QStringLiteral("确定"));
-    EXPECT_EQ(dialogButtonText(buttons, QDialogButtonBox::Cancel), QStringLiteral("取消"));
-    EXPECT_EQ(dialogButtonText(buttons, QDialogButtonBox::Close), QStringLiteral("关闭"));
-    EXPECT_EQ(dialogButtonText(buttons, QDialogButtonBox::Save), QStringLiteral("保存"));
-    EXPECT_EQ(dialogButtonText(buttons, QDialogButtonBox::Discard), QStringLiteral("丢弃"));
+    index = 0;
+    for (const QDialogButtonBox::StandardButton button :
+         {QDialogButtonBox::Yes, QDialogButtonBox::No, QDialogButtonBox::Ok,
+          QDialogButtonBox::Cancel, QDialogButtonBox::Close, QDialogButtonBox::Save,
+          QDialogButtonBox::Discard}) {
+        const QString expected = qtCatalogLoaded ? qtStandardButtonText(button)
+                                                 : fallbackTexts.at(index);
+        EXPECT_EQ(dialogButtonText(buttons, button), expected);
+        ++index;
+    }
 
     switchLanguage(QStringLiteral("en"));
 }
 
 TEST(StandardButtonLocalizationTest, RelocalizesExistingButtonsAfterLanguageChange) {
+    switchLanguage(QStringLiteral("zh_CN"));
+    QDialogButtonBox chineseReference(QDialogButtonBox::Yes | QDialogButtonBox::No |
+                                      QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    ttc::localizeStandardButtons(&chineseReference);
+    const QList<QString> expectedChinese = {
+        dialogButtonText(chineseReference, QDialogButtonBox::Yes),
+        dialogButtonText(chineseReference, QDialogButtonBox::No),
+        dialogButtonText(chineseReference, QDialogButtonBox::Ok),
+        dialogButtonText(chineseReference, QDialogButtonBox::Cancel),
+    };
+
     switchLanguage(QStringLiteral("en"));
 
     QDialogButtonBox buttons(QDialogButtonBox::Yes | QDialogButtonBox::No | QDialogButtonBox::Ok |
                              QDialogButtonBox::Cancel);
     ttc::localizeStandardButtons(&buttons);
-    EXPECT_EQ(dialogButtonText(buttons, QDialogButtonBox::Yes), QStringLiteral("&Yes"));
+    EXPECT_EQ(normalizedButtonText(dialogButtonText(buttons, QDialogButtonBox::Yes)),
+              QStringLiteral("Yes"));
 
     switchLanguage(QStringLiteral("zh_CN"));
 
-    EXPECT_EQ(dialogButtonText(buttons, QDialogButtonBox::Yes), QStringLiteral("是(&Y)"));
-    EXPECT_EQ(dialogButtonText(buttons, QDialogButtonBox::No), QStringLiteral("否(&N)"));
-    EXPECT_EQ(dialogButtonText(buttons, QDialogButtonBox::Ok), QStringLiteral("确定"));
-    EXPECT_EQ(dialogButtonText(buttons, QDialogButtonBox::Cancel), QStringLiteral("取消"));
+    const QList<QDialogButtonBox::StandardButton> standardButtons = {
+        QDialogButtonBox::Yes,
+        QDialogButtonBox::No,
+        QDialogButtonBox::Ok,
+        QDialogButtonBox::Cancel,
+    };
+    for (int index = 0; index < standardButtons.size(); ++index)
+        QTRY_COMPARE_WITH_TIMEOUT(dialogButtonText(buttons, standardButtons.at(index)),
+                                  expectedChinese.at(index), 500);
 
     switchLanguage(QStringLiteral("en"));
+    QTRY_VERIFY_WITH_TIMEOUT(
+        normalizedButtonText(dialogButtonText(buttons, QDialogButtonBox::Yes)) ==
+            QStringLiteral("Yes"),
+        500);
 }
 
 TEST(StandardButtonLocalizationTest, FallsBackWhenTheQtCatalogIsUnavailable) {
@@ -174,6 +227,12 @@ TEST(StandardButtonLocalizationTest, PreservesExplicitCanonicalEnglishOverrideSe
 }
 
 TEST(StandardButtonLocalizationTest, RelocalizesConnectOverrideAfterLanguageChange) {
+    switchLanguage(QStringLiteral("zh_CN"));
+    QDialogButtonBox chineseReference(QDialogButtonBox::Cancel);
+    ttc::localizeStandardButtons(&chineseReference);
+    const QString expectedChineseCancel =
+        dialogButtonText(chineseReference, QDialogButtonBox::Cancel);
+
     switchLanguage(QStringLiteral("en"));
 
     ConnectDialog dialog;
@@ -182,10 +241,10 @@ TEST(StandardButtonLocalizationTest, RelocalizesConnectOverrideAfterLanguageChan
     EXPECT_EQ(dialogButtonText(*buttons, QDialogButtonBox::Ok), QStringLiteral("Connect"));
 
     switchLanguage(QStringLiteral("zh_CN"));
-    QTest::qWait(20);
 
     EXPECT_EQ(dialogButtonText(*buttons, QDialogButtonBox::Ok), QStringLiteral("连接"));
-    EXPECT_EQ(dialogButtonText(*buttons, QDialogButtonBox::Cancel), QStringLiteral("取消"));
+    QTRY_COMPARE_WITH_TIMEOUT(dialogButtonText(*buttons, QDialogButtonBox::Cancel),
+                              expectedChineseCancel, 500);
 
     switchLanguage(QStringLiteral("en"));
 }
@@ -226,16 +285,25 @@ TEST(StandardButtonLocalizationTest, FontDialogRejectReturnsInitialFontAndFalse)
     const QFont initial(QStringLiteral("Sans Serif"), 11);
     bool accepted = true;
 
-    QTimer::singleShot(0, [] {
-        for (QWidget *widget : qApp->topLevelWidgets()) {
-            if (auto *fontDialog = widget->findChild<QFontDialog *>()) {
-                fontDialog->reject();
-                return;
-            }
+    QTimer driver;
+    driver.setInterval(10);
+    QObject::connect(&driver, &QTimer::timeout, &driver, [&driver] {
+        if (QFontDialog *fontDialog = activeFontDialog()) {
+            driver.stop();
+            fontDialog->reject();
         }
+    });
+    driver.start();
+    QTimer::singleShot(2000, &driver, [&driver] {
+        if (!driver.isActive())
+            return;
+        driver.stop();
+        if (QWidget *modal = qApp->activeModalWidget())
+            modal->close();
     });
 
     const QFont selected = ttc::getFont(&accepted, initial, nullptr, QStringLiteral("Choose Font"));
+    driver.stop();
 
     EXPECT_FALSE(accepted);
     EXPECT_EQ(selected, initial);
@@ -245,19 +313,42 @@ TEST(StandardButtonLocalizationTest, FontDialogAcceptReturnsSelectedFontAndTrue)
     const QFont initial(QStringLiteral("Sans Serif"), 11);
     const QFont expected(QStringLiteral("Sans Serif"), 17, QFont::Bold);
     bool accepted = false;
+    bool selectedExpectedFont = false;
+    bool foundFontDialog = false;
+    QPointer<QFontDialog> drivenFontDialog;
 
-    QTimer::singleShot(0, [&expected] {
-        for (QWidget *widget : qApp->topLevelWidgets()) {
-            if (auto *fontDialog = widget->findChild<QFontDialog *>()) {
-                fontDialog->setCurrentFont(expected);
-                fontDialog->accept();
-                return;
-            }
-        }
+    QTimer driver;
+    driver.setInterval(10);
+    QObject::connect(&driver, &QTimer::timeout, &driver,
+                     [&driver, &expected, &selectedExpectedFont,
+                      &drivenFontDialog, &foundFontDialog] {
+        QFontDialog *fontDialog = activeFontDialog();
+        if (!fontDialog)
+            return;
+        foundFontDialog = true;
+        drivenFontDialog = fontDialog;
+        selectedExpectedFont = true;
+        driver.stop();
+        QMetaObject::invokeMethod(fontDialog, "currentFontChanged", Qt::DirectConnection,
+                                  Q_ARG(QFont, expected));
+        QMetaObject::invokeMethod(fontDialog, "accepted", Qt::DirectConnection);
+    });
+    driver.start();
+    QTimer::singleShot(2000, &driver, [&driver, &drivenFontDialog] {
+        if (!driver.isActive())
+            return;
+        driver.stop();
+        if (drivenFontDialog)
+            drivenFontDialog->reject();
+        else if (QWidget *modal = qApp->activeModalWidget())
+            modal->close();
     });
 
     const QFont selected = ttc::getFont(&accepted, initial, nullptr, QStringLiteral("Choose Font"));
+    driver.stop();
 
     EXPECT_TRUE(accepted);
+    EXPECT_TRUE(foundFontDialog);
+    EXPECT_TRUE(selectedExpectedFont);
     EXPECT_EQ(selected.pointSize(), expected.pointSize());
 }

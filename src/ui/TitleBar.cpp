@@ -3,6 +3,7 @@
 #include "TitleButton.h"
 
 #include <QAbstractButton>
+#include <QEvent>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMenu>
@@ -39,12 +40,15 @@ TitleBar::TitleBar(QWidget *window, const QList<QMenu *> &menus, QWidget *parent
     layout->setSpacing(2);
 
     // App icon (from the window's icon).
-    auto *icon = new QLabel(this);
+    m_icon = new QLabel(this);
     const int iconSize = 18;
-    icon->setPixmap(window->windowIcon().pixmap(iconSize, iconSize));
-    icon->setFixedSize(iconSize + 6, iconSize + 4);
-    icon->setAlignment(Qt::AlignCenter);
-    layout->addWidget(icon);
+    m_icon->setObjectName(QStringLiteral("ApplicationIcon"));
+    m_icon->setFixedSize(iconSize + 6, iconSize + 4);
+    m_icon->setAlignment(Qt::AlignCenter);
+    layout->addWidget(m_icon);
+    syncWindowIcon();
+    if (m_window)
+        m_window->installEventFilter(this);
 
     // Menu buttons (Commands / View): flat tool buttons that pop their menu.
     for (QMenu *menu : menus) {
@@ -113,6 +117,19 @@ void TitleBar::setBackgroundTile(const QPixmap &tile) {
 void TitleBar::positionTitle() {
     if (m_title)
         m_title->setGeometry(rect());
+}
+
+void TitleBar::syncWindowIcon() {
+    if (!m_icon || !m_window)
+        return;
+    const int iconSize = qMin(m_icon->width() - 6, m_icon->height() - 4);
+    m_icon->setPixmap(m_window->windowIcon().pixmap(iconSize, iconSize));
+}
+
+bool TitleBar::eventFilter(QObject *watched, QEvent *event) {
+    if (watched == m_window && event->type() == QEvent::WindowIconChange)
+        syncWindowIcon();
+    return QWidget::eventFilter(watched, event);
 }
 
 void TitleBar::resizeEvent(QResizeEvent *event) {

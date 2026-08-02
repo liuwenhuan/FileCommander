@@ -15,6 +15,7 @@
 
 class QListWidget;
 class QListWidgetItem;
+class QEvent;
 
 class RemovableDeviceMonitor;
 struct RemovableDevice;
@@ -71,6 +72,9 @@ signals:
     // including SMB, lives in its form too).
     void openConnectionManager();
 
+protected:
+    void changeEvent(QEvent *event) override;
+
 private slots:
     void onHostsDiscovered(const QVector<SmbHost> &hosts);
     void onItemActivated(QListWidgetItem *item);
@@ -90,8 +94,11 @@ private:
         QString text; // optional label on the button (e.g. a "Searching…" state)
     };
     // Appends a bold, dimmed section header row, optionally carrying right-aligned
-    // action buttons (setItemWidget). No actions -> a plain non-interactive label.
+    // action buttons. All headers use the same item-widget typography path.
     void addHeader(const QString &text, const QList<HeaderAction> &actions = {});
+    // Keeps every section title on the popup's inherited chrome font while
+    // preserving a common bold weight and row height after live font changes.
+    void syncHeaderTypography();
     // Appends a removable-device row: icon + name, plus an eject button (for a
     // mounted device) that unmounts it. The row itself stays clickable to navigate.
     void addDeviceRow(const RemovableDevice &dev);
@@ -109,7 +116,7 @@ private:
     RemovableDeviceMonitor *m_devices; // not owned
     SmbHostBrowser *m_smb;             // not owned
 
-    QListWidget *m_list;
+    QListWidget *m_list = nullptr;
 
     QVector<SavedConnection> m_saved; // parallel payload for KindSaved rows
     QVector<SmbHost> m_hosts;         // hosts accumulated from discovery

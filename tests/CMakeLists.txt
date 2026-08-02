@@ -35,6 +35,7 @@ function(filecommander_set_test_runtime test_name)
 endfunction()
 
 add_subdirectory(core)
+add_subdirectory(platform)
 add_subdirectory(ui)
 add_subdirectory(archive)
 add_subdirectory(viewer)

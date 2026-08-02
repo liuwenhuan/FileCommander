@@ -7,6 +7,7 @@
 #include "filesystem/IconCache.h"
 
 #include <QApplication>
+#include <QEvent>
 #include <QFont>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -19,6 +20,8 @@
 #include <QVBoxLayout>
 
 namespace {
+
+constexpr int kHeaderItemVerticalPadding = 8;
 
 // Maps a saved bookmark's protocol (SavedConnection::protocol, an int mirroring
 // GvfsMounter::Protocol) to a device icon. Enum order in GvfsMounter.h is:
@@ -162,19 +165,10 @@ void ExternalConnectDialog::refreshThemeIcons() {
 }
 
 void ExternalConnectDialog::addHeader(const QString &text, const QList<HeaderAction> &actions) {
-    // A plain label header when there are no actions (cheapest, no item widget).
-    if (actions.isEmpty()) {
-        auto *item = new QListWidgetItem(text, m_list);
-        item->setFlags(Qt::NoItemFlags); // no selection, no activation
-        QFont f = item->font();
-        f.setBold(true);
-        item->setFont(f);
-        item->setForeground(palette().color(QPalette::Disabled, QPalette::Text));
-        return;
-    }
-
-    // With actions: a custom row widget -- the bold, dimmed header label plus
-    // right-aligned action buttons (e.g. rescan, manual connect, manager).
+    // Every section uses the same widget path. A QListWidgetItem caches its own
+    // font differently from an item widget, which previously left the actionless
+    // "Removable Devices" title smaller and unable to follow live chrome-font
+    // changes while the other two QLabel-backed titles did.
     auto *item = new QListWidgetItem(m_list);
     item->setFlags(Qt::NoItemFlags);
     auto *row = new QWidget(m_list);
@@ -182,9 +176,7 @@ void ExternalConnectDialog::addHeader(const QString &text, const QList<HeaderAct
     lay->setContentsMargins(0, 0, 0, 0);
     lay->setSpacing(4);
     auto *label = new QLabel(text, row);
-    QFont f = label->font();
-    f.setBold(true);
-    label->setFont(f);
+    label->setObjectName(QStringLiteral("ExternalConnectHeaderLabel"));
     QPalette lp = label->palette();
     lp.setColor(QPalette::WindowText, palette().color(QPalette::Disabled, QPalette::Text));
     label->setPalette(lp);
@@ -207,8 +199,86 @@ void ExternalConnectDialog::addHeader(const QString &text, const QList<HeaderAct
         connect(btn, &QToolButton::clicked, this, a.onClick);
         lay->addWidget(btn);
     }
+    QFont headerFont = m_list->font();
+    headerFont.setBold(true);
+    label->setFont(headerFont);
     item->setSizeHint(row->sizeHint());
     m_list->setItemWidget(item, row);
+}
+
+void ExternalConnectDialog::changeEvent(QEvent *event) {
+    QWidget::changeEvent(event);
+    if (!m_list)
+        return;
+    if (event->type() == QEvent::FontChange || event->type() == QEvent::ApplicationFontChange ||
+        event->type() == QEvent::StyleChange) {
+        syncHeaderTypography();
+    }
+}
+
+void ExternalConnectDialog::syncHeaderTypography() {
+    // A themed QListWidget can retain the application font resolved during QSS
+    // polish instead of inheriting a later chrome-font change from this popup.
+    // Keep the entire list on the popup's chrome font; content rows remain normal
+    // weight while section labels derive the same font with bold enabled below.
+    if (m_list->font() != font())
+        m_list->setFont(font());
+
+    QFont headerFont = font();
+    headerFont.setBold(true);
+
+    const auto labels =
+        m_list->findChildren<QLabel *>(QStringLiteral("ExternalConnectHeaderLabel"));
+    for (QLabel *label : labels) {
+        label->setFont(headerFont);
+        label->updateGeometry();
+    }
+
+    QList<QPair<QListWidgetItem *, QWidget *>> headerRows;
+    int contentHeight = QFontMetrics(headerFont).height();
+    for (int i = 0; i < m_list->count(); ++i) {
+        QListWidgetItem *item = m_list->item(i);
+        QWidget *row = m_list->itemWidget(item);
+        if (!row)
+            continue;
+
+        if (row->font() != font())
+            row->setFont(font());
+        if (row->layout()) {
+            row->layout()->invalidate();
+            row->layout()->activate();
+        }
+        if (item->data(Qt::UserRole).toInt() == KindDevice) {
+            const auto children = row->findChildren<QWidget *>(QString(),
+                                                               Qt::FindDirectChildrenOnly);
+            for (QWidget *child : children) {
+                if (child->font() != font())
+                    child->setFont(font());
+                child->updateGeometry();
+            }
+            if (row->layout()) {
+                row->layout()->invalidate();
+                row->layout()->activate();
+            }
+            item->setSizeHint(row->sizeHint());
+            continue;
+        }
+        if (!row->findChild<QLabel *>(QStringLiteral("ExternalConnectHeaderLabel")))
+            continue;
+        contentHeight = qMax(contentHeight, row->sizeHint().height());
+        headerRows.append(qMakePair(item, row));
+    }
+
+    // QSS gives each QListWidget item 4 px of top and bottom padding. An index
+    // widget is laid out inside that padded content rect, so using only the
+    // label/row size as the item hint clips exactly those 8 px (most visibly on
+    // the first, actionless header). Keep all section rows at the same height and
+    // include the style's vertical inset explicitly.
+    const int itemHeight = contentHeight + kHeaderItemVerticalPadding;
+    for (const auto &entry : headerRows)
+        entry.first->setSizeHint(QSize(entry.second->sizeHint().width(), itemHeight));
+
+    fitToContents();
 }
 
 void ExternalConnectDialog::addDeviceRow(const RemovableDevice &dev) {
@@ -372,7 +442,7 @@ void ExternalConnectDialog::rebuild() {
         note->setFlags(Qt::NoItemFlags);
     }
 
-    fitToContents();
+    syncHeaderTypography();
 }
 
 void ExternalConnectDialog::onHostsDiscovered(const QVector<SmbHost> &hosts) {

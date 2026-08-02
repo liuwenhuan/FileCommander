@@ -44,6 +44,11 @@ public:
     // Invoked (on the GUI thread) when an entry fails to copy/delete; wire to
     // a Retry/Skip/Skip-All/Cancel dialog.
     void setErrorHandler(ErrorResolver handler) { m_errorHandler = std::move(handler); }
+    void setErrorHandler(LegacyErrorResolver handler) {
+        m_errorHandler = [handler = std::move(handler)](const OperationError &error) {
+            return handler(error.sourcePath, error.message);
+        };
+    }
 
     void enqueueCopy(const QStringList &sources, const QString &destDir);
     void enqueueCopyAs(const QString &source, const QString &destPath);
@@ -74,6 +79,8 @@ public:
     // Requests cancellation of all running/queued operations, both local and
     // provider transfers. Safe to call from the GUI thread; each worker stops
     // at the next per-entry boundary.
+    void cancelActiveJobs();
+    void abortAll();
     void cancelCurrent();
     void pauseCurrent();
     void resumeCurrent();
@@ -98,6 +105,7 @@ signals:
                    const QString &currentFile);
     void errorOccurred(const QString &message);
     void finished(bool ok);
+    void aborted();
 
 private:
     struct Job {
@@ -116,7 +124,7 @@ private:
     };
 
     ErrorAction askConflict(const FileConflict &conflict);
-    ErrorAction askError(const QString &path, const QString &error);
+    ErrorAction askError(const OperationError &error);
     void ensureLocalWorkerStarted();
     void maybeStartNext();
     void onWorkerJobDone(bool ok);

@@ -31,13 +31,11 @@ public:
         qputenv("FILECOMMANDER_DISABLE_ANIMATIONS", "0");
         MotionPolicy::clearReducedForTest();
         MotionPolicy::clearSystemReducedForTest();
-        MotionPolicy::setApplicationReduced(false);
     }
 
     ~MotionPolicyStateGuard() {
         MotionPolicy::clearReducedForTest();
         MotionPolicy::clearSystemReducedForTest();
-        MotionPolicy::setApplicationReduced(false);
         if (m_disableAnimations.isNull())
             qunsetenv("FILECOMMANDER_DISABLE_ANIMATIONS");
         else
@@ -280,7 +278,6 @@ TEST(DirectoryTreeMotion, LiveReducedMotionFinishesPendingFeedbackSynchronously)
     MotionPolicyStateGuard guard;
     MotionPolicy::clearReducedForTest();
     MotionPolicy::setSystemReducedForTest(false);
-    MotionPolicy::setApplicationReduced(false);
 
     FilePanel panel;
     panel.resize(700, 500);
@@ -295,7 +292,7 @@ TEST(DirectoryTreeMotion, LiveReducedMotionFinishesPendingFeedbackSynchronously)
     ASSERT_EQ(feedback->state(), QAbstractAnimation::Running);
     ASSERT_GT(feedback->currentValue().toReal(), 0.0);
 
-    MotionPolicy::setApplicationReduced(true);
+    MotionPolicy::setSystemReducedForTest(true);
 
     EXPECT_TRUE(fixture.tree->isExpanded(fixture.firstBranch));
     EXPECT_FALSE(fixture.tree->isAnimated());

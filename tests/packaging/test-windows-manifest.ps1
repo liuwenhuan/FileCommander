@@ -119,6 +119,14 @@ try {
             -Message "$($profile.profile) must require Poppler."
         Assert-True -Condition ((Get-ProfileGroup $profile 'qt').required -contains 'Qt5Xml.dll') `
             -Message "$($profile.profile) must require Qt5Xml."
+        $applicationExecutables = @((Get-ProfileGroup $profile 'application').required |
+            Where-Object { $_ -match '(?i)\.exe$' })
+        Assert-True -Condition ($applicationExecutables.Count -eq 1 -and
+            $applicationExecutables[0] -eq 'FileCommander.exe') `
+            -Message "$($profile.profile) must use FileCommander.exe as its only application executable."
+        Assert-True -Condition (-not ((Get-ProfileGroup $profile 'application').required |
+            Where-Object { $_ -match '(?i)(helper|broker).*\.(exe|dll)$' })) `
+            -Message "$($profile.profile) must not package a standalone privileged helper."
     }
     foreach ($legacyProfile in @('windows-full-portable.json', 'windows-lite-portable.json', 'windows-full-msix.json', 'windows-lite-msix.json')) {
         Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $profiles $legacyProfile))) `
@@ -130,6 +138,10 @@ try {
         -Message 'Portable builder must select the single Windows profile.'
     Assert-True -Condition ($portableBuilder -notmatch 'WithFullPreviews|windows-full|windows-lite|MpvRoot|FILECOMMANDER_MPV_ROOT') `
         -Message 'Portable builder must not carry legacy Full/Lite or mpv SDK policy.'
+    Assert-Matches -Actual $portableBuilder -Pattern '\$env:VSLANG\s*=\s*''1033''' `
+        -Message 'Portable builder must force English MSVC include diagnostics so Ninja records header dependencies.'
+    Assert-Matches -Actual $portableBuilder -Pattern 'Remove-Item\s+-LiteralPath\s+\$build\s+-Recurse\s+-Force' `
+        -Message 'Portable release builds must start clean so stale objects cannot be linked after class layout changes.'
     Assert-True -Condition ($portableBuilder -notmatch 'Copy-StageFile[^\r\n]+libmpv') `
         -Message 'Portable builder must not copy libmpv.'
     Assert-Matches -Actual $portableBuilder -Pattern 'write-windows-manifest\.ps1' `
@@ -144,6 +156,23 @@ try {
         -Message 'MSIX builder must emit the single MSIX release manifest.'
     Assert-True -Condition ($msixBuilder -notmatch 'WithFullPreviews|windows-full|windows-lite|MpvRoot|FILECOMMANDER_MPV_ROOT') `
         -Message 'MSIX builder must not carry legacy Full/Lite or mpv SDK policy.'
+
+    $mainSource = Get-Content -LiteralPath (Join-Path $repo 'src/main.cpp') -Raw
+    Assert-True -Condition ($mainSource -notmatch '(?i)privileged-helper|PrivilegeBroker::runHelper') `
+        -Message 'FileCommander.exe must not expose a self-elevating helper mode.'
+
+    $windowsBrokerSource = Get-Content -LiteralPath `
+        (Join-Path $repo 'src/platform/windows/WindowsPrivilegeBroker.cpp') -Raw
+    Assert-Matches -Actual $windowsBrokerSource -Pattern 'CLSID_FileOperation' `
+        -Message 'Windows administrator continuation must use the system IFileOperation broker.'
+    Assert-Matches -Actual $windowsBrokerSource -Pattern 'FOFX_REQUIREELEVATION' `
+        -Message 'Windows IFileOperation must explicitly request system elevation.'
+    Assert-True -Condition ($windowsBrokerSource -notmatch 'ShellExecuteExW|applicationFilePath|"runas"') `
+        -Message 'Windows administrator continuation must never relaunch the portable application as administrator.'
+
+    $verifierSource = Get-Content -LiteralPath (Join-Path $repo 'packaging/verify-windows-package.ps1') -Raw
+    Assert-Matches -Actual $verifierSource -Pattern 'standalone package artifacts' `
+        -Message 'Windows package verification must reject standalone privileged helper artifacts.'
 
     Write-Host 'Windows package profile and manifest tests passed.'
 } finally {

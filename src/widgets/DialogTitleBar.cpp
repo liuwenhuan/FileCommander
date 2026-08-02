@@ -9,6 +9,11 @@
 #include <QPainterPath>
 #include <QWindow>
 
+namespace {
+constexpr int kDefaultHeight = 30;
+constexpr int kVerticalTextPadding = 8;
+}
+
 DialogTitleBar::DialogTitleBar(QWidget *window, QWidget *parent)
     : QWidget(parent), m_window(window) {
     // Let qproperty-backgroundTile from the CRT stylesheet reach this custom
@@ -34,11 +39,28 @@ DialogTitleBar::DialogTitleBar(QWidget *window, QWidget *parent)
     layout->addStretch(1);
 
     auto *closeButton = new TitleButton(TitleButton::Close, this);
-    closeButton->setFixedSize(46, 30);
+    closeButton->setFixedWidth(46);
+    m_closeButton = closeButton;
     layout->addWidget(closeButton);
     connect(closeButton, &QAbstractButton::clicked, this, [this] { m_window->close(); });
 
-    setFixedHeight(30);
+    updateMetrics();
+}
+
+void DialogTitleBar::updateMetrics() {
+    const int newHeight = qMax(kDefaultHeight, fontMetrics().height() + kVerticalTextPadding);
+    if (m_closeButton)
+        m_closeButton->setFixedHeight(newHeight);
+    if (height() == newHeight && minimumHeight() == newHeight && maximumHeight() == newHeight)
+        return;
+    setFixedHeight(newHeight);
+    emit heightChanged(newHeight);
+}
+
+void DialogTitleBar::changeEvent(QEvent *event) {
+    QWidget::changeEvent(event);
+    if (event->type() == QEvent::FontChange)
+        updateMetrics();
 }
 
 void DialogTitleBar::setBackgroundTile(const QPixmap &tile) {

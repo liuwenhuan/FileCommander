@@ -5,6 +5,8 @@
 #include <QFileInfo>
 #include <QStandardPaths>
 
+#include "PrivatePath.h"
+
 namespace {
 
 QString prepareConfigDirectory(const QString &basePath) {
@@ -30,9 +32,7 @@ QString prepareConfigDirectory(const QString &basePath) {
         !canonicalDirectory.startsWith(canonicalBase + QLatin1Char('/'))) {
         return QString();
     }
-    if (!QFile::setPermissions(canonicalDirectory,
-                               QFileDevice::ReadOwner | QFileDevice::WriteOwner |
-                                   QFileDevice::ExeOwner)) {
+    if (!PrivatePath::restrictDirectory(canonicalDirectory)) {
         return QString();
     }
     return canonicalDirectory;
@@ -66,6 +66,10 @@ Settings::Settings() : Settings(configFilePath()) {}
 
 Settings::Settings(const QString &iniFilePath)
     : m_settings(iniFilePath.isEmpty() ? configFilePath() : iniFilePath, QSettings::IniFormat) {
+    // Motion is no longer user-configurable. Remove the retired preference so
+    // an older `true` value cannot silently disable animation after upgrade.
+    m_settings.remove(QStringLiteral("appearance/reduceMotion"));
+
     // First run: seed the favorites with the user's home directory. Guarded by
     // a one-shot flag so clearing all favorites later doesn't re-add it.
     if (!m_settings.contains(QStringLiteral("favorites/initialized"))) {
@@ -76,14 +80,14 @@ Settings::Settings(const QString &iniFilePath)
     m_settings.sync();
     const QString path = m_settings.fileName();
     if (!path.isEmpty() && QFileInfo(path).isFile() && !QFileInfo(path).isSymbolicLink())
-        QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+        PrivatePath::restrictFile(path);
 }
 
 Settings::~Settings() {
     m_settings.sync();
     const QString path = m_settings.fileName();
     if (!path.isEmpty() && QFileInfo(path).isFile() && !QFileInfo(path).isSymbolicLink())
-        QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+        PrivatePath::restrictFile(path);
 }
 
 Settings::Theme Settings::theme() const {
@@ -92,14 +96,6 @@ Settings::Theme Settings::theme() const {
 
 void Settings::setTheme(Theme theme) {
     m_settings.setValue("appearance/theme", static_cast<int>(theme));
-}
-
-bool Settings::reduceMotion() const {
-    return m_settings.value("appearance/reduceMotion", false).toBool();
-}
-
-void Settings::setReduceMotion(bool reduce) {
-    m_settings.setValue("appearance/reduceMotion", reduce);
 }
 
 bool Settings::phosphorImages() const {

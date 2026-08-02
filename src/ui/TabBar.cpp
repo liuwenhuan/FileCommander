@@ -5,6 +5,7 @@
 #include <QColor>
 #include <QContextMenuEvent>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPropertyAnimation>
@@ -17,6 +18,17 @@
 #include "MotionPolicy.h"
 
 namespace {
+struct TabThemeColors {
+    QColor accent;
+    QColor close;
+    QColor selectedClose;
+    QColor hoverClose;
+    QColor pressedClose;
+    QColor disabledClose;
+};
+
+TabThemeColors g_themeColors;
+
 // A close button that paints its own "×" so the deepin (DTK) style can't
 // recolour it the way it recolours QToolButton icons/stylesheet text.
 class TabCloseButton : public QAbstractButton {
@@ -25,28 +37,51 @@ public:
         setCursor(Qt::ArrowCursor);
         setFocusPolicy(Qt::NoFocus);
     }
-    void setColour(const QColor &c) {
-        if (m_colour != c) {
-            m_colour = c;
+    void setColours(const QColor &normal, const QColor &hover, const QColor &pressed,
+                    const QColor &disabled) {
+        if (m_normal != normal || m_hover != hover || m_pressed != pressed ||
+            m_disabled != disabled) {
+            m_normal = normal;
+            m_hover = hover;
+            m_pressed = pressed;
+            m_disabled = disabled;
             update();
         }
     }
     QSize sizeHint() const override { return QSize(18, 18); }
 
 protected:
+    void enterEvent(QEvent *event) override {
+        m_hovered = true;
+        update();
+        QAbstractButton::enterEvent(event);
+    }
+    void leaveEvent(QEvent *event) override {
+        m_hovered = false;
+        update();
+        QAbstractButton::leaveEvent(event);
+    }
     void paintEvent(QPaintEvent *) override {
-        if (!isEnabled())
+        const QColor colour = !isEnabled() ? m_disabled
+                              : isDown()    ? m_pressed
+                              : m_hovered   ? m_hover
+                                            : m_normal;
+        if (!colour.isValid())
             return;
         QPainter p(this);
         p.setRenderHint(QPainter::Antialiasing);
-        p.setPen(QPen(underMouse() ? QColor(0xe0, 0x4b, 0x4b) : m_colour, 1.6));
+        p.setPen(QPen(colour, 1.6));
         const int m = width() / 3;
         p.drawLine(m, m, width() - m, height() - m);
         p.drawLine(width() - m, m, m, height() - m);
     }
 
 private:
-    QColor m_colour = Qt::black;
+    QColor m_normal;
+    QColor m_hover;
+    QColor m_pressed;
+    QColor m_disabled;
+    bool m_hovered = false;
 };
 
 class SplitTabScrollButtonStyle final : public QProxyStyle {
@@ -106,6 +141,18 @@ TabBar::TabBar(QWidget *parent) : QTabBar(parent) {
 
 }
 
+void TabBar::setThemeColors(const QColor &accent, const QColor &close,
+                            const QColor &selectedClose, const QColor &hoverClose,
+                            const QColor &pressedClose, const QColor &disabledClose) {
+    g_themeColors = {accent, close, selectedClose, hoverClose, pressedClose, disabledClose};
+    for (QWidget *widget : qApp->allWidgets()) {
+        if (auto *tabBar = qobject_cast<TabBar *>(widget)) {
+            tabBar->refreshCloseButtons();
+            tabBar->update();
+        }
+    }
+}
+
 QAbstractButton *TabBar::createCloseButton() {
     auto *close = new TabCloseButton(this);
     close->setToolTip(tr("Close Tab"));
@@ -140,7 +187,7 @@ void TabBar::paintEvent(QPaintEvent *event) {
     arrangeScrollButtons();
     // Reconcile the close-button colours on every repaint: currentIndex() is
     // always authoritative here, so this self-corrects even when a tab was
-    // added/switched with signals blocked. setColour() no-ops when unchanged,
+    // added/switched with signals blocked. setColours() no-ops when unchanged,
     // so a settled tab bar does no extra work.
     refreshCloseButtons();
     QTabBar::paintEvent(event);
@@ -161,7 +208,9 @@ void TabBar::paintEvent(QPaintEvent *event) {
         if (r.isValid()) {
             QPainter p(this);
             constexpr int thickness = 3;
-            QColor accent = palette().color(QPalette::Highlight);
+            QColor accent = g_themeColors.accent.isValid()
+                                ? g_themeColors.accent
+                                : palette().color(QPalette::Highlight);
             accent.setAlphaF(accent.alphaF() * m_activationProgress);
             if (!scrollButtonRegion.isEmpty())
                 p.setClipRegion(QRegion(r).subtracted(scrollButtonRegion));
@@ -220,23 +269,26 @@ void TabBar::refreshCloseButtons() {
     // Removing it changes QTabBar's height calculation and misaligns the two
     // panel rows when the other panel has multiple tabs.
     const bool multiple = count() > 1;
-    const QColor normal = palette().color(QPalette::WindowText);
+    const QColor fallback = palette().color(QPalette::WindowText);
+    const QColor inactive = g_themeColors.close.isValid() ? g_themeColors.close : fallback;
+    const QColor selected = g_themeColors.selectedClose.isValid() ? g_themeColors.selectedClose
+                                                                   : fallback;
+    const QColor hover = g_themeColors.hoverClose.isValid() ? g_themeColors.hoverClose
+                                                             : QColor(0xe0, 0x4b, 0x4b);
+    const QColor pressed = g_themeColors.pressedClose.isValid() ? g_themeColors.pressedClose
+                                                                 : hover;
+    const QColor disabled = g_themeColors.disabledClose.isValid()
+                                ? g_themeColors.disabledClose
+                                : palette().color(QPalette::Disabled, QPalette::WindowText);
     for (int i = 0; i < count(); ++i) {
         QWidget *existing = tabButton(i, QTabBar::RightSide);
-        if (!multiple) {
-            if (!existing) {
-                setTabButton(i, QTabBar::RightSide, createCloseButton());
-                existing = tabButton(i, QTabBar::RightSide);
-            }
-            existing->setEnabled(false);
-            continue;
-        }
         if (!existing) {
             setTabButton(i, QTabBar::RightSide, createCloseButton());
             existing = tabButton(i, QTabBar::RightSide);
         }
-        existing->setEnabled(true);
-        static_cast<TabCloseButton *>(existing)->setColour(normal);
+        static_cast<TabCloseButton *>(existing)->setColours(
+            i == currentIndex() ? selected : inactive, hover, pressed, disabled);
+        existing->setEnabled(multiple);
     }
 }
 
@@ -275,4 +327,16 @@ void TabBar::contextMenuEvent(QContextMenuEvent *event) {
     // forward the location and the right-clicked tab (so a chosen favorite
     // navigates *that* tab, not merely the active one) and let it build the menu.
     emit favoritesMenuRequested(event->globalPos(), tabAt(event->pos()));
+}
+
+void TabBar::mouseDoubleClickEvent(QMouseEvent *event) {
+    if (event->button() == Qt::LeftButton) {
+        const int index = tabAt(event->pos());
+        if (index >= 0) {
+            emit closeTabRequested(index);
+            event->accept();
+            return;
+        }
+    }
+    QTabBar::mouseDoubleClickEvent(event);
 }

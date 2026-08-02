@@ -8,12 +8,13 @@
 
 class QCheckBox;
 class QLabel;
+class QVBoxLayout;
+class DirectoryStatisticsTask;
 
-// Shows metadata for a file/directory (or a count for a multi-selection) and
-// lets the user edit Unix permission bits (owner/group/other rwx), applying
-// them to every path on accept. When several files disagree on a bit, its
-// checkbox shows a partially-checked (mixed) state and that bit is left
-// untouched unless the user sets it explicitly.
+// Shows native metadata for a file/directory (or a multi-selection). Local
+// Windows entries expose timestamps and file attributes; local Unix entries
+// expose owner/group and editable rwx bits. Directory size and file count are
+// calculated asynchronously on local filesystems.
 //
 // Two flavours, and the difference matters:
 //   * path/paths -- entries on THIS machine's filesystem. Metadata is read with
@@ -57,13 +58,23 @@ public:
 
 private:
     void buildUi();
+    void startLocalStatistics(const QStringList &paths);
+    void addPermissionSection(QVBoxLayout *layout);
     void updateOctalLabel();
     void apply();
+#ifdef Q_OS_WIN
+    void openWindowsProperties();
+#endif
+    void done(int result) override;
 
     QStringList m_paths;
     QVector<FileInfo> m_infos; // non-empty <-> provider-backed (see class note)
     // true -> metadata comes from m_infos and the permission grid is read-only.
     bool m_providerBacked = false;
-    QCheckBox *m_bits[9]; // owner rwx, group rwx, other rwx (row-major)
-    QLabel *m_octalLabel;
+    QCheckBox *m_bits[9] = {}; // owner rwx, group rwx, other rwx (row-major)
+    QLabel *m_octalLabel = nullptr;
+    QLabel *m_sizeLabel = nullptr;
+    QLabel *m_containsLabel = nullptr;
+    DirectoryStatisticsTask *m_statisticsTask = nullptr;
+    bool m_closed = false;
 };

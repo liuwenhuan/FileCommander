@@ -91,7 +91,8 @@ MultiRenameDialog::MultiRenameDialog(const QStringList &paths, QWidget *parent)
                 &MultiRenameDialog::updatePreview);
 
     m_statusLabel = new QLabel(this);
-    m_statusLabel->setStyleSheet(QStringLiteral("color: #c0392b;"));
+    m_statusLabel->setWordWrap(true);
+    m_statusLabel->setProperty("semanticState", QStringLiteral("error"));
 
     m_buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     ttc::localizeStandardButtons(m_buttons);

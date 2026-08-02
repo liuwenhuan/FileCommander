@@ -19,12 +19,16 @@ set(CORE_SOURCES
     filesystem/ExternalPaths.h
     filesystem/ExternalPaths.cpp
     operations/FileOpTypes.h
+    operations/OperationError.h
+    operations/OperationError.cpp
     operations/FileOperations.h
     operations/FileOperations.cpp
     operations/OperationQueue.h
     operations/OperationQueue.cpp
     config/Settings.h
     config/Settings.cpp
+    config/PrivatePath.h
+    config/PrivatePath.cpp
     config/SessionManager.h
     config/SessionManager.cpp
     sync/DirectorySync.h

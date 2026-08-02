@@ -6,6 +6,13 @@
 #include <QtTest/QSignalSpy>
 
 #include "FileOperations.h"
+#include "privilege/PrivilegeBroker.h"
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#else
+#include <cerrno>
+#endif
 
 namespace {
 
@@ -46,6 +53,21 @@ TEST(FileOperationsTest, MovePathsRemovesSource) {
     EXPECT_TRUE(QFile::exists(QDir(dstDir.path()).filePath("b.txt")));
 }
 
+TEST(FileOperationsTest, FailedEmptyDirectoryMoveKeepsSource) {
+    QTemporaryDir sourceParent;
+    QTemporaryDir destinationParent;
+    ASSERT_TRUE(sourceParent.isValid() && destinationParent.isValid());
+    const QString source = sourceParent.filePath("empty");
+    ASSERT_TRUE(QDir().mkpath(source));
+    const QString destinationFile = writeFile(destinationParent.path(), "not-a-directory");
+
+    FileOperations ops;
+    QString error;
+    EXPECT_FALSE(ops.movePaths({source}, destinationFile, nullptr, &error));
+    EXPECT_TRUE(QFileInfo(source).isDir());
+    EXPECT_FALSE(QFileInfo(QDir(destinationFile).filePath("empty")).exists());
+}
+
 TEST(FileOperationsTest, ConflictResolverSkipLeavesDestinationUntouched) {
     QTemporaryDir srcDir, dstDir;
     ASSERT_TRUE(srcDir.isValid() && dstDir.isValid());
@@ -57,7 +79,7 @@ TEST(FileOperationsTest, ConflictResolverSkipLeavesDestinationUntouched) {
         return ErrorAction::Skip;
     };
     QString err;
-    ASSERT_TRUE(ops.copyPaths({source}, dstDir.path(), resolver, &err));
+    ASSERT_FALSE(ops.copyPaths({source}, dstDir.path(), resolver, &err));
 
     QFile dest(QDir(dstDir.path()).filePath("c.txt"));
     dest.open(QIODevice::ReadOnly);
@@ -80,6 +102,99 @@ TEST(FileOperationsTest, ConflictResolverOverwriteReplacesDestination) {
     QFile dest(QDir(dstDir.path()).filePath("d.txt"));
     dest.open(QIODevice::ReadOnly);
     EXPECT_EQ(dest.readAll(), QByteArray("new"));
+}
+
+#ifdef Q_OS_WIN
+TEST(FileOperationsTest, FailedOverwriteKeepsExistingDestination) {
+    QTemporaryDir sourceDir;
+    QTemporaryDir destinationDir;
+    ASSERT_TRUE(sourceDir.isValid() && destinationDir.isValid());
+    const QString source = writeFile(sourceDir.path(), "locked.txt", "new");
+    const QString destination = writeFile(destinationDir.path(), "locked.txt", "original");
+
+    HANDLE lock = CreateFileW(reinterpret_cast<LPCWSTR>(source.utf16()), GENERIC_READ, 0,
+                              nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    ASSERT_NE(lock, INVALID_HANDLE_VALUE);
+
+    FileOperations ops;
+    QString error;
+    const bool copied = ops.copyPaths(
+        {source}, destinationDir.path(),
+        [](const FileConflict &) { return ErrorAction::Overwrite; }, &error);
+    CloseHandle(lock);
+
+    EXPECT_FALSE(copied);
+    QFile existing(destination);
+    ASSERT_TRUE(existing.open(QIODevice::ReadOnly));
+    EXPECT_EQ(existing.readAll(), QByteArray("original"));
+}
+
+TEST(FileOperationsTest, FailedSourceRemovalReportsMoveFailureAndKeepsBothCopies) {
+    QTemporaryDir sourceDir;
+    QTemporaryDir destinationDir;
+    ASSERT_TRUE(sourceDir.isValid() && destinationDir.isValid());
+    const QString source = writeFile(sourceDir.path(), "locked-move.txt", "payload");
+    const QString destination = destinationDir.filePath("locked-move.txt");
+
+    HANDLE lock = CreateFileW(reinterpret_cast<LPCWSTR>(source.utf16()), GENERIC_READ,
+                              FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+                              FILE_ATTRIBUTE_NORMAL, nullptr);
+    ASSERT_NE(lock, INVALID_HANDLE_VALUE);
+
+    FileOperations ops;
+    OperationError observed;
+    ops.setErrorResolver([&](const OperationError &error) {
+        observed = error;
+        return ErrorAction::Skip;
+    });
+    QString error;
+    const bool moved = ops.movePaths({source}, destinationDir.path(), nullptr, &error);
+    CloseHandle(lock);
+
+    EXPECT_FALSE(moved);
+    EXPECT_TRUE(QFile::exists(source));
+    EXPECT_TRUE(QFile::exists(destination));
+    EXPECT_EQ(observed.operation, OperationType::Delete);
+}
+#endif
+
+TEST(FileOperationsTest, FailedElevatedAttemptIsReclassifiedAndCannotElevateAgain) {
+    QTemporaryDir sourceDir;
+    QTemporaryDir destinationDir;
+    ASSERT_TRUE(sourceDir.isValid() && destinationDir.isValid());
+    const QString source = sourceDir.filePath("missing.txt");
+
+    FileOperations ops;
+    ops.setNativeErrorOverrideForTesting(
+        [](OperationType, const QString &, const QString &, qint64) {
+#ifdef Q_OS_WIN
+            return qint64(ERROR_ACCESS_DENIED);
+#else
+            return qint64(EACCES);
+#endif
+        });
+    int prompts = 0;
+    ops.setErrorResolver([&](const OperationError &error) {
+        ++prompts;
+        if (prompts == 1) {
+            EXPECT_TRUE(error.elevatable);
+            return ErrorAction::Elevate;
+        }
+        EXPECT_EQ(error.category, OperationErrorCategory::DiskFull);
+        EXPECT_FALSE(error.elevatable);
+        return ErrorAction::Skip;
+    });
+    ops.setPrivilegeExecutor([](const PrivilegedOperationRequest &) {
+#ifdef Q_OS_WIN
+        return PrivilegeResult{PrivilegeStatus::Failed, ERROR_DISK_FULL, "disk full"};
+#else
+        return PrivilegeResult{PrivilegeStatus::Failed, ENOSPC, "disk full"};
+#endif
+    });
+
+    QString error;
+    EXPECT_FALSE(ops.copyPaths({source}, destinationDir.path(), nullptr, &error));
+    EXPECT_EQ(prompts, 2);
 }
 
 TEST(FileOperationsTest, CopyPathsOntoSelfKeepsOriginalAndMakesRenamedDuplicate) {
@@ -172,7 +287,7 @@ TEST(FileOperationsTest, RequestCancelStopsRemainingEntries) {
     EXPECT_FALSE(QFile::exists(QDir(dstDir.path()).filePath("b.txt")));
 }
 
-TEST(FileOperationsTest, ErrorResolverSkipContinuesBatch) {
+TEST(FileOperationsTest, ErrorResolverSkipContinuesButBatchFails) {
     QTemporaryDir srcDir, dstDir;
     ASSERT_TRUE(srcDir.isValid() && dstDir.isValid());
     const QString missing = QDir(srcDir.path()).filePath("nope.txt"); // never created
@@ -185,7 +300,7 @@ TEST(FileOperationsTest, ErrorResolverSkipContinuesBatch) {
         return ErrorAction::Skip;
     });
     QString err;
-    EXPECT_TRUE(ops.copyPaths({missing, real}, dstDir.path(), nullptr, &err));
+    EXPECT_FALSE(ops.copyPaths({missing, real}, dstDir.path(), nullptr, &err));
     EXPECT_GE(calls, 1); // the missing file triggered the resolver
     // The batch carried on and still copied the good file.
     EXPECT_TRUE(QFile::exists(QDir(dstDir.path()).filePath("real.txt")));
@@ -203,8 +318,248 @@ TEST(FileOperationsTest, ErrorResolverRetryReattemptsThenSkips) {
         return calls < 3 ? ErrorAction::Retry : ErrorAction::Skip;
     });
     QString err;
-    EXPECT_TRUE(ops.copyPaths({missing}, dstDir.path(), nullptr, &err));
+    EXPECT_FALSE(ops.copyPaths({missing}, dstDir.path(), nullptr, &err));
     EXPECT_EQ(calls, 3); // two retries, then skip
+}
+
+TEST(FileOperationsTest, ElevationCompletesOnlyFailedItemAndContinuesBatch) {
+    QTemporaryDir srcDir, dstDir;
+    ASSERT_TRUE(srcDir.isValid() && dstDir.isValid());
+    const QString protectedSource = QDir(srcDir.path()).filePath("needs-admin.txt");
+    const QString regularSource = writeFile(srcDir.path(), "regular.txt", "regular");
+
+    FileOperations ops;
+    int brokerCalls = 0;
+    int resolverCalls = 0;
+    ops.setNativeErrorOverrideForTesting(
+        [protectedSource](OperationType, const QString &source, const QString &, qint64 code) {
+#ifdef Q_OS_WIN
+            return source == protectedSource ? qint64(ERROR_ACCESS_DENIED) : code;
+#else
+            return source == protectedSource ? qint64(EACCES) : code;
+#endif
+        });
+    ops.setPrivilegeExecutor([&](const PrivilegedOperationRequest &request) {
+        ++brokerCalls;
+        EXPECT_EQ(request.kind, PrivilegedOperationKind::Copy);
+        EXPECT_EQ(request.sourcePath, protectedSource);
+        QFile elevatedTarget(request.targetPath);
+        EXPECT_TRUE(elevatedTarget.open(QIODevice::WriteOnly));
+        elevatedTarget.write("elevated");
+        return PrivilegeResult{PrivilegeStatus::Succeeded, 0, {}};
+    });
+    ops.setErrorResolver([&](const OperationError &error) {
+        ++resolverCalls;
+        EXPECT_EQ(error.category, OperationErrorCategory::PermissionDenied);
+        EXPECT_TRUE(error.elevatable);
+        return ErrorAction::Elevate;
+    });
+
+    QString error;
+    EXPECT_TRUE(ops.copyPaths({protectedSource, regularSource}, dstDir.path(), nullptr, &error));
+    EXPECT_EQ(brokerCalls, 1);
+    EXPECT_EQ(resolverCalls, 1);
+    EXPECT_TRUE(QFile::exists(QDir(dstDir.path()).filePath("needs-admin.txt")));
+    EXPECT_TRUE(QFile::exists(QDir(dstDir.path()).filePath("regular.txt")));
+}
+
+TEST(FileOperationsTest, CancelledElevationReturnsToDecisionAndBatchFailsWhenSkipped) {
+    QTemporaryDir srcDir, dstDir;
+    ASSERT_TRUE(srcDir.isValid() && dstDir.isValid());
+    const QString protectedSource = QDir(srcDir.path()).filePath("denied.txt");
+
+    FileOperations ops;
+    int resolverCalls = 0;
+    ops.setNativeErrorOverrideForTesting(
+        [](OperationType, const QString &, const QString &, qint64) {
+#ifdef Q_OS_WIN
+            return qint64(ERROR_ACCESS_DENIED);
+#else
+            return qint64(EACCES);
+#endif
+        });
+    ops.setPrivilegeExecutor([](const PrivilegedOperationRequest &) {
+        return PrivilegeResult{PrivilegeStatus::Cancelled, 0, QStringLiteral("UAC cancelled")};
+    });
+    ops.setErrorResolver([&](const OperationError &error) {
+        ++resolverCalls;
+        return resolverCalls == 1 ? ErrorAction::Elevate : ErrorAction::Skip;
+    });
+
+    QString error;
+    EXPECT_FALSE(ops.copyPaths({protectedSource}, dstDir.path(), nullptr, &error));
+    EXPECT_EQ(resolverCalls, 2);
+    EXPECT_FALSE(QFile::exists(QDir(dstDir.path()).filePath("denied.txt")));
+}
+
+TEST(FileOperationsTest, PermanentDeleteCanCompleteThroughPrivilegeExecutor) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString protectedPath = dir.filePath("protected-delete.txt");
+
+    FileOperations ops;
+    int brokerCalls = 0;
+    ops.setNativeErrorOverrideForTesting(
+        [](OperationType, const QString &, const QString &, qint64) {
+#ifdef Q_OS_WIN
+            return qint64(ERROR_ACCESS_DENIED);
+#else
+            return qint64(EACCES);
+#endif
+        });
+    ops.setPrivilegeExecutor([&](const PrivilegedOperationRequest &request) {
+        ++brokerCalls;
+        EXPECT_EQ(request.kind, PrivilegedOperationKind::DeletePermanent);
+        EXPECT_EQ(request.sourcePath, protectedPath);
+        EXPECT_TRUE(request.targetPath.isEmpty());
+        return PrivilegeResult{PrivilegeStatus::Succeeded, 0, {}};
+    });
+    ops.setErrorResolver([](const OperationError &error) {
+        EXPECT_EQ(error.operation, OperationType::Delete);
+        EXPECT_TRUE(error.elevatable);
+        return ErrorAction::Elevate;
+    });
+
+    QString error;
+    EXPECT_TRUE(ops.deletePaths({protectedPath}, false, &error));
+    EXPECT_EQ(brokerCalls, 1);
+}
+
+TEST(FileOperationsTest, RenameCanCompleteThroughPrivilegeExecutor) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString source = dir.filePath("protected-old.txt");
+    const QString target = dir.filePath("protected-new.txt");
+
+    FileOperations ops;
+    int brokerCalls = 0;
+    ops.setNativeErrorOverrideForTesting(
+        [](OperationType, const QString &, const QString &, qint64) {
+#ifdef Q_OS_WIN
+            return qint64(ERROR_ACCESS_DENIED);
+#else
+            return qint64(EACCES);
+#endif
+        });
+    ops.setPrivilegeExecutor([&](const PrivilegedOperationRequest &request) {
+        ++brokerCalls;
+        EXPECT_EQ(request.kind, PrivilegedOperationKind::Rename);
+        EXPECT_EQ(request.sourcePath, source);
+        EXPECT_EQ(request.targetPath, target);
+        QFile targetFile(target);
+        EXPECT_TRUE(targetFile.open(QIODevice::WriteOnly));
+        return PrivilegeResult{PrivilegeStatus::Succeeded, 0, {}};
+    });
+    ops.setErrorResolver([](const OperationError &error) {
+        EXPECT_EQ(error.operation, OperationType::Rename);
+        EXPECT_TRUE(error.elevatable);
+        return ErrorAction::Elevate;
+    });
+
+    QString error;
+    EXPECT_TRUE(ops.renamePath(source, QStringLiteral("protected-new.txt"), &error));
+    EXPECT_EQ(brokerCalls, 1);
+    EXPECT_TRUE(QFile::exists(target));
+}
+
+TEST(FileOperationsTest, MakeDirectoryCanCompleteThroughPrivilegeExecutor) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString parentFile = writeFile(dir.path(), "not-a-directory", "data");
+    const QString target = QDir(parentFile).filePath("child");
+
+    FileOperations ops;
+    int brokerCalls = 0;
+    ops.setNativeErrorOverrideForTesting(
+        [](OperationType, const QString &, const QString &, qint64) {
+#ifdef Q_OS_WIN
+            return qint64(ERROR_ACCESS_DENIED);
+#else
+            return qint64(EACCES);
+#endif
+        });
+    ops.setPrivilegeExecutor([&](const PrivilegedOperationRequest &request) {
+        ++brokerCalls;
+        EXPECT_EQ(request.kind, PrivilegedOperationKind::Mkdir);
+        EXPECT_TRUE(request.sourcePath.isEmpty());
+        EXPECT_EQ(request.targetPath, target);
+        return PrivilegeResult{PrivilegeStatus::Succeeded, 0, {}};
+    });
+    ops.setErrorResolver([](const OperationError &error) {
+        EXPECT_EQ(error.operation, OperationType::Mkdir);
+        return ErrorAction::Elevate;
+    });
+
+    QString error;
+    EXPECT_TRUE(ops.makeDirectory(parentFile, QStringLiteral("child"), &error));
+    EXPECT_EQ(brokerCalls, 1);
+}
+
+TEST(FileOperationsTest, SymlinkCanCompleteThroughPrivilegeExecutor) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString source = writeFile(dir.path(), "link-source.txt", "data");
+    const QString invalidDestinationParent = writeFile(dir.path(), "not-a-link-directory", "data");
+    const QString target = QDir(invalidDestinationParent).filePath("link-source.txt");
+
+    FileOperations ops;
+    int brokerCalls = 0;
+    ops.setNativeErrorOverrideForTesting(
+        [](OperationType, const QString &, const QString &, qint64) {
+#ifdef Q_OS_WIN
+            return qint64(ERROR_ACCESS_DENIED);
+#else
+            return qint64(EACCES);
+#endif
+        });
+    ops.setPrivilegeExecutor([&](const PrivilegedOperationRequest &request) {
+        ++brokerCalls;
+        EXPECT_EQ(request.kind, PrivilegedOperationKind::Symlink);
+        EXPECT_EQ(request.sourcePath, source);
+        EXPECT_EQ(request.targetPath, target);
+        return PrivilegeResult{PrivilegeStatus::Succeeded, 0, {}};
+    });
+    ops.setErrorResolver([](const OperationError &error) {
+        EXPECT_EQ(error.operation, OperationType::Copy);
+        return ErrorAction::Elevate;
+    });
+
+    QString error;
+    EXPECT_TRUE(ops.createSymlinks({source}, invalidDestinationParent, &error));
+    EXPECT_EQ(brokerCalls, 1);
+}
+
+TEST(FileOperationsTest, CopyAsCanCompleteThroughPrivilegeExecutor) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString source = dir.filePath("protected-source.txt");
+    const QString target = dir.filePath("renamed-copy.txt");
+
+    FileOperations ops;
+    int brokerCalls = 0;
+    ops.setNativeErrorOverrideForTesting(
+        [](OperationType, const QString &, const QString &, qint64) {
+#ifdef Q_OS_WIN
+            return qint64(ERROR_ACCESS_DENIED);
+#else
+            return qint64(EACCES);
+#endif
+        });
+    ops.setPrivilegeExecutor([&](const PrivilegedOperationRequest &request) {
+        ++brokerCalls;
+        EXPECT_EQ(request.kind, PrivilegedOperationKind::Copy);
+        EXPECT_EQ(request.sourcePath, source);
+        EXPECT_EQ(request.targetPath, target);
+        QFile targetFile(target);
+        EXPECT_TRUE(targetFile.open(QIODevice::WriteOnly));
+        return PrivilegeResult{PrivilegeStatus::Succeeded, 0, {}};
+    });
+    ops.setErrorResolver([](const OperationError &) { return ErrorAction::Elevate; });
+
+    QString error;
+    EXPECT_TRUE(ops.copyAs(source, target, nullptr, &error));
+    EXPECT_EQ(brokerCalls, 1);
+    EXPECT_TRUE(QFile::exists(target));
 }
 
 TEST(FileOperationsTest, DeletePathsPermanentlyRemovesFile) {

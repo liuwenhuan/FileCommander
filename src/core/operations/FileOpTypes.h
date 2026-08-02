@@ -4,6 +4,8 @@
 
 #include <QString>
 
+#include "OperationError.h"
+
 enum class ErrorAction {
     Skip,
     SkipAll,
@@ -12,14 +14,8 @@ enum class ErrorAction {
     OverwriteAll,
     Rename,
     Cancel,
-};
-
-enum class OperationType {
-    Copy,
-    Move,
-    Delete,
-    Mkdir,
-    Rename,
+    Elevate,
+    Abort,
 };
 
 enum class OperationStatus {
@@ -55,5 +51,6 @@ using ConflictResolver = std::function<ErrorAction(const FileConflict &conflict)
 
 // Called (on the GUI thread) when a copy/delete fails on a specific entry.
 // Retry re-attempts, Skip/SkipAll continue past it, Cancel aborts the batch.
-using ErrorResolver =
+using ErrorResolver = std::function<ErrorAction(const OperationError &error)>;
+using LegacyErrorResolver =
     std::function<ErrorAction(const QString &path, const QString &error)>;

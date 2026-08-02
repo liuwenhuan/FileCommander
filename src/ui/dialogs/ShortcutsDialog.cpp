@@ -44,7 +44,8 @@ ShortcutsDialog::ShortcutsDialog(const QList<QPair<QString, QString>> &actionLab
     }
 
     m_conflictLabel = new QLabel(this);
-    m_conflictLabel->setStyleSheet(QStringLiteral("color: #c0392b;"));
+    m_conflictLabel->setWordWrap(true);
+    m_conflictLabel->setProperty("semanticState", QStringLiteral("error"));
 
     m_buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     connect(m_buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);

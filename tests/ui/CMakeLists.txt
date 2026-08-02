@@ -52,16 +52,23 @@ set(UI_TEST_SOURCES
     test_TextEncodingDetector.cpp
     test_ChecksumDialog.cpp
     test_NotepadPanel.cpp
+    test_ExternalConnectDialog.cpp
     test_ShortcutsDialog.cpp
     test_StandardButtonLocalization.cpp
     test_ChromeTypography.cpp
+    test_CrtContentSurfaces.cpp
     test_MotionPolicy.cpp
     test_DirectoryTreeMotion.cpp
     test_NetworkStateMotion.cpp
     test_OperationProgressMotion.cpp
+    test_OperationErrorDialog.cpp
     ../archive/test_CompressDialog.cpp
     ../../resources/resources.qrc
 )
+
+if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION OR WIN32)
+    list(APPEND UI_TEST_SOURCES test_SecureWipeConfirmationDialog.cpp)
+endif()
 
 if(FILECOMMANDER_MEDIA_BACKEND_MPV)
     list(APPEND UI_TEST_SOURCES
@@ -96,6 +103,16 @@ target_compile_definitions(ui_tests PRIVATE
     TTC_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
     TTC_OFFICE_FIXTURE_CLI="$<TARGET_FILE:quickview_office_fixture>"
 )
+
+if(FILECOMMANDER_MEDIA_BACKEND_WINDOWSMF)
+    set(FILECOMMANDER_WMF_FIXTURE_DIR "${CMAKE_BINARY_DIR}/wmf-fixtures-local-av")
+    if(EXISTS "${CMAKE_BINARY_DIR}/../wmf-fixtures-local-av")
+        set(FILECOMMANDER_WMF_FIXTURE_DIR "${CMAKE_BINARY_DIR}/../wmf-fixtures-local-av")
+    endif()
+    target_compile_definitions(ui_tests PRIVATE
+        TTC_WMF_FIXTURE_DIR="${FILECOMMANDER_WMF_FIXTURE_DIR}"
+    )
+endif()
 
 # test_main.cpp supplies main() (with a QApplication), so gtest_main is not linked.
 target_link_libraries(ui_tests PRIVATE

@@ -9,6 +9,9 @@
 #include <QLabel>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QResizeEvent>
+#include <QScreen>
+#include <QSizePolicy>
 #include <QThread>
 #include <QTimer>
 #include <QTreeView>
@@ -24,6 +27,38 @@
 #include "ThemedDialogs.h"
 
 namespace {
+
+class ElidingPathLabel final : public QLabel {
+public:
+    ElidingPathLabel(const QString &displayText, const QString &fullPath, QWidget *parent)
+        : QLabel(parent), m_displayText(displayText) {
+        setToolTip(fullPath);
+        setMinimumWidth(0);
+        setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        updateElision();
+    }
+
+    QSize sizeHint() const override {
+        return {0, fontMetrics().height()};
+    }
+
+    QSize minimumSizeHint() const override {
+        return {0, fontMetrics().height()};
+    }
+
+protected:
+    void resizeEvent(QResizeEvent *event) override {
+        QLabel::resizeEvent(event);
+        updateElision();
+    }
+
+private:
+    void updateElision() {
+        QLabel::setText(fontMetrics().elidedText(m_displayText, Qt::ElideMiddle, width()));
+    }
+
+    QString m_displayText;
+};
 
 QString humanSize(qint64 bytes) {
     static const char *units[] = {"B", "KB", "MB", "GB", "TB"};
@@ -77,15 +112,17 @@ SyncDialog::~SyncDialog() {
 
 void SyncDialog::buildUi() {
     setWindowTitle(tr("Synchronize Directories"));
-    resize(1040, 640);
+    const QSize availableSize = screen()->availableGeometry().size();
+    setMaximumWidth(availableSize.width());
+    resize(QSize(1040, 640).boundedTo(availableSize));
 
     auto *layout = new QVBoxLayout(this);
 
     // --- Header: which two directories are being compared.
     auto *headerRow = new QHBoxLayout;
-    auto *leftPath = new QLabel(tr("Left: %1").arg(m_leftDir), this);
+    auto *leftPath = new ElidingPathLabel(tr("Left: %1").arg(m_leftDir), m_leftDir, this);
     leftPath->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    auto *rightPath = new QLabel(tr("Right: %1").arg(m_rightDir), this);
+    auto *rightPath = new ElidingPathLabel(tr("Right: %1").arg(m_rightDir), m_rightDir, this);
     rightPath->setTextInteractionFlags(Qt::TextSelectableByMouse);
     rightPath->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
     headerRow->addWidget(leftPath, 1);
@@ -117,12 +154,27 @@ void SyncDialog::buildUi() {
             [this] { m_model->setAllDirections(SyncModel::Direction::Skip); });
 
     auto *optionsRow = new QHBoxLayout;
-    optionsRow->addWidget(m_recursiveCheck);
-    optionsRow->addWidget(m_showIdenticalCheck);
-    optionsRow->addStretch(1);
-    optionsRow->addWidget(m_allToRightButton);
-    optionsRow->addWidget(m_allToLeftButton);
-    optionsRow->addWidget(m_allSkipButton);
+    const QList<QWidget *> optionWidgets = {m_recursiveCheck,  m_showIdenticalCheck,
+                                            m_allToRightButton, m_allToLeftButton,
+                                            m_allSkipButton};
+    int optionsWidth = optionsRow->spacing() * (optionWidgets.size() - 1);
+    for (QWidget *widget : optionWidgets)
+        optionsWidth += widget->sizeHint().width();
+
+    const int contentWidth = availableSize.width() - layout->contentsMargins().left() -
+                             layout->contentsMargins().right();
+    if (optionsWidth > contentWidth) {
+        for (QWidget *widget : optionWidgets)
+            optionsRow->addWidget(widget);
+        optionsRow->setDirection(QBoxLayout::TopToBottom);
+    } else {
+        optionsRow->addWidget(m_recursiveCheck);
+        optionsRow->addWidget(m_showIdenticalCheck);
+        optionsRow->addStretch(1);
+        optionsRow->addWidget(m_allToRightButton);
+        optionsRow->addWidget(m_allToLeftButton);
+        optionsRow->addWidget(m_allSkipButton);
+    }
     layout->addLayout(optionsRow);
 
     // --- Scan progress strip. Shown only while a comparison is running; the
@@ -140,6 +192,9 @@ void SyncDialog::buildUi() {
     m_progressBar->setMaximumWidth(160);
     m_progressBar->setTextVisible(false);
     m_scanStatusLabel = new QLabel(m_progressRow);
+    m_scanStatusLabel->setWordWrap(true);
+    m_scanStatusLabel->setMinimumWidth(0);
+    m_scanStatusLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     m_abortButton = new QPushButton(tr("Abort"), m_progressRow);
     connect(m_abortButton, &QPushButton::clicked, this, &SyncDialog::abortScan);
     progressLayout->addWidget(m_progressBar);
@@ -181,23 +236,38 @@ void SyncDialog::buildUi() {
 
     // --- Summary and the primary actions.
     m_summaryLabel = new QLabel(this);
+    m_summaryLabel->setWordWrap(true);
+    m_summaryLabel->setMinimumWidth(0);
+    m_summaryLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     layout->addWidget(m_summaryLabel);
 
     m_rescanButton = new QPushButton(tr("Compare Again"), this);
     connect(m_rescanButton, &QPushButton::clicked, this, &SyncDialog::startScan);
 
     m_syncButton = new QPushButton(this);
+    // Size the responsive action row for the longest state this button enters
+    // once the deferred comparison starts.
+    m_syncButton->setText(tr("Start Sync (comparing…)"));
     m_syncButton->setDefault(true);
     connect(m_syncButton, &QPushButton::clicked, this, &SyncDialog::startSync);
 
     auto *closeButton = new QPushButton(tr("Close"), this);
     connect(closeButton, &QPushButton::clicked, this, &SyncDialog::reject);
 
-    auto *actionsRow = new QHBoxLayout;
-    actionsRow->addWidget(m_rescanButton);
-    actionsRow->addStretch(1);
-    actionsRow->addWidget(m_syncButton);
-    actionsRow->addWidget(closeButton);
+    const int actionsWidth = m_rescanButton->sizeHint().width() + m_syncButton->sizeHint().width() +
+                             closeButton->sizeHint().width() + layout->spacing() * 2;
+    auto *actionsRow = new QBoxLayout(actionsWidth > contentWidth ? QBoxLayout::TopToBottom
+                                                                  : QBoxLayout::LeftToRight);
+    if (actionsWidth > contentWidth) {
+        actionsRow->addWidget(m_rescanButton);
+        actionsRow->addWidget(m_syncButton);
+        actionsRow->addWidget(closeButton);
+    } else {
+        actionsRow->addWidget(m_rescanButton);
+        actionsRow->addStretch(1);
+        actionsRow->addWidget(m_syncButton);
+        actionsRow->addWidget(closeButton);
+    }
     layout->addLayout(actionsRow);
 
     updateSummary();
@@ -311,6 +381,7 @@ void SyncDialog::updateSummary() {
                                  .arg(s.skipped)
                                  .arg(pending)
                                  .arg(humanSize(s.bytesToCopy)));
+    m_summaryLabel->setToolTip(m_summaryLabel->text());
     updateControlStates();
 }
 

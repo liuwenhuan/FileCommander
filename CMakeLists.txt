@@ -74,7 +74,7 @@ if(WIN32)
 endif()
 
 target_link_libraries(FileCommander PRIVATE
-    core ui viewer archive search widgets
+    platform core ui viewer archive search widgets
     Qt5::Widgets Qt5::Core Qt5::Gui Qt5::Concurrent
 )
 target_compile_definitions(FileCommander PRIVATE

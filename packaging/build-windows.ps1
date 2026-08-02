@@ -98,21 +98,44 @@ function Get-WindeployProvenanceGroup {
     return 'qt'
 }
 
-cmake -S $repo -B $build -G Ninja `
-    -DCMAKE_BUILD_TYPE=Release `
-    "-DCMAKE_PREFIX_PATH=$QtRoot" `
-    "-DCMAKE_TOOLCHAIN_FILE=$VcpkgRoot/scripts/buildsystems/vcpkg.cmake" `
-    "-DVCPKG_TARGET_TRIPLET=$triplet" `
-    -DTTC_BUILD_TESTS=OFF `
-    -DTTC_BUILD_BENCH=OFF `
-    -DFILECOMMANDER_ENABLE_NETWORK=ON `
-    "-DFILECOMMANDER_POPPLER_QT5_ROOT=$PopplerQt5Root" `
-    "-DFILECOMMANDER_PREVIEW_PDF=$pdfPreviewOption" `
-    "-DFILECOMMANDER_PREVIEW_MEDIA=$mediaPreviewOption" `
-    "-DFILECOMMANDER_MEDIA_BACKEND=$mediaBackend"
-if ($LASTEXITCODE) { throw 'CMake configure failed.' }
-cmake --build $build --parallel
-if ($LASTEXITCODE) { throw 'Build failed.' }
+$buildRoot = [System.IO.Path]::GetFullPath((Join-Path $repo 'build'))
+$buildFullPath = [System.IO.Path]::GetFullPath($build)
+if (-not $buildFullPath.StartsWith($buildRoot + [System.IO.Path]::DirectorySeparatorChar,
+        [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Refusing to clean a release build directory outside the repository build root: $buildFullPath"
+}
+if (Test-Path -LiteralPath $build) {
+    Remove-Item -LiteralPath $build -Recurse -Force
+}
+
+# Ninja learns MSVC header dependencies by parsing /showIncludes. A localized
+# prefix can be mis-decoded by CMake and leave every object with zero recorded
+# dependencies, allowing stale class layouts to be linked after a header edit.
+$previousVsLang = $env:VSLANG
+$env:VSLANG = '1033'
+try {
+    cmake -S $repo -B $build -G Ninja `
+        -DCMAKE_BUILD_TYPE=Release `
+        "-DCMAKE_PREFIX_PATH=$QtRoot" `
+        "-DCMAKE_TOOLCHAIN_FILE=$VcpkgRoot/scripts/buildsystems/vcpkg.cmake" `
+        "-DVCPKG_TARGET_TRIPLET=$triplet" `
+        -DTTC_BUILD_TESTS=OFF `
+        -DTTC_BUILD_BENCH=OFF `
+        -DFILECOMMANDER_ENABLE_NETWORK=ON `
+        "-DFILECOMMANDER_POPPLER_QT5_ROOT=$PopplerQt5Root" `
+        "-DFILECOMMANDER_PREVIEW_PDF=$pdfPreviewOption" `
+        "-DFILECOMMANDER_PREVIEW_MEDIA=$mediaPreviewOption" `
+        "-DFILECOMMANDER_MEDIA_BACKEND=$mediaBackend"
+    if ($LASTEXITCODE) { throw 'CMake configure failed.' }
+    cmake --build $build --parallel
+    if ($LASTEXITCODE) { throw 'Build failed.' }
+} finally {
+    if ($null -eq $previousVsLang) {
+        Remove-Item Env:VSLANG -ErrorAction SilentlyContinue
+    } else {
+        $env:VSLANG = $previousVsLang
+    }
+}
 
 if (Test-Path -LiteralPath $stage) {
     Remove-Item -LiteralPath $stage -Recurse -Force

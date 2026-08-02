@@ -77,6 +77,8 @@ set(UI_SOURCES
     dialogs/OperationProgressDialog.cpp
     dialogs/OverwriteConfirmDialog.h
     dialogs/OverwriteConfirmDialog.cpp
+    dialogs/OperationErrorDialog.h
+    dialogs/OperationErrorDialog.cpp
     dialogs/ShortcutsDialog.h
     dialogs/ShortcutsDialog.cpp
     dialogs/MultiRenameDialog.h
@@ -91,6 +93,8 @@ set(UI_SOURCES
     dialogs/CompareDialog.cpp
     dialogs/PropertiesDialog.h
     dialogs/PropertiesDialog.cpp
+    dialogs/DirectoryStatisticsTask.h
+    dialogs/DirectoryStatisticsTask.cpp
     dialogs/CommandOutputDialog.h
     dialogs/CommandOutputDialog.cpp
     dialogs/ChecksumDialog.h
@@ -149,6 +153,8 @@ endif()
 
 if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION OR WIN32)
     list(APPEND UI_SOURCES
+        dialogs/SecureWipeConfirmationDialog.h
+        dialogs/SecureWipeConfirmationDialog.cpp
         dialogs/SecureWipeDialog.h
         dialogs/SecureWipeDialog.cpp
         dialogs/UpdateDialog.h
@@ -241,19 +247,22 @@ target_link_libraries(ui PUBLIC
 )
 target_link_libraries(ui PRIVATE ZLIB::ZLIB)
 
-if(FILECOMMANDER_MEDIA_BACKEND_WINDOWSMF)
+if(WIN32)
+    # ThumbnailCache uses Media Foundation even when the optional playback
+    # backend is disabled, so these Windows SDK libraries cannot be tied to
+    # FILECOMMANDER_MEDIA_BACKEND_WINDOWSMF.
     target_link_libraries(ui PRIVATE
+        shell32
+        gdi32
         mf
         mfplat
         mfreadwrite
         mfuuid
         windowscodecs
-        ole32
-        oleaut32
     )
 endif()
-if(WIN32)
-    target_link_libraries(ui PRIVATE shell32 gdi32)
+if(FILECOMMANDER_MEDIA_BACKEND_WINDOWSMF)
+    target_link_libraries(ui PRIVATE ole32 oleaut32)
 endif()
 
 if(FILECOMMANDER_MEDIA_BACKEND_MPV)

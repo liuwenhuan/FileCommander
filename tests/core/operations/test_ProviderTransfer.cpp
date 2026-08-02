@@ -351,8 +351,8 @@ TEST(ProviderTransferTest, KnownSizeProbeReadErrorFailsAfterDestinationClose) {
 
     FileOperations ops;
     QString error;
-    ASSERT_TRUE(ops.copyAcrossProviders(&src, {"/source/probe-error.bin"}, &dst, "/destination",
-                                         /*removeSource=*/false, nullptr, &error));
+    ASSERT_FALSE(ops.copyAcrossProviders(&src, {"/source/probe-error.bin"}, &dst, "/destination",
+                                          /*removeSource=*/false, nullptr, &error));
 
     EXPECT_FALSE(error.isEmpty());
     EXPECT_EQ(dst.file("/destination/probe-error.bin"), QByteArray("abc"));
@@ -437,10 +437,10 @@ TEST(ProviderTransferTest, ObservableSourceShrinkRollsBackProgressBeforeNextFile
                                          const QString &) { observedProgress.append(doneBytes); });
 
     QString error;
-    ASSERT_TRUE(ops.copyAcrossProviders(&src,
-                                         {"/source/truncate-after-read.bin", "/source/valid.bin"},
-                                         &dst, "/destination", /*removeSource=*/false, nullptr,
-                                         &error));
+    ASSERT_FALSE(ops.copyAcrossProviders(&src,
+                                          {"/source/truncate-after-read.bin", "/source/valid.bin"},
+                                          &dst, "/destination", /*removeSource=*/false, nullptr,
+                                          &error));
 
     EXPECT_FALSE(error.isEmpty());
     EXPECT_EQ(dst.file("/destination/truncate-after-read.bin"), initial);
@@ -536,6 +536,30 @@ TEST(ProviderTransferTest, WriteFailureReportsPermissionDenied) {
     EXPECT_EQ(error, QStringLiteral("You do not have permission to write /destination/payload.bin"));
 }
 
+TEST(ProviderTransferTest, RemotePermissionFailureNeverInvokesPrivilegeBroker) {
+    InMemoryProvider src;
+    InMemoryProvider dst;
+    src.addFile("/source/payload.bin", QByteArray("payload"));
+    dst.failWrites(FileHandle::StreamError::PermissionDenied);
+
+    FileOperations ops;
+    int brokerCalls = 0;
+    ops.setPrivilegeExecutor([&](const PrivilegedOperationRequest &) {
+        ++brokerCalls;
+        return PrivilegeResult{PrivilegeStatus::Succeeded, 0, {}};
+    });
+    ops.setErrorResolver([](const OperationError &error) {
+        EXPECT_TRUE(error.remote);
+        EXPECT_FALSE(error.elevatable);
+        return ErrorAction::Elevate;
+    });
+
+    QString error;
+    EXPECT_FALSE(ops.copyAcrossProviders(&src, {"/source/payload.bin"}, &dst, "/destination",
+                                         false, nullptr, &error));
+    EXPECT_EQ(brokerCalls, 0);
+}
+
 TEST(ProviderTransferTest, WriteFailureReportsConnectionLost) {
     InMemoryProvider src;
     InMemoryProvider dst;
@@ -608,8 +632,8 @@ TEST(ProviderTransferTest, KnownSizeEarlyEofFailsAndRollsBackTransferProgress) {
                                          const QString &) { observedProgress.append(doneBytes); });
 
     QString error;
-    ASSERT_TRUE(ops.copyAcrossProviders(&src, {"/source/short.bin", "/source/valid.bin"}, &dst,
-                                         "/destination", /*removeSource=*/false, nullptr, &error));
+    ASSERT_FALSE(ops.copyAcrossProviders(&src, {"/source/short.bin", "/source/valid.bin"}, &dst,
+                                          "/destination", /*removeSource=*/false, nullptr, &error));
 
     EXPECT_FALSE(error.isEmpty());
     EXPECT_EQ(dst.file("/destination/short.bin"), QByteArray("abc"));

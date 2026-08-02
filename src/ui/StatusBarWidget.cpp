@@ -2,7 +2,9 @@
 
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QStyle>
 #include <QToolButton>
+#include <QVariant>
 
 StatusBarWidget::StatusBarWidget(QWidget *parent) : QWidget(parent) {
     // A plain QWidget subclass does not paint a stylesheet background unless
@@ -61,15 +63,21 @@ void StatusBarWidget::setConnectionStatus(const QString &text, int level) {
         m_connLabel->hide();
         return;
     }
-    const char *color = level == ConnFailed         ? "#e04a4a"  // red
-                        : level == ConnReconnecting ? "#d08a2a"  // amber
-                        : level == ConnNeedsAuth    ? "#d08a2a"  // amber (action needed)
-                                                    : "#9a9a9a"; // grey (connecting)
-    QString html =
-        QStringLiteral("<span style='color:%1'>%2</span>").arg(color, text.toHtmlEscaped());
+    const QString semanticState = level == ConnFailed
+                                      ? QStringLiteral("error")
+                                      : (level == ConnReconnecting || level == ConnNeedsAuth)
+                                            ? QStringLiteral("warning")
+                                            : QStringLiteral("muted");
+    if (m_connLabel->property("semanticState").toString() != semanticState) {
+        m_connLabel->setProperty("semanticState", semanticState);
+        m_connLabel->style()->unpolish(m_connLabel);
+        m_connLabel->style()->polish(m_connLabel);
+    }
+
+    QString html = text.toHtmlEscaped();
     if (level == ConnFailed || level == ConnNeedsAuth) {
-        html += QStringLiteral("&nbsp;<a href='#retry' style='color:%1'>%2</a>")
-                    .arg(color, level == ConnNeedsAuth ? tr("登录") : tr("重试"));
+        html += QStringLiteral("&nbsp;<a href='#retry' style='color:inherit'>%1</a>")
+                    .arg(level == ConnNeedsAuth ? tr("登录") : tr("重试"));
     }
     m_connLabel->setText(html);
     m_connLabel->show();

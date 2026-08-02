@@ -1,5 +1,8 @@
 set(PLATFORM_SOURCES
     PlatformResult.h
+    privilege/PrivilegedFileOperation.h
+    privilege/PrivilegedFileOperation.cpp
+    privilege/PrivilegeBroker.h
     CredentialStore.h
     PathSemantics.h
     PathSemantics.cpp
@@ -15,11 +18,13 @@ if(WIN32)
     list(APPEND PLATFORM_SOURCES
         windows/WindowsTrashService.cpp
         windows/WindowsCredentialStore.cpp
+        windows/WindowsPrivilegeBroker.cpp
     )
 else()
     list(APPEND PLATFORM_SOURCES
         linux/LinuxTrashService.cpp
         linux/LibsecretCredentialStore.cpp
+        linux/LinuxPrivilegeBroker.cpp
     )
 endif()
 

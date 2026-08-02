@@ -31,6 +31,7 @@
 #include <QUrl>
 #include <QVariantAnimation>
 #include <QVector>
+#include <QWheelEvent>
 #include <QWidget>
 
 #include "DragPixmap.h"
@@ -80,10 +81,18 @@ class PlainHeaderView : public QHeaderView {
 public:
     explicit PlainHeaderView(QWidget *parent = nullptr) : QHeaderView(Qt::Horizontal, parent) {}
 
+signals:
+    void resizeHandlePressed(int leftLogical);
+
 protected:
     void mousePressEvent(QMouseEvent *e) override {
         m_pressIndex = logicalIndexAt(e->pos().x());
         m_pressPos = e->pos();
+        if (e->button() == Qt::LeftButton) {
+            const int handleLeft = resizeGripLeftSection(e->pos().x());
+            if (handleLeft >= 0)
+                emit resizeHandlePressed(handleLeft);
+        }
         QHeaderView::mousePressEvent(e);
     }
     void mouseReleaseEvent(QMouseEvent *e) override {
@@ -186,37 +195,6 @@ private:
     QColor m_sectionBorder;
 };
 
-class ScrollbarHeaderCover : public QWidget {
-public:
-    explicit ScrollbarHeaderCover(QWidget *parent = nullptr) : QWidget(parent) {
-        setObjectName(QStringLiteral("ScrollbarHeaderCover"));
-        setAutoFillBackground(false);
-    }
-
-protected:
-    void paintEvent(QPaintEvent *event) override {
-        Q_UNUSED(event);
-        const auto *view = qobject_cast<const FileListView *>(parentWidget());
-        const QHeaderView *header = view ? view->horizontalHeader() : nullptr;
-        QColor bg;
-        QColor border;
-        if (header) {
-            bg = header->property("sectionBackground").value<QColor>();
-            border = header->property("sectionBorder").value<QColor>();
-        }
-        if (!bg.isValid())
-            bg = palette().color(QPalette::Window);
-        if (!border.isValid())
-            border = palette().color(QPalette::Mid);
-
-        QPainter painter(this);
-        painter.fillRect(rect(), bg);
-        painter.setPen(border);
-        painter.drawLine(rect().bottomLeft(), rect().bottomRight());
-        painter.drawLine(rect().topLeft(), rect().bottomLeft());
-    }
-};
-
 // Paints file-list cells directly (background, icon, text) with a QPainter
 // instead of letting the item go through QStyleSheetStyle. The app sets a global
 // stylesheet for theming, which otherwise routes every cell through the CSS
@@ -241,10 +219,11 @@ public:
         painter->save();
         painter->setClipRect(opt.rect);
 
-        // Row background. Selected rows use palette Highlight, which the
-        // [panelActive] stylesheet rule swaps between the active/inactive tint;
-        // everything else uses the base colour.
-        painter->fillRect(opt.rect, selected ? pal.highlight() : pal.base());
+        // Selected rows stay opaque and high contrast. Ordinary rows leave the
+        // viewport surface visible; in the CRT theme that surface owns one
+        // stable scanline tile, while light/dark still provide their solid base.
+        if (selected)
+            painter->fillRect(opt.rect, pal.highlight());
 
         QRect r = opt.rect.adjusted(4, 0, -4, 0);
 
@@ -300,15 +279,28 @@ FileListView::FileListView(QWidget *parent) : QTableView(parent) {
     // reflow the columns on every switch. Keeping the bar always-on holds the
     // viewport width constant so column widths stay put.
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
+    m_verticalScrollBarContainer = verticalScrollBar()->parentWidget();
+    if (m_verticalScrollBarContainer)
+        m_verticalScrollBarContainer->installEventFilter(this);
     // Columns are always managed to fill the viewport exactly (applyLayout), so
     // a horizontal scrollbar is never wanted -- turn it off so the last column's
     // right edge stays pinned (Qt otherwise flashes the bar at the exact-fit
     // boundary). In the extreme-narrow case the last column simply clips.
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    m_scrollbarHeaderCover = new ScrollbarHeaderCover(this);
-    m_scrollbarHeaderCover->hide();
     verticalHeader()->hide();
-    setHorizontalHeader(new PlainHeaderView(this)); // non-bold, self-painted labels
+    auto *plainHeader = new PlainHeaderView(this);
+    setHorizontalHeader(plainHeader); // non-bold, self-painted labels
+    connect(plainHeader, &PlainHeaderView::resizeHandlePressed, this,
+            [this, plainHeader](int) {
+                if (!m_preHandleResizeBaseWidth.isEmpty())
+                    return;
+                m_preHandleResizeBaseWidth.resize(plainHeader->count());
+                for (int column = 0; column < plainHeader->count(); ++column)
+                    m_preHandleResizeBaseWidth[column] = plainHeader->sectionSize(column);
+                QTimer::singleShot(QApplication::doubleClickInterval() + 50, this, [this] {
+                    m_preHandleResizeBaseWidth.clear();
+                });
+            });
     horizontalHeader()->setSortIndicatorShown(true);
     setSortingEnabled(true); // header clicks call FileSystemModel::sort() automatically
     horizontalHeader()->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -405,6 +397,7 @@ void FileListView::setModel(QAbstractItemModel *model) {
         m_userSet.fill(false, n);
         for (int col = 0; col < n && col < FileSystemModel::ColumnCount; ++col)
             m_baseWidth[col] = kDefaultColWidths[col];
+        m_lastStableBaseWidth = m_baseWidth;
 
         // Default view: hide Created and Permissions (MainWindow restores the
         // per-side hidden mask later, overriding this if the user changed it).
@@ -625,7 +618,7 @@ void FileListView::recomputeContentWidths() {
     applyLayout();
 }
 
-void FileListView::applyLayout() {
+void FileListView::applyLayout(int protectedLeftColumn, int protectedTargetColumn) {
     if (m_adjustingColumns)
         return;
     QHeaderView *header = horizontalHeader();
@@ -674,6 +667,8 @@ void FileListView::applyLayout() {
                 break;
             if (c >= disp.size() || header->isSectionHidden(c))
                 continue;
+            if (c == protectedLeftColumn || c == protectedTargetColumn)
+                continue;
             const int room = disp[c] - m_smartMin[c];
             const int take = qMin(qMax(0, room), deficit);
             disp[c] -= take;
@@ -697,13 +692,16 @@ void FileListView::applyLayout() {
     // the same priority order. The sections remain visible (not hidden), so their
     // order and drag behavior are unchanged; a narrow panel merely clips the
     // controls that have no width to paint.
-    const int infoBudget = qMax(0, avail - m_nameFloor);
+    const bool protectsAutoFitColumns = protectedLeftColumn >= 0 || protectedTargetColumn >= 0;
+    const int infoBudget = qMax(0, avail - (protectsAutoFitColumns ? 0 : m_nameFloor));
     int emergencyDeficit = sumInfoDisp - infoBudget;
     if (emergencyDeficit > 0) {
         for (int c : kCompressOrder) {
             if (emergencyDeficit <= 0)
                 break;
             if (c >= disp.size() || header->isSectionHidden(c))
+                continue;
+            if (c == protectedLeftColumn || c == protectedTargetColumn)
                 continue;
             const int take = qMin(disp[c], emergencyDeficit);
             disp[c] -= take;
@@ -714,10 +712,24 @@ void FileListView::applyLayout() {
             if (c != FileSystemModel::NameColumn)
                 sumInfoDisp += disp[c];
     }
+    // In an impossibly narrow viewport the two protected columns alone may not
+    // fit. Keep the divider's left column stable for as long as possible: first
+    // trim the auto-fit target, and only then the left column as a final fallback.
+    int protectedOverflow = sumInfoDisp - avail;
+    for (int c : {protectedTargetColumn, protectedLeftColumn}) {
+        if (protectedOverflow <= 0 || c < 0 || c >= disp.size())
+            continue;
+        const int take = qMin(disp[c], protectedOverflow);
+        disp[c] -= take;
+        sumInfoDisp -= take;
+        protectedOverflow -= take;
+    }
     if (FileSystemModel::NameColumn < disp.size())
         disp[FileSystemModel::NameColumn] = avail - sumInfoDisp;
 
     m_adjustingColumns = true;
+    if (m_expectedProgrammaticWidth.size() != header->count())
+        m_expectedProgrammaticWidth.fill(-1, header->count());
     for (int c = 0; c < header->count(); ++c) {
         if (header->isSectionHidden(c)) {
             // resizeSection is a no-op on a hidden section, so a hidden column
@@ -725,61 +737,76 @@ void FileListView::applyLayout() {
             // offsets later columns, leaving a blank gap before the next visible
             // column and pushing the last column off-screen). Briefly show it to
             // collapse its width to 0 (minimumSectionSize is 0), then re-hide.
+            m_expectedProgrammaticWidth[c] = 0;
             header->showSection(c);
             header->resizeSection(c, 0);
             header->hideSection(c);
         } else {
-            header->resizeSection(c, disp.value(c));
+            const int desired = disp.value(c);
+            if (header->sectionSize(c) == desired) {
+                m_expectedProgrammaticWidth[c] = -1;
+            } else {
+                m_expectedProgrammaticWidth[c] = desired;
+                header->resizeSection(c, desired);
+            }
         }
     }
     m_adjustingColumns = false;
 }
 
 int FileListView::columnLayoutWidth() const {
-    int avail = viewport()->width();
-    const QScrollBar *bar = verticalScrollBar();
-    if (bar && bar->isVisible()) {
-        const int barLeftInViewport = viewport()->mapFrom(this, bar->geometry().topLeft()).x();
-        if (barLeftInViewport > 0)
-            avail = qMin(avail, barLeftInViewport);
-    }
-    return avail;
+    // The vertical scrollbar starts below the column header, so its gutter is
+    // part of the header's usable geometry. Filling the whole panel makes the
+    // final header section meet the splitter (or window edge) instead of leaving
+    // an empty strip above the scrollbar.
+    return contentsRect().width();
 }
 
 void FileListView::placeVerticalScrollBarBelowHeader() {
     QScrollBar *bar = verticalScrollBar();
-    if (!bar || !bar->isVisible()) {
-        if (m_scrollbarHeaderCover)
-            m_scrollbarHeaderCover->hide();
+    if (!bar || !bar->isVisible())
         return;
-    }
 
-    const QHeaderView *header = horizontalHeader();
+    QHeaderView *header = horizontalHeader();
     const QRect content = contentsRect();
+    if (header && header->isVisible()) {
+        const QRect geometry = header->geometry();
+        // QAbstractScrollArea normally shortens the header to reserve the full
+        // scrollbar gutter. Our scrollbar begins below it, so the header must
+        // own that top-right area and end at the panel boundary.
+        header->setGeometry(content.left(), geometry.top(), content.width(), geometry.height());
+    }
     const int top = header && header->isVisible()
                         ? header->geometry().bottom() + 1
                         : viewport()->geometry().top();
     const int width = qMax(1, bar->sizeHint().width());
     const int left = content.right() - width + 1;
     const int bottom = content.bottom();
-    if (bottom < top) {
-        if (m_scrollbarHeaderCover)
-            m_scrollbarHeaderCover->hide();
+    if (bottom < top)
         return;
+    const int height = bottom - top + 1;
+    QWidget *barContainer = bar->parentWidget();
+    if (barContainer && barContainer != this) {
+        // QAbstractScrollArea owns the scrollbar through
+        // qt_scrollarea_vcontainer. Positioning the scrollbar with view
+        // coordinates is ineffective because the container's layout resets it
+        // to (0, 0) after a style change. Move the container in view coordinates
+        // and let the scrollbar fill its local coordinate space instead.
+        const QRect containerGeometry(left, top, width, height);
+        const QRect barGeometry(0, 0, width, height);
+        if (barContainer->geometry() != containerGeometry)
+            barContainer->setGeometry(containerGeometry);
+        if (bar->geometry() != barGeometry)
+            bar->setGeometry(barGeometry);
+        barContainer->raise();
+    } else {
+        bar->setGeometry(left, top, width, height);
+        bar->raise();
     }
-    bar->setGeometry(left, top, width, bottom - top + 1);
-    bar->raise();
-
-    if (m_scrollbarHeaderCover) {
-        const int coverHeight = qMax(0, top - content.top());
-        if (coverHeight > 0) {
-            m_scrollbarHeaderCover->setGeometry(left, content.top(), width, coverHeight);
-            m_scrollbarHeaderCover->show();
-            m_scrollbarHeaderCover->raise();
-        } else {
-            m_scrollbarHeaderCover->hide();
-        }
-    }
+    // Keep the header above the scrollbar if Qt schedules a late geometry pass.
+    // The bar's own geometry still starts immediately below the header.
+    if (header && header->isVisible())
+        header->raise();
 }
 
 void FileListView::scheduleVerticalScrollBarPlacement() {
@@ -792,19 +819,30 @@ void FileListView::scheduleVerticalScrollBarPlacement() {
     });
 }
 
+bool FileListView::eventFilter(QObject *watched, QEvent *event) {
+    const bool filtered = QTableView::eventFilter(watched, event);
+    if (watched == m_verticalScrollBarContainer
+        && (event->type() == QEvent::Move || event->type() == QEvent::Resize
+            || event->type() == QEvent::Show || event->type() == QEvent::LayoutRequest)) {
+        scheduleVerticalScrollBarPlacement();
+    }
+    return filtered;
+}
+
 void FileListView::onSectionResized(int logical, int oldSize, int newSize) {
+    if (logical < 0 || logical >= m_baseWidth.size())
+        return;
+    if (logical < m_expectedProgrammaticWidth.size() &&
+        m_expectedProgrammaticWidth.at(logical) >= 0) {
+        if (m_expectedProgrammaticWidth.at(logical) == newSize)
+            m_expectedProgrammaticWidth[logical] = -1;
+        return;
+    }
     if (m_adjustingColumns) // our own applyLayout() resizeSection -> ignore
         return;
     QHeaderView *header = horizontalHeader();
-    if (logical < 0 || logical >= m_baseWidth.size())
+    if (!(QApplication::mouseButtons() & Qt::LeftButton))
         return;
-    if ((QApplication::mouseButtons() & Qt::LeftButton) && m_preHandleResizeBaseWidth.isEmpty()) {
-        m_preHandleResizeBaseWidth = m_baseWidth;
-        QTimer::singleShot(QApplication::doubleClickInterval() + 50, this, [this] {
-            m_preHandleResizeBaseWidth.clear();
-        });
-    }
-
     // Find the next visible column after `logical`.
     int next = -1;
     for (int c = logical + 1; c < header->count(); ++c) {
@@ -837,13 +875,22 @@ void FileListView::autoFitColumnRightOfHandle(int handleLeftLogical) {
     QHeaderView *header = horizontalHeader();
     if (!header || handleLeftLogical < 0 || handleLeftLogical >= header->count())
         return;
-    if (m_preHandleResizeBaseWidth.size() == m_baseWidth.size()) {
-        m_baseWidth = m_preHandleResizeBaseWidth;
-        m_preHandleResizeBaseWidth.clear();
-    }
+    const int leftWidthBeforeFit =
+        m_preHandleResizeBaseWidth.size() == m_baseWidth.size()
+            ? m_preHandleResizeBaseWidth.value(handleLeftLogical)
+            : m_lastStableBaseWidth.value(
+                  handleLeftLogical,
+                  m_baseWidth.value(handleLeftLogical, header->sectionSize(handleLeftLogical)));
+    m_preHandleResizeBaseWidth.clear();
     for (int c = handleLeftLogical + 1; c < header->count(); ++c) {
         if (!header->isSectionHidden(c)) {
-            autoFitColumn(c);
+            recomputeContentWidths();
+            m_baseWidth[handleLeftLogical] = leftWidthBeforeFit;
+            m_userSet[handleLeftLogical] = true;
+            m_baseWidth[c] = qMax(m_contentWidth.value(c), m_smartMin.value(c));
+            m_userSet[c] = true;
+            applyLayout(handleLeftLogical, c);
+            m_lastStableBaseWidth = m_baseWidth;
             return;
         }
     }
@@ -889,6 +936,7 @@ void FileListView::restoreColumnLayout(const QVector<int> &baseWidths, int hidde
         m_sortOrder = sortOrder;
     }
     m_adjustingColumns = false;
+    m_lastStableBaseWidth = m_baseWidth;
 
     if (sortCol >= 0 && model())
         model()->sort(sortCol, sortOrder); // resets model -> recompute + applyLayout
@@ -967,8 +1015,6 @@ void FileListView::changeEvent(QEvent *event) {
             ensureSelectionPalettes();
             setPalette(m_panelActive ? m_activePalette : m_inactivePalette);
         }
-        if (m_scrollbarHeaderCover)
-            m_scrollbarHeaderCover->update();
         scheduleVerticalScrollBarPlacement();
     } else if (event->type() == QEvent::FontChange) {
         // The list font drives content-width measurement; a font change (the
@@ -995,13 +1041,27 @@ void FileListView::keyPressEvent(QKeyEvent *event) {
         if (idx.isValid() && selectionModel()) {
             selectionModel()->select(idx, QItemSelectionModel::Toggle | QItemSelectionModel::Rows);
             const QModelIndex next = idx.sibling(idx.row() + 1, idx.column());
-            if (next.isValid())
-                setCurrentIndex(next);
+            if (next.isValid()) {
+                selectionModel()->setCurrentIndex(next, QItemSelectionModel::NoUpdate);
+                scrollTo(next, QAbstractItemView::EnsureVisible);
+            }
         }
         event->accept();
         return;
     }
     QTableView::keyPressEvent(event);
+}
+
+void FileListView::wheelEvent(QWheelEvent *event) {
+    int delta = event->angleDelta().y();
+    if (delta == 0)
+        delta = event->pixelDelta().y();
+    if ((event->modifiers() & Qt::ControlModifier) && delta != 0) {
+        emit zoomRequested(delta > 0 ? 1 : -1);
+        event->accept();
+        return;
+    }
+    QTableView::wheelEvent(event);
 }
 
 void FileListView::mousePressEvent(QMouseEvent *event) {

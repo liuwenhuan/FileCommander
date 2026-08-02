@@ -211,17 +211,30 @@ TEST(TreeNavigationTest, LocalTabStillNavigatesStraightToTheClickedFolder) {
 
 TEST(MainWindowTest, FolderAssociationIsTheLastConfigAction) {
     MainWindow window;
-    QAction *action = nullptr;
+    QMenu *configMenu = nullptr;
     for (QMenu *menu : window.findChildren<QMenu *>()) {
-        if (!menu->actions().isEmpty() &&
-            menu->actions().last()->text() == QStringLiteral("Associate Folder Open Actions")) {
-            action = menu->actions().last();
+        if (menu->title() == QStringLiteral("Con&fig")) {
+            configMenu = menu;
             break;
         }
     }
-    ASSERT_NE(action, nullptr);
-    EXPECT_TRUE(action->isCheckable());
-    EXPECT_EQ(action->text(), QStringLiteral("Associate Folder Open Actions"));
+    ASSERT_NE(configMenu, nullptr);
+
+    configMenu->popup(QPoint(10, 10));
+    QTRY_VERIFY_WITH_TIMEOUT(
+        configMenu->findChild<QAction *>(QStringLiteral("configFolderAssociationAction")) != nullptr,
+        500);
+    configMenu->hide();
+
+    QAction *folderAssociation =
+        configMenu->findChild<QAction *>(QStringLiteral("configFolderAssociationAction"));
+    ASSERT_NE(folderAssociation, nullptr);
+    EXPECT_TRUE(folderAssociation->isCheckable());
+    ASSERT_FALSE(configMenu->actions().isEmpty());
+    EXPECT_EQ(configMenu->actions().last(), folderAssociation);
+    EXPECT_EQ(configMenu->findChild<QAction *>(QStringLiteral("configReduceMotionAction")), nullptr);
+    for (QAction *action : configMenu->actions())
+        EXPECT_NE(action->text(), QStringLiteral("Reduce Motion"));
 }
 
 #if defined(Q_OS_WIN) && FILECOMMANDER_HAS_NETWORK

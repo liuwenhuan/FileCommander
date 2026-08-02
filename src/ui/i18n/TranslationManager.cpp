@@ -1,7 +1,9 @@
 #include "TranslationManager.h"
 
+#include <QApplication>
 #include <QCoreApplication>
 #include <QDir>
+#include <QEvent>
 #include <QFileInfo>
 #include <QLibraryInfo>
 #include <QLocale>
@@ -10,6 +12,7 @@
 #include <QStandardPaths>
 #include <QStringList>
 #include <QTranslator>
+#include <QWidget>
 
 namespace {
 
@@ -71,6 +74,18 @@ QStringList candidatesFor(const QString &language) {
     return candidates;
 }
 
+void notifyHiddenTopLevelWidgets(QCoreApplication &app) {
+    auto *widgetApp = qobject_cast<QApplication *>(&app);
+    if (!widgetApp)
+        return;
+
+    QEvent languageChange(QEvent::LanguageChange);
+    for (QWidget *widget : QApplication::topLevelWidgets()) {
+        if (!widget->isVisible())
+            QCoreApplication::sendEvent(widget, &languageChange);
+    }
+}
+
 } // namespace
 
 bool TranslationManager::loadCatalog(QTranslator *t, const QString &code) {
@@ -83,7 +98,11 @@ bool TranslationManager::loadCatalog(QTranslator *t, const QString &code) {
 
 bool TranslationManager::loadQtCatalog(QTranslator *t, const QString &code) {
     const QString translations = QLibraryInfo::location(QLibraryInfo::TranslationsPath);
-    return t->load(QStringLiteral("qtbase_%1").arg(code), translations);
+    // Some Qt 5 Windows distributions ship the umbrella qt_<locale>.qm catalog
+    // instead of a split qtbase_<locale>.qm. Both contain the standard widget
+    // button translations that FileCommander needs.
+    return t->load(QStringLiteral("qtbase_%1").arg(code), translations)
+           || t->load(QStringLiteral("qt_%1").arg(code), translations);
 }
 
 void TranslationManager::install(QCoreApplication &app, const QString &language) {
@@ -111,8 +130,10 @@ void TranslationManager::switchTo(QCoreApplication &app, const QString &language
 
     // English is the source language. Keeping both translators absent also
     // makes the standard-button fallback use the canonical English labels.
-    if (effective.startsWith(QStringLiteral("en")))
+    if (effective.startsWith(QStringLiteral("en"))) {
+        notifyHiddenTopLevelWidgets(app);
         return;
+    }
 
     // Qt owns the standard widgets' source strings. Install it first, then the
     // application catalog, so application translations deliberately win if they
@@ -136,10 +157,12 @@ void TranslationManager::switchTo(QCoreApplication &app, const QString &language
             app.installTranslator(appTranslator);
             g_owner = &app;
             g_appTranslator = appTranslator;
-            return;
+            appTranslator = nullptr;
+            break;
         }
     }
     delete appTranslator;
+    notifyHiddenTopLevelWidgets(app);
 }
 
 QVector<std::pair<QString, QString>> TranslationManager::available() {

@@ -36,6 +36,7 @@ protected:
 
 private:
     void ensureFrameCache();
+    void updateTitleBarLayout();
 
     DialogTitleBar *m_titleBar = nullptr;
     QPixmap m_backgroundTile;

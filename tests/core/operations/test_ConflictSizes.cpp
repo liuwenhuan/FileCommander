@@ -146,7 +146,7 @@ TEST(ConflictSizesTest, LocalCopyStillReportsTheRealSizes) {
 
     FileOperations ops;
     QString err;
-    ASSERT_TRUE(ops.copyPaths({source}, dstDir.path(), resolver, &err));
+    ASSERT_FALSE(ops.copyPaths({source}, dstDir.path(), resolver, &err));
 
     ASSERT_EQ(prompts, 1);
     EXPECT_EQ(seen.sourcePath, source);
@@ -173,8 +173,8 @@ TEST(ConflictSizesTest, DirectoryConflictReportsUnknownRatherThanZero) {
 
     FileOperations ops;
     QString err;
-    ASSERT_TRUE(ops.copyPaths({QDir(srcDir.path()).filePath(QStringLiteral("folder"))},
-                              dstDir.path(), resolver, &err));
+    ASSERT_FALSE(ops.copyPaths({QDir(srcDir.path()).filePath(QStringLiteral("folder"))},
+                               dstDir.path(), resolver, &err));
 
     ASSERT_EQ(prompts, 1);
     EXPECT_EQ(seen.sourceSize, -1);
