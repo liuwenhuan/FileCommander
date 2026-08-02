@@ -12,7 +12,7 @@
 #include <cstring>
 
 #include "AppIcon.h"
-#include "FolderAssociation.h"
+#include "FolderArguments.h"
 #include "InstanceCoordinator.h"
 #include "MainWindow.h"
 #include "Settings.h"
@@ -121,7 +121,7 @@ int main(int argc, char *argv[]) {
         // untinted original back -- which every dialog then inherits, since
         // DialogTitleBar reads its icon from the window it belongs to.
         window.setWindowIcon(app.windowIcon());
-        const QStringList folders = FolderAssociation::folderArguments(arguments);
+        const QStringList folders = FolderArguments::folders(arguments);
         if (!startupProbeOutput.isEmpty()) {
             QObject::connect(&window, &MainWindow::startupReady, &app,
                              [&app, &window, startupProbeOutput, &startupPhases] {
@@ -169,7 +169,7 @@ int main(int argc, char *argv[]) {
         if (startupProbeOutput.isEmpty()) {
             QObject::connect(&instance, &InstanceCoordinator::activationRequested, &window,
                              [&window](const QStringList &activationArguments) {
-                    const QStringList folders = FolderAssociation::folderArguments(activationArguments);
+                    const QStringList folders = FolderArguments::folders(activationArguments);
                     if (!folders.isEmpty())
                         window.openFolders(folders);
                     ttc::requestWindowForeground(&window);

@@ -438,14 +438,6 @@ void Settings::setAutoUpdateCheck(bool on) {
     m_settings.setValue("update/autoCheck", on);
 }
 
-bool Settings::folderAssociationEnabled() const {
-    return m_settings.value("integration/folderAssociationEnabled", false).toBool();
-}
-
-void Settings::setFolderAssociationEnabled(bool on) {
-    m_settings.setValue("integration/folderAssociationEnabled", on);
-}
-
 bool Settings::notepadVisible() const {
     return m_settings.value("view/notepadVisible", false).toBool();
 }

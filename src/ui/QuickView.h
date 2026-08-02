@@ -133,6 +133,13 @@ public:
     // dedicated monospace family.
     void setContentFontFamily(const QString &family);
 
+    // Applies the interface font to this preview's CHROME -- the per-page
+    // toolbars and everything docked into them (encoding combo, page readout,
+    // checkboxes). Deliberately not the previewed content, which follows the
+    // separate file-list font size through setContentFontSize(): a whole-tree
+    // font pass here would overwrite it.
+    void applyChromeFont(const QFont &font);
+
     // Moves keyboard focus into the preview's current page (its primary
     // interactive widget). Used when the user Tabs from the file list into the
     // embedded preview pane, so the pane — not the panel it covers — takes focus.

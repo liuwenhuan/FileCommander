@@ -9,8 +9,8 @@ set(PLATFORM_SOURCES
     TrashService.h
     FeatureCapabilities.h
     FeatureCapabilities.cpp
-    FolderAssociation.h
-    FolderAssociation.cpp
+    FolderArguments.h
+    FolderArguments.cpp
     InstanceCoordinator.h
     InstanceCoordinator.cpp
 )

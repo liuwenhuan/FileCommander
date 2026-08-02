@@ -388,4 +388,52 @@ TEST_F(FileListViewLayoutTest, DoubleClickingDividerAutoFitsTheColumnOnItsRight)
     expectLastVisibleSectionAtContentRight(m_view);
 }
 
+// Space reports the row so the panel can count a directory's size. Total
+// Commander only does this for an *unselected* directory, which works there
+// because clicking never selects; this view is ExtendedSelection, so the row
+// under the cursor is usually already selected -- including after a Ctrl+click
+// or Shift+click multi-select -- and carrying TC's rule across would make the
+// count almost never happen. It must fire either way.
+TEST_F(FileListViewLayoutTest, SpaceReportsTheRowWhetherOrNotItIsAlreadySelected) {
+    QSignalSpy spy(&m_view, &FileListView::rowSpaced);
+    const QModelIndex row3 = m_model.index(3, 0);
+
+    // Unselected row under the cursor. NoUpdate because the plain
+    // setCurrentIndex() would select it as a side effect (this view is
+    // ExtendedSelection), which is the very state this half must not be in.
+    m_view.selectionModel()->setCurrentIndex(row3, QItemSelectionModel::NoUpdate);
+    m_view.selectionModel()->clearSelection();
+    ASSERT_FALSE(m_view.selectionModel()->isSelected(row3));
+    QTest::keyClick(&m_view, Qt::Key_Space);
+    ASSERT_EQ(spy.count(), 1);
+    EXPECT_EQ(spy.takeFirst().at(0).toInt(), 3);
+
+    // Already selected, as a Ctrl+click or Shift+click multi-select leaves it.
+    const QModelIndex row5 = m_model.index(5, 0);
+    m_view.selectionModel()->select(m_model.index(4, 0),
+                                    QItemSelectionModel::Select | QItemSelectionModel::Rows);
+    m_view.selectionModel()->select(row5,
+                                    QItemSelectionModel::Select | QItemSelectionModel::Rows);
+    m_view.selectionModel()->setCurrentIndex(row5, QItemSelectionModel::NoUpdate);
+    ASSERT_TRUE(m_view.selectionModel()->isSelected(row5));
+    QTest::keyClick(&m_view, Qt::Key_Space);
+    ASSERT_EQ(spy.count(), 1);
+    EXPECT_EQ(spy.takeFirst().at(0).toInt(), 5);
+}
+
+// Insert is the plain selection key: it must NOT trigger the size count, or
+// every Insert on a directory would kick off a recursive scan.
+TEST_F(FileListViewLayoutTest, InsertTogglesSelectionWithoutReportingTheRow) {
+    QSignalSpy spy(&m_view, &FileListView::rowSpaced);
+    const QModelIndex row2 = m_model.index(2, 0);
+    m_view.selectionModel()->setCurrentIndex(row2, QItemSelectionModel::NoUpdate);
+    m_view.selectionModel()->clearSelection();
+
+    QTest::keyClick(&m_view, Qt::Key_Insert);
+
+    EXPECT_EQ(spy.count(), 0);
+    EXPECT_TRUE(m_view.selectionModel()->isSelected(row2));      // still selects
+    EXPECT_EQ(m_view.currentIndex().row(), 3);                   // and steps down
+}
+
 } // namespace

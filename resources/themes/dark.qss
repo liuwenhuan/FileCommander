@@ -112,6 +112,23 @@ QTableView[panelActive="false"] {
     selection-color: #c8c8c8;
 }
 
+/* Tree views (the directory tree, and the function-key picker's command list).
+   Without these the platform style supplies its own row colours, which is how
+   the picker ended up with a stock blue selection in an otherwise dark dialog. */
+QTreeView {
+    background-color: #232323;
+    color: #e0e0e0;
+    alternate-background-color: #232323;
+    border: 1px solid #1a1a1a;
+    selection-background-color: #3d7deb;
+    selection-color: #ffffff;
+}
+
+QTreeView::item:hover:!selected {
+    background-color: #2f3d52;
+    color: #e0e0e0;
+}
+
 QHeaderView::section {
     background-color: #232323;
     color: #e0e0e0;

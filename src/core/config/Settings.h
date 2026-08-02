@@ -208,12 +208,6 @@ public:
     bool autoUpdateCheck() const;
     void setAutoUpdateCheck(bool on);
 
-    // The user explicitly opted into making FileCommander the per-user handler
-    // for folders and drives. Defaults off; platform registration is performed
-    // by FolderAssociation when this preference changes.
-    bool folderAssociationEnabled() const;
-    void setFolderAssociationEnabled(bool on);
-
     // Whether the quick-notepad third column was open when the app last closed,
     // so it reappears on restart.
     bool notepadVisible() const;

@@ -209,7 +209,10 @@ TEST(TreeNavigationTest, LocalTabStillNavigatesStraightToTheClickedFolder) {
     EXPECT_EQ(panel.currentPath(), alpha);
 }
 
-TEST(MainWindowTest, FolderAssociationIsTheLastConfigAction) {
+// Two settings have been retired: "Reduce Motion" (motion is no longer
+// user-configurable) and "Associate Folder Open Actions" (registering the app as
+// the system's folder handler). Neither may come back through the config menu.
+TEST(MainWindowTest, ConfigMenuOmitsRetiredActions) {
     MainWindow window;
     QMenu *configMenu = nullptr;
     for (QMenu *menu : window.findChildren<QMenu *>()) {
@@ -220,21 +223,21 @@ TEST(MainWindowTest, FolderAssociationIsTheLastConfigAction) {
     }
     ASSERT_NE(configMenu, nullptr);
 
+    // The menu fills itself on first show, so wait for an entry that is expected
+    // to survive before asserting on the ones that must not be there.
     configMenu->popup(QPoint(10, 10));
     QTRY_VERIFY_WITH_TIMEOUT(
-        configMenu->findChild<QAction *>(QStringLiteral("configFolderAssociationAction")) != nullptr,
-        500);
+        configMenu->findChild<QAction *>(QStringLiteral("configAutoUpdateAction")) != nullptr, 500);
     configMenu->hide();
 
-    QAction *folderAssociation =
-        configMenu->findChild<QAction *>(QStringLiteral("configFolderAssociationAction"));
-    ASSERT_NE(folderAssociation, nullptr);
-    EXPECT_TRUE(folderAssociation->isCheckable());
     ASSERT_FALSE(configMenu->actions().isEmpty());
-    EXPECT_EQ(configMenu->actions().last(), folderAssociation);
+    EXPECT_EQ(configMenu->findChild<QAction *>(QStringLiteral("configFolderAssociationAction")),
+              nullptr);
     EXPECT_EQ(configMenu->findChild<QAction *>(QStringLiteral("configReduceMotionAction")), nullptr);
-    for (QAction *action : configMenu->actions())
+    for (QAction *action : configMenu->actions()) {
         EXPECT_NE(action->text(), QStringLiteral("Reduce Motion"));
+        EXPECT_NE(action->text(), QStringLiteral("Associate Folder Open Actions"));
+    }
 }
 
 #if defined(Q_OS_WIN) && FILECOMMANDER_HAS_NETWORK

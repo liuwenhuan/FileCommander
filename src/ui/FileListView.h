@@ -79,6 +79,18 @@ signals:
     void filesDropped(const QStringList &sourcePaths, const QString &destDir,
                        FileListView::DropActionKind kind, FileProvider *srcProvider);
 
+    // Space was pressed on this row. Total Commander also counts a directory's
+    // contents on Space, so the size replaces "<DIR>" in the list; the owning
+    // panel decides whether the row is a directory worth counting.
+    //
+    // TC restricts this to an *unselected* directory, which works there because
+    // clicking only moves the cursor and never selects. This view is
+    // ExtendedSelection (clicking selects, the Windows model), so a directory
+    // under the cursor is normally already selected and that rule would almost
+    // never fire -- hence the deliberate divergence: Space on a directory counts
+    // it whichever way the toggle goes.
+    void rowSpaced(int row);
+
     // Ctrl+wheel asks the owning panel to use the same scale step as its
     // status-bar -/+ controls. Positive means larger, negative means smaller.
     void zoomRequested(int direction);

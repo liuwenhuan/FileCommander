@@ -95,7 +95,6 @@
 #include "FileListView.h"
 #include "FileSystemModel.h"
 #include "ExternalPaths.h"
-#include "FolderAssociation.h"
 #include "LocalFileProvider.h"
 #include "FunctionKeyBar.h"
 #include "ImageViewer.h"
@@ -863,24 +862,6 @@ void MainWindow::buildTitleBarMenus() {
     autoUpdate->setChecked(m_settings.autoUpdateCheck());
     connect(autoUpdate, &QAction::toggled, this,
             [this](bool on) { m_settings.setAutoUpdateCheck(on); });
-    QAction *folderAssociation = configMenu->addAction(tr("Associate Folder Open Actions"));
-    folderAssociation->setObjectName(QStringLiteral("configFolderAssociationAction"));
-    folderAssociation->setCheckable(true);
-    folderAssociation->setChecked(m_settings.folderAssociationEnabled());
-    if (m_settings.folderAssociationEnabled()) {
-        QString ignored;
-        FolderAssociation::setEnabled(true, Settings::configFilePath(), &ignored);
-    }
-    connect(folderAssociation, &QAction::toggled, this, [this, folderAssociation](bool on) {
-        QString error;
-        if (FolderAssociation::setEnabled(on, Settings::configFilePath(), &error)) {
-            m_settings.setFolderAssociationEnabled(on);
-            return;
-        }
-        QSignalBlocker block(folderAssociation);
-        folderAssociation->setChecked(!on);
-        ttc::warning(this, tr("Folder Association"), error);
-    });
     syncConfigMenuState();
     });
 
@@ -1115,6 +1096,16 @@ void MainWindow::buildTitleBarMenus() {
     connect(showShortcutLabels, &QAction::toggled, this,
             [this](bool on) { m_settings.setShowShortcutLabels(on); });
     syncInterfaceMenuState();
+    // The embedded font-size rows are built here, and until now they only ever
+    // reached their final state on the *next* font change: the descendant pass
+    // inside applyChromeFont() runs when the row is still empty (its caption,
+    // field and buttons are created immediately after), and the row's
+    // QWidgetAction -- which is what QMenu measures the entry with -- was never
+    // given the menu font at all. That left these two rows sized differently
+    // from every plain entry beside them on a freshly started app, and corrected
+    // itself only once the user touched the setting. Running the same sync the
+    // change path runs makes the first open identical to every later one.
+    Typography::refreshOpenMenuChrome(interfaceMenu);
     });
 
     // Embed the menus in our self-drawn title bar (app icon + menu buttons +
@@ -1142,7 +1133,6 @@ void MainWindow::syncConfigMenuState() {
     syncChecked(QStringLiteral("configDirectArchivesAction"), !m_settings.archiveAsFolder());
     syncChecked(QStringLiteral("configDeleteConfirmationAction"), !m_settings.confirmDelete());
     syncChecked(QStringLiteral("configAutoUpdateAction"), m_settings.autoUpdateCheck());
-    syncChecked(QStringLiteral("configFolderAssociationAction"), m_settings.folderAssociationEnabled());
 }
 
 void MainWindow::syncInterfaceMenuState() {
@@ -1887,7 +1877,10 @@ QString MainWindow::pickCommandId(const QString &title, const QString &currentId
     std::sort(commands.begin(), commands.end(),
               [](const auto &a, const auto &b) { return a.first.localeAwareCompare(b.first) < 0; });
 
-    QDialog dlg(this);
+    // FramelessDialog, not a bare QDialog: it wears the same self-drawn themed
+    // title bar as the rest of the app, and drops the native one -- along with
+    // the "?" context-help button Windows puts on a plain dialog.
+    FramelessDialog dlg(this);
     dlg.setWindowTitle(title);
     dlg.resize(420, 480);
 
@@ -1898,24 +1891,11 @@ QString MainWindow::pickCommandId(const QString &title, const QString &currentId
     tree->setRootIsDecorated(false);
     tree->setIndentation(0);
     tree->setUniformRowHeights(true);
-    // DTK's default hover fill is a dark gray that clashes with the dark row
-    // text in the light theme. Override hover/selection with palette-derived
-    // colors so the text stays legible in both themes.
-    {
-        const QColor hl = tree->palette().color(QPalette::Highlight);
-        const QColor hlText = tree->palette().color(QPalette::HighlightedText);
-        const QColor txt = tree->palette().color(QPalette::Text);
-        tree->setStyleSheet(
-            QStringLiteral("QTreeView::item:hover:!selected { background: rgba(%1,%2,%3,45); "
-                           "color: %4; }"
-                           "QTreeView::item:selected { background: %5; color: %6; }")
-                .arg(hl.red())
-                .arg(hl.green())
-                .arg(hl.blue())
-                .arg(txt.name())
-                .arg(hl.name())
-                .arg(hlText.name()));
-    }
+    // Row/hover/selection colours come from the theme sheet's QTreeView rules.
+    // They used to be set here from tree->palette(), which looked right only as
+    // long as the palette carried the theme -- the themes style views through
+    // the stylesheet instead, so the palette still held Qt's defaults and this
+    // dialog kept painting a stock blue selection in every theme.
     QTreeWidgetItem *currentItem = nullptr;
     for (const auto &c : commands) {
         const QString &id = c.second;
@@ -2467,6 +2447,71 @@ void MainWindow::setupShortcuts() {
                          m_activePanel->toggleViewMode();
                  });
 
+    // --- Total Commander compatibility keys -------------------------------
+    // Every sequence below was verified free in this application before being
+    // taken, so these are pure additions: nothing that already worked changes.
+    // Where the action already exists under a native shortcut (Properties on
+    // F9, Find on Ctrl+F, ...) this registers a second, separately rebindable
+    // command rather than moving the original, so both muscle memories work.
+    // Reference: KEYBOARD.TXT shipped with Total Commander.
+    bindShortcut("tcParentDir", tr("Parent Directory"),
+                 QKeySequence(Qt::CTRL | Qt::Key_PageUp), [this] {
+                     if (m_activePanel)
+                         m_activePanel->navigateUp();
+                 });
+    bindShortcut("tcOpenDir", tr("Open Directory or Archive"),
+                 QKeySequence(Qt::CTRL | Qt::Key_PageDown), [this] {
+                     if (m_activePanel)
+                         m_activePanel->activateCurrentEntry();
+                 });
+    bindShortcut("tcProperties", tr("Properties (Alt+Enter)"),
+                 QKeySequence(Qt::ALT | Qt::Key_Return), [this] { showProperties(); });
+    bindShortcut("tcFind", tr("Find Files (Alt+F7)"), QKeySequence(Qt::ALT | Qt::Key_F7),
+                 [this] { openSearch(); });
+    bindShortcut("tcCalcSpace", tr("Calculate Occupied Space"),
+                 QKeySequence(Qt::CTRL | Qt::Key_L), [this] { calculateSizes(); });
+    bindShortcut("tcRenameInPlace", tr("Rename (Shift+F6)"),
+                 QKeySequence(Qt::SHIFT | Qt::Key_F6), [this] { renameCurrent(); });
+    // The +/-/* selection keys are deliberately NOT registered here: FilePanel
+    // already binds them (bare Key_Plus/Minus/Asterisk, so they fire from the
+    // keypad and the main row alike). A second binding here would only make Qt
+    // report an ambiguous overload and fire neither.
+    //
+    // Ctrl+F3..F6 sort by name / extension / date / size. The column numbers are
+    // FileSystemModel's own order (Name, Ext, Size, Modified, ...), so date and
+    // size are deliberately not in key order here.
+    struct SortKey { const char *id; int key; int column; };
+    const SortKey sortKeys[] = {
+        {"tcSortName", Qt::Key_F3, 0},
+        {"tcSortExt", Qt::Key_F4, 1},
+        {"tcSortDate", Qt::Key_F5, 3},
+        {"tcSortSize", Qt::Key_F6, 2},
+    };
+    const QString sortLabels[] = {tr("Sort by Name"), tr("Sort by Extension"),
+                                  tr("Sort by Date"), tr("Sort by Size")};
+    for (int i = 0; i < 4; ++i) {
+        const int column = sortKeys[i].column;
+        bindShortcut(QString::fromLatin1(sortKeys[i].id), sortLabels[i],
+                     QKeySequence(Qt::CTRL | sortKeys[i].key), [this, column] {
+                         if (m_activePanel)
+                             m_activePanel->view()->sortByHeaderSection(column);
+                     });
+    }
+    bindShortcut("tcRootDir", tr("Go to Root Directory"),
+                 QKeySequence(Qt::CTRL | Qt::Key_Backslash), [this] { navigateToRoot(); });
+    bindShortcut("tcTargetDir", tr("Go to Other Panel's Directory"),
+                 QKeySequence(Qt::CTRL | Qt::Key_I), [this] { syncActiveToOtherPanel(); });
+    bindShortcut("tcOpenInNewTab", tr("Open Directory in New Tab"),
+                 QKeySequence(Qt::CTRL | Qt::Key_Up), [this] { openCurrentEntryInNewTab(); });
+    bindShortcut("tcContextMenu", tr("Show Context Menu"),
+                 QKeySequence(Qt::SHIFT | Qt::Key_F10), [this] { showContextMenuForCurrent(); });
+    bindShortcut("tcCopyPathToCommandLine", tr("Copy Path to Command Line"),
+                 QKeySequence(Qt::CTRL | Qt::Key_P), [this] { copyPathToCommandLine(); });
+    bindShortcut("tcNewTextFile", tr("New Text File"), QKeySequence(Qt::SHIFT | Qt::Key_F4),
+                 [this] { createNewTextFile(); });
+    bindShortcut("tcCopySameDir", tr("Copy in Same Directory"),
+                 QKeySequence(Qt::SHIFT | Qt::Key_F5), [this] { copyInSameDirectory(); });
+
     // F3-F8 are reassignable slots: the key and the bottom-bar button both run
     // whichever command the slot points at.
     const char *fkeyDefaults[6] = {"view", "edit", "copy", "move", "mkdir", "delete"};
@@ -2557,6 +2602,14 @@ void MainWindow::applyInterfaceTypography() {
     Typography::applyChromeFont(this, chrome);
     Typography::applyChromeFont(m_leftPanel, chrome);
     Typography::applyChromeFont(m_rightPanel, chrome);
+    // The panels' own chrome (tab strip, address row, quick filter, status bar)
+    // needs the font assigned widget by widget; the file views inside them keep
+    // the list font, which is why the panels cannot go through
+    // applyChromeFontToTree().
+    for (FilePanel *panel : {m_leftPanel, m_rightPanel}) {
+        if (panel)
+            panel->applyChromeFont(chrome);
+    }
     // Recursive, and including the title bar (whose menu buttons -- Interface /
     // Tools / Config -- were simply never reached from here at all). See
     // applyChromeFontToTree for why plain inheritance does not carry the new font
@@ -2564,6 +2617,16 @@ void MainWindow::applyInterfaceTypography() {
     Typography::applyChromeFontToTree(m_titleBar, chrome);
     Typography::applyChromeFontToTree(m_commandBar, chrome);
     Typography::applyChromeFontToTree(m_functionKeyBar, chrome);
+    // Preview toolbars are chrome, so they follow this font -- but the previewed
+    // content is not, so QuickView applies it only to its toolbars rather than
+    // being handed to applyChromeFontToTree(). Covers the embedded pane and any
+    // open F3 viewer window, the same pair refreshPhosphor() walks.
+    if (m_quickView)
+        m_quickView->applyChromeFont(chrome);
+    for (QWidget *w : QApplication::topLevelWidgets()) {
+        if (auto *viewer = qobject_cast<ViewerWindow *>(w))
+            viewer->applyChromeFont(chrome);
+    }
     // The title-bar menus were each given an explicit font at construction
     // (buildTitleBarMenus() calls applyChromeFont(menu, m_settings) so a freshly
     // built menu isn't stuck on some earlier default) -- but an explicitly-set
@@ -2721,6 +2784,150 @@ void MainWindow::syncOtherPanelToActive() {
         return;
     }
     other->navigateTo(m_activePanel->currentPath());
+}
+
+void MainWindow::syncActiveToOtherPanel() {
+    if (!m_activePanel)
+        return;
+    FilePanel *other = otherPanel(m_activePanel);
+    if (!other)
+        return;
+    // Same cross-backend hazard as syncOtherPanelToActive(), just in the other
+    // direction: every backend here uses POSIX-rooted paths, so a path from the
+    // other panel would silently resolve against this panel's own backend and
+    // land somewhere that merely happens to share the name.
+    if (m_activePanel->connectionId() != other->connectionId()) {
+        ttc::warning(this, tr("Go to Other Panel's Directory"),
+                     tr("The two panels are on different connections, so that directory has no "
+                        "meaning in this one. Use Swap Panels (Ctrl+U) to move the connection "
+                        "across instead."));
+        return;
+    }
+    m_activePanel->navigateTo(other->currentPath());
+}
+
+void MainWindow::navigateToRoot() {
+    if (!m_activePanel)
+        return;
+    // Pure string work, deliberately: on a network or archive tab this path
+    // belongs to that backend, and asking QDir/QFileInfo about it would probe
+    // THIS machine's filesystem instead (see the path-is-not-a-local-path note
+    // in CLAUDE.md). Both shapes that can occur are handled directly.
+    const QString path = QDir::fromNativeSeparators(m_activePanel->currentPath());
+    QString root;
+    if (path.size() >= 2 && path.at(1) == QLatin1Char(':'))
+        root = path.left(2) + QLatin1Char('/'); // drive-letter path: X:/
+    else if (path.startsWith(QLatin1Char('/')))
+        root = QStringLiteral("/");
+    if (!root.isEmpty() && QDir::cleanPath(root) != QDir::cleanPath(path))
+        m_activePanel->navigateTo(root);
+}
+
+void MainWindow::openCurrentEntryInNewTab() {
+    if (!m_activePanel || !m_activePanel->currentEntryIsDir())
+        return;
+    const QString path = m_activePanel->currentEntryPath();
+    if (path.isEmpty())
+        return;
+    m_activePanel->newTab(); // opens AND activates, at the current directory
+    m_activePanel->navigateTo(path);
+}
+
+void MainWindow::showContextMenuForCurrent() {
+    if (!m_activePanel)
+        return;
+    QAbstractItemView *view = m_activePanel->activeView();
+    if (!view)
+        return;
+    // Anchor the menu on the focused row rather than the mouse: this is the
+    // keyboard route, and the pointer may be anywhere (or on the other panel).
+    const QModelIndex current = view->currentIndex();
+    if (current.isValid()) {
+        const QRect rect = view->visualRect(current);
+        showFileContextMenu(m_activePanel, rect.isValid() ? rect.center() : QPoint(0, 0));
+    } else {
+        showBlankContextMenu(m_activePanel, QPoint(0, 0));
+    }
+}
+
+void MainWindow::copyPathToCommandLine() {
+    if (!m_activePanel || !m_commandBar)
+        return;
+    // TC appends the CURRENT DIRECTORY (Ctrl+P), not the file under the cursor
+    // -- that is Ctrl+Enter, a separate command-line key.
+    m_commandBar->appendText(m_activePanel->currentPath());
+}
+
+void MainWindow::createNewTextFile() {
+    if (!m_activePanel || blockArchiveWrite(m_activePanel))
+        return;
+    // Creating the file needs a real writable path, which only a local tab has.
+    if (m_activePanel->model()->providerPtr().get() != LocalFileProvider::instance()) {
+        ttc::information(this, tr("New Text File"),
+                         tr("New files can only be created on a local tab."));
+        return;
+    }
+
+    bool ok = false;
+    const QString name = ttc::getText(this, tr("New Text File"), tr("File name:"),
+                                      QLineEdit::Normal, QStringLiteral("new.txt"), &ok);
+    if (!ok || name.isEmpty())
+        return;
+
+    const QString target = QDir(m_activePanel->currentPath()).filePath(name);
+    if (QFileInfo::exists(target)) {
+        ttc::warning(this, tr("New Text File"), tr("%1 already exists.").arg(name));
+        return;
+    }
+    QFile file(target);
+    if (!file.open(QIODevice::WriteOnly)) { // creates it empty
+        ttc::warning(this, tr("New Text File"),
+                     tr("Could not create %1: %2").arg(name, file.errorString()));
+        return;
+    }
+    file.close();
+
+    m_activePanel->refresh();
+    m_activePanel->selectPathAfterReload(target);
+    auto *editor = new TextEditor();
+    if (!editor->loadFile(target)) {
+        delete editor; // loadFile already reported why
+        return;
+    }
+    editor->resize(900, 700);
+    editor->show();
+}
+
+void MainWindow::copyInSameDirectory() {
+    if (!m_activePanel || blockArchiveWrite(m_activePanel))
+        return;
+    const QStringList sources = m_activePanel->selectedPaths();
+    if (sources.size() != 1) {
+        ttc::information(this, tr("Copy in Same Directory"),
+                         tr("Select exactly one item to copy under a new name."));
+        return;
+    }
+    if (m_activePanel->model()->providerPtr().get() != LocalFileProvider::instance()) {
+        ttc::information(this, tr("Copy in Same Directory"),
+                         tr("This is only available on a local tab."));
+        return;
+    }
+
+    const QString dir = m_activePanel->currentPath();
+    bool ok = false;
+    const QString newName =
+        ttc::getText(this, tr("Copy in Same Directory"), tr("Copy to:"), QLineEdit::Normal,
+                     QFileInfo(sources.first()).fileName(), &ok);
+    if (!ok || newName.isEmpty())
+        return;
+    const QString target = QDir(dir).filePath(newName);
+    if (QDir::cleanPath(target) == QDir::cleanPath(sources.first()))
+        return; // same name: nothing to do
+
+    m_pendingDestPanel = m_activePanel;
+    m_pendingDestPaths = QStringList{target};
+    ensureTransferProgressDialog();
+    m_queue->enqueueCopyAs(sources.first(), target);
 }
 
 void MainWindow::swapPanels() {

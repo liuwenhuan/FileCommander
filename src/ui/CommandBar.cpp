@@ -45,6 +45,19 @@ void CommandBar::focusInput() {
     m_input->setFocus();
 }
 
+void CommandBar::appendText(const QString &text) {
+    if (text.isEmpty())
+        return;
+    const QString piece =
+        text.contains(QLatin1Char(' ')) ? QLatin1Char('"') + text + QLatin1Char('"') : text;
+    QString current = m_input->text();
+    if (!current.isEmpty() && !current.endsWith(QLatin1Char(' ')))
+        current += QLatin1Char(' ');
+    m_input->setText(current + piece);
+    m_input->setFocus();
+    m_input->end(false); // caret after the inserted path, ready to keep typing
+}
+
 void CommandBar::submit() {
     const QString command = m_input->text().trimmed();
     if (command.isEmpty())

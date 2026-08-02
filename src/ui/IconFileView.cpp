@@ -90,7 +90,8 @@ void IconFileView::setModel(QAbstractItemModel *model) {
 }
 
 void IconFileView::keyPressEvent(QKeyEvent *event) {
-    if (event->key() == Qt::Key_Space) {
+    // Insert alongside Space -- see FileListView::keyPressEvent.
+    if (event->key() == Qt::Key_Space || event->key() == Qt::Key_Insert) {
         const QModelIndex index = currentIndex();
         if (index.isValid() && selectionModel()) {
             selectionModel()->select(index, QItemSelectionModel::Toggle);
@@ -103,6 +104,35 @@ void IconFileView::keyPressEvent(QKeyEvent *event) {
         event->accept();
         return;
     }
+
+    // Cursor-only navigation -- see FileListView::keyPressEvent for why. Left and
+    // Right are included here because in a grid they are ordinary cursor
+    // movement, unlike the detail list where they walk columns.
+    if (event->modifiers() == Qt::NoModifier && selectionModel()) {
+        CursorAction action = MoveDown;
+        bool navigating = true;
+        switch (event->key()) {
+        case Qt::Key_Up: action = MoveUp; break;
+        case Qt::Key_Down: action = MoveDown; break;
+        case Qt::Key_Left: action = MoveLeft; break;
+        case Qt::Key_Right: action = MoveRight; break;
+        case Qt::Key_PageUp: action = MovePageUp; break;
+        case Qt::Key_PageDown: action = MovePageDown; break;
+        case Qt::Key_Home: action = MoveHome; break;
+        case Qt::Key_End: action = MoveEnd; break;
+        default: navigating = false; break;
+        }
+        if (navigating) {
+            const QModelIndex target = moveCursor(action, Qt::NoModifier);
+            if (target.isValid()) {
+                selectionModel()->setCurrentIndex(target, QItemSelectionModel::NoUpdate);
+                scrollTo(target, QAbstractItemView::EnsureVisible);
+            }
+            event->accept();
+            return;
+        }
+    }
+
     QListView::keyPressEvent(event);
 }
 

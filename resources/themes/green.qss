@@ -664,6 +664,13 @@ QTreeView {
     selection-color: #04140a;
 }
 
+/* Hover has to stay in the phosphor hue: the platform style's own hover fill is
+   a neutral grey/blue, which reads as a second colour on this theme. */
+QTreeView::item:hover:!selected {
+    background-color: #12602f;
+    color: #33ff88;
+}
+
 /* Branch arrows are phosphor green too; gray would introduce a second hue. */
 QTreeView::branch:has-children:!has-siblings:closed,
 QTreeView::branch:closed:has-children:has-siblings {

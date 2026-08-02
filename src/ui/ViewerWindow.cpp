@@ -40,3 +40,8 @@ void ViewerWindow::refreshPhosphor() {
     if (m_preview)
         m_preview->refreshPhosphor();
 }
+
+void ViewerWindow::applyChromeFont(const QFont &font) {
+    if (m_preview)
+        m_preview->applyChromeFont(font);
+}

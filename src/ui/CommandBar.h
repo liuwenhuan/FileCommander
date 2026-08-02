@@ -19,6 +19,11 @@ public:
 
     void setDirectory(const QString &dir);
     void focusInput();
+    // Appends text to the input (space-separated from whatever is already
+    // typed) and focuses it, for the "put this path on the command line"
+    // shortcuts. Quotes the text when it contains spaces so the result is
+    // directly runnable.
+    void appendText(const QString &text);
     // Re-applies translated text (the input placeholder) after a language change.
     void retranslate();
 

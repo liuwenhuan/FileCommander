@@ -15,13 +15,18 @@
 #include <QWidget>
 #include <QWidgetAction>
 
+#include <QToolBar>
+
+#include "BreadcrumbBar.h"
 #include "CommandBar.h"
 #include "DialogTitleBar.h"
 #include "FramelessDialog.h"
 #include "FunctionKeyBar.h"
 #include "MainWindow.h"
+#include "QuickView.h"
 #include "Settings.h"
 #include "StatusBarWidget.h"
+#include "TabBar.h"
 #include "Typography.h"
 
 namespace {
@@ -337,6 +342,122 @@ TEST(ChromeTypographyTest, TitleBarAndFunctionKeyButtonsTrackTheLiveMenuFontSett
         EXPECT_EQ(button->font().pointSize(), 11) << button->text().toStdString();
     for (QAbstractButton *button : fnButtons)
         EXPECT_EQ(button->font().pointSize(), 11) << button->text().toStdString();
+}
+
+
+// A sweep over every chrome surface that is NOT reached by simply inheriting
+// from MainWindow. Each of these has been found, at some point, pinned to its
+// startup size while the menu-font setting moved: the widget carries an explicit
+// font of its own, so it stops tracking QApplication::setFont(), and the pass
+// that is supposed to re-apply the new font either skipped the widget entirely
+// or set it only on a container whose own font already matched.
+//
+// The preview toolbars are included deliberately: QuickView hosts two separate
+// font domains, and only its toolbars belong to this one -- the previewed
+// content follows the file-list size instead.
+TEST(ChromeTypographyTest, EveryChromeSurfaceTracksTheLiveMenuFontSetting) {
+    ApplicationAppearanceGuard appearanceGuard;
+    QTemporaryDir configHome;
+    ASSERT_TRUE(configHome.isValid());
+    EnvironmentGuard configGuard("FILECOMMANDER_CONFIG_HOME", configHome.path().toUtf8());
+    {
+        Settings settings;
+        settings.setMenuFontSize(10);
+    }
+
+    MainWindow window;
+    window.show();
+    QApplication::processEvents();
+
+    // Force the preview pane (and with it a toolbar) to exist before the change.
+    QuickView *preview = window.findChild<QuickView *>();
+
+    auto collect = [&window, preview]() {
+        QList<QWidget *> widgets;
+        for (QTabBar *bar : window.findChildren<TabBar *>())
+            widgets.append(bar);
+        for (BreadcrumbBar *bar : window.findChildren<BreadcrumbBar *>())
+            widgets.append(bar);
+        for (StatusBarWidget *bar : window.findChildren<StatusBarWidget *>())
+            widgets.append(bar);
+        for (CommandBar *bar : window.findChildren<CommandBar *>())
+            widgets.append(bar);
+        for (FunctionKeyBar *bar : window.findChildren<FunctionKeyBar *>())
+            widgets.append(bar);
+        if (preview) {
+            for (QToolBar *toolbar : preview->findChildren<QToolBar *>())
+                widgets.append(toolbar);
+        }
+        return widgets;
+    };
+
+    const QList<QWidget *> chrome = collect();
+    ASSERT_FALSE(chrome.isEmpty());
+    for (QWidget *widget : chrome) {
+        EXPECT_EQ(widget->font().pointSize(), 10)
+            << widget->metaObject()->className() << " before the change";
+    }
+
+    // Driven through the real control rather than a test-only entry point, so
+    // this exercises the same path a user does.
+    QMenu *menu = interfaceMenu(window);
+    ASSERT_NE(menu, nullptr);
+    ASSERT_TRUE(QMetaObject::invokeMethod(menu, "aboutToShow", Qt::DirectConnection));
+    QWidget *menuFontRow = fontRow(menu, QStringLiteral("Menu Font Size:"));
+    ASSERT_NE(menuFontRow, nullptr);
+    QToolButton *plus = nullptr;
+    for (QToolButton *button : menuFontRow->findChildren<QToolButton *>()) {
+        if (button->text() == QStringLiteral("+")) {
+            plus = button;
+            break;
+        }
+    }
+    ASSERT_NE(plus, nullptr);
+    plus->click();
+    QApplication::processEvents();
+
+    for (QWidget *widget : collect()) {
+        EXPECT_EQ(widget->font().pointSize(), 11)
+            << widget->metaObject()->className() << " after the change";
+    }
+}
+
+
+// First launch: the embedded font-size rows must render at exactly the menu's
+// own font, like every plain entry beside them. The row container was already
+// covered, but the widgets that actually paint the text -- the caption label,
+// the number field, the +/- buttons -- are created AFTER the row is handed to
+// applyChromeFont(), so nothing had ever asserted they end up at the same size.
+TEST(ChromeTypographyTest, FontRowInteriorMatchesTheMenuFontOnFirstOpen) {
+    ApplicationAppearanceGuard appearanceGuard;
+    QTemporaryDir configHome;
+    ASSERT_TRUE(configHome.isValid());
+    EnvironmentGuard configGuard("FILECOMMANDER_CONFIG_HOME", configHome.path().toUtf8());
+    {
+        // Deliberately not the 12pt default, so a widget left on the default
+        // font stands out instead of accidentally matching.
+        Settings settings;
+        settings.setMenuFontSize(9);
+    }
+
+    MainWindow window;
+    QMenu *menu = interfaceMenu(window);
+    ASSERT_NE(menu, nullptr);
+    ASSERT_TRUE(QMetaObject::invokeMethod(menu, "aboutToShow", Qt::DirectConnection));
+
+    const int menuPointSize = menu->font().pointSize();
+    EXPECT_EQ(menuPointSize, 9);
+
+    for (const QString &caption :
+         {QStringLiteral("Menu Font Size:"), QStringLiteral("File List Font Size:")}) {
+        QWidget *row = fontRow(menu, caption);
+        ASSERT_NE(row, nullptr) << caption.toStdString();
+        EXPECT_EQ(row->font().pointSize(), menuPointSize) << caption.toStdString();
+        for (QWidget *child : row->findChildren<QWidget *>()) {
+            EXPECT_EQ(child->font().pointSize(), menuPointSize)
+                << caption.toStdString() << " / " << child->metaObject()->className();
+        }
+    }
 }
 
 } // namespace

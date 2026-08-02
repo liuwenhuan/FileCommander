@@ -2,11 +2,12 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QTemporaryDir>
 
-#include "FolderAssociation.h"
+#include "FolderArguments.h"
 
-TEST(FolderAssociationTest, ExtractsOnlyExistingDirectoryArguments) {
+TEST(FolderArgumentsTest, ExtractsOnlyExistingDirectoryArguments) {
     QTemporaryDir temp;
     ASSERT_TRUE(temp.isValid());
     const QString folder = QDir(temp.path()).filePath(QStringLiteral("folder"));
@@ -15,16 +16,10 @@ TEST(FolderAssociationTest, ExtractsOnlyExistingDirectoryArguments) {
     QFile text(file);
     ASSERT_TRUE(text.open(QIODevice::WriteOnly));
 
-    const QStringList paths = FolderAssociation::folderArguments(
+    const QStringList paths = FolderArguments::folders(
         {QStringLiteral("FileCommander"), folder, file, QStringLiteral("--smoke-test"),
          QDir(temp.path()).filePath(QStringLiteral("missing"))});
 
     ASSERT_EQ(paths.size(), 1);
     EXPECT_EQ(paths.first(), QDir::cleanPath(QFileInfo(folder).absoluteFilePath()));
 }
-
-#ifdef Q_OS_WIN
-TEST(FolderAssociationTest, WindowsUsesTheOpenVerbForFolderActivation) {
-    EXPECT_EQ(FolderAssociation::windowsOpenVerb(), QStringLiteral("open"));
-}
-#endif

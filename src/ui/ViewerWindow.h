@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QFont>
 #include <QString>
 #include <QWidget>
 
@@ -20,6 +21,10 @@ public:
     // A viewer opened with F3 is a separate top-level window, so MainWindow has
     // to reach it explicitly -- nothing else knows it exists.
     void refreshPhosphor();
+
+    // Same reason refreshPhosphor() exists: this window is invisible to the
+    // usual chrome-font pass, so MainWindow forwards the interface font here.
+    void applyChromeFont(const QFont &font);
 
 private:
     QuickView *m_preview;

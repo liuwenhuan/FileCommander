@@ -565,6 +565,27 @@ void QuickView::setContentFontSize(int pt) {
     }
 }
 
+void QuickView::applyChromeFont(const QFont &font) {
+    // Scoped to the toolbars on purpose. QuickView holds two independently
+    // configured font domains -- this chrome, and the previewed content that
+    // setContentFontSize() drives from the file-list setting -- so a font pass
+    // over the whole subtree would silently resize the content too.
+    //
+    // Each toolbar is walked explicitly rather than left to inherit: the pages
+    // are built lazily, and by the time the interface font changes the parent
+    // usually already reports the new font (the application font is set first),
+    // so setFont() on the parent is a no-op that delivers no FontChange to the
+    // widgets docked inside.
+    for (QToolBar *toolbar : findChildren<QToolBar *>()) {
+        if (toolbar->font() != font)
+            toolbar->setFont(font);
+        for (QWidget *child : toolbar->findChildren<QWidget *>()) {
+            if (child->font() != font)
+                child->setFont(font);
+        }
+    }
+}
+
 void QuickView::setContentFontFamily(const QString &family) {
     const QString effectiveFamily = family.isEmpty() ? QApplication::font().family() : family;
     m_contentFontFamily = effectiveFamily;

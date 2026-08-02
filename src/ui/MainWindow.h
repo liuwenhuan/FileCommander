@@ -150,6 +150,15 @@ private slots:
     void secureWipeSelected(); // overwrite local on-disk bytes, then delete
     void chooseGlobalFont();
     void syncOtherPanelToActive();
+
+    // Total Commander compatibility actions (see the tc* bindShortcut block).
+    void syncActiveToOtherPanel();   // Ctrl+I -- the inverse of the above
+    void navigateToRoot();           // Ctrl+backslash
+    void openCurrentEntryInNewTab(); // Ctrl+Up
+    void showContextMenuForCurrent();// Shift+F10
+    void copyPathToCommandLine();    // Ctrl+P
+    void createNewTextFile();        // Shift+F4
+    void copyInSameDirectory();      // Shift+F5
     void swapPanels();
     void openTerminalHere();
     void openWithDefault();

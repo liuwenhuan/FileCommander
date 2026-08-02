@@ -1036,9 +1036,14 @@ void FileListView::keyboardSearch(const QString &search) {
 }
 
 void FileListView::keyPressEvent(QKeyEvent *event) {
-    if (event->key() == Qt::Key_Space) {
+    // Insert alongside Space: Total Commander's primary multi-select key, with
+    // exactly the same "toggle this row, then step down" behaviour. Space adds
+    // one thing Insert does not -- see unselectedRowSpaced().
+    if (event->key() == Qt::Key_Space || event->key() == Qt::Key_Insert) {
         const QModelIndex idx = currentIndex();
         if (idx.isValid() && selectionModel()) {
+            if (event->key() == Qt::Key_Space)
+                emit rowSpaced(idx.row());
             selectionModel()->select(idx, QItemSelectionModel::Toggle | QItemSelectionModel::Rows);
             const QModelIndex next = idx.sibling(idx.row() + 1, idx.column());
             if (next.isValid()) {
@@ -1049,6 +1054,40 @@ void FileListView::keyPressEvent(QKeyEvent *event) {
         event->accept();
         return;
     }
+
+    // Plain cursor movement must leave the selection alone. This view is
+    // ExtendedSelection, where the base class selects whatever the cursor lands
+    // on, so arrowing through the list silently rewrote the user's selection --
+    // and left Space with nothing to switch ON, because the row under the cursor
+    // was already selected by the act of moving there. Total Commander keeps the
+    // cursor and the selection independent; this brings the keyboard half of
+    // that across, deliberately without changing what a mouse click does.
+    //
+    // Shift (extend the range) and Ctrl (move without selecting) already mean
+    // something here, so both are left to the base class.
+    if (event->modifiers() == Qt::NoModifier && selectionModel()) {
+        CursorAction action = MoveDown;
+        bool navigating = true;
+        switch (event->key()) {
+        case Qt::Key_Up: action = MoveUp; break;
+        case Qt::Key_Down: action = MoveDown; break;
+        case Qt::Key_PageUp: action = MovePageUp; break;
+        case Qt::Key_PageDown: action = MovePageDown; break;
+        case Qt::Key_Home: action = MoveHome; break;
+        case Qt::Key_End: action = MoveEnd; break;
+        default: navigating = false; break;
+        }
+        if (navigating) {
+            const QModelIndex target = moveCursor(action, Qt::NoModifier);
+            if (target.isValid()) {
+                selectionModel()->setCurrentIndex(target, QItemSelectionModel::NoUpdate);
+                scrollTo(target, QAbstractItemView::EnsureVisible);
+            }
+            event->accept();
+            return;
+        }
+    }
+
     QTableView::keyPressEvent(event);
 }
 

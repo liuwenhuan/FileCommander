@@ -451,6 +451,7 @@ FilePanel::FilePanel(const QFont &initialListFont, QWidget *parent) : QWidget(pa
         else
             zoomViewOut();
     });
+    connect(m_view, &FileListView::rowSpaced, this, &FilePanel::calculateDirSizeForRow);
 
     // Keep the chrome (tabs, breadcrumb, column header) as short as one file
     // row so the panel reads as a single dense list rather than stacked bars.
@@ -1816,6 +1817,28 @@ void FilePanel::setListFontFamily(const QString &family) {
     setListTypography(family, m_view->font().pointSize());
 }
 
+void FilePanel::applyChromeFont(const QFont &font) {
+    auto apply = [&font](QWidget *widget) {
+        if (!widget)
+            return;
+        if (widget->font() != font)
+            widget->setFont(font);
+        for (QWidget *child : widget->findChildren<QWidget *>()) {
+            if (child->font() != font)
+                child->setFont(font);
+        }
+    };
+    apply(m_tabBar);
+    apply(m_addTabButton);
+    apply(m_addressBar);
+    apply(m_treeButton);
+    apply(m_backButton);
+    apply(m_forwardButton);
+    apply(m_starButton);
+    apply(m_filterBar);
+    apply(m_statusBar);
+}
+
 void FilePanel::setListTypography(const QString &family, int pt) {
     const QString effectiveFamily = family.isEmpty() ? QApplication::font().family() : family;
     pt = qBound(7, pt, 24);
@@ -2130,6 +2153,30 @@ void FilePanel::calculateDirSizes() {
         }
     }
 
+    submitDirectorySizeRequest(std::move(dirs), std::move(symlinkRootSizes));
+}
+
+// Total Commander's Space behaviour: pressing Space on a directory also counts
+// its contents, so the size replaces "<DIR>" in the list. Only the directory
+// under the cursor is counted -- unlike calculateDirSizes(), which takes the
+// whole selection. See FileListView::rowSpaced for why this does not carry TC's
+// "only when unselected" restriction.
+void FilePanel::calculateDirSizeForRow(int row) {
+    if (!m_model || row < 0 || row >= m_model->rowCount() || m_model->isParentEntry(row))
+        return;
+    const FileInfo info = m_model->fileInfoAt(row);
+    if (!info.isValid() || !info.isDir())
+        return;
+
+    QStringList dirs{info.path()};
+    QHash<QString, qint64> symlinkRootSizes;
+    if (info.isSymLink())
+        symlinkRootSizes.insert(info.path(), info.size());
+    submitDirectorySizeRequest(std::move(dirs), std::move(symlinkRootSizes));
+}
+
+void FilePanel::submitDirectorySizeRequest(QStringList dirs,
+                                           QHash<QString, qint64> symlinkRootSizes) {
     cancelDirectorySizeTask();
     if (dirs.isEmpty())
         return;

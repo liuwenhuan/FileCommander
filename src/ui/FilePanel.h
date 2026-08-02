@@ -165,6 +165,16 @@ public:
     // Recursively computes the size of each selected directory (or the one
     // under the cursor) off the UI thread and shows it in the Size column.
     void calculateDirSizes();
+    // Counts just the directory in `row` (Total Commander's Space behaviour).
+    void calculateDirSizeForRow(int row);
+
+    // Applies the interface font to this panel's CHROME -- tab strip, address
+    // row, quick filter, status bar -- and pointedly not to the file/icon/tree
+    // views, which carry the separately configured list font. Each widget is
+    // assigned the font directly: they stop tracking the application font once
+    // they hold one of their own, and setting it on the panel alone is a no-op
+    // whenever the panel's own font already matches.
+    void applyChromeFont(const QFont &font);
 
     void newTab();
     void closeCurrentTab();
@@ -436,6 +446,9 @@ private:
     };
     void cancelDirectorySizeTask();
     void startDirectorySizeTask(DirectorySizeRequest request);
+    // Shared tail of calculateDirSizes()/calculateDirSizeForRow(): cancels any
+    // running count, then starts or queues this one.
+    void submitDirectorySizeRequest(QStringList dirs, QHash<QString, qint64> symlinkRootSizes);
     // Recomputes and applies the list view's row height from either
     // m_listRowHeightOverride or the current font/icon metrics.
     void applyListRowHeight();

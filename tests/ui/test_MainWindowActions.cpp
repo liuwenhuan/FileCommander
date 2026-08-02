@@ -188,8 +188,10 @@ TEST(MainWindowActionsTest, FirstOpenBuildsEachMenuOnceWithCurrentState) {
               QStringLiteral("Skip confirmation only when deleting local files to the trash. "
                              "Shift+Delete and remote deletes always require confirmation."));
     ASSERT_FALSE(configMenu->actions().isEmpty());
-    EXPECT_EQ(configMenu->actions().last()->text(),
-              QStringLiteral("Associate Folder Open Actions"));
+    // Trailing "\tCtrl+Alt+U" stripped the same way findAction() does: this entry
+    // carries a shortcut, unlike the retired one that used to sit last here.
+    EXPECT_EQ(configMenu->actions().last()->text().section(QLatin1Char('\t'), 0, 0),
+              QStringLiteral("Automatic Update Check"));
     const int configActionCount = configMenu->actions().size();
     openMenu(configMenu);
     EXPECT_EQ(configMenu->actions().size(), configActionCount);

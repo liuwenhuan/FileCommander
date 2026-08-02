@@ -25,7 +25,7 @@ set(CORE_TEST_SOURCES
     diagnostics/test_RuntimeCounters.cpp
     platform/test_PathSemantics.cpp
     platform/test_FeatureCapabilities.cpp
-    platform/test_FolderAssociation.cpp
+    platform/test_FolderArguments.cpp
     platform/test_InstanceCoordinator.cpp
 )
 

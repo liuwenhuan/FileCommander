@@ -275,17 +275,6 @@ TEST(SettingsTest, GlobalFontFamilyDefaultsToSystemAndRoundTrips) {
     EXPECT_FALSE(settings.autoUpdateCheck());
 }
 
-TEST(SettingsTest, FolderAssociationDefaultsOffAndRoundTrips) {
-    IsolatedConfigDir isolated;
-    Settings settings;
-    EXPECT_FALSE(settings.folderAssociationEnabled());
-
-    settings.setFolderAssociationEnabled(true);
-    EXPECT_TRUE(settings.folderAssociationEnabled());
-    Settings reloaded;
-    EXPECT_TRUE(reloaded.folderAssociationEnabled());
-}
-
 TEST(SettingsTest, WindowGeometryRoundTrips) {
     IsolatedConfigDir isolated;
     ASSERT_TRUE(isolated.isValid());
