@@ -5,6 +5,7 @@
 #include <QDir>
 #include <QFile>
 #include <QItemSelectionModel>
+#include <QLabel>
 #include <QPalette>
 #include <QPointer>
 #include <QPropertyAnimation>
@@ -29,13 +30,11 @@ public:
     MotionPolicyStateGuard() {
         MotionPolicy::clearReducedForTest();
         MotionPolicy::clearSystemReducedForTest();
-        MotionPolicy::setApplicationReduced(false);
     }
 
     ~MotionPolicyStateGuard() {
         MotionPolicy::clearReducedForTest();
         MotionPolicy::clearSystemReducedForTest();
-        MotionPolicy::setApplicationReduced(false);
     }
 };
 
@@ -277,6 +276,78 @@ TEST(OperationProgressMotion, TerminalTimerIsCancelledWhenDialogIsDestroyed) {
     EXPECT_TRUE(dialog.isNull());
     QTest::qWait(200);
     SUCCEED();
+}
+
+TEST(OperationProgressMotion, AbortDismissesTransferWindowImmediately) {
+    TransferProgressDialog dialog(nullptr);
+    startTransfer(dialog, QStringLiteral("Copying"));
+    dialog.show();
+    qApp->processEvents();
+    ASSERT_TRUE(dialog.isVisible());
+
+    dialog.dismissAfterAbort();
+    qApp->processEvents();
+
+    EXPECT_FALSE(dialog.isVisible());
+}
+
+TEST(OperationProgressMotion, TransferErrorExpandsForWrappedTextAfterFontIncrease) {
+    TransferProgressDialog dialog(nullptr);
+    dialog.resize(460, 180);
+
+    QFont largeFont = dialog.font();
+    largeFont.setPointSize(20);
+    dialog.setFont(largeFont);
+
+    startTransfer(dialog, QStringLiteral("Moving one item"));
+    updateTransfer(dialog, 0, 1000);
+    ASSERT_TRUE(dialog.isVisible());
+
+    const QString error = QStringLiteral(
+        "Failed to copy C:/Program Files to C:/Program Files/Program Files");
+    ASSERT_TRUE(QMetaObject::invokeMethod(&dialog, "onErrorOccurred", Qt::DirectConnection,
+                                          Q_ARG(QString, error)));
+    qApp->processEvents();
+
+    QLabel *errorLabel = nullptr;
+    for (QLabel *label : dialog.findChildren<QLabel *>()) {
+        if (label->text() == error) {
+            errorLabel = label;
+            break;
+        }
+    }
+    ASSERT_NE(errorLabel, nullptr);
+    ASSERT_GT(errorLabel->contentsRect().width(), 0);
+    EXPECT_GE(errorLabel->contentsRect().height(),
+              errorLabel->heightForWidth(errorLabel->contentsRect().width()));
+}
+
+TEST(OperationProgressMotion, TransferErrorUsesTheCurrentThemeColor) {
+    const QString previousStyleSheet = qApp->styleSheet();
+    struct RestoreStyleSheet {
+        QString value;
+        ~RestoreStyleSheet() { qApp->setStyleSheet(value); }
+    } restore{previousStyleSheet};
+
+    QFile theme(QStringLiteral(TTC_SOURCE_DIR "/resources/themes/green.qss"));
+    ASSERT_TRUE(theme.open(QIODevice::ReadOnly | QIODevice::Text));
+    qApp->setStyleSheet(QString::fromUtf8(theme.readAll()));
+
+    TransferProgressDialog dialog(nullptr);
+    const QString error = QStringLiteral("Failed to move an item");
+    ASSERT_TRUE(QMetaObject::invokeMethod(&dialog, "onErrorOccurred", Qt::DirectConnection,
+                                          Q_ARG(QString, error)));
+    qApp->processEvents();
+
+    QLabel *errorLabel = nullptr;
+    for (QLabel *label : dialog.findChildren<QLabel *>()) {
+        if (label->text() == error) {
+            errorLabel = label;
+            break;
+        }
+    }
+    ASSERT_NE(errorLabel, nullptr);
+    EXPECT_EQ(errorLabel->palette().color(QPalette::WindowText), QColor(0x33, 0xff, 0x88));
 }
 
 } // namespace

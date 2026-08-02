@@ -6,12 +6,26 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QGroupBox>
 #include <QLabel>
 #include <QPushButton>
+#include <QScreen>
 #include <QTemporaryDir>
+#include <QTest>
 #include <QVector>
 
+#include <atomic>
+#include <memory>
+
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 #include "FileInfo.h"
+#include "dialogs/DirectoryStatisticsTask.h"
 #include "dialogs/PropertiesDialog.h"
 
 namespace {
@@ -37,7 +51,59 @@ bool showsText(const PropertiesDialog &dlg, const QString &needle) {
     return false;
 }
 
+QLabel *valueLabel(PropertiesDialog &dlg, const char *objectName) {
+    return dlg.findChild<QLabel *>(QString::fromLatin1(objectName));
+}
+
+bool createDirectorySymlink(const QString &target, const QString &linkPath) {
+#ifdef Q_OS_WIN
+    const DWORD flags = SYMBOLIC_LINK_FLAG_DIRECTORY | 0x2; // allow unprivileged creation
+    return CreateSymbolicLinkW(reinterpret_cast<LPCWSTR>(linkPath.utf16()),
+                               reinterpret_cast<LPCWSTR>(target.utf16()), flags) != FALSE;
+#else
+    return QFile::link(target, linkPath);
+#endif
+}
+
 } // namespace
+
+TEST(DirectoryStatisticsTaskTest, RecursivelyCountsFilesAndBytesWithoutFollowingDirectoryLinks) {
+    QTemporaryDir temp;
+    ASSERT_TRUE(temp.isValid());
+    QDir root(temp.path());
+    ASSERT_TRUE(root.mkpath(QStringLiteral("root/nested")));
+    ASSERT_TRUE(root.mkpath(QStringLiteral("outside")));
+
+    const auto writeFile = [](const QString &path, const QByteArray &contents) {
+        QFile file(path);
+        if (!file.open(QIODevice::WriteOnly))
+            return false;
+        return file.write(contents) == contents.size();
+    };
+    ASSERT_TRUE(writeFile(root.filePath(QStringLiteral("root/a.bin")), QByteArray("a")));
+    ASSERT_TRUE(writeFile(root.filePath(QStringLiteral("root/nested/b.bin")), QByteArray("bc")));
+    ASSERT_TRUE(writeFile(root.filePath(QStringLiteral("outside/ignored.bin")), QByteArray("ignored")));
+
+    const QString linkPath = root.filePath(QStringLiteral("root/outside-link"));
+    if (!createDirectorySymlink(root.filePath(QStringLiteral("outside")), linkPath))
+        GTEST_SKIP() << "directory symlinks are unavailable for this test account";
+
+    auto cancel = std::make_shared<std::atomic_bool>(false);
+    const DirectoryStatisticsTask::Result result =
+        DirectoryStatisticsTask::scanPaths({root.filePath(QStringLiteral("root"))}, cancel);
+    EXPECT_FALSE(result.cancelled);
+    EXPECT_EQ(result.fileCount, 2);
+    EXPECT_EQ(result.bytes, 3);
+}
+
+TEST(DirectoryStatisticsTaskTest, HonoursCancellationBeforeWalking) {
+    auto cancel = std::make_shared<std::atomic_bool>(true);
+    const DirectoryStatisticsTask::Result result =
+        DirectoryStatisticsTask::scanPaths({QStringLiteral("unused")}, cancel);
+    EXPECT_TRUE(result.cancelled);
+    EXPECT_EQ(result.fileCount, 0);
+    EXPECT_EQ(result.bytes, 0);
+}
 
 // The octal <-> QFile::Permissions conversion is pure flag math and needs no
 // QApplication, so it is safe to exercise here.
@@ -104,6 +170,157 @@ TEST(PropertiesDialogTest, RemoteMultiSelectionShowsTheListingsTotalSize) {
            "local stat of the server's paths";
 }
 
+TEST(PropertiesDialogTest, UsesAFixedTitleForSingleAndMultiSelection) {
+    PropertiesDialog single(QStringLiteral("C:/long-name.txt"));
+    PropertiesDialog multiple(
+        QStringList{QStringLiteral("C:/one.txt"), QStringLiteral("C:/two.txt")});
+
+    EXPECT_EQ(single.windowTitle(), QStringLiteral("Properties"));
+    EXPECT_EQ(multiple.windowTitle(), QStringLiteral("Properties"));
+}
+
+TEST(PropertiesDialogTest, LongNameValueWrapsWithoutGrowingPastTheScreen) {
+    const QString longName(4096, QLatin1Char('x'));
+    PropertiesDialog dlg(QStringLiteral("C:/") + longName);
+    QLabel *name = valueLabel(dlg, "propertiesNameValue");
+    ASSERT_NE(name, nullptr);
+
+    EXPECT_TRUE(name->wordWrap());
+    EXPECT_TRUE(name->textInteractionFlags() & Qt::TextSelectableByMouse);
+    EXPECT_LE(dlg.maximumWidth(), QGuiApplication::primaryScreen()->availableGeometry().width());
+
+    dlg.show();
+    QTest::qWait(1);
+    EXPECT_LE(dlg.width(), QGuiApplication::primaryScreen()->availableGeometry().width());
+}
+
+#ifdef Q_OS_WIN
+TEST(PropertiesDialogTest, WindowsAllPropertiesButtonOnlyEnablesForOneLocalItem) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString path = QDir(dir.path()).filePath(QStringLiteral("local.txt"));
+    QFile file(path);
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    file.close();
+
+    PropertiesDialog single(path);
+    PropertiesDialog multiple(QStringList{path, path});
+    PropertiesDialog remote(remoteFile(QStringLiteral("/share/local.txt"), 1,
+                                       PropertiesDialog::fromOctal(0644)));
+
+    auto *singleButton = single.findChild<QPushButton *>(QStringLiteral("propertiesAllButton"));
+    auto *multipleButton =
+        multiple.findChild<QPushButton *>(QStringLiteral("propertiesAllButton"));
+    auto *remoteButton = remote.findChild<QPushButton *>(QStringLiteral("propertiesAllButton"));
+    ASSERT_NE(singleButton, nullptr);
+    ASSERT_NE(multipleButton, nullptr);
+    ASSERT_NE(remoteButton, nullptr);
+    EXPECT_EQ(singleButton->text(), QStringLiteral("All Properties"));
+    EXPECT_TRUE(singleButton->isEnabled());
+    EXPECT_FALSE(multipleButton->isEnabled());
+    EXPECT_FALSE(remoteButton->isEnabled());
+
+    single.show();
+    QTest::qWait(1);
+    auto *buttonBox = single.findChild<QDialogButtonBox *>();
+    ASSERT_NE(buttonBox, nullptr);
+    EXPECT_LT(singleButton->mapTo(&single, QPoint()).x(),
+              buttonBox->mapTo(&single, QPoint()).x());
+}
+#else
+TEST(PropertiesDialogTest, LinuxDoesNotShowTheWindowsAllPropertiesButton) {
+    PropertiesDialog dlg(QStringLiteral("/tmp/local.txt"));
+    EXPECT_EQ(dlg.findChild<QPushButton *>(QStringLiteral("propertiesAllButton")), nullptr);
+}
+#endif
+
+TEST(PropertiesDialogTest, RemoteDirectoryMarksRecursiveStatisticsUnavailable) {
+    PropertiesDialog dlg(remoteDir(QStringLiteral("/share/archive")));
+    QLabel *size = valueLabel(dlg, "propertiesSizeValue");
+    QLabel *contains = valueLabel(dlg, "propertiesContainsValue");
+    ASSERT_NE(size, nullptr);
+    ASSERT_NE(contains, nullptr);
+    EXPECT_EQ(size->text(), QStringLiteral("Unavailable"));
+    EXPECT_EQ(contains->text(), QStringLiteral("Unavailable"));
+}
+
+TEST(PropertiesDialogTest, LocalDirectoryStatisticsStartAsCalculatingThenCompleteAsynchronously) {
+    QTemporaryDir temp;
+    ASSERT_TRUE(temp.isValid());
+    QDir root(temp.path());
+    ASSERT_TRUE(root.mkpath(QStringLiteral("folder/nested")));
+
+    QFile first(root.filePath(QStringLiteral("folder/first.bin")));
+    ASSERT_TRUE(first.open(QIODevice::WriteOnly));
+    ASSERT_EQ(first.write("a"), 1);
+    first.close();
+
+    QFile second(root.filePath(QStringLiteral("folder/nested/second.bin")));
+    ASSERT_TRUE(second.open(QIODevice::WriteOnly));
+    ASSERT_EQ(second.write("bc"), 2);
+    second.close();
+
+    PropertiesDialog dlg(root.filePath(QStringLiteral("folder")));
+    QLabel *size = valueLabel(dlg, "propertiesSizeValue");
+    QLabel *contains = valueLabel(dlg, "propertiesContainsValue");
+    ASSERT_NE(size, nullptr);
+    ASSERT_NE(contains, nullptr);
+    EXPECT_EQ(size->text(), QStringLiteral("Calculating..."));
+    EXPECT_EQ(contains->text(), QStringLiteral("Calculating..."));
+
+    QTRY_COMPARE_WITH_TIMEOUT(size->text(), QStringLiteral("3 B"), 5000);
+    EXPECT_EQ(contains->text(), QStringLiteral("2 files"));
+}
+
+TEST(PropertiesDialogTest, ClosingDialogIgnoresLateDirectoryStatistics) {
+    QTemporaryDir temp;
+    ASSERT_TRUE(temp.isValid());
+    const QString folder = QDir(temp.path()).filePath(QStringLiteral("folder"));
+    ASSERT_TRUE(QDir().mkpath(folder));
+    QFile file(QDir(folder).filePath(QStringLiteral("item.bin")));
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    ASSERT_EQ(file.write("data"), 4);
+    file.close();
+
+    PropertiesDialog dlg(folder);
+    QLabel *size = valueLabel(dlg, "propertiesSizeValue");
+    ASSERT_NE(size, nullptr);
+    EXPECT_EQ(size->text(), QStringLiteral("Calculating..."));
+
+    dlg.reject();
+    QTest::qWait(100);
+    EXPECT_EQ(size->text(), QStringLiteral("Calculating..."));
+}
+
+TEST(PropertiesDialogTest, LocalFileShowsImmediateSizeAndPlatformMetadata) {
+    QTemporaryDir temp;
+    ASSERT_TRUE(temp.isValid());
+    const QString path = QDir(temp.path()).filePath(QStringLiteral("local.txt"));
+    QFile file(path);
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    ASSERT_EQ(file.write("hello"), 5);
+    file.close();
+
+    PropertiesDialog dlg(path);
+    QLabel *size = valueLabel(dlg, "propertiesSizeValue");
+    ASSERT_NE(size, nullptr);
+    EXPECT_EQ(size->text(), QStringLiteral("5 B"));
+
+#ifdef Q_OS_WIN
+    EXPECT_EQ(dlg.findChild<QGroupBox *>(QStringLiteral("propertiesPermissionsGroup")), nullptr);
+    EXPECT_EQ(valueLabel(dlg, "propertiesOwnerValue"), nullptr);
+    EXPECT_EQ(valueLabel(dlg, "propertiesGroupValue"), nullptr);
+    EXPECT_NE(valueLabel(dlg, "propertiesCreatedValue"), nullptr);
+    EXPECT_NE(valueLabel(dlg, "propertiesModifiedValue"), nullptr);
+    EXPECT_NE(valueLabel(dlg, "propertiesAccessedValue"), nullptr);
+    EXPECT_NE(valueLabel(dlg, "propertiesAttributesValue"), nullptr);
+#else
+    EXPECT_NE(dlg.findChild<QGroupBox *>(QStringLiteral("propertiesPermissionsGroup")), nullptr);
+    EXPECT_NE(valueLabel(dlg, "propertiesOwnerValue"), nullptr);
+    EXPECT_NE(valueLabel(dlg, "propertiesGroupValue"), nullptr);
+#endif
+}
+
 // --- Permission tri-state --------------------------------------------------
 
 TEST(PropertiesDialogTest, PermissionStatesAgreeAndDisagreeAcrossEntries) {
@@ -148,7 +365,7 @@ TEST(PropertiesDialogTest, RemoteEntriesShowPermissionsButCannotEditThem) {
     EXPECT_TRUE(showsText(dlg, QStringLiteral("744")));
 }
 
-TEST(PropertiesDialogTest, LocalEntriesKeepEditablePermissions) {
+TEST(PropertiesDialogTest, LocalEntriesUsePlatformAppropriatePermissionControls) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
     const QString path = QDir(dir.path()).filePath("local.txt");
@@ -159,9 +376,13 @@ TEST(PropertiesDialogTest, LocalEntriesKeepEditablePermissions) {
 
     PropertiesDialog dlg(path);
     const QList<QCheckBox *> boxes = dlg.findChildren<QCheckBox *>();
+#ifdef Q_OS_WIN
+    EXPECT_TRUE(boxes.isEmpty());
+#else
     ASSERT_EQ(boxes.size(), 9);
     for (const QCheckBox *box : boxes)
         EXPECT_TRUE(box->isEnabled());
+#endif
 }
 
 TEST(PropertiesDialogTest, OkOnARemoteEntryClosesWithoutTouchingASameNamedLocalFile) {
