@@ -2557,8 +2557,32 @@ void MainWindow::applyInterfaceTypography() {
     Typography::applyChromeFont(this, chrome);
     Typography::applyChromeFont(m_leftPanel, chrome);
     Typography::applyChromeFont(m_rightPanel, chrome);
-    Typography::applyChromeFont(m_commandBar, chrome);
-    Typography::applyChromeFont(m_functionKeyBar, chrome);
+    // Recursive, and including the title bar (whose menu buttons -- Interface /
+    // Tools / Config -- were simply never reached from here at all). See
+    // applyChromeFontToTree for why plain inheritance does not carry the new font
+    // down to the buttons inside these bars.
+    Typography::applyChromeFontToTree(m_titleBar, chrome);
+    Typography::applyChromeFontToTree(m_commandBar, chrome);
+    Typography::applyChromeFontToTree(m_functionKeyBar, chrome);
+    // The title-bar menus were each given an explicit font at construction
+    // (buildTitleBarMenus() calls applyChromeFont(menu, m_settings) so a freshly
+    // built menu isn't stuck on some earlier default) -- but an explicitly-set
+    // font stops a widget from auto-tracking QApplication::setFont() afterward, so
+    // without this the menus themselves stayed pinned at whatever font they had
+    // when last (re)built. MenuChromeSynchronizer only re-syncs the *embedded*
+    // font-size-stepper widgets (Typography.cpp) to the menu's *own* current
+    // font, so if the menu's own font never changes, resyncing to it is a no-op:
+    // this is why the menu-font-size and list-font-size caption rows kept
+    // displaying a stale size after being adjusted with a menu open, even though
+    // adjusting them did correctly change every other chrome surface's font.
+    for (QMenu *menu : {m_interfaceMenu, m_toolsMenu, m_configMenu}) {
+        Typography::applyChromeFont(menu, chrome);
+        // Force the embedded font-size-stepper rows to match right now, rather than
+        // trust MenuChromeSynchronizer's own deferred re-sync (installed on this
+        // exact menu the first time one of those rows was built) to fire in time --
+        // this call is exactly what that sync would eventually do, done eagerly.
+        Typography::refreshOpenMenuChrome(menu);
+    }
 }
 
 void MainWindow::calculateChecksums() {

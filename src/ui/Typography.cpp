@@ -152,3 +152,17 @@ void Typography::applyChromeFont(QWidget *widget, const QFont &font) {
     if (widget->font() != font)
         widget->setFont(font);
 }
+
+void Typography::applyChromeFontToTree(QWidget *root, const QFont &font) {
+    if (!root)
+        return;
+    applyChromeFont(root, font);
+    for (QWidget *descendant : root->findChildren<QWidget *>()) {
+        if (descendant->font() != font)
+            descendant->setFont(font);
+    }
+}
+
+void Typography::refreshOpenMenuChrome(QMenu *menu) {
+    syncMenuChromeSurfaces(menu);
+}

@@ -282,4 +282,61 @@ TEST(ChromeTypographyTest, EmbeddedMenuChromeDoesNotCoverCrtScanlines) {
     EXPECT_GE(verticalColors.size(), 2);
 }
 
+// The title bar's menu buttons (Interface / Tools / Config) and the F3-F8 row
+// were both left at their startup size by a menu-font change: the title bar was
+// never reached from applyInterfaceTypography() at all, and the function-key bar
+// was reached but only at the container level, whose own font already matched
+// the just-applied application font -- so setFont() was skipped as a no-op and
+// the buttons inside were never told anything had changed.
+TEST(ChromeTypographyTest, TitleBarAndFunctionKeyButtonsTrackTheLiveMenuFontSetting) {
+    ApplicationAppearanceGuard appearanceGuard;
+    QTemporaryDir configHome;
+    ASSERT_TRUE(configHome.isValid());
+    EnvironmentGuard configGuard("FILECOMMANDER_CONFIG_HOME", configHome.path().toUtf8());
+    {
+        Settings settings;
+        settings.setMenuFontSize(10);
+    }
+
+    MainWindow window;
+
+    QList<QToolButton *> titleMenuButtons;
+    for (QToolButton *button : window.findChildren<QToolButton *>()) {
+        if (button->objectName() == QStringLiteral("TitleMenuButton"))
+            titleMenuButtons.append(button);
+    }
+    ASSERT_FALSE(titleMenuButtons.isEmpty());
+
+    auto *functionKeyBar = window.findChild<FunctionKeyBar *>();
+    ASSERT_NE(functionKeyBar, nullptr);
+    const QList<QAbstractButton *> fnButtons = functionKeyBar->findChildren<QAbstractButton *>();
+    ASSERT_FALSE(fnButtons.isEmpty());
+
+    for (QToolButton *button : titleMenuButtons)
+        EXPECT_EQ(button->font().pointSize(), 10) << button->text().toStdString();
+    for (QAbstractButton *button : fnButtons)
+        EXPECT_EQ(button->font().pointSize(), 10) << button->text().toStdString();
+
+    QMenu *menu = interfaceMenu(window);
+    ASSERT_NE(menu, nullptr);
+    ASSERT_TRUE(QMetaObject::invokeMethod(menu, "aboutToShow", Qt::DirectConnection));
+    QWidget *menuFontRow = fontRow(menu, QStringLiteral("Menu Font Size:"));
+    ASSERT_NE(menuFontRow, nullptr);
+    QToolButton *plus = nullptr;
+    for (QToolButton *button : menuFontRow->findChildren<QToolButton *>()) {
+        if (button->text() == QStringLiteral("+")) {
+            plus = button;
+            break;
+        }
+    }
+    ASSERT_NE(plus, nullptr);
+    plus->click();
+    QApplication::processEvents();
+
+    for (QToolButton *button : titleMenuButtons)
+        EXPECT_EQ(button->font().pointSize(), 11) << button->text().toStdString();
+    for (QAbstractButton *button : fnButtons)
+        EXPECT_EQ(button->font().pointSize(), 11) << button->text().toStdString();
+}
+
 } // namespace

@@ -61,6 +61,20 @@ TitleBar::TitleBar(QWidget *window, const QList<QMenu *> &menus, QWidget *parent
         btn->setObjectName(QStringLiteral("TitleMenuButton"));
         btn->setToolButtonStyle(Qt::ToolButtonTextOnly);
         layout->addWidget(btn);
+
+        // Belt-and-braces alongside MainWindow::event()'s own guard against a
+        // popup's closing mouse event replaying onto the frameless resize band: that
+        // guard infers "a menu just closed here" from mouse-event timing, which is
+        // fragile (observed to still leave the cursor stuck as a resize shape,
+        // especially the very first time a menu is opened, before anything about
+        // this popup's grab/replay sequence has been through it once already).
+        // Resetting directly off the menu's own aboutToHide -- with no dependence on
+        // event timing or where the mouse ends up -- can't miss.
+        if (m_window) {
+            connect(menu, &QMenu::aboutToHide, m_window, [window = m_window] {
+                window->unsetCursor();
+            });
+        }
     }
 
     // Draggable empty area in the middle.
