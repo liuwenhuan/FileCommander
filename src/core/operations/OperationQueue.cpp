@@ -48,12 +48,12 @@ void OperationQueue::enqueueCopy(const QStringList &sources, const QString &dest
     maybeStartNext();
 }
 
-ErrorAction OperationQueue::askError(const QString &path, const QString &error) {
+ErrorAction OperationQueue::askError(const OperationError &error) {
     ErrorAction result = ErrorAction::Skip;
     QMetaObject::invokeMethod(
         this,
-        [this, &path, &error, &result]() {
-            result = m_errorHandler ? m_errorHandler(path, error) : ErrorAction::Skip;
+        [this, &error, &result]() {
+            result = m_errorHandler ? m_errorHandler(error) : ErrorAction::Skip;
         },
         Qt::BlockingQueuedConnection);
     return result;
@@ -203,21 +203,30 @@ void OperationQueue::enqueueProviderRename(std::shared_ptr<FileProvider> provide
     maybeStartNextTransfer();
 }
 
-void OperationQueue::cancelCurrent() {
+void OperationQueue::cancelActiveJobs() {
     // Drop everything not yet started so the queue doesn't keep going after
     // the user cancels, then signal the in-flight job(s) to stop — both the
     // local pipeline and every provider-transfer worker.
-    m_queue.clear();
     if (m_ops)
         m_ops->requestCancel();
 
-    m_transferQueue.clear();
     for (TransferWorker *worker : qAsConst(m_transferWorkers)) {
         if (worker->ops)
             worker->ops->requestCancel();
     }
 
-    emit queueChanged(m_queue.size() + m_transferQueue.size());
+}
+
+void OperationQueue::abortAll() {
+    m_queue.clear();
+    m_transferQueue.clear();
+    cancelActiveJobs();
+    emit queueChanged(0);
+    emit aborted();
+}
+
+void OperationQueue::cancelCurrent() {
+    abortAll();
 }
 
 void OperationQueue::pauseCurrent() {
@@ -278,8 +287,7 @@ void OperationQueue::ensureLocalWorkerStarted() {
     connect(&m_workerThread, &QThread::finished, m_ops, &QObject::deleteLater);
     connect(m_ops, &FileOperations::progress, this, &OperationQueue::progress);
     connect(m_ops, &FileOperations::errorOccurred, this, &OperationQueue::errorOccurred);
-    m_ops->setErrorResolver(
-        [this](const QString &path, const QString &error) { return askError(path, error); });
+    m_ops->setErrorResolver([this](const OperationError &error) { return askError(error); });
     m_workerThread.start();
 }
 
@@ -327,7 +335,7 @@ void OperationQueue::addTransferWorker() {
     connect(worker->ops, &FileOperations::progress, this, &OperationQueue::progress);
     connect(worker->ops, &FileOperations::errorOccurred, this, &OperationQueue::errorOccurred);
     worker->ops->setErrorResolver(
-        [this](const QString &path, const QString &error) { return askError(path, error); });
+        [this](const OperationError &error) { return askError(error); });
     worker->thread->start();
     m_transferWorkers.append(worker);
 }

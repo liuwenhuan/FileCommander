@@ -13,7 +13,6 @@ namespace {
 constexpr int kShadowMargin = 16;
 constexpr int kCornerRadius = 8;
 constexpr int kResizeGrab = 8;
-constexpr int kTitleH = 30;
 
 Qt::Edges edgesAt(const QRect &content, const QPoint &p) {
     Qt::Edges e;
@@ -47,14 +46,20 @@ FramelessDialog::FramelessDialog(QWidget *parent) : QDialog(parent) {
     setWindowFlag(Qt::FramelessWindowHint, true);
     setAttribute(Qt::WA_TranslucentBackground);
 
-    // Reserve the shadow band on every side plus the title bar height at the top.
-    // The subclass's layout(this) is laid out inside the resulting contentsRect,
-    // so its content flows below the title bar automatically.
-    setContentsMargins(kShadowMargin, kShadowMargin + kTitleH, kShadowMargin,
-                       kShadowMargin);
-
     m_titleBar = new DialogTitleBar(this, this);
+    connect(m_titleBar, &DialogTitleBar::heightChanged, this,
+            [this] { updateTitleBarLayout(); });
+    updateTitleBarLayout();
     m_titleBar->raise();
+}
+
+void FramelessDialog::updateTitleBarLayout() {
+    const int titleHeight = m_titleBar ? m_titleBar->height() : 0;
+    setContentsMargins(kShadowMargin, kShadowMargin + titleHeight, kShadowMargin,
+                       kShadowMargin);
+    if (m_titleBar)
+        m_titleBar->setGeometry(kShadowMargin, kShadowMargin,
+                                qMax(0, width() - 2 * kShadowMargin), titleHeight);
 }
 
 void FramelessDialog::setBackgroundTile(const QPixmap &tile) {
@@ -121,14 +126,18 @@ void FramelessDialog::paintEvent(QPaintEvent *) {
 
 void FramelessDialog::resizeEvent(QResizeEvent *event) {
     QDialog::resizeEvent(event);
-    if (m_titleBar)
-        m_titleBar->setGeometry(kShadowMargin, kShadowMargin,
-                                width() - 2 * kShadowMargin, kTitleH);
+    updateTitleBarLayout();
 }
 
 void FramelessDialog::changeEvent(QEvent *event) {
     QDialog::changeEvent(event);
     switch (event->type()) {
+    case QEvent::FontChange:
+    case QEvent::ApplicationFontChange:
+    case QEvent::StyleChange:
+        if (m_titleBar && m_titleBar->font() != font())
+            m_titleBar->setFont(font());
+        break;
     case QEvent::WindowTitleChange:
         if (m_titleBar)
             m_titleBar->update();
