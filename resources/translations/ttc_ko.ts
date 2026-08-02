@@ -6,37 +6,37 @@
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="11"/>
         <source>About FileCommander</source>
-        <translation type="unfinished"></translation>
+        <translation>FileCommander 정보</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="20"/>
         <source>FileCommander — Total Commander for Linux</source>
-        <translation type="unfinished"></translation>
+        <translation>FileCommander — Linux용 Total Commander</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="27"/>
         <source>Version %1</source>
-        <translation type="unfinished"></translation>
+        <translation>버전 %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="31"/>
         <source>FileCommander is a powerful dual-pane file manager inspired by Total Commander and developed from scratch. It manages local files efficiently, makes network file services convenient to use, previews many file types, and is an efficiency tool built for advanced users.</source>
-        <translation type="unfinished"></translation>
+        <translation>FileCommander는 Total Commander에서 영감을 받아 처음부터 새로 개발한 강력한 이중 패널 파일 관리자입니다. 로컬 파일을 효율적으로 관리하고 네트워크 파일 서비스를 편리하게 사용할 수 있게 하며, 다양한 파일 형식을 미리 볼 수 있는 고급 사용자를 위한 효율성 도구입니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="40"/>
         <source>Free and open-source software, released under the GNU GPL v3.</source>
-        <translation type="unfinished"></translation>
+        <translation>GNU GPL v3에 따라 배포되는 자유 오픈 소스 소프트웨어입니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="45"/>
         <source>&lt;a href=&quot;https://github.com/ttc-fm/ttc&quot;&gt;Project home page&lt;/a&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;a href=&quot;https://github.com/ttc-fm/ttc&quot;&gt;프로젝트 홈페이지&lt;/a&gt;</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="50"/>
         <source>Close</source>
-        <translation type="unfinished"></translation>
+        <translation>닫기</translation>
     </message>
 </context>
 <context>
@@ -384,7 +384,7 @@ Extract it too?</source>
     <message>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="140"/>
         <source>SFTP, FTP and WebDAV connect through built-in cross-platform clients.</source>
-        <translation type="unfinished"></translation>
+        <translation>SFTP, FTP 및 WebDAV는 내장 크로스 플랫폼 클라이언트로 연결됩니다.</translation>
     </message>
     <message>
         <source>SFTP, FTP and WebDAV connect through a built-in client; SMB is mounted via GVfs.</source>
@@ -450,7 +450,7 @@ Extract it too?</source>
     <message>
         <location filename="../../src/ui/tree/DirectoryTreeModel.cpp" line="162"/>
         <source>This connection belongs to the other panel. Switch to it there, or open a new connection from the Connection Manager.</source>
-        <translation type="unfinished"></translation>
+        <translation>이 연결은 다른 패널에 속해 있습니다. 그 패널에서 전환하거나 연결 관리자에서 새 연결을 여십시오.</translation>
     </message>
 </context>
 <context>
@@ -458,81 +458,85 @@ Extract it too?</source>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="318"/>
         <source>弹出（安全移除）</source>
-        <translation type="unfinished"></translation>
+        <translation>꺼내기(안전하게 제거)</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="333"/>
         <source>弹出失败</source>
-        <translation type="unfinished"></translation>
+        <translation>꺼내기 실패</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="334"/>
         <source>无法弹出该设备。
 
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>장치를 꺼낼 수 없습니다.
+
+%1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="375"/>
         <source>Removable Devices</source>
-        <translation type="unfinished"></translation>
+        <translation>이동식 장치</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="379"/>
         <source>No removable devices</source>
-        <translation type="unfinished"></translation>
+        <translation>이동식 장치 없음</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="388"/>
         <source>Saved Connections</source>
-        <translation type="unfinished"></translation>
+        <translation>저장된 연결</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="389"/>
         <source>连接管理器…</source>
-        <translation type="unfinished"></translation>
+        <translation>연결 관리자…</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="395"/>
         <source>No saved connections</source>
-        <translation type="unfinished"></translation>
+        <translation>저장된 연결 없음</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="413"/>
         <source>重新搜索网络共享</source>
-        <translation type="unfinished"></translation>
+        <translation>네트워크 공유 다시 검색</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="416"/>
         <source>正在搜索，点击停止</source>
-        <translation type="unfinished"></translation>
+        <translation>검색 중, 클릭하면 중지</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="417"/>
         <source>Searching…</source>
-        <translation type="unfinished"></translation>
+        <translation>검색 중…</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="419"/>
         <source>Network Neighborhood</source>
-        <translation type="unfinished"></translation>
+        <translation>네트워크 환경</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="441"/>
         <source>未发现网络主机</source>
-        <translation type="unfinished"></translation>
+        <translation>네트워크 호스트를 찾지 못했습니다</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="498"/>
         <source>Mount Failed</source>
-        <translation type="unfinished"></translation>
+        <translation>마운트 실패</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="499"/>
         <source>Could not mount the device.
 
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>장치를 마운트할 수 없습니다.
+
+%1</translation>
     </message>
 </context>
 <context>
@@ -546,13 +550,14 @@ Extract it too?</source>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="427"/>
         <source>Failed to remove the source after copying %1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 을(를) 복사한 뒤 원본을 제거하지 못했습니다</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="624"/>
         <source>%1
 Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1
+관리자 권한으로 삭제하면 휴지통을 거치지 않으며 되돌릴 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="667"/>
@@ -587,27 +592,27 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1025"/>
         <source>The destination has no space for %1</source>
-        <translation type="unfinished"></translation>
+        <translation>대상에 %1 을(를) 저장할 공간이 없습니다</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1027"/>
         <source>You do not have permission to write %1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 에 쓸 권한이 없습니다</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1029"/>
         <source>Connection to the server was lost while transferring %1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 을(를) 전송하는 중 서버 연결이 끊어졌습니다</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1032"/>
         <source>Upload of %1 did not complete: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 업로드가 완료되지 않았습니다: %2</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1033"/>
         <source>Write error on %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 에서 쓰기 오류: %2</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1045"/>
@@ -622,7 +627,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1068"/>
         <source>Source shrank before resuming transfer of %1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 의 전송을 재개하기 전에 원본이 작아졌습니다</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1077"/>
@@ -640,7 +645,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <location filename="../../src/core/operations/FileOperations.cpp" line="1108"/>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1144"/>
         <source>Unexpected end of %1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 이(가) 예기치 않게 끝났습니다</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1040"/>
@@ -651,27 +656,27 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <location filename="../../src/core/operations/FileOperations.cpp" line="1154"/>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1161"/>
         <source>Source changed during transfer of %1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 을(를) 전송하는 중 원본이 변경되었습니다</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1039"/>
         <source>Upload of %1 did not complete</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 업로드가 완료되지 않았습니다</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="207"/>
         <source>The administrator operation did not complete.</source>
-        <translation type="unfinished"></translation>
+        <translation>관리자 권한 작업이 완료되지 않았습니다.</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1304"/>
         <source>Moved contents but could not remove source %1</source>
-        <translation type="unfinished"></translation>
+        <translation>내용은 이동했지만 원본 %1 을(를) 제거하지 못했습니다</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1319"/>
         <source>Copied but could not remove source %1</source>
-        <translation type="unfinished"></translation>
+        <translation>복사했지만 원본 %1 을(를) 제거하지 못했습니다</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1359"/>
@@ -720,32 +725,32 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="961"/>
         <source>正在等待连接…</source>
-        <translation type="unfinished"></translation>
+        <translation>연결을 기다리는 중…</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="966"/>
         <source>断线，正在重连（%1/%2）…</source>
-        <translation type="unfinished"></translation>
+        <translation>연결이 끊어져 다시 연결하는 중(%1/%2)…</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="973"/>
         <source>多次重连失败</source>
-        <translation type="unfinished"></translation>
+        <translation>여러 번 다시 연결했지만 실패했습니다</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="973"/>
         <source>连接失败：%1</source>
-        <translation type="unfinished"></translation>
+        <translation>연결 실패: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="1024"/>
         <source>需要登录</source>
-        <translation type="unfinished"></translation>
+        <translation>로그인이 필요합니다</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="1049"/>
         <source>Search results</source>
-        <translation type="unfinished"></translation>
+        <translation>검색 결과</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="2084"/>
@@ -781,7 +786,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/ui/FunctionKeyBar.cpp" line="33"/>
         <source>Change this button&apos;s function...</source>
-        <translation type="unfinished"></translation>
+        <translation>이 버튼의 기능 변경...</translation>
     </message>
     <message>
         <location filename="../../src/ui/FunctionKeyBar.cpp" line="52"/>
@@ -828,7 +833,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <location filename="../../src/ui/MainWindow.cpp" line="312"/>
         <location filename="../../src/ui/MainWindow.cpp" line="3952"/>
         <source>FileCommander</source>
-        <translation>Total Commander for Linux</translation>
+        <translation>FileCommander</translation>
     </message>
     <message>
         <source>Show / hide hidden files</source>
@@ -893,14 +898,14 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1012"/>
         <source>Menu Font Size:</source>
-        <translation type="unfinished"></translation>
+        <translation>메뉴 글꼴 크기:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1072"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2289"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2597"/>
         <source>Choose Font</source>
-        <translation type="unfinished"></translation>
+        <translation>글꼴 선택</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2422"/>
@@ -1038,48 +1043,48 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <location filename="../../src/ui/MainWindow.cpp" line="2276"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2277"/>
         <source>Quick Notepad</source>
-        <translation type="unfinished"></translation>
+        <translation>빠른 메모장</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="834"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2279"/>
         <source>Calculate Checksums</source>
-        <translation type="unfinished"></translation>
+        <translation>체크섬 계산</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="836"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2283"/>
         <source>Compare Files</source>
-        <translation type="unfinished"></translation>
+        <translation>파일 비교</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="847"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2285"/>
         <source>Keyboard Shortcuts</source>
-        <translation type="unfinished">키보드 단축키</translation>
+        <translation>키보드 단축키</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="848"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2287"/>
         <source>Connection Manager</source>
-        <translation type="unfinished"></translation>
+        <translation>연결 관리자</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="851"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2337"/>
         <source>Directly Open Archives</source>
-        <translation type="unfinished"></translation>
+        <translation>압축 파일 바로 열기</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="871"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2348"/>
         <source>Automatic Update Check</source>
-        <translation type="unfinished"></translation>
+        <translation>자동 업데이트 확인</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="880"/>
         <source>&amp;Interface</source>
-        <translation type="unfinished"></translation>
+        <translation>인터페이스(&amp;I)</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="898"/>
@@ -1390,98 +1395,100 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <location filename="../../src/ui/MainWindow.cpp" line="1076"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2314"/>
         <source>Show Function Key Bar</source>
-        <translation type="unfinished"></translation>
+        <translation>기능 키 표시줄 표시</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="953"/>
         <source>File List Font Size:</source>
-        <translation type="unfinished"></translation>
+        <translation>파일 목록 글꼴 크기:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="965"/>
         <source>Type a size, or use − / + (8-16)</source>
-        <translation type="unfinished">크기를 입력하거나 − / + 사용(8-18) {8-16)?}</translation>
+        <translation>크기를 입력하거나 − / + 를 사용하십시오(8-16)</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1023"/>
         <source>Type a size, or use - / + (8-16)</source>
-        <translation type="unfinished"></translation>
+        <translation>크기를 입력하거나 - / + 를 사용하십시오(8-16)</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1085"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2320"/>
         <source>Show Command Bar</source>
-        <translation type="unfinished"></translation>
+        <translation>명령 표시줄 표시</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1094"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2326"/>
         <source>Show File Tab Bar</source>
-        <translation type="unfinished"></translation>
+        <translation>파일 탭 표시줄 표시</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1104"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2333"/>
         <source>Display Shortcut Labels</source>
-        <translation type="unfinished"></translation>
+        <translation>단축키 레이블 표시</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1937"/>
         <source>Choose a function:</source>
-        <translation type="unfinished"></translation>
+        <translation>기능 선택:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1961"/>
         <source>Change Leading Button Function</source>
-        <translation type="unfinished"></translation>
+        <translation>앞쪽 버튼 기능 변경</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1961"/>
         <source>Change Trailing Button Function</source>
-        <translation type="unfinished"></translation>
+        <translation>뒤쪽 버튼 기능 변경</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2099"/>
         <source>Connection Failed</source>
-        <translation type="unfinished">연결 실패</translation>
+        <translation>연결 실패</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2100"/>
         <source>Unsupported connection type.</source>
-        <translation type="unfinished"></translation>
+        <translation>지원하지 않는 연결 형식입니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2171"/>
         <source>External Connections</source>
-        <translation type="unfinished"></translation>
+        <translation>외부 연결</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2172"/>
         <source>Network and removable-device connections are not enabled in this build.</source>
-        <translation type="unfinished"></translation>
+        <translation>이 빌드에서는 네트워크 및 이동식 장치 연결이 활성화되어 있지 않습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2209"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2214"/>
         <source>Check for Updates</source>
-        <translation type="unfinished"></translation>
+        <translation>업데이트 확인</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2210"/>
         <source>You are running the latest version.</source>
-        <translation type="unfinished"></translation>
+        <translation>최신 버전을 사용하고 있습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2215"/>
         <source>Could not check for updates.
 
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>업데이트를 확인할 수 없습니다.
+
+%1</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2228"/>
         <source>Update Available</source>
-        <translation type="unfinished"></translation>
+        <translation>업데이트 사용 가능</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2229"/>
@@ -1490,162 +1497,166 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
 %2
 
 Download: %3</source>
-        <translation type="unfinished"></translation>
+        <translation>버전 %1 을(를) 사용할 수 있습니다.
+
+%2
+
+다운로드: %3</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2241"/>
         <source>Open Quick Preview</source>
-        <translation type="unfinished"></translation>
+        <translation>빠른 미리 보기 열기</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2244"/>
         <source>Switch to List View</source>
-        <translation type="unfinished"></translation>
+        <translation>목록 보기로 전환</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2245"/>
         <source>Switch to Thumbnail View</source>
-        <translation type="unfinished"></translation>
+        <translation>썸네일 보기로 전환</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2247"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2354"/>
         <source>Synchronize Directories</source>
-        <translation type="unfinished">디렉터리 동기화</translation>
+        <translation>디렉터리 동기화</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2248"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2356"/>
         <source>Compare Directories</source>
-        <translation type="unfinished"></translation>
+        <translation>디렉터리 비교</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2249"/>
         <source>Find Files</source>
-        <translation type="unfinished"></translation>
+        <translation>파일 찾기</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2250"/>
         <source>Filter Files</source>
-        <translation type="unfinished"></translation>
+        <translation>파일 필터</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2251"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2358"/>
         <source>Select by Pattern</source>
-        <translation type="unfinished">패턴으로 선택</translation>
+        <translation>패턴으로 선택</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2252"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2360"/>
         <source>Invert Selection</source>
-        <translation type="unfinished"></translation>
+        <translation>선택 반전</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2253"/>
         <source>Undo Previous Operation</source>
-        <translation type="unfinished"></translation>
+        <translation>이전 작업 실행 취소</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2274"/>
         <source>Connect External / Devices</source>
-        <translation type="unfinished"></translation>
+        <translation>외부 연결 / 장치</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2291"/>
         <source>Increase Font Size</source>
-        <translation type="unfinished"></translation>
+        <translation>글꼴 크기 크게</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2300"/>
         <source>Decrease Font Size</source>
-        <translation type="unfinished"></translation>
+        <translation>글꼴 크기 작게</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2309"/>
         <source>Cycle Theme</source>
-        <translation type="unfinished"></translation>
+        <translation>테마 순환</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2456"/>
         <source>List / Thumbnail View</source>
-        <translation type="unfinished"></translation>
+        <translation>목록 / 썸네일 보기</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2469"/>
         <source>Parent Directory</source>
-        <translation type="unfinished"></translation>
+        <translation>상위 디렉터리</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2474"/>
         <source>Open Directory or Archive</source>
-        <translation type="unfinished"></translation>
+        <translation>디렉터리 또는 압축 파일 열기</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2479"/>
         <source>Properties (Alt+Enter)</source>
-        <translation type="unfinished"></translation>
+        <translation>속성(Alt+Enter)</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2481"/>
         <source>Find Files (Alt+F7)</source>
-        <translation type="unfinished"></translation>
+        <translation>파일 찾기(Alt+F7)</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2483"/>
         <source>Calculate Occupied Space</source>
-        <translation type="unfinished"></translation>
+        <translation>사용 공간 계산</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2485"/>
         <source>Rename (Shift+F6)</source>
-        <translation type="unfinished"></translation>
+        <translation>이름 바꾸기(Shift+F6)</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2502"/>
         <source>Sort by Name</source>
-        <translation type="unfinished"></translation>
+        <translation>이름순 정렬</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2502"/>
         <source>Sort by Extension</source>
-        <translation type="unfinished"></translation>
+        <translation>확장자순 정렬</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2503"/>
         <source>Sort by Date</source>
-        <translation type="unfinished"></translation>
+        <translation>날짜순 정렬</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2503"/>
         <source>Sort by Size</source>
-        <translation type="unfinished"></translation>
+        <translation>크기순 정렬</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2512"/>
         <source>Go to Root Directory</source>
-        <translation type="unfinished"></translation>
+        <translation>루트 디렉터리로 이동</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2514"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2812"/>
         <source>Go to Other Panel&apos;s Directory</source>
-        <translation type="unfinished"></translation>
+        <translation>다른 패널의 디렉터리로 이동</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2516"/>
         <source>Open Directory in New Tab</source>
-        <translation type="unfinished"></translation>
+        <translation>새 탭에서 디렉터리 열기</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2518"/>
         <source>Show Context Menu</source>
-        <translation type="unfinished"></translation>
+        <translation>컨텍스트 메뉴 표시</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2520"/>
         <source>Copy Path to Command Line</source>
-        <translation type="unfinished"></translation>
+        <translation>명령줄에 경로 복사</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2522"/>
@@ -1654,7 +1665,7 @@ Download: %3</source>
         <location filename="../../src/ui/MainWindow.cpp" line="2891"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2896"/>
         <source>New Text File</source>
-        <translation type="unfinished"></translation>
+        <translation>새 텍스트 파일</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2524"/>
@@ -1662,12 +1673,12 @@ Download: %3</source>
         <location filename="../../src/ui/MainWindow.cpp" line="2923"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2931"/>
         <source>Copy in Same Directory</source>
-        <translation type="unfinished"></translation>
+        <translation>같은 디렉터리에 복사</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2685"/>
         <source>This connection cannot read file contents, so checksums cannot be computed for these files.</source>
-        <translation type="unfinished"></translation>
+        <translation>이 연결은 파일 내용을 읽을 수 없으므로 이 파일들의 체크섬을 계산할 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2736"/>
@@ -1675,7 +1686,10 @@ Download: %3</source>
 The server owns their disk blocks, so overwriting them
 from here cannot guarantee the originals are gone.
 Delete them remotely instead.</source>
-        <translation type="unfinished"></translation>
+        <translation>이 항목들은 %1 에 있습니다.
+디스크 블록은 서버가 소유하므로 여기서 덮어써도
+원본이 완전히 사라졌다고 보장할 수 없습니다.
+대신 원격에서 삭제하십시오.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2742"/>
@@ -1683,20 +1697,26 @@ Delete them remotely instead.</source>
 not files on this disk.
 To destroy them, wipe the archive file itself
 from the folder that holds it.</source>
-        <translation type="unfinished"></translation>
+        <translation>이 항목들은 압축 파일 안의 항목이며
+이 디스크의 파일이 아닙니다.
+완전히 없애려면 압축 파일이 들어 있는 폴더에서
+압축 파일 자체를 안전 삭제하십시오.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2747"/>
         <source>This tab is not the local filesystem,
 so there are no on-disk bytes here to overwrite.</source>
-        <translation type="unfinished"></translation>
+        <translation>이 탭은 로컬 파일 시스템이 아니므로
+여기에는 덮어쓸 디스크상의 바이트가 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2750"/>
         <source>Secure wipe is only available on local files.
 
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>안전 삭제는 로컬 파일에서만 사용할 수 있습니다.
+
+%1</translation>
     </message>
     <message>
         <source>Securely erase %1 item(s) (%2 bytes)?
@@ -1709,12 +1729,12 @@ Their contents will be overwritten on disk and then deleted. This is IRREVERSIBL
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2774"/>
         <source>Secure wipe is not available on this platform.</source>
-        <translation type="unfinished"></translation>
+        <translation>이 플랫폼에서는 안전 삭제를 사용할 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2793"/>
         <source>The two panels are on different connections, so this directory has no meaning in the other one. Use Swap Panels (Ctrl+U) to move this connection across instead.</source>
-        <translation type="unfinished"></translation>
+        <translation>두 패널이 서로 다른 연결에 있으므로 이 디렉터리는 다른 패널에서 의미가 없습니다. 대신 패널 바꾸기(Ctrl+U)로 이 연결을 옮기십시오.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3002"/>
@@ -1909,147 +1929,149 @@ Their contents will be overwritten on disk and then deleted. This is IRREVERSIBL
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2813"/>
         <source>The two panels are on different connections, so that directory has no meaning in this one. Use Swap Panels (Ctrl+U) to move the connection across instead.</source>
-        <translation type="unfinished"></translation>
+        <translation>두 패널이 서로 다른 연결에 있으므로 그 디렉터리는 이 패널에서 의미가 없습니다. 대신 패널 바꾸기(Ctrl+U)로 연결을 옮기십시오.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2879"/>
         <source>New files can only be created on a local tab.</source>
-        <translation type="unfinished"></translation>
+        <translation>새 파일은 로컬 탭에서만 만들 수 있습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2884"/>
         <source>File name:</source>
-        <translation type="unfinished"></translation>
+        <translation>파일 이름:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2891"/>
         <source>%1 already exists.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 이(가) 이미 있습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2897"/>
         <source>Could not create %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 을(를) 만들 수 없습니다: %2</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2919"/>
         <source>Select exactly one item to copy under a new name.</source>
-        <translation type="unfinished"></translation>
+        <translation>새 이름으로 복사하려면 항목을 정확히 하나만 선택하십시오.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2924"/>
         <source>This is only available on a local tab.</source>
-        <translation type="unfinished"></translation>
+        <translation>이 기능은 로컬 탭에서만 사용할 수 있습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3512"/>
         <source>%1 was downloaded to a read-only local copy, which is what the application opened.
 
 Changes made to it are not saved back to the server.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 은(는) 읽기 전용 로컬 사본으로 다운로드되었으며, 응용 프로그램은 그 사본을 열었습니다.
+
+여기에 가한 변경 사항은 서버에 저장되지 않습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3526"/>
         <source>This connection cannot download files, so %1 cannot be opened with a local application.</source>
-        <translation type="unfinished"></translation>
+        <translation>이 연결은 파일을 다운로드할 수 없으므로 %1 을(를) 로컬 응용 프로그램으로 열 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3534"/>
         <location filename="../../src/ui/MainWindow.cpp" line="3546"/>
         <source>Could not create a temporary folder to download %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 을(를) 다운로드할 임시 폴더를 만들 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3560"/>
         <source>There is not enough free space in %1 to download %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 에 %2 을(를) 다운로드할 여유 공간이 부족합니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3582"/>
         <source>Downloading %1...</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 다운로드 중...</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3633"/>
         <source>Could not download %1 from the server.</source>
-        <translation type="unfinished"></translation>
+        <translation>서버에서 %1 을(를) 다운로드할 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3861"/>
         <location filename="../../src/ui/MainWindow.cpp" line="3880"/>
         <source>重新连接</source>
-        <translation type="unfinished"></translation>
+        <translation>다시 연결</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3864"/>
         <source>断开连接</source>
-        <translation type="unfinished"></translation>
+        <translation>연결 끊기</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3880"/>
         <source>不支持的连接类型。</source>
-        <translation type="unfinished"></translation>
+        <translation>지원하지 않는 연결 형식입니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3890"/>
         <source>Reconnect</source>
-        <translation type="unfinished"></translation>
+        <translation>다시 연결</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3891"/>
         <location filename="../../src/ui/MainWindow.cpp" line="4056"/>
         <source>Network connections are not enabled in this build.</source>
-        <translation type="unfinished"></translation>
+        <translation>이 빌드에서는 네트워크 연결이 활성화되어 있지 않습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3975"/>
         <source>需要密码</source>
-        <translation type="unfinished"></translation>
+        <translation>암호 필요</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3978"/>
         <source>此连接需要用户名和密码。</source>
-        <translation type="unfinished"></translation>
+        <translation>이 연결에는 사용자 이름과 암호가 필요합니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3979"/>
         <source>连接“%1”需要用户名和密码。</source>
-        <translation type="unfinished"></translation>
+        <translation>연결 &quot;%1&quot; 에는 사용자 이름과 암호가 필요합니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3994"/>
         <source>用户名：</source>
-        <translation type="unfinished"></translation>
+        <translation>사용자 이름:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3995"/>
         <source>密码：</source>
-        <translation type="unfinished"></translation>
+        <translation>암호:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4055"/>
         <source>Server Connection</source>
-        <translation type="unfinished"></translation>
+        <translation>서버 연결</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4181"/>
         <source>创建链接</source>
-        <translation type="unfinished"></translation>
+        <translation>링크 만들기</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4182"/>
         <source>无法为网络位置创建符号链接。</source>
-        <translation type="unfinished"></translation>
+        <translation>네트워크 위치에는 심볼릭 링크를 만들 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4250"/>
         <source>粘贴</source>
-        <translation type="unfinished"></translation>
+        <translation>붙여넣기</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4251"/>
         <source>源连接（%1）已关闭，无法从远端粘贴。</source>
-        <translation type="unfinished"></translation>
+        <translation>원본 연결(%1)이 닫혀 원격에서 붙여넣을 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4445"/>
@@ -2098,12 +2120,14 @@ Extract it too?</source>
         <source>%1 cannot be edited in place.
 
 Editing a file on this connection needs it mounted through GVfs (the gvfs-backends package). Copy the file to a local folder to edit it.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 은(는) 제자리에서 편집할 수 없습니다.
+
+이 연결의 파일을 편집하려면 GVfs(gvfs-backends 패키지)를 통해 마운트되어 있어야 합니다. 편집하려면 파일을 로컬 폴더로 복사하십시오.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4535"/>
         <source>Could not open %1 for editing: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 을(를) 편집용으로 열 수 없습니다: %2</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4552"/>
@@ -2284,45 +2308,45 @@ This is permanent and will NOT go to the trash.</source>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="50"/>
         <source>Search notes...</source>
-        <translation type="unfinished"></translation>
+        <translation>메모 검색...</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="52"/>
         <source>New</source>
-        <translation type="unfinished"></translation>
+        <translation>새로 만들기</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="54"/>
         <location filename="../../src/ui/NotepadPanel.cpp" line="268"/>
         <source>Delete</source>
-        <translation type="unfinished">삭제</translation>
+        <translation>삭제</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="81"/>
         <source>Write your note here...</source>
-        <translation type="unfinished"></translation>
+        <translation>여기에 메모를 작성하십시오...</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="133"/>
         <location filename="../../src/ui/NotepadPanel.cpp" line="258"/>
         <source>Note 1</source>
-        <translation type="unfinished"></translation>
+        <translation>메모 1</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="151"/>
         <location filename="../../src/ui/NotepadPanel.cpp" line="300"/>
         <source>New note</source>
-        <translation type="unfinished"></translation>
+        <translation>새 메모</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="221"/>
         <source>Note %1</source>
-        <translation type="unfinished"></translation>
+        <translation>메모 %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="242"/>
         <source>Confirm?</source>
-        <translation type="unfinished"></translation>
+        <translation>확인할까요?</translation>
     </message>
 </context>
 <context>
@@ -2330,47 +2354,47 @@ This is permanent and will NOT go to the trash.</source>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="37"/>
         <source>File Operation Failed</source>
-        <translation type="unfinished"></translation>
+        <translation>파일 작업 실패</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="54"/>
         <source>Source: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>원본: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="57"/>
         <source>Target: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>대상: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="76"/>
         <source>Retry</source>
-        <translation type="unfinished">다시 시도</translation>
+        <translation>다시 시도</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="77"/>
         <source>Skip</source>
-        <translation type="unfinished">건너뛰기</translation>
+        <translation>건너뛰기</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="78"/>
         <source>Skip All</source>
-        <translation type="unfinished">모두 건너뛰기</translation>
+        <translation>모두 건너뛰기</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="79"/>
         <source>Cancel Current</source>
-        <translation type="unfinished"></translation>
+        <translation>현재 작업 취소</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="81"/>
         <source>Abort</source>
-        <translation type="unfinished"></translation>
+        <translation>중단</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="83"/>
         <source>Run as administrator</source>
-        <translation type="unfinished"></translation>
+        <translation>관리자 권한으로 실행</translation>
     </message>
 </context>
 <context>
@@ -2468,7 +2492,7 @@ This is permanent and will NOT go to the trash.</source>
     <message>
         <location filename="../../src/core/operations/OperationQueue.cpp" line="199"/>
         <source>Failed to rename %1</source>
-        <translation type="unfinished">%1 의 이름을 바꾸지 못했습니다</translation>
+        <translation>%1 의 이름을 바꾸지 못했습니다</translation>
     </message>
 </context>
 <context>
@@ -2572,12 +2596,12 @@ Destination: %4 (%5 bytes)</source>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="60"/>
         <source>1 file</source>
-        <translation type="unfinished"></translation>
+        <translation>파일 1개</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="61"/>
         <source>%1 files</source>
-        <translation type="unfinished"></translation>
+        <translation>파일 %1개</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="66"/>
@@ -2587,12 +2611,12 @@ Destination: %4 (%5 bytes)</source>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="262"/>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="267"/>
         <source>Unavailable</source>
-        <translation type="unfinished"></translation>
+        <translation>사용할 수 없음</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="109"/>
         <source>Normal</source>
-        <translation type="unfinished"></translation>
+        <translation>보통</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="209"/>
@@ -2600,7 +2624,7 @@ Destination: %4 (%5 bytes)</source>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="267"/>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="282"/>
         <source>Contains:</source>
-        <translation type="unfinished"></translation>
+        <translation>포함:</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="214"/>
@@ -2645,12 +2669,12 @@ Destination: %4 (%5 bytes)</source>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="303"/>
         <source>All Properties</source>
-        <translation type="unfinished"></translation>
+        <translation>모든 속성</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="308"/>
         <source>Available for one local file or folder.</source>
-        <translation type="unfinished"></translation>
+        <translation>로컬 파일 또는 폴더 하나에 대해서만 사용할 수 있습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="356"/>
@@ -2690,7 +2714,7 @@ Destination: %4 (%5 bytes)</source>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="379"/>
         <source>Shown as reported by the source. These entries are not on this computer&apos;s filesystem, so their permissions cannot be changed here.</source>
-        <translation type="unfinished"></translation>
+        <translation>원본이 보고한 내용을 그대로 표시합니다. 이 항목들은 이 컴퓨터의 파일 시스템에 있지 않으므로 여기서 권한을 변경할 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="406"/>
@@ -2714,22 +2738,22 @@ Destination: %4 (%5 bytes)</source>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="280"/>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="282"/>
         <source>Calculating...</source>
-        <translation type="unfinished"></translation>
+        <translation>계산 중...</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="241"/>
         <source>Created:</source>
-        <translation type="unfinished"></translation>
+        <translation>만든 날짜:</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="243"/>
         <source>Accessed:</source>
-        <translation type="unfinished"></translation>
+        <translation>액세스한 날짜:</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="244"/>
         <source>Attributes:</source>
-        <translation type="unfinished"></translation>
+        <translation>특성:</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="435"/>
@@ -2858,7 +2882,7 @@ Destination: %4 (%5 bytes)</source>
     <message>
         <location filename="../../src/ui/dialogs/OverwriteConfirmDialog.cpp" line="21"/>
         <source>unknown size</source>
-        <translation type="unfinished"></translation>
+        <translation>크기 알 수 없음</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OverwriteConfirmDialog.cpp" line="44"/>
@@ -2866,7 +2890,10 @@ Destination: %4 (%5 bytes)</source>
 
 Source: %2 (%3)
 Destination: %4 (%5)</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 이(가) 이미 있습니다.
+
+원본: %2 (%3)
+대상: %4 (%5)</translation>
     </message>
 </context>
 <context>
@@ -2973,12 +3000,12 @@ Destination: %4 (%5)</source>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="278"/>
         <source>Rotated on screen only - could not save to disk.</source>
-        <translation type="unfinished"></translation>
+        <translation>화면에서만 회전했습니다 - 디스크에 저장하지 못했습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="486"/>
         <source>Unknown media backend initialization error.</source>
-        <translation type="unfinished"></translation>
+        <translation>알 수 없는 미디어 백엔드 초기화 오류입니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="501"/>
@@ -2987,7 +3014,11 @@ Destination: %4 (%5)</source>
 %1
 
 Restart File Commander to retry. If the problem continues, verify that the mpv media backend is installed correctly.</source>
-        <translation type="unfinished"></translation>
+        <translation>미디어 미리 보기를 시작할 수 없습니다.
+
+%1
+
+다시 시도하려면 File Commander를 다시 시작하십시오. 문제가 계속되면 mpv 미디어 백엔드가 올바르게 설치되어 있는지 확인하십시오.</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="915"/>
@@ -3174,64 +3205,64 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1356"/>
         <source>No embedded lyrics.</source>
-        <translation type="unfinished"></translation>
+        <translation>포함된 가사가 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1375"/>
         <source>Previous track</source>
-        <translation type="unfinished"></translation>
+        <translation>이전 트랙</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1380"/>
         <source>Play / pause</source>
-        <translation type="unfinished"></translation>
+        <translation>재생 / 일시 정지</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1387"/>
         <source>Next track</source>
-        <translation type="unfinished"></translation>
+        <translation>다음 트랙</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1539"/>
         <location filename="../../src/ui/QuickView.cpp" line="1602"/>
         <source>Artist</source>
-        <translation type="unfinished"></translation>
+        <translation>아티스트</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1540"/>
         <location filename="../../src/ui/QuickView.cpp" line="1603"/>
         <source>Album</source>
-        <translation type="unfinished"></translation>
+        <translation>앨범</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1541"/>
         <location filename="../../src/ui/QuickView.cpp" line="1604"/>
         <source>Album Artist</source>
-        <translation type="unfinished"></translation>
+        <translation>앨범 아티스트</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1542"/>
         <location filename="../../src/ui/QuickView.cpp" line="1605"/>
         <source>Year</source>
-        <translation type="unfinished"></translation>
+        <translation>연도</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1543"/>
         <location filename="../../src/ui/QuickView.cpp" line="1606"/>
         <source>Genre</source>
-        <translation type="unfinished"></translation>
+        <translation>장르</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1544"/>
         <location filename="../../src/ui/QuickView.cpp" line="1607"/>
         <source>Track</source>
-        <translation type="unfinished"></translation>
+        <translation>트랙</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1545"/>
         <location filename="../../src/ui/QuickView.cpp" line="1608"/>
         <source>Composer</source>
-        <translation type="unfinished"></translation>
+        <translation>작곡가</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1766"/>
@@ -3246,19 +3277,21 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1810"/>
         <source>停止下载</source>
-        <translation type="unfinished"></translation>
+        <translation>다운로드 중지</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1824"/>
         <source>正在下载到本地以便预览…
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>미리 보기를 위해 로컬로 다운로드하는 중…
+%1</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1846"/>
         <source>已取消预览：本文件的预览下载被用户停止。
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>미리 보기가 취소되었습니다: 이 파일의 미리 보기 다운로드를 사용자가 중지했습니다.
+%1</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1858"/>
@@ -3323,33 +3356,33 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="2339"/>
         <source>Sheet %1</source>
-        <translation type="unfinished"></translation>
+        <translation>시트 %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="2369"/>
         <source>Copy Page</source>
-        <translation type="unfinished"></translation>
+        <translation>페이지 복사</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="2371"/>
         <location filename="../../src/ui/QuickView.cpp" line="2702"/>
         <source>Copy All</source>
-        <translation type="unfinished"></translation>
+        <translation>모두 복사</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="2700"/>
         <source>Copy Slide</source>
-        <translation type="unfinished"></translation>
+        <translation>슬라이드 복사</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="2955"/>
         <source>Slide %1 / %2</source>
-        <translation type="unfinished"></translation>
+        <translation>슬라이드 %1 / %2</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="3297"/>
         <source>PDF preview is not enabled in this build: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>이 빌드에서는 PDF 미리 보기가 활성화되어 있지 않습니다: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="219"/>
@@ -3364,19 +3397,19 @@ pip install --user msoffcrypto-tool</translation>
         <location filename="../../src/core/devices/RemovableDeviceMonitor.cpp" line="219"/>
         <location filename="../../src/core/devices/RemovableDeviceMonitor.cpp" line="259"/>
         <source>System D-Bus is not available</source>
-        <translation type="unfinished"></translation>
+        <translation>시스템 D-Bus를 사용할 수 없습니다</translation>
     </message>
     <message>
         <location filename="../../src/core/devices/RemovableDeviceMonitor.cpp" line="226"/>
         <location filename="../../src/core/devices/RemovableDeviceMonitor.cpp" line="269"/>
         <source>Device is not a mountable filesystem</source>
-        <translation type="unfinished"></translation>
+        <translation>마운트할 수 있는 파일 시스템이 아닙니다</translation>
     </message>
     <message>
         <location filename="../../src/core/devices/RemovableDeviceMonitor_windows.cpp" line="177"/>
         <location filename="../../src/core/devices/RemovableDeviceMonitor_windows.cpp" line="185"/>
         <source>The volume is no longer available.</source>
-        <translation type="unfinished"></translation>
+        <translation>볼륨을 더 이상 사용할 수 없습니다.</translation>
     </message>
 </context>
 <context>
@@ -3474,17 +3507,17 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/dialogs/SecureWipeConfirmationDialog.cpp" line="35"/>
         <source>Secure Wipe</source>
-        <translation type="unfinished">안전 삭제</translation>
+        <translation>안전 삭제</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SecureWipeConfirmationDialog.cpp" line="40"/>
         <source>Securely erase %1 item(s) (%2 bytes)?</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 개 항목(%2 바이트)을 안전하게 지울까요?</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SecureWipeConfirmationDialog.cpp" line="45"/>
         <source>Their contents will be overwritten on disk and then deleted. This operation cannot be undone: the items will not enter the Recycle Bin and cannot be recovered.</source>
-        <translation type="unfinished"></translation>
+        <translation>내용을 디스크에서 덮어쓴 뒤 삭제합니다. 이 작업은 되돌릴 수 없습니다: 항목은 휴지통으로 가지 않으며 복구할 수 없습니다.</translation>
     </message>
 </context>
 <context>
@@ -3548,22 +3581,22 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/StatusBarWidget.cpp" line="37"/>
         <source>Smaller</source>
-        <translation type="unfinished"></translation>
+        <translation>작게</translation>
     </message>
     <message>
         <location filename="../../src/ui/StatusBarWidget.cpp" line="45"/>
         <source>Larger</source>
-        <translation type="unfinished"></translation>
+        <translation>크게</translation>
     </message>
     <message>
         <location filename="../../src/ui/StatusBarWidget.cpp" line="80"/>
         <source>登录</source>
-        <translation type="unfinished"></translation>
+        <translation>로그인</translation>
     </message>
     <message>
         <location filename="../../src/ui/StatusBarWidget.cpp" line="80"/>
         <source>重试</source>
-        <translation type="unfinished"></translation>
+        <translation>다시 시도</translation>
     </message>
 </context>
 <context>
@@ -3576,130 +3609,131 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="123"/>
         <source>Left: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>왼쪽: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="125"/>
         <source>Right: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>오른쪽: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="137"/>
         <source>Show identical files</source>
-        <translation type="unfinished"></translation>
+        <translation>동일한 파일 표시</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="143"/>
         <source>All →</source>
-        <translation type="unfinished"></translation>
+        <translation>모두 →</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="144"/>
         <source>Set every difference to copy left → right</source>
-        <translation type="unfinished"></translation>
+        <translation>모든 차이를 왼쪽 → 오른쪽 복사로 설정</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="145"/>
         <source>All ←</source>
-        <translation type="unfinished"></translation>
+        <translation>모두 ←</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="146"/>
         <source>Set every difference to copy right → left</source>
-        <translation type="unfinished"></translation>
+        <translation>모든 차이를 오른쪽 → 왼쪽 복사로 설정</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="147"/>
         <source>Skip all</source>
-        <translation type="unfinished"></translation>
+        <translation>모두 건너뛰기</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="148"/>
         <source>Exclude every row from the sync</source>
-        <translation type="unfinished"></translation>
+        <translation>모든 행을 동기화에서 제외</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="198"/>
         <source>Abort</source>
-        <translation type="unfinished"></translation>
+        <translation>중단</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="244"/>
         <source>Compare Again</source>
-        <translation type="unfinished"></translation>
+        <translation>다시 비교</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="254"/>
         <source>Close</source>
-        <translation type="unfinished"></translation>
+        <translation>닫기</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="288"/>
         <source>Comparing…</source>
-        <translation type="unfinished"></translation>
+        <translation>비교 중…</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="312"/>
         <source>Stopping…</source>
-        <translation type="unfinished"></translation>
+        <translation>중지하는 중…</translation>
     </message>
     <message numerus="yes">
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="342"/>
         <source>Comparing… %n item(s) scanned</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>비교 중… %n 개 항목 검사함</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="344"/>
         <source>Comparing… %n item(s) scanned — %1</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>비교 중… %n 개 항목 검사함 — %1</numerusform>
         </translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="364"/>
         <source>Comparison stopped — results are incomplete.</source>
-        <translation type="unfinished"></translation>
+        <translation>비교가 중지되었습니다 — 결과가 완전하지 않습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="375"/>
         <source>→ %1 · ← %2 · conflicts %3 · identical %4 · skipped %5    To sync: %6 file(s), %7</source>
-        <translation type="unfinished"></translation>
+        <translation>→ %1 · ← %2 · 충돌 %3 · 동일 %4 · 건너뜀 %5    동기화 대상: %6 개 파일, %7</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="250"/>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="396"/>
         <source>Start Sync (comparing…)</source>
-        <translation type="unfinished"></translation>
+        <translation>동기화 시작(비교 중…)</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="399"/>
         <source>Available once the comparison finishes. To start now, press Abort first.
 Copying while the scan is still running would make it re-read the files it just wrote and report them as new differences.</source>
-        <translation type="unfinished"></translation>
+        <translation>비교가 끝나면 사용할 수 있습니다. 지금 시작하려면 먼저 중단을 누르십시오.
+검사가 진행 중인 동안 복사하면 방금 쓴 파일을 다시 읽어 새로운 차이로 보고하게 됩니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="406"/>
         <source>Start Sync (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>동기화 시작(%1)</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="406"/>
         <source>Start Sync</source>
-        <translation type="unfinished"></translation>
+        <translation>동기화 시작</translation>
     </message>
     <message numerus="yes">
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="408"/>
         <source>Copy the %n selected file(s).</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>선택한 %n 개 파일을 복사합니다.</numerusform>
         </translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="409"/>
         <source>Nothing to copy: no row is set to a direction.</source>
-        <translation type="unfinished"></translation>
+        <translation>복사할 항목이 없습니다: 방향이 설정된 행이 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="90"/>
@@ -3763,50 +3797,50 @@ Right: %2</source>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="237"/>
         <source>Copy left → right. Click to change direction or skip.</source>
-        <translation type="unfinished"></translation>
+        <translation>왼쪽 → 오른쪽으로 복사합니다. 클릭하여 방향을 바꾸거나 건너뛰십시오.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="239"/>
         <source>Copy right → left. Click to change direction or skip.</source>
-        <translation type="unfinished"></translation>
+        <translation>오른쪽 → 왼쪽으로 복사합니다. 클릭하여 방향을 바꾸거나 건너뛰십시오.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="241"/>
         <source>Skipped — this file will not be touched. Click to choose a direction.</source>
-        <translation type="unfinished"></translation>
+        <translation>건너뜀 — 이 파일은 변경되지 않습니다. 클릭하여 방향을 선택하십시오.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="243"/>
         <source>Both sides match; nothing to do.</source>
-        <translation type="unfinished"></translation>
+        <translation>양쪽이 일치합니다. 할 일이 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="247"/>
         <source>Both sides were changed, or the clocks disagree: the contents differ but the timestamps look the same, so neither side is safe to assume newer. Click to pick a direction yourself.</source>
-        <translation type="unfinished"></translation>
+        <translation>양쪽이 모두 변경되었거나 시계가 어긋나 있습니다. 내용은 다르지만 타임스탬프가 같아 보여 어느 쪽이 더 최신인지 안전하게 판단할 수 없습니다. 클릭하여 직접 방향을 선택하십시오.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="334"/>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="342"/>
         <source>Name</source>
-        <translation type="unfinished">이름</translation>
+        <translation>이름</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="336"/>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="344"/>
         <source>Size</source>
-        <translation type="unfinished">크기</translation>
+        <translation>크기</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="338"/>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="346"/>
         <source>Modified</source>
-        <translation type="unfinished">수정한 날짜</translation>
+        <translation>수정한 날짜</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="340"/>
         <source>Action</source>
-        <translation type="unfinished"></translation>
+        <translation>작업</translation>
     </message>
 </context>
 <context>
@@ -3886,12 +3920,12 @@ Right: %2</source>
     <message>
         <location filename="../../src/ui/TitleBar.cpp" line="33"/>
         <source>FileCommander</source>
-        <translation>File Commander</translation>
+        <translation>FileCommander</translation>
     </message>
     <message>
         <location filename="../../src/ui/TitleBar.cpp" line="86"/>
         <source>New Version</source>
-        <translation type="unfinished"></translation>
+        <translation>새 버전</translation>
     </message>
 </context>
 <context>
@@ -3949,17 +3983,17 @@ Right: %2</source>
     <message>
         <location filename="../../src/core/update/UpdateChecker.cpp" line="78"/>
         <source>Malformed update manifest: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>업데이트 매니페스트 형식이 잘못되었습니다: %1</translation>
     </message>
     <message>
         <location filename="../../src/core/update/UpdateChecker.cpp" line="85"/>
         <source>Update manifest is missing a version field.</source>
-        <translation type="unfinished"></translation>
+        <translation>업데이트 매니페스트에 버전 필드가 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/UpdateChecker.cpp" line="107"/>
         <source>Update manifest has no %1 package for this installation.</source>
-        <translation type="unfinished"></translation>
+        <translation>업데이트 매니페스트에 이 설치에 맞는 %1 패키지가 없습니다.</translation>
     </message>
 </context>
 <context>
@@ -3967,52 +4001,52 @@ Right: %2</source>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="16"/>
         <source>Software Update</source>
-        <translation type="unfinished"></translation>
+        <translation>소프트웨어 업데이트</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="21"/>
         <source>Version %1 is available (you have %2).</source>
-        <translation type="unfinished"></translation>
+        <translation>버전 %1 을(를) 사용할 수 있습니다(현재 버전 %2).</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="30"/>
         <source>Released: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>출시일: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="32"/>
         <source>Release notes:</source>
-        <translation type="unfinished"></translation>
+        <translation>릴리스 노트:</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="36"/>
         <source>No release notes provided.</source>
-        <translation type="unfinished"></translation>
+        <translation>제공된 릴리스 노트가 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="47"/>
         <source>Update Now</source>
-        <translation type="unfinished"></translation>
+        <translation>지금 업데이트</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="49"/>
         <source>Later</source>
-        <translation type="unfinished"></translation>
+        <translation>나중에</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="75"/>
         <source>Downloading…</source>
-        <translation type="unfinished"></translation>
+        <translation>다운로드 중…</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="82"/>
         <source>Verifying and installing…</source>
-        <translation type="unfinished"></translation>
+        <translation>확인 후 설치하는 중…</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="97"/>
         <source>Retry</source>
-        <translation type="unfinished">다시 시도</translation>
+        <translation>다시 시도</translation>
     </message>
 </context>
 <context>
@@ -4020,129 +4054,130 @@ Right: %2</source>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="46"/>
         <source>Update information is incomplete.</source>
-        <translation type="unfinished"></translation>
+        <translation>업데이트 정보가 완전하지 않습니다.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="62"/>
         <source>Could not create a temporary file for the download.</source>
-        <translation type="unfinished"></translation>
+        <translation>다운로드용 임시 파일을 만들 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="94"/>
         <source>Download failed: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>다운로드 실패: %1</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="98"/>
         <source>The downloaded file could not be found.</source>
-        <translation type="unfinished"></translation>
+        <translation>다운로드한 파일을 찾을 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="105"/>
         <source>Could not read the downloaded file for verification.</source>
-        <translation type="unfinished"></translation>
+        <translation>확인을 위해 다운로드한 파일을 읽을 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="110"/>
         <source>Checksum mismatch — the download may be corrupt or tampered with. Update aborted.</source>
-        <translation type="unfinished"></translation>
+        <translation>체크섬이 일치하지 않습니다 — 다운로드가 손상되었거나 변조되었을 수 있습니다. 업데이트를 중단했습니다.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="128"/>
         <source>Windows portable updates must be ZIP packages.</source>
-        <translation type="unfinished"></translation>
+        <translation>Windows 포터블 업데이트는 ZIP 패키지여야 합니다.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="135"/>
         <source>The application folder is not writable. Extract the update manually.</source>
-        <translation type="unfinished"></translation>
+        <translation>응용 프로그램 폴더에 쓸 수 없습니다. 업데이트를 수동으로 압축 해제하십시오.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="144"/>
         <source>Could not create the update staging directory.</source>
-        <translation type="unfinished"></translation>
+        <translation>업데이트 준비 디렉터리를 만들 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="150"/>
         <source>Could not stage the downloaded update.</source>
-        <translation type="unfinished"></translation>
+        <translation>다운로드한 업데이트를 준비할 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="158"/>
         <source>Could not prepare the update installer.</source>
-        <translation type="unfinished"></translation>
+        <translation>업데이트 설치 관리자를 준비할 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="196"/>
         <source>Could not launch the Windows update installer.</source>
-        <translation type="unfinished"></translation>
+        <translation>Windows 업데이트 설치 관리자를 실행할 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="199"/>
         <source>Updated to version %1. Restarting...</source>
-        <translation type="unfinished"></translation>
+        <translation>버전 %1 (으)로 업데이트했습니다. 다시 시작하는 중...</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="208"/>
         <source>Could not determine the AppImage path to replace.</source>
-        <translation type="unfinished"></translation>
+        <translation>교체할 AppImage 경로를 확인할 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="217"/>
         <source>Could not stage the new AppImage next to %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 옆에 새 AppImage를 준비할 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="224"/>
         <source>Could not make the new AppImage executable.</source>
-        <translation type="unfinished"></translation>
+        <translation>새 AppImage에 실행 권한을 부여할 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="233"/>
         <source>Could not replace the running AppImage at %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 에서 실행 중인 AppImage를 교체할 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="238"/>
         <source>Updated, but could not relaunch %1 automatically. Please start it again manually.</source>
-        <translation type="unfinished"></translation>
+        <translation>업데이트했지만 %1 을(를) 자동으로 다시 실행할 수 없습니다. 직접 다시 시작하십시오.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="244"/>
         <location filename="../../src/core/update/Updater.cpp" line="303"/>
         <source>Updated to version %1. Restarting…</source>
-        <translation type="unfinished"></translation>
+        <translation>버전 %1 (으)로 업데이트했습니다. 다시 시작하는 중…</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="256"/>
         <source>Could not prepare the downloaded package for installation.</source>
-        <translation type="unfinished"></translation>
+        <translation>다운로드한 패키지를 설치용으로 준비할 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="268"/>
         <source>Could not launch the installer (pkexec not available).</source>
-        <translation type="unfinished"></translation>
+        <translation>설치 관리자를 실행할 수 없습니다(pkexec를 사용할 수 없음).</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="279"/>
         <source>Installation failed and no fallback installer is available.</source>
-        <translation type="unfinished"></translation>
+        <translation>설치에 실패했으며 사용할 수 있는 대체 설치 관리자가 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="287"/>
         <source>Package installation failed.</source>
-        <translation type="unfinished"></translation>
+        <translation>패키지 설치에 실패했습니다.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="288"/>
         <source>Package installation failed:
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>패키지 설치에 실패했습니다:
+%1</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="297"/>
         <source>Updated to version %1, but could not restart automatically. Please start FileCommander again.</source>
-        <translation type="unfinished"></translation>
+        <translation>버전 %1 (으)로 업데이트했지만 자동으로 다시 시작할 수 없습니다. FileCommander를 다시 시작하십시오.</translation>
     </message>
 </context>
 <context>

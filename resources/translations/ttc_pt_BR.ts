@@ -6,37 +6,37 @@
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="11"/>
         <source>About FileCommander</source>
-        <translation type="unfinished"></translation>
+        <translation>Sobre o FileCommander</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="20"/>
         <source>FileCommander — Total Commander for Linux</source>
-        <translation type="unfinished"></translation>
+        <translation>FileCommander — Total Commander para Linux</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="27"/>
         <source>Version %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Versão %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="31"/>
         <source>FileCommander is a powerful dual-pane file manager inspired by Total Commander and developed from scratch. It manages local files efficiently, makes network file services convenient to use, previews many file types, and is an efficiency tool built for advanced users.</source>
-        <translation type="unfinished"></translation>
+        <translation>O FileCommander é um poderoso gerenciador de arquivos de painel duplo, inspirado no Total Commander e desenvolvido do zero. Ele gerencia arquivos locais com eficiência, torna prático o uso de serviços de arquivos em rede, visualiza muitos tipos de arquivo e é uma ferramenta de produtividade feita para usuários avançados.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="40"/>
         <source>Free and open-source software, released under the GNU GPL v3.</source>
-        <translation type="unfinished"></translation>
+        <translation>Software livre e de código aberto, distribuído sob a GNU GPL v3.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="45"/>
         <source>&lt;a href=&quot;https://github.com/ttc-fm/ttc&quot;&gt;Project home page&lt;/a&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;a href=&quot;https://github.com/ttc-fm/ttc&quot;&gt;Página do projeto&lt;/a&gt;</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="50"/>
         <source>Close</source>
-        <translation type="unfinished"></translation>
+        <translation>Fechar</translation>
     </message>
 </context>
 <context>
@@ -384,7 +384,7 @@ Extrair também?</translation>
     <message>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="140"/>
         <source>SFTP, FTP and WebDAV connect through built-in cross-platform clients.</source>
-        <translation type="unfinished"></translation>
+        <translation>SFTP, FTP e WebDAV conectam-se por meio de clientes multiplataforma integrados.</translation>
     </message>
     <message>
         <source>SFTP, FTP and WebDAV connect through a built-in client; SMB is mounted via GVfs.</source>
@@ -450,7 +450,7 @@ Extrair também?</translation>
     <message>
         <location filename="../../src/ui/tree/DirectoryTreeModel.cpp" line="162"/>
         <source>This connection belongs to the other panel. Switch to it there, or open a new connection from the Connection Manager.</source>
-        <translation type="unfinished"></translation>
+        <translation>Esta conexão pertence ao outro painel. Alterne para ela lá ou abra uma nova conexão no Gerenciador de conexões.</translation>
     </message>
 </context>
 <context>
@@ -458,81 +458,85 @@ Extrair também?</translation>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="318"/>
         <source>弹出（安全移除）</source>
-        <translation type="unfinished"></translation>
+        <translation>Ejetar (remoção segura)</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="333"/>
         <source>弹出失败</source>
-        <translation type="unfinished"></translation>
+        <translation>Falha ao ejetar</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="334"/>
         <source>无法弹出该设备。
 
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Não foi possível ejetar o dispositivo.
+
+%1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="375"/>
         <source>Removable Devices</source>
-        <translation type="unfinished"></translation>
+        <translation>Dispositivos removíveis</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="379"/>
         <source>No removable devices</source>
-        <translation type="unfinished"></translation>
+        <translation>Nenhum dispositivo removível</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="388"/>
         <source>Saved Connections</source>
-        <translation type="unfinished"></translation>
+        <translation>Conexões salvas</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="389"/>
         <source>连接管理器…</source>
-        <translation type="unfinished"></translation>
+        <translation>Gerenciador de conexões…</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="395"/>
         <source>No saved connections</source>
-        <translation type="unfinished"></translation>
+        <translation>Nenhuma conexão salva</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="413"/>
         <source>重新搜索网络共享</source>
-        <translation type="unfinished"></translation>
+        <translation>Pesquisar novamente os compartilhamentos de rede</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="416"/>
         <source>正在搜索，点击停止</source>
-        <translation type="unfinished"></translation>
+        <translation>Pesquisando; clique para parar</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="417"/>
         <source>Searching…</source>
-        <translation type="unfinished"></translation>
+        <translation>Pesquisando…</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="419"/>
         <source>Network Neighborhood</source>
-        <translation type="unfinished"></translation>
+        <translation>Ambiente de rede</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="441"/>
         <source>未发现网络主机</source>
-        <translation type="unfinished"></translation>
+        <translation>Nenhum host de rede encontrado</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="498"/>
         <source>Mount Failed</source>
-        <translation type="unfinished"></translation>
+        <translation>Falha ao montar</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="499"/>
         <source>Could not mount the device.
 
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Não foi possível montar o dispositivo.
+
+%1</translation>
     </message>
 </context>
 <context>
@@ -546,13 +550,14 @@ Extrair também?</translation>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="427"/>
         <source>Failed to remove the source after copying %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Falha ao remover a origem após copiar %1</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="624"/>
         <source>%1
 Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1
+Excluir como administrador ignora a Lixeira e não pode ser desfeito.</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="667"/>
@@ -587,27 +592,27 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1025"/>
         <source>The destination has no space for %1</source>
-        <translation type="unfinished"></translation>
+        <translation>O destino não tem espaço para %1</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1027"/>
         <source>You do not have permission to write %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Você não tem permissão para gravar %1</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1029"/>
         <source>Connection to the server was lost while transferring %1</source>
-        <translation type="unfinished"></translation>
+        <translation>A conexão com o servidor foi perdida durante a transferência de %1</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1032"/>
         <source>Upload of %1 did not complete: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>O envio de %1 não foi concluído: %2</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1033"/>
         <source>Write error on %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Erro de gravação em %1: %2</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1045"/>
@@ -622,7 +627,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1068"/>
         <source>Source shrank before resuming transfer of %1</source>
-        <translation type="unfinished"></translation>
+        <translation>A origem diminuiu antes de retomar a transferência de %1</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1077"/>
@@ -640,7 +645,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <location filename="../../src/core/operations/FileOperations.cpp" line="1108"/>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1144"/>
         <source>Unexpected end of %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Fim inesperado de %1</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1040"/>
@@ -651,27 +656,27 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <location filename="../../src/core/operations/FileOperations.cpp" line="1154"/>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1161"/>
         <source>Source changed during transfer of %1</source>
-        <translation type="unfinished"></translation>
+        <translation>A origem foi alterada durante a transferência de %1</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1039"/>
         <source>Upload of %1 did not complete</source>
-        <translation type="unfinished"></translation>
+        <translation>O envio de %1 não foi concluído</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="207"/>
         <source>The administrator operation did not complete.</source>
-        <translation type="unfinished"></translation>
+        <translation>A operação como administrador não foi concluída.</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1304"/>
         <source>Moved contents but could not remove source %1</source>
-        <translation type="unfinished"></translation>
+        <translation>O conteúdo foi movido, mas não foi possível remover a origem %1</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1319"/>
         <source>Copied but could not remove source %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Copiado, mas não foi possível remover a origem %1</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1359"/>
@@ -720,32 +725,32 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="961"/>
         <source>正在等待连接…</source>
-        <translation type="unfinished"></translation>
+        <translation>Aguardando conexão…</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="966"/>
         <source>断线，正在重连（%1/%2）…</source>
-        <translation type="unfinished"></translation>
+        <translation>Desconectado; reconectando (%1/%2)…</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="973"/>
         <source>多次重连失败</source>
-        <translation type="unfinished"></translation>
+        <translation>Falha após várias tentativas de reconexão</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="973"/>
         <source>连接失败：%1</source>
-        <translation type="unfinished"></translation>
+        <translation>Falha na conexão: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="1024"/>
         <source>需要登录</source>
-        <translation type="unfinished"></translation>
+        <translation>Login necessário</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="1049"/>
         <source>Search results</source>
-        <translation type="unfinished"></translation>
+        <translation>Resultados da pesquisa</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="2084"/>
@@ -781,7 +786,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/ui/FunctionKeyBar.cpp" line="33"/>
         <source>Change this button&apos;s function...</source>
-        <translation type="unfinished"></translation>
+        <translation>Alterar a função deste botão...</translation>
     </message>
     <message>
         <location filename="../../src/ui/FunctionKeyBar.cpp" line="52"/>
@@ -828,7 +833,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <location filename="../../src/ui/MainWindow.cpp" line="312"/>
         <location filename="../../src/ui/MainWindow.cpp" line="3952"/>
         <source>FileCommander</source>
-        <translation>Total Commander para Linux</translation>
+        <translation>FileCommander</translation>
     </message>
     <message>
         <source>Show / hide hidden files</source>
@@ -893,14 +898,14 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1012"/>
         <source>Menu Font Size:</source>
-        <translation type="unfinished"></translation>
+        <translation>Tamanho da fonte do menu:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1072"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2289"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2597"/>
         <source>Choose Font</source>
-        <translation type="unfinished"></translation>
+        <translation>Escolher fonte</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2422"/>
@@ -1038,48 +1043,48 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <location filename="../../src/ui/MainWindow.cpp" line="2276"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2277"/>
         <source>Quick Notepad</source>
-        <translation type="unfinished"></translation>
+        <translation>Bloco de notas rápido</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="834"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2279"/>
         <source>Calculate Checksums</source>
-        <translation type="unfinished"></translation>
+        <translation>Calcular somas de verificação</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="836"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2283"/>
         <source>Compare Files</source>
-        <translation type="unfinished"></translation>
+        <translation>Comparar arquivos</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="847"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2285"/>
         <source>Keyboard Shortcuts</source>
-        <translation type="unfinished">Atalhos de teclado</translation>
+        <translation>Atalhos de teclado</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="848"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2287"/>
         <source>Connection Manager</source>
-        <translation type="unfinished"></translation>
+        <translation>Gerenciador de conexões</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="851"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2337"/>
         <source>Directly Open Archives</source>
-        <translation type="unfinished"></translation>
+        <translation>Abrir arquivos compactados diretamente</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="871"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2348"/>
         <source>Automatic Update Check</source>
-        <translation type="unfinished"></translation>
+        <translation>Verificação automática de atualizações</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="880"/>
         <source>&amp;Interface</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Interface</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="898"/>
@@ -1390,98 +1395,100 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <location filename="../../src/ui/MainWindow.cpp" line="1076"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2314"/>
         <source>Show Function Key Bar</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostrar barra de teclas de função</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="953"/>
         <source>File List Font Size:</source>
-        <translation type="unfinished"></translation>
+        <translation>Tamanho da fonte da lista de arquivos:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="965"/>
         <source>Type a size, or use − / + (8-16)</source>
-        <translation type="unfinished">Digite um tamanho ou use − / + (8-18) {8-16)?}</translation>
+        <translation>Digite um tamanho ou use − / + (8-16)</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1023"/>
         <source>Type a size, or use - / + (8-16)</source>
-        <translation type="unfinished"></translation>
+        <translation>Digite um tamanho ou use - / + (8-16)</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1085"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2320"/>
         <source>Show Command Bar</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostrar barra de comandos</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1094"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2326"/>
         <source>Show File Tab Bar</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostrar barra de abas de arquivos</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1104"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2333"/>
         <source>Display Shortcut Labels</source>
-        <translation type="unfinished"></translation>
+        <translation>Exibir rótulos de atalho</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1937"/>
         <source>Choose a function:</source>
-        <translation type="unfinished"></translation>
+        <translation>Escolha uma função:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1961"/>
         <source>Change Leading Button Function</source>
-        <translation type="unfinished"></translation>
+        <translation>Alterar a função do botão inicial</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1961"/>
         <source>Change Trailing Button Function</source>
-        <translation type="unfinished"></translation>
+        <translation>Alterar a função do botão final</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2099"/>
         <source>Connection Failed</source>
-        <translation type="unfinished">Falha na conexão</translation>
+        <translation>Falha na conexão</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2100"/>
         <source>Unsupported connection type.</source>
-        <translation type="unfinished"></translation>
+        <translation>Tipo de conexão não suportado.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2171"/>
         <source>External Connections</source>
-        <translation type="unfinished"></translation>
+        <translation>Conexões externas</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2172"/>
         <source>Network and removable-device connections are not enabled in this build.</source>
-        <translation type="unfinished"></translation>
+        <translation>As conexões de rede e de dispositivos removíveis não estão habilitadas nesta versão.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2209"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2214"/>
         <source>Check for Updates</source>
-        <translation type="unfinished"></translation>
+        <translation>Verificar atualizações</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2210"/>
         <source>You are running the latest version.</source>
-        <translation type="unfinished"></translation>
+        <translation>Você está usando a versão mais recente.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2215"/>
         <source>Could not check for updates.
 
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Não foi possível verificar atualizações.
+
+%1</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2228"/>
         <source>Update Available</source>
-        <translation type="unfinished"></translation>
+        <translation>Atualização disponível</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2229"/>
@@ -1490,162 +1497,166 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
 %2
 
 Download: %3</source>
-        <translation type="unfinished"></translation>
+        <translation>A versão %1 está disponível.
+
+%2
+
+Download: %3</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2241"/>
         <source>Open Quick Preview</source>
-        <translation type="unfinished"></translation>
+        <translation>Abrir visualização rápida</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2244"/>
         <source>Switch to List View</source>
-        <translation type="unfinished"></translation>
+        <translation>Alternar para exibição em lista</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2245"/>
         <source>Switch to Thumbnail View</source>
-        <translation type="unfinished"></translation>
+        <translation>Alternar para exibição em miniaturas</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2247"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2354"/>
         <source>Synchronize Directories</source>
-        <translation type="unfinished">Sincronizar diretórios</translation>
+        <translation>Sincronizar diretórios</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2248"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2356"/>
         <source>Compare Directories</source>
-        <translation type="unfinished"></translation>
+        <translation>Comparar diretórios</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2249"/>
         <source>Find Files</source>
-        <translation type="unfinished"></translation>
+        <translation>Localizar arquivos</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2250"/>
         <source>Filter Files</source>
-        <translation type="unfinished"></translation>
+        <translation>Filtrar arquivos</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2251"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2358"/>
         <source>Select by Pattern</source>
-        <translation type="unfinished">Selecionar por padrão</translation>
+        <translation>Selecionar por padrão</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2252"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2360"/>
         <source>Invert Selection</source>
-        <translation type="unfinished"></translation>
+        <translation>Inverter seleção</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2253"/>
         <source>Undo Previous Operation</source>
-        <translation type="unfinished"></translation>
+        <translation>Desfazer operação anterior</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2274"/>
         <source>Connect External / Devices</source>
-        <translation type="unfinished"></translation>
+        <translation>Conectar externo / dispositivos</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2291"/>
         <source>Increase Font Size</source>
-        <translation type="unfinished"></translation>
+        <translation>Aumentar tamanho da fonte</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2300"/>
         <source>Decrease Font Size</source>
-        <translation type="unfinished"></translation>
+        <translation>Diminuir tamanho da fonte</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2309"/>
         <source>Cycle Theme</source>
-        <translation type="unfinished"></translation>
+        <translation>Alternar tema</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2456"/>
         <source>List / Thumbnail View</source>
-        <translation type="unfinished"></translation>
+        <translation>Exibição em lista / miniaturas</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2469"/>
         <source>Parent Directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Diretório pai</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2474"/>
         <source>Open Directory or Archive</source>
-        <translation type="unfinished"></translation>
+        <translation>Abrir diretório ou arquivo compactado</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2479"/>
         <source>Properties (Alt+Enter)</source>
-        <translation type="unfinished"></translation>
+        <translation>Propriedades (Alt+Enter)</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2481"/>
         <source>Find Files (Alt+F7)</source>
-        <translation type="unfinished"></translation>
+        <translation>Localizar arquivos (Alt+F7)</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2483"/>
         <source>Calculate Occupied Space</source>
-        <translation type="unfinished"></translation>
+        <translation>Calcular espaço ocupado</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2485"/>
         <source>Rename (Shift+F6)</source>
-        <translation type="unfinished"></translation>
+        <translation>Renomear (Shift+F6)</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2502"/>
         <source>Sort by Name</source>
-        <translation type="unfinished"></translation>
+        <translation>Ordenar por nome</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2502"/>
         <source>Sort by Extension</source>
-        <translation type="unfinished"></translation>
+        <translation>Ordenar por extensão</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2503"/>
         <source>Sort by Date</source>
-        <translation type="unfinished"></translation>
+        <translation>Ordenar por data</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2503"/>
         <source>Sort by Size</source>
-        <translation type="unfinished"></translation>
+        <translation>Ordenar por tamanho</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2512"/>
         <source>Go to Root Directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Ir para o diretório raiz</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2514"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2812"/>
         <source>Go to Other Panel&apos;s Directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Ir para o diretório do outro painel</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2516"/>
         <source>Open Directory in New Tab</source>
-        <translation type="unfinished"></translation>
+        <translation>Abrir diretório em nova aba</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2518"/>
         <source>Show Context Menu</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostrar menu de contexto</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2520"/>
         <source>Copy Path to Command Line</source>
-        <translation type="unfinished"></translation>
+        <translation>Copiar caminho para a linha de comando</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2522"/>
@@ -1654,7 +1665,7 @@ Download: %3</source>
         <location filename="../../src/ui/MainWindow.cpp" line="2891"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2896"/>
         <source>New Text File</source>
-        <translation type="unfinished"></translation>
+        <translation>Novo arquivo de texto</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2524"/>
@@ -1662,12 +1673,12 @@ Download: %3</source>
         <location filename="../../src/ui/MainWindow.cpp" line="2923"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2931"/>
         <source>Copy in Same Directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Copiar no mesmo diretório</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2685"/>
         <source>This connection cannot read file contents, so checksums cannot be computed for these files.</source>
-        <translation type="unfinished"></translation>
+        <translation>Esta conexão não consegue ler o conteúdo dos arquivos, portanto não é possível calcular somas de verificação para eles.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2736"/>
@@ -1675,7 +1686,10 @@ Download: %3</source>
 The server owns their disk blocks, so overwriting them
 from here cannot guarantee the originals are gone.
 Delete them remotely instead.</source>
-        <translation type="unfinished"></translation>
+        <translation>Estes itens estão em %1.
+Os blocos de disco pertencem ao servidor, portanto sobrescrevê-los
+daqui não garante que os originais foram eliminados.
+Exclua-os diretamente no servidor.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2742"/>
@@ -1683,20 +1697,26 @@ Delete them remotely instead.</source>
 not files on this disk.
 To destroy them, wipe the archive file itself
 from the folder that holds it.</source>
-        <translation type="unfinished"></translation>
+        <translation>Estes itens são entradas dentro de um arquivo compactado,
+não arquivos neste disco.
+Para destruí-los, apague o próprio arquivo compactado
+a partir da pasta que o contém.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2747"/>
         <source>This tab is not the local filesystem,
 so there are no on-disk bytes here to overwrite.</source>
-        <translation type="unfinished"></translation>
+        <translation>Esta aba não é o sistema de arquivos local,
+portanto não há bytes em disco para sobrescrever aqui.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2750"/>
         <source>Secure wipe is only available on local files.
 
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>O apagamento seguro só está disponível para arquivos locais.
+
+%1</translation>
     </message>
     <message>
         <source>Securely erase %1 item(s) (%2 bytes)?
@@ -1709,12 +1729,12 @@ Seu conteúdo será sobrescrito no disco e depois excluído. Isso é IRREVERSÍV
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2774"/>
         <source>Secure wipe is not available on this platform.</source>
-        <translation type="unfinished"></translation>
+        <translation>O apagamento seguro não está disponível nesta plataforma.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2793"/>
         <source>The two panels are on different connections, so this directory has no meaning in the other one. Use Swap Panels (Ctrl+U) to move this connection across instead.</source>
-        <translation type="unfinished"></translation>
+        <translation>Os dois painéis estão em conexões diferentes, portanto este diretório não tem significado no outro. Use Trocar painéis (Ctrl+U) para levar esta conexão para lá.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3002"/>
@@ -1909,147 +1929,149 @@ Seu conteúdo será sobrescrito no disco e depois excluído. Isso é IRREVERSÍV
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2813"/>
         <source>The two panels are on different connections, so that directory has no meaning in this one. Use Swap Panels (Ctrl+U) to move the connection across instead.</source>
-        <translation type="unfinished"></translation>
+        <translation>Os dois painéis estão em conexões diferentes, portanto esse diretório não tem significado neste. Use Trocar painéis (Ctrl+U) para trazer a conexão para cá.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2879"/>
         <source>New files can only be created on a local tab.</source>
-        <translation type="unfinished"></translation>
+        <translation>Novos arquivos só podem ser criados em uma aba local.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2884"/>
         <source>File name:</source>
-        <translation type="unfinished"></translation>
+        <translation>Nome do arquivo:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2891"/>
         <source>%1 already exists.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 já existe.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2897"/>
         <source>Could not create %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Não foi possível criar %1: %2</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2919"/>
         <source>Select exactly one item to copy under a new name.</source>
-        <translation type="unfinished"></translation>
+        <translation>Selecione exatamente um item para copiar com um novo nome.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2924"/>
         <source>This is only available on a local tab.</source>
-        <translation type="unfinished"></translation>
+        <translation>Isto só está disponível em uma aba local.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3512"/>
         <source>%1 was downloaded to a read-only local copy, which is what the application opened.
 
 Changes made to it are not saved back to the server.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 foi baixado como uma cópia local somente leitura, e foi ela que o aplicativo abriu.
+
+As alterações feitas nela não são salvas de volta no servidor.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3526"/>
         <source>This connection cannot download files, so %1 cannot be opened with a local application.</source>
-        <translation type="unfinished"></translation>
+        <translation>Esta conexão não permite baixar arquivos, portanto %1 não pode ser aberto com um aplicativo local.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3534"/>
         <location filename="../../src/ui/MainWindow.cpp" line="3546"/>
         <source>Could not create a temporary folder to download %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>Não foi possível criar uma pasta temporária para baixar %1.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3560"/>
         <source>There is not enough free space in %1 to download %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>Não há espaço livre suficiente em %1 para baixar %2.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3582"/>
         <source>Downloading %1...</source>
-        <translation type="unfinished"></translation>
+        <translation>Baixando %1...</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3633"/>
         <source>Could not download %1 from the server.</source>
-        <translation type="unfinished"></translation>
+        <translation>Não foi possível baixar %1 do servidor.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3861"/>
         <location filename="../../src/ui/MainWindow.cpp" line="3880"/>
         <source>重新连接</source>
-        <translation type="unfinished"></translation>
+        <translation>Reconectar</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3864"/>
         <source>断开连接</source>
-        <translation type="unfinished"></translation>
+        <translation>Desconectar</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3880"/>
         <source>不支持的连接类型。</source>
-        <translation type="unfinished"></translation>
+        <translation>Tipo de conexão não suportado.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3890"/>
         <source>Reconnect</source>
-        <translation type="unfinished"></translation>
+        <translation>Reconectar</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3891"/>
         <location filename="../../src/ui/MainWindow.cpp" line="4056"/>
         <source>Network connections are not enabled in this build.</source>
-        <translation type="unfinished"></translation>
+        <translation>As conexões de rede não estão habilitadas nesta versão.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3975"/>
         <source>需要密码</source>
-        <translation type="unfinished"></translation>
+        <translation>Senha necessária</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3978"/>
         <source>此连接需要用户名和密码。</source>
-        <translation type="unfinished"></translation>
+        <translation>Esta conexão exige nome de usuário e senha.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3979"/>
         <source>连接“%1”需要用户名和密码。</source>
-        <translation type="unfinished"></translation>
+        <translation>A conexão “%1” exige nome de usuário e senha.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3994"/>
         <source>用户名：</source>
-        <translation type="unfinished"></translation>
+        <translation>Nome de usuário:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3995"/>
         <source>密码：</source>
-        <translation type="unfinished"></translation>
+        <translation>Senha:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4055"/>
         <source>Server Connection</source>
-        <translation type="unfinished"></translation>
+        <translation>Conexão com o servidor</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4181"/>
         <source>创建链接</source>
-        <translation type="unfinished"></translation>
+        <translation>Criar link</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4182"/>
         <source>无法为网络位置创建符号链接。</source>
-        <translation type="unfinished"></translation>
+        <translation>Não é possível criar links simbólicos para locais de rede.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4250"/>
         <source>粘贴</source>
-        <translation type="unfinished"></translation>
+        <translation>Colar</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4251"/>
         <source>源连接（%1）已关闭，无法从远端粘贴。</source>
-        <translation type="unfinished"></translation>
+        <translation>A conexão de origem (%1) foi fechada; não é possível colar do local remoto.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4445"/>
@@ -2098,12 +2120,14 @@ Extrair também?</translation>
         <source>%1 cannot be edited in place.
 
 Editing a file on this connection needs it mounted through GVfs (the gvfs-backends package). Copy the file to a local folder to edit it.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 não pode ser editado no local.
+
+Para editar um arquivo nesta conexão, ele precisa estar montado via GVfs (pacote gvfs-backends). Copie o arquivo para uma pasta local para editá-lo.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4535"/>
         <source>Could not open %1 for editing: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Não foi possível abrir %1 para edição: %2</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4552"/>
@@ -2284,45 +2308,45 @@ Esta ação é permanente e NÃO irá para a lixeira.</translation>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="50"/>
         <source>Search notes...</source>
-        <translation type="unfinished"></translation>
+        <translation>Pesquisar notas...</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="52"/>
         <source>New</source>
-        <translation type="unfinished"></translation>
+        <translation>Nova</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="54"/>
         <location filename="../../src/ui/NotepadPanel.cpp" line="268"/>
         <source>Delete</source>
-        <translation type="unfinished">Excluir</translation>
+        <translation>Excluir</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="81"/>
         <source>Write your note here...</source>
-        <translation type="unfinished"></translation>
+        <translation>Escreva sua nota aqui...</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="133"/>
         <location filename="../../src/ui/NotepadPanel.cpp" line="258"/>
         <source>Note 1</source>
-        <translation type="unfinished"></translation>
+        <translation>Nota 1</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="151"/>
         <location filename="../../src/ui/NotepadPanel.cpp" line="300"/>
         <source>New note</source>
-        <translation type="unfinished"></translation>
+        <translation>Nova nota</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="221"/>
         <source>Note %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Nota %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="242"/>
         <source>Confirm?</source>
-        <translation type="unfinished"></translation>
+        <translation>Confirmar?</translation>
     </message>
 </context>
 <context>
@@ -2330,47 +2354,47 @@ Esta ação é permanente e NÃO irá para a lixeira.</translation>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="37"/>
         <source>File Operation Failed</source>
-        <translation type="unfinished"></translation>
+        <translation>Falha na operação de arquivo</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="54"/>
         <source>Source: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Origem: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="57"/>
         <source>Target: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Destino: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="76"/>
         <source>Retry</source>
-        <translation type="unfinished">Tentar novamente</translation>
+        <translation>Tentar novamente</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="77"/>
         <source>Skip</source>
-        <translation type="unfinished">Ignorar</translation>
+        <translation>Ignorar</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="78"/>
         <source>Skip All</source>
-        <translation type="unfinished">Ignorar tudo</translation>
+        <translation>Ignorar tudo</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="79"/>
         <source>Cancel Current</source>
-        <translation type="unfinished"></translation>
+        <translation>Cancelar atual</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="81"/>
         <source>Abort</source>
-        <translation type="unfinished"></translation>
+        <translation>Abortar</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="83"/>
         <source>Run as administrator</source>
-        <translation type="unfinished"></translation>
+        <translation>Executar como administrador</translation>
     </message>
 </context>
 <context>
@@ -2468,7 +2492,7 @@ Esta ação é permanente e NÃO irá para a lixeira.</translation>
     <message>
         <location filename="../../src/core/operations/OperationQueue.cpp" line="199"/>
         <source>Failed to rename %1</source>
-        <translation type="unfinished">Falha ao renomear %1</translation>
+        <translation>Falha ao renomear %1</translation>
     </message>
 </context>
 <context>
@@ -2572,12 +2596,12 @@ Destino: %4 (%5 bytes)</translation>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="60"/>
         <source>1 file</source>
-        <translation type="unfinished"></translation>
+        <translation>1 arquivo</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="61"/>
         <source>%1 files</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 arquivos</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="66"/>
@@ -2587,12 +2611,12 @@ Destino: %4 (%5 bytes)</translation>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="262"/>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="267"/>
         <source>Unavailable</source>
-        <translation type="unfinished"></translation>
+        <translation>Indisponível</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="109"/>
         <source>Normal</source>
-        <translation type="unfinished"></translation>
+        <translation>Normal</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="209"/>
@@ -2600,7 +2624,7 @@ Destino: %4 (%5 bytes)</translation>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="267"/>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="282"/>
         <source>Contains:</source>
-        <translation type="unfinished"></translation>
+        <translation>Contém:</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="214"/>
@@ -2645,12 +2669,12 @@ Destino: %4 (%5 bytes)</translation>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="303"/>
         <source>All Properties</source>
-        <translation type="unfinished"></translation>
+        <translation>Todas as propriedades</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="308"/>
         <source>Available for one local file or folder.</source>
-        <translation type="unfinished"></translation>
+        <translation>Disponível para um único arquivo ou pasta local.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="356"/>
@@ -2690,7 +2714,7 @@ Destino: %4 (%5 bytes)</translation>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="379"/>
         <source>Shown as reported by the source. These entries are not on this computer&apos;s filesystem, so their permissions cannot be changed here.</source>
-        <translation type="unfinished"></translation>
+        <translation>Exibido conforme informado pela origem. Estas entradas não estão no sistema de arquivos deste computador, portanto suas permissões não podem ser alteradas aqui.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="406"/>
@@ -2714,22 +2738,22 @@ Destino: %4 (%5 bytes)</translation>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="280"/>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="282"/>
         <source>Calculating...</source>
-        <translation type="unfinished"></translation>
+        <translation>Calculando...</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="241"/>
         <source>Created:</source>
-        <translation type="unfinished"></translation>
+        <translation>Criado:</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="243"/>
         <source>Accessed:</source>
-        <translation type="unfinished"></translation>
+        <translation>Acessado:</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="244"/>
         <source>Attributes:</source>
-        <translation type="unfinished"></translation>
+        <translation>Atributos:</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="435"/>
@@ -2858,7 +2882,7 @@ Destino: %4 (%5 bytes)</translation>
     <message>
         <location filename="../../src/ui/dialogs/OverwriteConfirmDialog.cpp" line="21"/>
         <source>unknown size</source>
-        <translation type="unfinished"></translation>
+        <translation>tamanho desconhecido</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OverwriteConfirmDialog.cpp" line="44"/>
@@ -2866,7 +2890,10 @@ Destino: %4 (%5 bytes)</translation>
 
 Source: %2 (%3)
 Destination: %4 (%5)</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 já existe.
+
+Origem: %2 (%3)
+Destino: %4 (%5)</translation>
     </message>
 </context>
 <context>
@@ -2973,12 +3000,12 @@ Destination: %4 (%5)</source>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="278"/>
         <source>Rotated on screen only - could not save to disk.</source>
-        <translation type="unfinished"></translation>
+        <translation>Girado apenas na tela - não foi possível salvar no disco.</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="486"/>
         <source>Unknown media backend initialization error.</source>
-        <translation type="unfinished"></translation>
+        <translation>Erro desconhecido ao inicializar o backend de mídia.</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="501"/>
@@ -2987,7 +3014,11 @@ Destination: %4 (%5)</source>
 %1
 
 Restart File Commander to retry. If the problem continues, verify that the mpv media backend is installed correctly.</source>
-        <translation type="unfinished"></translation>
+        <translation>Não foi possível iniciar a visualização de mídia.
+
+%1
+
+Reinicie o File Commander para tentar novamente. Se o problema continuar, verifique se o backend de mídia mpv está instalado corretamente.</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="915"/>
@@ -3174,64 +3205,64 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1356"/>
         <source>No embedded lyrics.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sem letras incorporadas.</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1375"/>
         <source>Previous track</source>
-        <translation type="unfinished"></translation>
+        <translation>Faixa anterior</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1380"/>
         <source>Play / pause</source>
-        <translation type="unfinished"></translation>
+        <translation>Reproduzir / pausar</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1387"/>
         <source>Next track</source>
-        <translation type="unfinished"></translation>
+        <translation>Próxima faixa</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1539"/>
         <location filename="../../src/ui/QuickView.cpp" line="1602"/>
         <source>Artist</source>
-        <translation type="unfinished"></translation>
+        <translation>Artista</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1540"/>
         <location filename="../../src/ui/QuickView.cpp" line="1603"/>
         <source>Album</source>
-        <translation type="unfinished"></translation>
+        <translation>Álbum</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1541"/>
         <location filename="../../src/ui/QuickView.cpp" line="1604"/>
         <source>Album Artist</source>
-        <translation type="unfinished"></translation>
+        <translation>Artista do álbum</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1542"/>
         <location filename="../../src/ui/QuickView.cpp" line="1605"/>
         <source>Year</source>
-        <translation type="unfinished"></translation>
+        <translation>Ano</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1543"/>
         <location filename="../../src/ui/QuickView.cpp" line="1606"/>
         <source>Genre</source>
-        <translation type="unfinished"></translation>
+        <translation>Gênero</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1544"/>
         <location filename="../../src/ui/QuickView.cpp" line="1607"/>
         <source>Track</source>
-        <translation type="unfinished"></translation>
+        <translation>Faixa</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1545"/>
         <location filename="../../src/ui/QuickView.cpp" line="1608"/>
         <source>Composer</source>
-        <translation type="unfinished"></translation>
+        <translation>Compositor</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1766"/>
@@ -3246,19 +3277,21 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1810"/>
         <source>停止下载</source>
-        <translation type="unfinished"></translation>
+        <translation>Parar download</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1824"/>
         <source>正在下载到本地以便预览…
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Baixando localmente para visualização…
+%1</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1846"/>
         <source>已取消预览：本文件的预览下载被用户停止。
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Visualização cancelada: o download de visualização deste arquivo foi interrompido pelo usuário.
+%1</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1858"/>
@@ -3323,33 +3356,33 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="2339"/>
         <source>Sheet %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Planilha %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="2369"/>
         <source>Copy Page</source>
-        <translation type="unfinished"></translation>
+        <translation>Copiar página</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="2371"/>
         <location filename="../../src/ui/QuickView.cpp" line="2702"/>
         <source>Copy All</source>
-        <translation type="unfinished"></translation>
+        <translation>Copiar tudo</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="2700"/>
         <source>Copy Slide</source>
-        <translation type="unfinished"></translation>
+        <translation>Copiar slide</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="2955"/>
         <source>Slide %1 / %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Slide %1 / %2</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="3297"/>
         <source>PDF preview is not enabled in this build: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>A visualização de PDF não está habilitada nesta versão: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="219"/>
@@ -3364,19 +3397,19 @@ pip install --user msoffcrypto-tool</translation>
         <location filename="../../src/core/devices/RemovableDeviceMonitor.cpp" line="219"/>
         <location filename="../../src/core/devices/RemovableDeviceMonitor.cpp" line="259"/>
         <source>System D-Bus is not available</source>
-        <translation type="unfinished"></translation>
+        <translation>O D-Bus do sistema não está disponível</translation>
     </message>
     <message>
         <location filename="../../src/core/devices/RemovableDeviceMonitor.cpp" line="226"/>
         <location filename="../../src/core/devices/RemovableDeviceMonitor.cpp" line="269"/>
         <source>Device is not a mountable filesystem</source>
-        <translation type="unfinished"></translation>
+        <translation>O dispositivo não é um sistema de arquivos montável</translation>
     </message>
     <message>
         <location filename="../../src/core/devices/RemovableDeviceMonitor_windows.cpp" line="177"/>
         <location filename="../../src/core/devices/RemovableDeviceMonitor_windows.cpp" line="185"/>
         <source>The volume is no longer available.</source>
-        <translation type="unfinished"></translation>
+        <translation>O volume não está mais disponível.</translation>
     </message>
 </context>
 <context>
@@ -3474,17 +3507,17 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/dialogs/SecureWipeConfirmationDialog.cpp" line="35"/>
         <source>Secure Wipe</source>
-        <translation type="unfinished">Apagamento seguro</translation>
+        <translation>Apagamento seguro</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SecureWipeConfirmationDialog.cpp" line="40"/>
         <source>Securely erase %1 item(s) (%2 bytes)?</source>
-        <translation type="unfinished"></translation>
+        <translation>Apagar com segurança %1 item(ns) (%2 bytes)?</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SecureWipeConfirmationDialog.cpp" line="45"/>
         <source>Their contents will be overwritten on disk and then deleted. This operation cannot be undone: the items will not enter the Recycle Bin and cannot be recovered.</source>
-        <translation type="unfinished"></translation>
+        <translation>O conteúdo será sobrescrito no disco e depois excluído. Esta operação não pode ser desfeita: os itens não vão para a Lixeira e não poderão ser recuperados.</translation>
     </message>
 </context>
 <context>
@@ -3548,22 +3581,22 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/StatusBarWidget.cpp" line="37"/>
         <source>Smaller</source>
-        <translation type="unfinished"></translation>
+        <translation>Menor</translation>
     </message>
     <message>
         <location filename="../../src/ui/StatusBarWidget.cpp" line="45"/>
         <source>Larger</source>
-        <translation type="unfinished"></translation>
+        <translation>Maior</translation>
     </message>
     <message>
         <location filename="../../src/ui/StatusBarWidget.cpp" line="80"/>
         <source>登录</source>
-        <translation type="unfinished"></translation>
+        <translation>Entrar</translation>
     </message>
     <message>
         <location filename="../../src/ui/StatusBarWidget.cpp" line="80"/>
         <source>重试</source>
-        <translation type="unfinished"></translation>
+        <translation>Tentar novamente</translation>
     </message>
 </context>
 <context>
@@ -3576,133 +3609,134 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="123"/>
         <source>Left: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Esquerda: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="125"/>
         <source>Right: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Direita: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="137"/>
         <source>Show identical files</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostrar arquivos idênticos</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="143"/>
         <source>All →</source>
-        <translation type="unfinished"></translation>
+        <translation>Todos →</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="144"/>
         <source>Set every difference to copy left → right</source>
-        <translation type="unfinished"></translation>
+        <translation>Definir todas as diferenças para copiar da esquerda → direita</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="145"/>
         <source>All ←</source>
-        <translation type="unfinished"></translation>
+        <translation>Todos ←</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="146"/>
         <source>Set every difference to copy right → left</source>
-        <translation type="unfinished"></translation>
+        <translation>Definir todas as diferenças para copiar da direita → esquerda</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="147"/>
         <source>Skip all</source>
-        <translation type="unfinished"></translation>
+        <translation>Ignorar tudo</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="148"/>
         <source>Exclude every row from the sync</source>
-        <translation type="unfinished"></translation>
+        <translation>Excluir todas as linhas da sincronização</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="198"/>
         <source>Abort</source>
-        <translation type="unfinished"></translation>
+        <translation>Abortar</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="244"/>
         <source>Compare Again</source>
-        <translation type="unfinished"></translation>
+        <translation>Comparar novamente</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="254"/>
         <source>Close</source>
-        <translation type="unfinished"></translation>
+        <translation>Fechar</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="288"/>
         <source>Comparing…</source>
-        <translation type="unfinished"></translation>
+        <translation>Comparando…</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="312"/>
         <source>Stopping…</source>
-        <translation type="unfinished"></translation>
+        <translation>Parando…</translation>
     </message>
     <message numerus="yes">
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="342"/>
         <source>Comparing… %n item(s) scanned</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>Comparando… %n item verificado</numerusform>
+            <numerusform>Comparando… %n itens verificados</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="344"/>
         <source>Comparing… %n item(s) scanned — %1</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>Comparando… %n item verificado — %1</numerusform>
+            <numerusform>Comparando… %n itens verificados — %1</numerusform>
         </translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="364"/>
         <source>Comparison stopped — results are incomplete.</source>
-        <translation type="unfinished"></translation>
+        <translation>Comparação interrompida — os resultados estão incompletos.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="375"/>
         <source>→ %1 · ← %2 · conflicts %3 · identical %4 · skipped %5    To sync: %6 file(s), %7</source>
-        <translation type="unfinished"></translation>
+        <translation>→ %1 · ← %2 · conflitos %3 · idênticos %4 · ignorados %5    A sincronizar: %6 arquivo(s), %7</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="250"/>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="396"/>
         <source>Start Sync (comparing…)</source>
-        <translation type="unfinished"></translation>
+        <translation>Iniciar sincronização (comparando…)</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="399"/>
         <source>Available once the comparison finishes. To start now, press Abort first.
 Copying while the scan is still running would make it re-read the files it just wrote and report them as new differences.</source>
-        <translation type="unfinished"></translation>
+        <translation>Disponível assim que a comparação terminar. Para começar agora, pressione Abortar primeiro.
+Copiar enquanto a varredura ainda está em execução faria com que ela relesse os arquivos recém-gravados e os apontasse como novas diferenças.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="406"/>
         <source>Start Sync (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>Iniciar sincronização (%1)</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="406"/>
         <source>Start Sync</source>
-        <translation type="unfinished"></translation>
+        <translation>Iniciar sincronização</translation>
     </message>
     <message numerus="yes">
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="408"/>
         <source>Copy the %n selected file(s).</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>Copiar o %n arquivo selecionado.</numerusform>
+            <numerusform>Copiar os %n arquivos selecionados.</numerusform>
         </translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="409"/>
         <source>Nothing to copy: no row is set to a direction.</source>
-        <translation type="unfinished"></translation>
+        <translation>Nada a copiar: nenhuma linha está definida com uma direção.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="90"/>
@@ -3766,50 +3800,50 @@ Direita: %2</translation>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="237"/>
         <source>Copy left → right. Click to change direction or skip.</source>
-        <translation type="unfinished"></translation>
+        <translation>Copiar da esquerda → direita. Clique para mudar a direção ou ignorar.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="239"/>
         <source>Copy right → left. Click to change direction or skip.</source>
-        <translation type="unfinished"></translation>
+        <translation>Copiar da direita → esquerda. Clique para mudar a direção ou ignorar.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="241"/>
         <source>Skipped — this file will not be touched. Click to choose a direction.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ignorado — este arquivo não será alterado. Clique para escolher uma direção.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="243"/>
         <source>Both sides match; nothing to do.</source>
-        <translation type="unfinished"></translation>
+        <translation>Os dois lados são iguais; nada a fazer.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="247"/>
         <source>Both sides were changed, or the clocks disagree: the contents differ but the timestamps look the same, so neither side is safe to assume newer. Click to pick a direction yourself.</source>
-        <translation type="unfinished"></translation>
+        <translation>Os dois lados foram alterados, ou os relógios divergem: o conteúdo é diferente, mas as datas parecem iguais, portanto não é seguro presumir que algum lado seja mais recente. Clique para escolher a direção você mesmo.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="334"/>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="342"/>
         <source>Name</source>
-        <translation type="unfinished">Nome</translation>
+        <translation>Nome</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="336"/>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="344"/>
         <source>Size</source>
-        <translation type="unfinished">Tamanho</translation>
+        <translation>Tamanho</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="338"/>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="346"/>
         <source>Modified</source>
-        <translation type="unfinished">Modificado</translation>
+        <translation>Modificado</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="340"/>
         <source>Action</source>
-        <translation type="unfinished"></translation>
+        <translation>Ação</translation>
     </message>
 </context>
 <context>
@@ -3889,12 +3923,12 @@ Direita: %2</translation>
     <message>
         <location filename="../../src/ui/TitleBar.cpp" line="33"/>
         <source>FileCommander</source>
-        <translation>File Commander</translation>
+        <translation>FileCommander</translation>
     </message>
     <message>
         <location filename="../../src/ui/TitleBar.cpp" line="86"/>
         <source>New Version</source>
-        <translation type="unfinished"></translation>
+        <translation>Nova versão</translation>
     </message>
 </context>
 <context>
@@ -3952,17 +3986,17 @@ Direita: %2</translation>
     <message>
         <location filename="../../src/core/update/UpdateChecker.cpp" line="78"/>
         <source>Malformed update manifest: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Manifesto de atualização malformado: %1</translation>
     </message>
     <message>
         <location filename="../../src/core/update/UpdateChecker.cpp" line="85"/>
         <source>Update manifest is missing a version field.</source>
-        <translation type="unfinished"></translation>
+        <translation>O manifesto de atualização não tem o campo de versão.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/UpdateChecker.cpp" line="107"/>
         <source>Update manifest has no %1 package for this installation.</source>
-        <translation type="unfinished"></translation>
+        <translation>O manifesto de atualização não contém um pacote %1 para esta instalação.</translation>
     </message>
 </context>
 <context>
@@ -3970,52 +4004,52 @@ Direita: %2</translation>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="16"/>
         <source>Software Update</source>
-        <translation type="unfinished"></translation>
+        <translation>Atualização de software</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="21"/>
         <source>Version %1 is available (you have %2).</source>
-        <translation type="unfinished"></translation>
+        <translation>A versão %1 está disponível (você tem a %2).</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="30"/>
         <source>Released: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Lançada em: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="32"/>
         <source>Release notes:</source>
-        <translation type="unfinished"></translation>
+        <translation>Notas da versão:</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="36"/>
         <source>No release notes provided.</source>
-        <translation type="unfinished"></translation>
+        <translation>Nenhuma nota de versão fornecida.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="47"/>
         <source>Update Now</source>
-        <translation type="unfinished"></translation>
+        <translation>Atualizar agora</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="49"/>
         <source>Later</source>
-        <translation type="unfinished"></translation>
+        <translation>Mais tarde</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="75"/>
         <source>Downloading…</source>
-        <translation type="unfinished"></translation>
+        <translation>Baixando…</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="82"/>
         <source>Verifying and installing…</source>
-        <translation type="unfinished"></translation>
+        <translation>Verificando e instalando…</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="97"/>
         <source>Retry</source>
-        <translation type="unfinished">Tentar novamente</translation>
+        <translation>Tentar novamente</translation>
     </message>
 </context>
 <context>
@@ -4023,129 +4057,130 @@ Direita: %2</translation>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="46"/>
         <source>Update information is incomplete.</source>
-        <translation type="unfinished"></translation>
+        <translation>As informações da atualização estão incompletas.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="62"/>
         <source>Could not create a temporary file for the download.</source>
-        <translation type="unfinished"></translation>
+        <translation>Não foi possível criar um arquivo temporário para o download.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="94"/>
         <source>Download failed: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Falha no download: %1</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="98"/>
         <source>The downloaded file could not be found.</source>
-        <translation type="unfinished"></translation>
+        <translation>O arquivo baixado não foi encontrado.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="105"/>
         <source>Could not read the downloaded file for verification.</source>
-        <translation type="unfinished"></translation>
+        <translation>Não foi possível ler o arquivo baixado para verificação.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="110"/>
         <source>Checksum mismatch — the download may be corrupt or tampered with. Update aborted.</source>
-        <translation type="unfinished"></translation>
+        <translation>Divergência na soma de verificação — o download pode estar corrompido ou adulterado. Atualização abortada.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="128"/>
         <source>Windows portable updates must be ZIP packages.</source>
-        <translation type="unfinished"></translation>
+        <translation>As atualizações da versão portátil para Windows devem ser pacotes ZIP.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="135"/>
         <source>The application folder is not writable. Extract the update manually.</source>
-        <translation type="unfinished"></translation>
+        <translation>A pasta do aplicativo não permite gravação. Extraia a atualização manualmente.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="144"/>
         <source>Could not create the update staging directory.</source>
-        <translation type="unfinished"></translation>
+        <translation>Não foi possível criar o diretório de preparação da atualização.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="150"/>
         <source>Could not stage the downloaded update.</source>
-        <translation type="unfinished"></translation>
+        <translation>Não foi possível preparar a atualização baixada.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="158"/>
         <source>Could not prepare the update installer.</source>
-        <translation type="unfinished"></translation>
+        <translation>Não foi possível preparar o instalador da atualização.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="196"/>
         <source>Could not launch the Windows update installer.</source>
-        <translation type="unfinished"></translation>
+        <translation>Não foi possível iniciar o instalador de atualização do Windows.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="199"/>
         <source>Updated to version %1. Restarting...</source>
-        <translation type="unfinished"></translation>
+        <translation>Atualizado para a versão %1. Reiniciando...</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="208"/>
         <source>Could not determine the AppImage path to replace.</source>
-        <translation type="unfinished"></translation>
+        <translation>Não foi possível determinar o caminho do AppImage a ser substituído.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="217"/>
         <source>Could not stage the new AppImage next to %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>Não foi possível preparar o novo AppImage ao lado de %1.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="224"/>
         <source>Could not make the new AppImage executable.</source>
-        <translation type="unfinished"></translation>
+        <translation>Não foi possível tornar o novo AppImage executável.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="233"/>
         <source>Could not replace the running AppImage at %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>Não foi possível substituir o AppImage em execução em %1.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="238"/>
         <source>Updated, but could not relaunch %1 automatically. Please start it again manually.</source>
-        <translation type="unfinished"></translation>
+        <translation>Atualizado, mas não foi possível reiniciar %1 automaticamente. Inicie-o novamente manualmente.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="244"/>
         <location filename="../../src/core/update/Updater.cpp" line="303"/>
         <source>Updated to version %1. Restarting…</source>
-        <translation type="unfinished"></translation>
+        <translation>Atualizado para a versão %1. Reiniciando…</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="256"/>
         <source>Could not prepare the downloaded package for installation.</source>
-        <translation type="unfinished"></translation>
+        <translation>Não foi possível preparar o pacote baixado para instalação.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="268"/>
         <source>Could not launch the installer (pkexec not available).</source>
-        <translation type="unfinished"></translation>
+        <translation>Não foi possível iniciar o instalador (pkexec indisponível).</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="279"/>
         <source>Installation failed and no fallback installer is available.</source>
-        <translation type="unfinished"></translation>
+        <translation>A instalação falhou e não há instalador alternativo disponível.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="287"/>
         <source>Package installation failed.</source>
-        <translation type="unfinished"></translation>
+        <translation>Falha na instalação do pacote.</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="288"/>
         <source>Package installation failed:
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Falha na instalação do pacote:
+%1</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="297"/>
         <source>Updated to version %1, but could not restart automatically. Please start FileCommander again.</source>
-        <translation type="unfinished"></translation>
+        <translation>Atualizado para a versão %1, mas não foi possível reiniciar automaticamente. Inicie o FileCommander novamente.</translation>
     </message>
 </context>
 <context>

@@ -55,6 +55,7 @@ set(UI_TEST_SOURCES
     test_ExternalConnectDialog.cpp
     test_ShortcutsDialog.cpp
     test_StandardButtonLocalization.cpp
+    test_TranslationCatalogs.cpp
     test_ChromeTypography.cpp
     test_CrtContentSurfaces.cpp
     test_MotionPolicy.cpp

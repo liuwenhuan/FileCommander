@@ -6,37 +6,37 @@
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="11"/>
         <source>About FileCommander</source>
-        <translation type="unfinished"></translation>
+        <translation>FileCommander について</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="20"/>
         <source>FileCommander — Total Commander for Linux</source>
-        <translation type="unfinished"></translation>
+        <translation>FileCommander — Linux 版 Total Commander</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="27"/>
         <source>Version %1</source>
-        <translation type="unfinished"></translation>
+        <translation>バージョン %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="31"/>
         <source>FileCommander is a powerful dual-pane file manager inspired by Total Commander and developed from scratch. It manages local files efficiently, makes network file services convenient to use, previews many file types, and is an efficiency tool built for advanced users.</source>
-        <translation type="unfinished"></translation>
+        <translation>FileCommander は Total Commander に着想を得て一から開発された、強力なデュアルペイン型ファイルマネージャーです。ローカルファイルを効率よく管理し、ネットワークファイルサービスを手軽に利用でき、さまざまな種類のファイルをプレビューできる、上級ユーザーのための効率化ツールです。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="40"/>
         <source>Free and open-source software, released under the GNU GPL v3.</source>
-        <translation type="unfinished"></translation>
+        <translation>GNU GPL v3 のもとで公開されている、フリーかつオープンソースのソフトウェアです。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="45"/>
         <source>&lt;a href=&quot;https://github.com/ttc-fm/ttc&quot;&gt;Project home page&lt;/a&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;a href=&quot;https://github.com/ttc-fm/ttc&quot;&gt;プロジェクトホームページ&lt;/a&gt;</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AboutDialog.cpp" line="50"/>
         <source>Close</source>
-        <translation type="unfinished"></translation>
+        <translation>閉じる</translation>
     </message>
 </context>
 <context>
@@ -384,7 +384,7 @@ Extract it too?</source>
     <message>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="140"/>
         <source>SFTP, FTP and WebDAV connect through built-in cross-platform clients.</source>
-        <translation type="unfinished"></translation>
+        <translation>SFTP、FTP、WebDAV は内蔵のクロスプラットフォームクライアントで接続します。</translation>
     </message>
     <message>
         <source>SFTP, FTP and WebDAV connect through a built-in client; SMB is mounted via GVfs.</source>
@@ -450,7 +450,7 @@ Extract it too?</source>
     <message>
         <location filename="../../src/ui/tree/DirectoryTreeModel.cpp" line="162"/>
         <source>This connection belongs to the other panel. Switch to it there, or open a new connection from the Connection Manager.</source>
-        <translation type="unfinished"></translation>
+        <translation>この接続はもう一方のパネルのものです。そちらのパネルで切り替えるか、接続マネージャーから新しい接続を開いてください。</translation>
     </message>
 </context>
 <context>
@@ -458,81 +458,85 @@ Extract it too?</source>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="318"/>
         <source>弹出（安全移除）</source>
-        <translation type="unfinished"></translation>
+        <translation>取り出し（安全な取り外し）</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="333"/>
         <source>弹出失败</source>
-        <translation type="unfinished"></translation>
+        <translation>取り出しに失敗しました</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="334"/>
         <source>无法弹出该设备。
 
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>デバイスを取り出せませんでした。
+
+%1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="375"/>
         <source>Removable Devices</source>
-        <translation type="unfinished"></translation>
+        <translation>リムーバブルデバイス</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="379"/>
         <source>No removable devices</source>
-        <translation type="unfinished"></translation>
+        <translation>リムーバブルデバイスはありません</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="388"/>
         <source>Saved Connections</source>
-        <translation type="unfinished"></translation>
+        <translation>保存された接続</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="389"/>
         <source>连接管理器…</source>
-        <translation type="unfinished"></translation>
+        <translation>接続マネージャー…</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="395"/>
         <source>No saved connections</source>
-        <translation type="unfinished"></translation>
+        <translation>保存された接続はありません</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="413"/>
         <source>重新搜索网络共享</source>
-        <translation type="unfinished"></translation>
+        <translation>ネットワーク共有を再検索</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="416"/>
         <source>正在搜索，点击停止</source>
-        <translation type="unfinished"></translation>
+        <translation>検索中です。クリックで停止します</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="417"/>
         <source>Searching…</source>
-        <translation type="unfinished"></translation>
+        <translation>検索中…</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="419"/>
         <source>Network Neighborhood</source>
-        <translation type="unfinished"></translation>
+        <translation>ネットワークコンピューター</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="441"/>
         <source>未发现网络主机</source>
-        <translation type="unfinished"></translation>
+        <translation>ネットワークホストが見つかりません</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="498"/>
         <source>Mount Failed</source>
-        <translation type="unfinished"></translation>
+        <translation>マウント失敗</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="499"/>
         <source>Could not mount the device.
 
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>デバイスをマウントできませんでした。
+
+%1</translation>
     </message>
 </context>
 <context>
@@ -546,13 +550,14 @@ Extract it too?</source>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="427"/>
         <source>Failed to remove the source after copying %1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 のコピー後にコピー元を削除できませんでした</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="624"/>
         <source>%1
 Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1
+管理者として削除するとごみ箱を経由せず、元に戻せません。</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="667"/>
@@ -587,27 +592,27 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1025"/>
         <source>The destination has no space for %1</source>
-        <translation type="unfinished"></translation>
+        <translation>コピー先に %1 のための空き容量がありません</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1027"/>
         <source>You do not have permission to write %1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 に書き込む権限がありません</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1029"/>
         <source>Connection to the server was lost while transferring %1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 の転送中にサーバーとの接続が失われました</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1032"/>
         <source>Upload of %1 did not complete: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 のアップロードが完了しませんでした: %2</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1033"/>
         <source>Write error on %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 の書き込みエラー: %2</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1045"/>
@@ -622,7 +627,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1068"/>
         <source>Source shrank before resuming transfer of %1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 の転送を再開する前にコピー元が小さくなりました</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1077"/>
@@ -640,7 +645,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <location filename="../../src/core/operations/FileOperations.cpp" line="1108"/>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1144"/>
         <source>Unexpected end of %1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 が予期せず終了しました</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1040"/>
@@ -651,27 +656,27 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <location filename="../../src/core/operations/FileOperations.cpp" line="1154"/>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1161"/>
         <source>Source changed during transfer of %1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 の転送中にコピー元が変更されました</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1039"/>
         <source>Upload of %1 did not complete</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 のアップロードが完了しませんでした</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="207"/>
         <source>The administrator operation did not complete.</source>
-        <translation type="unfinished"></translation>
+        <translation>管理者権限での操作が完了しませんでした。</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1304"/>
         <source>Moved contents but could not remove source %1</source>
-        <translation type="unfinished"></translation>
+        <translation>内容は移動しましたが、移動元 %1 を削除できませんでした</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1319"/>
         <source>Copied but could not remove source %1</source>
-        <translation type="unfinished"></translation>
+        <translation>コピーしましたが、コピー元 %1 を削除できませんでした</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="1359"/>
@@ -720,32 +725,32 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="961"/>
         <source>正在等待连接…</source>
-        <translation type="unfinished"></translation>
+        <translation>接続を待機しています…</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="966"/>
         <source>断线，正在重连（%1/%2）…</source>
-        <translation type="unfinished"></translation>
+        <translation>切断されました。再接続しています（%1/%2）…</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="973"/>
         <source>多次重连失败</source>
-        <translation type="unfinished"></translation>
+        <translation>再接続に繰り返し失敗しました</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="973"/>
         <source>连接失败：%1</source>
-        <translation type="unfinished"></translation>
+        <translation>接続に失敗しました: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="1024"/>
         <source>需要登录</source>
-        <translation type="unfinished"></translation>
+        <translation>ログインが必要です</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="1049"/>
         <source>Search results</source>
-        <translation type="unfinished"></translation>
+        <translation>検索結果</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="2084"/>
@@ -781,7 +786,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/ui/FunctionKeyBar.cpp" line="33"/>
         <source>Change this button&apos;s function...</source>
-        <translation type="unfinished"></translation>
+        <translation>このボタンの機能を変更...</translation>
     </message>
     <message>
         <location filename="../../src/ui/FunctionKeyBar.cpp" line="52"/>
@@ -828,7 +833,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <location filename="../../src/ui/MainWindow.cpp" line="312"/>
         <location filename="../../src/ui/MainWindow.cpp" line="3952"/>
         <source>FileCommander</source>
-        <translation>Total Commander for Linux</translation>
+        <translation>FileCommander</translation>
     </message>
     <message>
         <source>Show / hide hidden files</source>
@@ -893,14 +898,14 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1012"/>
         <source>Menu Font Size:</source>
-        <translation type="unfinished"></translation>
+        <translation>メニューのフォントサイズ:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1072"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2289"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2597"/>
         <source>Choose Font</source>
-        <translation type="unfinished"></translation>
+        <translation>フォントを選択</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2422"/>
@@ -1038,48 +1043,48 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <location filename="../../src/ui/MainWindow.cpp" line="2276"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2277"/>
         <source>Quick Notepad</source>
-        <translation type="unfinished"></translation>
+        <translation>クイックメモ帳</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="834"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2279"/>
         <source>Calculate Checksums</source>
-        <translation type="unfinished"></translation>
+        <translation>チェックサムを計算</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="836"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2283"/>
         <source>Compare Files</source>
-        <translation type="unfinished"></translation>
+        <translation>ファイルを比較</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="847"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2285"/>
         <source>Keyboard Shortcuts</source>
-        <translation type="unfinished">キーボードショートカット</translation>
+        <translation>キーボードショートカット</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="848"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2287"/>
         <source>Connection Manager</source>
-        <translation type="unfinished"></translation>
+        <translation>接続マネージャー</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="851"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2337"/>
         <source>Directly Open Archives</source>
-        <translation type="unfinished"></translation>
+        <translation>アーカイブを直接開く</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="871"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2348"/>
         <source>Automatic Update Check</source>
-        <translation type="unfinished"></translation>
+        <translation>自動更新チェック</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="880"/>
         <source>&amp;Interface</source>
-        <translation type="unfinished"></translation>
+        <translation>インターフェイス(&amp;I)</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="898"/>
@@ -1390,98 +1395,100 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <location filename="../../src/ui/MainWindow.cpp" line="1076"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2314"/>
         <source>Show Function Key Bar</source>
-        <translation type="unfinished"></translation>
+        <translation>ファンクションキーバーを表示</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="953"/>
         <source>File List Font Size:</source>
-        <translation type="unfinished"></translation>
+        <translation>ファイル一覧のフォントサイズ:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="965"/>
         <source>Type a size, or use − / + (8-16)</source>
-        <translation type="unfinished">サイズを入力するか、− / + を使用（8〜18） {8-16)?}</translation>
+        <translation>サイズを入力するか、− / + を使用します（8〜16）</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1023"/>
         <source>Type a size, or use - / + (8-16)</source>
-        <translation type="unfinished"></translation>
+        <translation>サイズを入力するか、- / + を使用します（8〜16）</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1085"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2320"/>
         <source>Show Command Bar</source>
-        <translation type="unfinished"></translation>
+        <translation>コマンドバーを表示</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1094"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2326"/>
         <source>Show File Tab Bar</source>
-        <translation type="unfinished"></translation>
+        <translation>ファイルタブバーを表示</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1104"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2333"/>
         <source>Display Shortcut Labels</source>
-        <translation type="unfinished"></translation>
+        <translation>ショートカットラベルを表示</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1937"/>
         <source>Choose a function:</source>
-        <translation type="unfinished"></translation>
+        <translation>機能を選択:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1961"/>
         <source>Change Leading Button Function</source>
-        <translation type="unfinished"></translation>
+        <translation>左側のボタンの機能を変更</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1961"/>
         <source>Change Trailing Button Function</source>
-        <translation type="unfinished"></translation>
+        <translation>右側のボタンの機能を変更</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2099"/>
         <source>Connection Failed</source>
-        <translation type="unfinished">接続失敗</translation>
+        <translation>接続失敗</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2100"/>
         <source>Unsupported connection type.</source>
-        <translation type="unfinished"></translation>
+        <translation>サポートされていない接続の種類です。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2171"/>
         <source>External Connections</source>
-        <translation type="unfinished"></translation>
+        <translation>外部接続</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2172"/>
         <source>Network and removable-device connections are not enabled in this build.</source>
-        <translation type="unfinished"></translation>
+        <translation>このビルドではネットワークおよびリムーバブルデバイスへの接続は有効になっていません。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2209"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2214"/>
         <source>Check for Updates</source>
-        <translation type="unfinished"></translation>
+        <translation>更新を確認</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2210"/>
         <source>You are running the latest version.</source>
-        <translation type="unfinished"></translation>
+        <translation>最新バージョンを使用しています。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2215"/>
         <source>Could not check for updates.
 
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>更新を確認できませんでした。
+
+%1</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2228"/>
         <source>Update Available</source>
-        <translation type="unfinished"></translation>
+        <translation>更新があります</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2229"/>
@@ -1490,162 +1497,166 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
 %2
 
 Download: %3</source>
-        <translation type="unfinished"></translation>
+        <translation>バージョン %1 が利用可能です。
+
+%2
+
+ダウンロード: %3</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2241"/>
         <source>Open Quick Preview</source>
-        <translation type="unfinished"></translation>
+        <translation>クイックプレビューを開く</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2244"/>
         <source>Switch to List View</source>
-        <translation type="unfinished"></translation>
+        <translation>リスト表示に切り替え</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2245"/>
         <source>Switch to Thumbnail View</source>
-        <translation type="unfinished"></translation>
+        <translation>サムネイル表示に切り替え</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2247"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2354"/>
         <source>Synchronize Directories</source>
-        <translation type="unfinished">ディレクトリの同期</translation>
+        <translation>ディレクトリの同期</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2248"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2356"/>
         <source>Compare Directories</source>
-        <translation type="unfinished"></translation>
+        <translation>ディレクトリを比較</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2249"/>
         <source>Find Files</source>
-        <translation type="unfinished"></translation>
+        <translation>ファイルを検索</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2250"/>
         <source>Filter Files</source>
-        <translation type="unfinished"></translation>
+        <translation>ファイルを絞り込み</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2251"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2358"/>
         <source>Select by Pattern</source>
-        <translation type="unfinished">パターンで選択</translation>
+        <translation>パターンで選択</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2252"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2360"/>
         <source>Invert Selection</source>
-        <translation type="unfinished"></translation>
+        <translation>選択を反転</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2253"/>
         <source>Undo Previous Operation</source>
-        <translation type="unfinished"></translation>
+        <translation>直前の操作を元に戻す</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2274"/>
         <source>Connect External / Devices</source>
-        <translation type="unfinished"></translation>
+        <translation>外部接続 / デバイス</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2291"/>
         <source>Increase Font Size</source>
-        <translation type="unfinished"></translation>
+        <translation>フォントサイズを拡大</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2300"/>
         <source>Decrease Font Size</source>
-        <translation type="unfinished"></translation>
+        <translation>フォントサイズを縮小</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2309"/>
         <source>Cycle Theme</source>
-        <translation type="unfinished"></translation>
+        <translation>テーマを切り替え</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2456"/>
         <source>List / Thumbnail View</source>
-        <translation type="unfinished"></translation>
+        <translation>リスト / サムネイル表示</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2469"/>
         <source>Parent Directory</source>
-        <translation type="unfinished"></translation>
+        <translation>親ディレクトリ</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2474"/>
         <source>Open Directory or Archive</source>
-        <translation type="unfinished"></translation>
+        <translation>ディレクトリまたはアーカイブを開く</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2479"/>
         <source>Properties (Alt+Enter)</source>
-        <translation type="unfinished"></translation>
+        <translation>プロパティ（Alt+Enter）</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2481"/>
         <source>Find Files (Alt+F7)</source>
-        <translation type="unfinished"></translation>
+        <translation>ファイルを検索（Alt+F7）</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2483"/>
         <source>Calculate Occupied Space</source>
-        <translation type="unfinished"></translation>
+        <translation>使用容量を計算</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2485"/>
         <source>Rename (Shift+F6)</source>
-        <translation type="unfinished"></translation>
+        <translation>名前の変更（Shift+F6）</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2502"/>
         <source>Sort by Name</source>
-        <translation type="unfinished"></translation>
+        <translation>名前で並べ替え</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2502"/>
         <source>Sort by Extension</source>
-        <translation type="unfinished"></translation>
+        <translation>拡張子で並べ替え</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2503"/>
         <source>Sort by Date</source>
-        <translation type="unfinished"></translation>
+        <translation>日付で並べ替え</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2503"/>
         <source>Sort by Size</source>
-        <translation type="unfinished"></translation>
+        <translation>サイズで並べ替え</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2512"/>
         <source>Go to Root Directory</source>
-        <translation type="unfinished"></translation>
+        <translation>ルートディレクトリへ移動</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2514"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2812"/>
         <source>Go to Other Panel&apos;s Directory</source>
-        <translation type="unfinished"></translation>
+        <translation>別パネルのディレクトリへ移動</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2516"/>
         <source>Open Directory in New Tab</source>
-        <translation type="unfinished"></translation>
+        <translation>ディレクトリを新しいタブで開く</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2518"/>
         <source>Show Context Menu</source>
-        <translation type="unfinished"></translation>
+        <translation>コンテキストメニューを表示</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2520"/>
         <source>Copy Path to Command Line</source>
-        <translation type="unfinished"></translation>
+        <translation>パスをコマンドラインにコピー</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2522"/>
@@ -1654,7 +1665,7 @@ Download: %3</source>
         <location filename="../../src/ui/MainWindow.cpp" line="2891"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2896"/>
         <source>New Text File</source>
-        <translation type="unfinished"></translation>
+        <translation>新しいテキストファイル</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2524"/>
@@ -1662,12 +1673,12 @@ Download: %3</source>
         <location filename="../../src/ui/MainWindow.cpp" line="2923"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2931"/>
         <source>Copy in Same Directory</source>
-        <translation type="unfinished"></translation>
+        <translation>同じディレクトリ内にコピー</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2685"/>
         <source>This connection cannot read file contents, so checksums cannot be computed for these files.</source>
-        <translation type="unfinished"></translation>
+        <translation>この接続ではファイルの内容を読み取れないため、これらのファイルのチェックサムは計算できません。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2736"/>
@@ -1675,7 +1686,10 @@ Download: %3</source>
 The server owns their disk blocks, so overwriting them
 from here cannot guarantee the originals are gone.
 Delete them remotely instead.</source>
-        <translation type="unfinished"></translation>
+        <translation>これらの項目は %1 上にあります。
+ディスクブロックはサーバーが管理しているため、ここから上書きしても
+元のデータが消えた保証はありません。
+代わりにリモート側で削除してください。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2742"/>
@@ -1683,20 +1697,26 @@ Delete them remotely instead.</source>
 not files on this disk.
 To destroy them, wipe the archive file itself
 from the folder that holds it.</source>
-        <translation type="unfinished"></translation>
+        <translation>これらの項目はアーカイブ内のエントリであり、
+このディスク上のファイルではありません。
+完全に消去するには、アーカイブファイル自体を
+それが置かれているフォルダーから消去してください。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2747"/>
         <source>This tab is not the local filesystem,
 so there are no on-disk bytes here to overwrite.</source>
-        <translation type="unfinished"></translation>
+        <translation>このタブはローカルファイルシステムではないため、
+上書きできるディスク上のデータがありません。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2750"/>
         <source>Secure wipe is only available on local files.
 
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>完全消去はローカルファイルでのみ利用できます。
+
+%1</translation>
     </message>
     <message>
         <source>Securely erase %1 item(s) (%2 bytes)?
@@ -1709,12 +1729,12 @@ Their contents will be overwritten on disk and then deleted. This is IRREVERSIBL
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2774"/>
         <source>Secure wipe is not available on this platform.</source>
-        <translation type="unfinished"></translation>
+        <translation>このプラットフォームでは完全消去を利用できません。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2793"/>
         <source>The two panels are on different connections, so this directory has no meaning in the other one. Use Swap Panels (Ctrl+U) to move this connection across instead.</source>
-        <translation type="unfinished"></translation>
+        <translation>2つのパネルは異なる接続にあるため、このディレクトリはもう一方のパネルでは意味を持ちません。代わりにパネルを入れ替え（Ctrl+U）てこの接続を移動してください。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3002"/>
@@ -1909,147 +1929,149 @@ Their contents will be overwritten on disk and then deleted. This is IRREVERSIBL
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2813"/>
         <source>The two panels are on different connections, so that directory has no meaning in this one. Use Swap Panels (Ctrl+U) to move the connection across instead.</source>
-        <translation type="unfinished"></translation>
+        <translation>2つのパネルは異なる接続にあるため、そのディレクトリはこのパネルでは意味を持ちません。代わりにパネルを入れ替え（Ctrl+U）て接続を移動してください。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2879"/>
         <source>New files can only be created on a local tab.</source>
-        <translation type="unfinished"></translation>
+        <translation>新しいファイルはローカルタブでのみ作成できます。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2884"/>
         <source>File name:</source>
-        <translation type="unfinished"></translation>
+        <translation>ファイル名:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2891"/>
         <source>%1 already exists.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 は既に存在します。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2897"/>
         <source>Could not create %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 を作成できませんでした: %2</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2919"/>
         <source>Select exactly one item to copy under a new name.</source>
-        <translation type="unfinished"></translation>
+        <translation>別名でコピーするには項目を1つだけ選択してください。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2924"/>
         <source>This is only available on a local tab.</source>
-        <translation type="unfinished"></translation>
+        <translation>これはローカルタブでのみ利用できます。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3512"/>
         <source>%1 was downloaded to a read-only local copy, which is what the application opened.
 
 Changes made to it are not saved back to the server.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 は読み取り専用のローカルコピーとしてダウンロードされ、アプリケーションはそれを開きました。
+
+加えた変更はサーバーには保存されません。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3526"/>
         <source>This connection cannot download files, so %1 cannot be opened with a local application.</source>
-        <translation type="unfinished"></translation>
+        <translation>この接続ではファイルをダウンロードできないため、%1 をローカルアプリケーションで開くことはできません。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3534"/>
         <location filename="../../src/ui/MainWindow.cpp" line="3546"/>
         <source>Could not create a temporary folder to download %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 をダウンロードするための一時フォルダーを作成できませんでした。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3560"/>
         <source>There is not enough free space in %1 to download %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>%2 をダウンロードするための空き容量が %1 に足りません。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3582"/>
         <source>Downloading %1...</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 をダウンロード中...</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3633"/>
         <source>Could not download %1 from the server.</source>
-        <translation type="unfinished"></translation>
+        <translation>サーバーから %1 をダウンロードできませんでした。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3861"/>
         <location filename="../../src/ui/MainWindow.cpp" line="3880"/>
         <source>重新连接</source>
-        <translation type="unfinished"></translation>
+        <translation>再接続</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3864"/>
         <source>断开连接</source>
-        <translation type="unfinished"></translation>
+        <translation>接続を切断</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3880"/>
         <source>不支持的连接类型。</source>
-        <translation type="unfinished"></translation>
+        <translation>サポートされていない接続の種類です。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3890"/>
         <source>Reconnect</source>
-        <translation type="unfinished"></translation>
+        <translation>再接続</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3891"/>
         <location filename="../../src/ui/MainWindow.cpp" line="4056"/>
         <source>Network connections are not enabled in this build.</source>
-        <translation type="unfinished"></translation>
+        <translation>このビルドではネットワーク接続は有効になっていません。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3975"/>
         <source>需要密码</source>
-        <translation type="unfinished"></translation>
+        <translation>パスワードが必要です</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3978"/>
         <source>此连接需要用户名和密码。</source>
-        <translation type="unfinished"></translation>
+        <translation>この接続にはユーザー名とパスワードが必要です。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3979"/>
         <source>连接“%1”需要用户名和密码。</source>
-        <translation type="unfinished"></translation>
+        <translation>接続「%1」にはユーザー名とパスワードが必要です。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3994"/>
         <source>用户名：</source>
-        <translation type="unfinished"></translation>
+        <translation>ユーザー名:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3995"/>
         <source>密码：</source>
-        <translation type="unfinished"></translation>
+        <translation>パスワード:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4055"/>
         <source>Server Connection</source>
-        <translation type="unfinished"></translation>
+        <translation>サーバー接続</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4181"/>
         <source>创建链接</source>
-        <translation type="unfinished"></translation>
+        <translation>リンクを作成</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4182"/>
         <source>无法为网络位置创建符号链接。</source>
-        <translation type="unfinished"></translation>
+        <translation>ネットワーク上の場所にはシンボリックリンクを作成できません。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4250"/>
         <source>粘贴</source>
-        <translation type="unfinished"></translation>
+        <translation>貼り付け</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4251"/>
         <source>源连接（%1）已关闭，无法从远端粘贴。</source>
-        <translation type="unfinished"></translation>
+        <translation>コピー元の接続（%1）が閉じられているため、リモートから貼り付けできません。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4445"/>
@@ -2098,12 +2120,14 @@ Extract it too?</source>
         <source>%1 cannot be edited in place.
 
 Editing a file on this connection needs it mounted through GVfs (the gvfs-backends package). Copy the file to a local folder to edit it.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 はその場で編集できません。
+
+この接続上のファイルを編集するには、GVfs（gvfs-backends パッケージ）でマウントする必要があります。編集するにはファイルをローカルフォルダーにコピーしてください。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4535"/>
         <source>Could not open %1 for editing: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 を編集用に開けませんでした: %2</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4552"/>
@@ -2284,45 +2308,45 @@ This is permanent and will NOT go to the trash.</source>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="50"/>
         <source>Search notes...</source>
-        <translation type="unfinished"></translation>
+        <translation>メモを検索...</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="52"/>
         <source>New</source>
-        <translation type="unfinished"></translation>
+        <translation>新規</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="54"/>
         <location filename="../../src/ui/NotepadPanel.cpp" line="268"/>
         <source>Delete</source>
-        <translation type="unfinished">削除</translation>
+        <translation>削除</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="81"/>
         <source>Write your note here...</source>
-        <translation type="unfinished"></translation>
+        <translation>ここにメモを入力...</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="133"/>
         <location filename="../../src/ui/NotepadPanel.cpp" line="258"/>
         <source>Note 1</source>
-        <translation type="unfinished"></translation>
+        <translation>メモ 1</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="151"/>
         <location filename="../../src/ui/NotepadPanel.cpp" line="300"/>
         <source>New note</source>
-        <translation type="unfinished"></translation>
+        <translation>新しいメモ</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="221"/>
         <source>Note %1</source>
-        <translation type="unfinished"></translation>
+        <translation>メモ %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="242"/>
         <source>Confirm?</source>
-        <translation type="unfinished"></translation>
+        <translation>よろしいですか？</translation>
     </message>
 </context>
 <context>
@@ -2330,47 +2354,47 @@ This is permanent and will NOT go to the trash.</source>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="37"/>
         <source>File Operation Failed</source>
-        <translation type="unfinished"></translation>
+        <translation>ファイル操作に失敗しました</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="54"/>
         <source>Source: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>コピー元: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="57"/>
         <source>Target: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>コピー先: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="76"/>
         <source>Retry</source>
-        <translation type="unfinished">再試行</translation>
+        <translation>再試行</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="77"/>
         <source>Skip</source>
-        <translation type="unfinished">スキップ</translation>
+        <translation>スキップ</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="78"/>
         <source>Skip All</source>
-        <translation type="unfinished">すべてスキップ</translation>
+        <translation>すべてスキップ</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="79"/>
         <source>Cancel Current</source>
-        <translation type="unfinished"></translation>
+        <translation>現在の操作をキャンセル</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="81"/>
         <source>Abort</source>
-        <translation type="unfinished"></translation>
+        <translation>中止</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="83"/>
         <source>Run as administrator</source>
-        <translation type="unfinished"></translation>
+        <translation>管理者として実行</translation>
     </message>
 </context>
 <context>
@@ -2468,7 +2492,7 @@ This is permanent and will NOT go to the trash.</source>
     <message>
         <location filename="../../src/core/operations/OperationQueue.cpp" line="199"/>
         <source>Failed to rename %1</source>
-        <translation type="unfinished">%1 の名前を変更できませんでした</translation>
+        <translation>%1 の名前を変更できませんでした</translation>
     </message>
 </context>
 <context>
@@ -2572,12 +2596,12 @@ Destination: %4 (%5 bytes)</source>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="60"/>
         <source>1 file</source>
-        <translation type="unfinished"></translation>
+        <translation>1 個のファイル</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="61"/>
         <source>%1 files</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 個のファイル</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="66"/>
@@ -2587,12 +2611,12 @@ Destination: %4 (%5 bytes)</source>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="262"/>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="267"/>
         <source>Unavailable</source>
-        <translation type="unfinished"></translation>
+        <translation>利用不可</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="109"/>
         <source>Normal</source>
-        <translation type="unfinished"></translation>
+        <translation>標準</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="209"/>
@@ -2600,7 +2624,7 @@ Destination: %4 (%5 bytes)</source>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="267"/>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="282"/>
         <source>Contains:</source>
-        <translation type="unfinished"></translation>
+        <translation>内容:</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="214"/>
@@ -2645,12 +2669,12 @@ Destination: %4 (%5 bytes)</source>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="303"/>
         <source>All Properties</source>
-        <translation type="unfinished"></translation>
+        <translation>すべてのプロパティ</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="308"/>
         <source>Available for one local file or folder.</source>
-        <translation type="unfinished"></translation>
+        <translation>ローカルのファイルまたはフォルダー1つに対してのみ利用できます。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="356"/>
@@ -2690,7 +2714,7 @@ Destination: %4 (%5 bytes)</source>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="379"/>
         <source>Shown as reported by the source. These entries are not on this computer&apos;s filesystem, so their permissions cannot be changed here.</source>
-        <translation type="unfinished"></translation>
+        <translation>取得元から報告された内容を表示しています。これらの項目はこのコンピューターのファイルシステム上にないため、ここでは権限を変更できません。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="406"/>
@@ -2714,22 +2738,22 @@ Destination: %4 (%5 bytes)</source>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="280"/>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="282"/>
         <source>Calculating...</source>
-        <translation type="unfinished"></translation>
+        <translation>計算中...</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="241"/>
         <source>Created:</source>
-        <translation type="unfinished"></translation>
+        <translation>作成日時:</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="243"/>
         <source>Accessed:</source>
-        <translation type="unfinished"></translation>
+        <translation>アクセス日時:</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="244"/>
         <source>Attributes:</source>
-        <translation type="unfinished"></translation>
+        <translation>属性:</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="435"/>
@@ -2858,7 +2882,7 @@ Destination: %4 (%5 bytes)</source>
     <message>
         <location filename="../../src/ui/dialogs/OverwriteConfirmDialog.cpp" line="21"/>
         <source>unknown size</source>
-        <translation type="unfinished"></translation>
+        <translation>サイズ不明</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/OverwriteConfirmDialog.cpp" line="44"/>
@@ -2866,7 +2890,10 @@ Destination: %4 (%5 bytes)</source>
 
 Source: %2 (%3)
 Destination: %4 (%5)</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 は既に存在します。
+
+コピー元: %2 (%3)
+コピー先: %4 (%5)</translation>
     </message>
 </context>
 <context>
@@ -2973,12 +3000,12 @@ Destination: %4 (%5)</source>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="278"/>
         <source>Rotated on screen only - could not save to disk.</source>
-        <translation type="unfinished"></translation>
+        <translation>画面上で回転しただけで、ディスクには保存できませんでした。</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="486"/>
         <source>Unknown media backend initialization error.</source>
-        <translation type="unfinished"></translation>
+        <translation>メディアバックエンドの初期化中に不明なエラーが発生しました。</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="501"/>
@@ -2987,7 +3014,11 @@ Destination: %4 (%5)</source>
 %1
 
 Restart File Commander to retry. If the problem continues, verify that the mpv media backend is installed correctly.</source>
-        <translation type="unfinished"></translation>
+        <translation>メディアプレビューを開始できませんでした。
+
+%1
+
+File Commander を再起動してやり直してください。問題が続く場合は、mpv メディアバックエンドが正しくインストールされているか確認してください。</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="915"/>
@@ -3174,64 +3205,64 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1356"/>
         <source>No embedded lyrics.</source>
-        <translation type="unfinished"></translation>
+        <translation>埋め込み歌詞はありません。</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1375"/>
         <source>Previous track</source>
-        <translation type="unfinished"></translation>
+        <translation>前のトラック</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1380"/>
         <source>Play / pause</source>
-        <translation type="unfinished"></translation>
+        <translation>再生 / 一時停止</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1387"/>
         <source>Next track</source>
-        <translation type="unfinished"></translation>
+        <translation>次のトラック</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1539"/>
         <location filename="../../src/ui/QuickView.cpp" line="1602"/>
         <source>Artist</source>
-        <translation type="unfinished"></translation>
+        <translation>アーティスト</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1540"/>
         <location filename="../../src/ui/QuickView.cpp" line="1603"/>
         <source>Album</source>
-        <translation type="unfinished"></translation>
+        <translation>アルバム</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1541"/>
         <location filename="../../src/ui/QuickView.cpp" line="1604"/>
         <source>Album Artist</source>
-        <translation type="unfinished"></translation>
+        <translation>アルバムアーティスト</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1542"/>
         <location filename="../../src/ui/QuickView.cpp" line="1605"/>
         <source>Year</source>
-        <translation type="unfinished"></translation>
+        <translation>年</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1543"/>
         <location filename="../../src/ui/QuickView.cpp" line="1606"/>
         <source>Genre</source>
-        <translation type="unfinished"></translation>
+        <translation>ジャンル</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1544"/>
         <location filename="../../src/ui/QuickView.cpp" line="1607"/>
         <source>Track</source>
-        <translation type="unfinished"></translation>
+        <translation>トラック</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1545"/>
         <location filename="../../src/ui/QuickView.cpp" line="1608"/>
         <source>Composer</source>
-        <translation type="unfinished"></translation>
+        <translation>作曲者</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1766"/>
@@ -3246,19 +3277,21 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1810"/>
         <source>停止下载</source>
-        <translation type="unfinished"></translation>
+        <translation>ダウンロードを停止</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1824"/>
         <source>正在下载到本地以便预览…
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>プレビューのためにローカルへダウンロードしています…
+%1</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1846"/>
         <source>已取消预览：本文件的预览下载被用户停止。
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>プレビューを取り消しました: このファイルのプレビュー用ダウンロードがユーザーによって停止されました。
+%1</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1858"/>
@@ -3323,33 +3356,33 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="2339"/>
         <source>Sheet %1</source>
-        <translation type="unfinished"></translation>
+        <translation>シート %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="2369"/>
         <source>Copy Page</source>
-        <translation type="unfinished"></translation>
+        <translation>ページをコピー</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="2371"/>
         <location filename="../../src/ui/QuickView.cpp" line="2702"/>
         <source>Copy All</source>
-        <translation type="unfinished"></translation>
+        <translation>すべてコピー</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="2700"/>
         <source>Copy Slide</source>
-        <translation type="unfinished"></translation>
+        <translation>スライドをコピー</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="2955"/>
         <source>Slide %1 / %2</source>
-        <translation type="unfinished"></translation>
+        <translation>スライド %1 / %2</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="3297"/>
         <source>PDF preview is not enabled in this build: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>このビルドでは PDF プレビューが有効になっていません: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="219"/>
@@ -3364,19 +3397,19 @@ pip install --user msoffcrypto-tool</translation>
         <location filename="../../src/core/devices/RemovableDeviceMonitor.cpp" line="219"/>
         <location filename="../../src/core/devices/RemovableDeviceMonitor.cpp" line="259"/>
         <source>System D-Bus is not available</source>
-        <translation type="unfinished"></translation>
+        <translation>システム D-Bus を利用できません</translation>
     </message>
     <message>
         <location filename="../../src/core/devices/RemovableDeviceMonitor.cpp" line="226"/>
         <location filename="../../src/core/devices/RemovableDeviceMonitor.cpp" line="269"/>
         <source>Device is not a mountable filesystem</source>
-        <translation type="unfinished"></translation>
+        <translation>このデバイスはマウント可能なファイルシステムではありません</translation>
     </message>
     <message>
         <location filename="../../src/core/devices/RemovableDeviceMonitor_windows.cpp" line="177"/>
         <location filename="../../src/core/devices/RemovableDeviceMonitor_windows.cpp" line="185"/>
         <source>The volume is no longer available.</source>
-        <translation type="unfinished"></translation>
+        <translation>このボリュームは利用できなくなりました。</translation>
     </message>
 </context>
 <context>
@@ -3474,17 +3507,17 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/dialogs/SecureWipeConfirmationDialog.cpp" line="35"/>
         <source>Secure Wipe</source>
-        <translation type="unfinished">完全消去</translation>
+        <translation>完全消去</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SecureWipeConfirmationDialog.cpp" line="40"/>
         <source>Securely erase %1 item(s) (%2 bytes)?</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 個の項目（%2 バイト）を完全に消去しますか？</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SecureWipeConfirmationDialog.cpp" line="45"/>
         <source>Their contents will be overwritten on disk and then deleted. This operation cannot be undone: the items will not enter the Recycle Bin and cannot be recovered.</source>
-        <translation type="unfinished"></translation>
+        <translation>内容がディスク上で上書きされたうえで削除されます。この操作は元に戻せません。項目はごみ箱に入らず、復元もできません。</translation>
     </message>
 </context>
 <context>
@@ -3548,22 +3581,22 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/StatusBarWidget.cpp" line="37"/>
         <source>Smaller</source>
-        <translation type="unfinished"></translation>
+        <translation>小さく</translation>
     </message>
     <message>
         <location filename="../../src/ui/StatusBarWidget.cpp" line="45"/>
         <source>Larger</source>
-        <translation type="unfinished"></translation>
+        <translation>大きく</translation>
     </message>
     <message>
         <location filename="../../src/ui/StatusBarWidget.cpp" line="80"/>
         <source>登录</source>
-        <translation type="unfinished"></translation>
+        <translation>ログイン</translation>
     </message>
     <message>
         <location filename="../../src/ui/StatusBarWidget.cpp" line="80"/>
         <source>重试</source>
-        <translation type="unfinished"></translation>
+        <translation>再試行</translation>
     </message>
 </context>
 <context>
@@ -3576,130 +3609,131 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="123"/>
         <source>Left: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>左: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="125"/>
         <source>Right: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>右: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="137"/>
         <source>Show identical files</source>
-        <translation type="unfinished"></translation>
+        <translation>同一のファイルを表示</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="143"/>
         <source>All →</source>
-        <translation type="unfinished"></translation>
+        <translation>すべて →</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="144"/>
         <source>Set every difference to copy left → right</source>
-        <translation type="unfinished"></translation>
+        <translation>すべての差分を 左 → 右 のコピーに設定</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="145"/>
         <source>All ←</source>
-        <translation type="unfinished"></translation>
+        <translation>すべて ←</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="146"/>
         <source>Set every difference to copy right → left</source>
-        <translation type="unfinished"></translation>
+        <translation>すべての差分を 右 → 左 のコピーに設定</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="147"/>
         <source>Skip all</source>
-        <translation type="unfinished"></translation>
+        <translation>すべてスキップ</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="148"/>
         <source>Exclude every row from the sync</source>
-        <translation type="unfinished"></translation>
+        <translation>すべての行を同期から除外</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="198"/>
         <source>Abort</source>
-        <translation type="unfinished"></translation>
+        <translation>中止</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="244"/>
         <source>Compare Again</source>
-        <translation type="unfinished"></translation>
+        <translation>再比較</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="254"/>
         <source>Close</source>
-        <translation type="unfinished"></translation>
+        <translation>閉じる</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="288"/>
         <source>Comparing…</source>
-        <translation type="unfinished"></translation>
+        <translation>比較中…</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="312"/>
         <source>Stopping…</source>
-        <translation type="unfinished"></translation>
+        <translation>停止中…</translation>
     </message>
     <message numerus="yes">
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="342"/>
         <source>Comparing… %n item(s) scanned</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>比較中… %n 件をスキャンしました</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="344"/>
         <source>Comparing… %n item(s) scanned — %1</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>比較中… %n 件をスキャンしました — %1</numerusform>
         </translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="364"/>
         <source>Comparison stopped — results are incomplete.</source>
-        <translation type="unfinished"></translation>
+        <translation>比較を停止しました — 結果は不完全です。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="375"/>
         <source>→ %1 · ← %2 · conflicts %3 · identical %4 · skipped %5    To sync: %6 file(s), %7</source>
-        <translation type="unfinished"></translation>
+        <translation>→ %1 · ← %2 · 競合 %3 · 同一 %4 · スキップ %5    同期対象: %6 個のファイル、%7</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="250"/>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="396"/>
         <source>Start Sync (comparing…)</source>
-        <translation type="unfinished"></translation>
+        <translation>同期を開始（比較中…）</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="399"/>
         <source>Available once the comparison finishes. To start now, press Abort first.
 Copying while the scan is still running would make it re-read the files it just wrote and report them as new differences.</source>
-        <translation type="unfinished"></translation>
+        <translation>比較が完了すると利用できます。今すぐ開始するには、先に「中止」を押してください。
+スキャン中にコピーすると、書き込んだばかりのファイルを読み直して新しい差分として報告してしまいます。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="406"/>
         <source>Start Sync (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>同期を開始（%1）</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="406"/>
         <source>Start Sync</source>
-        <translation type="unfinished"></translation>
+        <translation>同期を開始</translation>
     </message>
     <message numerus="yes">
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="408"/>
         <source>Copy the %n selected file(s).</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>選択した %n 個のファイルをコピーします。</numerusform>
         </translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="409"/>
         <source>Nothing to copy: no row is set to a direction.</source>
-        <translation type="unfinished"></translation>
+        <translation>コピーする対象がありません: 方向が設定された行がありません。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="90"/>
@@ -3763,50 +3797,50 @@ Right: %2</source>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="237"/>
         <source>Copy left → right. Click to change direction or skip.</source>
-        <translation type="unfinished"></translation>
+        <translation>左 → 右 にコピーします。クリックすると方向の変更やスキップができます。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="239"/>
         <source>Copy right → left. Click to change direction or skip.</source>
-        <translation type="unfinished"></translation>
+        <translation>右 → 左 にコピーします。クリックすると方向の変更やスキップができます。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="241"/>
         <source>Skipped — this file will not be touched. Click to choose a direction.</source>
-        <translation type="unfinished"></translation>
+        <translation>スキップ — このファイルは変更されません。クリックして方向を選択してください。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="243"/>
         <source>Both sides match; nothing to do.</source>
-        <translation type="unfinished"></translation>
+        <translation>両側が一致しています。処理は不要です。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="247"/>
         <source>Both sides were changed, or the clocks disagree: the contents differ but the timestamps look the same, so neither side is safe to assume newer. Click to pick a direction yourself.</source>
-        <translation type="unfinished"></translation>
+        <translation>両側が変更されたか、時計がずれています。内容は異なるのにタイムスタンプが同じに見えるため、どちらが新しいかを安全に判断できません。クリックして方向を自分で選択してください。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="334"/>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="342"/>
         <source>Name</source>
-        <translation type="unfinished">名前</translation>
+        <translation>名前</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="336"/>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="344"/>
         <source>Size</source>
-        <translation type="unfinished">サイズ</translation>
+        <translation>サイズ</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="338"/>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="346"/>
         <source>Modified</source>
-        <translation type="unfinished">更新日時</translation>
+        <translation>更新日時</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/SyncModel.cpp" line="340"/>
         <source>Action</source>
-        <translation type="unfinished"></translation>
+        <translation>操作</translation>
     </message>
 </context>
 <context>
@@ -3886,12 +3920,12 @@ Right: %2</source>
     <message>
         <location filename="../../src/ui/TitleBar.cpp" line="33"/>
         <source>FileCommander</source>
-        <translation>File Commander</translation>
+        <translation>FileCommander</translation>
     </message>
     <message>
         <location filename="../../src/ui/TitleBar.cpp" line="86"/>
         <source>New Version</source>
-        <translation type="unfinished"></translation>
+        <translation>新しいバージョン</translation>
     </message>
 </context>
 <context>
@@ -3949,17 +3983,17 @@ Right: %2</source>
     <message>
         <location filename="../../src/core/update/UpdateChecker.cpp" line="78"/>
         <source>Malformed update manifest: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>更新マニフェストの形式が正しくありません: %1</translation>
     </message>
     <message>
         <location filename="../../src/core/update/UpdateChecker.cpp" line="85"/>
         <source>Update manifest is missing a version field.</source>
-        <translation type="unfinished"></translation>
+        <translation>更新マニフェストにバージョンフィールドがありません。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/UpdateChecker.cpp" line="107"/>
         <source>Update manifest has no %1 package for this installation.</source>
-        <translation type="unfinished"></translation>
+        <translation>更新マニフェストには、このインストール向けの %1 パッケージがありません。</translation>
     </message>
 </context>
 <context>
@@ -3967,52 +4001,52 @@ Right: %2</source>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="16"/>
         <source>Software Update</source>
-        <translation type="unfinished"></translation>
+        <translation>ソフトウェア更新</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="21"/>
         <source>Version %1 is available (you have %2).</source>
-        <translation type="unfinished"></translation>
+        <translation>バージョン %1 が利用可能です（現在のバージョンは %2）。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="30"/>
         <source>Released: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>リリース日: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="32"/>
         <source>Release notes:</source>
-        <translation type="unfinished"></translation>
+        <translation>リリースノート:</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="36"/>
         <source>No release notes provided.</source>
-        <translation type="unfinished"></translation>
+        <translation>リリースノートはありません。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="47"/>
         <source>Update Now</source>
-        <translation type="unfinished"></translation>
+        <translation>今すぐ更新</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="49"/>
         <source>Later</source>
-        <translation type="unfinished"></translation>
+        <translation>後で</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="75"/>
         <source>Downloading…</source>
-        <translation type="unfinished"></translation>
+        <translation>ダウンロード中…</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="82"/>
         <source>Verifying and installing…</source>
-        <translation type="unfinished"></translation>
+        <translation>検証してインストールしています…</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/UpdateDialog.cpp" line="97"/>
         <source>Retry</source>
-        <translation type="unfinished">再試行</translation>
+        <translation>再試行</translation>
     </message>
 </context>
 <context>
@@ -4020,129 +4054,130 @@ Right: %2</source>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="46"/>
         <source>Update information is incomplete.</source>
-        <translation type="unfinished"></translation>
+        <translation>更新情報が不完全です。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="62"/>
         <source>Could not create a temporary file for the download.</source>
-        <translation type="unfinished"></translation>
+        <translation>ダウンロード用の一時ファイルを作成できませんでした。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="94"/>
         <source>Download failed: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>ダウンロードに失敗しました: %1</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="98"/>
         <source>The downloaded file could not be found.</source>
-        <translation type="unfinished"></translation>
+        <translation>ダウンロードしたファイルが見つかりませんでした。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="105"/>
         <source>Could not read the downloaded file for verification.</source>
-        <translation type="unfinished"></translation>
+        <translation>検証のためにダウンロードしたファイルを読み取れませんでした。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="110"/>
         <source>Checksum mismatch — the download may be corrupt or tampered with. Update aborted.</source>
-        <translation type="unfinished"></translation>
+        <translation>チェックサムが一致しません — ダウンロードが破損しているか、改ざんされている可能性があります。更新を中止しました。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="128"/>
         <source>Windows portable updates must be ZIP packages.</source>
-        <translation type="unfinished"></translation>
+        <translation>Windows ポータブル版の更新は ZIP パッケージである必要があります。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="135"/>
         <source>The application folder is not writable. Extract the update manually.</source>
-        <translation type="unfinished"></translation>
+        <translation>アプリケーションフォルダーに書き込めません。更新を手動で展開してください。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="144"/>
         <source>Could not create the update staging directory.</source>
-        <translation type="unfinished"></translation>
+        <translation>更新用の一時展開ディレクトリを作成できませんでした。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="150"/>
         <source>Could not stage the downloaded update.</source>
-        <translation type="unfinished"></translation>
+        <translation>ダウンロードした更新を展開して準備できませんでした。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="158"/>
         <source>Could not prepare the update installer.</source>
-        <translation type="unfinished"></translation>
+        <translation>更新インストーラーを準備できませんでした。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="196"/>
         <source>Could not launch the Windows update installer.</source>
-        <translation type="unfinished"></translation>
+        <translation>Windows 用更新インストーラーを起動できませんでした。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="199"/>
         <source>Updated to version %1. Restarting...</source>
-        <translation type="unfinished"></translation>
+        <translation>バージョン %1 に更新しました。再起動しています...</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="208"/>
         <source>Could not determine the AppImage path to replace.</source>
-        <translation type="unfinished"></translation>
+        <translation>置き換える AppImage のパスを特定できませんでした。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="217"/>
         <source>Could not stage the new AppImage next to %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>新しい AppImage を %1 の隣に配置できませんでした。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="224"/>
         <source>Could not make the new AppImage executable.</source>
-        <translation type="unfinished"></translation>
+        <translation>新しい AppImage に実行権限を付与できませんでした。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="233"/>
         <source>Could not replace the running AppImage at %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>実行中の AppImage（%1）を置き換えられませんでした。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="238"/>
         <source>Updated, but could not relaunch %1 automatically. Please start it again manually.</source>
-        <translation type="unfinished"></translation>
+        <translation>更新しましたが、%1 を自動的に再起動できませんでした。手動で起動し直してください。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="244"/>
         <location filename="../../src/core/update/Updater.cpp" line="303"/>
         <source>Updated to version %1. Restarting…</source>
-        <translation type="unfinished"></translation>
+        <translation>バージョン %1 に更新しました。再起動しています…</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="256"/>
         <source>Could not prepare the downloaded package for installation.</source>
-        <translation type="unfinished"></translation>
+        <translation>ダウンロードしたパッケージをインストール用に準備できませんでした。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="268"/>
         <source>Could not launch the installer (pkexec not available).</source>
-        <translation type="unfinished"></translation>
+        <translation>インストーラーを起動できませんでした（pkexec が利用できません）。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="279"/>
         <source>Installation failed and no fallback installer is available.</source>
-        <translation type="unfinished"></translation>
+        <translation>インストールに失敗し、代替のインストーラーもありません。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="287"/>
         <source>Package installation failed.</source>
-        <translation type="unfinished"></translation>
+        <translation>パッケージのインストールに失敗しました。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="288"/>
         <source>Package installation failed:
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>パッケージのインストールに失敗しました:
+%1</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="297"/>
         <source>Updated to version %1, but could not restart automatically. Please start FileCommander again.</source>
-        <translation type="unfinished"></translation>
+        <translation>バージョン %1 に更新しましたが、自動的に再起動できませんでした。FileCommander をもう一度起動してください。</translation>
     </message>
 </context>
 <context>

@@ -3714,14 +3714,14 @@ pip install --user msoffcrypto-tool</translation>
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="342"/>
         <source>Comparing… %n item(s) scanned</source>
         <translation>
-            <numerusform></numerusform>
+            <numerusform>比较中…已扫描 %n 个项目</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="344"/>
         <source>Comparing… %n item(s) scanned — %1</source>
         <translation>
-            <numerusform></numerusform>
+            <numerusform>比较中…已扫描 %n 个项目 — %1</numerusform>
         </translation>
     </message>
     <message>
@@ -3761,7 +3761,7 @@ Copying while the scan is still running would make it re-read the files it just 
         <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="408"/>
         <source>Copy the %n selected file(s).</source>
         <translation>
-            <numerusform></numerusform>
+            <numerusform>复制选中的 %n 个文件。</numerusform>
         </translation>
     </message>
     <message>
