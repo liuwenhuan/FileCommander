@@ -15,6 +15,7 @@
         <file alias="eject.svg">icons/eject.svg</file>
         <file alias="refresh.svg">icons/refresh.svg</file>
         <file alias="notepad.svg">icons/notepad.svg</file>
+        <file alias="computer.svg">icons/computer.svg</file>
         <file alias="dev-usb.svg">icons/dev-usb.svg</file>
         <file alias="dev-drive.svg">icons/dev-drive.svg</file>
         <file alias="dev-hdd.svg">icons/dev-hdd.svg</file>

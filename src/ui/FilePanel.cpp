@@ -45,6 +45,7 @@
 #include "FileListView.h"
 #include "IconFileView.h"
 #include "FileProvider.h"
+#include "filesystem/ComputerProvider.h"
 #include "filesystem/IconCache.h"
 #include "ArchiveLayout.h"
 #include "ArchiveProvider.h"
@@ -368,12 +369,29 @@ FilePanel::FilePanel(const QFont &initialListFont, QWidget *parent) : QWidget(pa
             this, m_starButton->mapToGlobal(QPoint(0, m_starButton->height())));
     });
 
+    // Computer view: the drives, user folders, removable media, saved servers
+    // and discovered hosts, listed in this panel. Sits between the navigation
+    // arrows and the path because that is where it belongs in the reading order
+    // -- it is the level above every path the breadcrumb can show.
+    m_computerButton = new QToolButton(this);
+    m_computerButton->setObjectName(QStringLiteral("PanelComputerButton"));
+    m_computerButton->setIcon(
+        IconCache::instance().themedIcon(QIcon(QStringLiteral(":/icons/computer.svg"))));
+    m_computerButton->setAutoRaise(true);
+    m_computerButton->setFocusPolicy(Qt::NoFocus);
+    m_computerButton->setToolTip(tr("Computer"));
+    connect(m_computerButton, &QToolButton::clicked, this, [this]() {
+        emit panelActivated(this); // act on this panel
+        emit computerViewRequested(this);
+    });
+
     // Keep the tree toggle visually aligned with the navigation controls even
     // though the menu glyph has a different natural text width.
     QSize addressButtonSize = m_treeButton->sizeHint();
     for (QToolButton *button : {m_backButton, m_forwardButton, m_starButton})
         addressButtonSize = addressButtonSize.expandedTo(button->sizeHint());
-    for (QToolButton *button : {m_treeButton, m_backButton, m_forwardButton, m_starButton})
+    for (QToolButton *button :
+         {m_treeButton, m_backButton, m_forwardButton, m_computerButton, m_starButton})
         button->setFixedSize(addressButtonSize);
 
     auto *addressRow = new QWidget(this);
@@ -390,6 +408,7 @@ FilePanel::FilePanel(const QFont &initialListFont, QWidget *parent) : QWidget(pa
     addressLayout->addWidget(m_treeButton);
     addressLayout->addWidget(m_backButton);
     addressLayout->addWidget(m_forwardButton);
+    addressLayout->addWidget(m_computerButton);
     addressLayout->addWidget(m_addressBar, 1);
     addressLayout->addWidget(m_starButton);
 
@@ -465,6 +484,7 @@ FilePanel::FilePanel(const QFont &initialListFont, QWidget *parent) : QWidget(pa
     m_treeButton->setFixedSize(rowH, rowH);
     m_backButton->setFixedSize(rowH, rowH);
     m_forwardButton->setFixedSize(rowH, rowH);
+    m_computerButton->setFixedSize(rowH, rowH);
     m_starButton->setFixedSize(rowH, rowH);
     m_addTabButton->setFixedSize(rowH, rowH);
     updateNavButtons();
@@ -478,9 +498,16 @@ FilePanel::FilePanel(const QFont &initialListFont, QWidget *parent) : QWidget(pa
         // In flat (search-results) mode there is no single directory: skip the
         // breadcrumb/tree/disk-usage sync, which all key off rootPath().
         const bool flat = m_model->isFlatMode();
-        m_addressBar->setPath(flat ? QString() : m_model->rootPath());
-        if (!flat)
-            syncTreeToPath(m_model->rootPath());
+        if (m_computerProvider) {
+            // "computer://" is an identifier, not a path: split on "/" it would
+            // render as segments that navigate nowhere, and the folder tree has
+            // nothing to highlight for it either.
+            m_addressBar->setCaption(tr("Computer"));
+        } else {
+            m_addressBar->setPath(flat ? QString() : m_model->rootPath());
+            if (!flat)
+                syncTreeToPath(m_model->rootPath());
+        }
         if (!m_pendingSelection.isEmpty()) {
             QItemSelectionModel *sel = m_view->selectionModel();
             QModelIndex first;
@@ -718,7 +745,10 @@ void FilePanel::hideQuickFilter() {
 FilePanel::NavEntry FilePanel::currentLocation() const {
     // Archive locations ("/" virtual roots) can't be restored by history, so they
     // are never recorded -- leaving an archive already drops to its host dir.
-    if (m_archiveProvider)
+    // The computer view is excluded for the same reason and one more: its rows
+    // are a snapshot of what was plugged in and reachable at that moment, so
+    // "restoring" it would show a list that may no longer be true.
+    if (m_archiveProvider || m_computerProvider)
         return {};
     NavEntry e;
     if (m_model->isFlatMode()) {
@@ -744,7 +774,7 @@ void FilePanel::applyHistoryEntry(const NavEntry &entry) {
     // attachConnection() below then installs the one this entry was viewed
     // through, which for the entry the archive was entered from is the same
     // still-running session.
-    leaveArchive();
+    leaveVirtualBackend();
     if (m_filterBar->isVisible()) {
         m_filterBar->blockSignals(true);
         m_filterBar->clear();
@@ -1055,8 +1085,9 @@ void FilePanel::showSearchResultsInNewTab(const QString &keyword, const QStringL
     m_tabBar->blockSignals(false);
 
     // Leave archive browsing if active: a flat listing is a set of paths on the
-    // backend the archive was entered from, not inside the archive.
-    leaveArchive();
+    // backend the archive was entered from, not inside the archive. The computer
+    // view goes for the same reason -- its rows are places, not paths.
+    leaveVirtualBackend();
     if (m_filterBar->isVisible()) {
         m_filterBar->blockSignals(true);
         m_filterBar->clear();
@@ -1214,8 +1245,8 @@ void FilePanel::exchangeLocationWith(FilePanel *other) {
     // What moves below is each panel's backend, and an archive's isn't one the
     // other panel can be given -- so a panel inside an archive swaps the location
     // it entered it from, with its connection intact.
-    backOutOfArchive();
-    other->backOutOfArchive();
+    backOutOfVirtualBackend();
+    other->backOutOfVirtualBackend();
 
     const QString myPath = currentPath();
     const QString theirPath = other->currentPath();
@@ -1603,6 +1634,17 @@ void FilePanel::onActivated(const QModelIndex &index) {
     if (!info.isValid())
         return;
 
+    // A computer-view row is a place, not a path: navigating to info.path()
+    // would hand "computer://server/<uuid>" to the model as a directory. Report
+    // it instead; the receiver knows how to mount a device and open a
+    // connection, and calls leaveComputerView() before it navigates.
+    if (m_computerProvider) {
+        const ComputerEntry entry = m_computerProvider->entryFor(info.path());
+        if (!entry.target.isEmpty())
+            emit computerEntryActivated(this, entry);
+        return;
+    }
+
     // Exiting an archive: ".." at the archive root is the one entry whose path is
     // the directory the archive was entered from -- on disk, or on the server the
     // panel was browsing, in which case leaveArchive() puts that connection back
@@ -1725,7 +1767,77 @@ void FilePanel::backOutOfArchive() {
     emit pathChanged(exitDir);
 }
 
+void FilePanel::showComputer(const QVector<ComputerEntry> &entries) {
+    if (m_computerProvider) {
+        // Already here: a device was plugged in or a host was discovered. Swap
+        // the rows and re-list rather than re-entering, which would push another
+        // history entry for a place the user never left.
+        m_computerProvider->setEntries(entries);
+        m_model->setRootPath(ComputerProvider::rootPath());
+        return;
+    }
+
+    // An archive cannot travel here -- its provider would be replaced and the
+    // connection it parked stranded -- so step out of it first, exactly as the
+    // other backend-replacing paths do.
+    backOutOfVirtualBackend();
+
+    const NavEntry from = currentLocation();
+    auto provider = std::make_shared<ComputerProvider>();
+    provider->setEntries(entries);
+    // Park the server connection instead of letting setProvider() tear it down:
+    // opening a drive from here has to leave the tab's connection intact so Back
+    // returns to a live session rather than a dead path.
+    m_computerExitConn = m_model->detachConnection();
+    m_computerExitDir = m_model->rootPath();
+    m_computerProvider = provider;
+    m_model->setProvider(provider);
+    if (from.isValid()) {
+        pushHistory(from);
+        m_forwardHistory.clear();
+    }
+    navigateTo(ComputerProvider::rootPath()); // won't re-push; currentLocation() is {} now
+}
+
+void FilePanel::leaveComputerView() {
+    if (!m_computerProvider)
+        return;
+    m_computerProvider.reset();
+    m_computerExitDir.clear();
+    m_model->attachConnection(std::move(m_computerExitConn));
+    m_computerExitConn = FileSystemModel::NetworkConn();
+    if (!m_model->hasNetworkSession()) {
+        resetNetworkStatusFeedback();
+        m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
+    }
+}
+
+void FilePanel::backOutOfComputerView() {
+    if (!m_computerProvider)
+        return;
+    const QString exitDir = m_computerExitDir;
+    leaveComputerView();
+    m_model->setRootPath(exitDir);
+    emit pathChanged(exitDir);
+}
+
+void FilePanel::leaveVirtualBackend() {
+    // At most one of these is ever active -- entering either steps out of the
+    // other first -- so the order is immaterial and both are no-ops otherwise.
+    leaveArchive();
+    leaveComputerView();
+}
+
+void FilePanel::backOutOfVirtualBackend() {
+    backOutOfArchive();
+    backOutOfComputerView();
+}
+
 void FilePanel::onAddressBarEntered(const QString &path) {
+    // Typing a path in the address bar while the computer view is up is a way
+    // out of it: restore the real backend before navigating, or the path would
+    // be resolved against the synthetic one and rejected.
+    leaveComputerView();
     navigateTo(path);
 }
 
@@ -2434,6 +2546,15 @@ void FilePanel::saveCurrentTabState() {
         // Preserve the flat search-results listing (and its keyword title) so
         // switching away and back restores it instead of a real directory.
         tab->flatPaths = m_flatPaths;
+    } else if (m_computerProvider) {
+        // Record where the computer view was entered from, never "computer://".
+        // This state is read by the session snapshot taken at shutdown, and that
+        // path is handed to the LOCAL provider on the next launch -- restoring
+        // the synthetic root would leave the tab pointing at something no
+        // backend can list, with no way back except typing a path.
+        tab->path = m_computerExitDir;
+        tab->flatPaths.clear();
+        tab->title.clear();
     } else {
         tab->path = m_model->rootPath();
         tab->flatPaths.clear();
@@ -2525,7 +2646,7 @@ void FilePanel::onTabBarCurrentChanged(int index) {
     // the archive's "..") and strand the tab on a backend it no longer owns.
     // Backing out to the directory the archive was entered from is what the tab
     // then saves and comes back to.
-    backOutOfArchive();
+    backOutOfVirtualBackend();
     const int prev = m_tabManager->activeIndex();
     saveCurrentTabState();
     if (prev != index && prev >= 0)
@@ -2547,7 +2668,7 @@ void FilePanel::openLocalInTab(int tabIndex, const QString &path) {
     // An archive has to be stepped out of before the snapshot below, or the
     // connection it parked would never be handed to the history entry and the
     // session would be stranded with nothing able to reach it.
-    backOutOfArchive();
+    backOutOfVirtualBackend();
 
     // Record where we're leaving -- INCLUDING the live server connection -- into
     // back history so a Back press returns to the server (and its "user@host"
@@ -2614,7 +2735,7 @@ void FilePanel::closeTabAt(int index) {
     // ".." would survive with nothing able to reach it -- the hasNetworkSession()
     // test below cannot see it, because it is not the model's any more.
     if (index == m_tabManager->activeIndex())
-        backOutOfArchive();
+        backOutOfVirtualBackend();
     if (index == m_tabManager->activeIndex() && m_model->hasNetworkSession()) {
         cancelRemoteThumbnails();
         m_model->detachConnection(); // returned bundle drops here -> session stops
@@ -2676,7 +2797,7 @@ void FilePanel::newTab() {
     // This opens a tab rather than switching to one, so it does its own
     // park/save instead of going through onTabBarCurrentChanged -- and has to
     // step out of an archive for the same reason that does (see there).
-    backOutOfArchive();
+    backOutOfVirtualBackend();
     saveCurrentTabState();
     const bool wasNetwork = m_model->hasNetworkSession();
     // Park the outgoing tab's connection so its server stays alive in the
@@ -2769,7 +2890,7 @@ void FilePanel::disconnectTab(int index) {
     // If that tab is inside an archive its connection is parked with the archive,
     // not in the model, and the detachConnection() below would find nothing to
     // drop -- leaving the session running after an explicit disconnect.
-    backOutOfArchive();
+    backOutOfVirtualBackend();
     auto tab = m_tabManager->activeTab();
     // Take the connection out of the tree registry now. Its weak_ptr would expire
     // on its own once the session dies, but a deliberate disconnect should drop

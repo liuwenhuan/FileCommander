@@ -33,11 +33,16 @@ public:
     // resolved names (often empty for remote backends that only expose numbers).
     // These trail the signature with defaults so existing call sites keep
     // compiling unchanged.
+    // `created` trails the rest because almost no caller has one: SFTP and the
+    // other network backends expose no creation time at all. The computer view
+    // does -- a saved server bookmark records when it was saved -- so it is a
+    // parameter rather than a hard-coded invalid value.
     static FileInfo fromFields(const QString &path, const QString &name, qint64 size,
                                const QDateTime &modified, bool isDir,
                                QFile::Permissions permissions, int ownerId = -1,
                                int groupId = -1, const QString &owner = QString(),
-                               const QString &group = QString());
+                               const QString &group = QString(),
+                               const QDateTime &created = QDateTime());
 
     // Splits a leaf name with POSIX hidden-file semantics: a leading dot alone
     // does not begin an extension, while `.config.json` has base `.config` and

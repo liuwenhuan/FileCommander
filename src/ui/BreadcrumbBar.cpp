@@ -195,8 +195,21 @@ void BreadcrumbBar::showEvent(QShowEvent *event) {
     updateAddressRowBorder();
 }
 
+void BreadcrumbBar::setCaption(const QString &text) {
+    m_caption = text;
+    m_path.clear();
+    rebuildSegments();
+    if (m_stack->currentIndex() != 0) {
+        m_stack->setCurrentIndex(0);
+        updateEditingProperty(false);
+    }
+    m_scrollOffset = 0;
+    QTimer::singleShot(0, this, [this] { updateOverflowControls(); });
+}
+
 void BreadcrumbBar::setPath(const QString &path) {
     m_path = path;
+    m_caption.clear();
     rebuildSegments();
     if (m_stack->currentIndex() != 0) {
         m_stack->setCurrentIndex(0);
@@ -215,6 +228,19 @@ void BreadcrumbBar::rebuildSegments() {
         return QStringLiteral("<a href=\"%1\" style=\"color:%2;text-decoration:none\">%3</a>")
             .arg(target.toHtmlEscaped(), colour, label.toHtmlEscaped());
     };
+
+    if (!m_caption.isEmpty()) {
+        // Plain text, not a link: there is nothing to navigate to, and rendering
+        // it as a link would invite a click that goes nowhere.
+        m_pathLabel->setText(QStringLiteral("<span style=\"color:%1\">%2</span>")
+                                 .arg(colour, m_caption.toHtmlEscaped()));
+        const QSize captionSize(m_pathLabel->sizeHint().width() + 12,
+                                qMax(m_pathLabel->sizeHint().height(),
+                                     m_segmentsLayout->sizeHint().height()));
+        m_segmentsWidget->resize(captionSize.width(),
+                                 qMax(captionSize.height(), m_viewportWidget->height()));
+        return;
+    }
 
     const QString cleanPath = QDir::cleanPath(QDir::fromNativeSeparators(m_path));
     const bool hasDriveRoot = cleanPath.size() >= 2 && cleanPath.at(0).isLetter() &&

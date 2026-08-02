@@ -25,6 +25,8 @@ SavedConnection readGroup(QSettings &s, const QString &id) {
     c.user = s.value(QStringLiteral("user")).toString();
     c.remotePath = s.value(QStringLiteral("remotePath"), QStringLiteral("/")).toString();
     c.anonymous = s.value(QStringLiteral("anonymous"), false).toBool();
+    c.created = QDateTime::fromString(s.value(QStringLiteral("created")).toString(),
+                                      Qt::ISODate);
     s.endGroup();
     return c;
 }
@@ -59,7 +61,19 @@ QString ConnectionStore::save(const SavedConnection &conn) {
         c.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
 
     QSettings s = settings();
+    // Creation time is written once and then left alone: an edit re-saves the
+    // whole group, so taking `conn.created` unconditionally would let any caller
+    // that built a SavedConnection from scratch (the reconnect bookkeeping does
+    // exactly that) silently reset it.
+    const QString createdKey = QStringLiteral("connections/") + c.id + QStringLiteral("/created");
+    const QString existingCreated = s.value(createdKey).toString();
+    if (existingCreated.isEmpty())
+        c.created = QDateTime::currentDateTime();
+    else
+        c.created = QDateTime::fromString(existingCreated, Qt::ISODate);
+
     s.beginGroup(QStringLiteral("connections/") + c.id);
+    s.setValue(QStringLiteral("created"), c.created.toString(Qt::ISODate));
     s.setValue(QStringLiteral("name"), c.name);
     s.setValue(QStringLiteral("protocol"), c.protocol);
     s.setValue(QStringLiteral("host"), c.host);

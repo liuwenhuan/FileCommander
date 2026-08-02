@@ -103,6 +103,30 @@ public:
     // false so a backend added later is refused until it opts in.
     virtual bool isLocalFilesystem() const { return false; }
 
+    // Whether this backend's listing is synthetic -- rows that stand for places
+    // rather than for files in a directory (the computer view's drives, saved
+    // servers and network hosts). The model uses it to decide whether to ask the
+    // three hooks below at all, so ordinary backends pay one bool for a feature
+    // they don't use, and none of them can accidentally be asked to describe a
+    // row it never produced.
+    virtual bool isVirtualListing() const { return false; }
+
+    // What the Type column should say for `path`, e.g. "Server". Empty means
+    // "no opinion" and the model falls back to deriving a type from the entry
+    // itself, which is the right answer for every real file.
+    virtual QString entryTypeLabel(const QString & /*path*/) const { return {}; }
+
+    // Resource path of the icon for `path` (":/icons/dev-smb.svg"). Empty means
+    // the usual icon resolution applies -- which is what a synthetic *folder*
+    // row wants, so it keeps the same folder icon as everywhere else.
+    virtual QString entryIconPath(const QString & /*path*/) const { return {}; }
+
+    // Section ordinal for `path` within a synthetic listing. Rows sort by this
+    // first, so the drives stay above the user folders and the servers below
+    // them however the user then sorts the columns. Meaningless (and never
+    // consulted) unless isVirtualListing() is true.
+    virtual int entrySortGroup(const QString & /*path*/) const { return 0; }
+
     // Concise human label for the connection this provider represents (e.g.
     // "user@host"), shown alongside the current directory on network tabs. The
     // default is empty: local/archive backends have no connection identity and

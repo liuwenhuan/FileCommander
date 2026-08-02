@@ -23,6 +23,7 @@ class QTemporaryDir;
 
 #include "FileListView.h"
 #include "Settings.h"
+#include "filesystem/ComputerCatalog.h" // ComputerEntry (passed by value)
 #include "network/ConnectionStore.h" // SavedConnection (session reconnect)
 #include "update/UpdateChecker.h" // UpdateInfo (stored by value)
 
@@ -178,6 +179,15 @@ private slots:
     void undoLast(); // Ctrl+Z
     void runCommand(const QString &command, const QString &directory);
     void openExternalConnections(); // external-connect command (leading button default)
+    // Computer view: the address row's computer button fills `panel` with the
+    // drives, user folders, removable media, saved servers and discovered hosts;
+    // activating one of those rows lands in openComputerEntry.
+    void showComputerView(FilePanel *panel);
+    void openComputerEntry(FilePanel *panel, const ComputerEntry &entry);
+    // Re-lists every panel currently showing the computer view. Wired to the
+    // device monitor and the host browser so a stick being plugged in or a host
+    // being discovered shows up without the user having to leave and come back.
+    void refreshComputerViews();
     void toggleNotepad();           // quick-notepad command (trailing button default)
     void showAboutDialog();         // View > About this program
     void checkForUpdatesNow();      // View > Check for Updates (manual)
@@ -231,6 +241,14 @@ private:
     // fresh tab (per user preference) rather than replacing whatever the active
     // panel is showing. Focuses the left panel and returns it ready to connect.
     FilePanel *beginServerConnection();
+    // Opens a saved bookmark / browses an SMB host's shares, each in a fresh tab
+    // on the left panel. Shared by the connect fly-out and the computer view, so
+    // the two cannot drift on credential retry or session bookkeeping.
+    void openSavedConnection(const SavedConnection &conn);
+    void browseSmbHost(const QString &hostName);
+    // Everything the computer view lists, assembled from the catalog plus the
+    // device monitor and host browser this window owns.
+    QVector<ComputerEntry> computerEntries();
     // Modal username/password prompt shown when a server needs credentials.
     // Returns true and fills *user/*pass on OK, false on cancel.
     bool promptCredentials(const QString &host, QString *user, QString *pass,

@@ -230,6 +230,9 @@ private:
         QVector<FileInfo> entries;
     };
 
+    // The single point where m_provider is assigned, so the cached
+    // m_virtualListing flag can never fall out of step with it.
+    void installProvider(std::shared_ptr<FileProvider> provider);
     // (Re)subscribes this model to m_session's signals. Idempotent, so adopting
     // the same session repeatedly cannot stack duplicate deliveries.
     void wireSessionSignals();
@@ -243,6 +246,10 @@ private:
     QString cachedDateStr(const QDateTime &dt) const;
 
     std::shared_ptr<FileProvider> m_provider; // backend (local by default); never null
+    // Cache of m_provider->isVirtualListing(); see installProvider(). data() is
+    // called several times per cell per repaint, so the three synthetic-listing
+    // hooks must not cost a virtual call on every real backend.
+    bool m_virtualListing = false;
     QString m_rootPath;
     bool m_flatMode = false; // true while showing an explicit cross-directory path list
     bool m_showHidden = false;

@@ -157,7 +157,8 @@ const QString &FileInfo::mimeType() const {
 FileInfo FileInfo::fromFields(const QString &path, const QString &name, qint64 size,
                               const QDateTime &modified, bool isDir,
                               QFile::Permissions permissions, int ownerId, int groupId,
-                              const QString &owner, const QString &group) {
+                              const QString &owner, const QString &group,
+                              const QDateTime &created) {
     FileInfo info;
     info.m_name = name;
     info.m_path = path;
@@ -174,7 +175,9 @@ FileInfo FileInfo::fromFields(const QString &path, const QString &name, qint64 s
     }
     info.m_size = size;
     info.m_modified = modified;
-    // m_created intentionally left invalid: SFTP exposes no creation time.
+    // Usually left invalid -- SFTP and friends expose no creation time -- so the
+    // Created column renders blank rather than inventing one.
+    info.m_created = created;
     info.m_permissions = permissions;
     info.m_ownerId = ownerId;
     info.m_groupId = groupId;

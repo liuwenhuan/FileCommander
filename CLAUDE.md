@@ -137,6 +137,17 @@ A panel's path belongs to its provider. For a network tab it names something on 
 
 Guards written as `!prov->displayName().isEmpty()` catch network tabs but **not archive tabs**: `ArchiveProvider` does not override `displayName()`, so `FileProvider.h`'s default empty string makes every such guard treat an archive tab as local. Prefer a capability query on `FileProvider` over inferring locality from a display string, and remember that a new backend must default to the safe answer.
 
+`ComputerProvider` (the "Computer" view behind the address row's computer button) is the third such backend and the most synthetic: its paths (`computer://server/<uuid>`) stand for *places* — drives, user folders, removable media, saved bookmarks, discovered hosts — not for files, and one row may not name anything on disk at all. Activating a row therefore never navigates to its path; `FilePanel` reports it through `computerEntryActivated` and `MainWindow` dispatches on `ComputerEntry::Kind`. It also drives the three synthetic-listing hooks on `FileProvider` (`isVirtualListing`/`entryTypeLabel`/`entryIconPath`/`entrySortGroup`), which is how the Type column can say "Server" and how the sections keep their order under any user sort.
+
+### Virtual backends and the tab's real path
+
+An archive browse and the computer view both replace the model's provider for a while. Two things that has to get right, and both have bitten already:
+
+- The tab's parked network connection must be **detached, not torn down** (`FileSystemModel::setProvider()` stops a session when the provider changes under it), so stepping back out finds it alive.
+- `saveCurrentTabState()` must record a **real** path, never the synthetic root. That state is what the shutdown snapshot persists, and the next launch hands it to the *local* provider — a persisted `computer://` restores a tab nothing can list.
+
+Every call site that replaces the backend wholesale (tab switch, panel swap, disconnect, favourites, history) goes through `leaveVirtualBackend()` / `backOutOfVirtualBackend()` rather than the archive-specific pair, so a fourth synthetic backend is one place to change, not a dozen.
+
 ### Thumbnail pipeline (`src/ui`)
 
 A layered system for populating the icon-view grid without blocking the UI: `ThumbnailCache` (disk-backed cache) → `ThumbnailSweep`/`ThumbnailSweepDrive` (progressive, scroll-driven fetch order — grabs the currently visible screen first) → `RemoteThumbnailFetcher` (network-provider thumbnails) → `Mp4RangePlan`/`VideoRangePlan` (byte-range planning so a remote video's keyframe can be fetched without downloading the whole file) → `ExifThumbnail` (embedded JPEG preview to avoid pulling a full-size remote image). Recent history in this area (see git log) has repeatedly been about keyframe/range-selection correctness for *remote* media — read `tests/ui/test_VideoRangePlan.cpp`, `test_Mp4RangePlan.cpp`, and `test_RemoteThumbnail*.cpp` before changing this path.

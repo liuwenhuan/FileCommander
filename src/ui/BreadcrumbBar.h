@@ -24,6 +24,14 @@ public:
     void setPath(const QString &path);
     QString path() const { return m_path; }
 
+    // Shows `text` as a single plain caption instead of a clickable path, for a
+    // location that is not a directory anyone can type or walk up ("Computer").
+    // Splitting such an identifier on "/" the way setPath does would render
+    // nonsense segments that navigate nowhere. Double-clicking still opens the
+    // edit line -- empty, since there is no path to pre-fill -- so the user can
+    // type a real one and leave.
+    void setCaption(const QString &text);
+
 signals:
     // Emitted when a segment is clicked, or the edit line is confirmed
     // with Enter.
@@ -47,6 +55,9 @@ private:
     void updateAddressRowBorder();
 
     QString m_path;
+    // Non-empty while showing a caption rather than a path; rebuildSegments()
+    // renders this instead, and a theme change re-renders it in the new colour.
+    QString m_caption;
     QStackedLayout *m_stack;
     QWidget *m_displayWidget;
     QWidget *m_viewportWidget;

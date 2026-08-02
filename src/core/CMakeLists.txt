@@ -12,6 +12,10 @@ set(CORE_SOURCES
     filesystem/ProviderPath.cpp
     filesystem/LocalFileProvider.h
     filesystem/LocalFileProvider.cpp
+    filesystem/ComputerCatalog.h
+    filesystem/ComputerCatalog.cpp
+    filesystem/ComputerProvider.h
+    filesystem/ComputerProvider.cpp
     filesystem/IconCache.h
     filesystem/IconCache.cpp
     theme/Phosphor.h

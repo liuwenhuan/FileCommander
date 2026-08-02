@@ -9,6 +9,7 @@ set(CORE_TEST_SOURCES
     filesystem/test_ProviderLocality.cpp
     filesystem/test_ExternalPaths.cpp
     filesystem/test_ParentEntry.cpp
+    filesystem/test_ComputerView.cpp
     operations/test_FileOperations.cpp
     operations/test_OperationError.cpp
     operations/test_OperationQueue.cpp

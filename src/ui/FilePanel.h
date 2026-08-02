@@ -10,9 +10,12 @@
 #include <memory>
 #include <optional>
 
+#include "ComputerCatalog.h"
 #include "FileSystemModel.h"
 #include "TabManager.h"
 #include "ThumbnailSweep.h"
+
+class ComputerProvider;
 
 class BreadcrumbBar;
 class FileListView;
@@ -52,6 +55,19 @@ public:
 
     QString currentPath() const;
     void navigateTo(const QString &path);
+
+    // Shows the "Computer" listing -- drives, user folders, removable media,
+    // saved servers and discovered hosts -- in place of the directory listing.
+    // The rows are supplied by the caller because the live half of them belongs
+    // to the device monitor and the host browser, which this layer cannot see.
+    // Calling it again while already in the view just refreshes the rows, so a
+    // device appearing or a host being discovered updates in place.
+    void showComputer(const QVector<ComputerEntry> &entries);
+    bool isComputerView() const { return m_computerProvider != nullptr; }
+    // Puts the backend the computer view was entered from back (re-attaching a
+    // parked server connection) without touching the listing -- the caller
+    // navigates somewhere itself. No-op outside the computer view.
+    void leaveComputerView();
 
     // Identity of the backend this panel is browsing: "scheme://user@host" for a
     // network tab, empty for a local one. Two panels sharing it are looking at
@@ -321,6 +337,15 @@ signals:
     // row height: caller (MainWindow) should persist the new value.
     void viewScaleChanged();
     void iconViewCreated(IconFileView *view);
+    // The address row's computer button was pressed. The receiver assembles the
+    // entry list (it owns the device monitor and host browser) and calls
+    // showComputer() back on this panel.
+    void computerViewRequested(FilePanel *panel);
+    // A row of the computer view was activated. Every kind is reported here
+    // rather than the local ones being handled inside the panel, so the
+    // dispatch -- including mounting a device and opening a connection -- lives
+    // in one place next to the identical logic behind the connect fly-out.
+    void computerEntryActivated(FilePanel *panel, const ComputerEntry &entry);
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -483,6 +508,7 @@ private:
     QToolButton *m_treeButton; // "🗀" toggles this panel's folder tree; first in the row
     QToolButton *m_backButton;
     QToolButton *m_forwardButton;
+    QToolButton *m_computerButton; // opens the computer view; sits before the path
     QToolButton *m_starButton;
     DirectoryTreeView *m_dirTree = nullptr;    // per-panel folder tree (hidden by default)
     DirectoryTreeModel *m_dirTreeModel = nullptr;
@@ -577,6 +603,27 @@ private:
     // where the archive cannot travel with it and leaving it half-attached would
     // strand both the listing and the parked connection.
     void backOutOfArchive();
+
+    // The synthetic backend behind the computer view, null when not in it. It
+    // parks the tab's server connection for the same reason enterArchive does:
+    // FileSystemModel::setProvider() stops a session when the provider changes
+    // under it, and leaving the computer view has to find that connection alive.
+    std::shared_ptr<ComputerProvider> m_computerProvider;
+    FileSystemModel::NetworkConn m_computerExitConn;
+    // Where the listing was when the computer view was entered, so leaving it
+    // through anything other than opening a row lands back there.
+    QString m_computerExitDir;
+    // leaveComputerView() plus restoring that listing. Used by the paths that
+    // take this panel's backend away wholesale (tab switch, panel swap), where
+    // the computer view cannot travel with it.
+    void backOutOfComputerView();
+
+    // The two above, applied to whichever synthetic backend happens to be
+    // active. Every caller that is about to replace this panel's backend uses
+    // these rather than the archive-specific pair, so a new synthetic backend
+    // only has to be added in one place instead of at a dozen call sites.
+    void leaveVirtualBackend();
+    void backOutOfVirtualBackend();
 
     // Whether archives open as browsable folders (config preference). Default on.
     bool m_archiveAsFolder = true;

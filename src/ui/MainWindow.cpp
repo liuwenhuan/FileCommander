@@ -95,6 +95,7 @@
 #include "FileListView.h"
 #include "FileSystemModel.h"
 #include "ExternalPaths.h"
+#include "filesystem/ComputerCatalog.h"
 #include "LocalFileProvider.h"
 #include "FunctionKeyBar.h"
 #include "ImageViewer.h"
@@ -676,6 +677,9 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
         });
         connect(panel, &FilePanel::shortcutMenuRequested, this, &MainWindow::showShortcutMenu);
         connect(panel, &FilePanel::favoritesMenuRequested, this, &MainWindow::showFavoritesMenu);
+        connect(panel, &FilePanel::computerViewRequested, this, &MainWindow::showComputerView);
+        connect(panel, &FilePanel::computerEntryActivated, this,
+                &MainWindow::openComputerEntry);
         connect(panel, &FilePanel::pathChanged, this, [this, panel](const QString &path) {
             if (panel == m_activePanel)
                 m_commandBar->setDirectory(path);
@@ -2093,71 +2097,8 @@ void MainWindow::openExternalConnections() {
             m_activePanel->navigateTo(path);
     });
     connect(dlg, &ExternalConnectDialog::openSavedConnection, this,
-            [this](const SavedConnection &conn) {
-                auto native = providerForSaved(conn);
-                if (!native.provider) {
-                    ttc::critical(this, tr("Connection Failed"),
-                                  tr("Unsupported connection type."));
-                    return;
-                }
-                // Connect asynchronously on a worker thread; the status line
-                // shows "connecting / reconnecting / failed". Never blocks the UI.
-                const QString path =
-                    conn.remotePath.isEmpty() ? QStringLiteral("/") : conn.remotePath;
-                // Open in a fresh tab on the left panel, not the active tab.
-                FilePanel *panel = beginServerConnection();
-                panel->model()->connectNetwork(native.provider, native.connectFn, path);
-                // Show the host name on the tab immediately, before it connects.
-                const QString label =
-                    conn.user.isEmpty() ? conn.host : conn.user + QLatin1Char('@') + conn.host;
-                panel->setConnectingLabel(label, native.provider->scheme());
-                // Wire the credential-retry factory so a wrong/missing keyring
-                // password surfaces a login prompt AND the re-entered password
-                // actually reconnects -- without this, provideCredentials had no
-                // factory and silently discarded what the user typed.
-                if (native.authFactory)
-                    panel->model()->setAuthContext(label, native.authFactory);
-                // Record the connection so it is re-established (with its label) on
-                // next launch, and store the remote path we're opening.
-                SavedConnection persist = conn;
-                persist.remotePath = path;
-                panel->setActiveTabConnInfo(persist);
-                panel->navigateTo(path);
-            });
-    connect(dlg, &ExternalConnectDialog::openSmbHost, this, [this](const QString &hostName) {
-        if (hostName.isEmpty())
-            return;
-        // Browse the host's shares anonymously; "/" lists the shares available.
-        // Connect asynchronously so an unreachable host never freezes the UI.
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION
-        auto provider = std::make_shared<SmbProvider>();
-#elif defined(Q_OS_WIN)
-        auto provider = std::make_shared<WindowsSmbProvider>();
-#endif
-        auto connectFn = [provider, hostName](QString *e) {
-            return provider->connectToHost(hostName, QString(), QString(), QString(), true, e);
-        };
-        // Open in a fresh tab on the left panel, not the active tab.
-        FilePanel *panel = beginServerConnection();
-        panel->model()->connectNetwork(provider, connectFn, QStringLiteral("/"));
-        // Show the host name on the tab immediately, before it connects.
-        panel->setConnectingLabel(hostName, QStringLiteral("smb"));
-        // Record for session reconnect (anonymous SMB browse of this host).
-        SavedConnection smbInfo;
-        smbInfo.protocol = static_cast<int>(ConnectionProtocol::Smb);
-        smbInfo.host = hostName;
-        smbInfo.anonymous = true;
-        smbInfo.remotePath = QStringLiteral("/");
-        panel->setActiveTabConnInfo(smbInfo);
-        // If the anonymous browse is denied, prompt for a login and retry with it.
-        panel->model()->setAuthContext(
-            hostName, [provider, hostName](const QString &u, const QString &p) {
-                return std::function<bool(QString *)>([provider, hostName, u, p](QString *e) {
-                    return provider->connectToHost(hostName, u, p, QString(), /*anonymous=*/false, e);
-                });
-            });
-        panel->navigateTo(QStringLiteral("/"));
-    });
+            &MainWindow::openSavedConnection);
+    connect(dlg, &ExternalConnectDialog::openSmbHost, this, &MainWindow::browseSmbHost);
     // Manager button next to the "Saved Connections" header: open the connection
     // manager (add/edit/delete saved bookmarks; manual connect lives here too).
     connect(dlg, &ExternalConnectDialog::openConnectionManager, this,
@@ -2171,6 +2112,237 @@ void MainWindow::openExternalConnections() {
     ttc::information(this, tr("External Connections"),
                      tr("Network and removable-device connections are not enabled in this build."));
 #endif
+}
+
+void MainWindow::openSavedConnection(const SavedConnection &conn) {
+#if FILECOMMANDER_HAS_NETWORK
+    auto native = providerForSaved(conn);
+    if (!native.provider) {
+        ttc::critical(this, tr("Connection Failed"), tr("Unsupported connection type."));
+        return;
+    }
+    // Connect asynchronously on a worker thread; the status line shows
+    // "connecting / reconnecting / failed". Never blocks the UI.
+    const QString path = conn.remotePath.isEmpty() ? QStringLiteral("/") : conn.remotePath;
+    // Open in a fresh tab on the left panel, not the active tab.
+    FilePanel *panel = beginServerConnection();
+    panel->model()->connectNetwork(native.provider, native.connectFn, path);
+    // Show the host name on the tab immediately, before it connects.
+    const QString label =
+        conn.user.isEmpty() ? conn.host : conn.user + QLatin1Char('@') + conn.host;
+    panel->setConnectingLabel(label, native.provider->scheme());
+    // Wire the credential-retry factory so a wrong/missing keyring password
+    // surfaces a login prompt AND the re-entered password actually reconnects --
+    // without this, provideCredentials had no factory and silently discarded
+    // what the user typed.
+    if (native.authFactory)
+        panel->model()->setAuthContext(label, native.authFactory);
+    // Record the connection so it is re-established (with its label) on next
+    // launch, and store the remote path we're opening.
+    SavedConnection persist = conn;
+    persist.remotePath = path;
+    panel->setActiveTabConnInfo(persist);
+    panel->navigateTo(path);
+#else
+    Q_UNUSED(conn);
+    ttc::information(this, tr("External Connections"),
+                     tr("Network and removable-device connections are not enabled in this build."));
+#endif
+}
+
+void MainWindow::browseSmbHost(const QString &hostName) {
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || (defined(Q_OS_WIN) && FILECOMMANDER_HAS_NETWORK)
+    if (hostName.isEmpty())
+        return;
+    // Browse the host's shares anonymously; "/" lists the shares available.
+    // Connect asynchronously so an unreachable host never freezes the UI.
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION
+    auto provider = std::make_shared<SmbProvider>();
+#elif defined(Q_OS_WIN)
+    auto provider = std::make_shared<WindowsSmbProvider>();
+#endif
+    auto connectFn = [provider, hostName](QString *e) {
+        return provider->connectToHost(hostName, QString(), QString(), QString(), true, e);
+    };
+    // Open in a fresh tab on the left panel, not the active tab.
+    FilePanel *panel = beginServerConnection();
+    panel->model()->connectNetwork(provider, connectFn, QStringLiteral("/"));
+    // Show the host name on the tab immediately, before it connects.
+    panel->setConnectingLabel(hostName, QStringLiteral("smb"));
+    // Record for session reconnect (anonymous SMB browse of this host).
+    SavedConnection smbInfo;
+    smbInfo.protocol = static_cast<int>(ConnectionProtocol::Smb);
+    smbInfo.host = hostName;
+    smbInfo.anonymous = true;
+    smbInfo.remotePath = QStringLiteral("/");
+    panel->setActiveTabConnInfo(smbInfo);
+    // If the anonymous browse is denied, prompt for a login and retry with it.
+    panel->model()->setAuthContext(
+        hostName, [provider, hostName](const QString &u, const QString &p) {
+            return std::function<bool(QString *)>([provider, hostName, u, p](QString *e) {
+                return provider->connectToHost(hostName, u, p, QString(), /*anonymous=*/false, e);
+            });
+        });
+    panel->navigateTo(QStringLiteral("/"));
+#else
+    Q_UNUSED(hostName);
+    ttc::information(this, tr("External Connections"),
+                     tr("Network and removable-device connections are not enabled in this build."));
+#endif
+}
+
+QVector<ComputerEntry> MainWindow::computerEntries() {
+    setupFeatureBatch(); // brings up the device monitor / host browser on demand
+
+    // Removable media first, because the drive list is filtered against it: on
+    // Windows a plugged-in stick is also a drive letter, and listing it in both
+    // sections would have the user eject a device from one row and navigate into
+    // a stale copy of it from another.
+    QVector<ComputerEntry> removable;
+    QSet<QString> removableRoots;
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
+    if (m_deviceMonitor) {
+        for (const RemovableDevice &device : m_deviceMonitor->devices()) {
+            ComputerEntry entry;
+            entry.kind = ComputerEntry::Kind::RemovableDevice;
+            entry.name = device.name;
+            // The monitor's id, not the mount point: an unmounted device has no
+            // mount point yet, and mounting it is exactly what activating the
+            // row does.
+            entry.target = device.id;
+            entry.iconPath = QStringLiteral(":/icons/%1.svg").arg(device.iconName);
+            removable.append(entry);
+            if (!device.mountPoint.isEmpty())
+                removableRoots.insert(QDir::fromNativeSeparators(device.mountPoint));
+        }
+    }
+#endif
+
+    QVector<ComputerEntry> entries;
+    for (const ComputerEntry &drive : ComputerCatalog::drives()) {
+        QString root = drive.target;
+        while (root.size() > 1 && root.endsWith(QLatin1Char('/')))
+            root.chop(1); // "C:/" and "C:" name the same volume as a mount point
+        if (removableRoots.contains(drive.target) || removableRoots.contains(root))
+            continue;
+        entries.append(drive);
+    }
+    entries += ComputerCatalog::userFolders();
+    entries += removable;
+    entries += ComputerCatalog::savedServers();
+
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || (defined(Q_OS_WIN) && FILECOMMANDER_HAS_NETWORK)
+    if (m_smbBrowser) {
+        // cachedHosts() is the accumulated, deduped result of every discovery
+        // source, so re-reading it on each refresh is enough -- there is no need
+        // to merge the incremental hostsDiscovered batches here as well.
+        for (const SmbHost &host : m_smbBrowser->cachedHosts()) {
+            ComputerEntry entry;
+            entry.kind = ComputerEntry::Kind::NetworkHost;
+            // "name (ip)" when both are known, so the user can tell which
+            // machine each row is; whichever one is known otherwise.
+            if (host.name.isEmpty())
+                entry.name = host.address;
+            else if (host.address.isEmpty())
+                entry.name = host.name;
+            else
+                entry.name = QStringLiteral("%1 (%2)").arg(host.name, host.address);
+            // Connect BY the address when known: a NetBIOS name like "DEEPIN-PC"
+            // may not resolve through DNS.
+            entry.target = host.address.isEmpty() ? host.name : host.address;
+            entry.iconPath = QStringLiteral(":/icons/dev-smb.svg");
+            if (!entry.target.isEmpty())
+                entries.append(entry);
+        }
+    }
+#endif
+    return entries;
+}
+
+void MainWindow::showComputerView(FilePanel *panel) {
+    if (!panel)
+        return;
+
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || (defined(Q_OS_WIN) && FILECOMMANDER_HAS_NETWORK)
+    setupFeatureBatch();
+    if (m_smbBrowser) {
+        // Seeded from the cache immediately; a scan only starts if that cache
+        // has gone stale. Hosts appear in the listing as they are reported.
+        m_smbBrowser->startDiscovery(false);
+        connect(m_smbBrowser, &SmbHostBrowser::hostsDiscovered, this,
+                &MainWindow::refreshComputerViews, Qt::UniqueConnection);
+    }
+    if (m_deviceMonitor)
+        connect(m_deviceMonitor, &RemovableDeviceMonitor::devicesChanged, this,
+                &MainWindow::refreshComputerViews, Qt::UniqueConnection);
+#endif
+    panel->showComputer(computerEntries());
+}
+
+void MainWindow::refreshComputerViews() {
+    const QVector<ComputerEntry> entries = computerEntries();
+    for (FilePanel *panel : {m_leftPanel, m_rightPanel}) {
+        // showComputer() on a panel that is not in the view would ENTER it, so
+        // an unrelated hot-plug would yank the listing out from under the user.
+        if (panel && panel->isComputerView())
+            panel->showComputer(entries);
+    }
+}
+
+void MainWindow::openComputerEntry(FilePanel *panel, const ComputerEntry &entry) {
+    if (!panel || entry.target.isEmpty())
+        return;
+
+    switch (entry.kind) {
+    case ComputerEntry::Kind::Drive:
+    case ComputerEntry::Kind::UserFolder:
+        // Restore the real backend first: the target is an ordinary local path,
+        // and the synthetic provider cannot resolve it.
+        panel->leaveComputerView();
+        panel->navigateTo(entry.target);
+        break;
+    case ComputerEntry::Kind::RemovableDevice: {
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
+        if (!m_deviceMonitor)
+            return;
+        QString mountPoint;
+        for (const RemovableDevice &device : m_deviceMonitor->devices()) {
+            if (device.id == entry.target)
+                mountPoint = device.mountPoint;
+        }
+        if (mountPoint.isEmpty()) {
+            // Mount on demand; this can block briefly, hence the wait cursor.
+            QString error;
+            QApplication::setOverrideCursor(Qt::WaitCursor);
+            mountPoint = m_deviceMonitor->ensureMounted(entry.target, &error);
+            QApplication::restoreOverrideCursor();
+            if (mountPoint.isEmpty()) {
+                // Stay in the computer view: the user can pick another row, and
+                // dropping them somewhere else would hide what just failed.
+                ttc::critical(this, tr("Mount Failed"),
+                              tr("Could not mount the device.\n\n%1").arg(error));
+                return;
+            }
+        }
+        panel->leaveComputerView();
+        panel->navigateTo(mountPoint);
+#endif
+        break;
+    }
+    case ComputerEntry::Kind::SavedServer: {
+        const SavedConnection conn = ConnectionStore::load(entry.target);
+        if (conn.id.isEmpty())
+            return; // deleted between the listing being built and the click
+        // Deliberately left in the computer view: the connection opens in a
+        // fresh tab on the left panel (as it does from the connect fly-out), so
+        // this panel's listing is not the one being replaced.
+        openSavedConnection(conn);
+        break;
+    }
+    case ComputerEntry::Kind::NetworkHost:
+        browseSmbHost(entry.target);
+        break;
+    }
 }
 
 void MainWindow::toggleNotepad() {
@@ -4798,8 +4970,17 @@ void MainWindow::navigateUp() {
 }
 
 void MainWindow::refreshActivePanel() {
-    if (m_activePanel)
-        m_activePanel->refresh();
+    if (!m_activePanel)
+        return;
+    // In the computer view there is no directory to re-scan: the rows are a
+    // snapshot of what was plugged in and reachable, so a plain refresh would
+    // re-list exactly the same stale set. Rebuild it instead, which is what the
+    // user is asking for by pressing refresh there.
+    if (m_activePanel->isComputerView()) {
+        showComputerView(m_activePanel);
+        return;
+    }
+    m_activePanel->refresh();
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) {

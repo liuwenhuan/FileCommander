@@ -5,6 +5,7 @@
 #include <QDir>
 #include <QDirIterator>
 #include <QFileInfo>
+#include <QIcon>
 #include <QLocale>
 #include <QRegularExpression>
 #include <QSet>
@@ -41,7 +42,7 @@ std::shared_ptr<FileProvider> localProviderPtr() {
 } // namespace
 
 FileSystemModel::FileSystemModel(QObject *parent) : QAbstractTableModel(parent) {
-    m_provider = localProviderPtr();
+    installProvider(localProviderPtr());
     connect(&m_watcher, &QFutureWatcher<LocalScanResult>::finished, this,
             &FileSystemModel::onScanFinished);
 }
@@ -52,7 +53,15 @@ void FileSystemModel::setProvider(std::shared_ptr<FileProvider> provider) {
     // Switching to a different (or local) provider abandons any network session.
     if (m_session && (!provider || provider.get() != m_session->provider()))
         teardownSession();
-    m_provider = provider ? std::move(provider) : localProviderPtr();
+    installProvider(provider ? std::move(provider) : localProviderPtr());
+}
+
+void FileSystemModel::installProvider(std::shared_ptr<FileProvider> provider) {
+    m_provider = std::move(provider);
+    // Snapshotted rather than asked per cell: data() runs several times per cell
+    // on every repaint, and the answer cannot change under a provider. Every
+    // assignment to m_provider goes through here so the two cannot drift.
+    m_virtualListing = m_provider->isVirtualListing();
 }
 
 void FileSystemModel::teardownSession() {
@@ -66,7 +75,7 @@ void FileSystemModel::connectNetwork(std::shared_ptr<FileProvider> provider,
                                      std::function<bool(QString *)> connectFn,
                                      const QString &initialPath) {
     teardownSession();
-    m_provider = provider; // network provider becomes the backend
+    installProvider(provider); // network provider becomes the backend
     // Custom deleter: the last owner drop tears the session down asynchronously
     // (shutdownAsync) so closing a tab / swapping a session never blocks the GUI
     // on a stalled worker's join. Every copy (parked in tabs/history) shares it.
@@ -143,7 +152,7 @@ void FileSystemModel::wireSessionSignals() {
 
 void FileSystemModel::attachConnection(NetworkConn conn) {
     if (conn.session) {
-        m_provider = conn.provider;
+        installProvider(conn.provider);
         m_session = conn.session;
         m_networkLabel = conn.label;
         m_authRetry = conn.authRetry;
@@ -159,7 +168,7 @@ void FileSystemModel::attachConnection(NetworkConn conn) {
     } else {
         // Local tab: drop to the local provider, no session.
         m_session.reset();
-        m_provider = localProviderPtr();
+        installProvider(localProviderPtr());
         m_networkLabel.clear();
         m_authRetry = nullptr;
         m_connectionId.clear();
@@ -584,8 +593,18 @@ QVariant FileSystemModel::data(const QModelIndex &index, int role) const {
         return QVariant::fromValue(info.path());
     if (role == IsDirRole)
         return info.isDir();
-    if (role == Qt::DecorationRole && index.column() == NameColumn)
+    if (role == Qt::DecorationRole && index.column() == NameColumn) {
+        if (m_virtualListing) {
+            // A drive or a server has no file on disk to take an icon from, so
+            // the backend names one. An empty answer means "no opinion" and the
+            // normal resolution below applies -- which is what the synthetic
+            // folder rows want.
+            const QString iconPath = m_provider->entryIconPath(info.path());
+            if (!iconPath.isEmpty())
+                return IconCache::instance().themedIcon(QIcon(iconPath));
+        }
         return IconCache::instance().iconFor(info);
+    }
 
     if (role == Qt::DisplayRole || role == Qt::EditRole) {
         switch (index.column()) {
@@ -611,6 +630,11 @@ QVariant FileSystemModel::data(const QModelIndex &index, int role) const {
         case CreatedColumn:
             return info.created().isValid() ? cachedDateStr(info.created()) : QString();
         case TypeColumn:
+            if (m_virtualListing) {
+                const QString label = m_provider->entryTypeLabel(info.path());
+                if (!label.isEmpty())
+                    return label;
+            }
             return typeCategory(info);
         case PermissionsColumn:
             return info.permissionsString();
@@ -715,6 +739,18 @@ void FileSystemModel::sortEntries() {
         // Directories always sort before files, regardless of sort column.
         if (a.isDir() != b.isDir())
             return a.isDir();
+
+        // A synthetic listing is grouped into sections (drives, then user
+        // folders, then servers). The sections hold their order under every
+        // column and both directions -- sorting by size must not interleave a
+        // network host between two drives -- so this is decided before, and
+        // independently of, the user's sort choice.
+        if (m_virtualListing) {
+            const int groupA = m_provider->entrySortGroup(a.path());
+            const int groupB = m_provider->entrySortGroup(b.path());
+            if (groupA != groupB)
+                return groupA < groupB;
+        }
 
         int cmp = 0;
         switch (m_sortColumn) {

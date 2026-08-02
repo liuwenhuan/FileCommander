@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QDateTime>
 #include <QString>
 #include <QVector>
 
@@ -24,6 +25,14 @@ struct SavedConnection {
     QString user;
     QString remotePath = QStringLiteral("/");
     bool anonymous = false;
+
+    // When this bookmark was first written, i.e. its creation time. Stamped once
+    // by save() and preserved across later edits, so re-pointing a bookmark at a
+    // new path does not restyle it as newly created. Invalid for bookmarks saved
+    // before this field existed: there is no record of when those were made, and
+    // showing the config file's timestamp instead would be a guess presented as
+    // fact. Callers render an invalid value as blank.
+    QDateTime created;
 };
 
 // Persists connection bookmarks: metadata lives in the app's INI file (the same
