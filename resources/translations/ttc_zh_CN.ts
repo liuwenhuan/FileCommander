@@ -190,8 +190,8 @@ Extract it too?</source>
 <context>
     <name>CommandBar</name>
     <message>
-        <location filename="../../src/ui/CommandBar.cpp" line="20"/>
-        <location filename="../../src/ui/CommandBar.cpp" line="33"/>
+        <location filename="../../src/ui/CommandBar.cpp" line="21"/>
+        <location filename="../../src/ui/CommandBar.cpp" line="34"/>
         <source>Run a command in the current directory…</source>
         <translation>在当前目录中运行命令…</translation>
     </message>
@@ -223,32 +223,32 @@ Extract it too?</source>
 <context>
     <name>CompareDialog</name>
     <message>
-        <location filename="../../src/ui/dialogs/CompareDialog.cpp" line="46"/>
+        <location filename="../../src/ui/dialogs/CompareDialog.cpp" line="81"/>
         <source>Compare: %1 vs %2</source>
         <translation>比较：%1 与 %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/CompareDialog.cpp" line="84"/>
+        <location filename="../../src/ui/dialogs/CompareDialog.cpp" line="124"/>
         <source>Compare</source>
         <translation>比较</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/CompareDialog.cpp" line="91"/>
+        <location filename="../../src/ui/dialogs/CompareDialog.cpp" line="131"/>
         <source>%1 is too large to compare (over 2 MB).</source>
         <translation>%1 太大，无法比较（超过 2 MB）。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/CompareDialog.cpp" line="108"/>
+        <location filename="../../src/ui/dialogs/CompareDialog.cpp" line="148"/>
         <source>Files are too long to compare (over %1 lines).</source>
         <translation>文件过长，无法比较（超过 %1 行）。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/CompareDialog.cpp" line="165"/>
+        <location filename="../../src/ui/dialogs/CompareDialog.cpp" line="205"/>
         <source>Files are identical</source>
         <translation>文件相同</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/CompareDialog.cpp" line="168"/>
+        <location filename="../../src/ui/dialogs/CompareDialog.cpp" line="208"/>
         <source>%1 line(s) only in left, %2 line(s) only in right</source>
         <translation>左侧独有 %1 行，右侧独有 %2 行</translation>
     </message>
@@ -384,7 +384,7 @@ Extract it too?</source>
     <message>
         <location filename="../../src/ui/dialogs/ConnectDialog.cpp" line="140"/>
         <source>SFTP, FTP and WebDAV connect through built-in cross-platform clients.</source>
-        <translation type="unfinished"></translation>
+        <translation>SFTP、FTP 和 WebDAV 通过内置的跨平台客户端连接。</translation>
     </message>
     <message>
         <source>SFTP, FTP and WebDAV connect through a built-in client; SMB is mounted via GVfs.</source>
@@ -456,209 +456,230 @@ Extract it too?</source>
 <context>
     <name>ExternalConnectDialog</name>
     <message>
-        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="248"/>
+        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="318"/>
         <source>弹出（安全移除）</source>
         <translation>弹出（安全移除）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="263"/>
+        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="333"/>
         <source>弹出失败</source>
         <translation>弹出失败</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="264"/>
+        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="334"/>
         <source>无法弹出该设备。
 
 %1</source>
-        <translation></translation>
+        <translation>无法弹出该设备。
+
+%1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="305"/>
+        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="375"/>
         <source>Removable Devices</source>
         <translation>可移动设备</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="309"/>
+        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="379"/>
         <source>No removable devices</source>
         <translation>无可移动设备</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="318"/>
+        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="388"/>
         <source>Saved Connections</source>
         <translation>已保存的连接</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="319"/>
+        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="389"/>
         <source>连接管理器…</source>
         <translation>连接管理器…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="325"/>
+        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="395"/>
         <source>No saved connections</source>
         <translation>没有已保存的连接</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="343"/>
+        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="413"/>
         <source>重新搜索网络共享</source>
         <translation>重新搜索网络共享</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="346"/>
+        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="416"/>
         <source>正在搜索，点击停止</source>
         <translation>正在搜索，点击停止</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="347"/>
+        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="417"/>
         <source>Searching…</source>
         <translation>正在搜索…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="349"/>
+        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="419"/>
         <source>Network Neighborhood</source>
         <translation>网上邻居</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="371"/>
+        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="441"/>
         <source>未发现网络主机</source>
         <translation>未发现网络主机</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="428"/>
+        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="498"/>
         <source>Mount Failed</source>
         <translation>挂载失败</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="429"/>
+        <location filename="../../src/ui/dialogs/ExternalConnectDialog.cpp" line="499"/>
         <source>Could not mount the device.
 
 %1</source>
-        <translation></translation>
+        <translation>无法挂载该设备。
+
+%1</translation>
     </message>
 </context>
 <context>
     <name>FileOperations</name>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="199"/>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="287"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="387"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="524"/>
         <source>Failed to copy %1 to %2</source>
         <translation>复制 %1 到 %2 失败</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="371"/>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="467"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="427"/>
+        <source>Failed to remove the source after copying %1</source>
+        <translation>复制 %1 后删除源文件失败</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="624"/>
+        <source>%1
+Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source>
+        <translation>%1
+以管理员身份删除将绕过回收站，且无法撤销。</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="667"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="823"/>
         <source>Failed to delete %1</source>
         <translation>删除 %1 失败</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="391"/>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="412"/>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="432"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="708"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="749"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="788"/>
         <source>%1 already exists</source>
         <translation>%1 已存在</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="399"/>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="439"/>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="896"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="719"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="795"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1282"/>
         <source>Failed to create directory %1</source>
         <translation>创建目录 %1 失败</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="420"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="759"/>
         <source>Failed to rename %1</source>
         <translation>重命名 %1 失败</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="523"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="886"/>
         <source>Failed to create link for %1</source>
         <translation>为 %1 创建链接失败</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="640"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1025"/>
         <source>The destination has no space for %1</source>
         <translation>目标位置空间不足，无法写入 %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="642"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1027"/>
         <source>You do not have permission to write %1</source>
         <translation>没有写入 %1 的权限</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="644"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1029"/>
         <source>Connection to the server was lost while transferring %1</source>
         <translation>传输 %1 时与服务器的连接已中断</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="647"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1032"/>
         <source>Upload of %1 did not complete: %2</source>
         <translation>%1 上传未完成：%2</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="648"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1033"/>
         <source>Write error on %1: %2</source>
         <translation>%1 写入错误：%2</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="660"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1045"/>
         <source>Failed to open %1 for reading</source>
         <translation>打开 %1 进行读取失败</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="666"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1051"/>
         <source>Failed to open %1 for writing</source>
         <translation>打开 %1 进行写入失败</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="683"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1068"/>
         <source>Source shrank before resuming transfer of %1</source>
         <translation>恢复传输 %1 时源文件已缩小</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="692"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1077"/>
         <source>Failed to resume transfer of %1</source>
         <translation>恢复 %1 的传输失败</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="717"/>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="729"/>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="766"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1102"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1114"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1151"/>
         <source>Read error on %1</source>
         <translation>%1 读取错误</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="723"/>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="759"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1108"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1144"/>
         <source>Unexpected end of %1</source>
         <translation>%1 意外结束</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="655"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1040"/>
         <source>Write error on %1</source>
         <translation>%1 写入错误</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="769"/>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="776"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1154"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1161"/>
         <source>Source changed during transfer of %1</source>
         <translation>传输 %1 期间源文件已变化</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="654"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1039"/>
         <source>Upload of %1 did not complete</source>
         <translation>%1 上传未完成</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="918"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="207"/>
+        <source>The administrator operation did not complete.</source>
+        <translation>管理员操作未能完成。</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1304"/>
         <source>Moved contents but could not remove source %1</source>
         <translation>已移动内容，但无法删除源 %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="933"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1319"/>
         <source>Copied but could not remove source %1</source>
         <translation>已复制，但无法删除源 %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="973"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1359"/>
         <source>This transfer is not supported by the backend</source>
         <translation>此后端不支持该传输</translation>
     </message>
@@ -666,24 +687,24 @@ Extract it too?</source>
 <context>
     <name>FilePanel</name>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="80"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="368"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="1726"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="315"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="538"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2245"/>
         <source>New Tab</source>
         <translation>新建标签</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="99"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="332"/>
         <source>Folder tree</source>
         <translation>文件夹树</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="112"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="349"/>
         <source>Back</source>
         <translation>后退</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="119"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="356"/>
         <source>Forward</source>
         <translation>前进</translation>
     </message>
@@ -692,57 +713,57 @@ Extract it too?</source>
         <translation type="vanished">收藏目录</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="127"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="364"/>
         <source>Commands / shortcuts</source>
         <translation>命令/快捷键</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="152"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="398"/>
         <source>Filter: type to narrow the list, Esc to clear</source>
         <translation>过滤：键入以缩小列表范围，按 Esc 清除</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="692"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="961"/>
         <source>正在等待连接…</source>
         <translation>正在等待连接…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="696"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="966"/>
         <source>断线，正在重连（%1/%2）…</source>
         <translation>断线，正在重连（%1/%2）…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="704"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="973"/>
         <source>多次重连失败</source>
         <translation>多次重连失败</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="704"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="973"/>
         <source>连接失败：%1</source>
         <translation>连接失败：%1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="730"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1024"/>
         <source>需要登录</source>
         <translation>需要登录</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="753"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1049"/>
         <source>Search results</source>
         <translation>搜索结果</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1671"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2084"/>
         <source>Select by Pattern</source>
         <translation>按模式选择</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1671"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2084"/>
         <source>Unselect by Pattern</source>
         <translation>按模式取消选择</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1672"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2085"/>
         <source>Wildcard mask (e.g. *.txt):</source>
         <translation>通配符掩码（如 *.txt）：</translation>
     </message>
@@ -750,12 +771,12 @@ Extract it too?</source>
 <context>
     <name>FileSystemModel</name>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="815"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="843"/>
         <source>%1 already exists</source>
         <translation>%1 已存在</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="822"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="850"/>
         <source>Failed to rename %1</source>
         <translation>重命名 %1 失败</translation>
     </message>
@@ -809,8 +830,8 @@ Extract it too?</source>
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="288"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3305"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="312"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3952"/>
         <source>FileCommander</source>
         <translation>FileCommander-文件指挥官</translation>
     </message>
@@ -863,79 +884,79 @@ Extract it too?</source>
         <translation type="vanished">按模式取消选择</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2029"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3705"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2424"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4373"/>
         <source>Paste</source>
         <translation>粘贴</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2025"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3685"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2420"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4353"/>
         <source>Cut</source>
         <translation>剪切</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2027"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2422"/>
         <source>Copy to Clipboard</source>
         <translation>复制到剪贴板</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2050"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2445"/>
         <source>Swap Panels</source>
         <translation>左右栏互换</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2054"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2449"/>
         <source>Quick View</source>
         <translation>快速预览</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2035"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2430"/>
         <source>Quick Filter</source>
         <translation>快速过滤</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2052"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2299"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2447"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2792"/>
         <source>Same Directory in Other Panel</source>
         <translation>另一栏切到本栏目录</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1847"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2048"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3692"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2242"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2443"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4360"/>
         <source>Calculate Folder Size</source>
         <translation>计算文件夹大小</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2056"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2451"/>
         <source>Undo Last Operation</source>
         <translation>撤销上一步操作</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2031"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2426"/>
         <source>Multi-Rename Tool</source>
         <translation>批量重命名工具</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2033"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2428"/>
         <source>Directory Hotlist</source>
         <translation>目录收藏夹</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2039"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3698"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2434"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4366"/>
         <source>Properties</source>
         <translation>属性</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1851"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2041"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2246"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2436"/>
         <source>Show Hidden Files</source>
         <translation>显示隐藏文件</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1556"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1950"/>
         <source>Change F%1 Function</source>
         <translation>更改 F%1 功能</translation>
     </message>
@@ -944,15 +965,13 @@ Extract it too?</source>
         <translation type="vanished">选择 F%1 键要执行的功能：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="378"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="379"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="457"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="532"/>
         <source>Operation Error</source>
         <translation>操作错误</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1873"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3679"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2268"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4347"/>
         <source>View</source>
         <translation>查看</translation>
     </message>
@@ -993,37 +1012,37 @@ Extract it too?</source>
         <translation type="vanished">查看(&amp;V)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="781"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="888"/>
         <source>&amp;Theme</source>
         <translation>主题(&amp;T)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="790"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="897"/>
         <source>Auto</source>
         <translation>自动</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="791"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="898"/>
         <source>Light</source>
         <translation>浅色</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="792"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="899"/>
         <source>Dark</source>
         <translation>深色</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="793"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="900"/>
         <source>Green CRT</source>
         <translation>绿色显像管</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="808"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="917"/>
         <source>Tint images to match</source>
         <translation>图像跟随配色</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="813"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="923"/>
         <source>Recolour thumbnails, previews and video to the phosphor hue. Only applies to the Green CRT theme.</source>
         <translation>将缩略图、预览和视频重新着色为荧光色。仅对&quot;绿色显像管&quot;主题生效。</translation>
     </message>
@@ -1048,87 +1067,82 @@ Extract it too?</source>
         <translation type="vanished">↻</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1874"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3681"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3831"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3853"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3866"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2269"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4349"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4499"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4521"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4534"/>
         <source>Edit</source>
         <translation>编辑</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1875"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3684"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3924"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2270"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4352"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4593"/>
         <source>Copy</source>
         <translation>复制</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1876"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3686"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2271"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4354"/>
         <source>Move</source>
         <translation>移动</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1877"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3707"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3979"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2272"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4375"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4651"/>
         <source>New Folder</source>
         <translation>新建文件夹</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1878"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2273"/>
         <source>Delete (to trash)</source>
         <translation>删除（到回收站）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1968"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2363"/>
         <source>Delete Permanently</source>
         <translation>永久删除</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1970"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2365"/>
         <source>Delete (Del key)</source>
         <translation>删除（Del 键）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="609"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1972"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3687"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="706"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2367"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4355"/>
         <source>Rename</source>
         <translation>重命名</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="380"/>
         <source>%1
 
 %2</source>
-        <translation>%1
+        <translation type="vanished">%1
 
 %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="382"/>
         <source>Retry</source>
-        <translation>重试</translation>
+        <translation type="vanished">重试</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="383"/>
         <source>Skip</source>
-        <translation>跳过</translation>
+        <translation type="vanished">跳过</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="384"/>
         <source>Skip All</source>
-        <translation>全部跳过</translation>
+        <translation type="vanished">全部跳过</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="385"/>
         <source>Cancel</source>
-        <translation>取消</translation>
+        <translation type="vanished">取消</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="456"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="531"/>
         <source>
 ... and %1 more.</source>
         <translation>
@@ -1199,7 +1213,7 @@ Extract it too?</source>
         <translation type="vanished">网上邻居(&amp;N)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="818"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="928"/>
         <source>&amp;Language</source>
         <translation>语言(&amp;L)</translation>
     </message>
@@ -1240,107 +1254,106 @@ Extract it too?</source>
         <translation type="vanished">切换到缩略图视图</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1974"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2369"/>
         <source>New Tab</source>
         <translation>新建标签</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1978"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2373"/>
         <source>Close Tab</source>
         <translation>关闭标签</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1982"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2377"/>
         <source>Next Tab</source>
         <translation>下一个标签</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1986"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2381"/>
         <source>Previous Tab</source>
         <translation>上一个标签</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1992"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2387"/>
         <source>Search Files</source>
         <translation>搜索文件</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1997"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2392"/>
         <source>Command Line</source>
         <translation>命令行</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2011"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2406"/>
         <source>Compress Selected</source>
         <translation>压缩选中项</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2021"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3710"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2416"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4378"/>
         <source>Refresh</source>
         <translation>刷新</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2023"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2418"/>
         <source>Exit</source>
         <translation>退出</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2179"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2183"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2200"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2680"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2684"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2701"/>
         <source>Checksums</source>
         <translation>校验和</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2179"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2201"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2680"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2702"/>
         <source>Select one or more files first.</source>
         <translation>请先选择一个或多个文件。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="727"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1886"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2248"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2261"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2280"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="835"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2281"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2749"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2773"/>
         <source>Secure Wipe</source>
         <translation>安全擦除</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="725"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1881"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1882"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="833"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2276"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2277"/>
         <source>Quick Notepad</source>
         <translation>快捷记事本</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="726"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1884"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="834"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2279"/>
         <source>Calculate Checksums</source>
         <translation>计算校验和</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="728"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1888"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="836"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2283"/>
         <source>Compare Files</source>
         <translation>对比文件</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="733"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1890"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="847"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2285"/>
         <source>Keyboard Shortcuts</source>
         <translation>键盘快捷键</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="734"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1892"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="848"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2287"/>
         <source>Connection Manager</source>
         <translation>连接管理器</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="737"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1942"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="851"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2337"/>
         <source>Directly Open Archives</source>
         <translation>直接打开压缩文件</translation>
     </message>
@@ -1349,52 +1362,52 @@ Extract it too?</source>
         <translation type="vanished">不确认删除</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="746"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1949"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="861"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2344"/>
         <source>Skip Trash Delete Confirmation</source>
         <translation>删除时无需确认</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="750"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="866"/>
         <source>Skip confirmation only when deleting local files to the trash. Shift+Delete and remote deletes always require confirmation.</source>
         <translation>仅删除本地文件到回收站时跳过确认。Shift+Delete 和远程删除始终需要确认。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="755"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1953"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="871"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2348"/>
         <source>Automatic Update Check</source>
         <translation>自动升级检测</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="778"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="880"/>
         <source>&amp;Interface</source>
         <translation>界面(&amp;I)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="902"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1012"/>
         <source>Menu Font Size:</source>
         <translation>菜单字体大小：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="949"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1894"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2137"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1072"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2289"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2597"/>
         <source>Choose Font</source>
         <translation>字体选择</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="953"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1919"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1076"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2314"/>
         <source>Show Function Key Bar</source>
         <translation>显示功能键栏</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="843"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="953"/>
         <source>File List Font Size:</source>
         <translation>文件列表字体大小：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="855"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="965"/>
         <source>Type a size, or use − / + (8-16)</source>
         <translation>输入大小，或使用 −/+（8-16）</translation>
     </message>
@@ -1403,7 +1416,7 @@ Extract it too?</source>
         <translation type="vanished">界面字体大小：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="913"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1023"/>
         <source>Type a size, or use - / + (8-16)</source>
         <translation>输入大小，或使用 -/+（8-16）</translation>
     </message>
@@ -1420,71 +1433,71 @@ Extract it too?</source>
         <translation type="vanished">选择文件列表字体</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="961"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1925"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1085"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2320"/>
         <source>Show Command Bar</source>
         <translation>显示命令运行栏</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="969"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1931"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1094"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2326"/>
         <source>Show File Tab Bar</source>
         <translation>显示文件标签栏</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="978"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1938"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1104"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2333"/>
         <source>Display Shortcut Labels</source>
         <translation>显示快捷键</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1543"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1937"/>
         <source>Choose a function:</source>
         <translation>选择功能：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1567"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1961"/>
         <source>Change Leading Button Function</source>
         <translation>更改前置按钮功能</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1567"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1961"/>
         <source>Change Trailing Button Function</source>
         <translation>更改后置按钮功能</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1704"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2099"/>
         <source>Connection Failed</source>
         <translation>连接失败</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1705"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2100"/>
         <source>Unsupported connection type.</source>
         <translation>不支持的连接类型。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1776"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2171"/>
         <source>External Connections</source>
-        <translation type="unfinished"></translation>
+        <translation>外部连接</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1777"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2172"/>
         <source>Network and removable-device connections are not enabled in this build.</source>
-        <translation type="unfinished"></translation>
+        <translation>此版本未启用网络和可移动设备连接。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1814"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1819"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2209"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2214"/>
         <source>Check for Updates</source>
         <translation>检查更新</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1815"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2210"/>
         <source>You are running the latest version.</source>
         <translation>您正在运行最新版本。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1820"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2215"/>
         <source>Could not check for updates.
 
 %1</source>
@@ -1493,95 +1506,99 @@ Extract it too?</source>
 %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1833"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2228"/>
         <source>Update Available</source>
-        <translation type="unfinished"></translation>
+        <translation>有可用更新</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1834"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2229"/>
         <source>Version %1 is available.
 
 %2
 
 Download: %3</source>
-        <translation type="unfinished"></translation>
+        <translation>版本 %1 已发布。
+
+%2
+
+下载：%3</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1846"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2241"/>
         <source>Open Quick Preview</source>
         <translation>打开快速预览</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1849"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2244"/>
         <source>Switch to List View</source>
         <translation>切换到列表视图</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1850"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2245"/>
         <source>Switch to Thumbnail View</source>
         <translation>切换到缩略图视图</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1852"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1959"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2247"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2354"/>
         <source>Synchronize Directories</source>
         <translation>同步目录</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1853"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1961"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2248"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2356"/>
         <source>Compare Directories</source>
         <translation>比较目录</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1854"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2249"/>
         <source>Find Files</source>
         <translation>文件查找</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1855"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2250"/>
         <source>Filter Files</source>
         <translation>文件过滤</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1856"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1963"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2251"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2358"/>
         <source>Select by Pattern</source>
         <translation>按模式选择</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1857"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1965"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2252"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2360"/>
         <source>Invert Selection</source>
         <translation>反选文件</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1858"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2253"/>
         <source>Undo Previous Operation</source>
         <translation>撤销上一步</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1879"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2274"/>
         <source>Connect External / Devices</source>
         <translation>连接外部/设备</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1896"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2291"/>
         <source>Increase Font Size</source>
         <translation>增大字体</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1905"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2300"/>
         <source>Decrease Font Size</source>
         <translation>减小字体</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1914"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2309"/>
         <source>Cycle Theme</source>
         <translation>循环切换主题</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2061"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2456"/>
         <source>List / Thumbnail View</source>
         <translation>列表/缩略图视图</translation>
     </message>
@@ -1590,12 +1607,12 @@ Download: %3</source>
         <translation type="vanished">选择界面字体</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2184"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2685"/>
         <source>This connection cannot read file contents, so checksums cannot be computed for these files.</source>
         <translation>此连接无法读取文件内容，因此无法为这些文件计算校验和。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2235"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2736"/>
         <source>These items are on %1.
 The server owns their disk blocks, so overwriting them
 from here cannot guarantee the originals are gone.
@@ -1605,7 +1622,7 @@ Delete them remotely instead.</source>
 请改为远程删除。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2241"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2742"/>
         <source>These items are entries inside an archive,
 not files on this disk.
 To destroy them, wipe the archive file itself
@@ -1615,14 +1632,14 @@ from the folder that holds it.</source>
 要销毁它们，请从存放压缩包的文件夹中擦除压缩文件本身。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2246"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2747"/>
         <source>This tab is not the local filesystem,
 so there are no on-disk bytes here to overwrite.</source>
         <translation>此标签页不是本地文件系统，
 因此此处没有磁盘上的字节可供覆盖。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2249"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2750"/>
         <source>Secure wipe is only available on local files.
 
 %1</source>
@@ -1631,42 +1648,41 @@ so there are no on-disk bytes here to overwrite.</source>
 %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2262"/>
         <source>Securely erase %1 item(s) (%2 bytes)?
 
 Their contents will be overwritten on disk and then deleted. This is IRREVERSIBLE: the files do NOT go to the trash and cannot be recovered.</source>
-        <translation>安全擦除 %1 个项目（%2 字节）？
+        <translation type="vanished">安全擦除 %1 个项目（%2 字节）？
 
 它们的内容将在磁盘上被覆盖后删除。此操作不可逆：文件不会进入回收站，且无法恢复。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2281"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2774"/>
         <source>Secure wipe is not available on this platform.</source>
-        <translation type="unfinished"></translation>
+        <translation>此平台不支持安全擦除。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2300"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2793"/>
         <source>The two panels are on different connections, so this directory has no meaning in the other one. Use Swap Panels (Ctrl+U) to move this connection across instead.</source>
         <translation>两个面板使用了不同的连接，此目录在另一个面板中没有意义。请使用左右栏互换（Ctrl+U）将连接整体移过去。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2365"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3002"/>
         <source>Open Terminal</source>
         <translation>打开终端</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2365"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3002"/>
         <source>No terminal emulator found.</source>
         <translation>未找到终端模拟器。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2385"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3676"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3022"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4344"/>
         <source>Open With</source>
         <translation>打开方式</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2386"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3023"/>
         <source>Application command:</source>
         <translation>应用程序命令：</translation>
     </message>
@@ -1715,52 +1731,52 @@ Their contents will be overwritten on disk and then deleted. This is IRREVERSIBL
         <translation type="vanished">运行失败：%1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3143"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3786"/>
         <source>Compare by Content</source>
         <translation>按内容比较</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3144"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3787"/>
         <source>Select two files to compare: either two in one panel, or one in each panel.</source>
         <translation>请选择要比较的两个文件：可以是同一栏中的两个，也可以是两栏中各一个。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3175"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3818"/>
         <source>Remove this directory from favorites</source>
         <translation>从收藏夹中移除此目录</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3178"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3821"/>
         <source>Bookmark this directory</source>
         <translation>收藏此目录</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3187"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3830"/>
         <source>(No favorites yet)</source>
         <translation>（暂无收藏）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2830"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2859"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2868"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2882"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2890"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2902"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2916"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2937"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2989"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3675"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3473"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3502"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3511"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3525"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3533"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3545"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3559"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3580"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3632"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4343"/>
         <source>Open</source>
         <translation>打开</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2831"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2859"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3474"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3502"/>
         <source>No application is associated with %1</source>
         <translation>没有与 %1 关联的应用程序</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="722"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="827"/>
         <source>&amp;Tools</source>
         <translation>工具(&amp;T)</translation>
     </message>
@@ -1777,7 +1793,7 @@ Their contents will be overwritten on disk and then deleted. This is IRREVERSIBL
         <translation type="vanished">擦除文件（安全擦除）(&amp;W)...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="730"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="839"/>
         <source>Con&amp;fig</source>
         <translation>配置(&amp;F)</translation>
     </message>
@@ -1806,7 +1822,7 @@ Their contents will be overwritten on disk and then deleted. This is IRREVERSIBL
         <translation type="vanished">打开方式...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3688"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4356"/>
         <source>Delete</source>
         <translation>删除</translation>
     </message>
@@ -1823,8 +1839,8 @@ Their contents will be overwritten on disk and then deleted. This is IRREVERSIBL
         <translation type="vanished">解压到...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2013"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3693"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2408"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4361"/>
         <source>Copy Path</source>
         <translation>复制路径</translation>
     </message>
@@ -1833,14 +1849,142 @@ Their contents will be overwritten on disk and then deleted. This is IRREVERSIBL
         <translation type="vanished">属性...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1859"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1957"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3709"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2254"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2352"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4377"/>
         <source>Open Terminal Here</source>
         <translation>在此处打开终端</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2869"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2469"/>
+        <source>Parent Directory</source>
+        <translation>上级目录</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2474"/>
+        <source>Open Directory or Archive</source>
+        <translation>打开目录或压缩包</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2479"/>
+        <source>Properties (Alt+Enter)</source>
+        <translation>属性 (Alt+Enter)</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2481"/>
+        <source>Find Files (Alt+F7)</source>
+        <translation>查找文件 (Alt+F7)</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2483"/>
+        <source>Calculate Occupied Space</source>
+        <translation>统计占用空间</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2485"/>
+        <source>Rename (Shift+F6)</source>
+        <translation>重命名 (Shift+F6)</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2502"/>
+        <source>Sort by Name</source>
+        <translation>按名称排序</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2502"/>
+        <source>Sort by Extension</source>
+        <translation>按扩展名排序</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2503"/>
+        <source>Sort by Date</source>
+        <translation>按日期排序</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2503"/>
+        <source>Sort by Size</source>
+        <translation>按大小排序</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2512"/>
+        <source>Go to Root Directory</source>
+        <translation>跳转到根目录</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2514"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2812"/>
+        <source>Go to Other Panel&apos;s Directory</source>
+        <translation>跳转到另一面板的目录</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2516"/>
+        <source>Open Directory in New Tab</source>
+        <translation>在新标签页中打开目录</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2518"/>
+        <source>Show Context Menu</source>
+        <translation>显示右键菜单</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2520"/>
+        <source>Copy Path to Command Line</source>
+        <translation>复制路径到命令行</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2522"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2878"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2884"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2891"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2896"/>
+        <source>New Text File</source>
+        <translation>新建文本文件</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2524"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2918"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2923"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2931"/>
+        <source>Copy in Same Directory</source>
+        <translation>在同一目录中复制</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2813"/>
+        <source>The two panels are on different connections, so that directory has no meaning in this one. Use Swap Panels (Ctrl+U) to move the connection across instead.</source>
+        <translation>两个面板位于不同的连接上，该目录在此面板中没有意义。请改用交换面板 (Ctrl+U) 将该连接移动过来。</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2879"/>
+        <source>New files can only be created on a local tab.</source>
+        <translation>只能在本地标签页中新建文件。</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2884"/>
+        <source>File name:</source>
+        <translation>文件名：</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2891"/>
+        <source>%1 already exists.</source>
+        <translation>%1 已存在。</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2897"/>
+        <source>Could not create %1: %2</source>
+        <translation>无法创建 %1：%2</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2919"/>
+        <source>Select exactly one item to copy under a new name.</source>
+        <translation>请仅选择一个项目，以使用新名称复制。</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2924"/>
+        <source>This is only available on a local tab.</source>
+        <translation>此功能仅在本地标签页中可用。</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="3512"/>
         <source>%1 was downloaded to a read-only local copy, which is what the application opened.
 
 Changes made to it are not saved back to the server.</source>
@@ -1849,126 +1993,126 @@ Changes made to it are not saved back to the server.</source>
 对其所做的更改不会保存回服务器。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2883"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3526"/>
         <source>This connection cannot download files, so %1 cannot be opened with a local application.</source>
         <translation>此连接无法下载文件，因此无法用本地应用程序打开 %1。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2891"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2903"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3534"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3546"/>
         <source>Could not create a temporary folder to download %1.</source>
         <translation>无法创建临时文件夹来下载 %1。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2917"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3560"/>
         <source>There is not enough free space in %1 to download %2.</source>
         <translation>%1 的可用空间不足，无法下载 %2。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2939"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3582"/>
         <source>Downloading %1...</source>
         <translation>正在下载 %1…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2990"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3633"/>
         <source>Could not download %1 from the server.</source>
         <translation>无法从服务器下载 %1。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3218"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3236"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3861"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3880"/>
         <source>重新连接</source>
         <translation>重新连接</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3221"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3864"/>
         <source>断开连接</source>
         <translation>断开连接</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3236"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3880"/>
         <source>不支持的连接类型。</source>
         <translation>不支持的连接类型。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3246"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3890"/>
         <source>Reconnect</source>
-        <translation type="unfinished"></translation>
+        <translation>重新连接</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3247"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3408"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3891"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4056"/>
         <source>Network connections are not enabled in this build.</source>
-        <translation type="unfinished"></translation>
+        <translation>此版本未启用网络连接。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3328"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3975"/>
         <source>需要密码</source>
         <translation>需要密码</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3331"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3978"/>
         <source>此连接需要用户名和密码。</source>
         <translation>此连接需要用户名和密码。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3332"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3979"/>
         <source>连接“%1”需要用户名和密码。</source>
         <translation>连接“%1”需要用户名和密码。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3347"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3994"/>
         <source>用户名：</source>
         <translation>用户名：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3348"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3995"/>
         <source>密码：</source>
         <translation>密码：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3407"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4055"/>
         <source>Server Connection</source>
-        <translation type="unfinished"></translation>
+        <translation>服务器连接</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3518"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4181"/>
         <source>创建链接</source>
         <translation>创建链接</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3519"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4182"/>
         <source>无法为网络位置创建符号链接。</source>
         <translation>无法为网络位置创建符号链接。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3586"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4250"/>
         <source>粘贴</source>
         <translation>粘贴</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3587"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4251"/>
         <source>源连接（%1）已关闭，无法从远端粘贴。</source>
         <translation>源连接（%1）已关闭，无法从远端粘贴。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3777"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3799"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4445"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4467"/>
         <source>Extract</source>
         <translation>解压</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3777"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4445"/>
         <source>Extraction failed: %1</source>
         <translation>解压失败：%1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3784"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4452"/>
         <source>Nested archive</source>
         <translation>嵌套压缩包</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3785"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4453"/>
         <source>The result contains a single archive:
 %1
 
@@ -1979,22 +2123,22 @@ Extract it too?</source>
 是否也解压它？</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3799"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4467"/>
         <source>Extracted archive to %1</source>
         <translation>已将压缩包解压到 %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3818"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4486"/>
         <source>Extract to</source>
         <translation>解压到</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3832"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4500"/>
         <source>Image files can&apos;t be edited; use F3 to view.</source>
         <translation>图片文件无法编辑，请使用 F3 查看。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3854"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4522"/>
         <source>%1 cannot be edited in place.
 
 Editing a file on this connection needs it mounted through GVfs (the gvfs-backends package). Copy the file to a local folder to edit it.</source>
@@ -2003,55 +2147,56 @@ Editing a file on this connection needs it mounted through GVfs (the gvfs-backen
 在此连接上编辑文件需通过 GVfs 挂载（gvfs-backends 包）。请将文件复制到本地文件夹后再编辑。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3867"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4535"/>
         <source>Could not open %1 for editing: %2</source>
         <translation>无法打开 %1 进行编辑：%2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3884"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4552"/>
         <source>Read-only</source>
         <translation>只读</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3885"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4553"/>
         <source>This archive is read-only. Copy files out to a folder to modify them.</source>
         <translation>此压缩包为只读。请将文件复制到文件夹后再修改。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3924"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2931"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4593"/>
         <source>Copy to:</source>
         <translation>复制到：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3979"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4651"/>
         <source>Folder name:</source>
         <translation>文件夹名称：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4018"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4691"/>
         <source>Confirm Delete</source>
         <translation>确认删除</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4019"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4692"/>
         <source>Delete %1 item(s) (%2 bytes)?%3</source>
         <translation>删除 %1 个项目（%2 字节）？%3</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4022"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4695"/>
         <source>
 This is permanent and will NOT go to the trash.</source>
         <translation>
 此操作不可撤销，且不会进入回收站。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3689"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4054"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4357"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4728"/>
         <source>Compress</source>
         <translation>压缩</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4054"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4728"/>
         <source>Compression failed: %1</source>
         <translation>压缩失败：%1</translation>
     </message>
@@ -2060,14 +2205,12 @@ This is permanent and will NOT go to the trash.</source>
         <translation type="vanished">新名称：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="760"/>
         <source>Associate Folder Open Actions</source>
-        <translation>关联文件夹打开操作</translation>
+        <translation type="vanished">关联文件夹打开操作</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="775"/>
         <source>Folder Association</source>
-        <translation>文件夹关联</translation>
+        <translation type="vanished">文件夹关联</translation>
     </message>
 </context>
 <context>
@@ -2163,27 +2306,27 @@ This is permanent and will NOT go to the trash.</source>
         <translation>大小写：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/MultiRenameDialog.cpp" line="194"/>
+        <location filename="../../src/ui/dialogs/MultiRenameDialog.cpp" line="195"/>
         <source>Row %1: name is empty</source>
         <translation>第 %1 行：名称为空</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/MultiRenameDialog.cpp" line="198"/>
+        <location filename="../../src/ui/dialogs/MultiRenameDialog.cpp" line="199"/>
         <source>Duplicate result name: %1</source>
         <translation>结果名称重复：%1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/MultiRenameDialog.cpp" line="204"/>
+        <location filename="../../src/ui/dialogs/MultiRenameDialog.cpp" line="205"/>
         <source>%1 already exists on disk</source>
         <translation>%1 在磁盘上已存在</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/MultiRenameDialog.cpp" line="235"/>
+        <location filename="../../src/ui/dialogs/MultiRenameDialog.cpp" line="236"/>
         <source>Multi-Rename</source>
         <translation>批量重命名</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/MultiRenameDialog.cpp" line="236"/>
+        <location filename="../../src/ui/dialogs/MultiRenameDialog.cpp" line="237"/>
         <source>Some files could not be renamed:
 %1</source>
         <translation>部分文件无法重命名：
@@ -2237,51 +2380,99 @@ This is permanent and will NOT go to the trash.</source>
     </message>
 </context>
 <context>
+    <name>OperationErrorDialog</name>
+    <message>
+        <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="37"/>
+        <source>File Operation Failed</source>
+        <translation>文件操作失败</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="54"/>
+        <source>Source: %1</source>
+        <translation>源：%1</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="57"/>
+        <source>Target: %1</source>
+        <translation>目标：%1</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="76"/>
+        <source>Retry</source>
+        <translation>重试</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="77"/>
+        <source>Skip</source>
+        <translation>跳过</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="78"/>
+        <source>Skip All</source>
+        <translation>全部跳过</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="79"/>
+        <source>Cancel Current</source>
+        <translation>取消当前</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="81"/>
+        <source>Abort</source>
+        <translation>中止</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/OperationErrorDialog.cpp" line="83"/>
+        <source>Run as administrator</source>
+        <translation>以管理员身份运行</translation>
+    </message>
+</context>
+<context>
     <name>OperationProgressDialog</name>
     <message>
-        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="35"/>
+        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="40"/>
         <source>File Operation</source>
         <translation>文件操作</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="48"/>
-        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="52"/>
-        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="82"/>
+        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="57"/>
+        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="61"/>
+        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="111"/>
         <source>Pause</source>
         <translation>暂停</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="52"/>
+        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="61"/>
         <source>Resume</source>
         <translation>继续</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="74"/>
+        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="103"/>
         <source>%1 operation(s) queued</source>
         <translation>%1 个操作排队中</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="101"/>
+        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="130"/>
         <source>%1 of %2 items</source>
         <translation>%1/%2 项</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="103"/>
+        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="132"/>
         <source>  ·  %1 / %2</source>
         <translation>  ·  %1 / %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="106"/>
+        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="135"/>
         <source>  ·  %1/s</source>
         <translation>  ·  %1/s</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="109"/>
+        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="138"/>
         <source>  ·  ETA %1</source>
         <translation>  ·  剩余时间 %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="113"/>
+        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="142"/>
         <source>  ·  elapsed %1</source>
         <translation>  ·  已用时间 %1</translation>
     </message>
@@ -2289,47 +2480,47 @@ This is permanent and will NOT go to the trash.</source>
 <context>
     <name>OperationQueue</name>
     <message>
-        <location filename="../../src/core/operations/OperationQueue.cpp" line="50"/>
-        <location filename="../../src/core/operations/OperationQueue.cpp" line="135"/>
+        <location filename="../../src/core/operations/OperationQueue.cpp" line="42"/>
+        <location filename="../../src/core/operations/OperationQueue.cpp" line="136"/>
         <source>Copying %1 item(s) to %2</source>
         <translation>正在复制 %1 个项目到 %2</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/OperationQueue.cpp" line="72"/>
+        <location filename="../../src/core/operations/OperationQueue.cpp" line="65"/>
         <source>Copying %1</source>
         <translation>正在复制 %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/OperationQueue.cpp" line="83"/>
-        <location filename="../../src/core/operations/OperationQueue.cpp" line="150"/>
+        <location filename="../../src/core/operations/OperationQueue.cpp" line="77"/>
+        <location filename="../../src/core/operations/OperationQueue.cpp" line="154"/>
         <source>Moving %1 item(s) to %2</source>
         <translation>正在移动 %1 个项目到 %2</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/OperationQueue.cpp" line="94"/>
-        <location filename="../../src/core/operations/OperationQueue.cpp" line="173"/>
+        <location filename="../../src/core/operations/OperationQueue.cpp" line="89"/>
+        <location filename="../../src/core/operations/OperationQueue.cpp" line="182"/>
         <source>Deleting %1 item(s)</source>
         <translation>正在删除 %1 个项目</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/OperationQueue.cpp" line="104"/>
-        <location filename="../../src/core/operations/OperationQueue.cpp" line="163"/>
+        <location filename="../../src/core/operations/OperationQueue.cpp" line="100"/>
+        <location filename="../../src/core/operations/OperationQueue.cpp" line="170"/>
         <source>Creating directory %1</source>
         <translation>正在创建目录 %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/OperationQueue.cpp" line="114"/>
-        <location filename="../../src/core/operations/OperationQueue.cpp" line="184"/>
+        <location filename="../../src/core/operations/OperationQueue.cpp" line="111"/>
+        <location filename="../../src/core/operations/OperationQueue.cpp" line="194"/>
         <source>Renaming %1</source>
         <translation>正在重命名 %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/OperationQueue.cpp" line="124"/>
+        <location filename="../../src/core/operations/OperationQueue.cpp" line="122"/>
         <source>Linking %1 item(s) into %2</source>
         <translation>正在将 %1 个项目链接到 %2</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/OperationQueue.cpp" line="189"/>
+        <location filename="../../src/core/operations/OperationQueue.cpp" line="199"/>
         <source>Failed to rename %1</source>
         <translation>重命名 %1 失败</translation>
     </message>
@@ -2337,7 +2528,7 @@ This is permanent and will NOT go to the trash.</source>
 <context>
     <name>OverwriteConfirmDialog</name>
     <message>
-        <location filename="../../src/ui/dialogs/OverwriteConfirmDialog.cpp" line="47"/>
+        <location filename="../../src/ui/dialogs/OverwriteConfirmDialog.cpp" line="51"/>
         <source>Confirm Overwrite</source>
         <translation>确认覆盖</translation>
     </message>
@@ -2352,27 +2543,27 @@ Destination: %4 (%5 bytes)</source>
 目标文件：%4（%5 字节）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/OverwriteConfirmDialog.cpp" line="62"/>
+        <location filename="../../src/ui/dialogs/OverwriteConfirmDialog.cpp" line="74"/>
         <source>Overwrite</source>
         <translation>覆盖</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/OverwriteConfirmDialog.cpp" line="63"/>
+        <location filename="../../src/ui/dialogs/OverwriteConfirmDialog.cpp" line="75"/>
         <source>Overwrite All</source>
         <translation>全部覆盖</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/OverwriteConfirmDialog.cpp" line="64"/>
+        <location filename="../../src/ui/dialogs/OverwriteConfirmDialog.cpp" line="76"/>
         <source>Skip</source>
         <translation>跳过</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/OverwriteConfirmDialog.cpp" line="65"/>
+        <location filename="../../src/ui/dialogs/OverwriteConfirmDialog.cpp" line="77"/>
         <source>Skip All</source>
         <translation>全部跳过</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/OverwriteConfirmDialog.cpp" line="66"/>
+        <location filename="../../src/ui/dialogs/OverwriteConfirmDialog.cpp" line="78"/>
         <source>Rename</source>
         <translation>重命名</translation>
     </message>
@@ -2380,153 +2571,222 @@ Destination: %4 (%5 bytes)</source>
 <context>
     <name>PropertiesDialog</name>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="137"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="154"/>
         <source>Properties — %1</source>
-        <translation>属性 — %1</translation>
+        <translation type="vanished">属性 — %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="138"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="155"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="200"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="222"/>
         <source>Name:</source>
         <translation>名称：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="139"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="156"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="201"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="223"/>
         <source>Location:</source>
         <translation>位置：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="140"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="157"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="202"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="224"/>
         <source>Symbolic link</source>
         <translation>符号链接</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="141"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="158"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="203"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="225"/>
         <source>Folder</source>
         <translation>目录</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="142"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="159"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="204"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="226"/>
         <source>File</source>
         <translation>文件</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="143"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="160"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="205"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="227"/>
         <source>Type:</source>
         <translation>类型：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="162"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="229"/>
         <source>Target:</source>
         <translation>目标：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="145"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="164"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="207"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="211"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="232"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="237"/>
         <source>Size:</source>
         <translation>大小：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="148"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="165"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="60"/>
+        <source>1 file</source>
+        <translation>1 个文件</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="61"/>
+        <source>%1 files</source>
+        <translation>%1 个文件</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="66"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="92"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="207"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="209"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="262"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="267"/>
+        <source>Unavailable</source>
+        <translation>不可用</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="109"/>
+        <source>Normal</source>
+        <translation>普通</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="209"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="234"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="267"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="282"/>
+        <source>Contains:</source>
+        <translation>包含：</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="214"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="242"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="247"/>
         <source>Modified:</source>
         <translation>修改日期：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="150"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="167"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="215"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="248"/>
         <source>Owner:</source>
         <translation>所有者：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="151"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="169"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="217"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="250"/>
         <source>Group:</source>
         <translation>群组：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="172"/>
         <source>Properties — %1 items</source>
-        <translation>属性 — %1 个项目</translation>
+        <translation type="vanished">属性 — %1 个项目</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="186"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="254"/>
         <source>Selection:</source>
         <translation>选择内容：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="186"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="254"/>
         <source>%1 items</source>
         <translation>%1 个项目</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="187"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="261"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="280"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="285"/>
         <source>Total size:</source>
         <translation>总大小：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="203"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="303"/>
+        <source>All Properties</source>
+        <translation>所有属性</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="308"/>
+        <source>Available for one local file or folder.</source>
+        <translation>仅在选中单个本地文件或文件夹时可用。</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="356"/>
         <source>Permissions</source>
         <translation>权限</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="205"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="359"/>
         <source>Owner</source>
         <translation>所有者</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="205"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="359"/>
         <source>Group</source>
         <translation>群组</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="205"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="359"/>
         <source>Others</source>
         <translation>其他</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="206"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="360"/>
         <source>Read</source>
         <translation>读取</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="206"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="360"/>
         <source>Write</source>
         <translation>写入</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="206"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="360"/>
         <source>Execute</source>
         <translation>执行</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="231"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="379"/>
         <source>Shown as reported by the source. These entries are not on this computer&apos;s filesystem, so their permissions cannot be changed here.</source>
         <translation>按数据源报告显示。这些条目不在本计算机的文件系统上，因此无法在此更改其权限。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="264"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="406"/>
         <source>Octal: (mixed)</source>
         <translation>八进制：（混合）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="265"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="407"/>
         <source>Octal: %1</source>
         <translation>八进制：%1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="294"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="185"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="434"/>
         <source>Properties</source>
         <translation>属性</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="295"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="232"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="234"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="280"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="282"/>
+        <source>Calculating...</source>
+        <translation>正在计算...</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="241"/>
+        <source>Created:</source>
+        <translation>创建时间：</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="243"/>
+        <source>Accessed:</source>
+        <translation>访问时间：</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="244"/>
+        <source>Attributes:</source>
+        <translation>属性：</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="435"/>
         <source>Failed to change permissions for:
 %1</source>
         <translation>更改以下项目的权限失败：
@@ -2536,95 +2796,95 @@ Destination: %4 (%5 bytes)</source>
 <context>
     <name>QObject</name>
     <message>
-        <location filename="../../src/archive/ArchiveHandler.cpp" line="237"/>
+        <location filename="../../src/archive/ArchiveHandler.cpp" line="238"/>
         <source>Could not read %1</source>
         <translation>无法读取 %1</translation>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="167"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="626"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="654"/>
         <source>Name</source>
         <translation>名称</translation>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="169"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="630"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="658"/>
         <source>Size</source>
         <translation>大小</translation>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="171"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="632"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="660"/>
         <source>Modified</source>
         <translation>修改日期</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="628"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="656"/>
         <source>Ext</source>
         <translation>扩展名</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="638"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="666"/>
         <source>Permissions</source>
         <translation>权限</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="636"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="664"/>
         <source>Type</source>
         <translation>类型</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="634"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="662"/>
         <source>Created</source>
         <translation>创建日期</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="646"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="674"/>
         <source>Folder</source>
         <translation>目录</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="649"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="677"/>
         <source>File</source>
         <translation>文件</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="661"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="689"/>
         <source>Image</source>
         <translation>图片</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="663"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="691"/>
         <source>Video</source>
         <translation>视频</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="665"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="693"/>
         <source>Audio</source>
         <translation>音频</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="667"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="695"/>
         <source>Archive</source>
         <translation>压缩</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="669"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="697"/>
         <source>Document</source>
         <translation>文档</translation>
     </message>
     <message>
-        <location filename="../../src/ui/StatusBarWidget.cpp" line="95"/>
+        <location filename="../../src/ui/StatusBarWidget.cpp" line="103"/>
         <source>%1 object(s)</source>
         <translation>%1 个对象</translation>
     </message>
     <message>
-        <location filename="../../src/ui/StatusBarWidget.cpp" line="97"/>
+        <location filename="../../src/ui/StatusBarWidget.cpp" line="105"/>
         <source>%1 of %2 selected, %3</source>
         <translation>已选择 %1/%2，%3</translation>
     </message>
     <message>
-        <location filename="../../src/ui/StatusBarWidget.cpp" line="110"/>
+        <location filename="../../src/ui/StatusBarWidget.cpp" line="118"/>
         <source>%1 free of %2</source>
         <translation>%2 中剩余 %1</translation>
     </message>
@@ -2645,114 +2905,116 @@ Destination: %4 (%5 bytes)</source>
         <translation type="vanished">相同</translation>
     </message>
     <message>
-        <location filename="../../src/ui/i18n/TranslationManager.cpp" line="147"/>
+        <location filename="../../src/ui/i18n/TranslationManager.cpp" line="170"/>
         <source>Auto</source>
         <translation>自动</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/OverwriteConfirmDialog.cpp" line="17"/>
+        <location filename="../../src/ui/dialogs/OverwriteConfirmDialog.cpp" line="21"/>
         <source>unknown size</source>
         <translation>未知大小</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/OverwriteConfirmDialog.cpp" line="40"/>
+        <location filename="../../src/ui/dialogs/OverwriteConfirmDialog.cpp" line="44"/>
         <source>%1 already exists.
 
 Source: %2 (%3)
 Destination: %4 (%5)</source>
-        <translation></translation>
+        <translation>%1 已存在。
+
+源：%2 (%3)
+目标：%4 (%5)</translation>
     </message>
 </context>
 <context>
     <name>QuickView</name>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="145"/>
-        <location filename="../../src/ui/QuickView.cpp" line="2746"/>
+        <location filename="../../src/ui/QuickView.cpp" line="162"/>
+        <location filename="../../src/ui/QuickView.cpp" line="3171"/>
         <source>Select a file to preview</source>
         <translation>选择要预览的文件</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="275"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1946"/>
-        <location filename="../../src/ui/QuickView.cpp" line="2278"/>
+        <location filename="../../src/ui/QuickView.cpp" line="646"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2354"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2687"/>
         <source>Zoom In</source>
         <translation>放大</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="276"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1953"/>
-        <location filename="../../src/ui/QuickView.cpp" line="2284"/>
+        <location filename="../../src/ui/QuickView.cpp" line="647"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2361"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2693"/>
         <source>Zoom Out</source>
         <translation>缩小</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="277"/>
+        <location filename="../../src/ui/QuickView.cpp" line="648"/>
         <source>Fit</source>
         <translation>适应窗口</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="282"/>
+        <location filename="../../src/ui/QuickView.cpp" line="653"/>
         <source>Rotate Left</source>
         <translation>向左旋转</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="283"/>
+        <location filename="../../src/ui/QuickView.cpp" line="654"/>
         <source>Rotate Right</source>
         <translation>向右旋转</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="284"/>
+        <location filename="../../src/ui/QuickView.cpp" line="655"/>
         <source>&lt; Prev</source>
         <translation>&lt; 上一张</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="285"/>
+        <location filename="../../src/ui/QuickView.cpp" line="656"/>
         <source>Next &gt;</source>
         <translation>下一张 &gt;</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="291"/>
+        <location filename="../../src/ui/QuickView.cpp" line="662"/>
         <source>Lock Zoom</source>
         <translation>锁定缩放</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="292"/>
+        <location filename="../../src/ui/QuickView.cpp" line="663"/>
         <source>Keep the current zoom ratio for the next images</source>
         <translation>为后续图片保留当前缩放比例</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="295"/>
-        <location filename="../../src/ui/QuickView.cpp" line="765"/>
+        <location filename="../../src/ui/QuickView.cpp" line="666"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1137"/>
         <source>Show info</source>
         <translation>显示信息</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="296"/>
+        <location filename="../../src/ui/QuickView.cpp" line="667"/>
         <source>Overlay basic image information</source>
         <translation>叠加显示基本图片信息</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="440"/>
         <source>Rotated on screen only — could not save to disk.</source>
-        <translation>仅在屏幕上旋转 — 无法保存到磁盘。</translation>
+        <translation type="vanished">仅在屏幕上旋转 — 无法保存到磁盘。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="474"/>
+        <location filename="../../src/ui/QuickView.cpp" line="842"/>
         <source>Wrap</source>
         <translation>自动换行</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="480"/>
+        <location filename="../../src/ui/QuickView.cpp" line="848"/>
         <source>Hex</source>
         <translation>十六进制</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="490"/>
+        <location filename="../../src/ui/QuickView.cpp" line="858"/>
         <source>Find… (Enter / F3)</source>
         <translation>查找…（Enter / F3）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="575"/>
+        <location filename="../../src/ui/QuickView.cpp" line="943"/>
         <source>
 
 [... truncated ...]</source>
@@ -2761,108 +3023,131 @@ Destination: %4 (%5)</source>
 [... 已截断 ...]</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="544"/>
+        <location filename="../../src/ui/QuickView.cpp" line="912"/>
         <source>Auto: Binary (Hex)</source>
         <translation>自动：二进制（十六进制）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="547"/>
+        <location filename="../../src/ui/QuickView.cpp" line="278"/>
+        <source>Rotated on screen only - could not save to disk.</source>
+        <translation>仅在屏幕上旋转——无法保存到磁盘。</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="486"/>
+        <source>Unknown media backend initialization error.</source>
+        <translation>未知的媒体后端初始化错误。</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="501"/>
+        <source>Media preview could not start.
+
+%1
+
+Restart File Commander to retry. If the problem continues, verify that the mpv media backend is installed correctly.</source>
+        <translation>媒体预览无法启动。
+
+%1
+
+请重启 File Commander 后重试。如果问题依旧，请确认 mpv 媒体后端已正确安装。</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="915"/>
         <source>Auto: %1</source>
         <translation>自动：%1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="549"/>
+        <location filename="../../src/ui/QuickView.cpp" line="917"/>
         <source> (ambiguous)</source>
         <translation>（有歧义）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="554"/>
+        <location filename="../../src/ui/QuickView.cpp" line="922"/>
         <source>Manual: %1 (Hex)</source>
         <translation>手动：%1（十六进制）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="555"/>
+        <location filename="../../src/ui/QuickView.cpp" line="923"/>
         <source>Manual: %1</source>
         <translation>手动：%1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="684"/>
-        <location filename="../../src/ui/QuickView.cpp" line="692"/>
-        <location filename="../../src/ui/QuickView.cpp" line="699"/>
-        <location filename="../../src/ui/QuickView.cpp" line="799"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1052"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1060"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1068"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1172"/>
         <source>Play</source>
         <translation>播放</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="692"/>
-        <location filename="../../src/ui/QuickView.cpp" line="700"/>
-        <location filename="../../src/ui/QuickView.cpp" line="800"/>
-        <location filename="../../src/ui/QuickView.cpp" line="2795"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1060"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1069"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1173"/>
+        <location filename="../../src/ui/QuickView.cpp" line="3225"/>
         <source>Pause</source>
         <translation>暂停</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="712"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1081"/>
         <source>1x</source>
         <translation>1x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="713"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1082"/>
         <source>1.5x</source>
         <translation>1.5x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="714"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1083"/>
         <source>2x</source>
         <translation>2x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="715"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1084"/>
         <source>3x</source>
         <translation>3x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="727"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1011"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1096"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1396"/>
         <source>Seek</source>
         <translation>跳转</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="738"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1023"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1108"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1409"/>
         <source>Mute / unmute</source>
         <translation>静音/取消静音</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="751"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1034"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1122"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1421"/>
         <source>Vol</source>
         <translation>音量</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="756"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1039"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1128"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1427"/>
         <source>Volume</source>
         <translation>音量</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="766"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1138"/>
         <source>Overlay basic video information</source>
         <translation>叠加显示基本视频信息</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="907"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1286"/>
         <source>&lt;b&gt;Duration:&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;Resolution:&lt;/b&gt; %2 &amp;times; %3&lt;br&gt;&lt;b&gt;Codec:&lt;/b&gt; %4</source>
         <translation>&lt;b&gt;时长：&lt;/b&gt;%1&lt;br&gt;&lt;b&gt;分辨率：&lt;/b&gt;%2 &amp;times; %3&lt;br&gt;&lt;b&gt;编码：&lt;/b&gt;%4</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="909"/>
-        <location filename="../../src/ui/QuickView.cpp" line="910"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1288"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1289"/>
         <source>?</source>
         <translation>?</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="911"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1290"/>
         <source>unknown</source>
         <translation>未知</translation>
     </message>
@@ -2913,12 +3198,12 @@ pip install --user msoffcrypto-tool</translation>
         <translation type="vanished">渲染第 %1 页失败</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2184"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2592"/>
         <source>Page %1 / %2</source>
         <translation>第 %1 / %2 页</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2835"/>
+        <location filename="../../src/ui/QuickView.cpp" line="3275"/>
         <source>Cannot open PDF: %1</source>
         <translation>无法打开 PDF：%1</translation>
     </message>
@@ -2931,212 +3216,211 @@ pip install --user msoffcrypto-tool</translation>
         <translation type="vanished">“%1”已加密，无法预览。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1605"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2014"/>
         <source>Cannot preview %1:
 %2</source>
         <translation>无法预览 %1：
 %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="381"/>
-        <location filename="../../src/ui/QuickView.cpp" line="2912"/>
+        <location filename="../../src/ui/QuickView.cpp" line="784"/>
         <source>&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;%2 &amp;times; %3&lt;br&gt;%4&lt;br&gt;%5 bpp</source>
         <translation>&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;%2 &amp;times; %3&lt;br&gt;%4&lt;br&gt;%5 bpp</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="385"/>
-        <location filename="../../src/ui/QuickView.cpp" line="2916"/>
+        <location filename="../../src/ui/QuickView.cpp" line="783"/>
         <source>Unknown format</source>
         <translation>未知格式</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="971"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1356"/>
         <source>No embedded lyrics.</source>
         <translation>没有内嵌歌词。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="990"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1375"/>
         <source>Previous track</source>
         <translation>上一首</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="995"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1380"/>
         <source>Play / pause</source>
         <translation>播放/暂停</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1002"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1387"/>
         <source>Next track</source>
         <translation>下一首</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1151"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1207"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1539"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1602"/>
         <source>Artist</source>
         <translation>艺术家</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1152"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1208"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1540"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1603"/>
         <source>Album</source>
         <translation>专辑</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1153"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1209"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1541"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1604"/>
         <source>Album Artist</source>
         <translation>专辑艺术家</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1154"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1210"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1542"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1605"/>
         <source>Year</source>
         <translation>年份</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1155"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1211"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1543"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1606"/>
         <source>Genre</source>
         <translation>流派</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1156"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1212"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1544"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1607"/>
         <source>Track</source>
         <translation>曲目</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1157"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1213"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1545"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1608"/>
         <source>Composer</source>
         <translation>作曲者</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1363"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1766"/>
         <source>Password</source>
         <translation>密码</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1370"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1773"/>
         <source>Unlock</source>
         <translation>解锁</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1407"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1810"/>
         <source>停止下载</source>
         <translation>停止下载</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1420"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1824"/>
         <source>正在下载到本地以便预览…
 %1</source>
-        <translation></translation>
+        <translation>正在下载到本地以便预览…
+%1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1440"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1846"/>
         <source>已取消预览：本文件的预览下载被用户停止。
 %1</source>
-        <translation></translation>
+        <translation>已取消预览：本文件的预览下载被用户停止。
+%1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1451"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1858"/>
         <source>Enter a password.</source>
         <translation>请输入密码。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1500"/>
         <source>Loading preview…</source>
-        <translation>正在加载预览…</translation>
+        <translation type="vanished">正在加载预览…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1574"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1745"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1980"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2150"/>
         <source>“%1” is encrypted. Enter the password to preview it:</source>
         <translation>“%1” 已加密。请输入密码以预览：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1586"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1757"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1993"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2163"/>
         <source>Incorrect password. Try again.</source>
         <translation>密码错误，请重试。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1595"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2003"/>
         <source>“%1” is encrypted in a format that can&apos;t be previewed.</source>
         <translation>“%1” 以无法预览的格式加密。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1614"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2024"/>
         <source>Up</source>
         <translation>上一级</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1690"/>
         <source>Loading %1…</source>
-        <translation>正在加载 %1…</translation>
+        <translation type="vanished">正在加载 %1…</translation>
     </message>
     <message>
         <source>“%1” is encrypted in a format that can&apos;t be previewed (7z encryption is unsupported).</source>
         <translation type="vanished">“%1” 以无法预览的格式加密（不支持 7z 加密）。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1764"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2171"/>
         <source>“%1” uses an encryption that can&apos;t be previewed.</source>
         <translation>“%1” 使用了无法预览的加密方式。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1768"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2175"/>
         <source>Cannot open archive: %1</source>
         <translation>无法打开压缩包：%1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1778"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2185"/>
         <source>Could not create a temporary directory.</source>
         <translation>无法创建临时目录。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1789"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2196"/>
         <source>Could not extract %1: %2</source>
         <translation>无法解压 %1：%2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1795"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2202"/>
         <source>Could not read the nested archive %1.</source>
         <translation>无法读取嵌套压缩包 %1。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1932"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2339"/>
         <source>Sheet %1</source>
         <translation>工作表 %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1961"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2369"/>
         <source>Copy Page</source>
         <translation>复制页面</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1963"/>
-        <location filename="../../src/ui/QuickView.cpp" line="2293"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2371"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2702"/>
         <source>Copy All</source>
         <translation>全部复制</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2291"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2700"/>
         <source>Copy Slide</source>
         <translation>复制幻灯片</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2546"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2955"/>
         <source>Slide %1 / %2</source>
         <translation>幻灯片 %1 / %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2851"/>
+        <location filename="../../src/ui/QuickView.cpp" line="3297"/>
         <source>PDF preview is not enabled in this build: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>此版本未启用 PDF 预览：%1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2966"/>
+        <location filename="../../src/ui/QuickView.cpp" line="219"/>
+        <location filename="../../src/ui/QuickView.cpp" line="3377"/>
         <source>No preview available for %1</source>
         <translation>无法预览 %1</translation>
     </message>
@@ -3156,10 +3440,10 @@ pip install --user msoffcrypto-tool</translation>
         <translation>设备不是可挂载的文件系统</translation>
     </message>
     <message>
-        <location filename="../../src/core/devices/RemovableDeviceMonitor_windows.cpp" line="87"/>
-        <location filename="../../src/core/devices/RemovableDeviceMonitor_windows.cpp" line="95"/>
+        <location filename="../../src/core/devices/RemovableDeviceMonitor_windows.cpp" line="177"/>
+        <location filename="../../src/core/devices/RemovableDeviceMonitor_windows.cpp" line="185"/>
         <source>The volume is no longer available.</source>
-        <translation type="unfinished"></translation>
+        <translation>该卷已不可用。</translation>
     </message>
 </context>
 <context>
@@ -3253,6 +3537,24 @@ pip install --user msoffcrypto-tool</translation>
     </message>
 </context>
 <context>
+    <name>SecureWipeConfirmationDialog</name>
+    <message>
+        <location filename="../../src/ui/dialogs/SecureWipeConfirmationDialog.cpp" line="35"/>
+        <source>Secure Wipe</source>
+        <translation>安全擦除</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/SecureWipeConfirmationDialog.cpp" line="40"/>
+        <source>Securely erase %1 item(s) (%2 bytes)?</source>
+        <translation>确定要安全擦除 %1 个项目（%2 字节）吗？</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/SecureWipeConfirmationDialog.cpp" line="45"/>
+        <source>Their contents will be overwritten on disk and then deleted. This operation cannot be undone: the items will not enter the Recycle Bin and cannot be recovered.</source>
+        <translation>其内容将在磁盘上被覆写后删除。此操作无法撤销：这些项目不会进入回收站，也无法恢复。</translation>
+    </message>
+</context>
+<context>
     <name>SecureWipeDialog</name>
     <message>
         <location filename="../../src/ui/dialogs/SecureWipeDialog.cpp" line="257"/>
@@ -3298,12 +3600,12 @@ pip install --user msoffcrypto-tool</translation>
         <translation>快捷键</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ShortcutsDialog.cpp" line="52"/>
+        <location filename="../../src/ui/dialogs/ShortcutsDialog.cpp" line="53"/>
         <source>Restore Defaults</source>
         <translation>恢复默认</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/ShortcutsDialog.cpp" line="98"/>
+        <location filename="../../src/ui/dialogs/ShortcutsDialog.cpp" line="99"/>
         <source>Conflicting shortcut(s): %1</source>
         <translation>快捷键冲突：%1</translation>
     </message>
@@ -3311,22 +3613,22 @@ pip install --user msoffcrypto-tool</translation>
 <context>
     <name>StatusBarWidget</name>
     <message>
-        <location filename="../../src/ui/StatusBarWidget.cpp" line="35"/>
+        <location filename="../../src/ui/StatusBarWidget.cpp" line="37"/>
         <source>Smaller</source>
         <translation>较小</translation>
     </message>
     <message>
-        <location filename="../../src/ui/StatusBarWidget.cpp" line="43"/>
+        <location filename="../../src/ui/StatusBarWidget.cpp" line="45"/>
         <source>Larger</source>
         <translation>较大</translation>
     </message>
     <message>
-        <location filename="../../src/ui/StatusBarWidget.cpp" line="72"/>
+        <location filename="../../src/ui/StatusBarWidget.cpp" line="80"/>
         <source>登录</source>
         <translation>登录</translation>
     </message>
     <message>
-        <location filename="../../src/ui/StatusBarWidget.cpp" line="72"/>
+        <location filename="../../src/ui/StatusBarWidget.cpp" line="80"/>
         <source>重试</source>
         <translation>重试</translation>
     </message>
@@ -3334,139 +3636,141 @@ pip install --user msoffcrypto-tool</translation>
 <context>
     <name>SyncDialog</name>
     <message>
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="79"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="114"/>
         <source>Synchronize Directories</source>
         <translation>同步目录</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="86"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="123"/>
         <source>Left: %1</source>
         <translation>左侧：%1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="88"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="125"/>
         <source>Right: %1</source>
         <translation>右侧：%1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="100"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="137"/>
         <source>Show identical files</source>
         <translation>显示相同文件</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="106"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="143"/>
         <source>All →</source>
         <translation>全部 →</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="107"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="144"/>
         <source>Set every difference to copy left → right</source>
         <translation>将所有差异设为从左复制到右</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="108"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="145"/>
         <source>All ←</source>
         <translation>全部 ←</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="109"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="146"/>
         <source>Set every difference to copy right → left</source>
         <translation>将所有差异设为从右复制到左</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="110"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="147"/>
         <source>Skip all</source>
         <translation>全部跳过</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="111"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="148"/>
         <source>Exclude every row from the sync</source>
         <translation>从同步中排除所有行</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="143"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="198"/>
         <source>Abort</source>
         <translation>中止</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="186"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="244"/>
         <source>Compare Again</source>
         <translation>再次比较</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="193"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="254"/>
         <source>Close</source>
         <translation>关闭</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="218"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="288"/>
         <source>Comparing…</source>
         <translation>比较中…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="242"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="312"/>
         <source>Stopping…</source>
         <translation>正在停止…</translation>
     </message>
     <message numerus="yes">
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="272"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="342"/>
         <source>Comparing… %n item(s) scanned</source>
         <translation>
             <numerusform></numerusform>
         </translation>
     </message>
     <message numerus="yes">
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="274"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="344"/>
         <source>Comparing… %n item(s) scanned — %1</source>
         <translation>
             <numerusform></numerusform>
         </translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="294"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="364"/>
         <source>Comparison stopped — results are incomplete.</source>
         <translation>比较已停止，结果不完整。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="305"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="375"/>
         <source>→ %1 · ← %2 · conflicts %3 · identical %4 · skipped %5    To sync: %6 file(s), %7</source>
         <translation>→ %1 · ← %2 · 冲突 %3 · 相同 %4 · 跳过 %5    待同步: %6 个文件, %7</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="325"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="250"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="396"/>
         <source>Start Sync (comparing…)</source>
         <translation>开始同步（比较中…）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="328"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="399"/>
         <source>Available once the comparison finishes. To start now, press Abort first.
 Copying while the scan is still running would make it re-read the files it just wrote and report them as new differences.</source>
-        <translation></translation>
+        <translation>比较完成后可用。若要立即开始，请先按“中止”。
+在扫描仍在进行时复制，会让扫描重新读取刚刚写入的文件，并把它们报告为新的差异。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="335"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="406"/>
         <source>Start Sync (%1)</source>
         <translation>开始同步（%1）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="335"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="406"/>
         <source>Start Sync</source>
         <translation>开始同步</translation>
     </message>
     <message numerus="yes">
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="337"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="408"/>
         <source>Copy the %n selected file(s).</source>
         <translation>
             <numerusform></numerusform>
         </translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="338"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="409"/>
         <source>Nothing to copy: no row is set to a direction.</source>
         <translation>无需复制：没有行被设置为某一方向。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="55"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="90"/>
         <source>Synchronize</source>
         <translation>同步</translation>
     </message>
@@ -3477,7 +3781,7 @@ Right: %2</source>
 右：%2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="96"/>
+        <location filename="../../src/ui/dialogs/SyncDialog.cpp" line="133"/>
         <source>Include subdirectories</source>
         <translation>包含子目录</translation>
     </message>
@@ -3580,7 +3884,7 @@ Right: %2</source>
         <translation type="vanished">新建标签</translation>
     </message>
     <message>
-        <location filename="../../src/ui/TabBar.cpp" line="109"/>
+        <location filename="../../src/ui/TabBar.cpp" line="158"/>
         <source>Close Tab</source>
         <translation>关闭标签</translation>
     </message>
@@ -3648,12 +3952,12 @@ Right: %2</source>
 <context>
     <name>TitleBar</name>
     <message>
-        <location filename="../../src/ui/TitleBar.cpp" line="32"/>
+        <location filename="../../src/ui/TitleBar.cpp" line="33"/>
         <source>FileCommander</source>
         <translation>FileCommander-文件指挥官</translation>
     </message>
     <message>
-        <location filename="../../src/ui/TitleBar.cpp" line="68"/>
+        <location filename="../../src/ui/TitleBar.cpp" line="86"/>
         <source>New Version</source>
         <translation>新版本</translation>
     </message>
@@ -3661,49 +3965,49 @@ Right: %2</source>
 <context>
     <name>TransferProgressDialog</name>
     <message>
-        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="39"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="46"/>
         <source>Transfers</source>
         <translation>传输</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="57"/>
-        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="99"/>
-        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="125"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="73"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="219"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="262"/>
         <source>Pause</source>
         <translation>暂停</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="99"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="219"/>
         <source>Resume</source>
         <translation>继续</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="156"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="296"/>
         <source>%1 of %2  (%3 of %4 items)</source>
         <translation>%1 / %2（%3/%4 项）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="160"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="300"/>
         <source>%1 of %2 items</source>
         <translation>%1/%2 项</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="164"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="304"/>
         <source>Speed: %1/s</source>
         <translation>速度：%1/s</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="167"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="307"/>
         <source>ETA: %1</source>
         <translation>剩余时间：%1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="169"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="309"/>
         <source>ETA: --</source>
         <translation>剩余时间：--</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="180"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="321"/>
         <source>%1 operation(s) queued</source>
         <translation>%1 个操作排队中</translation>
     </message>
@@ -3814,37 +4118,37 @@ Right: %2</source>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="128"/>
         <source>Windows portable updates must be ZIP packages.</source>
-        <translation type="unfinished"></translation>
+        <translation>Windows 便携版更新必须是 ZIP 包。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="135"/>
         <source>The application folder is not writable. Extract the update manually.</source>
-        <translation type="unfinished"></translation>
+        <translation>应用程序目录不可写。请手动解压该更新。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="144"/>
         <source>Could not create the update staging directory.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法创建更新暂存目录。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="150"/>
         <source>Could not stage the downloaded update.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法暂存已下载的更新。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="158"/>
         <source>Could not prepare the update installer.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法准备更新安装程序。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="196"/>
         <source>Could not launch the Windows update installer.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法启动 Windows 更新安装程序。</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="199"/>
         <source>Updated to version %1. Restarting...</source>
-        <translation type="unfinished"></translation>
+        <translation>已更新到版本 %1。正在重启...</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="208"/>
@@ -3901,7 +4205,8 @@ Right: %2</source>
         <location filename="../../src/core/update/Updater.cpp" line="288"/>
         <source>Package installation failed:
 %1</source>
-        <translation></translation>
+        <translation>软件包安装失败：
+%1</translation>
     </message>
     <message>
         <location filename="../../src/core/update/Updater.cpp" line="297"/>

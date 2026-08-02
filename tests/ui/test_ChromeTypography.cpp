@@ -16,6 +16,8 @@
 #include <QWidgetAction>
 
 #include <QToolBar>
+#include <QDebug>
+#include <QAction>
 
 #include "BreadcrumbBar.h"
 #include "CommandBar.h"
@@ -455,6 +457,58 @@ TEST(ChromeTypographyTest, FontRowInteriorMatchesTheMenuFontOnFirstOpen) {
         EXPECT_EQ(row->font().pointSize(), menuPointSize) << caption.toStdString();
         for (QWidget *child : row->findChildren<QWidget *>()) {
             EXPECT_EQ(child->font().pointSize(), menuPointSize)
+                << caption.toStdString() << " / " << child->metaObject()->className();
+        }
+    }
+}
+
+
+// Installing the theme stylesheet swaps the application style, and that resets
+// QApplication::font() to the platform default. Widgets holding an explicit
+// font survive it, so this stayed invisible until something resolved a font
+// straight from the application -- which the Interface menu's font-size rows do,
+// because QWidgetAction leaves them briefly parentless while they are built.
+// Measured on a real run: the application font had fallen back to SimSun 12
+// while the interface font was Microsoft YaHei UI 9, and those two rows rendered
+// in the wrong family AND size until the user touched the setting (which
+// re-applied the typography, this time after the stylesheet was already there).
+TEST(ChromeTypographyTest, ApplicationFontSurvivesTheStartupStyleSheet) {
+    ApplicationAppearanceGuard appearanceGuard;
+    QTemporaryDir configHome;
+    ASSERT_TRUE(configHome.isValid());
+    EnvironmentGuard configGuard("FILECOMMANDER_CONFIG_HOME", configHome.path().toUtf8());
+    {
+        Settings settings;
+        settings.setMenuFontSize(9);
+    }
+
+    MainWindow window;
+
+    Settings settings;
+    const QFont chrome = Typography::chromeFont(settings);
+    EXPECT_EQ(QApplication::font().pointSize(), chrome.pointSize());
+    EXPECT_EQ(QApplication::font().family(), chrome.family());
+
+    // The rows resolve from the application font, so they must agree with the
+    // menu they sit in rather than with whatever the platform default is.
+    // Actually popped up, not just aboutToShow'd: a QMenu resolves its own font
+    // when it is polished on show, and the rows are built before that. Asserting
+    // on a menu that was never shown would test a state the user never sees.
+    QMenu *menu = interfaceMenu(window);
+    ASSERT_NE(menu, nullptr);
+    menu->popup(QPoint(10, 10));
+    QApplication::processEvents();
+    QApplication::processEvents();
+    menu->hide();
+
+    for (const QString &caption :
+         {QStringLiteral("Menu Font Size:"), QStringLiteral("File List Font Size:")}) {
+        QWidget *row = fontRow(menu, caption);
+        ASSERT_NE(row, nullptr) << caption.toStdString();
+        EXPECT_EQ(row->font().family(), menu->font().family()) << caption.toStdString();
+        EXPECT_EQ(row->font().pointSize(), menu->font().pointSize()) << caption.toStdString();
+        for (QWidget *child : row->findChildren<QWidget *>()) {
+            EXPECT_EQ(child->font().family(), menu->font().family())
                 << caption.toStdString() << " / " << child->metaObject()->className();
         }
     }

@@ -17,8 +17,17 @@ constexpr auto kMenuChromeSurfaceProperty = "menuChromeSurface";
 constexpr auto kMenuChromeSyncInstalledProperty = "menuChromeSyncInstalled";
 
 void applyMenuFont(QWidget *widget, const QFont &font) {
-    if (widget->font() != font)
-        widget->setFont(font);
+    // Assigned unconditionally rather than only when it differs. A
+    // QWidgetAction's default widget is detached from the menu whenever the menu
+    // is not on screen, and a widget carrying no font of its own then re-resolves
+    // against the APPLICATION font instead of the menu's. On Windows those are
+    // two different families: the platform theme gives QMenu its own (measured:
+    // Microsoft YaHei UI) while the application font is the general default
+    // (SimSun). A row that merely inherited the right font while it was still
+    // parented to the menu therefore came back in the wrong family and size --
+    // which is exactly what made the two font-size rows render unlike every
+    // entry beside them until the setting was touched once.
+    widget->setFont(font);
     widget->updateGeometry();
 }
 
@@ -26,20 +35,36 @@ void syncMenuChromeSurfaces(QMenu *menu) {
     if (!menu)
         return;
 
-    for (QWidget *child : menu->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly)) {
-        if (!child->property(kMenuChromeSurfaceProperty).toBool())
+    // menu->font() is only the right anchor when the menu actually owns that
+    // font. Qt hands QMenu a class-specific default on Windows -- measured as
+    // Microsoft YaHei UI where the application font was SimSun -- and a class
+    // default is NOT inherited by child widgets: they resolve against the
+    // application font. Following menu->font() in that case is what made the
+    // embedded rows render in a different family from the entries beside them.
+    // WA_SetFont distinguishes the two cases exactly: set means somebody called
+    // setFont() on this menu and its children really do inherit it.
+    const QFont chrome =
+        menu->testAttribute(Qt::WA_SetFont) ? menu->font() : QApplication::font();
+
+    // Reached through the menu's own actions rather than findChildren(): a
+    // QWidgetAction's default widget is only parented to the menu while the menu
+    // is on screen, so a direct-children search misses exactly the rows this is
+    // meant to fix whenever it runs at any other moment -- including right after
+    // they are built.
+    for (QAction *action : menu->actions()) {
+        auto *widgetAction = qobject_cast<QWidgetAction *>(action);
+        if (!widgetAction)
             continue;
-        applyMenuFont(child, menu->font());
-        for (QWidget *descendant : child->findChildren<QWidget *>())
-            applyMenuFont(descendant, menu->font());
-        for (QAction *action : menu->actions()) {
-            auto *widgetAction = qobject_cast<QWidgetAction *>(action);
-            if (widgetAction && widgetAction->defaultWidget() == child &&
-                widgetAction->font() != menu->font()) {
-                // QAction::setFont emits changed(), which is the public signal
-                // QMenu uses to invalidate its cached action geometry.
-                widgetAction->setFont(menu->font());
-            }
+        QWidget *row = widgetAction->defaultWidget();
+        if (!row)
+            continue;
+        applyMenuFont(row, chrome);
+        for (QWidget *descendant : row->findChildren<QWidget *>())
+            applyMenuFont(descendant, chrome);
+        if (widgetAction->font() != chrome) {
+            // QAction::setFont emits changed(), which is the public signal QMenu
+            // uses to invalidate its cached action geometry.
+            widgetAction->setFont(chrome);
         }
     }
     menu->updateGeometry();
@@ -55,9 +80,17 @@ public:
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override {
+        // Show and Polish matter as much as the font events: a QMenu resolves its
+        // own font (on Windows the platform theme gives the class its own family,
+        // distinct from the application font) only once it is polished, which
+        // happens AFTER aboutToShow has built the embedded rows. Syncing on the
+        // font events alone left those rows holding whatever the menu reported
+        // beforehand -- the application family -- with nothing later to correct
+        // it, since no font event follows.
         if (event->type() != QEvent::FontChange &&
             event->type() != QEvent::ApplicationFontChange &&
-            event->type() != QEvent::StyleChange) {
+            event->type() != QEvent::StyleChange && event->type() != QEvent::Show &&
+            event->type() != QEvent::Polish) {
             return false;
         }
 
@@ -120,6 +153,16 @@ void Typography::applyApplicationFont(const Settings &settings) {
 void Typography::applyApplicationFont(const QFont &font) {
     if (QApplication::font() != font)
         QApplication::setFont(font);
+    // QMenu carries a class-specific default of its own, which the Windows
+    // platform theme fills in (measured: Microsoft YaHei UI where the general
+    // application font was SimSun). That default wins over the application font
+    // for the menu itself but is NOT inherited by child widgets, so the entries
+    // QMenu painted and the widgets embedded in it through QWidgetAction ended
+    // up in two different families at the same point size. Overriding the class
+    // default is what makes the two agree at the source, instead of chasing the
+    // difference afterwards on every widget.
+    if (QApplication::font("QMenu") != font)
+        QApplication::setFont(font, "QMenu");
 }
 
 void Typography::applyChromeFont(QWidget *widget, const Settings &settings) {
@@ -143,9 +186,12 @@ void Typography::applyChromeFont(QWidget *widget, const QFont &font) {
             menu->installEventFilter(&MenuChromeSynchronizer::instance());
             menu->setProperty(kMenuChromeSyncInstalledProperty, true);
         }
-        applyMenuFont(widget, menu->font());
+        // `font`, not menu->font(): see syncMenuChromeSurfaces -- the menu's own
+        // font is a Qt class default that its children never inherit, so taking
+        // it here is what split the row's family from the entries around it.
+        applyMenuFont(widget, font);
         for (QWidget *descendant : widget->findChildren<QWidget *>())
-            applyMenuFont(descendant, menu->font());
+            applyMenuFont(descendant, font);
         return;
     }
 

@@ -781,6 +781,18 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
     m_themeManager->apply(m_settings.theme(), m_settings.phosphorImages());
     if (m_collectStartupPhases)
         m_startupThemeApplyFinishedMs = elapsedSinceStartup();
+    // Installing a stylesheet swaps the application style, and that resets
+    // QApplication::font() back to the platform default -- measured as SimSun 12
+    // where the interface font was Microsoft YaHei UI 9. Widgets that already
+    // hold an explicit font (this window, and so the menus under it) survive it,
+    // which is why the damage was invisible until something resolved a font
+    // straight from the application: the font-size rows in the Interface menu are
+    // built later, and QWidgetAction briefly leaves them parentless, so they
+    // picked up the stale application font and rendered a size and family apart
+    // from every entry beside them. Re-applying afterwards is what the settings
+    // path was doing implicitly -- which is exactly why adjusting the size once
+    // "fixed" it for the session, and a restart brought it back.
+    applyInterfaceTypography();
 }
 
 QString MainWindow::commandText(const QString &id, const QString &label) const {
@@ -3893,6 +3905,9 @@ void MainWindow::setPhosphorImages(bool on) {
 
 void MainWindow::applyTheme() {
     m_themeManager->apply(m_settings.theme(), m_settings.phosphorImages());
+    // Restore the interface font the stylesheet swap just reset -- see the
+    // matching call at the end of the constructor for what it costs to skip.
+    applyInterfaceTypography();
     // The memory cache holds thumbnails already tinted under the previous
     // setting, keyed by it. Dropping them costs one re-tint from the stored
     // bitmaps; the disk cache is untouched, so nothing is re-fetched or
