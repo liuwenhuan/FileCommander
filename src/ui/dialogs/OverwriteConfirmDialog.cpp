@@ -5,6 +5,10 @@
 #include <QFileInfo>
 #include <QLabel>
 #include <QPushButton>
+#include <QScreen>
+#include <QScrollArea>
+#include <QShowEvent>
+#include <QSizePolicy>
 #include <QVBoxLayout>
 
 namespace {
@@ -46,9 +50,17 @@ OverwriteConfirmDialog::OverwriteConfirmDialog(const FileConflict &conflict, QWi
     : FramelessDialog(parent) {
     setWindowTitle(tr("Confirm Overwrite"));
     setModal(true);
+    // Shown mid-transfer, same as OperationErrorDialog: the transfer progress window's
+    // own deferred-show timer or repaints can otherwise cover this prompt after the user
+    // has been staring at it for a moment. See OperationErrorDialog.cpp for the full
+    // reasoning (stays-on-top plus MainWindow suppressing the progress window's
+    // auto-show while either of these is open).
+    setWindowFlag(Qt::WindowStaysOnTopHint, true);
 
     auto *message = new QLabel(describe(conflict), this);
     message->setWordWrap(true);
+    message->setMinimumWidth(0);
+    message->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 
     auto *buttons = new QDialogButtonBox(this);
     auto addAction = [&](const QString &text, ErrorAction action) {
@@ -74,6 +86,45 @@ OverwriteConfirmDialog::OverwriteConfirmDialog(const FileConflict &conflict, QWi
     auto *layout = new QVBoxLayout(this);
     layout->addWidget(message);
     layout->addWidget(buttons);
+
+    const QSize availableSize = screen()->availableGeometry().size();
+    const int availableWidth = availableSize.width();
+    const int contentWidth = qMax(0, qMin(640, availableWidth) - layout->contentsMargins().left() -
+                                        layout->contentsMargins().right());
+    if (buttons->sizeHint().width() > contentWidth) {
+        for (QPushButton *button : buttons->findChildren<QPushButton *>()) {
+            if (button->sizeHint().width() <= contentWidth)
+                continue;
+            const QString fullText = button->text();
+            button->setToolTip(fullText);
+            button->setText(button->fontMetrics().elidedText(fullText, Qt::ElideRight,
+                                                             qMax(0, contentWidth - 48)));
+            button->setMaximumWidth(contentWidth);
+        }
+        buttons->setOrientation(Qt::Vertical);
+    }
+
+    setMaximumWidth(availableWidth);
+    int dialogHeight = sizeHint().height();
+    if (dialogHeight > availableSize.height()) {
+        layout->removeWidget(message);
+        auto *messageScroll = new QScrollArea(this);
+        messageScroll->setFrameShape(QFrame::NoFrame);
+        messageScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        messageScroll->setWidgetResizable(true);
+        messageScroll->setWidget(message);
+        messageScroll->setMinimumHeight(message->fontMetrics().lineSpacing() * 4);
+        layout->insertWidget(0, messageScroll, 1);
+        setMaximumHeight(availableSize.height());
+        dialogHeight = availableSize.height();
+    }
+    resize(qMin(640, availableWidth), dialogHeight);
+}
+
+void OverwriteConfirmDialog::showEvent(QShowEvent *event) {
+    FramelessDialog::showEvent(event);
+    raise();
+    activateWindow();
 }
 
 ErrorAction OverwriteConfirmDialog::ask(QWidget *parent, const FileConflict &conflict) {

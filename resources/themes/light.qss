@@ -32,6 +32,22 @@ QMenu {
     border: 1px solid #c8c8c8;
 }
 
+QLabel[semanticState="error"] {
+    color: #c0392b;
+}
+
+QLabel[semanticState="warning"] {
+    color: #9a6700;
+}
+
+QLabel[semanticState="muted"] {
+    color: #6b7280;
+}
+
+QMenu QWidget[menuChromeSurface="true"] {
+    background: transparent;
+}
+
 QMenu::item {
     padding: 4px 24px;
 }
@@ -124,6 +140,41 @@ QLineEdit {
 
 QLineEdit:focus {
     border: 1px solid #3d7deb;
+}
+
+/* No border at rest: PanelAddressRow already owns the address toolbar's
+   left/right box lines (AddressRowBorderOverlay), spanning the tree toggle,
+   back/forward, breadcrumb and star button as one row. A permanent border
+   here duplicated that -- BreadcrumbBar occupies most of the row's width (it
+   is the only stretchy child), so its own top/bottom edges read as a second,
+   misaligned border across the whole row, and its own left edge (well inside
+   the row, past the fixed-width buttons) read as the overlay's left line
+   failing to reach the bottom. Only the editing state gets a border, as a
+   "you're now typing a path" cue distinct from the row's own box. */
+BreadcrumbBar[editing="true"] {
+    border: 1px solid #3d7deb;
+    border-radius: 0;
+}
+
+BreadcrumbBar QWidget#BreadcrumbDisplay,
+BreadcrumbBar QWidget#BreadcrumbSegments,
+BreadcrumbBar QWidget#BreadcrumbViewport {
+    background: transparent;
+    border: none;
+}
+
+BreadcrumbBar QLineEdit {
+    border: none;
+    border-radius: 0;
+    margin: 0;
+}
+
+BreadcrumbBar QToolButton#BreadcrumbScrollLeft,
+BreadcrumbBar QToolButton#BreadcrumbScrollRight {
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
 }
 
 /* Numeric editors need their own rule: the platform spin-box frame otherwise

@@ -4,6 +4,8 @@
 
 #include "FileOpTypes.h"
 
+class QShowEvent;
+
 // Modal "file already exists" prompt with the standard TC-style choices.
 // Use the static ask() helper -- it's what OperationQueue's conflict
 // handler is wired to.
@@ -24,6 +26,9 @@ public:
     // The prompt's message, as a pure function of the conflict, so what the user
     // is actually told can be checked without opening a modal dialog.
     static QString describe(const FileConflict &conflict);
+
+protected:
+    void showEvent(QShowEvent *event) override;
 
 private:
     ErrorAction m_result = ErrorAction::Cancel;

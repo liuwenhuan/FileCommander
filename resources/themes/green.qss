@@ -12,9 +12,9 @@
    * Text is never pure white. On a phosphor tube the brightest thing on screen
      is the phosphor itself, so the highlight colour IS the text colour and
      selection inverts to the dark glass instead.
-   * The scanline overlay only goes on chrome (menus, bars, buttons, dialogs).
-     The file views paint their own cells from the palette, so a texture there
-     would be painted over anyway -- they get alternating row bands instead.
+   * Chrome and content surfaces use different scanline tiles. Each large
+     surface owns one tile; child content stays transparent so adjacent rows and
+     controls never restart the texture at mismatched phases.
 
    Status colours (connection failed / reconnecting) stay red/amber: those are
    painted from C++ and are semantic, not decorative. */
@@ -41,8 +41,26 @@ QWidget {
 
    So the colour lives in the pixels instead. When changing a surface colour,
    regenerate its tile as well, or the two will disagree. */
-QMainWindow, QDialog {
+QMainWindow, QDialog, QuickView#QuickViewSurface {
     background: url(:/icons/crt-scan-screen.png) repeat;
+}
+
+QLabel[semanticState="error"] {
+    color: #33ff88;
+}
+
+QLabel[semanticState="warning"] {
+    color: #7ce8ac;
+}
+
+QLabel[semanticState="muted"] {
+    color: #1fa85c;
+}
+
+/* The stack is only a page switcher. QuickView owns the stable tile origin and
+   the default QLabel page is already transparent through the QLabel rule. */
+QuickView#QuickViewSurface QStackedWidget#QuickViewStack {
+    background: transparent;
 }
 
 /* Every other container that fills real estate. The QMainWindow rule alone is
@@ -53,10 +71,9 @@ QMainWindow, QDialog {
    These are class-name selectors, which Qt matches against
    QObject::metaObject()->className(); all of them declare Q_OBJECT.
 
-   Deliberately NOT textured: the sunken surfaces (file lists, tree, text and
-   image areas, line edits, combo popups). Those are the "screen" a CRT would be
-   showing content on, and scanlines behind text are the one place the effect
-   costs legibility instead of adding to it. */
+   Text editors, trees and combo popups remain solid for dense text. File-list
+   viewports and the command input are handled below through one stable owner
+   per visible surface. */
 FilePanel, TitleBar, FunctionKeyBar, CommandBar, BreadcrumbBar,
 StatusBarWidget, FramelessDialog, QMessageBox, QTabBar, QToolBar,
 QDialogButtonBox, QGroupBox {
@@ -100,6 +117,12 @@ QMenu {
     border: 1px solid #1fa85c;
 }
 
+/* QWidgetAction rows sit above QMenu as real widgets. Keep their root surface
+   transparent so the menu's scanline tile remains continuous underneath. */
+QMenu QWidget[menuChromeSurface="true"] {
+    background: transparent;
+}
+
 /* Colour spelled out rather than inherited, so a plain action can never fall
    back to the platform style's own menu-text colour. Note that Latin entries
    look dimmer than CJK ones at 1x -- thin strokes over a saturated green, not a
@@ -141,10 +164,9 @@ QToolBar QToolButton:hover {
     background-color: #12602f;
 }
 
-/* File lists. No texture here: FileItemDelegate paints cells straight from the
-   palette (see its note in FileListView.cpp), so an image would be covered.
-   The alternating band is the scanline stand-in -- one shade apart, enough to
-   read as raster without turning into zebra stripes. */
+/* File views keep their palette colours for text and selection. Their actual
+   viewport owns the sunken tile; ordinary detail rows and thumbnail cells are
+   transparent, while selected/hover content is painted by each delegate. */
 QTableView {
     background-color: #04140a;
     color: #33ff88;
@@ -155,6 +177,12 @@ QTableView {
        delegate's fast path -- same reason as light.qss/dark.qss. */
     selection-background-color: #33ff88;
     selection-color: #04140a;
+}
+
+/* QAbstractItemView delegates its styled background to the viewport during
+   paint; styling the view class is therefore the reliable single owner. */
+FileListView, IconFileView {
+    background: url(:/icons/crt-scan-sunken.png) repeat;
 }
 
 /* Inactive panel: the unlit trace, so the active panel's inverted row is
@@ -200,6 +228,50 @@ QLineEdit {
 
 QLineEdit:focus {
     border: 1px solid #33ff88;
+}
+
+/* No border at rest: BreadcrumbBar's own paintable area sits inside
+   PanelAddressRow, which already owns the address toolbar's left/right box
+   lines (AddressRowBorderOverlay in BreadcrumbBar.cpp) spanning the tree
+   toggle, back/forward, breadcrumb and star button as one row. A permanent
+   border here duplicated that -- BreadcrumbBar occupies most of the row's
+   width (it is the only stretchy child), so its own top/bottom edges read as
+   a second, misaligned border across the whole row, and its own left edge
+   (well inside the row, past the fixed-width buttons) read as the overlay's
+   left line failing to reach the bottom. Only the editing state gets a
+   border, as a "you're now typing a path" cue distinct from the row's own
+   box and the QLineEdit's focus ring. */
+BreadcrumbBar[editing="true"] {
+    border: 1px solid #33ff88;
+    border-radius: 0;
+}
+
+BreadcrumbBar QWidget#BreadcrumbDisplay,
+BreadcrumbBar QWidget#BreadcrumbSegments,
+BreadcrumbBar QWidget#BreadcrumbViewport {
+    background: transparent;
+    border: none;
+}
+
+BreadcrumbBar QLineEdit {
+    border: none;
+    border-radius: 0;
+    margin: 0;
+}
+
+BreadcrumbBar QToolButton#BreadcrumbScrollLeft,
+BreadcrumbBar QToolButton#BreadcrumbScrollRight {
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* CommandBar owns the chrome tile. Its only input reveals that parent surface,
+   preserving one phase across prompt and editor while retaining this control's
+   border, text, cursor and selection palette. */
+CommandBar QLineEdit#CommandInput {
+    background: transparent;
 }
 
 QAbstractSpinBox {
@@ -425,10 +497,9 @@ QTabBar::tab {
     border-top-right-radius: 0;
 }
 
-/* TabBar paints its own accent line from QPalette::Highlight, which the
-   selection-background-color above already set to the lit phosphor. Keep the
-   tab face itself flat, like dark.qss does -- but brighten the label, since
-   an unselected tab is deliberately dimmed to the half-lit green. */
+/* TabBar paints its accent and close controls from the explicit state colours
+   ThemeManager supplies alongside this sheet. Keep the tab face itself flat,
+   but brighten the label because inactive tabs use the half-lit green. */
 QTabBar::tab:selected {
     background: url(:/icons/crt-scan-chrome.png) repeat;
     color: #33ff88;

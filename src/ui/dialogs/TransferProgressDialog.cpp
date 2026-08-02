@@ -2,8 +2,10 @@
 #include "ThemedDialogs.h"
 
 #include <QDialogButtonBox>
+#include <QEvent>
 #include <QGraphicsOpacityEffect>
 #include <QLabel>
+#include <QLayout>
 #include <QPalette>
 #include <QPropertyAnimation>
 #include <QProgressBar>
@@ -54,7 +56,7 @@ TransferProgressDialog::TransferProgressDialog(OperationQueue *queue, QWidget *p
     m_queueLabel = new QLabel(this);
     m_errorLabel = new QLabel(this);
     m_errorLabel->setWordWrap(true);
-    m_errorLabel->setStyleSheet(QStringLiteral("color: #c0392b;"));
+    m_errorLabel->setProperty("semanticState", QStringLiteral("error"));
     m_progressBar = new QProgressBar(this);
     m_progressBar->setRange(0, 0); // indeterminate until we know a total
     m_defaultProgressColor = m_progressBar->palette().color(QPalette::Highlight);
@@ -122,7 +124,58 @@ TransferProgressDialog::TransferProgressDialog(OperationQueue *queue, QWidget *p
 
 void TransferProgressDialog::showEvent(QShowEvent *event) {
     FramelessDialog::showEvent(event);
+    fitErrorText();
     startRevealAnimation();
+}
+
+void TransferProgressDialog::dismissAfterAbort() {
+    m_showTimer->stop();
+    m_terminalHideTimer->stop();
+    m_revealAnimation->stop();
+    m_outcomeColorAnimation->stop();
+    m_activeJobs = 0;
+    m_pendingJobs = 0;
+    m_batchActive = false;
+    m_batchOk = false;
+    m_hasError = false;
+    m_paused = false;
+    m_shown = false;
+    m_queueLabel->clear();
+    m_errorLabel->clear();
+    hide();
+}
+
+void TransferProgressDialog::changeEvent(QEvent *event) {
+    FramelessDialog::changeEvent(event);
+    if (!m_errorLabel)
+        return;
+    if (event->type() == QEvent::FontChange || event->type() == QEvent::ApplicationFontChange ||
+        event->type() == QEvent::StyleChange) {
+        QTimer::singleShot(0, this, [this] { fitErrorText(); });
+    }
+}
+
+void TransferProgressDialog::fitErrorText() {
+    if (!m_errorLabel)
+        return;
+
+    if (m_errorLabel->text().isEmpty()) {
+        m_errorLabel->setMinimumHeight(0);
+        return;
+    }
+
+    const QMargins layoutMargins = layout() ? layout()->contentsMargins() : QMargins();
+    const int textWidth = qMax(1, contentsRect().width() - layoutMargins.left() -
+                                     layoutMargins.right());
+    m_errorLabel->setMinimumHeight(m_errorLabel->heightForWidth(textWidth));
+    m_errorLabel->updateGeometry();
+    if (layout()) {
+        layout()->invalidate();
+        layout()->activate();
+    }
+    const int requiredHeight = minimumSizeHint().height();
+    if (height() < requiredHeight)
+        resize(width(), requiredHeight);
 }
 
 void TransferProgressDialog::startRevealAnimation() {
@@ -175,9 +228,21 @@ void TransferProgressDialog::onPauseClicked() {
 void TransferProgressDialog::showIfHidden() {
     if (m_shown)
         return;
+    if (m_showSuppressed) {
+        m_wantsShowWhileSuppressed = true;
+        return;
+    }
     m_shown = true;
     show();
     raise();
+}
+
+void TransferProgressDialog::suppressAutoShow(bool suppressed) {
+    m_showSuppressed = suppressed;
+    if (!suppressed && m_wantsShowWhileSuppressed) {
+        m_wantsShowWhileSuppressed = false;
+        showIfHidden();
+    }
 }
 
 void TransferProgressDialog::onStarted(const QString &description) {
@@ -190,6 +255,7 @@ void TransferProgressDialog::onStarted(const QString &description) {
     if (!m_batchActive) {
         m_terminalHideTimer->stop();
         m_errorLabel->clear();
+        m_errorLabel->setMinimumHeight(0);
         m_hasError = false;
         m_batchOk = true;
         m_paused = false;
@@ -278,6 +344,7 @@ void TransferProgressDialog::onFinished(bool ok) {
 
 void TransferProgressDialog::onErrorOccurred(const QString &message) {
     m_errorLabel->setText(message);
+    fitErrorText();
     animateOutcomeColor(QColor(0xe0, 0x4a, 0x4a));
     // Only keep an already-visible dialog up past completion so the message is
     // readable. Don't pop the dialog just for an error: MainWindow already shows

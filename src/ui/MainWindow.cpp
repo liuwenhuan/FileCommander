@@ -43,7 +43,6 @@
 #include <QMessageBox>
 
 #include "FramelessDialog.h"
-#include "MotionPolicy.h"
 #include "ThemedDialogs.h"
 #include <QMimeData>
 #include <QPainter>
@@ -109,6 +108,7 @@
 #include "dialogs/CommandOutputDialog.h"
 #include "dialogs/ConnectDialog.h"
 #if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
+#include "dialogs/SecureWipeConfirmationDialog.h"
 #include "dialogs/SecureWipeDialog.h"
 #endif
 #include "Settings.h"
@@ -120,6 +120,8 @@
 #include "dialogs/OperationProgressDialog.h"
 #include "dialogs/TransferProgressDialog.h"
 #include "dialogs/OverwriteConfirmDialog.h"
+#include "dialogs/OperationErrorDialog.h"
+#include "privilege/PrivilegeBroker.h"
 #include "dialogs/PropertiesDialog.h"
 #include "dialogs/ShortcutsDialog.h"
 #include "dialogs/SyncDialog.h"
@@ -303,8 +305,6 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
         m_startupApplicationSetupMs = m_startupElapsedOffsetMs;
         m_startupMainWindowBodyStartedMs = elapsedSinceStartup();
     }
-    MotionPolicy::setApplicationReduced(m_settings.reduceMotion());
-
     // Frameless: we draw our own title bar (see setupMenuAndToolbar / TitleBar)
     // plus a rounded background and soft shadow in paintEvent. The window is
     // translucent so the shadow can fade into nothing at its edges.
@@ -394,39 +394,94 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
     m_queue = new OperationQueue(this);
     if (m_collectStartupPhases)
         m_startupOperationQueueConstructedMs = elapsedSinceStartup();
-    m_queue->setConflictHandler(
-        [this](const FileConflict &conflict) { return OverwriteConfirmDialog::ask(this, conflict); });
-    m_queue->setErrorHandler([this](const QString &path, const QString &error) {
-        // Custom-button message box (Retry / Skip / Skip All / Cancel), embedded
-        // in the themed frameless chrome like the ttc::message() wrappers.
-        FramelessDialog dlg(this);
-        dlg.setWindowTitle(tr("Operation Error"));
-        auto *box = new QMessageBox(QMessageBox::Warning, tr("Operation Error"),
-                                    tr("%1\n\n%2").arg(error, path), QMessageBox::NoButton, &dlg);
-        box->setWindowFlags(Qt::Widget);
-        QPushButton *retry = box->addButton(tr("Retry"), QMessageBox::AcceptRole);
-        QPushButton *skip = box->addButton(tr("Skip"), QMessageBox::RejectRole);
-        QPushButton *skipAll = box->addButton(tr("Skip All"), QMessageBox::RejectRole);
-        box->addButton(tr("Cancel"), QMessageBox::DestructiveRole);
-        connect(box, &QMessageBox::finished, &dlg, [&dlg](int) { dlg.accept(); });
-        auto *layout = new QVBoxLayout(&dlg);
-        layout->setContentsMargins(0, 0, 0, 0);
-        layout->addWidget(box);
-        dlg.exec();
-        if (box->clickedButton() == retry)
-            return ErrorAction::Retry;
-        if (box->clickedButton() == skip)
-            return ErrorAction::Skip;
-        if (box->clickedButton() == skipAll)
-            return ErrorAction::SkipAll;
-        return ErrorAction::Cancel;
+    m_queue->setConflictHandler([this](const FileConflict &conflict) {
+        // Same reasoning as the error handler below: parent to the progress window (so
+        // the window manager stacks this as its owned window) and suppress the progress
+        // window's own deferred auto-show while this prompt is up, so neither an
+        // unrelated-sibling z-order nor a mid-decision auto-show can cover it.
+        QWidget *dialogParent = (m_progressDialog && m_progressDialog->isVisible())
+            ? static_cast<QWidget *>(m_progressDialog)
+            : static_cast<QWidget *>(this);
+        if (m_progressDialog)
+            m_progressDialog->suppressAutoShow(true);
+        const ErrorAction action = OverwriteConfirmDialog::ask(dialogParent, conflict);
+        if (m_progressDialog)
+            m_progressDialog->suppressAutoShow(false);
+        return action;
+    });
+    m_queue->setErrorHandler([this](const OperationError &error) {
+        // Parent to the (non-modal) transfer progress window when it is on screen so the
+        // window manager stacks this modal decision dialog as its owned window and keeps
+        // it above the progress window, instead of floating as an unrelated MainWindow
+        // sibling that the progress window's own updates can end up covering.
+        QWidget *dialogParent = (m_progressDialog && m_progressDialog->isVisible())
+            ? static_cast<QWidget *>(m_progressDialog)
+            : static_cast<QWidget *>(this);
+        // Belt-and-braces alongside WindowStaysOnTopHint above: the progress window's own
+        // deferred-show timer (armed for slow operations) can still fire *while* this
+        // dialog's nested event loop is running -- e.g. the user takes a moment to read the
+        // prompt -- newly showing a sibling window at that point can beat a topmost hint on
+        // some window managers. Suppressing it here removes the race outright rather than
+        // relying on winning it.
+        if (m_progressDialog)
+            m_progressDialog->suppressAutoShow(true);
+        const ErrorAction action =
+            OperationErrorDialog::ask(dialogParent, error, PrivilegeBroker::isAvailable());
+        if (m_progressDialog)
+            m_progressDialog->suppressAutoShow(false);
+        if (action == ErrorAction::Abort) {
+            m_operationAbortRequested = true;
+            m_operationErrors.clear();
+            m_pendingDeletePanel = nullptr;
+            m_pendingDeletePaths.clear();
+            m_pendingMovePanel = nullptr;
+            m_pendingMovePaths.clear();
+            m_pendingDestPanel = nullptr;
+            m_pendingDestPaths.clear();
+            m_queue->abortAll();
+            if (m_progressDialog)
+                m_progressDialog->dismissAfterAbort();
+        }
+        return action;
     });
     connect(m_queue, &OperationQueue::started, this,
-            [this](const QString &) { m_operationErrors.clear(); });
-    connect(m_queue, &OperationQueue::finished, this, [this](bool) {
+            [this](const QString &) {
+                if (!m_operationAbortRequested)
+                    m_operationErrors.clear();
+            });
+    connect(m_queue, &OperationQueue::finished, this, [this](bool ok) {
+        if (m_operationAbortRequested) {
+            m_leftPanel->refresh();
+            m_rightPanel->refresh();
+            if (!m_queue->isBusy() && m_queue->queuedCount() == 0)
+                m_operationAbortRequested = false;
+            return;
+        }
+
         bool handledPlan = false;
 
-        if (m_pendingDeletePanel) {
+        if (!ok) {
+            if (m_pendingDeletePanel) {
+                m_pendingDeletePanel->refresh();
+                m_pendingDeletePanel = nullptr;
+                m_pendingDeletePaths.clear();
+                handledPlan = true;
+            }
+            if (m_pendingMovePanel) {
+                m_pendingMovePanel->refresh();
+                m_pendingMovePanel = nullptr;
+                m_pendingMovePaths.clear();
+                handledPlan = true;
+            }
+            if (m_pendingDestPanel) {
+                m_pendingDestPanel->refresh();
+                m_pendingDestPanel = nullptr;
+                m_pendingDestPaths.clear();
+                handledPlan = true;
+            }
+        }
+
+        if (ok && m_pendingDeletePanel) {
             // A delete just finished. On a local tab that means dropping the
             // vanished rows in place and moving the cursor onto the next file
             // rather than rescanning (which would reset the selection to the
@@ -442,7 +497,7 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
             handledPlan = true;
         }
 
-        if (m_pendingMovePanel) {
+        if (ok && m_pendingMovePanel) {
             // A move just finished: the source files vanished, so the source
             // panel settles the same way a delete does.
             FilePanel *panel = m_pendingMovePanel;
@@ -452,7 +507,7 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
             handledPlan = true;
         }
 
-        if (m_pendingDestPanel) {
+        if (ok && m_pendingDestPanel) {
             // A copy or move just landed files in this panel: refresh it and
             // select the freshly-arrived file(s), leaving every other panel
             // untouched.
@@ -480,7 +535,8 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
         }
     });
     connect(m_queue, &OperationQueue::errorOccurred, this, [this](const QString &msg) {
-        m_operationErrors.append(msg);
+        if (!m_operationAbortRequested)
+            m_operationErrors.append(msg);
     });
 
     // Restore persisted view state before the first scan so it takes effect
@@ -800,14 +856,6 @@ void MainWindow::buildTitleBarMenus() {
            "Shift+Delete and remote deletes always require confirmation."));
     connect(noConfirm, &QAction::toggled, this,
             [this](bool on) { m_settings.setConfirmDelete(!on); });
-    QAction *reduceMotion = configMenu->addAction(tr("Reduce Motion"));
-    reduceMotion->setObjectName(QStringLiteral("configReduceMotionAction"));
-    reduceMotion->setCheckable(true);
-    reduceMotion->setChecked(m_settings.reduceMotion());
-    connect(reduceMotion, &QAction::toggled, this, [this](bool on) {
-        m_settings.setReduceMotion(on);
-        MotionPolicy::setApplicationReduced(on);
-    });
     QAction *autoUpdate = configMenu->addAction(
         commandText(QStringLiteral("toggleAutoUpdate"), tr("Automatic Update Check")));
     autoUpdate->setObjectName(QStringLiteral("configAutoUpdateAction"));
@@ -996,8 +1044,21 @@ void MainWindow::buildTitleBarMenus() {
             pt = qBound(8, pt, 16);
             if (pt != m_settings.menuFontSize()) {
                 m_settings.setMenuFontSize(pt);
+                // Deliberately NOT calling buildTitleBarMenus() here (unlike
+                // chooseGlobalFont(), where the font dialog has already closed this
+                // menu by the time it runs): this +/- stepper lives inside the
+                // still-open interfaceMenu via a QWidgetAction, and rebuilding the
+                // menu destroys and replaces that exact widget out from under an
+                // in-flight click -- observed as the menu closing on its own after
+                // one step, and occasionally both buttons going dead (stuck on the
+                // old, now-detached widget instance). applyInterfaceTypography()
+                // already reaches this open menu live: it calls
+                // Typography::applyApplicationFont(), and MenuChromeSynchronizer
+                // (installed on this exact menu when this widget's font was first
+                // set, see Typography::applyChromeFont) re-syncs its embedded
+                // widget actions on the resulting ApplicationFontChange, with no
+                // rebuild needed.
                 applyInterfaceTypography();
-                QTimer::singleShot(0, this, &MainWindow::buildTitleBarMenus);
             }
             const QString text = QString::number(pt);
             if (sizeEdit->text() != text)
@@ -1080,7 +1141,6 @@ void MainWindow::syncConfigMenuState() {
     };
     syncChecked(QStringLiteral("configDirectArchivesAction"), !m_settings.archiveAsFolder());
     syncChecked(QStringLiteral("configDeleteConfirmationAction"), !m_settings.confirmDelete());
-    syncChecked(QStringLiteral("configReduceMotionAction"), m_settings.reduceMotion());
     syncChecked(QStringLiteral("configAutoUpdateAction"), m_settings.autoUpdateCheck());
     syncChecked(QStringLiteral("configFolderAssociationAction"), m_settings.folderAssociationEnabled());
 }
@@ -1483,18 +1543,25 @@ bool MainWindow::event(QEvent *event) {
         const QRect content = rect().adjusted(kShadowMargin, kShadowMargin,
                                               -kShadowMargin, -kShadowMargin);
         const Qt::Edges edges = edgesAt(content, me->pos());
+        // Popup menus can replay their closing mouse event to this window even
+        // when the pointer is over a title-bar child. The resize band overlaps
+        // the first few pixels of that child, so coordinate-only hit testing
+        // would leave the native cursor stuck as SizeVerCursor. Resize only in
+        // the exposed shadow margin; normal child chrome owns its own cursor.
+        const bool exposedResizeBand = childAt(me->pos()) == nullptr;
         if (event->type() == QEvent::MouseMove) {
             if (me->buttons() == Qt::NoButton) {
                 // setCursor() on the window is inherited by every child that has
                 // no cursor of its own, so off the edge we must UNSET it (not
                 // force Arrow) — otherwise it overrides a child's own cursor
                 // (e.g. the header's column-resize cursor).
-                if (edges != Qt::Edges())
+                if (edges != Qt::Edges() && exposedResizeBand)
                     setCursor(cursorForEdges(edges));
                 else
                     unsetCursor();
             }
-        } else if (edges != Qt::Edges() && me->button() == Qt::LeftButton) {
+        } else if (edges != Qt::Edges() && exposedResizeBand &&
+                   me->button() == Qt::LeftButton) {
             if (QWindow *handle = windowHandle()) {
                 handle->startSystemResize(edges);
                 // The WM drives the cursor during the drag; drop our override so
@@ -2592,15 +2659,7 @@ void MainWindow::secureWipeSelected() {
         return;
 
     const qint64 total = sumSizes(m_activePanel->model(), paths);
-    const auto answer = ttc::warning(
-        this, tr("Secure Wipe"),
-        tr("Securely erase %1 item(s) (%2 bytes)?\n\n"
-           "Their contents will be overwritten on disk and then deleted. This is "
-           "IRREVERSIBLE: the files do NOT go to the trash and cannot be recovered.")
-            .arg(paths.size())
-            .arg(total),
-        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
-    if (answer != QMessageBox::Yes)
+    if (!SecureWipeConfirmationDialog::ask(this, paths, total))
         return;
 
     // Non-modal: overwriting runs on a background thread inside the dialog.
@@ -3680,7 +3739,7 @@ bool MainWindow::promptCredentials(const QString &host, QString *user, QString *
     if (!error.isEmpty()) {
         auto *errLabel = new QLabel(error, &dlg);
         errLabel->setWordWrap(true);
-        errLabel->setStyleSheet(QStringLiteral("color:#e04a4a"));
+        errLabel->setProperty("semanticState", QStringLiteral("error"));
         form->addRow(errLabel);
     }
     auto *userEdit = new QLineEdit(&dlg);

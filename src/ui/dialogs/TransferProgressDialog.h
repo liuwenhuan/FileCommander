@@ -11,6 +11,7 @@ class QGraphicsOpacityEffect;
 class QPropertyAnimation;
 class QVariantAnimation;
 class QShowEvent;
+class QEvent;
 class QColor;
 class OperationQueue;
 
@@ -39,6 +40,15 @@ class TransferProgressDialog : public FramelessDialog {
 
 public:
     explicit TransferProgressDialog(OperationQueue *queue, QWidget *parent = nullptr);
+    void dismissAfterAbort();
+
+    // While suppressed, showIfHidden() remembers that it wants to show but does not
+    // actually call show()/raise(). MainWindow holds this while a modal
+    // OperationErrorDialog is open so the deferred-show timer firing mid-decision (a
+    // slow operation, or simply the user taking a moment to read the prompt) can never
+    // paint the progress window over the decision the operation is blocked on -- this
+    // was observed in practice to beat relying on window-manager z-order alone.
+    void suppressAutoShow(bool suppressed);
 
 private slots:
     void onStarted(const QString &description);
@@ -51,6 +61,7 @@ private slots:
 
 protected:
     void showEvent(QShowEvent *event) override;
+    void changeEvent(QEvent *event) override;
 
 private:
     // Reveal the dialog now (deferred-show timer fired, or a big total arrived).
@@ -58,6 +69,7 @@ private:
     void startRevealAnimation();
     void animateOutcomeColor(const QColor &target);
     void setProgressColor(const QColor &color);
+    void fitErrorText();
 
     // Visibility policy thresholds.
     static constexpr int kShowDelayMs = 1000;                    // deferred-show delay
@@ -65,26 +77,28 @@ private:
     static constexpr qint64 kBigBytes = 100LL * 1024 * 1024;     // >100 MiB shows at once
     static constexpr qint64 kBigItems = 200;                     // >200 items shows at once
 
-    OperationQueue *m_queue;
+    OperationQueue *m_queue = nullptr;
 
-    QLabel *m_descriptionLabel;
-    QLabel *m_fileLabel;
-    QLabel *m_bytesLabel;
-    QLabel *m_speedLabel;
-    QLabel *m_etaLabel;
-    QLabel *m_queueLabel;
-    QLabel *m_errorLabel;
-    QProgressBar *m_progressBar;
-    QPushButton *m_pauseButton;
+    QLabel *m_descriptionLabel = nullptr;
+    QLabel *m_fileLabel = nullptr;
+    QLabel *m_bytesLabel = nullptr;
+    QLabel *m_speedLabel = nullptr;
+    QLabel *m_etaLabel = nullptr;
+    QLabel *m_queueLabel = nullptr;
+    QLabel *m_errorLabel = nullptr;
+    QProgressBar *m_progressBar = nullptr;
+    QPushButton *m_pauseButton = nullptr;
     QGraphicsOpacityEffect *m_revealEffect = nullptr;
     QPropertyAnimation *m_revealAnimation = nullptr;
     QVariantAnimation *m_outcomeColorAnimation = nullptr;
     QColor m_defaultProgressColor;
 
     QElapsedTimer m_timer;
-    QTimer *m_showTimer;    // single-shot deferred-show timer (kShowDelayMs)
-    QTimer *m_terminalHideTimer; // owns the shared successful-outcome window
+    QTimer *m_showTimer = nullptr;    // single-shot deferred-show timer (kShowDelayMs)
+    QTimer *m_terminalHideTimer = nullptr; // owns the shared successful-outcome window
     bool m_paused = false;
+    bool m_showSuppressed = false;          // an OperationErrorDialog is currently open
+    bool m_wantsShowWhileSuppressed = false; // showIfHidden() was called during suppression
     bool m_shown = false;   // dialog currently visible for the running batch
     bool m_batchActive = false;
     bool m_batchOk = true;

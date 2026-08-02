@@ -289,6 +289,11 @@ FilePanel::FilePanel(const QFont &initialListFont, QWidget *parent) : QWidget(pa
     if (!initialListFont.family().isEmpty() && initialListFont.pointSize() > 0) {
         m_view->viewport()->setFont(initialListFont);
         m_view->setFont(initialListFont);
+        // See setListTypography()'s matching call: the header does not reliably
+        // keep tracking the view's font on its own, so it needs the same
+        // explicit assignment here at construction too, or it starts pinned to
+        // whatever font it resolved before this ran (menu font size, not list).
+        m_view->horizontalHeader()->setFont(initialListFont);
         m_lastFontPt = initialListFont.pointSize();
         const int iconPx = qBound(16, QFontMetrics(initialListFont).height() + 4, 48);
         m_view->setIconSize(QSize(iconPx, iconPx));
@@ -415,11 +420,22 @@ FilePanel::FilePanel(const QFont &initialListFont, QWidget *parent) : QWidget(pa
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(2);
+    // setSpacing() is one uniform value for the whole layout -- it cannot be toggled
+    // between addWidget() calls to get a different gap for only some pairs, so the
+    // baseline is 0 and the two gaps that are actually wanted are inserted explicitly.
+    layout->setSpacing(0);
     layout->addWidget(tabRow);
+    layout->addSpacing(2);
     layout->addWidget(addressRow);
+    // No spacing from here down: the address row draws its own left/right border
+    // (AddressRowBorderOverlay) and the file list draws its own (`QTableView { border:
+    // ... }` in the theme), each scoped to just its own widget's height. The 2px
+    // inter-widget spacing this used to inherit left an unstyled gap between those two
+    // borders, which read as the left/right lines breaking partway down instead of
+    // running the panel's full height as one piece.
     layout->addWidget(m_filterBar);
     layout->addWidget(m_bodySplitter, 1);
+    layout->addSpacing(2);
     layout->addWidget(m_statusBar);
 
     connect(m_view->selectionModel(), &QItemSelectionModel::selectionChanged, this,
@@ -429,6 +445,12 @@ FilePanel::FilePanel(const QFont &initialListFont, QWidget *parent) : QWidget(pa
 
     connect(m_statusBar, &StatusBarWidget::zoomOutRequested, this, &FilePanel::zoomViewOut);
     connect(m_statusBar, &StatusBarWidget::zoomInRequested, this, &FilePanel::zoomViewIn);
+    connect(m_view, &FileListView::zoomRequested, this, [this](int direction) {
+        if (direction > 0)
+            zoomViewIn();
+        else
+            zoomViewOut();
+    });
 
     // Keep the chrome (tabs, breadcrumb, column header) as short as one file
     // row so the panel reads as a single dense list rather than stacked bars.
@@ -1292,6 +1314,12 @@ IconFileView *FilePanel::ensureIconView() {
     connect(m_iconView, &QAbstractItemView::activated, this, &FilePanel::onActivated);
     connect(m_iconView, &IconFileView::visibleRangeSettled, this,
             &FilePanel::prefetchVisibleThumbnails);
+    connect(m_iconView, &IconFileView::zoomRequested, this, [this](int direction) {
+        if (direction > 0)
+            zoomViewIn();
+        else
+            zoomViewOut();
+    });
     connect(&ThumbnailCache::instance(), &ThumbnailCache::thumbnailReady, this,
             [this](const QString &) { pumpThumbnailSweep(); });
 
@@ -1807,6 +1835,13 @@ void FilePanel::setListTypography(const QString &family, int pt) {
     // cannot propagate another FontChange into the inline-editor surface.
     applyFont(m_view->viewport(), listFont);
     applyFont(m_view, listFont);
+    // The header is a QHeaderView child of m_view, but headers do not reliably
+    // keep tracking a parent's font through later setFont() calls (observed:
+    // it stayed frozen at whatever font it first resolved, following neither
+    // the list nor the menu font size setting afterward) -- so it needs the
+    // same explicit assignment as every other surface here rather than being
+    // left to inherit.
+    applyFont(m_view->horizontalHeader(), listFont);
 
     const QFontMetrics fm(listFont);
     const int iconPx = qBound(16, fm.height() + 4, 48);

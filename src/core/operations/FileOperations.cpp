@@ -6,12 +6,87 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QProcess>
+#include <QUuid>
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#else
+#include <cerrno>
+#endif
 
 #include "FileInfo.h"
 #include "FileProvider.h"
 #include "LocalFileProvider.h"
 
-FileOperations::FileOperations(QObject *parent) : QObject(parent) {}
+namespace {
+
+qint64 lastFileError()
+{
+#ifdef Q_OS_WIN
+    return static_cast<qint64>(GetLastError());
+#else
+    return static_cast<qint64>(errno);
+#endif
+}
+
+QString stagingPathFor(const QString &target, const QString &purpose)
+{
+    const QFileInfo targetInfo(target);
+    return QDir(targetInfo.absolutePath())
+        .filePath(QStringLiteral(".%1.filecommander-%2-%3")
+                      .arg(targetInfo.fileName(), purpose,
+                           QUuid::createUuid().toString(QUuid::WithoutBraces)));
+}
+
+bool removeLocalPath(const QString &path)
+{
+    const QFileInfo info(path);
+    return info.isDir() && !info.isSymLink() ? QDir(path).removeRecursively()
+                                             : QFile::remove(path);
+}
+
+bool renameLocalPath(const QString &source, const QString &target, qint64 *nativeCode)
+{
+#ifdef Q_OS_WIN
+    SetLastError(ERROR_SUCCESS);
+    const bool ok = MoveFileExW(reinterpret_cast<LPCWSTR>(source.utf16()),
+                                reinterpret_cast<LPCWSTR>(target.utf16()),
+                                MOVEFILE_WRITE_THROUGH) != 0;
+#else
+    errno = 0;
+    const bool ok = QFile::rename(source, target);
+#endif
+    if (!ok && nativeCode)
+        *nativeCode = lastFileError();
+    return ok;
+}
+
+bool commitStagedPath(const QString &staged, const QString &target, qint64 *nativeCode)
+{
+    const bool targetExists = QFileInfo(target).exists() || QFileInfo(target).isSymLink();
+    if (!targetExists)
+        return renameLocalPath(staged, target, nativeCode);
+
+    const QString backup = stagingPathFor(target, QStringLiteral("backup"));
+    if (!renameLocalPath(target, backup, nativeCode))
+        return false;
+    if (renameLocalPath(staged, target, nativeCode)) {
+        removeLocalPath(backup);
+        return true;
+    }
+
+    qint64 ignored = 0;
+    renameLocalPath(backup, target, &ignored);
+    return false;
+}
+
+} // namespace
+
+FileOperations::FileOperations(QObject *parent)
+    : QObject(parent),
+      m_privilegeExecutor([this](const PrivilegedOperationRequest &request) {
+          return PrivilegeBroker::execute(request, [this] { return m_cancelled.load(); });
+      }) {}
 
 void FileOperations::requestCancel() {
     m_cancelled.store(true);
@@ -79,15 +154,60 @@ void FileOperations::emitProgress(const QString &currentFile) {
     emit progress(m_doneItems, m_totalItems, m_doneBytes, m_totalBytes, currentFile);
 }
 
-ErrorAction FileOperations::resolveError(const QString &path, const QString &error) {
+ErrorAction FileOperations::resolveError(const OperationError &error) {
     if (m_errorBatch == ErrorAction::SkipAll)
         return ErrorAction::SkipAll; // "skip all" already chosen for this batch
-    const ErrorAction action = m_errorResolver ? m_errorResolver(path, error) : ErrorAction::Skip;
+    const ErrorAction action = m_errorResolver ? m_errorResolver(error) : ErrorAction::Skip;
     if (action == ErrorAction::SkipAll)
         m_errorBatch = ErrorAction::SkipAll;
-    if (action == ErrorAction::Cancel)
+    if (action == ErrorAction::Cancel || action == ErrorAction::Abort)
         m_cancelled = true;
     return action;
+}
+
+ErrorAction FileOperations::resolveError(OperationType operation, const QString &sourcePath,
+                                         const QString &targetPath, qint64 nativeCode,
+                                         const QString &message, bool localOperation) {
+    nativeCode = overrideNativeErrorForTesting(operation, sourcePath, targetPath, nativeCode);
+    return resolveError(classifyNativeOperationError(operation, sourcePath, targetPath,
+                                                     nativeCode, localOperation, message));
+}
+
+qint64 FileOperations::overrideNativeErrorForTesting(OperationType operation,
+                                                     const QString &sourcePath,
+                                                     const QString &targetPath,
+                                                     qint64 nativeCode) const {
+    return m_nativeErrorOverrideForTesting
+        ? m_nativeErrorOverrideForTesting(operation, sourcePath, targetPath, nativeCode)
+        : nativeCode;
+}
+
+FileOperations::FailureResolution
+FileOperations::resolveLocalFailure(OperationError error,
+                                    const PrivilegedOperationRequest &request) {
+    if (validatePrivilegedOperationRequest(request).status != PrivilegeStatus::Succeeded) {
+        error.elevatable = false;
+        error.remote = true;
+    }
+    while (true) {
+        const ErrorAction action = resolveError(error);
+        if (action == ErrorAction::Retry)
+            return FailureResolution::Retry;
+        if (action != ErrorAction::Elevate)
+            return FailureResolution::Failed;
+        if (!error.elevatable || error.remote || !m_privilegeExecutor)
+            return FailureResolution::Failed;
+
+        const PrivilegeResult result = m_privilegeExecutor(request);
+        if (result.status == PrivilegeStatus::Succeeded)
+            return FailureResolution::Elevated;
+
+        error = classifyNativeOperationError(
+            error.operation, error.sourcePath, error.targetPath, result.nativeCode, true,
+            result.message.isEmpty() ? tr("The administrator operation did not complete.")
+                                     : result.message);
+        error.elevatable = false;
+    }
 }
 
 QString FileOperations::uniqueDestination(const QString &destDir, const QString &name) {
@@ -103,14 +223,38 @@ QString FileOperations::uniqueDestination(const QString &destDir, const QString 
     return candidate;
 }
 
-bool FileOperations::copyFilePreservingTime(const QString &source, const QString &target) {
+bool FileOperations::copyFilePreservingTime(const QString &source, const QString &target,
+                                            bool overwrite, qint64 *nativeCode) {
     // Capture the source time before the copy: if source and target somehow
     // resolve to the same file, reading it afterwards would give the new stamp.
     const QDateTime sourceTime = QFileInfo(source).lastModified();
 
-    QFile::remove(target);
-    if (!QFile::copy(source, target))
+    if (nativeCode)
+        *nativeCode = 0;
+    const bool targetExists = QFileInfo(target).exists() || QFileInfo(target).isSymLink();
+    const QString copyTarget = overwrite && targetExists
+        ? stagingPathFor(target, QStringLiteral("copy"))
+        : target;
+#ifdef Q_OS_WIN
+    if (!CopyFileW(reinterpret_cast<LPCWSTR>(source.utf16()),
+                   reinterpret_cast<LPCWSTR>(copyTarget.utf16()), TRUE)) {
+        if (nativeCode)
+            *nativeCode = static_cast<qint64>(GetLastError());
         return false;
+    }
+#else
+    errno = 0;
+    if (!QFile::copy(source, copyTarget)) {
+        if (nativeCode)
+            *nativeCode = static_cast<qint64>(errno);
+        return false;
+    }
+#endif
+
+    if (copyTarget != target && !commitStagedPath(copyTarget, target, nativeCode)) {
+        removeLocalPath(copyTarget);
+        return false;
+    }
 
     // Best-effort restamp. QFile::copy leaves the destination dated to the
     // moment it was written, which made a just-synchronised file look NEWER
@@ -120,18 +264,28 @@ bool FileOperations::copyFilePreservingTime(const QString &source, const QString
     return true;
 }
 
-bool FileOperations::copyRecursively(const QString &sourceDir, const QString &destDir) {
-    QDir().mkpath(destDir);
+bool FileOperations::copyRecursively(const QString &sourceDir, const QString &destDir,
+                                     qint64 *nativeCode) {
+#ifdef Q_OS_WIN
+    SetLastError(ERROR_SUCCESS);
+#else
+    errno = 0;
+#endif
+    if (!QDir().mkpath(destDir)) {
+        if (nativeCode)
+            *nativeCode = lastFileError();
+        return false;
+    }
     QDirIterator it(sourceDir, QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden);
     while (it.hasNext()) {
         it.next();
         const QFileInfo entry = it.fileInfo();
         const QString target = QDir(destDir).filePath(entry.fileName());
         if (entry.isDir()) {
-            if (!copyRecursively(entry.filePath(), target))
+            if (!copyRecursively(entry.filePath(), target, nativeCode))
                 return false;
         } else {
-            if (!copyFilePreservingTime(entry.filePath(), target))
+            if (!copyFilePreservingTime(entry.filePath(), target, false, nativeCode))
                 return false;
             m_doneBytes += entry.size();
         }
@@ -142,12 +296,42 @@ bool FileOperations::copyRecursively(const QString &sourceDir, const QString &de
     return true;
 }
 
+bool FileOperations::copyDirectorySafely(const QString &sourceDir, const QString &destDir,
+                                         bool overwrite, qint64 *nativeCode) {
+    const bool targetExists = QFileInfo(destDir).exists() || QFileInfo(destDir).isSymLink();
+    if (targetExists && !overwrite) {
+#ifdef Q_OS_WIN
+        if (nativeCode)
+            *nativeCode = ERROR_ALREADY_EXISTS;
+#else
+        if (nativeCode)
+            *nativeCode = EEXIST;
+#endif
+        return false;
+    }
+
+    const QString copyTarget = targetExists
+        ? stagingPathFor(destDir, QStringLiteral("copy"))
+        : destDir;
+    if (!copyRecursively(sourceDir, copyTarget, nativeCode)) {
+        if (copyTarget != destDir)
+            removeLocalPath(copyTarget);
+        return false;
+    }
+    if (copyTarget != destDir && !commitStagedPath(copyTarget, destDir, nativeCode)) {
+        removeLocalPath(copyTarget);
+        return false;
+    }
+    return true;
+}
+
 bool FileOperations::copyOne(const QString &source, const QString &destDir, bool removeSource,
                               const ConflictResolver &resolver, ErrorAction &batchAction,
                               QString *errorMessage) {
     QFileInfo srcInfo(source);
     QString destName = srcInfo.fileName();
     QString destPath = QDir(destDir).filePath(destName);
+    bool overwrite = false;
 
     // Dropping/pasting an entry into the directory it already lives in.
     // We must never run the remove+copy path below on this: destPath IS the
@@ -173,23 +357,27 @@ bool FileOperations::copyOne(const QString &source, const QString &destDir, bool
         if (action == ErrorAction::OverwriteAll || action == ErrorAction::SkipAll)
             batchAction = action;
 
-        if (action == ErrorAction::Cancel) {
+        if (action == ErrorAction::Cancel || action == ErrorAction::Abort) {
             m_cancelled = true;
             return false;
         }
         if (action == ErrorAction::Skip || action == ErrorAction::SkipAll)
-            return true;
+            return false;
         if (action == ErrorAction::Rename)
             destPath = QDir(destDir).filePath(uniqueDestination(destDir, destName));
+        else if (action == ErrorAction::Overwrite || action == ErrorAction::OverwriteAll)
+            overwrite = true;
         // Overwrite / OverwriteAll: fall through and replace destPath as-is.
     }
 
+    bool elevated = false;
     while (true) {
         bool ok;
+        qint64 nativeCode = 0;
         if (srcInfo.isDir()) {
-            ok = copyRecursively(source, destPath);
+            ok = copyDirectorySafely(source, destPath, overwrite, &nativeCode);
         } else {
-            ok = copyFilePreservingTime(source, destPath);
+            ok = copyFilePreservingTime(source, destPath, overwrite, &nativeCode);
             if (ok)
                 m_doneBytes += srcInfo.size();
         }
@@ -197,19 +385,60 @@ bool FileOperations::copyOne(const QString &source, const QString &destDir, bool
             break;
 
         const QString msg = tr("Failed to copy %1 to %2").arg(source, destPath);
-        if (resolveError(source, msg) == ErrorAction::Retry)
+        nativeCode = overrideNativeErrorForTesting(removeSource ? OperationType::Move
+                                                                : OperationType::Copy,
+                                                   source, destPath, nativeCode);
+        OperationError operationError = classifyNativeOperationError(
+            removeSource ? OperationType::Move : OperationType::Copy, source, destPath,
+            nativeCode, true, msg);
+        const PrivilegedOperationRequest request{
+            1,
+            removeSource ? PrivilegedOperationKind::Move : PrivilegedOperationKind::Copy,
+            source,
+            destPath,
+            overwrite,
+        };
+        const FailureResolution resolution = resolveLocalFailure(operationError, request);
+        if (resolution == FailureResolution::Retry)
             continue; // user asked to retry
+        if (resolution == FailureResolution::Elevated) {
+            elevated = true;
+            m_doneBytes += srcInfo.size();
+            break;
+        }
         if (errorMessage)
             *errorMessage = msg;
         emit errorOccurred(msg);
         return false; // skipped or cancelled (m_cancelled set by resolveError)
     }
 
-    if (removeSource) {
-        if (srcInfo.isDir())
-            QDir(source).removeRecursively();
-        else
-            QFile::remove(source);
+    if (removeSource && !elevated) {
+        while (true) {
+#ifdef Q_OS_WIN
+            SetLastError(ERROR_SUCCESS);
+#else
+            errno = 0;
+#endif
+            if (removeLocalPath(source))
+                break;
+
+            qint64 nativeCode = overrideNativeErrorForTesting(
+                OperationType::Delete, source, {}, lastFileError());
+            const QString msg = tr("Failed to remove the source after copying %1").arg(source);
+            OperationError operationError = classifyNativeOperationError(
+                OperationType::Delete, source, {}, nativeCode, true, msg);
+            const PrivilegedOperationRequest request{
+                1, PrivilegedOperationKind::DeletePermanent, source, {}, false};
+            const FailureResolution resolution = resolveLocalFailure(operationError, request);
+            if (resolution == FailureResolution::Retry)
+                continue;
+            if (resolution == FailureResolution::Elevated)
+                break;
+            if (errorMessage)
+                *errorMessage = msg;
+            emit errorOccurred(msg);
+            return false;
+        }
     }
 
     emitProgress(source);
@@ -226,21 +455,23 @@ bool FileOperations::copyPaths(const QStringList &sources, const QString &destDi
     m_errorBatch = ErrorAction::Retry;
     ErrorAction batchAction = ErrorAction::Retry; // sentinel meaning "ask each time"
     QDir().mkpath(destDir);
+    bool allOk = true;
 
     for (const QString &source : sources) {
         waitIfPaused();
         if (m_cancelled)
             return false;
         if (!copyOne(source, destDir, /*removeSource=*/false, resolver, batchAction,
-                      errorMessage)) {
+                     errorMessage)) {
             if (m_cancelled)
                 return false;
-            // A per-file error was already reported; keep going with the rest.
+            allOk = false;
+            continue;
         }
         ++m_doneItems;
         emitProgress(source);
     }
-    return true;
+    return allOk;
 }
 
 bool FileOperations::copyAs(const QString &source, const QString &destPath,
@@ -253,38 +484,57 @@ bool FileOperations::copyAs(const QString &source, const QString &destPath,
 
     QFileInfo srcInfo(source);
     QString target = destPath;
+    bool overwrite = false;
 
     if (QFileInfo::exists(target) && QDir::cleanPath(target) != QDir::cleanPath(source)) {
         const QFileInfo tgtInfo(target);
         const FileConflict conflict{source, target, srcInfo.isDir() ? -1 : srcInfo.size(),
                                     tgtInfo.isDir() ? -1 : tgtInfo.size()};
         ErrorAction action = resolver ? resolver(conflict) : ErrorAction::Skip;
-        if (action == ErrorAction::Cancel) {
+        if (action == ErrorAction::Cancel || action == ErrorAction::Abort) {
             m_cancelled = true;
             return false;
         }
         if (action == ErrorAction::Skip || action == ErrorAction::SkipAll)
-            return true;
+            return false;
         if (action == ErrorAction::Rename) {
             const QFileInfo ti(target);
             target = QDir(ti.absolutePath()).filePath(uniqueDestination(ti.absolutePath(),
                                                                          ti.fileName()));
+        } else if (action == ErrorAction::Overwrite || action == ErrorAction::OverwriteAll) {
+            overwrite = true;
         }
         // Overwrite / OverwriteAll: fall through and replace target as-is.
     }
 
     QDir().mkpath(QFileInfo(target).absolutePath());
-    bool ok;
-    if (srcInfo.isDir()) {
-        ok = copyRecursively(source, target);
-    } else {
-        ok = copyFilePreservingTime(source, target);
+    while (true) {
+        bool ok;
+        qint64 nativeCode = 0;
+        if (srcInfo.isDir()) {
+            ok = copyDirectorySafely(source, target, overwrite, &nativeCode);
+        } else {
+            ok = copyFilePreservingTime(source, target, overwrite, &nativeCode);
+            if (ok)
+                m_doneBytes += srcInfo.size();
+        }
         if (ok)
-            m_doneBytes += srcInfo.size();
-    }
+            break;
 
-    if (!ok) {
         const QString msg = tr("Failed to copy %1 to %2").arg(source, target);
+        nativeCode = overrideNativeErrorForTesting(OperationType::Copy, source, target,
+                                                   nativeCode);
+        OperationError operationError = classifyNativeOperationError(
+            OperationType::Copy, source, target, nativeCode, true, msg);
+        const PrivilegedOperationRequest request{
+            1, PrivilegedOperationKind::Copy, source, target, overwrite};
+        const FailureResolution resolution = resolveLocalFailure(operationError, request);
+        if (resolution == FailureResolution::Retry)
+            continue;
+        if (resolution == FailureResolution::Elevated) {
+            m_doneBytes += srcInfo.size();
+            break;
+        }
         if (errorMessage)
             *errorMessage = msg;
         emit errorOccurred(msg);
@@ -305,6 +555,7 @@ bool FileOperations::movePaths(const QStringList &sources, const QString &destDi
     m_errorBatch = ErrorAction::Retry;
     ErrorAction batchAction = ErrorAction::Retry;
     QDir().mkpath(destDir);
+    bool allOk = true;
 
     for (const QString &source : sources) {
         waitIfPaused();
@@ -331,11 +582,13 @@ bool FileOperations::movePaths(const QStringList &sources, const QString &destDi
                       errorMessage)) {
             if (m_cancelled)
                 return false;
+            allOk = false;
+            continue;
         }
         ++m_doneItems;
         emitProgress(source);
     }
-    return true;
+    return allOk;
 }
 
 bool FileOperations::deletePaths(const QStringList &paths, bool toTrash, QString *errorMessage) {
@@ -347,30 +600,90 @@ bool FileOperations::deletePaths(const QStringList &paths, bool toTrash, QString
     m_errorBatch = ErrorAction::Retry;
 
     if (toTrash) {
-        const PlatformResult result = createTrashService()->moveToTrash(paths);
-        if (result.ok) {
-            m_doneItems = paths.size();
-            emitProgress(QString());
-            return true;
+        bool allOk = true;
+        for (const QString &path : paths) {
+            waitIfPaused();
+            if (m_cancelled)
+                return false;
+            bool removed = false;
+            while (true) {
+                const PlatformResult result = createTrashService()->moveToTrash({path});
+                if (result.ok) {
+                    removed = true;
+                    break;
+                }
+                OperationError operationError = classifyNativeOperationError(
+                    OperationType::Delete, path, {}, result.nativeCode, true, result.message);
+                // The Security Amendment forbids elevating the *trash* move itself (the
+                // privileged helper has no recycle primitive, and on Linux "root's trash"
+                // isn't a meaningful place to land the file). Offer the one operation it
+                // does support instead -- permanent delete -- exactly as real Explorer does
+                // when recycling a protected file needs administrator approval. Say so
+                // plainly so elevating never silently skips the Recycle Bin.
+                if (operationError.elevatable) {
+                    operationError.message = tr("%1\nDeleting as administrator bypasses the "
+                                                 "Recycle Bin and cannot be undone.")
+                                                  .arg(operationError.message);
+                }
+                const PrivilegedOperationRequest request{
+                    1, PrivilegedOperationKind::DeletePermanent, path, {}, false};
+                const FailureResolution resolution = resolveLocalFailure(operationError, request);
+                if (resolution == FailureResolution::Retry)
+                    continue;
+                if (resolution == FailureResolution::Elevated) {
+                    removed = true;
+                    break;
+                }
+                if (errorMessage)
+                    *errorMessage = operationError.message;
+                emit errorOccurred(operationError.message);
+                break; // skipped, cancelled, or aborted
+            }
+            if (m_cancelled)
+                return false;
+            if (!removed) {
+                allOk = false;
+                continue;
+            }
+            ++m_doneItems;
+            emitProgress(path);
         }
-        if (errorMessage)
-            *errorMessage = result.message;
-        emit errorOccurred(result.message);
-        return false;
+        return allOk;
     }
 
+    bool allOk = true;
     for (const QString &path : paths) {
         waitIfPaused();
         if (m_cancelled)
             return false;
         QFileInfo info(path);
+        bool removed = false;
         while (true) {
             const bool ok = info.isDir() ? QDir(path).removeRecursively() : QFile::remove(path);
-            if (ok)
+            if (ok) {
+                removed = true;
                 break;
+            }
             const QString msg = tr("Failed to delete %1").arg(path);
-            if (resolveError(path, msg) == ErrorAction::Retry)
+            qint64 nativeCode = 0;
+#ifdef Q_OS_WIN
+            nativeCode = static_cast<qint64>(GetLastError());
+#else
+            nativeCode = static_cast<qint64>(errno);
+#endif
+            nativeCode = overrideNativeErrorForTesting(OperationType::Delete, path, {},
+                                                       nativeCode);
+            OperationError operationError = classifyNativeOperationError(
+                OperationType::Delete, path, {}, nativeCode, true, msg);
+            const PrivilegedOperationRequest request{
+                1, PrivilegedOperationKind::DeletePermanent, path, {}, false};
+            const FailureResolution resolution = resolveLocalFailure(operationError, request);
+            if (resolution == FailureResolution::Retry)
                 continue;
+            if (resolution == FailureResolution::Elevated) {
+                removed = true;
+                break;
+            }
             if (errorMessage)
                 *errorMessage = msg;
             emit errorOccurred(msg);
@@ -378,10 +691,14 @@ bool FileOperations::deletePaths(const QStringList &paths, bool toTrash, QString
         }
         if (m_cancelled)
             return false;
+        if (!removed) {
+            allOk = false;
+            continue;
+        }
         ++m_doneItems;
         emitProgress(path);
     }
-    return true;
+    return allOk;
 }
 
 bool FileOperations::makeDirectory(const QString &parentDir, const QString &name,
@@ -394,14 +711,34 @@ bool FileOperations::makeDirectory(const QString &parentDir, const QString &name
         emit errorOccurred(msg);
         return false;
     }
-    bool ok = dir.mkpath(name);
-    if (!ok) {
+    const QString targetPath = dir.filePath(name);
+    while (true) {
+        if (dir.mkpath(name))
+            return true;
+
         const QString msg = tr("Failed to create directory %1").arg(name);
+        qint64 nativeCode = 0;
+#ifdef Q_OS_WIN
+        nativeCode = static_cast<qint64>(GetLastError());
+#else
+        nativeCode = static_cast<qint64>(errno);
+#endif
+        nativeCode = overrideNativeErrorForTesting(OperationType::Mkdir, {}, targetPath,
+                                                   nativeCode);
+        OperationError operationError = classifyNativeOperationError(
+            OperationType::Mkdir, {}, targetPath, nativeCode, true, msg);
+        const PrivilegedOperationRequest request{
+            1, PrivilegedOperationKind::Mkdir, {}, targetPath, false};
+        const FailureResolution resolution = resolveLocalFailure(operationError, request);
+        if (resolution == FailureResolution::Retry)
+            continue;
+        if (resolution == FailureResolution::Elevated)
+            return true;
         if (errorMessage)
             *errorMessage = msg;
         emit errorOccurred(msg);
+        return false;
     }
-    return ok;
 }
 
 bool FileOperations::renamePath(const QString &path, const QString &newName,
@@ -415,14 +752,33 @@ bool FileOperations::renamePath(const QString &path, const QString &newName,
         emit errorOccurred(msg);
         return false;
     }
-    bool ok = QDir().rename(path, destPath);
-    if (!ok) {
+    while (true) {
+        if (QDir().rename(path, destPath))
+            return true;
+
         const QString msg = tr("Failed to rename %1").arg(path);
+        qint64 nativeCode = 0;
+#ifdef Q_OS_WIN
+        nativeCode = static_cast<qint64>(GetLastError());
+#else
+        nativeCode = static_cast<qint64>(errno);
+#endif
+        nativeCode = overrideNativeErrorForTesting(OperationType::Rename, path, destPath,
+                                                   nativeCode);
+        OperationError operationError = classifyNativeOperationError(
+            OperationType::Rename, path, destPath, nativeCode, true, msg);
+        const PrivilegedOperationRequest request{
+            1, PrivilegedOperationKind::Rename, path, destPath, false};
+        const FailureResolution resolution = resolveLocalFailure(operationError, request);
+        if (resolution == FailureResolution::Retry)
+            continue;
+        if (resolution == FailureResolution::Elevated)
+            return true;
         if (errorMessage)
             *errorMessage = msg;
         emit errorOccurred(msg);
+        return false;
     }
-    return ok;
 }
 
 bool FileOperations::makeProviderDirectory(FileProvider *dst, const QString &parentDir,
@@ -465,7 +821,8 @@ bool FileOperations::removeProviderTree(FileProvider *provider, const QString &p
 
     while (!provider->remove(path)) {
         const QString msg = tr("Failed to delete %1").arg(path);
-        if (resolveError(path, msg) == ErrorAction::Retry)
+        if (resolveError(OperationType::Delete, path, {}, 0, msg, false) ==
+            ErrorAction::Retry)
             continue;
         if (errorMessage)
             *errorMessage = msg;
@@ -493,6 +850,7 @@ bool FileOperations::deleteProviderPaths(FileProvider *provider, const QStringLi
             if (m_cancelled)
                 return false;
             allOk = false; // this entry was skipped; keep deleting the rest
+            continue;
         }
         ++m_doneItems;
         emitProgress(path);
@@ -519,13 +877,40 @@ bool FileOperations::createSymlinks(const QStringList &sources, const QString &d
         if (QFileInfo::exists(destPath))
             destPath = QDir(destDir).filePath(uniqueDestination(destDir, srcInfo.fileName()));
 
-        if (!QFile::link(source, destPath)) {
+        bool linked = false;
+        while (!linked) {
+            if (QFile::link(source, destPath)) {
+                linked = true;
+                break;
+            }
             const QString msg = tr("Failed to create link for %1").arg(source);
+            qint64 nativeCode = 0;
+#ifdef Q_OS_WIN
+            nativeCode = static_cast<qint64>(GetLastError());
+#else
+            nativeCode = static_cast<qint64>(errno);
+#endif
+            nativeCode = overrideNativeErrorForTesting(OperationType::Copy, source, destPath,
+                                                       nativeCode);
+            OperationError operationError = classifyNativeOperationError(
+                OperationType::Copy, source, destPath, nativeCode, true, msg);
+            const PrivilegedOperationRequest request{
+                1, PrivilegedOperationKind::Symlink, source, destPath, false};
+            const FailureResolution resolution = resolveLocalFailure(operationError, request);
+            if (resolution == FailureResolution::Retry)
+                continue;
+            if (resolution == FailureResolution::Elevated)
+                linked = true;
+            if (linked)
+                break;
             if (errorMessage)
                 *errorMessage = msg;
             emit errorOccurred(msg);
             allOk = false;
+            break;
         }
+        if (!linked)
+            continue;
         ++m_doneItems;
         emitProgress(source);
     }
@@ -849,7 +1234,7 @@ FileOperations::transferFile(FileProvider *src, const QString &srcPath, FileProv
                 if (action == ErrorAction::OverwriteAll || action == ErrorAction::SkipAll)
                     batchAction = action;
 
-                if (action == ErrorAction::Cancel) {
+                if (action == ErrorAction::Cancel || action == ErrorAction::Abort) {
                     m_cancelled = true;
                     return FileResult::Failed;
                 }
@@ -870,7 +1255,8 @@ FileOperations::transferFile(FileProvider *src, const QString &srcPath, FileProv
         if (m_cancelled)
             return FileResult::Failed;
 
-        if (resolveError(srcPath, failMsg) == ErrorAction::Retry)
+        if (resolveError(OperationType::Copy, srcPath, target, 0, failMsg, false) ==
+            ErrorAction::Retry)
             continue; // user asked to retry the whole file
         if (errorMessage)
             *errorMessage = failMsg;
@@ -987,6 +1373,7 @@ bool FileOperations::copyAcrossProviders(FileProvider *src, const QStringList &s
     // per-operation flag rather than anything cached across operations -- the
     // server's layout can change between two moves.
     bool serverMoveViable = removeSource && src == dst;
+    bool allOk = true;
 
     for (const QString &source : sources) {
         waitIfPaused();
@@ -1017,10 +1404,11 @@ bool FileOperations::copyAcrossProviders(FileProvider *src, const QStringList &s
                            errorMessage)) {
             if (m_cancelled)
                 return false;
-            // A per-entry error was already reported; carry on with the rest.
+            allOk = false;
+            continue;
         }
         ++m_doneItems;
         emitProgress(source);
     }
-    return true;
+    return allOk;
 }
