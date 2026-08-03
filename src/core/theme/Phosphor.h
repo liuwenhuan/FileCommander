@@ -33,26 +33,6 @@ constexpr qreal kLumaB = 0.114;
 // glowing faintly would look like a defect rather than a phosphor.
 constexpr qreal kStillFloor = 0.20;
 
-// Edge of one simulated screen pixel, in LOGICAL pixels. Logical, not device,
-// so the visible chunk keeps the same physical size on a HiDPI display -- the
-// same reason the scanline tiles are laid out in logical pixels.
-//
-// There are two values, not one, because the surfaces differ in what they can
-// afford to lose:
-//
-//   * An ICON is a glyph. It carries one idea -- "folder", "video file" -- and
-//     a coarse raster states that idea perfectly well. 4 makes a 64-pixel icon
-//     16x16, which is unmistakably a raster and still obviously a folder.
-//   * CONTENT is a photograph, a video frame or a document page, and it is
-//     there to be looked at. The same 4 turned slide text into mush and left
-//     thumbnails unreadable, so content gets half that.
-//
-// The app icon is a third case and takes neither: it is drawn about 20 pixels
-// wide in the title bar, where any quantisation at all costs more legibility
-// than it buys atmosphere. See ttc::appIcon().
-constexpr int kIconBlockLogical = 4;
-constexpr int kContentBlockLogical = 2;
-
 // The tint applied to *content* (thumbnails, previews, video). Invalid -- the
 // default -- means "leave content alone", which is both the non-CRT themes and
 // the CRT theme with the follow-images toggle off. Chrome icons are tinted
@@ -61,20 +41,11 @@ constexpr int kContentBlockLogical = 2;
 QColor contentTint();
 void setContentTint(const QColor &tint);
 
-// Size of one simulated pixel in the *image's own* pixels, i.e.
-// kContentBlockLogical scaled by the display's device pixel ratio. 0 disables
-// quantisation. Set alongside the tint by whoever owns theming.
-//
-// This is the CONTENT block. Icons do not read it -- IconCache passes its own
-// (see kIconBlockLogical), because it is tinted whenever the theme is CRT while
-// content follows the separate images toggle.
-//
-// It is a single global rather than a per-surface value because the thumbnail
-// cache stores bitmaps whose content is in device pixels but which are marked
-// dpr=1, so there is nothing to read it back from at the point of use. The
-// consequence is a real (small) limitation: on a multi-monitor setup with
-// different scale factors, the block is whatever the primary screen implies,
-// so chunks on the secondary screen are off by that ratio.
+// Size of one simulated pixel in the *image's own* pixels. 0 -- what every
+// theme now sets -- disables quantisation: the coarse raster cost more
+// legibility in thumbnails and file-type icons than it bought atmosphere, so
+// the CRT theme carries its hue and its preview scanlines but not a grid.
+// The pass below stays reachable for callers that want it explicitly.
 int contentPixelBlock();
 void setContentPixelBlock(int blockPixels);
 

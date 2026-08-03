@@ -172,10 +172,7 @@ QIcon IconCache::tinted(const QIcon &icon) const {
         const QPixmap src = icon.pixmap(size);
         if (src.isNull())
             continue;
-        // The same luma-to-phosphor map thumbnails, previews and video use --
-        // but on the coarser ICON grid. A glyph carries one idea and survives a
-        // blocky raster; a photograph does not, which is why content has its
-        // own, finer block (see fc::kIconBlockLogical vs kContentBlockLogical).
+        // The same luma-to-phosphor map thumbnails, previews and video use.
         out.addPixmap(fc::tintedPixmap(src, m_tint, m_blockPixels));
     }
     return out.isNull() ? icon : out;

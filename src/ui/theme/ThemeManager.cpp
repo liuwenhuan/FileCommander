@@ -75,8 +75,13 @@ void ThemeManager::apply(Settings::Theme theme, bool phosphorImages) {
     // Content (thumbnails, image/PDF/slide previews, video) follows the
     // TOGGLE, since recolouring the user's own photographs is a taste
     // decision in a way that recolouring a folder glyph is not.
-    const qreal dpr = qApp->primaryScreen() ? qApp->primaryScreen()->devicePixelRatio() : 1.0;
-    const auto blockFor = [dpr](int logical) { return qMax(2, qRound(logical * dpr)); };
+    // Neither surface is quantised any more. The coarse raster was atmosphere,
+    // and it cost more than it bought: a file-type badge shrank to a handful of
+    // cells and stopped being identifiable at list-view sizes, and a thumbnail
+    // is there to be recognised before it is there to look period-correct. The
+    // hue alone carries the theme. fc::pixelate() and the block parameters stay
+    // -- they are what the preview scanline treatment is built alongside -- but
+    // nothing enables them for icons or content.
 
     // The glyph SVGs are drawn in a mid grey (#888888) that reads as "dark" on
     // a dark background -- the drive and computer icons were noticeably dimmer
@@ -96,19 +101,9 @@ void ThemeManager::apply(Settings::Theme theme, bool phosphorImages) {
         iconTint = QColor(0x40, 0x40, 0x40); // darker than #888 on white
         break;
     }
-    IconCache::instance().setTint(iconTint, crt ? blockFor(fc::kIconBlockLogical) : 0);
+    IconCache::instance().setTint(iconTint, 0);
     fc::setContentTint(crt && phosphorImages ? kPhosphor : QColor());
-
-    // The simulated pixel is defined in logical pixels, so it is scaled here to
-    // the image pixels the recolouring code actually works in. Taken from the
-    // primary screen: the thumbnail cache stores device-resolution bitmaps
-    // marked dpr=1, so there is nothing to derive it from at the point of use
-    // (see fc::setContentPixelBlock).
-    //
-    // Content is quantised only when it is also tinted -- both follow the
-    // toggle. Icons are quantised whenever the theme is CRT, on their own
-    // coarser grid, because they follow the theme.
-    fc::setContentPixelBlock(crt && phosphorImages ? blockFor(fc::kContentBlockLogical) : 0);
+    fc::setContentPixelBlock(0);
 
     // The app icon is painted by us, so it is repainted rather than recoloured
     // in place. Every top-level window carries its own copy (the frameless

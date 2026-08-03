@@ -31,9 +31,9 @@ public:
     // place icons enter the app and because the result has to be cached -- the
     // recolour is a per-pixel pass and the file list asks for icons constantly.
     // Changing the tint clears the cache, so a theme switch takes effect at once.
-    // `blockPixels` is the quantisation grid for icons, in image pixels
-    // (0 = none). Separate from fc::contentPixelBlock() because icons are
-    // coarser -- a glyph survives a blocky raster, a photograph does not.
+    // `blockPixels` is the quantisation grid for icons, in image pixels.
+    // No theme sets it: quantising a glyph made file types unidentifiable at
+    // list-view sizes (see ThemeManager). Kept so the pass stays reachable.
     void setTint(const QColor &tint, int blockPixels = 0);
     QColor tint() const { return m_tint; }
 
