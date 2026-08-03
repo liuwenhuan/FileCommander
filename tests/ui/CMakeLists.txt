@@ -43,6 +43,7 @@ set(UI_TEST_SOURCES
     test_QuickViewLazyPages.cpp
     test_QuickViewMotion.cpp
     test_MainWindowPreviewSwap.cpp
+    test_DeleteConfirmDialog.cpp
     test_MainWindowActions.cpp
     test_UpdateUi.cpp
     test_WindowActivation.cpp

@@ -116,6 +116,7 @@
 #include "TextEditor.h"
 #include "Typography.h"
 #include "dialogs/CompareDialog.h"
+#include "dialogs/DeleteConfirmDialog.h"
 #include "dialogs/MultiRenameDialog.h"
 #include "dialogs/OperationProgressDialog.h"
 #include "dialogs/TransferProgressDialog.h"
@@ -4918,15 +4919,16 @@ void MainWindow::deleteSelected(bool permanent) {
     // (Config menu). Permanent deletes (Shift+Del, or any remote delete) always
     // confirm -- they can't be undone from the trash.
     if (goesPermanent || m_settings.confirmDelete()) {
-        const qint64 total = sumSizes(m_activePanel->model(), paths);
-        const auto answer = ttc::question(
-            this, tr("Confirm Delete"),
-            tr("Delete %1 item(s) (%2 bytes)?%3")
-                .arg(paths.size())
-                .arg(total)
-                .arg(goesPermanent ? tr("\nThis is permanent and will NOT go to the trash.")
-                                   : QString()));
-        if (answer != QMessageBox::Yes)
+        // The dialog measures selected folders itself. It has to: the listing
+        // knows a directory entry's own size, which is not the size of what is
+        // about to be deleted, so a selection of folders used to be offered for
+        // deletion as "0 bytes".
+        const DeleteSelectionSummary summary =
+            summarizeDeleteSelection(m_activePanel->model(), paths);
+        // `remote` is true for anything that is not this filesystem, archive
+        // tabs included, so it is also the right test for "can we walk it".
+        const bool measureLocally = !remote;
+        if (!DeleteConfirmDialog::ask(this, paths, summary, goesPermanent, measureLocally))
             return;
     }
     // Remember what we're deleting (and where) so the queue-finished handler

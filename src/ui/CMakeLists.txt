@@ -94,6 +94,7 @@ set(UI_SOURCES
     dialogs/PropertiesDialog.h
     dialogs/PropertiesDialog.cpp
     dialogs/DirectoryStatisticsTask.h
+    dialogs/DeleteConfirmDialog.cpp
     dialogs/DirectoryStatisticsTask.cpp
     dialogs/CommandOutputDialog.h
     dialogs/CommandOutputDialog.cpp
