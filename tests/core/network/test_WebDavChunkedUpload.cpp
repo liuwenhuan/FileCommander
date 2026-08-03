@@ -108,9 +108,9 @@ public:
 
         if (m_reply != Reply::Created && m_reply != Reply::ContinueThenClose) {
             // A complete, well-formed, non-2xx response. curl reports CURLE_OK
-            // for these responses, so the final HTTP status decides the result.
-            sock->waitForReadyRead(500);
-            sock->readAll();
+            // for these responses, so the final HTTP status decides the result --
+            // but only if it reaches curl, which is what drainBody() protects.
+            m_bodyBytes = drainBody(sock, head, timeoutMs);
             QByteArray status;
             switch (m_reply) {
             case Reply::ServiceUnavailable:
@@ -140,21 +140,18 @@ public:
         }
 
         if (m_reply == Reply::ContinueThenClose) {
-            // Drain briefly, then close with no final response -- exactly what
-            // the proxy did. curl sees a clean shutdown, not an error.
-            sock->waitForReadyRead(500);
-            sock->readAll();
+            // Swallow the body, then close with no final response -- exactly what
+            // the proxy did. Draining first is what makes this the clean shutdown
+            // the case is meant to reproduce: closing on unread data would be a
+            // reset, i.e. a transport error, which is a different bug entirely.
+            m_bodyBytes = drainBody(sock, head, timeoutMs);
             sock->disconnectFromHost();
             sock->deleteLater();
             return head;
         }
 
         // Success path: consume the declared body, then answer 201.
-        const int want = contentLength(head);
-        QByteArray body = head.mid(head.indexOf("\r\n\r\n") + 4);
-        while (want > 0 && body.size() < want && sock->waitForReadyRead(timeoutMs))
-            body += sock->readAll();
-        m_bodyBytes = body.size();
+        m_bodyBytes = drainBody(sock, head, timeoutMs);
         sock->write("HTTP/1.1 201 Created\r\nContent-Length: 0\r\n\r\n");
         sock->flush();
         sock->waitForBytesWritten(timeoutMs);
@@ -164,6 +161,41 @@ public:
     }
 
     int bodyBytes() const { return m_bodyBytes; }
+
+    // Reads the request body to its end before the caller answers or hangs up.
+    //
+    // This is not politeness, it is TCP: closing a socket that still holds
+    // unread received data sends an RST rather than a FIN, and an RST discards
+    // whatever the peer has not yet read -- including the HTTP response written
+    // a microsecond earlier. curl then reports a transport error instead of the
+    // status, so the provider never gets to map 401/403/507 onto a specific
+    // StreamError and answers "Other". Whether curl read the response before the
+    // reset arrived decided which sub-case failed, which is why the same binary
+    // failed differently on every run.
+    //
+    // Returns the number of body bytes consumed.
+    static int drainBody(QTcpSocket *sock, const QByteArray &head, int timeoutMs) {
+        const int alreadyRead = head.size() - (head.indexOf("\r\n\r\n") + 4);
+        int have = alreadyRead > 0 ? alreadyRead : 0;
+        const int want = contentLength(head);
+        if (want >= 0) {
+            while (have < want && sock->waitForReadyRead(timeoutMs))
+                have += sock->readAll().size();
+            return have;
+        }
+        // Chunked: there is no declared length, so read until the terminating
+        // zero-length chunk. The bounded wait keeps a peer that never sends it
+        // from hanging the test.
+        QByteArray tail = head.mid(head.indexOf("\r\n\r\n") + 4);
+        while (!tail.endsWith("0\r\n\r\n") && sock->waitForReadyRead(timeoutMs)) {
+            const QByteArray more = sock->readAll();
+            have += more.size();
+            tail += more;
+            if (tail.size() > 4096)
+                tail = tail.right(4096); // only the terminator needs to stay visible
+        }
+        return have;
+    }
 
     static int contentLength(const QByteArray &head) {
         const int i = head.indexOf("Content-Length:");
