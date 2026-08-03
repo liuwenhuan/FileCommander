@@ -146,6 +146,12 @@ void FileSystemModel::wireSessionSignals() {
             &FileSystemModel::onSessionListFailed, Qt::UniqueConnection);
     connect(m_session.get(), &NetworkSession::authRequired, this,
             &FileSystemModel::onSessionAuthRequired, Qt::UniqueConnection);
+    connect(m_session.get(), &NetworkSession::reusedExistingSession, this,
+            [this](const QString &user) {
+                if (sender() == m_session.get())
+                    emit networkSessionReused(user);
+            },
+            Qt::UniqueConnection);
     connect(m_session.get(), &NetworkSession::failed, this, &FileSystemModel::onSessionFailed,
             Qt::UniqueConnection);
 }

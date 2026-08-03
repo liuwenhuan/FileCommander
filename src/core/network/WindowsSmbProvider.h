@@ -30,6 +30,9 @@ public:
     // retry budget before the user is told anything.
     void setTimeoutMs(int ms) override { m_timeoutMs = ms > 0 ? ms : m_timeoutMs; }
 
+    bool reusedExistingSession() const override { return m_reusedSession; }
+    QString reusedSessionUser() const override { return m_reusedSessionUser; }
+
     QVector<FileInfo> list(const QString &path, bool showHidden) const override;
     ListStatus lastListStatus() const override { return m_lastListStatus; }
     QString lastListError() const override { return m_lastListError; }
@@ -78,6 +81,10 @@ private:
     QString m_workgroup;
     bool m_anonymous = false;
     int m_timeoutMs = 12000; // matches NetworkSession::kConnectTimeoutMs
+    // Set when the connect adopted a session Windows already held, so the panel
+    // can say whose identity the browse is actually running under.
+    bool m_reusedSession = false;
+    QString m_reusedSessionUser;
     mutable WindowsSmbSession m_session;
     // Written by list() and read immediately afterwards on the same worker
     // thread; see FileProvider::lastListStatus().

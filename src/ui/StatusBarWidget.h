@@ -25,7 +25,11 @@ public:
         ConnConnecting = 1,
         ConnReconnecting = 2,
         ConnFailed = 3,
-        ConnNeedsAuth = 4
+        ConnNeedsAuth = 4,
+        // Neutral, non-actionable note about a connection that IS working, e.g.
+        // that it adopted a session someone else's credentials opened. Renders
+        // muted with no link -- there is nothing to retry.
+        ConnNotice = 5
     };
     void setConnectionStatus(const QString &text, int level);
 

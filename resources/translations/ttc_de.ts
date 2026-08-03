@@ -688,8 +688,8 @@ Das Löschen als Administrator umgeht den Papierkorb und kann nicht rückgängig
     <name>FilePanel</name>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="316"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="569"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="2379"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="571"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2399"/>
         <source>New Tab</source>
         <translation>Neuer Tab</translation>
     </message>
@@ -729,52 +729,62 @@ Das Löschen als Administrator umgeht den Papierkorb und kann nicht rückgängig
         <translation>Filter: tippen zum Eingrenzen der Liste, Esc zum Löschen</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="995"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="997"/>
         <source>正在等待连接…</source>
         <translation>Warten auf Verbindung…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1000"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1002"/>
         <source>断线，正在重连（%1/%2）…</source>
         <translation>Verbindung getrennt, Neuverbindung läuft (%1/%2)…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1007"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1009"/>
         <source>多次重连失败</source>
         <translation>Mehrere Verbindungsversuche fehlgeschlagen</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1007"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1009"/>
         <source>连接失败：%1</source>
         <translation>Verbindung fehlgeschlagen: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1031"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1032"/>
+        <source>正在复用已有会话</source>
+        <translation>Vorhandene Sitzung wird weiterverwendet</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/FilePanel.cpp" line="1033"/>
+        <source>正在复用已有会话（用户：%1）</source>
+        <translation>Vorhandene Sitzung wird weiterverwendet (Benutzer: %1)</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/FilePanel.cpp" line="1051"/>
         <source>无法列出目录：%1</source>
         <translation>Verzeichnis kann nicht aufgelistet werden: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1076"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1096"/>
         <source>需要登录</source>
         <translation>Anmeldung erforderlich</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1101"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1121"/>
         <source>Search results</source>
         <translation>Suchergebnisse</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="2218"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2238"/>
         <source>Select by Pattern</source>
         <translation>Nach Muster auswählen</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="2218"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2238"/>
         <source>Unselect by Pattern</source>
         <translation>Auswahl nach Muster aufheben</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="2219"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2239"/>
         <source>Wildcard mask (e.g. *.txt):</source>
         <translation>Platzhaltermaske (z. B. *.txt):</translation>
     </message>
@@ -782,12 +792,12 @@ Das Löschen als Administrator umgeht den Papierkorb und kann nicht rückgängig
 <context>
     <name>FileSystemModel</name>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="888"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="894"/>
         <source>%1 already exists</source>
         <translation>%1 existiert bereits</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="895"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="901"/>
         <source>Failed to rename %1</source>
         <translation>%1 konnte nicht umbenannt werden</translation>
     </message>
@@ -2801,39 +2811,39 @@ Ziel: %4 (%5 Byte)</translation>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="167"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="687"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="693"/>
         <source>Name</source>
         <translation>Name</translation>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="169"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="691"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="697"/>
         <source>Size</source>
         <translation>Größe</translation>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="171"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="693"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="699"/>
         <source>Modified</source>
         <translation>Geändert</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="689"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="695"/>
         <source>Ext</source>
         <translation>Erw.</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="699"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="705"/>
         <source>Permissions</source>
         <translation>Berechtigungen</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="697"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="703"/>
         <source>Type</source>
         <translation>Typ</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="695"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="701"/>
         <source>Created</source>
         <translation>Erstellt</translation>
     </message>
@@ -2845,7 +2855,7 @@ Ziel: %4 (%5 Byte)</translation>
     <message>
         <location filename="../../src/core/filesystem/ComputerProvider.cpp" line="48"/>
         <location filename="../../src/core/filesystem/ComputerProvider.cpp" line="55"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="707"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="713"/>
         <source>Folder</source>
         <translation>Ordner</translation>
     </message>
@@ -2860,32 +2870,32 @@ Ziel: %4 (%5 Byte)</translation>
         <translation>Server</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="710"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="716"/>
         <source>File</source>
         <translation>Datei</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="722"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="728"/>
         <source>Image</source>
         <translation>Bild</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="724"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="730"/>
         <source>Video</source>
         <translation>Video</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="726"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="732"/>
         <source>Audio</source>
         <translation>Audio</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="728"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="734"/>
         <source>Archive</source>
         <translation>Archiv</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="730"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="736"/>
         <source>Document</source>
         <translation>Dokument</translation>
     </message>

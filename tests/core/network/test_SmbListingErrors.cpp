@@ -28,6 +28,13 @@ namespace {
 // A provider whose list() outcome the test dictates.
 class ListingProvider : public FileProvider {
 public:
+    bool reusedExistingSession() const override { return m_reused; }
+    QString reusedSessionUser() const override { return m_reusedUser; }
+    void setReusedSession(bool reused, const QString &user) {
+        m_reused = reused;
+        m_reusedUser = user;
+    }
+
     QVector<FileInfo> list(const QString &, bool) const override { return {}; }
     bool isDir(const QString &) const override { return true; }
     QString cleanPath(const QString &p) const override { return p; }
@@ -47,6 +54,8 @@ public:
 private:
     ListStatus m_status = ListStatus::Ok;
     QString m_error;
+    bool m_reused = false;
+    QString m_reusedUser;
 };
 
 template <typename Pred>
@@ -146,6 +155,34 @@ TEST(SmbListingErrors, AnOkListingStillReportsAnEmptyDirectoryAsEmpty) {
     ASSERT_TRUE(spinUntil([&] { return readySpy.size() > 0; }, 5000));
     EXPECT_EQ(failedSpy.size(), 0);
     EXPECT_EQ(authSpy.size(), 0);
+}
+
+TEST(SmbListingErrors, AdoptingSomebodyElsesSessionIsAnnounced) {
+    auto provider = std::make_shared<ListingProvider>();
+    // Windows will not open a second session to one server under a different
+    // account, so the connect succeeds by adopting the one that exists -- under
+    // an identity the user did not choose.
+    provider->setReusedSession(true, QStringLiteral("CORP\\alice"));
+
+    std::shared_ptr<NetworkSession> session(new NetworkSession(provider),
+                                            [](NetworkSession *s) { s->shutdownAsync(); });
+    QSignalSpy reusedSpy(session.get(), &NetworkSession::reusedExistingSession);
+    session->start([](QString *) { return true; }, QStringLiteral("/"));
+    ASSERT_TRUE(spinUntil([&] { return reusedSpy.size() > 0; }, 5000));
+
+    ASSERT_EQ(reusedSpy.size(), 1);
+    EXPECT_EQ(reusedSpy.at(0).at(0).toString(), QStringLiteral("CORP\\alice"));
+}
+
+TEST(SmbListingErrors, OpeningOurOwnSessionSaysNothing) {
+    auto provider = std::make_shared<ListingProvider>();
+    auto session = connectedSession(provider);
+    ASSERT_EQ(session->state(), NetworkSession::Connected);
+
+    // The ordinary case must stay silent; a notice on every connect would be
+    // noise that trains the user to ignore the one that matters.
+    QSignalSpy reusedSpy(session.get(), &NetworkSession::reusedExistingSession);
+    EXPECT_EQ(reusedSpy.size(), 0);
 }
 
 TEST(SmbListingErrors, ProvidersThatCannotTellDefaultToReportingSuccess) {

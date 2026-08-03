@@ -41,6 +41,16 @@ public:
     // host-name string happens to be non-empty.
     bool holdsConnection() const;
 
+    // Whether the most recent connectToServer adopted a session Windows already
+    // had, instead of opening one. See FileProvider::reusedExistingSession().
+    bool lastConnectBorrowed() const;
+
+    // The account the existing connection to `host` was made under, or empty if
+    // there is none or Windows will not say. Read from the logon session's own
+    // connection table, so it reports the identity actually in force -- not the
+    // one we asked for and did not get.
+    static QString existingSessionUser(const QString &host);
+
     void disconnectOwned();
 
     // Maps a Win32/WNet status to a Result. Exposed because this mapping is the
@@ -66,4 +76,5 @@ private:
     // must NOT be cancelled: they are not ours, and other applications -- or
     // Explorer -- may be relying on them.
     QSet<QString> m_borrowedConnections;
+    bool m_lastConnectBorrowed = false;
 };

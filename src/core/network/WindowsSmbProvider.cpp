@@ -137,8 +137,18 @@ bool WindowsSmbProvider::connectToHost(const QString &host, const QString &user,
     }
 
     const WindowsSmbSession::Result result = m_session.connectToServer(host, error);
-    if (result == WindowsSmbSession::Result::Connected)
+    if (result == WindowsSmbSession::Result::Connected) {
+        // Windows refuses a second session to one server under a different user
+        // name, so when it hands back the one it already has, the browse runs as
+        // whoever opened that -- not as whoever was asked for here. Record it so
+        // the panel can say so rather than let the identity change go unnoticed.
+        m_reusedSession = m_session.lastConnectBorrowed();
+        m_reusedSessionUser =
+            m_reusedSession ? WindowsSmbSession::existingSessionUser(host) : QString();
         return true;
+    }
+    m_reusedSession = false;
+    m_reusedSessionUser.clear();
     // The flag NetworkSession reads to decide "prompt" versus "retry": set it
     // from the real status code rather than leaving the session to guess from
     // the message text.
@@ -158,6 +168,8 @@ void WindowsSmbProvider::disconnect() {
     m_password.clear();
     m_workgroup.clear();
     m_anonymous = false;
+    m_reusedSession = false;
+    m_reusedSessionUser.clear();
     noteListResult(ListStatus::Ok);
 }
 

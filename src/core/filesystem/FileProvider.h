@@ -126,6 +126,22 @@ public:
     // false so a backend added later is refused until it opts in.
     virtual bool isLocalFilesystem() const { return false; }
 
+    // Whether the link this backend is using was already open before it asked --
+    // an OS-level session another application (or an earlier mapping)
+    // established, which this backend adopted rather than replaced.
+    //
+    // It matters to the user because the adopted session carries somebody else's
+    // identity: Windows refuses a second session to one server under a different
+    // user name, so asking for credentials there would request a password it
+    // will not apply. Reusing the session is the workable answer, but browsing
+    // as an identity you did not choose should not happen silently.
+    //
+    // Reported as two pieces rather than a finished sentence so the wording (and
+    // its translation) stays in the UI layer with every other user-facing string.
+    virtual bool reusedExistingSession() const { return false; }
+    // Who owns that adopted session, or empty when it cannot be determined.
+    virtual QString reusedSessionUser() const { return {}; }
+
     // Whether this backend's listing is synthetic -- rows that stand for places
     // rather than for files in a directory (the computer view's drives, saved
     // servers and network hosts). The model uses it to decide whether to ask the

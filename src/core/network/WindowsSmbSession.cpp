@@ -4,6 +4,7 @@
 
 #include <Windows.h>
 #include <Winnetwk.h>
+#include <Lm.h>
 
 WindowsSmbSession::~WindowsSmbSession() {
     disconnectOwned();
@@ -74,6 +75,49 @@ WindowsSmbSession::Result WindowsSmbSession::classify(unsigned long status) {
     }
 }
 
+QString WindowsSmbSession::existingSessionUser(const QString &host) {
+    if (host.isEmpty())
+        return {};
+    // NetUseEnum reports this logon session's own connection table, which is
+    // exactly the scope ERROR_SESSION_CREDENTIAL_CONFLICT is about: Windows
+    // refuses a second session to one server for THIS user, so the conflicting
+    // connection is necessarily one of these.
+    const QString prefix = QStringLiteral("\\\\") + host + QLatin1Char('\\');
+    USE_INFO_2 *buffer = nullptr;
+    DWORD read = 0;
+    DWORD total = 0;
+    DWORD resume = 0;
+    QString user;
+    const NET_API_STATUS status =
+        NetUseEnum(nullptr, 2, reinterpret_cast<LPBYTE *>(&buffer), MAX_PREFERRED_LENGTH,
+                   &read, &total, &resume);
+    if (status == NERR_Success || status == ERROR_MORE_DATA) {
+        for (DWORD i = 0; i < read && user.isEmpty(); ++i) {
+            if (!buffer[i].ui2_remote)
+                continue;
+            const QString remote = QString::fromWCharArray(buffer[i].ui2_remote);
+            // Match the server, not one particular share: the conflicting
+            // connection may be to any share on it (or to IPC$).
+            if (!remote.startsWith(prefix, Qt::CaseInsensitive) &&
+                remote.compare(QStringLiteral("\\\\") + host, Qt::CaseInsensitive) != 0)
+                continue;
+            if (!buffer[i].ui2_username)
+                continue;
+            const QString candidate = QString::fromWCharArray(buffer[i].ui2_username);
+            if (!candidate.isEmpty())
+                user = candidate; // empty means a guest/anonymous mount: say nothing
+        }
+    }
+    if (buffer)
+        NetApiBufferFree(buffer);
+    return user;
+}
+
+bool WindowsSmbSession::lastConnectBorrowed() const {
+    QMutexLocker lock(&m_mutex);
+    return m_lastConnectBorrowed;
+}
+
 void WindowsSmbSession::setCredentials(const QString &user, const QString &password,
                                        bool anonymous) {
     QMutexLocker lock(&m_mutex);
@@ -85,8 +129,13 @@ void WindowsSmbSession::setCredentials(const QString &user, const QString &passw
 WindowsSmbSession::Result WindowsSmbSession::connectTarget(const QString &uncTarget,
                                                            QString *error) {
     QMutexLocker lock(&m_mutex);
-    if (m_ownedConnections.contains(uncTarget) || m_borrowedConnections.contains(uncTarget))
+    if (m_ownedConnections.contains(uncTarget))
         return Result::Connected;
+    if (m_borrowedConnections.contains(uncTarget)) {
+        m_lastConnectBorrowed = true;
+        return Result::Connected;
+    }
+    m_lastConnectBorrowed = false;
 
     NETRESOURCEW resource{};
     // IPC$ is a pipe share, not a disk. RESOURCETYPE_ANY covers both it and a
@@ -109,10 +158,14 @@ WindowsSmbSession::Result WindowsSmbSession::connectTarget(const QString &uncTar
     const DWORD status = WNetAddConnection2W(&resource, password, user, CONNECT_TEMPORARY);
     const Result result = classify(status);
     if (result == Result::Connected) {
-        if (status == NO_ERROR)
+        if (status == NO_ERROR) {
             m_ownedConnections.insert(uncTarget);
-        else
-            m_borrowedConnections.insert(uncTarget); // pre-existing; not ours to cancel
+        } else {
+            // Pre-existing; not ours to cancel, and it carries whatever identity
+            // it was made under -- which the caller has to be able to surface.
+            m_borrowedConnections.insert(uncTarget);
+            m_lastConnectBorrowed = true;
+        }
         return result;
     }
     if (error)
@@ -147,4 +200,5 @@ void WindowsSmbSession::disconnectOwned() {
     m_ownedConnections.clear();
     // Borrowed sessions are left alone on purpose -- see the header.
     m_borrowedConnections.clear();
+    m_lastConnectBorrowed = false;
 }

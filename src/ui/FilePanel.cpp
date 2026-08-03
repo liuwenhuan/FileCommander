@@ -545,6 +545,8 @@ FilePanel::FilePanel(const QFont &initialListFont, QWidget *parent) : QWidget(pa
     // enumerate). The connection is still up, so this is reported on its own
     // rather than through the connection-state path.
     connect(m_model, &FileSystemModel::listingFailed, this, &FilePanel::showListingError);
+    connect(m_model, &FileSystemModel::networkSessionReused, this,
+            &FilePanel::showReusedSessionNotice);
     connect(m_statusBar, &StatusBarWidget::retryRequested, this, [this] {
         // Same link for both states: re-prompt for credentials if the user had
         // cancelled the login, otherwise ask the session to reconnect.
@@ -1013,6 +1015,24 @@ void FilePanel::showNetworkStatus(int state, int attempt) {
         m_networkStatusVisible = false;
         break;
     }
+    refreshTabIcons();
+}
+
+void FilePanel::showReusedSessionNotice(const QString &user) {
+    // The connection works, so nothing here is an error or offers a retry. What
+    // it is, is a change of identity the user did not choose: Windows will not
+    // open a second session to one server under a different account, so the
+    // browse runs as whoever already had one. Saying so is the whole point --
+    // silently browsing as someone else is the thing being fixed.
+    m_networkStatusRevealTimer->stop();
+    m_networkStatusColorAnimation->stop();
+    m_awaitingLogin = false;
+    m_networkStatusVisible = true;
+    m_statusBar->setConnectionStatus(user.isEmpty()
+                                         ? tr("正在复用已有会话")
+                                         : tr("正在复用已有会话（用户：%1）").arg(user),
+                                     StatusBarWidget::ConnNotice);
+    m_networkStatusDotColor = QColor();
     refreshTabIcons();
 }
 

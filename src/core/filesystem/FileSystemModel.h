@@ -204,6 +204,10 @@ signals:
     // Network connection state for the status line: state is a
     // NetworkSession::State, attempt is the current reconnect attempt (1..N).
     void networkStateChanged(int state, int attempt);
+    // The connection adopted an OS-level session that was already open, so the
+    // browse runs under `user` rather than the requested credentials. Purely
+    // informational; the link is up.
+    void networkSessionReused(const QString &user);
     // A listing failed for a reason the backend could name -- distinct from the
     // connection itself failing, which networkStateChanged already covers. The
     // link may well still be up (a share the server declines to enumerate), so

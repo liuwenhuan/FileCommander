@@ -688,8 +688,8 @@ Eliminar como administrador omite la papelera de reciclaje y no se puede deshace
     <name>FilePanel</name>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="316"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="569"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="2379"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="571"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2399"/>
         <source>New Tab</source>
         <translation>Nueva pestaña</translation>
     </message>
@@ -729,52 +729,62 @@ Eliminar como administrador omite la papelera de reciclaje y no se puede deshace
         <translation>Filtro: escriba para acotar la lista, Esc para borrar</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="995"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="997"/>
         <source>正在等待连接…</source>
         <translation>Esperando la conexión…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1000"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1002"/>
         <source>断线，正在重连（%1/%2）…</source>
         <translation>Desconectado; reconectando (%1/%2)…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1007"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1009"/>
         <source>多次重连失败</source>
         <translation>Fallaron varios intentos de reconexión</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1007"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1009"/>
         <source>连接失败：%1</source>
         <translation>Error de conexión: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1031"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1032"/>
+        <source>正在复用已有会话</source>
+        <translation>Reutilizando la sesión existente</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/FilePanel.cpp" line="1033"/>
+        <source>正在复用已有会话（用户：%1）</source>
+        <translation>Reutilizando la sesión existente (usuario: %1)</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/FilePanel.cpp" line="1051"/>
         <source>无法列出目录：%1</source>
         <translation>No se puede listar el directorio: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1076"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1096"/>
         <source>需要登录</source>
         <translation>Se requiere iniciar sesión</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1101"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1121"/>
         <source>Search results</source>
         <translation>Resultados de la búsqueda</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="2218"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2238"/>
         <source>Select by Pattern</source>
         <translation>Seleccionar por patrón</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="2218"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2238"/>
         <source>Unselect by Pattern</source>
         <translation>Deseleccionar por patrón</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="2219"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2239"/>
         <source>Wildcard mask (e.g. *.txt):</source>
         <translation>Máscara comodín (p. ej. *.txt):</translation>
     </message>
@@ -782,12 +792,12 @@ Eliminar como administrador omite la papelera de reciclaje y no se puede deshace
 <context>
     <name>FileSystemModel</name>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="888"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="894"/>
         <source>%1 already exists</source>
         <translation>%1 ya existe</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="895"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="901"/>
         <source>Failed to rename %1</source>
         <translation>No se pudo renombrar %1</translation>
     </message>
@@ -2801,39 +2811,39 @@ Destino: %4 (%5 bytes)</translation>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="167"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="687"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="693"/>
         <source>Name</source>
         <translation>Nombre</translation>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="169"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="691"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="697"/>
         <source>Size</source>
         <translation>Tamaño</translation>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="171"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="693"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="699"/>
         <source>Modified</source>
         <translation>Modificado</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="689"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="695"/>
         <source>Ext</source>
         <translation>Ext</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="699"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="705"/>
         <source>Permissions</source>
         <translation>Permisos</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="697"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="703"/>
         <source>Type</source>
         <translation>Tipo</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="695"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="701"/>
         <source>Created</source>
         <translation>Creado</translation>
     </message>
@@ -2845,7 +2855,7 @@ Destino: %4 (%5 bytes)</translation>
     <message>
         <location filename="../../src/core/filesystem/ComputerProvider.cpp" line="48"/>
         <location filename="../../src/core/filesystem/ComputerProvider.cpp" line="55"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="707"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="713"/>
         <source>Folder</source>
         <translation>Carpeta</translation>
     </message>
@@ -2860,32 +2870,32 @@ Destino: %4 (%5 bytes)</translation>
         <translation>Servidor</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="710"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="716"/>
         <source>File</source>
         <translation>Archivo</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="722"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="728"/>
         <source>Image</source>
         <translation>Imagen</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="724"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="730"/>
         <source>Video</source>
         <translation>Vídeo</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="726"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="732"/>
         <source>Audio</source>
         <translation>Audio</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="728"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="734"/>
         <source>Archive</source>
         <translation>Comprimido</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="730"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="736"/>
         <source>Document</source>
         <translation>Documento</translation>
     </message>

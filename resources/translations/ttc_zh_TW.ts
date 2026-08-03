@@ -688,8 +688,8 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <name>FilePanel</name>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="316"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="569"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="2379"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="571"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2399"/>
         <source>New Tab</source>
         <translation>新增分頁</translation>
     </message>
@@ -729,52 +729,62 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <translation>篩選：輸入以縮小清單範圍，按 Esc 清除</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="995"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="997"/>
         <source>正在等待连接…</source>
         <translation>正在等待連線…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1000"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1002"/>
         <source>断线，正在重连（%1/%2）…</source>
         <translation>連線中斷，正在重新連線（%1/%2）…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1007"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1009"/>
         <source>多次重连失败</source>
         <translation>多次重新連線失敗</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1007"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1009"/>
         <source>连接失败：%1</source>
         <translation>連線失敗：%1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1031"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1032"/>
+        <source>正在复用已有会话</source>
+        <translation>正在重複使用現有工作階段</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/FilePanel.cpp" line="1033"/>
+        <source>正在复用已有会话（用户：%1）</source>
+        <translation>正在重複使用現有工作階段（使用者：%1）</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/FilePanel.cpp" line="1051"/>
         <source>无法列出目录：%1</source>
         <translation>無法列出目錄：%1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1076"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1096"/>
         <source>需要登录</source>
         <translation>需要登入</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1101"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1121"/>
         <source>Search results</source>
         <translation>搜尋結果</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="2218"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2238"/>
         <source>Select by Pattern</source>
         <translation>依模式選取</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="2218"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2238"/>
         <source>Unselect by Pattern</source>
         <translation>依模式取消選取</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="2219"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2239"/>
         <source>Wildcard mask (e.g. *.txt):</source>
         <translation>萬用字元遮罩（如 *.txt）：</translation>
     </message>
@@ -782,12 +792,12 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
 <context>
     <name>FileSystemModel</name>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="888"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="894"/>
         <source>%1 already exists</source>
         <translation>%1 已存在</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="895"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="901"/>
         <source>Failed to rename %1</source>
         <translation>重新命名 %1 失敗</translation>
     </message>
@@ -2829,39 +2839,39 @@ Destination: %4 (%5 bytes)</source>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="167"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="687"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="693"/>
         <source>Name</source>
         <translation>名稱</translation>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="169"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="691"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="697"/>
         <source>Size</source>
         <translation>大小</translation>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="171"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="693"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="699"/>
         <source>Modified</source>
         <translation>修改日期</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="689"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="695"/>
         <source>Ext</source>
         <translation>副檔名</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="699"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="705"/>
         <source>Permissions</source>
         <translation>權限</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="697"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="703"/>
         <source>Type</source>
         <translation>類型</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="695"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="701"/>
         <source>Created</source>
         <translation>建立日期</translation>
     </message>
@@ -2873,7 +2883,7 @@ Destination: %4 (%5 bytes)</source>
     <message>
         <location filename="../../src/core/filesystem/ComputerProvider.cpp" line="48"/>
         <location filename="../../src/core/filesystem/ComputerProvider.cpp" line="55"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="707"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="713"/>
         <source>Folder</source>
         <translation>目錄</translation>
     </message>
@@ -2888,32 +2898,32 @@ Destination: %4 (%5 bytes)</source>
         <translation>伺服器</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="710"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="716"/>
         <source>File</source>
         <translation>檔案</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="722"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="728"/>
         <source>Image</source>
         <translation>圖片</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="724"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="730"/>
         <source>Video</source>
         <translation>影片</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="726"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="732"/>
         <source>Audio</source>
         <translation>音訊</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="728"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="734"/>
         <source>Archive</source>
         <translation>壓縮</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="730"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="736"/>
         <source>Document</source>
         <translation>文件</translation>
     </message>

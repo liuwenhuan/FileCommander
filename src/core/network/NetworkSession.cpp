@@ -154,6 +154,10 @@ bool NetworkSession::reconnectCycle() {
         if (ok) {
             m_everConnected = true;
             setState(Connected);
+            // After Connected, so the panel's own "clear the status line on
+            // connect" handling cannot wipe the notice a moment later.
+            if (m_provider && m_provider->reusedExistingSession())
+                emit reusedExistingSession(m_provider->reusedSessionUser());
             if (m_heartbeat && !m_heartbeat->isActive()) {
                 m_heartbeat->start();
                 m_heartbeatCounter =
