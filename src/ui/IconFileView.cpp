@@ -37,11 +37,6 @@ constexpr int kDragFeedbackSuccessDurationMs = 150;
 
 IconFileView::IconFileView(QWidget *parent)
     : QListView(parent), m_settleTimer(new QTimer(this)) {
-    // No frame of its own. QTableView takes its border from the theme sheet, so
-    // the list view drawing QFrame's default one as well put a second hairline
-    // right above the status bar's own top border -- two lines where the detail
-    // view shows one.
-    setFrameShape(QFrame::NoFrame);
     // Drag source + drop target. The view mode, icon size and model are set up
     // by FilePanel, not here.
     setDragEnabled(true);

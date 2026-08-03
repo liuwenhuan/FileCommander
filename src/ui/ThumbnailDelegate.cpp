@@ -1,7 +1,5 @@
 #include "ThumbnailDelegate.h"
 
-#include "filesystem/IconCache.h"
-
 #include <QAbstractItemView>
 #include <QApplication>
 #include <QColor>
@@ -226,11 +224,7 @@ void ThumbnailDelegate::paint(QPainter *painter, const QStyleOptionViewItem &opt
             // QIcon::pixmap() takes a logical size and tags the result itself.
             const QIcon icon = index.data(Qt::DecorationRole).value<QIcon>();
             if (!icon.isNull()) {
-                // Not QIcon::pixmap(): it never scales a bitmap up, so a system
-                // file-type icon that only ships 16px came back at 16px however
-                // large the grid was -- archives and executables were specks
-                // next to folders, which are drawn from scalable SVGs.
-                pixmap = IconCache::pixmapOfSize(icon, m_iconSize, devicePixelRatio());
+                pixmap = icon.pixmap(QSize(m_iconSize, m_iconSize));
                 pixmapDpr = pixmap.devicePixelRatio() > 0 ? pixmap.devicePixelRatio() : 1.0;
             }
         }
