@@ -2296,9 +2296,9 @@ void MainWindow::openComputerEntry(FilePanel *panel, const ComputerEntry &entry)
     switch (entry.kind) {
     case ComputerEntry::Kind::Drive:
     case ComputerEntry::Kind::UserFolder:
-        // Restore the real backend first: the target is an ordinary local path,
-        // and the synthetic provider cannot resolve it.
-        panel->leaveComputerView();
+        // navigateTo() steps out of the computer view itself. Doing it here as
+        // well would hide the transition from it, and with it the history entry
+        // that lets Back return to the view.
         panel->navigateTo(entry.target);
         break;
     case ComputerEntry::Kind::RemovableDevice: {
@@ -2324,8 +2324,7 @@ void MainWindow::openComputerEntry(FilePanel *panel, const ComputerEntry &entry)
                 return;
             }
         }
-        panel->leaveComputerView();
-        panel->navigateTo(mountPoint);
+        panel->navigateTo(mountPoint); // steps out of the computer view itself
 #endif
         break;
     }

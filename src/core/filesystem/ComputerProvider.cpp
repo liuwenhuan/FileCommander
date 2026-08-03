@@ -40,6 +40,21 @@ int sortGroup(ComputerEntry::Kind kind) {
     return 5;
 }
 
+// Same 1024-based, one-decimal form the file listing uses, so a drive's numbers
+// read the same way as everything else in the column.
+QString humanBytes(qint64 bytes) {
+    static const char *units[] = {"B", "KB", "MB", "GB", "TB", "PB"};
+    double size = static_cast<double>(bytes);
+    int unit = 0;
+    while (size >= 1024.0 && unit < 5) {
+        size /= 1024.0;
+        ++unit;
+    }
+    if (unit == 0)
+        return QStringLiteral("%1 B").arg(bytes);
+    return QStringLiteral("%1 %2").arg(size, 0, 'f', 1).arg(QLatin1String(units[unit]));
+}
+
 QString typeLabel(ComputerEntry::Kind kind) {
     switch (kind) {
     case ComputerEntry::Kind::Drive:
@@ -139,6 +154,19 @@ QString ComputerProvider::entryTypeLabel(const QString &path) const {
     QMutexLocker locker(&m_mutex);
     auto it = m_byPath.constFind(path);
     return it == m_byPath.constEnd() ? QString() : typeLabel(it->kind);
+}
+
+QString ComputerProvider::entrySizeText(const QString &path) const {
+    QMutexLocker locker(&m_mutex);
+    auto it = m_byPath.constFind(path);
+    if (it == m_byPath.constEnd() || it->bytesTotal <= 0)
+        return {}; // not a drive, or a volume that would not report its size
+    // Used rather than free: "how much is on it" is what the number is for, and
+    // the total beside it makes the proportion readable without arithmetic.
+    // bytesFree can exceed total on an unreadable volume, so the subtraction is
+    // clamped rather than allowed to go negative.
+    const qint64 used = qMax<qint64>(0, it->bytesTotal - qMax<qint64>(0, it->bytesFree));
+    return QObject::tr("%1 of %2 used").arg(humanBytes(used), humanBytes(it->bytesTotal));
 }
 
 QString ComputerProvider::entryIconPath(const QString &path) const {

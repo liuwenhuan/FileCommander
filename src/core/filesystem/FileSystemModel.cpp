@@ -631,6 +631,11 @@ QVariant FileSystemModel::data(const QModelIndex &index, int role) const {
         case ExtColumn:
             return info.isDir() ? QString() : info.suffix();
         case SizeColumn:
+            if (m_virtualListing) {
+                const QString text = m_provider->entrySizeText(info.path());
+                if (!text.isEmpty())
+                    return text;
+            }
             if (info.isDir()) {
                 auto it = m_dirSizes.constFind(info.path());
                 if (it != m_dirSizes.constEnd())

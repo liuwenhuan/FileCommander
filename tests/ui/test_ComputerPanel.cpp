@@ -334,7 +334,70 @@ TEST(ComputerPanelTest, NavigatingToADirectoryFromTheViewListsIt) {
         << "navigating out of the computer view produced an empty listing";
 }
 
-TEST(ComputerPanelTest, BackFromTheComputerViewReturnsToWhereItWasOpenedFrom) {
+TEST(ComputerPanelTest, BackFromADriveOpenedInTheViewReturnsToTheView) {
+    QTemporaryDir dir;
+    QTemporaryDir opened;
+    ASSERT_TRUE(dir.isValid());
+    ASSERT_TRUE(opened.isValid());
+    ASSERT_TRUE(QDir(opened.path()).mkdir(QStringLiteral("sub")));
+
+    FilePanel panel;
+    panel.resize(800, 500);
+    panel.show();
+    panel.navigateTo(dir.path());
+    settle(panel);
+
+    QObject::connect(&panel, &FilePanel::computerViewRequested, &panel, [](FilePanel *p) {
+        p->showComputer({makeEntry(ComputerEntry::Kind::Drive, QStringLiteral("C"),
+                                   QStringLiteral("C:/"))});
+    });
+    panel.showComputer(
+        {makeEntry(ComputerEntry::Kind::Drive, QStringLiteral("C"), QStringLiteral("C:/"))});
+    settle(panel);
+    ASSERT_TRUE(panel.isComputerView());
+
+    // Open one of the places it listed -- the same thing activating a drive row
+    // does once the target has been resolved.
+    panel.navigateTo(opened.path());
+    settle(panel);
+    ASSERT_FALSE(panel.isComputerView());
+
+    // Back has to land on the computer view, not skip past it to the directory
+    // underneath. The view is rebuilt rather than restored, so what comes back
+    // is a fresh listing.
+    panel.goBack();
+    settle(panel);
+    EXPECT_TRUE(panel.isComputerView());
+    EXPECT_EQ(panel.model()->rootPath(), ComputerProvider::rootPath());
+}
+
+TEST(ComputerPanelTest, DriveRowsShowHowFullTheyAre) {
+    ComputerEntry drive =
+        makeEntry(ComputerEntry::Kind::Drive, QStringLiteral("OS (C:)"), QStringLiteral("C:/"));
+    drive.bytesTotal = 500LL * 1024 * 1024 * 1024; // 500 GB
+    drive.bytesFree = 100LL * 1024 * 1024 * 1024;  // 100 GB free -> 400 GB used
+    ComputerEntry folder = makeEntry(ComputerEntry::Kind::UserFolder,
+                                     QStringLiteral("My Desktop"), QStringLiteral("C:/Users"));
+
+    FilePanel panel;
+    panel.resize(800, 500);
+    panel.show();
+    panel.showComputer({drive, folder});
+    settle(panel);
+    ASSERT_EQ(panel.model()->rowCount(), 2);
+
+    const auto sizeAt = [&](int row) {
+        return panel.model()
+            ->data(panel.model()->index(row, FileSystemModel::SizeColumn), Qt::DisplayRole)
+            .toString();
+    };
+    EXPECT_EQ(sizeAt(0), QStringLiteral("400.0 GB of 500.0 GB used"));
+    // A folder has no capacity to report, so it keeps the ordinary directory
+    // marker rather than being given a made-up number.
+    EXPECT_EQ(sizeAt(1), QStringLiteral("<DIR>"));
+}
+
+TEST(ComputerPanelTest, WithNothingToRebuildItBackFallsBackToTheDirectoryUnderneath) {
     QTemporaryDir first;
     QTemporaryDir second;
     ASSERT_TRUE(first.isValid());
@@ -355,11 +418,13 @@ TEST(ComputerPanelTest, BackFromTheComputerViewReturnsToWhereItWasOpenedFrom) {
     ASSERT_EQ(QDir(panel.model()->rootPath()).canonicalPath(),
               QDir(second.path()).canonicalPath());
 
-    // One Back, not two. The synthetic root must never reach the history stack:
-    // nothing can restore it, so a Back that landed there would strand the panel
-    // on a path no backend lists.
+    // No computerViewRequested handler is connected here, so nothing can
+    // assemble the rows. Back must then fall back to the directory the entry
+    // carries rather than leaving the panel where it was -- and it must never
+    // land on the synthetic root, which no backend can list.
     panel.goBack();
     settle(panel);
+    EXPECT_FALSE(panel.isComputerView());
     EXPECT_EQ(QDir(panel.model()->rootPath()).canonicalPath(),
               QDir(first.path()).canonicalPath());
     EXPECT_FALSE(panel.model()->rootPath().startsWith(ComputerProvider::rootPath()));

@@ -751,11 +751,23 @@ void FilePanel::hideQuickFilter() {
 FilePanel::NavEntry FilePanel::currentLocation() const {
     // Archive locations ("/" virtual roots) can't be restored by history, so they
     // are never recorded -- leaving an archive already drops to its host dir.
-    // The computer view is excluded for the same reason and one more: its rows
-    // are a snapshot of what was plugged in and reachable at that moment, so
-    // "restoring" it would show a list that may no longer be true.
-    if (m_archiveProvider || m_computerProvider)
+    if (m_archiveProvider)
         return {};
+    // The computer view IS recorded: it is rebuilt from scratch on the way back
+    // (the rows are re-collected, so nothing stale is restored), and without an
+    // entry Back from a drive opened out of the view had nowhere to return to.
+    if (m_computerProvider) {
+        NavEntry computer;
+        computer.computerView = true;
+        computer.dir = m_computerExitDir; // makes it valid(), and the fallback
+        computer.conn = m_model->peekConnection();
+        if (auto tab = m_tabManager->activeTab()) {
+            computer.connScheme = tab->connScheme;
+            computer.connLabel = tab->connLabel;
+            computer.connInfo = tab->connInfo;
+        }
+        return computer;
+    }
     NavEntry e;
     if (m_model->isFlatMode()) {
         e.flat = true;
@@ -805,7 +817,27 @@ void FilePanel::applyHistoryEntry(const NavEntry &entry) {
         m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
     }
 
-    if (entry.flat) {
+    if (entry.computerView) {
+        // Same rebuild-don't-restore rule as a backgrounded tab: ask the owner
+        // for a fresh set of rows. Suppressed history, because goBack/goForward
+        // own the stacks and showComputer would otherwise push onto them.
+        m_flatPaths.clear();
+        m_restoringComputerView = true;
+        emit computerViewRequested(this);
+        m_restoringComputerView = false;
+        if (m_computerProvider) {
+            m_computerExitDir = entry.dir;
+            if (auto tab = m_tabManager->activeTab()) {
+                tab->path = entry.dir;
+                tab->flatPaths.clear();
+            }
+        } else {
+            // Nothing rebuilt it; fall back to the directory the entry carries
+            // rather than leaving the panel where it was.
+            m_model->setRootPath(entry.dir);
+            emit pathChanged(entry.dir);
+        }
+    } else if (entry.flat) {
         m_flatPaths = entry.flatPaths;
         m_model->setFlatEntries(entry.flatPaths);
     } else {
@@ -922,6 +954,10 @@ void FilePanel::navigateTo(const QString &path) {
     // added later cannot forget.
     const bool leavingComputerView =
         m_computerProvider && !ComputerProvider::isComputerPath(path);
+    // Snapshot before the backend goes: currentLocation() can only describe the
+    // computer view while it is still installed, and this is the entry Back
+    // needs in order to come back to it.
+    const NavEntry fromComputerView = leavingComputerView ? currentLocation() : NavEntry();
     if (leavingComputerView)
         leaveComputerView();
 
@@ -939,13 +975,9 @@ void FilePanel::navigateTo(const QString &path) {
     if (!m_model->hasNetworkSession() && !provider->isDir(cleaned))
         return;
     // Snapshot where we're leaving (dir or flat listing) BEFORE mutating the view.
-    //
-    // Nothing is recorded when stepping out of the computer view: showComputer()
-    // already pushed the place it was opened from, and currentLocation() would
-    // now answer with the synthetic root the view has just been detached from --
-    // a history entry no backend could restore, and a duplicate of one already
-    // on the stack.
-    const NavEntry from = leavingComputerView ? NavEntry() : currentLocation();
+    // Stepping out of the computer view uses the snapshot taken above, since by
+    // now the backend that could describe it is gone.
+    const NavEntry from = leavingComputerView ? fromComputerView : currentLocation();
     if (m_filterBar->isVisible()) {
         // setRootPath() clears the model filter; just tidy the (now stale) bar.
         m_filterBar->blockSignals(true);
@@ -1570,6 +1602,13 @@ void FilePanel::rebuildTreeRoots() {
 }
 
 void FilePanel::refreshThemeIcons() {
+    // The computer button's glyph is recoloured from the palette when it is
+    // built, so it has to be rebuilt when the palette changes -- unlike its
+    // neighbours in the address row, which draw themselves and pick the colour
+    // up automatically.
+    if (m_computerButton)
+        m_computerButton->setIcon(
+            IconCache::instance().themedIcon(QIcon(QStringLiteral(":/icons/computer.svg"))));
     if (m_dirTreeModel)
         m_dirTreeModel->refreshIcons();
     refreshTabIcons();

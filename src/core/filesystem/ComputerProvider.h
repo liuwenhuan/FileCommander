@@ -48,6 +48,7 @@ public:
 
     bool isVirtualListing() const override { return true; }
     QString entryTypeLabel(const QString &path) const override;
+    QString entrySizeText(const QString &path) const override;
     QString entryIconPath(const QString &path) const override;
     int entrySortGroup(const QString &path) const override;
 

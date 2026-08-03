@@ -386,6 +386,12 @@ private:
         QString connLabel;      // "user@host" prefix for the restored tab
         SavedConnection connInfo; // reconnect descriptor, so restored network
                                   // history stays session-persistable
+        // This location was the computer view. Recorded rather than skipped
+        // because the view is rebuilt from scratch anyway, so Back can return to
+        // it -- `dir` still holds the directory it was opened from, which is
+        // what makes the entry valid() and where it falls back to if the rows
+        // cannot be assembled.
+        bool computerView = false;
         bool isValid() const { return flat ? !flatPaths.isEmpty() : !dir.isEmpty(); }
     };
     // Snapshots what the view currently shows, for pushing onto a history stack.

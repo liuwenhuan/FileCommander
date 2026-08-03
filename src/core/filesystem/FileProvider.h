@@ -155,6 +155,12 @@ public:
     // itself, which is the right answer for every real file.
     virtual QString entryTypeLabel(const QString & /*path*/) const { return {}; }
 
+    // What the Size column should say for `path`. Empty means "no opinion" and
+    // the model falls back to its usual formatting -- which for a synthetic row
+    // is "<DIR>", true but useless for a drive, where the interesting number is
+    // how full it is.
+    virtual QString entrySizeText(const QString & /*path*/) const { return {}; }
+
     // Resource path of the icon for `path` (":/icons/dev-smb.svg"). Empty means
     // the usual icon resolution applies -- which is what a synthetic *folder*
     // row wants, so it keeps the same folder icon as everywhere else.
