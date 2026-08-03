@@ -65,6 +65,7 @@ UpdateDialog::UpdateDialog(const UpdateInfo &info, QWidget *parent)
     connect(m_confirmButton, &QPushButton::clicked, this, &UpdateDialog::onConfirm);
     connect(m_cancelButton, &QPushButton::clicked, this, &UpdateDialog::onCancel);
     connect(m_updater, &Updater::progress, this, &UpdateDialog::onProgress);
+    connect(m_updater, &Updater::retryScheduled, this, &UpdateDialog::onRetryScheduled);
     connect(m_updater, &Updater::finished, this, &UpdateDialog::onFinished);
 }
 
@@ -95,6 +96,18 @@ void UpdateDialog::onProgress(int percent) {
     m_progressBar->setValue(percent);
     if (percent >= 100)
         m_statusLabel->setText(tr("Verifying and installing…"));
+    else
+        m_statusLabel->setText(tr("Downloading…"));
+}
+
+void UpdateDialog::onRetryScheduled(int attempt, int maxAttempts, int delayMs) {
+    // The progress bar deliberately keeps its value: the bytes already fetched
+    // are still on disk and the next attempt continues from them, so resetting
+    // it to zero would say the opposite of what is about to happen.
+    m_statusLabel->setText(tr("Connection lost. Retrying in %1 s (attempt %2 of %3)…")
+                               .arg((delayMs + 999) / 1000)
+                               .arg(attempt)
+                               .arg(maxAttempts));
 }
 
 void UpdateDialog::onFinished(bool ok, const QString &message) {

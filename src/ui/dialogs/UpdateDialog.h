@@ -31,6 +31,8 @@ private slots:
     // "Later" before the download starts, "Cancel" during it.
     void onCancel();
     void onProgress(int percent);
+    // A dropped connection is about to be retried; the download so far is kept.
+    void onRetryScheduled(int attempt, int maxAttempts, int delayMs);
     void onFinished(bool ok, const QString &message);
 
 private:

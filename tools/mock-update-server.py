@@ -26,6 +26,11 @@ Fault injection, for the paths that are meant to fail:
     --corrupt-hash     advertise a hash that does not match the package
     --stall-manifest N accept the manifest request, then say nothing for N s
     --fail-download    answer the package request with 500
+    --drop-after N     send N bytes of the package, then hang up (once, unless
+                       --drop-every), so the client has to resume
+    --drop-every       cut every package response short, not just the first
+    --no-ranges        ignore Range requests and always send the whole file,
+                       the way a server without range support behaves
 """
 
 from __future__ import annotations
@@ -74,8 +79,15 @@ class Config:
         self.port = args.port
         self.stall_manifest = args.stall_manifest
         self.fail_download = args.fail_download
+        self.drop_after = args.drop_after
+        self.drop_every = args.drop_every
+        self.no_ranges = args.no_ranges
+        self.drops_served = 0
 
         self.real_sha256 = sha256_of(self.package)
+        # A validator the client can send back as If-Range, so the server can
+        # tell a resumed download of THIS build from one of an older build.
+        self.etag = f'"{self.real_sha256[:16]}"'
         self.advertised_sha256 = (
             "0" * 64 if args.corrupt_hash else self.real_sha256
         )
@@ -125,20 +137,62 @@ class Handler(BaseHTTPRequestHandler):
             if cfg.fail_download:
                 self.send_error(500, "injected download failure")
                 return
-            size = os.path.getsize(cfg.package)
-            self.send_response(200)
-            self.send_header("Content-Type", "application/octet-stream")
-            self.send_header("Content-Length", str(size))
-            self.end_headers()
-            with open(cfg.package, "rb") as handle:
-                while True:
-                    chunk = handle.read(1 << 16)
-                    if not chunk:
-                        break
-                    self.wfile.write(chunk)
+            self.serve_package(cfg)
             return
 
         self.send_error(404, "not part of the update protocol")
+
+    def serve_package(self, cfg: "Config") -> None:
+        size = os.path.getsize(cfg.package)
+        # A real static file server answers Range requests, which is what lets a
+        # client continue an interrupted download instead of starting again.
+        start = 0
+        partial = False
+        rng = self.headers.get("Range", "")
+        if rng.startswith("bytes=") and not cfg.no_ranges:
+            try:
+                start = int(rng[len("bytes="):].split("-", 1)[0])
+            except ValueError:
+                start = 0
+            if 0 < start < size:
+                partial = True
+            else:
+                start = 0
+
+        drop = cfg.drop_after > 0 and (cfg.drop_every or cfg.drops_served == 0)
+        if drop:
+            cfg.drops_served += 1
+
+        remaining = size - start
+        self.send_response(206 if partial else 200)
+        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Length", str(remaining))
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("ETag", cfg.etag)
+        if partial:
+            self.send_header("Content-Range", f"bytes {start}-{size - 1}/{size}")
+        self.end_headers()
+        self.log_message("package: from %s%s%s", start,
+                         " (206)" if partial else " (200)",
+                         f", dropping after {cfg.drop_after}" if drop else "")
+
+        sent = 0
+        with open(cfg.package, "rb") as handle:
+            handle.seek(start)
+            while True:
+                budget = 1 << 16
+                if drop:
+                    budget = min(budget, cfg.drop_after - sent)
+                    if budget <= 0:
+                        break
+                chunk = handle.read(budget)
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+                sent += len(chunk)
+        if drop:
+            self.wfile.flush()
+            self.close_connection = True
 
 
 def main() -> int:
@@ -160,6 +214,12 @@ def main() -> int:
                         help="delay the manifest response, to exercise the client timeout")
     parser.add_argument("--fail-download", action="store_true",
                         help="answer the package request with HTTP 500")
+    parser.add_argument("--drop-after", type=int, default=0, metavar="BYTES",
+                        help="send this many bytes of the package, then hang up")
+    parser.add_argument("--drop-every", action="store_true",
+                        help="cut every package response short, not only the first")
+    parser.add_argument("--no-ranges", action="store_true",
+                        help="ignore Range requests: behave like a server without resume support")
     args = parser.parse_args()
 
     cfg = Config(args)
