@@ -7,6 +7,7 @@
 #include <QMenu>
 #include <QMouseEvent>
 #include <QShortcut>
+#include <QTemporaryDir>
 #include <QToolButton>
 #include <QWidgetAction>
 
@@ -97,6 +98,25 @@ QAction *anotherThemeAction(QMenu *interfaceMenu, QAction *first, QAction *secon
     }
     return nullptr;
 }
+
+class EnvironmentGuard final {
+public:
+    EnvironmentGuard(const char *name, const QByteArray &value)
+        : m_name(name), m_original(qgetenv(name)), m_hadOriginal(qEnvironmentVariableIsSet(name)) {
+        qputenv(name, value);
+    }
+    ~EnvironmentGuard() {
+        if (m_hadOriginal)
+            qputenv(m_name.constData(), m_original);
+        else
+            qunsetenv(m_name.constData());
+    }
+
+private:
+    QByteArray m_name;
+    QByteArray m_original;
+    bool m_hadOriginal;
+};
 
 class ScopedUiLanguage final {
 public:
@@ -380,4 +400,36 @@ TEST(MainWindowActionsTest, PanelShortcutMenuActsOnItsOwnPanelNotTheActiveOne) {
 
     EXPECT_TRUE(right->isThumbnailMode());
     EXPECT_FALSE(left->isThumbnailMode());
+}
+
+// The entry said "Directly Open Archives" while ticking it set
+// archiveAsFolder=false -- it turned archive browsing OFF. Anyone who ticked it
+// to get into archives got the opposite of what it promised.
+TEST(MainWindowActionsTest, TheArchiveEntryIsTickedWhenArchivesOpenAsFolders) {
+    std::setlocale(LC_NUMERIC, "C");
+    ScopedUiLanguage language(QStringLiteral("en"));
+    QTemporaryDir configDir;
+    ASSERT_TRUE(configDir.isValid());
+    EnvironmentGuard config("FILECOMMANDER_CONFIG_HOME", configDir.path().toUtf8());
+
+    {
+        Settings settings;
+        settings.setArchiveAsFolder(true);
+    }
+
+    MainWindow window;
+    QMenu *configMenu = findMenu(window, QStringLiteral("Con&fig"));
+    ASSERT_NE(configMenu, nullptr);
+    openMenu(configMenu);
+
+    QAction *action = window.findChild<QAction *>(QStringLiteral("configDirectArchivesAction"));
+    ASSERT_NE(action, nullptr);
+    EXPECT_TRUE(action->isChecked())
+        << "browsing is on, so the entry that offers it must be ticked";
+
+    // And toggling it has to move the setting the same way, not the opposite.
+    action->trigger();
+    EXPECT_FALSE(Settings().archiveAsFolder());
+    action->trigger();
+    EXPECT_TRUE(Settings().archiveAsFolder());
 }

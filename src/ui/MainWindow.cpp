@@ -876,15 +876,21 @@ void MainWindow::buildTitleBarMenus() {
     addCommandAction(configMenu, QStringLiteral("connectionManager"),
                      tr("Manage Network Connections"));
     configMenu->addSeparator();
+    // Checked means "browse into it", which is what the label says. It used to
+    // be inverted -- the entry read "Directly Open Archives" while ticking it
+    // set archiveAsFolder=false, i.e. turned browsing OFF -- so anyone who
+    // ticked it to get into archives got the opposite. The setting key keeps
+    // its meaning (true = browse as a folder); only the checkbox now agrees
+    // with it, and the label says which of the two things it does.
     QAction *directArchives = configMenu->addAction(
-        commandText(QStringLiteral("toggleDirectArchives"), tr("Directly Open Archives")));
+        commandText(QStringLiteral("toggleDirectArchives"), tr("Open Archives as Folders")));
     directArchives->setObjectName(QStringLiteral("configDirectArchivesAction"));
     directArchives->setCheckable(true);
-    directArchives->setChecked(!m_settings.archiveAsFolder());
+    directArchives->setChecked(m_settings.archiveAsFolder());
     connect(directArchives, &QAction::toggled, this, [this](bool on) {
-        m_settings.setArchiveAsFolder(!on);
-        m_leftPanel->setArchiveAsFolder(!on);
-        m_rightPanel->setArchiveAsFolder(!on);
+        m_settings.setArchiveAsFolder(on);
+        m_leftPanel->setArchiveAsFolder(on);
+        m_rightPanel->setArchiveAsFolder(on);
     });
     QAction *noConfirm = configMenu->addAction(
         commandText(QStringLiteral("toggleDeleteConfirmation"), tr("Skip Trash Delete Confirmation")));
@@ -1182,7 +1188,7 @@ void MainWindow::syncConfigMenuState() {
             action->setChecked(checked);
         }
     };
-    syncChecked(QStringLiteral("configDirectArchivesAction"), !m_settings.archiveAsFolder());
+    syncChecked(QStringLiteral("configDirectArchivesAction"), m_settings.archiveAsFolder());
     syncChecked(QStringLiteral("configDeleteConfirmationAction"), !m_settings.confirmDelete());
     syncChecked(QStringLiteral("configAutoUpdateAction"), m_settings.autoUpdateCheck());
 }
@@ -2573,7 +2579,7 @@ void MainWindow::setupShortcuts() {
                  QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_S), [this] {
                      m_settings.setShowShortcutLabels(!m_settings.showShortcutLabels());
                  });
-    bindShortcut("toggleDirectArchives", tr("Directly Open Archives"),
+    bindShortcut("toggleDirectArchives", tr("Open Archives as Folders"),
                  QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_A), [this] {
                      const bool direct = m_settings.archiveAsFolder();
                      m_settings.setArchiveAsFolder(!direct);
