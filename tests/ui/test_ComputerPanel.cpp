@@ -218,8 +218,58 @@ TEST(ComputerPanelTest, TheSessionSnapshotRecordsARealPathNotTheSyntheticRoot) {
     // would have no way out of it except typing a path.
     const auto snapshot = panel.tabSnapshot();
     ASSERT_FALSE(snapshot.isEmpty());
-    EXPECT_FALSE(snapshot.at(0).first.startsWith(ComputerProvider::rootPath()));
-    EXPECT_EQ(QDir(snapshot.at(0).first).canonicalPath(), QDir(dir.path()).canonicalPath());
+    EXPECT_FALSE(snapshot.at(0).path.startsWith(ComputerProvider::rootPath()));
+    EXPECT_EQ(QDir(snapshot.at(0).path).canonicalPath(), QDir(dir.path()).canonicalPath());
+    // ... and the fact that it WAS the computer view travels beside it, so the
+    // next launch can put the tab back rather than dropping it on the directory
+    // underneath.
+    EXPECT_TRUE(snapshot.at(0).computerView);
+}
+
+TEST(ComputerPanelTest, ASavedComputerTabComesBackAsTheComputerViewNextLaunch) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+
+    // First run: a tab on the computer view, snapshotted the way shutdown does.
+    QVector<FilePanel::RestoredTab> saved;
+    {
+        FilePanel panel;
+        panel.resize(800, 500);
+        panel.show();
+        panel.navigateTo(dir.path());
+        settle(panel);
+        panel.showComputer({makeEntry(ComputerEntry::Kind::Drive, QStringLiteral("C"),
+                                      QStringLiteral("C:/"))});
+        settle(panel);
+        ASSERT_TRUE(panel.isComputerView());
+        saved = panel.tabSnapshot();
+    }
+    ASSERT_EQ(saved.size(), 1);
+    ASSERT_TRUE(saved.at(0).computerView);
+
+    // Next launch. restoreTabs runs before the owner connects its signal, which
+    // is why the panel falls back to the directory first and the owner has to
+    // ask afterwards -- reproducing the real startup order rather than a
+    // convenient one.
+    FilePanel next;
+    next.resize(800, 500);
+    next.show();
+    next.restoreTabs(saved, 0);
+    settle(next);
+    EXPECT_FALSE(next.isComputerView()) << "nothing can build the rows yet";
+    EXPECT_EQ(QDir(next.model()->rootPath()).canonicalPath(), QDir(dir.path()).canonicalPath());
+
+    // The intent survived the fallback, so the owner can act on it once wired.
+    ASSERT_TRUE(next.activeTabWantsComputerView());
+    QObject::connect(&next, &FilePanel::computerViewRequested, &next, [](FilePanel *p) {
+        p->showComputer({makeEntry(ComputerEntry::Kind::Drive, QStringLiteral("C"),
+                                   QStringLiteral("C:/"))});
+    });
+    next.showComputer(
+        {makeEntry(ComputerEntry::Kind::Drive, QStringLiteral("C"), QStringLiteral("C:/"))});
+    settle(next);
+    EXPECT_TRUE(next.isComputerView());
+    EXPECT_EQ(next.model()->rootPath(), ComputerProvider::rootPath());
 }
 
 TEST(ComputerPanelTest, ATabOnTheComputerViewComesBackToItAfterASwitch) {
@@ -468,6 +518,82 @@ TEST(ComputerPanelTest, WithNothingToRebuildItBackFallsBackToTheDirectoryUnderne
     EXPECT_EQ(QDir(panel.model()->rootPath()).canonicalPath(),
               QDir(first.path()).canonicalPath());
     EXPECT_FALSE(panel.model()->rootPath().startsWith(ComputerProvider::rootPath()));
+}
+
+TEST(ComputerPanelTest, TheViewNeverHandsOutItsSyntheticRootAsAWorkingDirectory) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+
+    FilePanel panel;
+    panel.resize(800, 500);
+    panel.show();
+    panel.navigateTo(dir.path());
+    settle(panel);
+
+    panel.showComputer(
+        {makeEntry(ComputerEntry::Kind::Drive, QStringLiteral("C"), QStringLiteral("C:/"))});
+    settle(panel);
+    ASSERT_TRUE(panel.isComputerView());
+
+    // Around two dozen callers ask currentPath() for somewhere to act -- a new
+    // folder, a copy destination, a terminal's cwd. "computer://" is not just
+    // useless to them: QDir("computer://").filePath("x") is "computer:/x", and
+    // creating that makes a real directory named "computer:" in the process's
+    // working directory.
+    EXPECT_FALSE(panel.currentPath().startsWith(ComputerProvider::rootPath()));
+    EXPECT_EQ(QDir(panel.currentPath()).canonicalPath(), QDir(dir.path()).canonicalPath());
+    EXPECT_TRUE(QDir(panel.currentPath()).exists());
+    // The synthetic root is still what the model is listing -- only the answer
+    // given to callers that need a real directory is different.
+    EXPECT_EQ(panel.model()->rootPath(), ComputerProvider::rootPath());
+}
+
+TEST(ComputerPanelTest, NothingInTheViewIsSelectableAsAFile) {
+    FilePanel panel;
+    panel.resize(800, 500);
+    panel.show();
+    panel.showComputer({
+        makeEntry(ComputerEntry::Kind::Drive, QStringLiteral("C"), QStringLiteral("C:/")),
+        makeEntry(ComputerEntry::Kind::SavedServer, QStringLiteral("NAS"),
+                  QStringLiteral("uuid-1")),
+    });
+    settle(panel);
+    ASSERT_EQ(panel.model()->rowCount(), 2);
+
+    panel.selectAll();
+    qApp->processEvents();
+
+    // Copy, move, delete, compress and checksum all begin by asking for the
+    // selection. A "computer://drive/C:/" arriving in one of them is a
+    // confusing failure at best; an empty selection makes them all do nothing,
+    // which is the truth here -- these rows are places, not files.
+    EXPECT_TRUE(panel.selectedPaths().isEmpty());
+    EXPECT_TRUE(panel.selectedEntryInfos().isEmpty());
+}
+
+TEST(ComputerPanelTest, RefreshingTheViewReCollectsTheRows) {
+    FilePanel panel;
+    panel.resize(800, 500);
+    panel.show();
+
+    int rebuilds = 0;
+    QObject::connect(&panel, &FilePanel::computerViewRequested, &panel, [&](FilePanel *p) {
+        ++rebuilds;
+        p->showComputer({makeEntry(ComputerEntry::Kind::Drive, QStringLiteral("C"),
+                                   QStringLiteral("C:/"))});
+    });
+    panel.showComputer(
+        {makeEntry(ComputerEntry::Kind::Drive, QStringLiteral("C"), QStringLiteral("C:/"))});
+    settle(panel);
+    ASSERT_TRUE(panel.isComputerView());
+
+    // Refresh reaches here from F5 and from the panel refresh that follows a
+    // delete or a copy. Replaying the snapshot would keep showing a stick that
+    // has since been pulled out.
+    panel.refresh();
+    settle(panel);
+    EXPECT_EQ(rebuilds, 1);
+    EXPECT_TRUE(panel.isComputerView());
 }
 
 TEST(ComputerPanelTest, TypingAPathInTheAddressBarLeavesTheView) {

@@ -1347,6 +1347,16 @@ void FilePanel::goForward() {
 }
 
 void FilePanel::refresh() {
+    if (m_computerProvider) {
+        // Re-listing would replay the snapshot the view already holds. What a
+        // refresh means here is "go and look again" -- a device may have been
+        // plugged in or pulled out -- so the rows are re-collected. Reached from
+        // F5 and from the panel refresh that follows a delete/move/copy.
+        m_restoringComputerView = true; // a refresh is not a navigation
+        emit computerViewRequested(this);
+        m_restoringComputerView = false;
+        return;
+    }
     if (!m_model->rootPath().isEmpty())
         m_model->setRootPath(m_model->rootPath());
 }
@@ -2011,6 +2021,15 @@ FileInfo FilePanel::currentEntryInfo() const {
 }
 
 QStringList FilePanel::selectedPaths() const {
+    // Nothing is selectable in the computer view: its rows are places, not
+    // files. Every file operation -- copy, move, delete, compress, checksum --
+    // starts here, and a synthetic "computer://drive/C:/" reaching one of them
+    // is at best a confusing failure. Reporting an empty selection is both true
+    // and what makes those operations do nothing, in one place instead of a
+    // guard in each of them. Row-based work (counting a folder's size) goes
+    // through selectedRowNumbers() and is unaffected.
+    if (m_computerProvider)
+        return {};
     QStringList paths;
     for (int row : selectedRowNumbers())
         paths.append(m_model->fileInfoAt(row).path());
@@ -2023,6 +2042,8 @@ QStringList FilePanel::selectedPaths() const {
 }
 
 QVector<FileInfo> FilePanel::selectedEntryInfos() const {
+    if (m_computerProvider)
+        return {}; // see selectedPaths()
     QVector<FileInfo> infos;
     for (int row : selectedRowNumbers())
         infos.append(m_model->fileInfoAt(row));
@@ -2366,6 +2387,18 @@ qreal FilePanel::focusProgress() const {
 }
 
 QString FilePanel::currentPath() const {
+    // The computer view has no working directory -- its rows are places, and
+    // its root is an identifier, not a path. Roughly two dozen callers ask this
+    // for somewhere to act: a new folder, a new file, a copy or extract
+    // destination, a terminal's cwd, the command line's directory. Handing them
+    // "computer://" is not merely useless, it is destructive-adjacent:
+    // QDir("computer://").filePath("x") yields "computer:/x", and creating that
+    // makes a real directory named "computer:" wherever the process happens to
+    // be. So this reports the directory the view was opened from -- a real
+    // place, the one the panel returns to on the way out, and the same answer a
+    // backgrounded tab records.
+    if (m_computerProvider && !m_computerExitDir.isEmpty())
+        return m_computerExitDir;
     return m_model->rootPath();
 }
 
@@ -2734,10 +2767,11 @@ void FilePanel::saveCurrentTabState() {
         // This state is read by the session snapshot taken at shutdown, and that
         // path is handed to the LOCAL provider on the next launch -- restoring
         // the synthetic root would leave the tab pointing at something no
-        // backend can list, with no way back except typing a path.
+        // backend can list, with no way back except typing a path. The flag
+        // beside it is what brings the view itself back.
         tab->path = m_computerExitDir;
+        tab->computerView = true;
         tab->flatPaths.clear();
-        tab->title.clear();
     } else {
         tab->path = m_model->rootPath();
         tab->flatPaths.clear();
@@ -2773,10 +2807,12 @@ void FilePanel::loadTabState(int index) {
             m_computerExitDir = tab->path; // where leaving this tab returns to
             return;
         }
-        // Nobody rebuilt it (no owner connected, or the view is unavailable in
-        // this build). Fall through to the directory the tab records rather than
-        // leaving the pane on whatever the previous tab was showing.
-        tab->computerView = false;
+        // Nobody rebuilt it -- no owner connected yet, which is the normal state
+        // during session restore, since the panel is filled before the signal
+        // that assembles the rows is wired up. Fall through to the directory the
+        // tab records, but KEEP the flag: it is the tab's intent, and clearing
+        // it here would lose it precisely in the case where the owner is about
+        // to arrive. Only a deliberate departure (leaveComputerView) clears it.
         if (tab->title == tr("Computer"))
             tab->title.clear();
     }
@@ -3057,12 +3093,12 @@ void FilePanel::prevTab() {
         m_tabBar->setCurrentIndex((m_tabBar->currentIndex() - 1 + count) % count);
 }
 
-QVector<QPair<QString, QStringList>> FilePanel::tabSnapshot() {
+QVector<FilePanel::RestoredTab> FilePanel::tabSnapshot() {
     saveCurrentTabState(); // flush the live view's path/selection into the active tab
-    QVector<QPair<QString, QStringList>> result;
+    QVector<RestoredTab> result;
     for (int i = 0; i < m_tabManager->count(); ++i) {
         auto tab = m_tabManager->tabAt(i);
-        result.append({tab->path, tab->selectedFiles});
+        result.append({tab->path, tab->selectedFiles, tab->computerView});
     }
     return result;
 }
@@ -3086,6 +3122,11 @@ void FilePanel::connectTabTo(int index, std::shared_ptr<FileProvider> provider,
         return;
     if (index != m_tabBar->currentIndex())
         m_tabBar->setCurrentIndex(index); // park/adopt via onTabBarCurrentChanged
+    // A connection replaces the tab's backend wholesale, so any synthetic one
+    // has to go first -- otherwise the panel would still believe it is showing
+    // the computer view while the model lists a server, and the flag would drag
+    // the view back on the next tab switch.
+    backOutOfVirtualBackend();
     m_model->connectNetwork(provider, std::move(connectFn), initialPath);
     if (authFactory)
         m_model->setAuthContext(label, std::move(authFactory));
@@ -3148,22 +3189,33 @@ void FilePanel::disconnectTab(int index) {
     navigateTo(QStandardPaths::writableLocation(QStandardPaths::HomeLocation));
 }
 
-void FilePanel::restoreTabs(const QVector<QPair<QString, QStringList>> &tabs, int activeIndex) {
+void FilePanel::restoreTabs(const QVector<RestoredTab> &tabs, int activeIndex) {
     if (tabs.isEmpty())
         return;
 
     // Reuse the single tab created in the constructor as tab 0 instead of
     // adding a duplicate empty one.
     auto tab0 = m_tabManager->tabAt(0);
-    tab0->path = tabs.at(0).first;
-    tab0->selectedFiles = tabs.at(0).second;
+    tab0->path = tabs.at(0).path;
+    tab0->selectedFiles = tabs.at(0).selectedFiles;
+    tab0->computerView = tabs.at(0).computerView;
 
     for (int i = 1; i < tabs.size(); ++i) {
-        const int idx = m_tabManager->addTab(tabs.at(i).first);
-        m_tabManager->tabAt(idx)->selectedFiles = tabs.at(i).second;
+        const int idx = m_tabManager->addTab(tabs.at(i).path);
+        m_tabManager->tabAt(idx)->selectedFiles = tabs.at(i).selectedFiles;
+        m_tabManager->tabAt(idx)->computerView = tabs.at(i).computerView;
     }
 
     const int clamped = qBound(0, activeIndex, m_tabManager->count() - 1);
     m_tabManager->setActiveIndex(clamped);
     syncTabBarFromManager(); // rebuilds the tab bar and loads the (now correct) active tab
+}
+
+bool FilePanel::activeTabWantsComputerView() const {
+    // Read from the tab, not from isComputerView(): during a session restore
+    // loadTabState has already run and fallen back to the directory, because
+    // the owner had not yet connected the signal that assembles the rows. The
+    // tab keeps the intent, so the owner can act on it once it can.
+    auto tab = m_tabManager->activeTab();
+    return tab && tab->computerView;
 }

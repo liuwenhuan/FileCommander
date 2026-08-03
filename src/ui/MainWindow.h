@@ -249,6 +249,11 @@ private:
     // Everything the computer view lists, assembled from the catalog plus the
     // device monitor and host browser this window owns.
     QVector<ComputerEntry> computerEntries();
+    // Panels that must enter the computer view once the signal that
+    // assembles its rows is connected -- a first launch's left pane, and any
+    // tab the previous session left on the view. Both are decided while the
+    // panels are being filled, which happens before that wiring exists.
+    QVector<FilePanel *> m_startupComputerViewPanels;
     // Modal username/password prompt shown when a server needs credentials.
     // Returns true and fills *user/*pass on OK, false on cancel.
     bool promptCredentials(const QString &host, QString *user, QString *pass,
@@ -300,8 +305,11 @@ private:
     };
     UndoRecord m_lastUndo;
 
-    FilePanel *m_leftPanel;
-    FilePanel *m_rightPanel;
+    // Initialised, because anything the constructor triggers before it reaches
+    // the panel construction can reach these -- and a raw uninitialised pointer
+    // passes a null check.
+    FilePanel *m_leftPanel = nullptr;
+    FilePanel *m_rightPanel = nullptr;
     FilePanel *m_activePanel = nullptr;
     FunctionKeyBar *m_functionKeyBar;
     CommandBar *m_commandBar;

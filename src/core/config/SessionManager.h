@@ -13,6 +13,10 @@ struct SessionTabData {
     // A network tab's reconnect descriptor (conn.host empty => local tab), so the
     // server and its tab label are re-established on next launch.
     SavedConnection conn;
+    // This tab was on the computer view. `path` still holds the directory the
+    // view was opened from, so a launch that cannot rebuild the view (or a
+    // reader that knows nothing about it) still finds a real place to go.
+    bool computerView = false;
 };
 
 struct SessionPanelData {

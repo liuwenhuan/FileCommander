@@ -151,7 +151,7 @@ TEST(TabMotion, RestoredActiveTabActivatesAfterStateIsInstalled) {
     ASSERT_NE(tabBar, nullptr);
     ASSERT_EQ(tabBar->count(), 1);
 
-    panel.restoreTabs({{QDir::rootPath(), {}}, {QDir::homePath(), {}}}, 1);
+    panel.restoreTabs({{QDir::rootPath(), {}, false}, {QDir::homePath(), {}, false}}, 1);
 
     EXPECT_EQ(tabBar->count(), 2);
     EXPECT_EQ(tabBar->currentIndex(), 1);

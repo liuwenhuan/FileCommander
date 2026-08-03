@@ -217,13 +217,27 @@ public:
     void showQuickFilter();
     void hideQuickFilter();
 
+    // One tab as the session records it. `computerView` tabs still carry the
+    // directory the view was opened from, which is where they go if the view
+    // cannot be rebuilt.
+    struct RestoredTab {
+        QString path;
+        QStringList selectedFiles;
+        bool computerView = false;
+    };
+
     // Session persistence: plain Qt types (not TabState) so MainWindow can
     // hand these to core/config's SessionManager without ui depending on
     // it, or core depending on ui.
-    QVector<QPair<QString, QStringList>> tabSnapshot();
+    QVector<RestoredTab> tabSnapshot();
     int activeTabIndex() const { return m_tabManager->activeIndex(); }
     int tabCount() const { return m_tabManager->count(); }
-    void restoreTabs(const QVector<QPair<QString, QStringList>> &tabs, int activeIndex);
+    void restoreTabs(const QVector<RestoredTab> &tabs, int activeIndex);
+    // Whether the tab that ends up active was on the computer view. The owner
+    // asks after restoring, because restoreTabs runs before it has wired up the
+    // signal that assembles the rows -- so entering the view has to wait until
+    // it can actually be answered.
+    bool activeTabWantsComputerView() const;
     // Per-tab reconnect descriptor (host empty => local tab), for session save.
     SavedConnection tabConnInfo(int index) const;
     // Records the reconnect descriptor onto the active tab (set right after a

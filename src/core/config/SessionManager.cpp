@@ -24,6 +24,7 @@ void savePanel(QSettings &settings, const QString &group, const SessionPanelData
         settings.setArrayIndex(i);
         settings.setValue("path", panel.tabs.at(i).path);
         settings.setValue("selectedFiles", panel.tabs.at(i).selectedFiles);
+        settings.setValue("computerView", panel.tabs.at(i).computerView);
         // Network reconnect descriptor -- only written for a network tab (non-empty
         // host). Password is NOT stored here; it lives in the keyring under `id`
         // (bookmark connections) or relies on key-auth / a re-prompt.
@@ -56,6 +57,7 @@ bool loadPanel(QSettings &settings, const QString &group, SessionPanelData &pane
         SessionTabData tab;
         tab.path = settings.value("path").toString();
         tab.selectedFiles = settings.value("selectedFiles").toStringList();
+        tab.computerView = settings.value("computerView", false).toBool();
         tab.conn.host = settings.value("conn/host").toString();
         if (!tab.conn.host.isEmpty()) {
             tab.conn.protocol = settings.value("conn/protocol").toInt();

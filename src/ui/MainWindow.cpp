@@ -600,14 +600,15 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
         // Drop tabs whose removable medium is gone (device unplugged while the
         // app was closed), keeping the active-tab index pointing at a survivor.
         auto buildTabs = [](const SessionPanelData &s, int &activeOut) {
-            QVector<QPair<QString, QStringList>> tabs;
+            QVector<FilePanel::RestoredTab> tabs;
             int active = 0;
             for (int i = 0; i < s.tabs.size(); ++i) {
                 if (isMissingRemovablePath(s.tabs.at(i).path))
                     continue;
                 if (i < s.activeTab)
                     ++active; // this kept tab sits before the old active one
-                tabs.append({s.tabs.at(i).path, s.tabs.at(i).selectedFiles});
+                tabs.append({s.tabs.at(i).path, s.tabs.at(i).selectedFiles,
+                             s.tabs.at(i).computerView});
             }
             activeOut = qBound(0, active, qMax(0, tabs.size() - 1));
             return tabs;
@@ -623,9 +624,22 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
             m_rightPanel->navigateTo(home);
         else
             m_rightPanel->restoreTabs(rightTabs, rightActive);
+        // A restored tab that was on the computer view has fallen back to its
+        // directory, because restoreTabs runs before computerViewRequested is
+        // connected. Note it and enter the view once that wiring exists.
+        for (FilePanel *panel : {m_leftPanel, m_rightPanel})
+            if (panel->activeTabWantsComputerView())
+                m_startupComputerViewPanels.append(panel);
     } else {
+        // First launch: the left pane opens on the computer view -- drives, the
+        // user folders, whatever is plugged in -- so the first thing shown is a
+        // way to everywhere, and the right pane on the home directory to copy
+        // to and from. The view itself is entered further down, once the signal
+        // that assembles its rows exists.
         m_leftPanel->navigateTo(home);
         m_rightPanel->navigateTo(home);
+
+        m_startupComputerViewPanels.append(m_leftPanel);
     }
     if (m_collectStartupPhases)
         m_startupSessionNavigationDispatchedMs = elapsedSinceStartup();
@@ -749,6 +763,13 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
         });
         connect(panel, &FilePanel::archiveDownloadRequested, this, &MainWindow::browseRemoteArchive);
     }
+
+    // Now that computerViewRequested is connected, the panels noted above can
+    // actually be put into the computer view -- a first launch's left pane, and
+    // any tab the last session left on it.
+    for (FilePanel *panel : m_startupComputerViewPanels)
+        showComputerView(panel);
+    m_startupComputerViewPanels.clear();
 
     setActivePanel(m_leftPanel);
     m_leftPanel->view()->setFocus();
@@ -1411,6 +1432,11 @@ void MainWindow::setupFeatureBatch() {
     // startup has better things to do with the disk; see
     // ThumbnailCache::scheduleMaintenance().
     ThumbnailCache::instance().scheduleMaintenance();
+
+    // A computer view opened before this point is missing its removable-media
+    // and network-neighbourhood sections, because the monitors that supply them
+    // did not exist yet. They do now, so fill them in.
+    refreshComputerViews();
 }
 
 void MainWindow::openFolders(const QStringList &folders) {
@@ -2192,7 +2218,13 @@ void MainWindow::browseSmbHost(const QString &hostName) {
 }
 
 QVector<ComputerEntry> MainWindow::computerEntries() {
-    setupFeatureBatch(); // brings up the device monitor / host browser on demand
+    // Deliberately does NOT force setupFeatureBatch(). Drives, user folders and
+    // saved bookmarks need nothing but QStorageInfo, QStandardPaths and the
+    // bookmark store, so the view can be built during startup without dragging
+    // the device monitor and the SMB browser in front of the first paint --
+    // which they are deliberately deferred past. The two sections that do need
+    // them are simply absent until they exist, and setupFeatureBatch refreshes
+    // any open view once it has them.
 
     // Removable media first, because the drive list is filtered against it: on
     // Windows a plugged-in stick is also a drive letter, and listing it in both
@@ -2230,32 +2262,12 @@ QVector<ComputerEntry> MainWindow::computerEntries() {
     entries += ComputerCatalog::userFolders();
     entries += removable;
     entries += ComputerCatalog::savedServers();
-
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION || (defined(Q_OS_WIN) && FILECOMMANDER_HAS_NETWORK)
-    if (m_smbBrowser) {
-        // cachedHosts() is the accumulated, deduped result of every discovery
-        // source, so re-reading it on each refresh is enough -- there is no need
-        // to merge the incremental hostsDiscovered batches here as well.
-        for (const SmbHost &host : m_smbBrowser->cachedHosts()) {
-            ComputerEntry entry;
-            entry.kind = ComputerEntry::Kind::NetworkHost;
-            // "name (ip)" when both are known, so the user can tell which
-            // machine each row is; whichever one is known otherwise.
-            if (host.name.isEmpty())
-                entry.name = host.address;
-            else if (host.address.isEmpty())
-                entry.name = host.name;
-            else
-                entry.name = QStringLiteral("%1 (%2)").arg(host.name, host.address);
-            // Connect BY the address when known: a NetBIOS name like "DEEPIN-PC"
-            // may not resolve through DNS.
-            entry.target = host.address.isEmpty() ? host.name : host.address;
-            entry.iconPath = QStringLiteral(":/icons/dev-smb.svg");
-            if (!entry.target.isEmpty())
-                entries.append(entry);
-        }
-    }
-#endif
+    // Discovered SMB hosts are deliberately NOT listed here. Filling this view
+    // would mean running a network scan every time it opens, for results that
+    // are a browse of the neighbourhood rather than a place on this machine;
+    // the connect fly-out is where that belongs and still offers it. What is
+    // left is what the view is for: this computer's disks, whatever is plugged
+    // into it, its user folders, and the servers already bookmarked.
     return entries;
 }
 
@@ -2263,15 +2275,12 @@ void MainWindow::showComputerView(FilePanel *panel) {
     if (!panel)
         return;
 
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION || (defined(Q_OS_WIN) && FILECOMMANDER_HAS_NETWORK)
-    setupFeatureBatch();
-    if (m_smbBrowser) {
-        // Seeded from the cache immediately; a scan only starts if that cache
-        // has gone stale. Hosts appear in the listing as they are reported.
-        m_smbBrowser->startDiscovery(false);
-        connect(m_smbBrowser, &SmbHostBrowser::hostsDiscovered, this,
-                &MainWindow::refreshComputerViews, Qt::UniqueConnection);
-    }
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
+    // Only once the window is up. During construction this would pull the
+    // device monitor in ahead of the first paint, which the startup path exists
+    // to avoid; setupFeatureBatch refreshes the view itself when it later runs.
+    if (isVisible())
+        setupFeatureBatch();
     if (m_deviceMonitor)
         connect(m_deviceMonitor, &RemovableDeviceMonitor::devicesChanged, this,
                 &MainWindow::refreshComputerViews, Qt::UniqueConnection);
@@ -5025,8 +5034,9 @@ void MainWindow::closeEvent(QCloseEvent *event) {
         const auto snap = panel->tabSnapshot();
         for (int i = 0; i < snap.size(); ++i) {
             SessionTabData t;
-            t.path = snap.at(i).first;
-            t.selectedFiles = snap.at(i).second;
+            t.path = snap.at(i).path;
+            t.selectedFiles = snap.at(i).selectedFiles;
+            t.computerView = snap.at(i).computerView;
             t.conn = panel->tabConnInfo(i); // network reconnect descriptor (host empty => local)
             data.tabs.append(t);
         }
