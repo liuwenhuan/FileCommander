@@ -47,7 +47,13 @@ SearchDialog::SearchDialog(const QString &initialPath, std::shared_ptr<FileProvi
 
     m_searchButton = new QPushButton(tr("Search"), this);
     connect(m_searchButton, &QPushButton::clicked, this, &SearchDialog::onSearchButtonClicked);
-    connect(m_patternEdit, &QLineEdit::returnPressed, this, &SearchDialog::startSearch);
+    // Return is handled ONLY here, through the button, and deliberately not by
+    // also connecting QLineEdit::returnPressed. A QLineEdit emits that signal
+    // and then ignores the key, so the dialog hands it to the default button
+    // too -- which meant one Return started the search and immediately pressed
+    // "Stop search" on it. The search ran for a few milliseconds and the user
+    // saw an empty result list.
+    m_searchButton->setDefault(true);
 
     m_resultsList = new QListWidget(this);
     // Every row is a single line of the same height; telling the view so lets it
@@ -62,6 +68,10 @@ SearchDialog::SearchDialog(const QString &initialPath, std::shared_ptr<FileProvi
     // Lists every current result in the active file panel (flat, cross-directory
     // "feed to listbox" view) rather than navigating to a single one.
     m_feedButton = new QPushButton(tr("Send to panel"), this);
+    // Buttons in a dialog are auto-default, and whichever comes first wins the
+    // Return key. Take this one out of the running so the search button keeps
+    // it no matter how the layout is rearranged later.
+    m_feedButton->setAutoDefault(false);
     m_feedButton->setToolTip(tr("Show all results in the active panel as a flat list"));
     connect(m_feedButton, &QPushButton::clicked, this, &SearchDialog::feedToPanel);
     if (m_provider) {

@@ -13,6 +13,8 @@ set(PLATFORM_SOURCES
     FolderArguments.cpp
     InstanceCoordinator.h
     InstanceCoordinator.cpp
+    TerminalLauncher.h
+    TerminalLauncher.cpp
 )
 if(WIN32)
     list(APPEND PLATFORM_SOURCES

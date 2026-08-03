@@ -81,6 +81,7 @@
 
 #include "ArchiveHandler.h"
 #include "CommandBar.h"
+#include "TerminalLauncher.h"
 #include "TranslationManager.h"
 #include "CompressDialog.h"
 #include "FilePanel.h"
@@ -3217,19 +3218,19 @@ void MainWindow::swapPanels() {
 void MainWindow::openTerminalHere() {
     if (!m_activePanel)
         return;
-    const QString cwd = m_activePanel->currentPath();
-    static const QStringList terminals = {QStringLiteral("deepin-terminal"),
-                                          QStringLiteral("x-terminal-emulator"),
-                                          QStringLiteral("gnome-terminal"),
-                                          QStringLiteral("konsole"),
-                                          QStringLiteral("xfce4-terminal"),
-                                          QStringLiteral("xterm")};
-    for (const QString &term : terminals) {
-        if (!QStandardPaths::findExecutable(term).isEmpty()) {
-            QProcess::startDetached(term, {}, cwd);
-            return;
-        }
+    // A terminal's working directory is a path on THIS machine. A network or
+    // archive tab's path belongs to the server or to the archive, and handing
+    // it over either fails or -- worse -- silently opens a shell in a
+    // same-named local directory.
+    FileProvider *provider = m_activePanel->model()->provider();
+    if (provider && !provider->isLocalFilesystem()) {
+        ttc::information(this, tr("Open Terminal"),
+                         tr("This tab is not showing local files, so there is no directory "
+                            "on this computer for a terminal to start in."));
+        return;
     }
+    if (fc::openTerminalAt(m_activePanel->currentPath()))
+        return;
     ttc::warning(this, tr("Open Terminal"), tr("No terminal emulator found."));
 }
 

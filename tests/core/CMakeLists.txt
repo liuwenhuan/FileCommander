@@ -29,6 +29,7 @@ set(CORE_TEST_SOURCES
     platform/test_FeatureCapabilities.cpp
     platform/test_FolderArguments.cpp
     platform/test_InstanceCoordinator.cpp
+    platform/test_TerminalLauncher.cpp
 )
 
 if(FILECOMMANDER_ENABLE_NETWORK)
