@@ -13,36 +13,18 @@
 #include <gtest/gtest.h>
 
 #include <QDir>
-#include <QEventLoop>
-#include <QImage>
 #include <QElapsedTimer>
-#include <QFile>
+#include <QEventLoop>
+#include <QFileInfo>
+#include <QImage>
 #include <QPixmap>
 #include <QSet>
-#include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTimer>
 
 #include "ThumbnailCache.h"
 
 namespace {
-
-// Redirects QStandardPaths (and so the thumbnail cache directory) at a
-// throwaway location for the duration of one test, then restores it -- the
-// cache is a process-wide singleton shared with the other thumbnail tests.
-// (test_main.cpp now enables test mode for the whole run, so this is usually a
-// no-op -- it restores whatever was in effect rather than forcing it off, which
-// would hand every later test the developer's real cache directory back.)
-class TestModePaths {
-public:
-    TestModePaths() : m_previous(QStandardPaths::isTestModeEnabled()) {
-        QStandardPaths::setTestModeEnabled(true);
-    }
-    ~TestModePaths() { QStandardPaths::setTestModeEnabled(m_previous); }
-
-private:
-    bool m_previous;
-};
 
 class ScopedPath {
 public:
@@ -55,39 +37,15 @@ private:
     QByteArray m_previous;
 };
 
-QString cacheDir() {
-    return QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
-           + QStringLiteral("/FileCommander/thumbnails");
-}
+// Asked of the cache rather than recomputed from QStandardPaths, so these
+// counts follow the per-test root test_main.cpp installs. Deriving the path
+// independently is how a test ends up counting some other directory entirely.
+QString cacheDir() { return ThumbnailCache::cacheDirectory(); }
 
 int storedThumbnailCount() {
     return QDir(cacheDir())
         .entryList({QStringLiteral("*.jpg"), QStringLiteral("*.png")}, QDir::Files)
         .count();
-}
-
-// Lets any generation still in flight from an earlier test finish and write
-// its file, so wiping afterwards leaves a genuinely empty directory. Without
-// this the file counts below could pick up a late arrival from a neighbouring
-// test and fail for a reason that has nothing to do with this one.
-void drainPendingWork(int ms = 500) {
-    QElapsedTimer timer;
-    timer.start();
-    while (timer.elapsed() < ms) {
-        QEventLoop loop;
-        QTimer::singleShot(10, &loop, &QEventLoop::quit);
-        loop.exec();
-    }
-}
-
-// Empties the thumbnail cache directory so the counts below start from zero.
-void resetDiskCache() {
-    drainPendingWork();
-    QDir().mkpath(cacheDir());
-    for (const QString &f : QDir(cacheDir())
-                                .entryList({QStringLiteral("*.jpg"), QStringLiteral("*.png")},
-                                           QDir::Files))
-        QFile::remove(cacheDir() + QLatin1Char('/') + f);
 }
 
 // Spins the event loop until `path` has a thumbnail at `size`, or the deadline
@@ -165,10 +123,8 @@ TEST(ThumbnailStorageSizeTest, CollapsesTheZoomLadderOntoFewRungs) {
 // The behaviour a user feels: after a directory is cached, changing zoom by one
 // step is served from what is already stored rather than regenerating it.
 TEST(ThumbnailCacheReuseTest, ZoomStepsOnOneRungShareASingleStoredThumbnail) {
-    TestModePaths testPaths;
     QTemporaryDir source;
     ASSERT_TRUE(source.isValid());
-    resetDiskCache();
     ASSERT_EQ(storedThumbnailCount(), 0);
 
     const QString image = writeTestImage(QDir(source.path()), QStringLiteral("a.png"), 400);
@@ -200,10 +156,8 @@ TEST(ThumbnailCacheReuseTest, ZoomStepsOnOneRungShareASingleStoredThumbnail) {
 // Crossing to another rung is allowed to generate -- the sharing must not be
 // achieved by quietly handing back a wrong-sized bitmap.
 TEST(ThumbnailCacheReuseTest, CrossingARungStoresASecondThumbnail) {
-    TestModePaths testPaths;
     QTemporaryDir source;
     ASSERT_TRUE(source.isValid());
-    resetDiskCache();
     ASSERT_EQ(storedThumbnailCount(), 0);
 
     const QString image = writeTestImage(QDir(source.path()), QStringLiteral("b.png"), 800);
@@ -224,8 +178,6 @@ TEST(ThumbnailCacheReuseTest, CrossingARungStoresASecondThumbnail) {
 
 #ifdef Q_OS_WIN
 TEST(ThumbnailCacheReuseTest, WindowsVideoThumbnailDoesNotNeedFfmpegOnPath) {
-    TestModePaths testPaths;
-    resetDiskCache();
     ScopedPath noFfmpeg{QByteArray()};
 
     const QString video = QStringLiteral(TTC_WMF_FIXTURE_DIR "/video-h264.mp4");

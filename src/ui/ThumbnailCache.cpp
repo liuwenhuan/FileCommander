@@ -132,6 +132,21 @@ QString extensionOf(const QString &path) {
     return FileInfo::suffixForName(QFileInfo(path).fileName()).toLower();
 }
 
+// Backing store for setCacheDirectoryForTest(). Empty in a real run, in which
+// case cacheDirectory() falls through to QStandardPaths as it always has.
+// Function-local statics rather than namespace-scope objects so there is no
+// initialisation order to get wrong: a worker thread may read this the first
+// time anything asks for a cache path.
+QString &cacheDirectoryOverride() {
+    static QString dir;
+    return dir;
+}
+
+QMutex &cacheDirectoryOverrideMutex() {
+    static QMutex mutex;
+    return mutex;
+}
+
 // Byte budgets for a *remote* thumbnail, deliberately far below the 100 MB
 // QuickView allows: this runs unattended while the user scrolls, so it must
 // cost pennies per file rather than be merely bounded.
@@ -815,8 +830,30 @@ QString ThumbnailCache::remoteCacheKey(const QString &connectionId, const QStrin
 }
 
 QString ThumbnailCache::cacheDirectory() {
+    {
+        QMutexLocker locker(&cacheDirectoryOverrideMutex());
+        if (!cacheDirectoryOverride().isEmpty())
+            return cacheDirectoryOverride();
+    }
     return QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
            + QStringLiteral("/FileCommander/thumbnails");
+}
+
+void ThumbnailCache::setCacheDirectoryForTest(const QString &dir) {
+    QMutexLocker locker(&cacheDirectoryOverrideMutex());
+    cacheDirectoryOverride() = dir;
+}
+
+int ThumbnailCache::inFlightCountForTest() {
+    int pending = 0;
+    {
+        QMutexLocker locker(&m_mutex);
+        pending = m_pending.size();
+    }
+    // Counted outside the lock above rather than in it: the fetcher has a mutex
+    // of its own, and nesting the two here would be the only place in the class
+    // that orders them, which is exactly how a deadlock gets introduced later.
+    return pending + m_remote.outstanding();
 }
 
 QString ThumbnailCache::diskCachePath(const QString &key, ThumbnailDiskFormat format) {
