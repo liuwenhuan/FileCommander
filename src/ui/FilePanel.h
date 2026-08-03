@@ -274,6 +274,17 @@ public:
     // rename, etc. should all act on this one so they work in both modes.
     QAbstractItemView *activeView() const;
 
+    // Whether currentPath() names a directory that can actually be written to.
+    //
+    // False for a flat search listing: those rows come from many directories at
+    // once, so the tab has no single "here". currentPath() still answers with
+    // the model's root -- whatever directory the tab was showing before the
+    // results replaced it -- which is a real path and therefore silently
+    // plausible. Creating a folder there succeeded, put it somewhere the user
+    // was not looking, and the flat list could not show it, so it read as a
+    // silent failure. Callers that need somewhere to act must ask this first.
+    bool hasWorkingDirectory() const { return m_flatPaths.isEmpty(); }
+
     // True while browsing inside an archive: the backend is read-only, so
     // MainWindow blocks write ops (delete/rename/mkdir/move-in/paste) here.
     bool isArchive() const { return m_archiveProvider != nullptr; }

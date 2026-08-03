@@ -295,6 +295,10 @@ private:
     // If `panel` is browsing a (read-only) archive, warn and return true so the
     // caller aborts the write op. Null panel → false.
     bool blockArchiveWrite(FilePanel *panel);
+    // Refuses an operation that needs a directory to act in when the panel is
+    // showing a flat search listing, which has none. Returns true when it said
+    // so and the caller should stop.
+    bool blockWithoutWorkingDirectory(FilePanel *panel, const QString &title);
     // Smart-extracts `archivePath` into `destDir`, prompting to recurse into a
     // single nested archive. Shared by the "Extract Here/To..." context actions.
     void smartExtractArchive(const QString &archivePath, const QString &destDir);

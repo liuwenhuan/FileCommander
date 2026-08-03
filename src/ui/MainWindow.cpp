@@ -3118,6 +3118,8 @@ void MainWindow::copyPathToCommandLine() {
 void MainWindow::createNewTextFile() {
     if (!m_activePanel || blockArchiveWrite(m_activePanel))
         return;
+    if (blockWithoutWorkingDirectory(m_activePanel, tr("New Text File")))
+        return;
     // Creating the file needs a real writable path, which only a local tab has.
     if (m_activePanel->model()->providerPtr().get() != LocalFileProvider::instance()) {
         ttc::information(this, tr("New Text File"),
@@ -4792,6 +4794,19 @@ void MainWindow::editCurrent() {
     });
 }
 
+// A flat search listing spans many directories, so "create it here" has no
+// answer. Saying so beats currentPath()'s fallback, which is a real directory
+// and therefore creates the thing somewhere the user cannot see it.
+bool MainWindow::blockWithoutWorkingDirectory(FilePanel *panel, const QString &title) {
+    if (!panel || panel->hasWorkingDirectory())
+        return false;
+    ttc::information(this, title,
+                     tr("This tab lists results from several directories, so there is no "
+                        "single folder to create it in. Open one of the results' folders "
+                        "first."));
+    return true;
+}
+
 bool MainWindow::blockArchiveWrite(FilePanel *panel) {
     if (!panel || !panel->isArchive())
         return false;
@@ -4891,6 +4906,8 @@ void MainWindow::makeDirectory() {
     if (!m_activePanel)
         return;
     if (blockArchiveWrite(m_activePanel))
+        return;
+    if (blockWithoutWorkingDirectory(m_activePanel, tr("New Folder")))
         return;
     bool ok = false;
     const QString name =
