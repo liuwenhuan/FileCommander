@@ -1021,3 +1021,60 @@ TEST(UpdaterResumeTest, AnAlreadyVerifiedPackageIsNotDownloadedTwice) {
     EXPECT_EQ(server.requestCount(QStringLiteral("/pkg.zip")), 1)
         << "the package was fetched again although a verified copy was on disk";
 }
+
+// --- the optional store link -----------------------------------------------
+//
+// The client announces a release and hands the user the address; if the
+// manifest names a store page, it offers that too. Neither is fetched here --
+// they end up in QDesktopServices::openUrl, which is why the same http(s)-only
+// rule that guards the package URL guards this one.
+
+TEST(UpdateManifestTest, PicksUpAStoreLinkFromTheSegmentOrTheRoot) {
+    UpdateInfo info;
+    QString error;
+
+    const QByteArray perSegment =
+        "{\"version\": \"0.3.0\","
+        " \"storeUrl\": \"https://shared.example.com/app\","
+        " \"windows\": {\"url\": \"https://example.com/pkg.zip\", \"sha256\": \""
+        + kAnyHash.toUtf8() + "\", \"storeUrl\": \"https://apps.microsoft.com/detail/x\"}}";
+    ASSERT_EQ(UpdateChecker::parseManifest(perSegment, "0.2.0", "windows", &info, &error),
+              UpdateChecker::ParseResult::UpdateAvailable)
+        << error.toStdString();
+    EXPECT_EQ(info.storeUrl, QStringLiteral("https://apps.microsoft.com/detail/x"))
+        << "the platform's own store link must win over the shared one";
+
+    const QByteArray rootOnly = "{\"version\": \"0.3.0\","
+                                " \"storeUrl\": \"https://shared.example.com/app\","
+                                " \"windows\": {\"url\": \"https://example.com/pkg.zip\","
+                                " \"sha256\": \"" + kAnyHash.toUtf8() + "\"}}";
+    ASSERT_EQ(UpdateChecker::parseManifest(rootOnly, "0.2.0", "windows", &info, &error),
+              UpdateChecker::ParseResult::UpdateAvailable);
+    EXPECT_EQ(info.storeUrl, QStringLiteral("https://shared.example.com/app"));
+}
+
+TEST(UpdateManifestTest, AStoreLinkIsOptionalAndAnUnusableOneIsDropped) {
+    UpdateInfo info;
+    QString error;
+
+    // Absent: the release is still perfectly valid, there is just no button.
+    ASSERT_EQ(UpdateChecker::parseManifest(manifestJson("0.3.0", "windows", kAnyUrl, kAnyHash),
+                                           "0.2.0", "windows", &info, &error),
+              UpdateChecker::ParseResult::UpdateAvailable);
+    EXPECT_TRUE(info.storeUrl.isEmpty());
+
+    // Present but not something we are willing to open. Dropping it beats
+    // rejecting the whole manifest: the release itself is still fine.
+    for (const QString &bad : {QStringLiteral("file:///etc/passwd"),
+                               QStringLiteral("javascript:alert(1)"),
+                               QStringLiteral("ms-windows-store://pdp/?productid=x")}) {
+        SCOPED_TRACE(bad.toStdString());
+        const QByteArray body = "{\"version\": \"0.3.0\", \"storeUrl\": \"" + bad.toUtf8()
+                                + "\", \"windows\": {\"url\": \"https://example.com/pkg.zip\","
+                                  " \"sha256\": \"" + kAnyHash.toUtf8() + "\"}}";
+        ASSERT_EQ(UpdateChecker::parseManifest(body, "0.2.0", "windows", &info, &error),
+                  UpdateChecker::ParseResult::UpdateAvailable)
+            << error.toStdString();
+        EXPECT_TRUE(info.storeUrl.isEmpty());
+    }
+}

@@ -3,7 +3,7 @@
 #include <QApplication>
 #include <QDate>
 #include <QLabel>
-#include <QProgressBar>
+#include <QLineEdit>
 #include <QPushButton>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -19,11 +19,16 @@
 
 #include "version.h"
 
-// The user-facing half of the online updater: the badge that says a release
-// exists, and the dialog that applies it. Neither reaches the network here --
-// what is being checked is that the states the updater can report are all
-// rendered, including the ones that only happen when something goes wrong.
+// The user-facing half of the update check: the badge that says a release
+// exists, and the dialog that says where to get it. Nothing here downloads or
+// installs anything -- updates arrive through the Microsoft Store or by the
+// user fetching the package themselves -- so what these assert is that the
+// dialog hands over everything needed to do that by hand.
 namespace {
+
+QPushButton *buttonNamed(QWidget &parent, const QString &name) {
+    return parent.findChild<QPushButton *>(name);
+}
 
 QPushButton *buttonWithText(QWidget &parent, const QString &text) {
     for (QPushButton *button : parent.findChildren<QPushButton *>())
@@ -84,10 +89,6 @@ TEST(UpdateDialogTest, ShowsTheReleaseAgainstTheRunningVersion) {
     ASSERT_NE(notes, nullptr);
     EXPECT_EQ(notes->toPlainText(), QStringLiteral("first line\nsecond line"));
     EXPECT_TRUE(notes->isReadOnly());
-
-    auto *progress = dialog.findChild<QProgressBar *>();
-    ASSERT_NE(progress, nullptr);
-    EXPECT_TRUE(progress->isHidden()) << "no progress bar before anything is downloading";
 }
 
 TEST(UpdateDialogTest, ReleaseWithoutNotesStillSaysSomething) {
@@ -100,54 +101,72 @@ TEST(UpdateDialogTest, ReleaseWithoutNotesStillSaysSomething) {
     EXPECT_FALSE(notes->toPlainText().isEmpty()) << "an empty notes box looks like a broken dialog";
 }
 
-TEST(UpdateDialogTest, LaterDismissesWithoutStartingAnything) {
-    UpdateDialog dialog(sampleRelease());
-    QPushButton *later = buttonWithText(dialog, QStringLiteral("Later"));
-    ASSERT_NE(later, nullptr);
-    QSignalSpy restart(&dialog, &UpdateDialog::restartRequested);
+// Fetching the package is the user's job now, so the address has to be
+// available to copy -- not just behind a button that launches a browser, which
+// is not always what somebody wants or is even able to do.
+TEST(UpdateDialogTest, OffersTheDownloadAddressAsSelectableText) {
+    const UpdateInfo info = sampleRelease();
+    UpdateDialog dialog(info);
 
-    later->click();
+    EXPECT_EQ(dialog.downloadUrlText(), info.url);
+    auto *field = dialog.findChild<QLineEdit *>(QStringLiteral("UpdateDownloadUrl"));
+    ASSERT_NE(field, nullptr);
+    EXPECT_TRUE(field->isReadOnly()) << "the address must not be editable";
+    EXPECT_TRUE(field->isEnabled()) << "a disabled field cannot be selected or copied";
+
+    ASSERT_NE(buttonNamed(dialog, QStringLiteral("UpdateDownloadButton")), nullptr);
+    EXPECT_TRUE(buttonNamed(dialog, QStringLiteral("UpdateDownloadButton"))->isEnabled());
+}
+
+// Verification used to happen inside the installer. With the download handed
+// back to the user, publishing the checksum is the only way they can make the
+// same check the application used to make for them.
+TEST(UpdateDialogTest, PublishesTheChecksumSoAManualDownloadCanBeVerified) {
+    const UpdateInfo info = sampleRelease();
+    UpdateDialog dialog(info);
+
+    EXPECT_EQ(dialog.checksumText(), info.sha256);
+    auto *field = dialog.findChild<QLineEdit *>(QStringLiteral("UpdateChecksum"));
+    ASSERT_NE(field, nullptr);
+    EXPECT_TRUE(field->isReadOnly());
+    EXPECT_TRUE(field->isEnabled());
+}
+
+TEST(UpdateDialogTest, ShowsTheStoreOnlyWhenTheManifestNamesOne) {
+    UpdateInfo withoutStore = sampleRelease();
+    UpdateDialog plain(withoutStore);
+    EXPECT_FALSE(plain.hasStoreButton())
+        << "offering a store the manifest never mentioned would be a dead end";
+
+    UpdateInfo withStore = sampleRelease();
+    withStore.storeUrl = QStringLiteral("https://apps.microsoft.com/detail/example");
+    UpdateDialog store(withStore);
+    EXPECT_TRUE(store.hasStoreButton());
+    ASSERT_NE(buttonNamed(store, QStringLiteral("UpdateStoreButton")), nullptr);
+}
+
+TEST(UpdateDialogTest, ClosingDismissesIt) {
+    UpdateDialog dialog(sampleRelease());
+    QPushButton *close = buttonWithText(dialog, QStringLiteral("Close"));
+    ASSERT_NE(close, nullptr);
+
+    close->click();
 
     EXPECT_FALSE(dialog.isVisible());
     EXPECT_EQ(dialog.result(), int(QDialog::Rejected));
-    EXPECT_EQ(restart.count(), 0);
 }
 
-// The failure path is the one a user is most likely to meet (a server that is
-// down, a package that has moved) and the one that most needs a way out. An
-// UpdateInfo with no URL fails inside apply() without any network, which is
-// exactly the state machine under test.
-TEST(UpdateDialogTest, AFailedAttemptOffersARetryAndReleasesTheButtons) {
+// A manifest whose package URL was rejected still announces the release; the
+// button that would go nowhere is what gets disabled.
+TEST(UpdateDialogTest, AReleaseWithNoUsableUrlStillAnnouncesItself) {
     UpdateInfo info = sampleRelease();
-    info.url.clear(); // apply() rejects this immediately
+    info.url.clear();
     UpdateDialog dialog(info);
 
-    QPushButton *confirm = buttonWithText(dialog, QStringLiteral("Update Now"));
-    QPushButton *later = buttonWithText(dialog, QStringLiteral("Later"));
-    ASSERT_NE(confirm, nullptr);
-    ASSERT_NE(later, nullptr);
-    QSignalSpy restart(&dialog, &UpdateDialog::restartRequested);
-
-    confirm->click();
-    qApp->processEvents();
-
-    EXPECT_EQ(restart.count(), 0) << "a failed update must not ask the app to restart";
-    QPushButton *retry = buttonWithText(dialog, QStringLiteral("Retry"));
-    ASSERT_NE(retry, nullptr) << "no way to try again after a failure";
-    EXPECT_TRUE(retry->isEnabled());
-    EXPECT_TRUE(later->isEnabled()) << "the user must still be able to walk away";
-    EXPECT_EQ(later->text(), QStringLiteral("Later"))
-        << "the cancel button should go back to meaning 'dismiss' once nothing is running";
-
-    auto *progress = dialog.findChild<QProgressBar *>();
-    ASSERT_NE(progress, nullptr);
-    EXPECT_TRUE(progress->isHidden());
-
-    bool statusShown = false;
-    for (QLabel *label : dialog.findChildren<QLabel *>())
-        if (label->text().contains(QStringLiteral("incomplete"), Qt::CaseInsensitive))
-            statusShown = true;
-    EXPECT_TRUE(statusShown) << "the dialog must say why it failed";
+    QPushButton *download = buttonNamed(dialog, QStringLiteral("UpdateDownloadButton"));
+    ASSERT_NE(download, nullptr);
+    EXPECT_FALSE(download->isEnabled());
+    EXPECT_TRUE(dialog.downloadUrlText().isEmpty());
 }
 
 // --- the badge -------------------------------------------------------------

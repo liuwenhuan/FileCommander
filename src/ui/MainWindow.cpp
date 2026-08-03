@@ -2428,12 +2428,10 @@ void MainWindow::showUpdateDialog() {
     if (!m_hasUpdate)
         return;
 #if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
+    // Announce-only: the dialog hands over the address and the checksum, and
+    // the user installs from the Microsoft Store or from the package
+    // themselves. Nothing here downloads, replaces or restarts anything.
     UpdateDialog dlg(m_pendingUpdate, this);
-    // close(), not qApp->quit(): quit() leaves the event loop without ever
-    // running closeEvent(), which is where the window geometry, column layout
-    // and the whole tab session are written out. Updating would silently throw
-    // away everything the user had open -- and closeEvent ends in quit() anyway.
-    connect(&dlg, &UpdateDialog::restartRequested, this, [this] { close(); });
     dlg.exec();
 #else
     ttc::information(this, tr("Update Available"),

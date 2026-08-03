@@ -172,12 +172,23 @@ UpdateChecker::ParseResult UpdateChecker::parseManifest(const QByteArray &body,
     if (!isSha256Hex(sha256))
         return fail(tr("Update manifest gives a malformed SHA-256 for %1.").arg(segmentKey));
 
+    // Optional, and per segment first so a platform can point somewhere of its
+    // own (the Microsoft Store for Windows) before falling back to a shared
+    // link. Anything that is not http(s) is dropped rather than shown: this
+    // ends up in QDesktopServices::openUrl, and a manifest is remote input.
+    QString storeUrl = segment.value(QStringLiteral("storeUrl")).toString().trimmed();
+    if (storeUrl.isEmpty())
+        storeUrl = root.value(QStringLiteral("storeUrl")).toString().trimmed();
+    if (!storeUrl.isEmpty() && !isAcceptableDownloadUrl(storeUrl))
+        storeUrl.clear();
+
     if (info) {
         info->version = remoteVersion;
         info->date = root.value(QStringLiteral("date")).toString();
         info->notes = root.value(QStringLiteral("notes")).toString();
         info->url = url;
         info->sha256 = sha256;
+        info->storeUrl = storeUrl;
     }
     return ParseResult::UpdateAvailable;
 }

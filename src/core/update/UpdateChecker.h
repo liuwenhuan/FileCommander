@@ -11,7 +11,9 @@ struct UpdateInfo {
     QString notes;   // human-readable release notes / changelog
     QString date;    // release date, e.g. "2026-07-20"
     QString url;     // download URL for the matching package
-    QString sha256;  // expected SHA-256 of the package (hex, case-insensitive)
+    QString sha256;  // SHA-256 of the package, for the user to check their own
+                     // download against (hex, case-insensitive)
+    QString storeUrl; // optional: where this platform's store lists the app
 };
 
 class QNetworkAccessManager;
