@@ -201,3 +201,51 @@ TEST(IconCacheTest, SameExtensionReusesCachedIcon) {
     EXPECT_FALSE(iconB.isNull());
     EXPECT_EQ(iconA.cacheKey(), iconB.cacheKey());
 }
+
+// QIcon::pixmap() never scales a bitmap UP. A system file-type icon often ships
+// only 16x16, so an archive or an .exe came back at 16px however large the
+// thumbnail grid was and sat as a speck beside folders, which are drawn from
+// scalable SVGs and filled their cells.
+TEST(IconPixmapSizeTest, EnlargesAnIconThatOnlyShipsASmallBitmap) {
+    QPixmap tiny(16, 16);
+    tiny.fill(Qt::red);
+    const QIcon icon = QIcon(tiny);
+
+    // What the old code did, kept here as the contrast: asking for 96 gets 16.
+    EXPECT_EQ(icon.pixmap(QSize(96, 96)).width(), 16)
+        << "QIcon started enlarging bitmaps; this helper may no longer be needed";
+
+    const QPixmap scaled = IconCache::pixmapOfSize(icon, 96, 1.0);
+    EXPECT_EQ(scaled.width(), 96);
+    EXPECT_EQ(scaled.height(), 96);
+}
+
+TEST(IconPixmapSizeTest, LeavesAnIconThatIsAlreadyBigEnoughAlone) {
+    QPixmap large(128, 128);
+    large.fill(Qt::blue);
+    const QIcon icon = QIcon(large);
+
+    const QPixmap result = IconCache::pixmapOfSize(icon, 96, 1.0);
+    // Whatever QIcon hands back for a request of 96 is already at least 96, so
+    // it must not be resampled -- rescaling a large bitmap only softens it.
+    EXPECT_GE(result.width(), 96);
+}
+
+TEST(IconPixmapSizeTest, HonoursTheDevicePixelRatio) {
+    QPixmap tiny(16, 16);
+    tiny.fill(Qt::green);
+    const QIcon icon = QIcon(tiny);
+
+    const QPixmap scaled = IconCache::pixmapOfSize(icon, 48, 2.0);
+    EXPECT_DOUBLE_EQ(scaled.devicePixelRatio(), 2.0);
+    // 48 logical pixels at 2x is 96 device pixels; a caller dividing by the
+    // ratio has to land back on 48.
+    EXPECT_EQ(qRound(scaled.width() / scaled.devicePixelRatio()), 48);
+}
+
+TEST(IconPixmapSizeTest, ANullIconStaysNull) {
+    EXPECT_TRUE(IconCache::pixmapOfSize(QIcon(), 96, 1.0).isNull());
+    QPixmap p(16, 16);
+    p.fill(Qt::red);
+    EXPECT_TRUE(IconCache::pixmapOfSize(QIcon(p), 0, 1.0).isNull());
+}

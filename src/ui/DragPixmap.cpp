@@ -1,5 +1,7 @@
 #include "DragPixmap.h"
 
+#include "filesystem/IconCache.h"
+
 #include <QColor>
 #include <QFont>
 #include <QIcon>
@@ -15,7 +17,10 @@ QPixmap makeDragPixmap(const QIcon &firstIcon, int count, qreal dpr) {
 
     // Front icon at device resolution, tagged with the dpr so the painter and
     // the drag layer treat it as `s` logical pixels.
-    QPixmap icon = firstIcon.pixmap(QSize(s, s) * dpr);
+    // Same reason as the thumbnail grid: QIcon::pixmap() will not enlarge a
+    // 16px system icon, and a 16px speck dragged around instead of a 48px icon
+    // reads as a broken drag.
+    QPixmap icon = IconCache::pixmapOfSize(firstIcon, s, dpr);
     if (icon.isNull()) {
         icon = QPixmap(QSize(s, s) * dpr);
         icon.fill(Qt::transparent);

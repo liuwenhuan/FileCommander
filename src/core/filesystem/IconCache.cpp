@@ -146,6 +146,34 @@ QIcon IconCache::iconFor(const FileInfo &info) {
     return icon;
 }
 
+QPixmap IconCache::pixmapOfSize(const QIcon &icon, int logicalSize, qreal dpr) {
+    if (icon.isNull() || logicalSize <= 0)
+        return {};
+    if (dpr <= 0)
+        dpr = 1.0;
+
+    QPixmap pixmap = icon.pixmap(QSize(logicalSize, logicalSize) * dpr);
+    if (pixmap.isNull())
+        return pixmap;
+
+    // What QIcon actually gave us, measured in the same logical units the
+    // caller asked in.
+    const qreal have = pixmap.devicePixelRatio() > 0 ? pixmap.devicePixelRatio() : 1.0;
+    const int logicalWidth = qRound(pixmap.width() / have);
+    const int logicalHeight = qRound(pixmap.height() / have);
+    if (logicalWidth >= logicalSize && logicalHeight >= logicalSize) {
+        pixmap.setDevicePixelRatio(have);
+        return pixmap;
+    }
+
+    // Too small: scale it ourselves. Smooth, and keeping the aspect ratio so a
+    // non-square icon is not distorted into the box.
+    pixmap = pixmap.scaled(QSize(logicalSize, logicalSize) * dpr, Qt::KeepAspectRatio,
+                           Qt::SmoothTransformation);
+    pixmap.setDevicePixelRatio(dpr);
+    return pixmap;
+}
+
 QIcon IconCache::themedIcon(const QIcon &icon) const {
     return m_tint.isValid() ? tinted(icon) : icon;
 }
