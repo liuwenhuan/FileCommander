@@ -207,8 +207,7 @@ private:
 // red/green) is honoured too.
 class FileItemDelegate : public QStyledItemDelegate {
 public:
-    explicit FileItemDelegate(QTableView *view)
-        : QStyledItemDelegate(view), m_view(view) {}
+    using QStyledItemDelegate::QStyledItemDelegate;
 
     void paint(QPainter *painter, const QStyleOptionViewItem &option,
                const QModelIndex &index) const override {
@@ -256,61 +255,9 @@ public:
             painter->drawText(r, opt.displayAlignment, text);
         }
 
-        drawCursorFrame(painter, opt, index, selected);
         painter->restore();
     }
 
-private:
-    // The keyboard cursor. Arrow keys move the current index without touching
-    // the selection (see FileListView::keyPressEvent), so on an unselected row
-    // this frame is the ONLY thing that moves -- without it the arrow keys read
-    // as dead. Drawn from the same palette entry as the selection, so an
-    // inactive panel dims it exactly like its selection (QTableView
-    // [panelActive="false"] in the themes).
-    void drawCursorFrame(QPainter *painter, const QStyleOptionViewItem &opt,
-                         const QModelIndex &index, bool selected) const {
-        if (!m_view)
-            return;
-        const QModelIndex current = m_view->currentIndex();
-        if (!current.isValid() || current.row() != index.row())
-            return;
-
-        const QPalette &pal = opt.palette;
-        painter->setPen(QPen(selected ? pal.highlightedText().color() : pal.highlight().color(), 1));
-        painter->setBrush(Qt::NoBrush);
-        // Cells tile the row edge to edge, so a top and bottom line on each one
-        // adds up to two continuous rules across the whole row; the vertical
-        // caps belong only to the outermost visible columns.
-        //
-        // The horizontal rules span the cell's FULL width. QRect::right() is
-        // already the last pixel inside the rect, so shrinking it by one leaves
-        // that pixel unpainted -- and since the next cell starts one past it,
-        // every column boundary ends up with a one-pixel hole. Two of those in a
-        // row's width is all it takes for the frame to read as broken.
-        const QRect r = opt.rect;
-        painter->drawLine(r.left(), r.top(), r.right(), r.top());
-        painter->drawLine(r.left(), r.bottom(), r.right(), r.bottom());
-
-        QHeaderView *header = m_view->horizontalHeader();
-        if (!header)
-            return;
-        int firstVisual = -1;
-        int lastVisual = -1;
-        for (int visual = 0; visual < header->count(); ++visual) {
-            if (header->isSectionHidden(header->logicalIndex(visual)))
-                continue;
-            if (firstVisual < 0)
-                firstVisual = visual;
-            lastVisual = visual;
-        }
-        const int visual = header->visualIndex(index.column());
-        if (visual == firstVisual)
-            painter->drawLine(r.topLeft(), r.bottomLeft());
-        if (visual == lastVisual)
-            painter->drawLine(r.topRight(), r.bottomRight());
-    }
-
-    QPointer<QTableView> m_view;
 };
 } // namespace
 
@@ -1162,6 +1109,47 @@ void FileListView::currentChanged(const QModelIndex &current, const QModelIndex 
     repaintRow(current);
 }
 
+// The keyboard cursor. Arrow keys move the current index without touching the
+// selection (see keyPressEvent), so on an unselected row this frame is the ONLY
+// thing that moves -- without it the arrow keys read as dead.
+//
+// Drawn here, by the view, as ONE rectangle over the finished row. The delegate
+// is the obvious place for it and the wrong one: a delegate only ever sees one
+// cell, so the frame has to be assembled from per-cell fragments that are
+// expected to meet exactly. They do not. Cell rectangles are integers in
+// logical pixels, and on a fractionally scaled display (125% here) each edge
+// lands on a fractional device pixel, so the fragments join cleanly only where
+// the scale happens to come out whole -- every fourth row at 1.25. The result
+// was a box visibly broken into segments, on a repeating subset of rows.
+void FileListView::drawCursorRow() {
+    const QModelIndex current = currentIndex();
+    if (!current.isValid() || !model())
+        return;
+    const QRect cell = visualRect(current);
+    if (cell.isEmpty())
+        return;
+
+    // Full width of the viewport: the frame belongs to the row, not to whichever
+    // column happens to hold the current index.
+    QRect row(0, cell.y(), viewport()->width(), cell.height());
+    row = row.intersected(viewport()->rect());
+    if (row.isEmpty())
+        return;
+
+    // Same palette entry as the selection, so an inactive panel dims the cursor
+    // exactly like its selection (QTableView[panelActive="false"] in the themes),
+    // and the contrasting one when the row underneath is already filled.
+    const bool selected = selectionModel() && selectionModel()->isRowSelected(current.row(),
+                                                                              QModelIndex());
+    QPainter painter(viewport());
+    painter.setRenderHint(QPainter::Antialiasing, false);
+    painter.setBrush(Qt::NoBrush);
+    painter.setPen(QPen(selected ? palette().highlightedText().color()
+                                 : palette().highlight().color(),
+                        1));
+    painter.drawRect(row.adjusted(0, 0, -1, -1));
+}
+
 void FileListView::wheelEvent(QWheelEvent *event) {
     int delta = event->angleDelta().y();
     if (delta == 0)
@@ -1350,6 +1338,7 @@ void FileListView::dropEvent(QDropEvent *event) {
 
 void FileListView::paintEvent(QPaintEvent *event) {
     QTableView::paintEvent(event);
+    drawCursorRow();
     if (m_dragFeedbackState == DragFeedbackState::None || m_dragFeedbackColor.alpha() == 0)
         return;
 

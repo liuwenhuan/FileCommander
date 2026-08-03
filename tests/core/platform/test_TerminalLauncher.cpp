@@ -31,6 +31,16 @@ TEST(TerminalLauncherTest, OffersAtLeastOneTerminalThatExistsOnThisMachine) {
         if (installed(candidate))
             anyInstalled = true;
     }
+
+#ifndef Q_OS_WIN
+    // A headless Linux box -- a container, a WSL image, a build agent -- has no
+    // terminal emulator installed and is not supposed to. That is a fact about
+    // the machine, not a defect in the list, so it is a skip rather than a
+    // failure. Windows has no such excuse: cmd.exe is always there.
+    if (!anyInstalled)
+        GTEST_SKIP() << "no terminal emulator installed here: "
+                     << tried.join(QLatin1String(", ")).toStdString();
+#endif
     EXPECT_TRUE(anyInstalled)
         << "none of these exists here, so the feature can only ever report failure: "
         << tried.join(QLatin1String(", ")).toStdString();
@@ -77,6 +87,23 @@ TEST(TerminalLauncherTest, ConsoleHostsAreLaunchedWithNoArgumentsAtAll) {
     }
 }
 #else
+// This application targets deepin/UOS, so its terminal is the one a user
+// expects to get -- ahead of the Debian x-terminal-emulator alternative, which
+// on a deepin desktop is not guaranteed to point back at it.
+TEST(TerminalLauncherTest, DeepinTerminalIsTheFirstThingTried) {
+    const QVector<fc::TerminalCandidate> candidates = fc::terminalCandidates(kSomeDirectory);
+    ASSERT_FALSE(candidates.isEmpty());
+    EXPECT_EQ(candidates.first().program, QStringLiteral("deepin-terminal"));
+
+    QStringList programs;
+    for (const fc::TerminalCandidate &candidate : candidates)
+        programs << candidate.program;
+    // The pre-Qt build, still present on older deepin installs.
+    EXPECT_TRUE(programs.contains(QStringLiteral("deepin-terminal-gtk")));
+    EXPECT_LT(programs.indexOf(QStringLiteral("deepin-terminal-gtk")),
+              programs.indexOf(QStringLiteral("x-terminal-emulator")));
+}
+
 TEST(TerminalLauncherTest, LinuxKeepsTheDesktopTerminalsAheadOfTheFallback) {
     const QVector<fc::TerminalCandidate> candidates = fc::terminalCandidates(kSomeDirectory);
     QStringList programs;
@@ -87,8 +114,18 @@ TEST(TerminalLauncherTest, LinuxKeepsTheDesktopTerminalsAheadOfTheFallback) {
     // terminal, so it has to stay last.
     ASSERT_TRUE(programs.contains(QStringLiteral("xterm")));
     EXPECT_EQ(programs.last(), QStringLiteral("xterm"));
-    EXPECT_TRUE(programs.contains(QStringLiteral("deepin-terminal")));
     EXPECT_LT(programs.indexOf(QStringLiteral("deepin-terminal")),
               programs.indexOf(QStringLiteral("xterm")));
+}
+
+// Every Linux terminal here takes its starting directory from the process it
+// was launched by, so passing one as an argument would be wrong rather than
+// redundant -- most of them read a bare argument as a command to run.
+TEST(TerminalLauncherTest, LinuxTerminalsInheritTheDirectoryRatherThanBeingToldIt) {
+    for (const fc::TerminalCandidate &candidate :
+         fc::terminalCandidates(QStringLiteral("/some/where"))) {
+        SCOPED_TRACE(candidate.program.toStdString());
+        EXPECT_TRUE(candidate.arguments.isEmpty());
+    }
 }
 #endif

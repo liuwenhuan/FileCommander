@@ -20,7 +20,9 @@ struct TerminalCandidate {
 // walks the list and takes the first one actually installed.
 //
 // `workingDirectory` is baked into the arguments where a terminal needs to be
-// told explicitly rather than inheriting it.
+// told explicitly rather than inheriting it. Every Linux terminal here inherits
+// it -- a terminal opens its shell in the directory it was started from -- so
+// only Windows Terminal ends up carrying it.
 QVector<TerminalCandidate> terminalCandidates(const QString &workingDirectory);
 
 // Starts the first candidate that is both installed and launches successfully.

@@ -2,6 +2,7 @@
 
 #include <QApplication>
 #include <QDir>
+#include <QPropertyAnimation>
 #include <QSplitter>
 #include <QTest>
 #include <QToolButton>
@@ -36,6 +37,42 @@ QVector<QRect> tabRects(const TabBar &tabBar) {
 
 qreal progress(const QObject &object, const char *name) {
     return object.property(name).toReal();
+}
+
+// These tests are about what motion does NOT disturb -- tab rectangles, size
+// hints, splitter sizes -- which means they have to observe the animation
+// mid-flight. Sleeping for part of its duration and hoping to land there is a
+// race: a Fast animation is 100 ms, so QTest::qWait(45) leaves 55 ms of slack
+// for the scheduler, and a machine running the whole suite eats that without
+// difficulty. The animation finishes early, the "still in flight" assertion
+// reads 1.0, and the test fails for a reason that has nothing to do with what
+// it is testing. Drive the animation to an exact point instead.
+QPropertyAnimation *animationFor(const QObject &object, const QByteArray &property) {
+    for (QPropertyAnimation *animation : object.findChildren<QPropertyAnimation *>()) {
+        if (animation->propertyName() == property)
+            return animation;
+    }
+    return nullptr;
+}
+
+// Parks the animation at a fraction of its own duration and leaves it paused,
+// so nothing moves it again behind the assertions that follow.
+void parkAt(QPropertyAnimation *animation, qreal fraction) {
+    ASSERT_NE(animation, nullptr);
+    ASSERT_GT(animation->duration(), 0);
+    if (animation->state() == QAbstractAnimation::Running)
+        animation->pause();
+    animation->setCurrentTime(int(animation->duration() * fraction));
+}
+
+// Runs the animation out and lets it finish, which is what puts the property on
+// its exact end value.
+void finish(QPropertyAnimation *animation) {
+    ASSERT_NE(animation, nullptr);
+    if (animation->state() == QAbstractAnimation::Paused)
+        animation->resume();
+    animation->setCurrentTime(animation->duration());
+    qApp->processEvents();
 }
 
 struct ButtonState {
@@ -98,7 +135,10 @@ TEST(TabMotion, ActivationProgressLeavesEveryTabRectUnchanged) {
     const QSize minimumSizeHintBefore = tabBar.minimumSizeHint();
 
     tabBar.setCurrentIndex(1);
-    QTest::qWait(45);
+    QPropertyAnimation *animation = animationFor(tabBar, "activationProgress");
+    ASSERT_NE(animation, nullptr);
+    EXPECT_EQ(animation->duration(), MotionPolicy::duration(MotionDuration::Fast));
+    parkAt(animation, 0.45);
 
     EXPECT_GT(progress(tabBar, "activationProgress"), 0.0);
     EXPECT_LT(progress(tabBar, "activationProgress"), 1.0);
@@ -106,7 +146,7 @@ TEST(TabMotion, ActivationProgressLeavesEveryTabRectUnchanged) {
     EXPECT_EQ(tabBar.sizeHint(), sizeHintBefore);
     EXPECT_EQ(tabBar.minimumSizeHint(), minimumSizeHintBefore);
 
-    QTest::qWait(MotionPolicy::duration(MotionDuration::Fast));
+    finish(animation);
     EXPECT_DOUBLE_EQ(progress(tabBar, "activationProgress"), 1.0);
     EXPECT_EQ(tabRects(tabBar), before);
     EXPECT_EQ(tabBar.sizeHint(), sizeHintBefore);
@@ -130,11 +170,13 @@ TEST(TabMotion, NewTabActivatesAfterItsStateIsInstalled) {
 
     EXPECT_EQ(tabBar->count(), 2);
     EXPECT_EQ(tabBar->currentIndex(), 1);
-    QTest::qWait(45);
+    QPropertyAnimation *animation = animationFor(*tabBar, "activationProgress");
+    ASSERT_NE(animation, nullptr);
+    parkAt(animation, 0.45);
     EXPECT_GT(progress(*tabBar, "activationProgress"), 0.0);
     EXPECT_LT(progress(*tabBar, "activationProgress"), 1.0);
 
-    QTest::qWait(MotionPolicy::duration(MotionDuration::Fast));
+    finish(animation);
     EXPECT_DOUBLE_EQ(progress(*tabBar, "activationProgress"), 1.0);
 }
 
@@ -155,11 +197,13 @@ TEST(TabMotion, RestoredActiveTabActivatesAfterStateIsInstalled) {
 
     EXPECT_EQ(tabBar->count(), 2);
     EXPECT_EQ(tabBar->currentIndex(), 1);
-    QTest::qWait(45);
+    QPropertyAnimation *animation = animationFor(*tabBar, "activationProgress");
+    ASSERT_NE(animation, nullptr);
+    parkAt(animation, 0.45);
     EXPECT_GT(progress(*tabBar, "activationProgress"), 0.0);
     EXPECT_LT(progress(*tabBar, "activationProgress"), 1.0);
 
-    QTest::qWait(MotionPolicy::duration(MotionDuration::Fast));
+    finish(animation);
     EXPECT_DOUBLE_EQ(progress(*tabBar, "activationProgress"), 1.0);
 }
 
@@ -186,7 +230,14 @@ TEST(TabMotion, FocusProgressLeavesDualPaneSplitterSizesUnchanged) {
     const QSize rightMinimumSizeHintBefore = right->minimumSizeHint();
 
     right->view()->setFocus();
-    QTest::qWait(45);
+    // Focus moving is two animations, not one: the panel gaining it fades in
+    // while the panel losing it fades out. The old single qWait carried both;
+    // driving them by hand means driving both, or the assertion that the loser
+    // reached 0.0 is really an assertion that the wait was long enough.
+    QPropertyAnimation *animation = animationFor(*right, "focusProgress");
+    QPropertyAnimation *fadingOut = animationFor(*left, "focusProgress");
+    ASSERT_NE(animation, nullptr);
+    parkAt(animation, 0.45);
 
     EXPECT_GT(progress(*right, "focusProgress"), 0.0);
     EXPECT_LT(progress(*right, "focusProgress"), 1.0);
@@ -196,7 +247,9 @@ TEST(TabMotion, FocusProgressLeavesDualPaneSplitterSizesUnchanged) {
     EXPECT_EQ(right->sizeHint(), rightSizeHintBefore);
     EXPECT_EQ(right->minimumSizeHint(), rightMinimumSizeHintBefore);
 
-    QTest::qWait(MotionPolicy::duration(MotionDuration::Fast));
+    finish(animation);
+    if (fadingOut)
+        finish(fadingOut);
     EXPECT_DOUBLE_EQ(progress(*right, "focusProgress"), 1.0);
     EXPECT_DOUBLE_EQ(progress(*left, "focusProgress"), 0.0);
     EXPECT_EQ(splitter.sizes(), before);
@@ -233,7 +286,9 @@ TEST(TabMotion, OverflowControlsStayFixedDuringActivationProgress) {
         const OverflowControls before = overflowControls(panel, tabBar);
 
         tabBar->setCurrentIndex(0);
-        QTest::qWait(45);
+        QPropertyAnimation *animation = animationFor(*tabBar, "activationProgress");
+        ASSERT_NE(animation, nullptr);
+        parkAt(animation, 0.45);
 
         EXPECT_GT(progress(*tabBar, "activationProgress"), 0.0);
         EXPECT_LT(progress(*tabBar, "activationProgress"), 1.0);

@@ -23,11 +23,22 @@ QVector<TerminalCandidate> terminalCandidates(const QString &workingDirectory) {
 #else
     Q_UNUSED(workingDirectory);
     return {
+        // deepin/UOS first, and by name rather than through the
+        // x-terminal-emulator alternative: on a deepin desktop that alternative
+        // is not guaranteed to point at deepin-terminal, and opening GNOME's or
+        // KDE's terminal on a deepin system is exactly the kind of mismatch a
+        // user notices. deepin-terminal-gtk is the pre-Qt build, still present
+        // on older installs.
         {QStringLiteral("deepin-terminal"), {}},
+        {QStringLiteral("deepin-terminal-gtk"), {}},
+        // The Debian alternative, which is the right answer on anything that is
+        // not deepin and has a desktop-provided default.
         {QStringLiteral("x-terminal-emulator"), {}},
         {QStringLiteral("gnome-terminal"), {}},
         {QStringLiteral("konsole"), {}},
         {QStringLiteral("xfce4-terminal"), {}},
+        // Last: it exists nearly everywhere and looks like nothing else on the
+        // desktop, so it is a fallback rather than a choice.
         {QStringLiteral("xterm"), {}},
     };
 #endif
