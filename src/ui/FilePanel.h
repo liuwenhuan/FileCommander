@@ -621,6 +621,11 @@ private:
     // Where the listing was when the computer view was entered, so leaving it
     // through anything other than opening a row lands back there.
     QString m_computerExitDir;
+    // Set while loadTabState rebuilds the view for a tab returning to the
+    // foreground. Entering then records no history: the place the view was
+    // opened from went on the stack the first time, and pushing it again on
+    // every tab switch would fill the stack with duplicates of it.
+    bool m_restoringComputerView = false;
     // leaveComputerView() plus restoring that listing. Used by the paths that
     // take this panel's backend away wholesale (tab switch, panel swap), where
     // the computer view cannot travel with it.

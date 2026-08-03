@@ -29,6 +29,15 @@ struct TabState {
     QStringList flatPaths;
     QString title;
 
+    // This tab was showing the computer view when it went to the background.
+    // Unlike an archive browse -- which holds a downloaded file and a parked
+    // connection, and so cannot travel with a backgrounded tab -- the computer
+    // view is only a snapshot of places, so it is cheap to rebuild and the tab
+    // is expected to come back to it. `path` still records the directory the
+    // view was opened from, so anything that can only deal with a real path
+    // (the shutdown snapshot, a restart) has one.
+    bool computerView = false;
+
     // Per-tab remote connection. Each tab owns its OWN connection so switching
     // tabs (or browsing a local folder in a sibling tab) never drops another
     // tab's server. All empty/null for a plain local tab. `provider`/`session`

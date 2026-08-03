@@ -219,7 +219,48 @@ TEST(ComputerPanelTest, TheSessionSnapshotRecordsARealPathNotTheSyntheticRoot) {
     EXPECT_EQ(QDir(snapshot.at(0).first).canonicalPath(), QDir(dir.path()).canonicalPath());
 }
 
-TEST(ComputerPanelTest, LeavingTheViewByTabSwitchLandsOnARealDirectoryNotAnEmptyOne) {
+TEST(ComputerPanelTest, ATabOnTheComputerViewComesBackToItAfterASwitch) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    ASSERT_TRUE(QDir(dir.path()).mkdir(QStringLiteral("sub")));
+
+    FilePanel panel;
+    panel.resize(800, 500);
+    panel.show();
+    panel.navigateTo(dir.path());
+    settle(panel);
+
+    // Stand in for the owner, which is what holds the device monitor and host
+    // browser and so is the only thing that can assemble the rows.
+    int rebuilds = 0;
+    QObject::connect(&panel, &FilePanel::computerViewRequested, &panel, [&](FilePanel *p) {
+        ++rebuilds;
+        p->showComputer({makeEntry(ComputerEntry::Kind::Drive, QStringLiteral("C"),
+                                   QStringLiteral("C:/"))});
+    });
+
+    panel.showComputer(
+        {makeEntry(ComputerEntry::Kind::Drive, QStringLiteral("C"), QStringLiteral("C:/"))});
+    settle(panel);
+    ASSERT_TRUE(panel.isComputerView());
+
+    // Opening a second tab parks the first, exactly as switching tabs does.
+    panel.newTab();
+    settle(panel);
+    EXPECT_FALSE(panel.isComputerView()) << "the new tab must start on a directory";
+
+    panel.activateTab(0);
+    settle(panel);
+
+    // The tab was showing the computer view, so that is what it must come back
+    // to -- not the directory underneath it, which is what a parked archive
+    // browse does and what this used to do.
+    EXPECT_TRUE(panel.isComputerView());
+    EXPECT_EQ(panel.model()->rootPath(), ComputerProvider::rootPath());
+    EXPECT_EQ(rebuilds, 1) << "the returning tab asks the owner to rebuild the rows";
+}
+
+TEST(ComputerPanelTest, ARestoredComputerTabStillLeavesToTheDirectoryItWasOpenedFrom) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
     ASSERT_TRUE(QDir(dir.path()).mkdir(QStringLiteral("sub")));
@@ -232,23 +273,34 @@ TEST(ComputerPanelTest, LeavingTheViewByTabSwitchLandsOnARealDirectoryNotAnEmpty
     const int listedBefore = panel.model()->rowCount();
     ASSERT_GT(listedBefore, 0);
 
+    QObject::connect(&panel, &FilePanel::computerViewRequested, &panel, [](FilePanel *p) {
+        p->showComputer({makeEntry(ComputerEntry::Kind::Drive, QStringLiteral("C"),
+                                   QStringLiteral("C:/"))});
+    });
     panel.showComputer(
         {makeEntry(ComputerEntry::Kind::Drive, QStringLiteral("C"), QStringLiteral("C:/"))});
     settle(panel);
-    ASSERT_TRUE(panel.isComputerView());
-
-    // Opening a second tab steps out of the computer view, exactly as switching
-    // tabs does. The tab left behind must remember the directory it was showing
-    // before the view was opened -- not the synthetic root, and not nothing.
     panel.newTab();
     settle(panel);
     panel.activateTab(0);
     settle(panel);
+    ASSERT_TRUE(panel.isComputerView());
 
+    // The exit directory has to survive the round trip too, or leaving the
+    // restored tab would land somewhere else -- or nowhere.
+    panel.navigateTo(dir.path());
+    settle(panel);
     EXPECT_FALSE(panel.isComputerView());
     EXPECT_EQ(QDir(panel.model()->rootPath()).canonicalPath(), QDir(dir.path()).canonicalPath());
-    EXPECT_EQ(panel.model()->rowCount(), listedBefore)
-        << "the tab came back empty instead of showing the directory it was on";
+    EXPECT_EQ(panel.model()->rowCount(), listedBefore);
+
+    // And once left deliberately, a later switch must NOT drag it back.
+    panel.newTab();
+    settle(panel);
+    panel.activateTab(0);
+    settle(panel);
+    EXPECT_FALSE(panel.isComputerView())
+        << "a tab the user navigated away from was pulled back into the computer view";
 }
 
 TEST(ComputerPanelTest, NavigatingToADirectoryFromTheViewListsIt) {

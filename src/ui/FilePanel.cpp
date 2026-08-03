@@ -1845,7 +1845,9 @@ void FilePanel::showComputer(const QVector<ComputerEntry> &entries) {
     // other backend-replacing paths do.
     backOutOfVirtualBackend();
 
-    const NavEntry from = currentLocation();
+    // Restoring a backgrounded tab is not a navigation: the entry for the place
+    // the view was opened from is already on the stack from the first time.
+    const NavEntry from = m_restoringComputerView ? NavEntry() : currentLocation();
     auto provider = std::make_shared<ComputerProvider>();
     provider->setEntries(entries);
     // Park the server connection instead of letting setProvider() tear it down:
@@ -1859,12 +1861,29 @@ void FilePanel::showComputer(const QVector<ComputerEntry> &entries) {
         pushHistory(from);
         m_forwardHistory.clear();
     }
+    // Mark the tab so switching away and back returns here rather than to the
+    // directory underneath, and label it for what it shows -- the path it
+    // carries is the exit directory, which would otherwise name the tab after a
+    // folder it is not displaying.
+    if (auto tab = m_tabManager->activeTab()) {
+        tab->computerView = true;
+        tab->title = tr("Computer");
+    }
     navigateTo(ComputerProvider::rootPath()); // won't re-push; currentLocation() is {} now
+    updateActiveTabLabel();
 }
 
 void FilePanel::leaveComputerView() {
     if (!m_computerProvider)
         return;
+    // Genuinely leaving: the tab should not come back here. The two paths that
+    // merely park the view while the tab goes to the background re-set this
+    // afterwards, because for them "leaving" is temporary.
+    if (auto tab = m_tabManager->activeTab()) {
+        tab->computerView = false;
+        if (tab->title == tr("Computer"))
+            tab->title.clear();
+    }
     m_computerProvider.reset();
     m_computerExitDir.clear();
     m_model->attachConnection(std::move(m_computerExitConn));
@@ -2639,6 +2658,27 @@ void FilePanel::loadTabState(int index) {
     m_forwardHistory = h.forward;
     m_pendingSelection = tab->selectedFiles;
     updateNavButtons();
+    if (tab->computerView) {
+        // Rebuilt rather than restored: the rows are what was plugged in and
+        // reachable, and asking again is both simpler than preserving them and
+        // more correct -- a stick pulled out while the tab was in the background
+        // should not still be listed. The owner holds the device monitor and the
+        // host browser, so it does the assembling.
+        m_flatPaths.clear();
+        m_restoringComputerView = true;
+        emit computerViewRequested(this);
+        m_restoringComputerView = false;
+        if (m_computerProvider) {
+            m_computerExitDir = tab->path; // where leaving this tab returns to
+            return;
+        }
+        // Nobody rebuilt it (no owner connected, or the view is unavailable in
+        // this build). Fall through to the directory the tab records rather than
+        // leaving the pane on whatever the previous tab was showing.
+        tab->computerView = false;
+        if (tab->title == tr("Computer"))
+            tab->title.clear();
+    }
     if (!tab->flatPaths.isEmpty()) {
         m_flatPaths = tab->flatPaths;
         m_model->setFlatEntries(tab->flatPaths);
@@ -2709,9 +2749,18 @@ void FilePanel::onTabBarCurrentChanged(int index) {
     // the archive's "..") and strand the tab on a backend it no longer owns.
     // Backing out to the directory the archive was entered from is what the tab
     // then saves and comes back to.
+    // The outgoing tab is only being parked, so the computer view has to survive
+    // the back-out below (which drops the backend and, with it, the flag).
+    const bool parkedComputerView = m_computerProvider != nullptr;
     backOutOfVirtualBackend();
     const int prev = m_tabManager->activeIndex();
     saveCurrentTabState();
+    if (parkedComputerView) {
+        if (auto tab = m_tabManager->activeTab()) { // still the outgoing tab
+            tab->computerView = true;
+            tab->title = tr("Computer");
+        }
+    }
     if (prev != index && prev >= 0)
         parkConnectionInto(m_tabManager->tabAt(prev)); // keep the old tab's server alive
     m_tabManager->setActiveIndex(index);
@@ -2860,8 +2909,17 @@ void FilePanel::newTab() {
     // This opens a tab rather than switching to one, so it does its own
     // park/save instead of going through onTabBarCurrentChanged -- and has to
     // step out of an archive for the same reason that does (see there).
+    // Same parking as a tab switch: this tab stays on the computer view, the new
+    // one starts on a directory.
+    const bool parkedComputerView = m_computerProvider != nullptr;
     backOutOfVirtualBackend();
     saveCurrentTabState();
+    if (parkedComputerView) {
+        if (auto tab = m_tabManager->activeTab()) {
+            tab->computerView = true;
+            tab->title = tr("Computer");
+        }
+    }
     const bool wasNetwork = m_model->hasNetworkSession();
     // Park the outgoing tab's connection so its server stays alive in the
     // background while this new tab is active (also drops the model to local).
