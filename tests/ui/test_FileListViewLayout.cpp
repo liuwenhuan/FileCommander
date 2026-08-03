@@ -509,6 +509,52 @@ TEST_F(FileListViewLayoutTest, TheCursorFrameHasNoGapsAtColumnBoundaries) {
     expectContinuous(firstCell.bottom(), "bottom");
 }
 
+// Moving the cursor has to take its frame with it. Drawing the frame in
+// paintEvent means it is redrawn on every repaint, so every row the cursor
+// passes through must be repainted too -- otherwise the frames pile up behind
+// it and the list fills with horizontal rules.
+TEST_F(FileListViewLayoutTest, TheCursorFrameDoesNotStayBehindOnRowsItHasLeft) {
+    resizeAndSettle(900);
+    m_view.selectionModel()->clearSelection();
+
+    auto rowStrip = [this](const QImage &shot, int row) {
+        const QRect cell = m_view.visualRect(m_model.index(row, 0));
+        QVector<QRgb> strip;
+        if (cell.isEmpty())
+            return strip;
+        for (int y = cell.top(); y <= cell.bottom() && y < shot.height(); ++y)
+            strip << shot.pixel(cell.left() + 1, y);
+        return strip;
+    };
+
+    auto snapshot = [this] {
+        qApp->processEvents();
+        QImage shot(m_view.viewport()->size(), QImage::Format_ARGB32);
+        shot.fill(Qt::transparent);
+        m_view.viewport()->render(&shot);
+        return shot;
+    };
+
+    // What an untouched row looks like, before any cursor has been near it.
+    m_view.selectionModel()->setCurrentIndex(m_model.index(0, 0),
+                                             QItemSelectionModel::NoUpdate);
+    const QVector<QRgb> pristine = rowStrip(snapshot(), 3);
+    ASSERT_FALSE(pristine.isEmpty());
+
+    // Walk the cursor down over it and past it, the way holding Down does.
+    for (int row = 1; row <= 6; ++row) {
+        QTest::keyClick(&m_view, Qt::Key_Down);
+        qApp->processEvents();
+    }
+    ASSERT_EQ(m_view.currentIndex().row(), 6);
+
+    const QImage after = snapshot();
+    EXPECT_EQ(rowStrip(after, 3), pristine)
+        << "row 3 still carries a frame after the cursor moved on";
+    EXPECT_EQ(rowStrip(after, 4), pristine) << "row 4 kept a frame";
+    EXPECT_NE(rowStrip(after, 6), pristine) << "the cursor row lost its frame";
+}
+
 // Insert is the plain selection key: it must NOT trigger the size count, or
 // every Insert on a directory would kick off a recursive scan.
 TEST_F(FileListViewLayoutTest, InsertTogglesSelectionWithoutReportingTheRow) {

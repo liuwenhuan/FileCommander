@@ -121,10 +121,6 @@ protected:
     void currentChanged(const QModelIndex &current, const QModelIndex &previous) override;
 
 private:
-    // Paints the keyboard cursor over the current row as a single rectangle.
-    // See the implementation for why this is not the delegate's job.
-    void drawCursorRow();
-
     enum class DragFeedbackState { None, Accepted, Rejected, Success };
 
     QString destinationDirForDrop(const QPoint &pos) const;

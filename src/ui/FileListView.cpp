@@ -207,7 +207,8 @@ private:
 // red/green) is honoured too.
 class FileItemDelegate : public QStyledItemDelegate {
 public:
-    using QStyledItemDelegate::QStyledItemDelegate;
+    explicit FileItemDelegate(QTableView *view)
+        : QStyledItemDelegate(view), m_view(view) {}
 
     void paint(QPainter *painter, const QStyleOptionViewItem &option,
                const QModelIndex &index) const override {
@@ -255,8 +256,72 @@ public:
             painter->drawText(r, opt.displayAlignment, text);
         }
 
+        drawCursorFrame(painter, opt, index, selected);
         painter->restore();
     }
+
+private:
+    // The keyboard cursor. Arrow keys move the current index without touching
+    // the selection (see FileListView::keyPressEvent), so on an unselected row
+    // this frame is the ONLY thing that moves -- without it the arrow keys read
+    // as dead. Drawn from the same palette entry as the selection, so an
+    // inactive panel dims it exactly like its selection (QTableView
+    // [panelActive="false"] in the themes).
+    //
+    // Two things about where and how, both learned the hard way:
+    //
+    // ONE rectangle spanning the row, drawn while painting a single cell --
+    // never per-cell fragments meeting at the seams. Cell rectangles are
+    // integers in logical pixels; on a fractionally scaled display each edge
+    // lands on a fractional device pixel, so fragments join cleanly only where
+    // the scale comes out whole. At 125% that is every fourth row, and the rest
+    // showed a box broken into segments.
+    //
+    // And drawn HERE, as cell content, rather than over the finished view in
+    // paintEvent. A frame painted on top belongs to no row, so when the view
+    // scrolls -- which is what holding Down does -- QAbstractScrollArea shifts
+    // the already-painted pixels and repaints only the newly exposed strip. The
+    // frame travelled with them and stayed, leaving one more rule across the
+    // list for every row the cursor had passed through. As cell content it
+    // belongs to its row and moves with it.
+    void drawCursorFrame(QPainter *painter, const QStyleOptionViewItem &opt,
+                         const QModelIndex &index, bool selected) const {
+        if (!m_view)
+            return;
+        const QModelIndex current = m_view->currentIndex();
+        if (!current.isValid() || current.row() != index.row())
+            return;
+        // Once per row, from the leftmost visible column: the rectangle already
+        // covers the whole row, so drawing it again for the other cells would
+        // just be the same pixels N times over.
+        QHeaderView *header = m_view->horizontalHeader();
+        if (header) {
+            int firstVisual = -1;
+            for (int visual = 0; visual < header->count(); ++visual) {
+                if (header->isSectionHidden(header->logicalIndex(visual)))
+                    continue;
+                firstVisual = visual;
+                break;
+            }
+            if (header->visualIndex(index.column()) != firstVisual)
+                return;
+        }
+
+        // paint() clipped to this cell so text could not spill out of it; the
+        // frame deliberately reaches past that, across the row.
+        painter->save();
+        painter->setClipping(false);
+        painter->setRenderHint(QPainter::Antialiasing, false);
+        painter->setBrush(Qt::NoBrush);
+        const QPalette &pal = opt.palette;
+        painter->setPen(
+            QPen(selected ? pal.highlightedText().color() : pal.highlight().color(), 1));
+        const QRect row(0, opt.rect.y(), m_view->viewport()->width(), opt.rect.height());
+        painter->drawRect(row.adjusted(0, 0, -1, -1));
+        painter->restore();
+    }
+
+    QPointer<QTableView> m_view;
 
 };
 } // namespace
@@ -1109,47 +1174,6 @@ void FileListView::currentChanged(const QModelIndex &current, const QModelIndex 
     repaintRow(current);
 }
 
-// The keyboard cursor. Arrow keys move the current index without touching the
-// selection (see keyPressEvent), so on an unselected row this frame is the ONLY
-// thing that moves -- without it the arrow keys read as dead.
-//
-// Drawn here, by the view, as ONE rectangle over the finished row. The delegate
-// is the obvious place for it and the wrong one: a delegate only ever sees one
-// cell, so the frame has to be assembled from per-cell fragments that are
-// expected to meet exactly. They do not. Cell rectangles are integers in
-// logical pixels, and on a fractionally scaled display (125% here) each edge
-// lands on a fractional device pixel, so the fragments join cleanly only where
-// the scale happens to come out whole -- every fourth row at 1.25. The result
-// was a box visibly broken into segments, on a repeating subset of rows.
-void FileListView::drawCursorRow() {
-    const QModelIndex current = currentIndex();
-    if (!current.isValid() || !model())
-        return;
-    const QRect cell = visualRect(current);
-    if (cell.isEmpty())
-        return;
-
-    // Full width of the viewport: the frame belongs to the row, not to whichever
-    // column happens to hold the current index.
-    QRect row(0, cell.y(), viewport()->width(), cell.height());
-    row = row.intersected(viewport()->rect());
-    if (row.isEmpty())
-        return;
-
-    // Same palette entry as the selection, so an inactive panel dims the cursor
-    // exactly like its selection (QTableView[panelActive="false"] in the themes),
-    // and the contrasting one when the row underneath is already filled.
-    const bool selected = selectionModel() && selectionModel()->isRowSelected(current.row(),
-                                                                              QModelIndex());
-    QPainter painter(viewport());
-    painter.setRenderHint(QPainter::Antialiasing, false);
-    painter.setBrush(Qt::NoBrush);
-    painter.setPen(QPen(selected ? palette().highlightedText().color()
-                                 : palette().highlight().color(),
-                        1));
-    painter.drawRect(row.adjusted(0, 0, -1, -1));
-}
-
 void FileListView::wheelEvent(QWheelEvent *event) {
     int delta = event->angleDelta().y();
     if (delta == 0)
@@ -1338,7 +1362,6 @@ void FileListView::dropEvent(QDropEvent *event) {
 
 void FileListView::paintEvent(QPaintEvent *event) {
     QTableView::paintEvent(event);
-    drawCursorRow();
     if (m_dragFeedbackState == DragFeedbackState::None || m_dragFeedbackColor.alpha() == 0)
         return;
 
