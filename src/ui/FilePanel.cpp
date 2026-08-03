@@ -910,6 +910,21 @@ void FilePanel::pumpThumbnailSweep() {
 void FilePanel::navigateTo(const QString &path) {
     cancelDirectorySizeTask();
     cancelRemoteThumbnails();
+
+    // An ordinary path means the user is on their way out of the computer view --
+    // and every route out arrives here: the folder tree, a favourite, Back, "go
+    // to the other panel's directory", a drop, an activated row. Leaving has to
+    // happen before the provider is read below, because the synthetic backend
+    // cannot answer for a real path: isDir() says no for anything that is not
+    // its own root, so the guard further down silently dropped the navigation,
+    // and the callers that reach setRootPath() directly instead got an empty
+    // listing out of it. Handled here rather than at each call site so a route
+    // added later cannot forget.
+    const bool leavingComputerView =
+        m_computerProvider && !ComputerProvider::isComputerPath(path);
+    if (leavingComputerView)
+        leaveComputerView();
+
     // Go through the model's provider so this works for remote backends too;
     // for the local provider these are the same QDir/QFileInfo calls as before.
     FileProvider *provider = m_model->provider();
@@ -924,7 +939,13 @@ void FilePanel::navigateTo(const QString &path) {
     if (!m_model->hasNetworkSession() && !provider->isDir(cleaned))
         return;
     // Snapshot where we're leaving (dir or flat listing) BEFORE mutating the view.
-    const NavEntry from = currentLocation();
+    //
+    // Nothing is recorded when stepping out of the computer view: showComputer()
+    // already pushed the place it was opened from, and currentLocation() would
+    // now answer with the synthetic root the view has just been detached from --
+    // a history entry no backend could restore, and a duplicate of one already
+    // on the stack.
+    const NavEntry from = leavingComputerView ? NavEntry() : currentLocation();
     if (m_filterBar->isVisible()) {
         // setRootPath() clears the model filter; just tidy the (now stale) bar.
         m_filterBar->blockSignals(true);
@@ -1876,10 +1897,10 @@ void FilePanel::backOutOfVirtualBackend() {
 }
 
 void FilePanel::onAddressBarEntered(const QString &path) {
-    // Typing a path in the address bar while the computer view is up is a way
-    // out of it: restore the real backend before navigating, or the path would
-    // be resolved against the synthetic one and rejected.
-    leaveComputerView();
+    // Leaving the computer view is navigateTo()'s job now. Doing it here as well
+    // would be worse than redundant: it would hide the transition from
+    // navigateTo, which would then snapshot the synthetic root as the place
+    // being left and push it onto the history stack.
     navigateTo(path);
 }
 

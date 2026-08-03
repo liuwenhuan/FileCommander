@@ -219,6 +219,100 @@ TEST(ComputerPanelTest, TheSessionSnapshotRecordsARealPathNotTheSyntheticRoot) {
     EXPECT_EQ(QDir(snapshot.at(0).first).canonicalPath(), QDir(dir.path()).canonicalPath());
 }
 
+TEST(ComputerPanelTest, LeavingTheViewByTabSwitchLandsOnARealDirectoryNotAnEmptyOne) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    ASSERT_TRUE(QDir(dir.path()).mkdir(QStringLiteral("sub")));
+
+    FilePanel panel;
+    panel.resize(800, 500);
+    panel.show();
+    panel.navigateTo(dir.path());
+    settle(panel);
+    const int listedBefore = panel.model()->rowCount();
+    ASSERT_GT(listedBefore, 0);
+
+    panel.showComputer(
+        {makeEntry(ComputerEntry::Kind::Drive, QStringLiteral("C"), QStringLiteral("C:/"))});
+    settle(panel);
+    ASSERT_TRUE(panel.isComputerView());
+
+    // Opening a second tab steps out of the computer view, exactly as switching
+    // tabs does. The tab left behind must remember the directory it was showing
+    // before the view was opened -- not the synthetic root, and not nothing.
+    panel.newTab();
+    settle(panel);
+    panel.activateTab(0);
+    settle(panel);
+
+    EXPECT_FALSE(panel.isComputerView());
+    EXPECT_EQ(QDir(panel.model()->rootPath()).canonicalPath(), QDir(dir.path()).canonicalPath());
+    EXPECT_EQ(panel.model()->rowCount(), listedBefore)
+        << "the tab came back empty instead of showing the directory it was on";
+}
+
+TEST(ComputerPanelTest, NavigatingToADirectoryFromTheViewListsIt) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    ASSERT_TRUE(QDir(dir.path()).mkdir(QStringLiteral("sub")));
+
+    FilePanel panel;
+    panel.resize(800, 500);
+    panel.show();
+    panel.navigateTo(dir.path());
+    settle(panel);
+    const int listedBefore = panel.model()->rowCount();
+    ASSERT_GT(listedBefore, 0);
+
+    panel.showComputer(
+        {makeEntry(ComputerEntry::Kind::Drive, QStringLiteral("C"), QStringLiteral("C:/"))});
+    settle(panel);
+    ASSERT_TRUE(panel.isComputerView());
+
+    // Every other way of moving -- the folder tree, a favourite, Back, "go to
+    // the other panel's directory" -- ends up here, at navigateTo() with an
+    // ordinary path. The synthetic backend cannot list one: it answers empty for
+    // anything that is not its own root, so the pane went blank.
+    panel.navigateTo(dir.path());
+    settle(panel);
+
+    EXPECT_FALSE(panel.isComputerView());
+    EXPECT_EQ(QDir(panel.model()->rootPath()).canonicalPath(), QDir(dir.path()).canonicalPath());
+    EXPECT_EQ(panel.model()->rowCount(), listedBefore)
+        << "navigating out of the computer view produced an empty listing";
+}
+
+TEST(ComputerPanelTest, BackFromTheComputerViewReturnsToWhereItWasOpenedFrom) {
+    QTemporaryDir first;
+    QTemporaryDir second;
+    ASSERT_TRUE(first.isValid());
+    ASSERT_TRUE(second.isValid());
+    ASSERT_TRUE(QDir(second.path()).mkdir(QStringLiteral("sub")));
+
+    FilePanel panel;
+    panel.resize(800, 500);
+    panel.show();
+    panel.navigateTo(first.path());
+    settle(panel);
+
+    panel.showComputer(
+        {makeEntry(ComputerEntry::Kind::Drive, QStringLiteral("C"), QStringLiteral("C:/"))});
+    settle(panel);
+    panel.navigateTo(second.path());
+    settle(panel);
+    ASSERT_EQ(QDir(panel.model()->rootPath()).canonicalPath(),
+              QDir(second.path()).canonicalPath());
+
+    // One Back, not two. The synthetic root must never reach the history stack:
+    // nothing can restore it, so a Back that landed there would strand the panel
+    // on a path no backend lists.
+    panel.goBack();
+    settle(panel);
+    EXPECT_EQ(QDir(panel.model()->rootPath()).canonicalPath(),
+              QDir(first.path()).canonicalPath());
+    EXPECT_FALSE(panel.model()->rootPath().startsWith(ComputerProvider::rootPath()));
+}
+
 TEST(ComputerPanelTest, TypingAPathInTheAddressBarLeavesTheView) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
