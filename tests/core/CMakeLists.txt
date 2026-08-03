@@ -17,6 +17,7 @@ set(CORE_TEST_SOURCES
     operations/test_ServerSideMove.cpp
     operations/test_PreserveMtime.cpp
     operations/test_ConflictSizes.cpp
+    update/test_UpdateClient.cpp
     config/test_SessionManager.cpp
     config/test_Settings.cpp
     notepad/test_NotepadStore.cpp
@@ -54,6 +55,8 @@ endif()
 if(WIN32)
     list(APPEND CORE_TEST_SOURCES
         devices/test_WindowsRemovableStorage.cpp
+        # Runs the real PowerShell installer against a scratch tree.
+        update/test_WindowsUpdateInstaller.cpp
     )
 endif()
 if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)

@@ -7,3 +7,9 @@
 #define TTC_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
 #define TTC_VERSION_MINOR @PROJECT_VERSION_MINOR@
 #define TTC_VERSION_PATCH @PROJECT_VERSION_PATCH@
+
+// Where the online updater looks for its release manifest. Set at configure
+// time with -DFILECOMMANDER_UPDATE_MANIFEST_URL=...; see docs/UPDATE_SERVER.md.
+// The default is deliberately unreachable so an unconfigured build never talks
+// to a host somebody else controls.
+#define TTC_UPDATE_MANIFEST_URL "@FILECOMMANDER_UPDATE_MANIFEST_URL@"

@@ -28,12 +28,15 @@ signals:
 
 private slots:
     void onConfirm();
+    // "Later" before the download starts, "Cancel" during it.
+    void onCancel();
     void onProgress(int percent);
     void onFinished(bool ok, const QString &message);
 
 private:
     UpdateInfo m_info;
     Updater *m_updater;
+    bool m_downloading = false;
 
     QLabel *m_headlineLabel;
     QLabel *m_dateLabel;

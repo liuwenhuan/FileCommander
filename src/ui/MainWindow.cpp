@@ -1153,6 +1153,17 @@ void MainWindow::buildTitleBarMenus() {
     // Clicking the title-bar "New Version" badge opens the pending-update dialog.
     connect(m_titleBar, &TitleBar::updateRequested, this, &MainWindow::showUpdateDialog);
 
+    // The recurring half of the update check. The FIRST check is deferred with
+    // the rest of the background services below, but arming the timer costs
+    // nothing and belongs here: whether the app re-checks tomorrow should not
+    // depend on the startup batch having run.
+    auto *updateCheckTimer = new QTimer(this);
+    updateCheckTimer->setObjectName(QStringLiteral("ScheduledUpdateCheck"));
+    updateCheckTimer->setInterval(kUpdateCheckTickMs);
+    connect(updateCheckTimer, &QTimer::timeout, this,
+            &MainWindow::maybeRunScheduledUpdateCheck);
+    updateCheckTimer->start();
+
     // Device enumeration, SMB discovery and update checks are useful background
     // services, but none are required for the first visible frame.
 }
@@ -1402,30 +1413,10 @@ void MainWindow::setupFeatureBatch() {
     });
 #endif
 
-    // Once-a-day background update check: if we haven't checked today, ask the
-    // server quietly. A found update only lights the title-bar badge (no popup);
-    // the user opens it when they choose.
-    const QString today = QDate::currentDate().toString(Qt::ISODate);
-    if (m_settings.autoUpdateCheck() && m_settings.updateLastCheckDate() != today) {
-        auto *checker = new UpdateChecker(this);
-        auto stamp = [this, today] { m_settings.setUpdateLastCheckDate(today); };
-        connect(checker, &UpdateChecker::updateAvailable, this,
-                [this, checker, stamp](const UpdateInfo &info) {
-                    m_pendingUpdate = info;
-                    m_hasUpdate = true;
-                    if (m_titleBar)
-                        m_titleBar->setUpdateAvailable(true);
-                    stamp();
-                    checker->deleteLater();
-                });
-        connect(checker, &UpdateChecker::noUpdate, this, [checker, stamp] {
-            stamp();
-            checker->deleteLater();
-        });
-        connect(checker, &UpdateChecker::checkFailed, this,
-                [checker](const QString &) { checker->deleteLater(); });
-        checker->checkForUpdates();
-    }
+    // The first of the once-a-day update checks. The timer that repeats it is
+    // armed in the constructor; this is only the one that would otherwise
+    // compete with the first visible frame.
+    maybeRunScheduledUpdateCheck();
 
     // Trim the thumbnail disk cache back under its limit, once, a few seconds
     // in. Deferred rather than immediate because it stats every stored file and
@@ -2370,6 +2361,41 @@ void MainWindow::showAboutDialog() {
     dlg.exec();
 }
 
+bool MainWindow::updateCheckIsDue() const {
+    return m_settings.autoUpdateCheck()
+           && m_settings.updateLastCheckDate() != QDate::currentDate().toString(Qt::ISODate);
+}
+
+void MainWindow::maybeRunScheduledUpdateCheck() {
+    if (!updateCheckIsDue())
+        return;
+    // Quiet on purpose: a release found this way only lights the title-bar
+    // badge. Interrupting somebody mid-task with a modal dialog they did not
+    // ask for is what makes people turn auto-update off.
+    const QString today = QDate::currentDate().toString(Qt::ISODate);
+    auto *checker = new UpdateChecker(this);
+    auto stamp = [this, today] { m_settings.setUpdateLastCheckDate(today); };
+    connect(checker, &UpdateChecker::updateAvailable, this,
+            [this, checker, stamp](const UpdateInfo &info) {
+                m_pendingUpdate = info;
+                m_hasUpdate = true;
+                if (m_titleBar)
+                    m_titleBar->setUpdateAvailable(true);
+                stamp();
+                checker->deleteLater();
+            });
+    connect(checker, &UpdateChecker::noUpdate, this, [checker, stamp] {
+        stamp();
+        checker->deleteLater();
+    });
+    // Deliberately NOT stamped: a check that failed did not happen, and a
+    // machine that was offline this morning should try again this afternoon
+    // rather than write the day off.
+    connect(checker, &UpdateChecker::checkFailed, this,
+            [checker](const QString &) { checker->deleteLater(); });
+    checker->checkForUpdates();
+}
+
 void MainWindow::checkForUpdatesNow() {
     // A manual check: report the outcome directly (unlike the silent daily
     // check, which only lights the title-bar badge).
@@ -2402,7 +2428,11 @@ void MainWindow::showUpdateDialog() {
         return;
 #if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
     UpdateDialog dlg(m_pendingUpdate, this);
-    connect(&dlg, &UpdateDialog::restartRequested, qApp, &QApplication::quit);
+    // close(), not qApp->quit(): quit() leaves the event loop without ever
+    // running closeEvent(), which is where the window geometry, column layout
+    // and the whole tab session are written out. Updating would silently throw
+    // away everything the user had open -- and closeEvent ends in quit() anyway.
+    connect(&dlg, &UpdateDialog::restartRequested, this, [this] { close(); });
     dlg.exec();
 #else
     ttc::information(this, tr("Update Available"),

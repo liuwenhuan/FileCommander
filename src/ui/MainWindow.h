@@ -69,6 +69,13 @@ public:
     // exercise the commands without entering the popup's modal exec().
     QMenu *buildShortcutMenu(FilePanel *panel);
     void setActivePanel(FilePanel *panel);
+    // Whether the silent update check should run now: automatic checking is on
+    // and today's check has not been made yet.
+    bool updateCheckIsDue() const;
+    // How often the scheduled check wakes up to ask that question. Far shorter
+    // than the once-a-day policy it enforces, because the policy is written in
+    // calendar dates and the machine may have been asleep.
+    static constexpr int kUpdateCheckTickMs = 60 * 60 * 1000; // 1 hour
 
 signals:
     void startupReady();
@@ -195,6 +202,10 @@ private slots:
     void toggleNotepad();           // quick-notepad command (trailing button default)
     void showAboutDialog();         // View > About this program
     void checkForUpdatesNow();      // View > Check for Updates (manual)
+    // The silent daily check. Runs at startup and on a timer thereafter; does
+    // nothing unless updateCheckIsDue(). Never pops a dialog -- a release it
+    // finds only lights the title-bar badge.
+    void maybeRunScheduledUpdateCheck();
     void showUpdateDialog();        // opens the pending-update dialog
 
     void navigateBack();

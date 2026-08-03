@@ -63,17 +63,32 @@ UpdateDialog::UpdateDialog(const UpdateInfo &info, QWidget *parent)
     layout->addLayout(buttonRow);
 
     connect(m_confirmButton, &QPushButton::clicked, this, &UpdateDialog::onConfirm);
-    connect(m_cancelButton, &QPushButton::clicked, this, &QDialog::reject);
+    connect(m_cancelButton, &QPushButton::clicked, this, &UpdateDialog::onCancel);
     connect(m_updater, &Updater::progress, this, &UpdateDialog::onProgress);
     connect(m_updater, &Updater::finished, this, &UpdateDialog::onFinished);
 }
 
 void UpdateDialog::onConfirm() {
     m_confirmButton->setEnabled(false);
-    m_cancelButton->setEnabled(false);
+    // "Later" becomes "Cancel" for the duration of the download. Leaving the
+    // user with no way out of a download that is crawling (or of a mind change)
+    // is worse than the small cost of supporting cancellation: the installer
+    // has not started yet, so there is nothing to undo.
+    m_downloading = true;
+    m_cancelButton->setText(tr("Cancel"));
     m_progressBar->show();
+    m_progressBar->setValue(0);
     m_statusLabel->setText(tr("Downloading…"));
     m_updater->apply(m_info);
+}
+
+void UpdateDialog::onCancel() {
+    if (!m_downloading) {
+        reject();
+        return;
+    }
+    m_cancelButton->setEnabled(false);
+    m_updater->cancel(); // reports back through onFinished
 }
 
 void UpdateDialog::onProgress(int percent) {
@@ -90,9 +105,11 @@ void UpdateDialog::onFinished(bool ok, const QString &message) {
         emit restartRequested();
         return;
     }
-    // Recoverable failure: let the user retry or dismiss.
+    // Recoverable failure (or a cancellation): let the user retry or dismiss.
+    m_downloading = false;
     m_progressBar->hide();
     m_confirmButton->setEnabled(true);
     m_cancelButton->setEnabled(true);
+    m_cancelButton->setText(tr("Later"));
     m_confirmButton->setText(tr("Retry"));
 }
