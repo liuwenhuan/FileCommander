@@ -268,22 +268,19 @@ private:
     // inactive panel dims it exactly like its selection (QTableView
     // [panelActive="false"] in the themes).
     //
-    // Two things about where and how, both learned the hard way:
+    // Every pixel of it stays inside opt.rect. That is not a style preference,
+    // it is the contract Qt's incremental repainting is built on: the view
+    // marks dirty work in units of cells, so a delegate that paints outside its
+    // own cell paints something nobody will ever be told to erase. An earlier
+    // version drew one rectangle across the whole row from a single cell -- it
+    // had no seams, and it left a rule behind on every row the cursor passed
+    // through, because leaving a row only ever repainted that row's cells.
     //
-    // ONE rectangle spanning the row, drawn while painting a single cell --
-    // never per-cell fragments meeting at the seams. Cell rectangles are
-    // integers in logical pixels; on a fractionally scaled display each edge
-    // lands on a fractional device pixel, so fragments join cleanly only where
-    // the scale comes out whole. At 125% that is every fourth row, and the rest
-    // showed a box broken into segments.
-    //
-    // And drawn HERE, as cell content, rather than over the finished view in
-    // paintEvent. A frame painted on top belongs to no row, so when the view
-    // scrolls -- which is what holding Down does -- QAbstractScrollArea shifts
-    // the already-painted pixels and repaints only the newly exposed strip. The
-    // frame travelled with them and stayed, leaving one more rule across the
-    // list for every row the cursor had passed through. As cell content it
-    // belongs to its row and moves with it.
+    // So the frame is assembled from per-cell pieces after all. The seams they
+    // have to meet at are exact: each piece spans its cell's FULL width,
+    // left() to right() inclusive, and cells tile edge to edge. Taking one
+    // pixel off the right (QRect::right() is already the last pixel inside the
+    // rect) is what put a hole at every column boundary once before.
     void drawCursorFrame(QPainter *painter, const QStyleOptionViewItem &opt,
                          const QModelIndex &index, bool selected) const {
         if (!m_view)
@@ -291,34 +288,36 @@ private:
         const QModelIndex current = m_view->currentIndex();
         if (!current.isValid() || current.row() != index.row())
             return;
-        // Once per row, from the leftmost visible column: the rectangle already
-        // covers the whole row, so drawing it again for the other cells would
-        // just be the same pixels N times over.
-        QHeaderView *header = m_view->horizontalHeader();
-        if (header) {
-            int firstVisual = -1;
-            for (int visual = 0; visual < header->count(); ++visual) {
-                if (header->isSectionHidden(header->logicalIndex(visual)))
-                    continue;
-                firstVisual = visual;
-                break;
-            }
-            if (header->visualIndex(index.column()) != firstVisual)
-                return;
-        }
 
-        // paint() clipped to this cell so text could not spill out of it; the
-        // frame deliberately reaches past that, across the row.
-        painter->save();
-        painter->setClipping(false);
-        painter->setRenderHint(QPainter::Antialiasing, false);
-        painter->setBrush(Qt::NoBrush);
         const QPalette &pal = opt.palette;
         painter->setPen(
             QPen(selected ? pal.highlightedText().color() : pal.highlight().color(), 1));
-        const QRect row(0, opt.rect.y(), m_view->viewport()->width(), opt.rect.height());
-        painter->drawRect(row.adjusted(0, 0, -1, -1));
-        painter->restore();
+        painter->setBrush(Qt::NoBrush);
+
+        // The two rules, across this cell's full width. Every cell of the row
+        // draws its own piece, and together they are one continuous line.
+        const QRect r = opt.rect;
+        painter->drawLine(r.left(), r.top(), r.right(), r.top());
+        painter->drawLine(r.left(), r.bottom(), r.right(), r.bottom());
+
+        // The ends belong only to the outermost visible columns.
+        QHeaderView *header = m_view->horizontalHeader();
+        if (!header)
+            return;
+        int firstVisual = -1;
+        int lastVisual = -1;
+        for (int visual = 0; visual < header->count(); ++visual) {
+            if (header->isSectionHidden(header->logicalIndex(visual)))
+                continue;
+            if (firstVisual < 0)
+                firstVisual = visual;
+            lastVisual = visual;
+        }
+        const int visual = header->visualIndex(index.column());
+        if (visual == firstVisual)
+            painter->drawLine(r.left(), r.top(), r.left(), r.bottom());
+        if (visual == lastVisual)
+            painter->drawLine(r.right(), r.top(), r.right(), r.bottom());
     }
 
     QPointer<QTableView> m_view;

@@ -7,7 +7,10 @@
 #include <QScrollBar>
 #include <QSignalSpy>
 #include <QStandardItemModel>
+#include <QAbstractItemDelegate>
+#include <QPainter>
 #include <QStyle>
+#include <QStyleOptionViewItem>
 #include <QStyleOptionSlider>
 #include <QTest>
 
@@ -509,50 +512,115 @@ TEST_F(FileListViewLayoutTest, TheCursorFrameHasNoGapsAtColumnBoundaries) {
     expectContinuous(firstCell.bottom(), "bottom");
 }
 
-// Moving the cursor has to take its frame with it. Drawing the frame in
-// paintEvent means it is redrawn on every repaint, so every row the cursor
-// passes through must be repainted too -- otherwise the frames pile up behind
-// it and the list fills with horizontal rules.
-TEST_F(FileListViewLayoutTest, TheCursorFrameDoesNotStayBehindOnRowsItHasLeft) {
+// The frame must not paint a single pixel outside the cell it was given. That
+// is the contract the view's dirty-region bookkeeping rests on, and breaking it
+// is what left a rule behind on every row the cursor walked over: leaving a row
+// repaints that row's cells, and anything drawn beyond them is never erased.
+//
+// The delegate is driven DIRECTLY here, onto a bare canvas. Going through
+// viewport()->render() cannot answer the question -- its region argument is a
+// clip, so it silently discards the very pixels being looked for.
+TEST_F(FileListViewLayoutTest, TheCursorFrameStaysInsideTheCellItWasGiven) {
     resizeAndSettle(900);
     m_view.selectionModel()->clearSelection();
-
-    auto rowStrip = [this](const QImage &shot, int row) {
-        const QRect cell = m_view.visualRect(m_model.index(row, 0));
-        QVector<QRgb> strip;
-        if (cell.isEmpty())
-            return strip;
-        for (int y = cell.top(); y <= cell.bottom() && y < shot.height(); ++y)
-            strip << shot.pixel(cell.left() + 1, y);
-        return strip;
-    };
-
-    auto snapshot = [this] {
-        qApp->processEvents();
-        QImage shot(m_view.viewport()->size(), QImage::Format_ARGB32);
-        shot.fill(Qt::transparent);
-        m_view.viewport()->render(&shot);
-        return shot;
-    };
-
-    // What an untouched row looks like, before any cursor has been near it.
-    m_view.selectionModel()->setCurrentIndex(m_model.index(0, 0),
+    m_view.selectionModel()->setCurrentIndex(m_model.index(4, 0),
                                              QItemSelectionModel::NoUpdate);
-    const QVector<QRgb> pristine = rowStrip(snapshot(), 3);
-    ASSERT_FALSE(pristine.isEmpty());
+    qApp->processEvents();
 
-    // Walk the cursor down over it and past it, the way holding Down does.
-    for (int row = 1; row <= 6; ++row) {
-        QTest::keyClick(&m_view, Qt::Key_Down);
-        qApp->processEvents();
+    QAbstractItemDelegate *delegate = m_view.itemDelegate();
+    ASSERT_NE(delegate, nullptr);
+    const QRect cell = m_view.visualRect(m_model.index(4, 0));
+    ASSERT_FALSE(cell.isEmpty());
+
+    constexpr int kMargin = 8;
+    QImage canvas(m_view.viewport()->width() + 2 * kMargin, cell.height() + 2 * kMargin,
+                  QImage::Format_ARGB32);
+    const QRgb blank = qRgba(0, 0, 0, 0);
+    canvas.fill(blank);
+
+    QStyleOptionViewItem opt;
+    opt.rect = QRect(kMargin, kMargin, cell.width(), cell.height());
+    opt.palette = m_view.palette();
+    opt.font = m_view.font();
+    opt.fontMetrics = QFontMetrics(opt.font);
+    opt.state = QStyle::State_Enabled;
+    {
+        QPainter painter(&canvas);
+        delegate->paint(&painter, opt, m_model.index(4, 0));
     }
-    ASSERT_EQ(m_view.currentIndex().row(), 6);
 
-    const QImage after = snapshot();
-    EXPECT_EQ(rowStrip(after, 3), pristine)
-        << "row 3 still carries a frame after the cursor moved on";
-    EXPECT_EQ(rowStrip(after, 4), pristine) << "row 4 kept a frame";
-    EXPECT_NE(rowStrip(after, 6), pristine) << "the cursor row lost its frame";
+    // Only the frame's own colour counts. Text and icons antialias against the
+    // transparent canvas and would otherwise be reported as spill.
+    const QRgb frameColour = opt.palette.highlight().color().rgb() & 0x00ffffffu;
+    QStringList spills;
+    for (int y = 0; y < canvas.height(); ++y) {
+        for (int x = 0; x < canvas.width(); ++x) {
+            const bool inside = x >= opt.rect.left() && x <= opt.rect.right()
+                                && y >= opt.rect.top() && y <= opt.rect.bottom();
+            const QRgb pixel = canvas.pixel(x, y);
+            // Untouched canvas is fully transparent; comparing it by RGB alone
+            // would call every blank pixel a hit whenever the frame colour is
+            // black.
+            if (inside || qAlpha(pixel) == 0)
+                continue;
+            if ((pixel & 0x00ffffffu) != frameColour)
+                continue;
+            if (spills.size() < 8)
+                spills << QStringLiteral("(%1,%2)").arg(x - kMargin).arg(y - kMargin);
+        }
+    }
+    Q_UNUSED(blank);
+    EXPECT_TRUE(spills.isEmpty())
+        << "the delegate painted outside its cell at "
+        << spills.join(QLatin1String(", ")).toStdString()
+        << " -- nothing will ever be told to erase those pixels";
+}
+
+// Records which regions the view is actually asked to repaint.
+//
+// Pixels cannot answer this question. Every way a test can read a widget's
+// contents -- render(), grab(), even PrintWindow -- forces a FULL repaint, and
+// a full repaint is precisely what incremental painting avoids. Two earlier
+// pixel-reading tests here passed against a build that visibly smeared frames
+// down the entire list. What survives on screen is decided by which regions
+// were marked dirty, so that is the thing to measure.
+class RepaintRecordingView : public FileListView {
+public:
+    QRegion painted;
+    void forget() { painted = QRegion(); }
+
+protected:
+    void paintEvent(QPaintEvent *event) override {
+        painted += event->region();
+        FileListView::paintEvent(event);
+    }
+};
+
+// The frame spans the row, so leaving a row has to repaint the whole row --
+// not just the one cell that held the current index, which is all the base
+// class asks for.
+TEST(FileListCursorRepaint, LeavingARowAsksForThatWholeRowToBeRepainted) {
+    QStandardItemModel model;
+    populateModel(model);
+    RepaintRecordingView view;
+    view.setModel(&model);
+    view.resize(900, 320);
+    view.show();
+    view.selectionModel()->clearSelection();
+    view.selectionModel()->setCurrentIndex(model.index(2, 0), QItemSelectionModel::NoUpdate);
+    qApp->processEvents();
+
+    const QRect leftBehind = view.visualRect(model.index(2, 0));
+    ASSERT_FALSE(leftBehind.isEmpty());
+    const QRect wholeRow(0, leftBehind.y(), view.viewport()->width(), leftBehind.height());
+
+    view.forget();
+    QTest::keyClick(&view, Qt::Key_Down);
+    qApp->processEvents();
+    ASSERT_EQ(view.currentIndex().row(), 3);
+
+    EXPECT_TRUE(view.painted.contains(wholeRow))
+        << "the row the cursor left was not fully repainted, so its frame stays on screen";
 }
 
 // Insert is the plain selection key: it must NOT trigger the size count, or
