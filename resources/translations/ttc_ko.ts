@@ -688,8 +688,8 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <name>FilePanel</name>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="316"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="565"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="2357"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="569"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2379"/>
         <source>New Tab</source>
         <translation>새 탭</translation>
     </message>
@@ -729,47 +729,52 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <translation>필터: 입력하여 목록 좁히기, Esc로 지우기</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="991"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="995"/>
         <source>正在等待连接…</source>
         <translation>연결을 기다리는 중…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="996"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1000"/>
         <source>断线，正在重连（%1/%2）…</source>
         <translation>연결이 끊어져 다시 연결하는 중(%1/%2)…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1003"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1007"/>
         <source>多次重连失败</source>
         <translation>여러 번 다시 연결했지만 실패했습니다</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1003"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1007"/>
         <source>连接失败：%1</source>
         <translation>연결 실패: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1054"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1031"/>
+        <source>无法列出目录：%1</source>
+        <translation>디렉터리를 나열할 수 없습니다: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/FilePanel.cpp" line="1076"/>
         <source>需要登录</source>
         <translation>로그인이 필요합니다</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1079"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1101"/>
         <source>Search results</source>
         <translation>검색 결과</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="2196"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2218"/>
         <source>Select by Pattern</source>
         <translation>패턴으로 선택</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="2196"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2218"/>
         <source>Unselect by Pattern</source>
         <translation>패턴으로 선택 해제</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="2197"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2219"/>
         <source>Wildcard mask (e.g. *.txt):</source>
         <translation>와일드카드 마스크(예: *.txt):</translation>
     </message>
@@ -777,12 +782,12 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
 <context>
     <name>FileSystemModel</name>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="879"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="888"/>
         <source>%1 already exists</source>
         <translation>%1 이(가) 이미 있습니다</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="886"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="895"/>
         <source>Failed to rename %1</source>
         <translation>%1 의 이름을 바꾸지 못했습니다</translation>
     </message>
@@ -2796,39 +2801,39 @@ Destination: %4 (%5 bytes)</source>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="167"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="678"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="687"/>
         <source>Name</source>
         <translation>이름</translation>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="169"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="682"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="691"/>
         <source>Size</source>
         <translation>크기</translation>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="171"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="684"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="693"/>
         <source>Modified</source>
         <translation>수정한 날짜</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="680"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="689"/>
         <source>Ext</source>
         <translation>확장자</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="690"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="699"/>
         <source>Permissions</source>
         <translation>권한</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="688"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="697"/>
         <source>Type</source>
         <translation>종류</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="686"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="695"/>
         <source>Created</source>
         <translation>만든 날짜</translation>
     </message>
@@ -2840,7 +2845,7 @@ Destination: %4 (%5 bytes)</source>
     <message>
         <location filename="../../src/core/filesystem/ComputerProvider.cpp" line="48"/>
         <location filename="../../src/core/filesystem/ComputerProvider.cpp" line="55"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="698"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="707"/>
         <source>Folder</source>
         <translation>폴더</translation>
     </message>
@@ -2855,32 +2860,32 @@ Destination: %4 (%5 bytes)</source>
         <translation>서버</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="701"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="710"/>
         <source>File</source>
         <translation>파일</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="713"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="722"/>
         <source>Image</source>
         <translation>이미지</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="715"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="724"/>
         <source>Video</source>
         <translation>동영상</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="717"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="726"/>
         <source>Audio</source>
         <translation>오디오</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="719"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="728"/>
         <source>Archive</source>
         <translation>압축 파일</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="721"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="730"/>
         <source>Document</source>
         <translation>문서</translation>
     </message>
@@ -2937,37 +2942,37 @@ Destination: %4 (%5)</source>
 대상: %4 (%5)</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/ComputerCatalog.cpp" line="89"/>
+        <location filename="../../src/core/filesystem/ComputerCatalog.cpp" line="101"/>
         <source>Local Disk</source>
         <translation>로컬 디스크</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/ComputerCatalog.cpp" line="112"/>
+        <location filename="../../src/core/filesystem/ComputerCatalog.cpp" line="125"/>
         <source>My Desktop</source>
         <translation>내 바탕 화면</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/ComputerCatalog.cpp" line="113"/>
+        <location filename="../../src/core/filesystem/ComputerCatalog.cpp" line="126"/>
         <source>My Documents</source>
         <translation>내 문서</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/ComputerCatalog.cpp" line="114"/>
+        <location filename="../../src/core/filesystem/ComputerCatalog.cpp" line="127"/>
         <source>My Pictures</source>
         <translation>내 사진</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/ComputerCatalog.cpp" line="115"/>
+        <location filename="../../src/core/filesystem/ComputerCatalog.cpp" line="128"/>
         <source>My Music</source>
         <translation>내 음악</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/ComputerCatalog.cpp" line="116"/>
+        <location filename="../../src/core/filesystem/ComputerCatalog.cpp" line="129"/>
         <source>My Videos</source>
         <translation>내 동영상</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/ComputerCatalog.cpp" line="117"/>
+        <location filename="../../src/core/filesystem/ComputerCatalog.cpp" line="130"/>
         <source>My Downloads</source>
         <translation>내 다운로드</translation>
     </message>

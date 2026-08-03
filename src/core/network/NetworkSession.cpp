@@ -234,6 +234,29 @@ void NetworkSession::onRequestList(quint64 reqId, const QString &path, bool show
 
     QVector<FileInfo> entries = m_provider ? m_provider->list(path, showHidden) : QVector<FileInfo>();
 
+    // Did the listing fail, or is the directory simply empty? Backends that can
+    // tell the difference say so here; the rest report Ok and fall through to
+    // the heuristic below exactly as before.
+    if (m_provider) {
+        const FileProvider::ListStatus status = m_provider->lastListStatus();
+        if (status == FileProvider::ListStatus::AccessDenied) {
+            // Answerable by credentials. A server can accept an anonymous
+            // connection and still refuse to enumerate, so this happens with the
+            // link up -- which is why it does not go through the connect-time
+            // prompt path and does not care about m_everConnected.
+            if (!m_awaitingCredentials) {
+                m_awaitingCredentials = true;
+                emit authRequired(m_provider->lastListError());
+            }
+            emit listFailed(reqId, path, m_provider->lastListError());
+            return;
+        }
+        if (status == FileProvider::ListStatus::Failed) {
+            emit listFailed(reqId, path, m_provider->lastListError());
+            return;
+        }
+    }
+
     // Passive drop detection: an empty result *might* be an empty directory, or
     // it might be a dropped link. Distinguish by probing the last known-good
     // directory (which we know is a real directory): if that is now unreachable,

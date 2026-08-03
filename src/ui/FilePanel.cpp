@@ -541,6 +541,10 @@ FilePanel::FilePanel(const QFont &initialListFont, QWidget *parent) : QWidget(pa
     // in the failed state asks the model's session to reconnect.
     connect(m_model, &FileSystemModel::networkStateChanged, this,
             &FilePanel::onNetworkStateChanged);
+    // A listing the backend could explain away (a share the server refuses to
+    // enumerate). The connection is still up, so this is reported on its own
+    // rather than through the connection-state path.
+    connect(m_model, &FileSystemModel::listingFailed, this, &FilePanel::showListingError);
     connect(m_statusBar, &StatusBarWidget::retryRequested, this, [this] {
         // Same link for both states: re-prompt for credentials if the user had
         // cancelled the login, otherwise ask the session to reconnect.
@@ -1009,6 +1013,24 @@ void FilePanel::showNetworkStatus(int state, int attempt) {
         m_networkStatusVisible = false;
         break;
     }
+    refreshTabIcons();
+}
+
+void FilePanel::showListingError(const QString &reason) {
+    if (reason.isEmpty())
+        return;
+    // Reported at the "failed" level so it is unmistakable and carries the
+    // status line's Retry link, but WITHOUT touching the connection state: the
+    // link is up, it is this directory that could not be read. The reveal timer
+    // is stopped so a pending "connecting" message cannot overwrite this a
+    // moment later.
+    m_networkStatusRevealTimer->stop();
+    m_networkStatusColorAnimation->stop();
+    m_awaitingLogin = false;
+    m_networkStatusVisible = true;
+    m_statusBar->setConnectionStatus(tr("无法列出目录：%1").arg(reason),
+                                     StatusBarWidget::ConnFailed);
+    m_networkStatusDotColor = QColor(0xe0, 0x4a, 0x4a);
     refreshTabIcons();
 }
 

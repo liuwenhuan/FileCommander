@@ -93,6 +93,10 @@ public:
     // user cancelled the credential prompt. Without this the tab would sit blank
     // and connected-looking with no way to retry the login.
     void showLoginPrompt();
+    // Reports a directory that could not be listed, with the backend's reason,
+    // on the status line. Distinct from a connection failure: the link is fine,
+    // this one directory is not readable, so the connection state is untouched.
+    void showListingError(const QString &reason);
     // Switches to `tabIndex`, drops any server connection it holds (going back to
     // the local filesystem), then navigates it to the local `path`. Used by the
     // favorites menu: favorites are always local directories.

@@ -5,24 +5,73 @@
 #include <Windows.h>
 #include <Winnetwk.h>
 
-namespace {
-QString winError(DWORD code) {
+WindowsSmbSession::~WindowsSmbSession() {
+    disconnectOwned();
+}
+
+QString WindowsSmbSession::describe(unsigned long status) {
     wchar_t *buffer = nullptr;
     const DWORD size = FormatMessageW(
         FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
             FORMAT_MESSAGE_IGNORE_INSERTS,
-        nullptr, code, 0, reinterpret_cast<wchar_t *>(&buffer), 0, nullptr);
+        nullptr, static_cast<DWORD>(status), 0, reinterpret_cast<wchar_t *>(&buffer), 0,
+        nullptr);
     const QString text =
         size ? QString::fromWCharArray(buffer, static_cast<int>(size)).trimmed()
-             : QStringLiteral("Windows error %1").arg(code);
+             : QStringLiteral("Windows error %1").arg(status);
     if (buffer)
         LocalFree(buffer);
     return text;
 }
-}
 
-WindowsSmbSession::~WindowsSmbSession() {
-    disconnectOwned();
+WindowsSmbSession::Result WindowsSmbSession::classify(unsigned long status) {
+    switch (status) {
+    case NO_ERROR:
+        return Result::Connected;
+
+    // Windows already has a session to this target. Not an error: the existing
+    // connection is usable, and tearing it down to re-make it with our own
+    // credentials would disrupt whatever else is using it.
+    //
+    // ERROR_SESSION_CREDENTIAL_CONFLICT is the one that bites in practice --
+    // "multiple connections to a server by the same user, using more than one
+    // user name, are not allowed". Reporting it as an auth failure would prompt
+    // for a password that Windows will refuse to apply anyway, so the honest
+    // answer is that a session exists and we should use it.
+    case ERROR_ALREADY_ASSIGNED:
+    case ERROR_ALREADY_EXISTS:
+    case ERROR_DEVICE_ALREADY_REMEMBERED:
+    case ERROR_SESSION_CREDENTIAL_CONFLICT:
+        return Result::Connected;
+
+    // The server rejected who we are (or that we are nobody). Answerable by
+    // credentials, so the UI prompts rather than retrying the same dial.
+    case ERROR_ACCESS_DENIED:
+    case ERROR_INVALID_PASSWORD:
+    case ERROR_LOGON_FAILURE:
+    case ERROR_NO_SUCH_USER:
+    case ERROR_ACCOUNT_DISABLED:
+    case ERROR_ACCOUNT_EXPIRED:
+    case ERROR_ACCOUNT_LOCKED_OUT:
+    case ERROR_ACCOUNT_RESTRICTION:
+    case ERROR_PASSWORD_EXPIRED:
+    case ERROR_PASSWORD_MUST_CHANGE:
+    case ERROR_INVALID_LOGON_HOURS:
+    case ERROR_INVALID_WORKSTATION:
+    case ERROR_LOGON_TYPE_NOT_GRANTED:
+    case ERROR_NOT_AUTHENTICATED:
+    case ERROR_TRUST_FAILURE:
+    case ERROR_NO_LOGON_SERVERS:
+    case ERROR_NO_TRUST_SAM_ACCOUNT:
+    case ERROR_DOWNGRADE_DETECTED:
+        return Result::AuthRequired;
+
+    // Everything else -- unreachable host, bad name, no network, timeout, the
+    // remote service being absent -- is a plain failure. Prompting for a
+    // password would be a lie about what went wrong.
+    default:
+        return Result::Failed;
+    }
 }
 
 void WindowsSmbSession::setCredentials(const QString &user, const QString &password,
@@ -33,36 +82,69 @@ void WindowsSmbSession::setCredentials(const QString &user, const QString &passw
     m_anonymous = anonymous;
 }
 
-bool WindowsSmbSession::ensureConnected(const QString &uncShare, QString *error) {
+WindowsSmbSession::Result WindowsSmbSession::connectTarget(const QString &uncTarget,
+                                                           QString *error) {
     QMutexLocker lock(&m_mutex);
-    if (m_ownedConnections.contains(uncShare))
-        return true;
+    if (m_ownedConnections.contains(uncTarget) || m_borrowedConnections.contains(uncTarget))
+        return Result::Connected;
 
     NETRESOURCEW resource{};
-    resource.dwType = RESOURCETYPE_DISK;
-    resource.lpRemoteName = const_cast<wchar_t *>(
-        reinterpret_cast<const wchar_t *>(uncShare.utf16()));
+    // IPC$ is a pipe share, not a disk. RESOURCETYPE_ANY covers both it and a
+    // real disk share; declaring DISK for IPC$ makes Windows refuse the call
+    // with ERROR_BAD_DEV_TYPE before it ever reaches the server.
+    resource.dwType = RESOURCETYPE_ANY;
+    resource.lpRemoteName =
+        const_cast<wchar_t *>(reinterpret_cast<const wchar_t *>(uncTarget.utf16()));
+
+    // Anonymous means "no credentials at all", which is not the same as an empty
+    // user name: passing an empty string makes Windows fall back to the logged-in
+    // user's token, so an anonymous browse would silently authenticate as the
+    // current user and mask the very rejection the caller needs to see.
     const wchar_t *user = m_anonymous || m_user.isEmpty()
                               ? nullptr
                               : reinterpret_cast<const wchar_t *>(m_user.utf16());
     const wchar_t *password =
-        m_anonymous ? nullptr : reinterpret_cast<const wchar_t *>(m_password.utf16());
-    const DWORD result =
-        WNetAddConnection2W(&resource, password, user, CONNECT_TEMPORARY);
-    if (result == NO_ERROR) {
-        m_ownedConnections.insert(uncShare);
-        return true;
+        m_anonymous ? L"" : reinterpret_cast<const wchar_t *>(m_password.utf16());
+
+    const DWORD status = WNetAddConnection2W(&resource, password, user, CONNECT_TEMPORARY);
+    const Result result = classify(status);
+    if (result == Result::Connected) {
+        if (status == NO_ERROR)
+            m_ownedConnections.insert(uncTarget);
+        else
+            m_borrowedConnections.insert(uncTarget); // pre-existing; not ours to cancel
+        return result;
     }
-    if (result == ERROR_ALREADY_ASSIGNED || result == ERROR_ALREADY_EXISTS)
-        return true;
     if (error)
-        *error = winError(result);
-    return false;
+        *error = describe(status);
+    return result;
+}
+
+WindowsSmbSession::Result WindowsSmbSession::connectToServer(const QString &host,
+                                                             QString *error) {
+    if (host.isEmpty()) {
+        if (error)
+            *error = QStringLiteral("No SMB server has been configured.");
+        return Result::Failed;
+    }
+    return connectTarget(QStringLiteral("\\\\") + host + QStringLiteral("\\IPC$"), error);
+}
+
+WindowsSmbSession::Result WindowsSmbSession::ensureConnected(const QString &uncShare,
+                                                             QString *error) {
+    return connectTarget(uncShare, error);
+}
+
+bool WindowsSmbSession::holdsConnection() const {
+    QMutexLocker lock(&m_mutex);
+    return !m_ownedConnections.isEmpty() || !m_borrowedConnections.isEmpty();
 }
 
 void WindowsSmbSession::disconnectOwned() {
     QMutexLocker lock(&m_mutex);
-    for (const QString &share : m_ownedConnections)
-        WNetCancelConnection2W(reinterpret_cast<const wchar_t *>(share.utf16()), 0, FALSE);
+    for (const QString &target : m_ownedConnections)
+        WNetCancelConnection2W(reinterpret_cast<const wchar_t *>(target.utf16()), 0, FALSE);
     m_ownedConnections.clear();
+    // Borrowed sessions are left alone on purpose -- see the header.
+    m_borrowedConnections.clear();
 }

@@ -73,7 +73,30 @@ public:
 
     virtual ~FileProvider() = default;
 
+    // How the most recent list() call ended. list() returns a plain vector, and
+    // an empty one is indistinguishable from a directory that really is empty --
+    // which is how a share the server refused to enumerate came to be shown as
+    // an empty folder with no explanation at all.
+    //
+    // AccessDenied is separate from Failed because the two want different
+    // recoveries: a denial is answerable by credentials, so the session raises a
+    // login prompt and re-lists once the user has typed them, while a plain
+    // failure is only worth reporting.
+    enum class ListStatus { Ok, Failed, AccessDenied };
+
+    // Result of the last list() on THIS provider. Read on the same thread that
+    // made the call, immediately after it returns (NetworkSession does both on
+    // its worker thread), so no synchronisation beyond that ordering is implied.
+    // The default never reports a failure, which keeps every backend that has
+    // not been taught this behaving exactly as before.
+    virtual ListStatus lastListStatus() const { return ListStatus::Ok; }
+    // Human-readable reason for a non-Ok lastListStatus (may be empty).
+    virtual QString lastListError() const { return {}; }
+
     // Lists a directory's entries, excluding "." / "..". Worker-thread.
+    // Implementations that can distinguish failure from emptiness must record it
+    // for lastListStatus() -- returning an empty vector is a claim that the
+    // directory is empty.
     virtual QVector<FileInfo> list(const QString &path, bool showHidden) const = 0;
 
     // Whether path is (or resolves to) a directory.

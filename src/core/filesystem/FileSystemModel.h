@@ -204,6 +204,11 @@ signals:
     // Network connection state for the status line: state is a
     // NetworkSession::State, attempt is the current reconnect attempt (1..N).
     void networkStateChanged(int state, int attempt);
+    // A listing failed for a reason the backend could name -- distinct from the
+    // connection itself failing, which networkStateChanged already covers. The
+    // link may well still be up (a share the server declines to enumerate), so
+    // the panel reports this without declaring the connection dead.
+    void listingFailed(const QString &reason);
     // The server needs credentials: `label` (host) identifies which, `error` is
     // the server's reason (may be empty; distinguishes wrong-password from a
     // first-time prompt). The UI should prompt and call provideCredentials().
@@ -218,7 +223,7 @@ public:
 private slots:
     void onScanFinished();
     void onSessionListReady(quint64 reqId, const QString &path, const QVector<FileInfo> &entries);
-    void onSessionListFailed(quint64 reqId, const QString &path);
+    void onSessionListFailed(quint64 reqId, const QString &path, const QString &reason);
     void onSessionAuthRequired(const QString &error);
     void onSessionFailed(const QString &error);
     void onSessionStateChanged(int state, int attempt);

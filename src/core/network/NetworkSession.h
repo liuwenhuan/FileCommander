@@ -95,7 +95,12 @@ public:
 signals:
     void stateChanged(int state, int attempt); // NetworkSession::State + reconnect attempt
     void listReady(quint64 reqId, const QString &path, const QVector<FileInfo> &entries);
-    void listFailed(quint64 reqId, const QString &path);
+    // `reason` is the backend's explanation when it has one (an SMB share the
+    // server refused to enumerate, say) and empty when the failure was a dead
+    // connection the status line already describes. Carried in the signal
+    // rather than read back off the provider: by the time this queued signal
+    // reaches the GUI thread the worker may already be servicing another list.
+    void listFailed(quint64 reqId, const QString &path, const QString &reason = QString());
     // The initial connection failed because the server wants credentials: the UI
     // should prompt for a username/password and call retryWith(). Emitted instead
     // of a Failed state so the anonymous attempt isn't retried 5 times in vain.

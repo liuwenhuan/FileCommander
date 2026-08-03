@@ -34,7 +34,13 @@ TEST(WindowsSmbProvider, ConvertsProviderPathsToCanonicalUnc) {
 TEST(WindowsSmbProvider, ShellAccessiblePathUsesCanonicalUnc) {
     WindowsSmbProvider provider;
     QString error;
-    ASSERT_TRUE(provider.connectToHost(QStringLiteral("nas"), {}, {}, {}, true, &error));
+    // The dial fails -- "nas" is not a real host here -- and that is fine for
+    // this test: it is about path conversion, and the target stays configured
+    // afterwards so reconnect() (and the credentialed retry the login prompt
+    // drives) can still run. This used to assert success only because
+    // connectToHost never touched the network at all.
+    provider.connectToHost(QStringLiteral("nas"), {}, {}, {}, true, &error);
+    EXPECT_FALSE(provider.isConnected());
 
     EXPECT_EQ(provider.shellAccessiblePath(QStringLiteral("/media/movie.mp4")),
               QStringLiteral("\\\\nas\\media\\movie.mp4"));
@@ -85,9 +91,9 @@ TEST(WindowsSmbProvider, RenamePreservesSourceTraversalForMoveValidation) {
 
 TEST(WindowsSmbProvider, RejectsTraversalBeforeRootShortcuts) {
     WindowsSmbProvider provider;
-    QString error;
-    ASSERT_TRUE(provider.connectToHost(QStringLiteral("nas.invalid"), {}, {}, {}, true, &error));
-
+    // No connect on purpose. Traversal is rejected before the path is used for
+    // anything, so the guard must hold with no link at all -- and asserting it
+    // that way keeps this test off the network entirely.
     EXPECT_FALSE(provider.isDir(QStringLiteral("/share/..")));
     EXPECT_FALSE(provider.exists(QStringLiteral("/share/..")));
 }

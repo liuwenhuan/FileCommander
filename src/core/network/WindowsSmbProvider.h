@@ -13,7 +13,10 @@ public:
                        const QString &password, const QString &workgroup,
                        bool anonymous, QString *error);
     void disconnect();
-    bool isConnected() const { return !m_host.isEmpty(); }
+    // A live session, not merely a remembered host name. The old test (host
+    // string non-empty) was true the instant a name was typed, which is what let
+    // a never-established connection report itself as connected.
+    bool isConnected() const { return !m_host.isEmpty() && m_session.holdsConnection(); }
     QString host() const { return m_host; }
 
     QString displayName() const override;
@@ -21,8 +24,15 @@ public:
     RemoteLocation remoteLocation() const override;
     QString shellAccessiblePath(const QString &path) const override;
     bool reconnect(QString *error) override;
+    // Honoured by bounding the reachability probe that precedes the connect.
+    // WNetAddConnection2 itself takes no timeout, and left to the OS an
+    // unreachable host costs ~22s per attempt -- multiplied by the session's
+    // retry budget before the user is told anything.
+    void setTimeoutMs(int ms) override { m_timeoutMs = ms > 0 ? ms : m_timeoutMs; }
 
     QVector<FileInfo> list(const QString &path, bool showHidden) const override;
+    ListStatus lastListStatus() const override { return m_lastListStatus; }
+    QString lastListError() const override { return m_lastListError; }
     bool isDir(const QString &path) const override;
     QString cleanPath(const QString &path) const override;
     QString parentPath(const QString &path) const override;
@@ -50,12 +60,27 @@ public:
 
 private:
     QString uncFor(const QString &path, QString *error = nullptr) const;
-    bool ensureShareFor(const QString &path, QString *error = nullptr) const;
+    WindowsSmbSession::Result ensureShareFor(const QString &path,
+                                              QString *error = nullptr) const;
+    // ensureShareFor reduced to "may I touch this path". Callers that have no
+    // way to report *why* (remove, mkdir, openRead, ...) use this; the ones that
+    // do -- list() -- keep the full result so a denial can be named.
+    bool shareReady(const QString &path) const {
+        return ensureShareFor(path) == WindowsSmbSession::Result::Connected;
+    }
+    // Records how a list() ended so lastListStatus()/lastListError() can report
+    // it. Called only from list(), on the session worker thread.
+    void noteListResult(ListStatus status, const QString &error = QString()) const;
 
     QString m_host;
     QString m_user;
     QString m_password;
     QString m_workgroup;
     bool m_anonymous = false;
+    int m_timeoutMs = 12000; // matches NetworkSession::kConnectTimeoutMs
     mutable WindowsSmbSession m_session;
+    // Written by list() and read immediately afterwards on the same worker
+    // thread; see FileProvider::lastListStatus().
+    mutable ListStatus m_lastListStatus = ListStatus::Ok;
+    mutable QString m_lastListError;
 };

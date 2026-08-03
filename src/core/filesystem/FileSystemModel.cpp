@@ -307,12 +307,21 @@ void FileSystemModel::onSessionListReady(quint64 reqId, const QString &path,
     emit loadFinished(m_entries.size(), m_loadGeneration);
 }
 
-void FileSystemModel::onSessionListFailed(quint64 reqId, const QString &path) {
+void FileSystemModel::onSessionListFailed(quint64 reqId, const QString &path,
+                                          const QString &reason) {
     Q_UNUSED(path);
     if (sender() != m_session.get())
         return; // parked background session; ignore
     if (reqId != 0 && reqId != m_reqId)
         return;
+    // A backend that knows why it failed gets to say so. Without this the panel
+    // just stopped its spinner and left the previous (or empty) listing on
+    // screen, which is how "the server refused to enumerate its shares" reached
+    // the user as a blank pane and nothing else.
+    if (!reason.isEmpty()) {
+        m_lastNetworkError = reason;
+        emit listingFailed(reason);
+    }
     // Keep the current view intact (don't blank it); the status line already
     // reflects the reconnect/failed state. End any loading indicator.
     emit loadFinished(m_entries.size(), m_loadGeneration);
