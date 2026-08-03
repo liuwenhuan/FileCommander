@@ -222,6 +222,31 @@ public:
     // what housekeeping did without duplicating the path logic.
     static QString cacheDirectory();
 
+    // Test seam: makes cacheDirectory() return `dir` instead of the standard
+    // location; an empty string restores the standard one.
+    //
+    // The suite gives every single test a throwaway root of its own. One shared
+    // directory is not enough, because it outlives both the test and the
+    // process: a test that counts stored files was counting its neighbours'
+    // work and the *previous run's* leftovers as well as its own, so the same
+    // unchanged binary failed differently on each run -- and a suite whose
+    // failures have to be hand-triaged before they can be believed hides real
+    // regressions rather than reporting them.
+    //
+    // Read on worker threads (every disk write derives its path from it) and
+    // written from the GUI thread between tests, hence the lock inside.
+    static void setCacheDirectoryForTest(const QString &dir);
+
+    // Test seam: generations claimed but not yet reported back -- pending disk
+    // lookups and local decodes, plus queued and running remote fetches.
+    //
+    // Swapping the cache root is only safe once this reads zero. A worker
+    // derives its output path when it finishes, not when it starts, so a
+    // straggler from the test just ended would otherwise write its file into
+    // the *next* test's directory: the same cross-test leak the per-test root
+    // exists to close, with one extra step.
+    int inFlightCountForTest();
+
     // The configured cap in bytes (Settings::thumbnailCacheLimitMb).
     static qint64 diskCacheLimitBytes();
 

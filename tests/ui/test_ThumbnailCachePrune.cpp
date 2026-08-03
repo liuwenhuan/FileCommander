@@ -42,13 +42,15 @@ QStringList storedNames() {
     return QDir(cacheDir()).entryList(thumbnailFilters(), QDir::Files);
 }
 
-// Lets any generation still in flight from a neighbouring test land before this
-// one counts files -- the cache is a process-wide singleton with a worker pool,
-// so a late arrival would otherwise show up as this test's file.
-void drainPendingWork(int ms = 500) {
+// Lets this test's own outstanding generations land before the directory is
+// wiped underneath them -- a worker picks its output path when it finishes, so
+// one still running would recreate a file just deleted. (Work from a
+// NEIGHBOURING test cannot be in flight here: test_main.cpp waits for the cache
+// to go idle before handing this test its own cache root.)
+void drainPendingWork(int budgetMs = 15000) {
     QElapsedTimer timer;
     timer.start();
-    while (timer.elapsed() < ms) {
+    while (ThumbnailCache::instance().inFlightCountForTest() > 0 && timer.elapsed() < budgetMs) {
         QEventLoop loop;
         QTimer::singleShot(10, &loop, &QEventLoop::quit);
         loop.exec();
