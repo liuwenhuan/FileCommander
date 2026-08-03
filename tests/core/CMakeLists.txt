@@ -55,8 +55,6 @@ endif()
 if(WIN32)
     list(APPEND CORE_TEST_SOURCES
         devices/test_WindowsRemovableStorage.cpp
-        # Runs the real PowerShell installer against a scratch tree.
-        update/test_WindowsUpdateInstaller.cpp
     )
 endif()
 if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)

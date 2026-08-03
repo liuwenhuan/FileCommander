@@ -76,7 +76,6 @@ endif()
 
 add_executable(FileCommander
     src/main.cpp
-    src/UpdateSmoke.cpp
     resources/resources.qrc
 )
 if(WIN32)

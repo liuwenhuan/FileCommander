@@ -18,7 +18,6 @@
 #include "Settings.h"
 #include "Typography.h"
 #include "TranslationManager.h"
-#include "UpdateSmoke.h"
 #include "WindowActivation.h"
 #include "diagnostics/RuntimeCounters.h"
 int main(int argc, char *argv[]) {
@@ -84,13 +83,6 @@ int main(int argc, char *argv[]) {
     }
     const QString startupProbeOutput = startupProbe >= 0 ? arguments.at(startupProbe + 1)
                                                          : QString();
-    // Release verification of the online updater: check, download, verify,
-    // install, relaunch, no window and no clicking. Handled before the
-    // single-instance coordinator so it never forwards itself to an already
-    // running copy -- the point is to update THIS install. See UpdateSmoke.h.
-    if (arguments.contains(QStringLiteral("--update-smoke")))
-        return fc::runUpdateSmoke(app);
-
     InstanceCoordinator instance;
     if (startupProbeOutput.isEmpty()) {
         const InstanceCoordinator::StartResult instanceResult = instance.startOrActivate(arguments);

@@ -1,7 +1,5 @@
 #include "UpdateChecker.h"
 
-#include "Updater.h"
-
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkAccessManager>
@@ -109,13 +107,17 @@ void UpdateChecker::setTimeoutMs(int ms) {
     m_timeoutMs = ms;
 }
 
+bool UpdateChecker::runningAsAppImage() {
+    return !qEnvironmentVariableIsEmpty("APPIMAGE");
+}
+
 QString UpdateChecker::packageSegmentKey() {
 #ifdef Q_OS_WIN
     return QStringLiteral("windows");
 #else
     // One Linux binary can be running either way, so this is a runtime question:
     // an AppImage replaces itself, a system install goes through the .deb.
-    return Updater::runningAsAppImage() ? QStringLiteral("appimage") : QStringLiteral("deb");
+    return runningAsAppImage() ? QStringLiteral("appimage") : QStringLiteral("deb");
 #endif
 }
 

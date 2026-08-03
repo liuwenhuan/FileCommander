@@ -105,7 +105,7 @@ libxcb1, zlib1g, libglib2.0-0, libc6, libstdc++6"
 fi
 
 # pkexec is not a library dependency, so shlibdeps can't see it: the deb-flavour
-# self-update path shells out to `pkexec apt-get install` (src/core/update/Updater.cpp).
+# users install it themselves; the app only announces that a release exists.
 DEPENDS="$SHLIB_DEPS, policykit-1"
 
 # --- Control ----------------------------------------------------------------

@@ -106,8 +106,6 @@ endif()
 
 if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION OR WIN32)
     list(APPEND CORE_SOURCES
-        update/Updater.h
-        update/Updater.cpp
     )
 endif()
 

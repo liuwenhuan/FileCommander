@@ -3,7 +3,8 @@
 # Builds FileCommander-<version>-x86_64.AppImage.
 #
 # The resulting AppImage must be launched through a real type-2 runtime, because
-# src/core/update/Updater.cpp decides how to self-update by checking $APPIMAGE.
+# $APPIMAGE is what UpdateChecker::runningAsAppImage() reads to pick the
+# manifest segment this build should be told about.
 # A bare self-extracting archive would leave that unset and send the updater
 # down the .deb path. appimagetool (invoked by linuxdeploy) gives us that.
 #

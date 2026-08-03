@@ -21,7 +21,9 @@ class QNetworkReply;
 class QTimer;
 
 // Fetches the server manifest and reports whether a newer release exists.
-// Network I/O only; the actual download/install lives in Updater.
+// That is the whole of it: the application announces a release and points at
+// where to get it (see UpdateDialog); fetching and installing the package is
+// the Microsoft Store's job, or the user's.
 class UpdateChecker : public QObject {
     Q_OBJECT
 
@@ -59,9 +61,14 @@ public:
     // pre-release suffix after '-' are ignored, missing components count as 0.
     static bool isNewer(const QString &remote, const QString &local);
 
-    // Which manifest segment this build installs from: "windows", "appimage" or
+    // Which manifest segment describes this install: "windows", "appimage" or
     // "deb". Decided at runtime because one Linux binary can be either form.
     static QString packageSegmentKey();
+
+    // True when launched from an AppImage bundle (its runtime exports $APPIMAGE
+    // pointing at the .AppImage file). Only packageSegmentKey() needs this, but
+    // it is the one question the segment choice cannot answer at compile time.
+    static bool runningAsAppImage();
 
     enum class ParseResult {
         UpdateAvailable, // info filled in

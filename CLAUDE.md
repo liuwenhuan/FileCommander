@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-FileCommander (文件指挥官) is a Qt5/C++17 dual-pane file manager for Linux (Debian/Deepin/UOS-focused). It supports local files, archives (7z/zip/tar/squashfs/UDF), and network backends (SFTP, FTP, WebDAV, SMB), with thumbnail previews for images/video, a quick-view pane (image/PDF/video/office docs), directory sync/compare, and a self-updater.
+FileCommander (文件指挥官) is a Qt5/C++17 dual-pane file manager for Linux (Debian/Deepin/UOS-focused). It supports local files, archives (7z/zip/tar/squashfs/UDF), and network backends (SFTP, FTP, WebDAV, SMB), with thumbnail previews for images/video, a quick-view pane (image/PDF/video/office docs), directory sync/compare, and an update checker (it announces releases; it does not install them).
 
 The project was renamed from **ttc** to **FileCommander**; the rename is cosmetic-only debt. The built binary, desktop file, and install paths are all `FileCommander`, but internal identifiers still say `ttc`/`TTC_*`: the version header macro `TTC_VERSION`, CMake options `TTC_BUILD_TESTS`/`TTC_BUILD_BENCH`, the `ui_tests` compile define `TTC_SOURCE_DIR`, and the translation file prefix `ttc_<lang>.ts`/`.qm`. Don't "fix" these to match the product name in unrelated commits — treat them as the existing convention.
 
