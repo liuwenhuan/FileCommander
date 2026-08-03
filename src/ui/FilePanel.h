@@ -487,7 +487,17 @@ private:
     void startDirectorySizeTask(DirectorySizeRequest request);
     // Shared tail of calculateDirSizes()/calculateDirSizeForRow(): cancels any
     // running count, then starts or queues this one.
-    void submitDirectorySizeRequest(QStringList dirs, QHash<QString, qint64> symlinkRootSizes);
+    void submitDirectorySizeRequest(QStringList dirs, QHash<QString, qint64> symlinkRootSizes,
+                                    QHash<QString, QString> rowPaths = {});
+    // The real directory a row measures, or empty when it measures nothing.
+    // Normally the row's own path; in the computer view the row is a place, so
+    // this is the local directory behind it -- a server or an unmounted device
+    // has none, and counting one would mean walking whatever local path happened
+    // to share its name.
+    QString measurableDirectoryFor(const FileInfo &info) const;
+    // Real directory -> the row path its result must be filed under, for the
+    // computer view where the two differ. Empty elsewhere.
+    QHash<QString, QString> m_directorySizeRowPaths;
     // Recomputes and applies the list view's row height from either
     // m_listRowHeightOverride or the current font/icon metrics.
     void applyListRowHeight();

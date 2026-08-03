@@ -46,6 +46,7 @@
 #include "IconFileView.h"
 #include "FileProvider.h"
 #include "filesystem/ComputerProvider.h"
+#include "LocalFileProvider.h"
 #include "filesystem/IconCache.h"
 #include "ArchiveLayout.h"
 #include "ArchiveProvider.h"
@@ -460,6 +461,15 @@ FilePanel::FilePanel(const QFont &initialListFont, QWidget *parent) : QWidget(pa
     connect(m_view->selectionModel(), &QItemSelectionModel::selectionChanged, this,
             [this] {
                 updateStatus();
+            });
+    // The computer view's disk readout follows the cursor, so it has to track
+    // currentChanged rather than selectionChanged: the arrow keys move the
+    // cursor without altering the selection. Guarded on the view so a normal
+    // directory does not pay a QStorageInfo call on every keystroke.
+    connect(m_view->selectionModel(), &QItemSelectionModel::currentChanged, this,
+            [this] {
+                if (m_computerProvider)
+                    updateDiskInfo();
             });
 
     connect(m_statusBar, &StatusBarWidget::zoomOutRequested, this, &FilePanel::zoomViewOut);
@@ -1227,6 +1237,22 @@ void FilePanel::updateDiskInfo() {
     // Flat search results span many directories and never had a readout either.
     if (m_model->isFlatMode()) {
         m_statusBar->setDiskInfo(0, 0);
+        return;
+    }
+    // In the computer view the panel is not pointed at a directory, so there is
+    // no "current disk" -- but the row under the cursor may name one, and the
+    // figures for it belong exactly where the figures for a directory's disk
+    // normally go. Only drives carry them; every other row leaves the readout
+    // blank rather than showing the last drive's numbers.
+    if (m_computerProvider) {
+        const QModelIndex current = activeView() ? activeView()->currentIndex() : QModelIndex();
+        ComputerEntry entry;
+        if (current.isValid() && !m_model->isParentEntry(current.row()))
+            entry = m_computerProvider->entryFor(m_model->fileInfoAt(current.row()).path());
+        if (entry.kind == ComputerEntry::Kind::Drive && entry.bytesTotal > 0)
+            m_statusBar->setDiskInfo(qMax<qint64>(0, entry.bytesFree), entry.bytesTotal);
+        else
+            m_statusBar->setDiskInfo(0, 0);
         return;
     }
     FileProvider *prov = m_model->provider();
@@ -2366,12 +2392,16 @@ void FilePanel::cancelDirectorySizeTask() {
 void FilePanel::calculateDirSizes() {
     QStringList dirs;
     QHash<QString, qint64> symlinkRootSizes;
-    auto addDirectory = [&dirs, &symlinkRootSizes](const FileInfo &info) {
-        if (!info.isValid() || !info.isDir())
+    QHash<QString, QString> rowPaths;
+    auto addDirectory = [&](const FileInfo &info) {
+        const QString target = measurableDirectoryFor(info);
+        if (target.isEmpty())
             return;
-        dirs << info.path();
+        dirs << target;
         if (info.isSymLink())
-            symlinkRootSizes.insert(info.path(), info.size());
+            symlinkRootSizes.insert(target, info.size());
+        if (target != info.path())
+            rowPaths.insert(target, info.path());
     };
     for (int row : selectedRowNumbers()) {
         const FileInfo info = m_model->fileInfoAt(row);
@@ -2386,7 +2416,8 @@ void FilePanel::calculateDirSizes() {
         }
     }
 
-    submitDirectorySizeRequest(std::move(dirs), std::move(symlinkRootSizes));
+    submitDirectorySizeRequest(std::move(dirs), std::move(symlinkRootSizes),
+                               std::move(rowPaths));
 }
 
 // Total Commander's Space behaviour: pressing Space on a directory also counts
@@ -2394,29 +2425,57 @@ void FilePanel::calculateDirSizes() {
 // under the cursor is counted -- unlike calculateDirSizes(), which takes the
 // whole selection. See FileListView::rowSpaced for why this does not carry TC's
 // "only when unselected" restriction.
+QString FilePanel::measurableDirectoryFor(const FileInfo &info) const {
+    if (!info.isValid() || !info.isDir())
+        return {};
+    if (!m_computerProvider)
+        return info.path();
+    const ComputerEntry entry = m_computerProvider->entryFor(info.path());
+    switch (entry.kind) {
+    case ComputerEntry::Kind::Drive:
+    case ComputerEntry::Kind::UserFolder:
+        return entry.target; // a real directory on this machine
+    default:
+        return {}; // a server, or a device with no mount point yet
+    }
+}
+
 void FilePanel::calculateDirSizeForRow(int row) {
     if (!m_model || row < 0 || row >= m_model->rowCount() || m_model->isParentEntry(row))
         return;
     const FileInfo info = m_model->fileInfoAt(row);
-    if (!info.isValid() || !info.isDir())
+    const QString target = measurableDirectoryFor(info);
+    if (target.isEmpty())
         return;
 
-    QStringList dirs{info.path()};
+    QStringList dirs{target};
     QHash<QString, qint64> symlinkRootSizes;
     if (info.isSymLink())
-        symlinkRootSizes.insert(info.path(), info.size());
-    submitDirectorySizeRequest(std::move(dirs), std::move(symlinkRootSizes));
+        symlinkRootSizes.insert(target, info.size());
+    QHash<QString, QString> rowPaths;
+    if (target != info.path())
+        rowPaths.insert(target, info.path()); // file the result under the row
+    submitDirectorySizeRequest(std::move(dirs), std::move(symlinkRootSizes),
+                               std::move(rowPaths));
 }
 
 void FilePanel::submitDirectorySizeRequest(QStringList dirs,
-                                           QHash<QString, qint64> symlinkRootSizes) {
+                                           QHash<QString, qint64> symlinkRootSizes,
+                                           QHash<QString, QString> rowPaths) {
     cancelDirectorySizeTask();
+    m_directorySizeRowPaths = std::move(rowPaths);
     if (dirs.isEmpty())
         return;
 
     // Capture the provider (shared) so the task survives provider changes. A
     // new request generation makes every earlier progress/result callback stale.
     std::shared_ptr<FileProvider> provider = m_model->providerPtr();
+    // The computer view's backend cannot walk a directory -- it only knows its
+    // own rows -- and the paths above have already been translated to real ones,
+    // so the walk goes to the local filesystem.
+    if (m_computerProvider)
+        provider = std::shared_ptr<FileProvider>(LocalFileProvider::instance(),
+                                                 [](FileProvider *) {});
     const quint64 requestId = ++m_directorySizeRequestId;
     DirectorySizeRequest request{requestId, std::move(provider), std::move(dirs),
                                  std::move(symlinkRootSizes)};
@@ -2441,7 +2500,10 @@ void FilePanel::startDirectorySizeTask(DirectorySizeRequest request) {
             [this, task, requestId](const QString &path, qint64 bytes) {
                 if (requestId != m_directorySizeRequestId || m_directorySizeTask != task)
                     return;
-                m_model->setComputedDirSize(path, bytes);
+                // Filed under the row's own path: in the computer view the
+                // directory that was walked and the row that displays the
+                // answer are two different strings.
+                m_model->setComputedDirSize(m_directorySizeRowPaths.value(path, path), bytes);
             });
     connect(task, &DirectorySizeTask::finished, this,
             [this, task](quint64, qint64, bool) {
@@ -2465,7 +2527,7 @@ void FilePanel::startDirectorySizeTask(DirectorySizeRequest request) {
         if (requestId != m_directorySizeRequestId || m_directorySizeTask != task)
             return;
         for (const QString &dir : dirs)
-            m_model->setDirectorySizeCalculating(dir, true);
+            m_model->setDirectorySizeCalculating(m_directorySizeRowPaths.value(dir, dir), true);
     });
 }
 

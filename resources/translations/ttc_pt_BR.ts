@@ -687,24 +687,24 @@ Excluir como administrador ignora a Lixeira e não pode ser desfeito.</translati
 <context>
     <name>FilePanel</name>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="316"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="571"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="2478"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="317"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="581"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2540"/>
         <source>New Tab</source>
         <translation>Nova aba</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="333"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="334"/>
         <source>Folder tree</source>
         <translation>Árvore de pastas</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="350"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="351"/>
         <source>Back</source>
         <translation>Voltar</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="357"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="358"/>
         <source>Forward</source>
         <translation>Avançar</translation>
     </message>
@@ -713,83 +713,83 @@ Excluir como administrador ignora a Lixeira e não pode ser desfeito.</translati
         <translation type="vanished">Diretórios favoritos</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="365"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="366"/>
         <source>Commands / shortcuts</source>
         <translation>Comandos / atalhos</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="382"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="505"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="1909"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="1923"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="2718"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="2800"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="2959"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="383"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="515"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1935"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1949"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2780"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2862"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="3021"/>
         <source>Computer</source>
         <translation>Computador</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="417"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="418"/>
         <source>Filter: type to narrow the list, Esc to clear</source>
         <translation>Filtro: digite para refinar a lista, Esc para limpar</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1050"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1060"/>
         <source>正在等待连接…</source>
         <translation>Aguardando conexão…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1055"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1065"/>
         <source>断线，正在重连（%1/%2）…</source>
         <translation>Desconectado; reconectando (%1/%2)…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1062"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1072"/>
         <source>多次重连失败</source>
         <translation>Falha após várias tentativas de reconexão</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1062"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1072"/>
         <source>连接失败：%1</source>
         <translation>Falha na conexão: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1085"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1095"/>
         <source>正在复用已有会话</source>
         <translation>Reutilizando a sessão existente</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1086"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1096"/>
         <source>正在复用已有会话（用户：%1）</source>
         <translation>Reutilizando a sessão existente (usuário: %1)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1104"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1114"/>
         <source>无法列出目录：%1</source>
         <translation>Não foi possível listar o diretório: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1149"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1159"/>
         <source>需要登录</source>
         <translation>Login necessário</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1174"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1184"/>
         <source>Search results</source>
         <translation>Resultados da pesquisa</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="2317"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2343"/>
         <source>Select by Pattern</source>
         <translation>Selecionar por padrão</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="2317"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2343"/>
         <source>Unselect by Pattern</source>
         <translation>Desmarcar por padrão</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="2318"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2344"/>
         <source>Wildcard mask (e.g. *.txt):</source>
         <translation>Máscara curinga (ex.: *.txt):</translation>
     </message>
@@ -2875,9 +2875,8 @@ Destino: %4 (%5 bytes)</translation>
         <translation>Servidor</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/ComputerProvider.cpp" line="169"/>
         <source>%1 of %2 used</source>
-        <translation>%1 de %2 usados</translation>
+        <translation type="vanished">%1 de %2 usados</translation>
     </message>
     <message>
         <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="721"/>

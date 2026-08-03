@@ -1,6 +1,9 @@
 #include <gtest/gtest.h>
 
 #include <QBoxLayout>
+#include <QElapsedTimer>
+#include <QEventLoop>
+#include <QFile>
 #include <QDir>
 #include <QLabel>
 #include <QSignalSpy>
@@ -371,7 +374,7 @@ TEST(ComputerPanelTest, BackFromADriveOpenedInTheViewReturnsToTheView) {
     EXPECT_EQ(panel.model()->rootPath(), ComputerProvider::rootPath());
 }
 
-TEST(ComputerPanelTest, DriveRowsShowHowFullTheyAre) {
+TEST(ComputerPanelTest, DriveRowsShowUsedSpaceAndFoldersShowNone) {
     ComputerEntry drive =
         makeEntry(ComputerEntry::Kind::Drive, QStringLiteral("OS (C:)"), QStringLiteral("C:/"));
     drive.bytesTotal = 500LL * 1024 * 1024 * 1024; // 500 GB
@@ -391,10 +394,47 @@ TEST(ComputerPanelTest, DriveRowsShowHowFullTheyAre) {
             ->data(panel.model()->index(row, FileSystemModel::SizeColumn), Qt::DisplayRole)
             .toString();
     };
-    EXPECT_EQ(sizeAt(0), QStringLiteral("400.0 GB of 500.0 GB used"));
+    // One number, like every other row in the column; the capacity it is
+    // measured against belongs on the status line.
+    EXPECT_EQ(sizeAt(0), QStringLiteral("400.0 GB"));
     // A folder has no capacity to report, so it keeps the ordinary directory
-    // marker rather than being given a made-up number.
+    // marker until its size is actually counted.
     EXPECT_EQ(sizeAt(1), QStringLiteral("<DIR>"));
+}
+
+TEST(ComputerPanelTest, CountingAUserFolderFillsInItsSize) {
+    QTemporaryDir home;
+    ASSERT_TRUE(home.isValid());
+    QFile payload(QDir(home.path()).filePath(QStringLiteral("payload.bin")));
+    ASSERT_TRUE(payload.open(QIODevice::WriteOnly));
+    ASSERT_EQ(payload.write(QByteArray(4096, 'x')), 4096);
+    payload.close();
+
+    FilePanel panel;
+    panel.resize(800, 500);
+    panel.show();
+    panel.showComputer({makeEntry(ComputerEntry::Kind::UserFolder,
+                                  QStringLiteral("My Desktop"), home.path())});
+    settle(panel);
+    ASSERT_EQ(panel.model()->rowCount(), 1);
+
+    // The row's own path is "computer://folder/..." and the backend behind it
+    // cannot walk a directory, so counting has to reach the real folder through
+    // the local filesystem and file the answer back under the row.
+    panel.calculateDirSizeForRow(0);
+    const auto sizeText = [&] {
+        return panel.model()
+            ->data(panel.model()->index(0, FileSystemModel::SizeColumn), Qt::DisplayRole)
+            .toString();
+    };
+    QElapsedTimer waited;
+    waited.start();
+    while (sizeText() == QStringLiteral("<DIR>") && waited.elapsed() < 5000)
+        qApp->processEvents(QEventLoop::AllEvents, 10);
+
+    EXPECT_NE(sizeText(), QStringLiteral("<DIR>"))
+        << "the folder's size was never counted";
+    EXPECT_EQ(sizeText(), QStringLiteral("4.0 KB"));
 }
 
 TEST(ComputerPanelTest, WithNothingToRebuildItBackFallsBackToTheDirectoryUnderneath) {

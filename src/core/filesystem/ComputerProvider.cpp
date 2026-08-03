@@ -161,12 +161,13 @@ QString ComputerProvider::entrySizeText(const QString &path) const {
     auto it = m_byPath.constFind(path);
     if (it == m_byPath.constEnd() || it->bytesTotal <= 0)
         return {}; // not a drive, or a volume that would not report its size
-    // Used rather than free: "how much is on it" is what the number is for, and
-    // the total beside it makes the proportion readable without arithmetic.
+    // Used space only, to match what the column holds for every other row: one
+    // size. The capacity it is measured against goes to the status line, where
+    // the panel already reports the disk figures for wherever it is pointed.
     // bytesFree can exceed total on an unreadable volume, so the subtraction is
     // clamped rather than allowed to go negative.
     const qint64 used = qMax<qint64>(0, it->bytesTotal - qMax<qint64>(0, it->bytesFree));
-    return QObject::tr("%1 of %2 used").arg(humanBytes(used), humanBytes(it->bytesTotal));
+    return humanBytes(used);
 }
 
 QString ComputerProvider::entryIconPath(const QString &path) const {
