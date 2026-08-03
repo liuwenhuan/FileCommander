@@ -1,5 +1,7 @@
 #include "ComputerCatalog.h"
 
+#include <algorithm>
+
 #include <QDir>
 #include <QFileInfo>
 #include <QObject>
@@ -111,6 +113,18 @@ QVector<ComputerEntry> ComputerCatalog::drives() {
         seenVolumes.insert(volumeId);
         result.append(entry);
     }
+
+    // QStorageInfo enumerates in whatever order the OS reports mounts, which is
+    // neither stable nor meaningful -- Windows commonly returns D: before C:.
+    // Sort by the mount root, which is the traditional order on both platforms:
+    // "C:/" < "D:/" < "E:/", and on Linux "/" sorts before "/home" and
+    // "/mnt/..." because it is their prefix. Deliberately NOT by the display
+    // name: that would order Windows disks by volume label, so a disk called
+    // "ntfs" would come before the system disk.
+    std::sort(result.begin(), result.end(),
+              [](const ComputerEntry &a, const ComputerEntry &b) {
+                  return QString::compare(a.target, b.target, Qt::CaseInsensitive) < 0;
+              });
     return result;
 }
 

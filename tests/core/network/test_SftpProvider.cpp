@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <QDir>
+
 #include <QString>
 
 #include "SftpProvider.h"
@@ -97,4 +99,26 @@ TEST(SftpProviderMove, RefusesMoveOntoItself) {
     // Same source and destination would otherwise risk a backend deleting the
     // only copy; rejected before any connection check.
     EXPECT_EQ(p.moveTo("/a/x.txt", "/a/./x.txt"), FileProvider::RenameResult::Failed);
+}
+
+// Public-key authentication looked for keys under $HOME. Windows does not set
+// HOME, so every candidate came out as "/.ssh/id_rsa" -- a path that exists
+// nowhere -- and key auth could not succeed there at all.
+TEST(SftpKeyPathsTest, KeysAreLookedForUnderTheRealHomeDirectory) {
+    const QStringList paths = SftpProvider::defaultPrivateKeyPaths();
+    ASSERT_FALSE(paths.isEmpty());
+
+    const QString home = QDir::homePath();
+    ASSERT_FALSE(home.isEmpty());
+    for (const QString &path : paths) {
+        SCOPED_TRACE(path.toStdString());
+        EXPECT_TRUE(path.startsWith(home))
+            << "not under the home directory, so nothing will ever be found there";
+        EXPECT_TRUE(path.contains(QStringLiteral(".ssh")));
+        // The shape the bug produced: an empty home leaves the path rooted at
+        // the filesystem root.
+        EXPECT_FALSE(path.startsWith(QStringLiteral("/.ssh")));
+    }
+    EXPECT_TRUE(paths.first().endsWith(QStringLiteral("id_ed25519")))
+        << "the strongest key type should be tried first";
 }

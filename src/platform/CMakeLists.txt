@@ -15,6 +15,8 @@ set(PLATFORM_SOURCES
     InstanceCoordinator.cpp
     TerminalLauncher.h
     TerminalLauncher.cpp
+    ShellCommand.h
+    ShellCommand.cpp
 )
 if(WIN32)
     list(APPEND PLATFORM_SOURCES

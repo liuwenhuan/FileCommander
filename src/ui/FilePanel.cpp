@@ -707,16 +707,15 @@ bool FilePanel::eventFilter(QObject *watched, QEvent *event) {
 }
 
 void FilePanel::paintEvent(QPaintEvent *event) {
+    // No border around the active panel. Which panel is active is already said
+    // by its selection colour (QTableView[panelActive] in the themes) and by
+    // where the cursor frame is; an accent rectangle on top of that was a third
+    // way of saying the same thing, and a heavy one.
+    //
+    // focusProgress is still animated -- the property, its animation and the
+    // tests that pin them are untouched -- so anything else that wants to
+    // follow focus still can.
     QWidget::paintEvent(event);
-    if (m_focusProgress <= 0.0)
-        return;
-
-    QColor accent = palette().color(QPalette::Highlight);
-    accent.setAlphaF(accent.alphaF() * m_focusProgress);
-    QPainter painter(this);
-    painter.setPen(QPen(accent, 2));
-    painter.setBrush(Qt::NoBrush);
-    painter.drawRect(rect().adjusted(0, 0, -1, -1));
 }
 
 void FilePanel::setFocusProgress(qreal progress) {

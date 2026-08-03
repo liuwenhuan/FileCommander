@@ -267,3 +267,33 @@ TEST(ComputerViewModelTest, SwappingBackToALocalProviderDropsTheVirtualBehaviour
     ASSERT_LT(row, model.rowCount());
     EXPECT_EQ(typeAt(model, row), QStringLiteral("Folder"));
 }
+
+// QStorageInfo enumerates mounts in whatever order the OS reports them, which
+// on Windows commonly puts D: before C:. Drives are listed in the order people
+// expect to find them instead.
+TEST(ComputerCatalogOrderTest, DrivesAreListedByMountRootNotByLabel) {
+    const QVector<ComputerEntry> drives = ComputerCatalog::drives();
+    if (drives.size() < 2)
+        GTEST_SKIP() << "only " << drives.size() << " drive(s) on this machine";
+
+    QStringList roots;
+    for (const ComputerEntry &drive : drives)
+        roots << drive.target;
+
+    QStringList sorted = roots;
+    std::sort(sorted.begin(), sorted.end(), [](const QString &a, const QString &b) {
+        return QString::compare(a, b, Qt::CaseInsensitive) < 0;
+    });
+    EXPECT_EQ(roots, sorted) << "drives came back as " << roots.join(QLatin1String(", ")).toStdString();
+
+#ifdef Q_OS_WIN
+    // The identity is the drive letter, and it is what the order has to follow:
+    // sorting by the display name would put a disk labelled "ntfs" ahead of the
+    // system disk.
+    for (const ComputerEntry &drive : drives) {
+        SCOPED_TRACE(drive.target.toStdString());
+        EXPECT_TRUE(drive.target.size() >= 2 && drive.target.at(1) == QLatin1Char(':'))
+            << "a Windows drive row should be a volume (a drive letter), not a physical disk";
+    }
+#endif
+}

@@ -3,6 +3,7 @@
 #include "TransferErrorMapping.h"
 
 #include <QDateTime>
+#include <QDir>
 #include <QMutexLocker>
 
 #include <libssh2.h>
@@ -238,6 +239,19 @@ SftpProvider::~SftpProvider() {
     disconnect();
 }
 
+QStringList SftpProvider::defaultPrivateKeyPaths() {
+    // QDir::homePath(), not $HOME. Windows does not set HOME, so reading it
+    // there yields an empty string and every path came out as "/.ssh/id_rsa" --
+    // which exists nowhere, so public-key authentication could never succeed.
+    // Qt resolves this to %USERPROFILE%, which is where OpenSSH keeps its keys
+    // on Windows too.
+    const QString sshDir = QDir(QDir::homePath()).filePath(QStringLiteral(".ssh"));
+    QStringList paths;
+    for (const char *name : {"id_ed25519", "id_rsa", "id_ecdsa"})
+        paths << QDir(sshDir).filePath(QString::fromLatin1(name));
+    return paths;
+}
+
 SftpConn *SftpProvider::buildConnection(const QString &host, int port, const QString &user,
                                         const QString &password, int timeoutMs, QString *error,
                                         bool *authFailed) {
@@ -278,9 +292,8 @@ SftpConn *SftpProvider::buildConnection(const QString &host, int port, const QSt
     // Fall back to public-key auth from the usual ~/.ssh keys (also lets a
     // password-less connection work when a key is set up).
     if (!authed) {
-        const QByteArray home = qgetenv("HOME");
-        for (const char *keyName : {"id_ed25519", "id_rsa", "id_ecdsa"}) {
-            const QByteArray priv = home + "/.ssh/" + keyName;
+        for (const QString &keyPath : SftpProvider::defaultPrivateKeyPaths()) {
+            const QByteArray priv = QDir::toNativeSeparators(keyPath).toLocal8Bit();
             const QByteArray pub = priv + ".pub";
             if (libssh2_userauth_publickey_fromfile(session, userUtf8.constData(),
                                                     pub.constData(), priv.constData(),

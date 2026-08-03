@@ -73,7 +73,7 @@ int defaultPort(GvfsMounter::Protocol protocol) {
 } // namespace
 
 ConnectDialog::ConnectDialog(QWidget *parent) : FramelessDialog(parent) {
-    setWindowTitle(tr("Connect to Server"));
+    setWindowTitle(tr("Manage Network Connections"));
     setModal(true);
 
     m_protocolCombo = new QComboBox(this);

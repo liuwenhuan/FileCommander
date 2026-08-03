@@ -78,8 +78,25 @@ void ThemeManager::apply(Settings::Theme theme, bool phosphorImages) {
     const qreal dpr = qApp->primaryScreen() ? qApp->primaryScreen()->devicePixelRatio() : 1.0;
     const auto blockFor = [dpr](int logical) { return qMax(2, qRound(logical * dpr)); };
 
-    IconCache::instance().setTint(crt ? kPhosphor : QColor(),
-                                  crt ? blockFor(fc::kIconBlockLogical) : 0);
+    // The glyph SVGs are drawn in a mid grey (#888888) that reads as "dark" on
+    // a dark background -- the drive and computer icons were noticeably dimmer
+    // than the text beside them. Tint every theme, not just CRT: each one names
+    // a colour that belongs to it, so the icons sit at the same weight as the
+    // text they label. Only CRT quantises as well, which is its own effect.
+    QColor iconTint;
+    switch (effective) {
+    case Settings::Theme::Crt:
+        iconTint = kPhosphor;
+        break;
+    case Settings::Theme::Dark:
+        iconTint = QColor(0xe0, 0xe0, 0xe0); // dark.qss's text colour
+        break;
+    case Settings::Theme::Light:
+    case Settings::Theme::Auto:
+        iconTint = QColor(0x40, 0x40, 0x40); // darker than #888 on white
+        break;
+    }
+    IconCache::instance().setTint(iconTint, crt ? blockFor(fc::kIconBlockLogical) : 0);
     fc::setContentTint(crt && phosphorImages ? kPhosphor : QColor());
 
     // The simulated pixel is defined in logical pixels, so it is scaled here to

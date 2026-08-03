@@ -25,6 +25,12 @@ struct SftpConn;
 // (list/isDir/exists/rename) is serialised behind an internal mutex.
 class SftpProvider : public FileProvider {
 public:
+    // Absolute paths of the private keys tried for public-key authentication,
+    // in order. Public so it can be tested: it used to be built from $HOME,
+    // which Windows does not set, so every path came out as "/.ssh/..." and key
+    // auth could never succeed there.
+    static QStringList defaultPrivateKeyPaths();
+
     SftpProvider();
     ~SftpProvider() override;
 

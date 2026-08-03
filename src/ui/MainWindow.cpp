@@ -81,6 +81,7 @@
 
 #include "ArchiveHandler.h"
 #include "CommandBar.h"
+#include "ShellCommand.h"
 #include "TerminalLauncher.h"
 #include "TranslationManager.h"
 #include "CompressDialog.h"
@@ -872,7 +873,8 @@ void MainWindow::buildTitleBarMenus() {
         return;
     }
     addCommandAction(configMenu, QStringLiteral("keyboardShortcuts"), tr("Keyboard Shortcuts"));
-    addCommandAction(configMenu, QStringLiteral("connectionManager"), tr("Connection Manager"));
+    addCommandAction(configMenu, QStringLiteral("connectionManager"),
+                     tr("Manage Network Connections"));
     configMenu->addSeparator();
     QAction *directArchives = configMenu->addAction(
         commandText(QStringLiteral("toggleDirectArchives"), tr("Directly Open Archives")));
@@ -2516,8 +2518,13 @@ void MainWindow::setupShortcuts() {
                  QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_V), [this] { compareSelectedFiles(); });
     bindShortcut("keyboardShortcuts", tr("Keyboard Shortcuts"),
                  QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_K), [this] { openShortcutsDialog(); });
-    bindShortcut("connectionManager", tr("Connection Manager"),
-                 QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_O), [this] { openExternalConnections(); });
+    // Opens the server connection window, not the fly-out over the function-key
+    // bar. That fly-out is a launcher for things already set up (devices,
+    // saved bookmarks, discovered hosts); this entry is for managing the
+    // connections themselves, which is what its name promises.
+    bindShortcut("connectionManager", tr("Manage Network Connections"),
+                 QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_O),
+                 [this] { openServerConnectDialog(false); });
     bindShortcut("chooseFont", tr("Choose Font"), QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_F),
                  [this] { chooseGlobalFont(); });
     bindShortcut("increaseFontSize", tr("Increase Font Size"),
@@ -3927,7 +3934,8 @@ void MainWindow::runCommand(const QString &command, const QString &directory) {
                 proc->deleteLater();
             });
 
-    proc->start(QStringLiteral("/bin/sh"), {QStringLiteral("-c"), command});
+    const fc::ShellInvocation shell = fc::shellInvocationFor(command);
+    proc->start(shell.program, shell.arguments);
 }
 
 void MainWindow::openShortcutsDialog() {
