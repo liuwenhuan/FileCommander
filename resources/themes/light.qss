@@ -593,3 +593,21 @@ QTreeView::branch:open:has-children:has-siblings {
 FilePanel, TitleBar, FunctionKeyBar, CommandBar, BreadcrumbBar, StatusBarWidget {
     background: transparent;
 }
+
+/* One frame around the whole command bar -- the directory prompt and the
+   editor are a single control, so the border belongs to the bar, not to the
+   editor inside it. The editor keeps its focus colour by lighting the bar. */
+CommandBar {
+    border: 1px solid #c8c8c8;
+    border-radius: 3px;
+}
+
+CommandBar QLineEdit#CommandInput {
+    border: none;
+    border-radius: 0;
+    background: transparent;
+}
+
+CommandBar[inputFocused="true"] {
+    border: 1px solid #3d7deb;
+}

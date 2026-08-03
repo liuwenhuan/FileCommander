@@ -593,3 +593,19 @@ QTreeView::branch:open:has-children:has-siblings {
 FilePanel, TitleBar, FunctionKeyBar, CommandBar, BreadcrumbBar, StatusBarWidget {
     background: transparent;
 }
+
+/* See light.qss: the frame belongs to the bar, not to the editor inside it. */
+CommandBar {
+    border: 1px solid #444444;
+    border-radius: 3px;
+}
+
+CommandBar QLineEdit#CommandInput {
+    border: none;
+    border-radius: 0;
+    background: transparent;
+}
+
+CommandBar[inputFocused="true"] {
+    border: 1px solid #3d7deb;
+}

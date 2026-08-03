@@ -5,6 +5,7 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QStyle>
 
 CommandBar::CommandBar(QWidget *parent) : QWidget(parent) {
     // A plain QWidget subclass does not paint a stylesheet background unless
@@ -26,6 +27,8 @@ CommandBar::CommandBar(QWidget *parent) : QWidget(parent) {
     layout->setSpacing(4);
     layout->addWidget(m_prompt);
     layout->addWidget(m_input, 1);
+
+    setProperty("inputFocused", false);
 
     connect(m_input, &QLineEdit::returnPressed, this, &CommandBar::submit);
 }
@@ -68,6 +71,16 @@ void CommandBar::submit() {
 }
 
 bool CommandBar::eventFilter(QObject *watched, QEvent *event) {
+    // The frame is on the bar now, not on the editor, so the editor's :focus
+    // rule can no longer light it. Mirror the editor's focus onto the bar as a
+    // property the stylesheet can select on.
+    if (watched == m_input
+        && (event->type() == QEvent::FocusIn || event->type() == QEvent::FocusOut)) {
+        setProperty("inputFocused", event->type() == QEvent::FocusIn);
+        style()->unpolish(this);
+        style()->polish(this);
+        update();
+    }
     if (watched == m_input && event->type() == QEvent::KeyPress) {
         auto *ke = static_cast<QKeyEvent *>(event);
         if (ke->key() == Qt::Key_Up) {

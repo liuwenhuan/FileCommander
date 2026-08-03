@@ -272,6 +272,8 @@ BreadcrumbBar QToolButton#BreadcrumbScrollRight {
    border, text, cursor and selection palette. */
 CommandBar QLineEdit#CommandInput {
     background: transparent;
+    border: none;
+    border-radius: 0;
 }
 
 QAbstractSpinBox {
@@ -774,4 +776,14 @@ QToolTip {
 #NotepadPanel QListWidget#NotepadList QScrollBar::sub-line:vertical {
     height: 0;
     background: transparent;
+}
+
+/* See light.qss: the frame belongs to the bar, not to the editor inside it. */
+CommandBar {
+    border: 1px solid #12602f;
+    border-radius: 0;
+}
+
+CommandBar[inputFocused="true"] {
+    border: 1px solid #33ff88;
 }
