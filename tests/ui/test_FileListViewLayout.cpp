@@ -576,6 +576,69 @@ TEST_F(FileListViewLayoutTest, TheCursorFrameStaysInsideTheCellItWasGiven) {
         << " -- nothing will ever be told to erase those pixels";
 }
 
+// The frame has to survive fractional display scaling. At 125% a 21px row is
+// 26.25 device pixels, so row boundaries land on whole device pixels only every
+// fourth row; a one-pixel line drawn on a fractional boundary can rasterise to
+// nothing. That is exactly the reported symptom: rows 4, 8, 12 ... missing part
+// of their frame.
+//
+// Rendering into a canvas with a device pixel ratio is what reproduces it --
+// the default 1:1 canvas every other test here uses cannot.
+TEST_F(FileListViewLayoutTest, TheCursorFrameSurvivesFractionalDisplayScaling) {
+    resizeAndSettle(900);
+    m_view.selectionModel()->clearSelection();
+
+    constexpr qreal kScale = 1.25;
+    QStringList missing;
+    for (int row = 1; row <= 12; ++row) {
+        const QRect cell = m_view.visualRect(m_model.index(row, 0));
+        if (cell.isEmpty() || cell.bottom() >= m_view.viewport()->height())
+            break;
+        m_view.selectionModel()->setCurrentIndex(m_model.index(row, 0),
+                                                 QItemSelectionModel::NoUpdate);
+        qApp->processEvents();
+
+        QImage shot(m_view.viewport()->size() * kScale, QImage::Format_ARGB32);
+        shot.setDevicePixelRatio(kScale);
+        shot.fill(Qt::transparent);
+        m_view.viewport()->render(&shot);
+
+        const QRgb frame = m_view.palette().highlight().color().rgb() & 0x00ffffffu;
+        auto hasRuleAt = [&](int logicalY) {
+            // A logical coordinate maps to a fractional device row, so the rule
+            // may legitimately land on either side of it. What matters is that
+            // it is THERE and unbroken, not which device row it chose, so look
+            // in a small band and require every sample across the width to find
+            // it -- a rule with a hole in it fails, a rule offset by a pixel
+            // does not.
+            const int centre = int(logicalY * kScale);
+            int hits = 0;
+            for (int i = 1; i <= 8; ++i) {
+                const int deviceX =
+                    qBound(0, int(cell.width() * kScale * i / 9.0), shot.width() - 1);
+                for (int dy = -1; dy <= 2; ++dy) {
+                    const int deviceY = qBound(0, centre + dy, shot.height() - 1);
+                    const QRgb pixel = shot.pixel(deviceX, deviceY);
+                    if (qAlpha(pixel) != 0 && (pixel & 0x00ffffffu) == frame) {
+                        ++hits;
+                        break;
+                    }
+                }
+            }
+            return hits == 8;
+        };
+
+        if (!hasRuleAt(cell.top()))
+            missing << QStringLiteral("row %1 top").arg(row);
+        if (!hasRuleAt(cell.bottom()))
+            missing << QStringLiteral("row %1 bottom").arg(row);
+    }
+
+    EXPECT_TRUE(missing.isEmpty())
+        << "at 125% scaling the frame is incomplete on: "
+        << missing.join(QLatin1String(", ")).toStdString();
+}
+
 // Records which regions the view is actually asked to repaint.
 //
 // Pixels cannot answer this question. Every way a test can read a widget's

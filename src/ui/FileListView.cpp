@@ -290,15 +290,19 @@ private:
             return;
 
         const QPalette &pal = opt.palette;
-        painter->setPen(
-            QPen(selected ? pal.highlightedText().color() : pal.highlight().color(), 1));
-        painter->setBrush(Qt::NoBrush);
+        const QColor colour =
+            selected ? pal.highlightedText().color() : pal.highlight().color();
 
-        // The two rules, across this cell's full width. Every cell of the row
-        // draws its own piece, and together they are one continuous line.
+        // fillRect, not drawLine. A one-pixel stroke is a path, and on a
+        // fractionally scaled display its coordinates land between device
+        // pixels: at 125% a 21px row is 26.25 device pixels, so row boundaries
+        // are whole numbers only every fourth row and the rules on the rows in
+        // between rasterised to nothing. Filling a 1px-tall rectangle asks for
+        // an area instead of a path, and an area always covers the pixels it
+        // overlaps. This is what "every fourth row has no frame" was.
         const QRect r = opt.rect;
-        painter->drawLine(r.left(), r.top(), r.right(), r.top());
-        painter->drawLine(r.left(), r.bottom(), r.right(), r.bottom());
+        painter->fillRect(QRect(r.left(), r.top(), r.width(), 1), colour);
+        painter->fillRect(QRect(r.left(), r.bottom(), r.width(), 1), colour);
 
         // The ends belong only to the outermost visible columns.
         QHeaderView *header = m_view->horizontalHeader();
@@ -315,9 +319,9 @@ private:
         }
         const int visual = header->visualIndex(index.column());
         if (visual == firstVisual)
-            painter->drawLine(r.left(), r.top(), r.left(), r.bottom());
+            painter->fillRect(QRect(r.left(), r.top(), 1, r.height()), colour);
         if (visual == lastVisual)
-            painter->drawLine(r.right(), r.top(), r.right(), r.bottom());
+            painter->fillRect(QRect(r.right(), r.top(), 1, r.height()), colour);
     }
 
     QPointer<QTableView> m_view;
