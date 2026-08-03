@@ -2413,9 +2413,38 @@ void MainWindow::showUpdateDialog() {
 }
 
 void MainWindow::showShortcutMenu(FilePanel *panel, const QPoint &globalPos) {
-    QMenu menu(this);
-    auto addCommand = [&](const QString &id, const QString &label, std::function<void()> handler = {}) {
-        addCommandAction(&menu, id, label, std::move(handler));
+    QScopedPointer<QMenu> menu(buildShortcutMenu(panel));
+    QPoint pos = globalPos;
+    if (panel) {
+        const int menuWidth = menu->sizeHint().width();
+        const int rightEdge = panel->mapToGlobal(QPoint(panel->width(), 0)).x();
+        pos.setX(rightEdge - menuWidth);
+    }
+    menu->exec(pos);
+}
+
+QMenu *MainWindow::buildShortcutMenu(FilePanel *panel) {
+    auto *menu = new QMenu(this);
+    // Every command here is scoped to the panel whose "✳" was clicked, not to
+    // whichever panel happens to be active when the item is chosen. The button
+    // does emit panelActivated() before opening the menu, but closing a popup
+    // restores keyboard focus to the widget that had it beforehand -- the OTHER
+    // panel's view -- and that focus-in makes it active again, all before the
+    // action's triggered() is delivered. So re-assert the owning panel here,
+    // where it cannot be undone underneath us.
+    auto addCommand = [&](const QString &id, const QString &label) {
+        std::function<void()> handler = m_shortcutHandlers.value(id);
+        addCommandAction(menu, id, label, [this, panel, handler] {
+            if (panel) {
+                setActivePanel(panel);
+                // ... and take the keyboard with it, or the highlight would say
+                // one panel while the arrow keys drove the other.
+                if (QWidget *view = panel->activeView())
+                    view->setFocus();
+            }
+            if (handler)
+                handler();
+        });
     };
 
     addCommand(QStringLiteral("quickView"), tr("Open Quick Preview"));
@@ -2432,14 +2461,7 @@ void MainWindow::showShortcutMenu(FilePanel *panel, const QPoint &globalPos) {
     addCommand(QStringLiteral("invertSelection"), tr("Invert Selection"));
     addCommand(QStringLiteral("undo"), tr("Undo Previous Operation"));
     addCommand(QStringLiteral("openTerminal"), tr("Open Terminal Here"));
-
-    QPoint pos = globalPos;
-    if (panel) {
-        const int menuWidth = menu.sizeHint().width();
-        const int rightEdge = panel->mapToGlobal(QPoint(panel->width(), 0)).x();
-        pos.setX(rightEdge - menuWidth);
-    }
-    menu.exec(pos);
+    return menu;
 }
 
 void MainWindow::setupShortcuts() {

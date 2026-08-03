@@ -164,6 +164,22 @@ void ThumbnailDelegate::paint(QPainter *painter, const QStyleOptionViewItem &opt
         painter->setRenderHint(QPainter::Antialiasing, false);
     }
 
+    // The keyboard cursor, drawn whether or not the tile is selected: arrow keys
+    // move the current index without changing the selection (IconFileView::
+    // keyPressEvent), so on an unselected tile this dashed frame is the only
+    // feedback the key produced anything. Dashed, and inset inside the solid
+    // selection stroke, so "current" and "selected" stay tellable apart.
+    if (m_view && m_view->currentIndex().isValid() && m_view->currentIndex() == index) {
+        const QRectF tile = QRectF(cell).adjusted(kTileInset + 2, kTileInset + 2,
+                                                  -kTileInset - 2, -kTileInset - 2);
+        QPen pen(opt.palette.color(QPalette::Highlight), 1, Qt::DashLine);
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        painter->setBrush(Qt::NoBrush);
+        painter->setPen(pen);
+        painter->drawRoundedRect(tile.adjusted(0.5, 0.5, -0.5, -0.5), kTileRadius, kTileRadius);
+        painter->setRenderHint(QPainter::Antialiasing, false);
+    }
+
     const QRect iconRect(cell.left() + (cell.width() - m_iconSize) / 2, cell.top() + kMargin,
                           m_iconSize, m_iconSize);
 

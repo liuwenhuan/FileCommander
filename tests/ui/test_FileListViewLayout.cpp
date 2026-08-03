@@ -421,6 +421,44 @@ TEST_F(FileListViewLayoutTest, SpaceReportsTheRowWhetherOrNotItIsAlreadySelected
     EXPECT_EQ(spy.takeFirst().at(0).toInt(), 5);
 }
 
+// Arrow keys move the cursor without touching the selection -- that is what
+// gives Space something to switch on. The consequence is that the cursor is the
+// ONLY thing that moves, so something has to paint it: with the selection
+// highlight left behind and nothing drawn under the cursor, arrowing through the
+// list looks like a dead key. Assert both halves, movement and paint.
+TEST_F(FileListViewLayoutTest, ArrowKeysMoveTheCursorAndTheCursorRowIsPainted) {
+    resizeAndSettle(900);
+    m_view.selectionModel()->setCurrentIndex(m_model.index(2, 0),
+                                             QItemSelectionModel::NoUpdate);
+    m_view.selectionModel()->clearSelection();
+
+    QTest::keyClick(&m_view, Qt::Key_Down);
+
+    EXPECT_EQ(m_view.currentIndex().row(), 3);
+    EXPECT_TRUE(m_view.selectionModel()->selectedRows().isEmpty());
+
+    qApp->processEvents();
+    const QRect cursorRow = m_view.visualRect(m_model.index(3, 0));
+    const QRect plainRow = m_view.visualRect(m_model.index(5, 0));
+    ASSERT_FALSE(cursorRow.isEmpty());
+    ASSERT_FALSE(plainRow.isEmpty());
+
+    QImage shot(m_view.viewport()->size(), QImage::Format_ARGB32);
+    shot.fill(Qt::transparent);
+    m_view.viewport()->render(&shot);
+
+    // The two rows carry different text, so compare only the left margin strip,
+    // which no glyph reaches -- any difference there is the cursor indicator.
+    auto marginStrip = [&shot](const QRect &row) {
+        QVector<QRgb> strip;
+        for (int y = row.top(); y <= row.bottom(); ++y)
+            strip << shot.pixel(row.left() + 1, y);
+        return strip;
+    };
+    EXPECT_NE(marginStrip(cursorRow), marginStrip(plainRow))
+        << "nothing distinguishes the row under the cursor from an ordinary row";
+}
+
 // Insert is the plain selection key: it must NOT trigger the size count, or
 // every Insert on a directory would kick off a recursive scan.
 TEST_F(FileListViewLayoutTest, InsertTogglesSelectionWithoutReportingTheRow) {

@@ -22,6 +22,7 @@
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPointer>
 #include <QPolygon>
 #include <QStyledItemDelegate>
 #include <QResizeEvent>
@@ -206,7 +207,8 @@ private:
 // red/green) is honoured too.
 class FileItemDelegate : public QStyledItemDelegate {
 public:
-    using QStyledItemDelegate::QStyledItemDelegate;
+    explicit FileItemDelegate(QTableView *view)
+        : QStyledItemDelegate(view), m_view(view) {}
 
     void paint(QPainter *painter, const QStyleOptionViewItem &option,
                const QModelIndex &index) const override {
@@ -254,8 +256,55 @@ public:
             painter->drawText(r, opt.displayAlignment, text);
         }
 
+        drawCursorFrame(painter, opt, index, selected);
         painter->restore();
     }
+
+private:
+    // The keyboard cursor. Arrow keys move the current index without touching
+    // the selection (see FileListView::keyPressEvent), so on an unselected row
+    // this frame is the ONLY thing that moves -- without it the arrow keys read
+    // as dead. Drawn from the same palette entry as the selection, so an
+    // inactive panel dims it exactly like its selection (QTableView
+    // [panelActive="false"] in the themes).
+    void drawCursorFrame(QPainter *painter, const QStyleOptionViewItem &opt,
+                         const QModelIndex &index, bool selected) const {
+        if (!m_view)
+            return;
+        const QModelIndex current = m_view->currentIndex();
+        if (!current.isValid() || current.row() != index.row())
+            return;
+
+        const QPalette &pal = opt.palette;
+        painter->setPen(QPen(selected ? pal.highlightedText().color() : pal.highlight().color(), 1));
+        painter->setBrush(Qt::NoBrush);
+        // Cells tile the row edge to edge, so a top and bottom line on each one
+        // adds up to two continuous rules across the whole row; the vertical
+        // caps belong only to the outermost visible columns.
+        const QRect r = opt.rect.adjusted(0, 0, -1, -1);
+        painter->drawLine(r.topLeft(), r.topRight());
+        painter->drawLine(r.bottomLeft(), r.bottomRight());
+
+        QHeaderView *header = m_view->horizontalHeader();
+        if (!header)
+            return;
+        int firstVisual = -1;
+        int lastVisual = -1;
+        for (int visual = 0; visual < header->count(); ++visual) {
+            if (header->isSectionHidden(header->logicalIndex(visual)))
+                continue;
+            if (firstVisual < 0)
+                firstVisual = visual;
+            lastVisual = visual;
+        }
+        const int visual = header->visualIndex(index.column());
+        if (visual == firstVisual)
+            painter->drawLine(r.topLeft(), r.bottomLeft());
+        if (visual == lastVisual)
+            painter->drawLine(r.topRight(), r.bottomRight());
+    }
+
+    QPointer<QTableView> m_view;
 };
 } // namespace
 
@@ -1089,6 +1138,22 @@ void FileListView::keyPressEvent(QKeyEvent *event) {
     }
 
     QTableView::keyPressEvent(event);
+}
+
+void FileListView::currentChanged(const QModelIndex &current, const QModelIndex &previous) {
+    QTableView::currentChanged(current, previous);
+    // The base class repaints visualRect() of each index, which under
+    // SelectRows is one cell -- so the row the cursor just left would keep the
+    // rest of its frame on screen. Repaint both rows edge to edge.
+    auto repaintRow = [this](const QModelIndex &index) {
+        if (!index.isValid())
+            return;
+        const QRect cell = visualRect(index);
+        if (!cell.isEmpty())
+            viewport()->update(0, cell.y(), viewport()->width(), cell.height());
+    };
+    repaintRow(previous);
+    repaintRow(current);
 }
 
 void FileListView::wheelEvent(QWheelEvent *event) {

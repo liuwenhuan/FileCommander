@@ -116,6 +116,9 @@ protected:
     // Invalidates the cached active/inactive selection palettes when the app
     // stylesheet (theme) changes, then re-applies the current one.
     void changeEvent(QEvent *event) override;
+    // Repaints the whole old and new rows, not just the cell that gained or lost
+    // the current index -- the cursor frame spans the row.
+    void currentChanged(const QModelIndex &current, const QModelIndex &previous) override;
 
 private:
     enum class DragFeedbackState { None, Accepted, Rejected, Success };

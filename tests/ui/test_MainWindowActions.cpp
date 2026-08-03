@@ -12,6 +12,7 @@
 
 #include <clocale>
 
+#include "FilePanel.h"
 #include "FunctionKeyBar.h"
 #include "MainWindow.h"
 #include "Settings.h"
@@ -345,4 +346,38 @@ TEST(MainWindowActionsTest, SkipTrashDeleteConfirmationActionExplainsItsSafetyBo
     EXPECT_EQ(action->toolTip(),
               QStringLiteral("Skip confirmation only when deleting local files to the trash. "
                              "Shift+Delete and remote deletes always require confirmation."));
+}
+
+// The "✳" button belongs to one panel, so its menu must act on that panel --
+// even when the other one is active. Closing the popup restores keyboard focus
+// to the previously focused view, which re-activates the other panel before the
+// action's triggered() arrives, so the panel the button emitted panelActivated()
+// for is no longer the active one by the time the command runs.
+TEST(MainWindowActionsTest, PanelShortcutMenuActsOnItsOwnPanelNotTheActiveOne) {
+    std::setlocale(LC_NUMERIC, "C");
+    ScopedUiLanguage language(QStringLiteral("en"));
+    MainWindow window;
+    window.resize(1000, 700);
+
+    const QList<FilePanel *> panels = window.findChildren<FilePanel *>();
+    ASSERT_GE(panels.size(), 2);
+    FilePanel *left = panels.at(0);
+    FilePanel *right = panels.at(1);
+    ASSERT_FALSE(left->isThumbnailMode());
+    ASSERT_FALSE(right->isThumbnailMode());
+
+    // Left is active; the menu is the RIGHT panel's.
+    window.setActivePanel(left);
+    QScopedPointer<QMenu> menu(window.buildShortcutMenu(right));
+    ASSERT_FALSE(menu.isNull());
+    QAction *toggle = findAction(menu.data(), QStringLiteral("Switch to Thumbnail View"));
+    ASSERT_NE(toggle, nullptr);
+
+    // Simulate the popup handing focus back to the active panel's view, exactly
+    // as QMenu does on close, before the action is delivered.
+    window.setActivePanel(left);
+    toggle->trigger();
+
+    EXPECT_TRUE(right->isThumbnailMode());
+    EXPECT_FALSE(left->isThumbnailMode());
 }

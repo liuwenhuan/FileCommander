@@ -64,6 +64,11 @@ public:
     // panes; further folders become tabs in the left pane.
     void openFolders(const QStringList &folders);
     QJsonObject startupMetrics() const;
+    // The "✳" menu's contents, with every command bound to `panel` rather than
+    // to the active panel. Caller owns the returned menu. Public so a test can
+    // exercise the commands without entering the popup's modal exec().
+    QMenu *buildShortcutMenu(FilePanel *panel);
+    void setActivePanel(FilePanel *panel);
 
 signals:
     void startupReady();
@@ -111,7 +116,6 @@ private:
     qint64 elapsedSinceStartup() const;
 
 private slots:
-    void setActivePanel(FilePanel *panel);
 
     void viewCurrent();  // F3
     void editCurrent();  // F4 (stub for now, Phase 2 adds TextEditor)
