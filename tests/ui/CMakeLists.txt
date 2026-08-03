@@ -23,7 +23,6 @@ set(UI_TEST_SOURCES
     test_IconFileView.cpp
     test_VideoRangePlan.cpp
     test_MediaEngineContract.cpp
-    test_WindowsMediaSurface.cpp
     test_FilePanelFont.cpp
     test_TabSessionLifecycle.cpp
     test_NetworkArchiveBrowse.cpp
@@ -70,6 +69,11 @@ set(UI_TEST_SOURCES
 
 if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION OR WIN32)
     list(APPEND UI_TEST_SOURCES test_SecureWipeConfirmationDialog.cpp)
+endif()
+
+# Mirrors the WIN32 guard src/ui puts on media/WindowsMediaSurface.cpp itself.
+if(WIN32)
+    list(APPEND UI_TEST_SOURCES test_WindowsMediaSurface.cpp)
 endif()
 
 if(FILECOMMANDER_MEDIA_BACKEND_MPV)

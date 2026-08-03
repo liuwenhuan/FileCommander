@@ -112,12 +112,13 @@ void setValidMime(QMimeData *mime) {
 
 template <typename View>
 QVariantAnimation *feedbackAnimation(View &view) {
-    return view.findChild<QVariantAnimation *>(QStringLiteral("DragTargetFeedbackAnimation"));
+    return view.template findChild<QVariantAnimation *>(
+        QStringLiteral("DragTargetFeedbackAnimation"));
 }
 
 template <typename View>
 QList<QVariantAnimation *> feedbackAnimations(View &view) {
-    return view.findChildren<QVariantAnimation *>(
+    return view.template findChildren<QVariantAnimation *>(
         QStringLiteral("DragTargetFeedbackAnimation"));
 }
 
@@ -186,7 +187,7 @@ void rejectedLeaveAndModelResetClearFeedback() {
     QVariantAnimation *animation = feedbackAnimation(panel.view);
     ASSERT_NE(animation, nullptr);
     EXPECT_EQ(animation->duration(), 80);
-    EXPECT_NE(panel.view.property("dragFeedbackColor").value<QColor>(),
+    EXPECT_NE(panel.view.property("dragFeedbackColor").template value<QColor>(),
               panel.view.palette().color(QPalette::Highlight));
 
     QDragLeaveEvent leave;
@@ -242,12 +243,12 @@ void directCancelAndDestructionClearActiveFeedback() {
         panel.view.dragLeaveEvent(&cancel);
         EXPECT_TRUE(cancel.isAccepted());
         EXPECT_EQ(panel.view.property("dragFeedbackState").toString(), QStringLiteral("none"));
-        EXPECT_FALSE(panel.view.property("dragFeedbackColor").value<QColor>().isValid());
+        EXPECT_FALSE(panel.view.property("dragFeedbackColor").template value<QColor>().isValid());
         EXPECT_NE(animation->state(), QAbstractAnimation::Running);
 
         QTest::qWait(MotionPolicy::duration(MotionDuration::Normal) + 100);
         EXPECT_EQ(panel.view.property("dragFeedbackState").toString(), QStringLiteral("none"));
-        EXPECT_FALSE(panel.view.property("dragFeedbackColor").value<QColor>().isValid());
+        EXPECT_FALSE(panel.view.property("dragFeedbackColor").template value<QColor>().isValid());
         EXPECT_NE(animation->state(), QAbstractAnimation::Running);
     }
 
@@ -342,7 +343,7 @@ void expectThemeFeedback(const QString &theme, const QColor &highlight, const QC
                                   Qt::NoModifier);
     panel.view.dragEnterEvent(&acceptedEnter);
     ASSERT_TRUE(acceptedEnter.isAccepted());
-    QTRY_COMPARE_WITH_TIMEOUT(panel.view.property("dragFeedbackColor").value<QColor>(),
+    QTRY_COMPARE_WITH_TIMEOUT(panel.view.property("dragFeedbackColor").template value<QColor>(),
                               acceptedFinal, 150);
 
     QDragLeaveEvent leave;
@@ -358,10 +359,10 @@ void expectThemeFeedback(const QString &theme, const QColor &highlight, const QC
     ASSERT_FALSE(rejectedEnter.isAccepted());
 
     for (int elapsed = 0; elapsed <= 100; elapsed += 10) {
-        EXPECT_NE(panel.view.property("dragFeedbackColor").value<QColor>(), acceptedFinal);
+        EXPECT_NE(panel.view.property("dragFeedbackColor").template value<QColor>(), acceptedFinal);
         QTest::qWait(10);
     }
-    EXPECT_EQ(panel.view.property("dragFeedbackColor").value<QColor>(), rejectedFinal);
+    EXPECT_EQ(panel.view.property("dragFeedbackColor").template value<QColor>(), rejectedFinal);
 }
 
 template <typename View>
