@@ -14,6 +14,18 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
+
+# Same single source of truth as build-windows.ps1 and build-deb.sh.
+$cmakeLists = Join-Path $repo 'CMakeLists.txt'
+$versionMatch = Select-String -LiteralPath $cmakeLists -Pattern '^project\(FileCommander VERSION ([0-9]+(?:\.[0-9]+)*)' |
+    Select-Object -First 1
+if (-not $versionMatch) { throw "Could not read the version from the project() line in $cmakeLists" }
+$productVersion = $versionMatch.Matches[0].Groups[1].Value
+# An MSIX Identity version is always four numeric parts, and the Store requires
+# the last one to be 0. Pad or trim whatever project() gave us to that shape.
+$versionParts = @($productVersion.Split('.'))
+while ($versionParts.Count -lt 3) { $versionParts += '0' }
+$msixVersion = ($versionParts[0..2] + '0') -join '.'
 if (-not $SkipPortableBuild) {
     & (Join-Path $PSScriptRoot 'build-windows.ps1') -QtRoot $QtRoot -VcpkgRoot $VcpkgRoot `
         -PopplerQt5Root $PopplerQt5Root -Architecture $Architecture -Profile windows-portable
@@ -54,14 +66,13 @@ foreach ($name in @('Square44x44Logo.png', 'Square150x150Logo.png', 'Wide310x150
     Add-MsixProvenance -Path $iconPath -Group 'application'
 }
 
-$version = '0.2.0.0'
 $manifest = @"
 <?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
          xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
          xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
          IgnorableNamespaces="uap rescap">
-  <Identity Name="$IdentityName" Publisher="$Publisher" Version="$version" ProcessorArchitecture="$Architecture" />
+  <Identity Name="$IdentityName" Publisher="$Publisher" Version="$msixVersion" ProcessorArchitecture="$Architecture" />
   <Properties><DisplayName>FileCommander</DisplayName><PublisherDisplayName>FileCommander</PublisherDisplayName><Logo>Assets\Square150x150Logo.png</Logo></Properties>
   <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" /><PackageDependency Name="Microsoft.VCLibs.140.00.UWPDesktop" Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US" MinVersion="14.0.0.0" /></Dependencies>
   <Resources><Resource Language="en-us" /></Resources>
@@ -84,7 +95,7 @@ if (-not $makeAppx) {
 }
 if (-not $makeAppx) { throw 'MakeAppx.exe was not found. Install the Windows SDK packaging tools.' }
 $makeAppxPath = if ($makeAppx -is [System.Management.Automation.CommandInfo]) { $makeAppx.Source } else { $makeAppx.FullName }
-$msix = Join-Path $repo "dist/FileCommander-0.2.0-phase2-test-windows-$Architecture.msix"
+$msix = Join-Path $repo "dist/FileCommander-$productVersion-windows-$Architecture.msix"
 & $makeAppxPath pack /d $stage /p $msix /o
 if ($LASTEXITCODE) { throw 'MakeAppx packaging failed.' }
 

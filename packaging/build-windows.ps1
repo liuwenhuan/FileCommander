@@ -12,6 +12,19 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
+
+# Single source of truth for the version: the project() line, exactly as
+# packaging/build-deb.sh reads it. Keeping this derived rather than hardcoded
+# stops the package version from drifting away from the TTC_VERSION compiled
+# into the binary -- which is the version the update checker compares against,
+# so a drift means the server advertises one number and the client believes
+# another.
+$cmakeLists = Join-Path $repo 'CMakeLists.txt'
+$versionMatch = Select-String -LiteralPath $cmakeLists -Pattern '^project\(FileCommander VERSION ([0-9]+(?:\.[0-9]+)*)' |
+    Select-Object -First 1
+if (-not $versionMatch) { throw "Could not read the version from the project() line in $cmakeLists" }
+$script:ProductVersion = $versionMatch.Matches[0].Groups[1].Value
+
 $profilePath = Join-Path $PSScriptRoot "profiles/$Profile.json"
 if (-not (Test-Path -LiteralPath $profilePath)) { throw "Windows package profile not found: $profilePath" }
 $packageProfile = Get-Content -LiteralPath $profilePath -Raw | ConvertFrom-Json
@@ -200,7 +213,7 @@ Get-ChildItem -LiteralPath $stage -Recurse -File -Filter 'vc_redist*.exe' |
 
 $manifest = [ordered]@{
     product = 'FileCommander'
-    version = '0.2.0-phase2-test'
+    version = $script:ProductVersion
     platform = "windows-$Architecture"
     networkProtocols = @('sftp', 'smb', 'ftp', 'webdav', 'webdavs')
     officePreview = Test-Path -LiteralPath (Join-Path $stage 'office-oxide.exe')
@@ -224,7 +237,7 @@ if ($LASTEXITCODE) { throw 'Package verification failed.' }
 if ($SkipArchive) {
     Write-Host "Prepared runnable directory $stage"
 } else {
-    $zip = Join-Path $repo "dist/FileCommander-0.2.0-phase2-test-windows-$Architecture.zip"
+    $zip = Join-Path $repo "dist/FileCommander-$script:ProductVersion-windows-$Architecture.zip"
     Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
     Write-Host "Created $zip"
 }
