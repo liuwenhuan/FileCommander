@@ -459,6 +459,56 @@ TEST_F(FileListViewLayoutTest, ArrowKeysMoveTheCursorAndTheCursorRowIsPainted) {
         << "nothing distinguishes the row under the cursor from an ordinary row";
 }
 
+// The cursor frame is drawn cell by cell, because that is the only place a
+// delegate gets to draw. Its two horizontal rules therefore have to meet
+// exactly at every column boundary, or the row ends up with a box that is
+// visibly broken into segments -- which is what a user sees, not "the delegate
+// painted N times".
+TEST_F(FileListViewLayoutTest, TheCursorFrameHasNoGapsAtColumnBoundaries) {
+    resizeAndSettle(900);
+    m_view.selectionModel()->setCurrentIndex(m_model.index(4, 0),
+                                             QItemSelectionModel::NoUpdate);
+    m_view.selectionModel()->clearSelection();
+    qApp->processEvents();
+
+    const QRect firstCell = m_view.visualRect(m_model.index(4, 0));
+    ASSERT_FALSE(firstCell.isEmpty());
+    QHeaderView *header = m_view.horizontalHeader();
+    int lastVisible = -1;
+    for (int column = 0; column < header->count(); ++column)
+        if (!header->isSectionHidden(column))
+            lastVisible = column;
+    ASSERT_GE(lastVisible, 0);
+    const QRect lastCell = m_view.visualRect(m_model.index(4, lastVisible));
+    ASSERT_FALSE(lastCell.isEmpty());
+
+    QImage shot(m_view.viewport()->size(), QImage::Format_ARGB32);
+    shot.fill(Qt::transparent);
+    m_view.viewport()->render(&shot);
+
+    // The last column may be laid out wider than the viewport shows; only what
+    // is actually on screen can be inspected, or QImage::pixel reads past the
+    // end and reports noise as a gap.
+    const int rightmost = qMin(lastCell.right(), shot.width() - 1);
+    ASSERT_GT(rightmost, firstCell.left());
+
+    auto expectContinuous = [&](int y, const char *which) {
+        const QRgb frameColour = shot.pixel(firstCell.left() + 2, y);
+        QVector<int> gaps;
+        for (int x = firstCell.left(); x <= rightmost; ++x)
+            if (shot.pixel(x, y) != frameColour)
+                gaps.append(x);
+        QStringList shown;
+        for (int i = 0; i < qMin(12, gaps.size()); ++i)
+            shown << QString::number(gaps.at(i));
+        EXPECT_TRUE(gaps.isEmpty())
+            << "the " << which << " rule is broken at " << gaps.size()
+            << " pixel column(s): " << shown.join(QLatin1String(", ")).toStdString();
+    };
+    expectContinuous(firstCell.top(), "top");
+    expectContinuous(firstCell.bottom(), "bottom");
+}
+
 // Insert is the plain selection key: it must NOT trigger the size count, or
 // every Insert on a directory would kick off a recursive scan.
 TEST_F(FileListViewLayoutTest, InsertTogglesSelectionWithoutReportingTheRow) {

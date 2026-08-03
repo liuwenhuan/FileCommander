@@ -281,9 +281,15 @@ private:
         // Cells tile the row edge to edge, so a top and bottom line on each one
         // adds up to two continuous rules across the whole row; the vertical
         // caps belong only to the outermost visible columns.
-        const QRect r = opt.rect.adjusted(0, 0, -1, -1);
-        painter->drawLine(r.topLeft(), r.topRight());
-        painter->drawLine(r.bottomLeft(), r.bottomRight());
+        //
+        // The horizontal rules span the cell's FULL width. QRect::right() is
+        // already the last pixel inside the rect, so shrinking it by one leaves
+        // that pixel unpainted -- and since the next cell starts one past it,
+        // every column boundary ends up with a one-pixel hole. Two of those in a
+        // row's width is all it takes for the frame to read as broken.
+        const QRect r = opt.rect;
+        painter->drawLine(r.left(), r.top(), r.right(), r.top());
+        painter->drawLine(r.left(), r.bottom(), r.right(), r.bottom());
 
         QHeaderView *header = m_view->horizontalHeader();
         if (!header)
