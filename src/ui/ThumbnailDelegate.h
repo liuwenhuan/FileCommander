@@ -55,6 +55,17 @@ public:
                const QModelIndex &index) const override;
     QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override;
 
+    // Inline rename. Both exist for one reason: the cell is laid out by this
+    // delegate, so only this delegate knows where the name sits and how big it
+    // is drawn. Left to QStyledItemDelegate, the editor is placed by the style's
+    // SE_ItemViewItemText -- computed from the view's iconSize, which this
+    // delegate does not use -- so it lands at a fixed small size wherever the
+    // zoom happens to have put the label, showing a few characters of the name.
+    QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option,
+                          const QModelIndex &index) const override;
+    void updateEditorGeometry(QWidget *editor, const QStyleOptionViewItem &option,
+                              const QModelIndex &index) const override;
+
     // The exact cell rect the delegate paints into (icon + up-to-two-line label
     // + margins) for a given base font. This is the single source of truth for
     // sizeHint(); FilePanel also uses it to size the icon view's grid so the
@@ -76,6 +87,13 @@ private:
     // path, because a remote thumbnail is keyed on the listing's own
     // size/mtime: there is no local file to stat for them.
     static FileInfo fileInfoForIndex(const QModelIndex &index);
+
+    // The view font with this delegate's label point size applied, and the
+    // rect the name is drawn into within `cell`. Shared by paint() and the
+    // editor placement so the two cannot drift apart -- which is exactly how
+    // the editor came to sit somewhere the label does not.
+    QFont labelFont(const QFont &baseFont) const;
+    QRect labelRect(const QRect &cell, const QFont &labelFont) const;
 
     // Device pixel ratio of the screen this delegate's view is currently on
     // (1.0 with no view yet). Read fresh on every use rather than cached: a

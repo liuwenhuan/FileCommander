@@ -5,6 +5,7 @@
 #include <QColor>
 #include <QFontMetrics>
 #include <QIcon>
+#include <QLineEdit>
 #include <QPainter>
 #include <QPen>
 #include <QPolygonF>
@@ -248,9 +249,7 @@ void ThumbnailDelegate::paint(QPainter *painter, const QStyleOptionViewItem &opt
         }
     }
 
-    QFont font = opt.font;
-    if (m_fontPointSize > 0)
-        font.setPointSize(m_fontPointSize);
+    const QFont font = labelFont(opt.font);
     painter->setFont(font);
     // The selection tile is only lightly tinted (the view background still
     // shows through), so the ordinary Text colour stays legible -- no need to
@@ -260,8 +259,7 @@ void ThumbnailDelegate::paint(QPainter *painter, const QStyleOptionViewItem &opt
     const QFontMetrics fm(font);
     const QString name = index.data(Qt::DisplayRole).toString();
     const int lineHeight = fm.height();
-    const QRect textRect(cell.left() + kTextPadding, iconRect.bottom() + kIconTextGap,
-                          cell.width() - 2 * kTextPadding, 2 * lineHeight);
+    const QRect textRect = labelRect(cell, font);
     const QPair<QString, QString> lines = wrapNameToTwoLines(name, font, fm, textRect.width());
 
     const QRect firstLineRect(textRect.left(), textRect.top(), textRect.width(), lineHeight);
@@ -294,6 +292,51 @@ QSize ThumbnailDelegate::cellSizeHint(const QFont &baseFont) const {
     // lines instead of eliding to one (see wrapNameToTwoLines()/paint()).
     const int height = kMargin + m_iconSize + kIconTextGap + 2 * fm.height() + kMargin;
     return QSize(width, height);
+}
+
+QFont ThumbnailDelegate::labelFont(const QFont &baseFont) const {
+    QFont font = baseFont;
+    if (m_fontPointSize > 0)
+        font.setPointSize(m_fontPointSize);
+    return font;
+}
+
+QRect ThumbnailDelegate::labelRect(const QRect &cell, const QFont &font) const {
+    // Mirrors paint(): the icon box sits kMargin below the top, the label
+    // starts kIconTextGap under it and is two lines tall.
+    const int iconBottom = cell.top() + kMargin + m_iconSize - 1;
+    return QRect(cell.left() + kTextPadding, iconBottom + kIconTextGap,
+                 cell.width() - 2 * kTextPadding, 2 * QFontMetrics(font).height());
+}
+
+QWidget *ThumbnailDelegate::createEditor(QWidget *parent, const QStyleOptionViewItem &option,
+                                         const QModelIndex &index) const {
+    QWidget *editor = QStyledItemDelegate::createEditor(parent, option, index);
+    // The label is drawn at the delegate's own point size, which at a large
+    // zoom is well above the view's. An editor left at the view font would
+    // show the name in a noticeably smaller type than the row beside it.
+    if (editor)
+        editor->setFont(labelFont(option.font));
+    if (auto *line = qobject_cast<QLineEdit *>(editor))
+        line->setAlignment(Qt::AlignHCenter); // the label is centred; the editor should be too
+    return editor;
+}
+
+void ThumbnailDelegate::updateEditorGeometry(QWidget *editor, const QStyleOptionViewItem &option,
+                                             const QModelIndex &index) const {
+    Q_UNUSED(index);
+    if (!editor)
+        return;
+    const QRect label = labelRect(option.rect, labelFont(option.font));
+    // At least tall enough for the editor's own frame and text: two label lines
+    // is normally more than that, but a small font with a chunky style frame is
+    // not, and a clipped editor is the defect being fixed.
+    const int height = qMax(label.height(), editor->sizeHint().height());
+    // Kept inside the cell so a rename never paints over the neighbouring
+    // tile's label -- growing the box is not worth making two rows unreadable.
+    const int bottom = option.rect.bottom() - kTileInset;
+    editor->setGeometry(QRect(label.left(), qMin(label.top(), bottom - height),
+                              label.width(), height));
 }
 
 void ThumbnailDelegate::onThumbnailReady(const QString &path) {
