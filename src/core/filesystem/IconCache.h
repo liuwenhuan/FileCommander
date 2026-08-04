@@ -18,6 +18,18 @@ public:
 
     QIcon iconFor(const FileInfo &info);
 
+    // The system's own icon for one REAL path, cached per path rather than per
+    // type. Almost nothing wants this -- the whole point of the class is that
+    // files share icons by extension -- but a drive does: Windows gives each
+    // one an icon that depends on what it is (fixed, removable, optical, a
+    // mapped network share) and often on an autorun.inf the vendor shipped, so
+    // "the icon for a directory" is the wrong answer for it.
+    //
+    // Null when the platform has no such notion or the path does not exist, so
+    // a caller can fall back to its own artwork without checking the platform.
+    // Tinted like everything else, so it still follows the theme.
+    QIcon systemIconForPath(const QString &path);
+
     // Applies the theme-owned tint and pixel grid to an arbitrary chrome icon.
     // With no active tint, returns the icon unchanged.
     QIcon themedIcon(const QIcon &icon) const;

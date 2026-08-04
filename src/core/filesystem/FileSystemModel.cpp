@@ -610,10 +610,20 @@ QVariant FileSystemModel::data(const QModelIndex &index, int role) const {
         return info.isDir();
     if (role == Qt::DecorationRole && index.column() == NameColumn) {
         if (m_virtualListing) {
-            // A drive or a server has no file on disk to take an icon from, so
-            // the backend names one. An empty answer means "no opinion" and the
-            // normal resolution below applies -- which is what the synthetic
-            // folder rows want.
+            // A drive DOES have something the system can be asked about, and it
+            // gives each volume its own icon (fixed, removable, optical, a
+            // mapped share), so that beats our one generic disk glyph. Tried
+            // first, and falls through when the platform has no answer.
+            const QString systemPath = m_provider->entrySystemIconPath(info.path());
+            if (!systemPath.isEmpty()) {
+                const QIcon icon = IconCache::instance().systemIconForPath(systemPath);
+                if (!icon.availableSizes().isEmpty())
+                    return icon;
+            }
+            // A server has no file on disk to take an icon from, so the backend
+            // names one. An empty answer means "no opinion" and the normal
+            // resolution below applies -- which is what the synthetic folder
+            // rows want.
             const QString iconPath = m_provider->entryIconPath(info.path());
             if (!iconPath.isEmpty())
                 return IconCache::instance().themedIcon(QIcon(iconPath));
@@ -624,6 +634,11 @@ QVariant FileSystemModel::data(const QModelIndex &index, int role) const {
     if (role == Qt::DisplayRole || role == Qt::EditRole) {
         switch (index.column()) {
         case NameColumn:
+            // Editing a synthetic row starts from the backend's seed, not from
+            // what the row displays: a drive shows "Windows (C:)" and only the
+            // label part is editable (see FileProvider::entryRenameSeed).
+            if (role == Qt::EditRole && m_virtualListing)
+                return m_provider->entryRenameSeed(info.path());
             // Flat search-results listing shows the full path so results from
             // different directories stay distinguishable; a normal directory
             // listing shows the base name only (extension is its own column).
@@ -826,10 +841,18 @@ Qt::ItemFlags FileSystemModel::flags(const QModelIndex &index) const {
     // FileListView click-to-rename / MainWindow::renameCurrent): NoEditTriggers
     // is set globally so a stray keystroke never starts a rename by accident.
     if (!isParentEntry(index.row())) {
-        if (index.column() == NameColumn)
+        if (m_virtualListing) {
+            // A synthetic row is a *place*, not a file, so it is read-only
+            // unless the backend claims otherwise -- and never through the Ext
+            // column, which a place has no meaning for.
+            if (index.column() == NameColumn &&
+                m_provider->entryIsRenameable(fileInfoAt(index.row()).path()))
+                f |= Qt::ItemIsEditable;
+        } else if (index.column() == NameColumn) {
             f |= Qt::ItemIsEditable;
-        else if (index.column() == ExtColumn && !fileInfoAt(index.row()).isDir())
+        } else if (index.column() == ExtColumn && !fileInfoAt(index.row()).isDir()) {
             f |= Qt::ItemIsEditable;
+        }
     }
 
     // Without ItemIsDragEnabled, QAbstractItemView refuses to start a drag
@@ -852,6 +875,25 @@ bool FileSystemModel::setData(const QModelIndex &index, const QVariant &value, i
     const FileInfo info = fileInfoAt(index.row());
     if (!info.isValid())
         return false;
+
+    // A synthetic row's new name is whatever was typed, verbatim: there is no
+    // extension to re-append, and the backend is handed the label rather than a
+    // file name. Compared against the seed, not the display name, so committing
+    // an untouched editor is the no-op it looks like.
+    if (m_virtualListing) {
+        if (col != NameColumn || !m_provider->entryIsRenameable(info.path()))
+            return false;
+        const QString label = value.toString().trimmed();
+        if (label == m_provider->entryRenameSeed(info.path()))
+            return false;
+        QString ignored;
+        if (m_provider->rename(info.path(), label, &ignored) != FileProvider::RenameResult::Ok) {
+            emit renameFailed(tr("Failed to rename %1").arg(info.name()));
+            return false;
+        }
+        setRootPath(m_rootPath); // the row's display name is built from the label
+        return true;
+    }
 
     // The Name column now shows the base name and the Ext column the suffix, so
     // both edits just recombine the two halves into a full file name.

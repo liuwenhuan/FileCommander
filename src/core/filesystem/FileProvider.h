@@ -166,6 +166,28 @@ public:
     // row wants, so it keeps the same folder icon as everywhere else.
     virtual QString entryIconPath(const QString & /*path*/) const { return {}; }
 
+    // Whether a row in a synthetic listing can be renamed at all, and what the
+    // editor should start from -- which is NOT the display name. A drive reads
+    // "Windows (C:)" and only the "Windows" half is the user's to change: the
+    // letter is the volume's identity, and letting it be typed over would offer
+    // a rename that cannot mean anything. Seeding the editor with the label
+    // alone is what makes the letter unreachable, rather than validating it
+    // back out afterwards.
+    //
+    // Default false, so a synthetic backend is read-only until it says
+    // otherwise -- a saved server, a bookmark and a discovered host all have
+    // names that are not the system's to change. An empty seed is valid (an
+    // unlabelled volume), which is why the two are separate questions.
+    virtual bool entryIsRenameable(const QString & /*path*/) const { return false; }
+    virtual QString entryRenameSeed(const QString & /*path*/) const { return {}; }
+
+    // A REAL path whose system icon should be preferred over entryIconPath's
+    // artwork -- a drive root, so the row shows the icon the platform gives
+    // that particular volume rather than a generic disk glyph. Empty (the
+    // default, and the answer whenever the platform has no such icon) means
+    // entryIconPath decides, so a backend that does not care is already right.
+    virtual QString entrySystemIconPath(const QString & /*path*/) const { return {}; }
+
     // Section ordinal for `path` within a synthetic listing. Rows sort by this
     // first, so the drives stay above the user folders and the servers below
     // them however the user then sorts the columns. Meaningless (and never

@@ -50,6 +50,9 @@ public:
     QString entryTypeLabel(const QString &path) const override;
     QString entrySizeText(const QString &path) const override;
     QString entryIconPath(const QString &path) const override;
+    QString entrySystemIconPath(const QString &path) const override;
+    bool entryIsRenameable(const QString &path) const override;
+    QString entryRenameSeed(const QString &path) const override;
     int entrySortGroup(const QString &path) const override;
 
 private:

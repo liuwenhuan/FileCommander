@@ -29,6 +29,10 @@ struct ComputerEntry {
     QString name;      // what the Name column shows
     QString target;    // meaning depends on kind; see above
     QString iconPath;  // ":/icons/....svg"; empty = let IconCache decide
+    // Drives only: the volume label on its own, without the drive letter or
+    // device node `name` wraps it in. This is the half a rename may change, so
+    // it is carried rather than parsed back out of the display name.
+    QString label;
     QDateTime created; // only saved bookmarks have one; invalid renders blank
     // Set for drives so the row can say how full the volume is. -1 when unknown
     // (an unreadable or not-ready volume), which renders as nothing rather than
@@ -46,6 +50,12 @@ Q_DECLARE_METATYPE(ComputerEntry)
 // Removable media and discovered hosts are appended by the UI layer, which owns
 // those monitors.
 namespace ComputerCatalog {
+
+// How a drive row reads: the label, qualified by the thing that identifies the
+// volume (its letter on Windows, its device node on Linux). Shared with the
+// relabel path so a renamed drive is spelled exactly like a freshly listed one.
+QString driveDisplayName(const QString &root, const QString &device, const QString &label);
+
 
 // Mounted fixed volumes. On Windows these are the drive letters with their
 // volume labels; on Linux they are the real block-device filesystems, named by

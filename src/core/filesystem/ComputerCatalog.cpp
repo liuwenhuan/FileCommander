@@ -50,6 +50,26 @@ QString iconForProtocol(int protocol) {
 
 } // namespace
 
+QString ComputerCatalog::driveDisplayName(const QString &root, const QString &device,
+                                         const QString &label) {
+#ifdef Q_OS_WIN
+    // "C:" -- the letter is the identity here, and the label qualifies it,
+    // which is the order Windows itself shows ("Windows (C:)").
+    Q_UNUSED(device);
+    QString letter = root;
+    while (letter.endsWith(QLatin1Char('/')))
+        letter.chop(1);
+    return QStringLiteral("%1 (%2)")
+        .arg(label.isEmpty() ? QObject::tr("Local Disk") : label, letter);
+#else
+    // On Linux the device node is the drive's identity; the label (when the
+    // filesystem carries one) and the mount point qualify it. An unlabelled
+    // volume falls back to where it is mounted, which is the only other thing
+    // that distinguishes two anonymous partitions.
+    return QStringLiteral("%1 (%2)").arg(label.isEmpty() ? root : label, device);
+#endif
+}
+
 QVector<ComputerEntry> ComputerCatalog::drives() {
     QVector<ComputerEntry> result;
     QSet<QString> seenRoots;
@@ -92,23 +112,8 @@ QVector<ComputerEntry> ComputerCatalog::drives() {
         entry.bytesTotal = volume.bytesTotal();
         entry.bytesFree = volume.bytesFree();
 
-        const QString label = volume.name();
-#ifdef Q_OS_WIN
-        // "C:" -- the letter is the identity here, and the label qualifies it,
-        // which is the order Windows itself shows ("Windows (C:)").
-        QString letter = root;
-        while (letter.endsWith(QLatin1Char('/')))
-            letter.chop(1);
-        entry.name = QStringLiteral("%1 (%2)")
-                         .arg(label.isEmpty() ? QObject::tr("Local Disk") : label, letter);
-#else
-        // On Linux the device node is the drive's identity; the label (when the
-        // filesystem carries one) and the mount point qualify it. An unlabelled
-        // volume falls back to where it is mounted, which is the only other
-        // thing that distinguishes two anonymous partitions.
-        const QString identity = label.isEmpty() ? root : label;
-        entry.name = QStringLiteral("%1 (%2)").arg(identity, device);
-#endif
+        entry.label = volume.name();
+        entry.name = driveDisplayName(root, device, entry.label);
         seenRoots.insert(root);
         seenVolumes.insert(volumeId);
         result.append(entry);

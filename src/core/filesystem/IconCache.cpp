@@ -1,5 +1,6 @@
 #include "IconCache.h"
 
+#include <QDir>
 #include <QFileIconProvider>
 #include <QImage>
 #include <QPixmap>
@@ -172,6 +173,55 @@ QIcon IconCache::iconFor(const FileInfo &info) {
 
     m_cache.insert(key, new QIcon(icon));
     return icon;
+}
+
+QIcon IconCache::systemIconForPath(const QString &path) {
+#ifdef Q_OS_WIN
+    if (path.isEmpty())
+        return {};
+    const QString key = QStringLiteral("path:") + path;
+    if (QIcon *cached = m_cache.object(key))
+        return *cached;
+
+    // No SHGFI_USEFILEATTRIBUTES here, unlike everywhere else in this file:
+    // the point is to ask about this drive, not about drives in general.
+    QIcon icon;
+    const QString native = QDir::toNativeSeparators(path);
+    const int sizes[] = {16, 32, 48, 256};
+    for (int size : sizes) {
+        SHFILEINFOW fileInfo = {};
+        if (!SHGetFileInfoW(reinterpret_cast<const wchar_t *>(native.utf16()), 0, &fileInfo,
+                            sizeof(fileInfo), SHGFI_SYSICONINDEX))
+            return {};
+        const int imageListSize = size <= 16   ? SHIL_SMALL
+                                  : size <= 32 ? SHIL_LARGE
+                                  : size <= 48 ? SHIL_EXTRALARGE
+                                               : SHIL_JUMBO;
+        IImageList *imageList = nullptr;
+        if (FAILED(SHGetImageList(imageListSize, __uuidof(IImageList),
+                                  reinterpret_cast<void **>(&imageList))) ||
+            !imageList)
+            continue;
+        HICON shellIcon = nullptr;
+        const HRESULT iconResult =
+            imageList->GetIcon(fileInfo.iIcon, ILD_TRANSPARENT, &shellIcon);
+        imageList->Release();
+        if (FAILED(iconResult) || !shellIcon)
+            continue;
+        const QImage image = imageFromHIcon(shellIcon, size);
+        DestroyIcon(shellIcon);
+        if (!image.isNull())
+            icon.addPixmap(QPixmap::fromImage(image));
+    }
+    if (icon.availableSizes().isEmpty())
+        return {};
+    icon = themedIcon(icon);
+    m_cache.insert(key, new QIcon(icon));
+    return icon;
+#else
+    Q_UNUSED(path);
+    return {};
+#endif
 }
 
 QIcon IconCache::themedIcon(const QIcon &icon) const {

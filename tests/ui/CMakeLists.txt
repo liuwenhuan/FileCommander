@@ -22,6 +22,7 @@ set(UI_TEST_SOURCES
     test_Mp4RangePlan.cpp
     test_IconFileView.cpp
     test_ArchiveEntryIcons.cpp
+    test_ComputerRename.cpp
     test_VideoRangePlan.cpp
     test_MediaEngineContract.cpp
     test_FilePanelFont.cpp
