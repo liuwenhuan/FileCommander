@@ -31,9 +31,14 @@ void drawParentArrow(QPainter *painter, const QRect &iconRect, const QPalette &p
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
 
-    const QColor accent = palette.color(QPalette::Highlight);
+    // The arrow takes the TEXT colour, not the highlight. It shares the grid
+    // with file icons that follow the theme (Image Colours Follow Theme), and a
+    // saturated accent among them is the one coloured thing on screen -- it
+    // read as a leftover rather than as an affordance. The backdrop keeps the
+    // highlight, faintly, so the cell still says "this one is special".
+    const QColor ink = palette.color(QPalette::Normal, QPalette::WindowText);
 
-    QColor backdrop = accent;
+    QColor backdrop = palette.color(QPalette::Highlight);
     backdrop.setAlpha(36);
     painter->setPen(Qt::NoPen);
     painter->setBrush(backdrop);
@@ -55,7 +60,7 @@ void drawParentArrow(QPainter *painter, const QRect &iconRect, const QPalette &p
         arrow << QPointF(square.left() + p.x() * square.width(), square.top() + p.y() * square.height());
 
     painter->setPen(Qt::NoPen);
-    painter->setBrush(accent);
+    painter->setBrush(ink);
     painter->drawPolygon(arrow);
 
     painter->restore();

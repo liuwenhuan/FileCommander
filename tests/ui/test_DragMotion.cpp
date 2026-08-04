@@ -371,7 +371,10 @@ void themeStylesheetsDriveFinalFeedbackColors() {
     ApplicationStyleSheetGuard styleGuard;
     MotionPolicy::setReducedForTest(false);
 
-    expectThemeFeedback<View>(QStringLiteral("dark"), QColor(QStringLiteral("#3d7deb")),
+    // The dark theme's accent is a neutral slate, not a blue: its file grid is
+    // greyscale once the icons follow the theme, and a saturated accent was the
+    // only coloured thing on screen. See the note atop dark.qss.
+    expectThemeFeedback<View>(QStringLiteral("dark"), QColor(QStringLiteral("#565b63")),
                               QColor(QStringLiteral("#e0e0e0")));
     expectThemeFeedback<View>(QStringLiteral("light"), QColor(QStringLiteral("#3d7deb")),
                               QColor(QStringLiteral("#202020")));

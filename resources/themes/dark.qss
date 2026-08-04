@@ -1,10 +1,17 @@
 /* Dark theme -- covers the whole UI (panels, dialogs, status bar,
-   error messages), not just menus. */
+   error messages), not just menus.
+
+   The accent is a neutral slate rather than a bright blue. Once the file
+   list's icons and thumbnails follow the theme (Image Colours Follow Theme),
+   the grid is greyscale, and a #3d7deb selection tile and up-arrow were the
+   only saturated things on screen -- they read as leftovers rather than as
+   accents. Two values, by role: #565b63 fills, dark enough to carry white
+   text, and #8e949c lines, light enough to read as a focus ring on #2b2b2b. */
 
 QWidget {
     background-color: #2b2b2b;
     color: #e0e0e0;
-    selection-background-color: #3d7deb;
+    selection-background-color: #565b63;
     selection-color: #ffffff;
 }
 
@@ -23,7 +30,7 @@ QMenuBar::item {
 }
 
 QMenuBar::item:selected {
-    background-color: #3d7deb;
+    background-color: #565b63;
     color: #ffffff;
 }
 
@@ -61,7 +68,7 @@ QMenu::item {
 }
 
 QMenu::item:selected {
-    background-color: #3d7deb;
+    background-color: #565b63;
     color: #ffffff;
 }
 
@@ -110,7 +117,7 @@ QTableView {
     /* Selection colours on the widget (not a ::item rule) so they fold into the
        palette; FileItemDelegate paints cells directly from it on the fast path
        instead of the slow per-cell CSS box model. See light.qss for the why. */
-    selection-background-color: #3d7deb;
+    selection-background-color: #565b63;
     selection-color: #ffffff;
 }
 
@@ -128,7 +135,7 @@ QTreeView {
     color: #e0e0e0;
     alternate-background-color: #232323;
     border: 1px solid #1a1a1a;
-    selection-background-color: #3d7deb;
+    selection-background-color: #565b63;
     selection-color: #ffffff;
 }
 
@@ -162,7 +169,7 @@ QLineEdit {
 }
 
 QLineEdit:focus {
-    border: 1px solid #3d7deb;
+    border: 1px solid #8e949c;
 }
 
 /* No border at rest. Nothing else in the address row has one either -- the
@@ -172,7 +179,7 @@ QLineEdit:focus {
    edges. It went for the same reason.) Only the editing state gets a border,
    as a "you're now typing a path" cue. */
 BreadcrumbBar[editing="true"] {
-    border: 1px solid #3d7deb;
+    border: 1px solid #8e949c;
     border-radius: 0;
 }
 
@@ -203,7 +210,7 @@ QAbstractSpinBox {
     border: 1px solid #444444;
     border-radius: 3px;
     padding: 3px 20px 3px 6px;
-    selection-background-color: #3d7deb;
+    selection-background-color: #565b63;
     selection-color: #ffffff;
 }
 
@@ -212,7 +219,7 @@ QAbstractSpinBox:hover {
 }
 
 QAbstractSpinBox:focus {
-    border-color: #3d7deb;
+    border-color: #8e949c;
 }
 
 QAbstractSpinBox:disabled {
@@ -253,7 +260,7 @@ QComboBox {
 }
 
 QComboBox:focus {
-    border: 1px solid #3d7deb;
+    border: 1px solid #8e949c;
 }
 
 QComboBox:hover {
@@ -275,7 +282,7 @@ QComboBox QAbstractItemView {
     color: #e0e0e0;
     border: 1px solid #1a1a1a;
     outline: none;
-    selection-background-color: #3d7deb;
+    selection-background-color: #565b63;
     selection-color: #ffffff;
 }
 
@@ -289,7 +296,7 @@ QComboBox QAbstractItemView::item {
 }
 
 QComboBox QAbstractItemView::item:selected {
-    background-color: #3d7deb;
+    background-color: #565b63;
     color: #ffffff;
 }
 
@@ -365,7 +372,7 @@ QWidget#PanelAddressRow QToolButton:disabled {
 }
 
 QWidget#PanelAddressRow QToolButton:checked {
-    background: #3d7deb;
+    background: #565b63;
     color: #ffffff;
     border-color: #2f6fd4;
 }
@@ -437,7 +444,7 @@ QProgressBar {
 }
 
 QProgressBar::chunk {
-    background-color: #3d7deb;
+    background-color: #565b63;
 }
 
 QMessageBox {
@@ -506,7 +513,7 @@ QTreeView::branch:open:has-children:has-siblings {
    it merges with the button it grows out of. */
 #ExternalConnectPanel {
     background-color: #2b2b2b;
-    border: 1px solid #3d7deb;
+    border: 1px solid #8e949c;
     border-bottom: none;
     border-top-left-radius: 8px;
     border-top-right-radius: 8px;
@@ -526,7 +533,7 @@ QTreeView::branch:open:has-children:has-siblings {
     background-color: #3a3a3a;
 }
 #ExternalConnectPanel QListWidget#ExternalConnectList::item:selected {
-    background-color: #3d7deb;
+    background-color: #565b63;
     color: #ffffff;
 }
 #ExternalConnectPanel QListWidget#ExternalConnectList QScrollBar:vertical {
@@ -544,7 +551,7 @@ QTreeView::branch:open:has-children:has-siblings {
    panel (rounded top, accent border, bottom-flush). Split top list / bottom editor. */
 #NotepadPanel {
     background-color: #2b2b2b;
-    border: 1px solid #3d7deb;
+    border: 1px solid #8e949c;
     border-bottom: none;
     border-top-left-radius: 8px;
     border-top-right-radius: 8px;
@@ -564,7 +571,7 @@ QTreeView::branch:open:has-children:has-siblings {
     background-color: #3a3a3a;
 }
 #NotepadPanel QListWidget#NotepadList::item:selected {
-    background-color: #3d7deb;
+    background-color: #565b63;
     color: #ffffff;
 }
 #NotepadPanel QPlainTextEdit#NotepadEditor {
@@ -612,5 +619,5 @@ CommandBar QLineEdit#CommandInput {
 }
 
 CommandBar[inputFocused="true"] {
-    border: 1px solid #3d7deb;
+    border: 1px solid #8e949c;
 }

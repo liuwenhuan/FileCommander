@@ -403,3 +403,41 @@ TEST(CrtContentSurfacesTest, EveryThemesContentTintIsBrightEnoughToTintRatherTha
             << " is what white becomes -- too dark to be a tint";
     }
 }
+
+// The dark theme's accent must not be the one saturated thing in an otherwise
+// greyscale grid. Once the file list follows the theme, its icons and
+// thumbnails are #e0e0e0 monochrome, and the old #3d7deb selection tile and
+// up-arrow stood out as leftovers rather than as accents.
+TEST(CrtContentSurfacesTest, TheDarkThemesAccentSitsWithItsGreyscaleContent) {
+    ThemeManager manager;
+    // Put the sheet back rather than blanking it: other suites in this binary
+    // are written against whatever was applied before, and clearing it left
+    // them painting with no theme at all.
+    struct Restore {
+        QString sheet;
+        ~Restore() {
+            fc::setThumbnailTint(QColor());
+            fc::setPreviewTint(QColor());
+            IconCache::instance().setFileIconTint(QColor());
+            qApp->setStyleSheet(sheet);
+        }
+    } restore{qApp->styleSheet()};
+
+    manager.apply(Settings::Theme::Dark, true, true);
+
+    // Read the accent the way the painting code does -- off a widget's palette,
+    // which the stylesheet's selection-background-color fills in.
+    QWidget probe;
+    probe.setAttribute(Qt::WA_StyledBackground, true);
+    probe.ensurePolished();
+    const QColor accent = probe.palette().color(QPalette::Highlight);
+    const QColor content = fc::thumbnailTint();
+    ASSERT_TRUE(content.isValid());
+
+    EXPECT_LE(accent.saturation(), 90)
+        << "accent " << accent.name().toStdString() << " is saturated next to "
+        << content.name().toStdString() << " content";
+    // ...and still distinguishable from the surface it sits on, or it stops
+    // being an accent at all.
+    EXPECT_GE(accent.lightness(), 48);
+}

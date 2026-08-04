@@ -52,7 +52,9 @@ void ThemeManager::apply(Settings::Theme theme, bool phosphorImages, bool phosph
                                kPhosphor, QColor(0x7c, 0xe8, 0xac),
                                QColor(0x12, 0x60, 0x2f));
     } else if (effective == Settings::Theme::Dark) {
-        TabBar::setThemeColors(QColor(0x3d, 0x7d, 0xeb), QColor(0xe0, 0xe0, 0xe0),
+        // Neutral slate, matching dark.qss -- see the note at the top of it for
+        // why the accent is not a bright blue any more.
+        TabBar::setThemeColors(QColor(0x8e, 0x94, 0x9c), QColor(0xe0, 0xe0, 0xe0),
                                QColor(0xe0, 0xe0, 0xe0), QColor(0xe0, 0x4b, 0x4b),
                                QColor(0xe0, 0x4b, 0x4b), QColor(0x77, 0x77, 0x77));
     } else {
