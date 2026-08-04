@@ -8,7 +8,9 @@
 #include <QTemporaryDir>
 #include <QProcess>
 #include <QTest>
+#include <QThread>
 #include <QVector>
+#include <QtConcurrent/QtConcurrent>
 
 #include "FileListView.h"
 #include "FileSystemModel.h"
@@ -138,4 +140,66 @@ TEST(ArchivePreviewAsync, ThePanelExtractsOffTheGuiThreadAndReportsBack) {
 
     // ...and now the cheap question answers.
     EXPECT_EQ(panel.currentPreviewPathIfReady(), local);
+}
+
+// The one that matters, and the one the first version of this file missed: the
+// ready check has to answer WHILE an extraction is running. Asking when nothing
+// is in flight proves nothing -- the first attempt at this fix had the check
+// take the same mutex materialize() holds for the whole extraction, so every
+// cursor move still froze the window for the length of the unpack.
+TEST(ArchivePreviewAsync, TheReadyCheckAnswersWhileAnExtractionIsRunning) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QDir root(dir.path());
+    // Enough images that the extraction lasts long enough to ask during it.
+    const QString archive = writeTarOfImages(root, 400);
+    if (archive.isEmpty())
+        GTEST_SKIP() << "no tar available to build the fixture";
+
+    QString error;
+    auto provider = std::make_shared<ArchiveProvider>(archive, &error);
+    ASSERT_TRUE(error.isEmpty()) << error.toStdString();
+
+    QString first;
+    QString second;
+    for (const FileInfo &entry : provider->list(QStringLiteral("/"), true)) {
+        if (entry.isDir())
+            continue;
+        if (first.isEmpty())
+            first = entry.path();
+        else if (second.isEmpty())
+            second = entry.path();
+    }
+    ASSERT_FALSE(first.isEmpty());
+    ASSERT_FALSE(second.isEmpty());
+
+    // Start a real extraction on another thread and keep asking while it runs.
+    QFuture<QString> running =
+        QtConcurrent::run([provider, first]() { return provider->materialize(first); });
+
+    qint64 worst = 0;
+    QElapsedTimer overall;
+    overall.start();
+    int asks = 0;
+    while (!running.isFinished() && overall.elapsed() < 20000) {
+        QElapsedTimer ask;
+        ask.start();
+        provider->materializedPathIfReady(second);
+        worst = qMax(worst, ask.elapsed());
+        ++asks;
+        QThread::msleep(5);
+    }
+    running.waitForFinished();
+    ASSERT_FALSE(running.result().isEmpty()) << "the extraction itself failed";
+    ASSERT_GT(asks, 0) << "the extraction finished too fast to ask during it";
+
+    // This is what the GUI thread does on every cursor move. Stated as a
+    // FRACTION of the extraction, so the assertion holds whatever the machine
+    // and fixture size make of it: taking the extraction's own mutex means
+    // blocking for most of what is left of it (measured 83ms of a 111ms
+    // unpack), while not taking it means microseconds.
+    const qint64 extraction = overall.elapsed();
+    EXPECT_LT(worst, qMax<qint64>(30, extraction / 4))
+        << "the ready check blocked " << worst << "ms of a " << extraction
+        << "ms extraction -- that is the freeze";
 }

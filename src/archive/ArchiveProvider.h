@@ -169,5 +169,12 @@ private:
     QScopedPointer<QTemporaryDir> m_tempDir;
 
     mutable QMutex m_mutex; // serialises libarchive extraction
+    // Guards only the "what has been produced" bookkeeping below, and is held
+    // for map lookups rather than across an extraction. Separate from m_mutex
+    // ON PURPOSE: m_mutex is held for the WHOLE of extractWhole(), so a reader
+    // that took it would wait out the entire unpack -- which is exactly what
+    // froze the window while a large archive's first preview was extracting.
+    mutable QMutex m_readyMutex;
+    QString m_tempDirPath; // copy of m_tempDir->path(), readable without m_mutex
     std::function<void(qint64, qint64)> m_progress;
 };

@@ -461,11 +461,16 @@ QString ArchiveProvider::materializedPathIfReady(const QString &virtualPath) con
     if (it == m_entries.constEnd() || it.value().isDir || it.value().realPath.isEmpty())
         return QString();
 
-    QMutexLocker locker(&m_mutex);
-    if (!m_tempDir)
+    // m_readyMutex, never m_mutex: the latter is held for the whole of an
+    // extraction, so taking it here would make this wait out the unpack -- the
+    // very freeze this method exists to avoid.
+    QMutexLocker locker(&m_readyMutex);
+    if (m_tempDirPath.isEmpty())
         return QString();
-    if (m_extractAll)
-        return m_wholeExtracted ? tempFilePath(it.value().realPath) : QString();
+    if (m_extractAll) {
+        return m_wholeExtracted ? QDir(m_tempDirPath).filePath(it.value().realPath)
+                                : QString();
+    }
     return m_extractedFiles.value(key);
 }
 
@@ -481,17 +486,24 @@ QString ArchiveProvider::materialize(const QString &virtualPath) {
         m_tempDir.reset(new QTemporaryDir);
         if (!m_tempDir->isValid())
             return QString();
+        QMutexLocker ready(&m_readyMutex);
+        m_tempDirPath = m_tempDir->path();
     }
     if (m_extractAll) {
         if (!m_wholeExtracted && !extractWhole())
             return QString();
         return tempFilePath(realPath);
     }
-    QString filePath = m_extractedFiles.value(key);
+    QString filePath;
+    {
+        QMutexLocker ready(&m_readyMutex);
+        filePath = m_extractedFiles.value(key);
+    }
     if (filePath.isEmpty()) {
         filePath = extractSingle(realPath);
         if (filePath.isEmpty())
             return QString();
+        QMutexLocker ready(&m_readyMutex);
         m_extractedFiles.insert(key, filePath);
     }
     return filePath;
@@ -535,6 +547,7 @@ bool ArchiveProvider::extractWhole() {
         if (SquashfsReader::extractTo(m_archivePath, {}, m_tempDir->path()) !=
             SquashfsReader::Status::Ok)
             return false;
+        QMutexLocker ready(&m_readyMutex);
         m_wholeExtracted = true;
         return true;
     }
@@ -593,8 +606,10 @@ bool ArchiveProvider::extractWhole() {
     archive_read_free(a);
     archive_write_close(ext);
     archive_write_free(ext);
-    if (ok)
+    if (ok) {
+        QMutexLocker ready(&m_readyMutex);
         m_wholeExtracted = true;
+    }
     return ok;
 }
 
