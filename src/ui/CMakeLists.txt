@@ -41,8 +41,6 @@ set(UI_SOURCES
     media/MediaTypes.h
     media/SeekWatchdog.h
     media/SeekWatchdog.cpp
-    TextEncodingDetector.h
-    TextEncodingDetector.cpp
     SlideSceneBuilder.h
     SlideSceneBuilder.cpp
     ViewerWindow.h

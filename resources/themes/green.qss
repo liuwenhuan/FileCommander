@@ -216,6 +216,17 @@ PlainHeaderView {
     qproperty-sectionBorder: #1fa85c;
 }
 
+/* The F4 editor's line-number gutter is hand-painted, so no background-color
+   rule can reach it. It used to be filled with the APPLICATION palette's
+   AlternateBase, which no sheet ever writes -- a bright white strip down the
+   left of an otherwise black-and-phosphor window. Same class-name-not-base-class
+   rule as PlainHeaderView above; see src/viewer/TextEditor.h. */
+CodeEditor {
+    qproperty-gutterBackground: #0a1a0d;
+    qproperty-gutterForeground: #1fa85c;
+    qproperty-gutterBorder: #12602f;
+}
+
 QHeaderView::section {
     background-color: #0a1a0d;
     color: #33ff88;

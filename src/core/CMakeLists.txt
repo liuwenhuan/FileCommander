@@ -20,6 +20,12 @@ set(CORE_SOURCES
     filesystem/IconCache.cpp
     theme/Phosphor.h
     theme/Phosphor.cpp
+    # Lives here, not in src/ui, because both the QuickView preview pane (ui)
+    # and the F4 editor (viewer) must agree on what a file's encoding is, and
+    # viewer sits BELOW ui in the layer order -- it cannot include from it.
+    # The class itself is QtCore-only and has no UI dependency.
+    text/TextEncodingDetector.h
+    text/TextEncodingDetector.cpp
     filesystem/ExternalPaths.h
     filesystem/ExternalPaths.cpp
     operations/FileOpTypes.h
@@ -156,6 +162,7 @@ target_include_directories(core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/devices
     ${CMAKE_CURRENT_SOURCE_DIR}/notepad
     ${CMAKE_CURRENT_SOURCE_DIR}/update
+    ${CMAKE_CURRENT_SOURCE_DIR}/text
 )
 
 target_link_libraries(core PUBLIC

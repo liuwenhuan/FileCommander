@@ -156,6 +156,17 @@ PlainHeaderView {
     qproperty-sectionBorder: #d0d0d0;
 }
 
+/* The F4 editor's line-number gutter is hand-painted, so no background-color
+   rule can reach it. These name its colours outright -- see the class note in
+   src/viewer/TextEditor.h. Selector is the subclass, not QPlainTextEdit: a
+   qproperty- rule warns on stderr for every matched widget that lacks the
+   property. */
+CodeEditor {
+    qproperty-gutterBackground: #ececec;
+    qproperty-gutterForeground: #909090;
+    qproperty-gutterBorder: #d0d0d0;
+}
+
 QLineEdit {
     background-color: #ffffff;
     border: 1px solid #c8c8c8;
