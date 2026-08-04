@@ -493,6 +493,19 @@ void QuickView::warmMediaEngine() {
                            "incomplete or damaged. Playback restarted from the beginning."));
     });
 
+    // The file has nothing where playback needs it. Playback is stopped by the
+    // backend at that point, so this replaces neither the page nor the frame
+    // already on screen -- it explains why that frame stopped moving.
+    connect(m_mediaEngine, &MediaEngine::mediaIncomplete, this, [this]() {
+        m_seeking = false;
+        if (m_videoTimer)
+            m_videoTimer->stop();
+        if (m_playButton)
+            m_playButton->setText(tr("Play"));
+        showVideoNotice(tr("This file is incomplete — the rest of it was never "
+                           "written — so it cannot play through."));
+    });
+
     try {
         m_mediaEngine->initialize();
     } catch (const std::exception &error) {

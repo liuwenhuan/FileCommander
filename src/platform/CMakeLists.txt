@@ -19,6 +19,8 @@ set(PLATFORM_SOURCES
     ShellCommand.cpp
     OpenWithHandlers.h
     OpenWithHandlers.cpp
+    FileHoles.h
+    FileHoles.cpp
 )
 if(WIN32)
     list(APPEND PLATFORM_SOURCES

@@ -1,11 +1,13 @@
 #include "WindowsMediaEngine.h"
 
 #include "WindowsMediaSurface.h"
+#include "FileHoles.h"
 #include "FileProvider.h"
 
 #include <QFileInfo>
 #include <QMetaObject>
 #include <QTimer>
+#include <QtConcurrent>
 #include <QUrl>
 
 #include <algorithm>
@@ -23,6 +25,11 @@ using Microsoft::WRL::ComPtr;
 namespace {
 
 constexpr int kPollIntervalMs = 33;
+
+// How far the clock may run past the last picture before the file is
+// suspected of having nothing left to show. Normal playback produces a
+// frame on almost every poll, so this is generous by an order of magnitude.
+constexpr double kFrozenPictureSeconds = 3.0;
 
 bool differs(double left, double right) {
     return std::abs(left - right) > 0.001;
@@ -135,6 +142,7 @@ WindowsMediaEngine::WindowsMediaEngine(QObject *parent)
         pumpFrame();
         if (m_seekWatchdog.observe(m_position, m_clock.elapsed()) == SeekWatchdog::Verdict::Stuck)
             recoverFromStuckSeek();
+        checkForFrozenPicture();
     });
 }
 
@@ -283,10 +291,84 @@ void WindowsMediaEngine::seekFraction(double fraction) {
         m_position = position;
         // Watch it: SetCurrentTime succeeding says only that the request was
         // taken, not that it will ever finish. See SeekWatchdog.
+        m_seekTarget = position;
         m_seekWatchdog.arm(position, m_duration, m_state == MediaState::Playing,
                            m_clock.elapsed());
         emit positionChanged(m_position);
     }
+}
+
+void WindowsMediaEngine::askWhetherFileIsIncomplete(double seconds, HoleQuestion question) {
+    if (m_holeQuestion != HoleQuestion::None)
+        return; // one at a time; the answer is about the file, not the moment
+    if (m_source.isRemote || m_source.path.isEmpty() || m_duration <= 0.0)
+        return;
+    if (!m_holeWatcher) {
+        m_holeWatcher = new QFutureWatcher<bool>(this);
+        connect(m_holeWatcher, &QFutureWatcher<bool>::finished, this,
+                &WindowsMediaEngine::answerAboutIncompleteFile);
+    }
+    m_holeQuestion = question;
+    m_holeGeneration = m_loadGeneration;
+    const QString path = m_source.path;
+    const double duration = m_duration;
+    // Nothing captured by reference and no `this`: the answer is collected
+    // through the watcher, which dies with the engine.
+    m_holeWatcher->setFuture(QtConcurrent::run([path, seconds, duration]() {
+        const qint64 size = QFileInfo(path).size();
+        const qint64 offset = fc::approximateOffsetForTime(size, seconds, duration);
+        return fc::inspectForHoles(path, offset).looksIncomplete();
+    }));
+}
+
+void WindowsMediaEngine::answerAboutIncompleteFile() {
+    const HoleQuestion question = m_holeQuestion;
+    m_holeQuestion = HoleQuestion::None;
+    if (!m_holeWatcher)
+        return;
+    const bool incomplete = m_holeWatcher->result();
+
+    if (question == HoleQuestion::AfterStuckSeek) {
+        // The reload already happened -- only the wording waited for this.
+        if (incomplete) {
+            m_reportedIncomplete = true;
+            emit mediaIncomplete();
+        } else {
+            emit seekUnsupported();
+        }
+        return;
+    }
+    if (question != HoleQuestion::AfterFrozenPicture)
+        return;
+    // A frozen picture on a clip that has since been replaced is not news.
+    if (m_holeGeneration != m_loadGeneration || !incomplete || m_reportedIncomplete)
+        return;
+    m_reportedIncomplete = true;
+    if (m_engine)
+        m_engine->Pause(); // the clock would otherwise run to the end of a film that is not there
+    setState(MediaState::Paused);
+    emit mediaIncomplete();
+}
+
+// The picture stopped while the clock kept going.
+//
+// This is what an unfinished download looks like from inside Media Foundation:
+// measured on one, frames stopped at 134 s and the clock ran on past 199 s at
+// full speed, state Playing, no error and no end-of-stream. So the signal is
+// not a stalled position -- the position never stalls -- it is a position that
+// has run away from the last picture.
+void WindowsMediaEngine::checkForFrozenPicture() {
+    // Frames are only pulled for video, and only once playback has produced
+    // one: a clip that never showed a picture failed in some other way.
+    if (m_kind != MediaKind::Video || m_state != MediaState::Playing)
+        return;
+    if (!m_sawVideoFrame || m_reportedIncomplete)
+        return;
+    if (m_position - m_positionAtLastFrame < kFrozenPictureSeconds)
+        return;
+    // Only speak with evidence. A freeze with data present is some other
+    // fault, and calling that "incomplete" would be a guess.
+    askWhetherFileIsIncomplete(m_position, HoleQuestion::AfterFrozenPicture);
 }
 
 void WindowsMediaEngine::recoverFromStuckSeek() {
@@ -298,8 +380,13 @@ void WindowsMediaEngine::recoverFromStuckSeek() {
     const MediaKind kind = m_kind;
     if (source.path.isEmpty())
         return;
+    // The reload does not wait on the question: getting a picture back is
+    // what matters, and the sampling only decides which of the two things to
+    // say. It is safe from false positives either way -- a healthy seek never
+    // reaches this point, so it is asking WHY the seek failed, not whether.
+    const double target = m_seekTarget;
     load(source, kind);
-    emit seekUnsupported();
+    askWhetherFileIsIncomplete(target, HoleQuestion::AfterStuckSeek);
 }
 
 void WindowsMediaEngine::setVolume(int volume) {
@@ -363,6 +450,8 @@ void WindowsMediaEngine::setFailure(const QString &message) {
 
 void WindowsMediaEngine::clearObservedValues() {
     m_seekWatchdog.disarm();
+    m_positionAtLastFrame = 0.0;
+    m_reportedIncomplete = false;
     m_duration = 0.0;
     m_position = 0.0;
     m_videoSize = {};
@@ -432,6 +521,7 @@ void WindowsMediaEngine::pumpFrame() {
     const QImage frame = imageFromWicBitmap(bitmap.Get(), m_videoSize.width(), m_videoSize.height());
     if (!frame.isNull()) {
         m_sawVideoFrame = true;
+        m_positionAtLastFrame = m_position;
         m_surface->setFrame(frame);
     }
 }

@@ -3176,6 +3176,10 @@ Destination: %4 (%5)</source>
 <context>
     <name>QuickView</name>
     <message>
+        <source>This file is incomplete — the rest of it was never written — so it cannot play through.</source>
+        <translation>该文件并不完整，剩余部分从未写入，无法正常播放。</translation>
+    </message>
+    <message>
         <source>Nothing could be read at that point in the file — it may be incomplete or damaged. Playback restarted from the beginning.</source>
         <translation>文件的该位置读不到任何数据，可能尚未下载完整或已损坏。已从头开始播放。</translation>
     </message>

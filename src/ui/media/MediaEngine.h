@@ -62,4 +62,10 @@ signals:
     // from errorOccurred because playback survives: the pane says so and keeps
     // showing the video rather than replacing it with a failure page.
     void seekUnsupported();
+
+    // The file has nothing but zeros where playback needs data -- an
+    // unfinished download keeps its full size, so this is indistinguishable
+    // from a complete file until something tries to read that far. Reported
+    // once per clip; the pane says so and stops pretending to play.
+    void mediaIncomplete();
 };

@@ -11,6 +11,7 @@
 #include <QUrl>
 
 #include <cstdint>
+#include <iostream>
 #include <memory>
 #include <set>
 #include <utility>
@@ -409,6 +410,13 @@ TEST(WindowsMediaEngineErrorText, AnExtensionlessPathStillGetsASentence) {
 // come back to life on its own and say what happened, rather than sitting on a
 // frozen frame forever (measured: 60 s with no error and no recovery before
 // this change).
+//
+// Which of the two signals it uses depends on WHY the seek failed, and the
+// file this was measured on is an unfinished download, so it reports the file
+// rather than the seek. A wedge with the data present -- the same symptom, a
+// different cause -- reports seekUnsupported instead; no file is known that
+// produces it, so the test accepts either and checks the recovery, which is
+// the same in both cases.
 TEST(WindowsMediaEngine, AStuckSeekRecoversAndReportsItself) {
     const QString path =
         QString::fromLocal8Bit(qgetenv("FILECOMMANDER_WMF_UNSEEKABLE_VIDEO"));
@@ -417,6 +425,7 @@ TEST(WindowsMediaEngine, AStuckSeekRecoversAndReportsItself) {
 
     WindowsMediaEngine engine;
     QSignalSpy unsupported(&engine, &MediaEngine::seekUnsupported);
+    QSignalSpy incomplete(&engine, &MediaEngine::mediaIncomplete);
     MediaSource source;
     source.path = path;
     engine.load(source, MediaKind::Video);
@@ -430,20 +439,31 @@ TEST(WindowsMediaEngine, AStuckSeekRecoversAndReportsItself) {
 
     engine.seekFraction(0.5);
     timer.restart();
-    while (timer.elapsed() < 15000 && unsupported.isEmpty())
+    while (timer.elapsed() < 15000 && unsupported.isEmpty() && incomplete.isEmpty())
         QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
-    ASSERT_EQ(unsupported.count(), 1)
+    ASSERT_EQ(unsupported.count() + incomplete.count(), 1)
         << "the wedged seek went unnoticed; position is " << engine.positionSeconds() << " of "
         << engine.durationSeconds();
 
     // Alive again: the reload has to actually produce playback, not just a
     // fresh engine sitting at zero.
-    const double afterRecovery = engine.positionSeconds();
+    // The reload starts the clip again from the beginning, so "recovered" means
+    // the clock is running THERE. Waiting for it to pass the position it was
+    // stuck at would wait forever: the position goes down, not up. It also
+    // takes a moment to get there -- until the new source is ready the engine
+    // still reports the old time -- so the baseline is taken once the clock
+    // reads somewhere near the start.
     timer.restart();
+    double baseline = -1.0;
     bool moving = false;
-    while (timer.elapsed() < 10000 && !moving) {
+    while (timer.elapsed() < 20000 && !moving) {
         QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
-        moving = engine.positionSeconds() > afterRecovery + 0.5;
+        const double now = engine.positionSeconds();
+        if (now > 60.0)
+            continue; // still reporting the wedged position
+        if (baseline < 0.0)
+            baseline = now;
+        moving = now > baseline + 0.5;
     }
     EXPECT_TRUE(moving) << "playback did not resume after the reload";
     engine.stop();
@@ -474,5 +494,73 @@ TEST(WindowsMediaEngine, AWorkingSeekIsNotReportedAsUnsupported) {
     while (timer.elapsed() < SeekWatchdog::kTimeoutMs + 3000)
         QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
     EXPECT_TRUE(unsupported.isEmpty()) << "a healthy seek was reported as wedged";
+    engine.stop();
+}
+
+// An unfinished download plays until it reaches the part that was never
+// written, and then Media Foundation keeps the clock running at full speed
+// with a frozen picture: no error, no end-of-stream, state still Playing.
+// Measured on one such file -- frames stopped at 134 s and the position was
+// still climbing past 199 s a minute later. So the pane has to notice the
+// PICTURE stopping, not the position.
+//
+// Point FILECOMMANDER_WMF_UNSEEKABLE_VIDEO at such a file to run this.
+TEST(WindowsMediaEngine, AFrozenPictureOverAHoleIsReportedAsAnIncompleteFile) {
+    const QString path =
+        QString::fromLocal8Bit(qgetenv("FILECOMMANDER_WMF_UNSEEKABLE_VIDEO"));
+    if (path.isEmpty() || !QFileInfo::exists(path))
+        GTEST_SKIP() << "no known incomplete video configured";
+
+    WindowsMediaEngine engine;
+    QSignalSpy incomplete(&engine, &MediaEngine::mediaIncomplete);
+    MediaSource source;
+    source.path = path;
+    engine.load(source, MediaKind::Video);
+
+    QElapsedTimer timer;
+    timer.start();
+    while (timer.elapsed() < 10000 && engine.durationSeconds() <= 0.0)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+    ASSERT_GT(engine.durationSeconds(), 600.0) << "expected a long clip";
+
+    // Start inside the written part and let playback walk off the end of it.
+    // 110 s is inside the data on the measured file; a healthy seek there is
+    // itself part of what this checks.
+    engine.seekFraction(110.0 / engine.durationSeconds());
+    timer.restart();
+    while (timer.elapsed() < 60000 && incomplete.isEmpty())
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+    ASSERT_EQ(incomplete.count(), 1)
+        << "playback ran into the hole unreported; position is " << engine.positionSeconds();
+
+    // Said once, and the clock is stopped -- otherwise it runs on to the end of
+    // a film that is not there.
+    const double stoppedAt = engine.positionSeconds();
+    timer.restart();
+    while (timer.elapsed() < 5000)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+    EXPECT_EQ(incomplete.count(), 1) << "reported more than once";
+    EXPECT_LT(engine.positionSeconds() - stoppedAt, 1.0) << "the clock kept running";
+    engine.stop();
+}
+
+// A complete file must never be accused, however long it plays.
+TEST(WindowsMediaEngine, ACompleteFileIsNeverReportedAsIncomplete) {
+    const QFileInfo fixture = wmfFixture(QStringLiteral("video-h264.mp4"));
+    if (!fixture.exists())
+        GTEST_SKIP() << "local WMF fixture is not present";
+
+    WindowsMediaEngine engine;
+    QSignalSpy incomplete(&engine, &MediaEngine::mediaIncomplete);
+    MediaSource source;
+    source.path = fixture.absoluteFilePath();
+    engine.load(source, MediaKind::Video);
+
+    QElapsedTimer timer;
+    timer.start();
+    // Long enough to play the two-second fixture out several times over.
+    while (timer.elapsed() < 12000)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+    EXPECT_TRUE(incomplete.isEmpty()) << "a complete file was called incomplete";
     engine.stop();
 }

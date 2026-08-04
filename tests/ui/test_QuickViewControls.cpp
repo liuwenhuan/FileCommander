@@ -232,6 +232,7 @@ public:
         return m_surface;
     }
     void reportStuckSeek() { emit seekUnsupported(); }
+    void reportIncompleteFile() { emit mediaIncomplete(); }
 
 private:
     QPointer<QWidget> m_surface;
@@ -289,4 +290,48 @@ TEST(QuickViewControls, AnUnsupportedSeekIsExplainedOverTheStillPlayingVideo) {
     EXPECT_EQ(carriers, 1) << "the message also landed on the failure page";
     // And the slider no longer claims to be where the user dragged it.
     EXPECT_EQ(seek->value(), 0);
+}
+
+// The other half of the same story: the clip played until it reached the part
+// of the file that was never written. Playback is stopped by the backend at
+// that point, so the pane must explain the frozen picture -- and must say the
+// FILE is the problem, since that is what the user can act on.
+TEST(QuickViewControls, AnIncompleteFileIsExplainedOverTheFrozenPicture) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    Settings settings(dir.filePath(QStringLiteral("settings.ini")));
+    auto engine = std::make_unique<SeekReportingEngine>();
+    auto *raw = engine.get();
+    QuickView view(settings, QuickView::Context::Embedded, nullptr, std::move(engine));
+    view.resize(900, 600);
+    view.show();
+    qApp->processEvents();
+
+    QWidget *videoPage = view.buildVideoPageForTest();
+    ASSERT_NE(videoPage, nullptr);
+
+    const auto notices = [videoPage]() {
+        QStringList texts;
+        for (QLabel *label : videoPage->findChildren<QLabel *>())
+            if (!label->isHidden() && label->text().size() > 20)
+                texts << label->text();
+        return texts;
+    };
+    ASSERT_TRUE(notices().isEmpty());
+
+    raw->reportIncompleteFile();
+    qApp->processEvents();
+
+    const QStringList shown = notices();
+    ASSERT_EQ(shown.size(), 1) << shown.join(QStringLiteral(" | ")).toStdString();
+    EXPECT_TRUE(shown.first().contains(QStringLiteral("incomplete"), Qt::CaseInsensitive))
+        << shown.first().toStdString();
+    // Not a failure page: the static message page -- which is what an
+    // errorOccurred fills and reveals in place of the video -- must not have
+    // picked the text up as well.
+    int carriers = 0;
+    for (QLabel *label : view.findChildren<QLabel *>())
+        if (label->text() == shown.first())
+            ++carriers;
+    EXPECT_EQ(carriers, 1) << "the message also landed on the failure page";
 }

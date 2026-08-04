@@ -44,6 +44,7 @@ endif()
 
 add_executable(open_with_tests
     test_OpenWithHandlers.cpp
+    test_FileHoles.cpp
 )
 
 target_link_libraries(open_with_tests PRIVATE
