@@ -1,11 +1,31 @@
 #include "ExternalArchiveTool.h"
 
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QProcess>
 #include <QStandardPaths>
 
 namespace {
+
+// Where a tool lives when it is installed but not on PATH. 7-Zip's Windows
+// installer does exactly that: it drops 7z.exe in Program Files and adds
+// nothing to PATH, so findExecutable() alone reports "not installed" on a
+// machine that plainly has it -- measured on the machine this was written for.
+QStringList wellKnownToolDirs() {
+    QStringList dirs;
+#ifdef Q_OS_WIN
+    for (const char *var : {"ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"}) {
+        const QString base = qEnvironmentVariable(var);
+        if (!base.isEmpty())
+            dirs << QDir(base).filePath(QStringLiteral("7-Zip"));
+    }
+    const QString localApp = qEnvironmentVariable("LOCALAPPDATA");
+    if (!localApp.isEmpty())
+        dirs << QDir(localApp).filePath(QStringLiteral("Programs/7-Zip"));
+#endif
+    return dirs;
+}
 
 // Resolve a tool once and cache it. Empty string == not installed.
 QString findTool(const char *const *names) {
@@ -14,19 +34,38 @@ QString findTool(const char *const *names) {
         if (!p.isEmpty())
             return p;
     }
+    // PATH did not have it; try the places an installer would have put it.
+    const QStringList dirs = wellKnownToolDirs();
+    for (const char *const *n = names; *n; ++n) {
+        const QString p =
+            QStandardPaths::findExecutable(QString::fromLatin1(*n), dirs);
+        if (!p.isEmpty())
+            return p;
+    }
     return {};
+}
+
+// Test hook: pretend nothing is installed. The no-external-tool fallbacks
+// cannot be reached any other way on a developer machine that has 7-Zip, and a
+// test that silently exercises the 7z path instead is worse than no test.
+// Read every call rather than cached, so a test can set it after the binary has
+// already resolved the tool for an earlier case.
+bool toolsDisabled() {
+    return qEnvironmentVariableIsSet("FILECOMMANDER_NO_EXTERNAL_ARCHIVE_TOOL");
 }
 
 const QString &sevenZipExe() {
     static const char *const names[] = {"7z", "7za", "7zr", nullptr};
     static const QString exe = findTool(names);
-    return exe;
+    static const QString none;
+    return toolsDisabled() ? none : exe;
 }
 
 const QString &unrarExe() {
     static const char *const names[] = {"unrar", nullptr};
     static const QString exe = findTool(names);
-    return exe;
+    static const QString none;
+    return toolsDisabled() ? none : exe;
 }
 
 bool isRar(const QString &path) { return path.trimmed().toLower().endsWith(QStringLiteral(".rar")); }

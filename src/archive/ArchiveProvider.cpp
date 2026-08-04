@@ -6,11 +6,13 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QObject>
 #include <QMutexLocker>
 #include <QTemporaryDir>
 
 #include "ArchiveLayout.h"
 #include "ArchiveNames.h"
+#include "ArchiveVolumes.h"
 #include "ExternalArchiveTool.h"
 #include "SquashfsReader.h"
 
@@ -45,12 +47,56 @@ QString basenameOf(const QString &virtualPath) {
 
 ArchiveProvider::ArchiveProvider(const QString &archivePath, QString *error)
     : m_archivePath(archivePath) {
-    m_baseName = QFileInfo(archivePath).fileName();
+    // One volume of a split set is not an archive -- only the FIRST volume is,
+    // and it holds the directory for all of them. Resolved before anything else
+    // so every path below (including the temp-copy bookkeeping) works on the
+    // file that can actually be opened.
+    //
+    // This cannot be left to the reader to discover: libarchive does not follow
+    // a volume chain and does not say so. Measured on a real 9-volume set, a
+    // middle volume opened with ARCHIVE_EOF and zero entries (a silently empty
+    // archive) and the last opened with 105 unextractable fragments (a silently
+    // wrong one). See ArchiveVolumes.h.
+    m_volumeMember = fc::isVolumeMember(archivePath);
+    if (m_volumeMember) {
+        const QString first = fc::firstVolumeOf(archivePath);
+        if (first.isEmpty()) {
+            if (error)
+                *error = QObject::tr("This is one volume of a split archive, and the first "
+                                     "volume is not in this folder. Copy every volume of the "
+                                     "set together before opening it.");
+            return;
+        }
+        m_archivePath = first;
+    }
+    m_baseName = QFileInfo(m_archivePath).fileName();
     // An AppImage is browsed via unsquashfs (see SquashfsReader), not libarchive.
-    m_isSquashfs = SquashfsReader::isAppImage(archivePath);
+    m_isSquashfs = SquashfsReader::isAppImage(m_archivePath);
     // A UDF disc image is browsed via the 7z tool: libarchive would "succeed"
-    // but only show the ISO9660 bridge stub (see preferExternal).
-    m_useExternal = !m_isSquashfs && ExternalArchiveTool::preferExternal(archivePath);
+    // but only show the ISO9660 bridge stub (see preferExternal). A split set
+    // goes the same way for the same reason -- libarchive cannot follow the
+    // chain, and its failure mode is a plausible wrong answer rather than an
+    // error, so it must not be given the chance.
+    m_useExternal = !m_isSquashfs &&
+                    (m_volumeMember || ExternalArchiveTool::preferExternal(m_archivePath));
+
+    // Without the external tool there is still one kind of split we can read
+    // ourselves: a RAW BYTE SPLIT (name.7z.001, ...) concatenates back into the
+    // original file, so streaming the volumes in order through one reader is
+    // exactly equivalent to opening the whole. A RAR set is not like that --
+    // every volume carries its own headers -- so that one genuinely needs 7z or
+    // unrar, and says so rather than showing a wrong tree.
+    if (m_useExternal && m_volumeMember && !ExternalArchiveTool::available(m_archivePath)) {
+        if (fc::isRawSplit(m_archivePath)) {
+            m_volumeChain = fc::volumeChain(m_archivePath);
+            m_useExternal = false;
+        } else {
+            if (error)
+                *error = QObject::tr("This is a split archive. Reading one needs 7-Zip (or "
+                                     "unrar), which was not found on this computer.");
+            return;
+        }
+    }
     // Non-zip formats are (potentially) solid/streaming -> extract-all on first
     // read. zip -- and squashfs / 7z-on-a-disc-image, which extract a single
     // entry cheaply by name -- locate one entry without a full pass. Extracting
@@ -91,6 +137,11 @@ ArchiveProvider::~ArchiveProvider() {
 bool ArchiveProvider::isArchivePath(const QString &path) {
     if (ArchiveLayout::hasArchiveSuffix(path))
         return true;
+    // A `.part05.rar` matches the suffix list anyway, but `.001`, `.r03` and a
+    // `.part01.exe` self-extracting first volume do not -- and the SFX one is
+    // the only member of its set that can actually be opened.
+    if (fc::isVolumeMember(path))
+        return true;
     // AppImages are recognised by magic bytes, not suffix (many have none).
     return SquashfsReader::available() && SquashfsReader::isAppImage(path);
 }
@@ -98,6 +149,26 @@ bool ArchiveProvider::isArchivePath(const QString &path) {
 void ArchiveProvider::setProgressCallback(std::function<void(qint64, qint64)> cb) {
     QMutexLocker locker(&m_mutex);
     m_progress = std::move(cb);
+}
+
+bool ArchiveProvider::openForRead(struct archive *a) const {
+    // A raw split is opened as the ordered list of its volumes: libarchive
+    // reads them back to back as one stream, which is byte for byte the file
+    // they were split from. Anything else is the single archive file.
+    if (!m_volumeChain.isEmpty()) {
+        QVector<QByteArray> encoded;
+        QVector<const char *> names;
+        encoded.reserve(m_volumeChain.size());
+        names.reserve(m_volumeChain.size() + 1);
+        for (const QString &volume : m_volumeChain)
+            encoded.append(QFile::encodeName(volume));
+        for (const QByteArray &name : encoded)
+            names.append(name.constData());
+        names.append(nullptr);
+        return archive_read_open_filenames(a, names.data(), 10240) == ARCHIVE_OK;
+    }
+    const QByteArray local = QFile::encodeName(m_archivePath);
+    return archive_read_open_filename(a, local.constData(), 10240) == ARCHIVE_OK;
 }
 
 void ArchiveProvider::readEntryList(QString *error) {
@@ -161,8 +232,7 @@ void ArchiveProvider::readEntryList(QString *error) {
     archive_read_support_filter_all(a);
     fc::applyHeaderCharset(a);
 
-    const QByteArray localArchivePath = QFile::encodeName(m_archivePath);
-    if (archive_read_open_filename(a, localArchivePath.constData(), 10240) != ARCHIVE_OK) {
+    if (!openForRead(a)) {
         if (error)
             *error = lastArchiveError(a);
         archive_read_free(a);
@@ -470,8 +540,7 @@ bool ArchiveProvider::extractWhole() {
     archive_write_disk_set_options(ext, ARCHIVE_EXTRACT_TIME | ARCHIVE_EXTRACT_PERM);
     archive_write_disk_set_standard_lookup(ext);
 
-    const QByteArray localArchivePath = QFile::encodeName(m_archivePath);
-    if (archive_read_open_filename(a, localArchivePath.constData(), 10240) != ARCHIVE_OK) {
+    if (!openForRead(a)) {
         archive_read_free(a);
         archive_write_free(ext);
         return false;
@@ -561,8 +630,7 @@ QString ArchiveProvider::extractSingle(const QString &realPath) {
     archive_write_disk_set_options(ext, ARCHIVE_EXTRACT_TIME | ARCHIVE_EXTRACT_PERM);
     archive_write_disk_set_standard_lookup(ext);
 
-    const QByteArray localArchivePath = QFile::encodeName(m_archivePath);
-    if (archive_read_open_filename(a, localArchivePath.constData(), 10240) != ARCHIVE_OK) {
+    if (!openForRead(a)) {
         archive_read_free(a);
         archive_write_free(ext);
         return QString();

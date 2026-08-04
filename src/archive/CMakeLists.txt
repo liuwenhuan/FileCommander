@@ -6,6 +6,8 @@ if(TARGET LibArchive::LibArchive)
         ArchiveNode.h
         ArchiveNames.h
         ArchiveNames.cpp
+        ArchiveVolumes.h
+        ArchiveVolumes.cpp
         ArchiveHandler.h
         ArchiveHandler.cpp
         PackageInfo.h

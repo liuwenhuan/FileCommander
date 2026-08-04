@@ -114,6 +114,9 @@ private:
     // "/a/b"). Strips a leading archive-file-path prefix if present.
     QString toVirtual(const QString &path) const;
 
+    // Opens `a` on the archive -- or, for a raw split, on its whole volume
+    // chain read back to back as one stream.
+    bool openForRead(struct archive *a) const;
     void readEntryList(QString *error);
     void buildTree(const QString &stripPrefix);
 
@@ -131,6 +134,13 @@ private:
     bool m_wholeExtracted = false;
     bool m_isSquashfs = false;  // AppImage: list/extract via unsquashfs, not libarchive
     bool m_useExternal = false; // UDF image: list/extract via the 7z tool, not libarchive
+    // The caller clicked one volume of a split set; m_archivePath was
+    // rewritten to the set's first volume, which is the only one that can be
+    // opened. Forces the external tool: libarchive cannot follow the chain.
+    bool m_volumeMember = false;
+    // The set's volumes in order, non-empty only for a raw byte split being
+    // read without an external tool. openForRead() streams them as one file.
+    QStringList m_volumeChain;
 
     // Raw entries read on open (pre-strip), used for tree build + extraction.
     struct RawEntry {

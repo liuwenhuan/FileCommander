@@ -4,6 +4,7 @@ if(TARGET LibArchive::LibArchive)
         test_ArchiveProvider.cpp
         test_ArchiveLocality.cpp
         test_LegacyZipNames.cpp
+        test_ArchiveVolumes.cpp
     )
 
     target_link_libraries(archive_tests PRIVATE
