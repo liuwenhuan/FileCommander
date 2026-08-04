@@ -1,6 +1,10 @@
 add_library(viewer STATIC
     TextEditor.h
     TextEditor.cpp
+    HexEditor.h
+    HexEditor.cpp
+    BinarySniff.h
+    BinarySniff.cpp
     ImageViewer.h
     ImageViewer.cpp
     OfficeConverter.h

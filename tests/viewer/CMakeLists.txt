@@ -5,8 +5,14 @@ add_executable(viewer_tests
     test_OfficeConverter.cpp
     test_TextEditorTheme.cpp
     test_TextEditorEditing.cpp
+    test_BinarySniff.cpp
+    test_HexEditor.cpp
 )
 
+# HexEditor is a real widget, so its tests need a real QApplication. It is
+# created on first use inside test_HexEditor.cpp rather than from a custom
+# main(), which keeps gtest_main and the widget-free tests in this binary
+# unaffected.
 target_link_libraries(viewer_tests PRIVATE
     viewer
     GTest::gtest
