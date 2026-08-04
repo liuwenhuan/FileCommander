@@ -126,7 +126,11 @@ TEST(BreadcrumbBar, UnixSegmentsRemainAbsolute) {
                            QStringLiteral("/home/deepin/Documents")}));
 }
 
-TEST(BreadcrumbBar, AddressRowDrawsOnlyItsTwoOuterVerticalBorders) {
+// Nothing in the address row draws a border -- not the tree toggle, not
+// back/forward, not the star button, and since the box lines came off, not the
+// row itself. So the row must be flat all the way across: no seam at either
+// outer edge, none between any two controls.
+TEST(BreadcrumbBar, TheAddressRowDrawsNoBordersAtAll) {
     RestoreStyleSheet restore{qApp->styleSheet()};
     applyThemeSheet(QStringLiteral("light"));
 
@@ -160,8 +164,10 @@ TEST(BreadcrumbBar, AddressRowDrawsOnlyItsTwoOuterVerticalBorders) {
     qApp->processEvents();
 
     const QImage image = row->grab().toImage();
-    EXPECT_TRUE(edgeIsMostlyDifferentFromInner(image, Qt::LeftEdge));
-    EXPECT_TRUE(edgeIsMostlyDifferentFromInner(image, Qt::RightEdge));
+    EXPECT_FALSE(edgeIsMostlyDifferentFromInner(image, Qt::LeftEdge))
+        << "the row drew a left box line; nothing else in the row has a border";
+    EXPECT_FALSE(edgeIsMostlyDifferentFromInner(image, Qt::RightEdge))
+        << "the row drew a right box line";
     EXPECT_FALSE(edgeIsMostlyDifferentFromInner(image, Qt::TopEdge));
     EXPECT_FALSE(edgeIsMostlyDifferentFromInner(image, Qt::BottomEdge));
 

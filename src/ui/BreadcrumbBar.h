@@ -6,7 +6,6 @@ class QLabel;
 class QLineEdit;
 class QHBoxLayout;
 class QResizeEvent;
-class QShowEvent;
 class QStackedLayout;
 class QToolButton;
 
@@ -43,7 +42,6 @@ protected:
     // a theme switch (which re-polishes the palette) needs an explicit rebuild.
     void changeEvent(QEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
-    void showEvent(QShowEvent *event) override;
 
 private:
     void rebuildSegments();
@@ -52,7 +50,6 @@ private:
     void scrollBy(int distance);
     void updateOverflowControls();
     void updateEditingProperty(bool editing);
-    void updateAddressRowBorder();
 
     QString m_path;
     // Non-empty while showing a caption rather than a path; rebuildSegments()
@@ -67,7 +64,5 @@ private:
     QToolButton *m_scrollLeftButton;
     QToolButton *m_scrollRightButton;
     QLineEdit *m_editLine;
-    QWidget *m_addressRow = nullptr;
-    QWidget *m_addressRowBorder = nullptr;
     int m_scrollOffset = 0;
 };
