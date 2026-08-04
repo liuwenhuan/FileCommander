@@ -45,6 +45,86 @@ jobs:
           git diff --check
           if (rg -n '#include <(windows|winsock|sys/|xcb|QDBus)' src\platform\*.h src\core\*.h) { exit 1 }
 
+  # The portable zip, built where anyone can build it.
+  #
+  # It is the FULL package: PDF preview included, because poppler-qt5 is built
+  # here from source. There is no packaged one for Windows -- vcpkg's poppler
+  # does carry a `qt` feature, but it pulls qtbase, which in vcpkg is Qt 6, so
+  # it produces poppler-qt6 and links against a Qt this project does not use.
+  #
+  # Building it takes minutes, so it is cached. The Qt5 bindings are in
+  # upstream maintenance and barely move, so the key below stays warm for
+  # months; only a version bump here or a Qt bump reburns it.
+  package:
+    runs-on: windows-latest
+    env:
+      POPPLER_VERSION: 26.04.0
+      QT_VERSION: 5.15.2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+      - id: qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: win64_msvc2019_64
+
+      - name: Cache poppler-qt5
+        id: poppler-cache
+        uses: actions/cache@v4
+        with:
+          path: build/poppler-qt5
+          key: poppler-qt5-${{ env.POPPLER_VERSION }}-qt${{ env.QT_VERSION }}-x64-windows-${{ hashFiles('packaging/build-poppler-qt5.ps1') }}
+
+      - name: Install provider dependencies
+        shell: pwsh
+        run: |
+          & "$env:VCPKG_INSTALLATION_ROOTcpkg.exe" install --triplet x64-windows libarchive libssh2 curl zlib
+
+      - name: Build poppler-qt5
+        if: steps.poppler-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        env:
+          FILECOMMANDER_QT_ROOT: ${{ steps.qt.outputs.dir }}
+          VCPKG_ROOT: ${{ env.VCPKG_INSTALLATION_ROOT }}
+        run: ./packaging/build-poppler-qt5.ps1 -Version $env:POPPLER_VERSION
+
+      # office-oxide renders docx/pptx/xlsx for the preview pane. It lives in a
+      # separate repository, so CI can only bundle it when told where to get it:
+      # set the OFFICE_OXIDE_REPO variable (and OFFICE_OXIDE_REF to pin it) on
+      # this repository. Without it the package is built anyway and Office
+      # preview silently does nothing -- which is exactly what the packaging
+      # scripts already do on a machine that lacks it, so the behaviour is not
+      # new. The warning below is here so a package missing it cannot be
+      # mistaken for a complete one.
+      - name: Build office-oxide
+        shell: pwsh
+        env:
+          OFFICE_OXIDE_REPO: ${{ vars.OFFICE_OXIDE_REPO }}
+          OFFICE_OXIDE_REF: ${{ vars.OFFICE_OXIDE_REF }}
+        run: |
+          if (-not $env:OFFICE_OXIDE_REPO) {
+              Write-Warning 'OFFICE_OXIDE_REPO is not set: this package will have no Office document preview.'
+              exit 0
+          }
+          git clone --depth 1 $(if ($env:OFFICE_OXIDE_REF) { "--branch=$env:OFFICE_OXIDE_REF" }) $env:OFFICE_OXIDE_REPO build/office-oxide-src
+          cargo build --release --manifest-path build/office-oxide-src/Cargo.toml
+          New-Item -ItemType Directory -Force -Path build/office-oxide | Out-Null
+          Copy-Item build/office-oxide-src/target/release/office-oxide.exe build/office-oxide/
+
+      - name: Build the portable package
+        shell: pwsh
+        env:
+          FILECOMMANDER_QT_ROOT: ${{ steps.qt.outputs.dir }}
+          VCPKG_ROOT: ${{ env.VCPKG_INSTALLATION_ROOT }}
+          FILECOMMANDER_POPPLER_QT5_ROOT: ${{ github.workspace }}/build/poppler-qt5
+        run: ./packaging/build-windows.ps1 -Profile windows-portable
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FileCommander-windows-x64-zip
+          path: dist/FileCommander-*-windows-x64.zip
+
   full-preview-package:
     if: github.event_name == 'workflow_dispatch' && inputs.full_preview
     runs-on: [self-hosted, windows, filecommander-full-preview]

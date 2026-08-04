@@ -19,6 +19,28 @@ jobs:
           cmake --preset linux-debug
           cmake --build --preset linux-debug --parallel
           ctest --preset linux-debug
+      # office-oxide renders docx/pptx/xlsx for the preview pane. It lives in a
+      # separate repository, and build-deb.sh / build-appimage.sh look for it on
+      # PATH exactly the way the application does at runtime -- so putting it
+      # there is all that is needed. Without OFFICE_OXIDE_REPO set on this
+      # repository the packages are still produced, silently without Office
+      # preview, which is what those scripts already do on a machine that lacks
+      # it. The warning is so that cannot be mistaken for a complete package.
+      - name: Build office-oxide
+        env:
+          OFFICE_OXIDE_REPO: ${{ vars.OFFICE_OXIDE_REPO }}
+          OFFICE_OXIDE_REF: ${{ vars.OFFICE_OXIDE_REF }}
+        run: |
+          if [ -z "${OFFICE_OXIDE_REPO}" ]; then
+            echo "::warning::OFFICE_OXIDE_REPO is not set: these packages will have no Office document preview."
+            exit 0
+          fi
+          git clone --depth 1 ${OFFICE_OXIDE_REF:+--branch "$OFFICE_OXIDE_REF"} "$OFFICE_OXIDE_REPO" build/office-oxide-src
+          cargo build --release --manifest-path build/office-oxide-src/Cargo.toml
+          mkdir -p "$HOME/.local/bin"
+          install -m 0755 build/office-oxide-src/target/release/office-oxide "$HOME/.local/bin/office-oxide"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
       - name: Release regression and Debian package
         run: |
           cmake -S . -B build/linux-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DTTC_BUILD_TESTS=ON -DTTC_BUILD_BENCH=OFF
@@ -33,3 +55,33 @@ jobs:
         with:
           name: FileCommander-linux-deb
           path: dist/*.deb
+
+      # A separate job would have to build the whole tree again; the AppImage
+      # bundles the same Release binary the .deb was just cut from, so it rides
+      # along here. build-appimage.sh fetches linuxdeploy itself and falls back
+      # to --appimage-extract-and-run when /dev/fuse is absent, which is the
+      # case on a GitHub runner.
+      - name: AppImage
+        run: ./packaging/build-appimage.sh
+
+      # Proof it is a real type-2 AppImage and not a self-extracting archive:
+      # the runtime is what sets $APPIMAGE, and UpdateChecker reads that to
+      # decide which update channel this build belongs to. A bare archive would
+      # leave it unset and send the updater down the .deb path.
+      #
+      # Checked by the magic bytes rather than by running it. The application
+      # takes no --version flag, so running it would open a window and hang a
+      # headless runner; the type-2 marker ("AI" at offset 8 of the ELF)
+      # is the property that actually matters here and it is exact.
+      - name: Check the AppImage carries a type-2 runtime
+        run: |
+          image=$(ls dist/FileCommander-*-x86_64.AppImage)
+          magic=$(dd if="$image" bs=1 skip=8 count=3 status=none | xxd -p)
+          echo "$image magic=$magic"
+          test "$magic" = "414902"
+          test -x "$image"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FileCommander-linux-appimage
+          path: dist/*.AppImage
