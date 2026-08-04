@@ -223,6 +223,94 @@ QString FileOperations::uniqueDestination(const QString &destDir, const QString 
     return candidate;
 }
 
+bool FileOperations::copyInterrupted(qint64 copiedBytes, qint64 totalBytes) {
+    if (m_copyChunkHookForTesting)
+        m_copyChunkHookForTesting(copiedBytes, totalBytes);
+    return m_cancelled.load();
+}
+
+#ifdef Q_OS_WIN
+namespace {
+
+// Win32 hands this to CopyFileExW once per copied chunk. Returning
+// PROGRESS_CANCEL stops the copy where it stands *and* has Windows delete the
+// half-written destination, which is exactly the guarantee we want to give the
+// user for the file that was in flight when they hit 中止.
+DWORD CALLBACK abortableCopyProgress(LARGE_INTEGER totalFileSize,
+                                     LARGE_INTEGER totalBytesTransferred, LARGE_INTEGER,
+                                     LARGE_INTEGER, DWORD, DWORD, HANDLE, HANDLE,
+                                     LPVOID data) {
+    auto *ops = static_cast<FileOperations *>(data);
+    return ops->copyInterrupted(
+               static_cast<qint64>(totalBytesTransferred.QuadPart),
+               static_cast<qint64>(totalFileSize.QuadPart))
+        ? PROGRESS_CANCEL
+        : PROGRESS_CONTINUE;
+}
+
+} // namespace
+#endif
+
+#ifndef Q_OS_WIN
+bool FileOperations::copyFileChunked(const QString &source, const QString &target,
+                                     qint64 *nativeCode) {
+    const auto fail = [nativeCode](int code) {
+        if (nativeCode)
+            *nativeCode = static_cast<qint64>(code);
+        return false;
+    };
+
+    // QFile::copy refuses to overwrite; keep that contract so callers that rely
+    // on it (the non-overwrite path, and the staged-copy path which generates a
+    // fresh unique name) behave identically to before.
+    if (QFileInfo(target).exists() || QFileInfo(target).isSymLink())
+        return fail(EEXIST);
+
+    QFile in(source);
+    errno = 0;
+    if (!in.open(QIODevice::ReadOnly))
+        return fail(errno ? errno : EIO);
+    QFile out(target);
+    errno = 0;
+    if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        return fail(errno ? errno : EIO);
+
+    constexpr qint64 kChunkBytes = 1 << 20;
+    QByteArray buffer(kChunkBytes, Qt::Uninitialized);
+    const qint64 total = in.size();
+    qint64 copied = 0;
+    while (true) {
+        if (copyInterrupted(copied, total)) {
+            out.close();
+            QFile::remove(target); // never leave a half-written file behind
+            return fail(ECANCELED);
+        }
+        const qint64 read = in.read(buffer.data(), kChunkBytes);
+        if (read < 0) {
+            out.close();
+            QFile::remove(target);
+            return fail(EIO);
+        }
+        if (read == 0)
+            break;
+        if (out.write(buffer.constData(), read) != read) {
+            out.close();
+            QFile::remove(target);
+            return fail(errno ? errno : EIO);
+        }
+        copied += read;
+    }
+    if (!out.flush()) {
+        out.close();
+        QFile::remove(target);
+        return fail(errno ? errno : EIO);
+    }
+    out.setPermissions(in.permissions()); // QFile::copy carries these across too
+    out.close();
+    return true;
+}
+#endif
+
 bool FileOperations::copyFilePreservingTime(const QString &source, const QString &target,
                                             bool overwrite, qint64 *nativeCode) {
     // Capture the source time before the copy: if source and target somehow
@@ -236,19 +324,25 @@ bool FileOperations::copyFilePreservingTime(const QString &source, const QString
         ? stagingPathFor(target, QStringLiteral("copy"))
         : target;
 #ifdef Q_OS_WIN
-    if (!CopyFileW(reinterpret_cast<LPCWSTR>(source.utf16()),
-                   reinterpret_cast<LPCWSTR>(copyTarget.utf16()), TRUE)) {
+    // CopyFileExW rather than CopyFileW purely for the progress routine: it is
+    // the only way to make a single large copy give up before it finishes.
+    if (!CopyFileExW(reinterpret_cast<LPCWSTR>(source.utf16()),
+                     reinterpret_cast<LPCWSTR>(copyTarget.utf16()), &abortableCopyProgress,
+                     this, nullptr, COPY_FILE_FAIL_IF_EXISTS)) {
+        const DWORD error = GetLastError();
         if (nativeCode)
-            *nativeCode = static_cast<qint64>(GetLastError());
+            *nativeCode = static_cast<qint64>(error);
+        // Windows deletes the destination itself when the copy is cancelled;
+        // the belt-and-braces removal covers the case where it survives anyway
+        // (and costs nothing when it doesn't).
+        if (error == ERROR_REQUEST_ABORTED)
+            removeLocalPath(copyTarget);
         return false;
     }
 #else
     errno = 0;
-    if (!QFile::copy(source, copyTarget)) {
-        if (nativeCode)
-            *nativeCode = static_cast<qint64>(errno);
+    if (!copyFileChunked(source, copyTarget, nativeCode))
         return false;
-    }
 #endif
 
     if (copyTarget != target && !commitStagedPath(copyTarget, target, nativeCode)) {
@@ -316,6 +410,15 @@ bool FileOperations::copyDirectorySafely(const QString &sourceDir, const QString
     if (!copyRecursively(sourceDir, copyTarget, nativeCode)) {
         if (copyTarget != destDir)
             removeLocalPath(copyTarget);
+        else if (m_cancelled && !targetExists)
+            // Aborted part-way through a directory we created ourselves: take
+            // the half-populated tree with us. (Only safe because copyTarget ==
+            // destDir means the destination did not exist before we started, so
+            // everything under it is ours. A tree that pre-existed is staged and
+            // handled by the branch above; a *failed* -- as opposed to aborted --
+            // copy still leaves its partial output alone, as it always has, so a
+            // Retry has something to build on.)
+            removeLocalPath(destDir);
         return false;
     }
     if (copyTarget != destDir && !commitStagedPath(copyTarget, destDir, nativeCode)) {
@@ -383,6 +486,12 @@ bool FileOperations::copyOne(const QString &source, const QString &destDir, bool
         }
         if (ok)
             break;
+
+        // A copy that stopped because the user asked it to is not a failure to
+        // put a decision dialog in front of them: bail out silently instead of
+        // asking Retry/Skip/Abort about the abort they just requested.
+        if (m_cancelled)
+            return false;
 
         const QString msg = tr("Failed to copy %1 to %2").arg(source, destPath);
         nativeCode = overrideNativeErrorForTesting(removeSource ? OperationType::Move
@@ -520,6 +629,11 @@ bool FileOperations::copyAs(const QString &source, const QString &destPath,
         }
         if (ok)
             break;
+
+        // Same reasoning as copyOne: an aborted copy reports itself as a failed
+        // one, and must not surface as an error the user has to answer.
+        if (m_cancelled)
+            return false;
 
         const QString msg = tr("Failed to copy %1 to %2").arg(source, target);
         nativeCode = overrideNativeErrorForTesting(OperationType::Copy, source, target,

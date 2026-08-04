@@ -11,6 +11,7 @@ class QGraphicsOpacityEffect;
 class QPropertyAnimation;
 class QVariantAnimation;
 class QShowEvent;
+class QHideEvent;
 class QEvent;
 class QColor;
 class OperationQueue;
@@ -20,8 +21,14 @@ class OperationQueue;
 // wires up signal-by-signal), this dialog is self-contained: give it the
 // OperationQueue in its constructor and it connects to the queue's existing
 // started/progress/finished/queueChanged/errorOccurred signals itself, and
-// drives cancelCurrent()/pauseCurrent()/resumeCurrent() directly, so a caller
-// only needs to construct it -- it decides when to make itself visible.
+// drives cancelCurrent()/pauseCurrent()/resumeCurrent()/abortAll() directly, so
+// a caller only needs to construct it -- it decides when to make itself visible.
+//
+// Cancel vs Abort (取消 / 中止): Cancel asks the batch to stop and leaves the
+// window to run out its normal lifecycle (it stays up when the batch ended in an
+// error, so the message is readable). Abort is the escape hatch -- it stops the
+// batch and closes this window in the same gesture, which is also the only way
+// out of a window left standing by a failed batch.
 //
 // Visibility policy (so quick operations never flash a window): the dialog stays
 // hidden when a job starts and shows itself only if the job is still running
@@ -58,9 +65,13 @@ private slots:
     void onFinished(bool ok);
     void onErrorOccurred(const QString &message);
     void onPauseClicked();
+    // 中止: stop the whole batch now and take this window away. See the
+    // implementation for what "now" can and cannot promise.
+    void onAbortClicked();
 
 protected:
     void showEvent(QShowEvent *event) override;
+    void hideEvent(QHideEvent *event) override;
     void changeEvent(QEvent *event) override;
 
 private:
@@ -90,6 +101,7 @@ private:
     QLabel *m_errorLabel = nullptr;
     QProgressBar *m_progressBar = nullptr;
     QPushButton *m_pauseButton = nullptr;
+    QPushButton *m_abortButton = nullptr;
     QGraphicsOpacityEffect *m_revealEffect = nullptr;
     QPropertyAnimation *m_revealAnimation = nullptr;
     QVariantAnimation *m_outcomeColorAnimation = nullptr;

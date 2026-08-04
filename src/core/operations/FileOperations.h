@@ -62,14 +62,21 @@ public:
     bool wasCancelled() const { return m_cancelled.load(); }
 
     // Thread-safe: called from the GUI thread while a copy/move/delete runs
-    // on the worker thread. The running loop polls m_cancelled between
-    // entries and bails out at the next boundary (per-file granularity: an
-    // in-flight single-file copy is not interrupted mid-write).
+    // on the worker thread. Every loop polls m_cancelled between entries, and
+    // the local single-file copy primitive polls it *within* one file as well
+    // (see copyFilePreservingTime), so a stop request no longer has to wait for
+    // a multi-gigabyte file to finish before anything reacts to it.
     void requestCancel();
 
     // Pause/resume between entries (same per-file granularity as cancel).
     void requestPause();
     void requestResume();
+
+    // The interruption checkpoint reached from inside one file's copy: fires the
+    // test hook and answers whether the copy should give up now. Public only
+    // because the Win32 progress routine that consults it has to be a plain
+    // function; nothing outside the copy primitives should call it.
+    bool copyInterrupted(qint64 copiedBytes, qint64 totalBytes);
 
     // Optional callback consulted when an entry fails to copy/delete. Without
     // it, failures are reported and skipped (the previous behaviour).
@@ -86,6 +93,15 @@ public:
     void setNativeErrorOverrideForTesting(
         std::function<qint64(OperationType, const QString &, const QString &, qint64)> override) {
         m_nativeErrorOverrideForTesting = std::move(override);
+    }
+    // Called from inside the local single-file copy every time the primitive
+    // reaches a point where it could still be interrupted, with the bytes
+    // copied so far and the file's total size. Exists so a test can park the
+    // worker *mid-file* and request cancellation from there, which is the only
+    // way to prove the interruption path is real rather than the copy simply
+    // finishing before the request lands.
+    void setCopyChunkHookForTesting(std::function<void(qint64, qint64)> hook) {
+        m_copyChunkHookForTesting = std::move(hook);
     }
 
 signals:
@@ -113,8 +129,21 @@ private:
     // best-effort and deliberately cannot fail the operation: on a filesystem
     // that won't accept it, the result is a copied file with a fresh timestamp,
     // which is exactly the pre-existing behaviour.
-    static bool copyFilePreservingTime(const QString &source, const QString &target,
-                                       bool overwrite, qint64 *nativeCode);
+    //
+    // Interruptible: the copy polls m_cancelled as it runs and gives up
+    // part-way through, deleting the partial destination it was writing (see
+    // copyFileChunked / the Win32 progress routine). A cancelled copy reports
+    // failure with the platform's "operation aborted" code, and callers must
+    // check m_cancelled before treating that as an error worth reporting.
+    bool copyFilePreservingTime(const QString &source, const QString &target,
+                                bool overwrite, qint64 *nativeCode);
+#ifndef Q_OS_WIN
+    // POSIX single-file copy loop. QFile::copy cannot be interrupted once it
+    // starts, so the bytes are moved here in chunks with a cancel checkpoint
+    // between them. Matches QFile::copy's contract: fails (without touching it)
+    // when `target` already exists, and carries the source's permissions over.
+    bool copyFileChunked(const QString &source, const QString &target, qint64 *nativeCode);
+#endif
     void emitProgress(const QString &currentFile);
     void waitIfPaused(); // blocks the worker while paused, until resume/cancel
     // Returns true if the caller should treat the failed entry as handled
@@ -197,6 +226,7 @@ private:
     std::function<PrivilegeResult(const PrivilegedOperationRequest &)> m_privilegeExecutor;
     std::function<qint64(OperationType, const QString &, const QString &, qint64)>
         m_nativeErrorOverrideForTesting;
+    std::function<void(qint64, qint64)> m_copyChunkHookForTesting;
     ErrorAction m_errorBatch = ErrorAction::Retry; // sentinel: ask each time
     qint64 m_totalItems = 0;
     qint64 m_doneItems = 0;

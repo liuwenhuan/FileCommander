@@ -76,10 +76,18 @@ public:
     void enqueueProviderRename(std::shared_ptr<FileProvider> provider, const QString &path,
                                const QString &newName);
 
-    // Requests cancellation of all running/queued operations, both local and
-    // provider transfers. Safe to call from the GUI thread; each worker stops
-    // at the next per-entry boundary.
+    // Requests cancellation of the in-flight job(s), both local and provider
+    // transfers, leaving anything still queued alone. Safe to call from the GUI
+    // thread; a worker stops at its next checkpoint, which now includes points
+    // *inside* a single large file copy rather than only between entries.
     void cancelActiveJobs();
+
+    // Hard stop: drop everything still queued, tell every running worker to give
+    // up now, and emit aborted() so the UI can take the progress window down
+    // without waiting for the workers to unwind (they still emit finished()
+    // afterwards). What this can and cannot promise about a file that was
+    // half-written when it landed is documented on
+    // FileOperations::copyFilePreservingTime.
     void abortAll();
     void cancelCurrent();
     void pauseCurrent();
@@ -94,6 +102,13 @@ public:
 
     bool isLocalWorkerStarted() const { return m_ops != nullptr; }
     int transferWorkerCount() const { return m_transferWorkers.size(); }
+
+    // Test seam: the local pipeline's FileOperations, so a test can install
+    // FileOperations::setCopyChunkHookForTesting and park a worker *inside* a
+    // file copy -- the only way to prove a stop request is honoured there rather
+    // than the copy merely finishing first. Null until the first local job
+    // creates the worker; only safe to touch while that worker is idle.
+    FileOperations *localOperationsForTesting() const { return m_ops; }
 
     bool isBusy() const;
     int queuedCount() const;

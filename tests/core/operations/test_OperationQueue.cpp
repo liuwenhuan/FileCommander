@@ -8,7 +8,9 @@
 #include <QSemaphore>
 #include <QTemporaryDir>
 #include <QtTest/QSignalSpy>
+#include <QtTest/QTest>
 
+#include "FileOperations.h"
 #include "LocalFileProvider.h"
 #include "OperationQueue.h"
 
@@ -29,6 +31,44 @@ QString writeFile(const QString &dir, const QString &name, const QByteArray &dat
 
 bool waitFinished(QSignalSpy &spy) {
     return spy.count() > 0 || spy.wait(3000);
+}
+
+// Parks the local worker inside the very first chunk of a file copy and holds it
+// there until the test lets go, so a stop request provably lands *during* the
+// copy rather than before it starts or after it has already finished. Big enough
+// that the copy primitive still has chunks left to refuse once released.
+constexpr int kInterruptibleCopyBytes = 24 * 1024 * 1024;
+
+class MidFileCopyLatch {
+public:
+    // Requires an idle worker: the hook is read on the worker thread, and the
+    // queued job that follows publishes this write to it.
+    explicit MidFileCopyLatch(FileOperations *ops) {
+        ops->setCopyChunkHookForTesting([this](qint64, qint64) {
+            if (!m_parked.exchange(true)) {
+                m_entered.release();
+                m_release.acquire();
+            }
+        });
+    }
+
+    bool waitUntilInsideTheCopy() { return m_entered.tryAcquire(1, 10000); }
+    void letGo() { m_release.release(); }
+
+private:
+    std::atomic<bool> m_parked{false};
+    QSemaphore m_entered;
+    QSemaphore m_release;
+};
+
+// Starts the local worker (it is created lazily on the first local job) and
+// leaves it idle, which is the state MidFileCopyLatch needs.
+FileOperations *startedLocalWorker(OperationQueue &queue, const QString &dir) {
+    QSignalSpy warmed(&queue, &OperationQueue::finished);
+    queue.enqueueMkdir(dir, QStringLiteral("warm-up"));
+    if (!waitFinished(warmed))
+        return nullptr;
+    return queue.localOperationsForTesting();
 }
 
 class BlockingLifetimeProvider : public LocalFileProvider {
@@ -285,6 +325,67 @@ TEST(OperationQueueTest, AbortAllClearsQueuedJobsAndEmitsOnce) {
 
     ASSERT_TRUE(waitFinished(finished));
     EXPECT_FALSE(QFile::exists(QDir(dst.path()).filePath("abort-b.txt")));
+}
+
+// The reason 中止 exists at all: before this, a stop request was only ever read
+// between entries, so a single large file ran to completion no matter what the
+// user pressed. These three expectations are the contract the button sells --
+// the copy stops part-way, the half-written destination does not survive, and
+// the abort is not reported to the user as a file-operation failure.
+TEST(OperationQueueTest, AbortAllStopsALargeLocalCopyPartWayThroughTheFile) {
+    QTemporaryDir src, dst;
+    ASSERT_TRUE(src.isValid() && dst.isValid());
+    const QString source =
+        writeFile(src.path(), "abort-mid-file.bin", QByteArray(kInterruptibleCopyBytes, 'x'));
+    const QString destination = QDir(dst.path()).filePath(QStringLiteral("abort-mid-file.bin"));
+
+    OperationQueue queue;
+    FileOperations *ops = startedLocalWorker(queue, dst.path());
+    ASSERT_NE(ops, nullptr);
+    MidFileCopyLatch latch(ops);
+
+    QSignalSpy finished(&queue, &OperationQueue::finished);
+    QSignalSpy errors(&queue, &OperationQueue::errorOccurred);
+    queue.enqueueCopy({source}, dst.path());
+
+    ASSERT_TRUE(latch.waitUntilInsideTheCopy());
+    queue.abortAll();
+    latch.letGo();
+
+    ASSERT_TRUE(waitFinished(finished));
+    EXPECT_FALSE(finished.takeFirst().at(0).toBool());
+    EXPECT_FALSE(QFile::exists(destination)); // no truncated file left masquerading as a copy
+    EXPECT_TRUE(QFile::exists(source));       // and the source is untouched
+    EXPECT_EQ(errors.count(), 0);             // an abort is not an error to answer
+}
+
+// The other half of "stops now": whatever had not started must never run, even
+// though the worker is still unwinding the job that was interrupted.
+TEST(OperationQueueTest, AbortAllDropsTheQueuedCopyBehindAnInterruptedOne) {
+    QTemporaryDir src, dst;
+    ASSERT_TRUE(src.isValid() && dst.isValid());
+    const QString big =
+        writeFile(src.path(), "abort-first.bin", QByteArray(kInterruptibleCopyBytes, 'x'));
+    const QString queued = writeFile(src.path(), "abort-queued.txt", "never copied");
+
+    OperationQueue queue;
+    FileOperations *ops = startedLocalWorker(queue, dst.path());
+    ASSERT_NE(ops, nullptr);
+    MidFileCopyLatch latch(ops);
+
+    QSignalSpy finished(&queue, &OperationQueue::finished);
+    queue.enqueueCopy({big}, dst.path());
+    ASSERT_TRUE(latch.waitUntilInsideTheCopy());
+    queue.enqueueCopy({queued}, dst.path());
+    ASSERT_EQ(queue.queuedCount(), 1);
+
+    queue.abortAll();
+    EXPECT_EQ(queue.queuedCount(), 0);
+    latch.letGo();
+
+    ASSERT_TRUE(waitFinished(finished));
+    QTest::qWait(200); // give a job that wrongly survived every chance to run
+    EXPECT_FALSE(QFile::exists(QDir(dst.path()).filePath(QStringLiteral("abort-queued.txt"))));
 }
 
 TEST(OperationQueueTest, QueuedProviderCopyRetainsProvidersUntilCompletion) {

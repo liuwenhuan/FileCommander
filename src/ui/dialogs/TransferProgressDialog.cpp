@@ -4,6 +4,7 @@
 #include <QDialogButtonBox>
 #include <QEvent>
 #include <QGraphicsOpacityEffect>
+#include <QHideEvent>
 #include <QLabel>
 #include <QLayout>
 #include <QPalette>
@@ -71,8 +72,13 @@ TransferProgressDialog::TransferProgressDialog(OperationQueue *queue, QWidget *p
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Cancel, this);
     m_pauseButton = buttons->addButton(tr("Pause"), QDialogButtonBox::ActionRole);
+    m_pauseButton->setObjectName(QStringLiteral("TransferPauseButton"));
+    // DestructiveRole, not ActionRole: this is the button that throws work away.
+    m_abortButton = buttons->addButton(tr("Abort"), QDialogButtonBox::DestructiveRole);
+    m_abortButton->setObjectName(QStringLiteral("TransferAbortButton"));
     ttc::localizeStandardButtons(buttons);
     connect(m_pauseButton, &QPushButton::clicked, this, &TransferProgressDialog::onPauseClicked);
+    connect(m_abortButton, &QPushButton::clicked, this, &TransferProgressDialog::onAbortClicked);
     connect(buttons, &QDialogButtonBox::rejected, this, [this]() {
         if (m_queue)
             m_queue->cancelCurrent();
@@ -119,6 +125,10 @@ TransferProgressDialog::TransferProgressDialog(OperationQueue *queue, QWidget *p
         connect(m_queue, &OperationQueue::finished, this, &TransferProgressDialog::onFinished);
         connect(m_queue, &OperationQueue::errorOccurred, this,
                 &TransferProgressDialog::onErrorOccurred);
+        // Any abort takes this window down, wherever it came from -- this
+        // button, or the Abort choice in the modal OperationErrorDialog.
+        connect(m_queue, &OperationQueue::aborted, this,
+                &TransferProgressDialog::dismissAfterAbort);
     }
 }
 
@@ -126,6 +136,16 @@ void TransferProgressDialog::showEvent(QShowEvent *event) {
     FramelessDialog::showEvent(event);
     fitWrappedText();
     startRevealAnimation();
+}
+
+void TransferProgressDialog::hideEvent(QHideEvent *event) {
+    FramelessDialog::hideEvent(event);
+    // m_shown is "this window is currently on screen for the running batch", and
+    // it gates every path that would show it again. Closing the window by its
+    // own title-bar button (or Escape) goes nowhere near dismissAfterAbort(), so
+    // without this the flag stayed true against an invisible window and the
+    // progress window never appeared again for the rest of the session.
+    m_shown = false;
 }
 
 void TransferProgressDialog::dismissAfterAbort() {
@@ -213,6 +233,34 @@ void TransferProgressDialog::animateOutcomeColor(const QColor &target) {
     m_outcomeColorAnimation->setStartValue(start);
     m_outcomeColorAnimation->setEndValue(target);
     m_outcomeColorAnimation->start();
+}
+
+void TransferProgressDialog::onAbortClicked() {
+    // What "stops now" means, precisely, because the user is entitled to know
+    // what they are left holding:
+    //
+    //  * Nothing queued but not yet started ever runs. Guaranteed.
+    //  * Every worker is told to give up at its next checkpoint, and the
+    //    checkpoints are close together -- between entries, between streamed
+    //    network chunks, and (since this change) inside a single local file
+    //    copy, which used to run to completion no matter what was asked of it.
+    //    A worker parked in a blocking syscall the OS won't interrupt (a stalled
+    //    network read, a hung mount) still has to come back before it can obey;
+    //    "now" is bounded by that, not by the size of the transfer.
+    //  * The one file that was mid-write is deleted -- Win32 discards the
+    //    destination when the copy routine cancels, and the POSIX loop removes
+    //    what it wrote. A directory the batch was filling in is removed too when
+    //    the batch created it. So the destination does not keep a truncated file
+    //    that looks complete.
+    //  * Entries the batch had already finished stay finished. An aborted *move*
+    //    is therefore genuinely half-done: what already moved is at the
+    //    destination and gone from the source. Nothing is rolled back.
+    //
+    // The window closes immediately rather than waiting for the workers to
+    // unwind; they finish reporting into a dialog that is already gone.
+    if (m_queue)
+        m_queue->abortAll(); // emits aborted() -> dismissAfterAbort()
+    dismissAfterAbort();     // also correct with no queue attached
 }
 
 void TransferProgressDialog::onPauseClicked() {

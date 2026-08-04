@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <atomic>
+
 #include <QApplication>
 #include <QColor>
 #include <QDir>
@@ -10,10 +12,13 @@
 #include <QPointer>
 #include <QPropertyAnimation>
 #include <QProgressBar>
+#include <QPushButton>
+#include <QSemaphore>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
 #include <QVariantAnimation>
+#include <QtTest/QSignalSpy>
 
 #include "FilePanel.h"
 #include "FileSystemModel.h"
@@ -21,6 +26,7 @@
 #include "dialogs/OperationProgressDialog.h"
 #include "dialogs/TransferProgressDialog.h"
 #include "MotionPolicy.h"
+#include "operations/FileOperations.h"
 #include "operations/OperationQueue.h"
 
 namespace {
@@ -276,6 +282,83 @@ TEST(OperationProgressMotion, TerminalTimerIsCancelledWhenDialogIsDestroyed) {
     EXPECT_TRUE(dialog.isNull());
     QTest::qWait(200);
     SUCCEED();
+}
+
+// End-to-end for the 中止 button: a real OperationQueue copying a real file,
+// stopped from the real widget. The latch guarantees the click lands while the
+// copy is genuinely in flight, which is what makes the assertions mean anything.
+TEST(OperationProgressMotion, AbortButtonStopsTheRunningCopyAndClosesTheWindow) {
+    QTemporaryDir srcDir, dstDir;
+    ASSERT_TRUE(srcDir.isValid() && dstDir.isValid());
+    const QString source = QDir(srcDir.path()).filePath(QStringLiteral("abort-me.bin"));
+    writeFile(source, QByteArray(24 * 1024 * 1024, 'x'));
+    const QString destination = QDir(dstDir.path()).filePath(QStringLiteral("abort-me.bin"));
+
+    OperationQueue queue;
+    TransferProgressDialog dialog(&queue);
+
+    // Start the (lazily created) local worker and leave it idle before installing
+    // the hook it will read from its own thread.
+    QSignalSpy warmed(&queue, &OperationQueue::finished);
+    queue.enqueueMkdir(dstDir.path(), QStringLiteral("warm-up"));
+    ASSERT_TRUE(warmed.count() > 0 || warmed.wait(3000));
+    FileOperations *ops = queue.localOperationsForTesting();
+    ASSERT_NE(ops, nullptr);
+
+    std::atomic<bool> parked{false};
+    QSemaphore entered;
+    QSemaphore release;
+    ops->setCopyChunkHookForTesting([&](qint64, qint64) {
+        if (!parked.exchange(true)) {
+            entered.release();
+            release.acquire();
+        }
+    });
+
+    QSignalSpy finished(&queue, &OperationQueue::finished);
+    queue.enqueueCopy({source}, dstDir.path());
+    ASSERT_TRUE(entered.tryAcquire(1, 10000));
+
+    // The window reveals itself on its own deferred-show timer -- no faked
+    // signals here, the whole wiring is under test.
+    QTRY_VERIFY_WITH_TIMEOUT(dialog.isVisible(), 4000);
+
+    auto *abortButton = dialog.findChild<QPushButton *>(QStringLiteral("TransferAbortButton"));
+    ASSERT_NE(abortButton, nullptr);
+    abortButton->click();
+    qApp->processEvents();
+
+    // Closed straight away, without waiting for the worker to unwind.
+    EXPECT_FALSE(dialog.isVisible());
+    EXPECT_EQ(queue.queuedCount(), 0);
+
+    release.release();
+    QTRY_VERIFY_WITH_TIMEOUT(finished.count() > 0, 5000);
+    EXPECT_FALSE(finished.takeFirst().at(0).toBool());
+    EXPECT_FALSE(QFile::exists(destination));
+    EXPECT_FALSE(dialog.isVisible());
+}
+
+// The window used to be a one-shot: hiding it any way other than
+// dismissAfterAbort() left it flagged as "on screen" forever, so no later batch
+// could ever reveal it again.
+TEST(OperationProgressMotion, TransferWindowCanBeRevealedAgainAfterBeingClosed) {
+    MotionPolicyStateGuard guard;
+    MotionPolicy::setReducedForTest(true);
+
+    TransferProgressDialog dialog(nullptr);
+    startTransfer(dialog, QStringLiteral("First batch"));
+    updateTransfer(dialog, 100, 1000);
+    ASSERT_TRUE(dialog.isVisible());
+
+    dialog.close(); // what the title bar's own close button does
+    qApp->processEvents();
+    ASSERT_FALSE(dialog.isVisible());
+
+    finishTransfer(dialog, true);
+    startTransfer(dialog, QStringLiteral("Second batch"));
+    updateTransfer(dialog, 100, 1000);
+    EXPECT_TRUE(dialog.isVisible());
 }
 
 TEST(OperationProgressMotion, AbortDismissesTransferWindowImmediately) {
