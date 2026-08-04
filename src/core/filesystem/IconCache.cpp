@@ -71,10 +71,13 @@ QImage imageFromHIcon(HICON icon, int size) {
     return copy;
 }
 
-QPixmap shellFolderPixmap(int size) {
+// SHGFI_USEFILEATTRIBUTES means "answer from the name and the attributes, do
+// not go to disk", so `name` is a stand-in rather than a real path -- which is
+// the whole point here: the caller has an extension, not a file.
+QPixmap shellPixmap(const QString &name, DWORD attributes, int size) {
     SHFILEINFOW fileInfo = {};
     const DWORD_PTR ok = SHGetFileInfoW(
-        L"folder", FILE_ATTRIBUTE_DIRECTORY, &fileInfo, sizeof(fileInfo),
+        reinterpret_cast<const wchar_t *>(name.utf16()), attributes, &fileInfo, sizeof(fileInfo),
         SHGFI_SYSICONINDEX | SHGFI_USEFILEATTRIBUTES);
     if (!ok)
         return {};
@@ -100,15 +103,19 @@ QPixmap shellFolderPixmap(int size) {
     return image.isNull() ? QPixmap() : QPixmap::fromImage(image);
 }
 
-QIcon shellFolderIcon() {
+QIcon shellIconFor(const QString &name, DWORD attributes) {
     QIcon icon;
     const int sizes[] = {16, 32, 48, 256};
     for (int size : sizes) {
-        QPixmap pixmap = shellFolderPixmap(size);
+        QPixmap pixmap = shellPixmap(name, attributes, size);
         if (!pixmap.isNull())
             icon.addPixmap(pixmap);
     }
     return icon;
+}
+
+QIcon shellFolderIcon() {
+    return shellIconFor(QStringLiteral("folder"), FILE_ATTRIBUTE_DIRECTORY);
 }
 #endif
 } // namespace
@@ -138,7 +145,28 @@ QIcon IconCache::iconFor(const FileInfo &info) {
         if (icon.isNull())
             icon = provider.icon(QFileIconProvider::Folder);
     } else {
-        icon = provider.icon(QFileInfo(info.path()));
+        // Resolved from the EXTENSION, never from info.path(). An entry inside
+        // an archive is named by its position in the archive, not by anything
+        // on disk, and asking the shell about a path that does not exist
+        // answers with an icon that has no pixmaps -- which is a blank cell in
+        // the grid. QFileIconProvider does not rescue it either: its
+        // generic-file fallback is guarded by isFile(), which a non-existent
+        // path fails.
+        //
+        // Nothing is lost by ignoring the path. The cache is keyed by extension
+        // already, so a per-file icon (an .exe carrying its own) never survived
+        // the first lookup anyway -- resolving by extension just makes the icon
+        // agree with the key instead of depending on which file was seen first.
+        const QString stand_in = info.suffix().isEmpty()
+                                     ? QStringLiteral("file")
+                                     : QStringLiteral("file.") + info.suffix().toLower();
+#ifdef Q_OS_WIN
+        icon = shellIconFor(stand_in, FILE_ATTRIBUTE_NORMAL);
+#else
+        icon = provider.icon(QFileInfo(stand_in));
+#endif
+        if (icon.availableSizes().isEmpty())
+            icon = provider.icon(QFileIconProvider::File);
     }
     icon = themedIcon(icon);
 
