@@ -2013,9 +2013,9 @@ void MainWindow::updateExtraKeyButtons() {
     m_leadingCommand = m_settings.extraKeyCommand("leading", "external-connect");
     m_trailingCommand = m_settings.extraKeyCommand("trailing", "notepad");
     m_functionKeyBar->setLeadingIcon(
-        IconCache::instance().themedIcon(QIcon(QStringLiteral(":/icons/ext-connect.svg"))));
+        IconCache::instance().glyphIcon(QStringLiteral(":/icons/ext-connect.svg")));
     m_functionKeyBar->setTrailingIcon(
-        IconCache::instance().themedIcon(QIcon(QStringLiteral(":/icons/notepad.svg"))));
+        IconCache::instance().glyphIcon(QStringLiteral(":/icons/notepad.svg")));
     m_functionKeyBar->setLeadingToolTip(m_commandLabels.value(m_leadingCommand, m_leadingCommand));
     m_functionKeyBar->setTrailingToolTip(
         m_commandLabels.value(m_trailingCommand, m_trailingCommand));

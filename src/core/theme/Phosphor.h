@@ -63,6 +63,16 @@ void pixelate(QImage &image, int block);
 // `floor` lifts the darkest inked pixel off black (see kStillFloor).
 void tintImage(QImage &image, const QColor &tint, qreal floor = kStillFloor);
 
+// Recolours every inked pixel to exactly `tint`, keeping alpha as it is.
+//
+// The right mapping for a MONOCHROME glyph -- our own SVG chrome, every one of
+// which is drawn in a single flat #888888. That grey carries no information, so
+// running it through the luma ramp above only dims the result: 136 luma lands
+// at 0.20 + 0.80*136/255 = 63% of the tint, which reads as a faded icon beside
+// label text painted in the same colour at full strength. Anti-aliasing still
+// softens the edges, because that lives in the alpha channel and is untouched.
+void flattenToTint(QImage &image, const QColor &tint);
+
 // Convenience wrapper: quantise (see pixelate) then colourise. Returns `src`
 // unchanged when `tint` is invalid, so a caller can hand it the current
 // contentTint() without branching.

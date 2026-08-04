@@ -27,7 +27,7 @@ constexpr int kHeaderItemVerticalPadding = 8;
 // GvfsMounter::Protocol) to a device icon. Enum order in GvfsMounter.h is:
 //   0 Sftp, 1 Smb, 2 WebDav, 3 WebDavs, 4 Ftp.
 QIcon themedResourceIcon(const QString &path) {
-    return IconCache::instance().themedIcon(QIcon(path));
+    return IconCache::instance().glyphIcon(path);
 }
 
 QString iconForProtocol(int protocol) {

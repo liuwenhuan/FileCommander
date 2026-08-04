@@ -63,6 +63,23 @@ void pixelate(QImage &image, int block) {
     image = small.scaled(image.size(), Qt::IgnoreAspectRatio, Qt::FastTransformation);
 }
 
+void flattenToTint(QImage &image, const QColor &tint) {
+    if (!tint.isValid() || image.isNull())
+        return;
+    if (image.format() != QImage::Format_ARGB32)
+        image = image.convertToFormat(QImage::Format_ARGB32);
+    const QRgb solid = tint.rgb();
+    for (int y = 0; y < image.height(); ++y) {
+        auto *line = reinterpret_cast<QRgb *>(image.scanLine(y));
+        for (int x = 0; x < image.width(); ++x) {
+            const int a = qAlpha(line[x]);
+            if (a == 0)
+                continue; // nothing drawn here; colouring the void adds a haze
+            line[x] = (solid & 0x00ffffff) | (quint32(a) << 24);
+        }
+    }
+}
+
 void tintImage(QImage &image, const QColor &tint, qreal floor) {
     if (!tint.isValid() || image.isNull())
         return;

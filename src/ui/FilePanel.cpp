@@ -377,7 +377,7 @@ FilePanel::FilePanel(const QFont &initialListFont, QWidget *parent) : QWidget(pa
     m_computerButton = new QToolButton(this);
     m_computerButton->setObjectName(QStringLiteral("PanelComputerButton"));
     m_computerButton->setIcon(
-        IconCache::instance().themedIcon(QIcon(QStringLiteral(":/icons/computer.svg"))));
+        IconCache::instance().glyphIcon(QStringLiteral(":/icons/computer.svg")));
     m_computerButton->setAutoRaise(true);
     m_computerButton->setFocusPolicy(Qt::NoFocus);
     m_computerButton->setToolTip(tr("Computer"));
@@ -1643,7 +1643,7 @@ void FilePanel::refreshThemeIcons() {
     // up automatically.
     if (m_computerButton)
         m_computerButton->setIcon(
-            IconCache::instance().themedIcon(QIcon(QStringLiteral(":/icons/computer.svg"))));
+            IconCache::instance().glyphIcon(QStringLiteral(":/icons/computer.svg")));
     if (m_dirTreeModel)
         m_dirTreeModel->refreshIcons();
     refreshTabIcons();
@@ -2668,16 +2668,17 @@ void FilePanel::updateActiveTabLabel() {
 }
 
 static QIcon iconForScheme(const QString &scheme) {
-    QIcon icon;
+    QString resource;
     if (scheme == QLatin1String("sftp"))
-        icon = QIcon(QStringLiteral(":/icons/dev-sftp.svg"));
+        resource = QStringLiteral(":/icons/dev-sftp.svg");
     else if (scheme == QLatin1String("smb"))
-        icon = QIcon(QStringLiteral(":/icons/dev-smb.svg"));
+        resource = QStringLiteral(":/icons/dev-smb.svg");
     else if (scheme == QLatin1String("ftp"))
-        icon = QIcon(QStringLiteral(":/icons/dev-ftp.svg"));
+        resource = QStringLiteral(":/icons/dev-ftp.svg");
     else if (scheme == QLatin1String("webdav"))
-        icon = QIcon(QStringLiteral(":/icons/dev-webdav.svg"));
-    return IconCache::instance().themedIcon(icon);
+        resource = QStringLiteral(":/icons/dev-webdav.svg");
+    // An unknown scheme has no glyph; the caller draws the status dot alone.
+    return resource.isEmpty() ? QIcon() : IconCache::instance().glyphIcon(resource);
 }
 
 // The protocol icon with a small status dot overlaid so the tab shows connection

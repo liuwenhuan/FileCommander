@@ -72,3 +72,43 @@ TEST(IconTinting, TheCrtThemeStillRecoloursFileIcons) {
     cache.setGlyphTint(QColor());
     cache.setFileIconTint(QColor());
 }
+
+// Our own chrome glyphs are drawn in one flat #888888. Run through the luma
+// ramp that content uses, that grey lands at 63% of the tint -- a visibly
+// faded icon beside label text painted in the same colour at full strength,
+// which is what the function-key bar's two end buttons looked like.
+TEST(IconTinting, AGlyphLandsOnTheThemeColourAtFullStrength) {
+    IconCache &cache = IconCache::instance();
+    const QColor phosphor(0x33, 0xff, 0x88);
+    cache.setGlyphTint(phosphor);
+    cache.setFileIconTint(QColor());
+
+    const QImage image =
+        cache.glyphIcon(QStringLiteral(":/icons/notepad.svg")).pixmap(48, 48).toImage();
+    ASSERT_FALSE(image.isNull());
+
+    // The most opaque pixel is the middle of a stroke: that one must BE the
+    // theme colour, not a dimmed version of it. Edges stay soft because
+    // anti-aliasing lives in alpha, which the recolour does not touch.
+    int bestAlpha = 0;
+    QColor solid;
+    bool anySoftEdge = false;
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            const QColor pixel = image.pixelColor(x, y);
+            if (pixel.alpha() > bestAlpha) {
+                bestAlpha = pixel.alpha();
+                solid = pixel;
+            }
+            if (pixel.alpha() > 8 && pixel.alpha() < 200)
+                anySoftEdge = true;
+        }
+    }
+    ASSERT_GT(bestAlpha, 200) << "the glyph did not render";
+    EXPECT_EQ(solid.rgb(), phosphor.rgb())
+        << "glyph ink is " << solid.name().toStdString() << ", theme colour is "
+        << phosphor.name().toStdString();
+    EXPECT_TRUE(anySoftEdge) << "anti-aliasing was flattened away with the colour";
+
+    cache.setGlyphTint(QColor());
+}

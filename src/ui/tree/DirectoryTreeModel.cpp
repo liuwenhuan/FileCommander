@@ -140,7 +140,7 @@ QIcon DirectoryTreeModel::iconForNode(const Node *node) const {
 
     const QIcon themed =
         node->isRoot && !node->iconName.isEmpty()
-            ? IconCache::instance().themedIcon(QIcon(QStringLiteral(":/icons/%1.svg").arg(node->iconName)))
+            ? IconCache::instance().glyphIcon(QStringLiteral(":/icons/%1.svg").arg(node->iconName))
             : IconCache::instance().iconFor(FileInfo::fromFields(node->path, node->name, 0,
                                                                  QDateTime(), true,
                                                                  QFile::Permissions()));

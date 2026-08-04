@@ -30,7 +30,18 @@ public:
     // Tinted like everything else, so it still follows the theme.
     QIcon systemIconForPath(const QString &path);
 
-    // Applies the theme-owned tint and pixel grid to an arbitrary chrome icon.
+    // One of our own SVG glyphs (":/icons/dev-smb.svg"), recoloured to the
+    // theme's glyph colour at FULL strength and cached.
+    //
+    // Separate from themedIcon() because it can assume what that one cannot:
+    // every glyph in resources/icons is drawn in a single flat #888888, so the
+    // grey carries no information and running it through the luma ramp only
+    // dims the icon -- measured at 63% of the tint, which reads as faded beside
+    // label text painted in the same colour at full strength.
+    QIcon glyphIcon(const QString &resourcePath);
+
+    // Applies the theme-owned tint and pixel grid to an arbitrary chrome icon --
+    // one whose colours DO mean something, such as a platform standard icon.
     // With no active tint, returns the icon unchanged.
     QIcon themedIcon(const QIcon &icon) const;
 

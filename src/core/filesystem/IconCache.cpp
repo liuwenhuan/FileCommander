@@ -272,6 +272,30 @@ QIcon IconCache::systemIconForPath(const QString &path) {
 #endif
 }
 
+QIcon IconCache::glyphIcon(const QString &resourcePath) {
+    const QString key = QStringLiteral("glyph:") + resourcePath;
+    if (QIcon *cached = m_cache.object(key))
+        return *cached;
+
+    const QIcon source(resourcePath);
+    QIcon result = source;
+    if (m_glyphTint.isValid()) {
+        QIcon out;
+        for (int size : kTintSizes) {
+            const QPixmap pixmap = source.pixmap(size, size);
+            if (pixmap.isNull())
+                continue;
+            QImage image = pixmap.toImage();
+            fc::flattenToTint(image, m_glyphTint);
+            out.addPixmap(QPixmap::fromImage(image));
+        }
+        if (!out.availableSizes().isEmpty())
+            result = out;
+    }
+    m_cache.insert(key, new QIcon(result));
+    return result;
+}
+
 QIcon IconCache::themedIcon(const QIcon &icon) const {
     return tinted(icon, m_glyphTint);
 }

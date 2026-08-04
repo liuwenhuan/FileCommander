@@ -626,7 +626,7 @@ QVariant FileSystemModel::data(const QModelIndex &index, int role) const {
             // rows want.
             const QString iconPath = m_provider->entryIconPath(info.path());
             if (!iconPath.isEmpty())
-                return IconCache::instance().themedIcon(QIcon(iconPath));
+                return IconCache::instance().glyphIcon(iconPath);
         }
         return IconCache::instance().iconFor(info);
     }
