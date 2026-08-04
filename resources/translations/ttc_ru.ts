@@ -870,12 +870,12 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
 <context>
     <name>FileSystemModel</name>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="899"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="921"/>
         <source>%1 already exists</source>
         <translation>%1 уже существует</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="906"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="928"/>
         <source>Failed to rename %1</source>
         <translation>Не удалось переименовать %1</translation>
     </message>
@@ -995,9 +995,8 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <translation>Вырезать</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1047"/>
         <source>Menu Font Size:</source>
-        <translation>Размер шрифта меню:</translation>
+        <translation type="vanished">Размер шрифта меню:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1107"/>
@@ -1494,9 +1493,8 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <translation>Показывать панель функциональных клавиш</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="988"/>
         <source>File List Font Size:</source>
-        <translation>Размер шрифта списка файлов:</translation>
+        <translation type="vanished">Размер шрифта списка файлов:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1000"/>
@@ -1569,6 +1567,16 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <location filename="../../src/ui/MainWindow.cpp" line="2582"/>
         <source>Open Archives as Folders</source>
         <translation>Открывать архивы как папки</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="988"/>
+        <source>File List Font Size</source>
+        <translation>Размер шрифта списка</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="1047"/>
+        <source>Menu Font Size</source>
+        <translation>Размер шрифта меню</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2140"/>
@@ -2907,39 +2915,39 @@ Destination: %4 (%5 bytes)</source>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="167"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="698"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="708"/>
         <source>Name</source>
         <translation>Имя</translation>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="169"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="702"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="712"/>
         <source>Size</source>
         <translation>Размер</translation>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="171"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="704"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="714"/>
         <source>Modified</source>
         <translation>Изменён</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="700"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="710"/>
         <source>Ext</source>
         <translation>Расш.</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="710"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="720"/>
         <source>Permissions</source>
         <translation>Права</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="708"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="718"/>
         <source>Type</source>
         <translation>Тип</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="706"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="716"/>
         <source>Created</source>
         <translation>Создан</translation>
     </message>
@@ -2951,7 +2959,7 @@ Destination: %4 (%5 bytes)</source>
     <message>
         <location filename="../../src/core/filesystem/ComputerProvider.cpp" line="63"/>
         <location filename="../../src/core/filesystem/ComputerProvider.cpp" line="70"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="718"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="728"/>
         <source>Folder</source>
         <translation>Папка</translation>
     </message>
@@ -2970,32 +2978,32 @@ Destination: %4 (%5 bytes)</source>
         <translation type="vanished">занято %1 из %2</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="721"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="731"/>
         <source>File</source>
         <translation>Файл</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="733"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="743"/>
         <source>Image</source>
         <translation>Изображение</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="735"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="745"/>
         <source>Video</source>
         <translation>Видео</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="737"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="747"/>
         <source>Audio</source>
         <translation>Аудио</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="739"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="749"/>
         <source>Archive</source>
         <translation>Архив</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="741"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="751"/>
         <source>Document</source>
         <translation>Документ</translation>
     </message>

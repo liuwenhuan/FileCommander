@@ -985,7 +985,7 @@ void MainWindow::buildTitleBarMenus() {
         fontLayout->setContentsMargins(20, 2, 12, 2);
         fontLayout->setSpacing(4);
 
-        auto *caption = new QLabel(tr("File List Font Size:"), fontWidget);
+        auto *caption = new QLabel(tr("File List Font Size"), fontWidget);
 
         auto *minusBtn = new QToolButton(fontWidget);
         minusBtn->setText(QStringLiteral("−"));
@@ -1044,7 +1044,7 @@ void MainWindow::buildTitleBarMenus() {
         fontLayout->setContentsMargins(20, 2, 12, 2);
         fontLayout->setSpacing(4);
 
-        auto *caption = new QLabel(tr("Menu Font Size:"), fontWidget);
+        auto *caption = new QLabel(tr("Menu Font Size"), fontWidget);
         auto *minusBtn = new QToolButton(fontWidget);
         minusBtn->setText(QStringLiteral("-"));
         minusBtn->setAutoRaise(true);

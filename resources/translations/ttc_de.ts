@@ -866,12 +866,12 @@ Das Löschen als Administrator umgeht den Papierkorb und kann nicht rückgängig
 <context>
     <name>FileSystemModel</name>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="899"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="921"/>
         <source>%1 already exists</source>
         <translation>%1 existiert bereits</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="906"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="928"/>
         <source>Failed to rename %1</source>
         <translation>%1 konnte nicht umbenannt werden</translation>
     </message>
@@ -991,9 +991,8 @@ Das Löschen als Administrator umgeht den Papierkorb und kann nicht rückgängig
         <translation>Ausschneiden</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1047"/>
         <source>Menu Font Size:</source>
-        <translation>Menü-Schriftgröße:</translation>
+        <translation type="vanished">Menü-Schriftgröße:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1107"/>
@@ -1490,9 +1489,8 @@ Das Löschen als Administrator umgeht den Papierkorb und kann nicht rückgängig
         <translation>Funktionstastenleiste anzeigen</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="988"/>
         <source>File List Font Size:</source>
-        <translation>Schriftgröße der Dateiliste:</translation>
+        <translation type="vanished">Schriftgröße der Dateiliste:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1000"/>
@@ -1565,6 +1563,16 @@ Das Löschen als Administrator umgeht den Papierkorb und kann nicht rückgängig
         <location filename="../../src/ui/MainWindow.cpp" line="2582"/>
         <source>Open Archives as Folders</source>
         <translation>Archive als Ordner öffnen</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="988"/>
+        <source>File List Font Size</source>
+        <translation>Schriftgröße der Dateiliste</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="1047"/>
+        <source>Menu Font Size</source>
+        <translation>Schriftgröße der Menüs</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2140"/>
@@ -2903,39 +2911,39 @@ Ziel: %4 (%5 Byte)</translation>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="167"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="698"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="708"/>
         <source>Name</source>
         <translation>Name</translation>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="169"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="702"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="712"/>
         <source>Size</source>
         <translation>Größe</translation>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="171"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="704"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="714"/>
         <source>Modified</source>
         <translation>Geändert</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="700"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="710"/>
         <source>Ext</source>
         <translation>Erw.</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="710"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="720"/>
         <source>Permissions</source>
         <translation>Berechtigungen</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="708"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="718"/>
         <source>Type</source>
         <translation>Typ</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="706"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="716"/>
         <source>Created</source>
         <translation>Erstellt</translation>
     </message>
@@ -2947,7 +2955,7 @@ Ziel: %4 (%5 Byte)</translation>
     <message>
         <location filename="../../src/core/filesystem/ComputerProvider.cpp" line="63"/>
         <location filename="../../src/core/filesystem/ComputerProvider.cpp" line="70"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="718"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="728"/>
         <source>Folder</source>
         <translation>Ordner</translation>
     </message>
@@ -2966,32 +2974,32 @@ Ziel: %4 (%5 Byte)</translation>
         <translation type="vanished">%1 von %2 belegt</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="721"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="731"/>
         <source>File</source>
         <translation>Datei</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="733"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="743"/>
         <source>Image</source>
         <translation>Bild</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="735"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="745"/>
         <source>Video</source>
         <translation>Video</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="737"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="747"/>
         <source>Audio</source>
         <translation>Audio</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="739"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="749"/>
         <source>Archive</source>
         <translation>Archiv</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="741"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="751"/>
         <source>Document</source>
         <translation>Dokument</translation>
     </message>

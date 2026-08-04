@@ -862,12 +862,12 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
 <context>
     <name>FileSystemModel</name>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="899"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="921"/>
         <source>%1 already exists</source>
         <translation>%1 已存在</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="906"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="928"/>
         <source>Failed to rename %1</source>
         <translation>重命名 %1 失败</translation>
     </message>
@@ -1472,9 +1472,8 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <translation>界面(&amp;I)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1047"/>
         <source>Menu Font Size:</source>
-        <translation>菜单字体大小：</translation>
+        <translation type="vanished">菜单字体大小：</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1107"/>
@@ -1490,9 +1489,8 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <translation>显示功能键栏</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="988"/>
         <source>File List Font Size:</source>
-        <translation>文件列表字体大小：</translation>
+        <translation type="vanished">文件列表字体大小：</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1000"/>
@@ -1581,6 +1579,16 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <location filename="../../src/ui/MainWindow.cpp" line="2582"/>
         <source>Open Archives as Folders</source>
         <translation>将压缩包作为文件夹打开</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="988"/>
+        <source>File List Font Size</source>
+        <translation>文件列表字体大小</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="1047"/>
+        <source>Menu Font Size</source>
+        <translation>菜单字体大小</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2140"/>
@@ -2929,39 +2937,39 @@ Destination: %4 (%5 bytes)</source>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="167"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="698"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="708"/>
         <source>Name</source>
         <translation>名称</translation>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="169"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="702"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="712"/>
         <source>Size</source>
         <translation>大小</translation>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="171"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="704"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="714"/>
         <source>Modified</source>
         <translation>修改日期</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="700"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="710"/>
         <source>Ext</source>
         <translation>扩展名</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="710"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="720"/>
         <source>Permissions</source>
         <translation>权限</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="708"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="718"/>
         <source>Type</source>
         <translation>类型</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="706"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="716"/>
         <source>Created</source>
         <translation>创建日期</translation>
     </message>
@@ -2973,7 +2981,7 @@ Destination: %4 (%5 bytes)</source>
     <message>
         <location filename="../../src/core/filesystem/ComputerProvider.cpp" line="63"/>
         <location filename="../../src/core/filesystem/ComputerProvider.cpp" line="70"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="718"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="728"/>
         <source>Folder</source>
         <translation>目录</translation>
     </message>
@@ -2992,32 +3000,32 @@ Destination: %4 (%5 bytes)</source>
         <translation type="vanished">已用 %1 / 共 %2</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="721"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="731"/>
         <source>File</source>
         <translation>文件</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="733"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="743"/>
         <source>Image</source>
         <translation>图片</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="735"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="745"/>
         <source>Video</source>
         <translation>视频</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="737"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="747"/>
         <source>Audio</source>
         <translation>音频</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="739"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="749"/>
         <source>Archive</source>
         <translation>压缩</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="741"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="751"/>
         <source>Document</source>
         <translation>文档</translation>
     </message>

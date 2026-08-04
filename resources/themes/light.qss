@@ -48,6 +48,14 @@ QMenu QWidget[menuChromeSurface="true"] {
     background: transparent;
 }
 
+/* ...and the labels inside it. The universal QWidget rule above paints every
+   widget, so a caption in an embedded menu row came out as a grey block on the
+   menu's own background. The row's - / + buttons are deliberately NOT included:
+   they are controls, and the fill is what makes them read as pressable. */
+QMenu QWidget[menuChromeSurface="true"] QLabel {
+    background: transparent;
+}
+
 QMenu::item {
     padding: 4px 24px;
 }

@@ -1,4 +1,4 @@
-#include <gtest/gtest.h>
+﻿#include <gtest/gtest.h>
 
 #include <QAbstractButton>
 #include <QApplication>
@@ -157,7 +157,7 @@ TEST(ChromeTypographyTest, EmbeddedMenuChromeTracksParentMenuFontChanges) {
     Typography::applyChromeFont(&menu, initial);
     auto *row = new QWidget(&menu);
     auto *layout = new QHBoxLayout(row);
-    auto *child = new QLabel(QStringLiteral("Menu Font Size:"), row);
+    auto *child = new QLabel(QStringLiteral("Menu Font Size"), row);
     layout->addWidget(child);
     Typography::applyChromeFont(row, initial);
     auto *action = new QWidgetAction(&menu);
@@ -228,7 +228,7 @@ TEST(ChromeTypographyTest, MainWindowFontRowsTrackTheLiveMenuFontSetting) {
     QMenu *menu = interfaceMenu(window);
     ASSERT_NE(menu, nullptr);
     ASSERT_TRUE(QMetaObject::invokeMethod(menu, "aboutToShow", Qt::DirectConnection));
-    QWidget *menuFontRow = fontRow(menu, QStringLiteral("Menu Font Size:"));
+    QWidget *menuFontRow = fontRow(menu, QStringLiteral("Menu Font Size"));
     ASSERT_NE(menuFontRow, nullptr);
     EXPECT_EQ(menuFontRow->font().pointSize(), 10);
 
@@ -246,8 +246,8 @@ TEST(ChromeTypographyTest, MainWindowFontRowsTrackTheLiveMenuFontSetting) {
     menu = interfaceMenu(window);
     ASSERT_NE(menu, nullptr);
     ASSERT_TRUE(QMetaObject::invokeMethod(menu, "aboutToShow", Qt::DirectConnection));
-    QWidget *fileFontRow = fontRow(menu, QStringLiteral("File List Font Size:"));
-    menuFontRow = fontRow(menu, QStringLiteral("Menu Font Size:"));
+    QWidget *fileFontRow = fontRow(menu, QStringLiteral("File List Font Size"));
+    menuFontRow = fontRow(menu, QStringLiteral("Menu Font Size"));
     ASSERT_NE(fileFontRow, nullptr);
     ASSERT_NE(menuFontRow, nullptr);
     EXPECT_EQ(menu->font().pointSize(), 11);
@@ -327,7 +327,7 @@ TEST(ChromeTypographyTest, TitleBarAndFunctionKeyButtonsTrackTheLiveMenuFontSett
     QMenu *menu = interfaceMenu(window);
     ASSERT_NE(menu, nullptr);
     ASSERT_TRUE(QMetaObject::invokeMethod(menu, "aboutToShow", Qt::DirectConnection));
-    QWidget *menuFontRow = fontRow(menu, QStringLiteral("Menu Font Size:"));
+    QWidget *menuFontRow = fontRow(menu, QStringLiteral("Menu Font Size"));
     ASSERT_NE(menuFontRow, nullptr);
     QToolButton *plus = nullptr;
     for (QToolButton *button : menuFontRow->findChildren<QToolButton *>()) {
@@ -405,7 +405,7 @@ TEST(ChromeTypographyTest, EveryChromeSurfaceTracksTheLiveMenuFontSetting) {
     QMenu *menu = interfaceMenu(window);
     ASSERT_NE(menu, nullptr);
     ASSERT_TRUE(QMetaObject::invokeMethod(menu, "aboutToShow", Qt::DirectConnection));
-    QWidget *menuFontRow = fontRow(menu, QStringLiteral("Menu Font Size:"));
+    QWidget *menuFontRow = fontRow(menu, QStringLiteral("Menu Font Size"));
     ASSERT_NE(menuFontRow, nullptr);
     QToolButton *plus = nullptr;
     for (QToolButton *button : menuFontRow->findChildren<QToolButton *>()) {
@@ -451,7 +451,7 @@ TEST(ChromeTypographyTest, FontRowInteriorMatchesTheMenuFontOnFirstOpen) {
     EXPECT_EQ(menuPointSize, 9);
 
     for (const QString &caption :
-         {QStringLiteral("Menu Font Size:"), QStringLiteral("File List Font Size:")}) {
+         {QStringLiteral("Menu Font Size"), QStringLiteral("File List Font Size")}) {
         QWidget *row = fontRow(menu, caption);
         ASSERT_NE(row, nullptr) << caption.toStdString();
         EXPECT_EQ(row->font().pointSize(), menuPointSize) << caption.toStdString();
@@ -502,7 +502,7 @@ TEST(ChromeTypographyTest, ApplicationFontSurvivesTheStartupStyleSheet) {
     menu->hide();
 
     for (const QString &caption :
-         {QStringLiteral("Menu Font Size:"), QStringLiteral("File List Font Size:")}) {
+         {QStringLiteral("Menu Font Size"), QStringLiteral("File List Font Size")}) {
         QWidget *row = fontRow(menu, caption);
         ASSERT_NE(row, nullptr) << caption.toStdString();
         EXPECT_EQ(row->font().family(), menu->font().family()) << caption.toStdString();
