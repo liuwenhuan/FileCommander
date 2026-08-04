@@ -850,8 +850,6 @@ void MainWindow::buildTitleBarMenus() {
     // menus so we don't leak them. setMenuWidget() deletes the old title bar.
     delete m_toolsMenu;
     delete m_configMenu;
-    m_phosphorImagesAction = nullptr;
-    m_phosphorPreviewAction = nullptr;
     delete m_interfaceMenu;
 
     auto *toolsMenu = new QMenu(tr("&Tools"), this);
@@ -947,34 +945,31 @@ void MainWindow::buildTitleBarMenus() {
                 [this, theme = entry.theme]() { setTheme(theme); });
     }
 
-    // Content recolouring. Disabled (not hidden) outside the CRT theme: a
-    // vanishing entry reads as a missing feature, a greyed one reads as "not
-    // applicable here", which is what it is.
+    // Content recolouring, under every theme -- each recolours to a bright
+    // member of its own palette (see ThemeManager::apply).
     themeMenu->addSeparator();
     // Two switches, not one. The file list's pictures and the picture someone
     // opened to LOOK at are different decisions -- recolouring a wall of small
     // thumbnails is decoration, recolouring the image in the preview pane
     // changes what is being examined.
-    m_phosphorImagesAction = themeMenu->addAction(tr("Image Colours Follow Theme"));
-    m_phosphorImagesAction->setObjectName(QStringLiteral("interfacePhosphorImagesAction"));
-    m_phosphorImagesAction->setCheckable(true);
-    m_phosphorImagesAction->setChecked(m_settings.phosphorImages());
-    m_phosphorImagesAction->setEnabled(m_settings.theme() == Settings::Theme::Crt);
-    m_phosphorImagesAction->setToolTip(
+    QAction *imageColours = themeMenu->addAction(tr("Image Colours Follow Theme"));
+    imageColours->setObjectName(QStringLiteral("interfacePhosphorImagesAction"));
+    imageColours->setCheckable(true);
+    imageColours->setChecked(m_settings.phosphorImages());
+    imageColours->setToolTip(
         tr("Recolour the file list's icons and thumbnails to the theme's hue. "
-           "The preview pane is not affected. Only applies to the Green CRT theme."));
-    connect(m_phosphorImagesAction, &QAction::triggered, this,
+           "The preview pane is not affected."));
+    connect(imageColours, &QAction::triggered, this,
             &MainWindow::setPhosphorImages);
 
-    m_phosphorPreviewAction = themeMenu->addAction(tr("Preview Colours Follow Theme"));
-    m_phosphorPreviewAction->setObjectName(QStringLiteral("interfacePhosphorPreviewAction"));
-    m_phosphorPreviewAction->setCheckable(true);
-    m_phosphorPreviewAction->setChecked(m_settings.phosphorPreview());
-    m_phosphorPreviewAction->setEnabled(m_settings.theme() == Settings::Theme::Crt);
-    m_phosphorPreviewAction->setToolTip(
+    QAction *previewColours = themeMenu->addAction(tr("Preview Colours Follow Theme"));
+    previewColours->setObjectName(QStringLiteral("interfacePhosphorPreviewAction"));
+    previewColours->setCheckable(true);
+    previewColours->setChecked(m_settings.phosphorPreview());
+    previewColours->setToolTip(
         tr("Recolour images, video and documents shown in the preview pane to the "
-           "theme's hue. Only applies to the Green CRT theme."));
-    connect(m_phosphorPreviewAction, &QAction::triggered, this,
+           "theme's hue."));
+    connect(previewColours, &QAction::triggered, this,
             &MainWindow::setPhosphorPreview);
 
     QMenu *languageMenu = interfaceMenu->addMenu(tr("&Language"));
@@ -1232,11 +1227,6 @@ void MainWindow::syncInterfaceMenuState() {
     }
     syncChecked(QStringLiteral("interfacePhosphorImagesAction"), m_settings.phosphorImages());
     syncChecked(QStringLiteral("interfacePhosphorPreviewAction"), m_settings.phosphorPreview());
-    for (const QString &name : {QStringLiteral("interfacePhosphorImagesAction"),
-                                QStringLiteral("interfacePhosphorPreviewAction")}) {
-        if (QAction *action = m_interfaceMenu->findChild<QAction *>(name))
-            action->setEnabled(m_settings.theme() == Settings::Theme::Crt);
-    }
     syncChecked(QStringLiteral("interfaceFunctionKeyBarAction"), !m_functionKeyBar->isHidden());
     syncChecked(QStringLiteral("interfaceCommandBarAction"), !m_commandBar->isHidden());
     syncChecked(QStringLiteral("interfaceTabBarAction"), m_settings.showTabBar());
@@ -4206,10 +4196,6 @@ void MainWindow::applyTheme() {
             viewer->refreshPhosphor();
     }
     // Menu entries that only apply to the CRT theme.
-    if (m_phosphorImagesAction)
-        m_phosphorImagesAction->setEnabled(m_settings.theme() == Settings::Theme::Crt);
-    if (m_phosphorPreviewAction)
-        m_phosphorPreviewAction->setEnabled(m_settings.theme() == Settings::Theme::Crt);
 }
 
 void MainWindow::setLanguage(const QString &language) {

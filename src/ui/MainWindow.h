@@ -359,8 +359,6 @@ private:
     QMenu *m_toolsMenu = nullptr;    // owned; rebuilt on language change
     QMenu *m_configMenu = nullptr;   // owned; rebuilt on language change
     QMenu *m_interfaceMenu = nullptr; // owned; rebuilt on language change
-    QAction *m_phosphorImagesAction = nullptr;  // enabled only under the CRT theme
-    QAction *m_phosphorPreviewAction = nullptr; // ditto
     bool m_shortcutsBuilt = false;   // one-shot guard for QShortcut creation
 
     // Frameless-chrome paint cache: the shadow + rounded frame rendered once at

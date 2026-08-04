@@ -18,8 +18,10 @@ public:
 
     // The two content switches, from Settings: `phosphorImages` covers the file
     // list's pictures (thumbnails and file-type icons), `phosphorPreview` the
-    // preview pane. Both ignored outside the CRT theme -- see the note in
-    // apply(). Chrome glyphs follow the theme regardless of either.
+    // preview pane. Both apply under every theme, each recolouring to a bright
+    // member of that theme's own palette -- see the note in apply() for why the
+    // colour must be bright. Chrome glyphs follow the theme regardless of
+    // either.
     void apply(Settings::Theme theme, bool phosphorImages = true,
                bool phosphorPreview = true);
     Settings::Theme requestedTheme() const { return m_requestedTheme; }

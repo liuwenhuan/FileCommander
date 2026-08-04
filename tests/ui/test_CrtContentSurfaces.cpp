@@ -367,9 +367,39 @@ TEST(CrtContentSurfacesTest, TheImageAndPreviewSwitchesAreIndependent) {
     EXPECT_FALSE(IconCache::instance().fileIconTint().isValid());
     EXPECT_TRUE(fc::previewTint().isValid());
 
-    // Outside the CRT theme neither applies, whatever they are set to.
-    manager.apply(Settings::Theme::Light, true, true);
+    // Off means off under every theme.
+    manager.apply(Settings::Theme::Light, false, false);
     EXPECT_FALSE(fc::thumbnailTint().isValid());
     EXPECT_FALSE(fc::previewTint().isValid());
     EXPECT_FALSE(IconCache::instance().fileIconTint().isValid());
+}
+
+// The mapping is luma -> tint * k, so the tint is literally what WHITE becomes.
+// A dark one therefore does not "tint" an image, it darkens it: the light
+// theme's chrome colour (#404040) turned every folder, globe and document into
+// a grey slab. Whatever palette a theme picks from, the content colour has to
+// be a bright member of it.
+TEST(CrtContentSurfacesTest, EveryThemesContentTintIsBrightEnoughToTintRatherThanDarken) {
+    ThemeManager manager;
+    struct Restore {
+        ~Restore() {
+            fc::setThumbnailTint(QColor());
+            fc::setPreviewTint(QColor());
+            IconCache::instance().setFileIconTint(QColor());
+        }
+    } restore;
+
+    for (Settings::Theme theme : {Settings::Theme::Crt, Settings::Theme::Dark,
+                                  Settings::Theme::Light}) {
+        manager.apply(theme, true, true);
+        const QColor tint = fc::thumbnailTint();
+        ASSERT_TRUE(tint.isValid()) << "theme " << int(theme);
+        EXPECT_EQ(tint, fc::previewTint()) << "both surfaces recolour to the same hue";
+        EXPECT_EQ(tint, IconCache::instance().fileIconTint());
+        // Anything below this and white maps to something a viewer reads as
+        // "the picture went dark" rather than "the picture is tinted".
+        EXPECT_GE(tint.lightness(), 140)
+            << "theme " << int(theme) << " content tint " << tint.name().toStdString()
+            << " is what white becomes -- too dark to be a tint";
+    }
 }

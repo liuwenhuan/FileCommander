@@ -105,14 +105,34 @@ void ThemeManager::apply(Settings::Theme theme, bool phosphorImages, bool phosph
 
     // File icons and thumbnails together, under the images switch: they sit in
     // the same grid, and "the pictures in the file list match the theme" is one
-    // idea whether a cell shows a generated thumbnail or a type icon. CRT only
-    // either way -- collapsing every icon to one hue IS that theme, since a
-    // stylesheet cannot reach the system icon theme and a surviving blue folder
-    // would be the one thing giving it away.
-    const QColor imageTint = crt && phosphorImages ? kPhosphor : QColor();
+    // idea whether a cell shows a generated thumbnail or a type icon.
+    //
+    // The colour has to be a BRIGHT one, whatever the theme. The mapping is
+    // luma -> tint * k, so the tint is what white becomes: #404040 (the colour
+    // the chrome glyphs use on a light background) turned every folder, globe
+    // and document into a dark grey slab, because that is exactly what it asks
+    // for. Each theme therefore names a light member of its own palette, and
+    // the result is a duotone in the theme's hue rather than a darkening.
+    QColor contentTint;
+    switch (effective) {
+    case Settings::Theme::Crt:
+        contentTint = kPhosphor;
+        break;
+    case Settings::Theme::Dark:
+        contentTint = QColor(0xe0, 0xe0, 0xe0); // clean greyscale; whites stay bright
+        break;
+    case Settings::Theme::Light:
+    case Settings::Theme::Auto:
+        // The light blue the app's own icon is drawn in, one family with
+        // light.qss's #3d7deb accent. Bright, so a photograph stays a
+        // photograph rather than turning into a silhouette.
+        contentTint = QColor(0x9c, 0xc0, 0xf0);
+        break;
+    }
+    const QColor imageTint = phosphorImages ? contentTint : QColor();
     IconCache::instance().setFileIconTint(imageTint, 0);
     fc::setThumbnailTint(imageTint);
-    fc::setPreviewTint(crt && phosphorPreview ? kPhosphor : QColor());
+    fc::setPreviewTint(phosphorPreview ? contentTint : QColor());
     fc::setContentPixelBlock(0);
 
     // The app icon is painted by us, so it is repainted rather than recoloured
