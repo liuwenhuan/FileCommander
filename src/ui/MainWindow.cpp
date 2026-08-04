@@ -3374,11 +3374,27 @@ void MainWindow::fillOpenWithMenu(QMenu *menu, const QString &path) {
     if (!path.isEmpty())
         handlers = fc::openWithHandlers(path);
 
-    QFileIconProvider icons;
+    // Through IconCache, not QFileIconProvider: these are the system's own
+    // artwork like a file-type icon, and they have to answer to the same tint
+    // as every other icon in the window -- straight from the provider they came
+    // out in full colour beside a menu of phosphor-green glyphs.
+    //
+    // It is cache-only, so the first time a type's applications are listed the
+    // icons are missing; the warm-up below fills them in and the actions pick
+    // them up while the menu is still open.
+    QVector<QPointer<QAction>> pending;
+    QStringList programs;
     const auto addHandler = [&](QMenu *target, const fc::OpenWithHandler &handler) {
         QAction *action = target->addAction(handler.displayName);
-        if (!handler.program.isEmpty())
-            action->setIcon(icons.icon(QFileInfo(handler.program)));
+        if (!handler.program.isEmpty()) {
+            const QIcon icon = IconCache::instance().systemIconForPath(handler.program);
+            if (icon.isNull()) {
+                pending.append(action);
+                programs.append(handler.program);
+            } else {
+                action->setIcon(icon);
+            }
+        }
         connect(action, &QAction::triggered, this,
                 [this, handler, path]() { runOpenWithHandler(handler, path); });
     };
@@ -3410,6 +3426,33 @@ void MainWindow::fillOpenWithMenu(QMenu *menu, const QString &path) {
         menu->addSeparator();
     QAction *browse = menu->addAction(tr("Choose Another Application…"));
     connect(browse, &QAction::triggered, this, [this]() { chooseApplicationAndOpen(); });
+
+    if (!programs.isEmpty())
+        warmOpenWithIcons(programs, pending);
+}
+
+void MainWindow::warmOpenWithIcons(const QStringList &programs,
+                                   const QVector<QPointer<QAction>> &actions) {
+    // Same shape as warmDriveIcons(): the shell query goes to a worker, because
+    // asking it here would stall the menu on whatever medium the application
+    // happens to live on. The actions are held weakly -- the menu may well be
+    // gone by the time this lands, which is not a failure.
+    auto *watcher = new QFutureWatcher<void>(this);
+    connect(watcher, &QFutureWatcher<void>::finished, this,
+            [watcher, programs, actions]() {
+                watcher->deleteLater();
+                for (int i = 0; i < actions.size() && i < programs.size(); ++i) {
+                    if (!actions[i])
+                        continue;
+                    const QIcon icon = IconCache::instance().systemIconForPath(programs[i]);
+                    if (!icon.isNull())
+                        actions[i]->setIcon(icon);
+                }
+            });
+    watcher->setFuture(QtConcurrent::run([programs]() {
+        for (const QString &program : programs)
+            IconCache::instance().warmSystemIconForPath(program);
+    }));
 }
 
 void MainWindow::compareDirectories() {

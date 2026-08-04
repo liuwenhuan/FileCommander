@@ -3,6 +3,7 @@
 #include "OpenWithHandlers.h"
 #include <QKeySequence>
 #include <QList>
+#include <QPointer>
 #include <QMainWindow>
 #include <QElapsedTimer>
 #include <QJsonObject>
@@ -44,6 +45,7 @@ class QShortcut;
 class QSplitter;
 class QTreeView;
 class QFileSystemModel;
+class QAction;
 class QMenu;
 class TitleBar;
 class RemovableDeviceMonitor;
@@ -185,6 +187,8 @@ private slots:
     // of what the system can launch, and the file dialog behind both.
     void fillOpenWithMenu(QMenu *menu, const QString &path);
     void runOpenWithHandler(const fc::OpenWithHandler &handler, const QString &path);
+    void warmOpenWithIcons(const QStringList &programs,
+                           const QVector<QPointer<QAction>> &actions);
     void chooseApplicationAndOpen();
     void toggleQuickView(); // Ctrl+Q
     void updateQuickView();

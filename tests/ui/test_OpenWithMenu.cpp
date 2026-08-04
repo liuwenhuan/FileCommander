@@ -4,9 +4,13 @@
 #include <QApplication>
 #include <QFile>
 #include <QMenu>
+#include <QFileIconProvider>
+#include <QImage>
 #include <QTemporaryDir>
 
+#include "IconCache.h"
 #include "MainWindow.h"
+#include "ThemeManager.h"
 #include "OpenWithHandlers.h"
 
 namespace {
@@ -135,4 +139,84 @@ TEST(OpenWithMenu, AnExtensionlessFileStillOffersTheFileDialog) {
     ASSERT_FALSE(menu.isNull());
     EXPECT_FALSE(menu->actions().isEmpty());
     EXPECT_TRUE(entryTexts(menu.data()).last().contains(QStringLiteral("Choose Another Application")));
+}
+
+namespace {
+
+QImage iconImage(const QIcon &icon) {
+    return icon.isNull() ? QImage() : icon.pixmap(32, 32).toImage();
+}
+
+} // namespace
+
+// The applications' icons come from the system, and the system draws them in
+// their own colours. Every other icon in the window answers to the theme, so
+// taken straight from QFileIconProvider these sat in full colour in a menu of
+// phosphor-green glyphs.
+TEST(OpenWithMenu, ApplicationIconsAreTintedLikeEverythingElse) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("note.txt"));
+    QFile file(path);
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    file.write("hello");
+    file.close();
+
+    QString program;
+    for (const fc::OpenWithHandler &handler : fc::openWithHandlers(path)) {
+        if (!handler.program.isEmpty() && QFileInfo::exists(handler.program)) {
+            program = handler.program;
+            break;
+        }
+    }
+    if (program.isEmpty())
+        GTEST_SKIP() << "no application with an executable is registered for .txt";
+
+    MainWindow window;
+    ThemeManager *themes = window.findChild<ThemeManager *>();
+    ASSERT_NE(themes, nullptr);
+    // The theme where tinting file artwork IS the theme.
+    themes->apply(Settings::Theme::Crt, true, true);
+
+    QScopedPointer<QMenu> menu(window.buildOpenWithMenu(path));
+    ASSERT_FALSE(menu.isNull());
+
+    // The cache answers only once the shell has been asked, which happens on a
+    // worker; the actions pick the icons up when it lands. Wait for THAT, not
+    // for the cache -- the worker warms every program before it reports back.
+    const auto firstIconAction = [&menu]() -> QAction * {
+        for (QAction *action : menu->actions()) {
+            if (QMenu *sub = action->menu()) {
+                for (QAction *inner : sub->actions())
+                    if (!inner->icon().isNull())
+                        return inner;
+                continue;
+            }
+            if (!action->icon().isNull())
+                return action;
+        }
+        return nullptr;
+    };
+    QElapsedTimer timer;
+    timer.start();
+    QAction *found = nullptr;
+    while (timer.elapsed() < 10000 && !found) {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+        found = firstIconAction();
+    }
+    const QIcon themed = IconCache::instance().systemIconForPath(program);
+    ASSERT_FALSE(themed.isNull()) << "the icon warm-up never produced " << program.toStdString();
+
+    ASSERT_NE(found, nullptr) << "no menu entry carries an icon at all";
+
+    // The tint has to have been applied: the same executable through the raw
+    // provider is what this used to show, and it must not look like that.
+    const QImage untinted = iconImage(QFileIconProvider().icon(QFileInfo(program)));
+    const QImage shown = iconImage(found->icon());
+    ASSERT_FALSE(shown.isNull());
+    ASSERT_FALSE(untinted.isNull());
+    EXPECT_NE(shown, untinted) << "the menu is showing the system's own colours";
+    EXPECT_EQ(shown, iconImage(themed)) << "the menu is not using the themed cache";
+
+    themes->apply(Settings::Theme::Dark, false, false);
 }
