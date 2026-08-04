@@ -74,6 +74,12 @@ public:
     // above).
     ~QuickView() override;
 
+    // Builds the video page without a clip, warming the media engine first
+    // because the page wires itself to it. The page is otherwise created only
+    // on the first video preview, which a test about the transport's LAYOUT has
+    // no business requiring. Null if no engine could be made.
+    QWidget *buildVideoPageForTest();
+
     void showFile(const QString &path);
     // Initializes the configured media backend once. MainWindow calls this after
     // first paint; a media request calls it immediately when it wins that race.

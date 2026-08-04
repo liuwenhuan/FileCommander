@@ -129,6 +129,12 @@ const TextEncoding kTextEncodings[] = {
     {"System", nullptr},
 };
 constexpr double kZoomStep = 1.25;
+
+// Floors for the video transport's two sliders. The seek bar is the control a
+// narrow preview pane must not take away -- a 20px seek bar cannot be seeked
+// with -- so it keeps the larger floor and volume gives way first.
+constexpr int kMinSeekWidth = 160;
+constexpr int kMinVolumeWidth = 44;
 constexpr double kMinScale = 0.05;
 constexpr double kMaxScale = 20.0;
 // PDF rendering: Poppler's renderToImage takes dpi; 72 dpi renders a page at
@@ -652,8 +658,6 @@ QWidget *QuickView::buildImagePage() {
     });
     toolbar->addAction(tr("Rotate Left"), this, [this]() { rotateCurrentImage(-90); });
     toolbar->addAction(tr("Rotate Right"), this, [this]() { rotateCurrentImage(90); });
-    toolbar->addAction(tr("< Prev"), this, [this]() { showPrevSibling(); });
-    toolbar->addAction(tr("Next >"), this, [this]() { showNextSibling(); });
 
     // Push the lock checkbox to the far right of the toolbar.
     auto *spacer = new QWidget(toolbar);
@@ -1021,6 +1025,15 @@ bool QuickView::isAudio(const QString &path) {
     return kAudioSuffixes.contains(FileInfo::suffixForName(QFileInfo(path).fileName()).toLower());
 }
 
+QWidget *QuickView::buildVideoPageForTest() {
+    // The page wires itself to the media engine, so the engine has to exist
+    // first -- warmMediaEngine() is what promotes an injected one (or builds
+    // the real backend). Null when no engine could be made, rather than a
+    // half-built page.
+    warmMediaEngine();
+    return m_mediaEngine ? ensureVideoPage() : nullptr;
+}
+
 QWidget *QuickView::ensureVideoPage() {
     if (!m_videoPage)
         m_stack->addWidget(buildVideoPage());
@@ -1092,7 +1105,9 @@ QWidget *QuickView::buildVideoPage() {
     // SeekSlider (not a plain QSlider) so clicking anywhere on the bar jumps
     // there, as in every other player.
     m_progressSlider = new SeekSlider(Qt::Horizontal, m_videoPage);
+    m_progressSlider->setObjectName(QStringLiteral("quickViewVideoSeek"));
     m_progressSlider->setRange(0, 1000);
+    m_progressSlider->setMinimumWidth(kMinSeekWidth);
     m_progressSlider->setToolTip(tr("Seek"));
     connect(m_progressSlider, &QSlider::sliderPressed, this, [this]() { m_seeking = true; });
     connect(m_progressSlider, &QSlider::sliderReleased, this, [this]() {
@@ -1124,7 +1139,12 @@ QWidget *QuickView::buildVideoPage() {
     m_volumeSlider->setObjectName(QStringLiteral("quickViewVideoVolume"));
     m_volumeSlider->setRange(0, 100);
     m_volumeSlider->setValue(m_settings.videoVolume());
-    m_volumeSlider->setFixedWidth(90);
+    // Fixed-width meant the seek bar absorbed every pixel a narrow pane took
+    // away, until it was too short to seek with -- the one control that has to
+    // stay usable. Volume gives way first now: it may shrink to
+    // kMinVolumeWidth, while the seek bar stops at kMinSeekWidth.
+    m_volumeSlider->setMinimumWidth(kMinVolumeWidth);
+    m_volumeSlider->setMaximumWidth(90);
     m_volumeSlider->setToolTip(tr("Volume"));
     connect(m_volumeSlider, &QSlider::valueChanged, this, [this](int value) {
         m_mediaEngine->setVolume(value);
@@ -1134,8 +1154,18 @@ QWidget *QuickView::buildVideoPage() {
             m_muteButton->setChecked(false); // its toggle handler unmutes + persists
     });
 
-    m_videoInfoCheck = new QCheckBox(tr("Show info"), m_videoPage);
+    // A toolbar above the video, matching the image page's. "Show info" lives
+    // here rather than down among the transport controls: it is a view option,
+    // like the image page's, not something you reach for mid-playback -- and
+    // the transport row is exactly where width runs out first.
+    auto *videoToolbar = new QToolBar(m_videoPage);
+    auto *videoSpacer = new QWidget(videoToolbar);
+    videoSpacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    videoToolbar->addWidget(videoSpacer);
+
+    m_videoInfoCheck = new QCheckBox(tr("Show info"), videoToolbar);
     m_videoInfoCheck->setToolTip(tr("Overlay basic video information"));
+    videoToolbar->addWidget(m_videoInfoCheck);
     connect(m_videoInfoCheck, &QCheckBox::toggled, this, [this](bool on) {
         if (on && m_stack->currentWidget() == m_videoPage) {
             updateVideoInfoOverlay();
@@ -1154,10 +1184,10 @@ QWidget *QuickView::buildVideoPage() {
     controls->addWidget(m_muteButton);
     controls->addWidget(volumeLabel);
     controls->addWidget(m_volumeSlider);
-    controls->addWidget(m_videoInfoCheck);
 
     auto *layout = new QVBoxLayout(m_videoPage);
     layout->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(videoToolbar);
     layout->addWidget(m_videoSurface, 1);
     layout->addLayout(controls);
 
@@ -3070,6 +3100,16 @@ bool QuickView::eventFilter(QObject *watched, QEvent *event) {
         watched == m_imageLabel || watched == m_imageScroll->viewport();
     if (watched == m_imageScroll->viewport() && event->type() == QEvent::Resize) {
         positionInfoOverlay(); // keep the panel pinned to the top-right corner
+        // ...and re-fit, which is the only chance the FIRST image gets. A
+        // QStackedLayout lays out just its current page, so until this page is
+        // revealed the viewport is still Qt's default ~100x30 -- and the fit
+        // was computed against that, when the image finished loading. Every
+        // later image is fitted correctly because the page is current by then,
+        // which is why only the first one looked wrong. The PDF and slide
+        // viewports just above already refit on this event; the image path was
+        // the odd one out.
+        if (m_imageFitMode && !m_originalImage.isNull())
+            m_refitTimer->start();
         // fall through to default handling
     }
     if (onImage) {

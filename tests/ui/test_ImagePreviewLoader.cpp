@@ -805,3 +805,56 @@ TEST(ImagePreviewLoader, ThemeRefreshSupersedesPendingRender) {
     EXPECT_GT(center.green(), center.red());
     EXPECT_GT(center.green(), center.blue());
 }
+
+// The FIRST image after launch was not fitted to the pane; every later one was.
+//
+// A QStackedLayout lays out only its current page, so until the image page is
+// revealed its scroll viewport is still Qt's default ~100x30 -- and that is
+// what fitScale() measured, at the moment the image finished loading. The page
+// becomes current afterwards, and nothing recomputed the fit against the real
+// size. From the second image on the page is already current, which is exactly
+// why only the first looked wrong.
+//
+// Asserted with "fills one axis", not "does not overflow": a scale of 0.05
+// satisfies the latter perfectly, which is how the existing rotate test passed
+// straight through this.
+TEST(ImagePreviewLoader, TheFirstImageAfterLaunchIsFittedToThePane) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QDir root(dir.path());
+    // Wider than tall, and bigger than the pane, so fitting is width-bound and
+    // the result is unambiguous.
+    const QString path =
+        writeImage(root, QStringLiteral("first.png"), QSize(1600, 400), Qt::cyan, "PNG");
+    ASSERT_FALSE(path.isEmpty());
+
+    Settings settings(root.filePath(QStringLiteral("settings.ini")));
+    QuickView view(settings);
+    view.resize(640, 480);
+    view.show();
+    QTest::qWaitForWindowExposed(&view);
+
+    // The very first showFile() of this QuickView -- no earlier image, no
+    // rotate, nothing that would have laid the page out already.
+    view.showFile(path);
+    auto *loader = view.findChild<ImagePreviewLoader *>();
+    ASSERT_NE(loader, nullptr);
+    ASSERT_TRUE(loader->waitForIdleForTest(5000));
+
+    QLabel *label = imageLabel(view);
+    auto *scroll = view.findChild<QScrollArea *>(QStringLiteral("imagePreviewScroll"));
+    ASSERT_NE(label, nullptr);
+    ASSERT_NE(scroll, nullptr);
+
+    // The refit is debounced; give it its timer plus the re-render.
+    QTest::qWait(200);
+    ASSERT_TRUE(loader->waitForIdleForTest(5000));
+    ASSERT_NE(label->pixmap(), nullptr);
+
+    const int viewportWidth = scroll->viewport()->width();
+    ASSERT_GT(viewportWidth, 200) << "the pane itself never got laid out";
+    EXPECT_LE(label->pixmap()->width(), viewportWidth);
+    EXPECT_GE(label->pixmap()->width(), viewportWidth - 24)
+        << "first image is " << label->pixmap()->width() << "px wide in a "
+        << viewportWidth << "px viewport -- it was fitted to something else";
+}
