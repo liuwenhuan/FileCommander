@@ -227,6 +227,25 @@ void ThumbnailDelegate::paint(QPainter *painter, const QStyleOptionViewItem &opt
             if (!icon.isNull()) {
                 pixmap = icon.pixmap(QSize(m_iconSize, m_iconSize));
                 pixmapDpr = pixmap.devicePixelRatio() > 0 ? pixmap.devicePixelRatio() : 1.0;
+                // QIcon::pixmap() scales a bitmap DOWN to the size asked for but
+                // never up, so a type whose icon tops out at 48px was drawn at
+                // 48px -- a small badge marooned in a tile the user had zoomed
+                // to 192. Most types register a 256px variant and never hit
+                // this; the ones that do not are the "some icons don't follow
+                // the zoom" the grid was reported for.
+                //
+                // Measured and grown in LOGICAL pixels, keeping the pixmap's own
+                // dpr tag: the size asked for above is logical too, and QIcon
+                // already did the HiDPI arithmetic to answer it. Re-doing that
+                // here in device pixels would overflow the box by the scale
+                // factor. KeepAspectRatio because a few icons are not square.
+                const int longest = qRound(qMax(pixmap.width(), pixmap.height()) / pixmapDpr);
+                if (longest > 0 && longest < m_iconSize) {
+                    const int target = qRound(m_iconSize * pixmapDpr);
+                    pixmap = pixmap.scaled(QSize(target, target), Qt::KeepAspectRatio,
+                                           Qt::SmoothTransformation);
+                    pixmap.setDevicePixelRatio(pixmapDpr);
+                }
             }
         }
 
