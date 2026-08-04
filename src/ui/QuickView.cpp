@@ -475,9 +475,30 @@ void QuickView::warmMediaEngine() {
                     m_videoTimer->stop();
                 if (m_audioTimer)
                     m_audioTimer->stop();
-                m_info->setText(message);
+                const QString help = m_mediaEngine->lastErrorHelpUrl();
+                if (help.isEmpty()) {
+                    m_info->setTextFormat(Qt::PlainText);
+                    m_info->setText(message);
+                } else {
+                    // The message is escaped, the link is ours: a file name can
+                    // contain angle brackets and would otherwise be eaten as
+                    // markup.
+                    m_info->setTextFormat(Qt::RichText);
+                    m_info->setOpenExternalLinks(true);
+                    m_info->setText(message.toHtmlEscaped() +
+                                    QStringLiteral("<br><br><a href=\"%1\">%2</a>")
+                                        .arg(help.toHtmlEscaped(),
+                                             tr("Download a decoder").toHtmlEscaped()));
+                }
                 revealStaticPage(m_info);
             });
+
+    // The backend learns that the length it reported is unusable only once
+    // playback runs past it, so this arrives mid-clip rather than at load.
+    connect(m_mediaEngine, &MediaEngine::durationChanged, this, [this](double) {
+        if (m_mediaEngine->durationIsUnknown())
+            applyUnknownDuration();
+    });
 
     // The backend accepted a seek and then could not finish it, so it reloaded
     // the clip; playback is alive again, from the start. Say so instead of
@@ -1267,8 +1288,14 @@ QWidget *QuickView::buildVideoPage() {
                                                                 : tr("Pause"));
         if (m_seeking)
             return;
-        const double dur = m_mediaEngine->durationSeconds();
-        if (dur > 0.0) {
+        // A backend that cannot say how long the clip is cannot be seeked
+        // either -- it clamps every request to the length it wrongly believes
+        // in. Leaving the bar live would let the user drag it and be thrown
+        // somewhere else entirely, so it goes dead instead, once, with a
+        // notice saying why.
+        if (m_mediaEngine->durationIsUnknown()) {
+            applyUnknownDuration();
+        } else if (const double dur = m_mediaEngine->durationSeconds(); dur > 0.0) {
             const double frac = m_mediaEngine->positionSeconds() / dur;
             m_progressSlider->setValue(qBound(0, static_cast<int>(frac * 1000.0), 1000));
         }
@@ -1372,6 +1399,21 @@ void QuickView::positionVideoInfoOverlay() {
     const int x = qMax(8, vw - m_videoInfoOverlay->width() - 8);
     m_videoInfoOverlay->move(x, 8);
     m_videoInfoOverlay->raise();
+}
+
+void QuickView::applyUnknownDuration() {
+    // A backend that cannot say how long the clip is cannot be seeked either:
+    // it clamps every request to the length it wrongly believes in (measured --
+    // a request for 480 s returned S_OK and landed at 7.47). Leaving the bar
+    // live would let the user drag it and be thrown somewhere else entirely.
+    if (!m_progressSlider || !m_progressSlider->isEnabled())
+        return;
+    m_progressSlider->setEnabled(false);
+    m_progressSlider->setValue(0);
+    m_progressSlider->setToolTip(
+        tr("This file does not say how long it is, so it cannot be seeked."));
+    showVideoNotice(tr("This file does not record its own length, so the position bar "
+                       "and seeking are unavailable. Playback is unaffected."));
 }
 
 void QuickView::showVideoNotice(const QString &text) {

@@ -49,6 +49,23 @@ public:
     virtual QString videoCodec() const { return {}; }
     virtual QString videoMode() const { return {}; }
 
+    // A page the user can go to in order to fix the last failure themselves --
+    // currently only the missing-decoder case, where installing one is the
+    // whole remedy and the app can do nothing else. Empty when there is
+    // nothing useful to point at, which is the normal case.
+    virtual QString lastErrorHelpUrl() const { return {}; }
+
+    // The backend's reported duration is provably wrong, so there is no total
+    // length to show and no fraction to seek by.
+    //
+    // MPEG program streams carry no duration field at all, and Media Foundation
+    // has to guess. Measured on a 438 MB, 8.5-minute file whose SCR wraps its
+    // 33 bits in the first packet: it guesses 7.47 s, never revises it, plays
+    // happily past it -- and CLAMPS every seek to it, so a request for 480 s
+    // returns S_OK and lands at 7.47. Knowing the real length would not help;
+    // the engine will not go there.
+    virtual bool durationIsUnknown() const { return false; }
+
 signals:
     void stateChanged(MediaState state);
     void positionChanged(double seconds);

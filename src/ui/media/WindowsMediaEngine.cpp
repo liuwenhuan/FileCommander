@@ -82,6 +82,12 @@ QImage imageFromWicBitmap(IWICBitmap *bitmap, int width, int height) {
 
 } // namespace
 
+// Microsoft sells the MPEG-2 extension through the Store, but the Store entry
+// cannot be opened from here in a way that lands on the right page for every
+// Windows edition, and this address is the one the user asked for.
+const char *WindowsMediaEngine::kMpegDecoderHelpUrl =
+    "https://mpeg-2-video-extension.en.uptodown.com/windows/download";
+
 class WindowsMediaEngine::Notify final : public IMFMediaEngineNotify {
 public:
     explicit Notify(WindowsMediaEngine *owner) : m_owner(owner) {}
@@ -450,6 +456,7 @@ void WindowsMediaEngine::setFailure(const QString &message) {
 
 void WindowsMediaEngine::clearObservedValues() {
     m_seekWatchdog.disarm();
+    m_durationUnreliable = false;
     m_positionAtLastFrame = 0.0;
     m_reportedIncomplete = false;
     m_duration = 0.0;
@@ -474,6 +481,12 @@ void WindowsMediaEngine::updateTimeline() {
     if (std::isfinite(position) && differs(position, m_position)) {
         m_position = position;
         emit positionChanged(m_position);
+    }
+    // Playing past the end proves the end was never known. One second of slack
+    // so an ordinary rounding difference at the last frame does not trip it.
+    if (!m_durationUnreliable && m_duration > 0.0 && m_position > m_duration + 1.0) {
+        m_durationUnreliable = true;
+        emit durationChanged(m_duration);
     }
 }
 
@@ -556,6 +569,11 @@ void WindowsMediaEngine::onMediaEvent(unsigned long event, quint64 param1, unsig
     case MF_MEDIA_ENGINE_EVENT_ABORT:
         break;
     case MF_MEDIA_ENGINE_EVENT_ERROR:
+        // Only the missing/blocked decoder has somewhere useful to send the
+        // user; every other failure is about this file, not about Windows.
+        m_helpUrl = param1 == MF_MEDIA_ENGINE_ERR_SRC_NOT_SUPPORTED
+                        ? QString::fromLatin1(kMpegDecoderHelpUrl)
+                        : QString();
         setFailure(errorText(param1, param2, m_source.path));
         break;
     case MF_MEDIA_ENGINE_EVENT_STREAMRENDERINGERROR: {

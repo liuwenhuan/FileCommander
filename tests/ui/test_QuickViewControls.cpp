@@ -233,9 +233,23 @@ public:
     }
     void reportStuckSeek() { emit seekUnsupported(); }
     void reportIncompleteFile() { emit mediaIncomplete(); }
+    void reportFailure(const QString &message, const QString &helpUrl) {
+        m_helpUrl = helpUrl;
+        emit errorOccurred(message);
+    }
+    QString lastErrorHelpUrl() const override { return m_helpUrl; }
+    bool durationIsUnknown() const override { return m_durationUnknown; }
+    void setDurationUnknown(bool unknown) {
+        m_durationUnknown = unknown;
+        emit durationChanged(durationSeconds());
+    }
+    double durationSeconds() const override { return 7.47; }
+    MediaState state() const override { return MediaState::Playing; }
 
 private:
     QPointer<QWidget> m_surface;
+    QString m_helpUrl;
+    bool m_durationUnknown = false;
 };
 
 } // namespace
@@ -334,4 +348,93 @@ TEST(QuickViewControls, AnIncompleteFileIsExplainedOverTheFrozenPicture) {
         if (label->text() == shown.first())
             ++carriers;
     EXPECT_EQ(carriers, 1) << "the message also landed on the failure page";
+}
+
+// Windows carries no MPEG-2 decoder it is licensed to run, so the only way out
+// is for the user to install one. The failure page therefore offers the page to
+// get it from, as a link they can click.
+TEST(QuickViewControls, AMissingDecoderFailureOffersAClickableDownloadLink) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    Settings settings(dir.filePath(QStringLiteral("settings.ini")));
+    auto engine = std::make_unique<SeekReportingEngine>();
+    auto *raw = engine.get();
+    QuickView view(settings, QuickView::Context::Embedded, nullptr, std::move(engine));
+    view.show();
+    qApp->processEvents();
+    view.buildVideoPageForTest(); // wires the engine's signals
+
+    const QString url =
+        QStringLiteral("https://mpeg-2-video-extension.en.uptodown.com/windows/download");
+    raw->reportFailure(QStringLiteral("Windows has a decoder but is not licensed to run it."),
+                       url);
+    qApp->processEvents();
+
+    QLabel *carrier = nullptr;
+    for (QLabel *label : view.findChildren<QLabel *>()) {
+        if (label->text().contains(url))
+            carrier = label;
+    }
+    ASSERT_NE(carrier, nullptr) << "the failure page offers no link at all";
+    // A link, not a bare URL printed as text: it has to be clickable, and the
+    // click has to leave the application.
+    EXPECT_EQ(carrier->textFormat(), Qt::RichText);
+    EXPECT_TRUE(carrier->text().contains(QStringLiteral("<a href=")));
+    EXPECT_TRUE(carrier->openExternalLinks());
+}
+
+// ...and an ordinary failure, which the user can do nothing about, must not
+// grow a download link.
+TEST(QuickViewControls, AnOrdinaryFailureOffersNoLink) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    Settings settings(dir.filePath(QStringLiteral("settings.ini")));
+    auto engine = std::make_unique<SeekReportingEngine>();
+    auto *raw = engine.get();
+    QuickView view(settings, QuickView::Context::Embedded, nullptr, std::move(engine));
+    view.show();
+    qApp->processEvents();
+    view.buildVideoPageForTest();
+
+    raw->reportFailure(QStringLiteral("The file could not be read to the end."), QString());
+    qApp->processEvents();
+    for (QLabel *label : view.findChildren<QLabel *>())
+        EXPECT_FALSE(label->text().contains(QStringLiteral("<a href=")))
+            << label->text().toStdString();
+}
+
+// A backend that cannot say how long the clip is clamps every seek to the
+// length it wrongly believes in -- measured, a request for 480 s returned S_OK
+// and landed at 7.47. A live seek bar would throw the user somewhere else
+// entirely, so it goes dead and says why.
+TEST(QuickViewControls, AnUnknownLengthDisablesTheSeekBarRatherThanLyingAboutIt) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    Settings settings(dir.filePath(QStringLiteral("settings.ini")));
+    auto engine = std::make_unique<SeekReportingEngine>();
+    auto *raw = engine.get();
+    QuickView view(settings, QuickView::Context::Embedded, nullptr, std::move(engine));
+    view.resize(900, 600);
+    view.show();
+    qApp->processEvents();
+
+    QWidget *videoPage = view.buildVideoPageForTest();
+    ASSERT_NE(videoPage, nullptr);
+    QSlider *seek = sliderNamed(view, QStringLiteral("quickViewVideoSeek"));
+    ASSERT_NE(seek, nullptr);
+    EXPECT_TRUE(seek->isEnabled()) << "an ordinary clip must keep its seek bar";
+
+    // The backend finds this out mid-clip, once playback runs past the length
+    // it reported, and says so through durationChanged.
+    raw->setDurationUnknown(true);
+    qApp->processEvents();
+
+    EXPECT_FALSE(seek->isEnabled()) << "the bar still invites a seek that cannot work";
+    QStringList notices;
+    for (QLabel *label : videoPage->findChildren<QLabel *>())
+        if (!label->isHidden() && label->text().size() > 20)
+            notices << label->text();
+    ASSERT_EQ(notices.size(), 1) << notices.join(QStringLiteral(" | ")).toStdString();
+    EXPECT_TRUE(notices.first().contains(QStringLiteral("length"), Qt::CaseInsensitive))
+        << notices.first().toStdString();
 }

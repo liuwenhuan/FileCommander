@@ -55,6 +55,13 @@ public:
     bool muted() const override;
     QSize currentVideoSize() const override;
     QString videoCodec() const override;
+    QString lastErrorHelpUrl() const override { return m_helpUrl; }
+    bool durationIsUnknown() const override { return m_durationUnreliable; }
+
+    // Where a user is sent to get the decoder Windows will not supply. Public
+    // so a test can assert the failure page offers this exact page rather than
+    // some other address.
+    static const char *kMpegDecoderHelpUrl;
 
 private:
     class Notify;
@@ -112,6 +119,8 @@ private:
     quint64 m_holeGeneration = 0;
     double m_positionAtLastFrame = 0.0; // clock reading when a picture last changed
     bool m_reportedIncomplete = false;
+    QString m_helpUrl;
+    bool m_durationUnreliable = false;
     QElapsedTimer m_clock; // monotonic, feeds the watchdog
     quint64 m_loadGeneration = 0;
 };

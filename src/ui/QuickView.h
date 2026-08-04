@@ -318,6 +318,7 @@ private:
     void positionInfoOverlay();      // keep the image metadata panel pinned top-right
     void positionVideoInfoOverlay(); // same, over the video area
     void showVideoNotice(const QString &text); // transient banner over the video
+    void applyUnknownDuration();               // a length the backend cannot report
     // Rebuilds mpv's phosphor filter chain from the current tint, pixel block
     // and the width the video is drawn at. Idempotent; safe to call often.
     void applyVideoPhosphor();

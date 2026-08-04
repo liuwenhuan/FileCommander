@@ -3176,6 +3176,18 @@ Destination: %4 (%5)</source>
 <context>
     <name>QuickView</name>
     <message>
+        <source>Download a decoder</source>
+        <translation>下载解码器</translation>
+    </message>
+    <message>
+        <source>This file does not say how long it is, so it cannot be seeked.</source>
+        <translation>该文件未记录自身时长，无法跳转。</translation>
+    </message>
+    <message>
+        <source>This file does not record its own length, so the position bar and seeking are unavailable. Playback is unaffected.</source>
+        <translation>该文件未记录自身时长，进度条和跳转不可用，但不影响播放。</translation>
+    </message>
+    <message>
         <source>This file is incomplete — the rest of it was never written — so it cannot play through.</source>
         <translation>该文件并不完整，剩余部分从未写入，无法正常播放。</translation>
     </message>
