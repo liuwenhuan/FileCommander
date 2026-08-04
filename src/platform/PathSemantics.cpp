@@ -45,6 +45,26 @@ bool PathSemantics::equivalent(const QString &left, const QString &right, PathFl
     return QDir::cleanPath(left) == QDir::cleanPath(right);
 }
 
+bool PathSemantics::isInsideOrSame(const QString &path, const QString &ancestor,
+                                   PathFlavor flavor) {
+    if (path.isEmpty() || ancestor.isEmpty())
+        return false;
+    if (equivalent(path, ancestor, flavor))
+        return true;
+
+    const bool windows = flavor == PathFlavor::Windows;
+    const QChar separator = windows ? QLatin1Char('\\') : QLatin1Char('/');
+    QString child = windows ? windowsClean(path) : QDir::cleanPath(path);
+    QString parent = windows ? windowsClean(ancestor) : QDir::cleanPath(ancestor);
+    // A root keeps its trailing separator ("C:" + backslash, "/"), and appending
+    // another would leave a doubled one that never matches.
+    if (!parent.endsWith(separator))
+        parent.append(separator);
+    if (child.size() <= parent.size())
+        return false;
+    return windows ? child.startsWith(parent, Qt::CaseInsensitive) : child.startsWith(parent);
+}
+
 PlatformResult PathSemantics::validateComponent(const QString &component, PathFlavor flavor) {
     if (component.isEmpty() || component == QLatin1String(".") ||
         component == QLatin1String(".."))

@@ -1,3 +1,4 @@
+#include "PathSemantics.h"
 #include "FileOperations.h"
 #include "TrashService.h"
 
@@ -19,6 +20,16 @@
 #include "LocalFileProvider.h"
 
 namespace {
+
+// Which spelling rules this filesystem follows. PathSemantics is written to be
+// told rather than to guess, so that its tests can drive both.
+constexpr PathFlavor pathFlavor() {
+#ifdef Q_OS_WIN
+    return PathFlavor::Windows;
+#else
+    return PathFlavor::Posix;
+#endif
+}
 
 qint64 lastFileError()
 {
@@ -435,6 +446,23 @@ bool FileOperations::copyOne(const QString &source, const QString &destDir, bool
     QString destName = srcInfo.fileName();
     QString destPath = QDir(destDir).filePath(destName);
     bool overwrite = false;
+
+    // A directory cannot be copied into itself. The copy would write into the
+    // tree it is still reading and recurse into its own output, stopping only
+    // when the path outgrows the filesystem -- and nothing further down notices,
+    // because every individual file copy along the way is perfectly legal.
+    // Observed in the wild as a move of X into X/X that ran to 1.9 GB.
+    //
+    // Guarded here rather than only at the UI, because the menu, the keyboard
+    // commands and drag-and-drop all arrive through this one function.
+    if (srcInfo.isDir() && PathSemantics::isInsideOrSame(destDir, source, pathFlavor())) {
+        if (errorMessage) {
+            *errorMessage = removeSource
+                                ? QObject::tr("%1 cannot be moved into itself.").arg(source)
+                                : QObject::tr("%1 cannot be copied into itself.").arg(source);
+        }
+        return false;
+    }
 
     // Dropping/pasting an entry into the directory it already lives in.
     // We must never run the remove+copy path below on this: destPath IS the

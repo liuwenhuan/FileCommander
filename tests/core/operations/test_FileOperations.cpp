@@ -661,3 +661,85 @@ TEST(FileOperationsTest, CreateSymlinksRenamesOnNameConflict) {
     QFileInfo linkInfo(QDir(dstDir.path()).filePath("dup (1).txt"));
     EXPECT_TRUE(linkInfo.isSymLink());
 }
+
+namespace {
+
+// A directory with a file in it, so a recursive copy has something to chew on.
+QString makeTreeWithAFile(const QTemporaryDir &dir, const QString &name) {
+    const QString root = dir.filePath(name);
+    QDir().mkpath(root);
+    QFile file(QDir(root).filePath(QStringLiteral("payload.bin")));
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(QByteArray(64 * 1024, 'x'));
+        file.close();
+    }
+    return root;
+}
+
+} // namespace
+
+// Moving a directory into a place inside itself ran until the path outgrew the
+// filesystem: the copy walked into its own output. Measured in the wild at
+// 1.9 GB from a folder that was a fraction of that. Nothing below noticed,
+// because every single file copy it performed was legal.
+TEST(FileOperationsSelfCopy, ADirectoryCannotBeCopiedIntoItself) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString source = makeTreeWithAFile(dir, QStringLiteral("tools"));
+    // Exactly the shape that was reported: a child of the source named after it.
+    const QString destination = QDir(source).filePath(QStringLiteral("tools"));
+    QDir().mkpath(destination);
+
+    FileOperations ops;
+    QString error;
+    EXPECT_FALSE(ops.copyPaths({source}, destination, {}, &error));
+    EXPECT_FALSE(error.isEmpty()) << "refused without telling the user why";
+    EXPECT_TRUE(error.contains(QStringLiteral("itself"), Qt::CaseInsensitive))
+        << error.toStdString();
+
+    // ...and it refused before writing anything, rather than part way in.
+    EXPECT_FALSE(QFileInfo::exists(QDir(destination).filePath(QStringLiteral("tools"))));
+}
+
+TEST(FileOperationsSelfCopy, ADirectoryCannotBeMovedIntoItself) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString source = makeTreeWithAFile(dir, QStringLiteral("tools"));
+    const QString destination = QDir(source).filePath(QStringLiteral("nested"));
+    QDir().mkpath(destination);
+
+    FileOperations ops;
+    QString error;
+    EXPECT_FALSE(ops.movePaths({source}, destination, {}, &error));
+    // The source must still be there: a refused move that ate the source would
+    // be far worse than the recursion it is preventing.
+    EXPECT_TRUE(QFileInfo::exists(QDir(source).filePath(QStringLiteral("payload.bin"))));
+}
+
+// The guard must not refuse the ordinary neighbours of that case.
+TEST(FileOperationsSelfCopy, OrdinaryDestinationsAreStillAllowed) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString source = makeTreeWithAFile(dir, QStringLiteral("tools"));
+
+    // A sibling directory.
+    const QString sibling = dir.filePath(QStringLiteral("elsewhere"));
+    QDir().mkpath(sibling);
+    FileOperations ops;
+    QString error;
+    EXPECT_TRUE(ops.copyPaths({source}, sibling, {}, &error)) << error.toStdString();
+    EXPECT_TRUE(QFileInfo::exists(
+        QDir(sibling).filePath(QStringLiteral("tools/payload.bin"))));
+
+    // A directory whose name merely starts the same way.
+    const QString lookalike = dir.filePath(QStringLiteral("toolsets"));
+    QDir().mkpath(lookalike);
+    error.clear();
+    EXPECT_TRUE(ops.copyPaths({source}, lookalike, {}, &error)) << error.toStdString();
+
+    // And a plain file into the directory it already lives in still produces a
+    // numbered copy rather than being mistaken for a self-copy.
+    const QString file = QDir(source).filePath(QStringLiteral("payload.bin"));
+    error.clear();
+    EXPECT_TRUE(ops.copyPaths({file}, source, {}, &error)) << error.toStdString();
+}
