@@ -29,6 +29,7 @@ set(UI_TEST_SOURCES
     test_QuickViewControls.cpp
     test_ArchivePreviewAsync.cpp
     test_SeekWatchdog.cpp
+    test_OpenWithMenu.cpp
     test_ThumbnailIconScaling.cpp
     test_VideoRangePlan.cpp
     test_MediaEngineContract.cpp

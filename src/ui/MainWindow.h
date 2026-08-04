@@ -1,5 +1,6 @@
 #pragma once
 
+#include "OpenWithHandlers.h"
 #include <QKeySequence>
 #include <QList>
 #include <QMainWindow>
@@ -68,6 +69,10 @@ public:
     // to the active panel. Caller owns the returned menu. Public so a test can
     // exercise the commands without entering the popup's modal exec().
     QMenu *buildShortcutMenu(FilePanel *panel);
+    // The "Open With" submenu for `path`, filled. Caller owns it. Public for
+    // the same reason as buildShortcutMenu: the real one lives inside a modal
+    // popup, and this is the only way a test can look at what it offers.
+    QMenu *buildOpenWithMenu(const QString &path);
     void setActivePanel(FilePanel *panel);
     // Whether the silent update check should run now: automatic checking is on
     // and today's check has not been made yet.
@@ -176,6 +181,11 @@ private slots:
     void openTerminalHere();
     void openWithDefault();
     void openWith();
+    // "Open With": the applications registered for the file's type, the rest
+    // of what the system can launch, and the file dialog behind both.
+    void fillOpenWithMenu(QMenu *menu, const QString &path);
+    void runOpenWithHandler(const fc::OpenWithHandler &handler, const QString &path);
+    void chooseApplicationAndOpen();
     void toggleQuickView(); // Ctrl+Q
     void updateQuickView();
     // Remote-preview download callbacks (invoked from the worker thread via a

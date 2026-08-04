@@ -32,6 +32,7 @@
 #include <QWidgetAction>
 #include <QTreeWidget>
 #include <QFileDialog>
+#include <QFileIconProvider>
 #include <QFileSystemModel>
 #include <QIcon>
 #include <QInputDialog>
@@ -82,6 +83,7 @@
 #include "ArchiveHandler.h"
 #include "CommandBar.h"
 #include "ShellCommand.h"
+#include "OpenWithHandlers.h"
 #include "TerminalLauncher.h"
 #include "TranslationManager.h"
 #include "CompressDialog.h"
@@ -3309,27 +3311,105 @@ void MainWindow::openWithDefault() {
 }
 
 void MainWindow::openWith() {
+    // The keyboard command and any toolbar binding: no menu was opened, so go
+    // straight to the one choice that always exists.
+    chooseApplicationAndOpen();
+}
+
+void MainWindow::chooseApplicationAndOpen() {
     if (!m_activePanel)
         return;
     const QString path = m_activePanel->currentEntryPath();
     if (path.isEmpty())
         return;
-    bool ok = false;
-    const QString app = ttc::getText(this, tr("Open With"),
-                                              tr("Application command:"), QLineEdit::Normal,
-                                              QString(), &ok);
-    if (!ok || app.isEmpty())
+#ifdef Q_OS_WIN
+    const QString filter = tr("Programs (*.exe *.bat *.cmd *.com);;All files (*)");
+#else
+    const QString filter = tr("All files (*)");
+#endif
+    const QString app = QFileDialog::getOpenFileName(
+        this, tr("Choose an application to open %1").arg(QFileInfo(path).fileName()),
+        QString(), filter);
+    if (app.isEmpty())
+        return;
+    fc::OpenWithHandler handler;
+    handler.displayName = QFileInfo(app).completeBaseName();
+    handler.program = app;
+    runOpenWithHandler(handler, path);
+}
+
+void MainWindow::runOpenWithHandler(const fc::OpenWithHandler &handler, const QString &path) {
+    if (!m_activePanel || path.isEmpty())
         return;
     FileProvider *prov = m_activePanel->model()->provider();
     if (prov && !prov->displayName().isEmpty()) {
-        // Network tab: the command needs a real file, not the provider's path.
-        fetchRemoteCopy(m_activePanel, path,
-                        [app](const QString &localPath) {
-                            QProcess::startDetached(app, {localPath});
-                        });
+        // Network tab: the application needs a real file, not the provider's
+        // path, which names something on the server.
+        fetchRemoteCopy(m_activePanel, path, [handler](const QString &localPath) {
+            fc::launchOpenWithHandler(handler, localPath);
+        });
         return;
     }
-    QProcess::startDetached(app, {path});
+    if (!fc::launchOpenWithHandler(handler, path)) {
+        ttc::warning(this, tr("Open With"),
+                     tr("%1 could not be started.").arg(handler.displayName));
+    }
+}
+
+QMenu *MainWindow::buildOpenWithMenu(const QString &path) {
+    auto *menu = new QMenu(tr("Open With"));
+    Typography::applyChromeFont(menu, m_settings);
+    fillOpenWithMenu(menu, path);
+    return menu;
+}
+
+void MainWindow::fillOpenWithMenu(QMenu *menu, const QString &path) {
+    // Enumerating costs a shell round trip per registration, so it happens when
+    // the submenu is opened rather than on every right-click.
+    menu->clear();
+    QVector<fc::OpenWithHandler> handlers;
+    // An archive or network entry has no local name to look a type up by, but
+    // its EXTENSION is still meaningful -- the applications registered for a
+    // .png are the same ones whether the file sits on disk or inside a zip.
+    if (!path.isEmpty())
+        handlers = fc::openWithHandlers(path);
+
+    QFileIconProvider icons;
+    const auto addHandler = [&](QMenu *target, const fc::OpenWithHandler &handler) {
+        QAction *action = target->addAction(handler.displayName);
+        if (!handler.program.isEmpty())
+            action->setIcon(icons.icon(QFileInfo(handler.program)));
+        connect(action, &QAction::triggered, this,
+                [this, handler, path]() { runOpenWithHandler(handler, path); });
+    };
+
+    int recommended = 0;
+    for (const fc::OpenWithHandler &handler : handlers) {
+        if (!handler.recommended)
+            break; // tidyOpenWithHandlers() puts them all first
+        addHandler(menu, handler);
+        ++recommended;
+    }
+
+    if (recommended < handlers.size()) {
+        // Everything else the system can launch. It goes behind one more level
+        // only when there is a recommended list to keep at the top; with
+        // nothing registered for the type, burying the whole list would leave
+        // an "Open With" menu that appears to offer nothing.
+        QMenu *rest = menu;
+        if (recommended > 0) {
+            menu->addSeparator();
+            rest = menu->addMenu(tr("Other Applications"));
+            Typography::applyChromeFont(rest, m_settings);
+        }
+        for (int i = recommended; i < handlers.size(); ++i)
+            addHandler(rest, handlers[i]);
+    }
+
+    if (!menu->isEmpty())
+        menu->addSeparator();
+    QAction *browse = menu->addAction(tr("Choose Another Application…"));
+    connect(browse, &QAction::triggered, this, [this]() { chooseApplicationAndOpen(); });
 }
 
 void MainWindow::compareDirectories() {
@@ -4651,7 +4731,18 @@ void MainWindow::showFileContextMenu(FilePanel *panel, const QPoint &viewPos) {
     };
 
     add(QStringLiteral("open"), tr("Open"), [this] { openWithDefault(); });
-    add(QStringLiteral("openWith"), tr("Open With"), [this] { openWith(); });
+    if (isDirectory) {
+        add(QStringLiteral("openWith"), tr("Open With"), [this] { openWith(); });
+    } else {
+        // A submenu rather than a prompt: the applications registered for this
+        // file's type, then everything else installed, then the file dialog --
+        // which used to be the only thing on offer.
+        QMenu *openWithMenu = menu.addMenu(commandText(QStringLiteral("openWith"), tr("Open With")));
+        Typography::applyChromeFont(openWithMenu, m_settings);
+        const QString path = panel->currentEntryPath();
+        connect(openWithMenu, &QMenu::aboutToShow, this,
+                [this, openWithMenu, path]() { fillOpenWithMenu(openWithMenu, path); });
+    }
     if (!isDirectory) {
         if (isText)
             add(QStringLiteral("view"), tr("View"), [this] { viewCurrent(); });

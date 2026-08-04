@@ -921,6 +921,26 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
 <context>
     <name>MainWindow</name>
     <message>
+        <source>Other Applications</source>
+        <translation>其他应用</translation>
+    </message>
+    <message>
+        <source>Choose Another Application…</source>
+        <translation>选择其他应用…</translation>
+    </message>
+    <message>
+        <source>Choose an application to open %1</source>
+        <translation>选择用以打开 %1 的应用</translation>
+    </message>
+    <message>
+        <source>Programs (*.exe *.bat *.cmd *.com);;All files (*)</source>
+        <translation>程序 (*.exe *.bat *.cmd *.com);;所有文件 (*)</translation>
+    </message>
+    <message>
+        <source>%1 could not be started.</source>
+        <translation>无法启动 %1。</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/MainWindow.cpp" line="318"/>
         <location filename="../../src/ui/MainWindow.cpp" line="4235"/>
         <source>FileCommander</source>

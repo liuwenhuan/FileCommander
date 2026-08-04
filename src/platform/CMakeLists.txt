@@ -17,15 +17,19 @@ set(PLATFORM_SOURCES
     TerminalLauncher.cpp
     ShellCommand.h
     ShellCommand.cpp
+    OpenWithHandlers.h
+    OpenWithHandlers.cpp
 )
 if(WIN32)
     list(APPEND PLATFORM_SOURCES
+        windows/WindowsOpenWithHandlers.cpp
         windows/WindowsTrashService.cpp
         windows/WindowsCredentialStore.cpp
         windows/WindowsPrivilegeBroker.cpp
     )
 else()
     list(APPEND PLATFORM_SOURCES
+        linux/LinuxOpenWithHandlers.cpp
         linux/LinuxTrashService.cpp
         linux/LibsecretCredentialStore.cpp
         linux/LinuxPrivilegeBroker.cpp
