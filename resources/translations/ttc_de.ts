@@ -2572,7 +2572,7 @@ Dies ist endgültig und wird NICHT in den Papierkorb verschoben.</translation>
     <message>
         <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="57"/>
         <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="61"/>
-        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="111"/>
+        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="112"/>
         <source>Pause</source>
         <translation>Pause</translation>
     </message>
@@ -2582,32 +2582,32 @@ Dies ist endgültig und wird NICHT in den Papierkorb verschoben.</translation>
         <translation>Fortsetzen</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="103"/>
+        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="104"/>
         <source>%1 operation(s) queued</source>
         <translation>%1 Vorgang/Vorgänge in Warteschlange</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="130"/>
+        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="131"/>
         <source>%1 of %2 items</source>
         <translation>%1 von %2 Elementen</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="132"/>
+        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="133"/>
         <source>  ·  %1 / %2</source>
         <translation>  ·  %1 / %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="135"/>
+        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="136"/>
         <source>  ·  %1/s</source>
         <translation>  ·  %1/s</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="138"/>
+        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="139"/>
         <source>  ·  ETA %1</source>
         <translation>  ·  Restzeit %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="142"/>
+        <location filename="../../src/ui/dialogs/OperationProgressDialog.cpp" line="143"/>
         <source>  ·  elapsed %1</source>
         <translation>  ·  vergangen %1</translation>
     </message>
@@ -3130,68 +3130,68 @@ Ziel: %4 (%5)</translation>
 <context>
     <name>QuickView</name>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="162"/>
-        <location filename="../../src/ui/QuickView.cpp" line="3171"/>
+        <location filename="../../src/ui/QuickView.cpp" line="168"/>
+        <location filename="../../src/ui/QuickView.cpp" line="3223"/>
         <source>Select a file to preview</source>
         <translation>Datei zur Vorschau auswählen</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="646"/>
-        <location filename="../../src/ui/QuickView.cpp" line="2354"/>
-        <location filename="../../src/ui/QuickView.cpp" line="2687"/>
+        <location filename="../../src/ui/QuickView.cpp" line="652"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2396"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2729"/>
         <source>Zoom In</source>
         <translation>Vergrößern</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="647"/>
-        <location filename="../../src/ui/QuickView.cpp" line="2361"/>
-        <location filename="../../src/ui/QuickView.cpp" line="2693"/>
+        <location filename="../../src/ui/QuickView.cpp" line="653"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2403"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2735"/>
         <source>Zoom Out</source>
         <translation>Verkleinern</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="648"/>
+        <location filename="../../src/ui/QuickView.cpp" line="654"/>
         <source>Fit</source>
         <translation>Einpassen</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="653"/>
+        <location filename="../../src/ui/QuickView.cpp" line="659"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1172"/>
         <source>Rotate Left</source>
         <translation>Nach links drehen</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="654"/>
+        <location filename="../../src/ui/QuickView.cpp" line="660"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1173"/>
         <source>Rotate Right</source>
         <translation>Nach rechts drehen</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="655"/>
         <source>&lt; Prev</source>
-        <translation>&lt; Zurück</translation>
+        <translation type="vanished">&lt; Zurück</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="656"/>
         <source>Next &gt;</source>
-        <translation>Weiter &gt;</translation>
+        <translation type="vanished">Weiter &gt;</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="662"/>
+        <location filename="../../src/ui/QuickView.cpp" line="666"/>
         <source>Lock Zoom</source>
         <translation>Zoom sperren</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="663"/>
+        <location filename="../../src/ui/QuickView.cpp" line="667"/>
         <source>Keep the current zoom ratio for the next images</source>
         <translation>Aktuellen Zoomfaktor für die nächsten Bilder beibehalten</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="666"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1137"/>
+        <location filename="../../src/ui/QuickView.cpp" line="670"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1178"/>
         <source>Show info</source>
         <translation>Info anzeigen</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="667"/>
+        <location filename="../../src/ui/QuickView.cpp" line="671"/>
         <source>Overlay basic image information</source>
         <translation>Grundlegende Bildinformationen einblenden</translation>
     </message>
@@ -3200,22 +3200,22 @@ Ziel: %4 (%5)</translation>
         <translation type="vanished">Nur auf dem Bildschirm gedreht — konnte nicht auf der Festplatte gespeichert werden.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="842"/>
+        <location filename="../../src/ui/QuickView.cpp" line="846"/>
         <source>Wrap</source>
         <translation>Umbruch</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="848"/>
+        <location filename="../../src/ui/QuickView.cpp" line="852"/>
         <source>Hex</source>
         <translation>Hex</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="858"/>
+        <location filename="../../src/ui/QuickView.cpp" line="862"/>
         <source>Find… (Enter / F3)</source>
         <translation>Suchen… (Eingabe / F3)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="943"/>
+        <location filename="../../src/ui/QuickView.cpp" line="947"/>
         <source>
 
 [... truncated ...]</source>
@@ -3224,22 +3224,22 @@ Ziel: %4 (%5)</translation>
 [... abgeschnitten ...]</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="912"/>
+        <location filename="../../src/ui/QuickView.cpp" line="916"/>
         <source>Auto: Binary (Hex)</source>
         <translation>Automatisch: Binär (Hex)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="278"/>
+        <location filename="../../src/ui/QuickView.cpp" line="284"/>
         <source>Rotated on screen only - could not save to disk.</source>
         <translation>Nur auf dem Bildschirm gedreht – Speichern auf dem Datenträger nicht möglich.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="486"/>
+        <location filename="../../src/ui/QuickView.cpp" line="492"/>
         <source>Unknown media backend initialization error.</source>
         <translation>Unbekannter Fehler bei der Initialisierung des Medien-Backends.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="501"/>
+        <location filename="../../src/ui/QuickView.cpp" line="507"/>
         <source>Media preview could not start.
 
 %1
@@ -3252,103 +3252,103 @@ Restart File Commander to retry. If the problem continues, verify that the mpv m
 Starten Sie File Commander neu, um es erneut zu versuchen. Falls das Problem weiterhin besteht, prüfen Sie, ob das mpv-Medien-Backend korrekt installiert ist.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="915"/>
+        <location filename="../../src/ui/QuickView.cpp" line="919"/>
         <source>Auto: %1</source>
         <translation>Automatisch: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="917"/>
+        <location filename="../../src/ui/QuickView.cpp" line="921"/>
         <source> (ambiguous)</source>
         <translation> (mehrdeutig)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="922"/>
+        <location filename="../../src/ui/QuickView.cpp" line="926"/>
         <source>Manual: %1 (Hex)</source>
         <translation>Manuell: %1 (Hex)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="923"/>
+        <location filename="../../src/ui/QuickView.cpp" line="927"/>
         <source>Manual: %1</source>
         <translation>Manuell: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1052"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1060"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1068"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1172"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1071"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1079"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1087"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1214"/>
         <source>Play</source>
         <translation>Wiedergabe</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1060"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1069"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1173"/>
-        <location filename="../../src/ui/QuickView.cpp" line="3225"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1079"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1088"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1215"/>
+        <location filename="../../src/ui/QuickView.cpp" line="3281"/>
         <source>Pause</source>
         <translation>Pause</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1081"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1100"/>
         <source>1x</source>
         <translation>1x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1082"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1101"/>
         <source>1.5x</source>
         <translation>1.5x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1083"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1102"/>
         <source>2x</source>
         <translation>2x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1084"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1103"/>
         <source>3x</source>
         <translation>3x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1096"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1396"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1117"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1438"/>
         <source>Seek</source>
         <translation>Spulen</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1108"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1409"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1129"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1451"/>
         <source>Mute / unmute</source>
         <translation>Stummschalten / aufheben</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1122"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1421"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1143"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1463"/>
         <source>Vol</source>
         <translation>Laut.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1128"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1427"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1154"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1469"/>
         <source>Volume</source>
         <translation>Lautstärke</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1138"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1179"/>
         <source>Overlay basic video information</source>
         <translation>Grundlegende Videoinformationen einblenden</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1286"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1328"/>
         <source>&lt;b&gt;Duration:&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;Resolution:&lt;/b&gt; %2 &amp;times; %3&lt;br&gt;&lt;b&gt;Codec:&lt;/b&gt; %4</source>
         <translation>&lt;b&gt;Dauer:&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;Auflösung:&lt;/b&gt; %2 &amp;times; %3&lt;br&gt;&lt;b&gt;Codec:&lt;/b&gt; %4</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1288"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1289"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1330"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1331"/>
         <source>?</source>
         <translation>?</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1290"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1332"/>
         <source>unknown</source>
         <translation>unbekannt</translation>
     </message>
@@ -3399,12 +3399,12 @@ pip install --user msoffcrypto-tool</translation>
         <translation type="vanished">Seite %1 konnte nicht gerendert werden</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2592"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2634"/>
         <source>Page %1 / %2</source>
         <translation>Seite %1 / %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="3275"/>
+        <location filename="../../src/ui/QuickView.cpp" line="3331"/>
         <source>Cannot open PDF: %1</source>
         <translation>PDF kann nicht geöffnet werden: %1</translation>
     </message>
@@ -3417,137 +3417,137 @@ pip install --user msoffcrypto-tool</translation>
         <translation type="vanished">„%1“ ist verschlüsselt und kann nicht in der Vorschau angezeigt werden.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2014"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2056"/>
         <source>Cannot preview %1:
 %2</source>
         <translation>Vorschau für %1 nicht möglich:
 %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="784"/>
+        <location filename="../../src/ui/QuickView.cpp" line="788"/>
         <source>&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;%2 &amp;times; %3&lt;br&gt;%4&lt;br&gt;%5 bpp</source>
         <translation>&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;%2 &amp;times; %3&lt;br&gt;%4&lt;br&gt;%5 bpp</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="783"/>
+        <location filename="../../src/ui/QuickView.cpp" line="787"/>
         <source>Unknown format</source>
         <translation>Unbekanntes Format</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1356"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1398"/>
         <source>No embedded lyrics.</source>
         <translation>Kein eingebetteter Liedtext.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1375"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1417"/>
         <source>Previous track</source>
         <translation>Vorheriger Titel</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1380"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1422"/>
         <source>Play / pause</source>
         <translation>Wiedergabe / Pause</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1387"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1429"/>
         <source>Next track</source>
         <translation>Nächster Titel</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1539"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1602"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1581"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1644"/>
         <source>Artist</source>
         <translation>Interpret</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1540"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1603"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1582"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1645"/>
         <source>Album</source>
         <translation>Album</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1541"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1604"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1583"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1646"/>
         <source>Album Artist</source>
         <translation>Album-Interpret</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1542"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1605"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1584"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1647"/>
         <source>Year</source>
         <translation>Jahr</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1543"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1606"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1585"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1648"/>
         <source>Genre</source>
         <translation>Genre</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1544"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1607"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1586"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1649"/>
         <source>Track</source>
         <translation>Titel</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1545"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1608"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1587"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1650"/>
         <source>Composer</source>
         <translation>Komponist</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1766"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1808"/>
         <source>Password</source>
         <translation>Passwort</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1773"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1815"/>
         <source>Unlock</source>
         <translation>Entsperren</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1810"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1852"/>
         <source>停止下载</source>
         <translation>Download stoppen</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1824"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1866"/>
         <source>正在下载到本地以便预览…
 %1</source>
         <translation>Wird für die Vorschau lokal heruntergeladen…
 %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1846"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1888"/>
         <source>已取消预览：本文件的预览下载被用户停止。
 %1</source>
         <translation>Vorschau abgebrochen: Der Vorschau-Download dieser Datei wurde vom Benutzer gestoppt.
 %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1858"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1900"/>
         <source>Enter a password.</source>
         <translation>Geben Sie ein Passwort ein.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1980"/>
-        <location filename="../../src/ui/QuickView.cpp" line="2150"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2022"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2192"/>
         <source>“%1” is encrypted. Enter the password to preview it:</source>
         <translation>„%1“ ist verschlüsselt. Geben Sie das Passwort für die Vorschau ein:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1993"/>
-        <location filename="../../src/ui/QuickView.cpp" line="2163"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2035"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2205"/>
         <source>Incorrect password. Try again.</source>
         <translation>Falsches Passwort. Versuchen Sie es erneut.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2003"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2045"/>
         <source>“%1” is encrypted in a format that can&apos;t be previewed.</source>
         <translation>„%1“ ist in einem Format verschlüsselt, das nicht in der Vorschau angezeigt werden kann.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2024"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2066"/>
         <source>Up</source>
         <translation>Nach oben</translation>
     </message>
@@ -3560,64 +3560,64 @@ pip install --user msoffcrypto-tool</translation>
         <translation type="vanished">„%1“ ist in einem Format verschlüsselt, das nicht in der Vorschau angezeigt werden kann (7z-Verschlüsselung wird nicht unterstützt).</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2171"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2213"/>
         <source>“%1” uses an encryption that can&apos;t be previewed.</source>
         <translation>„%1“ verwendet eine Verschlüsselung, die nicht in der Vorschau angezeigt werden kann.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2175"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2217"/>
         <source>Cannot open archive: %1</source>
         <translation>Archiv kann nicht geöffnet werden: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2185"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2227"/>
         <source>Could not create a temporary directory.</source>
         <translation>Temporäres Verzeichnis konnte nicht erstellt werden.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2196"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2238"/>
         <source>Could not extract %1: %2</source>
         <translation>%1 konnte nicht entpackt werden: %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2202"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2244"/>
         <source>Could not read the nested archive %1.</source>
         <translation>Verschachteltes Archiv %1 konnte nicht gelesen werden.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2339"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2381"/>
         <source>Sheet %1</source>
         <translation>Blatt %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2369"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2411"/>
         <source>Copy Page</source>
         <translation>Seite kopieren</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2371"/>
-        <location filename="../../src/ui/QuickView.cpp" line="2702"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2413"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2744"/>
         <source>Copy All</source>
         <translation>Alles kopieren</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2700"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2742"/>
         <source>Copy Slide</source>
         <translation>Folie kopieren</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2955"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2997"/>
         <source>Slide %1 / %2</source>
         <translation>Folie %1 / %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="3297"/>
+        <location filename="../../src/ui/QuickView.cpp" line="3353"/>
         <source>PDF preview is not enabled in this build: %1</source>
         <translation>Die PDF-Vorschau ist in dieser Version nicht aktiviert: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="219"/>
-        <location filename="../../src/ui/QuickView.cpp" line="3377"/>
+        <location filename="../../src/ui/QuickView.cpp" line="225"/>
+        <location filename="../../src/ui/QuickView.cpp" line="3433"/>
         <source>No preview available for %1</source>
         <translation>Keine Vorschau verfügbar für %1</translation>
     </message>
@@ -4171,43 +4171,43 @@ Rechts: %2</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="73"/>
-        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="219"/>
-        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="262"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="220"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="263"/>
         <source>Pause</source>
         <translation>Pause</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="219"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="220"/>
         <source>Resume</source>
         <translation>Fortsetzen</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="296"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="297"/>
         <source>%1 of %2  (%3 of %4 items)</source>
         <translation>%1 von %2  (%3 von %4 Elementen)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="300"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="301"/>
         <source>%1 of %2 items</source>
         <translation>%1 von %2 Elementen</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="304"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="305"/>
         <source>Speed: %1/s</source>
         <translation>Geschwindigkeit: %1/s</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="307"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="308"/>
         <source>ETA: %1</source>
         <translation>Restzeit: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="309"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="310"/>
         <source>ETA: --</source>
         <translation>Restzeit: --</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="321"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="327"/>
         <source>%1 operation(s) queued</source>
         <translation>%1 Vorgang/Vorgänge in Warteschlange</translation>
     </message>

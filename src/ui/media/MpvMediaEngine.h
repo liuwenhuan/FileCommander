@@ -36,6 +36,7 @@ public:
     void setMute(bool mute) override;
     void setSpeed(double speed) override;
     void setVideoEffect(const VideoEffectSettings &settings) override;
+    void setVideoRotation(int degrees) override;
     QWidget *videoSurface() override;
 
     MediaState state() const override;
@@ -85,6 +86,7 @@ private:
     QString m_videoCodec;
     QString m_videoMode;
     VideoEffectSettings m_videoEffect;
+    int m_rotation = 0;
     QString m_videoFilter;
     double m_duration = 0.0;
     double m_position = 0.0;

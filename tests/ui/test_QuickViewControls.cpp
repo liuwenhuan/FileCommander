@@ -12,7 +12,12 @@
 
 #include <memory>
 
+#include <QFile>
+#include <QImage>
+#include <QPainter>
+
 #include "QuickView.h"
+#include "media/WindowsMediaSurface.h"
 #include "Settings.h"
 #include "media/MediaEngine.h"
 
@@ -131,4 +136,83 @@ TEST(QuickViewControls, TheImageToolbarNoLongerOffersPrevAndNext) {
     EXPECT_FALSE(texts.contains(QStringLiteral("Next >"))) << texts.join(QStringLiteral(", ")).toStdString();
     // ...and the rest of the toolbar is still there.
     EXPECT_TRUE(texts.contains(QStringLiteral("Fit")));
+}
+
+// Rotation is applied when the frame is PAINTED, not to the decoded frame:
+// rotating every frame would cost a full-resolution transform per frame for
+// something the painter does on the way to screen anyway. So it is checked by
+// looking at what lands on the widget.
+TEST(QuickViewControls, TheVideoSurfacePaintsAQuarterTurn) {
+    WindowsMediaSurface surface;
+    surface.resize(200, 200);
+
+    // A frame that is unambiguous under rotation: red on the left half, blue on
+    // the right. Wider than tall, so a quarter turn also swaps which axis the
+    // fit is bound by.
+    QImage frame(80, 40, QImage::Format_ARGB32);
+    frame.fill(Qt::blue);
+    QPainter painter(&frame);
+    painter.fillRect(QRect(0, 0, 40, 40), Qt::red);
+    painter.end();
+    surface.setFrame(frame);
+
+    auto colourAt = [&surface](double xFraction, double yFraction) {
+        const QImage shot = surface.grab().toImage();
+        return shot.pixelColor(int(shot.width() * xFraction), int(shot.height() * yFraction));
+    };
+
+    ASSERT_EQ(surface.rotation(), 0);
+    EXPECT_EQ(colourAt(0.25, 0.5), QColor(Qt::red)) << "unrotated: red is on the left";
+
+    // A quarter turn clockwise puts the red half at the TOP.
+    surface.setRotation(90);
+    EXPECT_EQ(surface.rotation(), 90);
+    EXPECT_EQ(colourAt(0.5, 0.25), QColor(Qt::red)) << "90 degrees: red should be on top";
+    EXPECT_EQ(colourAt(0.5, 0.75), QColor(Qt::blue));
+
+    // Normalisation: -90 and 270 are the same turn.
+    surface.setRotation(-90);
+    EXPECT_EQ(surface.rotation(), 270);
+    EXPECT_EQ(colourAt(0.5, 0.75), QColor(Qt::red)) << "270 degrees: red should be at the bottom";
+}
+
+// The rotation corrected the LAST clip. Carrying it into the next one would
+// silently misorient a clip that was fine.
+TEST(QuickViewControls, ANewClipStartsTheRightWayUp) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    Settings settings(dir.filePath(QStringLiteral("settings.ini")));
+    QuickView view(settings, QuickView::Context::Embedded, nullptr,
+                   std::make_unique<StubMediaEngine>());
+    view.show();
+    qApp->processEvents();
+    QWidget *videoPage = view.buildVideoPageForTest();
+    ASSERT_NE(videoPage, nullptr);
+
+    // Inside the VIDEO page: the image toolbar has a "Rotate Right" of its own,
+    // and picking that one would rotate an image and leave this assertion
+    // measuring nothing.
+    QAction *rotateRight = nullptr;
+    for (QToolBar *bar : videoPage->findChildren<QToolBar *>())
+        for (QAction *action : bar->actions())
+            if (action->text() == QStringLiteral("Rotate Right"))
+                rotateRight = action;
+    ASSERT_NE(rotateRight, nullptr) << "the video toolbar offers no rotation";
+
+    rotateRight->trigger();
+    rotateRight->trigger();
+    EXPECT_EQ(view.videoRotation(), 180);
+
+    // A different clip. It need not decode -- the stub engine does nothing with
+    // it -- but it has to exist, or showFile never reaches the video branch.
+    const QString next = dir.filePath(QStringLiteral("next.mp4"));
+    QFile file(next);
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    file.write("not really a clip");
+    file.close();
+
+    view.showFile(next);
+    qApp->processEvents();
+    EXPECT_EQ(view.videoRotation(), 0)
+        << "the rotation corrected the previous clip and followed this one in";
 }

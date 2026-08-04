@@ -28,6 +28,10 @@ public:
     virtual void setMute(bool) {}
     virtual void setSpeed(double) {}
     virtual void setVideoEffect(const VideoEffectSettings &) {}
+    // Quarter turns, 0/90/180/270 clockwise. A no-op by default like the rest
+    // of the optional capabilities above, so a backend that cannot rotate (and
+    // every stub in the tests) needs no change.
+    virtual void setVideoRotation(int) {}
     virtual QWidget *videoSurface() = 0;
 
     virtual MediaState state() const { return MediaState::Idle; }

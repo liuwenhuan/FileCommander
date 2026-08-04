@@ -80,6 +80,9 @@ public:
     // no business requiring. Null if no engine could be made.
     QWidget *buildVideoPageForTest();
 
+    // Current quarter-turn applied to the video, for tests and for the toolbar.
+    int videoRotation() const { return m_videoRotation; }
+
     void showFile(const QString &path);
     // Initializes the configured media backend once. MainWindow calls this after
     // first paint; a media request calls it immediately when it wins that race.
@@ -186,6 +189,8 @@ private:
     void renderText();            // (re)render m_textRaw per the encoding/hex toggle
     void loadImageSiblings();     // list sibling images in the current dir
     QWidget *buildVideoPage();
+    // Adds `degrees` to the current quarter turn and pushes it to the engine.
+    void rotateVideoBy(int degrees);
     QWidget *ensureVideoPage();
     QWidget *buildAudioPage();
     QWidget *ensureAudioPage();
@@ -494,7 +499,8 @@ private:
     bool m_slidesResetScroll = false;
 
     // Video page.
-    QString m_videoPath;            // path of the clip currently loaded (de-dup re-selects)
+    QString m_videoPath;
+    int m_videoRotation = 0; // quarter turns applied to the current clip            // path of the clip currently loaded (de-dup re-selects)
     QWidget *m_videoPage = nullptr;
     QWidget *m_videoSurface = nullptr;
     QPushButton *m_playButton = nullptr;

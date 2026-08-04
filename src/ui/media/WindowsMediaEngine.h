@@ -33,6 +33,7 @@ public:
     void setMute(bool mute) override;
     void setSpeed(double speed) override;
     void setVideoEffect(const VideoEffectSettings &settings) override;
+    void setVideoRotation(int degrees) override;
     QWidget *videoSurface() override;
 
     MediaState state() const override;
@@ -62,6 +63,7 @@ private:
     IMFMediaEngine *m_engine = nullptr;
     IWICImagingFactory *m_wic = nullptr;
     QPointer<WindowsMediaSurface> m_surface;
+    int m_rotation = 0;
     QTimer *m_pollTimer = nullptr;
     MediaSource m_source;
     MediaKind m_kind = MediaKind::Audio;

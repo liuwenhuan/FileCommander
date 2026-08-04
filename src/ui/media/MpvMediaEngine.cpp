@@ -189,6 +189,19 @@ void MpvMediaEngine::setVideoEffect(const VideoEffectSettings &settings) {
         mpv_set_property_string(m_mpv, "vf", filter.toUtf8().constData());
 }
 
+void MpvMediaEngine::setVideoRotation(int degrees) {
+    // mpv rotates in its own video chain, so this costs nothing per frame --
+    // unlike the Windows backend, which paints the frames itself.
+    //
+    // NOT VERIFIED ON A RUNNING mpv: this backend only builds on Linux and the
+    // work was done on Windows. The property is long-standing mpv API and the
+    // call is the same shape as the ones above it.
+    m_rotation = ((degrees % 360) + 360) % 360;
+    if (m_mpv)
+        mpv_set_property_string(m_mpv, "video-rotate",
+                                QByteArray::number(m_rotation).constData());
+}
+
 QWidget *MpvMediaEngine::videoSurface() { return m_surface; }
 
 MediaState MpvMediaEngine::state() const { return m_state; }

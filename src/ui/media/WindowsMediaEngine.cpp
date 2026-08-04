@@ -305,6 +305,14 @@ void WindowsMediaEngine::setVideoEffect(const VideoEffectSettings &settings) {
         m_surface->setVideoEffect(settings);
 }
 
+void WindowsMediaEngine::setVideoRotation(int degrees) {
+    // Remembered even with no surface yet: load() builds one, and the viewer's
+    // choice should survive that rather than silently reset.
+    m_rotation = ((degrees % 360) + 360) % 360;
+    if (m_surface)
+        m_surface->setRotation(m_rotation);
+}
+
 QWidget *WindowsMediaEngine::videoSurface() { return m_surface; }
 
 MediaState WindowsMediaEngine::state() const { return m_state; }

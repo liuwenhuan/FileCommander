@@ -25,6 +25,14 @@ void WindowsMediaSurface::setVideoEffect(const VideoEffectSettings &settings) {
     update();
 }
 
+void WindowsMediaSurface::setRotation(int degrees) {
+    const int normalised = ((degrees % 360) + 360) % 360;
+    if (normalised == m_rotation)
+        return;
+    m_rotation = normalised;
+    update();
+}
+
 QImage WindowsMediaSurface::applyVideoEffectForTest(const QImage &frame,
                                                     const VideoEffectSettings &settings) {
     return applyVideoEffect(frame, settings);
@@ -36,11 +44,28 @@ void WindowsMediaSurface::paintEvent(QPaintEvent *) {
     if (m_frame.isNull())
         return;
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-    const QSize targetSize = m_frame.size().scaled(rect().size(), Qt::KeepAspectRatio);
-    const QPoint targetTopLeft((width() - targetSize.width()) / 2,
-                               (height() - targetSize.height()) / 2);
-    const QRect target(targetTopLeft, targetSize);
-    painter.drawImage(target, m_frame);
+
+    // Fit the frame as the viewer will SEE it: at a quarter turn the clip's
+    // width and height swap, so fitting the unrotated size would letterbox
+    // against the wrong axis and leave a portrait clip cropped.
+    const bool quarterTurn = m_rotation == 90 || m_rotation == 270;
+    const QSize viewed = quarterTurn ? m_frame.size().transposed() : m_frame.size();
+    const QSize targetSize = viewed.scaled(rect().size(), Qt::KeepAspectRatio);
+
+    if (m_rotation == 0) {
+        const QPoint topLeft((width() - targetSize.width()) / 2,
+                             (height() - targetSize.height()) / 2);
+        painter.drawImage(QRect(topLeft, targetSize), m_frame);
+        return;
+    }
+
+    // Rotate about the centre of the widget, then draw the frame into the
+    // pre-rotation rectangle -- which is the target with its axes swapped back.
+    const QSize drawSize = quarterTurn ? targetSize.transposed() : targetSize;
+    painter.translate(width() / 2.0, height() / 2.0);
+    painter.rotate(m_rotation);
+    painter.drawImage(QRect(QPoint(-drawSize.width() / 2, -drawSize.height() / 2), drawSize),
+                      m_frame);
 }
 
 QImage WindowsMediaSurface::applyVideoEffect(const QImage &frame,

@@ -1025,6 +1025,12 @@ bool QuickView::isAudio(const QString &path) {
     return kAudioSuffixes.contains(FileInfo::suffixForName(QFileInfo(path).fileName()).toLower());
 }
 
+void QuickView::rotateVideoBy(int degrees) {
+    m_videoRotation = ((m_videoRotation + degrees) % 360 + 360) % 360;
+    if (m_mediaEngine)
+        m_mediaEngine->setVideoRotation(m_videoRotation);
+}
+
 QWidget *QuickView::buildVideoPageForTest() {
     // The page wires itself to the media engine, so the engine has to exist
     // first -- warmMediaEngine() is what promotes an injected one (or builds
@@ -1159,6 +1165,12 @@ QWidget *QuickView::buildVideoPage() {
     // like the image page's, not something you reach for mid-playback -- and
     // the transport row is exactly where width runs out first.
     auto *videoToolbar = new QToolBar(m_videoPage);
+    // Quarter turns, matching the image page's pair. Clips shot on a phone come
+    // out sideways often enough that this is the one image-page tool a video
+    // genuinely wants -- zoom is not offered, since without panning a zoomed
+    // video is half a control.
+    videoToolbar->addAction(tr("Rotate Left"), this, [this]() { rotateVideoBy(-90); });
+    videoToolbar->addAction(tr("Rotate Right"), this, [this]() { rotateVideoBy(90); });
     auto *videoSpacer = new QWidget(videoToolbar);
     videoSpacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     videoToolbar->addWidget(videoSpacer);
@@ -3235,6 +3247,10 @@ void QuickView::showFile(const QString &path) {
         if (path == m_videoPath && m_stack->currentWidget() == m_videoPage)
             return;
         m_videoPath = path;
+        // A new clip starts the right way up: the rotation was a correction for
+        // the last one, and carrying it over would silently misorient this one.
+        m_videoRotation = 0;
+        m_mediaEngine->setVideoRotation(0);
 
         // Apply the persisted preview preferences to both the core and controls
         // (block signals so seeding them doesn't re-persist or fight the core).
