@@ -105,6 +105,10 @@ public:
     // shows this download page (message + progress + a Stop button) so the user
     // isn't left staring at a blank pane and can abort a large download.
     void showDownloading(const QString &name);           // "downloading to preview…"
+    // Same waiting page, different reason and no Stop button: extracting an
+    // entry out of an archive is not interruptible, so offering to cancel it
+    // would be a dead control.
+    void showPreparing(const QString &name);
     void setDownloadProgress(qint64 done, qint64 total); // update the bar
     void showDownloadCancelled(const QString &name);     // "preview cancelled by user"
 

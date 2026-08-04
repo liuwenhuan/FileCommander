@@ -455,6 +455,20 @@ void ArchiveProvider::closeHandle(FileHandle *handle) {
     delete static_cast<ArchiveReadHandle *>(handle);
 }
 
+QString ArchiveProvider::materializedPathIfReady(const QString &virtualPath) const {
+    const QString key = toVirtual(virtualPath);
+    const auto it = m_entries.constFind(key);
+    if (it == m_entries.constEnd() || it.value().isDir || it.value().realPath.isEmpty())
+        return QString();
+
+    QMutexLocker locker(&m_mutex);
+    if (!m_tempDir)
+        return QString();
+    if (m_extractAll)
+        return m_wholeExtracted ? tempFilePath(it.value().realPath) : QString();
+    return m_extractedFiles.value(key);
+}
+
 QString ArchiveProvider::materialize(const QString &virtualPath) {
     const QString key = toVirtual(virtualPath);
     const auto it = m_entries.constFind(key);

@@ -767,6 +767,17 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
             openWithAssociatedApp(panel, path);
         });
         connect(panel, &FilePanel::archiveDownloadRequested, this, &MainWindow::browseRemoteArchive);
+        // An archive entry finished extracting. Show it only if the cursor is
+        // still on it and this panel is still the one being previewed -- the
+        // user may have moved on, or switched panels, while it ran.
+        connect(panel, &FilePanel::previewExtracted, this,
+                [this, panel](const QString &entryPath, const QString &localPath) {
+                    if (!m_quickViewActive || m_activePanel != panel)
+                        return;
+                    if (panel->currentEntryPath() != entryPath)
+                        return;
+                    m_quickView->showFile(localPath);
+                });
     }
 
     // Now that computerViewRequested is connected, the panels noted above can
@@ -3455,8 +3466,17 @@ void MainWindow::updateQuickView() {
     FileProvider *prov = m_activePanel->model()->provider();
     const bool network = prov && !prov->displayName().isEmpty();
     if (!network) {
-        // Local / archive-entry: currentPreviewPath() already yields a real path.
-        m_quickView->showFile(m_activePanel->currentPreviewPath());
+        // A local file is its own answer. An archive entry may not be: the
+        // first one touched in a non-zip archive extracts the WHOLE archive,
+        // which for a few hundred images is seconds -- and it used to be
+        // seconds with the window frozen and nothing on screen to explain it.
+        const QString ready = m_activePanel->currentPreviewPathIfReady();
+        if (!ready.isEmpty() || !m_activePanel->isArchive()) {
+            m_quickView->showFile(ready);
+            return;
+        }
+        m_quickView->showPreparing(QFileInfo(entry).fileName());
+        m_activePanel->beginPreviewExtraction();
         return;
     }
 

@@ -1874,6 +1874,16 @@ void QuickView::showDownloading(const QString &name) {
     releaseHiddenDocumentPages(m_downloadPage);
 }
 
+void QuickView::showPreparing(const QString &name) {
+    cancelPendingPreviewWork();
+    m_downloadLabel->setText(tr("Preparing preview…\n%1").arg(name));
+    m_downloadProgress->setRange(0, 0); // indeterminate: an extract has no progress
+    m_downloadProgress->setVisible(true);
+    m_downloadStopButton->setVisible(false);
+    m_stack->setCurrentWidget(m_downloadPage);
+    releaseHiddenDocumentPages(m_downloadPage);
+}
+
 void QuickView::setDownloadProgress(qint64 done, qint64 total) {
     if (!m_downloadProgress)
         return;

@@ -79,6 +79,14 @@ public:
     // the normal viewers.
     QString materialize(const QString &virtualPath);
 
+    // The already-extracted path for `virtualPath`, or empty when it has not
+    // been extracted yet. NEVER extracts, so it is safe on the GUI thread --
+    // which is the point: materialize() on a big archive can take seconds (a
+    // non-zip is extracted whole on the first entry), and the caller needs to
+    // know whether it can show something now or must put up a wait and go
+    // fetch it off-thread.
+    QString materializedPathIfReady(const QString &virtualPath) const;
+
     // FileProvider overrides. Paths are POSIX-style virtual archive paths rooted
     // at "/" (the archive root). An absolute path that begins with the archive's
     // own file path is also accepted and mapped to the virtual root.

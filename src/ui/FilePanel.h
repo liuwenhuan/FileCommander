@@ -148,6 +148,29 @@ public:
     // for a directory / unpreviewable entry.
     QString currentPreviewPath();
 
+    // Same answer as currentPreviewPath(), but only when it costs nothing: a
+    // local file, or an archive entry already extracted. Empty means "not yet",
+    // NOT "not previewable" -- start it with beginPreviewExtraction() and wait
+    // for previewExtracted().
+    //
+    // The split exists because extracting an entry can take seconds: a non-zip
+    // archive is extracted WHOLE on the first entry touched, so previewing one
+    // picture in a 253-image .rar unpacked all of it, on the GUI thread.
+    QString currentPreviewPathIfReady();
+
+    // Extracts the current entry on a worker and emits previewExtracted() when
+    // it lands. A later call supersedes an earlier one: only the newest entry's
+    // result is emitted, so walking the cursor down a listing does not queue up
+    // a preview for every row it passed through.
+    void beginPreviewExtraction();
+
+private:
+    // Newest extraction request. A result carrying an older number is dropped:
+    // the cursor has moved on and that preview is no longer wanted.
+    quint64 m_previewGeneration = 0;
+
+public:
+
     // Sets the point size of the file-list font and rescales the row height /
     // header height to match. Point size is clamped to 7..24.
     void setListFontSize(int pt);
@@ -345,6 +368,11 @@ public:
     void refreshThemeIcons();
 
 signals:
+    // `entryPath` is the in-archive path asked for, `localPath` the extracted
+    // file (empty if it failed). Carries the entry so a stale result can be
+    // told from the one the cursor is on now.
+    void previewExtracted(const QString &entryPath, const QString &localPath);
+
     void pathChanged(const QString &path);
     void panelActivated(FilePanel *panel);
     // A file (not a directory) was double-clicked / Enter-pressed.

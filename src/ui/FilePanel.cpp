@@ -2056,6 +2056,41 @@ QVector<FileInfo> FilePanel::selectedEntryInfos() const {
     return infos;
 }
 
+QString FilePanel::currentPreviewPathIfReady() {
+    const QString entry = currentEntryPath();
+    if (entry.isEmpty() || !isArchive())
+        return entry; // a local path is already the answer
+    if (m_model->provider()->isDir(entry))
+        return {};
+    auto *ap = static_cast<ArchiveProvider *>(m_archiveProvider.get());
+    return ap->materializedPathIfReady(entry);
+}
+
+void FilePanel::beginPreviewExtraction() {
+    const QString entry = currentEntryPath();
+    if (entry.isEmpty() || !isArchive() || m_model->provider()->isDir(entry))
+        return;
+
+    // Hold the provider by shared ownership for the duration: the user may
+    // leave the archive while this runs, and the extraction still needs it.
+    auto prov = m_archiveProvider;
+    const quint64 generation = ++m_previewGeneration;
+    auto *watcher = new QFutureWatcher<QString>(this);
+    connect(watcher, &QFutureWatcher<QString>::finished, this,
+            [this, watcher, entry, generation]() {
+                const QString local = watcher->result();
+                watcher->deleteLater();
+                // Superseded: the cursor moved on while this was extracting.
+                if (generation != m_previewGeneration)
+                    return;
+                emit previewExtracted(entry, local);
+            });
+    watcher->setFuture(QtConcurrent::run([prov, entry]() {
+        return static_cast<ArchiveProvider *>(prov.get())->materialize(entry);
+    }));
+    prefetchArchiveNeighbors();
+}
+
 QString FilePanel::currentPreviewPath() {
     const QString entry = currentEntryPath();
     if (entry.isEmpty() || !isArchive())
