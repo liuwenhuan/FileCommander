@@ -40,6 +40,28 @@ public:
     // label text painted in the same colour at full strength.
     QIcon glyphIcon(const QString &resourcePath);
 
+    // Windows' jumbo image list hands back a 256x256 slot for every icon, even one
+    // that never shipped a 256px variant, and pads the smaller bitmap out with
+    // transparency rather than scaling it. The icon then CLAIMS a size it does not
+    // have, and everything downstream believes it.
+    //
+    // Cropping to the ink is what makes the claim true again, and it has to be the
+    // ink's own box -- an earlier version rounded up to a coarse rung (32/48/64/128)
+    // and kept the top-left anchoring, which merely traded one lie for a smaller
+    // one: measured in the running app, a .rar came back as a 128 canvas holding
+    // 77x60 of ink at (3,12). On a 133% display that 128 is exactly what
+    // QIcon::pixmap() is asked for at a 96px icon box, so the thumbnail delegate saw
+    // a pixmap of precisely the right size and left it alone -- a small badge in a
+    // large tile, and no test at 100% could reproduce it.
+    //
+    // Left alone when the ink already fills most of the canvas (.zip's genuine 256
+    // measured 227x176), so a real icon of this size keeps its own margins.
+    //
+    // Public only so a test can drive it: which composition the shell hands
+    // back depends on the display's scale factor, so a test that goes through
+    // the real icon cannot reproduce the case that matters on every machine.
+    static QImage cropPaddedIcon(const QImage &image, int size);
+
     // Applies the theme-owned tint and pixel grid to an arbitrary chrome icon --
     // one whose colours DO mean something, such as a platform standard icon.
     // With no active tint, returns the icon unchanged.

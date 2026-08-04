@@ -12,6 +12,7 @@
 #include <QTemporaryDir>
 
 #include "FileSystemModel.h"
+#include "filesystem/IconCache.h"
 #include "ThumbnailDelegate.h"
 
 // QIcon::pixmap() scales a bitmap DOWN to the requested size but never up: ask
@@ -168,4 +169,53 @@ TEST(ThumbnailIconScaling, AnIconTheShellPaddedIntoAJumboSlotStillFillsTheTile) 
             << name.toStdString() << " drew " << ink.width() << "x" << ink.height()
             << " of ink in a 192px box";
     }
+}
+
+// The invariant that actually protects the grid, driven directly rather than
+// through a real icon: WHICH composition the shell hands back depends on the
+// display's scale factor, so the case that matters cannot be reproduced on
+// every machine by looking up a real file type. Measured on a 133% display, a
+// .rar's jumbo slot held 77x60 of ink; at 100% the same type held 44x34.
+//
+// The first attempt at this cropped the padding but rounded the ink up to a
+// coarse rung (32/48/64/128), so 80 became 128 and the icon still claimed
+// nearly twice the size it filled. On that 133% display, 128 is exactly what
+// QIcon::pixmap() is asked for at a 96px icon box -- the delegate saw a pixmap
+// of precisely the right size, left it alone, and drew a small badge in a large
+// tile. Every test at 100% passed.
+TEST(ThumbnailIconScaling, CroppingLeavesNoRoomTheIconDoesNotFill) {
+    // A 256 slot holding an 80x60 glyph in the corner, which is the shape the
+    // rung-rounding version turned into a 128 canvas.
+    QImage padded(256, 256, QImage::Format_ARGB32);
+    padded.fill(Qt::transparent);
+    QPainter painter(&padded);
+    painter.fillRect(QRect(3, 12, 80, 60), Qt::red);
+    painter.end();
+
+    const QImage cropped = IconCache::cropPaddedIcon(padded, 256);
+    ASSERT_FALSE(cropped.isNull());
+    EXPECT_LE(cropped.width(), 96)
+        << "cropped to " << cropped.width() << "px around 80px of ink -- an icon that "
+           "claims a size it does not fill is one the delegate will not grow";
+    EXPECT_GE(cropped.width(), 80) << "the glyph itself must survive intact";
+
+    // ...and the glyph must be inside it, not clipped by the crop.
+    QRect ink;
+    for (int y = 0; y < cropped.height(); ++y)
+        for (int x = 0; x < cropped.width(); ++x)
+            if (qAlpha(cropped.pixel(x, y)) > 8)
+                ink = ink.united(QRect(x, y, 1, 1));
+    EXPECT_EQ(ink.width(), 80);
+    EXPECT_EQ(ink.height(), 60);
+}
+
+TEST(ThumbnailIconScaling, AGenuinelyLargeIconIsNotCropped) {
+    QImage full(256, 256, QImage::Format_ARGB32);
+    full.fill(Qt::transparent);
+    QPainter painter(&full);
+    painter.fillRect(QRect(13, 34, 227, 176), Qt::red); // .zip's real 256, measured
+    painter.end();
+
+    EXPECT_EQ(IconCache::cropPaddedIcon(full, 256).size(), QSize(256, 256))
+        << "real artwork keeps its own margins";
 }
