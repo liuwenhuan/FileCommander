@@ -76,12 +76,19 @@ TEST(DirectoryTreeModelTest, RootsAppearAsTopLevelRows) {
 }
 
 TEST(DirectoryTreeModelTest, ThemeIconsAreCachedUntilRefresh) {
+    // Both tints: a root with its own artwork takes the glyph tint, one that
+    // falls back to a plain folder icon takes the file-icon tint. This test is
+    // about the model's cache, not about which of the two applies.
     struct TintReset {
-        ~TintReset() { IconCache::instance().setTint(QColor()); }
+        ~TintReset() {
+            IconCache::instance().setGlyphTint(QColor());
+            IconCache::instance().setFileIconTint(QColor());
+        }
     } tintReset;
 
     IconCache &icons = IconCache::instance();
-    icons.setTint(Qt::red);
+    icons.setGlyphTint(Qt::red);
+    icons.setFileIconTint(Qt::red);
 
     DirectoryTreeModel model;
     model.setRoots({localRoot()},
@@ -94,7 +101,8 @@ TEST(DirectoryTreeModelTest, ThemeIconsAreCachedUntilRefresh) {
     ASSERT_FALSE(redImage.isNull());
     EXPECT_EQ(repeated.cacheKey(), first.cacheKey());
 
-    icons.setTint(Qt::green);
+    icons.setGlyphTint(Qt::green);
+    icons.setFileIconTint(Qt::green);
     model.refreshIcons();
     const QImage greenImage = root.data(Qt::DecorationRole)
                                   .value<QIcon>()
@@ -103,7 +111,8 @@ TEST(DirectoryTreeModelTest, ThemeIconsAreCachedUntilRefresh) {
     ASSERT_FALSE(greenImage.isNull());
     EXPECT_NE(greenImage, redImage);
 
-    icons.setTint(Qt::blue);
+    icons.setGlyphTint(Qt::blue);
+    icons.setFileIconTint(Qt::blue);
     model.setRoots({localRoot()},
                    [](const TreeRoot &) -> TreeDirLister * { return new FakeLister; });
     const QImage blueImage = model.index(0, 0)

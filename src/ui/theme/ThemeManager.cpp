@@ -65,16 +65,10 @@ void ThemeManager::apply(Settings::Theme theme, bool phosphorImages) {
 
     const bool crt = effective == Settings::Theme::Crt;
 
-    // Two separate tints, because they answer to different switches.
+    // Content (thumbnails, image/PDF/slide previews, video) follows the images
+    // TOGGLE rather than the theme, since recolouring the user's own
+    // photographs is a taste decision in a way that recolouring a glyph is not.
     //
-    // Chrome (file-type icons, the app icon) follows the THEME: a stylesheet
-    // cannot reach the system icon theme, so blue folders and red document
-    // icons would otherwise survive into a single-hue theme and be the one
-    // thing that gives it away.
-    //
-    // Content (thumbnails, image/PDF/slide previews, video) follows the
-    // TOGGLE, since recolouring the user's own photographs is a taste
-    // decision in a way that recolouring a folder glyph is not.
     // Neither surface is quantised any more. The coarse raster was atmosphere,
     // and it cost more than it bought: a file-type badge shrank to a handful of
     // cells and stopped being identifiable at list-view sizes, and a thumbnail
@@ -83,25 +77,35 @@ void ThemeManager::apply(Settings::Theme theme, bool phosphorImages) {
     // -- they are what the preview scanline treatment is built alongside -- but
     // nothing enables them for icons or content.
 
-    // The glyph SVGs are drawn in a mid grey (#888888) that reads as "dark" on
-    // a dark background -- the drive and computer icons were noticeably dimmer
-    // than the text beside them. Tint every theme, not just CRT: each one names
-    // a colour that belongs to it, so the icons sit at the same weight as the
-    // text they label. Only CRT quantises as well, which is its own effect.
-    QColor iconTint;
+    // Our own SVG chrome is drawn in a mid grey (#888888) that reads as "dark"
+    // on a dark background -- the drive and computer glyphs were noticeably
+    // dimmer than the text beside them. Every theme names a colour for those,
+    // so they sit at the same weight as the text they label. They carry no
+    // colour of their own, so there is nothing to lose by recolouring them.
+    //
+    // The system's FILE icons are a different matter and follow further below:
+    // they are full-colour artwork, and putting this same tint on them turned
+    // every folder in the light theme into a dark grey slab.
+    QColor glyphTint;
     switch (effective) {
     case Settings::Theme::Crt:
-        iconTint = kPhosphor;
+        glyphTint = kPhosphor;
         break;
     case Settings::Theme::Dark:
-        iconTint = QColor(0xe0, 0xe0, 0xe0); // dark.qss's text colour
+        glyphTint = QColor(0xe0, 0xe0, 0xe0); // dark.qss's text colour
         break;
     case Settings::Theme::Light:
     case Settings::Theme::Auto:
-        iconTint = QColor(0x40, 0x40, 0x40); // darker than #888 on white
+        glyphTint = QColor(0x40, 0x40, 0x40); // darker than #888 on white
         break;
     }
-    IconCache::instance().setTint(iconTint, 0);
+    IconCache::instance().setGlyphTint(glyphTint);
+
+    // File icons: CRT only. Collapsing every icon to one hue IS that theme --
+    // a stylesheet cannot reach the system icon theme, so blue folders and red
+    // document icons would otherwise be the one thing giving it away. No other
+    // theme has that excuse, and an invalid colour leaves the artwork alone.
+    IconCache::instance().setFileIconTint(crt ? kPhosphor : QColor(), 0);
     fc::setContentTint(crt && phosphorImages ? kPhosphor : QColor());
     fc::setContentPixelBlock(0);
 

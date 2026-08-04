@@ -169,7 +169,7 @@ QIcon IconCache::iconFor(const FileInfo &info) {
         if (icon.availableSizes().isEmpty())
             icon = provider.icon(QFileIconProvider::File);
     }
-    icon = themedIcon(icon);
+    icon = tinted(icon, m_fileIconTint);
 
     m_cache.insert(key, new QIcon(icon));
     return icon;
@@ -215,7 +215,7 @@ QIcon IconCache::systemIconForPath(const QString &path) {
     }
     if (icon.availableSizes().isEmpty())
         return {};
-    icon = themedIcon(icon);
+    icon = tinted(icon, m_fileIconTint);
     m_cache.insert(key, new QIcon(icon));
     return icon;
 #else
@@ -225,20 +225,35 @@ QIcon IconCache::systemIconForPath(const QString &path) {
 }
 
 QIcon IconCache::themedIcon(const QIcon &icon) const {
-    return m_tint.isValid() ? tinted(icon) : icon;
+    return tinted(icon, m_glyphTint);
 }
 
-void IconCache::setTint(const QColor &tint, int blockPixels) {
-    // Compare by value: an invalid QColor equals another invalid one, so
-    // clearing twice is a no-op rather than a needless cache flush.
-    if (m_tint == tint && m_tint.isValid() == tint.isValid() && m_blockPixels == blockPixels)
+// Compare by value: an invalid QColor equals another invalid one, so clearing
+// twice is a no-op rather than a needless cache flush.
+static bool sameTint(const QColor &a, const QColor &b) {
+    return a == b && a.isValid() == b.isValid();
+}
+
+void IconCache::setGlyphTint(const QColor &tint) {
+    if (sameTint(m_glyphTint, tint))
         return;
-    m_tint = tint;
+    m_glyphTint = tint;
+    // themedIcon() results are not cached here (their callers hold them), but
+    // clearing costs nothing on a theme switch and keeps the two setters alike.
+    m_cache.clear();
+}
+
+void IconCache::setFileIconTint(const QColor &tint, int blockPixels) {
+    if (sameTint(m_fileIconTint, tint) && m_blockPixels == blockPixels)
+        return;
+    m_fileIconTint = tint;
     m_blockPixels = blockPixels;
     m_cache.clear(); // entries were built under the old tint/grid
 }
 
-QIcon IconCache::tinted(const QIcon &icon) const {
+QIcon IconCache::tinted(const QIcon &icon, const QColor &tint) const {
+    if (!tint.isValid())
+        return icon;
     QList<QSize> sizes = icon.availableSizes();
     if (sizes.isEmpty()) {
         for (int s : kTintSizes)
@@ -251,7 +266,7 @@ QIcon IconCache::tinted(const QIcon &icon) const {
         if (src.isNull())
             continue;
         // The same luma-to-phosphor map thumbnails, previews and video use.
-        out.addPixmap(fc::tintedPixmap(src, m_tint, m_blockPixels));
+        out.addPixmap(fc::tintedPixmap(src, tint, m_blockPixels));
     }
     return out.isNull() ? icon : out;
 }

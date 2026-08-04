@@ -34,27 +34,39 @@ public:
     // With no active tint, returns the icon unchanged.
     QIcon themedIcon(const QIcon &icon) const;
 
-    // Collapses every icon to one hue, scaled by the source pixel's brightness,
-    // so the system icon theme's own colours (blue folders, red PDFs) do not
-    // survive. Set by whoever owns theming; an invalid colour is the default and
-    // means "hand icons through untouched".
+    // Two tints, because the two kinds of icon answer to different questions.
     //
-    // This lives here, rather than in a delegate, because there is exactly one
+    // GLYPH tint (themedIcon): our own SVG chrome -- the drive, computer and
+    // protocol glyphs, drawn in a mid grey that reads as dim on a dark
+    // background. Every theme names a colour here so those glyphs sit at the
+    // same weight as the text they label. They carry no colour of their own, so
+    // recolouring them loses nothing.
+    //
+    // FILE-ICON tint (iconFor, systemIconForPath): the system's file-type and
+    // drive icons. Only the CRT theme sets one, where collapsing everything to
+    // a single phosphor hue IS the theme. Any other theme must leave these
+    // alone: they are full-colour artwork, and tinting them turned every folder
+    // in the light theme into a dark grey slab.
+    //
+    // Both live here, rather than in a delegate, because there is exactly one
     // place icons enter the app and because the result has to be cached -- the
     // recolour is a per-pixel pass and the file list asks for icons constantly.
-    // Changing the tint clears the cache, so a theme switch takes effect at once.
-    // `blockPixels` is the quantisation grid for icons, in image pixels.
+    // Changing either clears the cache, so a theme switch takes effect at once.
+    //
+    // `blockPixels` is the quantisation grid for file icons, in image pixels.
     // No theme sets it: quantising a glyph made file types unidentifiable at
     // list-view sizes (see ThemeManager). Kept so the pass stays reachable.
-    void setTint(const QColor &tint, int blockPixels = 0);
-    QColor tint() const { return m_tint; }
+    void setGlyphTint(const QColor &tint);
+    void setFileIconTint(const QColor &tint, int blockPixels = 0);
 
 private:
     IconCache();
-    // Luminance-to-hue remap of every pixmap in `icon`, alpha preserved.
-    QIcon tinted(const QIcon &icon) const;
+    // Luminance-to-hue remap of every pixmap in `icon` to `tint`, alpha
+    // preserved. Returns `icon` unchanged when `tint` is invalid.
+    QIcon tinted(const QIcon &icon, const QColor &tint) const;
 
     QCache<QString, QIcon> m_cache;
-    QColor m_tint;        // invalid => no recolouring
+    QColor m_glyphTint;    // invalid => hand our own SVG chrome through untouched
+    QColor m_fileIconTint; // invalid => leave the system's artwork in its colours
     int m_blockPixels = 0; // icon quantisation grid; 0 => none
 };
