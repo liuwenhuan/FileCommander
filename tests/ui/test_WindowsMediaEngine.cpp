@@ -345,19 +345,43 @@ TEST(WindowsMediaEngine, QuickViewKeepsVideoMovingAcrossSelections) {
 }
 
 // D:/usbhdd/123.avi produced "…event=5 param1=0x4 param2=0xc004f011", which is
-// true and useless. param1 == MF_MEDIA_ENGINE_ERR_SRC_NOT_SUPPORTED, i.e.
-// Windows ships no decoder for it (Xvid, in that file's case). The wording has
-// to name that, and name the extension, since the fix is the user's to make.
-TEST(WindowsMediaEngineErrorText, UnsupportedSourceNamesTheFormatAndTheExtension) {
+// true and useless. 0xC004F011 is a Software Licensing code: the MPEG-2
+// decoder is installed and Windows refuses to run it (measured -- three
+// separate instantiation paths all return it). "No decoder" would be the wrong
+// story, so this case gets its own wording.
+TEST(WindowsMediaEngineErrorText, ALicenceRefusalIsNotReportedAsAMissingDecoder) {
     const QString text = WindowsMediaEngine::errorText(4, 0xc004f011,
                                                        QStringLiteral("D:/usbhdd/123.avi"));
-    EXPECT_TRUE(text.contains(QStringLiteral(".avi"))) << text.toStdString();
-    EXPECT_TRUE(text.contains(QStringLiteral("decoder"), Qt::CaseInsensitive))
+    EXPECT_TRUE(text.contains(QStringLiteral("licens"), Qt::CaseInsensitive))
+        << text.toStdString();
+    EXPECT_FALSE(text.contains(QStringLiteral("no decoder"), Qt::CaseInsensitive))
         << text.toStdString();
     // The raw codes stay, at the end, for diagnosis.
     EXPECT_TRUE(text.contains(QStringLiteral("c004f011"))) << text.toStdString();
-    // …but they are no longer the whole message.
     EXPECT_GT(text.size(), 40) << text.toStdString();
+}
+
+// A genuinely absent decoder -- Cinepak, Indeo, MS Video 1 all measured as
+// having no MFT at all -- still names the extension, since that is what the
+// user recognises.
+TEST(WindowsMediaEngineErrorText, AMissingDecoderNamesTheExtension) {
+    const QString text = WindowsMediaEngine::errorText(4, 0xc00d5212,
+                                                       QStringLiteral("D:/clip.avi"));
+    EXPECT_TRUE(text.contains(QStringLiteral(".avi"))) << text.toStdString();
+    EXPECT_TRUE(text.contains(QStringLiteral("decoder"), Qt::CaseInsensitive))
+        << text.toStdString();
+}
+
+// Codec packs are DirectShow filters and register nothing with Media
+// Foundation, so telling the user to install one sends them to do something
+// that cannot work. It was in the first version of this message.
+TEST(WindowsMediaEngineErrorText, NoMessageSuggestsACodecPack) {
+    for (unsigned long extended : {0xc004f011ul, 0xc00d5212ul, 0ul}) {
+        const QString text = WindowsMediaEngine::errorText(4, extended,
+                                                           QStringLiteral("D:/clip.avi"));
+        EXPECT_FALSE(text.contains(QStringLiteral("codec pack"), Qt::CaseInsensitive))
+            << text.toStdString();
+    }
 }
 
 TEST(WindowsMediaEngineErrorText, DistinguishesTheOtherCodes) {

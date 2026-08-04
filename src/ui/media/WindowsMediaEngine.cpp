@@ -499,17 +499,29 @@ void WindowsMediaEngine::onMediaEvent(unsigned long event, quint64 param1, unsig
 }
 
 QString WindowsMediaEngine::errorText(quint64 code, unsigned long extended, const QString &path) {
-    // The codes are the HTML5 MediaError values Media Foundation reuses. The
-    // one that matters in practice is SRC_NOT_SUPPORTED: Windows ships no
-    // decoder for several formats that are still common in the wild -- the
-    // file that prompted this holds MPEG-2 video in an AVI container, which
-    // ffmpeg decodes and Media Foundation will not touch -- and the old
-    // message reported that as a pair of hex numbers, which told the user
-    // nothing.
+    // The codes are the HTML5 MediaError values Media Foundation reuses, and
+    // SRC_NOT_SUPPORTED is the one that turns up. The old message reported it
+    // as a pair of hex numbers, which told the user nothing.
+    //
+    // The extended code splits that case in two, and the difference matters
+    // because only one of them is about a MISSING decoder. Measured on the
+    // file that prompted this: the MPEG-2 decoder MFT is registered and
+    // msmpeg2vdec.dll is in System32 -- the same DLL whose H.264 path works --
+    // but CoCreateInstance, IMFActivate::ActivateObject and a direct
+    // DllGetClassObject all return 0xC004F011, which is in the Software
+    // Licensing range. Windows has the decoder and will not run it. Media
+    // Foundation hands that HRESULT straight through as param2.
+    //
+    // Deliberately absent: any suggestion to install a codec pack. The common
+    // ones (LAV Filters and friends) are DirectShow filters and register
+    // nothing with Media Foundation, so the advice would send the user off to
+    // do something that cannot work.
     const QString suffix = QStringLiteral(" [%1/0x%2]")
                                .arg(code)
                                .arg(static_cast<quint32>(extended), 8, 16, QLatin1Char('0'));
     const QString extension = QFileInfo(path).suffix().toLower();
+    // SL_E_LICENSE_FILE_NOT_INSTALLED.
+    constexpr unsigned long kLicenceMissing = 0xC004F011ul;
     QString reason;
     switch (code) {
     case MF_MEDIA_ENGINE_ERR_ABORTED:
@@ -522,13 +534,18 @@ QString WindowsMediaEngine::errorText(quint64 code, unsigned long extended, cons
         reason = tr("The stream could not be decoded — the file may be damaged.");
         break;
     case MF_MEDIA_ENGINE_ERR_SRC_NOT_SUPPORTED:
-        reason = extension.isEmpty()
-                     ? tr("Windows has no decoder for this file's format.")
-                     : tr("Windows has no decoder for this .%1 file's format. MPEG-2, "
-                          "Xvid and DivX video are common in older files and Windows "
-                          "carries none of them for this container; installing a codec "
-                          "pack lets it play.")
-                           .arg(extension);
+        if (extended == kLicenceMissing) {
+            reason = tr("Windows has a decoder for this video but is not licensed to run "
+                        "it — MPEG-2 and MPEG-1 video are affected on this edition of "
+                        "Windows. A player that carries its own decoders can still open "
+                        "the file.");
+        } else if (extension.isEmpty()) {
+            reason = tr("Windows has no decoder for this file's format.");
+        } else {
+            reason = tr("Windows has no decoder for this .%1 file's format. A player that "
+                        "carries its own decoders can still open it.")
+                         .arg(extension);
+        }
         break;
     case MF_MEDIA_ENGINE_ERR_ENCRYPTED:
         reason = tr("The file is protected and cannot be played here.");

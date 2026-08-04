@@ -4553,6 +4553,14 @@ Right: %2</source>
 <context>
     <name>WindowsMediaEngine</name>
     <message>
+        <source>Windows has a decoder for this video but is not licensed to run it — MPEG-2 and MPEG-1 video are affected on this edition of Windows. A player that carries its own decoders can still open the file.</source>
+        <translation>Windows 自带该视频的解码器，但未获授权运行——此版本 Windows 对 MPEG-2、MPEG-1 视频均如此。自带解码器的播放器仍可以打开它。</translation>
+    </message>
+    <message>
+        <source>Windows has no decoder for this .%1 file&apos;s format. A player that carries its own decoders can still open it.</source>
+        <translation>Windows 没有可以解码 .%1 文件格式的解码器。自带解码器的播放器仍可以打开它。</translation>
+    </message>
+    <message>
         <source>Playback was stopped before it began.</source>
         <translation>播放尚未开始就被中断。</translation>
     </message>
@@ -4567,10 +4575,6 @@ Right: %2</source>
     <message>
         <source>Windows has no decoder for this file&apos;s format.</source>
         <translation>Windows 没有可以解码此文件格式的解码器。</translation>
-    </message>
-    <message>
-        <source>Windows has no decoder for this .%1 file&apos;s format. MPEG-2, Xvid and DivX video are common in older files and Windows carries none of them for this container; installing a codec pack lets it play.</source>
-        <translation>Windows 没有可以解码 .%1 文件格式的解码器。旧文件常见的 MPEG-2、Xvid、DivX 视频，Windows 对这类容器均不支持，安装解码器后即可播放。</translation>
     </message>
     <message>
         <source>The file is protected and cannot be played here.</source>
