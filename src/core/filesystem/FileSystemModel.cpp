@@ -634,11 +634,6 @@ QVariant FileSystemModel::data(const QModelIndex &index, int role) const {
     if (role == Qt::DisplayRole || role == Qt::EditRole) {
         switch (index.column()) {
         case NameColumn:
-            // Editing a synthetic row starts from the backend's seed, not from
-            // what the row displays: a drive shows "Windows (C:)" and only the
-            // label part is editable (see FileProvider::entryRenameSeed).
-            if (role == Qt::EditRole && m_virtualListing)
-                return m_provider->entryRenameSeed(info.path());
             // Flat search-results listing shows the full path so results from
             // different directories stay distinguishable; a normal directory
             // listing shows the base name only (extension is its own column).
@@ -841,13 +836,11 @@ Qt::ItemFlags FileSystemModel::flags(const QModelIndex &index) const {
     // FileListView click-to-rename / MainWindow::renameCurrent): NoEditTriggers
     // is set globally so a stray keystroke never starts a rename by accident.
     if (!isParentEntry(index.row())) {
+        // A synthetic row names a *place* -- a drive, a saved server, a
+        // discovered host -- and none of those names is the user's to change
+        // through a file manager's rename. The whole listing is read-only.
         if (m_virtualListing) {
-            // A synthetic row is a *place*, not a file, so it is read-only
-            // unless the backend claims otherwise -- and never through the Ext
-            // column, which a place has no meaning for.
-            if (index.column() == NameColumn &&
-                m_provider->entryIsRenameable(fileInfoAt(index.row()).path()))
-                f |= Qt::ItemIsEditable;
+            // nothing editable
         } else if (index.column() == NameColumn) {
             f |= Qt::ItemIsEditable;
         } else if (index.column() == ExtColumn && !fileInfoAt(index.row()).isDir()) {
@@ -876,24 +869,11 @@ bool FileSystemModel::setData(const QModelIndex &index, const QVariant &value, i
     if (!info.isValid())
         return false;
 
-    // A synthetic row's new name is whatever was typed, verbatim: there is no
-    // extension to re-append, and the backend is handed the label rather than a
-    // file name. Compared against the seed, not the display name, so committing
-    // an untouched editor is the no-op it looks like.
-    if (m_virtualListing) {
-        if (col != NameColumn || !m_provider->entryIsRenameable(info.path()))
-            return false;
-        const QString label = value.toString().trimmed();
-        if (label == m_provider->entryRenameSeed(info.path()))
-            return false;
-        QString ignored;
-        if (m_provider->rename(info.path(), label, &ignored) != FileProvider::RenameResult::Ok) {
-            emit renameFailed(tr("Failed to rename %1").arg(info.name()));
-            return false;
-        }
-        setRootPath(m_rootPath); // the row's display name is built from the label
-        return true;
-    }
+    // flags() already withholds ItemIsEditable across a synthetic listing, so no
+    // editor can commit here; refused again rather than relying on that, since
+    // setData() is public and a caller could reach it directly.
+    if (m_virtualListing)
+        return false;
 
     // The Name column now shows the base name and the Ext column the suffix, so
     // both edits just recombine the two halves into a full file name.

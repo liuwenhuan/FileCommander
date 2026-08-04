@@ -1,12 +1,7 @@
 #include "ComputerProvider.h"
 
-#include <QDir>
 #include <QMutexLocker>
 #include <QObject>
-
-#ifdef Q_OS_WIN
-#include <qt_windows.h>
-#endif
 
 namespace {
 
@@ -147,69 +142,16 @@ QString ComputerProvider::parentPath(const QString &path) const {
 
 bool ComputerProvider::exists(const QString &path) const { return isDir(path); }
 
-bool ComputerProvider::entryIsRenameable(const QString &path) const {
-#ifdef Q_OS_WIN
-    QMutexLocker locker(&m_mutex);
-    auto it = m_byPath.constFind(path);
-    // Only a drive, and only its label. Everything else in this listing is a
-    // name we invented (a bookmark, a discovered host) or one the system owns
-    // and offers no way to set.
-    return it != m_byPath.constEnd() && it->kind == ComputerEntry::Kind::Drive;
-#else
-    // Relabelling ext4/btrfs/xfs means e2label/btrfs/xfs_admin as root -- not
-    // something a file manager should be spawning under sudo. Offering an
-    // editor that always failed would be worse than offering none.
-    Q_UNUSED(path);
-    return false;
-#endif
-}
-
-QString ComputerProvider::entryRenameSeed(const QString &path) const {
-    QMutexLocker locker(&m_mutex);
-    auto it = m_byPath.constFind(path);
-    // The label alone, never the display name: "Windows (C:)" would put the
-    // drive letter in the editor, and the letter is not the user's to change.
-    return it == m_byPath.constEnd() ? QString() : it->label;
-}
-
-FileProvider::RenameResult ComputerProvider::rename(const QString &path, const QString &newName,
-                                                    QString *newPath) {
-    QMutexLocker locker(&m_mutex);
-    auto it = m_byPath.find(path);
+FileProvider::RenameResult ComputerProvider::rename(const QString & /*path*/,
+                                                    const QString & /*newName*/,
+                                                    QString * /*newPath*/) {
+    // Nothing in this listing is renameable. Every row names a *place* -- a
+    // drive, a saved bookmark, a host that answered a scan -- and none of those
+    // names is a file manager's to change.
+    //
     // Failed, not Unsupported: Unsupported means "ask another backend", and
-    // there is no other backend that could rename a row in this listing.
-    if (it == m_byPath.end() || it->kind != ComputerEntry::Kind::Drive)
-        return RenameResult::Failed;
-
-#ifdef Q_OS_WIN
-    // The volume is addressed by its own root, which comes from the catalog and
-    // never from anything the user typed -- so a rename here cannot reach the
-    // drive letter no matter what was entered. Only the label changes.
-    const QString root = QDir::toNativeSeparators(
-        it->target.endsWith(QLatin1Char('/')) ? it->target : it->target + QLatin1Char('/'));
-    if (!SetVolumeLabelW(reinterpret_cast<const wchar_t *>(root.utf16()),
-                         newName.isEmpty() ? nullptr
-                                           : reinterpret_cast<const wchar_t *>(newName.utf16())))
-        return RenameResult::Failed; // no write access to the volume root, or a rejected label
-
-    it->label = newName;
-    it->name = ComputerCatalog::driveDisplayName(it->target, QString(), it->label);
-    for (ComputerEntry &entry : m_entries) {
-        if (entry.kind == ComputerEntry::Kind::Drive && entry.target == it->target) {
-            entry.label = it->label;
-            entry.name = it->name;
-        }
-    }
-    // The row keeps its path: a drive is identified by where it is mounted, and
-    // relabelling does not move it.
-    if (newPath)
-        *newPath = path;
-    return RenameResult::Ok;
-#else
-    Q_UNUSED(newName);
-    Q_UNUSED(newPath);
+    // there is no other backend that could rename one of these rows.
     return RenameResult::Failed;
-#endif
 }
 
 QString ComputerProvider::entryTypeLabel(const QString &path) const {
