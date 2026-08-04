@@ -7,6 +7,8 @@
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
+#include <QResizeEvent>
+#include <QSizePolicy>
 
 #include "ThemedDialogs.h"
 #include <QPushButton>
@@ -26,6 +28,12 @@ ArchiveBrowserDialog::ArchiveBrowserDialog(const QString &archivePath,
     m_model = new ArchiveModel(this);
 
     m_pathLabel = new QLabel(this);
+    // A one-line breadcrumb above the table, so it is elided rather than
+    // wrapped -- but it must not decide the window's width either way: a deep
+    // path inside an archive would otherwise push the window past the 700 px
+    // chosen above and pin its minimum there. See updatePathLabel().
+    m_pathLabel->setMinimumWidth(0);
+    m_pathLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 
     auto *toolbar = new QToolBar(this);
     toolbar->addAction(tr("Up"), this, &ArchiveBrowserDialog::navigateUp);
@@ -63,8 +71,21 @@ ArchiveBrowserDialog::ArchiveBrowserDialog(const QString &archivePath,
 }
 
 void ArchiveBrowserDialog::updatePathLabel() {
-    const QString path = m_model->currentPath();
-    m_pathLabel->setText(QStringLiteral("/%1").arg(path));
+    m_fullPath = QStringLiteral("/%1").arg(m_model->currentPath());
+    // ElideMiddle keeps both ends: the archive's top level and the directory you
+    // are actually in are what say where you are. The whole path stays reachable
+    // as a tooltip.
+    m_pathLabel->setText(m_pathLabel->fontMetrics().elidedText(m_fullPath, Qt::ElideMiddle,
+                                                               qMax(0, m_pathLabel->width())));
+    m_pathLabel->setToolTip(m_fullPath);
+}
+
+void ArchiveBrowserDialog::resizeEvent(QResizeEvent *event) {
+    FramelessDialog::resizeEvent(event);
+    // Re-elide against the width the label just got. Safe from feedback: the
+    // label's Ignored horizontal policy means its text never feeds back into the
+    // geometry that produced this event.
+    updatePathLabel();
 }
 
 void ArchiveBrowserDialog::onActivated(const QModelIndex &index) {

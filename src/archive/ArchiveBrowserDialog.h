@@ -4,6 +4,7 @@
 
 class QTableView;
 class QLabel;
+class QResizeEvent;
 class ArchiveModel;
 
 // Standalone browse/extract window opened by double-clicking a supported
@@ -18,6 +19,9 @@ public:
     // mirroring how F5 copy works between the two main panels.
     ArchiveBrowserDialog(const QString &archivePath, const QString &defaultExtractDir,
                           QWidget *parent = nullptr);
+
+protected:
+    void resizeEvent(QResizeEvent *event) override;
 
 private slots:
     void onActivated(const QModelIndex &index);
@@ -34,5 +38,7 @@ private:
     ArchiveModel *m_model;
     QTableView *m_view;
     QLabel *m_pathLabel;
+    // The label shows an elided copy; this is what it was elided from.
+    QString m_fullPath;
     QString m_defaultExtractDir;
 };

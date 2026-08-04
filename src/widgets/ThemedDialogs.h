@@ -7,6 +7,8 @@
 #include <QString>
 
 class QAbstractButton;
+class QDialog;
+class QLabel;
 class QWidget;
 
 // Drop-in themed replacements for the QMessageBox / QInputDialog static
@@ -24,6 +26,34 @@ QMessageBox::StandardButton
 message(QWidget *parent, QMessageBox::Icon icon, const QString &title, const QString &text,
         QMessageBox::StandardButtons buttons = QMessageBox::Ok,
         QMessageBox::StandardButton defaultButton = QMessageBox::NoButton);
+
+// The window message() shows, without the modal loop: a themed frameless dialog
+// sized to a real QMessageBox embedded in it as a plain child widget. The caller
+// owns the returned dialog (or `parent` does, if given).
+//
+// Split out because that sizing is the part worth testing, and it cannot be
+// observed through message(): measuring it means reaching the dialog before
+// exec() returns, and showing a QMessageBox at all is not something every QPA
+// plugin survives (QMessageBox::showEvent dereferences the platform's native
+// interface on Windows, which the offscreen plugin does not provide).
+QDialog *createMessageDialog(QWidget *parent, QMessageBox::Icon icon, const QString &title,
+                             const QString &text,
+                             QMessageBox::StandardButtons buttons = QMessageBox::Ok,
+                             QMessageBox::StandardButton defaultButton = QMessageBox::NoButton);
+
+// Stops a label whose text can be arbitrarily long — a file path, an error
+// message, a server name, a line of command output — from deciding how wide its
+// window is.
+//
+// A QLabel reports its whole text as its minimum width (its longest unbreakable
+// run, once wrapped), and QLayout hands that on as the window's minimum width.
+// The window is then born as wide as the string and cannot be shrunk
+// afterwards: not a size anyone chose, and on a long path not one that fits the
+// screen. Wrapping the text and letting the label be squeezed below its own hint
+// moves the decision back to the window, which is the only place that knows how
+// wide a dialog should be. Callers still have to give the window a width of its
+// own — a resize(), or a layout that supplies one.
+void relaxLabelWidth(QLabel *label);
 
 // Applies Qt's translated standard-button labels, with an application fallback
 // for a missing or empty qtbase catalog. The installed event filter repeats the

@@ -77,6 +77,7 @@ set(UI_TEST_SOURCES
     test_NetworkStateMotion.cpp
     test_OperationProgressMotion.cpp
     test_OperationErrorDialog.cpp
+    test_DialogContentWidth.cpp
     ../archive/test_CompressDialog.cpp
     ../../resources/resources.qrc
 )

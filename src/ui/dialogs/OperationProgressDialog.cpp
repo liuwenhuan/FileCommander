@@ -44,8 +44,16 @@ OperationProgressDialog::OperationProgressDialog(QWidget *parent) : FramelessDia
     m_descriptionLabel = new QLabel(this);
     m_statsLabel = new QLabel(this);
     m_fileLabel = new QLabel(this);
-    m_fileLabel->setWordWrap(true);
     m_queueLabel = new QLabel(this);
+    // Both of these carry whatever path the job is working on -- the description
+    // is "Copying 3 item(s) to <destDir>" or "Renaming <path>", the file label is
+    // the file itself. Left to speak for themselves they set this window's
+    // minimum width to the length of that path: measured at 853 px on an 800 px
+    // screen for one ordinary backup path, against the 460 px asked for above,
+    // and unshrinkable. The stats and queue lines are counts and rates, so they
+    // are bounded already and keep their single-line look.
+    ttc::relaxLabelWidth(m_descriptionLabel);
+    ttc::relaxLabelWidth(m_fileLabel);
     m_progressBar = new QProgressBar(this);
     m_progressBar->setRange(0, 0); // indeterminate until we know a total
     m_revealEffect = new QGraphicsOpacityEffect(this);

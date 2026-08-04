@@ -6,16 +6,25 @@
 #include <QApplication>
 #include <QCoreApplication>
 #include <QEvent>
+#include <QGuiApplication>
 #include <QHash>
 #include <QIcon>
 #include <QInputDialog>
+#include <QLabel>
+#include <QLayout>
 #include <QLocale>
+#include <QMargins>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPointer>
 #include <QPushButton>
+#include <QScreen>
+#include <QShowEvent>
+#include <QSizePolicy>
 #include <QTimer>
 #include <QVBoxLayout>
+
+#include <memory>
 
 namespace {
 
@@ -374,9 +383,130 @@ template <typename T> void installLanguageChangeFilter(T *box) {
     box->installEventFilter(filter);
 }
 
+// How wide one of these prompts is allowed to be before the text it carries
+// stops deciding: 640 px is what OverwriteConfirmDialog already picks for the
+// same kind of path-bearing message, and two thirds of the screen is the
+// ceiling OperationErrorDialog already applies to a modal prompt -- on a small
+// screen that is the tighter of the two. Neither figure is derived from the
+// message, which is the point: a copy failure naming two absolute paths asks
+// for 5337 px (measured) if you let it.
+constexpr int kComfortableDialogWidth = 640;
+
+// A short prompt would look mean at its natural width, so it gets a floor. This
+// is a floor only -- raising it to fit the content is what made these windows
+// oversized *and* unshrinkable.
+constexpr int kMinimumPromptWidth = 360;
+
+QRect availableGeometryFor(const QWidget *widget) {
+    const QScreen *widgetScreen = widget ? widget->screen() : nullptr;
+    if (!widgetScreen)
+        widgetScreen = QGuiApplication::primaryScreen();
+    return widgetScreen ? widgetScreen->availableGeometry() : QRect();
+}
+
+int comfortableWidthFor(const QWidget *widget) {
+    const QRect available = availableGeometryFor(widget);
+    if (available.isEmpty())
+        return kComfortableDialogWidth;
+    return qMin(kComfortableDialogWidth, available.width() * 2 / 3);
+}
+
+// The translucent shadow band FramelessDialog draws outside its content, so a
+// content width can be turned into a window width and back.
+int chromeWidth(const QWidget *dialog) {
+    const QMargins margins = dialog->contentsMargins();
+    return margins.left() + margins.right();
+}
+
+// A frameless wrapper whose size is decided by the single Qt dialog embedded in
+// it, rather than the other way round.
+//
+// Qt's own dialogs only work out their wrapped, screen-bounded width when they
+// are first shown -- QMessageBoxPrivate::updateSize() turns word wrap on, clamps
+// the result, and ends with setFixedSize(). Until that runs, the embedded box
+// reports the width of its *unwrapped* text: 5337 px, measured, for a copy
+// failure naming two absolute paths. The wrapper is laid out from that hint
+// before its children are shown, and QLayout turns it into the wrapper's
+// minimum width as well, so a later resize() cannot bring it back down. That is
+// how a warning ended up spanning the screen with its text wrapping in a narrow
+// column and a wide empty band beside every line.
+//
+// SetFixedSize keeps the window equal to its content whenever the layout runs,
+// and re-running the layout from showEvent -- after the embedded dialog has
+// settled, but before the window is mapped and QDialog::showEvent centres it --
+// is what makes the settled size the one the user sees. No band, no flash, and
+// no width that depends on the longest unbroken string in the message.
+class ContentSizedDialog final : public FramelessDialog {
+public:
+    explicit ContentSizedDialog(QWidget *parent) : FramelessDialog(parent) {}
+
+    void embed(QWidget *content) {
+        auto *layout = new QVBoxLayout(this);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSizeConstraint(QLayout::SetFixedSize);
+        layout->addWidget(content);
+    }
+
+protected:
+    void showEvent(QShowEvent *event) override {
+        if (QLayout *contentLayout = layout()) {
+            // invalidate() first: activate() is a no-op on a layout that still
+            // believes it is current, and whether the embedded dialog's own
+            // resize dirtied it is Qt's business, not ours to assume.
+            contentLayout->invalidate();
+            contentLayout->activate();
+        }
+        FramelessDialog::showEvent(event);
+    }
+};
+
+// QInputDialog's prompt label does not wrap, so its minimumSizeHint is the whole
+// prompt on one line -- and callers put file names and paths in there. That
+// minimum reaches the wrapper window through the layout, which is how a rename
+// prompt measured 5473 px wide.
+void relaxPromptLabel(QInputDialog *input) {
+    if (!input)
+        return;
+    // The prompt is the only QLabel QInputDialog builds; matching on the text as
+    // well keeps this from silently re-styling some future sibling.
+    for (QLabel *label : input->findChildren<QLabel *>()) {
+        if (label->text() != input->labelText())
+            continue;
+        ttc::relaxLabelWidth(label);
+        return;
+    }
+}
+
+// A comfortable width for a prompt, decided by the screen rather than by
+// whatever was interpolated into the label.
+void sizePromptDialog(FramelessDialog *dlg) {
+    const QRect available = availableGeometryFor(dlg);
+    const int floorWidth =
+        available.isEmpty() ? kMinimumPromptWidth : qMin(kMinimumPromptWidth, available.width());
+    // A floor, not a fit: setMinimumWidth(sizeHint()) is what used to pin these
+    // windows to the length of their own label, leaving the user unable to
+    // shrink a window that was already too wide to look like it belonged to its
+    // content.
+    dlg->setMinimumWidth(floorWidth);
+    // qMax keeps the floor authoritative on a screen too narrow for both.
+    const int cap = qMax(floorWidth, comfortableWidthFor(dlg));
+    dlg->resize(qBound(floorWidth, dlg->sizeHint().width(), cap), dlg->sizeHint().height());
+}
+
 } // namespace
 
 namespace ttc {
+
+void relaxLabelWidth(QLabel *label) {
+    if (!label)
+        return;
+    label->setWordWrap(true);
+    label->setMinimumWidth(0);
+    // Ignored, not Minimum/Preferred: QWidgetItem zeroes both the size hint and
+    // the smart minimum for an Ignored policy, which is what keeps the text out
+    // of the window's width entirely rather than merely reducing its say.
+    label->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+}
 
 void localizeStandardButtons(QMessageBox *box) {
     applyLocalization(box);
@@ -396,16 +526,16 @@ void setStandardButtonOverride(QAbstractButton *button, const QString &text) {
     button->setText(text);
 }
 
-QMessageBox::StandardButton message(QWidget *parent, QMessageBox::Icon icon, const QString &title,
-                                    const QString &text, QMessageBox::StandardButtons buttons,
-                                    QMessageBox::StandardButton defaultButton) {
-    FramelessDialog dlg(parent);
-    dlg.setWindowTitle(title);
+QDialog *createMessageDialog(QWidget *parent, QMessageBox::Icon icon, const QString &title,
+                             const QString &text, QMessageBox::StandardButtons buttons,
+                             QMessageBox::StandardButton defaultButton) {
+    auto *dlg = new ContentSizedDialog(parent);
+    dlg->setWindowTitle(title);
 
     // A real QMessageBox, but embedded as a plain child widget (Qt::Widget)
     // rather than a top-level window — so it renders its icon / text / standard
     // buttons inside our themed frame instead of its own native decorations.
-    auto *box = new QMessageBox(&dlg);
+    auto *box = new QMessageBox(dlg);
     box->setIcon(icon);
     box->setWindowTitle(title);
     box->setText(text);
@@ -414,17 +544,30 @@ QMessageBox::StandardButton message(QWidget *parent, QMessageBox::Icon icon, con
     if (defaultButton != QMessageBox::NoButton)
         box->setDefaultButton(defaultButton);
     box->setWindowFlags(Qt::Widget);
+    // Everything the box says about its own width before it is shown is the
+    // unwrapped text (see ContentSizedDialog), and the window is laid out from
+    // it once before the box ever gets a show event. Cap the box for that one
+    // pass so the window is never even briefly sized to the message; the box
+    // replaces this with its own wrapped size, via setFixedSize, on show.
+    box->setMaximumWidth(qMax(0, comfortableWidthFor(dlg) - chromeWidth(dlg)));
+
+    dlg->embed(box);
+    return dlg;
+}
+
+QMessageBox::StandardButton message(QWidget *parent, QMessageBox::Icon icon, const QString &title,
+                                    const QString &text, QMessageBox::StandardButtons buttons,
+                                    QMessageBox::StandardButton defaultButton) {
+    const std::unique_ptr<QDialog> dlg(
+        createMessageDialog(parent, icon, title, text, buttons, defaultButton));
+    auto *box = dlg->findChild<QMessageBox *>();
 
     QMessageBox::StandardButton result = QMessageBox::NoButton;
-    QObject::connect(box, &QMessageBox::buttonClicked, &dlg,
+    QObject::connect(box, &QMessageBox::buttonClicked, dlg.get(),
                      [&](QAbstractButton *b) { result = box->standardButton(b); });
-    QObject::connect(box, &QMessageBox::finished, &dlg, [&](int) { dlg.accept(); });
+    QObject::connect(box, &QMessageBox::finished, dlg.get(), [&](int) { dlg->accept(); });
 
-    auto *layout = new QVBoxLayout(&dlg);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->addWidget(box);
-
-    dlg.exec();
+    dlg->exec();
     return result;
 }
 
@@ -440,6 +583,7 @@ QString getText(QWidget *parent, const QString &title, const QString &label,
     input->setTextEchoMode(mode);
     input->setTextValue(text);
     localizeStandardButtons(input->findChild<QDialogButtonBox *>());
+    relaxPromptLabel(input);
 
     bool accepted = false;
     QObject::connect(input, &QInputDialog::accepted, &dlg, [&] {
@@ -451,9 +595,7 @@ QString getText(QWidget *parent, const QString &title, const QString &label,
     auto *layout = new QVBoxLayout(&dlg);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(input);
-    // Give short prompts a comfortable minimum width (QInputDialog alone is very
-    // narrow).
-    dlg.setMinimumWidth(dlg.sizeHint().width() < 360 ? 360 : dlg.sizeHint().width());
+    sizePromptDialog(&dlg);
 
     dlg.exec();
     if (ok)
@@ -474,6 +616,7 @@ int getInt(QWidget *parent, const QString &title, const QString &label, int valu
     input->setIntStep(step);
     input->setIntValue(value);
     localizeStandardButtons(input->findChild<QDialogButtonBox *>());
+    relaxPromptLabel(input);
 
     bool accepted = false;
     QObject::connect(input, &QInputDialog::accepted, &dlg, [&] {
@@ -485,7 +628,7 @@ int getInt(QWidget *parent, const QString &title, const QString &label, int valu
     auto *layout = new QVBoxLayout(&dlg);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(input);
-    dlg.setMinimumWidth(dlg.sizeHint().width() < 360 ? 360 : dlg.sizeHint().width());
+    sizePromptDialog(&dlg);
 
     dlg.exec();
     if (ok)

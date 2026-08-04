@@ -50,14 +50,21 @@ TransferProgressDialog::TransferProgressDialog(OperationQueue *queue, QWidget *p
 
     m_descriptionLabel = new QLabel(this);
     m_fileLabel = new QLabel(this);
-    m_fileLabel->setWordWrap(true);
     m_bytesLabel = new QLabel(this);
     m_speedLabel = new QLabel(this);
     m_etaLabel = new QLabel(this);
     m_queueLabel = new QLabel(this);
     m_errorLabel = new QLabel(this);
-    m_errorLabel->setWordWrap(true);
     m_errorLabel->setProperty("semanticState", QStringLiteral("error"));
+    // The three lines whose text has no length anybody controls: the job
+    // description names a destination directory, the file label names a file,
+    // and an error message quotes both. Each would otherwise set this window's
+    // minimum width to the longest of them and leave it there -- see
+    // OperationProgressDialog for the same measurement. Bytes/speed/ETA/queue
+    // are numbers and stay single-line.
+    ttc::relaxLabelWidth(m_descriptionLabel);
+    ttc::relaxLabelWidth(m_fileLabel);
+    ttc::relaxLabelWidth(m_errorLabel);
     m_progressBar = new QProgressBar(this);
     m_progressBar->setRange(0, 0); // indeterminate until we know a total
     m_defaultProgressColor = m_progressBar->palette().color(QPalette::Highlight);

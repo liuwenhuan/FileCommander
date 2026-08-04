@@ -91,8 +91,12 @@ MultiRenameDialog::MultiRenameDialog(const QStringList &paths, QWidget *parent)
                 &MultiRenameDialog::updatePreview);
 
     m_statusLabel = new QLabel(this);
-    m_statusLabel->setWordWrap(true);
     m_statusLabel->setProperty("semanticState", QStringLiteral("error"));
+    // Every problem this reports quotes a file name ("<name> already exists on
+    // disk"), and a name may be 255 characters with nothing to break on, which
+    // would otherwise widen this window past the 700 px chosen above the moment
+    // a validation error appears -- and keep it there.
+    ttc::relaxLabelWidth(m_statusLabel);
 
     m_buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     ttc::localizeStandardButtons(m_buttons);
