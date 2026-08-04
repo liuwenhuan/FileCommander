@@ -11,10 +11,13 @@ namespace ttc {
 // plugin.
 //
 // `tint` recolours it through the same luma-to-phosphor map as every other
-// surface (fc::tintImage) instead of a second, hand-picked green palette. That
-// is deliberate: the icon sits in the title bar right next to tinted folder
-// icons, and two greens chosen independently would not match. Pass an invalid
-// colour -- the default -- for the normal blue icon.
+// surface (fc::tintImage) rather than a second, hand-picked palette. That is
+// deliberate: the icon sits in the title bar right next to the themed chrome
+// glyphs, and two colours chosen independently would not match -- ThemeManager
+// hands it exactly the glyph colour for that reason.
+//
+// Pass an invalid colour -- the default -- for the stock blue icon. Only
+// main.cpp does, for the window icon that exists before any theme is applied.
 //
 // Lives in `ui`, not in main.cpp, because the theme can change at runtime and
 // ThemeManager has to be able to repaint it.

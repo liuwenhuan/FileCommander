@@ -140,7 +140,10 @@ void ThemeManager::apply(Settings::Theme theme, bool phosphorImages, bool phosph
     // The app icon is painted by us, so it is repainted rather than recoloured
     // in place. Every top-level window carries its own copy (the frameless
     // TitleBar reads window->windowIcon()), so they all have to be re-set.
-    const QIcon icon = ttc::appIcon(crt ? kPhosphor : QColor());
+    // The same colour the rest of our chrome takes. It sits in the title bar
+    // beside those glyphs and above the tab strip, so leaving it the stock blue
+    // made it the one thing in the window that had not noticed the theme.
+    const QIcon icon = ttc::appIcon(glyphTint);
     qApp->setWindowIcon(icon);
     for (QWidget *w : qApp->topLevelWidgets()) {
         w->setWindowIcon(icon);

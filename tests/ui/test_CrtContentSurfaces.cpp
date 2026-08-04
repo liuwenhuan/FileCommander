@@ -9,6 +9,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 
+#include "AppIcon.h"
 #include "CommandBar.h"
 #include "FileListView.h"
 #include "IconFileView.h"
@@ -440,4 +441,55 @@ TEST(CrtContentSurfacesTest, TheDarkThemesAccentSitsWithItsGreyscaleContent) {
     // ...and still distinguishable from the surface it sits on, or it stops
     // being an accent at all.
     EXPECT_GE(accent.lightness(), 48);
+}
+
+// The app icon sits in the title bar beside the themed chrome glyphs. Leaving
+// it the stock blue made it the one thing in the window that had not noticed
+// the theme -- and it is painted by us, through the same recolouring path, so
+// there was never a reason for it to be exempt.
+TEST(CrtContentSurfacesTest, TheAppIconTakesTheSameColourAsTheChromeGlyphs) {
+    ThemeManager manager;
+    struct Restore {
+        QString sheet;
+        ~Restore() { qApp->setStyleSheet(sheet); }
+    } restore{qApp->styleSheet()};
+
+    // Dominant colour of the icon at title-bar size, ignoring what the shape
+    // leaves transparent.
+    auto dominant = [](const QIcon &icon) {
+        const QImage image = icon.pixmap(32, 32).toImage();
+        qint64 r = 0, g = 0, b = 0, n = 0;
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                const QColor pixel = image.pixelColor(x, y);
+                if (pixel.alpha() < 200)
+                    continue;
+                r += pixel.red();
+                g += pixel.green();
+                b += pixel.blue();
+                ++n;
+            }
+        }
+        return n ? QColor(int(r / n), int(g / n), int(b / n)) : QColor();
+    };
+
+    const QColor stock = dominant(ttc::appIcon());
+    ASSERT_TRUE(stock.isValid());
+    EXPECT_GT(stock.saturation(), 60) << "the untinted icon is the blue one";
+
+    for (Settings::Theme theme : {Settings::Theme::Dark, Settings::Theme::Light,
+                                  Settings::Theme::Crt}) {
+        manager.apply(theme, true, true);
+        const QColor themed = dominant(qApp->windowIcon());
+        ASSERT_TRUE(themed.isValid()) << "theme " << int(theme);
+        EXPECT_NE(themed.rgb(), stock.rgb())
+            << "theme " << int(theme) << " left the app icon in its stock colours";
+        // ...and it landed on the theme's own hue rather than some third one.
+        const QColor glyph = IconCache::instance().glyphTint();
+        ASSERT_TRUE(glyph.isValid());
+        const int hueGap = qAbs(themed.hue() - glyph.hue());
+        EXPECT_TRUE(themed.saturation() < 40 || hueGap < 30 || hueGap > 330)
+            << "theme " << int(theme) << ": icon " << themed.name().toStdString()
+            << " vs glyph colour " << glyph.name().toStdString();
+    }
 }
