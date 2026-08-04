@@ -2,7 +2,8 @@
 
 #include <QFont>
 #include <QString>
-#include <QWidget>
+
+#include "FramelessWindow.h"
 
 class Settings;
 class QuickView;
@@ -11,7 +12,12 @@ class QuickView;
 // file" surface, so the F3 viewer and the Ctrl+Q preview pane share one
 // implementation and the same capabilities (image/text/video/PDF/markdown/
 // office/archive). Deletes itself on close; Esc closes it.
-class ViewerWindow : public QWidget {
+//
+// FramelessWindow, not a bare QWidget: this window used to keep the native
+// decorations, which ignore the theme entirely -- a stock light-grey title bar
+// sat on top of a fully themed body. It is a base-class swap only; the layout
+// below is unchanged.
+class ViewerWindow : public FramelessWindow {
     Q_OBJECT
 
 public:

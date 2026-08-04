@@ -89,9 +89,8 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event) {
     }
 }
 
-TextEditor::TextEditor(QWidget *parent) : QWidget(parent) {
+TextEditor::TextEditor(QWidget *parent) : FramelessWindow(parent) {
     setAttribute(Qt::WA_DeleteOnClose);
-    setWindowFlag(Qt::Window);
 
     m_editor = new CodeEditor(this);
 

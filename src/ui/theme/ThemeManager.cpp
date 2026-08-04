@@ -9,6 +9,7 @@
 #include "AppIcon.h"
 #include "DialogTitleBar.h"
 #include "FramelessDialog.h"
+#include "FramelessWindow.h"
 #include "TabBar.h"
 #include "TitleBar.h"
 #include "filesystem/IconCache.h"
@@ -150,6 +151,10 @@ void ThemeManager::apply(Settings::Theme theme, bool phosphorImages, bool phosph
         if (!crt) {
             if (auto *dialog = qobject_cast<FramelessDialog *>(w))
                 dialog->setBackgroundTile(QPixmap());
+            // The F3 viewer and the F4 editor are top-level windows of their
+            // own, so they are only ever reached as `w` -- never as a child.
+            if (auto *window = qobject_cast<FramelessWindow *>(w))
+                window->setBackgroundTile(QPixmap());
             for (FramelessDialog *dialog : w->findChildren<FramelessDialog *>())
                 dialog->setBackgroundTile(QPixmap());
             for (TitleBar *titleBar : w->findChildren<TitleBar *>())

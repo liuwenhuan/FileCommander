@@ -9,8 +9,7 @@
 #include "config/Settings.h"
 
 ViewerWindow::ViewerWindow(Settings &settings, const QString &path, QWidget *parent)
-    : QWidget(parent) {
-    setWindowFlag(Qt::Window);
+    : FramelessWindow(parent) {
     setAttribute(Qt::WA_DeleteOnClose);
     setWindowTitle(QFileInfo(path).fileName());
     resize(900, 700);

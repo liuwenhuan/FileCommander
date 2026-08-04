@@ -75,15 +75,17 @@ QuickView#QuickViewSurface QStackedWidget#QuickViewStack {
    viewports and the command input are handled below through one stable owner
    per visible surface. */
 FilePanel, TitleBar, FunctionKeyBar, CommandBar, BreadcrumbBar,
-StatusBarWidget, FramelessDialog, QMessageBox, QTabBar, QToolBar,
-QDialogButtonBox, QGroupBox {
+StatusBarWidget, FramelessDialog, FramelessWindow, QMessageBox, QTabBar,
+QToolBar, QDialogButtonBox, QGroupBox {
     background: url(:/icons/crt-scan-chrome.png) repeat;
 }
 
-/* TitleBar and FramelessDialog paint their own shapes, so a `background:` rule
-   cannot reach them -- they take the tile through qproperties instead. The
-   dialog forwards the same tile to its DialogTitleBar. */
-TitleBar, FramelessDialog {
+/* TitleBar, FramelessDialog and FramelessWindow paint their own shapes, so a
+   `background:` rule cannot reach them -- they take the tile through
+   qproperties instead. Each frameless host forwards the same tile to its
+   DialogTitleBar. FramelessWindow is the F3 viewer and the F4 editor; without
+   it here their title bars stay flat while the rest of the window is textured. */
+TitleBar, FramelessDialog, FramelessWindow {
     qproperty-backgroundTile: url(:/icons/crt-scan-chrome.png);
 }
 

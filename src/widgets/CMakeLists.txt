@@ -8,8 +8,12 @@ add_library(widgets STATIC
     TitleButton.h
     DialogTitleBar.h
     DialogTitleBar.cpp
+    FramelessChrome.h
+    FramelessChrome.cpp
     FramelessDialog.h
     FramelessDialog.cpp
+    FramelessWindow.h
+    FramelessWindow.cpp
     SeekSlider.h
     SeekSlider.cpp
     ThemedDialogs.h
