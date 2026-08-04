@@ -7,6 +7,7 @@ add_executable(viewer_tests
     test_TextEditorEditing.cpp
     test_BinarySniff.cpp
     test_HexEditor.cpp
+    test_TextEditorIntegration.cpp
 )
 
 # HexEditor is a real widget, so its tests need a real QApplication. It is

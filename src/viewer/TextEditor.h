@@ -7,6 +7,7 @@
 #include "FramelessWindow.h"
 
 #include "text/TextEncodingDetector.h"
+#include "ByteSearch.h"
 
 class LineNumberArea;
 class QComboBox;
@@ -98,6 +99,9 @@ private:
 // (a stock light-grey title bar over a themed body) because the sweep that made
 // the app's chrome themable converted the QDialogs and these two QWidget
 // windows were not in that set.
+class HexEditor;
+class FindBar;
+
 class TextEditor : public FramelessWindow {
     Q_OBJECT
 
@@ -128,9 +132,23 @@ public:
     // bar or a hex view is, and does not manage their state.
     // ---------------------------------------------------------------------
     QToolBar *toolBar() const { return m_toolBar; }
+    // Runs a search over the file's bytes and moves the active view to the hit.
+    // Public so a test can drive it without synthesising key events.
+    void runSearch(const ByteSearch::Needle &needle, ByteSearch::Direction direction);
     CodeEditor *codeEditor() const { return m_editor; }
     QStackedWidget *viewStack() const { return m_stack; }
     void addAuxiliaryBar(QWidget *bar);
+
+    // Which of the two the file was opened as. A file that is not text is
+    // edited as hex rather than being decoded into a buffer that could not
+    // survive a round trip -- see fc::shouldEditAsHex.
+    bool isHexMode() const { return m_hexMode; }
+    HexEditor *hexEditor() const { return m_hex; }
+    FindBar *findBar() const { return m_findBar; }
+    // Opens the find bar and puts the caret in it. Bound to Ctrl+F and F3.
+    void showFindBar();
+    // Modified in EITHER view; see the note on the implementation.
+    bool isDocumentModified() const;
     int addView(QWidget *view);
     void setCurrentView(int index);
     const QByteArray &fileBytes() const { return m_raw; }
@@ -177,6 +195,12 @@ private:
     // The file exactly as it is on disk. Refreshed by save(), so a later
     // encoding change always re-decodes what is really there.
     QByteArray m_raw;
+    HexEditor *m_hex = nullptr;   // created only for a file opened as hex
+    FindBar *m_findBar = nullptr;
+    bool m_hexMode = false;
+    // Where the last hit was, so "find again" steps off it instead of
+    // returning the same match forever.
+    int m_lastMatchOffset = -1;
     TextEncodingDetector::Result m_detected;
     // QTextDocument cannot hold a CR at all -- it drops one on the way in --
     // so a CRLF file would come back out LF-only and every line of it would

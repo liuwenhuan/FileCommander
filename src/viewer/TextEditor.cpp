@@ -1,4 +1,7 @@
 #include "TextEditor.h"
+#include "FindBar.h"
+#include "HexEditor.h"
+#include "BinarySniff.h"
 
 #include <QAction>
 #include <QCloseEvent>
@@ -269,6 +272,17 @@ void TextEditor::buildToolBar() {
     m_saveAction->setToolTip(tr("Write the buffer to disk (Ctrl+S)"));
     m_saveAction->setEnabled(false); // nothing to write until something changes
 
+    auto *findShortcut = new QShortcut(QKeySequence::Find, this);
+    connect(findShortcut, &QShortcut::activated, this, &TextEditor::showFindBar);
+    // F3 is what the quick-view window uses, so the two windows agree.
+    auto *findAgain = new QShortcut(QKeySequence(Qt::Key_F3), this);
+    connect(findAgain, &QShortcut::activated, this, [this]() {
+        if (m_findBar && m_findBar->isVisible())
+            m_findBar->repeatSearch(ByteSearch::Direction::Forward);
+        else
+            showFindBar();
+    });
+
     m_toolBar->addSeparator();
 
     m_encodingCombo = new QComboBox(m_toolBar);
@@ -352,6 +366,38 @@ bool TextEditor::loadFile(const QString &path) {
     file.close();
 
     m_path = path;
+
+    // Text or hex, decided from the bytes rather than the extension. A file
+    // that is not text must not be decoded into a buffer, because saving it
+    // would re-encode the decoder's guesses and write a different file back.
+    m_hexMode = fc::shouldEditAsHex(m_raw.left(fc::sniffSampleBytes()), path);
+    if (m_hexMode) {
+        if (!HexEditor::fitsInEditor(m_raw.size())) {
+            ttc::warning(this, tr("Edit"), HexEditor::oversizeMessage(m_raw.size()));
+            return false;
+        }
+        if (!m_hex) {
+            m_hex = new HexEditor(this);
+            addView(m_hex);
+            // onModificationChanged, not just the indicator: the title's star
+            // and the toolbar have to move together, and the text document's
+            // own signal already goes through there.
+            connect(m_hex, &HexEditor::modificationChanged, this,
+                    &TextEditor::onModificationChanged);
+        }
+        m_hex->setContents(m_raw);
+        m_hex->setModified(false);
+        setCurrentView(viewStack()->indexOf(m_hex));
+        // Nothing to decode and nothing to choose: the encoding controls
+        // describe a text buffer that does not exist in this mode.
+        m_encodingCombo->setEnabled(false);
+        m_encodingStatus->setText(tr("Binary — edited as hex"));
+        updateTitle();
+        updateModifiedIndicator();
+        return true;
+    }
+    m_encodingCombo->setEnabled(true);
+    setCurrentView(0);
     m_detected = detectForEditing(m_raw);
 
     QSignalBlocker blocker(m_encodingCombo);
@@ -478,7 +524,9 @@ bool TextEditor::save() {
     if (m_path.isEmpty())
         return false;
 
-    const QByteArray bytes = encodeBuffer();
+    // In hex mode the bytes ARE the document; encodeBuffer() would be encoding
+    // a text buffer that was never decoded.
+    const QByteArray bytes = m_hexMode ? m_hex->contents() : encodeBuffer();
 
     // Same call as before: a plain QFile on the path handed to loadFile(). The
     // permission and elevation behaviour is whatever opening that path gives,
@@ -500,9 +548,70 @@ bool TextEditor::save() {
     // The bytes on disk are now these, so a later encoding change re-decodes
     // the saved file and not the one that was opened.
     m_raw = bytes;
-    m_detected = detectForEditing(m_raw);
-    m_editor->document()->setModified(false);
+    if (m_hexMode) {
+        m_hex->setModified(false);
+    } else {
+        m_detected = detectForEditing(m_raw);
+        m_editor->document()->setModified(false);
+    }
+    updateTitle();
+    updateModifiedIndicator();
     return true;
+}
+
+void TextEditor::showFindBar() {
+    if (!m_findBar) {
+        m_findBar = new FindBar(this);
+        addAuxiliaryBar(m_findBar);
+        connect(m_findBar, &FindBar::searchRequested, this, &TextEditor::runSearch);
+        connect(m_findBar, &FindBar::queryChanged, this,
+                [this](const ByteSearch::Needle &) { m_lastMatchOffset = -1; });
+        connect(m_findBar, &FindBar::closed, this, [this]() {
+            m_lastMatchOffset = -1;
+            (m_hexMode ? static_cast<QWidget *>(m_hex) : m_editor)->setFocus();
+        });
+    }
+    // The needle is encoded with the encoding the file is being read in, so the
+    // bar has to be told when that changes -- searching UTF-8 bytes for a
+    // UTF-16-encoded word finds nothing.
+    m_findBar->setEncoding(m_hexMode ? QByteArray("UTF-8") : currentCodecName());
+    m_findBar->activate();
+}
+
+void TextEditor::runSearch(const ByteSearch::Needle &needle, ByteSearch::Direction direction) {
+    // Always the file's bytes, never the decoded text: that is the whole point
+    // of searching here rather than in the text document, and it is what makes
+    // one find bar serve both views.
+    const QByteArray &hay = m_hexMode ? m_hex->contents() : m_raw;
+    const int from = m_lastMatchOffset < 0
+                         ? (direction == ByteSearch::Direction::Forward ? 0 : hay.size())
+                         : m_lastMatchOffset + (direction == ByteSearch::Direction::Forward ? 1 : 0);
+    const int at = ByteSearch::find(hay, needle, from, direction, /*wrap=*/true);
+    if (at == ByteSearch::kNotFound) {
+        m_findBar->showNoMatch();
+        return;
+    }
+    m_lastMatchOffset = at;
+    m_findBar->showMatch(ByteSearch::ordinalAt(hay, needle, at),
+                         ByteSearch::countMatches(hay, needle));
+    if (m_hexMode) {
+        m_hex->selectRange(at, needle.bytes.size());
+        return;
+    }
+    // A text view is addressed in characters, not bytes, so the byte offset has
+    // to be converted through the same codec the buffer was decoded with --
+    // decoding the prefix is the only way that holds for a variable-width
+    // encoding.
+    QTextCodec *codec = QTextCodec::codecForName(currentCodecName());
+    if (!codec)
+        return;
+    const int chars = codec->toUnicode(hay.left(at)).size();
+    const int length = codec->toUnicode(hay.mid(at, needle.bytes.size())).size();
+    QTextCursor cursor = m_editor->textCursor();
+    cursor.setPosition(chars);
+    cursor.setPosition(chars + length, QTextCursor::KeepAnchor);
+    m_editor->setTextCursor(cursor);
+    m_editor->ensureCursorVisible();
 }
 
 void TextEditor::onModificationChanged(bool) {
@@ -511,20 +620,28 @@ void TextEditor::onModificationChanged(bool) {
 }
 
 void TextEditor::updateModifiedIndicator() {
-    const bool modified = m_editor->document()->isModified();
+    const bool modified = isDocumentModified();
     if (m_saveAction)
         m_saveAction->setEnabled(modified);
     if (m_modifiedLabel)
         m_modifiedLabel->setText(modified ? tr("Modified") : QString());
 }
 
+bool TextEditor::isDocumentModified() const {
+    // Whichever view holds the document holds the modification with it. Reading
+    // the text document unconditionally would leave hex edits invisible: Save
+    // would stay greyed out, the title would lose its star, and closing would
+    // discard the edits without asking.
+    return m_hexMode ? (m_hex && m_hex->isModified()) : m_editor->document()->isModified();
+}
+
 void TextEditor::updateTitle() {
     const QString name = QFileInfo(m_path).fileName();
-    setWindowTitle(m_editor->document()->isModified() ? name + QStringLiteral(" *") : name);
+    setWindowTitle(isDocumentModified() ? name + QStringLiteral(" *") : name);
 }
 
 bool TextEditor::promptSaveIfModified() {
-    if (!m_editor->document()->isModified())
+    if (!isDocumentModified())
         return true;
     const auto answer = ttc::question(
         this, tr("Unsaved Changes"), tr("Save changes to %1?").arg(QFileInfo(m_path).fileName()),

@@ -4178,6 +4178,26 @@ Right: %2</source>
 <context>
     <name>TextEditor</name>
     <message>
+        <source>Write the buffer to disk (Ctrl+S)</source>
+        <translation>将编辑内容写入磁盘 (Ctrl+S)</translation>
+    </message>
+    <message>
+        <source>Re-read the file on disk in this encoding</source>
+        <translation>按此编码重新读取磁盘上的文件</translation>
+    </message>
+    <message>
+        <source>Auto: Binary</source>
+        <translation>自动：二进制</translation>
+    </message>
+    <message>
+        <source>Binary — edited as hex</source>
+        <translation>二进制 — 以十六进制编辑</translation>
+    </message>
+    <message>
+        <source>Change Encoding</source>
+        <translation>更改编码</translation>
+    </message>
+    <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="112"/>
         <source>Edit</source>
         <translation>编辑</translation>
@@ -4603,6 +4623,79 @@ Right: %2</source>
     <message>
         <source>Media Foundation could not play this file.</source>
         <translation>Media Foundation 无法播放此文件。</translation>
+    </message>
+</context>
+<context>
+    <name>HexEditor</name>
+    <message>
+        <source>This file is %1 and cannot be opened in the hex editor, which holds the whole file in memory and is limited to %2.</source>
+        <translation>该文件大小为 %1，超出十六进制编辑器 %2 的上限（它需要将整个文件载入内存）。</translation>
+    </message>
+</context>
+<context>
+    <name>FindBar</name>
+    <message>
+        <source>Find…</source>
+        <translation>查找…</translation>
+    </message>
+    <message>
+        <source>Search a byte sequence instead of text, e.g. 4D 5A</source>
+        <translation>搜索字节序列而非文本，例如 4D 5A</translation>
+    </message>
+    <message>
+        <source>Ignore case (ASCII letters only)</source>
+        <translation>忽略大小写（仅 ASCII 字母）</translation>
+    </message>
+    <message>
+        <source>Previous</source>
+        <translation>上一个</translation>
+    </message>
+    <message>
+        <source>Previous match (Shift+Enter)</source>
+        <translation>上一个匹配 (Shift+Enter)</translation>
+    </message>
+    <message>
+        <source>Next match (Enter)</source>
+        <translation>下一个匹配 (Enter)</translation>
+    </message>
+    <message>
+        <source>Close the find bar (Esc)</source>
+        <translation>关闭查找栏 (Esc)</translation>
+    </message>
+    <message>
+        <source>Match %1</source>
+        <translation>第 %1 个匹配</translation>
+    </message>
+    <message>
+        <source>No matches</source>
+        <translation>无匹配</translation>
+    </message>
+</context>
+<context>
+    <name>ByteSearch</name>
+    <message>
+        <source>'%1' is not a hex digit — use 0-9 and A-F.</source>
+        <translation>'%1' 不是十六进制数字 — 请使用 0-9 和 A-F。</translation>
+    </message>
+    <message>
+        <source>Enter hex digits, for example 4D 5A.</source>
+        <translation>请输入十六进制数字，例如 4D 5A。</translation>
+    </message>
+    <message>
+        <source>'%1' has an odd number of hex digits — a byte needs two.</source>
+        <translation>'%1' 的十六进制位数为奇数 — 一个字节需要两位。</translation>
+    </message>
+    <message>
+        <source>Unknown encoding: %1</source>
+        <translation>未知编码：%1</translation>
+    </message>
+    <message>
+        <source>'%1' cannot be written in %2 — searching it is impossible.</source>
+        <translation>%2 无法表示 '%1' — 无法搜索。</translation>
+    </message>
+    <message>
+        <source>Ignoring case is not possible in %1 — searching exactly.</source>
+        <translation>%1 下无法忽略大小写 — 已改为精确匹配。</translation>
     </message>
 </context>
 </TS>
