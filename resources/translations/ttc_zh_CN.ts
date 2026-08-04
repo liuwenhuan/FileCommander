@@ -4227,6 +4227,10 @@ Right: %2</source>
 <context>
     <name>TransferProgressDialog</name>
     <message>
+        <source>Abort</source>
+        <translation>中止</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="46"/>
         <source>Transfers</source>
         <translation>传输</translation>
