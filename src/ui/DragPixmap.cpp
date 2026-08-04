@@ -8,7 +8,8 @@
 
 namespace ttc {
 
-QPixmap makeDragPixmap(const QIcon &firstIcon, int count, qreal dpr) {
+QPixmap makeDragPixmap(const QIcon &firstIcon, int count, qreal dpr,
+                       const QColor &accent, const QColor &accentText) {
     if (dpr <= 0)
         dpr = 1.0;
     const int s = 48; // logical icon edge
@@ -62,9 +63,9 @@ QPixmap makeDragPixmap(const QIcon &firstIcon, int count, qreal dpr) {
     const qreal cy = baseY;
     const QRectF badge(cx - badgeD / 2.0, cy - badgeD / 2.0, badgeD, badgeD);
     p.setPen(Qt::NoPen);
-    p.setBrush(QColor(0x3d, 0x7d, 0xeb));
+    p.setBrush(accent.isValid() ? accent : QColor(0x3d, 0x7d, 0xeb));
     p.drawEllipse(badge);
-    p.setPen(QColor(Qt::white));
+    p.setPen(accentText.isValid() ? accentText : QColor(Qt::white));
     QFont f = p.font();
     f.setBold(true);
     p.setFont(f);

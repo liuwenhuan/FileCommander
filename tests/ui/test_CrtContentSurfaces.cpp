@@ -3,6 +3,7 @@
 #include <QApplication>
 #include <QFile>
 #include <QImage>
+#include <QLabel>
 #include <QLineEdit>
 #include <QPainter>
 #include <QStandardItemModel>
@@ -492,4 +493,53 @@ TEST(CrtContentSurfacesTest, TheAppIconTakesTheSameColourAsTheChromeGlyphs) {
             << "theme " << int(theme) << ": icon " << themed.name().toStdString()
             << " vs glyph colour " << glyph.name().toStdString();
     }
+}
+
+// The preview's info overlay was white-on-black in every theme -- the one thing
+// in the pane that had not noticed which theme was on. It is a stylesheet, so
+// palette(...) is what makes it follow one: Qt re-resolves those when the
+// palette changes, with no refresh plumbing on our side.
+TEST(CrtContentSurfacesTest, ThePreviewInfoOverlayTakesItsColoursFromTheTheme) {
+    StyleSheetRestore restore;
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    Settings settings(dir.filePath(QStringLiteral("settings.ini")));
+
+    // Compared as PIXELS, and via the theme sheets rather than the widget's own
+    // palette. Two earlier drafts measured the wrong thing: reading
+    // overlay->palette() never sees a stylesheet at all (#000000 under both
+    // themes), and putting palette(...) in an inline sheet resolves against the
+    // APPLICATION palette -- which the themes do not touch, since they are
+    // applied with qApp->setStyleSheet(). Both "passed" while the overlay was
+    // still identical under every theme.
+    auto renderUnder = [&](const QString &theme) {
+        applyTheme(theme);
+        QuickView view(settings);
+        view.resize(600, 400);
+        view.show();
+        qApp->processEvents();
+
+        QLabel *overlay = nullptr;
+        for (QLabel *label : view.findChildren<QLabel *>()) {
+            if (label->objectName() == QStringLiteral("quickViewInfoOverlay"))
+                overlay = label;
+        }
+        if (!overlay)
+            return QImage();
+        overlay->setText(QStringLiteral("4000 x 2667"));
+        overlay->adjustSize();
+        overlay->show();
+        qApp->processEvents();
+        return overlay->grab().toImage();
+    };
+
+    const QImage light = renderUnder(QStringLiteral("light"));
+    const QImage crt = renderUnder(QStringLiteral("green"));
+    ASSERT_FALSE(light.isNull()) << "no info overlay found";
+    ASSERT_FALSE(crt.isNull());
+    ASSERT_EQ(light.size(), crt.size());
+
+    EXPECT_NE(light, crt)
+        << "the overlay paints identically under the light and CRT themes -- it "
+           "is following neither";
 }

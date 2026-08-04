@@ -791,3 +791,16 @@ CommandBar {
 CommandBar[inputFocused="true"] {
     border: 1px solid #33ff88;
 }
+
+/* The preview's floating info panel (image and video both). It used to carry an
+   inline white-on-black stylesheet, which is the one thing in the pane that
+   never noticed which theme was on -- and an inline sheet also wins over this
+   one, so it had to come off the widget entirely. Nearly opaque: it sits over a
+   photograph or a video frame and has to stay readable against anything. */
+QLabel#quickViewInfoOverlay {
+    background: rgba(0, 22, 9, 235);
+    color: #33ff88;
+    border: 1px solid #12602f;
+    padding: 6px;
+    border-radius: 4px;
+}

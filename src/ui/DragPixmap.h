@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QColor>
 #include <QPixmap>
 
 class QIcon;
@@ -12,6 +13,10 @@ namespace ttc {
 //     stacked behind it (a "pile of files" effect) and a count badge, so the
 //     drag reads as a batch at a glance.
 // `dpr` is the target device-pixel-ratio so the result stays crisp on HiDPI.
-QPixmap makeDragPixmap(const QIcon &firstIcon, int count, qreal dpr = 1.0);
+// `accent`/`accentText` colour the count badge -- the caller passes its own
+// palette's highlight pair, so the badge follows the theme instead of being a
+// blue disc in a green or grey window. Invalid colours keep the former blue.
+QPixmap makeDragPixmap(const QIcon &firstIcon, int count, qreal dpr = 1.0,
+                       const QColor &accent = QColor(), const QColor &accentText = QColor());
 
 } // namespace ttc

@@ -695,8 +695,11 @@ QWidget *QuickView::buildImagePage() {
     // Floating metadata panel, parented to the viewport so it hovers over the
     // image and does not scroll with it.
     m_infoOverlay = new QLabel(m_imageScroll->viewport());
-    m_infoOverlay->setStyleSheet(
-        "background: rgba(0,0,0,160); color: white; padding: 6px; border-radius: 4px;");
+    // Styled by the theme sheets, not here. An inline stylesheet would win over
+    // the application one, and palette(...) is no use either: the themes are
+    // applied with qApp->setStyleSheet() and do not touch the palette, so
+    // palette(window-text) resolves to the same default under all three.
+    m_infoOverlay->setObjectName(QStringLiteral("quickViewInfoOverlay"));
     m_infoOverlay->setTextFormat(Qt::RichText);
     m_infoOverlay->setAttribute(Qt::WA_TransparentForMouseEvents);
     m_infoOverlay->hide();
@@ -1061,8 +1064,8 @@ QWidget *QuickView::buildVideoPage() {
 
     // Floating metadata panel, parented to the video widget so it hovers on top.
     m_videoInfoOverlay = new QLabel(m_videoSurface);
-    m_videoInfoOverlay->setStyleSheet(
-        "background: rgba(0,0,0,160); color: white; padding: 6px; border-radius: 4px;");
+    // See the image overlay: themed by object name in the .qss files.
+    m_videoInfoOverlay->setObjectName(QStringLiteral("quickViewInfoOverlay"));
     m_videoInfoOverlay->setTextFormat(Qt::RichText);
     m_videoInfoOverlay->setAttribute(Qt::WA_TransparentForMouseEvents);
     m_videoInfoOverlay->hide();
@@ -2425,7 +2428,7 @@ QWidget *QuickView::buildPdfPage() {
     // layer on top. The view scrolls the scene; it does NOT scale it, so the bitmap
     // stays crisp rather than being stretched.
     m_pdfScene = new QGraphicsScene(this);
-    m_pdfScene->setBackgroundBrush(QColor(0x50, 0x50, 0x50));
+    m_pdfScene->setBackgroundBrush(palette().color(QPalette::Dark));
     m_pdfView = new QGraphicsView(m_pdfScene, m_pdfPage);
     m_pdfView->setFrameShape(QFrame::NoFrame);
     m_pdfView->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
@@ -2756,7 +2759,7 @@ QWidget *QuickView::buildSlidesPage() {
     // The view scales the whole scene to fit the pane width (vectors stay crisp at
     // any zoom); it does not rasterize.
     m_slidesScene = new QGraphicsScene(this);
-    m_slidesScene->setBackgroundBrush(QColor(0x50, 0x50, 0x50));
+    m_slidesScene->setBackgroundBrush(palette().color(QPalette::Dark));
     m_slidesView = new QGraphicsView(m_slidesScene, m_slidesPage);
     m_slidesView->setFrameShape(QFrame::NoFrame);
     m_slidesView->setAlignment(Qt::AlignHCenter | Qt::AlignTop);

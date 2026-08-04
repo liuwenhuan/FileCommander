@@ -186,7 +186,9 @@ public:
 protected:
     void paintEvent(QPaintEvent *) override {
         QPainter p(this);
-        p.fillRect(rect(), QColor(0x8a, 0x8a, 0x8a));
+        // Mid, not a literal grey: the handle is a divider between two panels
+        // and should sit at the theme's own idea of one.
+        p.fillRect(rect(), palette().color(QPalette::Mid));
     }
 };
 

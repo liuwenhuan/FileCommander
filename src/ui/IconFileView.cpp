@@ -249,7 +249,9 @@ void IconFileView::startDrag(Qt::DropActions supportedActions) {
     // pile + count badge for a multi-item drag.
     const QIcon icon =
         fsModel->index(firstIdx.row(), FileSystemModel::NameColumn).data(Qt::DecorationRole).value<QIcon>();
-    drag->setPixmap(ttc::makeDragPixmap(icon, paths.size(), devicePixelRatioF()));
+    drag->setPixmap(ttc::makeDragPixmap(icon, paths.size(), devicePixelRatioF(),
+                                       palette().color(QPalette::Highlight),
+                                       palette().color(QPalette::HighlightedText)));
     drag->setHotSpot(QPoint(12, 12));
     drag->exec(supportedActions, Qt::CopyAction);
 }
