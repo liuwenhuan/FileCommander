@@ -5,6 +5,10 @@
 add_library(widgets STATIC
     MotionPolicy.h
     MotionPolicy.cpp
+    ByteSearch.h
+    ByteSearch.cpp
+    FindBar.h
+    FindBar.cpp
     TitleButton.h
     DialogTitleBar.h
     DialogTitleBar.cpp

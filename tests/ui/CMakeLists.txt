@@ -7,6 +7,8 @@ set(UI_TEST_SOURCES
     test_TextViewer.cpp
     test_TextEncodingDetector.cpp
     test_SeekSlider.cpp
+    test_ByteSearch.cpp
+    test_FindBar.cpp
     test_RemoteThumbnailFetcher.cpp
     test_RemoteThumbnail.cpp
     test_ThumbnailAsyncDiskHit.cpp
