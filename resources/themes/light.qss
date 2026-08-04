@@ -167,6 +167,17 @@ CodeEditor {
     qproperty-gutterBorder: #d0d0d0;
 }
 
+/* The hex view's address column is the same idea as the gutter above, and it
+   had the same bug: its default came from AlternateBase, a palette role no
+   theme here sets, so it painted a white strip down the left of a dark
+   window. Named explicitly, and matched to the gutter so the two views read
+   as one editor. */
+HexEditor {
+    qproperty-addressBackgroundColor: #ececec;
+    qproperty-addressColor: #909090;
+    qproperty-separatorColor: #d0d0d0;
+}
+
 QLineEdit {
     background-color: #ffffff;
     border: 1px solid #c8c8c8;

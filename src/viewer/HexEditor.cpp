@@ -120,7 +120,12 @@ HexEditor::HexEditor(QWidget *parent)
     , m_undoStack(new QUndoStack(this)) {
     setFocusPolicy(Qt::StrongFocus);
     viewport()->setCursor(Qt::IBeamCursor);
-    setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+    // The FAMILY from the system's fixed-pitch font, the SIZE from whatever
+    // this widget inherits. systemFont() carries its own point size (9 pt on
+    // Windows) and setting it whole overrode the application font the user
+    // configured, so the hex dump came out visibly smaller than the text editor
+    // beside it -- and left the right of the window empty.
+    setFont(fontFor(QFontDatabase::systemFont(QFontDatabase::FixedFont), font()));
 
     connect(m_undoStack, &QUndoStack::cleanChanged, this,
             [this](bool clean) { emit modificationChanged(!clean); });
@@ -136,6 +141,18 @@ HexEditor::~HexEditor() {
     // from a half-destroyed editor. Nobody wants to hear about modification
     // state during teardown, so the relay is cut here.
     m_undoStack->disconnect(this);
+}
+
+QFont HexEditor::fontFor(const QFont &systemFixed, const QFont &inherited) {
+    QFont result = systemFixed;
+    // Point size where there is one, pixel size otherwise: a font may carry
+    // either, and taking only the point size would silently keep the system
+    // font's own dimensions for a pixel-sized configuration.
+    if (inherited.pointSizeF() > 0)
+        result.setPointSizeF(inherited.pointSizeF());
+    else if (inherited.pixelSize() > 0)
+        result.setPixelSize(inherited.pixelSize());
+    return result;
 }
 
 qint64 HexEditor::maximumSize() {
@@ -267,6 +284,9 @@ int HexEditor::bytesPerLine() const {
 }
 
 void HexEditor::setBytesPerLine(int count) {
+    // An explicit choice wins permanently: the caller means this number, not
+    // "start here and let the window change it".
+    m_autoBytesPerLine = false;
     if (count <= 0 || count == m_bytesPerLine)
         return;
     m_bytesPerLine = count;
@@ -284,6 +304,22 @@ QUndoStack *HexEditor::undoStack() const {
 
 QColor HexEditor::resolved(const QColor &explicitColor, const QColor &fallback) const {
     return explicitColor.isValid() ? explicitColor : fallback;
+}
+
+// A fraction of `towards` mixed into `base`.
+//
+// The address column's fallback used to be QPalette::AlternateBase, and no
+// theme in this app sets that role -- it stayed at the platform default and
+// painted a white strip down the left of a dark window. Exactly the bug the
+// text editor's line-number gutter had. Base and Text are roles the themes DO
+// set, so deriving from them cannot come out white on a dark background even if
+// a theme names no colour of its own.
+QColor HexEditor::mixed(const QColor &base, const QColor &towards, double amount) {
+    const double keep = 1.0 - amount;
+    return QColor::fromRgbF(base.redF() * keep + towards.redF() * amount,
+                            base.greenF() * keep + towards.greenF() * amount,
+                            base.blueF() * keep + towards.blueF() * amount,
+                            base.alphaF());
 }
 
 #define HEX_EDITOR_COLOR(Getter, Setter, Member)                                                  \
@@ -397,7 +433,8 @@ void HexEditor::paintEvent(QPaintEvent *event) {
     const QColor background = resolved(m_backgroundColor, colors.color(QPalette::Base));
     const QColor text = resolved(m_textColor, colors.color(QPalette::Text));
     const QColor addressBackground =
-        resolved(m_addressBackgroundColor, colors.color(QPalette::AlternateBase));
+        resolved(m_addressBackgroundColor,
+                 mixed(colors.color(QPalette::Base), colors.color(QPalette::Text), 0.10));
     const QColor address = resolved(m_addressColor, colors.color(QPalette::Mid));
     const QColor separator = resolved(m_separatorColor, colors.color(QPalette::Mid));
     const QColor selection = resolved(m_selectionColor, colors.color(QPalette::Highlight));
@@ -487,7 +524,32 @@ void HexEditor::paintEvent(QPaintEvent *event) {
 
 void HexEditor::resizeEvent(QResizeEvent *event) {
     QAbstractScrollArea::resizeEvent(event);
+    fitBytesPerLineToWidth();
     updateScrollBars();
+}
+
+// A hex dump is conventionally sixteen bytes wide, and in a window this size
+// that left the right half of it empty. The row grows to whatever the window
+// can show instead, in groups of eight -- so the grouping stays readable and an
+// offset is still easy to work out by eye.
+void HexEditor::fitBytesPerLineToWidth() {
+    if (!m_autoBytesPerLine || m_charWidth <= 0)
+        return;
+    // Mirrors recomputeMetrics(): everything left of the hex block is fixed,
+    // then each group of eight costs 8 hex cells (three characters each), one
+    // character of group spacing, and 8 characters of ASCII.
+    const int perGroup = (8 * 3 + 1 + 8) * m_charWidth;
+    const int gap = 2 * m_charWidth; // between the hex block and the ASCII column
+    const int available = viewport()->width() - m_hexOriginX - gap - m_margin;
+    if (available <= 0)
+        return;
+    const int groups = qBound(1, available / qMax(1, perGroup), 8);
+    const int wanted = groups * 8;
+    if (wanted == m_bytesPerLine)
+        return;
+    m_bytesPerLine = wanted;
+    m_groupSize = 8;
+    recomputeMetrics();
 }
 
 void HexEditor::changeEvent(QEvent *event) {

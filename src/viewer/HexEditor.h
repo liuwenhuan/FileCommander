@@ -46,6 +46,18 @@ public:
     explicit HexEditor(QWidget *parent = nullptr);
     ~HexEditor() override;
 
+    // The font this widget should use, given the system's fixed-pitch font and
+    // the one it inherits. Its FAMILY comes from the former and its SIZE from
+    // the latter.
+    //
+    // Public and static because the bug it fixes cannot be reproduced where the
+    // tests run: under the offscreen platform systemFont(FixedFont) returns a
+    // substitute whose point size is unresolved, so it already inherits and any
+    // test through the widget passes either way. On a real Windows desktop it
+    // returns Consolas at a resolved 9 pt, which is what overrode the
+    // configured size and made the dump smaller than the editor beside it.
+    static QFont fontFor(const QFont &systemFixed, const QFont &inherited);
+
     // Largest file this widget accepts. See the class comment for why the
     // ceiling exists at all and docs in the report for how it was measured.
     static qint64 maximumSize();
@@ -157,6 +169,9 @@ private:
     int totalWidth() const;
     qint64 offsetAt(const QPoint &viewportPoint, Column *column) const;
     QColor resolved(const QColor &override, const QColor &fallback) const;
+    static QColor mixed(const QColor &base, const QColor &towards, double amount);
+    // Widens the row to fill the window, in groups of eight. See the definition.
+    void fitBytesPerLineToWidth();
 
     QByteArray m_data;
     // Snapshot of the loaded bytes, kept only so edited bytes can be tinted.
@@ -174,6 +189,9 @@ private:
     bool m_selecting = false;
 
     int m_bytesPerLine = 16;
+    // Off once setBytesPerLine() has been called: an explicit width is a
+    // decision, not a starting point.
+    bool m_autoBytesPerLine = true;
     int m_groupSize = 8;
     int m_charWidth = 8;
     int m_rowHeight = 16;
