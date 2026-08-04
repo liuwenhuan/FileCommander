@@ -360,12 +360,18 @@ TEST(TabBarTest, LightAndDarkKeepTheirExistingAccentAndCloseColours) {
 
     struct ThemeColours {
         QString name;
+        QColor accent;
         QColor close;
         QColor disabled;
     };
+    // The dark accent is a neutral slate, not the light theme's blue: its file
+    // grid is greyscale once the icons follow the theme, and a saturated accent
+    // was the only coloured thing on screen. See the note atop dark.qss.
     const QList<ThemeColours> cases = {
-        {QStringLiteral("light"), QColor(0x20, 0x20, 0x20), QColor(0xa0, 0xa0, 0xa0)},
-        {QStringLiteral("dark"), QColor(0xe0, 0xe0, 0xe0), QColor(0x77, 0x77, 0x77)},
+        {QStringLiteral("light"), QColor(0x3d, 0x7d, 0xeb), QColor(0x20, 0x20, 0x20),
+         QColor(0xa0, 0xa0, 0xa0)},
+        {QStringLiteral("dark"), QColor(0x8e, 0x94, 0x9c), QColor(0xe0, 0xe0, 0xe0),
+         QColor(0x77, 0x77, 0x77)},
     };
 
     for (const ThemeColours &theme : cases) {
@@ -383,7 +389,7 @@ TEST(TabBarTest, LightAndDarkKeepTheirExistingAccentAndCloseColours) {
         const QImage rendered = tabBar.grab().toImage();
         const QRect accentRect(tabBar.tabRect(0).x(), tabBar.tabRect(0).y(),
                                tabBar.tabRect(0).width(), 3);
-        EXPECT_TRUE(containsColorNear(rendered.copy(accentRect), QColor(0x3d, 0x7d, 0xeb), 8))
+        EXPECT_TRUE(containsColorNear(rendered.copy(accentRect), theme.accent, 8))
             << theme.name.toStdString();
 
         auto *selected = qobject_cast<QAbstractButton *>(
@@ -462,7 +468,11 @@ TEST(TabBarTest, OverflowUsesNativeScrollersInsideTheTabBar) {
     EXPECT_LT(left->geometry().right(), right->geometry().left());
     EXPECT_GE(maxTabRight, right->geometry().left() - 1);
     const QImage rendered = tabBar.grab().toImage();
-    const QColor accent = tabBar.palette().color(QPalette::Highlight);
+    // The strip's accent, not the palette's highlight. They were the same colour
+    // until the dark theme took a neutral accent: the highlight is a FILL that
+    // has to carry white text (#565b63), the accent is a LINE that has to read
+    // against #2b2b2b (#8e949c). See the note atop dark.qss.
+    const QColor accent(0x8e, 0x94, 0x9c);
     bool accentBeforeRight = false;
     for (int x = qMax(left->geometry().right() + 1, right->geometry().left() - 20);
          x < right->geometry().left(); ++x) {
@@ -507,7 +517,11 @@ TEST(TabBarTest, OverflowAccentDoesNotPaintUnderNativeScrollers) {
     ASSERT_TRUE(right->isVisible());
 
     const QImage rendered = tabBar.grab().toImage();
-    const QColor accent = tabBar.palette().color(QPalette::Highlight);
+    // The strip's accent, not the palette's highlight. They were the same colour
+    // until the dark theme took a neutral accent: the highlight is a FILL that
+    // has to carry white text (#565b63), the accent is a LINE that has to read
+    // against #2b2b2b (#8e949c). See the note atop dark.qss.
+    const QColor accent(0x8e, 0x94, 0x9c);
     auto containsAccent = [&](const QRect &rect) {
         for (int x = rect.left(); x <= rect.right() && x < rendered.width(); ++x) {
             for (int y = rect.top(); y <= qMin(rect.bottom(), 3); ++y) {

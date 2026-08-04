@@ -1,5 +1,8 @@
 #include "CompareDialog.h"
 
+#include <QFutureWatcher>
+#include <QtConcurrent/QtConcurrent>
+
 #include <QFile>
 #include <QFileInfo>
 #include <QHBoxLayout>
@@ -119,18 +122,33 @@ CompareDialog::CompareDialog(const QString &leftPath, const QString &rightPath,
         m_syncing = false;
     });
 
-    QString error;
-    if (!loadAndCompare(leftPath, rightPath, &error))
-        ttc::warning(this, tr("Compare"), error);
+    // Reading both files and diffing them is bounded (2 MB, 20k lines) but not
+    // cheap -- TextDiff is quadratic in the worst case -- and it ran here, on
+    // the GUI thread, before the dialog had painted once. Off-thread, so the
+    // window comes up and fills in.
+    auto *watcher = new QFutureWatcher<CompareResult>(this);
+    connect(watcher, &QFutureWatcher<CompareResult>::finished, this, [this, watcher]() {
+        const CompareResult result = watcher->result();
+        watcher->deleteLater();
+        if (!result.error.isEmpty()) {
+            ttc::warning(this, tr("Compare"), result.error);
+            return;
+        }
+        applyComparison(result);
+    });
+    watcher->setFuture(QtConcurrent::run(&CompareDialog::compareFiles, leftPath, rightPath));
 }
 
-bool CompareDialog::loadAndCompare(const QString &leftPath, const QString &rightPath,
-                                    QString *errorMessage) {
+// Worker half: everything that only needs the two paths. No widget is touched
+// here, which is what makes it safe to run off the GUI thread.
+CompareDialog::CompareResult CompareDialog::compareFiles(const QString &leftPath,
+                                                          const QString &rightPath) {
+    CompareResult result;
     for (const QString &path : {leftPath, rightPath}) {
         if (QFileInfo(path).size() > kMaxCompareBytes) {
-            *errorMessage = tr("%1 is too large to compare (over 2 MB).")
-                                 .arg(QFileInfo(path).fileName());
-            return false;
+            result.error = tr("%1 is too large to compare (over 2 MB).")
+                               .arg(QFileInfo(path).fileName());
+            return result;
         }
     }
 
@@ -145,13 +163,18 @@ bool CompareDialog::loadAndCompare(const QString &leftPath, const QString &right
     const QStringList leftLines = readLines(leftPath);
     const QStringList rightLines = readLines(rightPath);
     if (leftLines.size() > kMaxCompareLines || rightLines.size() > kMaxCompareLines) {
-        *errorMessage = tr("Files are too long to compare (over %1 lines).")
-                             .arg(kMaxCompareLines);
-        return false;
+        result.error = tr("Files are too long to compare (over %1 lines).")
+                           .arg(kMaxCompareLines);
+        return result;
     }
 
-    const QVector<DiffLine> diff = TextDiff::compare(leftLines, rightLines);
+    result.diff = TextDiff::compare(leftLines, rightLines);
+    return result;
+}
 
+// GUI half: takes the worker's answer and fills the two editors.
+void CompareDialog::applyComparison(const CompareResult &result) {
+    const QVector<DiffLine> &diff = result.diff;
     QStringList leftDisplay, rightDisplay;
     QVector<int> leftColored, rightColored;
     leftDisplay.reserve(diff.size());
@@ -208,5 +231,4 @@ bool CompareDialog::loadAndCompare(const QString &leftPath, const QString &right
             tr("%1 line(s) only in left, %2 line(s) only in right").arg(removedCount).arg(addedCount));
 
     m_summaryLabel->setToolTip(m_summaryLabel->text());
-    return true;
 }

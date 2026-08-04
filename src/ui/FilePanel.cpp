@@ -1843,16 +1843,13 @@ void FilePanel::onActivated(const QModelIndex &index) {
 
 bool FilePanel::enterArchive(const QString &localArchivePath, const QString &sourcePath,
                              bool ownsLocalCopy) {
-    if (m_archiveProvider)
-        return false; // no nested-archive browse yet
-    QString error;
-    auto provider = std::make_shared<ArchiveProvider>(localArchivePath, &error);
-    if (!provider->isValid())
-        return false;
+    if (m_archiveProvider || m_archiveOpenPending)
+        return false; // no nested-archive browse yet, and one open at a time
 
     // Both of these have to be read through the CURRENT backend, before it is
     // swapped out below: on a network tab the archive's directory is the
-    // server's answer to parentPath(), not this filesystem's.
+    // server's answer to parentPath(), not this filesystem's. Captured here
+    // rather than after the scan, for the same reason.
     const QString exitDir = m_model->provider()->parentPath(sourcePath);
     // Record where we came from (a real dir or a flat search-results list) BEFORE
     // switching to the archive provider, so Back returns to it. currentLocation()
@@ -1860,6 +1857,47 @@ bool FilePanel::enterArchive(const QString &localArchivePath, const QString &sou
     // can't snapshot it -- we must push it here.
     const NavEntry from = currentLocation();
 
+    // Constructing the provider SCANS THE ARCHIVE -- every header, and for a
+    // 7z/UDF/AppImage it shells out and waits. On a multi-gigabyte archive that
+    // is seconds, and it used to be seconds of frozen window with nothing to
+    // say why. Off-thread, with the status line saying what is happening.
+    m_archiveOpenPending = true;
+    const quint64 generation = ++m_archiveOpenGeneration;
+    m_statusBar->setConnectionStatus(tr("Opening archive…"), StatusBarWidget::ConnConnecting);
+
+    struct OpenResult {
+        std::shared_ptr<ArchiveProvider> provider;
+        QString error;
+    };
+    auto *watcher = new QFutureWatcher<OpenResult>(this);
+    connect(watcher, &QFutureWatcher<OpenResult>::finished, this,
+            [this, watcher, generation, exitDir, from, sourcePath, ownsLocalCopy]() {
+                const OpenResult result = watcher->result();
+                watcher->deleteLater();
+                if (generation != m_archiveOpenGeneration)
+                    return; // superseded: the user went somewhere else
+                m_archiveOpenPending = false;
+                m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
+                if (!result.provider || !result.provider->isValid()) {
+                    // Same outcome as the old synchronous false: let the file be
+                    // opened the ordinary way instead.
+                    emit openRequested(sourcePath);
+                    return;
+                }
+                finishEnterArchive(result.provider, exitDir, from, sourcePath, ownsLocalCopy);
+            });
+    watcher->setFuture(QtConcurrent::run([localArchivePath]() {
+        OpenResult result;
+        result.provider = std::make_shared<ArchiveProvider>(localArchivePath, &result.error);
+        return result;
+    }));
+    return true;
+}
+
+void FilePanel::finishEnterArchive(const std::shared_ptr<FileProvider> &archiveProvider,
+                                   const QString &exitDir, const NavEntry &from,
+                                   const QString &sourcePath, bool ownsLocalCopy) {
+    auto provider = std::static_pointer_cast<ArchiveProvider>(archiveProvider);
     provider->setExitPath(exitDir);
     provider->setOwnsArchiveFile(ownsLocalCopy);
     // Park the server connection rather than let setProvider() tear it down: the
@@ -1874,7 +1912,6 @@ bool FilePanel::enterArchive(const QString &localArchivePath, const QString &sou
     if (from.isValid())
         pushHistory(from);
     navigateTo(QStringLiteral("/")); // archive virtual root (won't re-push)
-    return true;
 }
 
 void FilePanel::leaveArchive() {

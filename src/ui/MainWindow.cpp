@@ -2240,6 +2240,30 @@ void MainWindow::browseSmbHost(const QString &hostName) {
 #endif
 }
 
+// Fetch each drive's icon on a worker and repaint when they are in. The query
+// goes to the volume itself, so doing it lazily from FileSystemModel::data()
+// meant doing it while PAINTING -- and a disconnected mapped drive can hold
+// that up for seconds. Fire and forget: the icons are cached, so a run that
+// outlives the panel has simply warmed the cache for the next one.
+void MainWindow::warmDriveIcons(FilePanel *panel) {
+    QStringList roots;
+    for (const ComputerEntry &drive : ComputerCatalog::drives())
+        roots << drive.target;
+    if (roots.isEmpty())
+        return;
+    QPointer<FilePanel> guard(panel);
+    auto *watcher = new QFutureWatcher<void>(this);
+    connect(watcher, &QFutureWatcher<void>::finished, this, [watcher, guard]() {
+        watcher->deleteLater();
+        if (guard && guard->view())
+            guard->view()->viewport()->update();
+    });
+    watcher->setFuture(QtConcurrent::run([roots]() {
+        for (const QString &root : roots)
+            IconCache::instance().warmSystemIconForPath(root);
+    }));
+}
+
 QVector<ComputerEntry> MainWindow::computerEntries() {
     // Deliberately does NOT force setupFeatureBatch(). Drives, user folders and
     // saved bookmarks need nothing but QStorageInfo, QStandardPaths and the
@@ -2309,6 +2333,7 @@ void MainWindow::showComputerView(FilePanel *panel) {
                 &MainWindow::refreshComputerViews, Qt::UniqueConnection);
 #endif
     panel->showComputer(computerEntries());
+    warmDriveIcons(panel);
 }
 
 void MainWindow::refreshComputerViews() {
@@ -2316,8 +2341,10 @@ void MainWindow::refreshComputerViews() {
     for (FilePanel *panel : {m_leftPanel, m_rightPanel}) {
         // showComputer() on a panel that is not in the view would ENTER it, so
         // an unrelated hot-plug would yank the listing out from under the user.
-        if (panel && panel->isComputerView())
+        if (panel && panel->isComputerView()) {
             panel->showComputer(entries);
+            warmDriveIcons(panel);
+        }
     }
 }
 

@@ -174,8 +174,11 @@ QIcon IconCache::iconFor(const FileInfo &info) {
                              ? QStringLiteral("file:noext")
                              : QStringLiteral("file:") + info.suffix().toLower();
 
-    if (QIcon *cached = m_cache.object(key))
-        return *cached;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (QIcon *cached = m_cache.object(key))
+            return *cached;
+    }
 
     static QFileIconProvider provider;
     QIcon icon;
@@ -209,22 +212,54 @@ QIcon IconCache::iconFor(const FileInfo &info) {
         if (icon.availableSizes().isEmpty())
             icon = provider.icon(QFileIconProvider::File);
     }
+    QMutexLocker locker(&m_mutex);
     icon = tinted(icon, m_fileIconTint);
-
     m_cache.insert(key, new QIcon(icon));
     return icon;
 }
 
-QIcon IconCache::systemIconForPath(const QString &path) {
-#ifdef Q_OS_WIN
+QIcon IconCache::systemIconForPath(const QString &path) const {
     if (path.isEmpty())
         return {};
+    QMutexLocker locker(&m_mutex);
+    QIcon *cached = m_cache.object(QStringLiteral("path:") + path);
+    return cached ? *cached : QIcon();
+}
+
+void IconCache::warmSystemIconForPath(const QString &path) {
+#ifdef Q_OS_WIN
+    if (path.isEmpty())
+        return;
+
+    // SHGetImageList hands back an IImageList, i.e. COM -- and this runs on a
+    // worker, which Qt does not initialise COM on. Without this the call does
+    // not fail cleanly: the task never returns, and the process then hangs at
+    // exit waiting for it (measured: a test binary that printed its results and
+    // never quit). Apartment-threaded to match what the shell expects.
+    struct ComScope {
+        bool owned = false;
+        ComScope() {
+            const HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+            // S_FALSE means this thread already had COM up -- someone else owns
+            // the uninitialise in that case.
+            owned = hr == S_OK;
+        }
+        ~ComScope() {
+            if (owned)
+                CoUninitialize();
+        }
+    } com;
     const QString key = QStringLiteral("path:") + path;
-    if (QIcon *cached = m_cache.object(key))
-        return *cached;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (m_cache.object(key))
+            return;
+    }
 
     // No SHGFI_USEFILEATTRIBUTES here, unlike everywhere else in this file:
-    // the point is to ask about this drive, not about drives in general.
+    // the point is to ask about this drive, not about drives in general. That
+    // is also why this must not run on the GUI thread -- the question goes to
+    // the volume.
     QIcon icon;
     const QString native = QDir::toNativeSeparators(path);
     const int sizes[] = {16, 32, 48, 256};
@@ -232,7 +267,7 @@ QIcon IconCache::systemIconForPath(const QString &path) {
         SHFILEINFOW fileInfo = {};
         if (!SHGetFileInfoW(reinterpret_cast<const wchar_t *>(native.utf16()), 0, &fileInfo,
                             sizeof(fileInfo), SHGFI_SYSICONINDEX))
-            return {};
+            return;
         const int imageListSize = size <= 16   ? SHIL_SMALL
                                   : size <= 32 ? SHIL_LARGE
                                   : size <= 48 ? SHIL_EXTRALARGE
@@ -250,24 +285,22 @@ QIcon IconCache::systemIconForPath(const QString &path) {
             continue;
         const QImage image = imageFromHIcon(shellIcon, size);
         DestroyIcon(shellIcon);
-        // Same jumbo padding as the file icons: a drive whose icon has no 256px
-        // variant comes back as a corner of an otherwise empty canvas.
         if (!image.isNull())
-            icon.addPixmap(QPixmap::fromImage(IconCache::cropPaddedIcon(image, size)));
+            icon.addPixmap(QPixmap::fromImage(cropPaddedIcon(image, size)));
     }
     if (icon.availableSizes().isEmpty())
-        return {};
-    icon = tinted(icon, m_fileIconTint);
-    m_cache.insert(key, new QIcon(icon));
-    return icon;
+        return;
+
+    QMutexLocker locker(&m_mutex);
+    m_cache.insert(key, new QIcon(tinted(icon, m_fileIconTint)));
 #else
     Q_UNUSED(path);
-    return {};
 #endif
 }
 
 QIcon IconCache::glyphIcon(const QString &resourcePath) {
     const QString key = QStringLiteral("glyph:") + resourcePath;
+    QMutexLocker locker(&m_mutex);
     if (QIcon *cached = m_cache.object(key))
         return *cached;
 
@@ -301,6 +334,7 @@ static bool sameTint(const QColor &a, const QColor &b) {
 }
 
 void IconCache::setGlyphTint(const QColor &tint) {
+    QMutexLocker locker(&m_mutex);
     if (sameTint(m_glyphTint, tint))
         return;
     m_glyphTint = tint;
@@ -310,6 +344,7 @@ void IconCache::setGlyphTint(const QColor &tint) {
 }
 
 void IconCache::setFileIconTint(const QColor &tint, int blockPixels) {
+    QMutexLocker locker(&m_mutex);
     if (sameTint(m_fileIconTint, tint) && m_blockPixels == blockPixels)
         return;
     m_fileIconTint = tint;

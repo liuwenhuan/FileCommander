@@ -80,6 +80,11 @@ public:
     // no business requiring. Null if no engine could be made.
     QWidget *buildVideoPageForTest();
 
+    // Spins until a pending text probe has landed. The text preview reads and
+    // sniffs off-thread, so a test that asserts on the editor straight after
+    // showFile() would be asserting on the file before it.
+    bool waitForTextIdleForTest(int timeoutMs = 5000);
+
     // Current quarter-turn applied to the video, for tests and for the toolbar.
     int videoRotation() const { return m_videoRotation; }
 
@@ -363,6 +368,9 @@ private:
     bool m_textHex = false;           // hex-dump mode
     bool m_textTruncated = false;     // the read hit the cap
     qint64 m_textCap = 0;             // max bytes read (context-dependent)
+    // Newest text probe. A read that lands after the cursor moved is dropped.
+    quint64 m_textLoadGeneration = 0;
+    bool m_textLoadPending = false;
 
     // Image sibling navigation (prev/next among images in the same directory).
     QString m_imagePath;

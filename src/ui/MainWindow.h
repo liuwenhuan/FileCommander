@@ -265,6 +265,9 @@ private:
     // Everything the computer view lists, assembled from the catalog plus the
     // device monitor and host browser this window owns.
     QVector<ComputerEntry> computerEntries();
+    // Fetches the drive icons on a worker and repaints `panel` when they land,
+    // so the shell query never happens while painting. See the definition.
+    void warmDriveIcons(FilePanel *panel);
     // Panels that must enter the computer view once the signal that
     // assembles its rows is connected -- a first launch's left pane, and any
     // tab the previous session left on the view. Both are decided while the

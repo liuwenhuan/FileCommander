@@ -414,14 +414,17 @@ TEST(TextEncodingDetectorTest, QuickViewShowsAutoDetectionAndBinaryHexStatus) {
     ASSERT_NE(editor, nullptr);
 
     view.showFile(textPath);
+    ASSERT_TRUE(view.waitForTextIdleForTest());
     EXPECT_EQ(status->text(), QStringLiteral("Auto: UTF-8"));
     EXPECT_EQ(editor->toPlainText(), QString::fromUtf8(u8"中文"));
 
     view.showFile(ambiguousPath);
+    ASSERT_TRUE(view.waitForTextIdleForTest());
     EXPECT_TRUE(status->text().startsWith(QStringLiteral("Auto: ")));
     EXPECT_TRUE(status->text().endsWith(QStringLiteral(" (ambiguous)")));
 
     view.showFile(binaryPath);
+    ASSERT_TRUE(view.waitForTextIdleForTest());
     EXPECT_EQ(status->text(), QStringLiteral("Auto: Binary (Hex)"));
     EXPECT_TRUE(editor->toPlainText().startsWith(QStringLiteral("00000000")));
 }
@@ -444,6 +447,7 @@ TEST(TextEncodingDetectorTest, QuickViewBoundsHexOutputBeforeTheTextPreviewLimit
     ASSERT_NE(editor, nullptr);
 
     view.showFile(binary.fileName());
+    ASSERT_TRUE(view.waitForTextIdleForTest());
     EXPECT_EQ(status->text(), QStringLiteral("Auto: Binary (Hex)"));
     const QString rendered = editor->toPlainText();
     EXPECT_TRUE(rendered.startsWith(QStringLiteral("00000000")));
@@ -473,6 +477,7 @@ TEST(TextEncodingDetectorTest, QuickViewShowsRegistryTransactionLogsAsBoundedHex
     QElapsedTimer elapsed;
     elapsed.start();
     view.showFile(binary.fileName());
+    ASSERT_TRUE(view.waitForTextIdleForTest());
 
     EXPECT_LT(elapsed.elapsed(), 1000);
     EXPECT_EQ(status->text(), QStringLiteral("Auto: Binary (Hex)"));
@@ -501,6 +506,7 @@ TEST(TextEncodingDetectorTest, QuickViewSafelyTruncatesLargeGb18030ProbeTail) {
     ASSERT_NE(editor, nullptr);
 
     view.showFile(text.fileName());
+    ASSERT_TRUE(view.waitForTextIdleForTest());
     EXPECT_TRUE(status->text().startsWith(QStringLiteral("Auto: GB18030")));
     const QString rendered = editor->toPlainText();
     EXPECT_FALSE(rendered.contains(QChar::ReplacementCharacter));
@@ -526,6 +532,7 @@ TEST(TextEncodingDetectorTest, QuickViewSafelyTruncatesAtUtf8CharacterBoundary) 
     ASSERT_NE(editor, nullptr);
 
     view.showFile(text.fileName());
+    ASSERT_TRUE(view.waitForTextIdleForTest());
     const QString rendered = editor->toPlainText();
     EXPECT_FALSE(rendered.contains(QChar::ReplacementCharacter));
     EXPECT_TRUE(rendered.endsWith(QStringLiteral("\n\n[... truncated ...]")));

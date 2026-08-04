@@ -1034,6 +1034,14 @@ void QuickView::rotateVideoBy(int degrees) {
         m_mediaEngine->setVideoRotation(m_videoRotation);
 }
 
+bool QuickView::waitForTextIdleForTest(int timeoutMs) {
+    QElapsedTimer timer;
+    timer.start();
+    while (m_textLoadPending && timer.elapsed() < timeoutMs)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+    return !m_textLoadPending;
+}
+
 QWidget *QuickView::buildVideoPageForTest() {
     // The page wires itself to the media engine, so the engine has to exist
     // first -- warmMediaEngine() is what promotes an injected one (or builds
@@ -3418,28 +3426,64 @@ void QuickView::showFile(const QString &path) {
     }
 
     m_infoOverlay->hide(); // no image behind it on the text / no-preview pages
-    QFile file(path);
-    if (file.open(QIODevice::ReadOnly)) {
-        const QByteArray probe = file.read(m_textCap + kTextReadLookAheadBytes);
-        // Detect the complete probe once. renderText() only consumes this cached
-        // result, and safePrefix uses it to crop without re-running detection.
-        m_textAutoResult = TextEncodingDetector::detect(
-            probe, file.atEnd() ? TextEncodingDetector::InputEnd::Complete
-                                : TextEncodingDetector::InputEnd::MayBeTruncated);
-        m_textAutoResultValid = true;
-        m_textTruncated = probe.size() > m_textCap;
-        m_textRaw = m_textTruncated
-                        ? TextEncodingDetector::safePrefix(probe, static_cast<int>(m_textCap),
-                                                            m_textAutoResult)
-                        : probe;
-        if (!preserveTextEncoding) {
-            m_textEncoding->blockSignals(true);
-            m_textEncoding->setCurrentIndex(0); // every new file starts in Auto
-            m_textEncoding->blockSignals(false);
-        }
-        m_textPath = path;
-        renderText();
-        revealStaticPage(m_textPage);
+    if (QFileInfo(path).isFile()) {
+        // Read and sniff off-thread. It is capped (5 MiB), so it is not the
+        // seconds an archive costs -- but it is a synchronous read plus an
+        // encoding detection over the whole probe, on the GUI thread, on every
+        // cursor move, and on a slow or removable medium that is a visible
+        // hitch. Nothing here needs a widget, so none of it belongs on this
+        // thread.
+        struct TextProbe {
+            QByteArray bytes;
+            bool complete = false;
+            bool opened = false;
+        };
+        const qint64 cap = m_textCap;
+        const quint64 generation = ++m_textLoadGeneration;
+        m_textLoadPending = true;
+        auto *watcher = new QFutureWatcher<TextProbe>(this);
+        connect(watcher, &QFutureWatcher<TextProbe>::finished, this,
+                [this, watcher, path, preserveTextEncoding, generation, info]() {
+                    const TextProbe probe = watcher->result();
+                    watcher->deleteLater();
+                    if (generation != m_textLoadGeneration)
+                        return; // the cursor moved on while this was reading
+                    m_textLoadPending = false;
+                    if (!probe.opened) {
+                        m_info->setText(tr("No preview available for %1").arg(info.fileName()));
+                        revealStaticPage(m_info);
+                        return;
+                    }
+                    m_textAutoResult = TextEncodingDetector::detect(
+                        probe.bytes, probe.complete
+                                         ? TextEncodingDetector::InputEnd::Complete
+                                         : TextEncodingDetector::InputEnd::MayBeTruncated);
+                    m_textAutoResultValid = true;
+                    m_textTruncated = probe.bytes.size() > m_textCap;
+                    m_textRaw = m_textTruncated
+                                    ? TextEncodingDetector::safePrefix(
+                                          probe.bytes, static_cast<int>(m_textCap),
+                                          m_textAutoResult)
+                                    : probe.bytes;
+                    if (!preserveTextEncoding) {
+                        m_textEncoding->blockSignals(true);
+                        m_textEncoding->setCurrentIndex(0); // every new file starts in Auto
+                        m_textEncoding->blockSignals(false);
+                    }
+                    m_textPath = path;
+                    renderText();
+                    revealStaticPage(m_textPage);
+                });
+        watcher->setFuture(QtConcurrent::run([path, cap]() {
+            TextProbe probe;
+            QFile file(path);
+            if (!file.open(QIODevice::ReadOnly))
+                return probe;
+            probe.opened = true;
+            probe.bytes = file.read(cap + kTextReadLookAheadBytes);
+            probe.complete = file.atEnd();
+            return probe;
+        }));
         return;
     }
 

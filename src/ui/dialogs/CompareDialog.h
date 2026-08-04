@@ -1,6 +1,9 @@
 #pragma once
 
+#include <QVector>
+
 #include "FramelessDialog.h"
+#include "TextDiff.h"
 
 class QPlainTextEdit;
 class QLabel;
@@ -25,7 +28,16 @@ private:
     static constexpr qint64 kMaxCompareBytes = 2 * 1024 * 1024; // 2 MB
     static constexpr int kMaxCompareLines = 5000;
 
-    bool loadAndCompare(const QString &leftPath, const QString &rightPath, QString *errorMessage);
+    // Reading both files and diffing them is bounded but not cheap, and it ran
+    // before the dialog had painted once. Split so the expensive half can go on
+    // a worker: compareFiles() touches no widget, applyComparison() only fills
+    // them in.
+    struct CompareResult {
+        QVector<DiffLine> diff;
+        QString error;
+    };
+    static CompareResult compareFiles(const QString &leftPath, const QString &rightPath);
+    void applyComparison(const CompareResult &result);
 
     QPlainTextEdit *m_leftEdit;
     QPlainTextEdit *m_rightEdit;

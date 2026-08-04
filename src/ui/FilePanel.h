@@ -168,6 +168,10 @@ private:
     // Newest extraction request. A result carrying an older number is dropped:
     // the cursor has moved on and that preview is no longer wanted.
     quint64 m_previewGeneration = 0;
+    // One archive open at a time, newest wins. The scan can outlive the user's
+    // interest in it -- they can be somewhere else by the time it lands.
+    bool m_archiveOpenPending = false;
+    quint64 m_archiveOpenGeneration = 0;
 
 public:
 
@@ -324,6 +328,11 @@ public:
     // Returns false (changing nothing) if the file is not a readable archive, or
     // if this panel is already inside one -- nested-archive browse is not
     // supported.
+    // Starts browsing an archive. Returns true when it has TAKEN the request,
+    // not when the archive is open: constructing the provider scans the whole
+    // archive (and may shell out), so that happens on a worker and the swap
+    // lands later. A failure emits openRequested() so the file still opens the
+    // ordinary way, which is what the old synchronous `false` caused.
     bool enterArchive(const QString &localArchivePath, const QString &sourcePath,
                       bool ownsLocalCopy);
 
@@ -449,6 +458,13 @@ private:
     };
     // Snapshots what the view currently shows, for pushing onto a history stack.
     NavEntry currentLocation() const;
+
+    // The second half of enterArchive(), run once the worker has built the
+    // provider: swapping the backend, parking any server connection, and
+    // navigating to the archive root.
+    void finishEnterArchive(const std::shared_ptr<FileProvider> &archiveProvider,
+                            const QString &exitDir, const NavEntry &from,
+                            const QString &sourcePath, bool ownsLocalCopy);
     // Restores a history entry into the view (dir scan or flat listing).
     void applyHistoryEntry(const NavEntry &entry);
     void pushHistory(const NavEntry &entry);

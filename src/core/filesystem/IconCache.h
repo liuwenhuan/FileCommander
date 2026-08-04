@@ -2,6 +2,7 @@
 
 #include <QCache>
 #include <QColor>
+#include <QMutex>
 #include <QIcon>
 #include <QString>
 
@@ -28,7 +29,17 @@ public:
     // Null when the platform has no such notion or the path does not exist, so
     // a caller can fall back to its own artwork without checking the platform.
     // Tinted like everything else, so it still follows the theme.
-    QIcon systemIconForPath(const QString &path);
+    // Cache-only: answers if this drive's icon has already been fetched, and
+    // otherwise returns null WITHOUT asking the shell. It is called from
+    // FileSystemModel::data(), i.e. while painting, and the shell query below
+    // talks to the volume itself -- a disconnected mapped drive or a spun-down
+    // disk can hold that up for seconds, which is not something a paint can
+    // afford. A null answer just means the caller's own artwork is used.
+    QIcon systemIconForPath(const QString &path) const;
+
+    // Does the shell query and caches it. Safe to call from a worker; the
+    // caller repaints once it returns.
+    void warmSystemIconForPath(const QString &path);
 
     // One of our own SVG glyphs (":/icons/dev-smb.svg"), recoloured to the
     // theme's glyph colour at FULL strength and cached.
@@ -102,6 +113,9 @@ private:
     // preserved. Returns `icon` unchanged when `tint` is invalid.
     QIcon tinted(const QIcon &icon, const QColor &tint) const;
 
+    // Guards the cache and the tints. The cache is filled from a worker (see
+    // warmSystemIconForPath) as well as from the GUI thread.
+    mutable QMutex m_mutex;
     QCache<QString, QIcon> m_cache;
     QColor m_glyphTint;    // invalid => hand our own SVG chrome through untouched
     QColor m_fileIconTint; // invalid => leave the system's artwork in its colours

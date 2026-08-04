@@ -113,7 +113,7 @@ TEST(IconCacheTest, DirectoryIconDoesNotUseDriveGlyph) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
 
-    IconCache::instance().setTint(QColor());
+    IconCache::instance().setFileIconTint(QColor());
     const QImage folder =
         IconCache::instance().iconFor(FileInfo(dir.path())).pixmap(32, 32).toImage();
     const QImage drive = QFileIconProvider().icon(QFileIconProvider::Drive)
@@ -130,7 +130,7 @@ TEST(IconCacheTest, WindowsDirectoryIconUsesShellFolderGlyph) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
 
-    IconCache::instance().setTint(QColor());
+    IconCache::instance().setFileIconTint(QColor());
     const QImage actual =
         IconCache::instance().iconFor(FileInfo(dir.path())).pixmap(32, 32).toImage();
     const QImage expected = shellGenericFolderImage(32);
@@ -144,7 +144,7 @@ TEST(IconCacheTest, WindowsDirectoryIconFillsLargeThumbnailSlot) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
 
-    IconCache::instance().setTint(QColor());
+    IconCache::instance().setFileIconTint(QColor());
     const QPixmap large =
         IconCache::instance().iconFor(FileInfo(dir.path())).pixmap(QSize(192, 192));
 
@@ -160,7 +160,7 @@ TEST(IconCacheTest, ThemedIconLeavesOriginalUntouchedWithoutTint) {
     source.fill(QColor(130, 80, 40, 173));
     const QIcon raw(source);
 
-    IconCache::instance().setTint(QColor());
+    IconCache::instance().setFileIconTint(QColor());
     const QIcon result = IconCache::instance().themedIcon(raw);
 
     EXPECT_EQ(result.cacheKey(), raw.cacheKey());
@@ -171,9 +171,11 @@ TEST(IconCacheTest, ThemedIconUsesConfiguredTintAndLeavesAlphaIntact) {
     source.fill(QColor(130, 80, 40, 173));
     const QIcon raw(source);
 
-    IconCache::instance().setTint(QColor(0, 255, 0), 0);
+    // themedIcon() is the CHROME path, so it answers to the glyph tint -- the
+    // two were one setting until the light theme's icons came out as grey slabs.
+    IconCache::instance().setGlyphTint(QColor(0, 255, 0));
     const QPixmap tinted = IconCache::instance().themedIcon(raw).pixmap(source.size());
-    IconCache::instance().setTint(QColor());
+    IconCache::instance().setGlyphTint(QColor());
 
     ASSERT_FALSE(tinted.isNull());
     const QColor pixel = tinted.toImage().pixelColor(0, 0);
