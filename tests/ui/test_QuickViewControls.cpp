@@ -3,6 +3,7 @@
 #include <QAction>
 #include <QCheckBox>
 #include <QDir>
+#include <QLabel>
 #include <QSlider>
 #include <QTemporaryDir>
 #include <QTest>
@@ -215,4 +216,77 @@ TEST(QuickViewControls, ANewClipStartsTheRightWayUp) {
     qApp->processEvents();
     EXPECT_EQ(view.videoRotation(), 0)
         << "the rotation corrected the previous clip and followed this one in";
+}
+
+namespace {
+
+// Same stand-in, but able to report the wedged seek the Windows backend
+// recovers from.
+class SeekReportingEngine final : public MediaEngine {
+public:
+    void initialize() override {}
+    void load(const MediaSource &, MediaKind) override {}
+    QWidget *videoSurface() override {
+        if (!m_surface)
+            m_surface = new QWidget;
+        return m_surface;
+    }
+    void reportStuckSeek() { emit seekUnsupported(); }
+
+private:
+    QPointer<QWidget> m_surface;
+};
+
+} // namespace
+
+// A seek the decoder cannot carry out reloads the clip, so the film jumps back
+// to the start with nothing said. The pane has to explain that, and without
+// replacing the video with a failure page -- playback is fine.
+TEST(QuickViewControls, AnUnsupportedSeekIsExplainedOverTheStillPlayingVideo) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    Settings settings(dir.filePath(QStringLiteral("settings.ini")));
+    auto engine = std::make_unique<SeekReportingEngine>();
+    auto *raw = engine.get();
+    QuickView view(settings, QuickView::Context::Embedded, nullptr, std::move(engine));
+    view.resize(900, 600);
+    view.show();
+    qApp->processEvents();
+
+    QWidget *videoPage = view.buildVideoPageForTest();
+    ASSERT_NE(videoPage, nullptr);
+    QSlider *seek = sliderNamed(view, QStringLiteral("quickViewVideoSeek"));
+    ASSERT_NE(seek, nullptr);
+    seek->setValue(700);
+
+    // Only the video page's own labels, and by isHidden() rather than
+    // isVisible(): the page is built but not revealed in this harness, so every
+    // widget inside it reports invisible whatever it was told to do.
+    const auto visibleNotices = [videoPage]() {
+        QStringList texts;
+        for (QLabel *label : videoPage->findChildren<QLabel *>())
+            if (!label->isHidden() && label->text().size() > 20)
+                texts << label->text();
+        return texts;
+    };
+    ASSERT_TRUE(visibleNotices().isEmpty()) << "something was already on screen";
+
+    raw->reportStuckSeek();
+    qApp->processEvents();
+
+    const QStringList shown = visibleNotices();
+    ASSERT_EQ(shown.size(), 1) << shown.join(QStringLiteral(" | ")).toStdString();
+    EXPECT_TRUE(shown.first().contains(QStringLiteral("incomplete"), Qt::CaseInsensitive))
+        << shown.first().toStdString();
+
+    // A notice, not a failure: the static message page -- which is what
+    // errorOccurred fills and reveals in place of the video -- must not have
+    // picked the text up as well.
+    int carriers = 0;
+    for (QLabel *label : view.findChildren<QLabel *>())
+        if (label->text() == shown.first())
+            ++carriers;
+    EXPECT_EQ(carriers, 1) << "the message also landed on the failure page";
+    // And the slider no longer claims to be where the user dragged it.
+    EXPECT_EQ(seek->value(), 0);
 }

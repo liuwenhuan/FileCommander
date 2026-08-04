@@ -56,4 +56,10 @@ signals:
     void metadataChanged(const QHash<QString, QString> &metadata);
     void videoSizeChanged(const QSize &size);
     void errorOccurred(const QString &message);
+
+    // A seek was accepted and then never finished, so the backend had to
+    // reload the clip to get it playing again -- see SeekWatchdog. Distinct
+    // from errorOccurred because playback survives: the pane says so and keeps
+    // showing the video rather than replacing it with a failure page.
+    void seekUnsupported();
 };

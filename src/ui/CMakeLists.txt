@@ -39,6 +39,8 @@ set(UI_SOURCES
     QuickView.cpp
     media/MediaEngine.h
     media/MediaTypes.h
+    media/SeekWatchdog.h
+    media/SeekWatchdog.cpp
     TextEncodingDetector.h
     TextEncodingDetector.cpp
     SlideSceneBuilder.h

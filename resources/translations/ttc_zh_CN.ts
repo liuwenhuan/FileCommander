@@ -3156,6 +3156,10 @@ Destination: %4 (%5)</source>
 <context>
     <name>QuickView</name>
     <message>
+        <source>Nothing could be read at that point in the file — it may be incomplete or damaged. Playback restarted from the beginning.</source>
+        <translation>文件的该位置读不到任何数据，可能尚未下载完整或已损坏。已从头开始播放。</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/QuickView.cpp" line="168"/>
         <location filename="../../src/ui/QuickView.cpp" line="3236"/>
         <source>Select a file to preview</source>
@@ -4524,6 +4528,37 @@ Right: %2</source>
         <location filename="../../src/ui/dialogs/SecureWipeDialog.cpp" line="215"/>
         <source>Failed</source>
         <translation>失败</translation>
+    </message>
+</context>
+<context>
+    <name>WindowsMediaEngine</name>
+    <message>
+        <source>Playback was stopped before it began.</source>
+        <translation>播放尚未开始就被中断。</translation>
+    </message>
+    <message>
+        <source>The file could not be read to the end.</source>
+        <translation>文件未能完整读取。</translation>
+    </message>
+    <message>
+        <source>The stream could not be decoded — the file may be damaged.</source>
+        <translation>无法解码该码流，文件可能已损坏。</translation>
+    </message>
+    <message>
+        <source>Windows has no decoder for this file&apos;s format.</source>
+        <translation>Windows 没有可以解码此文件格式的解码器。</translation>
+    </message>
+    <message>
+        <source>Windows has no decoder for this .%1 file&apos;s format. MPEG-2, Xvid and DivX video are common in older files and Windows carries none of them for this container; installing a codec pack lets it play.</source>
+        <translation>Windows 没有可以解码 .%1 文件格式的解码器。旧文件常见的 MPEG-2、Xvid、DivX 视频，Windows 对这类容器均不支持，安装解码器后即可播放。</translation>
+    </message>
+    <message>
+        <source>The file is protected and cannot be played here.</source>
+        <translation>文件受保护，无法在此处播放。</translation>
+    </message>
+    <message>
+        <source>Media Foundation could not play this file.</source>
+        <translation>Media Foundation 无法播放此文件。</translation>
     </message>
 </context>
 </TS>

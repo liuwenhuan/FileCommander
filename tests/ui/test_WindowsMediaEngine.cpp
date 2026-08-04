@@ -19,6 +19,7 @@
 #include "QuickView.h"
 #include "config/Settings.h"
 #include "media/MediaEngine.h"
+#include "media/SeekWatchdog.h"
 #include "media/WindowsMediaEngine.h"
 #include "media/WindowsMediaSurface.h"
 
@@ -341,4 +342,113 @@ TEST(WindowsMediaEngine, QuickViewKeepsVideoMovingAcrossSelections) {
     view.showFile(second);
     std::set<quint64> secondSignatures;
     waitForQuickViewMovingVideo(view, surface, &secondSignatures, &error);
+}
+
+// D:/usbhdd/123.avi produced "…event=5 param1=0x4 param2=0xc004f011", which is
+// true and useless. param1 == MF_MEDIA_ENGINE_ERR_SRC_NOT_SUPPORTED, i.e.
+// Windows ships no decoder for it (Xvid, in that file's case). The wording has
+// to name that, and name the extension, since the fix is the user's to make.
+TEST(WindowsMediaEngineErrorText, UnsupportedSourceNamesTheFormatAndTheExtension) {
+    const QString text = WindowsMediaEngine::errorText(4, 0xc004f011,
+                                                       QStringLiteral("D:/usbhdd/123.avi"));
+    EXPECT_TRUE(text.contains(QStringLiteral(".avi"))) << text.toStdString();
+    EXPECT_TRUE(text.contains(QStringLiteral("decoder"), Qt::CaseInsensitive))
+        << text.toStdString();
+    // The raw codes stay, at the end, for diagnosis.
+    EXPECT_TRUE(text.contains(QStringLiteral("c004f011"))) << text.toStdString();
+    // …but they are no longer the whole message.
+    EXPECT_GT(text.size(), 40) << text.toStdString();
+}
+
+TEST(WindowsMediaEngineErrorText, DistinguishesTheOtherCodes) {
+    const QString path = QStringLiteral("D:/clip.mp4");
+    const QString decode = WindowsMediaEngine::errorText(3, 0, path);
+    const QString unsupported = WindowsMediaEngine::errorText(4, 0, path);
+    const QString encrypted = WindowsMediaEngine::errorText(5, 0, path);
+    EXPECT_NE(decode, unsupported);
+    EXPECT_NE(unsupported, encrypted);
+    EXPECT_TRUE(decode.contains(QStringLiteral("damaged"), Qt::CaseInsensitive))
+        << decode.toStdString();
+    EXPECT_TRUE(encrypted.contains(QStringLiteral("protected"), Qt::CaseInsensitive))
+        << encrypted.toStdString();
+}
+
+TEST(WindowsMediaEngineErrorText, AnExtensionlessPathStillGetsASentence) {
+    const QString text = WindowsMediaEngine::errorText(4, 0, QStringLiteral("D:/usbhdd/clip"));
+    EXPECT_FALSE(text.isEmpty());
+    EXPECT_TRUE(text.contains(QStringLiteral("decoder"), Qt::CaseInsensitive))
+        << text.toStdString();
+}
+
+// The seek wedge, end to end. Needs a file Media Foundation cannot seek --
+// point FILECOMMANDER_WMF_UNSEEKABLE_VIDEO at one to run it. The engine must
+// come back to life on its own and say what happened, rather than sitting on a
+// frozen frame forever (measured: 60 s with no error and no recovery before
+// this change).
+TEST(WindowsMediaEngine, AStuckSeekRecoversAndReportsItself) {
+    const QString path =
+        QString::fromLocal8Bit(qgetenv("FILECOMMANDER_WMF_UNSEEKABLE_VIDEO"));
+    if (path.isEmpty() || !QFileInfo::exists(path))
+        GTEST_SKIP() << "no known unseekable video configured";
+
+    WindowsMediaEngine engine;
+    QSignalSpy unsupported(&engine, &MediaEngine::seekUnsupported);
+    MediaSource source;
+    source.path = path;
+    engine.load(source, MediaKind::Video);
+
+    QElapsedTimer timer;
+    timer.start();
+    while (timer.elapsed() < 10000 && engine.positionSeconds() < 2.0)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+    ASSERT_GT(engine.durationSeconds(), 600.0) << "expected a long clip";
+    ASSERT_GT(engine.positionSeconds(), 1.0) << "clip never started playing";
+
+    engine.seekFraction(0.5);
+    timer.restart();
+    while (timer.elapsed() < 15000 && unsupported.isEmpty())
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+    ASSERT_EQ(unsupported.count(), 1)
+        << "the wedged seek went unnoticed; position is " << engine.positionSeconds() << " of "
+        << engine.durationSeconds();
+
+    // Alive again: the reload has to actually produce playback, not just a
+    // fresh engine sitting at zero.
+    const double afterRecovery = engine.positionSeconds();
+    timer.restart();
+    bool moving = false;
+    while (timer.elapsed() < 10000 && !moving) {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+        moving = engine.positionSeconds() > afterRecovery + 0.5;
+    }
+    EXPECT_TRUE(moving) << "playback did not resume after the reload";
+    engine.stop();
+}
+
+// A seek that works must not be reported as a failure. The build fixture is
+// two seconds long, so this also covers a target close to the end.
+TEST(WindowsMediaEngine, AWorkingSeekIsNotReportedAsUnsupported) {
+    const QFileInfo fixture = wmfFixture(QStringLiteral("video-h264.mp4"));
+    if (!fixture.exists())
+        GTEST_SKIP() << "local WMF fixture is not present";
+
+    WindowsMediaEngine engine;
+    QSignalSpy unsupported(&engine, &MediaEngine::seekUnsupported);
+    MediaSource source;
+    source.path = fixture.absoluteFilePath();
+    engine.load(source, MediaKind::Video);
+
+    QElapsedTimer timer;
+    timer.start();
+    while (timer.elapsed() < 8000 && engine.durationSeconds() <= 0.0)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+    ASSERT_GT(engine.durationSeconds(), 0.0);
+
+    engine.seekFraction(0.5);
+    timer.restart();
+    // Well past the watchdog's deadline.
+    while (timer.elapsed() < SeekWatchdog::kTimeoutMs + 3000)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+    EXPECT_TRUE(unsupported.isEmpty()) << "a healthy seek was reported as wedged";
+    engine.stop();
 }

@@ -1,7 +1,9 @@
 #pragma once
 
 #include "MediaEngine.h"
+#include "SeekWatchdog.h"
 
+#include <QElapsedTimer>
 #include <QHash>
 #include <QPointer>
 #include <QSize>
@@ -23,6 +25,11 @@ public:
     ~WindowsMediaEngine() override;
 
     static QString sourceUrlForMediaFoundation(const MediaSource &source);
+
+    // Turns an MF_MEDIA_ENGINE_ERR_* code (the ERROR event's param1) plus its
+    // extended HRESULT into something a person can act on. Public so the
+    // wording can be tested without a media file that provokes the error.
+    static QString errorText(quint64 code, unsigned long extended, const QString &path);
 
     void initialize() override;
     void load(const MediaSource &source, MediaKind kind) override;
@@ -55,6 +62,7 @@ private:
     void setFailure(const QString &message);
     void clearObservedValues();
     void updateTimeline();
+    void recoverFromStuckSeek();
     void updateVideoSize();
     void pumpFrame();
     void onMediaEvent(unsigned long event, quint64 param1 = 0, unsigned long param2 = 0);
@@ -78,5 +86,7 @@ private:
     bool m_initialized = false;
     bool m_comInitialized = false;
     bool m_sawVideoFrame = false;
+    SeekWatchdog m_seekWatchdog;
+    QElapsedTimer m_clock; // monotonic, feeds the watchdog
     quint64 m_loadGeneration = 0;
 };

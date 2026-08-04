@@ -479,6 +479,20 @@ void QuickView::warmMediaEngine() {
                 revealStaticPage(m_info);
             });
 
+    // The backend accepted a seek and then could not finish it, so it reloaded
+    // the clip; playback is alive again, from the start. Say so instead of
+    // leaving the user to work out why the film jumped back to the beginning.
+    // The usual cause is that there is nothing at that point to play -- an
+    // unfinished download keeps its full size and reads back as zeros -- so
+    // the wording points at the file rather than at the decoder.
+    connect(m_mediaEngine, &MediaEngine::seekUnsupported, this, [this]() {
+        m_seeking = false;
+        if (m_progressSlider)
+            m_progressSlider->setValue(0);
+        showVideoNotice(tr("Nothing could be read at that point in the file — it may be "
+                           "incomplete or damaged. Playback restarted from the beginning."));
+    });
+
     try {
         m_mediaEngine->initialize();
     } catch (const std::exception &error) {
@@ -1078,6 +1092,20 @@ QWidget *QuickView::buildVideoPage() {
     m_videoInfoOverlay->setAttribute(Qt::WA_TransparentForMouseEvents);
     m_videoInfoOverlay->hide();
 
+    // Transient banner for things the user has to be told but that do not kill
+    // the preview -- currently only a seek the decoder could not carry out.
+    // Same object name, so the three themes style it with the info panel.
+    m_videoNotice = new QLabel(m_videoSurface);
+    m_videoNotice->setObjectName(QStringLiteral("quickViewInfoOverlay"));
+    m_videoNotice->setWordWrap(true);
+    m_videoNotice->setAlignment(Qt::AlignCenter);
+    m_videoNotice->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_videoNotice->hide();
+    m_videoNoticeTimer = new QTimer(this);
+    m_videoNoticeTimer->setSingleShot(true);
+    m_videoNoticeTimer->setInterval(7000);
+    connect(m_videoNoticeTimer, &QTimer::timeout, this, [this]() { m_videoNotice->hide(); });
+
     // Control bar: play/pause, speed, progress, volume (muted by default), info.
     m_playButton = new QPushButton(tr("Play"), m_videoPage);
     // Pin a fixed width so toggling the label between "Play"/"Pause" (whose
@@ -1314,6 +1342,16 @@ void QuickView::refreshMediaControlIcons() {
 }
 
 void QuickView::positionVideoInfoOverlay() {
+    if (m_videoNotice && m_videoNotice->isVisible()) {
+        // Wrap to the surface rather than growing off the edge: the notice is a
+        // sentence, not the info panel's short lines.
+        const int available = qMax(120, m_videoSurface->width() - 32);
+        m_videoNotice->setFixedWidth(available);
+        m_videoNotice->adjustSize();
+        m_videoNotice->move(qMax(8, (m_videoSurface->width() - m_videoNotice->width()) / 2),
+                            qMax(8, m_videoSurface->height() - m_videoNotice->height() - 16));
+        m_videoNotice->raise();
+    }
     if (!m_videoInfoOverlay->isVisible())
         return;
     m_videoInfoOverlay->adjustSize();
@@ -1321,6 +1359,15 @@ void QuickView::positionVideoInfoOverlay() {
     const int x = qMax(8, vw - m_videoInfoOverlay->width() - 8);
     m_videoInfoOverlay->move(x, 8);
     m_videoInfoOverlay->raise();
+}
+
+void QuickView::showVideoNotice(const QString &text) {
+    if (!m_videoNotice)
+        return;
+    m_videoNotice->setText(text);
+    m_videoNotice->show();
+    positionVideoInfoOverlay();
+    m_videoNoticeTimer->start();
 }
 
 void QuickView::updateVideoInfoOverlay() {

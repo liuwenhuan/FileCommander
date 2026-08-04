@@ -126,12 +126,15 @@ private:
 WindowsMediaEngine::WindowsMediaEngine(QObject *parent)
     : MediaEngine(parent), m_notify(std::make_unique<Notify>(this)),
       m_surface(new WindowsMediaSurface) {
+    m_clock.start();
     m_pollTimer = new QTimer(this);
     m_pollTimer->setInterval(kPollIntervalMs);
     connect(m_pollTimer, &QTimer::timeout, this, [this]() {
         updateTimeline();
         updateVideoSize();
         pumpFrame();
+        if (m_seekWatchdog.observe(m_position, m_clock.elapsed()) == SeekWatchdog::Verdict::Stuck)
+            recoverFromStuckSeek();
     });
 }
 
@@ -278,8 +281,25 @@ void WindowsMediaEngine::seekFraction(double fraction) {
     const double position = qBound(0.0, fraction, 1.0) * m_duration;
     if (SUCCEEDED(m_engine->SetCurrentTime(position))) {
         m_position = position;
+        // Watch it: SetCurrentTime succeeding says only that the request was
+        // taken, not that it will ever finish. See SeekWatchdog.
+        m_seekWatchdog.arm(position, m_duration, m_state == MediaState::Playing,
+                           m_clock.elapsed());
         emit positionChanged(m_position);
     }
+}
+
+void WindowsMediaEngine::recoverFromStuckSeek() {
+    // The engine is past saving at this point -- it ignores further seeks, and
+    // pausing or playing does not shake it loose (both measured). Reloading is
+    // the only way back to a live picture, and it starts from the beginning
+    // because seeking to where we were is the very thing that failed.
+    const MediaSource source = m_source;
+    const MediaKind kind = m_kind;
+    if (source.path.isEmpty())
+        return;
+    load(source, kind);
+    emit seekUnsupported();
 }
 
 void WindowsMediaEngine::setVolume(int volume) {
@@ -342,6 +362,7 @@ void WindowsMediaEngine::setFailure(const QString &message) {
 }
 
 void WindowsMediaEngine::clearObservedValues() {
+    m_seekWatchdog.disarm();
     m_duration = 0.0;
     m_position = 0.0;
     m_videoSize = {};
@@ -445,11 +466,7 @@ void WindowsMediaEngine::onMediaEvent(unsigned long event, quint64 param1, unsig
     case MF_MEDIA_ENGINE_EVENT_ABORT:
         break;
     case MF_MEDIA_ENGINE_EVENT_ERROR:
-        setFailure(QStringLiteral("Could not play media with Media Foundation. "
-                                  "event=%1 param1=0x%2 param2=0x%3")
-                       .arg(event)
-                       .arg(param1, 0, 16)
-                       .arg(param2, 0, 16));
+        setFailure(errorText(param1, param2, m_source.path));
         break;
     case MF_MEDIA_ENGINE_EVENT_STREAMRENDERINGERROR: {
         const QString message =
@@ -479,6 +496,48 @@ void WindowsMediaEngine::onMediaEvent(unsigned long event, quint64 param1, unsig
     default:
         break;
     }
+}
+
+QString WindowsMediaEngine::errorText(quint64 code, unsigned long extended, const QString &path) {
+    // The codes are the HTML5 MediaError values Media Foundation reuses. The
+    // one that matters in practice is SRC_NOT_SUPPORTED: Windows ships no
+    // decoder for several formats that are still common in the wild -- the
+    // file that prompted this holds MPEG-2 video in an AVI container, which
+    // ffmpeg decodes and Media Foundation will not touch -- and the old
+    // message reported that as a pair of hex numbers, which told the user
+    // nothing.
+    const QString suffix = QStringLiteral(" [%1/0x%2]")
+                               .arg(code)
+                               .arg(static_cast<quint32>(extended), 8, 16, QLatin1Char('0'));
+    const QString extension = QFileInfo(path).suffix().toLower();
+    QString reason;
+    switch (code) {
+    case MF_MEDIA_ENGINE_ERR_ABORTED:
+        reason = tr("Playback was stopped before it began.");
+        break;
+    case MF_MEDIA_ENGINE_ERR_NETWORK:
+        reason = tr("The file could not be read to the end.");
+        break;
+    case MF_MEDIA_ENGINE_ERR_DECODE:
+        reason = tr("The stream could not be decoded — the file may be damaged.");
+        break;
+    case MF_MEDIA_ENGINE_ERR_SRC_NOT_SUPPORTED:
+        reason = extension.isEmpty()
+                     ? tr("Windows has no decoder for this file's format.")
+                     : tr("Windows has no decoder for this .%1 file's format. MPEG-2, "
+                          "Xvid and DivX video are common in older files and Windows "
+                          "carries none of them for this container; installing a codec "
+                          "pack lets it play.")
+                           .arg(extension);
+        break;
+    case MF_MEDIA_ENGINE_ERR_ENCRYPTED:
+        reason = tr("The file is protected and cannot be played here.");
+        break;
+    default:
+        reason = tr("Media Foundation could not play this file.");
+        break;
+    }
+    return reason + suffix;
 }
 
 QString WindowsMediaEngine::sourceUrlForMediaFoundation(const MediaSource &source) {

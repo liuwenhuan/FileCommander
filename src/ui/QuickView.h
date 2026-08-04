@@ -317,6 +317,7 @@ private:
     double fitScale() const;
     void positionInfoOverlay();      // keep the image metadata panel pinned top-right
     void positionVideoInfoOverlay(); // same, over the video area
+    void showVideoNotice(const QString &text); // transient banner over the video
     // Rebuilds mpv's phosphor filter chain from the current tint, pixel block
     // and the width the video is drawn at. Idempotent; safe to call often.
     void applyVideoPhosphor();
@@ -522,6 +523,8 @@ private:
     QSlider *m_volumeSlider = nullptr;
     QCheckBox *m_videoInfoCheck = nullptr;
     QLabel *m_videoInfoOverlay = nullptr;
+    QLabel *m_videoNotice = nullptr;      // transient, self-hiding
+    QTimer *m_videoNoticeTimer = nullptr;
     QTimer *m_videoTimer = nullptr; // polls position while playing
     bool m_seeking = false;         // suppress timer updates while dragging
 
