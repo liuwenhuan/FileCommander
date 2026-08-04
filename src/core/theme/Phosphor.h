@@ -33,13 +33,26 @@ constexpr qreal kLumaB = 0.114;
 // glowing faintly would look like a defect rather than a phosphor.
 constexpr qreal kStillFloor = 0.20;
 
-// The tint applied to *content* (thumbnails, previews, video). Invalid -- the
-// default -- means "leave content alone", which is both the non-CRT themes and
-// the CRT theme with the follow-images toggle off. Chrome icons are tinted
-// separately via IconCache::setTint(), because they follow the theme
-// unconditionally while content follows the toggle.
-QColor contentTint();
-void setContentTint(const QColor &tint);
+// Two content tints, because the two surfaces answer to two separate settings.
+//
+// THUMBNAIL tint: the icon grid. Set together with the file-icon tint (see
+// IconCache) -- "the pictures in the file list match the theme" is one idea and
+// one switch, whether a given cell shows a generated thumbnail or a type icon.
+//
+// PREVIEW tint: the preview pane's image, video, PDF and document pages. A
+// separate switch because it is a different question: recolouring a wall of
+// small thumbnails is decoration, while recolouring the picture someone opened
+// to LOOK at changes what they are looking at. Plenty of people want the first
+// and not the second.
+//
+// Invalid -- the default for both -- means "leave it alone", which is every
+// non-CRT theme and the CRT theme with that switch off. Chrome glyphs are
+// separate again (IconCache::setGlyphTint): they carry no colour of their own,
+// so they follow the theme unconditionally.
+QColor thumbnailTint();
+void setThumbnailTint(const QColor &tint);
+QColor previewTint();
+void setPreviewTint(const QColor &tint);
 
 // Size of one simulated pixel in the *image's own* pixels. 0 -- what every
 // theme now sets -- disables quantisation: the coarse raster cost more
@@ -75,7 +88,7 @@ void flattenToTint(QImage &image, const QColor &tint);
 
 // Convenience wrapper: quantise (see pixelate) then colourise. Returns `src`
 // unchanged when `tint` is invalid, so a caller can hand it the current
-// contentTint() without branching.
+// thumbnailTint() without branching.
 //
 // `blockPixels` < 0 -- the default -- means "use contentPixelBlock()", which is
 // what every content surface wants. Pass an explicit value to opt out (0, the

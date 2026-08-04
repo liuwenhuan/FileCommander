@@ -14,6 +14,9 @@
 #include "IconFileView.h"
 #include "QuickView.h"
 #include "ThumbnailDelegate.h"
+#include "filesystem/IconCache.h"
+#include "theme/Phosphor.h"
+#include "theme/ThemeManager.h"
 #include "config/Settings.h"
 
 namespace {
@@ -334,4 +337,39 @@ TEST(CrtContentSurfacesTest, LightAndDarkSurfacesDoNotAcquireCrtTiles) {
                                        details.palette().color(QPalette::Base), 2))
             << theme.toStdString();
     }
+}
+
+// The two content switches must reach two different surfaces. They were one
+// setting until it became clear they answer different questions: recolouring a
+// wall of small thumbnails is decoration, while recolouring the picture someone
+// opened to LOOK at changes what they are examining.
+TEST(CrtContentSurfacesTest, TheImageAndPreviewSwitchesAreIndependent) {
+    ThemeManager manager;
+    struct Restore {
+        ~Restore() {
+            fc::setThumbnailTint(QColor());
+            fc::setPreviewTint(QColor());
+            IconCache::instance().setFileIconTint(QColor());
+        }
+    } restore;
+
+    // Images on, preview off: the grid follows the theme, the preview does not.
+    manager.apply(Settings::Theme::Crt, true, false);
+    EXPECT_TRUE(fc::thumbnailTint().isValid());
+    EXPECT_TRUE(IconCache::instance().fileIconTint().isValid())
+        << "file-type icons share the grid with thumbnails and the switch with them";
+    EXPECT_FALSE(fc::previewTint().isValid())
+        << "the preview pane followed the images switch";
+
+    // ...and the other way round.
+    manager.apply(Settings::Theme::Crt, false, true);
+    EXPECT_FALSE(fc::thumbnailTint().isValid());
+    EXPECT_FALSE(IconCache::instance().fileIconTint().isValid());
+    EXPECT_TRUE(fc::previewTint().isValid());
+
+    // Outside the CRT theme neither applies, whatever they are set to.
+    manager.apply(Settings::Theme::Light, true, true);
+    EXPECT_FALSE(fc::thumbnailTint().isValid());
+    EXPECT_FALSE(fc::previewTint().isValid());
+    EXPECT_FALSE(IconCache::instance().fileIconTint().isValid());
 }

@@ -250,7 +250,7 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent,
                     return;
                 m_pendingImageRenderGeneration = 0;
 
-                const QColor tint = fc::contentTint();
+                const QColor tint = fc::previewTint();
                 if (tint.isValid()) {
                     if (image.format() != QImage::Format_ARGB32)
                         image = image.convertToFormat(QImage::Format_ARGB32);
@@ -1191,7 +1191,7 @@ void QuickView::refreshPhosphor() {
     // -- when it was produced, so none of them notice a settings change on
     // their own; the pane just keeps showing the old treatment until the file
     // is opened again. Each surface is re-derived here from what it kept.
-    const QColor tint = fc::contentTint();
+    const QColor tint = fc::previewTint();
 
     // Image: the source image is untouched, so re-running the scale step is
     // the whole job.
@@ -1232,7 +1232,7 @@ void QuickView::applyVideoPhosphor() {
     if (!m_mediaEngine)
         return;
     VideoEffectSettings settings;
-    settings.tint = fc::contentTint();
+    settings.tint = fc::previewTint();
     settings.pixelBlock = fc::contentPixelBlock();
     m_mediaEngine->setVideoEffect(settings);
 }
@@ -1517,7 +1517,7 @@ void QuickView::showAudio(const QString &path) {
         m_audioCover->setPixmap(
             fc::tintedPixmap(cover.scaled(m_audioCover->size(), Qt::KeepAspectRatio,
                                           Qt::SmoothTransformation),
-                             fc::contentTint()));
+                             fc::previewTint()));
     } else {
         m_audioCover->setPixmap(
             style()
@@ -2569,7 +2569,7 @@ void QuickView::renderVisiblePdfPages() {
                 const QImage image = page ? page->renderToImage(dpi, dpi) : QImage();
                 if (!image.isNull()) {
                     bg->setPixmap(fc::scanlinedPhosphorPixmap(
-                        QPixmap::fromImage(image), fc::contentTint()));
+                        QPixmap::fromImage(image), fc::previewTint()));
                     m_pdfRenderedWidth[i] = targetW;
                 }
             }
@@ -2873,8 +2873,8 @@ void QuickView::buildSlideItem(int i) {
     // image and PDF paths there is nothing to recolour on the way in -- the
     // effect tints the rasterised page instead. Attached per page (not to the
     // view) so the cost is bounded by one slide, and only when there is a tint.
-    if (fc::contentTint().isValid())
-        page->setGraphicsEffect(new ttc::PhosphorEffect(fc::contentTint()));
+    if (fc::previewTint().isValid())
+        page->setGraphicsEffect(new ttc::PhosphorEffect(fc::previewTint()));
     delete m_slidePageItems[i]; // removes the placeholder from the scene
     m_slidesScene->addItem(page);
     page->setPos(0, m_slidePageTop[i]);

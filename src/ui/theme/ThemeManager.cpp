@@ -32,9 +32,10 @@ bool ThemeManager::systemPrefersDark() const {
     return m_originalPalette.color(QPalette::Window).lightness() < 128;
 }
 
-void ThemeManager::apply(Settings::Theme theme, bool phosphorImages) {
+void ThemeManager::apply(Settings::Theme theme, bool phosphorImages, bool phosphorPreview) {
     m_requestedTheme = theme;
     m_phosphorImages = phosphorImages;
+    m_phosphorPreview = phosphorPreview;
 
     Settings::Theme effective = theme;
     if (effective == Settings::Theme::Auto)
@@ -65,9 +66,10 @@ void ThemeManager::apply(Settings::Theme theme, bool phosphorImages) {
 
     const bool crt = effective == Settings::Theme::Crt;
 
-    // Content (thumbnails, image/PDF/slide previews, video) follows the images
-    // TOGGLE rather than the theme, since recolouring the user's own
-    // photographs is a taste decision in a way that recolouring a glyph is not.
+    // Content follows its own switches rather than the theme, since recolouring
+    // the user's own photographs is a taste decision in a way that recolouring a
+    // glyph is not -- and it is two switches, because the file list's pictures
+    // and the picture someone opened to LOOK at are different decisions.
     //
     // Neither surface is quantised any more. The coarse raster was atmosphere,
     // and it cost more than it bought: a file-type badge shrank to a handful of
@@ -101,12 +103,16 @@ void ThemeManager::apply(Settings::Theme theme, bool phosphorImages) {
     }
     IconCache::instance().setGlyphTint(glyphTint);
 
-    // File icons: CRT only. Collapsing every icon to one hue IS that theme --
-    // a stylesheet cannot reach the system icon theme, so blue folders and red
-    // document icons would otherwise be the one thing giving it away. No other
-    // theme has that excuse, and an invalid colour leaves the artwork alone.
-    IconCache::instance().setFileIconTint(crt ? kPhosphor : QColor(), 0);
-    fc::setContentTint(crt && phosphorImages ? kPhosphor : QColor());
+    // File icons and thumbnails together, under the images switch: they sit in
+    // the same grid, and "the pictures in the file list match the theme" is one
+    // idea whether a cell shows a generated thumbnail or a type icon. CRT only
+    // either way -- collapsing every icon to one hue IS that theme, since a
+    // stylesheet cannot reach the system icon theme and a surviving blue folder
+    // would be the one thing giving it away.
+    const QColor imageTint = crt && phosphorImages ? kPhosphor : QColor();
+    IconCache::instance().setFileIconTint(imageTint, 0);
+    fc::setThumbnailTint(imageTint);
+    fc::setPreviewTint(crt && phosphorPreview ? kPhosphor : QColor());
     fc::setContentPixelBlock(0);
 
     // The app icon is painted by us, so it is repainted rather than recoloured

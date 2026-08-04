@@ -2,7 +2,8 @@
 
 namespace fc {
 namespace {
-QColor g_contentTint; // invalid by default: content is left alone
+QColor g_thumbnailTint; // invalid by default: the grid is left alone
+QColor g_previewTint;   // ...and so is the preview pane
 int g_pixelBlock = 0; // 0: no quantisation
 
 // Fewest cells an image may be reduced to. 8 is the width of an era-appropriate
@@ -24,12 +25,20 @@ QString phosphorMixer(const QColor &tint) {
 }
 } // namespace
 
-QColor contentTint() {
-    return g_contentTint;
+QColor thumbnailTint() {
+    return g_thumbnailTint;
 }
 
-void setContentTint(const QColor &tint) {
-    g_contentTint = tint;
+void setThumbnailTint(const QColor &tint) {
+    g_thumbnailTint = tint;
+}
+
+QColor previewTint() {
+    return g_previewTint;
+}
+
+void setPreviewTint(const QColor &tint) {
+    g_previewTint = tint;
 }
 
 int contentPixelBlock() {

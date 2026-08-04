@@ -91,6 +91,10 @@ public:
     // list-view sizes (see ThemeManager). Kept so the pass stays reachable.
     void setGlyphTint(const QColor &tint);
     void setFileIconTint(const QColor &tint, int blockPixels = 0);
+    // Which of the two is in force, for whoever needs to reason about it --
+    // an invalid colour means that kind of icon is left in its own colours.
+    QColor glyphTint() const { return m_glyphTint; }
+    QColor fileIconTint() const { return m_fileIconTint; }
 
 private:
     IconCache();

@@ -797,12 +797,12 @@ QString ThumbnailCache::contentTintTag() {
     // derived form in memory is rebuilt. Putting the tint in the disk key
     // instead would double the on-disk cache and re-run every remote fetch and
     // every ffmpeg frame grab on a theme switch.
-    const QColor tint = fc::contentTint();
+    const QColor tint = fc::thumbnailTint();
     return tint.isValid() ? QLatin1Char('#') + tint.name() : QString();
 }
 
 QPixmap ThumbnailCache::tintedForDisplay(const QPixmap &pixmap) {
-    return fc::tintedPixmap(pixmap, fc::contentTint());
+    return fc::tintedPixmap(pixmap, fc::thumbnailTint());
 }
 
 void ThumbnailCache::invalidateMemoryCache() {

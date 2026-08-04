@@ -106,6 +106,14 @@ void Settings::setPhosphorImages(bool on) {
     m_settings.setValue("appearance/phosphorImages", on);
 }
 
+bool Settings::phosphorPreview() const {
+    return m_settings.value("appearance/phosphorPreview", true).toBool();
+}
+
+void Settings::setPhosphorPreview(bool on) {
+    m_settings.setValue("appearance/phosphorPreview", on);
+}
+
 QString Settings::language() const {
     return m_settings.value("appearance/language", "auto").toString();
 }

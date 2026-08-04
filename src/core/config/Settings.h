@@ -34,8 +34,17 @@ public:
     // the menu entry is disabled outside the CRT theme rather than hidden (a
     // hidden toggle reads as a missing feature). Defaults on: someone who chose
     // the CRT theme asked for a CRT.
+    // Whether the file list's pictures -- generated thumbnails and file-type
+    // icons alike -- are recoloured to match the theme.
     bool phosphorImages() const;
     void setPhosphorImages(bool on);
+
+    // Whether the PREVIEW pane's image/video/document pages are. Separate from
+    // the above because it is a different question: recolouring a wall of small
+    // thumbnails is decoration, recolouring the picture someone opened to look
+    // at changes what they are looking at.
+    bool phosphorPreview() const;
+    void setPhosphorPreview(bool on);
 
     QString language() const;
     void setLanguage(const QString &language);

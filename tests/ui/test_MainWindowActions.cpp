@@ -72,7 +72,8 @@ QAction *checkedThemeAction(QMenu *interfaceMenu) {
         return nullptr;
     for (QAction *action : themeMenu->actions()) {
         if (action->isCheckable() && action->isChecked() &&
-            action->text() != QStringLiteral("Tint images to match")) {
+            action->text() != QStringLiteral("Image Colours Follow Theme") &&
+            action->text() != QStringLiteral("Preview Colours Follow Theme")) {
             return action;
         }
     }

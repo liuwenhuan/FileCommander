@@ -756,9 +756,9 @@ TEST(ImagePreviewLoader, RepeatedRotationIsCumulativeOnScreenAndDisk) {
 
 TEST(ImagePreviewLoader, ThemeRefreshSupersedesPendingRender) {
     struct TintReset {
-        ~TintReset() { fc::setContentTint(QColor()); }
+        ~TintReset() { fc::setPreviewTint(QColor()); }
     } tintReset;
-    fc::setContentTint(QColor());
+    fc::setPreviewTint(QColor());
 
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
@@ -794,7 +794,7 @@ TEST(ImagePreviewLoader, ThemeRefreshSupersedesPendingRender) {
     ASSERT_NE(zoomIn, nullptr);
     zoomIn->trigger();
     ASSERT_TRUE(renderEntered.tryAcquire(1, 5000));
-    fc::setContentTint(QColor(0x33, 0xff, 0x88));
+    fc::setPreviewTint(QColor(0x33, 0xff, 0x88));
     view.refreshPhosphor();
     releaseRender.release();
 
