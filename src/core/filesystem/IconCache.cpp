@@ -72,6 +72,50 @@ QImage imageFromHIcon(HICON icon, int size) {
     return copy;
 }
 
+// Windows' jumbo image list hands back a 256x256 slot for every icon, even one
+// that never shipped a 256px variant -- and it does not centre the smaller
+// bitmap in it, it drops it in the TOP-LEFT corner and leaves the rest
+// transparent. Measured for .rar (7-Zip's icon, no 256 variant): a 256 canvas
+// with 44x34 of ink at (2,7), which the grid then drew as a small badge pinned
+// to a corner of a large tile.
+//
+// Cropping that back to a square around the ink turns the lie into the truth --
+// the icon reports the size it actually has, and the thumbnail delegate's
+// upscale (which only fires on a pixmap SMALLER than the box) can then grow it.
+//
+// Only for the large rungs: at 16 or 32 there is not enough room for the test to
+// mean anything. A real icon of this size is never confined to one quadrant --
+// .zip's genuine 256 measured 227x176 at (13,34) -- so this leaves them alone.
+QImage cropPaddedShellIcon(const QImage &image, int size) {
+    if (size < 64 || image.isNull())
+        return image;
+    int maxX = -1;
+    int maxY = -1;
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            if (qAlpha(image.pixel(x, y)) > 8) {
+                maxX = qMax(maxX, x);
+                maxY = qMax(maxY, y);
+            }
+        }
+    }
+    if (maxX < 0 || maxY < 0)
+        return image; // fully transparent; nothing to say about it
+    const int extent = qMax(maxX, maxY) + 1;
+    if (extent > size / 2)
+        return image; // fills the canvas: a real icon of this size
+    // Round up to the rung the source almost certainly is, so the crop keeps
+    // the artwork's own padding rather than shrink-wrapping the ink.
+    int side = size;
+    for (int rung : {32, 48, 64, 128}) {
+        if (extent <= rung) {
+            side = rung;
+            break;
+        }
+    }
+    return image.copy(0, 0, side, side);
+}
+
 // SHGFI_USEFILEATTRIBUTES means "answer from the name and the attributes, do
 // not go to disk", so `name` is a stand-in rather than a real path -- which is
 // the whole point here: the caller has an extension, not a file.
@@ -101,7 +145,9 @@ QPixmap shellPixmap(const QString &name, DWORD attributes, int size) {
 
     QImage image = imageFromHIcon(shellIcon, size);
     DestroyIcon(shellIcon);
-    return image.isNull() ? QPixmap() : QPixmap::fromImage(image);
+    if (image.isNull())
+        return {};
+    return QPixmap::fromImage(cropPaddedShellIcon(image, size));
 }
 
 QIcon shellIconFor(const QString &name, DWORD attributes) {
@@ -210,8 +256,10 @@ QIcon IconCache::systemIconForPath(const QString &path) {
             continue;
         const QImage image = imageFromHIcon(shellIcon, size);
         DestroyIcon(shellIcon);
+        // Same jumbo padding as the file icons: a drive whose icon has no 256px
+        // variant comes back as a corner of an otherwise empty canvas.
         if (!image.isNull())
-            icon.addPixmap(QPixmap::fromImage(image));
+            icon.addPixmap(QPixmap::fromImage(cropPaddedShellIcon(image, size)));
     }
     if (icon.availableSizes().isEmpty())
         return {};

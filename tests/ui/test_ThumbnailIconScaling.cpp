@@ -4,9 +4,14 @@
 #include <QImage>
 #include <QPainter>
 #include <QPixmap>
+#include <QDir>
+#include <QFile>
+#include <QSignalSpy>
 #include <QStandardItemModel>
 #include <QStyleOptionViewItem>
+#include <QTemporaryDir>
 
+#include "FileSystemModel.h"
 #include "ThumbnailDelegate.h"
 
 // QIcon::pixmap() scales a bitmap DOWN to the requested size but never up: ask
@@ -102,4 +107,65 @@ TEST(ThumbnailIconScaling, AnIconThatIsAlreadyBigEnoughIsLeftAlone) {
     ASSERT_FALSE(ink.isEmpty());
     EXPECT_LE(ink.width(), 192);
     EXPECT_GE(ink.width(), 190);
+}
+
+// The other half of the same defect, and the one actually reported: Windows'
+// jumbo image list hands back a 256x256 slot for EVERY icon, including one that
+// never shipped a 256px variant -- and it drops the smaller bitmap in the
+// top-left corner rather than centring it. Measured for .rar (7-Zip's icon):
+// a 256 canvas holding 44x34 of ink at (2,7).
+//
+// That is not "an icon too small to fill the box" -- it is a full-size pixmap
+// that is mostly empty, so the upscale above never fires and the grid drew a
+// badge pinned to a corner of a large tile. IconCache crops the padding away so
+// the icon reports the size it really has, and the upscale takes it from there.
+TEST(ThumbnailIconScaling, AnIconTheShellPaddedIntoAJumboSlotStillFillsTheTile) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    for (const char *name : {"volume.rar", "archive.zip", "notes.txt"}) {
+        QFile file(QDir(dir.path()).filePath(QString::fromLatin1(name)));
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+        file.write("x");
+        file.close();
+    }
+
+    FileSystemModel model;
+    QSignalSpy loaded(&model, &FileSystemModel::loadFinished);
+    model.setRootPath(dir.path());
+    if (loaded.isEmpty())
+        ASSERT_TRUE(loaded.wait(5000));
+    ASSERT_GT(model.rowCount(), 0);
+
+    ThumbnailDelegate delegate;
+    delegate.setIconSize(192);
+    delegate.setFontPointSize(12);
+
+    for (int row = 0; row < model.rowCount(); ++row) {
+        if (model.isParentEntry(row))
+            continue;
+        const QString name = model.index(row, 0).data(Qt::DisplayRole).toString();
+        QStyleOptionViewItem option;
+        option.rect = QRect(QPoint(0, 0), delegate.cellSizeHint(option.font));
+        option.state = QStyle::State_Enabled;
+
+        QPixmap canvas(option.rect.size());
+        canvas.fill(Qt::transparent);
+        QPainter painter(&canvas);
+        delegate.paint(&painter, option, model.index(row, 0));
+        painter.end();
+
+        const QImage image = canvas.toImage();
+        QRect ink;
+        for (int y = 0; y < qMin(212, image.height()); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                if (qAlpha(image.pixel(x, y)) > 8)
+                    ink = ink.united(QRect(x, y, 1, 1));
+        ASSERT_FALSE(ink.isEmpty()) << name.toStdString();
+        // Not the full 192: icons carry their own padding and some are far from
+        // square. But a badge marooned in a corner measured 34px, so anything
+        // near the box rules that out.
+        EXPECT_GE(qMax(ink.width(), ink.height()), 150)
+            << name.toStdString() << " drew " << ink.width() << "x" << ink.height()
+            << " of ink in a 192px box";
+    }
 }
