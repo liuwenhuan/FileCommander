@@ -10,6 +10,7 @@
 #include <QTemporaryDir>
 
 #include "ArchiveLayout.h"
+#include "ArchiveNames.h"
 #include "ExternalArchiveTool.h"
 #include "SquashfsReader.h"
 
@@ -28,7 +29,7 @@ QString lastArchiveError(struct archive *a) {
 
 // Normalises a libarchive pathname: '\\' -> '/', drop trailing slashes.
 QString normalisedEntryPath(struct archive_entry *entry) {
-    QString p = QString::fromUtf8(archive_entry_pathname(entry));
+    QString p = fc::entryPathname(entry);
     p.replace(QLatin1Char('\\'), QLatin1Char('/'));
     while (p.endsWith(QLatin1Char('/')))
         p.chop(1);
@@ -158,6 +159,7 @@ void ArchiveProvider::readEntryList(QString *error) {
     struct archive *a = archive_read_new();
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
+    fc::applyHeaderCharset(a);
 
     const QByteArray localArchivePath = QFile::encodeName(m_archivePath);
     if (archive_read_open_filename(a, localArchivePath.constData(), 10240) != ARCHIVE_OK) {
@@ -462,6 +464,7 @@ bool ArchiveProvider::extractWhole() {
     struct archive *a = archive_read_new();
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
+    fc::applyHeaderCharset(a);
 
     struct archive *ext = archive_write_disk_new();
     archive_write_disk_set_options(ext, ARCHIVE_EXTRACT_TIME | ARCHIVE_EXTRACT_PERM);
@@ -490,7 +493,7 @@ bool ArchiveProvider::extractWhole() {
             continue;
         }
         const QString destPath = QDir(dest).filePath(entryPath);
-        archive_entry_set_pathname(entry, destPath.toUtf8().constData());
+        fc::setEntryPathname(entry, destPath);
         int wr = archive_write_header(ext, entry);
         if (wr < ARCHIVE_OK) {
             ok = false;
@@ -552,6 +555,7 @@ QString ArchiveProvider::extractSingle(const QString &realPath) {
     struct archive *a = archive_read_new();
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
+    fc::applyHeaderCharset(a);
 
     struct archive *ext = archive_write_disk_new();
     archive_write_disk_set_options(ext, ARCHIVE_EXTRACT_TIME | ARCHIVE_EXTRACT_PERM);
@@ -579,7 +583,7 @@ QString ArchiveProvider::extractSingle(const QString &realPath) {
         }
         const QString destPath = QDir(dest).filePath(entryPath);
         const qint64 total = archive_entry_size(entry);
-        archive_entry_set_pathname(entry, destPath.toUtf8().constData());
+        fc::setEntryPathname(entry, destPath);
         if (archive_write_header(ext, entry) == ARCHIVE_OK) {
             if (total > 0)
                 copyDataProgress(a, ext, done, total, m_progress);

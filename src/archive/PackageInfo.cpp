@@ -1,5 +1,7 @@
 #include "PackageInfo.h"
 
+#include "ArchiveNames.h"
+
 #include <archive.h>
 #include <archive_entry.h>
 
@@ -32,6 +34,7 @@ QByteArray extractMember(Opener opener, Matcher matcher) {
     struct archive *a = archive_read_new();
     archive_read_support_filter_all(a);
     archive_read_support_format_all(a);
+    fc::applyHeaderCharset(a);
     if (!opener(a)) {
         archive_read_free(a);
         return QByteArray();
@@ -39,7 +42,7 @@ QByteArray extractMember(Opener opener, Matcher matcher) {
     QByteArray result;
     struct archive_entry *entry = nullptr;
     while (archive_read_next_header(a, &entry) == ARCHIVE_OK) {
-        const QString name = QString::fromUtf8(archive_entry_pathname(entry));
+        const QString name = fc::entryPathname(entry);
         if (matcher(name)) {
             result = readEntryData(a);
             break;

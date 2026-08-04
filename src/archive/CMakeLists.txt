@@ -4,6 +4,8 @@ if(TARGET LibArchive::LibArchive)
 
     add_library(archive STATIC
         ArchiveNode.h
+        ArchiveNames.h
+        ArchiveNames.cpp
         ArchiveHandler.h
         ArchiveHandler.cpp
         PackageInfo.h

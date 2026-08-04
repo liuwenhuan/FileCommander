@@ -9,6 +9,7 @@
 #include <QVector>
 
 #include "ArchiveLayout.h"
+#include "ArchiveNames.h"
 #include "ExternalArchiveTool.h"
 #include "SevenZipReader.h"
 #include "SquashfsReader.h"
@@ -206,7 +207,7 @@ bool addEntryRecursive(struct archive *a, const QString &fsPath, const QString &
                         QString *errorMessage) {
     QFileInfo info(fsPath);
     struct archive_entry *entry = archive_entry_new();
-    archive_entry_set_pathname(entry, archivePath.toUtf8().constData());
+    fc::setEntryPathname(entry, archivePath);
     archive_entry_set_mtime(entry, info.lastModified().toSecsSinceEpoch(), 0);
     archive_entry_set_perm(entry, info.isDir() ? 0755 : 0644);
 
@@ -408,6 +409,7 @@ QSharedPointer<ArchiveNode> ArchiveHandler::buildTree(const QString &archivePath
     struct archive *a = archive_read_new();
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
+    fc::applyHeaderCharset(a);
     if (!passphrase.isEmpty())
         archive_read_add_passphrase(a, passphrase.toUtf8().constData());
 
@@ -436,7 +438,7 @@ QSharedPointer<ArchiveNode> ArchiveHandler::buildTree(const QString &archivePath
             archive_read_free(a);
             return {};
         }
-        QString entryPath = QString::fromUtf8(archive_entry_pathname(entry));
+        QString entryPath = fc::entryPathname(entry);
         entryPath = entryPath.replace(QLatin1Char('\\'), QLatin1Char('/'));
         while (entryPath.endsWith('/'))
             entryPath.chop(1);
@@ -527,6 +529,7 @@ bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entr
     struct archive *a = archive_read_new();
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
+    fc::applyHeaderCharset(a);
     if (!passphrase.isEmpty())
         archive_read_add_passphrase(a, passphrase.toUtf8().constData());
 
@@ -552,7 +555,7 @@ bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entr
     struct archive_entry *entry;
     int r;
     while ((r = archive_read_next_header(a, &entry)) == ARCHIVE_OK) {
-        QString entryPath = QString::fromUtf8(archive_entry_pathname(entry));
+        QString entryPath = fc::entryPathname(entry);
         entryPath = entryPath.replace(QLatin1Char('\\'), QLatin1Char('/'));
         while (entryPath.endsWith('/'))
             entryPath.chop(1);
@@ -572,7 +575,7 @@ bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entr
         }
 
         const QString destPath = QDir(destDir).filePath(entryPath);
-        archive_entry_set_pathname(entry, destPath.toUtf8().constData());
+        fc::setEntryPathname(entry, destPath);
 
         int wr = archive_write_header(ext, entry);
         if (wr < ARCHIVE_OK) {
