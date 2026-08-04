@@ -39,6 +39,9 @@ protected:
     void showEvent(QShowEvent *event) override;
 
 private:
+    // Grows the dialog so the wrapping path label is fully visible instead of
+    // being clipped by the starting height.
+    void fitWrappedText();
     void startRevealAnimation();
     QLabel *m_descriptionLabel;
     QLabel *m_statsLabel;

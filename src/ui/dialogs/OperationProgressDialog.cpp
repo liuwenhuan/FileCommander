@@ -77,6 +77,7 @@ OperationProgressDialog::OperationProgressDialog(QWidget *parent) : FramelessDia
 
 void OperationProgressDialog::showEvent(QShowEvent *event) {
     FramelessDialog::showEvent(event);
+    fitWrappedText();
     startRevealAnimation();
 }
 
@@ -142,6 +143,29 @@ void OperationProgressDialog::setProgress(qint64 doneItems, qint64 totalItems, q
     stats += tr("  ·  elapsed %1").arg(humanDuration(static_cast<qint64>(elapsedSec)));
     m_statsLabel->setText(stats);
 
-    if (!currentFile.isEmpty())
+    if (!currentFile.isEmpty() && m_fileLabel->text() != currentFile) {
         m_fileLabel->setText(currentFile);
+        fitWrappedText();
+    }
+}
+
+void OperationProgressDialog::fitWrappedText() {
+    // Same shape as TransferProgressDialog's: the path wraps, the dialog opened
+    // at a fixed height, and a deep path was simply cut off. The label that
+    // changes during the operation is the one that has to be re-fitted.
+    if (!m_fileLabel)
+        return;
+    const QMargins layoutMargins = layout() ? layout()->contentsMargins() : QMargins();
+    const int textWidth =
+        qMax(1, contentsRect().width() - layoutMargins.left() - layoutMargins.right());
+    m_fileLabel->setMinimumHeight(
+        m_fileLabel->text().isEmpty() ? 0 : m_fileLabel->heightForWidth(textWidth));
+    m_fileLabel->updateGeometry();
+    if (layout()) {
+        layout()->invalidate();
+        layout()->activate();
+    }
+    const int requiredHeight = minimumSizeHint().height();
+    if (height() < requiredHeight)
+        resize(width(), requiredHeight);
 }

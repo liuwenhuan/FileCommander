@@ -69,7 +69,9 @@ private:
     void startRevealAnimation();
     void animateOutcomeColor(const QColor &target);
     void setProgressColor(const QColor &color);
-    void fitErrorText();
+    // Grows the dialog so the wrapping labels (the file path, the error line)
+    // are fully visible instead of being clipped by the starting height.
+    void fitWrappedText();
 
     // Visibility policy thresholds.
     static constexpr int kShowDelayMs = 1000;                    // deferred-show delay

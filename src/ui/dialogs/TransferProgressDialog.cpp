@@ -124,7 +124,7 @@ TransferProgressDialog::TransferProgressDialog(OperationQueue *queue, QWidget *p
 
 void TransferProgressDialog::showEvent(QShowEvent *event) {
     FramelessDialog::showEvent(event);
-    fitErrorText();
+    fitWrappedText();
     startRevealAnimation();
 }
 
@@ -151,24 +151,25 @@ void TransferProgressDialog::changeEvent(QEvent *event) {
         return;
     if (event->type() == QEvent::FontChange || event->type() == QEvent::ApplicationFontChange ||
         event->type() == QEvent::StyleChange) {
-        QTimer::singleShot(0, this, [this] { fitErrorText(); });
+        QTimer::singleShot(0, this, [this] { fitWrappedText(); });
     }
 }
 
-void TransferProgressDialog::fitErrorText() {
-    if (!m_errorLabel)
-        return;
-
-    if (m_errorLabel->text().isEmpty()) {
-        m_errorLabel->setMinimumHeight(0);
-        return;
-    }
-
+void TransferProgressDialog::fitWrappedText() {
+    // Both wrapping labels, not just the error one. The file path wraps too,
+    // and a deep source path (the one that prompted this ran to two lines) was
+    // simply cut off by the dialog's starting height -- the text was there, the
+    // room for it was not.
     const QMargins layoutMargins = layout() ? layout()->contentsMargins() : QMargins();
     const int textWidth = qMax(1, contentsRect().width() - layoutMargins.left() -
                                      layoutMargins.right());
-    m_errorLabel->setMinimumHeight(m_errorLabel->heightForWidth(textWidth));
-    m_errorLabel->updateGeometry();
+    for (QLabel *label : {m_fileLabel, m_errorLabel}) {
+        if (!label)
+            continue;
+        label->setMinimumHeight(label->text().isEmpty() ? 0
+                                                        : label->heightForWidth(textWidth));
+        label->updateGeometry();
+    }
     if (layout()) {
         layout()->invalidate();
         layout()->activate();
@@ -312,8 +313,13 @@ void TransferProgressDialog::onProgress(qint64 doneItems, qint64 totalItems, qin
         m_etaLabel->clear();
     }
 
-    if (!currentFile.isEmpty())
+    if (!currentFile.isEmpty() && m_fileLabel->text() != currentFile) {
         m_fileLabel->setText(currentFile);
+        // Refit: this is the label that actually changes during a transfer, and
+        // each new path wraps to its own number of lines. Fitting only on show
+        // sized the dialog for whatever path happened to be first.
+        fitWrappedText();
+    }
 }
 
 void TransferProgressDialog::onQueueChanged(int pendingCount) {
@@ -344,7 +350,7 @@ void TransferProgressDialog::onFinished(bool ok) {
 
 void TransferProgressDialog::onErrorOccurred(const QString &message) {
     m_errorLabel->setText(message);
-    fitErrorText();
+    fitWrappedText();
     animateOutcomeColor(QColor(0xe0, 0x4a, 0x4a));
     // Only keep an already-visible dialog up past completion so the message is
     // readable. Don't pop the dialog just for an error: MainWindow already shows

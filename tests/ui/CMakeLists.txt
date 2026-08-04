@@ -25,6 +25,7 @@ set(UI_TEST_SOURCES
     test_ComputerRename.cpp
     test_ThumbnailRenameEditor.cpp
     test_IconTinting.cpp
+    test_TransferProgressLayout.cpp
     test_ThumbnailIconScaling.cpp
     test_VideoRangePlan.cpp
     test_MediaEngineContract.cpp

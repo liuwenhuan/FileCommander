@@ -78,7 +78,15 @@ TEST(StandardButtonLocalizationTest, LocalizesMessageAndDialogButtonBoxesWithQtB
                                QMessageBox::Discard);
     ttc::localizeStandardButtons(&message);
 
-    const bool qtCatalogLoaded = qApp->property("ttc.qtBaseCatalogLoaded").toBool();
+    // Qt's catalog wins where it translated the string, and the fallback fills
+    // in where it did not. Loading a catalog is not the same as translating a
+    // string: qtbase_zh_CN.qm loads on this machine and returns "Cancel"
+    // unchanged, which used to leave that button in English on a Chinese UI.
+    const QList<QString> englishTexts = {
+        QStringLiteral("&Yes"),   QStringLiteral("&No"),   QStringLiteral("OK"),
+        QStringLiteral("Cancel"), QStringLiteral("Close"), QStringLiteral("Save"),
+        QStringLiteral("Discard"),
+    };
     const QList<QString> fallbackTexts = {
         QStringLiteral("是"), QStringLiteral("否"), QStringLiteral("确定"),
         QStringLiteral("取消"), QStringLiteral("关闭"), QStringLiteral("保存"),
@@ -89,8 +97,9 @@ TEST(StandardButtonLocalizationTest, LocalizesMessageAndDialogButtonBoxesWithQtB
          {QDialogButtonBox::Yes, QDialogButtonBox::No, QDialogButtonBox::Ok,
           QDialogButtonBox::Cancel, QDialogButtonBox::Close, QDialogButtonBox::Save,
           QDialogButtonBox::Discard}) {
-        const QString expected = qtCatalogLoaded ? qtStandardButtonText(button)
-                                                 : fallbackTexts.at(index);
+        const QString qtText = qtStandardButtonText(button);
+        const QString expected =
+            qtText == englishTexts.at(index) ? fallbackTexts.at(index) : qtText;
         EXPECT_EQ(messageButtonText(message, static_cast<QMessageBox::StandardButton>(button)),
                   expected);
         ++index;
@@ -106,8 +115,9 @@ TEST(StandardButtonLocalizationTest, LocalizesMessageAndDialogButtonBoxesWithQtB
          {QDialogButtonBox::Yes, QDialogButtonBox::No, QDialogButtonBox::Ok,
           QDialogButtonBox::Cancel, QDialogButtonBox::Close, QDialogButtonBox::Save,
           QDialogButtonBox::Discard}) {
-        const QString expected = qtCatalogLoaded ? qtStandardButtonText(button)
-                                                 : fallbackTexts.at(index);
+        const QString qtText = qtStandardButtonText(button);
+        const QString expected =
+            qtText == englishTexts.at(index) ? fallbackTexts.at(index) : qtText;
         EXPECT_EQ(dialogButtonText(buttons, button), expected);
         ++index;
     }

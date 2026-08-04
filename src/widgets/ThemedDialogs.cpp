@@ -271,9 +271,13 @@ void applyFallback(QAbstractButton *button, const ButtonDefinition &definition,
     if (!button->property(kManagedProperty).toBool())
         return;
 
-    // A loaded Qt catalog (or an app catalog installed after it) owns a non-empty
-    // label. The fallback only supplies text for the buttons it manages.
-    if (hasQtBaseCatalog() && !button->text().isEmpty())
+    // A loaded Qt catalog owns the label only where it actually translated it.
+    // Its mere presence is not proof of that, and treating it as proof is what
+    // left "Cancel" in English on a Chinese UI: qtbase_zh_CN.qm loaded fine and
+    // returned the source string unchanged for QPlatformTheme/Cancel, so this
+    // stood down and nothing else filled it in. Text still identical to the
+    // canonical English means Qt had its chance and produced nothing.
+    if (hasQtBaseCatalog() && !button->text().isEmpty() && button->text() != canonical)
         return;
 
     const QString localized = fallbackText(definition);
