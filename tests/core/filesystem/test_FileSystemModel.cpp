@@ -174,23 +174,23 @@ bool loadPanel(FilePanel &panel, const QString &path) {
 
 } // namespace
 
-TEST(FileSystemModelFilterTest, MatchesFilterIsCaseInsensitiveSubstring) {
+TEST(FileSystemModelTest, FilterTest_MatchesFilterIsCaseInsensitiveSubstring) {
     EXPECT_TRUE(FileSystemModel::matchesFilter("Report.txt", "report"));
     EXPECT_TRUE(FileSystemModel::matchesFilter("Report.txt", "PORT"));
     EXPECT_FALSE(FileSystemModel::matchesFilter("Report.txt", "xyz"));
 }
 
-TEST(FileSystemModelFilterTest, MatchesFilterEmptyMatchesEverything) {
+TEST(FileSystemModelTest, FilterTest_MatchesFilterEmptyMatchesEverything) {
     EXPECT_TRUE(FileSystemModel::matchesFilter("anything", ""));
 }
 
-TEST(FileSystemModelFilterTest, MatchesFilterSupportsWildcards) {
+TEST(FileSystemModelTest, FilterTest_MatchesFilterSupportsWildcards) {
     EXPECT_TRUE(FileSystemModel::matchesFilter("photo.png", "*.png"));
     EXPECT_FALSE(FileSystemModel::matchesFilter("photo.png", "*.jpg"));
     EXPECT_TRUE(FileSystemModel::matchesFilter("a1b.txt", "a?b*"));
 }
 
-TEST(FileSystemModelFilterTest, SetNameFilterRestrictsVisibleRows) {
+TEST(FileSystemModelTest, FilterTest_SetNameFilterRestrictsVisibleRows) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
     touch(dir.path(), "alpha.txt");
@@ -211,7 +211,7 @@ TEST(FileSystemModelFilterTest, SetNameFilterRestrictsVisibleRows) {
     EXPECT_EQ(visibleFiles(model), 3);
 }
 
-TEST(FileSystemModelFilterTest, PatternPicksExpectedEntriesAcrossRows) {
+TEST(FileSystemModelTest, FilterTest_PatternPicksExpectedEntriesAcrossRows) {
     // Mirrors FilePanel::selectByPattern: iterate the model's rows and match
     // each name against a wildcard mask.
     QTemporaryDir dir;
@@ -235,7 +235,7 @@ TEST(FileSystemModelFilterTest, PatternPicksExpectedEntriesAcrossRows) {
     EXPECT_EQ(matched, (QStringList{"notes.txt", "todo.txt"}));
 }
 
-TEST(FileSystemModelCompareTest, ClassifiesUniqueNewerAndOlder) {
+TEST(FileSystemModelTest, CompareTest_ClassifiesUniqueNewerAndOlder) {
     const QDateTime t1 = QDateTime::fromSecsSinceEpoch(1000);
     const QDateTime t2 = QDateTime::fromSecsSinceEpoch(2000);
 
@@ -249,7 +249,7 @@ TEST(FileSystemModelCompareTest, ClassifiesUniqueNewerAndOlder) {
     EXPECT_FALSE(status.contains("elsewhere.txt")); // only classifies self's entries
 }
 
-TEST(FileSystemModelTypeTest, CategorizesByExtension) {
+TEST(FileSystemModelTest, TypeTest_CategorizesByExtension) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
     touch(dir.path(), "photo.PNG"); // case-insensitive
@@ -272,7 +272,7 @@ TEST(FileSystemModelTypeTest, CategorizesByExtension) {
     EXPECT_EQ(cat("script.xyz"), "XYZ"); // unknown -> uppercased extension
 }
 
-TEST(FileSystemModelSizeTest, DirectorySizeSumsRecursively) {
+TEST(FileSystemModelTest, SizeTest_DirectorySizeSumsRecursively) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
     writeBytes(QDir(dir.path()).filePath("a.bin"), 100);
@@ -282,7 +282,7 @@ TEST(FileSystemModelSizeTest, DirectorySizeSumsRecursively) {
     EXPECT_EQ(FileSystemModel::directorySize(dir.path()), 300);
 }
 
-TEST(FileSystemModelSizeTest, ComputedSizeReplacesDirPlaceholderInSizeColumn) {
+TEST(FileSystemModelTest, SizeTest_ComputedSizeReplacesDirPlaceholderInSizeColumn) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
     ASSERT_TRUE(QDir(dir.path()).mkdir("folder"));
@@ -308,7 +308,7 @@ TEST(FileSystemModelSizeTest, ComputedSizeReplacesDirPlaceholderInSizeColumn) {
     EXPECT_EQ(model.data(sizeIdx).toString().toStdString(), "2.0 KB");
 }
 
-TEST(FileSystemModelSizeTest, CalculatingMarkerIsReplacedByComputedSize) {
+TEST(FileSystemModelTest, SizeTest_CalculatingMarkerIsReplacedByComputedSize) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
     ASSERT_TRUE(QDir(dir.path()).mkdir("folder"));
@@ -334,7 +334,7 @@ TEST(FileSystemModelSizeTest, CalculatingMarkerIsReplacedByComputedSize) {
     EXPECT_EQ(model.data(sizeIdx).toString(), QStringLiteral("4.0 KB"));
 }
 
-TEST(FilePanelDirectorySize, SlowRequestShowsCalculatingMarkerUntilFinished) {
+TEST(FileSystemModelTest, FilePanelDirectorySize_SlowRequestShowsCalculatingMarkerUntilFinished) {
     auto provider = std::make_shared<StaleSizeProvider>();
     FilePanel panel;
     panel.model()->setProvider(provider);
@@ -362,7 +362,7 @@ TEST(FilePanelDirectorySize, SlowRequestShowsCalculatingMarkerUntilFinished) {
                               QStringLiteral("10 B"), 4000);
 }
 
-TEST(FileSystemModelFilterTest, ChangingDirectoryClearsFilter) {
+TEST(FileSystemModelTest, FilterTest_ChangingDirectoryClearsFilter) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
     touch(dir.path(), "one.txt");
@@ -379,7 +379,7 @@ TEST(FileSystemModelFilterTest, ChangingDirectoryClearsFilter) {
     EXPECT_EQ(visibleFiles(model), 2);
 }
 
-TEST(FileSystemModelLoadTest, DiscardsStaleLocalResultAfterNewerNavigation) {
+TEST(FileSystemModelTest, LoadTest_DiscardsStaleLocalResultAfterNewerNavigation) {
     auto provider = std::make_shared<BlockingListingProvider>();
     FileSystemModel model;
     model.setProvider(provider);
@@ -406,7 +406,7 @@ TEST(FileSystemModelLoadTest, DiscardsStaleLocalResultAfterNewerNavigation) {
     EXPECT_EQ(model.fileInfoAt(0).name(), QStringLiteral("current.txt"));
 }
 
-TEST(FileSystemModelLoadTest, FlatEntriesStartNewGenerationAndIgnorePriorScan) {
+TEST(FileSystemModelTest, LoadTest_FlatEntriesStartNewGenerationAndIgnorePriorScan) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
     const QString flatPath = dir.filePath(QStringLiteral("flat-current.txt"));
@@ -442,7 +442,7 @@ TEST(FileSystemModelLoadTest, FlatEntriesStartNewGenerationAndIgnorePriorScan) {
     EXPECT_EQ(model.fileInfoAt(0).path(), flatPath);
 }
 
-TEST(FilePanelDirectorySize, OlderRequestCannotOverwriteNewerSelection) {
+TEST(FileSystemModelTest, FilePanelDirectorySize_OlderRequestCannotOverwriteNewerSelection) {
     auto provider = std::make_shared<StaleSizeProvider>();
     FilePanel panel;
     panel.model()->setProvider(provider);
@@ -467,7 +467,7 @@ TEST(FilePanelDirectorySize, OlderRequestCannotOverwriteNewerSelection) {
               QStringLiteral("<DIR>"));
 }
 
-TEST(FilePanelDirectorySize, RemoteReplacementsAreSerializedAndCoalescedToNewest) {
+TEST(FileSystemModelTest, FilePanelDirectorySize_RemoteReplacementsAreSerializedAndCoalescedToNewest) {
     auto provider = std::make_shared<StaleSizeProvider>();
     FilePanel panel;
     panel.model()->setProvider(provider);
@@ -506,7 +506,7 @@ TEST(FilePanelDirectorySize, RemoteReplacementsAreSerializedAndCoalescedToNewest
               QStringLiteral("<DIR>"));
 }
 
-TEST(FilePanelDirectorySize, SymlinkRootUsesListingMetadataWithoutTraversingTarget) {
+TEST(FileSystemModelTest, FilePanelDirectorySize_SymlinkRootUsesListingMetadataWithoutTraversingTarget) {
     QTemporaryDir temp;
     ASSERT_TRUE(temp.isValid());
     const QString target = QDir(temp.path()).filePath(QStringLiteral("target"));

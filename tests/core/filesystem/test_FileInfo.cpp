@@ -119,7 +119,7 @@ TEST(FileInfoTest, FromFieldsTreatsDirectoryNameAsWholeBase) {
 }
 
 #ifdef Q_OS_WIN
-TEST(FileInfoWindowsTest, LocalEntriesResolveOwnerAndGroupNames) {
+TEST(FileInfoTest, WindowsTest_LocalEntriesResolveOwnerAndGroupNames) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
 

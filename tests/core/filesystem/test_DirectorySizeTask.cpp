@@ -145,7 +145,7 @@ private:
 
 } // namespace
 
-TEST(DirectorySizeTask, CancelStopsBeforeTheNextRoot) {
+TEST(DirectorySizeTaskTest, DirectorySizeTask_CancelStopsBeforeTheNextRoot) {
     auto provider = std::make_shared<BlockingProvider>();
     DirectorySizeTask task(42, provider, {QStringLiteral("/first"), QStringLiteral("/second")});
     QSignalSpy finished(&task, &DirectorySizeTask::finished);
@@ -164,7 +164,7 @@ TEST(DirectorySizeTask, CancelStopsBeforeTheNextRoot) {
     EXPECT_EQ(provider->listedPaths(), (QStringList{QStringLiteral("/first")}));
 }
 
-TEST(DirectorySizeTask, DoesNotTraverseASymlinkDirectoryRoot) {
+TEST(DirectorySizeTaskTest, DirectorySizeTask_DoesNotTraverseASymlinkDirectoryRoot) {
     auto provider = std::make_shared<SymlinkRootProvider>();
     DirectorySizeTask task(43, provider, {QStringLiteral("/link")}, nullptr,
                            {{QStringLiteral("/link"), 37}});
@@ -178,18 +178,18 @@ TEST(DirectorySizeTask, DoesNotTraverseASymlinkDirectoryRoot) {
     EXPECT_EQ(finished.takeFirst().at(1).toLongLong(), 37);
 }
 
-TEST(DirectorySizeTask, SingleLocalRootUsesOneWorker) {
+TEST(DirectorySizeTaskTest, DirectorySizeTask_SingleLocalRootUsesOneWorker) {
     EXPECT_EQ(DirectorySizeTask::localConcurrencyLimitForRoots({QStringLiteral("/only")}), 1);
 }
 
-TEST(DirectorySizeTask, MultipleLocalRootsAreBounded) {
+TEST(DirectorySizeTaskTest, DirectorySizeTask_MultipleLocalRootsAreBounded) {
     const int limit = DirectorySizeTask::localConcurrencyLimitForRoots(
         {QStringLiteral("/one"), QStringLiteral("/two"), QStringLiteral("/three")});
     EXPECT_GE(limit, 2);
     EXPECT_LE(limit, 4);
 }
 
-TEST(DirectorySizeTask, LocalParallelRootsReportEachDirectoryWhenItFinishes) {
+TEST(DirectorySizeTaskTest, DirectorySizeTask_LocalParallelRootsReportEachDirectoryWhenItFinishes) {
     QTemporaryDir temp;
     ASSERT_TRUE(temp.isValid());
     const QString slow = QDir(temp.path()).filePath(QStringLiteral("slow"));
@@ -220,7 +220,7 @@ TEST(DirectorySizeTask, LocalParallelRootsReportEachDirectoryWhenItFinishes) {
 }
 
 #ifdef Q_OS_WIN
-TEST(DirectorySizeTaskWindows, UncRootsStaySerial) {
+TEST(DirectorySizeTaskTest, Windows_UncRootsStaySerial) {
     EXPECT_EQ(DirectorySizeTask::localConcurrencyLimitForRoots(
                   {QStringLiteral("\\\\server\\share\\one"),
                    QStringLiteral("\\\\server\\share\\two")}),
@@ -228,7 +228,7 @@ TEST(DirectorySizeTaskWindows, UncRootsStaySerial) {
 }
 #endif
 
-TEST(DirectorySizeTask, ProgressSurvivesApplicationDispatchTargetTeardown) {
+TEST(DirectorySizeTaskTest, DirectorySizeTask_ProgressSurvivesApplicationDispatchTargetTeardown) {
     auto provider = std::make_shared<BlockingProvider>();
     DirectorySizeTask task(44, provider, {QStringLiteral("/ready")});
     QSignalSpy progress(&task, &DirectorySizeTask::progress);
@@ -248,7 +248,7 @@ TEST(DirectorySizeTask, ProgressSurvivesApplicationDispatchTargetTeardown) {
     EXPECT_EQ(update.at(2).toLongLong(), 0);
 }
 
-TEST(DirectorySizeTask, DestructionWhileProviderIsBlockedCompletesAfterUnblock) {
+TEST(DirectorySizeTaskTest, DirectorySizeTask_DestructionWhileProviderIsBlockedCompletesAfterUnblock) {
     auto provider = std::make_shared<BlockingProvider>();
     const std::weak_ptr<BlockingProvider> providerLifetime = provider;
     auto *task =
@@ -280,7 +280,7 @@ TEST(DirectorySizeTask, DestructionWhileProviderIsBlockedCompletesAfterUnblock) 
 }
 
 #ifdef Q_OS_WIN
-TEST(DirectorySizeTaskWindows, LocalProviderTraversesLongPaths) {
+TEST(DirectorySizeTaskTest, Windows_LocalProviderTraversesLongPaths) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
 

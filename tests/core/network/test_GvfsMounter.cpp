@@ -66,36 +66,36 @@ QStringList urisOf(const QVector<GvfsMounter::MountTarget> &targets) {
 
 // --- buildUri -----------------------------------------------------------
 
-TEST(GvfsMounterUri, SftpWithUserOmitsDefaultPort) {
+TEST(GvfsMounterTest, Uri_SftpWithUserOmitsDefaultPort) {
     EXPECT_EQ(GvfsMounter::buildUri(P::Sftp, "example.com", 22, "bob", "/srv"),
               QString("sftp://bob@example.com/srv"));
 }
 
-TEST(GvfsMounterUri, SftpKeepsNonDefaultPort) {
+TEST(GvfsMounterTest, Uri_SftpKeepsNonDefaultPort) {
     EXPECT_EQ(GvfsMounter::buildUri(P::Sftp, "host", 2222, "bob", "/data"),
               QString("sftp://bob@host:2222/data"));
 }
 
-TEST(GvfsMounterUri, SftpAnonymousOmitsUser) {
+TEST(GvfsMounterTest, Uri_SftpAnonymousOmitsUser) {
     EXPECT_EQ(GvfsMounter::buildUri(P::Sftp, "host", 22, "", "/"),
               QString("sftp://host/"));
 }
 
-TEST(GvfsMounterUri, PathIsNormalisedToSingleLeadingSlash) {
+TEST(GvfsMounterTest, Uri_PathIsNormalisedToSingleLeadingSlash) {
     EXPECT_EQ(GvfsMounter::buildUri(P::Sftp, "host", 22, "", "srv//data"),
               QString("sftp://host/srv//data"));
     EXPECT_EQ(GvfsMounter::buildUri(P::Sftp, "host", 22, "", ""),
               QString("sftp://host/"));
 }
 
-TEST(GvfsMounterUri, SmbUsesShareLayoutNoPort) {
+TEST(GvfsMounterTest, Uri_SmbUsesShareLayoutNoPort) {
     EXPECT_EQ(GvfsMounter::buildUri(P::Smb, "nas", 445, "", "media"),
               QString("smb://nas/media"));
     EXPECT_EQ(GvfsMounter::buildUri(P::Smb, "nas", 445, "alice", "media/pics"),
               QString("smb://alice@nas/media/pics"));
 }
 
-TEST(GvfsMounterUri, WebDavHttpVsHttps) {
+TEST(GvfsMounterTest, Uri_WebDavHttpVsHttps) {
     EXPECT_EQ(GvfsMounter::buildUri(P::WebDav, "dav.example.com", 80, "", "/files"),
               QString("dav://dav.example.com/files"));
     EXPECT_EQ(GvfsMounter::buildUri(P::WebDavs, "dav.example.com", 443, "", "/files"),
@@ -104,18 +104,18 @@ TEST(GvfsMounterUri, WebDavHttpVsHttps) {
               QString("dav://dav.example.com:8080/files"));
 }
 
-TEST(GvfsMounterUri, FtpDefaults) {
+TEST(GvfsMounterTest, Uri_FtpDefaults) {
     EXPECT_EQ(GvfsMounter::buildUri(P::Ftp, "ftp.host", 21, "", "/pub"),
               QString("ftp://ftp.host/pub"));
     EXPECT_EQ(GvfsMounter::buildUri(P::Ftp, "ftp.host", 2121, "u", "/pub"),
               QString("ftp://u@ftp.host:2121/pub"));
 }
 
-TEST(GvfsMounterUri, EmptyHostYieldsEmptyUri) {
+TEST(GvfsMounterTest, Uri_EmptyHostYieldsEmptyUri) {
     EXPECT_TRUE(GvfsMounter::buildUri(P::Sftp, "  ", 22, "bob", "/").isEmpty());
 }
 
-TEST(GvfsMounterUri, DefaultPortsAndSchemes) {
+TEST(GvfsMounterTest, Uri_DefaultPortsAndSchemes) {
     EXPECT_EQ(GvfsMounter::defaultPort(P::Sftp), 22);
     EXPECT_EQ(GvfsMounter::defaultPort(P::Smb), 445);
     EXPECT_EQ(GvfsMounter::defaultPort(P::WebDav), 80);
@@ -129,7 +129,7 @@ TEST(GvfsMounterUri, DefaultPortsAndSchemes) {
 
 // --- uriForPath ---------------------------------------------------------
 
-TEST(GvfsMounterUriForPath, EmbedsUserAndSkipsDefaultPort) {
+TEST(GvfsMounterTest, UriForPath_EmbedsUserAndSkipsDefaultPort) {
     EXPECT_EQ(GvfsMounter::uriForPath(sftpAt("h", 22, "bob"), "/srv/data"),
               QString("sftp://bob@h/srv/data"));
     EXPECT_EQ(GvfsMounter::uriForPath(sftpAt("h", 2222, "bob"), "/srv"),
@@ -138,7 +138,7 @@ TEST(GvfsMounterUriForPath, EmbedsUserAndSkipsDefaultPort) {
               QString("sftp://h/"));
 }
 
-TEST(GvfsMounterUriForPath, PercentEncodesSpacesAndNonAscii) {
+TEST(GvfsMounterTest, UriForPath_PercentEncodesSpacesAndNonAscii) {
     // A filename is not a URI. Handing gio a raw one works by luck at best, and
     // a space ends the argument as far as any URI parser is concerned.
     EXPECT_EQ(GvfsMounter::uriForPath(smbAt("nas", "bob"), "/share/My Docs/a b.txt"),
@@ -147,7 +147,7 @@ TEST(GvfsMounterUriForPath, PercentEncodesSpacesAndNonAscii) {
               QString("dav://bob@h:5006/dav/%E4%B8%8B%E8%BD%BD"));
 }
 
-TEST(GvfsMounterUriForPath, TreatsPercentInFilenameLiterally) {
+TEST(GvfsMounterTest, UriForPath_TreatsPercentInFilenameLiterally) {
     // "100%.txt" is a real filename, not a broken escape sequence.
     EXPECT_EQ(GvfsMounter::uriForPath(smbAt("nas", ""), "/share/100%.txt"),
               QString("smb://nas/share/100%25.txt"));
@@ -156,7 +156,7 @@ TEST(GvfsMounterUriForPath, TreatsPercentInFilenameLiterally) {
               QString("smb://nas/share/a%252Fb.txt"));
 }
 
-TEST(GvfsMounterUriForPath, InvalidLocationYieldsNothing) {
+TEST(GvfsMounterTest, UriForPath_InvalidLocationYieldsNothing) {
     EXPECT_TRUE(GvfsMounter::uriForPath(RemoteLocation(), "/x").isEmpty());
     RemoteLocation noHost;
     noHost.scheme = QStringLiteral("sftp");
@@ -165,27 +165,27 @@ TEST(GvfsMounterUriForPath, InvalidLocationYieldsNothing) {
 
 // --- gvfsMountDirName ---------------------------------------------------
 
-TEST(GvfsMounterDir, SftpConvention) {
+TEST(GvfsMounterTest, Dir_SftpConvention) {
     EXPECT_EQ(GvfsMounter::gvfsMountDirName("sftp://bob@example.com/srv"),
               QString("sftp:host=example.com,user=bob"));
 }
 
-TEST(GvfsMounterDir, SftpWithPort) {
+TEST(GvfsMounterTest, Dir_SftpWithPort) {
     EXPECT_EQ(GvfsMounter::gvfsMountDirName("sftp://bob@example.com:2222/srv"),
               QString("sftp:host=example.com,port=2222,user=bob"));
 }
 
-TEST(GvfsMounterDir, SftpAnonymousDropsUserField) {
+TEST(GvfsMounterTest, Dir_SftpAnonymousDropsUserField) {
     EXPECT_EQ(GvfsMounter::gvfsMountDirName("sftp://example.com/"),
               QString("sftp:host=example.com"));
 }
 
-TEST(GvfsMounterDir, SmbConvention) {
+TEST(GvfsMounterTest, Dir_SmbConvention) {
     EXPECT_EQ(GvfsMounter::gvfsMountDirName("smb://nas/media/pics"),
               QString("smb-share:server=nas,share=media"));
 }
 
-TEST(GvfsMounterDir, SmbLowerCasesServerAndShare) {
+TEST(GvfsMounterTest, Dir_SmbLowerCasesServerAndShare) {
     // The share on the server really is spelled "Download"; gvfs mounts it as
     // "share=download" regardless. Constructing "share=Download" names a
     // directory that does not exist.
@@ -193,20 +193,20 @@ TEST(GvfsMounterDir, SmbLowerCasesServerAndShare) {
               QString("smb-share:server=nas.local,share=download,user=alice"));
 }
 
-TEST(GvfsMounterDir, SmbWithoutShareNamesNoMount) {
+TEST(GvfsMounterTest, Dir_SmbWithoutShareNamesNoMount) {
     // smb://host/ is the list of shares, served by a different backend. There is
     // no file behind it, so there is no local path to offer.
     EXPECT_TRUE(GvfsMounter::gvfsMountDirName("smb://nas/").isEmpty());
 }
 
-TEST(GvfsMounterDir, DavSslFlag) {
+TEST(GvfsMounterTest, Dir_DavSslFlag) {
     EXPECT_EQ(GvfsMounter::gvfsMountDirName("dav://h/"),
               QString("dav:host=h,ssl=false"));
     EXPECT_EQ(GvfsMounter::gvfsMountDirName("davs://h/"),
               QString("dav:host=h,ssl=true"));
 }
 
-TEST(GvfsMounterDir, DavCarriesPortAndPrefix) {
+TEST(GvfsMounterTest, Dir_DavCarriesPortAndPrefix) {
     // Verbatim from a live session: a WebDAV mount taken with a path records
     // that path as a percent-encoded prefix= field. Leaving it out named a
     // directory that never exists on any server not rooted at "/".
@@ -216,34 +216,34 @@ TEST(GvfsMounterDir, DavCarriesPortAndPrefix) {
               QString("dav:host=192.0.2.11,port=5006,ssl=false,user=bob,prefix=%2Fdav"));
 }
 
-TEST(GvfsMounterDir, DavPrefixEncodesEverySeparator) {
+TEST(GvfsMounterTest, Dir_DavPrefixEncodesEverySeparator) {
     EXPECT_EQ(GvfsMounter::gvfsMountDirName("dav://h/a/b"),
               QString("dav:host=h,ssl=false,prefix=%2Fa%2Fb"));
 }
 
-TEST(GvfsMounterDir, InvalidUri) {
+TEST(GvfsMounterTest, Dir_InvalidUri) {
     EXPECT_TRUE(GvfsMounter::gvfsMountDirName("not a uri").isEmpty());
     EXPECT_TRUE(GvfsMounter::gvfsMountDirName("nfs://host/export").isEmpty());
 }
 
 // --- matchMountDir ------------------------------------------------------
 
-TEST(GvfsMounterMatch, FindsRealSmbMountDespiteShareCase) {
+TEST(GvfsMounterTest, Match_FindsRealSmbMountDespiteShareCase) {
     EXPECT_EQ(GvfsMounter::matchMountDir(kRealMountDirs, "smb://alice@192.0.2.10/Download"),
               QString("smb-share:server=192.0.2.10,share=download,user=alice"));
 }
 
-TEST(GvfsMounterMatch, FindsRealDavMountByPrefix) {
+TEST(GvfsMounterTest, Match_FindsRealDavMountByPrefix) {
     EXPECT_EQ(GvfsMounter::matchMountDir(kRealMountDirs, "dav://192.0.2.11:5006/dav"),
               QString("dav:host=192.0.2.11,port=5006,ssl=false,prefix=%2Fdav"));
 }
 
-TEST(GvfsMounterMatch, FindsRealSftpMount) {
+TEST(GvfsMounterTest, Match_FindsRealSftpMount) {
     EXPECT_EQ(GvfsMounter::matchMountDir(kRealMountDirs, "sftp://carol@sftp.example.com/home"),
               QString("sftp:host=sftp.example.com,user=carol"));
 }
 
-TEST(GvfsMounterMatch, DoesNotBorrowAMountWithADifferentLogin) {
+TEST(GvfsMounterTest, Match_DoesNotBorrowAMountWithADifferentLogin) {
     // "share=download,user=alice" is a session authenticated as alice. A URI
     // with no user, or another user, is a different session with possibly
     // different rights -- answering with it would read the share as someone else.
@@ -256,20 +256,20 @@ TEST(GvfsMounterMatch, DoesNotBorrowAMountWithADifferentLogin) {
         GvfsMounter::matchMountDir(kRealMountDirs, "smb://alice@192.0.2.10/home").isEmpty());
 }
 
-TEST(GvfsMounterMatch, MatchesRegardlessOfFieldOrder) {
+TEST(GvfsMounterTest, Match_MatchesRegardlessOfFieldOrder) {
     const QStringList shuffled = {
         QStringLiteral("dav:prefix=%2Fdav,ssl=false,host=192.0.2.11,port=5006")};
     EXPECT_EQ(GvfsMounter::matchMountDir(shuffled, "dav://192.0.2.11:5006/dav"),
               shuffled.first());
 }
 
-TEST(GvfsMounterMatch, IgnoresEntriesThatAreNotMountSpecs) {
+TEST(GvfsMounterTest, Match_IgnoresEntriesThatAreNotMountSpecs) {
     const QStringList junk = {QStringLiteral("some-random-dir"), QStringLiteral(""),
                               QStringLiteral("dav:"), QStringLiteral("dav:novalue")};
     EXPECT_TRUE(GvfsMounter::matchMountDir(junk, "dav://192.0.2.11:5006/dav").isEmpty());
 }
 
-TEST(GvfsMounterMatch, WrongPrefixIsNotAMatch) {
+TEST(GvfsMounterTest, Match_WrongPrefixIsNotAMatch) {
     EXPECT_TRUE(
         GvfsMounter::matchMountDir(kRealMountDirs, "dav://192.0.2.11:5006/other").isEmpty());
     // A different port is a different server as far as gvfs is concerned.
@@ -279,7 +279,7 @@ TEST(GvfsMounterMatch, WrongPrefixIsNotAMatch) {
 
 // --- relativeUnder ------------------------------------------------------
 
-TEST(GvfsMounterRelative, ServerRootPassesPathsThrough) {
+TEST(GvfsMounterTest, Relative_ServerRootPassesPathsThrough) {
     QString rel;
     ASSERT_TRUE(GvfsMounter::relativeUnder("/", "/home/carol/x.txt", &rel));
     EXPECT_EQ(rel, QString("home/carol/x.txt"));
@@ -287,7 +287,7 @@ TEST(GvfsMounterRelative, ServerRootPassesPathsThrough) {
     EXPECT_EQ(rel, QString());
 }
 
-TEST(GvfsMounterRelative, SmbShareIsPartOfTheMountNotAPathUnderIt) {
+TEST(GvfsMounterTest, Relative_SmbShareIsPartOfTheMountNotAPathUnderIt) {
     // "/download/a.7z" on an SMB provider is share "download" plus "a.7z"; the
     // share name must not survive into the path under the mount point.
     QString rel;
@@ -297,20 +297,20 @@ TEST(GvfsMounterRelative, SmbShareIsPartOfTheMountNotAPathUnderIt) {
     EXPECT_EQ(rel, QString());
 }
 
-TEST(GvfsMounterRelative, OnlySplitsAtSegmentBoundaries) {
+TEST(GvfsMounterTest, Relative_OnlySplitsAtSegmentBoundaries) {
     QString rel;
     EXPECT_FALSE(GvfsMounter::relativeUnder("/a", "/ab/c", &rel));
     EXPECT_FALSE(GvfsMounter::relativeUnder("/dav", "/davos", &rel));
     EXPECT_FALSE(GvfsMounter::relativeUnder("/a/b", "/a", &rel));
 }
 
-TEST(GvfsMounterRelative, ToleratesRedundantSlashes) {
+TEST(GvfsMounterTest, Relative_ToleratesRedundantSlashes) {
     QString rel;
     ASSERT_TRUE(GvfsMounter::relativeUnder("/dav/", "//dav//sub///f.zip", &rel));
     EXPECT_EQ(rel, QString("sub/f.zip"));
 }
 
-TEST(GvfsMounterRelative, KeepsNonAsciiAndSpacesIntact) {
+TEST(GvfsMounterTest, Relative_KeepsNonAsciiAndSpacesIntact) {
     QString rel;
     ASSERT_TRUE(GvfsMounter::relativeUnder("/dav", "/dav/下载/My Docs/文件 1.zip", &rel));
     EXPECT_EQ(rel, QString("下载/My Docs/文件 1.zip"));
@@ -318,7 +318,7 @@ TEST(GvfsMounterRelative, KeepsNonAsciiAndSpacesIntact) {
 
 // --- mountTargets -------------------------------------------------------
 
-TEST(GvfsMounterTargets, SmbMountsTheShareNotTheServer) {
+TEST(GvfsMounterTest, Targets_SmbMountsTheShareNotTheServer) {
     const auto targets = GvfsMounter::mountTargets(smbAt("192.0.2.10", "alice"),
                                                    "/download/sub/a.7z");
     ASSERT_EQ(targets.size(), 2);
@@ -331,12 +331,12 @@ TEST(GvfsMounterTargets, SmbMountsTheShareNotTheServer) {
     EXPECT_FALSE(targets[1].ownCredentials);
 }
 
-TEST(GvfsMounterTargets, SmbServerRootHasNoMount) {
+TEST(GvfsMounterTest, Targets_SmbServerRootHasNoMount) {
     EXPECT_TRUE(GvfsMounter::mountTargets(smbAt("nas", "bob"), "/").isEmpty());
     EXPECT_TRUE(GvfsMounter::mountTargets(smbAt("nas", "bob"), "").isEmpty());
 }
 
-TEST(GvfsMounterTargets, SftpAndFtpMountTheServerRoot) {
+TEST(GvfsMounterTest, Targets_SftpAndFtpMountTheServerRoot) {
     const auto targets = GvfsMounter::mountTargets(sftpAt("h", 22, "carol"), "/home/carol/x");
     ASSERT_EQ(targets.size(), 2);
     EXPECT_EQ(targets[0].uri, QString("sftp://carol@h/"));
@@ -344,13 +344,13 @@ TEST(GvfsMounterTargets, SftpAndFtpMountTheServerRoot) {
     EXPECT_EQ(targets[1].uri, QString("sftp://h/"));
 }
 
-TEST(GvfsMounterTargets, AnonymousHasNoSecondCandidate) {
+TEST(GvfsMounterTest, Targets_AnonymousHasNoSecondCandidate) {
     const auto targets = GvfsMounter::mountTargets(sftpAt("h", 22, ""), "/pub");
     ASSERT_EQ(targets.size(), 1);
     EXPECT_EQ(targets[0].uri, QString("sftp://h/"));
 }
 
-TEST(GvfsMounterTargets, WebDavWalksDownFromTheShallowestRoot) {
+TEST(GvfsMounterTest, Targets_WebDavWalksDownFromTheShallowestRoot) {
     // The server tested here refuses to be mounted at "/" ("not a WebDAV
     // share") but accepts "/dav". The connection cannot know that, so the
     // candidates go shallowest first and the first that mounts wins -- which
@@ -370,7 +370,7 @@ TEST(GvfsMounterTargets, WebDavWalksDownFromTheShallowestRoot) {
     EXPECT_EQ(uris[7], QString("dav://192.0.2.11:5006/dav/sub/a.zip"));
 }
 
-TEST(GvfsMounterTargets, WebDavRootsAreDeduplicated) {
+TEST(GvfsMounterTest, Targets_WebDavRootsAreDeduplicated) {
     // "/dav/sub" is both the two-segment candidate and the target's parent; it
     // must not be probed (and so mounted) twice.
     const auto uris = urisOf(GvfsMounter::mountTargets(davAt("h", 0, ""), "/dav/sub/a.zip"));
@@ -378,7 +378,7 @@ TEST(GvfsMounterTargets, WebDavRootsAreDeduplicated) {
     EXPECT_EQ(uris.count(QString("dav://h/dav/sub")), 1);
 }
 
-TEST(GvfsMounterTargets, WebDavAddsDeepFallbacksForNestedRoots) {
+TEST(GvfsMounterTest, Targets_WebDavAddsDeepFallbacksForNestedRoots) {
     // A server whose root is several segments down still gets a candidate that
     // can actually be mounted: the target's own directory, then the target.
     const auto uris =
@@ -389,7 +389,7 @@ TEST(GvfsMounterTargets, WebDavAddsDeepFallbacksForNestedRoots) {
     EXPECT_EQ(uris.first(), QString("dav://h/"));
 }
 
-TEST(GvfsMounterTargets, UnknownSchemeHasNoTargets) {
+TEST(GvfsMounterTest, Targets_UnknownSchemeHasNoTargets) {
     RemoteLocation nfs;
     nfs.scheme = QStringLiteral("nfs");
     nfs.host = QStringLiteral("h");
@@ -405,7 +405,7 @@ TEST(GvfsMounterTargets, UnknownSchemeHasNoTargets) {
 // per attempt. The sequences below were read off live `gio mount` runs against
 // SMB, WebDAV and SFTP servers.
 
-TEST(GvfsMounterAnswers, SmbWithUserInUriAnswersDomainThenPassword) {
+TEST(GvfsMounterTest, Answers_SmbWithUserInUriAnswersDomainThenPassword) {
     const auto answers =
         GvfsMounter::mountAnswers(smbAt("nas", "alice"), "smb://alice@nas/share");
     ASSERT_EQ(answers.size(), 2);
@@ -413,7 +413,7 @@ TEST(GvfsMounterAnswers, SmbWithUserInUriAnswersDomainThenPassword) {
     EXPECT_EQ(answers[1], QString("secret"));
 }
 
-TEST(GvfsMounterAnswers, SmbWithoutUserInUriAnswersUserDomainPassword) {
+TEST(GvfsMounterTest, Answers_SmbWithoutUserInUriAnswersUserDomainPassword) {
     const auto answers = GvfsMounter::mountAnswers(smbAt("nas", "alice"), "smb://nas/share");
     ASSERT_EQ(answers.size(), 3);
     EXPECT_EQ(answers[0], QString("alice"));
@@ -421,7 +421,7 @@ TEST(GvfsMounterAnswers, SmbWithoutUserInUriAnswersUserDomainPassword) {
     EXPECT_EQ(answers[2], QString("secret"));
 }
 
-TEST(GvfsMounterAnswers, NonSmbHasNoDomainStep) {
+TEST(GvfsMounterTest, Answers_NonSmbHasNoDomainStep) {
     // WebDAV and SFTP never ask for a domain; an extra blank line there would
     // be read as the password.
     const auto dav = GvfsMounter::mountAnswers(davAt("h", 5006, "bob"), "dav://bob@h:5006/dav");
@@ -434,14 +434,14 @@ TEST(GvfsMounterAnswers, NonSmbHasNoDomainStep) {
     EXPECT_EQ(sftp[1], QString("secret"));
 }
 
-TEST(GvfsMounterAnswers, AnonymousAnswersNothing) {
+TEST(GvfsMounterTest, Answers_AnonymousAnswersNothing) {
     RemoteLocation loc = smbAt("nas", QString());
     EXPECT_TRUE(GvfsMounter::mountAnswers(loc, "smb://nas/public").isEmpty());
 }
 
 // --- gioEnvironment -----------------------------------------------------
 
-TEST(GvfsMounterEnv, ForcesEnglishMessagesWithoutTouchingTheEncoding) {
+TEST(GvfsMounterTest, Env_ForcesEnglishMessagesWithoutTouchingTheEncoding) {
     // This is the locale bug in full: the answer is found by matching the label
     // "local path:", which a zh_CN session prints as "本地路径:". LC_ALL=C fixes
     // the label and then mangles every non-ASCII character of the path itself
@@ -459,7 +459,7 @@ TEST(GvfsMounterEnv, ForcesEnglishMessagesWithoutTouchingTheEncoding) {
     EXPECT_FALSE(env.contains(QStringLiteral("LC_CTYPE")));
 }
 
-TEST(GvfsMounterEnv, SuppliesAUtf8CtypeWhenTheSessionHasNone) {
+TEST(GvfsMounterTest, Env_SuppliesAUtf8CtypeWhenTheSessionHasNone) {
     QProcessEnvironment bare;
     EXPECT_EQ(GvfsMounter::gioEnvironment(bare).value(QStringLiteral("LC_CTYPE")),
               QString("C.UTF-8"));
@@ -472,7 +472,7 @@ TEST(GvfsMounterEnv, SuppliesAUtf8CtypeWhenTheSessionHasNone) {
 
 // --- parseLocalPath -----------------------------------------------------
 
-TEST(GvfsMounterParse, PullsLocalPathOutOfGioInfo) {
+TEST(GvfsMounterTest, Parse_PullsLocalPathOutOfGioInfo) {
     const QString out =
         "display name: 192.0.2.10 on home\n"
         "type: directory\n"
@@ -483,20 +483,20 @@ TEST(GvfsMounterParse, PullsLocalPathOutOfGioInfo) {
               QString("/run/user/1000/gvfs/smb-share:server=192.0.2.10,share=home"));
 }
 
-TEST(GvfsMounterParse, LocalPathKeepsNonAsciiAndSpaces) {
+TEST(GvfsMounterTest, Parse_LocalPathKeepsNonAsciiAndSpaces) {
     const QString out = "local path: /run/user/1000/gvfs/dav:host=h,ssl=false,prefix=%2Fdav/下载/a b.zip\n";
     EXPECT_EQ(GvfsMounter::parseLocalPath(out),
               QString("/run/user/1000/gvfs/dav:host=h,ssl=false,prefix=%2Fdav/下载/a b.zip"));
 }
 
-TEST(GvfsMounterParse, NoLocalPathForANonLocalUri) {
+TEST(GvfsMounterTest, Parse_NoLocalPathForANonLocalUri) {
     EXPECT_TRUE(GvfsMounter::parseLocalPath("uri: sftp://h/\ntype: directory\n").isEmpty());
     EXPECT_TRUE(GvfsMounter::parseLocalPath(QString()).isEmpty());
 }
 
 // --- parseMountList -----------------------------------------------------
 
-TEST(GvfsMounterParse, ParsesMountLines) {
+TEST(GvfsMounterTest, Parse_ParsesMountLines) {
     const QString out =
         "Drive(0): ...\n"
         "Volume(0): whatever\n"
@@ -511,13 +511,13 @@ TEST(GvfsMounterParse, ParsesMountLines) {
     EXPECT_EQ(mounts[1].uri, QString("smb://nas/media/"));
 }
 
-TEST(GvfsMounterParse, EmptyOutputNoMounts) {
+TEST(GvfsMounterTest, Parse_EmptyOutputNoMounts) {
     EXPECT_TRUE(GvfsMounter::parseMountList(QString()).isEmpty());
 }
 
 // --- parseNetworkList ---------------------------------------------------
 
-TEST(GvfsMounterParse, ParsesNetworkLocations) {
+TEST(GvfsMounterTest, Parse_ParsesNetworkLocations) {
     const QString out =
         "WORKGROUP\tsmb://workgroup/\n"
         "nas-server    smb://nas/\n";
@@ -528,7 +528,7 @@ TEST(GvfsMounterParse, ParsesNetworkLocations) {
     EXPECT_EQ(locs[1].uri, QString("smb://nas/"));
 }
 
-TEST(GvfsMounterParse, NetworkListSkipsBlankLines) {
+TEST(GvfsMounterTest, Parse_NetworkListSkipsBlankLines) {
     EXPECT_TRUE(GvfsMounter::parseNetworkList("\n\n  \n").isEmpty());
 }
 
@@ -539,16 +539,16 @@ TEST(GvfsMounterParse, NetworkListSkipsBlankLines) {
 // rather than inventing a path, because every caller is about to hand the
 // result to something that opens files by name.
 
-TEST(GvfsMounterResolve, RefusesWithoutAProvider) {
+TEST(GvfsMounterTest, Resolve_RefusesWithoutAProvider) {
     EXPECT_TRUE(GvfsMounter::localPathFor(nullptr, "/x").isEmpty());
 }
 
-TEST(GvfsMounterResolve, RefusesAnInvalidLocation) {
+TEST(GvfsMounterTest, Resolve_RefusesAnInvalidLocation) {
     EXPECT_TRUE(GvfsMounter::localPathFor(RemoteLocation(), "/x").isEmpty());
     EXPECT_FALSE(GvfsMounter::isMounted(RemoteLocation(), "/x"));
 }
 
-TEST(GvfsMounterResolve, UnconnectedNetworkProvidersHaveNoLocation) {
+TEST(GvfsMounterTest, Resolve_UnconnectedNetworkProvidersHaveNoLocation) {
     // A provider that never connected has no server to name, so it must not
     // produce a half-built URI that would then be mounted or matched.
     SftpProvider sftp;
@@ -579,7 +579,7 @@ public:
 };
 } // namespace
 
-TEST(GvfsMounterResolve, DefaultBackendOptsOut) {
+TEST(GvfsMounterTest, Resolve_DefaultBackendOptsOut) {
     MinimalProvider p;
     EXPECT_FALSE(p.remoteLocation().isValid());
     EXPECT_TRUE(GvfsMounter::localPathFor(&p, "/etc/passwd").isEmpty());

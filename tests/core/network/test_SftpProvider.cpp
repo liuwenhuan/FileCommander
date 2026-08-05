@@ -12,24 +12,24 @@
 
 // --- cleanPath ----------------------------------------------------------
 
-TEST(SftpProviderPath, CleanCollapsesRedundantSlashes) {
+TEST(SftpProviderTest, Path_CleanCollapsesRedundantSlashes) {
     SftpProvider p;
     EXPECT_EQ(p.cleanPath("/srv//data///x"), QString("/srv/data/x"));
 }
 
-TEST(SftpProviderPath, CleanResolvesDotAndDotDot) {
+TEST(SftpProviderTest, Path_CleanResolvesDotAndDotDot) {
     SftpProvider p;
     EXPECT_EQ(p.cleanPath("/srv/./data/../logs"), QString("/srv/logs"));
     EXPECT_EQ(p.cleanPath("/a/b/c/../../d"), QString("/a/d"));
 }
 
-TEST(SftpProviderPath, CleanDotDotAtRootStaysAtRoot) {
+TEST(SftpProviderTest, Path_CleanDotDotAtRootStaysAtRoot) {
     SftpProvider p;
     EXPECT_EQ(p.cleanPath("/.."), QString("/"));
     EXPECT_EQ(p.cleanPath("/../../x"), QString("/x"));
 }
 
-TEST(SftpProviderPath, CleanEmptyOrRelativeFallsBackToRoot) {
+TEST(SftpProviderTest, Path_CleanEmptyOrRelativeFallsBackToRoot) {
     SftpProvider p;
     EXPECT_EQ(p.cleanPath(""), QString("/"));
     EXPECT_EQ(p.cleanPath("."), QString("/"));
@@ -37,13 +37,13 @@ TEST(SftpProviderPath, CleanEmptyOrRelativeFallsBackToRoot) {
     EXPECT_EQ(p.cleanPath("srv/data"), QString("/srv/data"));
 }
 
-TEST(SftpProviderPath, CleanTrailingSlashRemoved) {
+TEST(SftpProviderTest, Path_CleanTrailingSlashRemoved) {
     SftpProvider p;
     EXPECT_EQ(p.cleanPath("/srv/data/"), QString("/srv/data"));
     EXPECT_EQ(p.cleanPath("/"), QString("/"));
 }
 
-TEST(SftpProviderPath, CleanIsAlwaysPosixRegardlessOfBackslashes) {
+TEST(SftpProviderTest, Path_CleanIsAlwaysPosixRegardlessOfBackslashes) {
     SftpProvider p;
     // Backslashes are ordinary filename characters on POSIX, not separators.
     EXPECT_EQ(p.cleanPath("/srv/a\\b"), QString("/srv/a\\b"));
@@ -51,22 +51,22 @@ TEST(SftpProviderPath, CleanIsAlwaysPosixRegardlessOfBackslashes) {
 
 // --- parentPath ---------------------------------------------------------
 
-TEST(SftpProviderPath, ParentOfNestedPath) {
+TEST(SftpProviderTest, Path_ParentOfNestedPath) {
     SftpProvider p;
     EXPECT_EQ(p.parentPath("/srv/data/x"), QString("/srv/data"));
 }
 
-TEST(SftpProviderPath, ParentOfTopLevelIsRoot) {
+TEST(SftpProviderTest, Path_ParentOfTopLevelIsRoot) {
     SftpProvider p;
     EXPECT_EQ(p.parentPath("/srv"), QString("/"));
 }
 
-TEST(SftpProviderPath, ParentOfRootIsEmpty) {
+TEST(SftpProviderTest, Path_ParentOfRootIsEmpty) {
     SftpProvider p;
     EXPECT_EQ(p.parentPath("/"), QString());
 }
 
-TEST(SftpProviderPath, ParentNormalisesBeforeSplitting) {
+TEST(SftpProviderTest, Path_ParentNormalisesBeforeSplitting) {
     SftpProvider p;
     EXPECT_EQ(p.parentPath("/srv/data/"), QString("/srv"));
     EXPECT_EQ(p.parentPath("/srv/./data/../x"), QString("/srv"));
@@ -74,7 +74,7 @@ TEST(SftpProviderPath, ParentNormalisesBeforeSplitting) {
 
 // --- disconnected state -------------------------------------------------
 
-TEST(SftpProviderState, FreshProviderIsNotConnected) {
+TEST(SftpProviderTest, State_FreshProviderIsNotConnected) {
     SftpProvider p;
     EXPECT_FALSE(p.isConnected());
     EXPECT_TRUE(p.host().isEmpty());
@@ -86,7 +86,7 @@ TEST(SftpProviderState, FreshProviderIsNotConnected) {
 
 // --- server-side move ---------------------------------------------------
 
-TEST(SftpProviderMove, DisconnectedReportsUnsupportedNotFailure) {
+TEST(SftpProviderTest, Move_DisconnectedReportsUnsupportedNotFailure) {
     SftpProvider p;
     // Unsupported means "ask someone else"; Failed would make the transfer
     // engine treat a missing connection as a real error instead of falling
@@ -94,7 +94,7 @@ TEST(SftpProviderMove, DisconnectedReportsUnsupportedNotFailure) {
     EXPECT_EQ(p.moveTo("/a/x.txt", "/b/x.txt"), FileProvider::RenameResult::Unsupported);
 }
 
-TEST(SftpProviderMove, RefusesMoveOntoItself) {
+TEST(SftpProviderTest, Move_RefusesMoveOntoItself) {
     SftpProvider p;
     // Same source and destination would otherwise risk a backend deleting the
     // only copy; rejected before any connection check.
@@ -104,7 +104,7 @@ TEST(SftpProviderMove, RefusesMoveOntoItself) {
 // Public-key authentication looked for keys under $HOME. Windows does not set
 // HOME, so every candidate came out as "/.ssh/id_rsa" -- a path that exists
 // nowhere -- and key auth could not succeed there at all.
-TEST(SftpKeyPathsTest, KeysAreLookedForUnderTheRealHomeDirectory) {
+TEST(SftpProviderTest, SftpKeyPathsTest_KeysAreLookedForUnderTheRealHomeDirectory) {
     const QStringList paths = SftpProvider::defaultPrivateKeyPaths();
     ASSERT_FALSE(paths.isEmpty());
 

@@ -11,36 +11,36 @@
 
 // --- cleanPath ------------------------------------------------------------
 
-TEST(CurlFtpProviderPath, CleanCollapsesRedundantSlashes) {
+TEST(CurlFtpProviderTest, Path_CleanCollapsesRedundantSlashes) {
     CurlFtpProvider p;
     EXPECT_EQ(p.cleanPath("/srv//data///x"), QString("/srv/data/x"));
 }
 
-TEST(CurlFtpProviderPath, CleanResolvesDotAndDotDot) {
+TEST(CurlFtpProviderTest, Path_CleanResolvesDotAndDotDot) {
     CurlFtpProvider p;
     EXPECT_EQ(p.cleanPath("/srv/./data/../logs"), QString("/srv/logs"));
 }
 
-TEST(CurlFtpProviderPath, CleanEmptyFallsBackToRoot) {
+TEST(CurlFtpProviderTest, Path_CleanEmptyFallsBackToRoot) {
     CurlFtpProvider p;
     EXPECT_EQ(p.cleanPath(""), QString("/"));
 }
 
 // --- parentPath -------------------------------------------------------------
 
-TEST(CurlFtpProviderPath, ParentOfNestedPath) {
+TEST(CurlFtpProviderTest, Path_ParentOfNestedPath) {
     CurlFtpProvider p;
     EXPECT_EQ(p.parentPath("/srv/data/x"), QString("/srv/data"));
 }
 
-TEST(CurlFtpProviderPath, ParentOfRootIsEmpty) {
+TEST(CurlFtpProviderTest, Path_ParentOfRootIsEmpty) {
     CurlFtpProvider p;
     EXPECT_EQ(p.parentPath("/"), QString());
 }
 
 // --- disconnected state -----------------------------------------------------
 
-TEST(CurlFtpProviderState, FreshProviderIsNotConnected) {
+TEST(CurlFtpProviderTest, State_FreshProviderIsNotConnected) {
     CurlFtpProvider p;
     EXPECT_FALSE(p.isConnected());
     EXPECT_TRUE(p.host().isEmpty());
@@ -53,7 +53,7 @@ TEST(CurlFtpProviderState, FreshProviderIsNotConnected) {
 
 // --- parseMlsdListing (RFC 3659) --------------------------------------------
 
-TEST(CurlFtpProviderMlsd, ParsesFilesAndDirectories) {
+TEST(CurlFtpProviderTest, Mlsd_ParsesFilesAndDirectories) {
     const QByteArray data =
         "type=cdir;modify=20240101000000; .\r\n"
         "type=pdir;modify=20240101000000; ..\r\n"
@@ -73,7 +73,7 @@ TEST(CurlFtpProviderMlsd, ParsesFilesAndDirectories) {
     EXPECT_EQ(entries[1].path(), QString("/srv/readme.txt"));
 }
 
-TEST(CurlFtpProviderMlsd, SkipsCdirPdirAndHiddenUnlessShown) {
+TEST(CurlFtpProviderTest, Mlsd_SkipsCdirPdirAndHiddenUnlessShown) {
     const QByteArray data =
         "type=cdir;modify=20240101000000; .\r\n"
         "type=file;size=1;modify=20240101000000; .hidden\r\n"
@@ -83,13 +83,13 @@ TEST(CurlFtpProviderMlsd, SkipsCdirPdirAndHiddenUnlessShown) {
     EXPECT_EQ(CurlFtpProvider::parseMlsdListing(data, "/srv", true).size(), 2);
 }
 
-TEST(CurlFtpProviderMlsd, EmptyListingProducesNoEntries) {
+TEST(CurlFtpProviderTest, Mlsd_EmptyListingProducesNoEntries) {
     EXPECT_TRUE(CurlFtpProvider::parseMlsdListing(QByteArray(), "/srv", true).isEmpty());
 }
 
 // --- parseUnixListing (classic LIST fallback) -------------------------------
 
-TEST(CurlFtpProviderUnixListing, ParsesFilesAndDirectories) {
+TEST(CurlFtpProviderTest, UnixListing_ParsesFilesAndDirectories) {
     const QByteArray data =
         "drwxr-xr-x 2 user group    4096 Jan 02  2024 sub\r\n"
         "-rw-r--r-- 1 user group    1234 Jan 03  2024 readme.txt\r\n";
@@ -105,12 +105,12 @@ TEST(CurlFtpProviderUnixListing, ParsesFilesAndDirectories) {
     EXPECT_EQ(entries[1].size(), 1234);
 }
 
-TEST(CurlFtpProviderUnixListing, IgnoresUnparsableLines) {
+TEST(CurlFtpProviderTest, UnixListing_IgnoresUnparsableLines) {
     const QByteArray data = "total 8\r\nnot a listing line\r\n";
     EXPECT_TRUE(CurlFtpProvider::parseUnixListing(data, "/srv", true).isEmpty());
 }
 
-TEST(CurlFtpProviderUnixListing, HidesDotfilesUnlessShowHidden) {
+TEST(CurlFtpProviderTest, UnixListing_HidesDotfilesUnlessShowHidden) {
     const QByteArray data =
         "-rw-r--r-- 1 user group 1 Jan 03  2024 .hidden\r\n"
         "-rw-r--r-- 1 user group 1 Jan 03  2024 visible\r\n";
@@ -119,7 +119,7 @@ TEST(CurlFtpProviderUnixListing, HidesDotfilesUnlessShowHidden) {
     EXPECT_EQ(CurlFtpProvider::parseUnixListing(data, "/srv", true).size(), 2);
 }
 
-TEST(CurlFtpProviderUnixListing, StripsSymlinkArrowTarget) {
+TEST(CurlFtpProviderTest, UnixListing_StripsSymlinkArrowTarget) {
     const QByteArray data = "lrwxrwxrwx 1 user group 5 Jan 03  2024 link -> target\r\n";
     const QVector<FileInfo> entries = CurlFtpProvider::parseUnixListing(data, "/srv", true);
     ASSERT_EQ(entries.size(), 1);
@@ -128,12 +128,12 @@ TEST(CurlFtpProviderUnixListing, StripsSymlinkArrowTarget) {
 
 // --- server-side move -------------------------------------------------------
 
-TEST(CurlFtpProviderMove, DisconnectedReportsUnsupportedNotFailure) {
+TEST(CurlFtpProviderTest, Move_DisconnectedReportsUnsupportedNotFailure) {
     CurlFtpProvider p;
     EXPECT_EQ(p.moveTo("/a/x.txt", "/b/x.txt"), FileProvider::RenameResult::Unsupported);
 }
 
-TEST(CurlFtpProviderMove, RefusesMoveOntoItself) {
+TEST(CurlFtpProviderTest, Move_RefusesMoveOntoItself) {
     // RNFR/RNTO onto the same path is meaningless and, given that the command
     // pair silently overwrites its target, not worth issuing.
     CurlFtpProvider p;

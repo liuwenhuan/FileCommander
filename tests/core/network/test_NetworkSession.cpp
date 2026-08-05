@@ -48,7 +48,7 @@ bool spinUntil(Pred pred, int budgetMs) {
 
 } // namespace
 
-TEST(NetworkSessionLifecycle, ShutdownAsyncReturnsWhileWorkerStalled) {
+TEST(NetworkSessionTest, Lifecycle_ShutdownAsyncReturnsWhileWorkerStalled) {
     std::atomic<bool> connectEntered{false};
     std::atomic<bool> destroyed{false};
 
@@ -88,7 +88,7 @@ TEST(NetworkSessionLifecycle, ShutdownAsyncReturnsWhileWorkerStalled) {
         << "session was never destroyed after the worker unwound";
 }
 
-TEST(NetworkSessionLifecycle, CountersCoverConnectedSessionAndReturnToBaseline) {
+TEST(NetworkSessionTest, Lifecycle_CountersCoverConnectedSessionAndReturnToBaseline) {
     const fc::RuntimeSnapshot before = fc::runtimeSnapshot();
     std::atomic<bool> connected{false};
     std::atomic<bool> destroyed{false};
@@ -127,7 +127,7 @@ TEST(NetworkSessionLifecycle, CountersCoverConnectedSessionAndReturnToBaseline) 
 // that request lands on the worker right after the connect was rejected -- it
 // must not re-dial and emit a second authRequired, which showed the user two
 // password dialogs for a single login.
-TEST(NetworkSessionAuth, RejectedConnectPromptsOnceDespiteQueuedListRequest) {
+TEST(NetworkSessionTest, Auth_RejectedConnectPromptsOnceDespiteQueuedListRequest) {
     auto provider = std::make_shared<StubProvider>();
     std::shared_ptr<NetworkSession> session(new NetworkSession(provider),
                                             [](NetworkSession *s) { s->shutdownAsync(); });
@@ -159,7 +159,7 @@ TEST(NetworkSessionAuth, RejectedConnectPromptsOnceDespiteQueuedListRequest) {
 
 // The guard above must not swallow a genuine second rejection: a wrong password
 // has to prompt again, and the right one then connects.
-TEST(NetworkSessionAuth, WrongCredentialsPromptAgainAndCorrectOnesConnect) {
+TEST(NetworkSessionTest, Auth_WrongCredentialsPromptAgainAndCorrectOnesConnect) {
     auto provider = std::make_shared<StubProvider>();
     std::shared_ptr<NetworkSession> session(new NetworkSession(provider),
                                             [](NetworkSession *s) { s->shutdownAsync(); });

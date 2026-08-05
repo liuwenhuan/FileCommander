@@ -158,7 +158,7 @@ QStringList paths(const SessionPanelData &panel) {
 }
 } // namespace
 
-TEST(SessionManagerDropNetworkTabsTest, LeavesAnAllLocalPanelAlone) {
+TEST(SessionManagerTest, DropNetworkTabsTest_LeavesAnAllLocalPanelAlone) {
     SessionPanelData panel;
     panel.tabs = {localTab("/a"), localTab("/b"), localTab("/c")};
     panel.activeTab = 2;
@@ -169,7 +169,7 @@ TEST(SessionManagerDropNetworkTabsTest, LeavesAnAllLocalPanelAlone) {
     EXPECT_EQ(panel.activeTab, 2);
 }
 
-TEST(SessionManagerDropNetworkTabsTest, KeepsLocalTabsAndShiftsActiveIndexDown) {
+TEST(SessionManagerTest, DropNetworkTabsTest_KeepsLocalTabsAndShiftsActiveIndexDown) {
     // The active tab (/c, index 3) survives, but a network tab before it goes,
     // so its index has to move down with it.
     SessionPanelData panel;
@@ -182,7 +182,7 @@ TEST(SessionManagerDropNetworkTabsTest, KeepsLocalTabsAndShiftsActiveIndexDown) 
     EXPECT_EQ(panel.activeTab, 2);
 }
 
-TEST(SessionManagerDropNetworkTabsTest, ActiveNetworkTabFallsThroughToTheNextSurvivor) {
+TEST(SessionManagerTest, DropNetworkTabsTest_ActiveNetworkTabFallsThroughToTheNextSurvivor) {
     SessionPanelData panel;
     panel.tabs = {localTab("/a"), networkTab("nas.local"), localTab("/b")};
     panel.activeTab = 1; // the tab being dropped
@@ -193,7 +193,7 @@ TEST(SessionManagerDropNetworkTabsTest, ActiveNetworkTabFallsThroughToTheNextSur
     EXPECT_EQ(panel.activeTab, 1); // /b, which took the vacated slot
 }
 
-TEST(SessionManagerDropNetworkTabsTest, ActiveTrailingNetworkTabClampsToTheLastSurvivor) {
+TEST(SessionManagerTest, DropNetworkTabsTest_ActiveTrailingNetworkTabClampsToTheLastSurvivor) {
     // Nothing follows the dropped active tab, so the index would run past the
     // end if it weren't clamped.
     SessionPanelData panel;
@@ -206,7 +206,7 @@ TEST(SessionManagerDropNetworkTabsTest, ActiveTrailingNetworkTabClampsToTheLastS
     EXPECT_EQ(panel.activeTab, 1);
 }
 
-TEST(SessionManagerDropNetworkTabsTest, AnAllNetworkPanelEmptiesOutWithASafeActiveIndex) {
+TEST(SessionManagerTest, DropNetworkTabsTest_AnAllNetworkPanelEmptiesOutWithASafeActiveIndex) {
     // The caller falls back to a local path for an empty panel; all this has to
     // guarantee is that it doesn't hand over an out-of-range index.
     SessionPanelData panel;
@@ -219,7 +219,7 @@ TEST(SessionManagerDropNetworkTabsTest, AnAllNetworkPanelEmptiesOutWithASafeActi
     EXPECT_EQ(panel.activeTab, 0);
 }
 
-TEST(SessionManagerDropNetworkTabsTest, PanelsAreFilteredIndependently) {
+TEST(SessionManagerTest, DropNetworkTabsTest_PanelsAreFilteredIndependently) {
     IsolatedConfigDir isolated;
 
     SessionPanelData left;

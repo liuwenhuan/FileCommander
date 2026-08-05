@@ -42,7 +42,7 @@ void waitForLoad(FileSystemModel &model) {
 
 } // namespace
 
-TEST(ComputerCatalogTest, EveryDriveIsNamedAndPointsSomewhereReal) {
+TEST(ComputerViewTest, CatalogTest_EveryDriveIsNamedAndPointsSomewhereReal) {
     const QVector<ComputerEntry> drives = ComputerCatalog::drives();
     // A machine with no mounted volume at all is not a case worth asserting
     // about, but every entry that IS produced has to be usable.
@@ -58,7 +58,7 @@ TEST(ComputerCatalogTest, EveryDriveIsNamedAndPointsSomewhereReal) {
     }
 }
 
-TEST(ComputerCatalogTest, OneDiskIsListedOnceEvenWhenMountedTwice) {
+TEST(ComputerViewTest, CatalogTest_OneDiskIsListedOnceEvenWhenMountedTwice) {
     // A bind mount puts the same device at a second mount point (WSL does it for
     // /mnt/wslg/distro; any fstab "bind" entry does it too). Listing both reads
     // as two disks that are really one.
@@ -77,7 +77,7 @@ TEST(ComputerCatalogTest, OneDiskIsListedOnceEvenWhenMountedTwice) {
     }
 }
 
-TEST(ComputerCatalogTest, DrivesExcludePseudoFilesystems) {
+TEST(ComputerViewTest, CatalogTest_DrivesExcludePseudoFilesystems) {
     for (const ComputerEntry &drive : ComputerCatalog::drives()) {
         // /proc, /sys, /run and the snap loopbacks under /snap are the ones that
         // flood the list if the filter regresses.
@@ -87,7 +87,7 @@ TEST(ComputerCatalogTest, DrivesExcludePseudoFilesystems) {
     }
 }
 
-TEST(ComputerCatalogTest, UserFoldersAreExistingDirectoriesWithoutDuplicates) {
+TEST(ComputerViewTest, CatalogTest_UserFoldersAreExistingDirectoriesWithoutDuplicates) {
     const QVector<ComputerEntry> folders = ComputerCatalog::userFolders();
     QSet<QString> targets;
     for (const ComputerEntry &folder : folders) {
@@ -106,7 +106,7 @@ TEST(ComputerCatalogTest, UserFoldersAreExistingDirectoriesWithoutDuplicates) {
         EXPECT_FALSE(folders.isEmpty());
 }
 
-TEST(ComputerProviderTest, ListsOneRowPerEntryAndMapsItBack) {
+TEST(ComputerViewTest, ProviderTest_ListsOneRowPerEntryAndMapsItBack) {
     ComputerProvider provider;
     provider.setEntries({
         makeEntry(ComputerEntry::Kind::Drive, QStringLiteral("Windows (C:)"), QStringLiteral("C:/")),
@@ -128,7 +128,7 @@ TEST(ComputerProviderTest, ListsOneRowPerEntryAndMapsItBack) {
     EXPECT_EQ(back.target, QStringLiteral("uuid-1"));
 }
 
-TEST(ComputerProviderTest, PathsAreNeverMistakenForLocalFilesystemPaths) {
+TEST(ComputerViewTest, ProviderTest_PathsAreNeverMistakenForLocalFilesystemPaths) {
     ComputerProvider provider;
     provider.setEntries({makeEntry(ComputerEntry::Kind::SavedServer, QStringLiteral("NAS"),
                                    QStringLiteral("uuid-1"))});
@@ -144,7 +144,7 @@ TEST(ComputerProviderTest, PathsAreNeverMistakenForLocalFilesystemPaths) {
     EXPECT_TRUE(rows.at(0).path().startsWith(ComputerProvider::rootPath()));
 }
 
-TEST(ComputerProviderTest, RootHasNoParentSoTheListingGetsNoDotDotRow) {
+TEST(ComputerViewTest, ProviderTest_RootHasNoParentSoTheListingGetsNoDotDotRow) {
     ComputerProvider provider;
     EXPECT_TRUE(provider.parentPath(ComputerProvider::rootPath()).isEmpty());
     EXPECT_TRUE(provider.isDir(ComputerProvider::rootPath()));
@@ -152,7 +152,7 @@ TEST(ComputerProviderTest, RootHasNoParentSoTheListingGetsNoDotDotRow) {
     EXPECT_TRUE(provider.list(QStringLiteral("computer://drive/C:/"), false).isEmpty());
 }
 
-TEST(ComputerProviderTest, RenameIsRefusedRatherThanReportedUnsupported) {
+TEST(ComputerViewTest, ProviderTest_RenameIsRefusedRatherThanReportedUnsupported) {
     ComputerProvider provider;
     QString newPath;
     // Unsupported means "ask another backend"; there is no other backend that
@@ -162,7 +162,7 @@ TEST(ComputerProviderTest, RenameIsRefusedRatherThanReportedUnsupported) {
               FileProvider::RenameResult::Failed);
 }
 
-TEST(ComputerViewModelTest, TypeColumnNamesTheKindOfPlaceEachRowIs) {
+TEST(ComputerViewTest, ViewModelTest_TypeColumnNamesTheKindOfPlaceEachRowIs) {
     auto provider = std::make_shared<ComputerProvider>();
     provider->setEntries({
         makeEntry(ComputerEntry::Kind::Drive, QStringLiteral("Windows (C:)"), QStringLiteral("C:/")),
@@ -182,7 +182,7 @@ TEST(ComputerViewModelTest, TypeColumnNamesTheKindOfPlaceEachRowIs) {
     EXPECT_EQ(typeAt(model, 1), QStringLiteral("Server"));
 }
 
-TEST(ComputerViewModelTest, SectionsHoldTheirOrderThroughEverySort) {
+TEST(ComputerViewTest, ViewModelTest_SectionsHoldTheirOrderThroughEverySort) {
     auto provider = std::make_shared<ComputerProvider>();
     // Deliberately named so that alphabetical order would interleave the
     // sections: "aaa server" sorts before "zzz drive" on name.
@@ -214,7 +214,7 @@ TEST(ComputerViewModelTest, SectionsHoldTheirOrderThroughEverySort) {
                            QStringLiteral("aaa server")}));
 }
 
-TEST(ComputerViewModelTest, CreatedColumnShowsWhenABookmarkWasSaved) {
+TEST(ComputerViewTest, ViewModelTest_CreatedColumnShowsWhenABookmarkWasSaved) {
     const QDateTime saved = QDateTime::fromString(QStringLiteral("2026-01-02 03:04"),
                                                   QStringLiteral("yyyy-MM-dd HH:mm"));
     ComputerEntry server =
@@ -242,7 +242,7 @@ TEST(ComputerViewModelTest, CreatedColumnShowsWhenABookmarkWasSaved) {
     EXPECT_EQ(created(1), QStringLiteral("2026-01-02 03:04"));
 }
 
-TEST(ComputerViewModelTest, SwappingBackToALocalProviderDropsTheVirtualBehaviour) {
+TEST(ComputerViewTest, ViewModelTest_SwappingBackToALocalProviderDropsTheVirtualBehaviour) {
     auto provider = std::make_shared<ComputerProvider>();
     provider->setEntries({makeEntry(ComputerEntry::Kind::SavedServer, QStringLiteral("NAS"),
                                     QStringLiteral("uuid"))});
@@ -271,7 +271,7 @@ TEST(ComputerViewModelTest, SwappingBackToALocalProviderDropsTheVirtualBehaviour
 // QStorageInfo enumerates mounts in whatever order the OS reports them, which
 // on Windows commonly puts D: before C:. Drives are listed in the order people
 // expect to find them instead.
-TEST(ComputerCatalogOrderTest, DrivesAreListedByMountRootNotByLabel) {
+TEST(ComputerViewTest, CatalogOrderTest_DrivesAreListedByMountRootNotByLabel) {
     const QVector<ComputerEntry> drives = ComputerCatalog::drives();
     if (drives.size() < 2)
         GTEST_SKIP() << "only " << drives.size() << " drive(s) on this machine";

@@ -47,7 +47,7 @@ bool listHasName(const QVector<FileInfo> &entries, const QString &name) {
 
 // --- ArchiveLayout (Deliverable 1) -----------------------------------------
 
-TEST(ArchiveLayoutTest, StripsSingleTopLevelFolder) {
+TEST(ArchiveProviderTest, LayoutTest_StripsSingleTopLevelFolder) {
     const QStringList entries = {"root/", "root/a.txt", "root/sub/b.txt"};
     const auto r = ArchiveLayout::analyze(entries, "pkg.zip");
     EXPECT_TRUE(r.stripSingleRoot);
@@ -55,21 +55,21 @@ TEST(ArchiveLayoutTest, StripsSingleTopLevelFolder) {
     EXPECT_FALSE(r.wrapInArchiveNamedFolder);
 }
 
-TEST(ArchiveLayoutTest, WrapsMultipleTopLevelItems) {
+TEST(ArchiveProviderTest, LayoutTest_WrapsMultipleTopLevelItems) {
     const QStringList entries = {"a.txt", "sub/b.txt"};
     const auto r = ArchiveLayout::analyze(entries, "pkg.zip");
     EXPECT_FALSE(r.stripSingleRoot);
     EXPECT_TRUE(r.wrapInArchiveNamedFolder);
 }
 
-TEST(ArchiveLayoutTest, SingleFileAtRootIsNeitherStrippedNorWrapped) {
+TEST(ArchiveProviderTest, LayoutTest_SingleFileAtRootIsNeitherStrippedNorWrapped) {
     const QStringList entries = {"only.txt"};
     const auto r = ArchiveLayout::analyze(entries, "pkg.zip");
     EXPECT_FALSE(r.stripSingleRoot);
     EXPECT_FALSE(r.wrapInArchiveNamedFolder);
 }
 
-TEST(ArchiveLayoutTest, DetectsNestedArchiveAfterStrip) {
+TEST(ArchiveProviderTest, LayoutTest_DetectsNestedArchiveAfterStrip) {
     const QStringList entries = {"root/", "root/inner.tar.gz"};
     const auto r = ArchiveLayout::analyze(entries, "outer.zip");
     EXPECT_TRUE(r.stripSingleRoot);
@@ -77,7 +77,7 @@ TEST(ArchiveLayoutTest, DetectsNestedArchiveAfterStrip) {
     EXPECT_EQ(r.innerArchiveName, QString("inner.tar.gz"));
 }
 
-TEST(ArchiveLayoutTest, DetectsSingleArchiveFileAtRoot) {
+TEST(ArchiveProviderTest, LayoutTest_DetectsSingleArchiveFileAtRoot) {
     const QStringList entries = {"payload.7z"};
     const auto r = ArchiveLayout::analyze(entries, "outer.zip");
     EXPECT_TRUE(r.resultIsSingleArchive);

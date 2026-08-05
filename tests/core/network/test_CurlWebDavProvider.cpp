@@ -11,23 +11,23 @@
 
 // --- cleanPath / parentPath -------------------------------------------------
 
-TEST(CurlWebDavProviderPath, CleanCollapsesRedundantSlashes) {
+TEST(CurlWebDavProviderTest, Path_CleanCollapsesRedundantSlashes) {
     CurlWebDavProvider p;
     EXPECT_EQ(p.cleanPath("/srv//data///x"), QString("/srv/data/x"));
 }
 
-TEST(CurlWebDavProviderPath, ParentOfNestedPath) {
+TEST(CurlWebDavProviderTest, Path_ParentOfNestedPath) {
     CurlWebDavProvider p;
     EXPECT_EQ(p.parentPath("/srv/data/x"), QString("/srv/data"));
 }
 
-TEST(CurlWebDavProviderPath, ParentOfRootIsEmpty) {
+TEST(CurlWebDavProviderTest, Path_ParentOfRootIsEmpty) {
     CurlWebDavProvider p;
     EXPECT_EQ(p.parentPath("/"), QString());
 }
 
 #ifdef Q_OS_WIN
-TEST(CurlWebDavProviderPath, ConvertsHttpsUrlToWindowsWebDavUnc) {
+TEST(CurlWebDavProviderTest, Path_ConvertsHttpsUrlToWindowsWebDavUnc) {
     const QString unc = CurlWebDavProvider::webDavUrlToUncForShell(
         QStringLiteral("https://example.test:9443/dav/movie.mp4"));
 
@@ -39,7 +39,7 @@ TEST(CurlWebDavProviderPath, ConvertsHttpsUrlToWindowsWebDavUnc) {
 
 // --- disconnected state -----------------------------------------------------
 
-TEST(CurlWebDavProviderState, FreshProviderIsNotConnected) {
+TEST(CurlWebDavProviderTest, State_FreshProviderIsNotConnected) {
     CurlWebDavProvider p;
     EXPECT_FALSE(p.isConnected());
     EXPECT_TRUE(p.host().isEmpty());
@@ -56,7 +56,7 @@ TEST(CurlWebDavProviderState, FreshProviderIsNotConnected) {
 // connection), so openWrite() itself already returns nullptr; the documented
 // behaviour is exercised directly against a null handle to confirm seek()
 // never reports success without one.
-TEST(CurlWebDavProviderState, SeekOnNullHandleFails) {
+TEST(CurlWebDavProviderTest, State_SeekOnNullHandleFails) {
     CurlWebDavProvider p;
     EXPECT_FALSE(p.seek(nullptr, 0));
     EXPECT_FALSE(p.seek(nullptr, 100));
@@ -112,7 +112,7 @@ const QByteArray kMultistatus = QByteArrayLiteral(
     "</D:multistatus>");
 } // namespace
 
-TEST(CurlWebDavProviderPropfind, SkipsSelfEntryAndParsesRest) {
+TEST(CurlWebDavProviderTest, Propfind_SkipsSelfEntryAndParsesRest) {
     const QVector<FileInfo> entries =
         CurlWebDavProvider::parsePropfindXml(kMultistatus, "/srv", true);
     // 3 entries: sub (dir), readme.txt (file), .hidden (file) — the "/srv/"
@@ -130,7 +130,7 @@ TEST(CurlWebDavProviderPropfind, SkipsSelfEntryAndParsesRest) {
     EXPECT_EQ(entries[2].name(), QString(".hidden"));
 }
 
-TEST(CurlWebDavProviderPropfind, HidesDotfilesUnlessShowHidden) {
+TEST(CurlWebDavProviderTest, Propfind_HidesDotfilesUnlessShowHidden) {
     const QVector<FileInfo> entries =
         CurlWebDavProvider::parsePropfindXml(kMultistatus, "/srv", false);
     ASSERT_EQ(entries.size(), 2);
@@ -138,7 +138,7 @@ TEST(CurlWebDavProviderPropfind, HidesDotfilesUnlessShowHidden) {
         EXPECT_FALSE(e.name().startsWith('.'));
 }
 
-TEST(CurlWebDavProviderPropfind, EmptyBasePathKeepsEveryEntryIncludingSelf) {
+TEST(CurlWebDavProviderTest, Propfind_EmptyBasePathKeepsEveryEntryIncludingSelf) {
     // As documented: passing a basePath that can never match a real href (a
     // null/empty QString here) keeps every <response>, including the
     // collection's own entry — used internally for a Depth:0 single-entry stat.
@@ -147,19 +147,19 @@ TEST(CurlWebDavProviderPropfind, EmptyBasePathKeepsEveryEntryIncludingSelf) {
     EXPECT_EQ(entries.size(), 4);
 }
 
-TEST(CurlWebDavProviderPropfind, MalformedXmlProducesNoEntries) {
+TEST(CurlWebDavProviderTest, Propfind_MalformedXmlProducesNoEntries) {
     EXPECT_TRUE(CurlWebDavProvider::parsePropfindXml("not xml", "/srv", true).isEmpty());
     EXPECT_TRUE(CurlWebDavProvider::parsePropfindXml(QByteArray(), "/srv", true).isEmpty());
 }
 
 // --- server-side move ---------------------------------------------------
 
-TEST(CurlWebDavProviderMove, DisconnectedReportsUnsupportedNotFailure) {
+TEST(CurlWebDavProviderTest, Move_DisconnectedReportsUnsupportedNotFailure) {
     CurlWebDavProvider p;
     EXPECT_EQ(p.moveTo("/a/x.txt", "/b/x.txt"), FileProvider::RenameResult::Unsupported);
 }
 
-TEST(CurlWebDavProviderMove, RefusesMoveOntoItself) {
+TEST(CurlWebDavProviderTest, Move_RefusesMoveOntoItself) {
     CurlWebDavProvider p;
     EXPECT_EQ(p.moveTo("/a/x.txt", "/a/./x.txt"), FileProvider::RenameResult::Failed);
 }
