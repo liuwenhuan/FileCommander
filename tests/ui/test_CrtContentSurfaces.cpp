@@ -20,6 +20,7 @@
 #include "theme/Phosphor.h"
 #include "theme/ThemeManager.h"
 #include "config/Settings.h"
+#include "ThemeStateGuard.h"
 
 namespace {
 
@@ -117,6 +118,7 @@ const QList<QColor> kChromeTile = {
 } // namespace
 
 TEST(CrtContentSurfacesTest, QuickViewDefaultPageShowsContinuousScreenScanlines) {
+    ThemeStateGuard themeState;
     StyleSheetRestore restore;
     applyTheme(QStringLiteral("green"));
     QTemporaryDir dir;
@@ -133,6 +135,7 @@ TEST(CrtContentSurfacesTest, QuickViewDefaultPageShowsContinuousScreenScanlines)
 }
 
 TEST(CrtContentSurfacesTest, DetailAndIconViewportsShowSunkenScanlines) {
+    ThemeStateGuard themeState;
     StyleSheetRestore restore;
     applyTheme(QStringLiteral("green"));
 
@@ -155,6 +158,7 @@ TEST(CrtContentSurfacesTest, DetailAndIconViewportsShowSunkenScanlines) {
 }
 
 TEST(CrtContentSurfacesTest, CommandInputShowsParentScanlinesAndKeepsSelectionReadable) {
+    ThemeStateGuard themeState;
     StyleSheetRestore restore;
     applyTheme(QStringLiteral("green"));
 
@@ -195,6 +199,7 @@ TEST(CrtContentSurfacesTest, CommandInputShowsParentScanlinesAndKeepsSelectionRe
 }
 
 TEST(CrtContentSurfacesTest, SelectedRowsRemainOpaqueAndHighContrast) {
+    ThemeStateGuard themeState;
     StyleSheetRestore restore;
     applyTheme(QStringLiteral("green"));
 
@@ -226,6 +231,7 @@ TEST(CrtContentSurfacesTest, SelectedRowsRemainOpaqueAndHighContrast) {
 }
 
 TEST(CrtContentSurfacesTest, ThumbnailSelectionAndHoverRemainVisibleOverScanlines) {
+    ThemeStateGuard themeState;
     StyleSheetRestore restore;
     applyTheme(QStringLiteral("green"));
 
@@ -287,6 +293,7 @@ TEST(CrtContentSurfacesTest, ThumbnailSelectionAndHoverRemainVisibleOverScanline
 }
 
 TEST(CrtContentSurfacesTest, LightAndDarkSurfacesDoNotAcquireCrtTiles) {
+    ThemeStateGuard themeState;
     StyleSheetRestore restore;
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
@@ -346,6 +353,7 @@ TEST(CrtContentSurfacesTest, LightAndDarkSurfacesDoNotAcquireCrtTiles) {
 // wall of small thumbnails is decoration, while recolouring the picture someone
 // opened to LOOK at changes what they are examining.
 TEST(CrtContentSurfacesTest, TheImageAndPreviewSwitchesAreIndependent) {
+    ThemeStateGuard themeState;
     ThemeManager manager;
     struct Restore {
         ~Restore() {
@@ -382,6 +390,7 @@ TEST(CrtContentSurfacesTest, TheImageAndPreviewSwitchesAreIndependent) {
 // a grey slab. Whatever palette a theme picks from, the content colour has to
 // be a bright member of it.
 TEST(CrtContentSurfacesTest, EveryThemesContentTintIsBrightEnoughToTintRatherThanDarken) {
+    ThemeStateGuard themeState;
     ThemeManager manager;
     struct Restore {
         ~Restore() {
@@ -411,6 +420,7 @@ TEST(CrtContentSurfacesTest, EveryThemesContentTintIsBrightEnoughToTintRatherTha
 // thumbnails are #e0e0e0 monochrome, and the old #3d7deb selection tile and
 // up-arrow stood out as leftovers rather than as accents.
 TEST(CrtContentSurfacesTest, TheDarkThemesAccentSitsWithItsGreyscaleContent) {
+    ThemeStateGuard themeState;
     ThemeManager manager;
     // Put the sheet back rather than blanking it: other suites in this binary
     // are written against whatever was applied before, and clearing it left
@@ -449,6 +459,7 @@ TEST(CrtContentSurfacesTest, TheDarkThemesAccentSitsWithItsGreyscaleContent) {
 // the theme -- and it is painted by us, through the same recolouring path, so
 // there was never a reason for it to be exempt.
 TEST(CrtContentSurfacesTest, TheAppIconTakesTheSameColourAsTheChromeGlyphs) {
+    ThemeStateGuard themeState;
     ThemeManager manager;
     struct Restore {
         QString sheet;
@@ -500,6 +511,7 @@ TEST(CrtContentSurfacesTest, TheAppIconTakesTheSameColourAsTheChromeGlyphs) {
 // palette(...) is what makes it follow one: Qt re-resolves those when the
 // palette changes, with no refresh plumbing on our side.
 TEST(CrtContentSurfacesTest, ThePreviewInfoOverlayTakesItsColoursFromTheTheme) {
+    ThemeStateGuard themeState;
     StyleSheetRestore restore;
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());

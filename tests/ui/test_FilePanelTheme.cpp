@@ -16,6 +16,7 @@
 #include "IconFileView.h"
 #include "TabBar.h"
 #include "theme/ThemeManager.h"
+#include "ThemeStateGuard.h"
 
 namespace {
 
@@ -41,6 +42,7 @@ void applyThemeSheet(const QString &name) {
 }
 
 TEST(FilePanelStartupTest, DetailsModeDoesNotConstructHiddenPanelSurfaces) {
+    ThemeStateGuard themeState;
     FilePanel panel;
 
     EXPECT_EQ(panel.findChild<QTreeView *>(), nullptr);
@@ -49,6 +51,7 @@ TEST(FilePanelStartupTest, DetailsModeDoesNotConstructHiddenPanelSurfaces) {
 }
 
 TEST(FilePanelThemeTest, LazilyCreatedIconViewInheritsCurrentPalette) {
+    ThemeStateGuard themeState;
     const QString previousStyleSheet = qApp->styleSheet();
     struct RestoreStyleSheet {
         QString value;
@@ -68,6 +71,7 @@ TEST(FilePanelThemeTest, LazilyCreatedIconViewInheritsCurrentPalette) {
 }
 
 TEST(FilePanelThemeTest, TreeButtonSharesTheAddressRowWithNavigationButtons) {
+    ThemeStateGuard themeState;
     FilePanel panel;
 
     QToolButton *addTab = panel.findChild<QToolButton *>(QStringLiteral("PanelAddTabButton"));
@@ -115,6 +119,7 @@ TEST(FilePanelThemeTest, TreeButtonSharesTheAddressRowWithNavigationButtons) {
 }
 
 TEST(FilePanelThemeTest, TreeButtonUsesCompactPaintedGlyph) {
+    ThemeStateGuard themeState;
     FilePanel panel;
 
     QToolButton *tree = panel.findChild<QToolButton *>(QStringLiteral("PanelTreeButton"));
@@ -126,6 +131,7 @@ TEST(FilePanelThemeTest, TreeButtonUsesCompactPaintedGlyph) {
 }
 
 TEST(FilePanelThemeTest, TabAndAddressRowButtonsUseTheirOwnThemeSelectors) {
+    ThemeStateGuard themeState;
     for (const QString &theme : {QStringLiteral("light"), QStringLiteral("dark"),
                                  QStringLiteral("green")}) {
         QFile file(QStringLiteral(TTC_SOURCE_DIR "/resources/themes/") + theme +
@@ -141,6 +147,7 @@ TEST(FilePanelThemeTest, TabAndAddressRowButtonsUseTheirOwnThemeSelectors) {
 }
 
 TEST(FilePanelThemeTest, AddTabAndAddressRowControlsDefineEveryInteractionStateInEveryTheme) {
+    ThemeStateGuard themeState;
     for (const QString &theme : {QStringLiteral("light"), QStringLiteral("dark"),
                                  QStringLiteral("green")}) {
         QFile file(QStringLiteral(TTC_SOURCE_DIR "/resources/themes/") + theme +
@@ -165,6 +172,7 @@ TEST(FilePanelThemeTest, AddTabAndAddressRowControlsDefineEveryInteractionStateI
 }
 
 TEST(FilePanelThemeTest, TabScrollerControlsDefineEveryInteractionStateInEveryTheme) {
+    ThemeStateGuard themeState;
     for (const QString &theme : {QStringLiteral("light"), QStringLiteral("dark"),
                                  QStringLiteral("green")}) {
         QFile file(QStringLiteral(TTC_SOURCE_DIR "/resources/themes/") + theme +
@@ -185,6 +193,7 @@ TEST(FilePanelThemeTest, TabScrollerControlsDefineEveryInteractionStateInEveryTh
 }
 
 TEST(FilePanelThemeTest, ScrollbarsDefineStableExtentsAndHandleMinimumsInEveryTheme) {
+    ThemeStateGuard themeState;
     for (const QString &theme : {QStringLiteral("light"), QStringLiteral("dark"),
                                  QStringLiteral("green")}) {
         QFile file(QStringLiteral(TTC_SOURCE_DIR "/resources/themes/") + theme +
@@ -209,6 +218,7 @@ TEST(FilePanelThemeTest, ScrollbarsDefineStableExtentsAndHandleMinimumsInEveryTh
 }
 
 TEST(FilePanelThemeTest, TabBarsKeepTheSameHeightWithDifferentTabCounts) {
+    ThemeStateGuard themeState;
     QFile qss(QStringLiteral(TTC_SOURCE_DIR "/resources/themes/dark.qss"));
     ASSERT_TRUE(qss.open(QIODevice::ReadOnly)) << "theme qss missing";
     qApp->setStyleSheet(QString::fromUtf8(qss.readAll()));
@@ -242,6 +252,7 @@ TEST(FilePanelThemeTest, TabBarsKeepTheSameHeightWithDifferentTabCounts) {
 }
 
 TEST(TabBarTest, AppliesDarkAndGreenThemesWhenStylesheetArrivesAfterConstruction) {
+    ThemeStateGuard themeState;
     const QString previousStyleSheet = qApp->styleSheet();
     struct RestoreStyleSheet {
         QString value;
@@ -281,6 +292,7 @@ TEST(TabBarTest, AppliesDarkAndGreenThemesWhenStylesheetArrivesAfterConstruction
 }
 
 TEST(TabBarTest, CrtActiveTabAccentUsesLitPhosphor) {
+    ThemeStateGuard themeState;
     const QString previousStyleSheet = qApp->styleSheet();
     struct RestoreStyleSheet {
         QString value;
@@ -302,6 +314,7 @@ TEST(TabBarTest, CrtActiveTabAccentUsesLitPhosphor) {
 }
 
 TEST(TabBarTest, CrtCloseButtonsUsePhosphorForEveryInteractionState) {
+    ThemeStateGuard themeState;
     const QString previousStyleSheet = qApp->styleSheet();
     struct RestoreStyleSheet {
         QString value;
@@ -352,6 +365,7 @@ TEST(TabBarTest, CrtCloseButtonsUsePhosphorForEveryInteractionState) {
 }
 
 TEST(TabBarTest, LightAndDarkKeepTheirExistingAccentAndCloseColours) {
+    ThemeStateGuard themeState;
     const QString previousStyleSheet = qApp->styleSheet();
     struct RestoreStyleSheet {
         QString value;
@@ -422,6 +436,7 @@ TEST(TabBarTest, LightAndDarkKeepTheirExistingAccentAndCloseColours) {
 }
 
 TEST(FilePanelThemeTest, MotionProgressPropertiesRemainAvailableToThemeAwarePainting) {
+    ThemeStateGuard themeState;
     FilePanel panel;
     TabBar *tabBar = panel.findChild<TabBar *>();
     ASSERT_NE(tabBar, nullptr);
@@ -431,6 +446,7 @@ TEST(FilePanelThemeTest, MotionProgressPropertiesRemainAvailableToThemeAwarePain
 }
 
 TEST(TabBarTest, OverflowUsesNativeScrollersInsideTheTabBar) {
+    ThemeStateGuard themeState;
     ThemeManager themeManager;
     themeManager.apply(Settings::Theme::Dark);
     TabBar tabBar;
@@ -489,6 +505,7 @@ TEST(TabBarTest, OverflowUsesNativeScrollersInsideTheTabBar) {
 }
 
 TEST(TabBarTest, OverflowAccentDoesNotPaintUnderNativeScrollers) {
+    ThemeStateGuard themeState;
     ThemeManager themeManager;
     themeManager.apply(Settings::Theme::Dark);
     TabBar tabBar;
@@ -540,6 +557,7 @@ TEST(TabBarTest, OverflowAccentDoesNotPaintUnderNativeScrollers) {
 }
 
 TEST(TabBarTest, OverflowScrollersReflectAvailableDirection) {
+    ThemeStateGuard themeState;
     TabBar tabBar;
     for (int index = 0; index < 20; ++index)
         tabBar.addTab(QStringLiteral("Long tab title %1").arg(index));
@@ -574,6 +592,7 @@ TEST(TabBarTest, OverflowScrollersReflectAvailableDirection) {
 }
 
 TEST(FilePanelThemeTest, OverflowDoesNotCreateACustomLeftScrollControl) {
+    ThemeStateGuard themeState;
     FilePanel panel;
     panel.resize(300, 600);
     panel.show();
@@ -618,6 +637,7 @@ TEST(FilePanelThemeTest, OverflowDoesNotCreateACustomLeftScrollControl) {
 }
 
 TEST(FilePanelThemeTest, NoCustomLeftScrollControlIsCreatedWithoutOverflow) {
+    ThemeStateGuard themeState;
     FilePanel panel;
     panel.resize(900, 600);
     panel.show();
@@ -632,6 +652,7 @@ TEST(FilePanelThemeTest, NoCustomLeftScrollControlIsCreatedWithoutOverflow) {
 } // namespace
 
 TEST(TabBarTest, DoubleClickingATabTitleRequestsThatTabClose) {
+    ThemeStateGuard themeState;
     TabBar tabBar;
     tabBar.addTab(QStringLiteral("First"));
     tabBar.addTab(QStringLiteral("Second"));

@@ -30,6 +30,7 @@
 #include "StatusBarWidget.h"
 #include "TabBar.h"
 #include "Typography.h"
+#include "ThemeStateGuard.h"
 
 namespace {
 
@@ -104,6 +105,7 @@ QWidget *fontRow(QMenu *menu, const QString &captionText) {
 }
 
 TEST(ChromeTypographyTest, DefaultMenuFontUsesTwelvePoints) {
+    ThemeStateGuard themeState;
     QTemporaryDir temporaryDir;
     ASSERT_TRUE(temporaryDir.isValid());
     Settings settings(temporaryDir.filePath(QStringLiteral("settings.ini")));
@@ -112,6 +114,7 @@ TEST(ChromeTypographyTest, DefaultMenuFontUsesTwelvePoints) {
 }
 
 TEST(ChromeTypographyTest, MenuFontSizeAppliesToCompositeChromeWidgets) {
+    ThemeStateGuard themeState;
     QTemporaryDir temporaryDir;
     ASSERT_TRUE(temporaryDir.isValid());
     Settings settings(temporaryDir.filePath(QStringLiteral("settings.ini")));
@@ -133,6 +136,7 @@ TEST(ChromeTypographyTest, MenuFontSizeAppliesToCompositeChromeWidgets) {
 }
 
 TEST(ChromeTypographyTest, ApplyingAnEqualResolvedFontDoesNotRepolishTheWidget) {
+    ThemeStateGuard themeState;
     QWidget widget;
     const QFont font = widget.font();
     FontChangeCounter counter;
@@ -148,6 +152,7 @@ TEST(ChromeTypographyTest, ApplyingAnEqualResolvedFontDoesNotRepolishTheWidget) 
 }
 
 TEST(ChromeTypographyTest, EmbeddedMenuChromeTracksParentMenuFontChanges) {
+    ThemeStateGuard themeState;
     ApplicationAppearanceGuard guard;
     QFont initial = QApplication::font();
     initial.setPointSize(10);
@@ -180,6 +185,7 @@ TEST(ChromeTypographyTest, EmbeddedMenuChromeTracksParentMenuFontChanges) {
 }
 
 TEST(ChromeTypographyTest, FramelessDialogChromeTracksRuntimeApplicationFontChanges) {
+    ThemeStateGuard themeState;
     ApplicationAppearanceGuard guard;
     QFont initial = QApplication::font();
     initial.setPointSize(10);
@@ -215,6 +221,7 @@ TEST(ChromeTypographyTest, FramelessDialogChromeTracksRuntimeApplicationFontChan
 }
 
 TEST(ChromeTypographyTest, MainWindowFontRowsTrackTheLiveMenuFontSetting) {
+    ThemeStateGuard themeState;
     ApplicationAppearanceGuard appearanceGuard;
     QTemporaryDir configHome;
     ASSERT_TRUE(configHome.isValid());
@@ -256,6 +263,7 @@ TEST(ChromeTypographyTest, MainWindowFontRowsTrackTheLiveMenuFontSetting) {
 }
 
 TEST(ChromeTypographyTest, EmbeddedMenuChromeDoesNotCoverCrtScanlines) {
+    ThemeStateGuard themeState;
     ApplicationAppearanceGuard guard;
     QFile theme(QStringLiteral(":/themes/green.qss"));
     ASSERT_TRUE(theme.open(QIODevice::ReadOnly | QIODevice::Text));
@@ -296,6 +304,7 @@ TEST(ChromeTypographyTest, EmbeddedMenuChromeDoesNotCoverCrtScanlines) {
 // the just-applied application font -- so setFont() was skipped as a no-op and
 // the buttons inside were never told anything had changed.
 TEST(ChromeTypographyTest, TitleBarAndFunctionKeyButtonsTrackTheLiveMenuFontSetting) {
+    ThemeStateGuard themeState;
     ApplicationAppearanceGuard appearanceGuard;
     QTemporaryDir configHome;
     ASSERT_TRUE(configHome.isValid());
@@ -358,6 +367,7 @@ TEST(ChromeTypographyTest, TitleBarAndFunctionKeyButtonsTrackTheLiveMenuFontSett
 // font domains, and only its toolbars belong to this one -- the previewed
 // content follows the file-list size instead.
 TEST(ChromeTypographyTest, EveryChromeSurfaceTracksTheLiveMenuFontSetting) {
+    ThemeStateGuard themeState;
     ApplicationAppearanceGuard appearanceGuard;
     QTemporaryDir configHome;
     ASSERT_TRUE(configHome.isValid());
@@ -431,6 +441,7 @@ TEST(ChromeTypographyTest, EveryChromeSurfaceTracksTheLiveMenuFontSetting) {
 // the number field, the +/- buttons -- are created AFTER the row is handed to
 // applyChromeFont(), so nothing had ever asserted they end up at the same size.
 TEST(ChromeTypographyTest, FontRowInteriorMatchesTheMenuFontOnFirstOpen) {
+    ThemeStateGuard themeState;
     ApplicationAppearanceGuard appearanceGuard;
     QTemporaryDir configHome;
     ASSERT_TRUE(configHome.isValid());
@@ -473,6 +484,7 @@ TEST(ChromeTypographyTest, FontRowInteriorMatchesTheMenuFontOnFirstOpen) {
 // in the wrong family AND size until the user touched the setting (which
 // re-applied the typography, this time after the stylesheet was already there).
 TEST(ChromeTypographyTest, ApplicationFontSurvivesTheStartupStyleSheet) {
+    ThemeStateGuard themeState;
     ApplicationAppearanceGuard appearanceGuard;
     QTemporaryDir configHome;
     ASSERT_TRUE(configHome.isValid());

@@ -19,6 +19,7 @@
 #include "Settings.h"
 #include "ThemeManager.h"
 #include "TranslationManager.h"
+#include "ThemeStateGuard.h"
 
 namespace {
 
@@ -135,6 +136,7 @@ public:
 } // namespace
 
 TEST(MainWindowActionsTest, StartupKeepsMenuButtonsButDefersMenuContents) {
+    ThemeStateGuard themeState;
     ScopedUiLanguage language(QStringLiteral("en"));
     MainWindow window;
 
@@ -149,6 +151,7 @@ TEST(MainWindowActionsTest, StartupKeepsMenuButtonsButDefersMenuContents) {
 }
 
 TEST(MainWindowActionsTest, ReplayedMenuMouseMoveDoesNotLeaveResizeCursor) {
+    ThemeStateGuard themeState;
     ScopedUiLanguage language(QStringLiteral("en"));
     MainWindow window;
     window.resize(900, 600);
@@ -181,6 +184,7 @@ TEST(MainWindowActionsTest, ReplayedMenuMouseMoveDoesNotLeaveResizeCursor) {
 }
 
 TEST(MainWindowActionsTest, FirstOpenBuildsEachMenuOnceWithCurrentState) {
+    ThemeStateGuard themeState;
     ScopedUiLanguage language(QStringLiteral("en"));
     MainWindow window;
 
@@ -234,6 +238,7 @@ TEST(MainWindowActionsTest, FirstOpenBuildsEachMenuOnceWithCurrentState) {
 }
 
 TEST(MainWindowActionsTest, ConfigMenuRefreshesDeleteConfirmationAfterRuntimeShortcut) {
+    ThemeStateGuard themeState;
     ScopedUiLanguage language(QStringLiteral("en"));
     MainWindow window;
 
@@ -255,6 +260,7 @@ TEST(MainWindowActionsTest, ConfigMenuRefreshesDeleteConfirmationAfterRuntimeSho
 }
 
 TEST(MainWindowActionsTest, InterfaceMenuRefreshesFunctionKeyBarAfterRuntimeShortcut) {
+    ThemeStateGuard themeState;
     ScopedUiLanguage language(QStringLiteral("en"));
     MainWindow window;
 
@@ -277,6 +283,7 @@ TEST(MainWindowActionsTest, InterfaceMenuRefreshesFunctionKeyBarAfterRuntimeShor
 }
 
 TEST(MainWindowActionsTest, InterfaceMenuRefreshesThemeAfterRuntimeShortcut) {
+    ThemeStateGuard themeState;
     ScopedUiLanguage language(QStringLiteral("en"));
     MainWindow window;
 
@@ -298,6 +305,7 @@ TEST(MainWindowActionsTest, InterfaceMenuRefreshesThemeAfterRuntimeShortcut) {
 }
 
 TEST(MainWindowActionsTest, InterfaceThemeGroupRemainsExclusiveAfterRuntimeSync) {
+    ThemeStateGuard themeState;
     ScopedUiLanguage language(QStringLiteral("en"));
     MainWindow window;
 
@@ -337,6 +345,7 @@ TEST(MainWindowActionsTest, InterfaceThemeGroupRemainsExclusiveAfterRuntimeSync)
 }
 
 TEST(MainWindowActionsTest, FirstOpenBuildsTranslatedMenuContents) {
+    ThemeStateGuard themeState;
     ScopedUiLanguage language(QStringLiteral("zh_CN"));
     MainWindow window;
 
@@ -353,6 +362,7 @@ TEST(MainWindowActionsTest, FirstOpenBuildsTranslatedMenuContents) {
 }
 
 TEST(MainWindowActionsTest, SkipTrashDeleteConfirmationActionExplainsItsSafetyBoundary) {
+    ThemeStateGuard themeState;
     std::setlocale(LC_NUMERIC, "C");
     ScopedUiLanguage language(QStringLiteral("en"));
     MainWindow window;
@@ -375,6 +385,7 @@ TEST(MainWindowActionsTest, SkipTrashDeleteConfirmationActionExplainsItsSafetyBo
 // action's triggered() arrives, so the panel the button emitted panelActivated()
 // for is no longer the active one by the time the command runs.
 TEST(MainWindowActionsTest, PanelShortcutMenuActsOnItsOwnPanelNotTheActiveOne) {
+    ThemeStateGuard themeState;
     std::setlocale(LC_NUMERIC, "C");
     ScopedUiLanguage language(QStringLiteral("en"));
     MainWindow window;
@@ -407,6 +418,7 @@ TEST(MainWindowActionsTest, PanelShortcutMenuActsOnItsOwnPanelNotTheActiveOne) {
 // archiveAsFolder=false -- it turned archive browsing OFF. Anyone who ticked it
 // to get into archives got the opposite of what it promised.
 TEST(MainWindowActionsTest, TheArchiveEntryIsTickedWhenArchivesOpenAsFolders) {
+    ThemeStateGuard themeState;
     std::setlocale(LC_NUMERIC, "C");
     ScopedUiLanguage language(QStringLiteral("en"));
     QTemporaryDir configDir;

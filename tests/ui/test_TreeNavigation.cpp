@@ -17,6 +17,7 @@
 #include "MainWindow.h"
 #include "tree/DirectoryTreeModel.h"
 #include "tree/NetworkTreeRegistry.h"
+#include "ThemeStateGuard.h"
 
 // Clicking a local disk in the folder tree while the tab is on a server.
 //
@@ -113,6 +114,7 @@ bool listHasName(FileSystemModel *model, const QString &name) {
 } // namespace
 
 TEST(TreeNavigationTest, LocalDiskOnANetworkTabListsTheLocalDiskNotTheServer) {
+    ThemeStateGuard themeState;
     FilePanel panel;
     panel.connectTabTo(0, std::make_shared<FakeShare>(), [](QString *) { return true; },
                        QStringLiteral("/home"), QStringLiteral("tester@share"),
@@ -144,6 +146,7 @@ TEST(TreeNavigationTest, LocalDiskOnANetworkTabListsTheLocalDiskNotTheServer) {
 }
 
 TEST(TreeNavigationTest, TheServerStaysReachableWithOneBackPress) {
+    ThemeStateGuard themeState;
     // Going local must not throw the connection away -- the tree click is a
     // navigation, not a disconnect, so Back has to return to the share.
     FilePanel panel;
@@ -173,6 +176,7 @@ TEST(TreeNavigationTest, TheServerStaysReachableWithOneBackPress) {
 }
 
 TEST(TreeNavigationTest, LocalTabStillNavigatesStraightToTheClickedFolder) {
+    ThemeStateGuard themeState;
     // The regression guard: on an ordinary local tab a tree click is a plain
     // navigation and must stay one -- same directory, same local backend, and
     // the previous directory on the Back stack.
@@ -213,6 +217,7 @@ TEST(TreeNavigationTest, LocalTabStillNavigatesStraightToTheClickedFolder) {
 // user-configurable) and "Associate Folder Open Actions" (registering the app as
 // the system's folder handler). Neither may come back through the config menu.
 TEST(MainWindowTest, ConfigMenuOmitsRetiredActions) {
+    ThemeStateGuard themeState;
     MainWindow window;
     QMenu *configMenu = nullptr;
     for (QMenu *menu : window.findChildren<QMenu *>()) {
@@ -242,6 +247,7 @@ TEST(MainWindowTest, ConfigMenuOmitsRetiredActions) {
 
 #if defined(Q_OS_WIN) && FILECOMMANDER_HAS_NETWORK
 TEST(MainWindowNetworkTest, ConnectedServerAppearsInTheFolderTree) {
+    ThemeStateGuard themeState;
     MainWindow window;
     window.resize(1000, 700);
     window.show();

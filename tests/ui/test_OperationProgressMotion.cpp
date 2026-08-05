@@ -28,6 +28,7 @@
 #include "MotionPolicy.h"
 #include "operations/FileOperations.h"
 #include "operations/OperationQueue.h"
+#include "ThemeStateGuard.h"
 
 namespace {
 
@@ -87,6 +88,7 @@ void writeFile(const QString &path, const QByteArray &contents) {
 }
 
 TEST(OperationProgressMotion, MainWindowKeepsOperationQueueEagerButDefersTransferDialog) {
+    ThemeStateGuard themeState;
     MainWindow window;
 
     EXPECT_EQ(window.findChildren<OperationQueue *>().size(), 1);
@@ -94,6 +96,7 @@ TEST(OperationProgressMotion, MainWindowKeepsOperationQueueEagerButDefersTransfe
 }
 
 TEST(OperationProgressMotion, FirstCopyCommandCreatesExactlyOneTransferDialog) {
+    ThemeStateGuard themeState;
     QTemporaryDir root;
     ASSERT_TRUE(root.isValid());
     QDir dir(root.path());
@@ -128,6 +131,7 @@ TEST(OperationProgressMotion, FirstCopyCommandCreatesExactlyOneTransferDialog) {
 }
 
 TEST(OperationProgressMotion, ProgressValuesAreAppliedImmediatelyDuringOperationReveal) {
+    ThemeStateGuard themeState;
     MotionPolicyStateGuard guard;
     MotionPolicy::setReducedForTest(false);
 
@@ -157,6 +161,7 @@ TEST(OperationProgressMotion, ProgressValuesAreAppliedImmediatelyDuringOperation
 }
 
 TEST(OperationProgressMotion, TransferProgressValuesAreAppliedImmediatelyDuringReveal) {
+    ThemeStateGuard themeState;
     MotionPolicyStateGuard guard;
     MotionPolicy::setReducedForTest(false);
 
@@ -190,6 +195,7 @@ TEST(OperationProgressMotion, TransferProgressValuesAreAppliedImmediatelyDuringR
 }
 
 TEST(OperationProgressMotion, FastTransferNeverFlashesAfterFinishing) {
+    ThemeStateGuard themeState;
     MotionPolicyStateGuard guard;
     MotionPolicy::setReducedForTest(false);
 
@@ -203,6 +209,7 @@ TEST(OperationProgressMotion, FastTransferNeverFlashesAfterFinishing) {
 }
 
 TEST(OperationProgressMotion, SuccessfulOutcomeRemainsVisibleFor180Milliseconds) {
+    ThemeStateGuard themeState;
     MotionPolicyStateGuard guard;
     MotionPolicy::setReducedForTest(false);
 
@@ -224,6 +231,7 @@ TEST(OperationProgressMotion, SuccessfulOutcomeRemainsVisibleFor180Milliseconds)
 }
 
 TEST(OperationProgressMotion, ReducedMotionKeepsStaticSuccessVisibleFor180Milliseconds) {
+    ThemeStateGuard themeState;
     MotionPolicyStateGuard guard;
     MotionPolicy::setReducedForTest(true);
 
@@ -246,6 +254,7 @@ TEST(OperationProgressMotion, ReducedMotionKeepsStaticSuccessVisibleFor180Millis
 }
 
 TEST(OperationProgressMotion, OneConcurrentTransferFinishingDoesNotEndTheBatch) {
+    ThemeStateGuard themeState;
     MotionPolicyStateGuard guard;
     MotionPolicy::setReducedForTest(false);
 
@@ -264,6 +273,7 @@ TEST(OperationProgressMotion, OneConcurrentTransferFinishingDoesNotEndTheBatch) 
 }
 
 TEST(OperationProgressMotion, TerminalTimerIsCancelledWhenDialogIsDestroyed) {
+    ThemeStateGuard themeState;
     MotionPolicyStateGuard guard;
     MotionPolicy::setReducedForTest(false);
 
@@ -288,6 +298,7 @@ TEST(OperationProgressMotion, TerminalTimerIsCancelledWhenDialogIsDestroyed) {
 // stopped from the real widget. The latch guarantees the click lands while the
 // copy is genuinely in flight, which is what makes the assertions mean anything.
 TEST(OperationProgressMotion, AbortButtonStopsTheRunningCopyAndClosesTheWindow) {
+    ThemeStateGuard themeState;
     QTemporaryDir srcDir, dstDir;
     ASSERT_TRUE(srcDir.isValid() && dstDir.isValid());
     const QString source = QDir(srcDir.path()).filePath(QStringLiteral("abort-me.bin"));
@@ -343,6 +354,7 @@ TEST(OperationProgressMotion, AbortButtonStopsTheRunningCopyAndClosesTheWindow) 
 // dismissAfterAbort() left it flagged as "on screen" forever, so no later batch
 // could ever reveal it again.
 TEST(OperationProgressMotion, TransferWindowCanBeRevealedAgainAfterBeingClosed) {
+    ThemeStateGuard themeState;
     MotionPolicyStateGuard guard;
     MotionPolicy::setReducedForTest(true);
 
@@ -362,6 +374,7 @@ TEST(OperationProgressMotion, TransferWindowCanBeRevealedAgainAfterBeingClosed) 
 }
 
 TEST(OperationProgressMotion, AbortDismissesTransferWindowImmediately) {
+    ThemeStateGuard themeState;
     TransferProgressDialog dialog(nullptr);
     startTransfer(dialog, QStringLiteral("Copying"));
     dialog.show();
@@ -375,6 +388,7 @@ TEST(OperationProgressMotion, AbortDismissesTransferWindowImmediately) {
 }
 
 TEST(OperationProgressMotion, TransferErrorExpandsForWrappedTextAfterFontIncrease) {
+    ThemeStateGuard themeState;
     TransferProgressDialog dialog(nullptr);
     dialog.resize(460, 180);
 
@@ -406,6 +420,7 @@ TEST(OperationProgressMotion, TransferErrorExpandsForWrappedTextAfterFontIncreas
 }
 
 TEST(OperationProgressMotion, TransferErrorUsesTheCurrentThemeColor) {
+    ThemeStateGuard themeState;
     const QString previousStyleSheet = qApp->styleSheet();
     struct RestoreStyleSheet {
         QString value;

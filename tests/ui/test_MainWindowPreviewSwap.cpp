@@ -36,6 +36,7 @@
 #include "media/MediaEngine.h"
 #include "network/SmbHostBrowser.h"
 #include "tree/DirectoryTreeModel.h"
+#include "ThemeStateGuard.h"
 
 namespace {
 
@@ -350,6 +351,7 @@ INSTANTIATE_TEST_SUITE_P(
     [](const ::testing::TestParamInfo<StartupThemeCase> &info) { return info.param.name; });
 
 TEST(MainWindowPreviewSwapTest, AutomaticMediaWarmupStaysDisabledAfterFirstVisiblePaint) {
+    ThemeStateGuard themeState;
     QElapsedTimer startup;
     startup.start();
     MainWindow window;
@@ -402,6 +404,7 @@ TEST(MainWindowPreviewSwapTest, AutomaticMediaWarmupStaysDisabledAfterFirstVisib
 }
 
 TEST(MainWindowPreviewSwapTest, FirstQuickViewUseCreatesOneInstanceWithCurrentTypography) {
+    ThemeStateGuard themeState;
     Settings settings;
     ScopedTypographySettingsRestore restore(settings);
     settings.setGlobalFontFamily(QStringLiteral("Arial"));
@@ -432,6 +435,7 @@ TEST(MainWindowPreviewSwapTest, FirstQuickViewUseCreatesOneInstanceWithCurrentTy
 }
 
 TEST(MainWindowPreviewSwapTest, TypographySettingsDoNotLeakPastTestScope) {
+    ThemeStateGuard themeState;
     Settings settings;
     const QString originalFamily = settings.globalFontFamily();
     const int originalSize = settings.listFontSize();
@@ -450,6 +454,7 @@ TEST(MainWindowPreviewSwapTest, TypographySettingsDoNotLeakPastTestScope) {
 }
 
 TEST(MainWindowStartupTest, DefersBackgroundFeatureBatchPastFirstPaint) {
+    ThemeStateGuard themeState;
     MainWindow window;
 
 #if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
@@ -473,6 +478,7 @@ TEST(MainWindowStartupTest, DefersBackgroundFeatureBatchPastFirstPaint) {
 }
 
 TEST(MainWindowStartupTest, EmitsReadyAfterBothVisiblePanelsAreInteractive) {
+    ThemeStateGuard themeState;
     QTemporaryDir leftDirectory;
     QTemporaryDir rightDirectory;
     ASSERT_TRUE(leftDirectory.isValid());
@@ -563,6 +569,7 @@ TEST(MainWindowStartupTest, EmitsReadyAfterBothVisiblePanelsAreInteractive) {
 }
 
 TEST(MainWindowStartupTest, RefreshAfterReadyDoesNotRunAnotherInteractionProbe) {
+    ThemeStateGuard themeState;
     QTemporaryDir leftDirectory;
     QTemporaryDir rightDirectory;
     ASSERT_TRUE(leftDirectory.isValid());
@@ -606,6 +613,7 @@ TEST(MainWindowStartupTest, RefreshAfterReadyDoesNotRunAnotherInteractionProbe) 
 }
 
 TEST(MainWindowStartupTest, EmitsReadyWhenBothPanelsFinishLoadingBeforeShow) {
+    ThemeStateGuard themeState;
     QTemporaryDir leftDirectory;
     QTemporaryDir rightDirectory;
     ASSERT_TRUE(leftDirectory.isValid());
@@ -685,6 +693,7 @@ TEST(MainWindowStartupTest, EmitsReadyWhenBothPanelsFinishLoadingBeforeShow) {
 }
 
 TEST(MainWindowStartupTest, IgnoresStaleLocalLoadBeforeReadiness) {
+    ThemeStateGuard themeState;
     QTemporaryDir rightDirectory;
     ASSERT_TRUE(rightDirectory.isValid());
     for (const QString &name : {QStringLiteral("right-a.txt"), QStringLiteral("right-b.txt")}) {
@@ -722,6 +731,7 @@ TEST(MainWindowStartupTest, IgnoresStaleLocalLoadBeforeReadiness) {
 }
 
 TEST(MainWindowStartupTest, ThumbnailViewDoesNotSatisfyDetailsReadiness) {
+    ThemeStateGuard themeState;
     QTemporaryDir leftDirectory;
     QTemporaryDir rightDirectory;
     ASSERT_TRUE(leftDirectory.isValid());
@@ -758,6 +768,7 @@ TEST(MainWindowStartupTest, ThumbnailViewDoesNotSatisfyDetailsReadiness) {
 }
 
 TEST(MainWindowStartupTest, RestoresFolderTreesBeforeReadinessWhenEnabled) {
+    ThemeStateGuard themeState;
     Settings settings;
     ScopedFolderTreeSettingRestore restore(settings);
     settings.setShowFolderTree(true);
@@ -802,6 +813,7 @@ TEST(MainWindowStartupTest, RestoresFolderTreesBeforeReadinessWhenEnabled) {
 }
 
 TEST(MainWindowStartupTest, KeepsFolderTreesLazyWhenRestoredSettingIsDisabled) {
+    ThemeStateGuard themeState;
     Settings settings;
     ScopedFolderTreeSettingRestore restore(settings);
     settings.setShowFolderTree(false);
@@ -818,6 +830,7 @@ TEST(MainWindowStartupTest, KeepsFolderTreesLazyWhenRestoredSettingIsDisabled) {
 }
 
 TEST(MainWindowPreviewSwapTest, FirstMediaRequestWarmsImmediatelyWithAutomaticWarmupDisabled) {
+    ThemeStateGuard themeState;
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
     const QString audio = dir.filePath(QStringLiteral("requested-first.wav"));
@@ -849,6 +862,7 @@ TEST(MainWindowPreviewSwapTest, FirstMediaRequestWarmsImmediatelyWithAutomaticWa
 }
 
 TEST(MainWindowPreviewSwapTest, TeardownIsSafeWithAutomaticWarmupDisabled) {
+    ThemeStateGuard themeState;
     auto *window = new MainWindow;
     window->resize(1000, 700);
     window->show();
@@ -862,6 +876,7 @@ TEST(MainWindowPreviewSwapTest, TeardownIsSafeWithAutomaticWarmupDisabled) {
 }
 
 TEST(MainWindowPreviewSwapTest, CtrlUSwapsPreviewWithVisiblePanelAndKeepsHiddenPanelParked) {
+    ThemeStateGuard themeState;
     std::setlocale(LC_NUMERIC, "C");
     Settings settings;
     const QKeySequence previousSwap =
@@ -918,6 +933,7 @@ TEST(MainWindowPreviewSwapTest, CtrlUSwapsPreviewWithVisiblePanelAndKeepsHiddenP
 }
 
 TEST(MainWindowLayoutTest, LongDirectoryNamesDoNotSetThePanelMinimumWidth) {
+    ThemeStateGuard themeState;
     const QString longDirectory =
         QStringLiteral("this-is-a-deliberately-long-directory-name-that-must-not-lock-the-panel-width");
 
@@ -944,6 +960,7 @@ TEST(MainWindowLayoutTest, LongDirectoryNamesDoNotSetThePanelMinimumWidth) {
 }
 
 TEST(MainWindowPreviewSwapTest, SwapPanelsMovesRemoteConnectionWithItsPath) {
+    ThemeStateGuard themeState;
     QTemporaryDir localDir;
     ASSERT_TRUE(localDir.isValid());
 

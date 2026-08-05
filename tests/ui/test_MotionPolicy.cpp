@@ -9,6 +9,7 @@
 #include "MainWindow.h"
 #include "MotionPolicy.h"
 #include "Settings.h"
+#include "ThemeStateGuard.h"
 
 namespace {
 
@@ -71,6 +72,7 @@ QAction *findAction(QMenu *menu, const QString &text) {
 }
 
 TEST(MotionPolicy, ReturnsSpecifiedDurationsAndEaseOutCurve) {
+    ThemeStateGuard themeState;
     MotionPolicyStateGuard guard;
     MotionPolicy::setReducedForTest(false);
 
@@ -81,6 +83,7 @@ TEST(MotionPolicy, ReturnsSpecifiedDurationsAndEaseOutCurve) {
 }
 
 TEST(MotionPolicy, ExplicitReducedOverrideDisablesMotion) {
+    ThemeStateGuard themeState;
     MotionPolicyStateGuard guard;
     MotionPolicy::setReducedForTest(true);
 
@@ -90,6 +93,7 @@ TEST(MotionPolicy, ExplicitReducedOverrideDisablesMotion) {
 }
 
 TEST(MotionPolicy, DisableAnimationsEnvironmentDisablesMotion) {
+    ThemeStateGuard themeState;
     MotionPolicyStateGuard guard;
     qputenv("FILECOMMANDER_DISABLE_ANIMATIONS", "1");
 
@@ -98,6 +102,7 @@ TEST(MotionPolicy, DisableAnimationsEnvironmentDisablesMotion) {
 }
 
 TEST(MotionPolicy, SystemPreferenceTestOverrideIsDeterministic) {
+    ThemeStateGuard themeState;
     MotionPolicyStateGuard guard;
     qputenv("FILECOMMANDER_DISABLE_ANIMATIONS", "0");
 
@@ -109,6 +114,7 @@ TEST(MotionPolicy, SystemPreferenceTestOverrideIsDeterministic) {
 }
 
 TEST(MotionPolicy, LegacyApplicationPreferenceCannotDisableMotion) {
+    ThemeStateGuard themeState;
     MotionPolicyStateGuard guard;
     ConfigHomeGuard configHome;
     ASSERT_TRUE(configHome.isValid());
@@ -127,6 +133,7 @@ TEST(MotionPolicy, LegacyApplicationPreferenceCannotDisableMotion) {
 }
 
 TEST(MotionPolicy, RapidInputSkipsMotion) {
+    ThemeStateGuard themeState;
     MotionPolicyStateGuard guard;
     MotionPolicy::setReducedForTest(false);
 
@@ -135,6 +142,7 @@ TEST(MotionPolicy, RapidInputSkipsMotion) {
 }
 
 TEST(MotionPolicy, ConfigurationMenuDoesNotExposeReduceMotion) {
+    ThemeStateGuard themeState;
     MotionPolicyStateGuard guard;
     qputenv("FILECOMMANDER_DISABLE_ANIMATIONS", "0");
     MainWindow window;

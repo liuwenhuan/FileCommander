@@ -18,6 +18,7 @@
 #include "update/UpdateChecker.h"
 
 #include "version.h"
+#include "ThemeStateGuard.h"
 
 // The user-facing half of the update check: the badge that says a release
 // exists, and the dialog that says where to get it. Nothing here downloads or
@@ -71,6 +72,7 @@ UpdateInfo sampleRelease() {
 } // namespace
 
 TEST(UpdateDialogTest, ShowsTheReleaseAgainstTheRunningVersion) {
+    ThemeStateGuard themeState;
     UpdateDialog dialog(sampleRelease());
 
     bool sawHeadline = false;
@@ -92,6 +94,7 @@ TEST(UpdateDialogTest, ShowsTheReleaseAgainstTheRunningVersion) {
 }
 
 TEST(UpdateDialogTest, ReleaseWithoutNotesStillSaysSomething) {
+    ThemeStateGuard themeState;
     UpdateInfo info = sampleRelease();
     info.notes.clear();
     UpdateDialog dialog(info);
@@ -105,6 +108,7 @@ TEST(UpdateDialogTest, ReleaseWithoutNotesStillSaysSomething) {
 // available to copy -- not just behind a button that launches a browser, which
 // is not always what somebody wants or is even able to do.
 TEST(UpdateDialogTest, OffersTheDownloadAddressAsSelectableText) {
+    ThemeStateGuard themeState;
     const UpdateInfo info = sampleRelease();
     UpdateDialog dialog(info);
 
@@ -122,6 +126,7 @@ TEST(UpdateDialogTest, OffersTheDownloadAddressAsSelectableText) {
 // back to the user, publishing the checksum is the only way they can make the
 // same check the application used to make for them.
 TEST(UpdateDialogTest, PublishesTheChecksumSoAManualDownloadCanBeVerified) {
+    ThemeStateGuard themeState;
     const UpdateInfo info = sampleRelease();
     UpdateDialog dialog(info);
 
@@ -133,6 +138,7 @@ TEST(UpdateDialogTest, PublishesTheChecksumSoAManualDownloadCanBeVerified) {
 }
 
 TEST(UpdateDialogTest, ShowsTheStoreOnlyWhenTheManifestNamesOne) {
+    ThemeStateGuard themeState;
     UpdateInfo withoutStore = sampleRelease();
     UpdateDialog plain(withoutStore);
     EXPECT_FALSE(plain.hasStoreButton())
@@ -146,6 +152,7 @@ TEST(UpdateDialogTest, ShowsTheStoreOnlyWhenTheManifestNamesOne) {
 }
 
 TEST(UpdateDialogTest, ClosingDismissesIt) {
+    ThemeStateGuard themeState;
     UpdateDialog dialog(sampleRelease());
     QPushButton *close = buttonWithText(dialog, QStringLiteral("Close"));
     ASSERT_NE(close, nullptr);
@@ -159,6 +166,7 @@ TEST(UpdateDialogTest, ClosingDismissesIt) {
 // A manifest whose package URL was rejected still announces the release; the
 // button that would go nowhere is what gets disabled.
 TEST(UpdateDialogTest, AReleaseWithNoUsableUrlStillAnnouncesItself) {
+    ThemeStateGuard themeState;
     UpdateInfo info = sampleRelease();
     info.url.clear();
     UpdateDialog dialog(info);
@@ -172,6 +180,7 @@ TEST(UpdateDialogTest, AReleaseWithNoUsableUrlStillAnnouncesItself) {
 // --- the badge -------------------------------------------------------------
 
 TEST(UpdateBadgeTest, StaysHiddenUntilThereIsSomethingToOffer) {
+    ThemeStateGuard themeState;
     MainWindow window;
     auto *titleBar = window.findChild<TitleBar *>();
     ASSERT_NE(titleBar, nullptr);
@@ -187,6 +196,7 @@ TEST(UpdateBadgeTest, StaysHiddenUntilThereIsSomethingToOffer) {
 }
 
 TEST(UpdateBadgeTest, ClickingItAsksTheWindowToOpenTheUpdate) {
+    ThemeStateGuard themeState;
     MainWindow window;
     auto *titleBar = window.findChild<TitleBar *>();
     ASSERT_NE(titleBar, nullptr);
@@ -207,6 +217,7 @@ TEST(UpdateBadgeTest, ClickingItAsksTheWindowToOpenTheUpdate) {
 // the case a plain 24-hour timer gets wrong, so the question is asked against
 // the date, repeatedly, rather than answered once at startup.
 TEST(ScheduledUpdateCheckTest, IsDueOncePerDayAndOnlyWhenAutomaticCheckingIsOn) {
+    ThemeStateGuard themeState;
     QTemporaryDir configDir;
     ASSERT_TRUE(configDir.isValid());
     EnvironmentGuard config("FILECOMMANDER_CONFIG_HOME", configDir.path().toUtf8());
@@ -233,6 +244,7 @@ TEST(ScheduledUpdateCheckTest, IsDueOncePerDayAndOnlyWhenAutomaticCheckingIsOn) 
 // The window keeps asking for as long as it is open, so a check is not
 // something that can only ever happen during startup.
 TEST(ScheduledUpdateCheckTest, KeepsAskingWhileTheWindowStaysOpen) {
+    ThemeStateGuard themeState;
     MainWindow window;
 
     auto *timer = window.findChild<QTimer *>(QStringLiteral("ScheduledUpdateCheck"));

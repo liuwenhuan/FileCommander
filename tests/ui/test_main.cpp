@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 
+#include "IconCache.h"
 #include "ImagePreviewLoader.h"
 #include "ThumbnailCache.h"
+#include "theme/Phosphor.h"
 
 #include <QApplication>
 #include <QDir>
@@ -9,7 +11,9 @@
 #include <QEventLoop>
 #include <QImage>
 #include <QSemaphore>
+#include <QFont>
 #include <QStandardPaths>
+#include <QStringList>
 #include <QTemporaryDir>
 #include <QTimer>
 
@@ -89,6 +93,113 @@ private:
     std::unique_ptr<QTemporaryDir> m_root;
 };
 
+
+// Fails the run when a test leaves the process-wide theme state changed.
+//
+// ThemeManager::apply() is not a widget operation: it installs an APPLICATION
+// stylesheet, an application font, and the tints that recolour icons,
+// thumbnails and preview images. MainWindow's constructor applies one too, from
+// whatever settings it was given. The QApplication outlives every test here, so
+// any of that left behind is an edit to the environment of everything that runs
+// afterwards.
+//
+// This is not hypothetical. Two tests failed on every full-suite run and passed
+// alone, for weeks, and both were this:
+//
+//   * a leaked stylesheet made a view stop propagating a font change to its
+//     viewport (QStyleSheetStyle assigns a font at polish time), so a test
+//     counting those events saw one instead of two;
+//   * a leaked preview tint repainted a later test's images, turning a pure
+//     green PNG into (105, 129, 161) and failing an assertion about which
+//     image had won a race.
+//
+// Neither symptom pointed anywhere near the cause. The point of this sentinel
+// is to name the offender AT the moment it offends, rather than let some
+// unrelated test fail strangely half a suite later.
+//
+// It also PUTS THE STATE BACK, so one offender cannot cascade: without that,
+// the first leak would make every later test look guilty too.
+class ThemeStateSentinel : public ::testing::EmptyTestEventListener {
+public:
+    struct State {
+        QString sheet;
+        QFont font;
+        QColor thumbnailTint;
+        QColor previewTint;
+        QColor glyphTint;
+        QColor fileIconTint;
+
+        static State capture() {
+            return {qApp->styleSheet(),
+                    qApp->font(),
+                    fc::thumbnailTint(),
+                    fc::previewTint(),
+                    IconCache::instance().glyphTint(),
+                    IconCache::instance().fileIconTint()};
+        }
+        void restore() const {
+            qApp->setStyleSheet(sheet);
+            qApp->setFont(font);
+            fc::setThumbnailTint(thumbnailTint);
+            fc::setPreviewTint(previewTint);
+            IconCache::instance().setGlyphTint(glyphTint);
+            IconCache::instance().setFileIconTint(fileIconTint);
+        }
+    };
+
+    void OnTestStart(const ::testing::TestInfo &) override { m_before = State::capture(); }
+
+    void OnTestEnd(const ::testing::TestInfo &info) override {
+        const State after = State::capture();
+        QStringList changed;
+        // The stylesheet is compared by LENGTH as well as content so the
+        // message says something useful about a 16 kB theme sheet.
+        if (after.sheet != m_before.sheet) {
+            changed << QStringLiteral("stylesheet (%1 -> %2 chars)")
+                           .arg(m_before.sheet.size())
+                           .arg(after.sheet.size());
+        }
+        if (after.font != m_before.font) {
+            changed << QStringLiteral("application font (%1 %2pt -> %3 %4pt)")
+                           .arg(m_before.font.family())
+                           .arg(m_before.font.pointSize())
+                           .arg(after.font.family())
+                           .arg(after.font.pointSize());
+        }
+        const auto tint = [&changed](const char *name, const QColor &before, const QColor &after) {
+            if (before == after)
+                return;
+            changed << QStringLiteral("%1 (%2 -> %3)")
+                           .arg(QString::fromLatin1(name),
+                                before.isValid() ? before.name() : QStringLiteral("none"),
+                                after.isValid() ? after.name() : QStringLiteral("none"));
+        };
+        tint("thumbnail tint", m_before.thumbnailTint, after.thumbnailTint);
+        tint("preview tint", m_before.previewTint, after.previewTint);
+        tint("glyph tint", m_before.glyphTint, after.glyphTint);
+        tint("file icon tint", m_before.fileIconTint, after.fileIconTint);
+
+        if (changed.isEmpty())
+            return;
+
+        const QString who =
+            QStringLiteral("%1.%2").arg(QString::fromLatin1(info.test_suite_name()),
+                                        QString::fromLatin1(info.name()));
+        std::cerr << "[  theme   ] " << qPrintable(who) << " left the process-wide theme state "
+                  << "changed: " << qPrintable(changed.join(QStringLiteral("; "))) << std::endl
+                  << "[  theme   ] declare a ThemeStateGuard (tests/ui/ThemeStateGuard.h) in it."
+                  << std::endl;
+        m_offenders << who;
+        m_before.restore();
+    }
+
+    const QStringList &offenders() const { return m_offenders; }
+
+private:
+    State m_before;
+    QStringList m_offenders;
+};
+
 int runImagePreviewShutdownProbe(QApplication &app) {
     struct Blockers {
         QSemaphore entered;
@@ -163,5 +274,19 @@ int main(int argc, char **argv) {
 
     ::testing::InitGoogleTest(&argc, argv);
     ::testing::UnitTest::GetInstance()->listeners().Append(new ThumbnailCacheIsolation);
-    return RUN_ALL_TESTS();
+    auto *themeState = new ThemeStateSentinel;
+    ::testing::UnitTest::GetInstance()->listeners().Append(themeState);
+
+    const int result = RUN_ALL_TESTS();
+    if (themeState->offenders().isEmpty())
+        return result;
+
+    // A listener cannot record a gtest failure -- it runs outside any test body
+    // -- so the verdict is delivered here, where main() owns the exit code.
+    std::cerr << std::endl
+              << themeState->offenders().size()
+              << " test(s) left the process-wide theme state changed:" << std::endl;
+    for (const QString &who : themeState->offenders())
+        std::cerr << "    " << qPrintable(who) << std::endl;
+    return result == 0 ? 1 : result;
 }
