@@ -1,6 +1,9 @@
 #include <gtest/gtest.h>
 
 #include <QApplication>
+#include <QCoreApplication>
+#include <QElapsedTimer>
+#include <QEventLoop>
 #include <QFile>
 #include <QLabel>
 #include <QPalette>
@@ -134,9 +137,23 @@ TEST(NetworkStateMotion, ConnectingBeyondDelayShowsOneStaticIndicatorWithReduced
     emitNetworkState(panel, NetworkSession::Connecting);
     EXPECT_FALSE(indicator->isVisible());
 
-    QTest::qWait(175);
+    // Waits for the indicator, not for 175 ms.
+    //
+    // The reveal timer is 150 ms (FilePanel), so a fixed 175 ms wait left
+    // 25 ms of margin -- which is no margin at all inside the full ui_tests
+    // suite, where other tests' worker threads are still running and a timer
+    // can be delivered late. It failed on CI with the indicator invisible and
+    // its text empty, i.e. the timer simply had not been serviced yet.
+    //
+    // The assertion is unchanged in substance: an indicator that never appears
+    // still fails, after a budget long enough to be about the application
+    // rather than the load average.
+    QElapsedTimer reveal;
+    reveal.start();
+    while (!indicator->isVisible() && reveal.elapsed() < 3000)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
 
-    EXPECT_TRUE(indicator->isVisible());
+    EXPECT_TRUE(indicator->isVisible()) << "the connecting indicator never appeared";
     EXPECT_FALSE(indicator->text().isEmpty());
     QVariantAnimation *colorAnimation =
         panel.findChild<QVariantAnimation *>(QStringLiteral("NetworkStatusColorAnimation"));

@@ -73,25 +73,34 @@ TEST(ShellCommandTest, RunsAShellBuiltInThatIsNotAnExecutable) {
     // anywhere that could stand in for it. (`pwd` would be the obvious pick on
     // Linux and is the wrong one: /usr/bin/pwd exists, so it would pass even
     // without a shell.)
+    // Both branches now prove it the same way -- by asking for an expansion
+    // only the interpreter performs -- rather than by naming a word and
+    // asserting no executable of that name exists.
+    //
+    // The Windows branch used to be a bare `dir`, guarded by a check that `dir`
+    // was not a real executable. That premise is false on any machine with Git
+    // for Windows installed, whose usr/bin carries GNU coreutils and therefore
+    // a dir.exe; the test said so itself ("dir turns out to be a real
+    // executable here, so this test proves nothing") the moment CI's PATH was
+    // repaired. Environment-variable expansion has no such stand-in: a direct
+    // exec of any echo prints the percent signs back verbatim.
 #ifdef Q_OS_WIN
-    const QString builtIn = QStringLiteral("dir");
-    const QString firstWord = QStringLiteral("dir");
+    const QString builtIn = QStringLiteral("echo %COMSPEC%");
 #else
     const QString builtIn = QStringLiteral("echo $((6*7))");
-    const QString firstWord = QStringLiteral("echo");
-#endif
-    Q_UNUSED(firstWord);
-#ifdef Q_OS_WIN
-    EXPECT_TRUE(QStandardPaths::findExecutable(builtIn).isEmpty())
-        << builtIn.toStdString()
-        << " turns out to be a real executable here, so this test proves nothing";
 #endif
 
     int exitCode = -1;
     const QString output = runThroughShell(builtIn, &exitCode);
     EXPECT_EQ(exitCode, 0) << output.toStdString();
     EXPECT_FALSE(output.trimmed().isEmpty()) << "the built-in produced nothing";
-#ifndef Q_OS_WIN
+#ifdef Q_OS_WIN
+    // COMSPEC names the interpreter itself, so a shell that ran this expands it
+    // to a path ending in cmd.exe; anything that exec'd echo directly prints
+    // "%COMSPEC%".
+    EXPECT_TRUE(output.contains(QStringLiteral("cmd.exe"), Qt::CaseInsensitive))
+        << output.toStdString();
+#else
     // Arithmetic expansion is the shell's own; a bare exec of "echo" would
     // print the text back verbatim.
     EXPECT_TRUE(output.contains(QStringLiteral("42"))) << output.toStdString();
