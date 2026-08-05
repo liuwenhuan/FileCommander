@@ -1,5 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <QCoreApplication>
+#include <QElapsedTimer>
+#include <QEventLoop>
 #include <QFile>
 #include <QGraphicsOpacityEffect>
 #include <QGraphicsView>
@@ -173,6 +176,29 @@ void expectFadeStarted(QWidget *page) {
   EXPECT_LT(effect->opacity(), 1.0);
 }
 
+// Waits for the fade to take its effect back off `widget`, rather than waiting
+// a duration and hoping.
+//
+// The fade lasts about 120 ms, and the two assertions below used to wait 130 ms
+// and then require the effect to be gone. That holds on an idle machine and not
+// on a busy one: run inside the whole ui_tests suite, with other tests' worker
+// threads still going, the GUI thread misses a 10 ms margin easily, and the
+// test then failed with the effect still attached -- reproducibly in the suite,
+// never when that test was run on its own, which is the worst way for a test to
+// fail because it looks like flakiness rather than a deadline that was too
+// tight to begin with.
+//
+// What is demanded is unchanged; only the deadline is now generous enough to be
+// about the application rather than the load average. A fade that genuinely
+// never ends still fails, it just takes longer to say so.
+bool fadeFinished(QWidget *widget, int budgetMs = 3000) {
+  QElapsedTimer timer;
+  timer.start();
+  while (widget && widget->graphicsEffect() && timer.elapsed() < budgetMs)
+    QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+  return widget && !widget->graphicsEffect();
+}
+
 TEST(QuickViewMotion, ApprovedStaticPagesUseOnlyTemporaryOpacity) {
   MotionOverride motion(false);
   QTemporaryDir dir;
@@ -221,8 +247,8 @@ TEST(QuickViewMotion, ApprovedStaticPagesUseOnlyTemporaryOpacity) {
     }
   }
 
-  QTest::qWait(130);
-  EXPECT_EQ(surfaces.last().content->graphicsEffect(), nullptr);
+  EXPECT_TRUE(fadeFinished(surfaces.last().content))
+      << "the fade never took its effect back off the last static surface";
 }
 
 TEST(QuickViewMotion, ReducedMotionShowsFinalStaticStateImmediately) {
@@ -366,8 +392,8 @@ TEST(QuickViewMotion,
   EXPECT_EQ(displayed.pixelColor(displayed.width() / 2, displayed.height() / 2),
             QColor(Qt::green));
 
-  QTest::qWait(130);
-  EXPECT_EQ(scrollContent(scroll)->graphicsEffect(), nullptr);
+  EXPECT_TRUE(fadeFinished(scrollContent(scroll)))
+      << "the fade never took its effect back off the scrolled content";
 }
 
 TEST(QuickViewMotion, MarkdownRouteKeepsOldPageUntilContentIsReady) {

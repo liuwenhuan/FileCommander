@@ -6,12 +6,16 @@
 #include <QFile>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QElapsedTimer>
 #include <QListWidget>
 #include <QTest>
 
+#include <memory>
+
 #include "SearchDialog.h"
+#include "SearchEngine.h"
 
 // Typing a pattern and pressing Return did nothing -- the search only ran when
 // the button was clicked. Return is what a search box is expected to answer to,
@@ -27,11 +31,22 @@ QPushButton *searchButton(SearchDialog &dialog) {
     return nullptr;
 }
 
-// The button's label is the mode: it reads "Stop search" for exactly as long as
-// a search is running.
-bool searchStarted(SearchDialog &dialog) {
-    QPushButton *button = searchButton(dialog);
-    return button && button->text() == QStringLiteral("Stop search");
+// Watches for a search having been STARTED, which is a fact that stays true.
+//
+// The obvious probe -- the button's label, which reads "Stop search" for
+// exactly as long as a search is running -- is not usable here, because it is
+// true only WHILE the search runs. These tests search a directory of three
+// files, which the walk can finish inside the same processEvents() that
+// delivers the key press, and the label is then already back to "Search". That
+// made every one of these tests fail about one run in five, on an application
+// that had done exactly the right thing.
+//
+// The engine's started() signal is the same event without the expiry date.
+std::unique_ptr<QSignalSpy> watchForSearchStart(SearchDialog &dialog) {
+    SearchEngine *engine = dialog.findChild<SearchEngine *>();
+    if (!engine)
+        return nullptr;
+    return std::make_unique<QSignalSpy>(engine, &SearchEngine::started);
 }
 
 QLineEdit *fieldWith(SearchDialog &dialog, const QString &text) {
@@ -93,6 +108,9 @@ TEST(SearchDialogKeysTest, ReturnInTheNamePatternStartsTheSearch) {
     dialog.show();
     qApp->processEvents();
 
+    const auto watch = watchForSearchStart(dialog);
+    ASSERT_NE(watch, nullptr) << "the dialog has no SearchEngine to watch";
+
     QLineEdit *pattern = fieldWith(dialog, QStringLiteral("*"));
     ASSERT_NE(pattern, nullptr);
     pattern->setFocus();
@@ -101,7 +119,7 @@ TEST(SearchDialogKeysTest, ReturnInTheNamePatternStartsTheSearch) {
     QTest::keyClick(pattern, Qt::Key_Return);
     qApp->processEvents();
 
-    EXPECT_TRUE(searchStarted(dialog)) << "Return in the pattern field did not search";
+    EXPECT_EQ(watch->count(), 1) << "Return in the pattern field did not search";
 }
 
 // The directory field is the other half of the same question. Standing in it
@@ -115,6 +133,9 @@ TEST(SearchDialogKeysTest, ReturnInTheDirectoryFieldStartsTheSearch) {
     dialog.show();
     qApp->processEvents();
 
+    const auto watch = watchForSearchStart(dialog);
+    ASSERT_NE(watch, nullptr) << "the dialog has no SearchEngine to watch";
+
     QLineEdit *path = fieldWith(dialog, dir.path());
     ASSERT_NE(path, nullptr);
     path->setFocus();
@@ -122,7 +143,7 @@ TEST(SearchDialogKeysTest, ReturnInTheDirectoryFieldStartsTheSearch) {
     QTest::keyClick(path, Qt::Key_Return);
     qApp->processEvents();
 
-    EXPECT_TRUE(searchStarted(dialog)) << "Return in the directory field did not search";
+    EXPECT_EQ(watch->count(), 1) << "Return in the directory field did not search";
 }
 
 // Whatever Return does, it must not be "close the dialog" -- QDialog's default
@@ -157,6 +178,9 @@ TEST(SearchDialogKeysTest, ReturnOnACheckboxStartsTheSearchToo) {
     dialog.show();
     qApp->processEvents();
 
+    const auto watch = watchForSearchStart(dialog);
+    ASSERT_NE(watch, nullptr) << "the dialog has no SearchEngine to watch";
+
     auto *check = dialog.findChild<QCheckBox *>();
     ASSERT_NE(check, nullptr);
     check->setFocus();
@@ -164,5 +188,5 @@ TEST(SearchDialogKeysTest, ReturnOnACheckboxStartsTheSearchToo) {
     QTest::keyClick(check, Qt::Key_Return);
     qApp->processEvents();
 
-    EXPECT_TRUE(searchStarted(dialog));
+    EXPECT_EQ(watch->count(), 1) << "Return on a checkbox did not search";
 }
