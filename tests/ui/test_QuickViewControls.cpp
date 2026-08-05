@@ -18,7 +18,11 @@
 #include <QPainter>
 
 #include "QuickView.h"
+#ifdef Q_OS_WIN
+// Mirrors the WIN32 guard src/ui puts on media/WindowsMediaSurface.cpp itself:
+// the class is not compiled elsewhere, so referencing it would fail to link.
 #include "media/WindowsMediaSurface.h"
+#endif
 #include "Settings.h"
 #include "media/MediaEngine.h"
 
@@ -143,6 +147,7 @@ TEST(QuickViewControls, TheImageToolbarNoLongerOffersPrevAndNext) {
 // rotating every frame would cost a full-resolution transform per frame for
 // something the painter does on the way to screen anyway. So it is checked by
 // looking at what lands on the widget.
+#ifdef Q_OS_WIN
 TEST(QuickViewControls, TheVideoSurfacePaintsAQuarterTurn) {
     WindowsMediaSurface surface;
     surface.resize(200, 200);
@@ -176,6 +181,7 @@ TEST(QuickViewControls, TheVideoSurfacePaintsAQuarterTurn) {
     EXPECT_EQ(surface.rotation(), 270);
     EXPECT_EQ(colourAt(0.5, 0.75), QColor(Qt::red)) << "270 degrees: red should be at the bottom";
 }
+#endif // Q_OS_WIN
 
 // The rotation corrected the LAST clip. Carrying it into the next one would
 // silently misorient a clip that was fine.

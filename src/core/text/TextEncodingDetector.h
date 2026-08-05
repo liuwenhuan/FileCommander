@@ -3,7 +3,9 @@
 #include <QByteArray>
 #include <QString>
 
-// Stateless text-encoding classifier used by QuickView's per-file Auto mode.
+// Stateless text-encoding classifier behind the per-file Auto mode of both the
+// QuickView preview pane and the F4 editor, and the home of the encoding list
+// their two toolbars offer.
 // It deliberately has no QWidget dependency so its byte-level grammar and
 // scoring behaviour can be tested without a running application.
 class TextEncodingDetector {
@@ -23,6 +25,34 @@ public:
         // physical end of the probe; observed invalid bytes are never accepted.
         bool incompleteTail = false;
     };
+
+    // One row of the encoding chooser, shared by the QuickView preview toolbar
+    // (src/ui) and the F4 editor toolbar (src/viewer). It lives here rather than
+    // in either of them because the two windows show the same files: a list that
+    // diverged would let the preview and the editor disagree about what can even
+    // be selected. The Auto row defers to detect() below.
+    struct Selectable {
+        const char *label;
+        const char *codec; // null: Auto (index 0) / the system locale codec
+    };
+    // Addressed by INDEX -- QuickView persists the chooser's index rather than
+    // its label -- so entries may be appended but never reordered or removed.
+    static constexpr Selectable selectableEncodings[] = {
+        {"Auto", nullptr},
+        {"UTF-8", "UTF-8"},
+        {"UTF-16", "UTF-16"},
+        {"ISO-8859-1", "ISO-8859-1"},
+        {"GB18030", "GB18030"},
+        {"Big5", "Big5"},
+        {"Shift-JIS", "Shift-JIS"},
+        {"EUC-JP", "EUC-JP"},
+        {"EUC-KR", "EUC-KR"},
+        {"Windows-1252", "Windows-1252"},
+        {"System", nullptr},
+    };
+    static constexpr int autoEncodingIndex = 0;
+    static constexpr int selectableEncodingCount =
+        int(sizeof(selectableEncodings) / sizeof(selectableEncodings[0]));
 
     static Result detect(const QByteArray &data, InputEnd inputEnd = InputEnd::Complete);
     // The scoring sample is bounded; grammar validation still covers all input.

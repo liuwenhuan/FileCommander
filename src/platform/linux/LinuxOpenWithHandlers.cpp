@@ -1,5 +1,7 @@
 #include "OpenWithHandlers.h"
 
+#include <algorithm>
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -89,9 +91,15 @@ DesktopEntry readDesktopFile(const QString &path, const QString &id) {
 // code is simply dropped here.
 QStringList execArguments(const QString &exec, QString *program) {
     QStringList parts = QProcess::splitCommand(exec);
-    parts.removeIf([](const QString &part) {
-        return part.size() == 2 && part.startsWith(QLatin1Char('%'));
-    });
+    // erase-remove, not QList::removeIf: that one is Qt 6.1 and this project
+    // builds against Qt 5.15. It compiles on Windows because this file is only
+    // built on Linux, so nothing caught it there.
+    parts.erase(std::remove_if(parts.begin(), parts.end(),
+                               [](const QString &part) {
+                                   return part.size() == 2 &&
+                                          part.startsWith(QLatin1Char('%'));
+                               }),
+                parts.end());
     if (parts.isEmpty())
         return {};
     *program = parts.takeFirst();

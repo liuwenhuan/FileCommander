@@ -37,6 +37,34 @@ TEST(TextEncodingDetectorTest, LabelsAsciiWithoutAmbiguity) {
     EXPECT_FALSE(result.ambiguous);
 }
 
+TEST(TextEncodingDetectorTest, PrefersAsciiOverACoincidentalWidePairingOfAsciiBytes) {
+    // Eight ASCII bytes pair into four perfectly valid BMP code units, and read
+    // as UTF-16BE they are four CJK ideographs -- a high-scoring wide candidate
+    // built entirely out of bytes that cannot be anything but ASCII. Short,
+    // even-length ASCII (a Makefile fragment, a .desktop entry, a one-line
+    // script) is exactly the shape that produces it.
+    const TextEncodingDetector::Result result = TextEncodingDetector::detect(QByteArray("one\ntwo\n"));
+
+    EXPECT_EQ(result.label, QStringLiteral("ASCII"));
+    EXPECT_EQ(result.codecName, QByteArrayLiteral("UTF-8"));
+    EXPECT_FALSE(result.binary);
+    EXPECT_FALSE(result.ambiguous);
+    EXPECT_EQ(result.completePrefixBytes, 8);
+    EXPECT_EQ(TextEncodingDetector::decode(QByteArray("one\ntwo\n"), result),
+              QStringLiteral("one\ntwo\n"));
+
+    // The preference is not a blanket "ASCII bytes are always ASCII": a stable
+    // byte lane is structural evidence the pairing is real, which is what keeps
+    // BOM-less kana (below) detectable. Only unsupported pairings lose.
+    for (const QByteArray &bytes : {QByteArray("ab"), QByteArray("test\n"),
+                                    QByteArray("[Desktop Entry]\nExec=x\n"),
+                                    QByteArray("CFLAGS = -O2\nall: run\n")}) {
+        const TextEncodingDetector::Result ascii = TextEncodingDetector::detect(bytes);
+        EXPECT_EQ(ascii.label, QStringLiteral("ASCII")) << bytes.constData();
+        EXPECT_EQ(ascii.completePrefixBytes, bytes.size()) << bytes.constData();
+    }
+}
+
 TEST(TextEncodingDetectorTest, PrefersUtf32BomOverUtf16Prefix) {
     expectEncoding(QByteArray::fromHex("FFFE000041000000"), "UTF-32LE");
     expectEncoding(QByteArray::fromHex("0000FEFF00000041"), "UTF-32BE");

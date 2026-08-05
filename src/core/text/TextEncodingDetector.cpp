@@ -654,6 +654,20 @@ TextEncodingDetector::Result TextEncodingDetector::detect(const QByteArray &data
     if (likelyBinary)
         return {QStringLiteral("Binary"), QByteArray(), 0, true, false, 0, false};
 
+    // Pure ASCII is not a guess. Every byte is below 0x80, so reading the input
+    // as ASCII cannot be wrong, whereas any wide reading of the same bytes is an
+    // inference drawn from how they happen to pair up -- and short even-length
+    // ASCII pairs into perfectly valid BMP code units, so eight ASCII bytes read as
+    // four CJK ideographs and outscores a fallback placed below this branch.
+    // A wide candidate must therefore bring structural evidence -- a stable byte
+    // lane, which BOM-less kana (constant 0x30 high byte) and repeated CJK both
+    // have -- before it may outrank ASCII. BOM-less UTF-16/UTF-32 that spells
+    // ASCII characters carries NUL bytes and was routed out by isLikelyBinary()
+    // above, so this never steals a real wide file with a zero lane.
+    if (isAscii(data) && (bestWide < 0 || !wideCandidates.at(bestWide).structuralEvidence))
+        return {QStringLiteral("ASCII"), QByteArrayLiteral("UTF-8"), 0, false,
+                data.isEmpty(), data.size(), false};
+
     const Candidate candidates[] = {
         {"GB18030", "GB18030", ScriptPreference::Chinese},
         {"Big5", "Big5", ScriptPreference::Chinese},
@@ -706,10 +720,6 @@ TextEncodingDetector::Result TextEncodingDetector::detect(const QByteArray &data
                 closeWide || bestLegacy >= 0, winner.grammar.completePrefixBytes,
                 winner.grammar.state == GrammarState::IncompleteAtEnd};
     }
-
-    if (isAscii(data) && !isLikelyBinary(data))
-        return {QStringLiteral("ASCII"), QByteArrayLiteral("UTF-8"), 0, false,
-                data.isEmpty(), data.size(), false};
 
     if (bestLegacy >= 0) {
         const Score &winner = scores.at(bestLegacy);

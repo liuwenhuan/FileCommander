@@ -110,24 +110,10 @@ const QString kMarkdownDefaultCss =
 
 // Selectable text encodings for the text-preview page. The Auto entry asks
 // TextEncodingDetector to choose for the current file; all other entries are
-// deliberate one-file overrides.
-struct TextEncoding {
-    const char *label;
-    const char *codec;
-};
-const TextEncoding kTextEncodings[] = {
-    {"Auto", nullptr},
-    {"UTF-8", "UTF-8"},
-    {"UTF-16", "UTF-16"},
-    {"ISO-8859-1", "ISO-8859-1"},
-    {"GB18030", "GB18030"},
-    {"Big5", "Big5"},
-    {"Shift-JIS", "Shift-JIS"},
-    {"EUC-JP", "EUC-JP"},
-    {"EUC-KR", "EUC-KR"},
-    {"Windows-1252", "Windows-1252"},
-    {"System", nullptr},
-};
+// deliberate one-file overrides. The table itself lives in core/text beside the
+// detector, so this toolbar and the F4 editor's offer the same list.
+using TextEncoding = TextEncodingDetector::Selectable;
+constexpr auto &kTextEncodings = TextEncodingDetector::selectableEncodings;
 constexpr double kZoomStep = 1.25;
 
 // Floors for the video transport's two sliders. The seek bar is the control a

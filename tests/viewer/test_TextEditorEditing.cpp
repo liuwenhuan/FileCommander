@@ -112,10 +112,11 @@ TEST(TextEditorEditingTest, AutoDetectsTheEncodingOnOpen) {
 }
 
 TEST(TextEditorEditingTest, PureAsciiIsNeverGuessedAsUtf16) {
-    // Eight ASCII bytes pair into eight perfectly valid UTF-16 code units, and
-    // the shared detector scores that reading highly enough to win. In the
-    // read-only preview that costs a glance; here it would show the file as CJK
-    // mojibake and then SAVE it as UTF-16, so the editor overrules it.
+    // Eight ASCII bytes pair into four perfectly valid UTF-16 code units, which
+    // once outscored the detector's ASCII answer. Here that would show the file
+    // as CJK mojibake and then SAVE it as UTF-16, so the editor used to overrule
+    // the detector; the detector now prefers ASCII itself and this pins that the
+    // editor still gets the safe answer through it.
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
     const QByteArray ascii("one\ntwo\n"); // even length, all bytes < 0x80

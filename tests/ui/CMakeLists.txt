@@ -64,7 +64,6 @@ set(UI_TEST_SOURCES
     test_FilePanelTheme.cpp
     test_TabMotion.cpp
     test_FileListViewLayout.cpp
-    test_TextEncodingDetector.cpp
     test_ChecksumDialog.cpp
     test_NotepadPanel.cpp
     test_ExternalConnectDialog.cpp

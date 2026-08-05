@@ -25,68 +25,14 @@
 
 namespace {
 
-// Encodings the user can force on the open file. Index 0 is Auto, which defers
-// to TextEncodingDetector; every other entry is a deliberate override.
-//
-// Deliberately the same set, in the same order, as QuickView's preview toolbar
-// (src/ui/QuickView.cpp): the two windows show the same files, and a list that
-// diverged would make the preview and the editor disagree about what can even
-// be selected. They are separate tables only because QuickView's is private to
-// a src/ui translation unit; the detector they both defer to is shared.
-struct TextEncoding {
-    const char *label;
-    const char *codec; // null: Auto (index 0) / the system locale codec
-};
-const TextEncoding kTextEncodings[] = {
-    {"Auto", nullptr},
-    {"UTF-8", "UTF-8"},
-    {"UTF-16", "UTF-16"},
-    {"ISO-8859-1", "ISO-8859-1"},
-    {"GB18030", "GB18030"},
-    {"Big5", "Big5"},
-    {"Shift-JIS", "Shift-JIS"},
-    {"EUC-JP", "EUC-JP"},
-    {"EUC-KR", "EUC-KR"},
-    {"Windows-1252", "Windows-1252"},
-    {"System", nullptr},
-};
-constexpr int kAutoEncodingIndex = 0;
-constexpr int kEncodingCount = int(sizeof(kTextEncodings) / sizeof(kTextEncodings[0]));
-
-bool isPureAscii(const QByteArray &data) {
-    for (char byte : data) {
-        if (static_cast<unsigned char>(byte) >= 0x80)
-            return false;
-    }
-    return !data.isEmpty();
-}
-
-// TextEncodingDetector's answer, with one guess overruled.
-//
-// The detector serves a READ-ONLY preview, where an exotic guess costs a glance
-// and nothing else. Here it decides what gets WRITTEN BACK, so it gets one
-// correction: pure-ASCII bytes of even length pair up into perfectly valid
-// UTF-16 code units and can outscore the ASCII fallback, which would show a
-// short ASCII file (a Makefile, a .desktop entry, a config snippet) as CJK
-// mojibake AND then save it as UTF-16. ASCII is never a guess -- every byte is
-// below 0x80 -- so where it is available it wins.
-//
-// Deliberately here and not in the detector: the detector is shared with
-// QuickView and has a test suite pinning its scoring, and "prefer the reading
-// that cannot be wrong" is a rule that belongs to writing files, not to
-// classifying them.
-TextEncodingDetector::Result detectForEditing(const QByteArray &raw) {
-    TextEncodingDetector::Result result = TextEncodingDetector::detect(raw);
-    if (!result.binary && result.bomBytes == 0 && isPureAscii(raw) &&
-        result.codecName != QByteArrayLiteral("UTF-8")) {
-        result.label = QStringLiteral("ASCII");
-        result.codecName = QByteArrayLiteral("UTF-8");
-        result.ambiguous = false;
-        result.incompleteTail = false;
-        result.completePrefixBytes = raw.size();
-    }
-    return result;
-}
+// Encodings the user can force on the open file, and the same table QuickView's
+// preview toolbar offers -- it lives in core/text next to the detector that the
+// Auto row defers to. Aliased locally because the code below indexes it in
+// several places.
+using TextEncoding = TextEncodingDetector::Selectable;
+constexpr auto &kTextEncodings = TextEncodingDetector::selectableEncodings;
+constexpr int kAutoEncodingIndex = TextEncodingDetector::autoEncodingIndex;
+constexpr int kEncodingCount = TextEncodingDetector::selectableEncodingCount;
 
 QColor mixColors(const QColor &from, const QColor &to, double amount) {
     const double keep = 1.0 - amount;
@@ -398,7 +344,7 @@ bool TextEditor::loadFile(const QString &path) {
     }
     m_encodingCombo->setEnabled(true);
     setCurrentView(0);
-    m_detected = detectForEditing(m_raw);
+    m_detected = TextEncodingDetector::detect(m_raw);
 
     QSignalBlocker blocker(m_encodingCombo);
     m_encodingCombo->setCurrentIndex(kAutoEncodingIndex);
@@ -480,7 +426,7 @@ void TextEditor::onEncodingSelected(int index) {
     if (file.open(QIODevice::ReadOnly)) {
         m_raw = file.readAll();
         file.close();
-        m_detected = detectForEditing(m_raw);
+        m_detected = TextEncodingDetector::detect(m_raw);
     }
 
     applyEncodingToBuffer();
@@ -551,7 +497,7 @@ bool TextEditor::save() {
     if (m_hexMode) {
         m_hex->setModified(false);
     } else {
-        m_detected = detectForEditing(m_raw);
+        m_detected = TextEncodingDetector::detect(m_raw);
         m_editor->document()->setModified(false);
     }
     updateTitle();
