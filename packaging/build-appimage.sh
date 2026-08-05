@@ -46,10 +46,27 @@ fetch_tool linuxdeploy-plugin-qt-x86_64.AppImage \
 
 LINUXDEPLOY="$TOOLS_DIR/linuxdeploy-x86_64.AppImage"
 
-# Without a usable /dev/fuse the tools can't mount themselves; they can still
+# Without a usable FUSE setup the tools can't mount themselves; they can still
 # unpack and run in place.
-if [[ ! -w /dev/fuse ]]; then
-    echo "==> /dev/fuse unavailable; using --appimage-extract-and-run"
+#
+# Both halves are checked, because they fail independently. A container or CI
+# runner typically has no /dev/fuse at all. WSL has the device but no
+# fusermount binary, and the AppImage runtime then dies with "No suitable
+# fusermount binary found on the $PATH" -- from inside linuxdeploy, several
+# steps into the build, which reads as a linuxdeploy bug rather than a missing
+# dependency.
+#
+# Adjacent trap, written down because it cost an hour and pointed at the wrong
+# culprit: a tree copied from a WINDOWS checkout carries CRLF in every text file
+# git materialised -- not only the .sh scripts, but resources/icons/
+# FileCommander.svg and the .desktop entry. linuxdeploy then rejects the icon
+# with "Could not find suitable icon for Icon entry: FileCommander", which reads
+# as a missing file and is not; pinning linuxdeploy to an older release changes
+# nothing, because upstream is not at fault. Strip CR from the .sh, .svg,
+# .desktop and .xml inputs before building from such a tree. A normal Linux
+# checkout is unaffected.
+if [[ ! -w /dev/fuse ]] || ! command -v fusermount >/dev/null 2>&1; then
+    echo "==> no usable FUSE (device or fusermount); using --appimage-extract-and-run"
     export APPIMAGE_EXTRACT_AND_RUN=1
 fi
 
