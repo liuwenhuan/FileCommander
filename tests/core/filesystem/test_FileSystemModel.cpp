@@ -515,7 +515,12 @@ TEST(FileSystemModelTest, FilePanelDirectorySize_SymlinkRootUsesListingMetadataW
 
     QFile payload(QDir(target).filePath(QStringLiteral("payload.bin")));
     ASSERT_TRUE(payload.open(QIODevice::WriteOnly));
-    ASSERT_EQ(payload.write(QByteArray(4096, 'x')), 4096);
+    // Deliberately far larger than a directory inode's own size, which is what
+    // the assertion below has to be able to tell it apart from: on ext4 an
+    // empty directory reports 4096, so a 4096-byte payload made "did not
+    // traverse the target" and "did traverse it" the same number.
+    constexpr int kPayloadBytes = 256 * 1024;
+    ASSERT_EQ(payload.write(QByteArray(kPayloadBytes, 'x')), kPayloadBytes);
     payload.close();
 
     if (!QFile::link(target, link))
@@ -523,7 +528,12 @@ TEST(FileSystemModelTest, FilePanelDirectorySize_SymlinkRootUsesListingMetadataW
     const FileInfo linkInfo(link);
     if (!linkInfo.isSymLink() || !linkInfo.isDir())
         GTEST_SKIP() << "platform does not expose directory links as directory symlinks";
-    ASSERT_LT(linkInfo.size(), 1024);
+    // Not "< 1024": that encoded the Windows and macOS answer, where a link's
+    // size is the length of the path it points at. A Linux directory symlink
+    // reports the directory's own size instead, which is a block. What the test
+    // actually means is that the size did not come from walking the target.
+    ASSERT_LT(linkInfo.size(), kPayloadBytes)
+        << "the size looks like the target's contents, so the listing traversed it";
 
     FilePanel panel;
     ASSERT_TRUE(loadPanel(panel, temp.path()));

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <QFileInfo>
+#include <QFile>
 #include <QTemporaryDir>
 
 #include <iostream>
@@ -87,20 +88,46 @@ TEST(OpenWithHandlersTest, EntriesWithNothingToShowOrRunAreDropped) {
     EXPECT_EQ(tidy.first().displayName, QStringLiteral("Real"));
 }
 
-// A file with no extension has no type to look up, and the enumeration must
-// say so rather than returning every application on the machine.
-TEST(OpenWithHandlersTest, AnExtensionlessNameYieldsNothingToOffer) {
+// A name with no extension.
+//
+// The two platforms genuinely disagree here, and the test says which rather
+// than pretending one answer is universal. Windows associates by EXTENSION, so
+// a name without one has nothing to look up and the enumeration is empty. XDG
+// associates by MIME TYPE, which QMimeDatabase derives from the content and the
+// name together, so an extensionless file still resolves -- to text/plain for
+// an empty file -- and the handlers for that type are a correct answer.
+//
+// What must hold on both is that nothing malformed comes back.
+TEST(OpenWithHandlersTest, AnExtensionlessNameIsHandledPerPlatformConvention) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
     const QString path = dir.filePath(QStringLiteral("plain"));
-    EXPECT_TRUE(fc::openWithHandlers(path).isEmpty());
+    const auto handlers = fc::openWithHandlers(path);
+#ifdef Q_OS_WIN
+    EXPECT_TRUE(handlers.isEmpty()) << "Windows has no extension to associate by";
+#endif
+    for (const fc::OpenWithHandler &handler : handlers) {
+        EXPECT_FALSE(handler.displayName.isEmpty());
+        EXPECT_FALSE(handler.program.isEmpty() && handler.token.isEmpty());
+    }
 }
 
 // The real enumeration, on whatever this machine has installed. It cannot
 // assert on particular applications, but it can assert the shape of what comes
 // back -- and it prints the list, which is how the menu was sized.
 TEST(OpenWithHandlersTest, TheSystemOffersSomethingForACommonType) {
-    const auto handlers = fc::openWithHandlers(QStringLiteral("C:/example.txt"));
+    // A real path on this machine, not a Windows-shaped literal: the XDG
+    // implementation asks QMimeDatabase, which looks at the file as well as
+    // the name.
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString probe = dir.filePath(QStringLiteral("example.txt"));
+    QFile file(probe);
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    file.write("hello");
+    file.close();
+
+    const auto handlers = fc::openWithHandlers(probe);
     if (handlers.isEmpty())
         GTEST_SKIP() << "this system registers no handler for .txt";
 
@@ -116,7 +143,12 @@ TEST(OpenWithHandlersTest, TheSystemOffersSomethingForACommonType) {
                   << handler.program.toStdString() << "  |  " << handler.token.toStdString()
                   << std::endl;
     }
-    EXPECT_GT(recommended, 0) << "nothing was marked as registered for .txt";
+    // A bare CI container has applications installed but no desktop database
+    // claiming text/plain, so "something is registered for this type" is not a
+    // property of every machine. Skipped rather than asserted there, because
+    // the alternative is a test that fails for a reason the code cannot fix.
+    if (recommended == 0)
+        GTEST_SKIP() << "no application on this machine claims text/plain";
     // The recommended ones lead, so a menu can put a separator after them.
     for (int i = 1; i < handlers.size(); ++i)
         EXPECT_FALSE(handlers[i].recommended && !handlers[i - 1].recommended)

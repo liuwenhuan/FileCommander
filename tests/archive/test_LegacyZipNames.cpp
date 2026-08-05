@@ -1,5 +1,6 @@
 ﻿#include <gtest/gtest.h>
 
+#include <QTextCodec>
 #include <QBuffer>
 #include <QByteArray>
 #include <QDir>
@@ -138,12 +139,24 @@ TEST(LegacyZipNames, AnEntryNamedInTheLocalCodePageCanStillBeOpened) {
     const FileInfo &entry = entries.first();
 
     // The name need not come back as the original characters on a machine whose
-    // code page cannot express them -- but it must not contain the replacement
-    // character, because that is the lossy step that makes the entry
-    // unreachable.
-    EXPECT_FALSE(entry.name().contains(QChar(0xFFFD)))
-        << "listed as \"" << entry.name().toStdString()
-        << "\": decoding a non-UTF-8 name as UTF-8 destroyed it";
+    // code page cannot express them -- but where it CAN, it must not contain
+    // the replacement character, because that is the lossy step that makes the
+    // entry unreachable.
+    //
+    // Only where it can. libarchive is told to read the header in this
+    // machine's local encoding, and on a UTF-8 system that is UTF-8 -- so a
+    // name written in CP936 has no reading that recovers it, and U+FFFD is the
+    // correct outcome rather than a defect. The recovery being tested is a
+    // Windows-code-page one; the part below it, that the entry can still be
+    // opened, is what has to hold everywhere and is left unconditional.
+    const QTextCodec *localeCodec = QTextCodec::codecForLocale();
+    const bool localeIsUtf8 =
+        localeCodec && localeCodec->name().toUpper().startsWith("UTF-8");
+    if (!localeIsUtf8) {
+        EXPECT_FALSE(entry.name().contains(QChar(0xFFFD)))
+            << "listed as \"" << entry.name().toStdString()
+            << "\": decoding a non-UTF-8 name as UTF-8 destroyed it";
+    }
     EXPECT_EQ(entry.suffix(), QStringLiteral("png"));
 
     // The point of all of it: the file can actually be opened.

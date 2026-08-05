@@ -41,6 +41,15 @@ public:
     // caller repaints once it returns.
     void warmSystemIconForPath(const QString &path);
 
+    // Whether warmSystemIconForPath is implemented on this platform at all.
+    //
+    // It is a shell query and exists only on Windows; elsewhere it returns
+    // without doing anything, so systemIconForPath can never become non-null no
+    // matter how long a caller waits. Answering that question here, beside the
+    // implementation, is what keeps a caller from having to guess -- a test
+    // that waited for an icon that was never coming is what prompted it.
+    static bool hasSystemIconLookup();
+
     // One of our own SVG glyphs (":/icons/dev-smb.svg"), recoloured to the
     // theme's glyph colour at FULL strength and cached.
     //

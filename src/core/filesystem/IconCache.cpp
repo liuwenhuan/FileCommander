@@ -226,6 +226,14 @@ QIcon IconCache::systemIconForPath(const QString &path) const {
     return cached ? *cached : QIcon();
 }
 
+bool IconCache::hasSystemIconLookup() {
+#ifdef Q_OS_WIN
+    return true;
+#else
+    return false;
+#endif
+}
+
 void IconCache::warmSystemIconForPath(const QString &path) {
 #ifdef Q_OS_WIN
     if (path.isEmpty())

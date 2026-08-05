@@ -219,6 +219,15 @@ TEST_F(OpenWithMenuTest, ApplicationIconsAreTintedLikeEverythingElse) {
         }
         return nullptr;
     };
+    // Skipped after the menu is built -- so that much is still exercised
+    // everywhere -- but BEFORE the wait below, because the wait is the whole
+    // cost. IconCache::warmSystemIconForPath is a shell query that exists only
+    // on Windows; where it does nothing, no icon can ever arrive, and waiting
+    // the full ten seconds to discover that would add ten seconds to every CI
+    // run on those platforms to reach a foregone conclusion.
+    if (!IconCache::hasSystemIconLookup())
+        GTEST_SKIP() << "this platform has no per-path system icon lookup";
+
     QElapsedTimer timer;
     timer.start();
     QAction *found = nullptr;
