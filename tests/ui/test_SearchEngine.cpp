@@ -6,6 +6,7 @@
 #include <QFile>
 #include <QHash>
 #include <QMutex>
+#include <QSemaphore>
 #include <QSet>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -13,6 +14,7 @@
 
 #include <atomic>
 #include <memory>
+#include <thread>
 
 #include "FileInfo.h"
 #include "FileProvider.h"
@@ -423,4 +425,98 @@ TEST(SearchEngineLocalTest, DoesNotEmitScanningProgress) {
     QSignalSpy spy(&engine, &SearchEngine::scanning);
     runSearch(engine, tmp.path(), QStringLiteral("*"), false, true);
     EXPECT_EQ(spy.count(), 0);
+}
+
+// Destroying an engine mid-search must leave no thread behind.
+//
+// This is the test for a segfault that hit about one full ui_tests run in four
+// and never in the same place twice: a SearchDialogKeysTest case started a
+// search, the fixture destroyed the engine at the end of the test, and the
+// still-running worker then emitted resultsFound through a freed QObject --
+// which crashed inside QMetaObject::activate during whatever unrelated test was
+// running by then (DragPayloadTest, several suites later, in the run that was
+// finally caught with a stack). The same sequence is reachable from the app:
+// close the search window, or the window that owns it, while a search runs.
+//
+// Deliberately not written as "and the process does not crash": a
+// use-after-free is not required to crash, so that test would pass for the
+// wrong reason on most runs -- and did, on Windows, where the sabotaged build
+// came through cleanly.
+//
+// The worker is pinned inside a listing by a gate rather than by a sleep, so
+// "the engine was destroyed WHILE a listing was in flight" is a fact rather
+// than a race the test hopes to win. An earlier version used TreeProvider's
+// delay for this and was itself flaky: that provider sleeps before it records
+// the listing, so by the time the test could see a listing had begun, the
+// worker was already on its way out of it.
+namespace {
+
+class GatedProvider : public TreeProvider {
+public:
+    // Blocks the walk inside its first listing until openGate() is called.
+    QVector<FileInfo> list(const QString &path, bool includeHidden) const override {
+        const QVector<FileInfo> out = TreeProvider::list(path, includeHidden);
+        if (!m_entered.load()) {
+            m_entered = true;
+            m_gate.acquire();
+        }
+        return out;
+    }
+
+    bool waitUntilInsideAListing(int budgetMs = 5000) const {
+        QElapsedTimer timer;
+        timer.start();
+        while (!m_entered.load() && timer.elapsed() < budgetMs)
+            QThread::msleep(5);
+        return m_entered.load();
+    }
+    void openGate() const { m_gate.release(); }
+
+private:
+    mutable std::atomic<bool> m_entered{false};
+    mutable QSemaphore m_gate;
+};
+
+} // namespace
+
+TEST(SearchEngineTest, DestroyingTheEngineMidSearchWaitsForTheWorker) {
+    auto provider = std::make_shared<GatedProvider>();
+    for (int i = 0; i < 12; ++i) {
+        const QString dir = QStringLiteral("d%1").arg(i);
+        provider->addDir(QStringLiteral("/"), dir);
+        provider->addFile(QStringLiteral("/") + dir, QStringLiteral("match.txt"));
+    }
+
+    auto engine = std::make_unique<SearchEngine>();
+    engine->start(QStringLiteral("/"), QStringLiteral("*.txt"), false, true, provider);
+    ASSERT_TRUE(provider->waitUntilInsideAListing()) << "the search never reached a listing";
+
+    // Held open for a stretch the destructor cannot cross by accident. Released
+    // from another thread because the thread that would normally do it -- this
+    // one -- is about to be blocked inside ~SearchEngine, which is the whole
+    // point.
+    constexpr int kHoldMs = 300;
+    std::thread opener([provider, kHoldMs]() {
+        QThread::msleep(kHoldMs);
+        provider->openGate();
+    });
+
+    QElapsedTimer destruction;
+    destruction.start();
+    engine.reset();
+    const qint64 blockedFor = destruction.elapsed();
+    opener.join();
+
+    // The worker was inside a listing that could not return for kHoldMs, so a
+    // destructor that waited for it cannot have come back sooner. One that
+    // merely set the cancel flag returns immediately.
+    EXPECT_GE(blockedFor, kHoldMs / 2)
+        << "the destructor returned while the worker was still inside a listing";
+
+    // And nothing was left running: whatever the walk had listed when the
+    // destructor returned is all it ever lists.
+    const int listedAtDestruction = provider->listed().size();
+    QThread::msleep(200);
+    EXPECT_EQ(provider->listed().size(), listedAtDestruction)
+        << "the walk kept listing after ~SearchEngine returned";
 }

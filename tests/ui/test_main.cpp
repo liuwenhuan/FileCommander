@@ -17,8 +17,14 @@
 #include <QTemporaryDir>
 #include <QTimer>
 
+#include <csignal>
+#include <cstdio>
 #include <iostream>
 #include <memory>
+
+#if defined(__GLIBC__) && !defined(_WIN32)
+#include <execinfo.h>
+#endif
 
 namespace {
 
@@ -242,6 +248,46 @@ int runImagePreviewShutdownProbe(QApplication &app) {
     return app.exec();
 }
 
+// Prints where a crash happened, because otherwise nothing does.
+//
+// A segfault kills the process between two gtest lines, so the log ends
+// mid-test and the exit code is all CI has to report -- and a suite that
+// crashes for one run in four then looks like an infrastructure hiccup rather
+// than a defect, which is how a real one survives. This names the signal, the
+// test that was running, and the stack, so the next occurrence in CI is a
+// starting point instead of a shrug.
+//
+// glibc's backtrace() is used deliberately over anything richer: it needs no
+// debugger present on the machine, which is the situation this is written for.
+// It is async-signal-unsafe in principle; that is accepted, since the process
+// is already dying and a partial trace beats none.
+#if defined(__GLIBC__) && !defined(_WIN32)
+extern "C" void fcTestCrashHandler(int signum) {
+    const char *name = signum == SIGSEGV ? "SIGSEGV" : signum == SIGABRT ? "SIGABRT" : "signal";
+    std::cerr << std::endl << "[  crash   ] " << name << " (" << signum << ")";
+    if (const auto *info = ::testing::UnitTest::GetInstance()->current_test_info())
+        std::cerr << " during " << info->test_suite_name() << '.' << info->name();
+    std::cerr << std::endl;
+    std::cerr.flush();
+
+    void *frames[64];
+    const int count = backtrace(frames, 64);
+    backtrace_symbols_fd(frames, count, fileno(stderr));
+
+    // Re-raise through the default action so the exit status still reports the
+    // signal: a handler that returned would turn a crash into a silent pass.
+    signal(signum, SIG_DFL);
+    raise(signum);
+}
+
+void installCrashHandler() {
+    signal(SIGSEGV, fcTestCrashHandler);
+    signal(SIGABRT, fcTestCrashHandler);
+}
+#else
+void installCrashHandler() {}
+#endif
+
 } // namespace
 
 // The suite defaults to offscreen for headless CI. A caller can explicitly set
@@ -271,6 +317,8 @@ int main(int argc, char **argv) {
             QDir(cacheBootstrap.path()).filePath(QStringLiteral("thumbnails")));
     }
     ThumbnailCache::instance();
+
+    installCrashHandler();
 
     ::testing::InitGoogleTest(&argc, argv);
     ::testing::UnitTest::GetInstance()->listeners().Append(new ThumbnailCacheIsolation);

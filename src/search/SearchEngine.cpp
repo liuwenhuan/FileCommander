@@ -17,12 +17,28 @@ SearchEngine::SearchEngine(QObject *parent) : QObject(parent) {
     qRegisterMetaType<QVector<SearchHit>>("QVector<SearchHit>");
 }
 
+SearchEngine::~SearchEngine() {
+    m_cancelled = true;
+    if (m_worker.isRunning())
+        m_worker.waitForFinished();
+}
+
 void SearchEngine::cancel() {
     m_cancelled = true;
 }
 
 void SearchEngine::start(const QString &rootPath, const QString &namePattern, bool caseSensitive,
                           bool includeSubdirs, std::shared_ptr<FileProvider> provider) {
+    // Drained FIRST, before any state below is set: a previous walk writes the
+    // same m_cancelled/m_running/m_truncated flags on its way out, so letting it
+    // overlap would have it clear the flags this call just set. Only one
+    // future is kept as well, so an overlapping walk would be one the
+    // destructor could not wait for.
+    if (m_worker.isRunning()) {
+        m_cancelled = true;
+        m_worker.waitForFinished();
+    }
+
     m_cancelled = false;
     m_running = true;
     m_truncated = false;
@@ -34,14 +50,12 @@ void SearchEngine::start(const QString &rootPath, const QString &namePattern, bo
     QRegularExpression regex(QRegularExpression::wildcardToRegularExpression(namePattern),
                               options);
 
-    // `this` is only touched from lambda invocations that run while this
-    // SearchEngine is still alive -- SearchDialog defers its own
-    // destruction until the `finished` signal below has fired (see
-    // SearchDialog::closeEvent), so there is no dangling-this risk despite
-    // running on a background thread. `provider` is held by value for the same
+    // `this` is safe to touch from the worker because the destructor waits for
+    // that worker (see ~SearchEngine); it is not safe merely because callers are
+    // expected to be careful. `provider` is held by value for the equivalent
     // reason on the backend's side: the tab it came from may be closed or
     // reconnected while this walk is still in flight.
-    QtConcurrent::run([this, rootPath, regex, includeSubdirs, provider]() {
+    m_worker = QtConcurrent::run([this, rootPath, regex, includeSubdirs, provider]() {
         // Deliver matches in throttled batches (by count or elapsed time) rather
         // than one queued signal per file. A wildcard search of a large tree
         // matches hundreds of thousands of files; a per-file emit + addItem

@@ -145,5 +145,12 @@ target_link_libraries(ui_tests PRIVATE
     Qt5::Test
 )
 
+# So the crash handler in test_main.cpp can print function names rather than
+# bare addresses: backtrace_symbols_fd reads the dynamic symbol table, and
+# without -rdynamic a statically-linked-in symbol is simply not in it.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_options(ui_tests PRIVATE -rdynamic)
+endif()
+
 add_test(NAME ui_tests COMMAND ui_tests)
 filecommander_set_test_runtime(ui_tests)

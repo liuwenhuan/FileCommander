@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QFuture>
 #include <QMetaType>
 #include <QObject>
 #include <QString>
@@ -41,6 +42,22 @@ class SearchEngine : public QObject {
 
 public:
     explicit SearchEngine(QObject *parent = nullptr);
+
+    // Cancels a running search and WAITS for the worker before letting the
+    // object go.
+    //
+    // The worker emits resultsFound/scanning/finished on `this`, so an engine
+    // destroyed mid-search leaves a thread signalling through a freed QObject:
+    // it crashes inside QMetaObject::activate, at whatever unrelated point the
+    // walk happens to reach next. That was the shape of a segfault that hit
+    // roughly one ui_tests run in four and always landed in some innocent test
+    // several suites later.
+    //
+    // This used to be the caller's job -- SearchDialog::closeEvent waits for
+    // finished() before deleting itself -- but a rule that only one call site
+    // knows is not a guarantee: anything else that owns an engine (a test
+    // fixture, a parent widget being destroyed) breaks it silently.
+    ~SearchEngine() override;
 
     // `provider` null means "local filesystem" (the QDirIterator fast path).
     // Non-null means walk that backend instead; the shared_ptr is captured by
@@ -86,6 +103,12 @@ private:
     void walkProvider(const std::shared_ptr<FileProvider> &provider, const QString &rootPath,
                       const QRegularExpression &regex, bool includeSubdirs,
                       const std::function<bool(const SearchHit &)> &emitHit);
+
+    // Held so the destructor can wait for it. QtConcurrent::run's future cannot
+    // be cancelled -- QFuture::cancel does nothing for it -- which is why
+    // m_cancelled exists as well: the flag stops the walk, the future says when
+    // the thread has actually left.
+    QFuture<void> m_worker;
 
     std::atomic<bool> m_cancelled{false};
     std::atomic<bool> m_running{false};
