@@ -79,7 +79,7 @@ jobs:
       - name: Install provider dependencies
         shell: pwsh
         run: |
-          & "$env:VCPKG_INSTALLATION_ROOTcpkg.exe" install --triplet x64-windows libarchive libssh2 curl zlib
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install --triplet x64-windows libarchive libssh2 curl zlib
 
       - name: Build poppler-qt5
         if: steps.poppler-cache.outputs.cache-hit != 'true'

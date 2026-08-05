@@ -71,7 +71,7 @@ jobs:
       #
       # Checked by the magic bytes rather than by running it. The application
       # takes no --version flag, so running it would open a window and hang a
-      # headless runner; the type-2 marker ("AI" at offset 8 of the ELF)
+      # headless runner; the type-2 marker (the bytes "AI" then 0x02, at offset 8 of the ELF)
       # is the property that actually matters here and it is exact.
       - name: Check the AppImage carries a type-2 runtime
         run: |

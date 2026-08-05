@@ -1,0 +1,179 @@
+name: Release
+
+# Builds the three packages and attaches them to a GitHub Release.
+#
+# Tag-driven rather than push-driven: the version lives in one place --
+# project(FileCommander VERSION X.Y.Z) in CMakeLists.txt -- and the tag has to
+# agree with it, or the update manifest would advertise one number while the
+# binaries report another. The check below refuses the run instead of shipping
+# that mismatch. See docs/PACKAGING.md and docs/UPDATE_SERVER.md.
+#
+# Can also be started by hand for a dry run: workflow_dispatch builds and
+# uploads the artefacts but publishes no Release.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  version-check:
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: read
+        run: |
+          version=$(sed -n 's/^project(FileCommander VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
+          if [ -z "$version" ]; then
+            echo "::error::could not read the version from the project() line"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "CMakeLists.txt says $version"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            tag="${GITHUB_REF_NAME#v}"
+            if [ "$tag" != "$version" ]; then
+              echo "::error::tag $GITHUB_REF_NAME does not match the project version $version"
+              exit 1
+            fi
+          fi
+
+  linux:
+    needs: version-check
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build and preview dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build pkg-config libarchive-dev libssh2-1-dev libsecret-1-dev libcurl4-openssl-dev libsmbclient-dev libmpv-dev libpoppler-qt5-dev libqt5x11extras5-dev qtbase5-dev qttools5-dev-tools zlib1g-dev libxcb1-dev p7zip-full squashfs-tools
+
+      # Same optional sidecar as the CI workflows: without OFFICE_OXIDE_REPO the
+      # packages build without Office preview, exactly as they do on a machine
+      # that lacks it. Warned about so a release cannot be cut in ignorance.
+      - name: Build office-oxide
+        env:
+          OFFICE_OXIDE_REPO: ${{ vars.OFFICE_OXIDE_REPO }}
+          OFFICE_OXIDE_REF: ${{ vars.OFFICE_OXIDE_REF }}
+        run: |
+          if [ -z "${OFFICE_OXIDE_REPO}" ]; then
+            echo "::warning::OFFICE_OXIDE_REPO is not set: this release will have no Office document preview."
+            exit 0
+          fi
+          git clone --depth 1 ${OFFICE_OXIDE_REF:+--branch "$OFFICE_OXIDE_REF"} "$OFFICE_OXIDE_REPO" build/office-oxide-src
+          cargo build --release --manifest-path build/office-oxide-src/Cargo.toml
+          mkdir -p "$HOME/.local/bin"
+          install -m 0755 build/office-oxide-src/target/release/office-oxide "$HOME/.local/bin/office-oxide"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Debian package
+        run: ./packaging/build-deb.sh
+      - name: AppImage
+        run: ./packaging/build-appimage.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          path: |
+            dist/*.deb
+            dist/*.AppImage
+
+  windows:
+    needs: version-check
+    runs-on: windows-latest
+    env:
+      POPPLER_VERSION: 26.04.0
+      QT_VERSION: 5.15.2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+      - id: qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: win64_msvc2019_64
+
+      - name: Cache poppler-qt5
+        id: poppler-cache
+        uses: actions/cache@v4
+        with:
+          path: build/poppler-qt5
+          key: poppler-qt5-${{ env.POPPLER_VERSION }}-qt${{ env.QT_VERSION }}-x64-windows-${{ hashFiles('packaging/build-poppler-qt5.ps1') }}
+
+      - name: Install provider dependencies
+        shell: pwsh
+        run: |
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install --triplet x64-windows libarchive libssh2 curl zlib
+
+      - name: Build poppler-qt5
+        if: steps.poppler-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        env:
+          FILECOMMANDER_QT_ROOT: ${{ steps.qt.outputs.dir }}
+          VCPKG_ROOT: ${{ env.VCPKG_INSTALLATION_ROOT }}
+        run: ./packaging/build-poppler-qt5.ps1 -Version $env:POPPLER_VERSION
+
+      - name: Build office-oxide
+        shell: pwsh
+        env:
+          OFFICE_OXIDE_REPO: ${{ vars.OFFICE_OXIDE_REPO }}
+          OFFICE_OXIDE_REF: ${{ vars.OFFICE_OXIDE_REF }}
+        run: |
+          if (-not $env:OFFICE_OXIDE_REPO) {
+              Write-Warning 'OFFICE_OXIDE_REPO is not set: this release will have no Office document preview.'
+              exit 0
+          }
+          git clone --depth 1 $(if ($env:OFFICE_OXIDE_REF) { "--branch=$env:OFFICE_OXIDE_REF" }) $env:OFFICE_OXIDE_REPO build/office-oxide-src
+          cargo build --release --manifest-path build/office-oxide-src/Cargo.toml
+          New-Item -ItemType Directory -Force -Path build/office-oxide | Out-Null
+          Copy-Item build/office-oxide-src/target/release/office-oxide.exe build/office-oxide/
+
+      - name: Portable package
+        shell: pwsh
+        env:
+          FILECOMMANDER_QT_ROOT: ${{ steps.qt.outputs.dir }}
+          VCPKG_ROOT: ${{ env.VCPKG_INSTALLATION_ROOT }}
+          FILECOMMANDER_POPPLER_QT5_ROOT: ${{ github.workspace }}/build/poppler-qt5
+        run: ./packaging/build-windows.ps1 -Profile windows-portable
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-package
+          path: dist/FileCommander-*-windows-x64.zip
+
+  publish:
+    # Only a tag publishes. A manual run stops after the artefacts, so the
+    # whole pipeline can be exercised without creating a Release.
+    if: github.ref_type == 'tag'
+    needs: [version-check, linux, windows]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artefacts
+      - name: List what will be published
+        run: |
+          find artefacts -type f -printf '%s\t%p\n' | sort -rn
+      # The checksums are what docs/UPDATE_SERVER.md's release checklist asks
+      # for by hand; publishing them alongside means the manifest can be filled
+      # in from the Release page rather than from somebody's terminal history.
+      - name: Checksums
+        run: |
+          cd artefacts
+          find . -type f \( -name '*.deb' -o -name '*.AppImage' -o -name '*.zip' \) \
+            -exec sha256sum {} + | tee SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: FileCommander ${{ needs.version-check.outputs.version }}
+          generate_release_notes: true
+          files: |
+            artefacts/**/*.deb
+            artefacts/**/*.AppImage
+            artefacts/**/*.zip
+            artefacts/SHA256SUMS.txt
