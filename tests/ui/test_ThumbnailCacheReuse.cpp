@@ -176,7 +176,14 @@ TEST(ThumbnailCacheReuseTest, CrossingARungStoresASecondThumbnail) {
     EXPECT_EQ(qMax(large.width(), large.height()), big);
 }
 
-#ifdef Q_OS_WIN
+// Guarded on the media backend, not on the platform: TTC_WMF_FIXTURE_DIR below
+// is only defined when FILECOMMANDER_MEDIA_BACKEND_WINDOWSMF is on (see
+// tests/ui/CMakeLists.txt), and the fixture directory it names is only produced
+// then either. Written as #ifdef Q_OS_WIN, this compiled on a developer machine
+// -- where the media preview is usually configured ON -- and failed on CI,
+// whose preset turns it OFF, with a syntax error pointing at an undefined
+// macro rather than at the option that governs it.
+#if FILECOMMANDER_MEDIA_BACKEND_WINDOWSMF
 TEST(ThumbnailCacheReuseTest, WindowsVideoThumbnailDoesNotNeedFfmpegOnPath) {
     ScopedPath noFfmpeg{QByteArray()};
 
