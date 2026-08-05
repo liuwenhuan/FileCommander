@@ -18,6 +18,7 @@
 
 #include "TitleBar.h"
 #include "theme/ThemeManager.h"
+#include "ThemeStateGuard.h"
 
 namespace {
 
@@ -76,6 +77,7 @@ bool imageContainsPhosphor(const QImage &image) {
 } // namespace
 
 TEST(TitleBarThemeTest, ExistingApplicationIconFollowsRuntimeCrtThemeChange) {
+    ThemeStateGuard themeState;
     const QString originalSheet = qApp->styleSheet();
     const QIcon originalIcon = qApp->windowIcon();
     QWidget window;
@@ -107,6 +109,7 @@ TEST(TitleBarThemeTest, ExistingApplicationIconFollowsRuntimeCrtThemeChange) {
 }
 
 TEST(TitleBarThemeTest, LeavingCrtClearsTheBackgroundTile) {
+    ThemeStateGuard themeState;
     const QString originalSheet = qApp->styleSheet();
     QWidget window;
     TitleBar titleBar(&window, {}, &window);
@@ -124,6 +127,7 @@ TEST(TitleBarThemeTest, LeavingCrtClearsTheBackgroundTile) {
 }
 
 TEST(TitleBarThemeTest, DialogTitleBarSupportsCrtTileAndClearsItOutsideCrt) {
+    ThemeStateGuard themeState;
     const QString originalSheet = qApp->styleSheet();
     FramelessDialog dialog;
     DialogTitleBar *titleBar = dialog.findChild<DialogTitleBar *>();
@@ -144,6 +148,7 @@ TEST(TitleBarThemeTest, DialogTitleBarSupportsCrtTileAndClearsItOutsideCrt) {
 }
 
 TEST(TitleBarThemeTest, DialogThemeSwitchSetsAndClearsCrtTileProperty) {
+    ThemeStateGuard themeState;
     const QString originalSheet = qApp->styleSheet();
     FramelessDialog dialog;
     DialogTitleBar *titleBar = dialog.findChild<DialogTitleBar *>();
@@ -171,6 +176,7 @@ TEST(TitleBarThemeTest, DialogThemeSwitchSetsAndClearsCrtTileProperty) {
 }
 
 TEST(TitleBarThemeTest, LightAndDarkThemesResetMenuButtonsAndColumnHeaders) {
+    ThemeStateGuard themeState;
     const QString originalSheet = qApp->styleSheet();
     QWidget window;
     window.resize(480, 40);
@@ -203,6 +209,7 @@ TEST(TitleBarThemeTest, LightAndDarkThemesResetMenuButtonsAndColumnHeaders) {
 }
 
 TEST(TitleBarThemeTest, ExistingVerticalScrollBarFollowsThemeChanges) {
+    ThemeStateGuard themeState;
     const QString originalSheet = qApp->styleSheet();
     QScrollBar scrollBar(Qt::Vertical);
     scrollBar.setRange(0, 100);

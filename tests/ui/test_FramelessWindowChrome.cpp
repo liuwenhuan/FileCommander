@@ -18,6 +18,7 @@
 #include "ViewerWindow.h"
 #include "config/Settings.h"
 #include "theme/ThemeManager.h"
+#include "ThemeStateGuard.h"
 
 // The F3 viewer (ViewerWindow) and the F4 editor (TextEditor) used to be plain
 // QWidget top-level windows, so the window manager decorated them: a stock
@@ -117,6 +118,7 @@ private:
 } // namespace
 
 TEST(FramelessWindowChromeTest, ViewerWindowCarriesTheSharedTitleBar) {
+    ThemeStateGuard themeState;
     AppChromeRestore restore;
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
@@ -147,6 +149,7 @@ TEST(FramelessWindowChromeTest, ViewerWindowCarriesTheSharedTitleBar) {
 }
 
 TEST(FramelessWindowChromeTest, TextEditorCarriesTheSharedTitleBar) {
+    ThemeStateGuard themeState;
     AppChromeRestore restore;
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
@@ -175,6 +178,7 @@ TEST(FramelessWindowChromeTest, TextEditorCarriesTheSharedTitleBar) {
 // TYPE and the minimize / maximize hints -- not from the decorations. Dropping
 // the decorations must not drop those.
 TEST(FramelessWindowChromeTest, BothWindowsStayOrdinaryManagedWindows) {
+    ThemeStateGuard themeState;
     AppChromeRestore restore;
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
@@ -201,6 +205,7 @@ TEST(FramelessWindowChromeTest, BothWindowsStayOrdinaryManagedWindows) {
 }
 
 TEST(FramelessWindowChromeTest, TitleBarKeepsMinimizeMaximizeAndClose) {
+    ThemeStateGuard themeState;
     AppChromeRestore restore;
     QPointer<TextEditor> editor(new TextEditor);
     editor->setWindowTitle(QStringLiteral("edit.txt"));
@@ -236,6 +241,7 @@ TEST(FramelessWindowChromeTest, TitleBarKeepsMinimizeMaximizeAndClose) {
 }
 
 TEST(FramelessWindowChromeTest, ViewerTitleBarColoursTrackEveryTheme) {
+    ThemeStateGuard themeState;
     AppChromeRestore restore;
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
@@ -310,6 +316,7 @@ TEST(FramelessWindowChromeTest, ViewerTitleBarColoursTrackEveryTheme) {
 }
 
 TEST(FramelessWindowChromeTest, CrtTileReachesTheViewerAndIsClearedOnTheWayOut) {
+    ThemeStateGuard themeState;
     AppChromeRestore restore;
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
@@ -351,6 +358,7 @@ TEST(FramelessWindowChromeTest, CrtTileReachesTheViewerAndIsClearedOnTheWayOut) 
 // The bar reads the title live at paint time, so that marker only ever appears
 // if a title change also makes it repaint.
 TEST(FramelessWindowChromeTest, TitleBarRepaintsWhenTheWindowTitleChanges) {
+    ThemeStateGuard themeState;
     AppChromeRestore restore;
     applyThemeSheet(QStringLiteral("dark"));
 

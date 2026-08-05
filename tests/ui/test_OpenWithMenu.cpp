@@ -9,9 +9,11 @@
 #include <QTemporaryDir>
 
 #include "IconCache.h"
+#include "theme/Phosphor.h"
 #include "MainWindow.h"
 #include "ThemeManager.h"
 #include "OpenWithHandlers.h"
+#include "ThemeStateGuard.h"
 
 namespace {
 
@@ -37,10 +39,30 @@ QMenu *subMenuNamed(QMenu *menu, const QString &text) {
 
 } // namespace
 
+
+// Every test here constructs a MainWindow, whose default constructor reads the
+// REAL user settings and applies the theme they name -- installing an
+// APPLICATION stylesheet (16841 characters of it on this machine, measured).
+// Left in place it changes how every later test resolves fonts: QStyleSheetStyle
+// assigns a font to a widget at polish time, so a view stops propagating one to
+// its viewport the way it does with no sheet. That is what silently broke
+// FilePanelFontTest.CombinedTypographyAppliesFamilyAndSizeOnceToTheDetailsSurface
+// in every full-suite run, while it passed alone.
+//
+// The application object outlives each test, so whatever a test changes on it
+// has to be put back.
+class OpenWithMenuTest : public ::testing::Test {
+protected:
+    // See ThemeStateGuard.h: these tests construct a MainWindow, whose default
+    // constructor applies the user's real theme, and one of them applies
+    // another on purpose.
+    ThemeStateGuard themeState;
+};
+
 // "Open With" used to be a single prompt asking the user to type a command.
 // It now lists what the system says can open this type, then the rest of what
 // is installed, and keeps the file dialog as the last resort.
-TEST(OpenWithMenu, ListsRegisteredApplicationsAndKeepsTheFileDialog) {
+TEST_F(OpenWithMenuTest, ListsRegisteredApplicationsAndKeepsTheFileDialog) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
     const QString path = dir.filePath(QStringLiteral("note.txt"));
@@ -97,7 +119,7 @@ TEST(OpenWithMenu, ListsRegisteredApplicationsAndKeepsTheFileDialog) {
 
 // With nothing registered for the type, burying the installed applications one
 // level down would leave a menu that looks empty. They move up instead.
-TEST(OpenWithMenu, AnUnregisteredTypeStillListsWhatIsInstalled) {
+TEST_F(OpenWithMenuTest, AnUnregisteredTypeStillListsWhatIsInstalled) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
     const QString path = dir.filePath(QStringLiteral("data.zqxj"));
@@ -126,7 +148,7 @@ TEST(OpenWithMenu, AnUnregisteredTypeStillListsWhatIsInstalled) {
 }
 
 // A menu built for a file with no type to look up still has to be usable.
-TEST(OpenWithMenu, AnExtensionlessFileStillOffersTheFileDialog) {
+TEST_F(OpenWithMenuTest, AnExtensionlessFileStillOffersTheFileDialog) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
     const QString path = dir.filePath(QStringLiteral("plain"));
@@ -153,7 +175,7 @@ QImage iconImage(const QIcon &icon) {
 // their own colours. Every other icon in the window answers to the theme, so
 // taken straight from QFileIconProvider these sat in full colour in a menu of
 // phosphor-green glyphs.
-TEST(OpenWithMenu, ApplicationIconsAreTintedLikeEverythingElse) {
+TEST_F(OpenWithMenuTest, ApplicationIconsAreTintedLikeEverythingElse) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
     const QString path = dir.filePath(QStringLiteral("note.txt"));
@@ -218,5 +240,6 @@ TEST(OpenWithMenu, ApplicationIconsAreTintedLikeEverythingElse) {
     EXPECT_NE(shown, untinted) << "the menu is showing the system's own colours";
     EXPECT_EQ(shown, iconImage(themed)) << "the menu is not using the themed cache";
 
-    themes->apply(Settings::Theme::Dark, false, false);
+    // No apply() to some other theme here: that would leave a DIFFERENT sheet
+    // behind rather than none. Restore above puts back exactly what was there.
 }

@@ -32,6 +32,7 @@
 #include "ArchiveHandler.h"
 #include "config/Settings.h"
 #include "media/MediaEngine.h"
+#include "ThemeStateGuard.h"
 
 namespace {
 
@@ -297,6 +298,14 @@ TEST(QuickViewMotion, MediaOpenGLAndProgressPagesNeverReceiveOpacityEffects) {
 TEST(QuickViewMotion,
      LatestImageGenerationKeepsOldPageUntilReadyAndOwnsFinalFade) {
   MotionOverride motion(false);
+  // This test is about WHICH generation owns the final fade, and it reads the
+  // answer off a pixel. The preview tint is process-wide and recolours that
+  // pixel, so the test states what it needs instead of inheriting whatever the
+  // previous test applied: a green PNG came back as (105, 129, 161) -- green
+  // through a theme's content tint -- for every full-suite run.
+  ThemeStateGuard themeState;
+  fc::setPreviewTint(QColor());
+  fc::setThumbnailTint(QColor());
   QTemporaryDir dir;
   ASSERT_TRUE(dir.isValid());
   const QString oldText = writeText(dir, QStringLiteral("old.txt"),
