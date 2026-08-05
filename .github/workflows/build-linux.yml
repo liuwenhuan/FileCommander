@@ -5,6 +5,18 @@ on:
   pull_request:
   workflow_dispatch:
 
+# One run per branch. Pushing again cancels the run the previous push started,
+# which is almost always what is wanted: the older run is testing code that has
+# already been replaced, and its result would be reported against a commit
+# nobody is looking at any more.
+#
+# Written after a session of fixing CI ran up thousands of billable minutes --
+# eight pushes in a row, each starting a fresh run while the previous ones kept
+# going, three of them alive at once at the worst point.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   debug-and-release:
     runs-on: ubuntu-22.04

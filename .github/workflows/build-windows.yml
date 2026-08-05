@@ -1,8 +1,20 @@
 name: Windows
 
+# Not on every push, unlike the Linux workflow. A Windows runner minute is
+# billed at TWICE a Linux one, and this workflow's two jobs take about 35 and 30
+# minutes, so a single push to any branch costs roughly 130 billable minutes
+# against a monthly allowance of 2,000 (Free) or 3,000 (Pro). Measured over this
+# repository's history: Windows accounted for 3,586 of 3,958 billable minutes,
+# or 91%, and eventually exhausted the account.
+#
+# Pull requests and tags still get the full check, and workflow_dispatch runs it
+# on demand from the Actions tab -- which is the replacement for push, for the
+# case of working directly on a branch and wanting Windows verified.
 on:
-  push:
   pull_request:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       full_preview:
@@ -10,6 +22,11 @@ on:
         required: false
         type: boolean
         default: false
+
+# See the Linux workflow for why. Doubly worth it here at two-times billing.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   unit:
@@ -133,9 +150,22 @@ jobs:
           "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" |
               Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
-      - name: Cache poppler-qt5
+      # Restore and save are separate steps on purpose.
+      #
+      # actions/cache writes its cache in a post-job step that only runs when
+      # the JOB succeeded. This job kept failing after poppler was already
+      # built -- on office-oxide, on packaging, on whatever was broken that
+      # round -- so the cache was never written even once, and the ~25 minute
+      # build was repeated from scratch every run. Measured: the repository had
+      # ZERO caches stored, and 1,636 billable minutes had gone into rebuilding
+      # the same library.
+      #
+      # Splitting them lets the save happen the moment poppler exists, which is
+      # the point at which the expensive work is worth keeping regardless of
+      # what the rest of the job does.
+      - name: Restore poppler-qt5
         id: poppler-cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: build/poppler-qt5
           key: poppler-qt5-${{ env.POPPLER_VERSION }}-qt${{ env.QT_VERSION }}-x64-windows-${{ hashFiles('packaging/build-poppler-qt5.ps1') }}
@@ -146,11 +176,21 @@ jobs:
           & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install --triplet x64-windows libarchive libssh2 curl zlib
 
       - name: Build poppler-qt5
+        id: poppler-build
         if: steps.poppler-cache.outputs.cache-hit != 'true'
         shell: pwsh
         env:
           FILECOMMANDER_QT_ROOT: ${{ env.QT_ROOT_DIR }}
         run: ./packaging/build-poppler-qt5.ps1 -Version $env:POPPLER_VERSION
+
+      # Skipped on a cache hit, because the build step above was skipped and its
+      # outcome is then 'skipped' rather than 'success'.
+      - name: Save poppler-qt5
+        if: steps.poppler-build.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: build/poppler-qt5
+          key: ${{ steps.poppler-cache.outputs.cache-primary-key }}
 
       # office-oxide renders docx/pptx/xlsx for the preview pane. It lives in a
       # separate repository, so CI can only bundle it when told where to get it:

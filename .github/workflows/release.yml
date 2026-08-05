@@ -17,6 +17,15 @@ on:
       - 'v*'
   workflow_dispatch:
 
+# Serialised, NOT cancelled. The CI workflows cancel a superseded run because
+# its result is about code nobody is looking at any more; a release run is the
+# opposite -- it publishes artefacts, and killing one midway could leave a
+# Release with some of its files attached. Two tags pushed close together queue
+# up instead.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -119,9 +128,15 @@ jobs:
           "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" |
               Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
-      - name: Cache poppler-qt5
+      # Restore and save split apart -- see the same pair in build-windows.yml
+      # for why. Short version: actions/cache only writes when the whole job
+      # succeeds, so a ~25 minute poppler build was thrown away every time a
+      # later step failed, and the repository ended up with no cache at all.
+      # The key is shared with that workflow, so whichever runs first pays for
+      # the build and the other one gets it free.
+      - name: Restore poppler-qt5
         id: poppler-cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: build/poppler-qt5
           key: poppler-qt5-${{ env.POPPLER_VERSION }}-qt${{ env.QT_VERSION }}-x64-windows-${{ hashFiles('packaging/build-poppler-qt5.ps1') }}
@@ -132,11 +147,19 @@ jobs:
           & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install --triplet x64-windows libarchive libssh2 curl zlib
 
       - name: Build poppler-qt5
+        id: poppler-build
         if: steps.poppler-cache.outputs.cache-hit != 'true'
         shell: pwsh
         env:
           FILECOMMANDER_QT_ROOT: ${{ env.QT_ROOT_DIR }}
         run: ./packaging/build-poppler-qt5.ps1 -Version $env:POPPLER_VERSION
+
+      - name: Save poppler-qt5
+        if: steps.poppler-build.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: build/poppler-qt5
+          key: ${{ steps.poppler-cache.outputs.cache-primary-key }}
 
       - name: Build office-oxide
         shell: pwsh
