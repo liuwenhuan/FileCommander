@@ -25,12 +25,29 @@ if(WIN32)
             "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin")
     endif()
     list(JOIN _fc_test_runtime_dirs "\\;" FILECOMMANDER_WINDOWS_TEST_RUNTIME_PATH)
+
+    # The host PATH's own separators have to be escaped too, and were not.
+    #
+    # ENVIRONMENT is a cmake LIST of NAME=VALUE entries, so an unescaped
+    # semicolon ends the PATH entry and begins a new one. Appending $ENV{PATH}
+    # raw therefore handed the tests a PATH of the runtime directories plus the
+    # FIRST directory of the host's, with the remaining forty-odd turned into
+    # meaningless environment assignments. Nothing announces that: the tests
+    # just run somewhere with no C:\Windows\System32, so cmd.exe is "not on this
+    # system" and findstr "is not recognized" -- which reads as a broken machine
+    # rather than a truncated PATH.
+    #
+    # Invisible locally, because a developer runs the test executables directly
+    # with their own environment. Only ctest applies this property.
+    string(REPLACE ";" "\\;" _fc_host_path "$ENV{PATH}")
+    set(FILECOMMANDER_WINDOWS_TEST_RUNTIME_PATH
+        "${FILECOMMANDER_WINDOWS_TEST_RUNTIME_PATH}\\;${_fc_host_path}")
 endif()
 
 function(filecommander_set_test_runtime test_name)
     if(WIN32)
         set_tests_properties(${test_name} PROPERTIES
-            ENVIRONMENT "PATH=${FILECOMMANDER_WINDOWS_TEST_RUNTIME_PATH}\\;$ENV{PATH}")
+            ENVIRONMENT "PATH=${FILECOMMANDER_WINDOWS_TEST_RUNTIME_PATH}")
     endif()
 endfunction()
 
