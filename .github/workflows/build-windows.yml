@@ -22,6 +22,19 @@ jobs:
         with:
           version: 5.15.2
           arch: win64_msvc2019_64
+      # msvc-dev-cmd sets VCPKG_ROOT to the vcpkg bundled inside Visual Studio.
+      # That copy has no ports tree and none of the packages installed below --
+      # they go to the runner image's own vcpkg -- so CMake resolved its
+      # toolchain against one installation and every find_package against the
+      # other, and the build died on "Could NOT find LibArchive" with the
+      # packages sitting installed a directory away. Pinned here, AFTER that
+      # action has run, so every later step agrees with the step that installs.
+      - name: Point vcpkg at the runner's own installation
+        shell: pwsh
+        run: |
+          "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" |
+              Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: Install test and provider dependencies
         shell: pwsh
         run: |
@@ -30,14 +43,14 @@ jobs:
       - name: Configure and build
         shell: pwsh
         env:
-          FILECOMMANDER_QT_ROOT: ${{ steps.qt.outputs.dir }}
+          FILECOMMANDER_QT_ROOT: ${{ env.QT_ROOT_DIR }}
         run: |
           cmake --preset windows-msvc-debug
           cmake --build --preset windows-msvc-debug --parallel
       - name: Run contract and UI suites
         shell: pwsh
         env:
-          FILECOMMANDER_QT_ROOT: ${{ steps.qt.outputs.dir }}
+          FILECOMMANDER_QT_ROOT: ${{ env.QT_ROOT_DIR }}
         run: ctest --preset windows-msvc-debug
       - name: Validate source boundaries
         shell: pwsh
@@ -69,6 +82,19 @@ jobs:
           version: ${{ env.QT_VERSION }}
           arch: win64_msvc2019_64
 
+      # msvc-dev-cmd sets VCPKG_ROOT to the vcpkg bundled inside Visual Studio.
+      # That copy has no ports tree and none of the packages installed below --
+      # they go to the runner image's own vcpkg -- so CMake resolved its
+      # toolchain against one installation and every find_package against the
+      # other, and the build died on "Could NOT find LibArchive" with the
+      # packages sitting installed a directory away. Pinned here, AFTER that
+      # action has run, so every later step agrees with the step that installs.
+      - name: Point vcpkg at the runner's own installation
+        shell: pwsh
+        run: |
+          "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" |
+              Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: Cache poppler-qt5
         id: poppler-cache
         uses: actions/cache@v4
@@ -85,8 +111,7 @@ jobs:
         if: steps.poppler-cache.outputs.cache-hit != 'true'
         shell: pwsh
         env:
-          FILECOMMANDER_QT_ROOT: ${{ steps.qt.outputs.dir }}
-          VCPKG_ROOT: ${{ env.VCPKG_INSTALLATION_ROOT }}
+          FILECOMMANDER_QT_ROOT: ${{ env.QT_ROOT_DIR }}
         run: ./packaging/build-poppler-qt5.ps1 -Version $env:POPPLER_VERSION
 
       # office-oxide renders docx/pptx/xlsx for the preview pane. It lives in a
@@ -115,8 +140,7 @@ jobs:
       - name: Build the portable package
         shell: pwsh
         env:
-          FILECOMMANDER_QT_ROOT: ${{ steps.qt.outputs.dir }}
-          VCPKG_ROOT: ${{ env.VCPKG_INSTALLATION_ROOT }}
+          FILECOMMANDER_QT_ROOT: ${{ env.QT_ROOT_DIR }}
           FILECOMMANDER_POPPLER_QT5_ROOT: ${{ github.workspace }}/build/poppler-qt5
         run: ./packaging/build-windows.ps1 -Profile windows-portable
 
