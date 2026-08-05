@@ -8,14 +8,54 @@
 
 #ifdef Q_OS_WIN
 #include <aclapi.h>
+#include <sddl.h>
 #include <windows.h>
 #endif
+
+#include <string>
+#include <vector>
 
 #include "Settings.h"
 
 namespace {
 #ifdef Q_OS_WIN
-bool hasPrivateWindowsAcl(const QString &path) {
+// Describes what is wrong with a path's ACL, or an empty string when nothing
+// is.
+//
+// A reason rather than a bool, because this runs on machines nobody can attach
+// a debugger to: when it failed on a CI runner all "Expected: true" said was
+// that some part of a twenty-line check did not hold.
+//
+// The principals compared against are the ones restrictWindowsPath() actually
+// grants to -- the process TOKEN USER, LocalSystem and BuiltinAdministrators --
+// not the file's owner. Those are the same account in the ordinary case, but
+// not always: where a policy makes Administrators the owner of objects an
+// administrator creates, the owner is a group the code never named, and an
+// otherwise perfectly private ACL reads as a failure.
+std::string privateWindowsAclProblem(const QString &path) {
+    HANDLE token = nullptr;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token))
+        return "could not open the process token";
+    DWORD tokenInfoSize = 0;
+    GetTokenInformation(token, TokenUser, nullptr, 0, &tokenInfoSize);
+    std::vector<BYTE> tokenInfo(tokenInfoSize);
+    const bool hasTokenUser =
+        tokenInfoSize > 0 &&
+        GetTokenInformation(token, TokenUser, tokenInfo.data(), tokenInfoSize, &tokenInfoSize);
+    CloseHandle(token);
+    if (!hasTokenUser)
+        return "could not read the token user";
+    const PSID userSid = reinterpret_cast<TOKEN_USER *>(tokenInfo.data())->User.Sid;
+
+    const auto sidText = [](PSID sid) -> std::string {
+        LPWSTR text = nullptr;
+        if (!sid || !ConvertSidToStringSidW(sid, &text))
+            return "<unreadable>";
+        const std::string out = QString::fromWCharArray(text).toStdString();
+        LocalFree(text);
+        return out;
+    };
+
     std::wstring widePath = path.toStdWString();
     PSECURITY_DESCRIPTOR descriptor = nullptr;
     PSID owner = nullptr;
@@ -23,55 +63,75 @@ bool hasPrivateWindowsAcl(const QString &path) {
     const DWORD status = GetNamedSecurityInfoW(
         widePath.data(), SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
         &owner, nullptr, &dacl, nullptr, &descriptor);
-    if (status != ERROR_SUCCESS || !descriptor || !owner || !dacl) {
+    if (status != ERROR_SUCCESS || !descriptor || !dacl) {
         if (descriptor)
             LocalFree(descriptor);
-        return false;
+        return "GetNamedSecurityInfoW failed with " + std::to_string(status);
     }
 
     SECURITY_DESCRIPTOR_CONTROL control = 0;
     DWORD revision = 0;
+    if (!GetSecurityDescriptorControl(descriptor, &control, &revision)) {
+        LocalFree(descriptor);
+        return "could not read the security descriptor control bits";
+    }
+    if (!(control & SE_DACL_PROTECTED)) {
+        LocalFree(descriptor);
+        return "the DACL still inherits (SE_DACL_PROTECTED is not set), so the "
+               "path is not private";
+    }
+
     ACL_SIZE_INFORMATION aclInfo{};
-    const bool protectedDacl = GetSecurityDescriptorControl(descriptor, &control, &revision) &&
-                               (control & SE_DACL_PROTECTED) &&
-                               GetAclInformation(dacl, &aclInfo, sizeof(aclInfo), AclSizeInformation);
+    if (!GetAclInformation(dacl, &aclInfo, sizeof(aclInfo), AclSizeInformation)) {
+        LocalFree(descriptor);
+        return "could not read the ACL contents";
+    }
 
     BYTE systemBuffer[SECURITY_MAX_SID_SIZE];
     DWORD systemSize = sizeof(systemBuffer);
     BYTE administratorsBuffer[SECURITY_MAX_SID_SIZE];
     DWORD administratorsSize = sizeof(administratorsBuffer);
-    const bool knownSids = CreateWellKnownSid(WinLocalSystemSid, nullptr, systemBuffer, &systemSize) &&
-                           CreateWellKnownSid(WinBuiltinAdministratorsSid, nullptr,
-                                             administratorsBuffer, &administratorsSize);
+    if (!CreateWellKnownSid(WinLocalSystemSid, nullptr, systemBuffer, &systemSize) ||
+        !CreateWellKnownSid(WinBuiltinAdministratorsSid, nullptr, administratorsBuffer,
+                            &administratorsSize)) {
+        LocalFree(descriptor);
+        return "could not build the well-known SIDs to compare against";
+    }
 
-    bool ownerHasFullAccess = false;
-    bool onlyPrivatePrincipals = protectedDacl && knownSids;
-    for (DWORD index = 0; onlyPrivatePrincipals && index < aclInfo.AceCount; ++index) {
+    std::string problem;
+    bool userHasFullAccess = false;
+    for (DWORD index = 0; problem.empty() && index < aclInfo.AceCount; ++index) {
         void *rawAce = nullptr;
         if (!GetAce(dacl, index, &rawAce)) {
-            onlyPrivatePrincipals = false;
+            problem = "could not read ACE " + std::to_string(index);
             break;
         }
         const auto *header = static_cast<const ACE_HEADER *>(rawAce);
         if (header->AceType != ACCESS_ALLOWED_ACE_TYPE) {
-            onlyPrivatePrincipals = false;
+            problem = "ACE " + std::to_string(index) + " is not an access-allowed ACE";
             break;
         }
         const auto *ace = static_cast<const ACCESS_ALLOWED_ACE *>(rawAce);
         const PSID sid = reinterpret_cast<PSID>(const_cast<DWORD *>(&ace->SidStart));
-        const bool isOwner = EqualSid(sid, owner);
-        const bool isSystem = EqualSid(sid, systemBuffer);
-        const bool isAdministrators = EqualSid(sid, administratorsBuffer);
-        if (!isOwner && !isSystem && !isAdministrators) {
-            onlyPrivatePrincipals = false;
+        const bool isUser = EqualSid(sid, userSid);
+        if (!isUser && !EqualSid(sid, systemBuffer) && !EqualSid(sid, administratorsBuffer)) {
+            problem = "ACE " + std::to_string(index) + " grants access to " + sidText(sid) +
+                      ", which is neither this user (" + sidText(userSid) +
+                      "), LocalSystem, nor Administrators";
             break;
         }
-        if (isOwner && ((ace->Mask & GENERIC_ALL) == GENERIC_ALL ||
-                        (ace->Mask & FILE_ALL_ACCESS) == FILE_ALL_ACCESS))
-            ownerHasFullAccess = true;
+        if (isUser && ((ace->Mask & GENERIC_ALL) == GENERIC_ALL ||
+                       (ace->Mask & FILE_ALL_ACCESS) == FILE_ALL_ACCESS))
+            userHasFullAccess = true;
+    }
+
+    if (problem.empty() && !userHasFullAccess) {
+        problem = "no ACE gives this user (" + sidText(userSid) +
+                  ") full access; the owner is " + sidText(owner) + " and the ACL has " +
+                  std::to_string(aclInfo.AceCount) + " entries";
     }
     LocalFree(descriptor);
-    return onlyPrivatePrincipals && ownerHasFullAccess;
+    return problem;
 }
 #endif
 
@@ -148,8 +208,10 @@ TEST(SettingsTest, DefaultConfigDirectoryAndFileUsePlatformPrivateStorage) {
     }
 
 #ifdef Q_OS_WIN
-    EXPECT_TRUE(hasPrivateWindowsAcl(Settings::configDir()));
-    EXPECT_TRUE(hasPrivateWindowsAcl(Settings::configFilePath()));
+    EXPECT_EQ(privateWindowsAclProblem(Settings::configDir()), std::string())
+        << "on " << Settings::configDir().toStdString();
+    EXPECT_EQ(privateWindowsAclProblem(Settings::configFilePath()), std::string())
+        << "on " << Settings::configFilePath().toStdString();
 #else
     const QFileDevice::Permissions privateDirectory =
         QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner |
