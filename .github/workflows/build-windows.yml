@@ -59,11 +59,35 @@ jobs:
         env:
           FILECOMMANDER_QT_ROOT: ${{ env.QT_ROOT_DIR }}
         run: ctest --preset windows-msvc-debug
+      # Public headers in src/platform and src/core must not pull in a
+      # platform's own headers; anything that needs them includes them in a .cpp.
+      #
+      # Rewritten twice over, for two faults that cancelled each other out into
+      # a step that passed without checking much:
+      #
+      #   * it called ripgrep, which the windows-latest image happened to carry
+      #     and windows-2022 does not, so the step died with "The term 'rg' is
+      #     not recognized" as soon as the runner was pinned;
+      #   * it globbed src\core\*.h, and src/core has no headers at its top
+      #     level -- they are all in subdirectories. rg reported the missing
+      #     path on stderr, which `if (...)` does not capture, so the whole
+      #     thing read as "nothing found" and passed.
+      #
+      # Select-String is built into PowerShell, so there is nothing to install,
+      # and the search is recursive like the Linux job's.
       - name: Validate source boundaries
         shell: pwsh
         run: |
           git diff --check
-          if (rg -n '#include <(windows|winsock|sys/|xcb|QDBus)' src\platform\*.h src\core\*.h) { exit 1 }
+          $headers = Get-ChildItem -Path src\platform, src\core -Filter *.h -Recurse -File
+          $leaks = $headers | Select-String -Pattern '#include <(windows|winsock|sys/|xcb|QDBus)'
+          if ($leaks) {
+              foreach ($leak in $leaks) {
+                  Write-Host "::error file=$($leak.Path),line=$($leak.LineNumber)::platform header in a public header: $($leak.Line.Trim())"
+              }
+              exit 1
+          }
+          Write-Host "$($headers.Count) headers checked, none reaches for a platform header."
 
   # The portable zip, built where anyone can build it.
   #
