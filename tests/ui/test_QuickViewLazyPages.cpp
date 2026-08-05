@@ -4,6 +4,7 @@
 #include <QDataStream>
 #include <QElapsedTimer>
 #include <QEvent>
+#include <QFile>
 #include <QGraphicsView>
 #include <QLabel>
 #include <QPalette>
@@ -473,7 +474,44 @@ TEST(QuickViewLazyPages, RealMpvWarmupDistributionRecordsGuiThreadCost) {
     EXPECT_GE(maximum, minimum);
 }
 
+// True when this machine has an audio output device for mpv to open.
+//
+// Not a stand-in for "headless": the offscreen QPA plugin is fine, and every
+// other test in this file runs under it. What THIS test needs is a device --
+// without one mpv's audio output fails, the engine never starts, QuickView
+// never switches its stack to the audio page, and the assertion about that page
+// being visible fails on a machine that is behaving correctly.
+//
+// A GitHub runner is exactly that machine. Its log says, in full:
+// "ALSA lib confmisc.c:855:(parse_card) cannot find card '0'".
+bool hasAudioOutput() {
+#ifdef Q_OS_LINUX
+    QFile cards(QStringLiteral("/proc/asound/cards"));
+    if (cards.open(QIODevice::ReadOnly)) {
+        const QByteArray text = cards.readAll().trimmed();
+        if (!text.isEmpty() && !text.contains("no soundcards"))
+            return true;
+    }
+    // A sound server can provide an output with no ALSA card of its own, which
+    // is how this passes under WSLg.
+    if (!qEnvironmentVariableIsEmpty("PULSE_SERVER"))
+        return true;
+    // Read from the environment rather than QStandardPaths: the suite runs with
+    // setTestModeEnabled(true), which redirects the runtime location to a
+    // throwaway directory that never holds a real socket.
+    const QByteArray runtime = qgetenv("XDG_RUNTIME_DIR");
+    return !runtime.isEmpty() &&
+           (QFile::exists(QString::fromLocal8Bit(runtime) + QStringLiteral("/pulse/native")) ||
+            QFile::exists(QString::fromLocal8Bit(runtime) + QStringLiteral("/pipewire-0")));
+#else
+    return true;
+#endif
+}
+
 TEST(QuickViewLazyPages, RealMpvFirstAudioPreviewIsDecodedVisibleAndPainted) {
+    if (!hasAudioOutput())
+        GTEST_SKIP() << "no audio output device for mpv to open";
+
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
     const QString audio = dir.filePath(QStringLiteral("real-preview.wav"));
