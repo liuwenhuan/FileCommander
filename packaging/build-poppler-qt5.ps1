@@ -84,8 +84,13 @@ Write-Host '==> Installing poppler build dependencies through vcpkg'
 # the current working directory". Push-Location does NOT fix that: it moves
 # PowerShell's location, while a native process reads the real working
 # directory, which is unchanged. Measured, all three ways, on this machine.
+# libiconv is here because poppler does find_package(Iconv REQUIRED) and the
+# MSVC C library supplies none, so CMake's FindIconv comes up empty and the
+# configure step dies with "Could NOT find Iconv". It is easy to miss on a
+# developer machine, where some other port has usually pulled it in already; a
+# fresh CI vcpkg has not.
 & "$VcpkgRoot/vcpkg.exe" install --triplet $Triplet --vcpkg-root="$VcpkgRoot" `
-    freetype libjpeg-turbo libpng openjpeg zlib
+    freetype libiconv libjpeg-turbo libpng openjpeg zlib
 if ($LASTEXITCODE -ne 0) { throw 'vcpkg failed to install the poppler dependencies' }
 
 $build = Join-Path $work "build-$Triplet"

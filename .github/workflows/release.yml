@@ -86,7 +86,14 @@ jobs:
 
   windows:
     needs: version-check
-    runs-on: windows-latest
+    # windows-2022, not windows-latest. The newer image ships Visual Studio 18,
+    # whose STL has dropped stdext::make_checked_array_iterator -- and Qt
+    # 5.15.2's qlist.h still calls it, so every translation unit that includes
+    # QList fails with "'stdext': is not a class or namespace name". Nothing in
+    # this repository can fix that; the fix is a toolset the Qt build was made
+    # for. The Qt package itself is msvc2019_64, so 2022 is already the newer
+    # side of that pairing.
+    runs-on: windows-2022
     env:
       POPPLER_VERSION: 26.04.0
       QT_VERSION: 5.15.2
