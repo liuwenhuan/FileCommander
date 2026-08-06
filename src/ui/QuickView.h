@@ -64,6 +64,21 @@ class QuickView : public QWidget {
     Q_OBJECT
 
 public:
+
+    // Softens the one piece of Markdown Qt's parser mishandles badly enough to
+    // lose the document: a <br> inside a TABLE ROW.
+    //
+    // Qt renders Markdown with its bundled MD4C, which treats <br> as the start
+    // of inline HTML and swallows the rest of the cell -- and with it every
+    // remaining cell, every remaining row, and (measured on a real 82 KB file)
+    // all 62 tables after it. Two <br> tags emptied 179 of 204 cells.
+    //
+    // Rows only. Whether <br> misbehaves in prose is untested, and rewriting
+    // text nobody complained about is not something a previewer should do.
+    //
+    // Public because it is worth testing on its own; the caller is the markdown
+    // load path.
+    static QString softenTableLineBreaks(const QString &markdown);
     enum class Context { Embedded, Window };
 
     explicit QuickView(Settings &settings, Context context = Context::Embedded,

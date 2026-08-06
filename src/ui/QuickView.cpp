@@ -9,6 +9,7 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QRegularExpression>
 #include <QFileInfo>
 #include <QClipboard>
 #include <QFontMetrics>
@@ -1774,6 +1775,28 @@ QWidget *QuickView::buildMarkdownPage() {
     return m_markdown;
 }
 
+QString QuickView::softenTableLineBreaks(const QString &markdown) {
+    // <br>, <br/>, <br />, any case. Nothing else: this is a patch for one
+    // measured defect, not a general HTML stripper.
+    static const QRegularExpression br(QStringLiteral("<br\\s*/?>"),
+                                       QRegularExpression::CaseInsensitiveOption);
+    QStringList lines = markdown.split(QLatin1Char('\n'));
+    for (QString &line : lines) {
+        // A table row, by the same test a reader uses: it starts with a pipe.
+        // Leading spaces are allowed -- a row indented under a list still is one.
+        const QStringRef trimmed = QStringRef(&line).trimmed();
+        if (!trimmed.startsWith(QLatin1Char('|')))
+            continue;
+        if (!line.contains(QLatin1String("<br"), Qt::CaseInsensitive))
+            continue;
+        // A space, not "/" or a newline. A newline would end the row and lose
+        // the cells after it, which is the very failure being repaired, and a
+        // separator invents punctuation the author did not write.
+        line.replace(br, QStringLiteral(" "));
+    }
+    return lines.join(QLatin1Char('\n'));
+}
+
 void QuickView::loadMarkdownAsync(const QString &path) {
     // Supersede any in-flight render so a fast scroll through several .md files
     // only ever installs the newest one.
@@ -1813,7 +1836,8 @@ void QuickView::loadMarkdownAsync(const QString &path) {
         doc->setDefaultFont(font);
         doc->setDefaultStyleSheet(kMarkdownDefaultCss);
         // QTextDocument::setMarkdown wants the GitHub dialect (tables, task lists).
-        doc->setMarkdown(QString::fromUtf8(data), QTextDocument::MarkdownDialectGitHub);
+        doc->setMarkdown(softenTableLineBreaks(QString::fromUtf8(data)),
+                         QTextDocument::MarkdownDialectGitHub);
         doc->setTextWidth(width); // force the expensive layout here, off the GUI thread
         // The document was created on this worker thread; hand it to the GUI thread
         // so setParent()/setDocument() there are legal.
