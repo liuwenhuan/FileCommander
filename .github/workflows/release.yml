@@ -8,8 +8,8 @@ name: Release
 # binaries report another. The check below refuses the run instead of shipping
 # that mismatch.
 #
-# Can also be started by hand for a dry run: workflow_dispatch builds and
-# uploads the artefacts but publishes no Release.
+# Can also be started by hand for a dry run from the Actions tab:
+# workflow_dispatch builds and uploads the artefacts but publishes no Release.
 
 on:
   push:
