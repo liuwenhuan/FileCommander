@@ -25,6 +25,7 @@ try {
         'applicationSetupMs',
         'mainWindowBodyStartedMs',
         'panelsConstructionStartedMs',
+        'chromeFontResolvedMs',
         'leftPanelConstructedMs',
         'panelsConstructedMs',
         'operationQueueConstructedMs',

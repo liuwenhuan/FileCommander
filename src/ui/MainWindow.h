@@ -404,6 +404,11 @@ private:
     qint64 m_startupApplicationSetupMs = -1;
     qint64 m_startupMainWindowBodyStartedMs = -1;
     qint64 m_startupPanelsConstructionStartedMs = -1;
+    // Splits the panel-construction phase in two. The pair used to bracket
+    // Typography::chromeFont() and the left panel together, and reported ~380 ms
+    // against a right panel that costs 2 ms -- so the cost was one-time, and
+    // there was no way to tell which of the two calls was paying it.
+    qint64 m_startupChromeFontResolvedMs = -1;
     qint64 m_startupLeftPanelConstructedMs = -1;
     qint64 m_startupPanelsConstructedMs = -1;
     qint64 m_startupOperationQueueConstructedMs = -1;

@@ -336,6 +336,8 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
         m_startupPanelsConstructionStartedMs = elapsedSinceStartup();
     QFont initialListFont = Typography::chromeFont(m_settings);
     initialListFont.setPointSize(m_settings.listFontSize());
+    if (m_collectStartupPhases)
+        m_startupChromeFontResolvedMs = elapsedSinceStartup();
     m_leftPanel = new FilePanel(initialListFont, splitter);
     if (m_collectStartupPhases)
         m_startupLeftPanelConstructedMs = elapsedSinceStartup();
@@ -1258,6 +1260,8 @@ QJsonObject MainWindow::startupMetrics() const {
                        m_startupMainWindowBodyStartedMs);
         metrics.insert(QStringLiteral("panelsConstructionStartedMs"),
                        m_startupPanelsConstructionStartedMs);
+        metrics.insert(QStringLiteral("chromeFontResolvedMs"),
+                       m_startupChromeFontResolvedMs);
         metrics.insert(QStringLiteral("leftPanelConstructedMs"),
                        m_startupLeftPanelConstructedMs);
         metrics.insert(QStringLiteral("panelsConstructedMs"), m_startupPanelsConstructedMs);
