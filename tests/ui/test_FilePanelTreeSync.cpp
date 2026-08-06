@@ -78,6 +78,16 @@ protected:
     QString m_beta;
 };
 
+// The waits below are generous on purpose. The tree walks to a path one level
+// at a time, listing each directory asynchronously, and the fixture sits under
+// the system temp directory -- eight listings deep from the drive root. On this
+// machine that is fast; on a CI runner, where C:/Users alone holds several
+// profiles and the filesystem is cold, four seconds was not enough and the tree
+// was still at C:/Users/runneradmin when the assertion looked.
+//
+// A budget on "wait until X" only bounds how long a real failure takes to
+// report, so a generous one costs nothing and a tight one fails on a slow
+// machine for no reason.
 TEST_F(FilePanelTreeSyncTest, TreeFollowsTabSwitchAfterEachLoad) {
     FilePanel panel;
     panel.show();
@@ -85,21 +95,21 @@ TEST_F(FilePanelTreeSyncTest, TreeFollowsTabSwitchAfterEachLoad) {
     ASSERT_NE(tree, nullptr);
 
     ASSERT_TRUE(navigateAndWait(panel, m_alphaInner));
-    FC_TRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_alphaInner, 4000);
+    FC_TRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_alphaInner, 15000);
 
     panel.newTab();
     ASSERT_TRUE(navigateAndWait(panel, m_beta));
-    FC_TRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_beta, 4000);
+    FC_TRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_beta, 15000);
 
     QSignalSpy previousLoad(panel.model(), &FileSystemModel::loadFinished);
     panel.prevTab();
     ASSERT_TRUE(waitForLoad(previousLoad));
-    FC_TRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_alphaInner, 4000);
+    FC_TRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_alphaInner, 15000);
 
     QSignalSpy nextLoad(panel.model(), &FileSystemModel::loadFinished);
     panel.nextTab();
     ASSERT_TRUE(waitForLoad(nextLoad));
-    FC_TRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_beta, 4000);
+    FC_TRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_beta, 15000);
 }
 
 TEST(FilePanelStartupTest, DirectoryTreeIsCreatedOnceOnFirstToggleWithCurrentFont) {
@@ -130,7 +140,7 @@ TEST(FilePanelStartupTest, DirectoryTreeBuildsRootsWhenFirstShown) {
     auto *model = qobject_cast<DirectoryTreeModel *>(tree->model());
     ASSERT_NE(model, nullptr);
 
-    FC_TRY_VERIFY_WITH_TIMEOUT(model->rowCount() > 0, 1000);
+    FC_TRY_VERIFY_WITH_TIMEOUT(model->rowCount() > 0, 5000);
 }
 
 TEST_F(FilePanelTreeSyncTest, HiddenTreePreservesItsExistingSelectionUntilReopened) {
@@ -140,7 +150,7 @@ TEST_F(FilePanelTreeSyncTest, HiddenTreePreservesItsExistingSelectionUntilReopen
     ASSERT_NE(tree, nullptr);
 
     ASSERT_TRUE(navigateAndWait(panel, m_alpha));
-    FC_TRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_alpha, 4000);
+    FC_TRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_alpha, 15000);
     tree->setVisible(false);
 
     panel.newTab();
@@ -156,7 +166,7 @@ TEST_F(FilePanelTreeSyncTest, HiddenTreePreservesItsExistingSelectionUntilReopen
     QSignalSpy nextLoad(panel.model(), &FileSystemModel::loadFinished);
     panel.nextTab();
     ASSERT_TRUE(waitForLoad(nextLoad));
-    FC_TRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_beta, 4000);
+    FC_TRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_beta, 15000);
 }
 
 } // namespace
