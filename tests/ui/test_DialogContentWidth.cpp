@@ -56,7 +56,7 @@ QString copyFailureMessage()
 {
     return QStringLiteral(
         "Failed to copy "
-        "/home/deepin/Documents/projects/filecommander/build/linux-debug/artifacts/"
+        "/home/alice/Documents/projects/filecommander/build/linux-debug/artifacts/"
         "reports/2026-07-31/very-long-source-directory-name/source-report-final.txt"
         " to "
         "/media/deepin/BackupVolume/archive/2026/july/incoming/staging/"
@@ -195,7 +195,7 @@ TEST(DialogContentWidthTest, TextPromptWithALongLabelIsBoundedAndStillShrinkable
 {
     const QString label =
         QStringLiteral("Rename "
-                       "/home/deepin/Documents/projects/filecommander/build/linux-debug/"
+                       "/home/alice/Documents/projects/filecommander/build/linux-debug/"
                        "artifacts/reports/2026-07-31/a-very-long-directory-name/"
                        "the-original-file-name-that-goes-on.txt"
                        " to:");

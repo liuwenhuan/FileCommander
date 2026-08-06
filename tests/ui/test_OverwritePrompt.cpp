@@ -94,7 +94,7 @@ void expectWindowFitsAvailableWidth(QWidget &dialog) {
 TEST(OverwritePromptTest, ShowsTheSizesItWasGiven) {
     FileConflict conflict;
     conflict.sourcePath = QStringLiteral("/share/docs/report.pdf");
-    conflict.destPath = QStringLiteral("/home/deepin/report.pdf");
+    conflict.destPath = QStringLiteral("/home/alice/report.pdf");
     conflict.sourceSize = 1234567;
     conflict.destSize = 42;
 
@@ -113,7 +113,7 @@ TEST(OverwritePromptTest, SaysUnknownRatherThanInventingAZero) {
     // read as an empty file and invite the user to overwrite it.
     FileConflict conflict;
     conflict.sourcePath = QStringLiteral("/share/docs/folder");
-    conflict.destPath = QStringLiteral("/home/deepin/folder");
+    conflict.destPath = QStringLiteral("/home/alice/folder");
 
     const QString text = OverwriteConfirmDialog::describe(conflict);
     EXPECT_FALSE(text.contains(QStringLiteral("0 bytes"))) << text.toStdString();

@@ -10,7 +10,7 @@ class QStackedLayout;
 class QToolButton;
 
 // Compact clickable path: renders the current path as a normal-looking
-// slash-separated string (e.g. /home/deepin) where each segment is a link
+// slash-separated string (e.g. /home/alice) where each segment is a link
 // you can click to jump to that level. Clicking the blank area past the
 // path switches to a plain editable QLineEdit for typing a path directly.
 // Escape while editing reverts without navigating.

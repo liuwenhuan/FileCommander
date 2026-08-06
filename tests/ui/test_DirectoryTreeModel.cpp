@@ -325,10 +325,10 @@ TEST(DirectoryTreeModelTest, NestedExpansionBuildsCorrectPaths) {
     ASSERT_TRUE(model.canFetchMore(home));
     model.fetchMore(home);
     EXPECT_EQ(lister->requests.last().path, QString("/home"));
-    lister->deliver({"deepin"});
+    lister->deliver({"alice"});
 
     const QModelIndex user = model.index(0, 0, home);
-    EXPECT_EQ(model.pathAt(user), QString("/home/deepin"));
+    EXPECT_EQ(model.pathAt(user), QString("/home/alice"));
     // The parent chain must round-trip, or the view cannot address the node.
     EXPECT_EQ(model.parent(user), home);
     EXPECT_EQ(model.parent(home), root);
@@ -350,10 +350,10 @@ TEST(DirectoryTreeModelTest, DeepestLoadedAncestorStopsAtTheMaterialisedEdge) {
     model.fetchMore(root);
     lister->deliver({"home"});
 
-    // "/home" exists; "/home/deepin/docs" does not yet.
-    const QModelIndex ancestor = model.deepestLoadedAncestor({}, "/home/deepin/docs");
+    // "/home" exists; "/home/alice/docs" does not yet.
+    const QModelIndex ancestor = model.deepestLoadedAncestor({}, "/home/alice/docs");
     EXPECT_EQ(model.pathAt(ancestor), QString("/home"));
-    EXPECT_FALSE(model.indexForPath({}, "/home/deepin/docs").isValid());
+    EXPECT_FALSE(model.indexForPath({}, "/home/alice/docs").isValid());
     EXPECT_TRUE(model.indexForPath({}, "/home").isValid());
 }
 

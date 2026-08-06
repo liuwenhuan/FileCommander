@@ -65,7 +65,7 @@ RemoteLocation smbLocation() {
     RemoteLocation loc;
     loc.scheme = QStringLiteral("smb");
     loc.host = QStringLiteral("nas.invalid");
-    loc.user = QStringLiteral("deepin");
+    loc.user = QStringLiteral("alice");
     return loc;
 }
 
@@ -75,9 +75,9 @@ RemoteLocation smbLocation() {
 
 TEST(ExternalPathsTest, LocalPathIsHandedOutUnchanged) {
     const QUrl url = fc::externalUrlFor(/*localFilesystem=*/true, RemoteLocation(),
-                                        QStringLiteral("/home/deepin/report.pdf"), QString());
+                                        QStringLiteral("/home/alice/report.pdf"), QString());
     EXPECT_TRUE(url.isLocalFile());
-    EXPECT_EQ(url.toLocalFile().toStdString(), "/home/deepin/report.pdf");
+    EXPECT_EQ(url.toLocalFile().toStdString(), "/home/alice/report.pdf");
 }
 
 TEST(ExternalPathsTest, MountedRemoteFileIsHandedOutAsItsRealLocalPath) {
@@ -108,9 +108,9 @@ TEST(ExternalPathsTest, RemotePathIsNeverHandedOutAsALocalFileUrl) {
     // a file:// URL over the server's path resolves to a local file of the same
     // name and the receiving application silently gets the wrong bytes.
     const QUrl url = fc::externalUrlFor(/*localFilesystem=*/false, smbLocation(),
-                                        QStringLiteral("/home/deepin/.bashrc"), QString());
+                                        QStringLiteral("/home/alice/.bashrc"), QString());
     ASSERT_FALSE(url.isEmpty());
-    EXPECT_NE(url.toString().toStdString(), "file:///home/deepin/.bashrc");
+    EXPECT_NE(url.toString().toStdString(), "file:///home/alice/.bashrc");
     EXPECT_FALSE(url.isLocalFile());
 }
 
@@ -137,7 +137,7 @@ TEST(ExternalPathsTest, LocalProviderStillYieldsPlainFileUrls) {
 
 TEST(ExternalPathsTest, RemoteProviderYieldsUrisNotLocalPaths) {
     FakeRemote remote(QStringLiteral("smb"), QStringLiteral("nas.invalid"),
-                      QStringLiteral("deepin"));
+                      QStringLiteral("alice"));
     const QStringList paths = {QStringLiteral("/docs/a.txt"), QStringLiteral("/docs/b.txt")};
     const QList<QUrl> urls = fc::externalUrlsFor(&remote, paths);
     ASSERT_EQ(urls.size(), 2);
@@ -154,7 +154,7 @@ TEST(ExternalPathsTest, ArchiveProviderYieldsNothing) {
 
 TEST(ExternalPathsTest, NonAsciiRemoteNameSurvivesAsAnEncodedUri) {
     FakeRemote remote(QStringLiteral("smb"), QStringLiteral("nas.invalid"),
-                      QStringLiteral("deepin"));
+                      QStringLiteral("alice"));
     const QString path = QStringLiteral("/video/3d动画 片/第一集.mp4");
     const QList<QUrl> urls = fc::externalUrlsFor(&remote, {path});
     ASSERT_EQ(urls.size(), 1);
@@ -192,7 +192,7 @@ TEST(ExternalPathsTest, IncomingPathsPrefersThePrivateFormat) {
     // world and the server's own paths for us. Reading the URIs instead would
     // hand the operation a URL string where a path belongs.
     FakeRemote remote(QStringLiteral("smb"), QStringLiteral("nas.invalid"),
-                      QStringLiteral("deepin"));
+                      QStringLiteral("alice"));
     QMimeData mime;
     const QStringList paths = {QStringLiteral("/docs/report.pdf")};
     fc::setPathPayload(&mime, &remote, paths, /*cut=*/false);

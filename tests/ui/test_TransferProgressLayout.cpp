@@ -33,7 +33,7 @@ TEST(TransferProgressLayout, ALongPathIsGivenTheRoomToWrapInto) {
     QTest::qWaitForWindowExposed(&dialog);
 
     const QString deepPath =
-        QStringLiteral("C:/Users/deepin/Downloads/a-fairly-deep-folder/and-another-one/"
+        QStringLiteral("C:/Users/alice/Downloads/a-fairly-deep-folder/and-another-one/"
                        "and-a-third-for-good-measure/the-file-itself.bin");
     // Drive it the way the queue does: onProgress carries the current file.
     QMetaObject::invokeMethod(&dialog, "onProgress", Qt::DirectConnection,
@@ -64,7 +64,7 @@ TEST(TransferProgressLayout, TheOperationDialogGivesItsPathRoomToo) {
     QTest::qWaitForWindowExposed(&dialog);
 
     const QString deepPath =
-        QStringLiteral("C:/Users/deepin/Downloads/a-fairly-deep-folder/and-another-one/"
+        QStringLiteral("C:/Users/alice/Downloads/a-fairly-deep-folder/and-another-one/"
                        "and-a-third-for-good-measure/the-file-itself.bin");
     dialog.setProgress(0, 1, 1024, 4096, deepPath);
     qApp->processEvents();

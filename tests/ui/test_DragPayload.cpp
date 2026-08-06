@@ -31,7 +31,7 @@ public:
         RemoteLocation loc;
         loc.scheme = QStringLiteral("smb");
         loc.host = QStringLiteral("nas.invalid");
-        loc.user = QStringLiteral("deepin");
+        loc.user = QStringLiteral("alice");
         return loc;
     }
     QVector<FileInfo> list(const QString &, bool) const override { return {}; }
@@ -166,12 +166,12 @@ TEST(DragPayloadTest, LocalDragStillAdvertisesPlainFileUrls) {
     // What another application sees when the source is an ordinary local panel:
     // unchanged file:// URLs, plus the private copy for our own drops.
     QMimeData mime;
-    const QStringList paths = {QStringLiteral("/home/deepin/a.txt")};
+    const QStringList paths = {QStringLiteral("/home/alice/a.txt")};
     fc::setPathPayload(&mime, LocalFileProvider::instance(), paths, /*cut=*/false);
 
     ASSERT_TRUE(mime.hasUrls());
     ASSERT_EQ(mime.urls().size(), 1);
-    EXPECT_EQ(mime.urls().first().toString().toStdString(), "file:///home/deepin/a.txt");
+    EXPECT_EQ(mime.urls().first().toString().toStdString(), "file:///home/alice/a.txt");
     EXPECT_EQ(fc::incomingPaths(&mime), paths);
 }
 

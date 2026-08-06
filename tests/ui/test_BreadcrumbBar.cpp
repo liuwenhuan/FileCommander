@@ -97,13 +97,13 @@ struct RestoreStyleSheet {
 TEST(BreadcrumbBar, WindowsDriveSegmentsKeepDriveRootInEveryTarget) {
     BreadcrumbBar bar;
 
-    bar.setPath(QStringLiteral("C:/Users/deepin/Documents"));
+    bar.setPath(QStringLiteral("C:/Users/alice/Documents"));
 
     EXPECT_EQ(linkTargets(bar),
               QStringList({QStringLiteral("C:/"),
                            QStringLiteral("C:/Users"),
-                           QStringLiteral("C:/Users/deepin"),
-                           QStringLiteral("C:/Users/deepin/Documents")}));
+                           QStringLiteral("C:/Users/alice"),
+                           QStringLiteral("C:/Users/alice/Documents")}));
 }
 
 TEST(BreadcrumbBar, WindowsDriveRootIsAValidNavigationTarget) {
@@ -117,13 +117,13 @@ TEST(BreadcrumbBar, WindowsDriveRootIsAValidNavigationTarget) {
 TEST(BreadcrumbBar, UnixSegmentsRemainAbsolute) {
     BreadcrumbBar bar;
 
-    bar.setPath(QStringLiteral("/home/deepin/Documents"));
+    bar.setPath(QStringLiteral("/home/alice/Documents"));
 
     EXPECT_EQ(linkTargets(bar),
               QStringList({QStringLiteral("/"),
                            QStringLiteral("/home"),
-                           QStringLiteral("/home/deepin"),
-                           QStringLiteral("/home/deepin/Documents")}));
+                           QStringLiteral("/home/alice"),
+                           QStringLiteral("/home/alice/Documents")}));
 }
 
 // Nothing in the address row draws a border -- not the tree toggle, not
@@ -151,7 +151,7 @@ TEST(BreadcrumbBar, TheAddressRowDrawsNoBordersAtAll) {
     auto *star = new QToolButton(row);
     for (QToolButton *button : {tree, back, forward, star})
         button->setFixedSize(32, 30);
-    bar->setPath(QStringLiteral("C:/Users/deepin/Documents"));
+    bar->setPath(QStringLiteral("C:/Users/alice/Documents"));
     bar->setFixedHeight(30);
     layout->addWidget(tree);
     layout->addWidget(back);
@@ -187,7 +187,7 @@ TEST(BreadcrumbBar, OverflowArrowsExposeDirectionAndReachBothEnds) {
     BreadcrumbBar bar;
     bar.resize(280, 30);
     bar.setPath(QStringLiteral(
-        "C:/Users/deepin/AppData/Local/Temp/FileCommander-package-smoke-"
+        "C:/Users/alice/AppData/Local/Temp/FileCommander-package-smoke-"
         "cc253534-8737-41be-8024-fecb73e6ef11/one/two/three/four"));
     bar.show();
     qApp->processEvents();
@@ -231,7 +231,7 @@ TEST(BreadcrumbBar, OverflowStateTracksResizeNavigationThemeAndEditing) {
     BreadcrumbBar bar;
     bar.resize(240, 30);
     const QString longPath = QStringLiteral(
-        "C:/Users/deepin/Documents/filecommander/build/windows/full/release/output");
+        "C:/Users/alice/Documents/filecommander/build/windows/full/release/output");
     bar.setPath(longPath);
     bar.show();
     qApp->processEvents();
