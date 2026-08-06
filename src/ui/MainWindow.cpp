@@ -308,9 +308,10 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
         m_startupClock = *startupClock;
     m_startupElapsed.start();
     m_startupElapsedOffsetMs = qMax<qint64>(0, startupElapsedMs);
+    m_startupTrace.setCollecting(m_collectStartupPhases);
     if (m_collectStartupPhases) {
-        m_startupApplicationSetupMs = m_startupElapsedOffsetMs;
-        m_startupMainWindowBodyStartedMs = elapsedSinceStartup();
+        m_startupTrace.mark(QStringLiteral("applicationSetupMs"), m_startupElapsedOffsetMs);
+        m_startupTrace.mark(QStringLiteral("mainWindowBodyStartedMs"), elapsedSinceStartup());
     }
     // Frameless: we draw our own title bar (see setupMenuAndToolbar / TitleBar)
     // plus a rounded background and soft shadow in paintEvent. The window is
@@ -332,18 +333,14 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
     // slow their repaints, so we paint just the handle.)
     auto *splitter = new PanelSplitter(this);
     m_panelSplitter = splitter;
-    if (m_collectStartupPhases)
-        m_startupPanelsConstructionStartedMs = elapsedSinceStartup();
+    m_startupTrace.mark(QStringLiteral("panelsConstructionStartedMs"), elapsedSinceStartup());
     QFont initialListFont = Typography::chromeFont(m_settings);
     initialListFont.setPointSize(m_settings.listFontSize());
-    if (m_collectStartupPhases)
-        m_startupChromeFontResolvedMs = elapsedSinceStartup();
+    m_startupTrace.mark(QStringLiteral("chromeFontResolvedMs"), elapsedSinceStartup());
     m_leftPanel = new FilePanel(initialListFont, splitter);
-    if (m_collectStartupPhases)
-        m_startupLeftPanelConstructedMs = elapsedSinceStartup();
+    m_startupTrace.mark(QStringLiteral("leftPanelConstructedMs"), elapsedSinceStartup());
     m_rightPanel = new FilePanel(initialListFont, splitter);
-    if (m_collectStartupPhases)
-        m_startupPanelsConstructedMs = elapsedSinceStartup();
+    m_startupTrace.mark(QStringLiteral("panelsConstructedMs"), elapsedSinceStartup());
     splitter->addWidget(m_leftPanel);
     splitter->addWidget(m_rightPanel);
     splitter->setStretchFactor(0, 1);
@@ -401,8 +398,7 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
     // the function-key bar stays the bottom-most widget.
 
     m_queue = new OperationQueue(this);
-    if (m_collectStartupPhases)
-        m_startupOperationQueueConstructedMs = elapsedSinceStartup();
+    m_startupTrace.mark(QStringLiteral("operationQueueConstructedMs"), elapsedSinceStartup());
     m_queue->setConflictHandler([this](const FileConflict &conflict) {
         // Same reasoning as the error handler below: parent to the progress window (so
         // the window manager stacks this as its owned window) and suppress the progress
@@ -574,32 +570,27 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
     };
     restorePanelColumns(m_leftPanel, QStringLiteral("left"));
     restorePanelColumns(m_rightPanel, QStringLiteral("right"));
-    if (m_collectStartupPhases)
-        m_startupPanelPreferencesRestoredMs = elapsedSinceStartup();
+    m_startupTrace.mark(QStringLiteral("panelPreferencesRestoredMs"), elapsedSinceStartup());
 
     // Optional bars + splitter layout. Applied before buildTitleBarMenus() so
     // the Interface-menu checkmarks (which read the widgets' visibility) match.
     m_commandBar->setVisible(m_settings.showCommandBar());
     m_functionKeyBar->setVisible(m_settings.showFunctionKeyBar());
     applyInterfaceTypography();
-    if (m_collectStartupPhases)
-        m_startupInterfaceTypographyAppliedMs = elapsedSinceStartup();
+    m_startupTrace.mark(QStringLiteral("interfaceTypographyAppliedMs"), elapsedSinceStartup());
     for (FilePanel *panel : {m_leftPanel, m_rightPanel}) {
         panel->setTabBarVisible(m_settings.showTabBar());
         panel->setDirectoryTreeVisible(m_settings.showFolderTree());
     }
-    if (m_collectStartupPhases)
-        m_startupPanelVisibilityRestoredMs = elapsedSinceStartup();
+    m_startupTrace.mark(QStringLiteral("panelVisibilityRestoredMs"), elapsedSinceStartup());
     if (const QByteArray s = m_settings.panelSplitterState(); !s.isEmpty())
         m_panelSplitter->restoreState(s);
-    if (m_collectStartupPhases)
-        m_startupViewSettingsRestoredMs = elapsedSinceStartup();
+    m_startupTrace.mark(QStringLiteral("viewSettingsRestoredMs"), elapsedSinceStartup());
 
     const QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
     SessionPanelData leftSession, rightSession;
     const bool sessionLoaded = SessionManager::load(leftSession, rightSession);
-    if (m_collectStartupPhases)
-        m_startupSessionDataLoadedMs = elapsedSinceStartup();
+    m_startupTrace.mark(QStringLiteral("sessionDataLoadedMs"), elapsedSinceStartup());
     if (sessionLoaded) {
         // Network tabs are not restored at all -- reconnecting during startup
         // blocks on an unreachable server or pops a password dialog before the
@@ -650,8 +641,7 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
 
         m_startupComputerViewPanels.append(m_leftPanel);
     }
-    if (m_collectStartupPhases)
-        m_startupSessionNavigationDispatchedMs = elapsedSinceStartup();
+    m_startupTrace.mark(QStringLiteral("sessionNavigationDispatchedMs"), elapsedSinceStartup());
 
     for (FilePanel *panel : {m_leftPanel, m_rightPanel}) {
         // The server wants credentials: prompt, then hand them to that panel's
@@ -798,8 +788,7 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
 
     setupShortcuts();
     buildTitleBarMenus();
-    if (m_collectStartupPhases)
-        m_startupShortcutsTitleBarReadyMs = elapsedSinceStartup();
+    m_startupTrace.mark(QStringLiteral("shortcutsTitleBarReadyMs"), elapsedSinceStartup());
 
     // Per-side, per-mode view scale (status-bar -/+ buttons): restore whatever
     // was last saved, then persist again whenever a panel's -/+ click changes
@@ -821,12 +810,10 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
 
     // Apply the startup stylesheet once, after every visible widget exists but
     // before main() can show the window. Runtime changes still use applyTheme().
-    if (m_collectStartupPhases)
-        m_startupThemeApplyStartedMs = elapsedSinceStartup();
+    m_startupTrace.mark(QStringLiteral("startupThemeApplyStartedMs"), elapsedSinceStartup());
     m_themeManager->apply(m_settings.theme(), m_settings.phosphorImages(),
                           m_settings.phosphorPreview());
-    if (m_collectStartupPhases)
-        m_startupThemeApplyFinishedMs = elapsedSinceStartup();
+    m_startupTrace.mark(QStringLiteral("startupThemeApplyFinishedMs"), elapsedSinceStartup());
     // Installing a stylesheet swaps the application style, and that resets
     // QApplication::font() back to the platform default -- measured as SimSun 12
     // where the interface font was Microsoft YaHei UI 9. Widgets that already
@@ -1254,35 +1241,11 @@ QJsonObject MainWindow::startupMetrics() const {
                            {QStringLiteral("panelsLoadedMs"), m_startupPanelsLoadedMs},
                            {QStringLiteral("interactiveMs"), m_startupInteractiveMs}};
     if (m_collectStartupPhases) {
-        metrics.insert(QStringLiteral("applicationSetupMs"), m_startupApplicationSetupMs);
-        metrics.insert(QStringLiteral("mainWindowBodyStartedMs"),
-                       m_startupMainWindowBodyStartedMs);
-        metrics.insert(QStringLiteral("panelsConstructionStartedMs"),
-                       m_startupPanelsConstructionStartedMs);
-        metrics.insert(QStringLiteral("chromeFontResolvedMs"),
-                       m_startupChromeFontResolvedMs);
-        metrics.insert(QStringLiteral("leftPanelConstructedMs"),
-                       m_startupLeftPanelConstructedMs);
-        metrics.insert(QStringLiteral("panelsConstructedMs"), m_startupPanelsConstructedMs);
-        metrics.insert(QStringLiteral("operationQueueConstructedMs"),
-                       m_startupOperationQueueConstructedMs);
-        metrics.insert(QStringLiteral("panelPreferencesRestoredMs"),
-                       m_startupPanelPreferencesRestoredMs);
-        metrics.insert(QStringLiteral("interfaceTypographyAppliedMs"),
-                       m_startupInterfaceTypographyAppliedMs);
-        metrics.insert(QStringLiteral("panelVisibilityRestoredMs"),
-                       m_startupPanelVisibilityRestoredMs);
-        metrics.insert(QStringLiteral("viewSettingsRestoredMs"),
-                       m_startupViewSettingsRestoredMs);
-        metrics.insert(QStringLiteral("sessionDataLoadedMs"), m_startupSessionDataLoadedMs);
-        metrics.insert(QStringLiteral("sessionNavigationDispatchedMs"),
-                       m_startupSessionNavigationDispatchedMs);
-        metrics.insert(QStringLiteral("shortcutsTitleBarReadyMs"),
-                       m_startupShortcutsTitleBarReadyMs);
-        metrics.insert(QStringLiteral("startupThemeApplyStartedMs"),
-                       m_startupThemeApplyStartedMs);
-        metrics.insert(QStringLiteral("startupThemeApplyFinishedMs"),
-                       m_startupThemeApplyFinishedMs);
+        // Every phase, under the name it was recorded with, in the order it
+        // happened -- which is what the probe's monotonicity check needs.
+        const QJsonObject phases = m_startupTrace.toJson();
+        for (auto it = phases.constBegin(); it != phases.constEnd(); ++it)
+            metrics.insert(it.key(), it.value());
         metrics.insert(QStringLiteral("firstShowMs"), m_startupVisibleMs);
         metrics.insert(QStringLiteral("readinessMs"), m_startupInteractiveMs);
     }

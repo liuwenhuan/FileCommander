@@ -8,6 +8,8 @@ set(UI_SOURCES
     MainWindow.h
     CommandRegistry.h
     CommandRegistry.cpp
+    StartupTrace.h
+    StartupTrace.cpp
     MainWindow.cpp
     BreadcrumbBar.h
     BreadcrumbBar.cpp

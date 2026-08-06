@@ -25,6 +25,7 @@ class QTemporaryDir;
 
 #include "FileListView.h"
 #include "CommandRegistry.h"
+#include "StartupTrace.h"
 #include "Settings.h"
 #include "filesystem/ComputerCatalog.h" // ComputerEntry (passed by value)
 #include "network/ConnectionStore.h" // SavedConnection (session reconnect)
@@ -389,6 +390,10 @@ private:
     QTimer *m_mediaWarmTimer = nullptr;
     bool m_mediaWarmScheduled = false;
     bool m_mediaWarmComplete = false;
+    // Phase timings, recorded in order under one name each. Was a member, a
+    // recording line and an emit line per phase: the same name written three
+    // times, in three places that had to be kept in agreement by hand.
+    StartupTrace m_startupTrace;
     QElapsedTimer m_startupElapsed;
     QElapsedTimer m_startupClock;
     qint64 m_startupElapsedOffsetMs = 0;
@@ -401,26 +406,10 @@ private:
     qint64 m_startupPanelsLoadedMs = -1;
     qint64 m_startupInteractiveMs = -1;
     bool m_collectStartupPhases = false;
-    qint64 m_startupApplicationSetupMs = -1;
-    qint64 m_startupMainWindowBodyStartedMs = -1;
-    qint64 m_startupPanelsConstructionStartedMs = -1;
     // Splits the panel-construction phase in two. The pair used to bracket
     // Typography::chromeFont() and the left panel together, and reported ~380 ms
     // against a right panel that costs 2 ms -- so the cost was one-time, and
     // there was no way to tell which of the two calls was paying it.
-    qint64 m_startupChromeFontResolvedMs = -1;
-    qint64 m_startupLeftPanelConstructedMs = -1;
-    qint64 m_startupPanelsConstructedMs = -1;
-    qint64 m_startupOperationQueueConstructedMs = -1;
-    qint64 m_startupPanelPreferencesRestoredMs = -1;
-    qint64 m_startupInterfaceTypographyAppliedMs = -1;
-    qint64 m_startupPanelVisibilityRestoredMs = -1;
-    qint64 m_startupViewSettingsRestoredMs = -1;
-    qint64 m_startupSessionDataLoadedMs = -1;
-    qint64 m_startupSessionNavigationDispatchedMs = -1;
-    qint64 m_startupShortcutsTitleBarReadyMs = -1;
-    qint64 m_startupThemeApplyStartedMs = -1;
-    qint64 m_startupThemeApplyFinishedMs = -1;
 
     QuickView *m_quickView = nullptr;
     FilePanel *m_quickViewPanel = nullptr; // panel replaced by the preview
