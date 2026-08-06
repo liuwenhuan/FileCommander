@@ -39,6 +39,17 @@ using IconRecolour = std::function<QIcon(const QIcon &)>;
 void setIconRecolour(IconRecolour recolour);
 const IconRecolour &iconRecolour();
 
+// The application mark in the current theme's colours, for any title bar we
+// paint ourselves.
+//
+// Kept here rather than pushed to each bar when the theme changes, because a
+// dialog is usually built long AFTER that: pushing reached only the windows
+// that existed at the time, and every popup opened later fell back to the
+// window icon -- which is the desktop's copy and deliberately not themed, so
+// they came up in the brand blue inside a green window.
+void setThemedAppIcon(const QIcon &icon);
+const QIcon &themedAppIcon();
+
 
 QMessageBox::StandardButton
 message(QWidget *parent, QMessageBox::Icon icon, const QString &title, const QString &text,

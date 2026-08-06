@@ -3,6 +3,7 @@
 #include "CrashReporter.h"
 
 #include "IconCache.h"
+#include "ThemedDialogs.h"
 #include "ImagePreviewLoader.h"
 #include "ThumbnailCache.h"
 #include "theme/Phosphor.h"
@@ -131,6 +132,9 @@ public:
         QColor previewTint;
         QColor glyphTint;
         QColor fileIconTint;
+        // Compared by cache key: two QIcons are the same artwork only if they
+        // came from the same pixmaps, and QIcon has no operator==.
+        qint64 themedAppIcon = 0;
 
         static State capture() {
             return {qApp->styleSheet(),
@@ -138,9 +142,13 @@ public:
                     fc::thumbnailTint(),
                     fc::previewTint(),
                     IconCache::instance().glyphTint(),
-                    IconCache::instance().fileIconTint()};
+                    IconCache::instance().fileIconTint(),
+                    ttc::themedAppIcon().cacheKey()};
         }
         void restore() const {
+            // The themed mark is deliberately NOT restored here: it is a QIcon
+            // and only its key was kept. Naming the offender is what this is
+            // for; ThemeStateGuard is what puts it back.
             qApp->setStyleSheet(sheet);
             qApp->setFont(font);
             fc::setThumbnailTint(thumbnailTint);
@@ -181,6 +189,8 @@ public:
         tint("preview tint", m_before.previewTint, after.previewTint);
         tint("glyph tint", m_before.glyphTint, after.glyphTint);
         tint("file icon tint", m_before.fileIconTint, after.fileIconTint);
+        if (after.themedAppIcon != m_before.themedAppIcon)
+            changed << QStringLiteral("themed app icon");
 
         if (changed.isEmpty())
             return;

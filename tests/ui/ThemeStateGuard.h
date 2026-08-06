@@ -5,7 +5,10 @@
 #include <QFont>
 #include <QString>
 
+#include <QIcon>
+
 #include "IconCache.h"
+#include "ThemedDialogs.h"
 #include "theme/Phosphor.h"
 
 // Puts back everything ThemeManager::apply() changes process-wide.
@@ -36,7 +39,9 @@ public:
         , m_thumbnailTint(fc::thumbnailTint())
         , m_previewTint(fc::previewTint())
         , m_glyphTint(IconCache::instance().glyphTint())
-        , m_fileIconTint(IconCache::instance().fileIconTint()) {}
+        , m_fileIconTint(IconCache::instance().fileIconTint())
+        , m_themedAppIcon(ttc::themedAppIcon())
+        , m_iconRecolour(ttc::iconRecolour()) {}
 
     ~ThemeStateGuard() {
         qApp->setStyleSheet(m_sheet);
@@ -45,6 +50,12 @@ public:
         fc::setPreviewTint(m_previewTint);
         IconCache::instance().setGlyphTint(m_glyphTint);
         IconCache::instance().setFileIconTint(m_fileIconTint);
+        // Both of these are how a theme reaches artwork built LATER -- a dialog
+        // opened after the theme was applied. That is what makes them useful,
+        // and what makes them leak: a title bar built in the next test picks up
+        // the previous test's colours the moment it is constructed.
+        ttc::setThemedAppIcon(m_themedAppIcon);
+        ttc::setIconRecolour(m_iconRecolour);
     }
 
     ThemeStateGuard(const ThemeStateGuard &) = delete;
@@ -57,4 +68,6 @@ private:
     QColor m_previewTint;
     QColor m_glyphTint;
     QColor m_fileIconTint;
+    QIcon m_themedAppIcon;
+    ttc::IconRecolour m_iconRecolour;
 };

@@ -168,9 +168,20 @@ void ThemeManager::apply(Settings::Theme theme, bool phosphorImages, bool phosph
     // are full-colour artwork that notices no theme. widgets cannot reach the
     // icon cache (it links nothing but Qt, on purpose), so it is handed the
     // transform and applies it to every message window built from here on.
-    ttc::setIconRecolour([](const QIcon &stock) {
-        return IconCache::instance().themedIcon(stock);
+    // contentTint, NOT glyphTint. These are full-colour FILLED marks -- a blue
+    // disc, an amber triangle -- and the note above says what the glyph colour
+    // does to filled artwork: #404040 is what white becomes, so the
+    // information disc came out a near-black blob on a white dialog. The same
+    // bright per-theme colour the file icons use is what keeps it a mark
+    // rather than a hole.
+    ttc::setIconRecolour([contentTint](const QIcon &stock) {
+        return IconCache::instance().themedIcon(stock, contentTint);
     });
+
+    // Left where any bar built LATER can find it. Pushing it to the bars that
+    // exist right now reaches no dialog opened after this point, and those are
+    // most of them.
+    ttc::setThemedAppIcon(icon);
 
     const QIcon desktopIcon = ttc::appIcon();
     qApp->setWindowIcon(desktopIcon);

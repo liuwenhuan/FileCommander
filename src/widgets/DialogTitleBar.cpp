@@ -1,5 +1,7 @@
 #include "DialogTitleBar.h"
 
+#include "ThemedDialogs.h"
+
 #include "TitleButton.h"
 
 #include <QEvent>
@@ -97,7 +99,11 @@ void DialogTitleBar::setThemedIcon(const QIcon &icon) {
 void DialogTitleBar::syncWindowIcon() {
     if (!m_icon || !m_window)
         return;
-    const QIcon &source = m_themedIcon.isNull() ? m_window->windowIcon() : m_themedIcon;
+    // Explicit first, then whatever theme is current, then the window's own --
+    // the last of which is the desktop's untinted brand mark, and only right
+    // before any theme has been applied at all.
+    const QIcon &themed = m_themedIcon.isNull() ? ttc::themedAppIcon() : m_themedIcon;
+    const QIcon &source = themed.isNull() ? m_window->windowIcon() : themed;
     m_icon->setPixmap(source.pixmap(kIconSize, kIconSize));
 }
 

@@ -335,6 +335,10 @@ QIcon IconCache::themedIcon(const QIcon &icon) const {
     return tinted(icon, m_glyphTint);
 }
 
+QIcon IconCache::themedIcon(const QIcon &icon, const QColor &tint) const {
+    return tinted(icon, tint);
+}
+
 // Compare by value: an invalid QColor equals another invalid one, so clearing
 // twice is a no-op rather than a needless cache flush.
 static bool sameTint(const QColor &a, const QColor &b) {

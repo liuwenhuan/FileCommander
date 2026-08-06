@@ -530,7 +530,16 @@ void setStandardButtonOverride(QAbstractButton *button, const QString &text) {
 
 namespace {
 IconRecolour g_iconRecolour;
+QIcon g_themedAppIcon;
 } // namespace
+
+void setThemedAppIcon(const QIcon &icon) {
+    g_themedAppIcon = icon;
+}
+
+const QIcon &themedAppIcon() {
+    return g_themedAppIcon;
+}
 
 void setIconRecolour(IconRecolour recolour) {
     g_iconRecolour = std::move(recolour);

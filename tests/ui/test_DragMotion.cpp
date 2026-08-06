@@ -13,6 +13,7 @@
 #include <QPointer>
 #include <QScrollBar>
 #include <QTemporaryDir>
+#include <QElapsedTimer>
 #include <QTest>
 #include <QUrl>
 #include <QVariantAnimation>
@@ -291,6 +292,25 @@ void burstDragMovesReuseOneAnimationWithoutRestarting() {
     MotionPolicy::setReducedForTest(false);
 
     Panel<View> panel;
+    // Let the model finish loading before any drag starts. It loads
+    // asynchronously, and a modelReset arriving mid-burst clears the drag
+    // feedback -- legitimately, that is what a reset means -- so the next drag
+    // move finds no feedback to reuse and starts a fresh animation. The restart
+    // is real; it is the fixture racing the test, not the code under test.
+    {
+        int resets = 0;
+        QObject::connect(&panel.model, &QAbstractItemModel::modelReset, &panel.view,
+                         [&resets] { ++resets; });
+        QElapsedTimer quiet;
+        quiet.start();
+        while (quiet.elapsed() < 300) {
+            const int before = resets;
+            QTest::qWait(20);
+            if (resets != before)
+                quiet.restart();
+        }
+        QObject::disconnect(&panel.model, &QAbstractItemModel::modelReset, &panel.view, nullptr);
+    }
     QMimeData mime;
     setValidMime(&mime);
     QDragEnterEvent enter(QPoint(8, 8), Qt::CopyAction, &mime, Qt::LeftButton,

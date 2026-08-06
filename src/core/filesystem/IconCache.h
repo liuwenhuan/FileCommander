@@ -86,6 +86,12 @@ public:
     // one whose colours DO mean something, such as a platform standard icon.
     // With no active tint, returns the icon unchanged.
     QIcon themedIcon(const QIcon &icon) const;
+    // The same treatment against a colour the caller names, for artwork whose
+    // right tint is not the glyph one. A FILLED mark recoloured towards
+    // #404040 -- the glyph colour on a light background -- comes out a dark
+    // slab, which is why file icons have their own bright tint and why the
+    // message-box marks take it too.
+    QIcon themedIcon(const QIcon &icon, const QColor &tint) const;
 
     // Two tints, because the two kinds of icon answer to different questions.
     //

@@ -1,5 +1,7 @@
 #include "TitleBar.h"
 
+#include "ThemedDialogs.h"
+
 #include "TitleButton.h"
 
 #include <QAbstractButton>
@@ -144,7 +146,8 @@ void TitleBar::syncWindowIcon() {
     const int iconSize = qMin(m_icon->width() - 6, m_icon->height() - 4);
     // The themed mark when a theme has supplied one, and the window's own icon
     // before that -- which is what the very first paint uses.
-    const QIcon &source = m_themedIcon.isNull() ? m_window->windowIcon() : m_themedIcon;
+    const QIcon &themed = m_themedIcon.isNull() ? ttc::themedAppIcon() : m_themedIcon;
+    const QIcon &source = themed.isNull() ? m_window->windowIcon() : themed;
     m_icon->setPixmap(source.pixmap(iconSize, iconSize));
 }
 

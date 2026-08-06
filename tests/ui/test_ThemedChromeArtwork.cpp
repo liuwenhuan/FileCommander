@@ -12,6 +12,7 @@
 #include <QMessageBox>
 #include <QScopedPointer>
 #include "ThemedDialogs.h"
+#include "DialogTitleBar.h"
 #include "AppIcon.h"
 #include "MainWindow.h"
 #include "ThemeStateGuard.h"
@@ -145,6 +146,28 @@ TEST(ThemedChromeArtwork, TheAppIconIsDrawnInStrokesOnlyWhereItsColourIsDark) {
     EXPECT_GT(crtInk, 0.55) << "under CRT the mark covers only " << crtInk;
 }
 
+namespace {
+
+// Average of everything solid enough to see.
+QColor dominantColour(const QImage &source) {
+    const QImage image = source.convertToFormat(QImage::Format_ARGB32);
+    qint64 r = 0, g = 0, b = 0, n = 0;
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            const QColor pixel = image.pixelColor(x, y);
+            if (pixel.alpha() < 200)
+                continue;
+            r += pixel.red();
+            g += pixel.green();
+            b += pixel.blue();
+            ++n;
+        }
+    }
+    return n == 0 ? QColor() : QColor(int(r / n), int(g / n), int(b / n));
+}
+
+} // namespace
+
 // A popup must not look like it came from a different application than the
 // window behind it.
 //
@@ -160,10 +183,29 @@ TEST(ThemedChromeArtwork, DialogChromeTakesTheThemeToo) {
     }
     MainWindow window;
 
+    // Built AFTER the theme was applied, which is when dialogs are actually
+    // built and is exactly the case that was missed: the theme pushed the mark
+    // to the bars that existed at the time, so every popup opened later came up
+    // in the untinted brand blue.
     const QScopedPointer<QDialog> dialog(
         ttc::createMessageDialog(&window, QMessageBox::Warning, QStringLiteral("t"),
                                  QStringLiteral("body"), QMessageBox::Ok));
     ASSERT_FALSE(dialog.isNull());
+
+    auto *bar = dialog->findChild<DialogTitleBar *>();
+    ASSERT_NE(bar, nullptr);
+    QLabel *barIcon = nullptr;
+    for (QLabel *label : bar->findChildren<QLabel *>()) {
+        if (label->pixmap() && !label->pixmap()->isNull()) {
+            barIcon = label;
+            break;
+        }
+    }
+    ASSERT_NE(barIcon, nullptr) << "the dialog's title bar shows no mark";
+    const QColor barMark = dominantColour(barIcon->pixmap()->toImage());
+    EXPECT_GT(barMark.green(), barMark.blue())
+        << "the dialog's title-bar mark is " << qPrintable(barMark.name())
+        << ", not the phosphor theme's";
 
     // The warning triangle: stock artwork is amber, and amber has a hue nowhere
     // near the phosphor's.
@@ -171,21 +213,8 @@ TEST(ThemedChromeArtwork, DialogChromeTakesTheThemeToo) {
     ASSERT_NE(box, nullptr);
     const QPixmap shown = box->iconPixmap();
     ASSERT_FALSE(shown.isNull()) << "the message window has no icon at all";
-    const QImage image = shown.toImage().convertToFormat(QImage::Format_ARGB32);
-    qint64 r = 0, g = 0, b = 0, n = 0;
-    for (int y = 0; y < image.height(); ++y) {
-        for (int x = 0; x < image.width(); ++x) {
-            const QColor pixel = image.pixelColor(x, y);
-            if (pixel.alpha() < 200)
-                continue;
-            r += pixel.red();
-            g += pixel.green();
-            b += pixel.blue();
-            ++n;
-        }
-    }
-    ASSERT_GT(n, 0);
-    const QColor dominant(int(r / n), int(g / n), int(b / n));
+    const QColor dominant = dominantColour(shown.toImage());
+    ASSERT_TRUE(dominant.isValid());
     EXPECT_GT(dominant.green(), dominant.red())
         << "the warning mark is " << qPrintable(dominant.name())
         << ", which is not the phosphor theme's";
