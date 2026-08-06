@@ -81,6 +81,30 @@ struct Panel {
         view.resize(400, 300);
         view.show();
         qApp->processEvents();
+        settle();
+    }
+
+    // Lets the model finish loading before any test touches the view.
+    //
+    // It loads asynchronously, and every one of these tests reacts to a drag by
+    // showing feedback that a modelReset then clears -- correctly, that is what
+    // a reset means. A reset landing mid-test therefore looks like the feedback
+    // failing: the burst test saw a restarted animation, the theme test saw an
+    // invalid colour. Both were the fixture racing the test rather than the
+    // code under test doing anything wrong.
+    void settle() {
+        int resets = 0;
+        auto connection = QObject::connect(&model, &QAbstractItemModel::modelReset, &view,
+                                           [&resets] { ++resets; });
+        QElapsedTimer quiet;
+        quiet.start();
+        while (quiet.elapsed() < 300) {
+            const int before = resets;
+            QTest::qWait(20);
+            if (resets != before)
+                quiet.restart();
+        }
+        QObject::disconnect(connection);
     }
 };
 
@@ -292,25 +316,6 @@ void burstDragMovesReuseOneAnimationWithoutRestarting() {
     MotionPolicy::setReducedForTest(false);
 
     Panel<View> panel;
-    // Let the model finish loading before any drag starts. It loads
-    // asynchronously, and a modelReset arriving mid-burst clears the drag
-    // feedback -- legitimately, that is what a reset means -- so the next drag
-    // move finds no feedback to reuse and starts a fresh animation. The restart
-    // is real; it is the fixture racing the test, not the code under test.
-    {
-        int resets = 0;
-        QObject::connect(&panel.model, &QAbstractItemModel::modelReset, &panel.view,
-                         [&resets] { ++resets; });
-        QElapsedTimer quiet;
-        quiet.start();
-        while (quiet.elapsed() < 300) {
-            const int before = resets;
-            QTest::qWait(20);
-            if (resets != before)
-                quiet.restart();
-        }
-        QObject::disconnect(&panel.model, &QAbstractItemModel::modelReset, &panel.view, nullptr);
-    }
     QMimeData mime;
     setValidMime(&mime);
     QDragEnterEvent enter(QPoint(8, 8), Qt::CopyAction, &mime, Qt::LeftButton,
