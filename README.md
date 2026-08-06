@@ -6,8 +6,7 @@
 
 **又酷又快的文件管理器**
 
-一个双栏文件管理器。绿色荧光主题不是彩蛋，是一等公民；
-每一条「快」都有实测数字撑着。
+一个双栏文件管理器。绿色荧光主题不是彩蛋，是一等公民。
 
 [![release](https://img.shields.io/badge/release-v0.1.0-33ff88?style=flat-square)](https://github.com/liuwenhuan/FileCommander/releases)
 [![platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-1fa85c?style=flat-square)](#安装)
@@ -105,17 +104,6 @@ Green CRT 的设计约束写在 `resources/themes/green.qss` 的文件头里，�
 
 局域网上 FUSE 并不是瓶颈，写入相差 4%，线基本跑满。真正拉开差距的是延迟：FUSE 请求
 同步且不流水线化，每 128 KB 一次往返，117 ms RTT 下就是 5–6 倍的损失。
-
-### 启动与占用
-
-| 指标 | 数值 |
-|---|---|
-| 冷启动到可交互 | `TODO 填实测` |
-| 热启动 | `TODO 填实测` |
-| 空闲内存占用（RSS） | `TODO 填实测` |
-| 打开 1408 条目目录后内存 | `TODO 填实测` |
-
-<!-- Linux: /usr/bin/time -v ./build/FileCommander ；Windows: scripts/measure-windows-startup.ps1 -->
 
 ---
 
