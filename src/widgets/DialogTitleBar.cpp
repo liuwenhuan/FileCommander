@@ -89,10 +89,16 @@ void DialogTitleBar::updateMetrics() {
     emit heightChanged(newHeight);
 }
 
+void DialogTitleBar::setThemedIcon(const QIcon &icon) {
+    m_themedIcon = icon;
+    syncWindowIcon();
+}
+
 void DialogTitleBar::syncWindowIcon() {
     if (!m_icon || !m_window)
         return;
-    m_icon->setPixmap(m_window->windowIcon().pixmap(kIconSize, kIconSize));
+    const QIcon &source = m_themedIcon.isNull() ? m_window->windowIcon() : m_themedIcon;
+    m_icon->setPixmap(source.pixmap(kIconSize, kIconSize));
 }
 
 void DialogTitleBar::syncWindowState() {

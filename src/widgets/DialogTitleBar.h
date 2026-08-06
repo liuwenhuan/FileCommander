@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QPixmap>
+#include <QIcon>
 #include <QWidget>
 
 class QMouseEvent;
@@ -37,6 +38,11 @@ public:
 
     // Refreshes the maximize/restore glyph after a window-state change. A no-op
     // for a CloseOnly bar.
+    // The mark to draw in this dialog's title bar, recoloured for the current
+    // theme. Same split as the main window's bar: the WINDOW icon is the
+    // desktop's copy and stays the brand mark; this one follows the theme.
+    void setThemedIcon(const QIcon &icon);
+
     void syncWindowState();
 
 signals:
@@ -54,6 +60,7 @@ protected:
 private:
     void updateMetrics();
     void syncWindowIcon();
+    QIcon m_themedIcon;
     void toggleMaximized();
 
     QWidget *m_window = nullptr;

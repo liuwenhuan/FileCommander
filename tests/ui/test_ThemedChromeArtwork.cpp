@@ -8,6 +8,10 @@
 #include <QToolButton>
 #include <QTemporaryDir>
 
+#include <QDialog>
+#include <QMessageBox>
+#include <QScopedPointer>
+#include "ThemedDialogs.h"
 #include "AppIcon.h"
 #include "MainWindow.h"
 #include "ThemeStateGuard.h"
@@ -139,4 +143,50 @@ TEST(ThemedChromeArtwork, TheAppIconIsDrawnInStrokesOnlyWhereItsColourIsDark) {
     const qreal crtInk = inkForTheme(Settings::Theme::Crt);
     ASSERT_GE(crtInk, 0.0) << "no title-bar icon to measure";
     EXPECT_GT(crtInk, 0.55) << "under CRT the mark covers only " << crtInk;
+}
+
+// A popup must not look like it came from a different application than the
+// window behind it.
+//
+// Two things in a message window ignored the theme: the mark in its own title
+// bar, which read the window icon (now deliberately the untinted brand mark, so
+// dialogs would have shown blue in a green window), and the stock
+// information/warning artwork Qt supplies, which notices no theme at all.
+TEST(ThemedChromeArtwork, DialogChromeTakesTheThemeToo) {
+    ThemeStateGuard guard;
+    {
+        Settings settings;
+        settings.setTheme(Settings::Theme::Crt);
+    }
+    MainWindow window;
+
+    const QScopedPointer<QDialog> dialog(
+        ttc::createMessageDialog(&window, QMessageBox::Warning, QStringLiteral("t"),
+                                 QStringLiteral("body"), QMessageBox::Ok));
+    ASSERT_FALSE(dialog.isNull());
+
+    // The warning triangle: stock artwork is amber, and amber has a hue nowhere
+    // near the phosphor's.
+    auto *box = dialog->findChild<QMessageBox *>();
+    ASSERT_NE(box, nullptr);
+    const QPixmap shown = box->iconPixmap();
+    ASSERT_FALSE(shown.isNull()) << "the message window has no icon at all";
+    const QImage image = shown.toImage().convertToFormat(QImage::Format_ARGB32);
+    qint64 r = 0, g = 0, b = 0, n = 0;
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            const QColor pixel = image.pixelColor(x, y);
+            if (pixel.alpha() < 200)
+                continue;
+            r += pixel.red();
+            g += pixel.green();
+            b += pixel.blue();
+            ++n;
+        }
+    }
+    ASSERT_GT(n, 0);
+    const QColor dominant(int(r / n), int(g / n), int(b / n));
+    EXPECT_GT(dominant.green(), dominant.red())
+        << "the warning mark is " << qPrintable(dominant.name())
+        << ", which is not the phosphor theme's";
 }

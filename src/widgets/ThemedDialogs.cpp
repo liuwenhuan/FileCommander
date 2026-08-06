@@ -1,5 +1,7 @@
 #include "ThemedDialogs.h"
 
+#include <QStyle>
+
 #include "FramelessDialog.h"
 
 #include <QAbstractButton>
@@ -526,6 +528,18 @@ void setStandardButtonOverride(QAbstractButton *button, const QString &text) {
     button->setText(text);
 }
 
+namespace {
+IconRecolour g_iconRecolour;
+} // namespace
+
+void setIconRecolour(IconRecolour recolour) {
+    g_iconRecolour = std::move(recolour);
+}
+
+const IconRecolour &iconRecolour() {
+    return g_iconRecolour;
+}
+
 QDialog *createMessageDialog(QWidget *parent, QMessageBox::Icon icon, const QString &title,
                              const QString &text, QMessageBox::StandardButtons buttons,
                              QMessageBox::StandardButton defaultButton) {
@@ -537,6 +551,20 @@ QDialog *createMessageDialog(QWidget *parent, QMessageBox::Icon icon, const QStr
     // buttons inside our themed frame instead of its own native decorations.
     auto *box = new QMessageBox(dlg);
     box->setIcon(icon);
+    // The stock information/warning/error marks are full-colour artwork that
+    // notices no theme at all. Recoloured through whatever the application
+    // installed, so a message window matches the window it came from.
+    if (const IconRecolour &recolour = iconRecolour()) {
+        const int extent = box->style()->pixelMetric(QStyle::PM_MessageBoxIconSize, nullptr, box);
+        const QIcon stock = box->style()->standardIcon(
+            icon == QMessageBox::Warning      ? QStyle::SP_MessageBoxWarning
+            : icon == QMessageBox::Critical   ? QStyle::SP_MessageBoxCritical
+            : icon == QMessageBox::Question   ? QStyle::SP_MessageBoxQuestion
+                                              : QStyle::SP_MessageBoxInformation,
+            nullptr, box);
+        if (icon != QMessageBox::NoIcon && !stock.isNull())
+            box->setIconPixmap(recolour(stock).pixmap(extent, extent));
+    }
     box->setWindowTitle(title);
     box->setText(text);
     box->setStandardButtons(buttons);

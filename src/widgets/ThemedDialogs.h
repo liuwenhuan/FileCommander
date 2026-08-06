@@ -4,7 +4,10 @@
 #include <QFontDialog>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QIcon>
 #include <QString>
+
+#include <functional>
 
 class QAbstractButton;
 class QDialog;
@@ -21,6 +24,21 @@ class QWidget;
 // Signatures mirror the Qt statics so call sites change only their prefix
 // (QMessageBox:: -> ttc::, QInputDialog:: -> ttc::).
 namespace ttc {
+
+// How to recolour a stock icon for the current theme, supplied by whoever knows
+// the palette.
+//
+// `widgets` links nothing but Qt on purpose -- it is the shared chrome that ui,
+// archive and search all use without depending on each other -- so it cannot
+// reach the icon cache that does the recolouring. It takes the transform
+// instead, and ThemeManager installs one.
+//
+// Unset means "leave stock icons alone", which is what a test or a tool linking
+// only this library gets.
+using IconRecolour = std::function<QIcon(const QIcon &)>;
+void setIconRecolour(IconRecolour recolour);
+const IconRecolour &iconRecolour();
+
 
 QMessageBox::StandardButton
 message(QWidget *parent, QMessageBox::Icon icon, const QString &title, const QString &text,

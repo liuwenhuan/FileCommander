@@ -12,6 +12,7 @@
 #include "FramelessWindow.h"
 #include "TabBar.h"
 #include "TitleBar.h"
+#include "ThemedDialogs.h"
 #include "filesystem/IconCache.h"
 #include "theme/Phosphor.h"
 
@@ -163,11 +164,23 @@ void ThemeManager::apply(Settings::Theme theme, bool phosphorImages, bool phosph
     //
     // Our own title bar is a different surface, and takes the themed one
     // through a channel of its own.
+    // Stock message-box marks -- the information "i", the warning triangle --
+    // are full-colour artwork that notices no theme. widgets cannot reach the
+    // icon cache (it links nothing but Qt, on purpose), so it is handed the
+    // transform and applies it to every message window built from here on.
+    ttc::setIconRecolour([](const QIcon &stock) {
+        return IconCache::instance().themedIcon(stock);
+    });
+
     const QIcon desktopIcon = ttc::appIcon();
     qApp->setWindowIcon(desktopIcon);
     for (QWidget *w : qApp->topLevelWidgets()) {
         w->setWindowIcon(desktopIcon);
         for (TitleBar *bar : w->findChildren<TitleBar *>())
+            bar->setThemedIcon(icon);
+        // Dialogs wear the same mark in their own bar, so a popup does not look
+        // like it came from a different application than the window behind it.
+        for (DialogTitleBar *bar : w->findChildren<DialogTitleBar *>())
             bar->setThemedIcon(icon);
         if (!crt) {
             if (auto *dialog = qobject_cast<FramelessDialog *>(w))
