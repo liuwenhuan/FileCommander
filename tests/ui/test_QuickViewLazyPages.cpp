@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "TryUntil.h"
+
 #include <QCoreApplication>
 #include <QDataStream>
 #include <QElapsedTimer>
@@ -262,7 +264,7 @@ TEST(QuickViewLazyPages, TimerWarmFailureDoesNotEscapeAndTeardownIsSafe) {
     });
 
     timer.start(0);
-    QTRY_COMPARE_WITH_TIMEOUT(state->initializeCalls, 1, 1000);
+    FC_TRY_COMPARE_WITH_TIMEOUT(state->initializeCalls, 1, 1000);
     EXPECT_FALSE(escapedCallback);
     delete view;
     QCoreApplication::processEvents();
@@ -543,8 +545,8 @@ TEST(QuickViewLazyPages, RealMpvFirstAudioPreviewIsDecodedVisibleAndPainted) {
     PaintObserver paintObserver(elapsed);
     audioPage->installEventFilter(&paintObserver);
 
-    QTRY_VERIFY_WITH_TIMEOUT(decodedMs >= 0, 5000);
-    QTRY_VERIFY_WITH_TIMEOUT(paintObserver.firstPaintMs >= 0, 1000);
+    FC_TRY_VERIFY_WITH_TIMEOUT(decodedMs >= 0, 5000);
+    FC_TRY_VERIFY_WITH_TIMEOUT(paintObserver.firstPaintMs >= 0, 1000);
     ASSERT_TRUE(audioPage->isVisibleTo(&view));
     const qint64 previewMs = std::max(decodedMs, paintObserver.firstPaintMs);
     RecordProperty("first_use_warm_ms",

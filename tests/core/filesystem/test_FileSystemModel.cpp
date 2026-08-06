@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "TryUntil.h"
+
 #include <QDir>
 #include <QFile>
 #include <QTest>
@@ -350,7 +352,7 @@ TEST(FileSystemModelTest, FilePanelDirectorySize_SlowRequestShowsCalculatingMark
 
     const QModelIndex sizeIdx = panel.model()->index(0, FileSystemModel::SizeColumn);
     EXPECT_EQ(panel.model()->data(sizeIdx).toString(), QStringLiteral("<DIR>"));
-    QTRY_COMPARE_WITH_TIMEOUT(panel.model()->data(sizeIdx).toString(),
+    FC_TRY_COMPARE_WITH_TIMEOUT(panel.model()->data(sizeIdx).toString(),
                               QStringLiteral("计算中"), 2000);
 
     view->setCurrentIndex(second);
@@ -358,7 +360,7 @@ TEST(FileSystemModelTest, FilePanelDirectorySize_SlowRequestShowsCalculatingMark
     EXPECT_EQ(panel.model()->data(sizeIdx).toString(), QStringLiteral("计算中"));
 
     provider->releaseFirstRequest();
-    QTRY_COMPARE_WITH_TIMEOUT(panel.model()->data(sizeIdx).toString(),
+    FC_TRY_COMPARE_WITH_TIMEOUT(panel.model()->data(sizeIdx).toString(),
                               QStringLiteral("10 B"), 4000);
 }
 
@@ -460,7 +462,7 @@ TEST(FileSystemModelTest, FilePanelDirectorySize_OlderRequestCannotOverwriteNewe
     panel.calculateDirSizes();
     provider->releaseFirstRequest();
 
-    QTRY_COMPARE_WITH_TIMEOUT(
+    FC_TRY_COMPARE_WITH_TIMEOUT(
         panel.model()->data(panel.model()->index(1, FileSystemModel::SizeColumn)).toString(),
         QStringLiteral("20 B"), 4000);
     EXPECT_EQ(panel.model()->data(panel.model()->index(0, FileSystemModel::SizeColumn)).toString(),
@@ -493,7 +495,7 @@ TEST(FileSystemModelTest, FilePanelDirectorySize_RemoteReplacementsAreSerialized
     EXPECT_EQ(provider->requestedPaths(), QStringList{QStringLiteral("/first")});
 
     provider->releaseFirstRequest();
-    QTRY_COMPARE_WITH_TIMEOUT(
+    FC_TRY_COMPARE_WITH_TIMEOUT(
         panel.model()->data(panel.model()->index(2, FileSystemModel::SizeColumn)).toString(),
         QStringLiteral("30 B"), 4000);
 
@@ -553,7 +555,7 @@ TEST(FileSystemModelTest, FilePanelDirectorySize_SymlinkRootUsesListingMetadataW
     panel.calculateDirSizes();
 
     const QString expected = QStringLiteral("%1 B").arg(linkInfo.size());
-    QTRY_COMPARE_WITH_TIMEOUT(
+    FC_TRY_COMPARE_WITH_TIMEOUT(
         panel.model()->data(panel.model()->index(linkRow, FileSystemModel::SizeColumn)).toString(),
         expected, 4000);
 }

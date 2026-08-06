@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "TryUntil.h"
+
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QEvent>
@@ -320,14 +322,14 @@ TEST_P(MainWindowStartupThemeTest, FirstShowPaintsBothScrollbarsWithoutASecondGl
 
     left->navigateTo(leftDirectory.path());
     right->navigateTo(rightDirectory.path());
-    QTRY_VERIFY_WITH_TIMEOUT(left->model()->rowCount() >= 96, 4000);
-    QTRY_VERIFY_WITH_TIMEOUT(right->model()->rowCount() >= 96, 4000);
+    FC_TRY_VERIFY_WITH_TIMEOUT(left->model()->rowCount() >= 96, 4000);
+    FC_TRY_VERIFY_WITH_TIMEOUT(right->model()->rowCount() >= 96, 4000);
 
     StartupThemeObserver observer;
     window.installEventFilter(&observer);
     window.resize(1000, 700);
     window.show();
-    QTRY_VERIFY_WITH_TIMEOUT(observer.firstPaintSeen, 1000);
+    FC_TRY_VERIFY_WITH_TIMEOUT(observer.firstPaintSeen, 1000);
 
     expectThemedScrollbar(*left->view(), GetParam());
     expectThemedScrollbar(*right->view(), GetParam());
@@ -364,7 +366,7 @@ TEST(MainWindowPreviewSwapTest, AutomaticMediaWarmupStaysDisabledAfterFirstVisib
     firstPaint.start();
     window.resize(1000, 700);
     window.show();
-    QTRY_VERIFY_WITH_TIMEOUT(paintObserver.firstPaintMs >= 0, 1000);
+    FC_TRY_VERIFY_WITH_TIMEOUT(paintObserver.firstPaintMs >= 0, 1000);
     RecordProperty("show_to_first_paint_ms",
                    std::to_string(paintObserver.firstPaintMs));
 
@@ -521,7 +523,7 @@ TEST(MainWindowStartupTest, EmitsReadyAfterBothVisiblePanelsAreInteractive) {
     window.resize(1000, 700);
     window.show();
 
-    QTRY_VERIFY_WITH_TIMEOUT(ready.count() == 1, 4000);
+    FC_TRY_VERIFY_WITH_TIMEOUT(ready.count() == 1, 4000);
     EXPECT_GE(leftLoaded.count(), 1);
     EXPECT_GE(rightLoaded.count(), 1);
     EXPECT_TRUE(readyAfterBothLoads);
@@ -595,7 +597,7 @@ TEST(MainWindowStartupTest, RefreshAfterReadyDoesNotRunAnotherInteractionProbe) 
     right->navigateTo(rightDirectory.path());
     window.resize(1000, 700);
     window.show();
-    QTRY_COMPARE_WITH_TIMEOUT(ready.count(), 1, 4000);
+    FC_TRY_COMPARE_WITH_TIMEOUT(ready.count(), 1, 4000);
 
     left->view()->setCurrentIndex(left->model()->index(0, 0));
     const int currentRowAfterReady = left->view()->currentIndex().row();
@@ -603,7 +605,7 @@ TEST(MainWindowStartupTest, RefreshAfterReadyDoesNotRunAnotherInteractionProbe) 
 
     QSignalSpy refreshed(left->model(), &FileSystemModel::loadFinished);
     left->refresh();
-    QTRY_VERIFY_WITH_TIMEOUT(!refreshed.isEmpty(), 4000);
+    FC_TRY_VERIFY_WITH_TIMEOUT(!refreshed.isEmpty(), 4000);
     ASSERT_EQ(left->view()->currentIndex().row(), currentRowAfterReady);
 
     processGuiEvents();
@@ -642,19 +644,25 @@ TEST(MainWindowStartupTest, EmitsReadyWhenBothPanelsFinishLoadingBeforeShow) {
     QSignalSpy rightLoaded(right->model(), &FileSystemModel::loadFinished);
     left->navigateTo(leftDirectory.path());
     right->navigateTo(rightDirectory.path());
-    QTRY_VERIFY_WITH_TIMEOUT(!leftLoaded.isEmpty(), 4000);
-    QTRY_VERIFY_WITH_TIMEOUT(!rightLoaded.isEmpty(), 4000);
+    FC_TRY_VERIFY_WITH_TIMEOUT(!leftLoaded.isEmpty(), 4000);
+    FC_TRY_VERIFY_WITH_TIMEOUT(!rightLoaded.isEmpty(), 4000);
+    // fileInfoAt(), not the Name column's display role. The Name column shows
+    // baseName() -- the extension is a column of its own -- so comparing a
+    // full "something.txt" against it never matched and this wait always ran
+    // its four seconds out. It went unnoticed because the QTRY macro it was
+    // written with cannot fail a gtest: it returned from the test body on
+    // timeout and the test was reported as passing.
     const auto modelContains = [](FileSystemModel *model, const QString &name) {
         for (int row = 0; row < model->rowCount(); ++row) {
-            if (model->data(model->index(row, 0), Qt::DisplayRole).toString() == name)
+            if (model->fileInfoAt(row).name() == name)
                 return true;
         }
         return false;
     };
-    QTRY_VERIFY_WITH_TIMEOUT(modelContains(left->model(), leftFirst) &&
+    FC_TRY_VERIFY_WITH_TIMEOUT(modelContains(left->model(), leftFirst) &&
                                  modelContains(left->model(), leftSecond),
                              4000);
-    QTRY_VERIFY_WITH_TIMEOUT(modelContains(right->model(), rightFirst) &&
+    FC_TRY_VERIFY_WITH_TIMEOUT(modelContains(right->model(), rightFirst) &&
                                  modelContains(right->model(), rightSecond),
                              4000);
     ASSERT_FALSE(window.isVisible());
@@ -683,7 +691,7 @@ TEST(MainWindowStartupTest, EmitsReadyWhenBothPanelsFinishLoadingBeforeShow) {
     window.resize(1000, 700);
     window.show();
 
-    QTRY_COMPARE_WITH_TIMEOUT(ready.count(), 1, 1000);
+    FC_TRY_COMPARE_WITH_TIMEOUT(ready.count(), 1, 1000);
     EXPECT_EQ(left->activeView()->currentIndex().row(), expectedLeftRow);
     EXPECT_EQ(right->activeView()->currentIndex().row(), expectedRightRow);
     EXPECT_GE(window.startupMetrics().value(QStringLiteral("panelsLoadedMs")).toInt(),
@@ -720,10 +728,10 @@ TEST(MainWindowStartupTest, IgnoresStaleLocalLoadBeforeReadiness) {
     window.resize(1000, 700);
     window.show();
 
-    QTRY_VERIFY_WITH_TIMEOUT(left->model()->rowCount() >= 2 && right->model()->rowCount() >= 2,
+    FC_TRY_VERIFY_WITH_TIMEOUT(left->model()->rowCount() >= 2 && right->model()->rowCount() >= 2,
                               4000);
     provider->releaseFirstRequest();
-    QTRY_COMPARE_WITH_TIMEOUT(ready.count(), 1, 4000);
+    FC_TRY_COMPARE_WITH_TIMEOUT(ready.count(), 1, 4000);
     EXPECT_EQ(left->model()->rootPath(), QStringLiteral("B"));
     EXPECT_EQ(left->model()->fileInfoAt(0).name(), QStringLiteral("first.txt"));
     processGuiEvents();
@@ -761,7 +769,7 @@ TEST(MainWindowStartupTest, ThumbnailViewDoesNotSatisfyDetailsReadiness) {
     window.resize(1000, 700);
     window.show();
 
-    QTRY_VERIFY_WITH_TIMEOUT(left->model()->rowCount() >= 2 && right->model()->rowCount() >= 2,
+    FC_TRY_VERIFY_WITH_TIMEOUT(left->model()->rowCount() >= 2 && right->model()->rowCount() >= 2,
                               4000);
     QTest::qWait(250);
     EXPECT_EQ(ready.count(), 0);
@@ -806,7 +814,7 @@ TEST(MainWindowStartupTest, RestoresFolderTreesBeforeReadinessWhenEnabled) {
     window.resize(1000, 700);
     window.show();
 
-    QTRY_COMPARE_WITH_TIMEOUT(ready.count(), 1, 4000);
+    FC_TRY_COMPARE_WITH_TIMEOUT(ready.count(), 1, 4000);
     EXPECT_TRUE(readyAfterBothLoads);
     processGuiEvents();
     EXPECT_EQ(ready.count(), 1);

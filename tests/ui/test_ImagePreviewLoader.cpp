@@ -6,6 +6,8 @@
 
 #include <gtest/gtest.h>
 
+#include "TryUntil.h"
+
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
@@ -331,8 +333,8 @@ TEST(ImagePreviewLoader, CancelledFileWaitReleasesDifferentPathAndSecondLoader) 
     const quint64 switchedGeneration = firstLoader.load(switchedPath);
     const quint64 otherGeneration = secondLoader.load(otherPath);
 
-    QTRY_COMPARE_WITH_TIMEOUT(firstLoaded.count(), 1, 1000);
-    QTRY_COMPARE_WITH_TIMEOUT(secondLoaded.count(), 1, 1000);
+    FC_TRY_COMPARE_WITH_TIMEOUT(firstLoaded.count(), 1, 1000);
+    FC_TRY_COMPARE_WITH_TIMEOUT(secondLoaded.count(), 1, 1000);
     EXPECT_EQ(firstLoaded.first().at(0).toULongLong(), switchedGeneration);
     EXPECT_EQ(secondLoaded.first().at(0).toULongLong(), otherGeneration);
     EXPECT_EQ(qvariant_cast<QImage>(firstLoaded.first().at(1)).size(), QSize(8, 6));
@@ -357,7 +359,7 @@ TEST(ImagePreviewLoader, DamagedImageKeepsQuickViewOnNoPreviewPage) {
     QuickView view(settings);
     view.showFile(path);
 
-    QTRY_VERIFY_WITH_TIMEOUT(previewInfoText(view).contains(QStringLiteral("No preview available")),
+    FC_TRY_VERIFY_WITH_TIMEOUT(previewInfoText(view).contains(QStringLiteral("No preview available")),
                              5000);
 }
 
@@ -383,7 +385,7 @@ TEST(ImagePreviewLoader, QuickViewRejectsLateLoadAfterNewFile) {
     QLabel *label = imageLabel(view);
     ASSERT_NE(loader, nullptr);
     ASSERT_NE(label, nullptr);
-    QTRY_VERIFY_WITH_TIMEOUT(label->pixmap() && !label->pixmap()->isNull(), 5000);
+    FC_TRY_VERIFY_WITH_TIMEOUT(label->pixmap() && !label->pixmap()->isNull(), 5000);
     ASSERT_TRUE(loader->waitForIdleForTest(5000));
     ASSERT_NE(label->pixmap(), nullptr);
     const QImage displayed = label->pixmap()->toImage();
@@ -409,7 +411,7 @@ TEST(ImagePreviewLoader, WheelDebouncesForFiftyMillisecondsAndKeepsDisplayedPixm
     QLabel *label = imageLabel(view);
     ASSERT_NE(loader, nullptr);
     ASSERT_NE(label, nullptr);
-    QTRY_VERIFY_WITH_TIMEOUT(label->pixmap() && !label->pixmap()->isNull(), 5000);
+    FC_TRY_VERIFY_WITH_TIMEOUT(label->pixmap() && !label->pixmap()->isNull(), 5000);
     ASSERT_TRUE(loader->waitForIdleForTest(5000));
     const QSize before = label->pixmap()->size();
 
@@ -432,7 +434,7 @@ TEST(ImagePreviewLoader, WheelDebouncesForFiftyMillisecondsAndKeepsDisplayedPixm
     QTest::qWait(30);
     ASSERT_NE(label->pixmap(), nullptr);
     EXPECT_EQ(label->pixmap()->size(), before);
-    QTRY_VERIFY_WITH_TIMEOUT(label->pixmap() && label->pixmap()->size() != before, 5000);
+    FC_TRY_VERIFY_WITH_TIMEOUT(label->pixmap() && label->pixmap()->size() != before, 5000);
 }
 
 TEST(ImagePreviewLoader, DestroyingQuickViewInvalidatesInFlightWork) {
@@ -473,7 +475,7 @@ TEST(ImagePreviewLoader, RotateThenSamePathReloadWaitsForPersistedImage) {
     QLabel *label = imageLabel(view);
     ASSERT_NE(loader, nullptr);
     ASSERT_NE(label, nullptr);
-    QTRY_VERIFY_WITH_TIMEOUT(label->pixmap() && !label->pixmap()->isNull(), 5000);
+    FC_TRY_VERIFY_WITH_TIMEOUT(label->pixmap() && !label->pixmap()->isNull(), 5000);
 
     QSemaphore writeReserved;
     QSemaphore releaseWrite;

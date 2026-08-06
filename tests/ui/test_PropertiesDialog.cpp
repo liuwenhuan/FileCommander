@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "TryUntil.h"
+
 #include <QCheckBox>
 #include <QDateTime>
 #include <QDialogButtonBox>
@@ -268,7 +270,7 @@ TEST(PropertiesDialogTest, LocalDirectoryStatisticsStartAsCalculatingThenComplet
     EXPECT_EQ(size->text(), QStringLiteral("Calculating..."));
     EXPECT_EQ(contains->text(), QStringLiteral("Calculating..."));
 
-    QTRY_COMPARE_WITH_TIMEOUT(size->text(), QStringLiteral("3 B"), 5000);
+    FC_TRY_COMPARE_WITH_TIMEOUT(size->text(), QStringLiteral("3 B"), 5000);
     EXPECT_EQ(contains->text(), QStringLiteral("2 files"));
 }
 

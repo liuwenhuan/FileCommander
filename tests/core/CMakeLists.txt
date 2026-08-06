@@ -69,6 +69,10 @@ endif()
 
 add_executable(core_tests ${CORE_TEST_SOURCES})
 
+# Shared test helpers (tests/support): FC_TRY_* replaces Qt's QTRY_* macros,
+# which cannot fail inside a gtest body -- see TryUntil.h.
+target_include_directories(core_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../support)
+
 target_link_libraries(core_tests PRIVATE
     core
     ui

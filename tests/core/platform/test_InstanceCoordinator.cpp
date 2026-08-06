@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "TryUntil.h"
+
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -27,8 +29,8 @@ TEST(InstanceCoordinatorTest, SecondLaunchForwardsArgumentsToPrimaryInstance) {
         InstanceCoordinator instance(serverName);
         return instance.startOrActivate(arguments);
     });
-    QTRY_VERIFY(second.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready);
+    FC_TRY_VERIFY_WITH_TIMEOUT(second.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready, 5000);
     EXPECT_EQ(second.get(), InstanceCoordinator::StartResult::Forwarded);
-    QTRY_COMPARE(activations.count(), 1);
+    FC_TRY_COMPARE_WITH_TIMEOUT(activations.count(), 1, 5000);
     EXPECT_EQ(activations.takeFirst().at(0).toStringList(), arguments);
 }

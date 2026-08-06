@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "TryUntil.h"
+
 #include <QDir>
 #include <QFileInfo>
 #include <QSignalSpy>
@@ -231,7 +233,7 @@ TEST(MainWindowTest, ConfigMenuOmitsRetiredActions) {
     // The menu fills itself on first show, so wait for an entry that is expected
     // to survive before asserting on the ones that must not be there.
     configMenu->popup(QPoint(10, 10));
-    QTRY_VERIFY_WITH_TIMEOUT(
+    FC_TRY_VERIFY_WITH_TIMEOUT(
         configMenu->findChild<QAction *>(QStringLiteral("configAutoUpdateAction")) != nullptr, 500);
     configMenu->hide();
 
@@ -251,7 +253,7 @@ TEST(MainWindowNetworkTest, ConnectedServerAppearsInTheFolderTree) {
     MainWindow window;
     window.resize(1000, 700);
     window.show();
-    QTRY_VERIFY_WITH_TIMEOUT(window.findChild<NetworkTreeRegistry *>() != nullptr, 6000);
+    FC_TRY_VERIFY_WITH_TIMEOUT(window.findChild<NetworkTreeRegistry *>() != nullptr, 6000);
     const QList<FilePanel *> panels = window.findChildren<FilePanel *>();
     ASSERT_GE(panels.size(), 2);
 

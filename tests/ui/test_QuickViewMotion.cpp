@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "TryUntil.h"
+
 #include <QCoreApplication>
 #include <QElapsedTimer>
 #include <QEventLoop>
@@ -379,7 +381,7 @@ TEST(QuickViewMotion,
 
   releaseFirstLoad.release();
   ASSERT_TRUE(loader->waitForIdleForTest(5000));
-  QTRY_COMPARE_WITH_TIMEOUT(previewStack(view)->currentWidget(),
+  FC_TRY_COMPARE_WITH_TIMEOUT(previewStack(view)->currentWidget(),
                             imagePage(view), 1000);
 
   auto *scroll =
@@ -420,7 +422,7 @@ TEST(QuickViewMotion, MarkdownRouteKeepsOldPageUntilContentIsReady) {
   view.showFile(markdown);
 
   EXPECT_EQ(previewStack(view)->currentWidget(), oldPage);
-  QTRY_COMPARE_WITH_TIMEOUT(previewStack(view)->currentWidget(),
+  FC_TRY_COMPARE_WITH_TIMEOUT(previewStack(view)->currentWidget(),
                             markdownPage(view), 5000);
   auto *browser = markdownPage(view);
   ASSERT_NE(browser, nullptr);
@@ -459,7 +461,7 @@ TEST(QuickViewMotion, ArchiveRouteKeepsOldPageUntilListingIsReady) {
 
   EXPECT_EQ(previewStack(view)->currentWidget(), oldPage);
   QWidget *archivePage = view.ensureArchivePage();
-  QTRY_COMPARE_WITH_TIMEOUT(previewStack(view)->currentWidget(), archivePage,
+  FC_TRY_COMPARE_WITH_TIMEOUT(previewStack(view)->currentWidget(), archivePage,
                             5000);
   auto *table = archivePage->findChild<QTableView *>();
   ASSERT_NE(table, nullptr);
@@ -494,7 +496,7 @@ TEST(QuickViewMotion, OfficeDocumentRouteRevealsMarkdownContentOnly) {
   view.showFile(document);
 
   EXPECT_EQ(previewStack(view)->currentWidget(), oldPage);
-  QTRY_COMPARE_WITH_TIMEOUT(previewStack(view)->currentWidget(),
+  FC_TRY_COMPARE_WITH_TIMEOUT(previewStack(view)->currentWidget(),
                             markdownPage(view), 5000);
   auto *browser = markdownPage(view);
   ASSERT_NE(browser, nullptr);
@@ -529,7 +531,7 @@ TEST(QuickViewMotion, OfficeGridRouteKeepsTabsAndGridControlsOpaque) {
   auto *officePage = qobject_cast<QTabWidget *>(
       view.ensureOfficePage());
   ASSERT_NE(officePage, nullptr);
-  QTRY_COMPARE_WITH_TIMEOUT(previewStack(view)->currentWidget(), officePage,
+  FC_TRY_COMPARE_WITH_TIMEOUT(previewStack(view)->currentWidget(), officePage,
                             5000);
   auto *grid = qobject_cast<QTableWidget *>(officePage->currentWidget());
   ASSERT_NE(grid, nullptr);
@@ -567,7 +569,7 @@ TEST(QuickViewMotion, SlidesRouteKeepsToolbarOpaqueUntilAcceptedDeckIsReady) {
 
   EXPECT_EQ(previewStack(view)->currentWidget(), oldPage);
   QWidget *slidesPage = view.ensureSlidesPage();
-  QTRY_COMPARE_WITH_TIMEOUT(previewStack(view)->currentWidget(), slidesPage,
+  FC_TRY_COMPARE_WITH_TIMEOUT(previewStack(view)->currentWidget(), slidesPage,
                             5000);
   auto *graphics = slidesPage->findChild<QGraphicsView *>();
   ASSERT_NE(graphics, nullptr);
@@ -604,7 +606,7 @@ TEST(QuickViewMotion, FailedImageRouteKeepsOldPageUntilInfoIsReady) {
   EXPECT_EQ(previewStack(view)->currentWidget(), oldPage);
   auto *info = view.findChild<QLabel *>(QStringLiteral("previewInfoLabel"));
   ASSERT_NE(info, nullptr);
-  QTRY_COMPARE_WITH_TIMEOUT(previewStack(view)->currentWidget(), info, 5000);
+  FC_TRY_COMPARE_WITH_TIMEOUT(previewStack(view)->currentWidget(), info, 5000);
   EXPECT_TRUE(info->text().contains(QStringLiteral("damaged.png")));
   expectFadeStarted(info);
 }
@@ -710,7 +712,7 @@ TEST(QuickViewMotion,
     EnvironmentOverride markerEnvironment(
         "TTC_OFFICE_FIXTURE_MARKER", marker.toUtf8());
     documentView->showFile(document);
-    QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(marker), 1000);
+    FC_TRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(marker), 1000);
     EXPECT_NO_THROW(documentView->refreshPhosphor());
     delete documentView;
   }
@@ -724,7 +726,7 @@ TEST(QuickViewMotion,
     EnvironmentOverride markerEnvironment(
         "TTC_OFFICE_FIXTURE_MARKER", marker.toUtf8());
     slidesView->showFile(slides);
-    QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(marker), 1000);
+    FC_TRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(marker), 1000);
     EXPECT_NO_THROW(slidesView->refreshPhosphor());
     delete slidesView;
   }
@@ -762,7 +764,7 @@ TEST(QuickViewMotion, PdfKeepsOldPageUntilDocumentIsReady) {
   view.showFile(pdfPath);
 
   EXPECT_EQ(previewStack(view)->currentWidget(), oldPage);
-  QTRY_COMPARE_WITH_TIMEOUT(previewStack(view)->currentWidget(),
+  FC_TRY_COMPARE_WITH_TIMEOUT(previewStack(view)->currentWidget(),
                             namedPage(view, "quickViewPdfPage"), 5000);
   QWidget *pdfPage = namedPage(view, "quickViewPdfPage");
   QWidget *pdfContent =

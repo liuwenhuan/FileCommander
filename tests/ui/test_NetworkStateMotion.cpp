@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "TryUntil.h"
+
 #include <QApplication>
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -87,7 +89,7 @@ TEST(NetworkStateMotion, ConnectingAppearsOnlyAfterNormalDelayBoundary) {
     QTest::qWait(120);
     EXPECT_FALSE(indicator->isVisible());
 
-    QTRY_VERIFY_WITH_TIMEOUT(indicator->isVisible(), 100);
+    FC_TRY_VERIFY_WITH_TIMEOUT(indicator->isVisible(), 100);
     QVariantAnimation *colorAnimation =
         panel.findChild<QVariantAnimation *>(QStringLiteral("NetworkStatusColorAnimation"));
     ASSERT_NE(colorAnimation, nullptr);

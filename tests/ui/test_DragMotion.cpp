@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "TryUntil.h"
+
 #include <QAbstractAnimation>
 #include <QApplication>
 #include <QColor>
@@ -164,7 +166,7 @@ void acceptedDropUsesPaintOnlySuccessFeedback() {
     EXPECT_EQ(animation->state(), QAbstractAnimation::Running);
     expectGeometry(panel.view, before);
 
-    QTRY_COMPARE_WITH_TIMEOUT(panel.view.property("dragFeedbackState").toString(),
+    FC_TRY_COMPARE_WITH_TIMEOUT(panel.view.property("dragFeedbackState").toString(),
                               QStringLiteral("none"), 300);
     expectGeometry(panel.view, before);
 }
@@ -300,7 +302,7 @@ void burstDragMovesReuseOneAnimationWithoutRestarting() {
     ASSERT_EQ(animations.size(), 1);
     QVariantAnimation *animation = animations.first();
     ASSERT_EQ(animation->state(), QAbstractAnimation::Running);
-    QTRY_VERIFY_WITH_TIMEOUT(animation->currentTime() >= 20, 100);
+    FC_TRY_VERIFY_WITH_TIMEOUT(animation->currentTime() >= 20, 100);
     const int timeBeforeBurst = animation->currentTime();
 
     for (int i = 0; i < 8; ++i) {
@@ -314,7 +316,7 @@ void burstDragMovesReuseOneAnimationWithoutRestarting() {
     EXPECT_EQ(feedbackAnimations(panel.view).size(), 1);
     EXPECT_EQ(feedbackAnimation(panel.view), animation);
     EXPECT_GE(animation->currentTime(), timeBeforeBurst);
-    QTRY_COMPARE_WITH_TIMEOUT(animation->state(), QAbstractAnimation::Stopped, 100);
+    FC_TRY_COMPARE_WITH_TIMEOUT(animation->state(), QAbstractAnimation::Stopped, 100);
     EXPECT_EQ(panel.view.property("dragFeedbackState").toString(), QStringLiteral("accepted"));
 }
 
@@ -343,7 +345,7 @@ void expectThemeFeedback(const QString &theme, const QColor &highlight, const QC
                                   Qt::NoModifier);
     panel.view.dragEnterEvent(&acceptedEnter);
     ASSERT_TRUE(acceptedEnter.isAccepted());
-    QTRY_COMPARE_WITH_TIMEOUT(panel.view.property("dragFeedbackColor").template value<QColor>(),
+    FC_TRY_COMPARE_WITH_TIMEOUT(panel.view.property("dragFeedbackColor").template value<QColor>(),
                               acceptedFinal, 150);
 
     QDragLeaveEvent leave;

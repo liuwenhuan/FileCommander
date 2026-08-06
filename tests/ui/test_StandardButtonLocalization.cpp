@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "TryUntil.h"
+
 #include <QApplication>
 #include <QCoreApplication>
 #include <QDialogButtonBox>
@@ -154,11 +156,11 @@ TEST(StandardButtonLocalizationTest, RelocalizesExistingButtonsAfterLanguageChan
         QDialogButtonBox::Cancel,
     };
     for (int index = 0; index < standardButtons.size(); ++index)
-        QTRY_COMPARE_WITH_TIMEOUT(dialogButtonText(buttons, standardButtons.at(index)),
+        FC_TRY_COMPARE_WITH_TIMEOUT(dialogButtonText(buttons, standardButtons.at(index)),
                                   expectedChinese.at(index), 500);
 
     switchLanguage(QStringLiteral("en"));
-    QTRY_VERIFY_WITH_TIMEOUT(
+    FC_TRY_VERIFY_WITH_TIMEOUT(
         normalizedButtonText(dialogButtonText(buttons, QDialogButtonBox::Yes)) ==
             QStringLiteral("Yes"),
         500);
@@ -253,7 +255,7 @@ TEST(StandardButtonLocalizationTest, RelocalizesConnectOverrideAfterLanguageChan
     switchLanguage(QStringLiteral("zh_CN"));
 
     EXPECT_EQ(dialogButtonText(*buttons, QDialogButtonBox::Ok), QStringLiteral("连接"));
-    QTRY_COMPARE_WITH_TIMEOUT(dialogButtonText(*buttons, QDialogButtonBox::Cancel),
+    FC_TRY_COMPARE_WITH_TIMEOUT(dialogButtonText(*buttons, QDialogButtonBox::Cancel),
                               expectedChineseCancel, 500);
 
     switchLanguage(QStringLiteral("en"));

@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "TryUntil.h"
+
 #include <QApplication>
 #include <QDir>
 #include <QPersistentModelIndex>
@@ -412,18 +414,18 @@ TEST(DirectoryTreeMotion, RepeatedExpandCollapseFeedbackSettlesAndRestarts) {
     clickDisclosure(fixture.tree, fixture.firstBranch);
     EXPECT_TRUE(fixture.tree->isExpanded(fixture.firstBranch));
     EXPECT_EQ(feedback->state(), QAbstractAnimation::Running);
-    QTRY_COMPARE_WITH_TIMEOUT(feedback->state(), QAbstractAnimation::Stopped, 250);
+    FC_TRY_COMPARE_WITH_TIMEOUT(feedback->state(), QAbstractAnimation::Stopped, 250);
     EXPECT_DOUBLE_EQ(feedback->currentValue().toReal(), 0.0);
 
     clickDisclosure(fixture.tree, fixture.firstBranch);
     EXPECT_FALSE(fixture.tree->isExpanded(fixture.firstBranch));
     EXPECT_EQ(feedback->state(), QAbstractAnimation::Running);
-    QTRY_COMPARE_WITH_TIMEOUT(feedback->state(), QAbstractAnimation::Stopped, 250);
+    FC_TRY_COMPARE_WITH_TIMEOUT(feedback->state(), QAbstractAnimation::Stopped, 250);
 
     clickDisclosure(fixture.tree, fixture.firstBranch);
     EXPECT_TRUE(fixture.tree->isExpanded(fixture.firstBranch));
     EXPECT_EQ(feedback->state(), QAbstractAnimation::Running);
-    QTRY_COMPARE_WITH_TIMEOUT(feedback->state(), QAbstractAnimation::Stopped, 250);
+    FC_TRY_COMPARE_WITH_TIMEOUT(feedback->state(), QAbstractAnimation::Stopped, 250);
     EXPECT_DOUBLE_EQ(feedback->currentValue().toReal(), 0.0);
     EXPECT_FALSE(fixture.tree->isAnimated());
 }

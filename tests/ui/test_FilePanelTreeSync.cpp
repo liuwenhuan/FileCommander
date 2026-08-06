@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "TryUntil.h"
+
 #include <QApplication>
 #include <QDir>
 #include <QSignalSpy>
@@ -83,21 +85,21 @@ TEST_F(FilePanelTreeSyncTest, TreeFollowsTabSwitchAfterEachLoad) {
     ASSERT_NE(tree, nullptr);
 
     ASSERT_TRUE(navigateAndWait(panel, m_alphaInner));
-    QTRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_alphaInner, 4000);
+    FC_TRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_alphaInner, 4000);
 
     panel.newTab();
     ASSERT_TRUE(navigateAndWait(panel, m_beta));
-    QTRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_beta, 4000);
+    FC_TRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_beta, 4000);
 
     QSignalSpy previousLoad(panel.model(), &FileSystemModel::loadFinished);
     panel.prevTab();
     ASSERT_TRUE(waitForLoad(previousLoad));
-    QTRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_alphaInner, 4000);
+    FC_TRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_alphaInner, 4000);
 
     QSignalSpy nextLoad(panel.model(), &FileSystemModel::loadFinished);
     panel.nextTab();
     ASSERT_TRUE(waitForLoad(nextLoad));
-    QTRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_beta, 4000);
+    FC_TRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_beta, 4000);
 }
 
 TEST(FilePanelStartupTest, DirectoryTreeIsCreatedOnceOnFirstToggleWithCurrentFont) {
@@ -128,7 +130,7 @@ TEST(FilePanelStartupTest, DirectoryTreeBuildsRootsWhenFirstShown) {
     auto *model = qobject_cast<DirectoryTreeModel *>(tree->model());
     ASSERT_NE(model, nullptr);
 
-    QTRY_VERIFY_WITH_TIMEOUT(model->rowCount() > 0, 1000);
+    FC_TRY_VERIFY_WITH_TIMEOUT(model->rowCount() > 0, 1000);
 }
 
 TEST_F(FilePanelTreeSyncTest, HiddenTreePreservesItsExistingSelectionUntilReopened) {
@@ -138,7 +140,7 @@ TEST_F(FilePanelTreeSyncTest, HiddenTreePreservesItsExistingSelectionUntilReopen
     ASSERT_NE(tree, nullptr);
 
     ASSERT_TRUE(navigateAndWait(panel, m_alpha));
-    QTRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_alpha, 4000);
+    FC_TRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_alpha, 4000);
     tree->setVisible(false);
 
     panel.newTab();
@@ -154,7 +156,7 @@ TEST_F(FilePanelTreeSyncTest, HiddenTreePreservesItsExistingSelectionUntilReopen
     QSignalSpy nextLoad(panel.model(), &FileSystemModel::loadFinished);
     panel.nextTab();
     ASSERT_TRUE(waitForLoad(nextLoad));
-    QTRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_beta, 4000);
+    FC_TRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_beta, 4000);
 }
 
 } // namespace

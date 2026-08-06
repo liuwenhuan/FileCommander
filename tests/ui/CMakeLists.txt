@@ -120,6 +120,12 @@ if(FILECOMMANDER_MEDIA_BACKEND_MPV)
     target_link_libraries(ui_tests PRIVATE FileCommander::Mpv)
 endif()
 
+# Shared test helpers (tests/support): FC_TRY_* replaces Qt's QTRY_* macros,
+# which cannot fail inside a gtest body -- see TryUntil.h. Unconditional: the
+# first attempt landed inside the mpv block above, so every build without mpv
+# failed to find the header.
+target_include_directories(ui_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../support)
+
 # resources.qrc is compiled into the app target, not this one, so a test that
 # needs a real theme stylesheet reads it from the source tree instead.
 target_compile_definitions(ui_tests PRIVATE

@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "TryUntil.h"
+
 #include <QAbstractButton>
 #include <QCoreApplication>
 #include <QDir>
@@ -630,7 +632,7 @@ TEST(TabSessionLifecycle, ProviderSizeTaskCompletesAfterRemoteTabCloses) {
         QSignalSpy finished(&task, &DirectorySizeTask::finished);
         task.start();
 
-        QTRY_VERIFY_WITH_TIMEOUT(gate->entered.load(), 4000);
+        FC_TRY_VERIFY_WITH_TIMEOUT(gate->entered.load(), 4000);
         GateReleaseGuard releaseGate(gate->release);
         panel.newTab();
         panel.navigateTo(localDir.path());
@@ -661,7 +663,7 @@ TEST(TabSessionLifecycle, ProviderSizeTaskCompletesAfterRemoteTabCloses) {
         EXPECT_EQ(panel.currentPath(), localDir.path());
         EXPECT_EQ(visibleEntryNames(panel.model()), visibleBeforeClose);
     }
-    QTRY_VERIFY_WITH_TIMEOUT(weakShare.expired(), 4000);
+    FC_TRY_VERIFY_WITH_TIMEOUT(weakShare.expired(), 4000);
 }
 
 TEST(TabSessionLifecycle, TenRemoteTabsReturnRuntimeResourcesToBaseline) {

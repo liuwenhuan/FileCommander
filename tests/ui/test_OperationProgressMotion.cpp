@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "TryUntil.h"
+
 #include <atomic>
 
 #include <QApplication>
@@ -111,7 +113,14 @@ TEST(OperationProgressMotion, FirstCopyCommandCreatesExactlyOneTransferDialog) {
     window.openFolders({source, destination});
     FilePanel *sourcePanel = panelAtPath(window, source);
     ASSERT_NE(sourcePanel, nullptr);
-    QTRY_COMPARE_WITH_TIMEOUT(sourcePanel->model()->rowCount(), 2, 4000);
+    // Waits for the two files by name rather than for a row count of 2. A
+    // directory listing also carries the ".." parent row, so this is three
+    // rows and never was two -- the wait ran its full four seconds every time
+    // and then passed anyway, because the QTRY macro it was written with
+    // cannot fail a gtest body.
+    FC_TRY_VERIFY_WITH_TIMEOUT(rowNamed(sourcePanel, QStringLiteral("first.txt")) >= 0 &&
+                                   rowNamed(sourcePanel, QStringLiteral("second.txt")) >= 0,
+                               4000);
     ASSERT_EQ(window.findChildren<OperationQueue *>().size(), 1);
     EXPECT_TRUE(window.findChildren<TransferProgressDialog *>().isEmpty());
 
@@ -227,7 +236,7 @@ TEST(OperationProgressMotion, SuccessfulOutcomeRemainsVisibleFor180Milliseconds)
 
     QTest::qWait(130);
     EXPECT_TRUE(dialog.isVisible());
-    QTRY_VERIFY_WITH_TIMEOUT(!dialog.isVisible(), 100);
+    FC_TRY_VERIFY_WITH_TIMEOUT(!dialog.isVisible(), 100);
 }
 
 TEST(OperationProgressMotion, ReducedMotionKeepsStaticSuccessVisibleFor180Milliseconds) {
@@ -250,7 +259,7 @@ TEST(OperationProgressMotion, ReducedMotionKeepsStaticSuccessVisibleFor180Millis
 
     QTest::qWait(130);
     EXPECT_TRUE(dialog.isVisible());
-    QTRY_VERIFY_WITH_TIMEOUT(!dialog.isVisible(), 100);
+    FC_TRY_VERIFY_WITH_TIMEOUT(!dialog.isVisible(), 100);
 }
 
 TEST(OperationProgressMotion, OneConcurrentTransferFinishingDoesNotEndTheBatch) {
@@ -269,7 +278,7 @@ TEST(OperationProgressMotion, OneConcurrentTransferFinishingDoesNotEndTheBatch) 
     EXPECT_TRUE(dialog.isVisible());
 
     finishTransfer(dialog, true);
-    QTRY_VERIFY_WITH_TIMEOUT(!dialog.isVisible(), 250);
+    FC_TRY_VERIFY_WITH_TIMEOUT(!dialog.isVisible(), 250);
 }
 
 TEST(OperationProgressMotion, TerminalTimerIsCancelledWhenDialogIsDestroyed) {
@@ -332,7 +341,7 @@ TEST(OperationProgressMotion, AbortButtonStopsTheRunningCopyAndClosesTheWindow) 
 
     // The window reveals itself on its own deferred-show timer -- no faked
     // signals here, the whole wiring is under test.
-    QTRY_VERIFY_WITH_TIMEOUT(dialog.isVisible(), 4000);
+    FC_TRY_VERIFY_WITH_TIMEOUT(dialog.isVisible(), 4000);
 
     auto *abortButton = dialog.findChild<QPushButton *>(QStringLiteral("TransferAbortButton"));
     ASSERT_NE(abortButton, nullptr);
@@ -344,7 +353,7 @@ TEST(OperationProgressMotion, AbortButtonStopsTheRunningCopyAndClosesTheWindow) 
     EXPECT_EQ(queue.queuedCount(), 0);
 
     release.release();
-    QTRY_VERIFY_WITH_TIMEOUT(finished.count() > 0, 5000);
+    FC_TRY_VERIFY_WITH_TIMEOUT(finished.count() > 0, 5000);
     EXPECT_FALSE(finished.takeFirst().at(0).toBool());
     EXPECT_FALSE(QFile::exists(destination));
     EXPECT_FALSE(dialog.isVisible());
