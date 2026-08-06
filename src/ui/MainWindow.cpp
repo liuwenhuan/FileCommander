@@ -3540,10 +3540,7 @@ QString downloadRemoteToTemp(FileProvider *provider, const QString &remotePath,
 } // namespace
 
 QString MainWindow::ensurePreviewTempDir() {
-    if (!m_previewTempDir)
-        m_previewTempDir = new QTemporaryDir(QDir::tempPath() + QStringLiteral("/FileCommander-preview-XXXXXX"));
-    return (m_previewTempDir && m_previewTempDir->isValid()) ? m_previewTempDir->path()
-                                                             : QString();
+    return m_scratch.preview();
 }
 
 void MainWindow::updateQuickView() {
@@ -3671,30 +3668,11 @@ void MainWindow::cancelPreviewDownload() {
 }
 
 QString MainWindow::ensureOpenTempDir() {
-    if (!m_openTempDir) {
-        m_openTempDir =
-            new QTemporaryDir(QDir::tempPath() + QStringLiteral("/FileCommander-open-XXXXXX"));
-        // Deliberately kept past shutdown: an application we launched may still
-        // be reading (or about to read) a copy, and pulling the file out from
-        // under a document the user is looking at is worse than leaving bytes in
-        // /tmp, which the system clears anyway. This is also why the dir is never
-        // deleted while the window lives -- we cannot know when a launched
-        // application is done with its file.
-        m_openTempDir->setAutoRemove(false);
-    }
-    return (m_openTempDir && m_openTempDir->isValid()) ? m_openTempDir->path() : QString();
+    return m_scratch.openWith();
 }
 
 QString MainWindow::ensureArchiveTempDir() {
-    if (!m_archiveTempDir)
-        m_archiveTempDir =
-            new QTemporaryDir(QDir::tempPath() + QStringLiteral("/FileCommander-archive-XXXXXX"));
-    // Unlike the open-with copies above, these are NOT kept past shutdown. Nothing
-    // outside this process ever sees them (the archive is browsed in-app), each
-    // one is already deleted when its browse ends, and an archive is exactly the
-    // kind of file that can be several gigabytes -- so the auto-remove default
-    // stands as the backstop for a copy whose browse a crash cut short.
-    return (m_archiveTempDir && m_archiveTempDir->isValid()) ? m_archiveTempDir->path() : QString();
+    return m_scratch.archive();
 }
 
 void MainWindow::browseRemoteArchive(FilePanel *panel, const QString &path) {
@@ -5220,8 +5198,7 @@ void MainWindow::closeEvent(QCloseEvent *event) {
     // Downloaded archives, unlike those copies, ARE ours to clean up: nothing
     // outside this process reads them. Destroying the QTemporaryDir sweeps up any
     // whose browse the user never stepped out of.
-    delete m_archiveTempDir;
-    m_archiveTempDir = nullptr;
+    m_scratch.discardArchive();
 
     m_settings.setWindowGeometry(saveGeometry());
     // Persist each panel's column layout independently: base widths + hidden

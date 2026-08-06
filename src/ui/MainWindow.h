@@ -25,6 +25,7 @@ class QTemporaryDir;
 
 #include "FileListView.h"
 #include "CommandRegistry.h"
+#include "ScratchDirs.h"
 #include "StartupTrace.h"
 #include "Settings.h"
 #include "filesystem/ComputerCatalog.h" // ComputerEntry (passed by value)
@@ -419,7 +420,6 @@ private:
     // before the viewers can open it. The download runs on a worker thread; the
     // request id discards a stale download when the cursor has moved on. The temp
     // dir is created lazily and auto-cleaned on exit.
-    QTemporaryDir *m_previewTempDir = nullptr;
     quint64 m_previewReqId = 0;
     bool m_previewRunning = false;                       // a remote fetch is in flight
     QString m_previewName;                               // current file's name (for messages)
@@ -427,6 +427,9 @@ private:
     // The one file whose streamed preview failed, so retrying it downloads
     // instead of streaming again (which would fail the same way, forever).
     QString m_streamFailedEntry;
+    // The three temporary directories, with the one real difference between
+    // them (whether it outlives the program) recorded where it belongs.
+    ScratchDirs m_scratch;
     QString ensurePreviewTempDir();
     void cancelPreviewDownload(); // Stop button: abort the current preview fetch
 
@@ -444,7 +447,6 @@ private:
         OperationProgressDialog *dialog = nullptr; // created only if slow (see 500ms timer)
         std::function<void(const QString &)> onReady; // what to do with the local copy
     };
-    QTemporaryDir *m_openTempDir = nullptr; // holds every fetched copy for the session
     quint64 m_openReqId = 0;
     QHash<quint64, RemoteFetch> m_remoteFetches; // in-flight fetches, keyed by request id
     bool m_remoteCopyNoticeShown = false;        // the read-only notice is once per session
@@ -452,7 +454,6 @@ private:
     // Separate root for downloaded archives, which unlike the open-with copies
     // are only ever read by this process and are deleted as soon as the user
     // steps back out of the archive (see ArchiveProvider::setOwnsArchiveFile).
-    QTemporaryDir *m_archiveTempDir = nullptr;
     QString ensureArchiveTempDir();
     // Whether the active panel's current entry is a directory, according to the
     // backend that listed it rather than to QFileInfo (which knows nothing about
