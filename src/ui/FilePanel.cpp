@@ -67,6 +67,17 @@
 namespace {
 
 constexpr int kTreeAnimationVisibleRowLimit = 500;
+// Toggling a branch again within this window counts as rapid input, and rapid
+// input gets no disclosure feedback -- one flourish for a burst, not one per
+// click.
+//
+// It is the same 100 ms as MotionDuration::Fast, which is how long that
+// feedback runs. The two being equal puts "click, watch it finish, click again"
+// exactly on the boundary: whether the second click is treated as rapid then
+// depends on which of two timers the event loop happens to service first. A
+// test doing precisely that failed about one run in twenty until it waited this
+// out rather than waiting for the animation. Worth separating the two numbers
+// if the behaviour at that rhythm ever matters to a user.
 constexpr int kTreeInputCadenceIntervalMs = 100;
 constexpr int kDirectorySizeBusyDelayMs = 500;
 constexpr auto kTreeFeedbackAnimationName = "DirectoryTreeDisclosureFeedbackAnimation";
@@ -128,6 +139,11 @@ public:
         m_inputCadenceTimer = new QTimer(this);
         m_inputCadenceTimer->setSingleShot(true);
         m_inputCadenceTimer->setInterval(kTreeInputCadenceIntervalMs);
+        // Published so a test can wait this out rather than guess it. Toggling
+        // again while it runs is deliberately treated as rapid input and shows
+        // no feedback, so "click, wait for the feedback to settle, click again"
+        // lands exactly on the boundary -- see the note beside the constant.
+        m_inputCadenceTimer->setObjectName(QStringLiteral("TreeInputCadenceTimer"));
 
         MotionPolicy::observeReduced(this, [this](bool reduced) {
             if (reduced)

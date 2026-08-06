@@ -12,6 +12,7 @@
 #include <QTest>
 #include <QTimer>
 #include <QToolButton>
+#include <QElapsedTimer>
 #include <QTreeView>
 #include <QVariantAnimation>
 
@@ -398,6 +399,24 @@ TEST(DirectoryTreeMotion, PendingFeedbackIsSafeDuringTeardown) {
     EXPECT_TRUE(feedback.isNull());
 }
 
+// Waits until the tree will treat the next click as fresh input rather than as
+// part of a burst.
+//
+// Waiting for the feedback ANIMATION to stop is not the same thing and is what
+// made this flaky: the cadence window and the animation are both 100 ms and
+// start together, so a click placed just after the animation settles lands on
+// the boundary and is rapid or not depending on which timer the event loop
+// serviced first.
+void waitForFreshInput(QTreeView *tree) {
+    auto *cadence = tree->findChild<QTimer *>(QStringLiteral("TreeInputCadenceTimer"));
+    ASSERT_NE(cadence, nullptr) << "the tree publishes no cadence timer to wait on";
+    QElapsedTimer budget;
+    budget.start();
+    while (cadence->isActive() && budget.elapsed() < 2000)
+        QTest::qWait(10);
+    ASSERT_FALSE(cadence->isActive()) << "the cadence window never lapsed";
+}
+
 TEST(DirectoryTreeMotion, RepeatedExpandCollapseFeedbackSettlesAndRestarts) {
     MotionPolicyStateGuard guard;
     MotionPolicy::setReducedForTest(false);
@@ -411,20 +430,40 @@ TEST(DirectoryTreeMotion, RepeatedExpandCollapseFeedbackSettlesAndRestarts) {
     QVariantAnimation *feedback = feedbackAnimation(fixture.tree);
     ASSERT_NE(feedback, nullptr);
 
+    // Counted, not caught in the act.
+    //
+    // This used to assert the animation was still Running the instant the click
+    // returned -- that it had not finished YET. Whether it has is a race with
+    // the machine: the feedback is short, and on a busy run it can be over
+    // before the next line executes. Waiting longer cannot fix an assertion
+    // that something has not happened yet.
+    //
+    // A START, though, is a fact. It emits stateChanged(Running, Stopped) when
+    // it happens and stays counted afterwards, so the same property -- every
+    // click restarts the feedback -- is exact however the timing falls.
+    int starts = 0;
+    QObject::connect(feedback, &QAbstractAnimation::stateChanged, feedback,
+                     [&starts](QAbstractAnimation::State to, QAbstractAnimation::State) {
+                         if (to == QAbstractAnimation::Running)
+                             ++starts;
+                     });
+
     clickDisclosure(fixture.tree, fixture.firstBranch);
     EXPECT_TRUE(fixture.tree->isExpanded(fixture.firstBranch));
-    EXPECT_EQ(feedback->state(), QAbstractAnimation::Running);
+    EXPECT_EQ(starts, 1) << "expanding did not start the feedback";
     FC_TRY_COMPARE_WITH_TIMEOUT(feedback->state(), QAbstractAnimation::Stopped, 2000);
     EXPECT_DOUBLE_EQ(feedback->currentValue().toReal(), 0.0);
 
+    waitForFreshInput(fixture.tree);
     clickDisclosure(fixture.tree, fixture.firstBranch);
     EXPECT_FALSE(fixture.tree->isExpanded(fixture.firstBranch));
-    EXPECT_EQ(feedback->state(), QAbstractAnimation::Running);
+    EXPECT_EQ(starts, 2) << "collapsing did not restart the settled feedback";
     FC_TRY_COMPARE_WITH_TIMEOUT(feedback->state(), QAbstractAnimation::Stopped, 2000);
 
+    waitForFreshInput(fixture.tree);
     clickDisclosure(fixture.tree, fixture.firstBranch);
     EXPECT_TRUE(fixture.tree->isExpanded(fixture.firstBranch));
-    EXPECT_EQ(feedback->state(), QAbstractAnimation::Running);
+    EXPECT_EQ(starts, 3) << "expanding again did not restart the settled feedback";
     FC_TRY_COMPARE_WITH_TIMEOUT(feedback->state(), QAbstractAnimation::Stopped, 2000);
     EXPECT_DOUBLE_EQ(feedback->currentValue().toReal(), 0.0);
     EXPECT_FALSE(fixture.tree->isAnimated());
