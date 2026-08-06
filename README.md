@@ -6,7 +6,10 @@
 
 **又酷又快的文件管理器**
 
-一个双栏文件管理器。绿色荧光主题不是彩蛋，是一等公民。
+双文件栏快捷操作<br>
+风格彻底统一的三套主题<br>
+快速网络传输后端和 Office 文件快速预览能力<br>
+同时支持 Windows 和 Linux 系统
 
 [![release](https://img.shields.io/badge/release-v0.1.0-33ff88?style=flat-square)](https://github.com/liuwenhuan/FileCommander/releases)
 [![platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-1fa85c?style=flat-square)](#安装)
@@ -34,8 +37,7 @@ Commander / Double Commander 过来的人不需要重新学。
 每一个滚动条——包括文件列表的图标和缩略图会跟着主题走。CRT 主题里连扫描线的相位都是
 对齐的：相邻的行和控件不会各自重新起一遍纹理。
 
-**自己实现的网络后端。** SFTP / FTP / WebDAV / SMB 不走 gvfs 的 FUSE 挂载。原因不是
-情怀，是测出来的——见下方[性能实测](#性能实测)。
+**自己实现网络后端。** SFTP / FTP / WebDAV / SMB 不走 gvfs 的 FUSE 挂载。见下方[性能实测](#性能实测)。
 
 ---
 
@@ -45,7 +47,7 @@ Commander / Double Commander 过来的人不需要重新学。
 |---|---|
 | **双栏浏览** | 每栏独立标签页、独立目录树、独立历史；面板互换、目录同步 |
 | **压缩包** | 7z / zip / tar / squashfs / UDF 直接当目录进去浏览；加密与 solid 7z 走内置 LZMA SDK |
-| **网络** | SFTP、FTP、WebDAV、SMB。同后端移动走服务端 rename（SMB 实测 ~191× 快于下载再上传）；传输支持断点续传 |
+| **网络** | SFTP、FTP、WebDAV、SMB；传输支持断点续传 |
 | **快速预览** | 图片、PDF、视频、Office 文档（docx/pptx/xlsx）在侧栏直接看，不开外部程序 |
 | **缩略图** | 磁盘缓存 + 按滚动位置渐进抓取，先出当前屏；远程视频用字节范围规划只取关键帧那一段 |
 | **同步与比较** | 目录对比、双向同步，逐条选择动作 |
@@ -81,8 +83,6 @@ Green CRT 的设计约束写在 `resources/themes/green.qss` 的文件头里，�
 | 路径 | 耗时 |
 |---|---|
 | FileCommander 自带 `SmbProvider`（`smbc_readdirplus2`） | **88–142 ms** |
-| `smbclient` 协议层 | 115 ms |
-| `gio list -l`（GIO API → D-Bus → gvfsd-smb） | 100 ms |
 | 通过 gvfs 的 FUSE 挂载 | **1347–1416 ms** |
 
 慢的不是 gvfs 的 SMB 后端，而是 `gvfsd-fuse` 没有实现 FUSE 的 readdirplus——
@@ -124,7 +124,7 @@ chmod +x FileCommander-0.1.0-x86_64.AppImage
 ./FileCommander-0.1.0-x86_64.AppImage
 ```
 
-**Windows** — MSIX 包，即将推出。
+**Windows** — zip 压缩包，解开即用。
 
 Office 文档预览需要外部 CLI `office-oxide`（单独的项目）。装了才有 docx / pptx /
 xlsx 预览；没装的话这个功能静默跳过，其余一切正常。
