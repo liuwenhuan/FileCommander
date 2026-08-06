@@ -973,11 +973,7 @@ void QuickView::renderText() {
     } else if (autoEncoding) {
         content = TextEncodingDetector::decode(m_textRaw, detected);
     } else {
-        const char *codecName = kTextEncodings[encodingIndex].codec;
-        QTextCodec *codec = codecName ? QTextCodec::codecForName(codecName)
-                                      : QTextCodec::codecForLocale();
-        if (!codec)
-            codec = QTextCodec::codecForName("UTF-8");
+        QTextCodec *codec = TextEncodingDetector::codecForSelectableIndex(encodingIndex);
         content = codec ? codec->toUnicode(m_textRaw) : QString::fromUtf8(m_textRaw);
     }
     if (renderTruncated)

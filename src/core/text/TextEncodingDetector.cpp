@@ -788,3 +788,17 @@ QByteArray TextEncodingDetector::safePrefix(const QByteArray &data, int maximumB
     }
     return data.left(qMax(payloadStart, length));
 }
+
+QTextCodec *TextEncodingDetector::codecForSelectableIndex(int index) {
+    const char *name = (index >= 0 && index < selectableEncodingCount)
+                           ? selectableEncodings[index].codec
+                           : nullptr;
+    QTextCodec *codec = name ? QTextCodec::codecForName(name) : QTextCodec::codecForLocale();
+    // Defensive, and not reachable to test on any machine Qt is working on:
+    // codecForLocale() is documented never to return null, and every name in
+    // the table above is a codec Qt builds in. It stays because the cost of
+    // being wrong here is a null dereference at three call sites.
+    if (!codec)
+        codec = QTextCodec::codecForName("UTF-8");
+    return codec;
+}

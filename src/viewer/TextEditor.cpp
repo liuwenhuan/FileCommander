@@ -368,11 +368,7 @@ void TextEditor::applyEncodingToBuffer() {
             status += tr(" (ambiguous)");
         m_encodingStatus->setText(status);
     } else {
-        const char *codecName = kTextEncodings[index].codec;
-        QTextCodec *codec =
-            codecName ? QTextCodec::codecForName(codecName) : QTextCodec::codecForLocale();
-        if (!codec)
-            codec = QTextCodec::codecForName("UTF-8");
+        QTextCodec *codec = TextEncodingDetector::codecForSelectableIndex(index);
         // A default ConverterState consumes a leading BOM instead of turning it
         // into a stray U+FEFF at the top of the buffer.
         QTextCodec::ConverterState state;
@@ -458,11 +454,7 @@ QByteArray TextEditor::encodeBuffer() const {
     // not carried over -- it would describe the wrong encoding. The codec's own
     // encoder decides instead, which is what emits the BOM that UTF-16/UTF-32
     // need to be readable at all and emits none for the 8-bit codecs.
-    const char *codecName = kTextEncodings[index].codec;
-    QTextCodec *codec =
-        codecName ? QTextCodec::codecForName(codecName) : QTextCodec::codecForLocale();
-    if (!codec)
-        codec = QTextCodec::codecForName("UTF-8");
+    QTextCodec *codec = TextEncodingDetector::codecForSelectableIndex(index);
     return codec ? codec->fromUnicode(text) : text.toUtf8();
 }
 

@@ -1,5 +1,7 @@
 #pragma once
 
+class QTextCodec;
+
 #include <QByteArray>
 #include <QString>
 
@@ -53,6 +55,16 @@ public:
     static constexpr int autoEncodingIndex = 0;
     static constexpr int selectableEncodingCount =
         int(sizeof(selectableEncodings) / sizeof(selectableEncodings[0]));
+
+    // The codec for a chooser index, never null.
+    //
+    // Resolving one was four lines repeated at three call sites -- the preview
+    // pane, the editor's load, the editor's save -- each doing the same two
+    // fallbacks: a null codec entry means the system locale, and a locale Qt
+    // cannot supply a codec for means UTF-8. Getting either fallback wrong
+    // shows up as mojibake rather than as an error, which is exactly the kind
+    // of rule that should not be copied.
+    static QTextCodec *codecForSelectableIndex(int index);
 
     static Result detect(const QByteArray &data, InputEnd inputEnd = InputEnd::Complete);
     // The scoring sample is bounded; grammar validation still covers all input.

@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <QTextCodec>
+
 #include <clocale>
 #include <limits>
 
@@ -565,4 +567,41 @@ TEST(TextEncodingDetectorTest, QuickViewSafelyTruncatesAtUtf8CharacterBoundary) 
     EXPECT_FALSE(rendered.contains(QChar::ReplacementCharacter));
     EXPECT_TRUE(rendered.endsWith(QStringLiteral("\n\n[... truncated ...]")));
     EXPECT_FALSE(rendered.contains(QString::fromUtf8(u8"中")));
+}
+
+// Resolving a chooser index to a codec was four lines repeated at three call
+// sites -- the preview pane, the editor's load, the editor's save. Sharing them
+// showed the rule was covered by nothing: sabotaging it so that a named
+// encoding was ignored, and again so an out-of-range index went unguarded, left
+// every encoding and editor test passing.
+TEST(TextEncodingDetectorTest, ANamedEncodingResolvesToThatCodec) {
+    // Index 1 is UTF-8; the table is addressed by index and never reordered.
+    QTextCodec *codec = TextEncodingDetector::codecForSelectableIndex(1);
+    ASSERT_NE(codec, nullptr);
+    EXPECT_EQ(QString::fromLatin1(codec->name()), QStringLiteral("UTF-8"));
+}
+
+TEST(TextEncodingDetectorTest, AnEntryWithNoCodecMeansTheSystemLocale) {
+    // "Auto" and "System" both carry a null codec name, which means "whatever
+    // this machine reads text as".
+    QTextCodec *codec = TextEncodingDetector::codecForSelectableIndex(
+        TextEncodingDetector::autoEncodingIndex);
+    ASSERT_NE(codec, nullptr);
+    EXPECT_EQ(QString::fromLatin1(codec->name()),
+              QString::fromLatin1(QTextCodec::codecForLocale()->name()));
+}
+
+TEST(TextEncodingDetectorTest, AnIndexFromOutsideTheTableReadsAsTheSystemLocale) {
+    // A stale index out of an older version's settings must not read past the
+    // table. Asserting the exact codec, not merely that one came back: an
+    // out-of-bounds read lands on whatever follows the table in memory and
+    // usually yields an unknown name, which falls back to the locale codec too
+    // -- so "not null" passes either way and proves nothing.
+    const QString locale = QString::fromLatin1(QTextCodec::codecForLocale()->name());
+    for (int index : {-1, TextEncodingDetector::selectableEncodingCount,
+                      TextEncodingDetector::selectableEncodingCount + 100}) {
+        QTextCodec *codec = TextEncodingDetector::codecForSelectableIndex(index);
+        ASSERT_NE(codec, nullptr) << "index " << index;
+        EXPECT_EQ(QString::fromLatin1(codec->name()), locale) << "index " << index;
+    }
 }
