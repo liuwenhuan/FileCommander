@@ -1,5 +1,6 @@
 #include "ImageViewer.h"
 
+#include <QAction>
 #include <QDir>
 #include <QFileInfo>
 #include <QKeyEvent>
@@ -45,8 +46,23 @@ ImageViewer::ImageViewer(QWidget *parent) : QWidget(parent) {
     toolbar->addAction(tr("100%"), this, &ImageViewer::actualSize);
     toolbar->addAction(tr("Zoom In"), this, &ImageViewer::zoomIn);
     toolbar->addAction(tr("Zoom Out"), this, &ImageViewer::zoomOut);
+    m_playAction = toolbar->addAction(tr("Pause"), this, [this]() {
+        if (!m_animation)
+            return;
+        m_animation->setPaused(!m_animation->isPaused());
+        m_playAction->setText(m_animation->isPaused() ? tr("Play") : tr("Pause"));
+    });
+    m_playAction->setVisible(false);
     toolbar->addAction(tr("< Prev"), this, &ImageViewer::previousImage);
     toolbar->addAction(tr("Next >"), this, &ImageViewer::nextImage);
+
+    m_animation = new AnimatedImage(this);
+    connect(m_animation, &AnimatedImage::frameReady, this, [this](const QImage &frame) {
+        // Through m_pixmap and applyScale() rather than straight to the label,
+        // so the current zoom or fit applies to every frame.
+        m_pixmap = QPixmap::fromImage(frame);
+        applyScale();
+    });
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -65,6 +81,26 @@ ImageViewer::ImageViewer(QWidget *parent) : QWidget(parent) {
 }
 
 bool ImageViewer::loadImage(const QString &path) {
+    // Whatever was playing stops first: its frames would otherwise go on
+    // arriving and paint themselves over the file just opened.
+    m_animation->stop();
+    if (m_playAction)
+        m_playAction->setVisible(false);
+
+    if (AnimatedImage::isAnimated(path) && m_animation->play(path)) {
+        // The first frame arrives from play(), so m_pixmap already holds one.
+        if (m_playAction) {
+            m_playAction->setVisible(true);
+            m_playAction->setText(tr("Pause"));
+        }
+        m_path = path;
+        m_fitToWindow = true;
+        setWindowTitle(QFileInfo(path).fileName());
+        loadSiblingList();
+        applyScale();
+        return true;
+    }
+
     QPixmap pixmap(path);
     if (pixmap.isNull())
         return false;

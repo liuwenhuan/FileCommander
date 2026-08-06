@@ -2,6 +2,10 @@
 
 #include <QWidget>
 
+#include "AnimatedImage.h"
+
+class QAction;
+
 class QLabel;
 class QScrollArea;
 
@@ -37,6 +41,12 @@ private:
     QScrollArea *m_scrollArea;
     QLabel *m_imageLabel;
     QPixmap m_pixmap;
+    // Animation, when the file has more than one frame. Each frame is written
+    // into m_pixmap and drawn through applyScale(), so zoom and fit keep
+    // working on a GIF exactly as they do on a still -- there is one scaling
+    // path, not two.
+    AnimatedImage *m_animation = nullptr;
+    QAction *m_playAction = nullptr;
     QString m_path;
     QStringList m_siblings;
     int m_siblingIndex = -1;

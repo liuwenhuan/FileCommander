@@ -10,6 +10,9 @@
 #include <QTemporaryDir>
 #include <QTest>
 
+#include <QLabel>
+#include <QVector>
+#include "ImageViewer.h"
 #include "AnimatedImage.h"
 #include "theme/Phosphor.h"
 
@@ -151,4 +154,53 @@ TEST(AnimatedImageTest, DISABLED_TintCostPerFrame) {
     }
     std::fflush(stderr);
     fc::setPreviewTint(previous);
+}
+
+// The F3 window plays a GIF too, and its zoom applies to the frames.
+//
+// The two viewers had drifted apart on stills, which is why AnimatedImage lives
+// in this library rather than in either of them. This asserts the F3 half.
+TEST(AnimatedImageTest, TheViewerWindowPlaysAndScalesTheFrames) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString path =
+        writeGif(dir, QStringLiteral("v.gif"), kAnimatedGif, sizeof(kAnimatedGif));
+    ASSERT_FALSE(path.isEmpty());
+
+    ImageViewer viewer;
+    viewer.resize(400, 300);
+    viewer.show();
+    ASSERT_TRUE(viewer.loadImage(path));
+
+    QLabel *label = nullptr;
+    for (QLabel *candidate : viewer.findChildren<QLabel *>()) {
+        if (candidate->pixmap() && !candidate->pixmap()->isNull()) {
+            label = candidate;
+            break;
+        }
+    }
+    ASSERT_NE(label, nullptr) << "the viewer painted nothing";
+
+    // Counted over a window, for the reason the preview pane's test records:
+    // "changed once" is what a still does too. A still settles; this must not.
+    QVector<QImage> seen;
+    QElapsedTimer budget;
+    budget.start();
+    while (budget.elapsed() < 3000) {
+        QTest::qWait(25);
+        if (!label->pixmap())
+            continue;
+        const QImage now = label->pixmap()->toImage();
+        if (seen.isEmpty() || now != seen.last())
+            seen.append(now);
+    }
+    EXPECT_GE(seen.size(), 6)
+        << "the picture changed " << seen.size()
+        << " times in three seconds, which is a still rather than an animation";
+
+    // Every frame goes through the same scaling path as a still, so the window
+    // is showing them at its own size rather than at the GIF's 8x8.
+    ASSERT_FALSE(seen.isEmpty());
+    EXPECT_GT(seen.last().width(), 8)
+        << "frames are drawn at their native size; the viewer's zoom was bypassed";
 }
