@@ -552,12 +552,25 @@ private:
         QStringList directories;
         QHash<QString, qint64> symlinkRootSizes;
     };
+    // What a new count means for one already running.
+    enum class DirectorySizeMode {
+        // "Count what is selected." The selection is the whole request, so a
+        // later one says everything the earlier one did and replaces it.
+        Supersede,
+        // "Also count this one." Space on a row asks for one more directory
+        // and says nothing about the others, so it must not cancel a count
+        // already in progress -- pressing Space down a list used to abandon
+        // each directory the moment the next was asked for, and only the last
+        // one ever produced a size.
+        Append,
+    };
     void cancelDirectorySizeTask();
     void startDirectorySizeTask(DirectorySizeRequest request);
-    // Shared tail of calculateDirSizes()/calculateDirSizeForRow(): cancels any
-    // running count, then starts or queues this one.
+    // Shared tail of calculateDirSizes()/calculateDirSizeForRow(). Supersede
+    // cancels any running count; Append leaves it alone and joins the queue.
     void submitDirectorySizeRequest(QStringList dirs, QHash<QString, qint64> symlinkRootSizes,
-                                    QHash<QString, QString> rowPaths = {});
+                                    QHash<QString, QString> rowPaths = {},
+                                    DirectorySizeMode mode = DirectorySizeMode::Supersede);
     // The real directory a row measures, or empty when it measures nothing.
     // Normally the row's own path; in the computer view the row is a place, so
     // this is the local directory behind it -- a server or an unmounted device

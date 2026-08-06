@@ -2559,15 +2559,27 @@ void FilePanel::calculateDirSizeForRow(int row) {
     QHash<QString, QString> rowPaths;
     if (target != info.path())
         rowPaths.insert(target, info.path()); // file the result under the row
+    // Append: Space says "also count this one". The cursor moves down as it is
+    // pressed, so counting a directory and then pressing Space on the next row
+    // is the ordinary way to use this -- and superseding meant the first
+    // directory was abandoned mid-walk and never showed a size.
     submitDirectorySizeRequest(std::move(dirs), std::move(symlinkRootSizes),
-                               std::move(rowPaths));
+                               std::move(rowPaths), DirectorySizeMode::Append);
 }
 
 void FilePanel::submitDirectorySizeRequest(QStringList dirs,
                                            QHash<QString, qint64> symlinkRootSizes,
-                                           QHash<QString, QString> rowPaths) {
-    cancelDirectorySizeTask();
-    m_directorySizeRowPaths = std::move(rowPaths);
+                                           QHash<QString, QString> rowPaths,
+                                           DirectorySizeMode mode) {
+    if (mode == DirectorySizeMode::Supersede) {
+        cancelDirectorySizeTask();
+        m_directorySizeRowPaths = std::move(rowPaths);
+    } else {
+        // Merged, not replaced: the directories already queued still need their
+        // row mapping when their results come back.
+        for (auto it = rowPaths.constBegin(); it != rowPaths.constEnd(); ++it)
+            m_directorySizeRowPaths.insert(it.key(), it.value());
+    }
     if (dirs.isEmpty())
         return;
 
@@ -2580,6 +2592,29 @@ void FilePanel::submitDirectorySizeRequest(QStringList dirs,
     if (m_computerProvider)
         provider = std::shared_ptr<FileProvider>(LocalFileProvider::instance(),
                                                  [](FileProvider *) {});
+    if (mode == DirectorySizeMode::Append && m_directorySizeTask) {
+        // A count is already running and keeps running: this one joins the work
+        // that starts when it finishes. The generation is deliberately NOT
+        // bumped -- bumping is what marks the running task's results stale, and
+        // those results are still wanted.
+        //
+        // Still one directory at a time down the provider lane, which is the
+        // point of that lane: a burst of Space presses on a network share must
+        // not turn into a burst of concurrent recursive walks.
+        if (!m_pendingDirectorySizeRequest) {
+            m_pendingDirectorySizeRequest =
+                DirectorySizeRequest{m_directorySizeRequestId, std::move(provider), {}, {}};
+        }
+        DirectorySizeRequest &pending = *m_pendingDirectorySizeRequest;
+        for (const QString &dir : dirs) {
+            if (!pending.directories.contains(dir))
+                pending.directories << dir;
+        }
+        for (auto it = symlinkRootSizes.constBegin(); it != symlinkRootSizes.constEnd(); ++it)
+            pending.symlinkRootSizes.insert(it.key(), it.value());
+        return;
+    }
+
     const quint64 requestId = ++m_directorySizeRequestId;
     DirectorySizeRequest request{requestId, std::move(provider), std::move(dirs),
                                  std::move(symlinkRootSizes)};

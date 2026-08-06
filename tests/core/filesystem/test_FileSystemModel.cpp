@@ -564,3 +564,46 @@ TEST(FileSystemModelTest, FilePanelDirectorySize_SymlinkRootUsesListingMetadataW
         panel.model()->data(panel.model()->index(linkRow, FileSystemModel::SizeColumn)).toString(),
         expected, 4000);
 }
+
+// Space on a row asks for one more directory; it must not abandon one already
+// being counted.
+//
+// The cursor moves down as Space is pressed, so counting a directory and then
+// pressing Space on the next row is the ordinary way to use this. Every request
+// used to cancel the running one, so walking down a list left every directory
+// but the last showing "<DIR>" forever -- the first one's walk was killed
+// mid-flight and nothing ever restarted it.
+//
+// Deliberately asserted on the FIRST row's size, not on the second: the second
+// arriving proves only that the newest request works, which it always did.
+TEST(FileSystemModelTest, FilePanelDirectorySize_SpacingANewRowLetsTheRunningCountFinish) {
+    auto provider = std::make_shared<StaleSizeProvider>();
+    FilePanel panel;
+    panel.model()->setProvider(provider);
+    ASSERT_TRUE(loadPanel(panel, QStringLiteral("/")));
+
+    FileListView *view = panel.findChild<FileListView *>();
+    ASSERT_NE(view, nullptr);
+
+    // Space on "/first" -- its walk blocks inside the provider.
+    view->setCurrentIndex(panel.model()->index(0, FileSystemModel::NameColumn));
+    panel.calculateDirSizeForRow(0);
+    provider->waitUntilFirstRequestStarted();
+
+    // Space on "/second" while the first is still going.
+    view->setCurrentIndex(panel.model()->index(1, FileSystemModel::NameColumn));
+    panel.calculateDirSizeForRow(1);
+
+    // Let the first walk return. It must still deliver a size.
+    provider->releaseFirstRequest();
+
+    const QModelIndex firstSize = panel.model()->index(0, FileSystemModel::SizeColumn);
+    FC_TRY_COMPARE_WITH_TIMEOUT(panel.model()->data(firstSize).toString(),
+                                FileSystemModel::formatSize(10), 4000);
+
+    // And the row asked for second is counted too, rather than one replacing
+    // the other.
+    const QModelIndex secondSize = panel.model()->index(1, FileSystemModel::SizeColumn);
+    FC_TRY_COMPARE_WITH_TIMEOUT(panel.model()->data(secondSize).toString(),
+                                FileSystemModel::formatSize(20), 4000);
+}
