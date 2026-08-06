@@ -172,7 +172,7 @@ cd "$BUILD_DIR"
     --output appimage
 
 # linuxdeploy names the output from the desktop entry + $VERSION; normalise it
-# to the name docs/UPDATE_SERVER.md commits to in the release checklist.
+# to the name the release checklist commits to.
 PRODUCED="$(find "$BUILD_DIR" -maxdepth 1 -name '*.AppImage' -newer "$APPDIR/usr/bin/FileCommander" | head -1)"
 if [[ -z "$PRODUCED" ]]; then
     echo "error: linuxdeploy did not produce an AppImage" >&2

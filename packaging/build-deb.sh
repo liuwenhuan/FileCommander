@@ -5,7 +5,7 @@
 # Deliberately uses dpkg-deb over a staging tree rather than a full
 # debhelper/dpkg-buildpackage source package: this repo has no Debian source
 # package to maintain, and the CMake install rules already describe the whole
-# payload. See docs/PACKAGING.md.
+# payload.
 #
 # Usage: packaging/build-deb.sh [output-dir]
 
@@ -51,7 +51,6 @@ strip --strip-unneeded "$STAGE_DIR/usr/bin/FileCommander"
 strip --strip-unneeded "$STAGE_DIR/usr/bin/FileCommander-smb-helper"
 
 install -d "$STAGE_DIR/usr/share/doc/filecommander"
-gzip -9cn "$REPO_ROOT/docs/UPDATE_SERVER.md" > "$STAGE_DIR/usr/share/doc/filecommander/UPDATE_SERVER.md.gz"
 # The licence travels with the binary because GPL-3 section 4 requires it to:
 # whoever receives a copy of the program must receive the terms with it. Not
 # packaging niceness -- a condition of the licence the program is under.

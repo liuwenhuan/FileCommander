@@ -6,7 +6,7 @@ name: Release
 # project(FileCommander VERSION X.Y.Z) in CMakeLists.txt -- and the tag has to
 # agree with it, or the update manifest would advertise one number while the
 # binaries report another. The check below refuses the run instead of shipping
-# that mismatch. See docs/PACKAGING.md and docs/UPDATE_SERVER.md.
+# that mismatch.
 #
 # Can also be started by hand for a dry run: workflow_dispatch builds and
 # uploads the artefacts but publishes no Release.
@@ -201,7 +201,7 @@ jobs:
       - name: List what will be published
         run: |
           find artefacts -type f -printf '%s\t%p\n' | sort -rn
-      # The checksums are what docs/UPDATE_SERVER.md's release checklist asks
+      # The checksums are what the release checklist asks
       # for by hand; publishing them alongside means the manifest can be filled
       # in from the Release page rather than from somebody's terminal history.
       - name: Checksums

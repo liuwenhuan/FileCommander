@@ -23,7 +23,7 @@
 
 <!-- 截图：三个主题各一张。占位，替换为真实截图。 -->
 <p align="center">
-  <img src="docs/images/screenshot-crt.png" width="880" alt="Green CRT 主题下的双栏主界面" />
+  <img src="images/screenshot-crt.png" width="880" alt="Green CRT 主题下的双栏主界面" />
 </p>
 
 ---
@@ -64,7 +64,7 @@ Commander / Double Commander 过来的人不需要重新学。
 
 | Light | Dark | Green CRT |
 |---|---|---|
-| ![](docs/images/theme-light.png) | ![](docs/images/theme-dark.png) | ![](docs/images/theme-crt.png) |
+| ![](images/theme-light.png) | ![](images/theme-dark.png) | ![](images/theme-crt.png) |
 
 Green CRT 的设计约束写在 `resources/themes/green.qss` 的文件头里，一条条列着：
 只用一个色相（h=140）的不同明度；`#33ff88` 是点亮的荧光、`#1fa85c` 是半亮、

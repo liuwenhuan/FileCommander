@@ -51,6 +51,6 @@ export PATH="$this_dir/usr/bin:$PATH"
 # The AppImage runtime points LD_LIBRARY_PATH at the bundled libraries. Child
 # processes inherit it, so a *host* binary launched from FileCommander (ffmpeg, gio, a
 # terminal emulator, the user's "Open With" choice) can load our libstdc++/glib
-# and fail. Stash the original so a launcher can restore it; see docs/PACKAGING.md
+# and fail. Stash the original so a launcher can restore it
 # for the known limitation.
 export TTC_HOST_LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}"

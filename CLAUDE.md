@@ -44,7 +44,7 @@ packaging/build-deb.sh          # → dist/FileCommander_<ver>_amd64.deb
 packaging/build-appimage.sh     # → dist/FileCommander-<ver>-x86_64.AppImage
 ```
 
-The version is single-sourced from `project(FileCommander VERSION X.Y.Z)` in `CMakeLists.txt` — nowhere else needs editing. See `docs/PACKAGING.md` for the full picture (runtime dependency generation, why `p7zip-full` and not `p7zip` is required, the AppImage `dxcb`→`xcb` platform-plugin fallback, and a known gap around host-process environment pollution for `ffmpeg`/`gio`/terminal children launched from an AppImage). See `docs/UPDATE_SERVER.md` for the self-update release flow.
+The version is single-sourced from `project(FileCommander VERSION X.Y.Z)` in `CMakeLists.txt` — nowhere else needs editing. Things the packaging scripts know that are not obvious from reading them: runtime dependencies are generated rather than listed; `p7zip-full` is required and `p7zip` is not (only the full `7z` reads UDF); the AppImage falls back from Deepin's `dxcb` platform plugin to `xcb`; and a launcher started from an AppImage inherits that image's environment, which breaks `ffmpeg`/`gio`/terminal children — see `packaging/apprun-hook.sh`. The self-update release flow lives in `packaging/` and `src/core/update/`.
 
 ### Translations
 
