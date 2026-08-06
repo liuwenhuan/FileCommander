@@ -1,8 +1,4 @@
 name: Windows
-#
-# Not triggered by an ordinary push: a Windows runner minute costs twice a Linux
-# one, so this runs on pull requests, on tags, and on demand from the Actions
-# tab. Use the manual run when working straight on a branch.
 
 # Not on every push, unlike the Linux workflow. A Windows runner minute is
 # billed at TWICE a Linux one, and this workflow's two jobs take about 35 and 30
