@@ -844,8 +844,7 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
 QString MainWindow::commandText(const QString &id, const QString &label) const {
     if (!m_settings.showShortcutLabels())
         return label;
-    const QKeySequence sequence = m_shortcuts.value(id) ? m_shortcuts.value(id)->key()
-                                                         : m_shortcutDefaults.value(id);
+    const QKeySequence sequence = m_commands.sequence(id);
     const QString shortcut = sequence.toString(QKeySequence::NativeText);
     return shortcut.isEmpty() ? label : label + QLatin1Char('\t') + shortcut;
 }
@@ -853,7 +852,7 @@ QString MainWindow::commandText(const QString &id, const QString &label) const {
 QAction *MainWindow::addCommandAction(QMenu *menu, const QString &id, const QString &label,
                                       std::function<void()> handler) {
     if (!handler)
-        handler = m_shortcutHandlers.value(id);
+        handler = m_commands.handler(id);
     QAction *action = menu->addAction(commandText(id, label));
     connect(action, &QAction::triggered, this, [handler]() {
         if (handler)
@@ -1896,46 +1895,26 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
 
 void MainWindow::bindShortcut(const QString &id, const QString &label,
                                const QKeySequence &defaultSeq, std::function<void()> handler) {
-    // The label is refreshed every call so a language-change re-run picks up the
-    // new tr(); the QShortcut itself is created only once (re-running would
-    // duplicate it and double-fire).
-    m_commandLabels[id] = label;
-    if (m_shortcuts.contains(id)) {
-        for (auto &entry : m_shortcutOrder)
-            if (entry.first == id) {
-                entry.second = label;
-                break;
-            }
-        return;
-    }
-    m_shortcutDefaults[id] = defaultSeq;
-    m_shortcutOrder.append({id, label});
-    m_shortcutHandlers[id] = handler; // also invokable from the "*" menu
-
-    auto *sc = new QShortcut(m_settings.shortcut(id, defaultSeq), this);
-    sc->setContext(Qt::WindowShortcut);
-    connect(sc, &QShortcut::activated, this, handler);
-    m_shortcuts[id] = sc;
+    // Settings is consulted here rather than inside the registry: what key a
+    // command currently has is this application's business, not the registry's.
+    m_commands.bind(id, label, defaultSeq, m_settings.shortcut(id, defaultSeq),
+                    std::move(handler));
 }
 
 void MainWindow::registerCommand(const QString &id, const QString &label,
                                   std::function<void()> handler) {
-    m_commandLabels[id] = label; // refreshed on a language-change re-run
-    if (!m_shortcutHandlers.contains(id))
-        m_shortcutHandlers[id] = handler;
+    m_commands.registerCommand(id, label, std::move(handler));
 }
 
 void MainWindow::runFunctionKey(int index) {
     if (index < 0 || index >= 6)
         return;
-    auto it = m_shortcutHandlers.constFind(m_fkeyCommands[index]);
-    if (it != m_shortcutHandlers.constEnd() && it.value())
-        it.value()();
+    m_commands.run(m_fkeyCommands[index]);
 }
 
 void MainWindow::updateFunctionKeyLabels() {
     for (int i = 0; i < 6; ++i) {
-        const QString label = m_commandLabels.value(m_fkeyCommands[i], m_fkeyCommands[i]);
+        const QString label = m_commands.label(m_fkeyCommands[i]);
         m_functionKeyBar->setLabel(i, QStringLiteral("F%1  %2").arg(3 + i).arg(label));
     }
 }
@@ -1943,8 +1922,8 @@ void MainWindow::updateFunctionKeyLabels() {
 QString MainWindow::pickCommandId(const QString &title, const QString &currentId) {
     // List every command by label so the user can pick a replacement.
     QList<QPair<QString, QString>> commands; // (label, id)
-    for (auto it = m_commandLabels.constBegin(); it != m_commandLabels.constEnd(); ++it)
-        commands.append({it.value(), it.key()});
+    for (const QString &commandId : m_commands.ids())
+        commands.append({m_commands.label(commandId), commandId});
     std::sort(commands.begin(), commands.end(),
               [](const auto &a, const auto &b) { return a.first.localeAwareCompare(b.first) < 0; });
 
@@ -1970,8 +1949,7 @@ QString MainWindow::pickCommandId(const QString &title, const QString &currentId
     QTreeWidgetItem *currentItem = nullptr;
     for (const auto &c : commands) {
         const QString &id = c.second;
-        QKeySequence key = m_shortcuts.value(id) ? m_shortcuts.value(id)->key()
-                                                  : m_shortcutDefaults.value(id);
+        QKeySequence key = m_commands.sequence(id);
         auto *item = new QTreeWidgetItem(tree);
         item->setText(0, c.first);
         // Trailing spaces keep the right-aligned key clear of the (overlay)
@@ -2032,9 +2010,7 @@ void MainWindow::changeExtraKey(const QString &slot) {
 
 void MainWindow::runExtraKey(const QString &slot) {
     const QString cmd = (slot == QLatin1String("leading")) ? m_leadingCommand : m_trailingCommand;
-    auto it = m_shortcutHandlers.constFind(cmd);
-    if (it != m_shortcutHandlers.constEnd() && it.value())
-        it.value()();
+    m_commands.run(cmd);
 }
 
 void MainWindow::updateExtraKeyButtons() {
@@ -2044,9 +2020,9 @@ void MainWindow::updateExtraKeyButtons() {
         IconCache::instance().glyphIcon(QStringLiteral(":/icons/ext-connect.svg")));
     m_functionKeyBar->setTrailingIcon(
         IconCache::instance().glyphIcon(QStringLiteral(":/icons/notepad.svg")));
-    m_functionKeyBar->setLeadingToolTip(m_commandLabels.value(m_leadingCommand, m_leadingCommand));
+    m_functionKeyBar->setLeadingToolTip(m_commands.label(m_leadingCommand));
     m_functionKeyBar->setTrailingToolTip(
-        m_commandLabels.value(m_trailingCommand, m_trailingCommand));
+        m_commands.label(m_trailingCommand));
 }
 
 namespace {
@@ -2526,7 +2502,7 @@ QMenu *MainWindow::buildShortcutMenu(FilePanel *panel) {
     // action's triggered() is delivered. So re-assert the owning panel here,
     // where it cannot be undone underneath us.
     auto addCommand = [&](const QString &id, const QString &label) {
-        std::function<void()> handler = m_shortcutHandlers.value(id);
+        std::function<void()> handler = m_commands.handler(id);
         addCommandAction(menu, id, label, [this, panel, handler] {
             if (panel) {
                 setActivePanel(panel);
@@ -2829,17 +2805,17 @@ void MainWindow::setupShortcuts() {
     const char *fkeyDefaults[6] = {"view", "edit", "copy", "move", "mkdir", "delete"};
     for (int i = 0; i < 6; ++i) {
         // Record each command's default F-key so the change dialog can show it.
-        m_shortcutDefaults[QString::fromLatin1(fkeyDefaults[i])] =
-            QKeySequence(static_cast<int>(Qt::Key_F3) + i);
+        m_commands.setDefaultSequence(QString::fromLatin1(fkeyDefaults[i]),
+                                      QKeySequence(static_cast<int>(Qt::Key_F3) + i));
         m_fkeyCommands[i] =
             m_settings.functionKeyCommand(i, QString::fromLatin1(fkeyDefaults[i]));
-        if (!m_shortcutsBuilt) {
+        if (!m_commands.isBuilt()) {
             auto *sc = new QShortcut(QKeySequence(static_cast<int>(Qt::Key_F3) + i), this);
             sc->setContext(Qt::WindowShortcut);
             connect(sc, &QShortcut::activated, this, [this, i] { runFunctionKey(i); });
         }
     }
-    if (!m_shortcutsBuilt) {
+    if (!m_commands.isBuilt()) {
         connect(m_functionKeyBar, &FunctionKeyBar::activated, this, &MainWindow::runFunctionKey);
         connect(m_functionKeyBar, &FunctionKeyBar::changeRequested, this,
                 &MainWindow::changeFunctionKey);
@@ -2851,7 +2827,7 @@ void MainWindow::setupShortcuts() {
                 [this] { changeExtraKey(QStringLiteral("leading")); });
         connect(m_functionKeyBar, &FunctionKeyBar::trailingChangeRequested, this,
                 [this] { changeExtraKey(QStringLiteral("trailing")); });
-        m_shortcutsBuilt = true;
+        m_commands.markBuilt();
     }
     updateFunctionKeyLabels();
     updateExtraKeyButtons();
@@ -4132,19 +4108,14 @@ void MainWindow::runCommand(const QString &command, const QString &directory) {
 }
 
 void MainWindow::openShortcutsDialog() {
-    QMap<QString, QKeySequence> current;
-    for (auto it = m_shortcuts.constBegin(); it != m_shortcuts.constEnd(); ++it)
-        current[it.key()] = it.value()->key();
-
-    ShortcutsDialog dlg(m_shortcutOrder, current, m_shortcutDefaults, this);
+    ShortcutsDialog dlg(m_commands.keyedOrder(), m_commands.currentSequences(),
+                        m_commands.defaults(), this);
     if (dlg.exec() != QDialog::Accepted)
         return;
 
     const auto updated = dlg.resultShortcuts();
     for (auto it = updated.constBegin(); it != updated.constEnd(); ++it) {
-        if (!m_shortcuts.contains(it.key()))
-            continue;
-        m_shortcuts[it.key()]->setKey(it.value());
+        m_commands.setSequence(it.key(), it.value());
         m_settings.setShortcut(it.key(), it.value());
     }
 }

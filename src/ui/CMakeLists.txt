@@ -6,6 +6,8 @@ set(UI_SOURCES
     theme/PhosphorEffect.h
     theme/PhosphorEffect.cpp
     MainWindow.h
+    CommandRegistry.h
+    CommandRegistry.cpp
     MainWindow.cpp
     BreadcrumbBar.h
     BreadcrumbBar.cpp

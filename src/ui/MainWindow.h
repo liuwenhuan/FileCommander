@@ -24,6 +24,7 @@ class QTimer;
 class QTemporaryDir;
 
 #include "FileListView.h"
+#include "CommandRegistry.h"
 #include "Settings.h"
 #include "filesystem/ComputerCatalog.h" // ComputerEntry (passed by value)
 #include "network/ConnectionStore.h" // SavedConnection (session reconnect)
@@ -376,7 +377,6 @@ private:
     QMenu *m_toolsMenu = nullptr;    // owned; rebuilt on language change
     QMenu *m_configMenu = nullptr;   // owned; rebuilt on language change
     QMenu *m_interfaceMenu = nullptr; // owned; rebuilt on language change
-    bool m_shortcutsBuilt = false;   // one-shot guard for QShortcut creation
 
     // Frameless-chrome paint cache: the shadow + rounded frame rendered once at
     // a small canonical size and blitted 9-patch style at any window size.
@@ -517,11 +517,9 @@ private:
     void withLocalFile(FilePanel *panel, const QString &path,
                        std::function<void(const QString &)> then);
 
-    QMap<QString, QShortcut *> m_shortcuts;
-    QMap<QString, QKeySequence> m_shortcutDefaults;
-    QMap<QString, std::function<void()>> m_shortcutHandlers; // id -> action (all commands)
-    QMap<QString, QString> m_commandLabels;                  // id -> label (all commands)
-    QList<QPair<QString, QString>> m_shortcutOrder; // id, label (keyed shortcuts only)
+    // Every command, its label, its key and its handler. Was five parallel maps
+    // here, kept in step by hand at each of the places that read them.
+    CommandRegistry m_commands{this};
     QString m_fkeyCommands[6];  // command id per F3..F8 slot
     QString m_leadingCommand;   // command id for the square button before F3
     QString m_trailingCommand;  // command id for the square button after F8
