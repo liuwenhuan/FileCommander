@@ -21,6 +21,17 @@ namespace ttc {
 //
 // Lives in `ui`, not in main.cpp, because the theme can change at runtime and
 // ThemeManager has to be able to repaint it.
-QIcon appIcon(const QColor &tint = QColor());
+enum class AppIconStyle {
+    // The mark as drawn: a filled body with two panes on it. Recoloured by
+    // brightness, so it stays readable as long as the tint is LIGHTER than what
+    // it sits on -- phosphor on black glass, near-white on dark grey.
+    Filled,
+    // The same composition in strokes on nothing. For a tint DARKER than its
+    // surface: flattening a filled mark to #404040 on a white title bar puts a
+    // near-black slab beside line glyphs drawn at two pixels wide, and it reads
+    // as the heaviest thing in the window rather than as part of it.
+    Outline,
+};
+QIcon appIcon(const QColor &tint = QColor(), AppIconStyle style = AppIconStyle::Filled);
 
 } // namespace ttc

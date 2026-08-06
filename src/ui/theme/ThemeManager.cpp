@@ -144,7 +144,17 @@ void ThemeManager::apply(Settings::Theme theme, bool phosphorImages, bool phosph
     // The same colour the rest of our chrome takes. It sits in the title bar
     // beside those glyphs and above the tab strip, so leaving it the stock blue
     // made it the one thing in the window that had not noticed the theme.
-    const QIcon icon = ttc::appIcon(glyphTint);
+    // Outline where the glyph colour is DARKER than the surface it sits on,
+    // which of the three themes is Light alone. The filled mark flattened to
+    // #404040 put a near-black slab next to two-pixel line glyphs; drawn in
+    // strokes it carries the same colour at the same weight as its neighbours.
+    // Dark and CRT tint towards the light, where a filled mark reads as lit
+    // rather than as a hole, so they keep it.
+    const ttc::AppIconStyle iconStyle = (effective == Settings::Theme::Light ||
+                                         effective == Settings::Theme::Auto)
+                                            ? ttc::AppIconStyle::Outline
+                                            : ttc::AppIconStyle::Filled;
+    const QIcon icon = ttc::appIcon(glyphTint, iconStyle);
     qApp->setWindowIcon(icon);
     for (QWidget *w : qApp->topLevelWidgets()) {
         w->setWindowIcon(icon);
