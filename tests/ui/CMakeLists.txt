@@ -160,5 +160,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_options(ui_tests PRIVATE -rdynamic)
 endif()
 
+# DbgHelp is what turns the addresses the crash reporter captures into
+# function names and line numbers.
+if(WIN32)
+    target_link_libraries(ui_tests PRIVATE dbghelp)
+endif()
+
 add_test(NAME ui_tests COMMAND ui_tests)
 filecommander_set_test_runtime(ui_tests)

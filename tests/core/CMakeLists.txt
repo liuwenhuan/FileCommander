@@ -82,6 +82,12 @@ target_link_libraries(core_tests PRIVATE
     Qt5::Test
 )
 
+# DbgHelp is what turns the addresses the crash reporter captures into
+# function names and line numbers.
+if(WIN32)
+    target_link_libraries(core_tests PRIVATE dbghelp)
+endif()
+
 add_test(NAME core_tests COMMAND core_tests)
 filecommander_set_test_runtime(core_tests)
 
