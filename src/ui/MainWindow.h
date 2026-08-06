@@ -154,6 +154,9 @@ private slots:
     // Pushes the current theme + phosphor setting everywhere it is consumed
     // (stylesheet, icon tints, app icon, thumbnail memory cache, menu state).
     void applyTheme();
+    // Redoes the artwork that was recoloured from the palette. Shared by
+    // applyTheme() and the startup path, which applies the stylesheet directly.
+    void refreshThemedArtwork();
     void setLanguage(const QString &language);
     void openMultiRenameDialog(); // Ctrl+M
     void openSyncDialog();

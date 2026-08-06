@@ -3,6 +3,7 @@ set(UI_TEST_SOURCES
     test_TabManager.cpp
     test_BreadcrumbBar.cpp
     test_PropertiesDialog.cpp
+    test_ThemedChromeArtwork.cpp
     test_CommandRegistry.cpp
     test_ScratchDirs.cpp
     test_CommandHistory.cpp

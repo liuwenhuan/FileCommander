@@ -813,6 +813,10 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
     m_startupTrace.mark(QStringLiteral("startupThemeApplyStartedMs"), elapsedSinceStartup());
     m_themeManager->apply(m_settings.theme(), m_settings.phosphorImages(),
                           m_settings.phosphorPreview());
+    // The widgets above were built before that stylesheet existed, so any of
+    // their artwork recoloured from the palette is now stale -- exactly as it
+    // would be after a runtime theme change, and fixed the same way.
+    refreshThemedArtwork();
     m_startupTrace.mark(QStringLiteral("startupThemeApplyFinishedMs"), elapsedSinceStartup());
     // Installing a stylesheet swaps the application style, and that resets
     // QApplication::font() back to the platform default -- measured as SimSun 12
@@ -4259,6 +4263,22 @@ void MainWindow::applyTheme() {
     // Restore the interface font the stylesheet swap just reset -- see the
     // matching call at the end of the constructor for what it costs to skip.
     applyInterfaceTypography();
+    refreshThemedArtwork();
+}
+
+// Everything the stylesheet cannot repaint by itself: artwork that was
+// RECOLOURED from the palette when it was made, and so is stale the moment the
+// palette changes.
+//
+// Separate from applyTheme() because the startup path applies the stylesheet
+// directly rather than through it, and so skipped every one of these. A panel
+// is built around 480 ms and the startup theme lands around 990 ms, so the
+// address row's computer glyph and the function-key bar's two glyphs spent the
+// whole session in the untinted #888888 they were drawn in. Under Light and
+// Dark that reads as a slightly-off grey and went unnoticed for months; under
+// Green CRT it is a grey icon in a window of phosphor, which is how it was
+// finally reported.
+void MainWindow::refreshThemedArtwork() {
     // The memory cache holds thumbnails already tinted under the previous
     // setting, keyed by it. Dropping them costs one re-tint from the stored
     // bitmaps; the disk cache is untouched, so nothing is re-fetched or
