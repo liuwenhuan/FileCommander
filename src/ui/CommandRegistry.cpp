@@ -64,6 +64,12 @@ bool CommandRegistry::contains(const QString &id) const {
 }
 
 QKeySequence CommandRegistry::sequence(const QString &id) const {
+    // The bound key, not the default: menus and the function-key bar have to
+    // show what pressing the key would actually do, and the two differ as soon
+    // as the user reassigns anything. The default is the answer only for a
+    // command that owns no shortcut of its own -- the reassignable F3-F8 slots.
+    if (QShortcut *shortcut = m_shortcuts.value(id))
+        return shortcut->key();
     return m_defaults.value(id);
 }
 
