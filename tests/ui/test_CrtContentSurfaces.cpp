@@ -11,6 +11,7 @@
 #include <QTest>
 
 #include "AppIcon.h"
+#include "TitleBar.h"
 #include "CommandBar.h"
 #include "FileListView.h"
 #include "IconFileView.h"
@@ -458,6 +459,12 @@ TEST(CrtContentSurfacesTest, TheDarkThemesAccentSitsWithItsGreyscaleContent) {
 // it the stock blue made it the one thing in the window that had not noticed
 // the theme -- and it is painted by us, through the same recolouring path, so
 // there was never a reason for it to be exempt.
+//
+// Read from the title bar rather than from qApp->windowIcon(). Those are two
+// different surfaces: the window icon is what the DESKTOP draws, on a
+// background it chooses, and tinting that one is what made the mark vanish
+// against a dark taskbar. This asserts the themed mark reaches the bar we
+// paint; TitleBarThemeTest asserts the window icon stays the brand mark.
 TEST(CrtContentSurfacesTest, TheAppIconTakesTheSameColourAsTheChromeGlyphs) {
     ThemeStateGuard themeState;
     ThemeManager manager;
@@ -489,10 +496,24 @@ TEST(CrtContentSurfacesTest, TheAppIconTakesTheSameColourAsTheChromeGlyphs) {
     ASSERT_TRUE(stock.isValid());
     EXPECT_GT(stock.saturation(), 60) << "the untinted icon is the blue one";
 
+    QWidget host;
+    TitleBar bar(&host, {}, &host);
+    QLabel *iconLabel = nullptr;
+    for (QLabel *label : bar.findChildren<QLabel *>()) {
+        if (label->objectName() == QStringLiteral("ApplicationIcon")) {
+            iconLabel = label;
+            break;
+        }
+    }
+    ASSERT_NE(iconLabel, nullptr);
+
     for (Settings::Theme theme : {Settings::Theme::Dark, Settings::Theme::Light,
                                   Settings::Theme::Crt}) {
         manager.apply(theme, true, true);
-        const QColor themed = dominant(qApp->windowIcon());
+        ASSERT_NE(iconLabel->pixmap(), nullptr) << "theme " << int(theme);
+        QIcon shown;
+        shown.addPixmap(*iconLabel->pixmap());
+        const QColor themed = dominant(shown);
         ASSERT_TRUE(themed.isValid()) << "theme " << int(theme);
         EXPECT_NE(themed.rgb(), stock.rgb())
             << "theme " << int(theme) << " left the app icon in its stock colours";

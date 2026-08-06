@@ -2,6 +2,7 @@
 
 #include <QList>
 #include <QPixmap>
+#include <QIcon>
 #include <QWidget>
 
 class QMenu;
@@ -34,6 +35,14 @@ public:
 
     QPixmap backgroundTile() const { return m_backgroundTile; }
     void setBackgroundTile(const QPixmap &tile);
+    // The mark to draw in OUR title bar, recoloured for the current theme.
+    //
+    // Separate from the window icon on purpose. The window icon is what the
+    // desktop shows -- taskbar, alt-tab, window list -- on a surface whose
+    // colour is the desktop's business, not ours: a mark tinted to this theme's
+    // #404040 vanished against a dark taskbar. That one stays the brand mark;
+    // this one follows the theme.
+    void setThemedIcon(const QIcon &icon);
 
     // Refreshes the maximize/restore glyph after an external state change.
     void syncWindowState();
@@ -63,6 +72,7 @@ private:
     void syncWindowIcon();
 
     QWidget *m_window;
+    QIcon m_themedIcon;
     QLabel *m_icon = nullptr;
     QLabel *m_title = nullptr;
     QAbstractButton *m_maxButton = nullptr; // a TitleButton (cast in the .cpp)

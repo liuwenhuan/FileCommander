@@ -155,9 +155,20 @@ void ThemeManager::apply(Settings::Theme theme, bool phosphorImages, bool phosph
                                             ? ttc::AppIconStyle::Outline
                                             : ttc::AppIconStyle::Filled;
     const QIcon icon = ttc::appIcon(glyphTint, iconStyle);
-    qApp->setWindowIcon(icon);
+
+    // The WINDOW icon is not ours to theme. It is what the desktop draws --
+    // taskbar, alt-tab, window list -- on a surface whose colour the desktop
+    // decides: a mark tinted to Light's #404040 disappeared against a dark
+    // taskbar. That one stays the brand mark, which reads on either.
+    //
+    // Our own title bar is a different surface, and takes the themed one
+    // through a channel of its own.
+    const QIcon desktopIcon = ttc::appIcon();
+    qApp->setWindowIcon(desktopIcon);
     for (QWidget *w : qApp->topLevelWidgets()) {
-        w->setWindowIcon(icon);
+        w->setWindowIcon(desktopIcon);
+        for (TitleBar *bar : w->findChildren<TitleBar *>())
+            bar->setThemedIcon(icon);
         if (!crt) {
             if (auto *dialog = qobject_cast<FramelessDialog *>(w))
                 dialog->setBackgroundTile(QPixmap());

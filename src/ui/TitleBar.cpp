@@ -133,11 +133,19 @@ void TitleBar::positionTitle() {
         m_title->setGeometry(rect());
 }
 
+void TitleBar::setThemedIcon(const QIcon &icon) {
+    m_themedIcon = icon;
+    syncWindowIcon();
+}
+
 void TitleBar::syncWindowIcon() {
     if (!m_icon || !m_window)
         return;
     const int iconSize = qMin(m_icon->width() - 6, m_icon->height() - 4);
-    m_icon->setPixmap(m_window->windowIcon().pixmap(iconSize, iconSize));
+    // The themed mark when a theme has supplied one, and the window's own icon
+    // before that -- which is what the very first paint uses.
+    const QIcon &source = m_themedIcon.isNull() ? m_window->windowIcon() : m_themedIcon;
+    m_icon->setPixmap(source.pixmap(iconSize, iconSize));
 }
 
 bool TitleBar::eventFilter(QObject *watched, QEvent *event) {

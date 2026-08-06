@@ -4,6 +4,7 @@
 #include <QIcon>
 #include <QImage>
 #include <QPixmap>
+#include <QLabel>
 #include <QToolButton>
 #include <QTemporaryDir>
 
@@ -106,22 +107,36 @@ qreal inkCoverage(const QIcon &icon, int size) {
 TEST(ThemedChromeArtwork, TheAppIconIsDrawnInStrokesOnlyWhereItsColourIsDark) {
     ThemeStateGuard guard;
 
-    auto inkForTheme = [](Settings::Theme theme) {
+    // Read from the title bar the window actually paints, not from
+    // windowIcon(): that one is the desktop's copy and deliberately stays the
+    // untinted brand mark, so measuring it would test the wrong surface.
+    auto inkForTheme = [](Settings::Theme theme) -> qreal {
         {
             Settings settings;
             settings.setTheme(theme);
         }
         MainWindow window;
-        return inkCoverage(window.windowIcon(), 24);
+        for (QLabel *label : window.findChildren<QLabel *>()) {
+            if (label->objectName() != QStringLiteral("ApplicationIcon"))
+                continue;
+            if (!label->pixmap() || label->pixmap()->isNull())
+                continue;
+            QIcon shown;
+            shown.addPixmap(*label->pixmap());
+            return inkCoverage(shown, label->pixmap()->width());
+        }
+        return -1.0;
     };
 
     // Strokes on nothing: most of the box stays empty.
     const qreal lightInk = inkForTheme(Settings::Theme::Light);
+    ASSERT_GE(lightInk, 0.0) << "no title-bar icon to measure";
     EXPECT_LT(lightInk, 0.45) << "under Light the mark covers " << lightInk
                               << " of its box, which is not an outline";
 
     // And the themes that tint towards the light keep the filled mark -- this
     // is not a change to all three.
     const qreal crtInk = inkForTheme(Settings::Theme::Crt);
+    ASSERT_GE(crtInk, 0.0) << "no title-bar icon to measure";
     EXPECT_GT(crtInk, 0.55) << "under CRT the mark covers only " << crtInk;
 }

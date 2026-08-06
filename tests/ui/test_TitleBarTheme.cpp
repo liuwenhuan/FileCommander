@@ -100,9 +100,16 @@ TEST(TitleBarThemeTest, ExistingApplicationIconFollowsRuntimeCrtThemeChange) {
     themeManager.apply(Settings::Theme::Crt);
     qApp->processEvents();
 
-    EXPECT_TRUE(imageContainsPhosphor(window.windowIcon().pixmap(32, 32).toImage()));
+    // OUR title bar takes the theme.
     ASSERT_NE(iconLabel->pixmap(), nullptr);
     EXPECT_TRUE(imageContainsPhosphor(iconLabel->pixmap()->toImage()));
+
+    // The window icon does NOT, and this asserts that rather than leaving it
+    // unsaid. It is what the desktop draws -- taskbar, alt-tab, window list --
+    // on a surface whose colour the desktop decides, and tinting it to a theme
+    // is how the mark came to disappear against a dark taskbar under Light.
+    EXPECT_FALSE(imageContainsPhosphor(window.windowIcon().pixmap(32, 32).toImage()))
+        << "the window icon followed the theme; the desktop draws it, not us";
 
     qApp->setStyleSheet(originalSheet);
     qApp->setWindowIcon(originalIcon);
