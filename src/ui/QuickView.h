@@ -14,6 +14,8 @@
 #include <QVector>
 #include <QWidget>
 
+#include "AnimatedImage.h"
+
 #include <memory>
 
 #include "ArchiveHandler.h" // ArchiveNode + ArchiveHandler::Status (async load result)
@@ -362,6 +364,15 @@ private:
     QWidget *m_imagePage;
     QScrollArea *m_imageScroll;
     QLabel *m_imageLabel;
+    // Animation, when the file has more than one frame. Kept beside the still
+    // path rather than replacing it: a still is decoded once and transformed on
+    // demand, an animation is decoded continuously and its frames thrown away.
+    AnimatedImage *m_animation = nullptr;
+    QAction *m_imagePlayAction = nullptr;
+    QList<QAction *> m_imageRotateActions;
+    // Rotation for a still, play/pause for an animation -- never both.
+    void showImageControlsFor(bool animated);
+    void stopAnimation();
     QLabel *m_imageTransitionSnapshot = nullptr;
     QCheckBox *m_lockZoomCheck; // when checked, keep the ratio for later images
     QCheckBox *m_infoCheck;     // when checked, overlay image metadata

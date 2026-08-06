@@ -158,6 +158,18 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent,
     m_info->setWordWrap(true);
 
     m_imageLoader = new ImagePreviewLoader(this);
+    m_animation = new AnimatedImage(this);
+    connect(m_animation, &AnimatedImage::frameReady, this, [this](const QImage &frame) {
+        // Straight to the label: the frame is already recoloured for the theme,
+        // and there is nothing to keep -- the next one is already decoding.
+        m_imageLabel->setPixmap(QPixmap::fromImage(frame));
+        m_imageLabel->resize(frame.size());
+        if (m_imageRevealPending) {
+            m_imageRevealPending = false;
+            clearImageTransitionSnapshot();
+            revealStaticPage(m_imagePage);
+        }
+    });
 
     // Coalesce rapid resizes (e.g. dragging the panel divider) into a single
     // smooth rescale so large images don't rescale on every pixel of the drag.
@@ -408,6 +420,10 @@ void QuickView::releaseHiddenDocumentPages(QWidget *page) {
 void QuickView::cancelPendingPreviewWork() {
     finishStaticReveal();
     invalidateImageRequests();
+    // An animation is the one preview that keeps working without being asked
+    // again: left running, the previous file's frames go on arriving and paint
+    // themselves over whatever the new file put on the label.
+    stopAnimation();
     ++m_markdownGen;
     ++m_archiveGen;
     if (m_archiveCancel)
@@ -691,8 +707,21 @@ QWidget *QuickView::buildImagePage() {
         m_imageScale = fitScale();
         applyImageScale();
     });
-    toolbar->addAction(tr("Rotate Left"), this, [this]() { rotateCurrentImage(-90); });
-    toolbar->addAction(tr("Rotate Right"), this, [this]() { rotateCurrentImage(90); });
+    // Rotation and playback occupy the same place, because no file wants both:
+    // a still cannot be paused and an animation cannot be rotated (its frames
+    // arrive continuously, and turning each one is work with no way to save the
+    // result). showImageControlsFor() swaps them per file.
+    m_imageRotateActions = {
+        toolbar->addAction(tr("Rotate Left"), this, [this]() { rotateCurrentImage(-90); }),
+        toolbar->addAction(tr("Rotate Right"), this, [this]() { rotateCurrentImage(90); }),
+    };
+    m_imagePlayAction = toolbar->addAction(tr("Pause"), this, [this]() {
+        if (!m_animation)
+            return;
+        m_animation->setPaused(!m_animation->isPaused());
+        m_imagePlayAction->setText(m_animation->isPaused() ? tr("Play") : tr("Pause"));
+    });
+    m_imagePlayAction->setVisible(false);
 
     // Push the lock checkbox to the far right of the toolbar.
     auto *spacer = new QWidget(toolbar);
@@ -716,6 +745,11 @@ QWidget *QuickView::buildImagePage() {
     });
 
     m_imageLabel = new QLabel(m_imagePage);
+    // Named so a test can address THIS label. The transition snapshot is also a
+    // QLabel carrying a pixmap, and a search by "has a pixmap" alternates
+    // between the two -- which made an assertion about the frame changing pass
+    // whether or not anything was animating.
+    m_imageLabel->setObjectName(QStringLiteral("imagePreviewLabel"));
     m_imageLabel->setAlignment(Qt::AlignCenter);
     m_imageScroll = new QScrollArea(m_imagePage);
     m_imageScroll->setObjectName(QStringLiteral("imagePreviewScroll"));
@@ -3321,6 +3355,22 @@ bool QuickView::canStreamPreview(const QString &path) {
 #endif
 }
 
+void QuickView::showImageControlsFor(bool animated) {
+    for (QAction *action : m_imageRotateActions) {
+        if (action)
+            action->setVisible(!animated);
+    }
+    if (m_imagePlayAction) {
+        m_imagePlayAction->setVisible(animated);
+        m_imagePlayAction->setText(tr("Pause"));
+    }
+}
+
+void QuickView::stopAnimation() {
+    if (m_animation)
+        m_animation->stop();
+}
+
 void QuickView::showFile(const QString &path) {
     const bool reloadWaitsForRotation =
         path == m_imagePath && m_stack->currentWidget() == m_imagePage &&
@@ -3528,6 +3578,17 @@ void QuickView::showFile(const QString &path) {
         }
         m_imageRevealPending = true;
         m_pendingImagePath = path;
+
+        // An animation plays; anything else is decoded once and shown still.
+        // play() reports failure for a file it cannot drive, and that falls
+        // through to the still path rather than leaving an empty pane.
+        stopAnimation();
+        if (AnimatedImage::isAnimated(path) && m_animation->play(path)) {
+            showImageControlsFor(/*animated=*/true);
+            m_imageGeneration = qMax(m_imageGeneration, ++m_pendingImageLoadGeneration);
+            return;
+        }
+        showImageControlsFor(/*animated=*/false);
         m_pendingImageLoadGeneration = m_imageLoader->load(path);
         m_imageGeneration = qMax(m_imageGeneration, m_pendingImageLoadGeneration);
         return;

@@ -1,6 +1,7 @@
 # test_main.cpp supplies main() (with a QApplication), so gtest_main is not
 # linked: the F4 editor tests instantiate real widgets and grab their pixels.
 add_executable(viewer_tests
+    test_AnimatedImage.cpp
     test_main.cpp
     test_OfficeConverter.cpp
     test_TextEditorTheme.cpp
@@ -20,6 +21,9 @@ target_link_libraries(viewer_tests PRIVATE
     GTest::gtest
     Qt5::Core
     Qt5::Widgets
+    # QTest::qWait, for the animation tests: a QMovie is driven by the event
+    # loop, so watching one means pumping it.
+    Qt5::Test
 )
 
 # resources.qrc is compiled into the app target, not this one, so the theme

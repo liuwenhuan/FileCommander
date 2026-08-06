@@ -1,5 +1,7 @@
 add_library(viewer STATIC
     TextEditor.h
+    AnimatedImage.h
+    AnimatedImage.cpp
     TextEditor.cpp
     HexEditor.h
     HexEditor.cpp
