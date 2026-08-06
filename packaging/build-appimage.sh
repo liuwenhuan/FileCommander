@@ -83,6 +83,12 @@ cmake --build "$BUILD_DIR" --target FileCommander FileCommander-smb-helper -j"$(
 
 rm -rf "$APPDIR"
 DESTDIR="$APPDIR" cmake --install "$BUILD_DIR"
+
+# GPL-3 section 4: whoever receives the program receives the terms with it. An
+# AppImage is a single file a user may well have got without ever seeing this
+# repository, so the licence has to be inside it.
+install -d "$APPDIR/usr/share/doc/filecommander"
+install -m 0644 "$REPO_ROOT/LICENSE" "$APPDIR/usr/share/doc/filecommander/LICENSE"
 strip --strip-unneeded "$APPDIR/usr/bin/FileCommander"
 strip --strip-unneeded "$APPDIR/usr/bin/FileCommander-smb-helper"
 

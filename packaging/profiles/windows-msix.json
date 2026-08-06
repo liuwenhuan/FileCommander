@@ -7,14 +7,69 @@
     "mediaBackend": "windowsmf"
   },
   "groups": {
-    "application": { "required": ["FileCommander.exe", "AppxManifest.xml", "Assets/Square44x44Logo.png", "Assets/Square150x150Logo.png", "Assets/Wide310x150Logo.png"], "forbidden": [] },
-    "qt": { "required": ["Qt5Core.dll", "Qt5Gui.dll", "Qt5Widgets.dll", "Qt5Xml.dll"], "forbidden": [] },
-    "platformPlugins": { "required": ["platforms/qwindows.dll"], "forbidden": [] },
-    "imagePlugins": { "required": [], "forbidden": [] },
-    "network": { "required": [], "forbidden": [] },
-    "pdf": { "required": ["poppler-qt5.dll", "poppler.dll", "freetype.dll", "openjp2.dll", "libpng16.dll"], "forbidden": [] },
-    "media": { "required": [], "forbidden": ["libmpv-2.dll", "ffmpeg.exe", "ffprobe.exe"] },
-    "office": { "required": [], "forbidden": [] },
-    "msvcRuntime": { "required": ["vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll"], "forbidden": [] }
+    "application": {
+      "required": [
+        "FileCommander.exe",
+        "AppxManifest.xml",
+        "Assets/Square44x44Logo.png",
+        "Assets/Square150x150Logo.png",
+        "Assets/Wide310x150Logo.png",
+        "LICENSE"
+      ],
+      "forbidden": []
+    },
+    "qt": {
+      "required": [
+        "Qt5Core.dll",
+        "Qt5Gui.dll",
+        "Qt5Widgets.dll",
+        "Qt5Xml.dll"
+      ],
+      "forbidden": []
+    },
+    "platformPlugins": {
+      "required": [
+        "platforms/qwindows.dll"
+      ],
+      "forbidden": []
+    },
+    "imagePlugins": {
+      "required": [],
+      "forbidden": []
+    },
+    "network": {
+      "required": [],
+      "forbidden": []
+    },
+    "pdf": {
+      "required": [
+        "poppler-qt5.dll",
+        "poppler.dll",
+        "freetype.dll",
+        "openjp2.dll",
+        "libpng16.dll"
+      ],
+      "forbidden": []
+    },
+    "media": {
+      "required": [],
+      "forbidden": [
+        "libmpv-2.dll",
+        "ffmpeg.exe",
+        "ffprobe.exe"
+      ]
+    },
+    "office": {
+      "required": [],
+      "forbidden": []
+    },
+    "msvcRuntime": {
+      "required": [
+        "vcruntime140.dll",
+        "vcruntime140_1.dll",
+        "msvcp140.dll"
+      ],
+      "forbidden": []
+    }
   }
 }

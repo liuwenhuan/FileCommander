@@ -155,6 +155,11 @@ if (Test-Path -LiteralPath $stage) {
 }
 New-Item -ItemType Directory -Force -Path $stage | Out-Null
 Copy-StageFile -Source (Join-Path $build 'FileCommander.exe') -Destination $stage -Group 'application'
+# GPL-3 section 4: whoever receives the program receives the terms with it. A
+# portable zip is often the only thing a user ever sees of this project, so the
+# licence ships inside it -- and is listed in the profile's required files, so
+# a package built without it fails verification instead of shipping.
+Copy-StageFile -Source (Join-Path $repo 'LICENSE') -Destination $stage -Group 'application'
 
 $beforeWindeploy = @{}
 Get-ChildItem -LiteralPath $stage -Recurse -File | ForEach-Object { $beforeWindeploy[(Get-StageRelativePath -Path $_.FullName)] = $true }

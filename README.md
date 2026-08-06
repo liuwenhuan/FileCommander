@@ -12,7 +12,7 @@
 [![platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-1fa85c?style=flat-square)](#安装)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-12602f?style=flat-square)](CMakeLists.txt)
 [![Qt5](https://img.shields.io/badge/Qt-5-12602f?style=flat-square)](https://www.qt.io/)
-[![license](https://img.shields.io/badge/license-TBD-8b949e?style=flat-square)](LICENSE)
+[![license](https://img.shields.io/badge/license-GPL--3.0--or--later-12602f?style=flat-square)](LICENSE)
 
 [English](#english) · [安装](#安装) · [性能实测](#性能实测) · [从源码构建](#从源码构建)
 
