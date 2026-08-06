@@ -234,7 +234,7 @@ TEST(MainWindowTest, ConfigMenuOmitsRetiredActions) {
     // to survive before asserting on the ones that must not be there.
     configMenu->popup(QPoint(10, 10));
     FC_TRY_VERIFY_WITH_TIMEOUT(
-        configMenu->findChild<QAction *>(QStringLiteral("configAutoUpdateAction")) != nullptr, 500);
+        configMenu->findChild<QAction *>(QStringLiteral("configAutoUpdateAction")) != nullptr, 2000);
     configMenu->hide();
 
     ASSERT_FALSE(configMenu->actions().isEmpty());

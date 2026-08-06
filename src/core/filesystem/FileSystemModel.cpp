@@ -16,9 +16,7 @@
 #include "LocalFileProvider.h"
 #include "network/NetworkSession.h"
 
-namespace {
-
-QString humanSize(qint64 bytes) {
+QString FileSystemModel::formatSize(qint64 bytes) {
     static const char *units[] = {"B", "KB", "MB", "GB", "TB"};
     double size = static_cast<double>(bytes);
     int unit = 0;
@@ -30,8 +28,6 @@ QString humanSize(qint64 bytes) {
         return QStringLiteral("%1 B").arg(bytes);
     return QStringLiteral("%1 %2").arg(size, 0, 'f', 1).arg(units[unit]);
 }
-
-} // namespace
 
 namespace {
 // The local provider is a process-wide singleton; wrap it in a shared_ptr with
@@ -649,12 +645,12 @@ QVariant FileSystemModel::data(const QModelIndex &index, int role) const {
             if (info.isDir()) {
                 auto it = m_dirSizes.constFind(info.path());
                 if (it != m_dirSizes.constEnd())
-                    return humanSize(it.value());
+                    return FileSystemModel::formatSize(it.value());
                 if (m_calculatingDirSizes.contains(info.path()))
                     return QStringLiteral("计算中");
                 return QStringLiteral("<DIR>");
             }
-            return humanSize(info.size());
+            return FileSystemModel::formatSize(info.size());
         case ModifiedColumn:
             return cachedDateStr(info.modified());
         case CreatedColumn:

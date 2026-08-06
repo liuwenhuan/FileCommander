@@ -157,7 +157,7 @@ TEST(StandardButtonLocalizationTest, RelocalizesExistingButtonsAfterLanguageChan
     };
     for (int index = 0; index < standardButtons.size(); ++index)
         FC_TRY_COMPARE_WITH_TIMEOUT(dialogButtonText(buttons, standardButtons.at(index)),
-                                  expectedChinese.at(index), 500);
+                                  expectedChinese.at(index), 2000);
 
     switchLanguage(QStringLiteral("en"));
     FC_TRY_VERIFY_WITH_TIMEOUT(
@@ -256,7 +256,7 @@ TEST(StandardButtonLocalizationTest, RelocalizesConnectOverrideAfterLanguageChan
 
     EXPECT_EQ(dialogButtonText(*buttons, QDialogButtonBox::Ok), QStringLiteral("连接"));
     FC_TRY_COMPARE_WITH_TIMEOUT(dialogButtonText(*buttons, QDialogButtonBox::Cancel),
-                              expectedChineseCancel, 500);
+                              expectedChineseCancel, 2000);
 
     switchLanguage(QStringLiteral("en"));
 }

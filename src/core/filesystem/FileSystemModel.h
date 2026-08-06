@@ -22,6 +22,16 @@ class FileSystemModel : public QAbstractTableModel {
     Q_OBJECT
 
 public:
+    // How a byte count is shown in the Size column.
+    //
+    // Public because it is the model's observable behaviour, not an internal
+    // detail: a test that wants to know what a row displays either calls this
+    // or keeps its own copy of the same arithmetic, and the copy is the thing
+    // that goes stale. One did -- it assumed "<n> B" always, which holds only
+    // below 1024 and made a Linux-only assertion unreachable for as long as the
+    // wait in front of it was silently giving up.
+    static QString formatSize(qint64 bytes);
+
     enum Column {
         NameColumn = 0,
         ExtColumn,

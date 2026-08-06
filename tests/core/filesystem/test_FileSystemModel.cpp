@@ -554,7 +554,12 @@ TEST(FileSystemModelTest, FilePanelDirectorySize_SymlinkRootUsesListingMetadataW
     view->setCurrentIndex(panel.model()->index(linkRow, FileSystemModel::NameColumn));
     panel.calculateDirSizes();
 
-    const QString expected = QStringLiteral("%1 B").arg(linkInfo.size());
+    // Formatted by the model rather than assumed to be "<n> B". That shortcut
+    // holds only below 1024 bytes: on Windows a directory link's size is the
+    // length of the path it points at, which is small, but on Linux it is the
+    // directory's own size -- 4096, shown as "4.0 KB". The assertion was
+    // unreachable on both for as long as the wait ahead of it gave up silently.
+    const QString expected = FileSystemModel::formatSize(linkInfo.size());
     FC_TRY_COMPARE_WITH_TIMEOUT(
         panel.model()->data(panel.model()->index(linkRow, FileSystemModel::SizeColumn)).toString(),
         expected, 4000);

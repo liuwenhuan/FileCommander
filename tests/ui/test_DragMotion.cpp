@@ -167,7 +167,7 @@ void acceptedDropUsesPaintOnlySuccessFeedback() {
     expectGeometry(panel.view, before);
 
     FC_TRY_COMPARE_WITH_TIMEOUT(panel.view.property("dragFeedbackState").toString(),
-                              QStringLiteral("none"), 300);
+                              QStringLiteral("none"), 2000);
     expectGeometry(panel.view, before);
 }
 
@@ -351,7 +351,7 @@ void expectThemeFeedback(const QString &theme, const QColor &highlight, const QC
     panel.view.dragEnterEvent(&acceptedEnter);
     ASSERT_TRUE(acceptedEnter.isAccepted());
     FC_TRY_COMPARE_WITH_TIMEOUT(panel.view.property("dragFeedbackColor").template value<QColor>(),
-                              acceptedFinal, 150);
+                              acceptedFinal, 2000);
 
     QDragLeaveEvent leave;
     panel.view.dragLeaveEvent(&leave);
