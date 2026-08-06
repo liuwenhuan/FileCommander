@@ -368,6 +368,9 @@ private:
     // path rather than replacing it: a still is decoded once and transformed on
     // demand, an animation is decoded continuously and its frames thrown away.
     AnimatedImage *m_animation = nullptr;
+    // Frames arrive from AnimatedImage already recoloured, so the shared render
+    // path must not tint them a second time.
+    bool m_imageAlreadyTinted = false;
     QAction *m_imagePlayAction = nullptr;
     QList<QAction *> m_imageRotateActions;
     // Rotation for a still, play/pause for an animation -- never both.

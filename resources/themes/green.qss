@@ -821,7 +821,8 @@ CommandBar[inputFocused="true"] {
    never noticed which theme was on -- and an inline sheet also wins over this
    one, so it had to come off the widget entirely. Nearly opaque: it sits over a
    photograph or a video frame and has to stay readable against anything. */
-QLabel#quickViewInfoOverlay {
+QLabel#quickViewInfoOverlay,
+QLabel#quickViewVideoInfoOverlay {
     background: rgba(0, 22, 9, 235);
     color: #33ff88;
     border: 1px solid #12602f;

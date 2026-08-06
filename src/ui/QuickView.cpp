@@ -160,10 +160,25 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent,
     m_imageLoader = new ImagePreviewLoader(this);
     m_animation = new AnimatedImage(this);
     connect(m_animation, &AnimatedImage::frameReady, this, [this](const QImage &frame) {
-        // Straight to the label: the frame is already recoloured for the theme,
-        // and there is nothing to keep -- the next one is already decoding.
-        m_imageLabel->setPixmap(QPixmap::fromImage(frame));
-        m_imageLabel->resize(frame.size());
+        // Each frame becomes the current image and is drawn the way a still is.
+        //
+        // Painting frames straight onto the label was simpler and wrong: zoom,
+        // fit and the info overlay all read m_originalImage, so with it left
+        // empty a GIF could not be scaled and reported no dimensions. There is
+        // one display path for a picture; an animation just replaces the
+        // picture repeatedly.
+        //
+        // The frame arrives already recoloured, so requestImageRender() must
+        // not tint it a second time -- see m_imageAlreadyTinted.
+        const bool first = m_originalImage.isNull();
+        m_originalImage = frame;
+        m_imageAlreadyTinted = true;
+        if (first && m_imageMetadata.format.isEmpty()) {
+            m_imageMetadata.format = QStringLiteral("GIF");
+            m_imageMetadata.depth = frame.depth();
+        }
+        requestImageRender();
+        updateImageInfoOverlay();
         if (m_imageRevealPending) {
             m_imageRevealPending = false;
             clearImageTransitionSnapshot();
@@ -255,7 +270,10 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent,
                     return;
                 m_pendingImageRenderGeneration = 0;
 
-                const QColor tint = fc::previewTint();
+                // Not for an animation: AnimatedImage recolours each frame as
+                // it decodes it, so doing it again here would put the tint
+                // through the luma map twice and drift the colour every frame.
+                const QColor tint = m_imageAlreadyTinted ? QColor() : fc::previewTint();
                 if (tint.isValid()) {
                     if (image.format() != QImage::Format_ARGB32)
                         image = image.convertToFormat(QImage::Format_ARGB32);
@@ -424,6 +442,7 @@ void QuickView::cancelPendingPreviewWork() {
     // again: left running, the previous file's frames go on arriving and paint
     // themselves over whatever the new file put on the label.
     stopAnimation();
+    m_imageAlreadyTinted = false;
     ++m_markdownGen;
     ++m_archiveGen;
     if (m_archiveCancel)
@@ -1138,7 +1157,11 @@ QWidget *QuickView::buildVideoPage() {
     // Floating metadata panel, parented to the video widget so it hovers on top.
     m_videoInfoOverlay = new QLabel(m_videoSurface);
     // See the image overlay: themed by object name in the .qss files.
-    m_videoInfoOverlay->setObjectName(QStringLiteral("quickViewInfoOverlay"));
+    // Distinct from the image overlay's name. They shared one, so findChild by
+    // that name returned whichever came first in the child order -- fine for
+    // the stylesheet, which is what the shared name was for, and useless for
+    // addressing one of them.
+    m_videoInfoOverlay->setObjectName(QStringLiteral("quickViewVideoInfoOverlay"));
     m_videoInfoOverlay->setTextFormat(Qt::RichText);
     m_videoInfoOverlay->setAttribute(Qt::WA_TransparentForMouseEvents);
     m_videoInfoOverlay->hide();
@@ -3583,6 +3606,15 @@ void QuickView::showFile(const QString &path) {
         // play() reports failure for a file it cannot drive, and that falls
         // through to the still path rather than leaving an empty pane.
         stopAnimation();
+        if (AnimatedImage::isAnimated(path)) {
+            // Shared with the still path now, so it starts from the same clean
+            // slate: fit-to-window, no rotation, no leftover picture.
+            m_originalImage = {};
+            m_imageMetadata = {};
+            m_imageTransform.reset();
+            m_imageFitMode = true;
+            m_imagePath = path;
+        }
         if (AnimatedImage::isAnimated(path) && m_animation->play(path)) {
             showImageControlsFor(/*animated=*/true);
             m_imageGeneration = qMax(m_imageGeneration, ++m_pendingImageLoadGeneration);

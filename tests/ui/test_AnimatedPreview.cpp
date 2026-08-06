@@ -156,3 +156,61 @@ TEST(AnimatedPreview, AStillImageStillOffersRotation) {
     ASSERT_NE(pause, nullptr);
     EXPECT_FALSE(pause->isVisible()) << "a still offers a pause control";
 }
+
+// An animation is a picture like any other: it zooms, and it reports what it is.
+//
+// The first version painted frames straight onto the label and bypassed the
+// still-image path entirely. Zoom, fit and the info overlay all read the
+// current image, so with that left empty a GIF could not be scaled and showed
+// no dimensions -- reported from use, not caught here, because the first tests
+// only asked whether the frames moved.
+TEST(AnimatedPreview, AGifZoomsAndReportsItsSizeLikeAnyOtherPicture) {
+    ThemeStateGuard guard;
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString path = writeGif(dir, QStringLiteral("z.gif"));
+    ASSERT_FALSE(path.isEmpty());
+
+    Settings settings(QDir(dir.path()).filePath(QStringLiteral("s.ini")));
+    QuickView view(settings);
+    view.resize(400, 300);
+    view.show();
+    view.showFile(path);
+
+    QLabel *label = nullptr;
+    QElapsedTimer budget;
+    budget.start();
+    while (!(label = imageLabel(view)) && budget.elapsed() < 4000)
+        QTest::qWait(20);
+    ASSERT_NE(label, nullptr);
+
+    // The overlay names the file and its dimensions. Empty text is what the
+    // bypassed path produced.
+    QLabel *info = view.findChild<QLabel *>(QStringLiteral("quickViewInfoOverlay"));
+    ASSERT_NE(info, nullptr);
+    budget.restart();
+    while (info->text().isEmpty() && budget.elapsed() < 3000)
+        QTest::qWait(20);
+    EXPECT_FALSE(info->text().isEmpty()) << "the animation reported nothing about itself";
+    EXPECT_TRUE(info->text().contains(QStringLiteral("z.gif")))
+        << "overlay says: " << qPrintable(info->text());
+
+    // Zooming in makes the frames bigger. Sampled over a window because the
+    // next frame arrives continuously and replaces whatever was measured.
+    // Through the toolbar, which is how a user zooms -- and it keeps the test
+    // out of private methods.
+    const int beforeWidth = label->pixmap()->width();
+    QAction *zoomIn = actionNamed(view, QStringLiteral("Zoom In"));
+    ASSERT_NE(zoomIn, nullptr);
+    zoomIn->trigger();
+    zoomIn->trigger();
+    int widest = 0;
+    budget.restart();
+    while (budget.elapsed() < 2000) {
+        QTest::qWait(25);
+        if (label->pixmap())
+            widest = qMax(widest, label->pixmap()->width());
+    }
+    EXPECT_GT(widest, beforeWidth)
+        << "zoom did nothing: frames stayed " << beforeWidth << " px wide";
+}
