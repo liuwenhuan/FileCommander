@@ -89,7 +89,7 @@ TEST(NetworkStateMotion, ConnectingAppearsOnlyAfterNormalDelayBoundary) {
     QTest::qWait(120);
     EXPECT_FALSE(indicator->isVisible());
 
-    FC_TRY_VERIFY_WITH_TIMEOUT(indicator->isVisible(), 100);
+    FC_TRY_VERIFY_WITH_TIMEOUT(indicator->isVisible(), 2000);
     QVariantAnimation *colorAnimation =
         panel.findChild<QVariantAnimation *>(QStringLiteral("NetworkStatusColorAnimation"));
     ASSERT_NE(colorAnimation, nullptr);

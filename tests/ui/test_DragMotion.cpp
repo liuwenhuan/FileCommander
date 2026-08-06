@@ -302,7 +302,12 @@ void burstDragMovesReuseOneAnimationWithoutRestarting() {
     ASSERT_EQ(animations.size(), 1);
     QVariantAnimation *animation = animations.first();
     ASSERT_EQ(animation->state(), QAbstractAnimation::Running);
-    FC_TRY_VERIFY_WITH_TIMEOUT(animation->currentTime() >= 20, 100);
+    // A generous budget for "the animation has made some progress", because
+    // that is all this waits for -- the burst below is what the test is about.
+    // At 100 ms it failed whenever the machine was busy enough to starve the
+    // animation, and before these waits could fail at all it simply left the
+    // test early and reported a pass, so the burst was never exercised there.
+    FC_TRY_VERIFY_WITH_TIMEOUT(animation->currentTime() >= 20, 2000);
     const int timeBeforeBurst = animation->currentTime();
 
     for (int i = 0; i < 8; ++i) {
@@ -316,7 +321,7 @@ void burstDragMovesReuseOneAnimationWithoutRestarting() {
     EXPECT_EQ(feedbackAnimations(panel.view).size(), 1);
     EXPECT_EQ(feedbackAnimation(panel.view), animation);
     EXPECT_GE(animation->currentTime(), timeBeforeBurst);
-    FC_TRY_COMPARE_WITH_TIMEOUT(animation->state(), QAbstractAnimation::Stopped, 100);
+    FC_TRY_COMPARE_WITH_TIMEOUT(animation->state(), QAbstractAnimation::Stopped, 2000);
     EXPECT_EQ(panel.view.property("dragFeedbackState").toString(), QStringLiteral("accepted"));
 }
 

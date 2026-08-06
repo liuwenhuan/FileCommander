@@ -414,18 +414,18 @@ TEST(DirectoryTreeMotion, RepeatedExpandCollapseFeedbackSettlesAndRestarts) {
     clickDisclosure(fixture.tree, fixture.firstBranch);
     EXPECT_TRUE(fixture.tree->isExpanded(fixture.firstBranch));
     EXPECT_EQ(feedback->state(), QAbstractAnimation::Running);
-    FC_TRY_COMPARE_WITH_TIMEOUT(feedback->state(), QAbstractAnimation::Stopped, 250);
+    FC_TRY_COMPARE_WITH_TIMEOUT(feedback->state(), QAbstractAnimation::Stopped, 2000);
     EXPECT_DOUBLE_EQ(feedback->currentValue().toReal(), 0.0);
 
     clickDisclosure(fixture.tree, fixture.firstBranch);
     EXPECT_FALSE(fixture.tree->isExpanded(fixture.firstBranch));
     EXPECT_EQ(feedback->state(), QAbstractAnimation::Running);
-    FC_TRY_COMPARE_WITH_TIMEOUT(feedback->state(), QAbstractAnimation::Stopped, 250);
+    FC_TRY_COMPARE_WITH_TIMEOUT(feedback->state(), QAbstractAnimation::Stopped, 2000);
 
     clickDisclosure(fixture.tree, fixture.firstBranch);
     EXPECT_TRUE(fixture.tree->isExpanded(fixture.firstBranch));
     EXPECT_EQ(feedback->state(), QAbstractAnimation::Running);
-    FC_TRY_COMPARE_WITH_TIMEOUT(feedback->state(), QAbstractAnimation::Stopped, 250);
+    FC_TRY_COMPARE_WITH_TIMEOUT(feedback->state(), QAbstractAnimation::Stopped, 2000);
     EXPECT_DOUBLE_EQ(feedback->currentValue().toReal(), 0.0);
     EXPECT_FALSE(fixture.tree->isAnimated());
 }

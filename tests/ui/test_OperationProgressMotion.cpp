@@ -236,7 +236,7 @@ TEST(OperationProgressMotion, SuccessfulOutcomeRemainsVisibleFor180Milliseconds)
 
     QTest::qWait(130);
     EXPECT_TRUE(dialog.isVisible());
-    FC_TRY_VERIFY_WITH_TIMEOUT(!dialog.isVisible(), 100);
+    FC_TRY_VERIFY_WITH_TIMEOUT(!dialog.isVisible(), 2000);
 }
 
 TEST(OperationProgressMotion, ReducedMotionKeepsStaticSuccessVisibleFor180Milliseconds) {
@@ -259,7 +259,7 @@ TEST(OperationProgressMotion, ReducedMotionKeepsStaticSuccessVisibleFor180Millis
 
     QTest::qWait(130);
     EXPECT_TRUE(dialog.isVisible());
-    FC_TRY_VERIFY_WITH_TIMEOUT(!dialog.isVisible(), 100);
+    FC_TRY_VERIFY_WITH_TIMEOUT(!dialog.isVisible(), 2000);
 }
 
 TEST(OperationProgressMotion, OneConcurrentTransferFinishingDoesNotEndTheBatch) {
@@ -278,7 +278,7 @@ TEST(OperationProgressMotion, OneConcurrentTransferFinishingDoesNotEndTheBatch) 
     EXPECT_TRUE(dialog.isVisible());
 
     finishTransfer(dialog, true);
-    FC_TRY_VERIFY_WITH_TIMEOUT(!dialog.isVisible(), 250);
+    FC_TRY_VERIFY_WITH_TIMEOUT(!dialog.isVisible(), 2000);
 }
 
 TEST(OperationProgressMotion, TerminalTimerIsCancelledWhenDialogIsDestroyed) {

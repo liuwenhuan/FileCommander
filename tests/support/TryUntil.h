@@ -22,12 +22,18 @@
 // template functions, and MSVC would not compile the lambda form there --
 // "'acceptedFinal': undeclared identifier" for a local that was declared eight
 // lines above.
+//
+// The spin uses QTest::qWait rather than processEvents. processEvents returns
+// the moment the queue is empty, so the loop became a busy wait that burned a
+// core and starved the very animation timer it was waiting on -- a drag
+// feedback animation then failed to advance 20 ms inside a two-second budget.
+// qWait sleeps between passes, which is what lets the thing being waited for
+// actually get to run.
 
 #include <gtest/gtest.h>
 
-#include <QCoreApplication>
 #include <QElapsedTimer>
-#include <QEventLoop>
+#include <QTest>
 
 // Fails the test if `expr` has not become true within `timeoutMs`.
 #define FC_TRY_VERIFY_WITH_TIMEOUT(expr, timeoutMs)                                                \
@@ -35,7 +41,7 @@
         QElapsedTimer fcTryTimer;                                                                  \
         fcTryTimer.start();                                                                        \
         while (!(expr) && fcTryTimer.elapsed() < (timeoutMs))                                      \
-            QCoreApplication::processEvents(QEventLoop::AllEvents, 10);                            \
+            QTest::qWait(5);                                                                       \
         ASSERT_TRUE(expr) << "timed out after " << (timeoutMs) << " ms waiting for: " #expr;       \
     } while (false)
 
@@ -46,6 +52,6 @@
         QElapsedTimer fcTryTimer;                                                                  \
         fcTryTimer.start();                                                                        \
         while (!((actual) == (expected)) && fcTryTimer.elapsed() < (timeoutMs))                    \
-            QCoreApplication::processEvents(QEventLoop::AllEvents, 10);                            \
+            QTest::qWait(5);                                                                       \
         ASSERT_EQ((actual), (expected)) << "still unequal after " << (timeoutMs) << " ms";         \
     } while (false)
