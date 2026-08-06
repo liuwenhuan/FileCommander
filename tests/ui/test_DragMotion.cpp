@@ -302,13 +302,34 @@ void burstDragMovesReuseOneAnimationWithoutRestarting() {
     ASSERT_EQ(animations.size(), 1);
     QVariantAnimation *animation = animations.first();
     ASSERT_EQ(animation->state(), QAbstractAnimation::Running);
-    // A generous budget for "the animation has made some progress", because
-    // that is all this waits for -- the burst below is what the test is about.
-    // At 100 ms it failed whenever the machine was busy enough to starve the
-    // animation, and before these waits could fail at all it simply left the
-    // test early and reported a pass, so the burst was never exercised there.
-    FC_TRY_VERIFY_WITH_TIMEOUT(animation->currentTime() >= 20, 2000);
+
+    // What this test is about is that the burst below does not RESTART the
+    // animation. A restart always announces itself -- stop() then start()
+    // emits stateChanged(Running, Stopped) -- so counting that needs no
+    // animation driver at all, and cannot pass by accident.
+    //
+    // The previous version instead waited for the animation to advance 20 ms
+    // and then compared times either side of the burst. That made Qt's
+    // animation driver a dependency of the check, and roughly one run in
+    // twenty the driver does not tick: measured with the animation reporting
+    // state Running and currentTime frozen at 0 for the full two-second
+    // budget, while nothing in this code had touched it (no showDragFeedback,
+    // no clearDragFeedback, verified by tracing both). It needed several of
+    // this suite's other tests to have run first and never reproduced with
+    // this test alone, in 20 attempts.
+    int restarts = 0;
+    QObject::connect(animation, &QAbstractAnimation::stateChanged, animation,
+                     [&restarts](QAbstractAnimation::State to, QAbstractAnimation::State from) {
+                         if (to == QAbstractAnimation::Running &&
+                             from == QAbstractAnimation::Stopped)
+                             ++restarts;
+                     });
+
+    // A nonzero baseline, set rather than waited for, so the time comparison
+    // after the burst still means something without the driver having to run.
+    animation->setCurrentTime(animation->duration() / 2);
     const int timeBeforeBurst = animation->currentTime();
+    ASSERT_GT(timeBeforeBurst, 0);
 
     for (int i = 0; i < 8; ++i) {
         QTest::qWait(5);
@@ -318,10 +339,17 @@ void burstDragMovesReuseOneAnimationWithoutRestarting() {
         EXPECT_TRUE(move.isAccepted());
     }
 
+    EXPECT_EQ(restarts, 0) << "a drag move restarted the feedback animation";
     EXPECT_EQ(feedbackAnimations(panel.view).size(), 1);
     EXPECT_EQ(feedbackAnimation(panel.view), animation);
     EXPECT_GE(animation->currentTime(), timeBeforeBurst);
-    FC_TRY_COMPARE_WITH_TIMEOUT(animation->state(), QAbstractAnimation::Stopped, 2000);
+
+    // Run it to the end here too, rather than waiting for the driver to do it,
+    // for the same reason as above. Reaching the duration is what stops a
+    // one-shot animation, so this asserts the animation ends rather than
+    // looping -- without depending on when the driver next ticks.
+    animation->setCurrentTime(animation->duration());
+    EXPECT_EQ(animation->state(), QAbstractAnimation::Stopped);
     EXPECT_EQ(panel.view.property("dragFeedbackState").toString(), QStringLiteral("accepted"));
 }
 
