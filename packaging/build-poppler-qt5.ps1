@@ -68,25 +68,64 @@ if (-not (Test-Path -LiteralPath $archive)) {
 $sourceDir = Join-Path $work "poppler-$Version"
 if (-not (Test-Path -LiteralPath $sourceDir)) {
     Write-Host "==> Extracting poppler $Version"
-    # The FULL path to Windows' own bsdtar, never a bare `tar`.
+
+    # Windows' bundled tar CANNOT be trusted to read .xz, and when it cannot it
+    # HANGS rather than failing.
     #
-    # A bare `tar` resolves through PATH, and a GitHub Windows runner has Git's
-    # GNU tar on PATH as well as this one. GNU tar reads `-f D:\a\...` as the
-    # `host:path` remote-archive syntax -- the drive letter becomes a hostname --
-    # and goes off to contact a machine called "D". Locally that fails at once
-    # ("Cannot connect to C: resolve failed"); inside Azure, where the runners
-    # live, the lookup does not fail fast, and the step simply hangs. Measured:
-    # four CI runs in a row died here, the last one after 4h36m, and not one of
-    # them ever reached the compile the step is named for.
+    # Both halves of that were measured on a GitHub windows-2022 runner. Its
+    # bsdtar is the same 3.8.4 as a local one but built without the codec:
     #
-    # bsdtar has no remote-archive syntax at all, so a drive letter is just a
-    # drive letter. It ships with Windows 10 and Server 2019 onward.
+    #   runner: bsdtar 3.8.4 - libarchive 3.8.4 zlib/... cng/2.0 libb2/bundled
+    #   local:  bsdtar 3.8.4 - libarchive 3.8.4 zlib/... liblzma/5.8.1 ...
+    #
+    # Handed a .tar.xz it never returns: 300 seconds in, the extract directory
+    # still held exactly one file (the archive), and the process owned no
+    # sockets, so it was not waiting on a network either. Three CI runs died
+    # this way before anyone saw the version string -- 4h36m, then 76 minutes,
+    # then a third -- and not one reached the compiler this script is named for.
+    #
+    # So probe for the codec rather than assume it. A developer machine usually
+    # has it and takes the one-pass path; a runner does not and goes through
+    # 7-Zip, which is present on every Windows image and read the same archive
+    # in under a second (37 directories, 854 files).
     $bsdtar = Join-Path $env:SystemRoot 'system32\tar.exe'
-    if (-not (Test-Path -LiteralPath $bsdtar)) {
-        throw "Windows' bundled tar is missing at $bsdtar"
+    $bsdtarReadsXz = $false
+    if (Test-Path -LiteralPath $bsdtar) {
+        $bsdtarReadsXz = (& $bsdtar --version 2>&1 | Out-String) -match 'liblzma'
     }
-    & $bsdtar -xf $archive -C $work
-    if ($LASTEXITCODE -ne 0) { throw "Could not extract $archive" }
+
+    if ($bsdtarReadsXz) {
+        Write-Host '    (bsdtar, which reports liblzma support)'
+        & $bsdtar -xf $archive -C $work
+        if ($LASTEXITCODE -ne 0) { throw "Could not extract $archive" }
+    } else {
+        # Two passes, because 7-Zip peels one container at a time: .tar.xz
+        # yields a .tar, and that yields the tree.
+        $sevenZip = @(
+            "$env:ProgramFiles\7-Zip\7z.exe",
+            "${env:ProgramFiles(x86)}\7-Zip\7z.exe"
+        ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+        if (-not $sevenZip) {
+            $sevenZip = (Get-Command 7z -ErrorAction SilentlyContinue).Source
+        }
+        if (-not $sevenZip) {
+            throw ("This tar cannot read .xz (no liblzma) and 7-Zip was not found. " +
+                   "Install 7-Zip, or supply a tar built with liblzma.")
+        }
+        Write-Host "    (7-Zip at $sevenZip, because this tar has no liblzma)"
+
+        & $sevenZip x $archive "-o$work" -y | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "7-Zip could not decompress $archive" }
+
+        $tarball = Join-Path $work "poppler-$Version.tar"
+        if (-not (Test-Path -LiteralPath $tarball)) {
+            throw "7-Zip decompressed $archive but produced no $tarball"
+        }
+        & $sevenZip x $tarball "-o$work" -y | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "7-Zip could not unpack $tarball" }
+        Remove-Item -LiteralPath $tarball -Force -ErrorAction SilentlyContinue
+    }
+
     if (-not (Test-Path -LiteralPath $sourceDir)) {
         throw "Extraction reported success but $sourceDir is not there"
     }
