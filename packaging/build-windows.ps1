@@ -190,8 +190,24 @@ if ($pdfPreview) {
     Get-ChildItem -LiteralPath (Join-Path $PopplerQt5Root 'bin') -Filter '*.dll' | ForEach-Object {
         Copy-StageFile -Source $_.FullName -Destination $stage -Group 'pdf'
     }
+    # Exactly what poppler is linked against, which build-poppler-qt5.ps1
+    # decides: it installs freetype, libiconv, libjpeg-turbo, libpng, openjpeg
+    # and zlib, and configures with -DENABLE_LIBTIFF=OFF and
+    # -DENABLE_LIBCURL=OFF. A name here that is not installed there fails the
+    # package outright, because a missing source is fatal by design.
+    #
+    # tiff.dll was on this list and had to go: nothing installs libtiff and
+    # poppler is configured without it. It survived because a developer vcpkg
+    # usually has tiff pulled in by something else, so the copy succeeded
+    # locally; a clean CI vcpkg does not, and the package step died there. The
+    # profile's pdf group never listed it either.
+    #
+    # Worth knowing before checking this against a local poppler.dll: an SDK
+    # copy built before 2026-08-05 predates those two ENABLE_* switches and
+    # DOES import tiff.dll and libcurl.dll. Its import table describes the
+    # script as it used to be, not as it is.
     $vcpkgBin = Join-Path $VcpkgRoot "installed/$triplet/bin"
-    foreach ($runtime in @('jpeg62.dll', 'openjp2.dll', 'libpng16.dll', 'tiff.dll', 'freetype.dll',
+    foreach ($runtime in @('jpeg62.dll', 'openjp2.dll', 'libpng16.dll', 'freetype.dll',
                             'brotlidec.dll', 'brotlicommon.dll')) {
         Copy-StageFile -Source (Join-Path $vcpkgBin $runtime) -Destination $stage -Group 'pdf'
     }
