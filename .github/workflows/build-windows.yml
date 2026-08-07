@@ -67,11 +67,32 @@ jobs:
           "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" |
               Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
+      # See the package job for why this cache exists and how the key is built.
+      # A separate key because this job installs gtest as well, and a key that
+      # did not name the ports would let a cache filled without gtest look like
+      # a hit here.
+      - name: Restore vcpkg binary cache
+        id: vcpkg-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ github.workspace }}/build/vcpkg-archives
+          key: vcpkg-x64-windows-libarchive-libssh2-curl-gtest-zlib
+
       - name: Install test and provider dependencies
         shell: pwsh
+        env:
+          VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/build/vcpkg-archives
         run: |
           choco install ffmpeg --no-progress --yes
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
           & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install --triplet x64-windows libarchive libssh2 curl gtest zlib
+
+      - name: Save vcpkg binary cache
+        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/build/vcpkg-archives
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
       - name: Configure and build
         shell: pwsh
         env:
@@ -179,10 +200,42 @@ jobs:
           path: build/poppler-qt5
           key: poppler-qt5-${{ env.POPPLER_VERSION }}-qt${{ env.QT_VERSION }}-x64-windows-${{ hashFiles('packaging/build-poppler-qt5.ps1') }}
 
+      # vcpkg builds these from source -- 13 minutes, every run, and the single
+      # largest cost left once poppler and office-oxide were cached. vcpkg has
+      # its own binary cache for exactly this: a directory of prebuilt package
+      # archives, indexed by an ABI hash of the port, its options and its
+      # dependencies. Cache that directory and the install becomes an unzip.
+      #
+      # Pointed at the workspace rather than left at its default under
+      # LOCALAPPDATA, because the `env` expression context does not carry the
+      # runner's own environment variables and the cache path has to be an
+      # expression. The directory must exist before vcpkg is asked to use it.
+      #
+      # The key names the ports, so adding one misses the cache and rebuilds
+      # rather than silently installing from a cache that never held it.
+      - name: Restore vcpkg binary cache
+        id: vcpkg-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ github.workspace }}/build/vcpkg-archives
+          key: vcpkg-x64-windows-libarchive-libssh2-curl-zlib
+
       - name: Install provider dependencies
         shell: pwsh
+        env:
+          VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/build/vcpkg-archives
         run: |
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
           & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install --triplet x64-windows libarchive libssh2 curl zlib
+
+      # Only on a miss: with a fixed key there is nothing to update on a hit,
+      # and actions/cache/save would just warn about the key already existing.
+      - name: Save vcpkg binary cache
+        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/build/vcpkg-archives
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
 
       - name: Build poppler-qt5
         id: poppler-build
