@@ -66,6 +66,10 @@ jobs:
       # Same optional sidecar as the CI workflows: without OFFICE_OXIDE_REPO the
       # packages build without Office preview, exactly as they do on a machine
       # that lacks it. Warned about so a release cannot be cut in ignorance.
+      # Deliberately NOT cached, unlike the CI workflows. A release is cut once
+      # and its contents are what users get; building the sidecar from source
+      # every time costs a few minutes and removes any question of a stale
+      # cache entry having been shipped.
       - name: Build office-oxide
         env:
           OFFICE_OXIDE_REPO: ${{ vars.OFFICE_OXIDE_REPO }}
@@ -76,7 +80,9 @@ jobs:
             exit 0
           fi
           git clone --depth 1 ${OFFICE_OXIDE_REF:+--branch "$OFFICE_OXIDE_REF"} "$OFFICE_OXIDE_REPO" build/office-oxide-src
-          cargo build --release --manifest-path build/office-oxide-src/Cargo.toml
+          # -p office_oxide_cli: the repository is a workspace whose other member
+          # is an MCP server this application never invokes.
+          cargo build --release --manifest-path build/office-oxide-src/Cargo.toml -p office_oxide_cli
           mkdir -p "$HOME/.local/bin"
           install -m 0755 build/office-oxide-src/target/release/office-oxide "$HOME/.local/bin/office-oxide"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -172,7 +178,9 @@ jobs:
               exit 0
           }
           git clone --depth 1 $(if ($env:OFFICE_OXIDE_REF) { "--branch=$env:OFFICE_OXIDE_REF" }) $env:OFFICE_OXIDE_REPO build/office-oxide-src
-          cargo build --release --manifest-path build/office-oxide-src/Cargo.toml
+          # -p office_oxide_cli: the repository is a workspace whose other member
+          # is an MCP server this application never invokes.
+          cargo build --release --manifest-path build/office-oxide-src/Cargo.toml -p office_oxide_cli
           New-Item -ItemType Directory -Force -Path build/office-oxide | Out-Null
           Copy-Item build/office-oxide-src/target/release/office-oxide.exe build/office-oxide/
 

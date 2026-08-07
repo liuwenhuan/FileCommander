@@ -38,19 +38,58 @@ jobs:
       # repository the packages are still produced, silently without Office
       # preview, which is what those scripts already do on a machine that lacks
       # it. The warning is so that cannot be mistaken for a complete package.
-      - name: Build office-oxide
+      # Cloned before the cache is consulted so the key can name the exact commit
+      # that was fetched: cloning is seconds, compiling is minutes, and a branch
+      # name would go stale silently the moment the branch moved.
+      - name: Fetch office-oxide source
+        id: oxide-src
+        if: vars.OFFICE_OXIDE_REPO != ''
         env:
           OFFICE_OXIDE_REPO: ${{ vars.OFFICE_OXIDE_REPO }}
           OFFICE_OXIDE_REF: ${{ vars.OFFICE_OXIDE_REF }}
         run: |
-          if [ -z "${OFFICE_OXIDE_REPO}" ]; then
-            echo "::warning::OFFICE_OXIDE_REPO is not set: these packages will have no Office document preview."
-            exit 0
-          fi
           git clone --depth 1 ${OFFICE_OXIDE_REF:+--branch "$OFFICE_OXIDE_REF"} "$OFFICE_OXIDE_REPO" build/office-oxide-src
-          cargo build --release --manifest-path build/office-oxide-src/Cargo.toml
+          echo "sha=$(git -C build/office-oxide-src rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Warn when office-oxide is not configured
+        if: vars.OFFICE_OXIDE_REPO == ''
+        run: |
+          echo "::warning::OFFICE_OXIDE_REPO is not set: these packages will have no Office document preview."
+
+      # Only the binary is cached, not Cargo's target directory: the source is
+      # pinned by commit, so a hit means the same binary would have come out.
+      - name: Restore office-oxide
+        id: oxide-cache
+        if: vars.OFFICE_OXIDE_REPO != ''
+        uses: actions/cache/restore@v4
+        with:
+          path: build/office-oxide
+          key: office-oxide-x64-linux-${{ steps.oxide-src.outputs.sha }}
+
+      # -p office_oxide_cli, not the whole workspace: its other member is an MCP
+      # server this application never invokes.
+      - name: Build office-oxide
+        id: oxide-build
+        if: vars.OFFICE_OXIDE_REPO != '' && steps.oxide-cache.outputs.cache-hit != 'true'
+        run: |
+          cargo build --release --manifest-path build/office-oxide-src/Cargo.toml -p office_oxide_cli
+          mkdir -p build/office-oxide
+          cp build/office-oxide-src/target/release/office-oxide build/office-oxide/
+
+      - name: Save office-oxide
+        if: steps.oxide-build.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: build/office-oxide
+          key: ${{ steps.oxide-cache.outputs.cache-primary-key }}
+
+      # On PATH, which is exactly where the packaging scripts and the running
+      # application both look for it.
+      - name: Put office-oxide on PATH
+        if: vars.OFFICE_OXIDE_REPO != ''
+        run: |
           mkdir -p "$HOME/.local/bin"
-          install -m 0755 build/office-oxide-src/target/release/office-oxide "$HOME/.local/bin/office-oxide"
+          install -m 0755 build/office-oxide/office-oxide "$HOME/.local/bin/office-oxide"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Release regression and Debian package
