@@ -2443,6 +2443,15 @@ void FilePanel::invertSelection() {
 void FilePanel::toggleHiddenFiles() {
     // Re-scans the current directory; loadFinished refreshes the status line.
     m_model->setShowHiddenFiles(!m_model->showHiddenFiles());
+
+    // The tree reads this flag once, in rebuildTreeRoots, and hands it to each
+    // lister it creates -- so without a rebuild the tree keeps the setting the
+    // file list just left. On Windows that is not cosmetic: AppData is hidden,
+    // so every path under it (the whole of Temp, among others) is unreachable
+    // from the tree, and syncTreeToPath settles on C:/Users/<user> while the
+    // file list sits happily inside it. Rebuilding is what hot-plug already
+    // does, and it re-establishes the selection on the way out.
+    markTreeRootsDirty();
 }
 
 void FilePanel::selectByPattern(bool select) {
