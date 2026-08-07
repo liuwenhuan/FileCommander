@@ -194,9 +194,62 @@ if (-not (Test-Path -LiteralPath $marker)) {
     throw "poppler installed but $marker is missing -- the Qt5 bindings did not build."
 }
 
-# The application links against the Qt5 binding; the packager then copies these
-# and the vcpkg runtime DLLs beside the executable. Report what landed so a CI
-# log shows the version that went into the package.
+# Bring poppler's vcpkg runtime DLLs into this prefix, so the prefix is
+# SELF-CONTAINED and the packager needs exactly one source for PDF preview.
+#
+# Two reasons, and the second is the one that bites.
+#
+# The packager used to name these itself, in a hand-written list, and a hand-
+# written list is wrong in both directions at once: it demanded tiff.dll, which
+# nothing installs and poppler is configured without, and it omitted z.dll,
+# which poppler does import. Derived from the actual import tables, the set
+# cannot drift from what was built.
+#
+# And the prefix is what gets CACHED between CI runs. On a cache hit this whole
+# script is skipped -- including the vcpkg install above -- so on the first run
+# after a hit, vcpkg's bin held none of these and packaging died on the first
+# name it looked for. Copying them in means the cache carries the runtime with
+# the library it belongs to, instead of relying on a vcpkg tree that a cache hit
+# guarantees is NOT populated.
+#
+# The walk is transitive: poppler imports freetype, and freetype imports brotli
+# and zlib, none of which poppler names directly.
+$vcpkgBin = Join-Path $VcpkgRoot "installed/$Triplet/bin"
+$dumpbin = (Get-Command dumpbin -ErrorAction SilentlyContinue).Source
+if (-not $dumpbin) {
+    throw ("dumpbin is not on PATH, so poppler's runtime dependencies cannot be " +
+           "resolved. Run this from a Visual Studio developer prompt.")
+}
+
+$seen = [System.Collections.Generic.HashSet[string]]::new(
+    [System.StringComparer]::OrdinalIgnoreCase)
+$queue = [System.Collections.Generic.Queue[string]]::new()
+Get-ChildItem -LiteralPath (Join-Path $Prefix 'bin') -Filter '*.dll' |
+    ForEach-Object { $queue.Enqueue($_.FullName) }
+
+$copied = [System.Collections.Generic.List[string]]::new()
+while ($queue.Count -gt 0) {
+    $dll = $queue.Dequeue()
+    $imports = & $dumpbin /dependents $dll 2>$null |
+        Select-String -Pattern '^\s{4}(\S+\.dll)$' |
+        ForEach-Object { $_.Matches[0].Groups[1].Value }
+    foreach ($import in $imports) {
+        if (-not $seen.Add($import)) { continue }
+        $candidate = Join-Path $vcpkgBin $import
+        if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
+        $target = Join-Path $Prefix "bin/$import"
+        if (-not (Test-Path -LiteralPath $target)) {
+            Copy-Item -LiteralPath $candidate -Destination $target -Force
+            [void]$copied.Add($import)
+        }
+        $queue.Enqueue($target)
+    }
+}
+if ($copied.Count) {
+    Write-Host "==> Vendored $($copied.Count) vcpkg runtime DLL(s): $($copied -join ', ')"
+}
+
+# Report what landed so a CI log shows what went into the package.
 Write-Host "==> poppler-qt5 $Version installed to $Prefix"
 Get-ChildItem -LiteralPath (Join-Path $Prefix 'bin') -Filter '*.dll' |
     ForEach-Object { Write-Host "    $($_.Name)" }
