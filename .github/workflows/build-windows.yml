@@ -30,6 +30,14 @@ concurrency:
 
 jobs:
   unit:
+    # A ceiling, not an estimate. GitHub's default is 360 minutes, and a step
+    # that hangs rather than fails burns all of it -- on Windows at twice the
+    # billing rate. That is not hypothetical here: a bare `tar` handed a drive
+    # letter to GNU tar, which read it as a remote hostname and waited; four
+    # runs died that way, the last after 4h36m without ever reaching a compiler.
+    # Set this above the honest worst case, so a real slow build still finishes
+    # and a hang is cut off early.
+    timeout-minutes: 60
     # windows-2022, not windows-latest. The newer image ships Visual Studio 18,
     # whose STL has dropped stdext::make_checked_array_iterator -- and Qt
     # 5.15.2's qlist.h still calls it, so every translation unit that includes
@@ -117,6 +125,7 @@ jobs:
   # upstream maintenance and barely move, so the key below stays warm for
   # months; only a version bump here or a Qt bump reburns it.
   package:
+    timeout-minutes: 90
     # windows-2022, not windows-latest. The newer image ships Visual Studio 18,
     # whose STL has dropped stdext::make_checked_array_iterator -- and Qt
     # 5.15.2's qlist.h still calls it, so every translation unit that includes
@@ -264,6 +273,7 @@ jobs:
           path: dist/FileCommander-*-windows-x64.zip
 
   full-preview-package:
+    timeout-minutes: 120
     if: github.event_name == 'workflow_dispatch' && inputs.full_preview
     runs-on: [self-hosted, windows, filecommander-full-preview]
     steps:

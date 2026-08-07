@@ -19,6 +19,11 @@ concurrency:
 
 jobs:
   debug-and-release:
+    # A ceiling, not an estimate: GitHub's default is 360 minutes, and a step
+    # that hangs rather than fails burns every one of them. This job runs in
+    # about 20, so 60 leaves room for a slow runner while cutting a hang short.
+    # See the Windows workflow for the hang that prompted this.
+    timeout-minutes: 60
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4

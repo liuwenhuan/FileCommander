@@ -31,6 +31,10 @@ permissions:
 
 jobs:
   version-check:
+    # A ceiling, not an estimate; see the CI workflows for the hang that
+    # prompted these. A release job that wedges would otherwise burn the
+    # 360-minute default, and the Windows one bills at twice the rate.
+    timeout-minutes: 10
     runs-on: ubuntu-22.04
     outputs:
       version: ${{ steps.read.outputs.version }}
@@ -54,6 +58,7 @@ jobs:
           fi
 
   linux:
+    timeout-minutes: 60
     needs: version-check
     runs-on: ubuntu-22.04
     steps:
@@ -100,6 +105,7 @@ jobs:
             dist/*.AppImage
 
   windows:
+    timeout-minutes: 90
     needs: version-check
     # windows-2022, not windows-latest. The newer image ships Visual Studio 18,
     # whose STL has dropped stdext::make_checked_array_iterator -- and Qt
@@ -197,6 +203,7 @@ jobs:
           path: dist/FileCommander-*-windows-x64.zip
 
   publish:
+    timeout-minutes: 20
     # Only a tag publishes. A manual run stops after the artefacts, so the
     # whole pipeline can be exercised without creating a Release.
     if: github.ref_type == 'tag'
