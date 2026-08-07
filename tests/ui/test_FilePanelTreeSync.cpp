@@ -10,7 +10,9 @@
 #include <QToolButton>
 #include <QTreeView>
 
+#include <QElapsedTimer>
 #include "FilePanel.h"
+#include "config/Settings.h"
 #include "FileListView.h"
 #include "FileSystemModel.h"
 #include "tree/DirectoryTreeModel.h"
@@ -60,6 +62,100 @@ QString treeCurrentPath(QTreeView *tree) {
     return cur.isValid() ? model->pathAt(cur) : QString();
 }
 
+// Says where a tree walk lost the trail. This exists because the walk fails on
+// Windows CI and nowhere else, always stopping at exactly C:/Users/runneradmin.
+//
+// Two explanations have already been tried and disproved by measurement -- that
+// the walk was too slow (widening the budget to 15s changed nothing), and that
+// a hidden AppData blocked it (hiding AppData locally did not reproduce it).
+// Each guess cost a CI round trip. So instead of a third guess, a failure now
+// reports what the tree actually holds at the point it gave up: which ancestor
+// it reached, that node's children, and whether any of them leads onward. That
+// separates "not listed yet" from "listed but filtered out" from "listed under
+// a different name" -- which is as far as reasoning from here can get.
+QString describeTreeWalk(QTreeView *tree, const QString &target) {
+    auto *model = qobject_cast<DirectoryTreeModel *>(tree->model());
+    if (!model)
+        return QStringLiteral("no DirectoryTreeModel on the view");
+
+    QString out = QStringLiteral("\n  target : %1\n  current: %2\n")
+                      .arg(target, treeCurrentPath(tree));
+
+    // Walk down from the roots, following the target one component at a time.
+    QModelIndex node;
+    for (int depth = 0; depth < 24; ++depth) {
+        const int rows = model->rowCount(node);
+        QStringList children;
+        QModelIndex next;
+        for (int r = 0; r < rows; ++r) {
+            const QModelIndex child = model->index(r, 0, node);
+            const QString path = model->pathAt(child);
+            children << path;
+            // The one child that is the target, or an ancestor of it. A drive
+            // root already ends in '/', so appending another separator would
+            // never match and the walk would report giving up at depth 0.
+            const QString prefix =
+                path.endsWith(QLatin1Char('/')) ? path : path + QLatin1Char('/');
+            if (target == path || target.startsWith(prefix))
+                next = child;
+        }
+        const QString here =
+            node.isValid() ? model->pathAt(node) : QStringLiteral("<roots>");
+        // The component the walk needs next -- naming it turns the dump into an
+        // answer rather than a list to read. A directory with a thousand
+        // entries would otherwise bury it, and the interesting level (a user
+        // profile) is the one where a single missing name decides everything.
+        const QString wanted =
+            here == QStringLiteral("<roots>")
+                ? QString()
+                : target.mid(here.size()).split(QLatin1Char('/'), QString::SkipEmptyParts).value(0);
+        out += QStringLiteral("  depth %1 under '%2': %3 children, wants '%4' -> %5\n")
+                   .arg(depth)
+                   .arg(here)
+                   .arg(rows)
+                   .arg(wanted,
+                        next.isValid() ? QStringLiteral("found") : QStringLiteral("MISSING"));
+        // Names too, but few: enough to tell an empty listing from a filtered
+        // one without flooding a CI log.
+        if (!children.isEmpty())
+            out += QStringLiteral("      %1%2\n")
+                       .arg(QStringList(children.mid(0, 12)).join(QStringLiteral(", ")),
+                            children.size() > 12
+                                ? QStringLiteral(" ... (+%1)").arg(children.size() - 12)
+                                : QString());
+        if (!next.isValid()) {
+            out += QStringLiteral("      -> the walk stops here. canFetchMore=%1, expanded=%2\n")
+                       .arg(model->canFetchMore(node) ? QStringLiteral("yes") : QStringLiteral("no"),
+                            tree->isExpanded(node) ? QStringLiteral("yes") : QStringLiteral("no"));
+            break;
+        }
+        if (model->pathAt(next) == target) {
+            out += QStringLiteral("      -> the target node exists in the tree; "
+                                  "it simply was never made current\n");
+            break;
+        }
+        node = next;
+    }
+    return out;
+}
+
+// Same wait as FC_TRY_COMPARE_WITH_TIMEOUT, but a failure prints where the walk
+// stopped instead of only the two paths that differ.
+//
+// Compared as std::string: gtest has no printer for QString and falls back to
+// dumping it as a list of two-byte objects, which buries the one line of the
+// failure anybody reads.
+#define FC_TRY_TREE_PATH(tree, expected, timeoutMs)                                                \
+    do {                                                                                           \
+        const QString fcTreeWanted = (expected);                                                   \
+        QElapsedTimer fcTreeTimer;                                                                 \
+        fcTreeTimer.start();                                                                       \
+        while (treeCurrentPath(tree) != fcTreeWanted && fcTreeTimer.elapsed() < (timeoutMs))       \
+            QTest::qWait(20);                                                                      \
+        ASSERT_EQ(treeCurrentPath(tree).toStdString(), fcTreeWanted.toStdString())                 \
+            << qPrintable(describeTreeWalk(tree, fcTreeWanted));                                   \
+    } while (false)
+
 class FilePanelTreeSyncTest : public ::testing::Test {
 protected:
     void SetUp() override {
@@ -78,16 +174,14 @@ protected:
     QString m_beta;
 };
 
-// The waits below are generous on purpose. The tree walks to a path one level
-// at a time, listing each directory asynchronously, and the fixture sits under
-// the system temp directory -- eight listings deep from the drive root. On this
-// machine that is fast; on a CI runner, where C:/Users alone holds several
-// profiles and the filesystem is cold, four seconds was not enough and the tree
-// was still at C:/Users/runneradmin when the assertion looked.
+// The waits below are generous on purpose, but not because slowness is the
+// suspected cause -- widening them from 4s to 15s did not change the Windows CI
+// result. They are wide because a budget on "wait until X" only bounds how long
+// a real failure takes to report: a generous one costs nothing when the test
+// passes, and a tight one fails on a slow machine for no reason.
 //
-// A budget on "wait until X" only bounds how long a real failure takes to
-// report, so a generous one costs nothing and a tight one fails on a slow
-// machine for no reason.
+// What these tests actually fail on is still open; FC_TRY_TREE_PATH prints the
+// tree's real contents on failure so the next run says so itself.
 TEST_F(FilePanelTreeSyncTest, TreeFollowsTabSwitchAfterEachLoad) {
     FilePanel panel;
     panel.show();
@@ -95,21 +189,21 @@ TEST_F(FilePanelTreeSyncTest, TreeFollowsTabSwitchAfterEachLoad) {
     ASSERT_NE(tree, nullptr);
 
     ASSERT_TRUE(navigateAndWait(panel, m_alphaInner));
-    FC_TRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_alphaInner, 15000);
+    FC_TRY_TREE_PATH(tree, m_alphaInner, 15000);
 
     panel.newTab();
     ASSERT_TRUE(navigateAndWait(panel, m_beta));
-    FC_TRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_beta, 15000);
+    FC_TRY_TREE_PATH(tree, m_beta, 15000);
 
     QSignalSpy previousLoad(panel.model(), &FileSystemModel::loadFinished);
     panel.prevTab();
     ASSERT_TRUE(waitForLoad(previousLoad));
-    FC_TRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_alphaInner, 15000);
+    FC_TRY_TREE_PATH(tree, m_alphaInner, 15000);
 
     QSignalSpy nextLoad(panel.model(), &FileSystemModel::loadFinished);
     panel.nextTab();
     ASSERT_TRUE(waitForLoad(nextLoad));
-    FC_TRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_beta, 15000);
+    FC_TRY_TREE_PATH(tree, m_beta, 15000);
 }
 
 TEST(FilePanelStartupTest, DirectoryTreeIsCreatedOnceOnFirstToggleWithCurrentFont) {
@@ -150,7 +244,7 @@ TEST_F(FilePanelTreeSyncTest, HiddenTreePreservesItsExistingSelectionUntilReopen
     ASSERT_NE(tree, nullptr);
 
     ASSERT_TRUE(navigateAndWait(panel, m_alpha));
-    FC_TRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_alpha, 15000);
+    FC_TRY_TREE_PATH(tree, m_alpha, 15000);
     tree->setVisible(false);
 
     panel.newTab();
@@ -166,7 +260,7 @@ TEST_F(FilePanelTreeSyncTest, HiddenTreePreservesItsExistingSelectionUntilReopen
     QSignalSpy nextLoad(panel.model(), &FileSystemModel::loadFinished);
     panel.nextTab();
     ASSERT_TRUE(waitForLoad(nextLoad));
-    FC_TRY_COMPARE_WITH_TIMEOUT(treeCurrentPath(tree), m_beta, 15000);
+    FC_TRY_TREE_PATH(tree, m_beta, 15000);
 }
 
 } // namespace
