@@ -187,8 +187,22 @@ if ($pdfPreview) {
     if (-not (Test-Path -LiteralPath (Join-Path $PopplerQt5Root 'bin/poppler-qt5.dll'))) {
         throw "Poppler Qt5 runtime not found at $PopplerQt5Root."
     }
+    # Skip what is already staged, exactly as the loop above does -- and for a
+    # reason that only shows up now that poppler's prefix carries its own
+    # runtime. A DLL can serve two features at once: bz2 arrives here as a
+    # transitive dependency of freetype, and it is ALSO in the executable's own
+    # vcpkg closure by way of libarchive. Staging it twice records it under two
+    # provenance groups, and the manifest refuses that -- "Package file bz2.dll
+    # has conflicting provenance" -- because provenance is one value per path.
+    #
+    # First writer wins, which puts the file under the feature that would have
+    # pulled it in even without PDF preview. That is the more useful answer for
+    # anyone reading the manifest to work out what a file is doing there.
     Get-ChildItem -LiteralPath (Join-Path $PopplerQt5Root 'bin') -Filter '*.dll' | ForEach-Object {
-        Copy-StageFile -Source $_.FullName -Destination $stage -Group 'pdf'
+        $destination = Join-Path $stage $_.Name
+        if (-not (Test-Path -LiteralPath $destination)) {
+            Copy-StageFile -Source $_.FullName -Destination $stage -Group 'pdf'
+        }
     }
     # No second source. The loop above takes the whole of poppler's bin, and
     # build-poppler-qt5.ps1 vendors poppler's vcpkg runtime DLLs into that same
