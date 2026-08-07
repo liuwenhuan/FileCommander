@@ -11,6 +11,9 @@
 #include <QTreeView>
 
 #include <QElapsedTimer>
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 #include "FilePanel.h"
 #include "config/Settings.h"
 #include "FileListView.h"
@@ -44,15 +47,28 @@ QTreeView *directoryTree(FilePanel &panel) {
 }
 
 QTreeView *showTree(FilePanel &panel) {
-    if (QTreeView *tree = directoryTree(panel)) {
+    QTreeView *tree = directoryTree(panel);
+    if (tree) {
         tree->setVisible(true);
-        return tree;
+    } else {
+        auto *button = panel.findChild<QToolButton *>(QStringLiteral("PanelTreeButton"));
+        if (!button)
+            return nullptr;
+        button->click();
+        tree = directoryTree(panel);
     }
-    auto *button = panel.findChild<QToolButton *>(QStringLiteral("PanelTreeButton"));
-    if (!button)
-        return nullptr;
-    button->click();
-    return directoryTree(panel);
+
+    // The fixture sits under the system temp directory, and on Windows the only
+    // route there runs through AppData, which is hidden. A tree that filters
+    // hidden directories cannot reach it -- it settles on C:/Users/<user>, by
+    // design, and that is exactly what Windows CI reported. So ask for hidden
+    // directories, which the tree reads when its roots are rebuilt.
+    //
+    // Through toggleHiddenFiles rather than the model's setter directly: that
+    // is the path a user takes, and until recently it left the tree behind.
+    panel.toggleHiddenFiles();
+    panel.rebuildTreeRoots();
+    return tree;
 }
 
 // The path the tree's current row stands for, or empty when nothing is current.
@@ -174,14 +190,11 @@ protected:
     QString m_beta;
 };
 
-// The waits below are generous on purpose, but not because slowness is the
-// suspected cause -- widening them from 4s to 15s did not change the Windows CI
-// result. They are wide because a budget on "wait until X" only bounds how long
-// a real failure takes to report: a generous one costs nothing when the test
-// passes, and a tight one fails on a slow machine for no reason.
-//
-// What these tests actually fail on is still open; FC_TRY_TREE_PATH prints the
-// tree's real contents on failure so the next run says so itself.
+// The waits below are generous on purpose, though slowness was never the cause
+// -- widening them from 4s to 15s changed nothing. They are wide because a
+// budget on "wait until X" only bounds how long a real failure takes to report:
+// a generous one costs nothing when the test passes, and a tight one fails on a
+// slow machine for no reason.
 TEST_F(FilePanelTreeSyncTest, TreeFollowsTabSwitchAfterEachLoad) {
     FilePanel panel;
     panel.show();
@@ -261,6 +274,54 @@ TEST_F(FilePanelTreeSyncTest, HiddenTreePreservesItsExistingSelectionUntilReopen
     panel.nextTab();
     ASSERT_TRUE(waitForLoad(nextLoad));
     FC_TRY_TREE_PATH(tree, m_beta, 15000);
+}
+
+// Turning on hidden files has to take the tree with it.
+//
+// It did not, and the gap was invisible here for a Windows-specific reason: the
+// tree reads the flag once, when its roots are rebuilt, and toggleHiddenFiles
+// rebuilt nothing. The file list would walk into a hidden directory while the
+// tree stayed outside it, settling on the last visible ancestor. On Windows
+// that is every path under AppData -- which includes the whole temp directory,
+// and so every fixture in this file.
+//
+// Deliberately does NOT call rebuildTreeRoots: the other tests here do, so they
+// would keep passing with the fix reverted. This one only toggles.
+TEST_F(FilePanelTreeSyncTest, TurningOnHiddenFilesLetsTheTreeFollowIntoAHiddenDirectory) {
+    const QDir root(m_dir.path());
+    ASSERT_TRUE(root.mkpath(QStringLiteral(".secret/leaf")));
+    const QString leaf = root.filePath(QStringLiteral(".secret/leaf"));
+#ifdef Q_OS_WIN
+    // A leading dot means nothing to Windows; the attribute is what hides it.
+    ASSERT_TRUE(SetFileAttributesW(
+        reinterpret_cast<const wchar_t *>(root.filePath(QStringLiteral(".secret")).utf16()),
+        FILE_ATTRIBUTE_HIDDEN));
+#endif
+
+    FilePanel panel;
+    panel.show();
+    // Not showTree(): that helper turns hidden files on, which is the very
+    // thing under test.
+    QTreeView *tree = directoryTree(panel);
+    if (tree) {
+        tree->setVisible(true);
+    } else {
+        auto *button = panel.findChild<QToolButton *>(QStringLiteral("PanelTreeButton"));
+        ASSERT_NE(button, nullptr);
+        button->click();
+        tree = directoryTree(panel);
+    }
+    ASSERT_NE(tree, nullptr);
+
+    // With hidden files off the tree cannot reach the leaf, and settling short
+    // of it is correct -- so this asserts only that it did not somehow arrive.
+    ASSERT_TRUE(navigateAndWait(panel, leaf));
+    QTest::qWait(500);
+    ASSERT_NE(treeCurrentPath(tree), leaf) << "the fixture is not hidden after all, so this "
+                                              "test cannot tell the fix from its absence";
+
+    panel.toggleHiddenFiles();
+    FC_TRY_TREE_PATH(tree, leaf, 15000);
 }
 
 } // namespace
