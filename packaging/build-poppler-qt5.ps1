@@ -68,9 +68,28 @@ if (-not (Test-Path -LiteralPath $archive)) {
 $sourceDir = Join-Path $work "poppler-$Version"
 if (-not (Test-Path -LiteralPath $sourceDir)) {
     Write-Host "==> Extracting poppler $Version"
-    # tar ships with Windows 10+ and handles .xz.
-    tar -xf $archive -C $work
+    # The FULL path to Windows' own bsdtar, never a bare `tar`.
+    #
+    # A bare `tar` resolves through PATH, and a GitHub Windows runner has Git's
+    # GNU tar on PATH as well as this one. GNU tar reads `-f D:\a\...` as the
+    # `host:path` remote-archive syntax -- the drive letter becomes a hostname --
+    # and goes off to contact a machine called "D". Locally that fails at once
+    # ("Cannot connect to C: resolve failed"); inside Azure, where the runners
+    # live, the lookup does not fail fast, and the step simply hangs. Measured:
+    # four CI runs in a row died here, the last one after 4h36m, and not one of
+    # them ever reached the compile the step is named for.
+    #
+    # bsdtar has no remote-archive syntax at all, so a drive letter is just a
+    # drive letter. It ships with Windows 10 and Server 2019 onward.
+    $bsdtar = Join-Path $env:SystemRoot 'system32\tar.exe'
+    if (-not (Test-Path -LiteralPath $bsdtar)) {
+        throw "Windows' bundled tar is missing at $bsdtar"
+    }
+    & $bsdtar -xf $archive -C $work
     if ($LASTEXITCODE -ne 0) { throw "Could not extract $archive" }
+    if (-not (Test-Path -LiteralPath $sourceDir)) {
+        throw "Extraction reported success but $sourceDir is not there"
+    }
 }
 
 # The dependencies poppler needs that are NOT part of the Qt5 install. Kept in
