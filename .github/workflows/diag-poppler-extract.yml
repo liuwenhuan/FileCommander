@@ -1,0 +1,99 @@
+name: Diag poppler extract
+
+# TEMPORARY. Delete once the poppler step is understood.
+#
+# The poppler build step on a Windows runner prints "==> Extracting" and then
+# produces nothing until the job is killed -- 4h36m on one run, 76 minutes on
+# the next, always at the same line. Two explanations have been tried and both
+# were wrong: that the step was slow rather than stuck, and that a bare `tar`
+# was resolving to Git's GNU tar, which reads a drive letter as a hostname.
+# Calling Windows' bsdtar by full path changed nothing at all.
+#
+# So stop guessing and measure. This runs only the download and the extract,
+# with a timestamp on every line, and it runs the extract through a watchdog so
+# that a hang is REPORTED rather than inherited -- the whole point is to come
+# back with an answer inside fifteen minutes instead of another wasted hour.
+on:
+  workflow_dispatch:
+
+jobs:
+  diag:
+    timeout-minutes: 15
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: What tar is even here
+        shell: pwsh
+        run: |
+          Write-Host "PATH resolves 'tar' to: $((Get-Command tar -ErrorAction SilentlyContinue).Source)"
+          Get-Command tar -All -ErrorAction SilentlyContinue |
+              ForEach-Object { Write-Host "  candidate: $($_.Source)" }
+          $sys = Join-Path $env:SystemRoot 'system32\tar.exe'
+          Write-Host "system32 tar present: $(Test-Path -LiteralPath $sys)"
+          if (Test-Path -LiteralPath $sys) { & $sys --version }
+
+      - name: Disk and Defender
+        shell: pwsh
+        run: |
+          Get-PSDrive -PSProvider FileSystem |
+              Where-Object { $_.Used -ne $null } |
+              ForEach-Object { Write-Host ("{0}: free {1:N1} GB" -f $_.Name, ($_.Free / 1GB)) }
+          # Real-time scanning turns 850 small files into 850 scans. Worth
+          # knowing before blaming the archiver.
+          try {
+              $p = Get-MpPreference -ErrorAction Stop
+              Write-Host "Defender realtime disabled: $($p.DisableRealtimeMonitoring)"
+              Write-Host "Defender exclusions: $($p.ExclusionPath -join ', ')"
+          } catch { Write-Host "Get-MpPreference unavailable: $_" }
+
+      - name: Download, then extract under a watchdog
+        shell: pwsh
+        run: |
+          function Stamp($msg) {
+              Write-Host ("[{0:HH:mm:ss.fff}] {1}" -f (Get-Date), $msg)
+          }
+
+          $w = Join-Path $env:GITHUB_WORKSPACE 'build/diag'
+          New-Item -ItemType Directory -Force -Path $w | Out-Null
+          $archive = Join-Path $w 'poppler-26.04.0.tar.xz'
+
+          Stamp 'downloading'
+          # The progress bar is a known way to make this 10x slower in a
+          # non-interactive host; off, so the number below means what it says.
+          $ProgressPreference = 'SilentlyContinue'
+          Invoke-WebRequest -Uri 'https://poppler.freedesktop.org/poppler-26.04.0.tar.xz' -OutFile $archive
+          Stamp "downloaded $((Get-Item $archive).Length) bytes"
+
+          # Start-Process rather than a direct call: a direct call would make
+          # this step inherit the hang it is trying to observe.
+          $sys = Join-Path $env:SystemRoot 'system32\tar.exe'
+          Stamp "extracting with $sys"
+          $proc = Start-Process -FilePath $sys -ArgumentList @('-xf', $archive, '-C', $w) `
+                                -NoNewWindow -PassThru
+          $waited = 0
+          while (-not $proc.HasExited -and $waited -lt 300) {
+              Start-Sleep -Seconds 10
+              $waited += 10
+              $n = (Get-ChildItem $w -Recurse -File -ErrorAction SilentlyContinue).Count
+              Stamp "  still running after ${waited}s; $n files on disk so far"
+          }
+
+          if ($proc.HasExited) {
+              Stamp "tar exited with $($proc.ExitCode)"
+          } else {
+              Stamp '*** tar still running after 300s -- this is the hang ***'
+              # What is it actually doing? A wait chain says whether it is
+              # blocked on I/O, on a lock, or on something with a socket open.
+              try {
+                  Get-Process -Id $proc.Id |
+                      Select-Object Id, ProcessName, CPU, Handles, WorkingSet64 |
+                      Format-List | Out-String | Write-Host
+                  Stamp "TCP connections owned by pid $($proc.Id):"
+                  Get-NetTCPConnection -OwningProcess $proc.Id -ErrorAction SilentlyContinue |
+                      Format-Table -AutoSize | Out-String | Write-Host
+              } catch { Write-Host "probe failed: $_" }
+              $proc.Kill()
+          }
+
+          Stamp "final file count: $((Get-ChildItem $w -Recurse -File -ErrorAction SilentlyContinue).Count)"
