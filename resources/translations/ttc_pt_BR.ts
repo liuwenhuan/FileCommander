@@ -1081,7 +1081,7 @@ Excluir como administrador ignora a Lixeira e não pode ser desfeito.</translati
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2667"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4765"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4771"/>
         <source>Paste</source>
         <translation>Colar</translation>
     </message>
@@ -1131,7 +1131,7 @@ Excluir como administrador ignora a Lixeira e não pode ser desfeito.</translati
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2487"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2686"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4752"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4758"/>
         <source>Calculate Folder Size</source>
         <translation>Calcular tamanho da pasta</translation>
     </message>
@@ -1152,7 +1152,7 @@ Excluir como administrador ignora a Lixeira e não pode ser desfeito.</translati
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2677"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4758"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4764"/>
         <source>Properties</source>
         <translation>Propriedades</translation>
     </message>
@@ -1323,16 +1323,16 @@ Excluir como administrador ignora a Lixeira e não pode ser desfeito.</translati
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2507"/>
         <location filename="../../src/ui/MainWindow.cpp" line="4729"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4904"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4926"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4939"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4970"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4992"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5005"/>
         <source>Edit</source>
         <translation>Editar</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2508"/>
         <location filename="../../src/ui/MainWindow.cpp" line="4732"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5011"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5077"/>
         <source>Copy</source>
         <translation>Copiar</translation>
     </message>
@@ -1344,9 +1344,9 @@ Excluir como administrador ignora a Lixeira e não pode ser desfeito.</translati
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2510"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4767"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5067"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5071"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4773"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5133"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5137"/>
         <source>New Folder</source>
         <translation>Nova pasta</translation>
     </message>
@@ -1540,7 +1540,7 @@ Excluir como administrador ignora a Lixeira e não pode ser desfeito.</translati
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2659"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4770"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4776"/>
         <source>Refresh</source>
         <translation>Atualizar</translation>
     </message>
@@ -2162,7 +2162,7 @@ Seu conteúdo será sobrescrito no disco e depois excluído. Isso é IRREVERSÍV
         <translation type="vanished">Compactar selecionados...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4748"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4750"/>
         <source>Extract Here</source>
         <translation>Extrair aqui</translation>
     </message>
@@ -2172,7 +2172,7 @@ Seu conteúdo será sobrescrito no disco e depois excluído. Isso é IRREVERSÍV
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2651"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4753"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4759"/>
         <source>Copy Path</source>
         <translation>Copiar caminho</translation>
     </message>
@@ -2183,7 +2183,7 @@ Seu conteúdo será sobrescrito no disco e depois excluído. Isso é IRREVERSÍV
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2499"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2595"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4769"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4775"/>
         <source>Open Terminal Here</source>
         <translation>Abrir terminal aqui</translation>
     </message>
@@ -2370,49 +2370,79 @@ As alterações feitas nela não são salvas de volta no servidor.</translation>
         <translation>A conexão de origem (%1) foi fechada; não é possível colar do local remoto.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4837"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4859"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4748"/>
+        <source>Extract To</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="4753"/>
+        <source>Extract to Folder...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="4869"/>
+        <source>Password required</source>
+        <translation type="unfinished">Senha necessária</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="4870"/>
+        <source>Incorrect password. Try again for “%1”:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="4871"/>
+        <source>“%1” is encrypted. Enter its password:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="4880"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4888"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4899"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4923"/>
         <source>Extract</source>
         <translation>Extrair</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4837"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4881"/>
+        <source>“%1” uses an encryption this build cannot read.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="4888"/>
         <source>Extraction failed: %1</source>
         <translation>Falha na extração: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4844"/>
         <source>Nested archive</source>
-        <translation>Arquivo compactado aninhado</translation>
+        <translation type="vanished">Arquivo compactado aninhado</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4845"/>
         <source>The result contains a single archive:
 %1
 
 Extract it too?</source>
-        <translation>O resultado contém um único arquivo compactado:
+        <translation type="vanished">O resultado contém um único arquivo compactado:
 %1
 
 Extrair também?</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4859"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4925"/>
         <source>Extracted archive to %1</source>
         <translation>Arquivo compactado extraído para %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4891"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4957"/>
         <source>Extract to</source>
         <translation>Extrair para</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4905"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4971"/>
         <source>Image files can&apos;t be edited; use F3 to view.</source>
         <translation>Imagens não podem ser editadas; use F3 para visualizar.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4927"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4993"/>
         <source>%1 cannot be edited in place.
 
 Editing a file on this connection needs it mounted through GVfs (the gvfs-backends package). Copy the file to a local folder to edit it.</source>
@@ -2421,33 +2451,43 @@ Editing a file on this connection needs it mounted through GVfs (the gvfs-backen
 Para editar um arquivo nesta conexão, ele precisa estar montado via GVfs (pacote gvfs-backends). Copie o arquivo para uma pasta local para editá-lo.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4940"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5006"/>
         <source>Could not open %1 for editing: %2</source>
         <translation>Não foi possível abrir %1 para edição: %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4961"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5027"/>
         <source>This tab lists results from several directories, so there is no single folder to create it in. Open one of the results&apos; folders first.</source>
         <translation>Esta aba lista resultados de vários diretórios, portanto não há uma única pasta onde criá-lo. Abra primeiro a pasta de um dos resultados.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4970"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5036"/>
         <source>Read-only</source>
         <translation>Somente leitura</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4971"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5037"/>
         <source>This archive is read-only. Copy files out to a folder to modify them.</source>
         <translation>Este arquivo compactado é somente leitura. Copie os arquivos para uma pasta para modificá-los.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3176"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5011"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5077"/>
         <source>Copy to:</source>
         <translation>Copiar para:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5071"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4900"/>
+        <source>Stopped after %1 nested archives; the innermost one was left packed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="4924"/>
+        <source>Extracted %1 nested archives to %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="5137"/>
         <source>Folder name:</source>
         <translation>Nome da pasta:</translation>
     </message>
@@ -2467,12 +2507,12 @@ Esta ação é permanente e NÃO irá para a lixeira.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4737"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5149"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5215"/>
         <source>Compress</source>
         <translation>Compactar</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5149"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5215"/>
         <source>Compression failed: %1</source>
         <translation>Falha na compactação: %1</translation>
     </message>

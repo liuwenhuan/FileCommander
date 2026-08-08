@@ -1081,7 +1081,7 @@ Das Löschen als Administrator umgeht den Papierkorb und kann nicht rückgängig
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2667"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4765"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4771"/>
         <source>Paste</source>
         <translation>Einfügen</translation>
     </message>
@@ -1131,7 +1131,7 @@ Das Löschen als Administrator umgeht den Papierkorb und kann nicht rückgängig
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2487"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2686"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4752"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4758"/>
         <source>Calculate Folder Size</source>
         <translation>Ordnergröße berechnen</translation>
     </message>
@@ -1152,7 +1152,7 @@ Das Löschen als Administrator umgeht den Papierkorb und kann nicht rückgängig
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2677"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4758"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4764"/>
         <source>Properties</source>
         <translation>Eigenschaften</translation>
     </message>
@@ -1323,16 +1323,16 @@ Das Löschen als Administrator umgeht den Papierkorb und kann nicht rückgängig
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2507"/>
         <location filename="../../src/ui/MainWindow.cpp" line="4729"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4904"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4926"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4939"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4970"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4992"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5005"/>
         <source>Edit</source>
         <translation>Bearbeiten</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2508"/>
         <location filename="../../src/ui/MainWindow.cpp" line="4732"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5011"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5077"/>
         <source>Copy</source>
         <translation>Kopieren</translation>
     </message>
@@ -1344,9 +1344,9 @@ Das Löschen als Administrator umgeht den Papierkorb und kann nicht rückgängig
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2510"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4767"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5067"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5071"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4773"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5133"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5137"/>
         <source>New Folder</source>
         <translation>Neuer Ordner</translation>
     </message>
@@ -1540,7 +1540,7 @@ Das Löschen als Administrator umgeht den Papierkorb und kann nicht rückgängig
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2659"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4770"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4776"/>
         <source>Refresh</source>
         <translation>Aktualisieren</translation>
     </message>
@@ -2162,7 +2162,7 @@ Ihr Inhalt wird auf der Festplatte überschrieben und anschließend gelöscht. D
         <translation type="vanished">Auswahl komprimieren...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4748"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4750"/>
         <source>Extract Here</source>
         <translation>Hier entpacken</translation>
     </message>
@@ -2172,7 +2172,7 @@ Ihr Inhalt wird auf der Festplatte überschrieben und anschließend gelöscht. D
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2651"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4753"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4759"/>
         <source>Copy Path</source>
         <translation>Pfad kopieren</translation>
     </message>
@@ -2183,7 +2183,7 @@ Ihr Inhalt wird auf der Festplatte überschrieben und anschließend gelöscht. D
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2499"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2595"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4769"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4775"/>
         <source>Open Terminal Here</source>
         <translation>Terminal hier öffnen</translation>
     </message>
@@ -2370,49 +2370,79 @@ Changes made to it are not saved back to the server.</source>
         <translation>Die Quellverbindung (%1) wurde geschlossen; das Einfügen von der Gegenstelle ist nicht möglich.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4837"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4859"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4748"/>
+        <source>Extract To</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="4753"/>
+        <source>Extract to Folder...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="4869"/>
+        <source>Password required</source>
+        <translation type="unfinished">Passwort erforderlich</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="4870"/>
+        <source>Incorrect password. Try again for “%1”:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="4871"/>
+        <source>“%1” is encrypted. Enter its password:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="4880"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4888"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4899"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4923"/>
         <source>Extract</source>
         <translation>Entpacken</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4837"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4881"/>
+        <source>“%1” uses an encryption this build cannot read.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="4888"/>
         <source>Extraction failed: %1</source>
         <translation>Entpacken fehlgeschlagen: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4844"/>
         <source>Nested archive</source>
-        <translation>Verschachteltes Archiv</translation>
+        <translation type="vanished">Verschachteltes Archiv</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4845"/>
         <source>The result contains a single archive:
 %1
 
 Extract it too?</source>
-        <translation>Das Ergebnis enthält ein einzelnes Archiv:
+        <translation type="vanished">Das Ergebnis enthält ein einzelnes Archiv:
 %1
 
 Dieses auch entpacken?</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4859"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4925"/>
         <source>Extracted archive to %1</source>
         <translation>Archiv nach %1 entpackt</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4891"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4957"/>
         <source>Extract to</source>
         <translation>Entpacken nach</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4905"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4971"/>
         <source>Image files can&apos;t be edited; use F3 to view.</source>
         <translation>Bilddateien können nicht bearbeitet werden; mit F3 ansehen.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4927"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4993"/>
         <source>%1 cannot be edited in place.
 
 Editing a file on this connection needs it mounted through GVfs (the gvfs-backends package). Copy the file to a local folder to edit it.</source>
@@ -2421,33 +2451,43 @@ Editing a file on this connection needs it mounted through GVfs (the gvfs-backen
 Zum Bearbeiten einer Datei über diese Verbindung muss sie über GVfs (Paket gvfs-backends) eingebunden sein. Kopieren Sie die Datei zum Bearbeiten in einen lokalen Ordner.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4940"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5006"/>
         <source>Could not open %1 for editing: %2</source>
         <translation>%1 konnte nicht zum Bearbeiten geöffnet werden: %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4961"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5027"/>
         <source>This tab lists results from several directories, so there is no single folder to create it in. Open one of the results&apos; folders first.</source>
         <translation>Dieser Tab listet Ergebnisse aus mehreren Verzeichnissen auf, es gibt also keinen einzelnen Ordner, in dem er angelegt werden könnte. Öffnen Sie zuerst den Ordner eines der Ergebnisse.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4970"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5036"/>
         <source>Read-only</source>
         <translation>Schreibgeschützt</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4971"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5037"/>
         <source>This archive is read-only. Copy files out to a folder to modify them.</source>
         <translation>Dieses Archiv ist schreibgeschützt. Dateien zum Bearbeiten in einen Ordner kopieren.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3176"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5011"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5077"/>
         <source>Copy to:</source>
         <translation>Kopieren nach:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5071"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4900"/>
+        <source>Stopped after %1 nested archives; the innermost one was left packed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="4924"/>
+        <source>Extracted %1 nested archives to %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="5137"/>
         <source>Folder name:</source>
         <translation>Ordnername:</translation>
     </message>
@@ -2467,12 +2507,12 @@ Dies ist endgültig und wird NICHT in den Papierkorb verschoben.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4737"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5149"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5215"/>
         <source>Compress</source>
         <translation>Komprimieren</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5149"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5215"/>
         <source>Compression failed: %1</source>
         <translation>Komprimierung fehlgeschlagen: %1</translation>
     </message>

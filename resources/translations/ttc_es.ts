@@ -1081,7 +1081,7 @@ Eliminar como administrador omite la papelera de reciclaje y no se puede deshace
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2667"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4765"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4771"/>
         <source>Paste</source>
         <translation>Pegar</translation>
     </message>
@@ -1131,7 +1131,7 @@ Eliminar como administrador omite la papelera de reciclaje y no se puede deshace
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2487"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2686"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4752"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4758"/>
         <source>Calculate Folder Size</source>
         <translation>Calcular tamaño de carpeta</translation>
     </message>
@@ -1152,7 +1152,7 @@ Eliminar como administrador omite la papelera de reciclaje y no se puede deshace
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2677"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4758"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4764"/>
         <source>Properties</source>
         <translation>Propiedades</translation>
     </message>
@@ -1323,16 +1323,16 @@ Eliminar como administrador omite la papelera de reciclaje y no se puede deshace
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2507"/>
         <location filename="../../src/ui/MainWindow.cpp" line="4729"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4904"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4926"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4939"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4970"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4992"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5005"/>
         <source>Edit</source>
         <translation>Editar</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2508"/>
         <location filename="../../src/ui/MainWindow.cpp" line="4732"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5011"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5077"/>
         <source>Copy</source>
         <translation>Copiar</translation>
     </message>
@@ -1344,9 +1344,9 @@ Eliminar como administrador omite la papelera de reciclaje y no se puede deshace
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2510"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4767"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5067"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5071"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4773"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5133"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5137"/>
         <source>New Folder</source>
         <translation>Nueva carpeta</translation>
     </message>
@@ -1540,7 +1540,7 @@ Eliminar como administrador omite la papelera de reciclaje y no se puede deshace
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2659"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4770"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4776"/>
         <source>Refresh</source>
         <translation>Actualizar</translation>
     </message>
@@ -2162,7 +2162,7 @@ Su contenido se sobrescribirá en el disco y luego se eliminará. Esto es IRREVE
         <translation type="vanished">Comprimir selección...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4748"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4750"/>
         <source>Extract Here</source>
         <translation>Extraer aquí</translation>
     </message>
@@ -2172,7 +2172,7 @@ Su contenido se sobrescribirá en el disco y luego se eliminará. Esto es IRREVE
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2651"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4753"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4759"/>
         <source>Copy Path</source>
         <translation>Copiar ruta</translation>
     </message>
@@ -2183,7 +2183,7 @@ Su contenido se sobrescribirá en el disco y luego se eliminará. Esto es IRREVE
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2499"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2595"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4769"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4775"/>
         <source>Open Terminal Here</source>
         <translation>Abrir terminal aquí</translation>
     </message>
@@ -2370,49 +2370,79 @@ Los cambios que se hagan en ella no se guardan en el servidor.</translation>
         <translation>La conexión de origen (%1) está cerrada; no se puede pegar desde el equipo remoto.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4837"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4859"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4748"/>
+        <source>Extract To</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="4753"/>
+        <source>Extract to Folder...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="4869"/>
+        <source>Password required</source>
+        <translation type="unfinished">Se requiere contraseña</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="4870"/>
+        <source>Incorrect password. Try again for “%1”:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="4871"/>
+        <source>“%1” is encrypted. Enter its password:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="4880"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4888"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4899"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4923"/>
         <source>Extract</source>
         <translation>Extraer</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4837"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4881"/>
+        <source>“%1” uses an encryption this build cannot read.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="4888"/>
         <source>Extraction failed: %1</source>
         <translation>Error al extraer: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4844"/>
         <source>Nested archive</source>
-        <translation>Archivo comprimido anidado</translation>
+        <translation type="vanished">Archivo comprimido anidado</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4845"/>
         <source>The result contains a single archive:
 %1
 
 Extract it too?</source>
-        <translation>El resultado contiene un único archivo comprimido:
+        <translation type="vanished">El resultado contiene un único archivo comprimido:
 %1
 
 ¿Extraerlo también?</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4859"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4925"/>
         <source>Extracted archive to %1</source>
         <translation>Archivo comprimido extraído en %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4891"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4957"/>
         <source>Extract to</source>
         <translation>Extraer en</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4905"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4971"/>
         <source>Image files can&apos;t be edited; use F3 to view.</source>
         <translation>Las imágenes no se pueden editar; use F3 para verlas.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4927"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4993"/>
         <source>%1 cannot be edited in place.
 
 Editing a file on this connection needs it mounted through GVfs (the gvfs-backends package). Copy the file to a local folder to edit it.</source>
@@ -2421,33 +2451,43 @@ Editing a file on this connection needs it mounted through GVfs (the gvfs-backen
 Para editar un archivo en esta conexión hay que montarla mediante GVfs (el paquete gvfs-backends). Copie el archivo en una carpeta local para editarlo.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4940"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5006"/>
         <source>Could not open %1 for editing: %2</source>
         <translation>No se pudo abrir %1 para editar: %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4961"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5027"/>
         <source>This tab lists results from several directories, so there is no single folder to create it in. Open one of the results&apos; folders first.</source>
         <translation>Esta pestaña muestra resultados de varios directorios, por lo que no hay una única carpeta donde crearlo. Abra primero la carpeta de uno de los resultados.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4970"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5036"/>
         <source>Read-only</source>
         <translation>Solo lectura</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4971"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5037"/>
         <source>This archive is read-only. Copy files out to a folder to modify them.</source>
         <translation>Este archivo comprimido es de solo lectura. Copie los archivos a una carpeta para modificarlos.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3176"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5011"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5077"/>
         <source>Copy to:</source>
         <translation>Copiar en:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5071"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4900"/>
+        <source>Stopped after %1 nested archives; the innermost one was left packed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="4924"/>
+        <source>Extracted %1 nested archives to %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="5137"/>
         <source>Folder name:</source>
         <translation>Nombre de carpeta:</translation>
     </message>
@@ -2467,12 +2507,12 @@ Esta acción es permanente y NO irá a la papelera.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4737"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5149"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5215"/>
         <source>Compress</source>
         <translation>Comprimir</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5149"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5215"/>
         <source>Compression failed: %1</source>
         <translation>Error de compresión: %1</translation>
     </message>
