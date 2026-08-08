@@ -66,8 +66,29 @@ QTreeView *showTree(FilePanel &panel) {
     //
     // Through toggleHiddenFiles rather than the model's setter directly: that
     // is the path a user takes, and until recently it left the tree behind.
-    panel.toggleHiddenFiles();
-    panel.rebuildTreeRoots();
+    //
+    // Guarded, and with no rebuildTreeRoots() of its own, for reasons that both
+    // showed up as flakiness rather than as a clean failure:
+    //
+    //   * toggleHiddenFiles FLIPS the flag. Calling it unconditionally in a
+    //     helper every test runs would turn hidden files back off for any test
+    //     that shares the setting.
+    //   * it now rebuilds the tree itself, so an explicit rebuild here was a
+    //     SECOND one, landing while the first was still listing. On Linux that
+    //     lost the listing entirely: the diagnostic showed /tmp with zero
+    //     children and canFetchMore still true -- a level that was never
+    //     expanded, not one that was filtered.
+    //   * it re-scans the current directory, and that scan's loadFinished was
+    //     being mistaken by the next navigateAndWait() for its OWN navigation
+    //     completing. The test then started waiting on the tree while the panel
+    //     was still moving, and the sync it was watching for was for the
+    //     previous path. Waiting for the re-scan here keeps the two apart.
+    if (!panel.model()->showHiddenFiles()) {
+        QSignalSpy settled(panel.model(), &FileSystemModel::loadFinished);
+        panel.toggleHiddenFiles();
+        if (settled.isEmpty())
+            settled.wait(4000);
+    }
     return tree;
 }
 
