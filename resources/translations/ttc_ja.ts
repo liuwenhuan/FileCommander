@@ -123,7 +123,7 @@ Extract it too?</source>
     <message>
         <location filename="../../src/widgets/ByteSearch.cpp" line="215"/>
         <source>Enter hex digits, for example 4D 5A.</source>
-        <translation type="unfinished"></translation>
+        <translation>16 進数を入力してください（例: 4D 5A）。</translation>
     </message>
 </context>
 <context>
@@ -854,7 +854,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="1882"/>
         <source>Opening archive…</source>
-        <translation type="unfinished"></translation>
+        <translation>書庫を開いています…</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="2460"/>
@@ -890,67 +890,67 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="39"/>
         <source>Find…</source>
-        <translation type="unfinished"></translation>
+        <translation>検索…</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="43"/>
         <source>Hex</source>
-        <translation type="unfinished">16進数</translation>
+        <translation>16 進</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="44"/>
         <source>Search a byte sequence instead of text, e.g. 4D 5A</source>
-        <translation type="unfinished"></translation>
+        <translation>テキストではなくバイト列を検索します（例: 4D 5A）</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="45"/>
         <source>Aa</source>
-        <translation type="unfinished"></translation>
+        <translation>Aa</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="46"/>
         <source>Ignore case (ASCII letters only)</source>
-        <translation type="unfinished"></translation>
+        <translation>大文字と小文字を区別しない（ASCII 文字のみ）</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="47"/>
         <source>Previous</source>
-        <translation type="unfinished"></translation>
+        <translation>前へ</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="48"/>
         <source>Previous match (Shift+Enter)</source>
-        <translation type="unfinished"></translation>
+        <translation>前の一致（Shift+Enter）</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="49"/>
         <source>Next</source>
-        <translation type="unfinished">次へ</translation>
+        <translation>次へ</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="50"/>
         <source>Next match (Enter)</source>
-        <translation type="unfinished"></translation>
+        <translation>次の一致（Enter）</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="51"/>
         <source>Close</source>
-        <translation type="unfinished">閉じる</translation>
+        <translation>閉じる</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="52"/>
         <source>Close the find bar (Esc)</source>
-        <translation type="unfinished"></translation>
+        <translation>検索バーを閉じる（Esc）</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="126"/>
         <source>Match %1</source>
-        <translation type="unfinished"></translation>
+        <translation>一致 %1</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="132"/>
         <source>No matches</source>
-        <translation type="unfinished"></translation>
+        <translation>一致なし</translation>
     </message>
 </context>
 <context>
@@ -971,7 +971,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/viewer/HexEditor.cpp" line="167"/>
         <source>This file is %1 and cannot be opened in the hex editor, which holds the whole file in memory and is limited to %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>このファイルは %1 あり、ファイル全体をメモリに保持する 16 進エディターでは開けません（上限 %2）。</translation>
     </message>
 </context>
 <context>
@@ -1001,12 +1001,12 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <location filename="../../src/viewer/ImageViewer.cpp" line="53"/>
         <location filename="../../src/viewer/ImageViewer.cpp" line="94"/>
         <source>Pause</source>
-        <translation type="unfinished">一時停止</translation>
+        <translation>一時停止</translation>
     </message>
     <message>
         <location filename="../../src/viewer/ImageViewer.cpp" line="53"/>
         <source>Play</source>
-        <translation type="unfinished">再生</translation>
+        <translation>再生</translation>
     </message>
     <message>
         <location filename="../../src/viewer/ImageViewer.cpp" line="56"/>
@@ -2226,32 +2226,32 @@ Their contents will be overwritten on disk and then deleted. This is IRREVERSIBL
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3273"/>
         <source>Programs (*.exe *.bat *.cmd *.com);;All files (*)</source>
-        <translation type="unfinished"></translation>
+        <translation>プログラム (*.exe *.bat *.cmd *.com);;すべてのファイル (*)</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3275"/>
         <source>All files (*)</source>
-        <translation type="unfinished"></translation>
+        <translation>すべてのファイル (*)</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3278"/>
         <source>Choose an application to open %1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 を開くアプリケーションを選択してください</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3302"/>
         <source>%1 could not be started.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 を起動できませんでした。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3365"/>
         <source>Other Applications</source>
-        <translation type="unfinished"></translation>
+        <translation>その他のアプリケーション</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3374"/>
         <source>Choose Another Application…</source>
-        <translation type="unfinished"></translation>
+        <translation>別のアプリケーションを選択…</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3873"/>
@@ -2368,12 +2368,12 @@ Changes made to it are not saved back to the server.</source>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4760"/>
         <source>Extract To</source>
-        <translation type="unfinished"></translation>
+        <translation>展開先</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4765"/>
         <source>Extract to Folder...</source>
-        <translation type="unfinished"></translation>
+        <translation>フォルダーに展開…</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4774"/>
@@ -2382,37 +2382,37 @@ Changes made to it are not saved back to the server.</source>
         <location filename="../../src/ui/MainWindow.cpp" line="5009"/>
         <location filename="../../src/ui/MainWindow.cpp" line="5013"/>
         <source>Send To</source>
-        <translation type="unfinished"></translation>
+        <translation>送る</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4779"/>
         <source>Shortcut to Desktop</source>
-        <translation type="unfinished"></translation>
+        <translation>デスクトップにショートカットを作成</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4784"/>
         <source>Shortcut to Applications Menu</source>
-        <translation type="unfinished"></translation>
+        <translation>アプリケーションメニューに追加</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4788"/>
         <source>Run at Startup</source>
-        <translation type="unfinished"></translation>
+        <translation>サインイン時に起動</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4905"/>
         <source>Password required</source>
-        <translation type="unfinished">パスワードが必要です</translation>
+        <translation>パスワードが必要です</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4906"/>
         <source>Incorrect password. Try again for “%1”:</source>
-        <translation type="unfinished"></translation>
+        <translation>パスワードが正しくありません。「%1」でもう一度お試しください:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4907"/>
         <source>“%1” is encrypted. Enter its password:</source>
-        <translation type="unfinished"></translation>
+        <translation>「%1」は暗号化されています。パスワードを入力してください:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4916"/>
@@ -2425,7 +2425,7 @@ Changes made to it are not saved back to the server.</source>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4917"/>
         <source>“%1” uses an encryption this build cannot read.</source>
-        <translation type="unfinished"></translation>
+        <translation>「%1」はこのビルドが読み取れない暗号化方式を使用しています。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4924"/>
@@ -2454,42 +2454,46 @@ Extract it too?</source>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4995"/>
         <source>Could not create the shortcut: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>ショートカットを作成できませんでした: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5005"/>
         <source>“%1” will start at sign-in.
 Remove it from:
 %2</source>
-        <translation type="unfinished"></translation>
+        <translation>「%1」はサインイン時に起動します。
+解除するには次の場所から削除してください:
+%2</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5010"/>
         <source>“%1” was added to the applications menu.</source>
-        <translation type="unfinished"></translation>
+        <translation>「%1」をアプリケーションメニューに追加しました。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5013"/>
         <source>Shortcut created on the desktop.</source>
-        <translation type="unfinished"></translation>
+        <translation>デスクトップにショートカットを作成しました。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5030"/>
         <location filename="../../src/ui/MainWindow.cpp" line="5040"/>
         <source>Not executable</source>
-        <translation type="unfinished"></translation>
+        <translation>実行権限がありません</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5031"/>
         <source>“%1” is an AppImage but is not marked executable, so it cannot run.
 
 Add the execute permission now?</source>
-        <translation type="unfinished"></translation>
+        <translation>「%1」は AppImage ですが実行権限がないため起動できません。
+
+今すぐ実行権限を付与しますか?</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5041"/>
         <source>Could not add the execute permission: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>実行権限を付与できませんでした: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5059"/>
@@ -2539,12 +2543,12 @@ Editing a file on this connection needs it mounted through GVfs (the gvfs-backen
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4936"/>
         <source>Stopped after %1 nested archives; the innermost one was left packed.</source>
-        <translation type="unfinished"></translation>
+        <translation>入れ子の書庫 %1 個で停止しました。最も内側のものは展開されていません。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4960"/>
         <source>Extracted %1 nested archives to %2</source>
-        <translation type="unfinished"></translation>
+        <translation>入れ子の書庫 %1 個を %2 に展開しました</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5239"/>
@@ -3362,12 +3366,12 @@ Destination: %4 (%5)</source>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="461"/>
         <source>%1 cannot be moved into itself.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 をそれ自身の中へ移動することはできません。</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="462"/>
         <source>%1 cannot be copied into itself.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 をそれ自身の中へコピーすることはできません。</translation>
     </message>
 </context>
 <context>
@@ -3679,17 +3683,17 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="513"/>
         <source>Download a decoder</source>
-        <translation type="unfinished"></translation>
+        <translation>デコーダーをダウンロード</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="535"/>
         <source>Nothing could be read at that point in the file — it may be incomplete or damaged. Playback restarted from the beginning.</source>
-        <translation type="unfinished"></translation>
+        <translation>ファイルのその位置から何も読み取れませんでした。不完全または破損している可能性があります。先頭から再生し直しました。</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="548"/>
         <source>This file is incomplete — the rest of it was never written — so it cannot play through.</source>
-        <translation type="unfinished"></translation>
+        <translation>このファイルは不完全で（残りは書き込まれていません）、最後まで再生できません。</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="878"/>
@@ -3699,12 +3703,12 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1454"/>
         <source>This file does not say how long it is, so it cannot be seeked.</source>
-        <translation type="unfinished"></translation>
+        <translation>このファイルは長さを記録していないため、シークできません。</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1455"/>
         <source>This file does not record its own length, so the position bar and seeking are unavailable. Playback is unaffected.</source>
-        <translation type="unfinished"></translation>
+        <translation>このファイルは自身の長さを記録していないため、位置バーとシークは使用できません。再生には影響しません。</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1551"/>
@@ -4402,49 +4406,51 @@ Right: %2</source>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="218"/>
         <source>Write the buffer to disk (Ctrl+S)</source>
-        <translation type="unfinished"></translation>
+        <translation>バッファーをディスクに書き込む（Ctrl+S）</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="242"/>
         <source>Re-read the file on disk in this encoding</source>
-        <translation type="unfinished"></translation>
+        <translation>この文字コードでディスク上のファイルを読み直す</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="340"/>
         <source>Binary — edited as hex</source>
-        <translation type="unfinished"></translation>
+        <translation>バイナリ — 16 進で編集</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="364"/>
         <source>Auto: %1</source>
-        <translation type="unfinished">自動：%1</translation>
+        <translation>自動: %1</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="366"/>
         <source>Auto: Binary</source>
-        <translation type="unfinished"></translation>
+        <translation>自動: バイナリ</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="368"/>
         <source> (ambiguous)</source>
-        <translation type="unfinished">（判定不確実）</translation>
+        <translation>（あいまい）</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="378"/>
         <source>Manual: %1</source>
-        <translation type="unfinished">手動：%1</translation>
+        <translation>手動: %1</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="404"/>
         <source>Change Encoding</source>
-        <translation type="unfinished"></translation>
+        <translation>文字コードを変更</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="405"/>
         <source>Changing the encoding re-reads %1 from disk and discards your unsaved changes.
 
 Save first if you want to keep them.</source>
-        <translation type="unfinished"></translation>
+        <translation>文字コードを変更すると %1 がディスクから読み直され、保存していない変更は破棄されます。
+
+残したい場合は先に保存してください。</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="475"/>
@@ -4455,7 +4461,7 @@ Save first if you want to keep them.</source>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="565"/>
         <source>Modified</source>
-        <translation type="unfinished">更新日時</translation>
+        <translation>変更あり</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="585"/>
@@ -4513,7 +4519,7 @@ Save first if you want to keep them.</source>
     <message>
         <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="84"/>
         <source>Abort</source>
-        <translation type="unfinished">中止</translation>
+        <translation>中止</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="275"/>
@@ -4823,42 +4829,42 @@ Save first if you want to keep them.</source>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="636"/>
         <source>Playback was stopped before it began.</source>
-        <translation type="unfinished"></translation>
+        <translation>再生は開始前に停止されました。</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="639"/>
         <source>The file could not be read to the end.</source>
-        <translation type="unfinished"></translation>
+        <translation>ファイルを最後まで読み取れませんでした。</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="642"/>
         <source>The stream could not be decoded — the file may be damaged.</source>
-        <translation type="unfinished"></translation>
+        <translation>ストリームをデコードできませんでした。ファイルが破損している可能性があります。</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="646"/>
         <source>Windows has a decoder for this video but is not licensed to run it — MPEG-2 and MPEG-1 video are affected on this edition of Windows. A player that carries its own decoders can still open the file.</source>
-        <translation type="unfinished"></translation>
+        <translation>Windows はこの動画のデコーダーを備えていますが、実行するライセンスがありません。このエディションの Windows では MPEG-2 および MPEG-1 動画が該当します。独自のデコーダーを備えたプレーヤーであれば開けます。</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="651"/>
         <source>Windows has no decoder for this file&apos;s format.</source>
-        <translation type="unfinished"></translation>
+        <translation>Windows にはこのファイル形式のデコーダーがありません。</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="653"/>
         <source>Windows has no decoder for this .%1 file&apos;s format. A player that carries its own decoders can still open it.</source>
-        <translation type="unfinished"></translation>
+        <translation>Windows には .%1 ファイル形式のデコーダーがありません。独自のデコーダーを備えたプレーヤーであれば開けます。</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="659"/>
         <source>The file is protected and cannot be played here.</source>
-        <translation type="unfinished"></translation>
+        <translation>このファイルは保護されているため、ここでは再生できません。</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="662"/>
         <source>Media Foundation could not play this file.</source>
-        <translation type="unfinished"></translation>
+        <translation>Media Foundation はこのファイルを再生できませんでした。</translation>
     </message>
 </context>
 <context>

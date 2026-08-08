@@ -123,7 +123,7 @@ Extract it too?</source>
     <message>
         <location filename="../../src/widgets/ByteSearch.cpp" line="215"/>
         <source>Enter hex digits, for example 4D 5A.</source>
-        <translation type="unfinished"></translation>
+        <translation>請輸入十六進位數字，例如 4D 5A。</translation>
     </message>
 </context>
 <context>
@@ -854,7 +854,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="1882"/>
         <source>Opening archive…</source>
-        <translation type="unfinished"></translation>
+        <translation>正在開啟壓縮檔…</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="2460"/>
@@ -890,67 +890,67 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="39"/>
         <source>Find…</source>
-        <translation type="unfinished"></translation>
+        <translation>尋找…</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="43"/>
         <source>Hex</source>
-        <translation type="unfinished">十六進位</translation>
+        <translation>十六進位</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="44"/>
         <source>Search a byte sequence instead of text, e.g. 4D 5A</source>
-        <translation type="unfinished"></translation>
+        <translation>搜尋位元組序列而非文字，例如 4D 5A</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="45"/>
         <source>Aa</source>
-        <translation type="unfinished"></translation>
+        <translation>Aa</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="46"/>
         <source>Ignore case (ASCII letters only)</source>
-        <translation type="unfinished"></translation>
+        <translation>忽略大小寫（僅限 ASCII 字母）</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="47"/>
         <source>Previous</source>
-        <translation type="unfinished"></translation>
+        <translation>上一個</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="48"/>
         <source>Previous match (Shift+Enter)</source>
-        <translation type="unfinished"></translation>
+        <translation>上一個符合項（Shift+Enter）</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="49"/>
         <source>Next</source>
-        <translation type="unfinished">下一個</translation>
+        <translation>下一個</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="50"/>
         <source>Next match (Enter)</source>
-        <translation type="unfinished"></translation>
+        <translation>下一個符合項（Enter）</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="51"/>
         <source>Close</source>
-        <translation type="unfinished">關閉</translation>
+        <translation>關閉</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="52"/>
         <source>Close the find bar (Esc)</source>
-        <translation type="unfinished"></translation>
+        <translation>關閉搜尋列（Esc）</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="126"/>
         <source>Match %1</source>
-        <translation type="unfinished"></translation>
+        <translation>第 %1 個符合項</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="132"/>
         <source>No matches</source>
-        <translation type="unfinished"></translation>
+        <translation>沒有符合項</translation>
     </message>
 </context>
 <context>
@@ -971,7 +971,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/viewer/HexEditor.cpp" line="167"/>
         <source>This file is %1 and cannot be opened in the hex editor, which holds the whole file in memory and is limited to %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>此檔案為 %1，無法在十六進位編輯器中開啟；該編輯器會將整個檔案載入記憶體，上限為 %2。</translation>
     </message>
 </context>
 <context>
@@ -1001,12 +1001,12 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <location filename="../../src/viewer/ImageViewer.cpp" line="53"/>
         <location filename="../../src/viewer/ImageViewer.cpp" line="94"/>
         <source>Pause</source>
-        <translation type="unfinished">暫停</translation>
+        <translation>暫停</translation>
     </message>
     <message>
         <location filename="../../src/viewer/ImageViewer.cpp" line="53"/>
         <source>Play</source>
-        <translation type="unfinished">播放</translation>
+        <translation>播放</translation>
     </message>
     <message>
         <location filename="../../src/viewer/ImageViewer.cpp" line="56"/>
@@ -2246,32 +2246,32 @@ Their contents will be overwritten on disk and then deleted. This is IRREVERSIBL
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3273"/>
         <source>Programs (*.exe *.bat *.cmd *.com);;All files (*)</source>
-        <translation type="unfinished"></translation>
+        <translation>程式 (*.exe *.bat *.cmd *.com);;所有檔案 (*)</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3275"/>
         <source>All files (*)</source>
-        <translation type="unfinished"></translation>
+        <translation>所有檔案 (*)</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3278"/>
         <source>Choose an application to open %1</source>
-        <translation type="unfinished"></translation>
+        <translation>選擇要開啟 %1 的應用程式</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3302"/>
         <source>%1 could not be started.</source>
-        <translation type="unfinished"></translation>
+        <translation>無法啟動 %1。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3365"/>
         <source>Other Applications</source>
-        <translation type="unfinished"></translation>
+        <translation>其他應用程式</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3374"/>
         <source>Choose Another Application…</source>
-        <translation type="unfinished"></translation>
+        <translation>選擇其他應用程式…</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3873"/>
@@ -2388,12 +2388,12 @@ Changes made to it are not saved back to the server.</source>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4760"/>
         <source>Extract To</source>
-        <translation type="unfinished"></translation>
+        <translation>解壓縮到</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4765"/>
         <source>Extract to Folder...</source>
-        <translation type="unfinished"></translation>
+        <translation>解壓縮到指定目錄</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4774"/>
@@ -2402,37 +2402,37 @@ Changes made to it are not saved back to the server.</source>
         <location filename="../../src/ui/MainWindow.cpp" line="5009"/>
         <location filename="../../src/ui/MainWindow.cpp" line="5013"/>
         <source>Send To</source>
-        <translation type="unfinished"></translation>
+        <translation>傳送到</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4779"/>
         <source>Shortcut to Desktop</source>
-        <translation type="unfinished"></translation>
+        <translation>傳送捷徑到桌面</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4784"/>
         <source>Shortcut to Applications Menu</source>
-        <translation type="unfinished"></translation>
+        <translation>傳送捷徑到程式選單</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4788"/>
         <source>Run at Startup</source>
-        <translation type="unfinished"></translation>
+        <translation>設為自動啟動應用程式</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4905"/>
         <source>Password required</source>
-        <translation type="unfinished">需要密碼</translation>
+        <translation>需要密碼</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4906"/>
         <source>Incorrect password. Try again for “%1”:</source>
-        <translation type="unfinished"></translation>
+        <translation>密碼錯誤。請重新輸入「%1」的密碼：</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4907"/>
         <source>“%1” is encrypted. Enter its password:</source>
-        <translation type="unfinished"></translation>
+        <translation>「%1」已加密。請輸入密碼：</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4916"/>
@@ -2445,7 +2445,7 @@ Changes made to it are not saved back to the server.</source>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4917"/>
         <source>“%1” uses an encryption this build cannot read.</source>
-        <translation type="unfinished"></translation>
+        <translation>「%1」使用了此版本無法讀取的加密方式。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4924"/>
@@ -2474,42 +2474,46 @@ Extract it too?</source>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4995"/>
         <source>Could not create the shortcut: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>無法建立捷徑：%1</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5005"/>
         <source>“%1” will start at sign-in.
 Remove it from:
 %2</source>
-        <translation type="unfinished"></translation>
+        <translation>「%1」將在登入時自動啟動。
+如需取消，請刪除：
+%2</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5010"/>
         <source>“%1” was added to the applications menu.</source>
-        <translation type="unfinished"></translation>
+        <translation>「%1」已加入程式選單。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5013"/>
         <source>Shortcut created on the desktop.</source>
-        <translation type="unfinished"></translation>
+        <translation>已在桌面建立捷徑。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5030"/>
         <location filename="../../src/ui/MainWindow.cpp" line="5040"/>
         <source>Not executable</source>
-        <translation type="unfinished"></translation>
+        <translation>沒有可執行權限</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5031"/>
         <source>“%1” is an AppImage but is not marked executable, so it cannot run.
 
 Add the execute permission now?</source>
-        <translation type="unfinished"></translation>
+        <translation>「%1」是 AppImage，但沒有可執行權限，因此無法執行。
+
+現在新增可執行權限嗎？</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5041"/>
         <source>Could not add the execute permission: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>無法新增可執行權限：%1</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5059"/>
@@ -2559,12 +2563,12 @@ Editing a file on this connection needs it mounted through GVfs (the gvfs-backen
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4936"/>
         <source>Stopped after %1 nested archives; the innermost one was left packed.</source>
-        <translation type="unfinished"></translation>
+        <translation>已在第 %1 層巢狀壓縮檔處停止，最內層未解壓縮。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4960"/>
         <source>Extracted %1 nested archives to %2</source>
-        <translation type="unfinished"></translation>
+        <translation>已將 %1 層巢狀壓縮檔解壓縮到 %2</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5239"/>
@@ -3390,12 +3394,12 @@ Destination: %4 (%5)</source>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="461"/>
         <source>%1 cannot be moved into itself.</source>
-        <translation type="unfinished"></translation>
+        <translation>無法將 %1 移動到其自身內部。</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="462"/>
         <source>%1 cannot be copied into itself.</source>
-        <translation type="unfinished"></translation>
+        <translation>無法將 %1 複製到其自身內部。</translation>
     </message>
 </context>
 <context>
@@ -3707,17 +3711,17 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="513"/>
         <source>Download a decoder</source>
-        <translation type="unfinished"></translation>
+        <translation>下載解碼器</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="535"/>
         <source>Nothing could be read at that point in the file — it may be incomplete or damaged. Playback restarted from the beginning.</source>
-        <translation type="unfinished"></translation>
+        <translation>無法讀取檔案的該位置，檔案可能不完整或已損毀。已從頭開始播放。</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="548"/>
         <source>This file is incomplete — the rest of it was never written — so it cannot play through.</source>
-        <translation type="unfinished"></translation>
+        <translation>此檔案不完整（其餘部分從未寫入），因此無法完整播放。</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="878"/>
@@ -3727,12 +3731,12 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1454"/>
         <source>This file does not say how long it is, so it cannot be seeked.</source>
-        <translation type="unfinished"></translation>
+        <translation>此檔案未記錄長度，因此無法拖曳定位。</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1455"/>
         <source>This file does not record its own length, so the position bar and seeking are unavailable. Playback is unaffected.</source>
-        <translation type="unfinished"></translation>
+        <translation>此檔案未記錄自身長度，因此無法使用進度列與定位。播放不受影響。</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1551"/>
@@ -4430,49 +4434,51 @@ Right: %2</source>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="218"/>
         <source>Write the buffer to disk (Ctrl+S)</source>
-        <translation type="unfinished"></translation>
+        <translation>將緩衝區寫入磁碟（Ctrl+S）</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="242"/>
         <source>Re-read the file on disk in this encoding</source>
-        <translation type="unfinished"></translation>
+        <translation>以此編碼重新讀取磁碟上的檔案</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="340"/>
         <source>Binary — edited as hex</source>
-        <translation type="unfinished"></translation>
+        <translation>二進位 — 以十六進位編輯</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="364"/>
         <source>Auto: %1</source>
-        <translation type="unfinished">自動：%1</translation>
+        <translation>自動：%1</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="366"/>
         <source>Auto: Binary</source>
-        <translation type="unfinished"></translation>
+        <translation>自動：二進位</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="368"/>
         <source> (ambiguous)</source>
-        <translation type="unfinished">（有歧義）</translation>
+        <translation>（不確定）</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="378"/>
         <source>Manual: %1</source>
-        <translation type="unfinished">手動：%1</translation>
+        <translation>手動：%1</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="404"/>
         <source>Change Encoding</source>
-        <translation type="unfinished"></translation>
+        <translation>變更編碼</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="405"/>
         <source>Changing the encoding re-reads %1 from disk and discards your unsaved changes.
 
 Save first if you want to keep them.</source>
-        <translation type="unfinished"></translation>
+        <translation>變更編碼會從磁碟重新讀取 %1，未儲存的修改將遺失。
+
+如需保留，請先儲存。</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="475"/>
@@ -4483,7 +4489,7 @@ Save first if you want to keep them.</source>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="565"/>
         <source>Modified</source>
-        <translation type="unfinished">修改日期</translation>
+        <translation>已修改</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="585"/>
@@ -4541,7 +4547,7 @@ Save first if you want to keep them.</source>
     <message>
         <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="84"/>
         <source>Abort</source>
-        <translation type="unfinished">中止</translation>
+        <translation>中止</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="275"/>
@@ -4851,42 +4857,42 @@ Save first if you want to keep them.</source>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="636"/>
         <source>Playback was stopped before it began.</source>
-        <translation type="unfinished"></translation>
+        <translation>播放在開始前已停止。</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="639"/>
         <source>The file could not be read to the end.</source>
-        <translation type="unfinished"></translation>
+        <translation>無法將檔案讀取到結尾。</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="642"/>
         <source>The stream could not be decoded — the file may be damaged.</source>
-        <translation type="unfinished"></translation>
+        <translation>無法解碼串流，檔案可能已損毀。</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="646"/>
         <source>Windows has a decoder for this video but is not licensed to run it — MPEG-2 and MPEG-1 video are affected on this edition of Windows. A player that carries its own decoders can still open the file.</source>
-        <translation type="unfinished"></translation>
+        <translation>Windows 具備此影片的解碼器，但沒有執行授權——此版本的 Windows 上 MPEG-2 與 MPEG-1 影片會受影響。自帶解碼器的播放器仍可開啟此檔案。</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="651"/>
         <source>Windows has no decoder for this file&apos;s format.</source>
-        <translation type="unfinished"></translation>
+        <translation>Windows 沒有此檔案格式的解碼器。</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="653"/>
         <source>Windows has no decoder for this .%1 file&apos;s format. A player that carries its own decoders can still open it.</source>
-        <translation type="unfinished"></translation>
+        <translation>Windows 沒有 .%1 檔案格式的解碼器。自帶解碼器的播放器仍可開啟。</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="659"/>
         <source>The file is protected and cannot be played here.</source>
-        <translation type="unfinished"></translation>
+        <translation>此檔案受保護，無法在此播放。</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="662"/>
         <source>Media Foundation could not play this file.</source>
-        <translation type="unfinished"></translation>
+        <translation>Media Foundation 無法播放此檔案。</translation>
     </message>
 </context>
 <context>

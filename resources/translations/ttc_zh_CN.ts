@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
 <TS version="2.1" language="zh_CN">
 <context>
@@ -874,7 +874,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="1882"/>
         <source>Opening archive…</source>
-        <translation type="unfinished"></translation>
+        <translation>正在打开压缩包…</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="2460"/>
@@ -915,7 +915,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="43"/>
         <source>Hex</source>
-        <translation type="unfinished">十六进制</translation>
+        <translation>十六进制</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="44"/>
@@ -925,7 +925,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="45"/>
         <source>Aa</source>
-        <translation type="unfinished"></translation>
+        <translation>Aa</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="46"/>
@@ -945,7 +945,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="49"/>
         <source>Next</source>
-        <translation type="unfinished">下一个</translation>
+        <translation>下一个</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="50"/>
@@ -955,7 +955,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="51"/>
         <source>Close</source>
-        <translation type="unfinished">关闭</translation>
+        <translation>关闭</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="52"/>
@@ -1021,12 +1021,12 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <location filename="../../src/viewer/ImageViewer.cpp" line="53"/>
         <location filename="../../src/viewer/ImageViewer.cpp" line="94"/>
         <source>Pause</source>
-        <translation type="unfinished">暂停</translation>
+        <translation>暂停</translation>
     </message>
     <message>
         <location filename="../../src/viewer/ImageViewer.cpp" line="53"/>
         <source>Play</source>
-        <translation type="unfinished">播放</translation>
+        <translation>播放</translation>
     </message>
     <message>
         <location filename="../../src/viewer/ImageViewer.cpp" line="56"/>
@@ -2293,7 +2293,7 @@ Their contents will be overwritten on disk and then deleted. This is IRREVERSIBL
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3275"/>
         <source>All files (*)</source>
-        <translation type="unfinished"></translation>
+        <translation>所有文件 (*)</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3873"/>
@@ -2444,17 +2444,17 @@ Changes made to it are not saved back to the server.</source>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4905"/>
         <source>Password required</source>
-        <translation type="unfinished">需要密码</translation>
+        <translation>需要密码</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4906"/>
         <source>Incorrect password. Try again for “%1”:</source>
-        <translation type="unfinished"></translation>
+        <translation>密码错误。请重新输入“%1”的密码：</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4907"/>
         <source>“%1” is encrypted. Enter its password:</source>
-        <translation type="unfinished"></translation>
+        <translation>“%1”已加密。请输入密码：</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4916"/>
@@ -2467,7 +2467,7 @@ Changes made to it are not saved back to the server.</source>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4917"/>
         <source>“%1” uses an encryption this build cannot read.</source>
-        <translation type="unfinished"></translation>
+        <translation>“%1”使用了此版本无法读取的加密方式。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4924"/>
@@ -2585,12 +2585,12 @@ Editing a file on this connection needs it mounted through GVfs (the gvfs-backen
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4936"/>
         <source>Stopped after %1 nested archives; the innermost one was left packed.</source>
-        <translation type="unfinished"></translation>
+        <translation>已在第 %1 层嵌套压缩包处停止，最内层未解压。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4960"/>
         <source>Extracted %1 nested archives to %2</source>
-        <translation type="unfinished"></translation>
+        <translation>已将 %1 层嵌套压缩包解压到 %2</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5239"/>
@@ -3416,12 +3416,12 @@ Destination: %4 (%5)</source>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="461"/>
         <source>%1 cannot be moved into itself.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法将 %1 移动到其自身内部。</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="462"/>
         <source>%1 cannot be copied into itself.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法将 %1 复制到其自身内部。</translation>
     </message>
 </context>
 <context>
@@ -4485,24 +4485,26 @@ Right: %2</source>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="364"/>
         <source>Auto: %1</source>
-        <translation type="unfinished">自动：%1</translation>
+        <translation>自动：%1</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="368"/>
         <source> (ambiguous)</source>
-        <translation type="unfinished">（有歧义）</translation>
+        <translation>（不确定）</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="378"/>
         <source>Manual: %1</source>
-        <translation type="unfinished">手动：%1</translation>
+        <translation>手动：%1</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="405"/>
         <source>Changing the encoding re-reads %1 from disk and discards your unsaved changes.
 
 Save first if you want to keep them.</source>
-        <translation type="unfinished"></translation>
+        <translation>更改编码会从磁盘重新读取 %1，未保存的修改将丢失。
+
+如需保留，请先保存。</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="475"/>
@@ -4513,7 +4515,7 @@ Save first if you want to keep them.</source>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="565"/>
         <source>Modified</source>
-        <translation type="unfinished">修改日期</translation>
+        <translation>已修改</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="585"/>

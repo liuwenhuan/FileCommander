@@ -123,7 +123,7 @@ Extract it too?</source>
     <message>
         <location filename="../../src/widgets/ByteSearch.cpp" line="215"/>
         <source>Enter hex digits, for example 4D 5A.</source>
-        <translation type="unfinished"></translation>
+        <translation>16진수를 입력하세요. 예: 4D 5A</translation>
     </message>
 </context>
 <context>
@@ -854,7 +854,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="1882"/>
         <source>Opening archive…</source>
-        <translation type="unfinished"></translation>
+        <translation>압축 파일 여는 중…</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="2460"/>
@@ -890,67 +890,67 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="39"/>
         <source>Find…</source>
-        <translation type="unfinished"></translation>
+        <translation>찾기…</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="43"/>
         <source>Hex</source>
-        <translation type="unfinished">Hex</translation>
+        <translation>16진</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="44"/>
         <source>Search a byte sequence instead of text, e.g. 4D 5A</source>
-        <translation type="unfinished"></translation>
+        <translation>텍스트 대신 바이트 시퀀스를 검색합니다. 예: 4D 5A</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="45"/>
         <source>Aa</source>
-        <translation type="unfinished"></translation>
+        <translation>Aa</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="46"/>
         <source>Ignore case (ASCII letters only)</source>
-        <translation type="unfinished"></translation>
+        <translation>대소문자 무시 (ASCII 문자만)</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="47"/>
         <source>Previous</source>
-        <translation type="unfinished"></translation>
+        <translation>이전</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="48"/>
         <source>Previous match (Shift+Enter)</source>
-        <translation type="unfinished"></translation>
+        <translation>이전 일치 (Shift+Enter)</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="49"/>
         <source>Next</source>
-        <translation type="unfinished">다음</translation>
+        <translation>다음</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="50"/>
         <source>Next match (Enter)</source>
-        <translation type="unfinished"></translation>
+        <translation>다음 일치 (Enter)</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="51"/>
         <source>Close</source>
-        <translation type="unfinished">닫기</translation>
+        <translation>닫기</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="52"/>
         <source>Close the find bar (Esc)</source>
-        <translation type="unfinished"></translation>
+        <translation>찾기 막대 닫기 (Esc)</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="126"/>
         <source>Match %1</source>
-        <translation type="unfinished"></translation>
+        <translation>일치 %1</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="132"/>
         <source>No matches</source>
-        <translation type="unfinished"></translation>
+        <translation>일치 항목 없음</translation>
     </message>
 </context>
 <context>
@@ -971,7 +971,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/viewer/HexEditor.cpp" line="167"/>
         <source>This file is %1 and cannot be opened in the hex editor, which holds the whole file in memory and is limited to %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>이 파일은 %1(이)라서 16진 편집기에서 열 수 없습니다. 편집기는 파일 전체를 메모리에 두며 %2까지만 지원합니다.</translation>
     </message>
 </context>
 <context>
@@ -1001,12 +1001,12 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <location filename="../../src/viewer/ImageViewer.cpp" line="53"/>
         <location filename="../../src/viewer/ImageViewer.cpp" line="94"/>
         <source>Pause</source>
-        <translation type="unfinished">일시 정지</translation>
+        <translation>일시정지</translation>
     </message>
     <message>
         <location filename="../../src/viewer/ImageViewer.cpp" line="53"/>
         <source>Play</source>
-        <translation type="unfinished">재생</translation>
+        <translation>재생</translation>
     </message>
     <message>
         <location filename="../../src/viewer/ImageViewer.cpp" line="56"/>
@@ -2226,32 +2226,32 @@ Their contents will be overwritten on disk and then deleted. This is IRREVERSIBL
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3273"/>
         <source>Programs (*.exe *.bat *.cmd *.com);;All files (*)</source>
-        <translation type="unfinished"></translation>
+        <translation>프로그램 (*.exe *.bat *.cmd *.com);;모든 파일 (*)</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3275"/>
         <source>All files (*)</source>
-        <translation type="unfinished"></translation>
+        <translation>모든 파일 (*)</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3278"/>
         <source>Choose an application to open %1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1을(를) 열 응용 프로그램을 선택하세요</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3302"/>
         <source>%1 could not be started.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1을(를) 시작할 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3365"/>
         <source>Other Applications</source>
-        <translation type="unfinished"></translation>
+        <translation>다른 응용 프로그램</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3374"/>
         <source>Choose Another Application…</source>
-        <translation type="unfinished"></translation>
+        <translation>다른 응용 프로그램 선택…</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3873"/>
@@ -2368,12 +2368,12 @@ Changes made to it are not saved back to the server.</source>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4760"/>
         <source>Extract To</source>
-        <translation type="unfinished"></translation>
+        <translation>압축 풀기 위치</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4765"/>
         <source>Extract to Folder...</source>
-        <translation type="unfinished"></translation>
+        <translation>폴더에 압축 풀기…</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4774"/>
@@ -2382,37 +2382,37 @@ Changes made to it are not saved back to the server.</source>
         <location filename="../../src/ui/MainWindow.cpp" line="5009"/>
         <location filename="../../src/ui/MainWindow.cpp" line="5013"/>
         <source>Send To</source>
-        <translation type="unfinished"></translation>
+        <translation>보내기</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4779"/>
         <source>Shortcut to Desktop</source>
-        <translation type="unfinished"></translation>
+        <translation>바탕 화면에 바로 가기 만들기</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4784"/>
         <source>Shortcut to Applications Menu</source>
-        <translation type="unfinished"></translation>
+        <translation>응용 프로그램 메뉴에 바로 가기 만들기</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4788"/>
         <source>Run at Startup</source>
-        <translation type="unfinished"></translation>
+        <translation>로그인 시 실행</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4905"/>
         <source>Password required</source>
-        <translation type="unfinished">비밀번호 필요</translation>
+        <translation>암호 필요</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4906"/>
         <source>Incorrect password. Try again for “%1”:</source>
-        <translation type="unfinished"></translation>
+        <translation>암호가 올바르지 않습니다. “%1”에 대해 다시 시도하세요:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4907"/>
         <source>“%1” is encrypted. Enter its password:</source>
-        <translation type="unfinished"></translation>
+        <translation>“%1”은(는) 암호화되어 있습니다. 암호를 입력하세요:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4916"/>
@@ -2425,7 +2425,7 @@ Changes made to it are not saved back to the server.</source>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4917"/>
         <source>“%1” uses an encryption this build cannot read.</source>
-        <translation type="unfinished"></translation>
+        <translation>“%1”은(는) 이 빌드가 읽을 수 없는 암호화를 사용합니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4924"/>
@@ -2454,42 +2454,46 @@ Extract it too?</source>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4995"/>
         <source>Could not create the shortcut: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>바로 가기를 만들 수 없습니다: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5005"/>
         <source>“%1” will start at sign-in.
 Remove it from:
 %2</source>
-        <translation type="unfinished"></translation>
+        <translation>“%1”은(는) 로그인 시 시작됩니다.
+해제하려면 다음에서 제거하세요:
+%2</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5010"/>
         <source>“%1” was added to the applications menu.</source>
-        <translation type="unfinished"></translation>
+        <translation>“%1”을(를) 응용 프로그램 메뉴에 추가했습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5013"/>
         <source>Shortcut created on the desktop.</source>
-        <translation type="unfinished"></translation>
+        <translation>바탕 화면에 바로 가기를 만들었습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5030"/>
         <location filename="../../src/ui/MainWindow.cpp" line="5040"/>
         <source>Not executable</source>
-        <translation type="unfinished"></translation>
+        <translation>실행 권한 없음</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5031"/>
         <source>“%1” is an AppImage but is not marked executable, so it cannot run.
 
 Add the execute permission now?</source>
-        <translation type="unfinished"></translation>
+        <translation>“%1”은(는) AppImage이지만 실행 권한이 없어 실행할 수 없습니다.
+
+지금 실행 권한을 추가할까요?</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5041"/>
         <source>Could not add the execute permission: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>실행 권한을 추가할 수 없습니다: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5059"/>
@@ -2539,12 +2543,12 @@ Editing a file on this connection needs it mounted through GVfs (the gvfs-backen
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4936"/>
         <source>Stopped after %1 nested archives; the innermost one was left packed.</source>
-        <translation type="unfinished"></translation>
+        <translation>중첩된 압축 파일 %1개에서 중단했습니다. 가장 안쪽 파일은 풀지 않았습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4960"/>
         <source>Extracted %1 nested archives to %2</source>
-        <translation type="unfinished"></translation>
+        <translation>중첩된 압축 파일 %1개를 %2에 풀었습니다</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5239"/>
@@ -3362,12 +3366,12 @@ Destination: %4 (%5)</source>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="461"/>
         <source>%1 cannot be moved into itself.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1을(를) 자기 자신 안으로 이동할 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="462"/>
         <source>%1 cannot be copied into itself.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1을(를) 자기 자신 안으로 복사할 수 없습니다.</translation>
     </message>
 </context>
 <context>
@@ -3679,17 +3683,17 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="513"/>
         <source>Download a decoder</source>
-        <translation type="unfinished"></translation>
+        <translation>디코더 다운로드</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="535"/>
         <source>Nothing could be read at that point in the file — it may be incomplete or damaged. Playback restarted from the beginning.</source>
-        <translation type="unfinished"></translation>
+        <translation>파일의 해당 위치에서 아무것도 읽을 수 없습니다. 파일이 불완전하거나 손상되었을 수 있습니다. 처음부터 다시 재생합니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="548"/>
         <source>This file is incomplete — the rest of it was never written — so it cannot play through.</source>
-        <translation type="unfinished"></translation>
+        <translation>이 파일은 불완전합니다. 나머지 부분이 기록되지 않아 끝까지 재생할 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="878"/>
@@ -3699,12 +3703,12 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1454"/>
         <source>This file does not say how long it is, so it cannot be seeked.</source>
-        <translation type="unfinished"></translation>
+        <translation>이 파일은 길이 정보를 담고 있지 않아 탐색할 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1455"/>
         <source>This file does not record its own length, so the position bar and seeking are unavailable. Playback is unaffected.</source>
-        <translation type="unfinished"></translation>
+        <translation>이 파일은 자체 길이를 기록하지 않아 위치 표시줄과 탐색을 사용할 수 없습니다. 재생에는 영향이 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1551"/>
@@ -4402,49 +4406,51 @@ Right: %2</source>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="218"/>
         <source>Write the buffer to disk (Ctrl+S)</source>
-        <translation type="unfinished"></translation>
+        <translation>버퍼를 디스크에 기록 (Ctrl+S)</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="242"/>
         <source>Re-read the file on disk in this encoding</source>
-        <translation type="unfinished"></translation>
+        <translation>이 인코딩으로 디스크의 파일을 다시 읽기</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="340"/>
         <source>Binary — edited as hex</source>
-        <translation type="unfinished"></translation>
+        <translation>바이너리 — 16진으로 편집</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="364"/>
         <source>Auto: %1</source>
-        <translation type="unfinished">자동: %1</translation>
+        <translation>자동: %1</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="366"/>
         <source>Auto: Binary</source>
-        <translation type="unfinished"></translation>
+        <translation>자동: 바이너리</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="368"/>
         <source> (ambiguous)</source>
-        <translation type="unfinished">(판별 불확실)</translation>
+        <translation> (모호함)</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="378"/>
         <source>Manual: %1</source>
-        <translation type="unfinished">수동: %1</translation>
+        <translation>수동: %1</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="404"/>
         <source>Change Encoding</source>
-        <translation type="unfinished"></translation>
+        <translation>인코딩 변경</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="405"/>
         <source>Changing the encoding re-reads %1 from disk and discards your unsaved changes.
 
 Save first if you want to keep them.</source>
-        <translation type="unfinished"></translation>
+        <translation>인코딩을 변경하면 %1을(를) 디스크에서 다시 읽고 저장하지 않은 변경 사항은 사라집니다.
+
+유지하려면 먼저 저장하세요.</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="475"/>
@@ -4455,7 +4461,7 @@ Save first if you want to keep them.</source>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="565"/>
         <source>Modified</source>
-        <translation type="unfinished">수정한 날짜</translation>
+        <translation>수정됨</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="585"/>
@@ -4513,7 +4519,7 @@ Save first if you want to keep them.</source>
     <message>
         <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="84"/>
         <source>Abort</source>
-        <translation type="unfinished">중단</translation>
+        <translation>중단</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="275"/>
@@ -4823,42 +4829,42 @@ Save first if you want to keep them.</source>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="636"/>
         <source>Playback was stopped before it began.</source>
-        <translation type="unfinished"></translation>
+        <translation>재생이 시작되기 전에 중지되었습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="639"/>
         <source>The file could not be read to the end.</source>
-        <translation type="unfinished"></translation>
+        <translation>파일을 끝까지 읽을 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="642"/>
         <source>The stream could not be decoded — the file may be damaged.</source>
-        <translation type="unfinished"></translation>
+        <translation>스트림을 디코딩할 수 없습니다. 파일이 손상되었을 수 있습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="646"/>
         <source>Windows has a decoder for this video but is not licensed to run it — MPEG-2 and MPEG-1 video are affected on this edition of Windows. A player that carries its own decoders can still open the file.</source>
-        <translation type="unfinished"></translation>
+        <translation>Windows에 이 동영상용 디코더가 있지만 실행 라이선스가 없습니다. 이 버전의 Windows에서는 MPEG-2 및 MPEG-1 동영상이 해당합니다. 자체 디코더를 포함한 플레이어로는 파일을 열 수 있습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="651"/>
         <source>Windows has no decoder for this file&apos;s format.</source>
-        <translation type="unfinished"></translation>
+        <translation>Windows에 이 파일 형식의 디코더가 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="653"/>
         <source>Windows has no decoder for this .%1 file&apos;s format. A player that carries its own decoders can still open it.</source>
-        <translation type="unfinished"></translation>
+        <translation>Windows에 .%1 파일 형식의 디코더가 없습니다. 자체 디코더를 포함한 플레이어로는 열 수 있습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="659"/>
         <source>The file is protected and cannot be played here.</source>
-        <translation type="unfinished"></translation>
+        <translation>이 파일은 보호되어 있어 여기서 재생할 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="662"/>
         <source>Media Foundation could not play this file.</source>
-        <translation type="unfinished"></translation>
+        <translation>Media Foundation이 이 파일을 재생할 수 없습니다.</translation>
     </message>
 </context>
 <context>

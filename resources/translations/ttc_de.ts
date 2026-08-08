@@ -123,7 +123,7 @@ Dieses auch entpacken?</translation>
     <message>
         <location filename="../../src/widgets/ByteSearch.cpp" line="215"/>
         <source>Enter hex digits, for example 4D 5A.</source>
-        <translation type="unfinished"></translation>
+        <translation>Hex-Ziffern eingeben, zum Beispiel 4D 5A.</translation>
     </message>
 </context>
 <context>
@@ -858,7 +858,7 @@ Das Löschen als Administrator umgeht den Papierkorb und kann nicht rückgängig
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="1882"/>
         <source>Opening archive…</source>
-        <translation type="unfinished"></translation>
+        <translation>Archiv wird geöffnet…</translation>
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="2460"/>
@@ -894,67 +894,67 @@ Das Löschen als Administrator umgeht den Papierkorb und kann nicht rückgängig
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="39"/>
         <source>Find…</source>
-        <translation type="unfinished"></translation>
+        <translation>Suchen…</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="43"/>
         <source>Hex</source>
-        <translation type="unfinished">Hex</translation>
+        <translation>Hex</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="44"/>
         <source>Search a byte sequence instead of text, e.g. 4D 5A</source>
-        <translation type="unfinished"></translation>
+        <translation>Eine Bytefolge statt Text suchen, z. B. 4D 5A</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="45"/>
         <source>Aa</source>
-        <translation type="unfinished"></translation>
+        <translation>Aa</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="46"/>
         <source>Ignore case (ASCII letters only)</source>
-        <translation type="unfinished"></translation>
+        <translation>Groß-/Kleinschreibung ignorieren (nur ASCII-Buchstaben)</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="47"/>
         <source>Previous</source>
-        <translation type="unfinished"></translation>
+        <translation>Zurück</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="48"/>
         <source>Previous match (Shift+Enter)</source>
-        <translation type="unfinished"></translation>
+        <translation>Vorheriger Treffer (Umschalt+Eingabe)</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="49"/>
         <source>Next</source>
-        <translation type="unfinished">Weiter</translation>
+        <translation>Weiter</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="50"/>
         <source>Next match (Enter)</source>
-        <translation type="unfinished"></translation>
+        <translation>Nächster Treffer (Eingabe)</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="51"/>
         <source>Close</source>
-        <translation type="unfinished">Schließen</translation>
+        <translation>Schließen</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="52"/>
         <source>Close the find bar (Esc)</source>
-        <translation type="unfinished"></translation>
+        <translation>Suchleiste schließen (Esc)</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="126"/>
         <source>Match %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Treffer %1</translation>
     </message>
     <message>
         <location filename="../../src/widgets/FindBar.cpp" line="132"/>
         <source>No matches</source>
-        <translation type="unfinished"></translation>
+        <translation>Keine Treffer</translation>
     </message>
 </context>
 <context>
@@ -975,7 +975,7 @@ Das Löschen als Administrator umgeht den Papierkorb und kann nicht rückgängig
     <message>
         <location filename="../../src/viewer/HexEditor.cpp" line="167"/>
         <source>This file is %1 and cannot be opened in the hex editor, which holds the whole file in memory and is limited to %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>Diese Datei ist %1 groß und kann nicht im Hex-Editor geöffnet werden; er hält die gesamte Datei im Speicher und ist auf %2 begrenzt.</translation>
     </message>
 </context>
 <context>
@@ -1005,12 +1005,12 @@ Das Löschen als Administrator umgeht den Papierkorb und kann nicht rückgängig
         <location filename="../../src/viewer/ImageViewer.cpp" line="53"/>
         <location filename="../../src/viewer/ImageViewer.cpp" line="94"/>
         <source>Pause</source>
-        <translation type="unfinished">Pause</translation>
+        <translation>Pause</translation>
     </message>
     <message>
         <location filename="../../src/viewer/ImageViewer.cpp" line="53"/>
         <source>Play</source>
-        <translation type="unfinished">Wiedergabe</translation>
+        <translation>Wiedergabe</translation>
     </message>
     <message>
         <location filename="../../src/viewer/ImageViewer.cpp" line="56"/>
@@ -2230,32 +2230,32 @@ Ihr Inhalt wird auf der Festplatte überschrieben und anschließend gelöscht. D
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3273"/>
         <source>Programs (*.exe *.bat *.cmd *.com);;All files (*)</source>
-        <translation type="unfinished"></translation>
+        <translation>Programme (*.exe *.bat *.cmd *.com);;Alle Dateien (*)</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3275"/>
         <source>All files (*)</source>
-        <translation type="unfinished"></translation>
+        <translation>Alle Dateien (*)</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3278"/>
         <source>Choose an application to open %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Anwendung zum Öffnen von %1 auswählen</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3302"/>
         <source>%1 could not be started.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 konnte nicht gestartet werden.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3365"/>
         <source>Other Applications</source>
-        <translation type="unfinished"></translation>
+        <translation>Weitere Anwendungen</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3374"/>
         <source>Choose Another Application…</source>
-        <translation type="unfinished"></translation>
+        <translation>Andere Anwendung auswählen…</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3873"/>
@@ -2372,12 +2372,12 @@ Changes made to it are not saved back to the server.</source>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4760"/>
         <source>Extract To</source>
-        <translation type="unfinished"></translation>
+        <translation>Entpacken nach</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4765"/>
         <source>Extract to Folder...</source>
-        <translation type="unfinished"></translation>
+        <translation>In Ordner entpacken …</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4774"/>
@@ -2386,37 +2386,37 @@ Changes made to it are not saved back to the server.</source>
         <location filename="../../src/ui/MainWindow.cpp" line="5009"/>
         <location filename="../../src/ui/MainWindow.cpp" line="5013"/>
         <source>Send To</source>
-        <translation type="unfinished"></translation>
+        <translation>Senden an</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4779"/>
         <source>Shortcut to Desktop</source>
-        <translation type="unfinished"></translation>
+        <translation>Verknüpfung auf dem Desktop</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4784"/>
         <source>Shortcut to Applications Menu</source>
-        <translation type="unfinished"></translation>
+        <translation>Verknüpfung im Anwendungsmenü</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4788"/>
         <source>Run at Startup</source>
-        <translation type="unfinished"></translation>
+        <translation>Beim Anmelden starten</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4905"/>
         <source>Password required</source>
-        <translation type="unfinished">Passwort erforderlich</translation>
+        <translation>Passwort erforderlich</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4906"/>
         <source>Incorrect password. Try again for “%1”:</source>
-        <translation type="unfinished"></translation>
+        <translation>Falsches Passwort. Erneut versuchen für „%1“:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4907"/>
         <source>“%1” is encrypted. Enter its password:</source>
-        <translation type="unfinished"></translation>
+        <translation>„%1“ ist verschlüsselt. Passwort eingeben:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4916"/>
@@ -2429,7 +2429,7 @@ Changes made to it are not saved back to the server.</source>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4917"/>
         <source>“%1” uses an encryption this build cannot read.</source>
-        <translation type="unfinished"></translation>
+        <translation>„%1“ verwendet eine Verschlüsselung, die diese Version nicht lesen kann.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4924"/>
@@ -2458,42 +2458,46 @@ Dieses auch entpacken?</translation>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4995"/>
         <source>Could not create the shortcut: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Verknüpfung konnte nicht erstellt werden: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5005"/>
         <source>“%1” will start at sign-in.
 Remove it from:
 %2</source>
-        <translation type="unfinished"></translation>
+        <translation>„%1“ wird beim Anmelden gestartet.
+Zum Entfernen:
+%2</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5010"/>
         <source>“%1” was added to the applications menu.</source>
-        <translation type="unfinished"></translation>
+        <translation>„%1“ wurde zum Anwendungsmenü hinzugefügt.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5013"/>
         <source>Shortcut created on the desktop.</source>
-        <translation type="unfinished"></translation>
+        <translation>Verknüpfung auf dem Desktop erstellt.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5030"/>
         <location filename="../../src/ui/MainWindow.cpp" line="5040"/>
         <source>Not executable</source>
-        <translation type="unfinished"></translation>
+        <translation>Nicht ausführbar</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5031"/>
         <source>“%1” is an AppImage but is not marked executable, so it cannot run.
 
 Add the execute permission now?</source>
-        <translation type="unfinished"></translation>
+        <translation>„%1“ ist ein AppImage, ist aber nicht als ausführbar markiert und kann daher nicht starten.
+
+Ausführungsrecht jetzt hinzufügen?</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5041"/>
         <source>Could not add the execute permission: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Ausführungsrecht konnte nicht hinzugefügt werden: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5059"/>
@@ -2543,12 +2547,12 @@ Zum Bearbeiten einer Datei über diese Verbindung muss sie über GVfs (Paket gvf
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4936"/>
         <source>Stopped after %1 nested archives; the innermost one was left packed.</source>
-        <translation type="unfinished"></translation>
+        <translation>Nach %1 verschachtelten Archiven gestoppt; das innerste blieb gepackt.</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4960"/>
         <source>Extracted %1 nested archives to %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 verschachtelte Archive nach %2 entpackt</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="5239"/>
@@ -3366,12 +3370,12 @@ Ziel: %4 (%5)</translation>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="461"/>
         <source>%1 cannot be moved into itself.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 kann nicht in sich selbst verschoben werden.</translation>
     </message>
     <message>
         <location filename="../../src/core/operations/FileOperations.cpp" line="462"/>
         <source>%1 cannot be copied into itself.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 kann nicht in sich selbst kopiert werden.</translation>
     </message>
 </context>
 <context>
@@ -3683,17 +3687,17 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="513"/>
         <source>Download a decoder</source>
-        <translation type="unfinished"></translation>
+        <translation>Decoder herunterladen</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="535"/>
         <source>Nothing could be read at that point in the file — it may be incomplete or damaged. Playback restarted from the beginning.</source>
-        <translation type="unfinished"></translation>
+        <translation>An dieser Stelle der Datei konnte nichts gelesen werden – sie ist möglicherweise unvollständig oder beschädigt. Die Wiedergabe wurde von vorn gestartet.</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="548"/>
         <source>This file is incomplete — the rest of it was never written — so it cannot play through.</source>
-        <translation type="unfinished"></translation>
+        <translation>Diese Datei ist unvollständig – der Rest wurde nie geschrieben – und kann daher nicht vollständig wiedergegeben werden.</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="878"/>
@@ -3703,12 +3707,12 @@ pip install --user msoffcrypto-tool</translation>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1454"/>
         <source>This file does not say how long it is, so it cannot be seeked.</source>
-        <translation type="unfinished"></translation>
+        <translation>Diese Datei gibt ihre Länge nicht an, daher ist kein Spulen möglich.</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1455"/>
         <source>This file does not record its own length, so the position bar and seeking are unavailable. Playback is unaffected.</source>
-        <translation type="unfinished"></translation>
+        <translation>Diese Datei speichert ihre eigene Länge nicht, daher stehen Positionsleiste und Spulen nicht zur Verfügung. Die Wiedergabe ist davon nicht betroffen.</translation>
     </message>
     <message>
         <location filename="../../src/ui/QuickView.cpp" line="1551"/>
@@ -4409,49 +4413,51 @@ Rechts: %2</translation>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="218"/>
         <source>Write the buffer to disk (Ctrl+S)</source>
-        <translation type="unfinished"></translation>
+        <translation>Puffer auf die Festplatte schreiben (Strg+S)</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="242"/>
         <source>Re-read the file on disk in this encoding</source>
-        <translation type="unfinished"></translation>
+        <translation>Datei auf der Festplatte mit dieser Kodierung neu einlesen</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="340"/>
         <source>Binary — edited as hex</source>
-        <translation type="unfinished"></translation>
+        <translation>Binär – als Hex bearbeitet</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="364"/>
         <source>Auto: %1</source>
-        <translation type="unfinished">Automatisch: %1</translation>
+        <translation>Automatisch: %1</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="366"/>
         <source>Auto: Binary</source>
-        <translation type="unfinished"></translation>
+        <translation>Automatisch: Binär</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="368"/>
         <source> (ambiguous)</source>
-        <translation type="unfinished"> (mehrdeutig)</translation>
+        <translation> (mehrdeutig)</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="378"/>
         <source>Manual: %1</source>
-        <translation type="unfinished">Manuell: %1</translation>
+        <translation>Manuell: %1</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="404"/>
         <source>Change Encoding</source>
-        <translation type="unfinished"></translation>
+        <translation>Kodierung ändern</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="405"/>
         <source>Changing the encoding re-reads %1 from disk and discards your unsaved changes.
 
 Save first if you want to keep them.</source>
-        <translation type="unfinished"></translation>
+        <translation>Beim Ändern der Kodierung wird %1 neu von der Festplatte gelesen und Ihre ungespeicherten Änderungen gehen verloren.
+
+Speichern Sie zuerst, wenn Sie sie behalten möchten.</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="475"/>
@@ -4462,7 +4468,7 @@ Save first if you want to keep them.</source>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="565"/>
         <source>Modified</source>
-        <translation type="unfinished">Geändert</translation>
+        <translation>Geändert</translation>
     </message>
     <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="585"/>
@@ -4520,7 +4526,7 @@ Save first if you want to keep them.</source>
     <message>
         <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="84"/>
         <source>Abort</source>
-        <translation type="unfinished">Abbrechen</translation>
+        <translation>Abbrechen</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="275"/>
@@ -4830,42 +4836,42 @@ Save first if you want to keep them.</source>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="636"/>
         <source>Playback was stopped before it began.</source>
-        <translation type="unfinished"></translation>
+        <translation>Die Wiedergabe wurde vor dem Start abgebrochen.</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="639"/>
         <source>The file could not be read to the end.</source>
-        <translation type="unfinished"></translation>
+        <translation>Die Datei konnte nicht bis zum Ende gelesen werden.</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="642"/>
         <source>The stream could not be decoded — the file may be damaged.</source>
-        <translation type="unfinished"></translation>
+        <translation>Der Datenstrom konnte nicht dekodiert werden – die Datei ist möglicherweise beschädigt.</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="646"/>
         <source>Windows has a decoder for this video but is not licensed to run it — MPEG-2 and MPEG-1 video are affected on this edition of Windows. A player that carries its own decoders can still open the file.</source>
-        <translation type="unfinished"></translation>
+        <translation>Windows besitzt einen Decoder für dieses Video, ist aber nicht zu dessen Ausführung lizenziert – betroffen sind MPEG-2- und MPEG-1-Videos in dieser Windows-Edition. Ein Player mit eigenen Decodern kann die Datei dennoch öffnen.</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="651"/>
         <source>Windows has no decoder for this file&apos;s format.</source>
-        <translation type="unfinished"></translation>
+        <translation>Windows hat keinen Decoder für das Format dieser Datei.</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="653"/>
         <source>Windows has no decoder for this .%1 file&apos;s format. A player that carries its own decoders can still open it.</source>
-        <translation type="unfinished"></translation>
+        <translation>Windows hat keinen Decoder für das Format dieser .%1-Datei. Ein Player mit eigenen Decodern kann sie dennoch öffnen.</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="659"/>
         <source>The file is protected and cannot be played here.</source>
-        <translation type="unfinished"></translation>
+        <translation>Die Datei ist geschützt und kann hier nicht wiedergegeben werden.</translation>
     </message>
     <message>
         <location filename="../../src/ui/media/WindowsMediaEngine.cpp" line="662"/>
         <source>Media Foundation could not play this file.</source>
-        <translation type="unfinished"></translation>
+        <translation>Media Foundation konnte diese Datei nicht wiedergeben.</translation>
     </message>
 </context>
 <context>
