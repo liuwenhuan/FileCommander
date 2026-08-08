@@ -3821,6 +3821,14 @@ void MainWindow::openWithAssociatedApp(FilePanel *panel, const QString &path) {
     // Same test the preview pane uses: only network backends name a connection.
     const bool network = prov && !prov->displayName().isEmpty();
     if (!network) {
+        // An AppImage straight from a browser download has no execute bit, and
+        // opening it then does nothing at all -- or, worse, hands it to a text
+        // editor. Offer to fix that here, where the user is already trying to
+        // run it, rather than leaving them to work out why nothing happened.
+        // Declining falls through to the normal open, which is what a user who
+        // said "no" asked for.
+        if (fc::ShellShortcuts::needsExecutableBit(path) && !offerExecutableBit(path))
+            return;
         // Local tab: `path` already is a filesystem path -- unchanged behaviour.
         if (!QDesktopServices::openUrl(QUrl::fromLocalFile(path)))
             ttc::warning(this, tr("Open"),
@@ -4742,15 +4750,43 @@ void MainWindow::showFileContextMenu(FilePanel *panel, const QPoint &viewPos) {
     // local file. isLocalFilesystem() is the capability query written for this;
     // a displayName() test would let archive tabs through, since ArchiveProvider
     // does not override it.
-    if (!isDirectory && ArchiveHandler::isSupportedArchive(panel->currentEntryPath())) {
-        FileProvider *provider = panel->model() ? panel->model()->provider() : nullptr;
-        if (provider && provider->isLocalFilesystem()) {
-            QMenu *extractMenu = menu.addMenu(commandText(QStringLiteral("extractTo"), tr("Extract To")));
-            Typography::applyChromeFont(extractMenu, m_settings);
-            addCommandAction(extractMenu, QStringLiteral("extractHere"), tr("Extract Here"),
-                             [this] { extractArchiveHere(); });
-            addCommandAction(extractMenu, QStringLiteral("extractToDir"),
-                             tr("Extract to Folder..."), [this] { extractArchiveToDir(); });
+    // A panel path is only a path on this machine when the backend says so, and
+    // both of the submenus below hand it to something that opens it directly.
+    FileProvider *provider = panel->model() ? panel->model()->provider() : nullptr;
+    const bool localBackend = provider && provider->isLocalFilesystem();
+
+    if (!isDirectory && localBackend &&
+        ArchiveHandler::isSupportedArchive(panel->currentEntryPath())) {
+        QMenu *extractMenu = menu.addMenu(commandText(QStringLiteral("extractTo"), tr("Extract To")));
+        Typography::applyChromeFont(extractMenu, m_settings);
+        addCommandAction(extractMenu, QStringLiteral("extractHere"), tr("Extract Here"),
+                         [this] { extractArchiveHere(); });
+        addCommandAction(extractMenu, QStringLiteral("extractToDir"),
+                         tr("Extract to Folder..."), [this] { extractArchiveToDir(); });
+    }
+
+    // Only for something this platform will actually launch: an .exe on
+    // Windows, an ELF binary or AppImage on Linux. The destinations differ per
+    // platform too, so each entry is offered only where supports() says it is
+    // real -- Startup is Windows-only, the applications menu Linux-only.
+    if (!isDirectory && localBackend &&
+        fc::ShellShortcuts::isLaunchable(panel->currentEntryPath())) {
+        QMenu *sendMenu = menu.addMenu(commandText(QStringLiteral("sendTo"), tr("Send To")));
+        Typography::applyChromeFont(sendMenu, m_settings);
+        using Destination = fc::ShellShortcuts::Destination;
+        if (fc::ShellShortcuts::supports(Destination::Desktop)) {
+            addCommandAction(sendMenu, QStringLiteral("shortcutToDesktop"),
+                             tr("Shortcut to Desktop"),
+                             [this] { sendShortcutTo(Destination::Desktop); });
+        }
+        if (fc::ShellShortcuts::supports(Destination::Applications)) {
+            addCommandAction(sendMenu, QStringLiteral("shortcutToApplications"),
+                             tr("Shortcut to Applications Menu"),
+                             [this] { sendShortcutTo(Destination::Applications); });
+        }
+        if (fc::ShellShortcuts::supports(Destination::Startup)) {
+            addCommandAction(sendMenu, QStringLiteral("shortcutToStartup"), tr("Run at Startup"),
+                             [this] { sendShortcutTo(Destination::Startup); });
         }
     }
     menu.addSeparator();
@@ -4941,6 +4977,72 @@ bool MainWindow::currentEntryIsExtractableArchive() const {
         return false;
     FileProvider *provider = m_activePanel->model() ? m_activePanel->model()->provider() : nullptr;
     return provider && provider->isLocalFilesystem();
+}
+
+void MainWindow::sendShortcutTo(fc::ShellShortcuts::Destination where) {
+    if (!m_activePanel)
+        return;
+    const QString path = m_activePanel->currentEntryPath();
+    if (!fc::ShellShortcuts::isLaunchable(path))
+        return;
+    FileProvider *provider = m_activePanel->model() ? m_activePanel->model()->provider() : nullptr;
+    if (!provider || !provider->isLocalFilesystem())
+        return; // repeated here because this is reachable without the menu
+
+    const PlatformResult res = fc::ShellShortcuts::create(path, where);
+    if (!res.ok) {
+        ttc::warning(this, tr("Send To"),
+                     tr("Could not create the shortcut: %1").arg(res.message));
+        return;
+    }
+    // Names the folder for the two destinations the user cannot simply look at:
+    // a startup entry they will want to undo later, and a menu entry that does
+    // not appear anywhere they were already looking.
+    const QString name = QFileInfo(path).completeBaseName();
+    switch (where) {
+    case fc::ShellShortcuts::Destination::Startup:
+        ttc::information(this, tr("Send To"),
+                         tr("“%1” will start at sign-in.\nRemove it from:\n%2")
+                             .arg(name, fc::ShellShortcuts::locationFor(where)));
+        break;
+    case fc::ShellShortcuts::Destination::Applications:
+        ttc::information(this, tr("Send To"),
+                         tr("“%1” was added to the applications menu.").arg(name));
+        break;
+    case fc::ShellShortcuts::Destination::Desktop:
+        ttc::information(this, tr("Send To"), tr("Shortcut created on the desktop."));
+        break;
+    }
+}
+
+// Offers to add the execute bit to an AppImage that lacks it, and reports
+// whether the file is runnable afterwards.
+//
+// This is the state a browser download leaves an AppImage in, and it is the
+// single most common reason "nothing happens when I run it" -- the format's
+// worst first impression. Asked rather than done silently: adding an execute
+// bit is a change to a file the user did not ask to modify.
+bool MainWindow::offerExecutableBit(const QString &path) {
+    if (!fc::ShellShortcuts::needsExecutableBit(path))
+        return true; // already runnable, or not the case this handles
+
+    const auto answer = ttc::question(
+        this, tr("Not executable"),
+        tr("“%1” is an AppImage but is not marked executable, so it cannot run.\n\n"
+           "Add the execute permission now?")
+            .arg(QFileInfo(path).fileName()),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+    if (answer != QMessageBox::Yes)
+        return false;
+
+    const PlatformResult res = fc::ShellShortcuts::makeExecutable(path);
+    if (!res.ok) {
+        ttc::warning(this, tr("Not executable"),
+                     tr("Could not add the execute permission: %1").arg(res.message));
+        return false;
+    }
+    m_activePanel->refresh(); // the permissions column is now wrong
+    return true;
 }
 
 void MainWindow::extractArchiveHere() {

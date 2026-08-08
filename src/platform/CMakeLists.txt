@@ -21,6 +21,7 @@ set(PLATFORM_SOURCES
     OpenWithHandlers.cpp
     FileHoles.h
     FileHoles.cpp
+    ShellShortcuts.h
 )
 if(WIN32)
     list(APPEND PLATFORM_SOURCES
@@ -28,6 +29,7 @@ if(WIN32)
         windows/WindowsTrashService.cpp
         windows/WindowsCredentialStore.cpp
         windows/WindowsPrivilegeBroker.cpp
+        windows/WindowsShellShortcuts.cpp
     )
 else()
     list(APPEND PLATFORM_SOURCES
@@ -35,6 +37,7 @@ else()
         linux/LinuxTrashService.cpp
         linux/LibsecretCredentialStore.cpp
         linux/LinuxPrivilegeBroker.cpp
+        linux/LinuxShellShortcuts.cpp
     )
 endif()
 

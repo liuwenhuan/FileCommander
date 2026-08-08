@@ -25,6 +25,7 @@ class QTemporaryDir;
 
 #include "FileListView.h"
 #include "CommandRegistry.h"
+#include "ShellShortcuts.h" // Destination, used by value in a slot signature
 #include "ScratchDirs.h"
 #include "StartupTrace.h"
 #include "Settings.h"
@@ -466,6 +467,11 @@ private:
     // a supported format AND on a local backend, since ArchiveHandler reads
     // through QFile. Gates both the menu item and the slots behind it.
     bool currentEntryIsExtractableArchive() const;
+    void sendShortcutTo(fc::ShellShortcuts::Destination where);
+    // Offers to make a non-executable AppImage executable. Returns whether the
+    // file can be run afterwards -- false if the user declined or it failed, so
+    // a caller can stop instead of launching something that cannot start.
+    bool offerExecutableBit(const QString &path);
     // Asks for a REAL path on this machine for `path` as `panel` lists it, and
     // calls `then(realPath)` on the GUI thread -- with an empty string when
     // there isn't one, which is a normal answer every caller must handle.
