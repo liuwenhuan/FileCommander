@@ -47,6 +47,11 @@ public:
         bool ok = false;
         QString finalDir;          // directory the contents actually landed in
         QString nestedArchivePath; // set iff the result is a single inner archive
+        // Why it failed, when it did. NeedPassword/WrongPassword are what let a
+        // recursive caller prompt and retry the same archive instead of giving
+        // up: the encryption is detected while listing, before anything is
+        // written, so a prompt costs nothing.
+        Status status = Status::Ok;
     };
 
     // Extracts the whole archive into `baseDestDir`, applying Bandizip's layout
@@ -58,6 +63,11 @@ public:
     // `nestedArchivePath` so the caller may offer recursive extraction.
     static SmartResult smartExtract(const QString &archivePath, const QString &baseDestDir,
                                     QString *errorMessage = nullptr);
+    // Passphrase-aware variant. An empty passphrase is the normal first call:
+    // encryption is reported through SmartResult::status while listing, before
+    // any file is written, so the caller can prompt and call again.
+    static SmartResult smartExtract(const QString &archivePath, const QString &baseDestDir,
+                                    const QString &passphrase, QString *errorMessage);
 
     // format: one of "zip", "tar", "tar.gz", "tar.bz2", "tar.xz".
     // Each entry in sourcePaths (file or directory) is added at the

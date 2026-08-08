@@ -93,6 +93,82 @@ TEST(SmartExtractTest, ASingleTopLevelFolderIsNotWrappedAgain) {
     EXPECT_FALSE(QFileInfo::exists(QDir(dest).filePath(QStringLiteral("single/payload"))));
 }
 
+// A wrapper holding exactly one archive reports where the inner one landed.
+// That report is what drives the recursion: MainWindow feeds it back in until
+// nothing is left packed, so it has to be a path that actually exists.
+TEST(SmartExtractTest, AResultThatIsOneArchiveReportsTheInnerPath) {
+    QTemporaryDir work;
+    ASSERT_TRUE(work.isValid());
+    const QString src = QDir(work.path()).filePath(QStringLiteral("src"));
+    ASSERT_FALSE(writeFile(src, QStringLiteral("deep.txt"), "buried").isEmpty());
+
+    const QString inner = makeZip(src, QStringLiteral("inner"),
+                                  {QDir(src).filePath(QStringLiteral("deep.txt"))});
+    if (inner.isEmpty())
+        GTEST_SKIP() << "this build cannot write zip archives";
+    const QString outer = makeZip(work.path(), QStringLiteral("outer"), {inner});
+    ASSERT_FALSE(outer.isEmpty());
+
+    const QString dest = QDir(work.path()).filePath(QStringLiteral("dest"));
+    ASSERT_TRUE(QDir().mkpath(dest));
+
+    QString err;
+    const ArchiveHandler::SmartResult res = ArchiveHandler::smartExtract(outer, dest, &err);
+    ASSERT_TRUE(res.ok) << qPrintable(err);
+    ASSERT_FALSE(res.nestedArchivePath.isEmpty()) << "the inner archive went unreported";
+    EXPECT_TRUE(QFileInfo::exists(res.nestedArchivePath))
+        << "reported a path that is not there: " << qPrintable(res.nestedArchivePath);
+
+    // And feeding it back in -- what the recursion does -- reaches the payload.
+    const ArchiveHandler::SmartResult second = ArchiveHandler::smartExtract(
+        res.nestedArchivePath, QFileInfo(res.nestedArchivePath).absolutePath(), &err);
+    ASSERT_TRUE(second.ok) << qPrintable(err);
+    EXPECT_TRUE(QFileInfo::exists(QDir(second.finalDir).filePath(QStringLiteral("deep.txt"))));
+}
+
+// Encryption is reported while listing, BEFORE anything is written. That
+// ordering is what makes an automatic recursion safe to prompt from: the
+// caller can ask for a password and retry the same archive without having to
+// undo a half-finished extraction.
+TEST(SmartExtractTest, AnEncryptedArchiveAsksForAPasswordAndWritesNothingYet) {
+    QTemporaryDir work;
+    ASSERT_TRUE(work.isValid());
+    const QString src = QDir(work.path()).filePath(QStringLiteral("src"));
+    ASSERT_FALSE(writeFile(src, QStringLiteral("secret.txt"), "classified").isEmpty());
+
+    const QString zip = QDir(work.path()).filePath(QStringLiteral("locked.zip"));
+    QString err;
+    if (!ArchiveHandler::create(zip, {QDir(src).filePath(QStringLiteral("secret.txt"))},
+                                QStringLiteral("zip"), QStringLiteral("hunter2"), false, 5, &err))
+        GTEST_SKIP() << "this build cannot write encrypted zip archives: " << qPrintable(err);
+
+    const QString dest = QDir(work.path()).filePath(QStringLiteral("dest"));
+    ASSERT_TRUE(QDir().mkpath(dest));
+
+    const ArchiveHandler::SmartResult noPass = ArchiveHandler::smartExtract(zip, dest, &err);
+    EXPECT_FALSE(noPass.ok);
+    EXPECT_EQ(noPass.status, ArchiveHandler::Status::NeedPassword);
+    EXPECT_TRUE(QDir(dest).entryList(QDir::NoDotAndDotDot | QDir::AllEntries).isEmpty())
+        << "files were written before the password was known";
+
+    // The distinction the recursion depends on: a bad password must be
+    // reported as such, not as a generic failure, or the caller stops instead
+    // of asking again. buildTree alone does NOT catch it for AES-256 ZIP --
+    // its verification read succeeds on the wrong password -- so smartExtract
+    // recovers the answer after the extraction fails.
+    err.clear();
+    const ArchiveHandler::SmartResult wrong =
+        ArchiveHandler::smartExtract(zip, dest, QStringLiteral("wrong"), &err);
+    EXPECT_FALSE(wrong.ok);
+    EXPECT_EQ(wrong.status, ArchiveHandler::Status::WrongPassword)
+        << "a wrong password came back as a plain failure, so a caller would give up";
+
+    const ArchiveHandler::SmartResult right =
+        ArchiveHandler::smartExtract(zip, dest, QStringLiteral("hunter2"), &err);
+    ASSERT_TRUE(right.ok) << qPrintable(err);
+    EXPECT_TRUE(QFileInfo::exists(QDir(right.finalDir).filePath(QStringLiteral("secret.txt"))));
+}
+
 // Extracting twice must not overwrite the first result. This is the property
 // that makes "Extract Here" safe to click without reading the destination
 // first: the worst case is a spare folder, never a lost file.

@@ -643,10 +643,23 @@ QString uniqueDir(const QString &dir) {
 ArchiveHandler::SmartResult ArchiveHandler::smartExtract(const QString &archivePath,
                                                           const QString &baseDestDir,
                                                           QString *errorMessage) {
+    return smartExtract(archivePath, baseDestDir, QString(), errorMessage);
+}
+
+ArchiveHandler::SmartResult ArchiveHandler::smartExtract(const QString &archivePath,
+                                                          const QString &baseDestDir,
+                                                          const QString &passphrase,
+                                                          QString *errorMessage) {
     SmartResult result;
 
     QString err;
-    const QSharedPointer<ArchiveNode> root = buildTree(archivePath, &err);
+    // The listing pass is also the encryption probe: buildTree reports
+    // NeedPassword before anything is written, and with a passphrase it
+    // decrypts a little of the first encrypted file so a wrong one surfaces
+    // here rather than half-way through writing files.
+    Status status = Status::Ok;
+    const QSharedPointer<ArchiveNode> root = buildTree(archivePath, passphrase, &status, &err);
+    result.status = status;
     if (!root) {
         if (errorMessage)
             *errorMessage = err;
@@ -665,8 +678,34 @@ ArchiveHandler::SmartResult ArchiveHandler::smartExtract(const QString &archiveP
     if (layout.wrapInArchiveNamedFolder)
         finalDir = uniqueDir(QDir(baseDestDir).filePath(base));
 
-    if (!extract(archivePath, {}, finalDir, errorMessage))
+    if (!extract(archivePath, {}, finalDir, passphrase, errorMessage)) {
+        // A wrong passphrase does not always surface while listing. buildTree
+        // verifies one by decrypting a little of the first encrypted file, and
+        // for AES-256 ZIP written here that check passes even when the password
+        // is wrong -- measured; only the extraction then fails, with no error
+        // text at all. Recovering the distinction here matters because the
+        // caller retries on WrongPassword and gives up on a plain failure.
+        //
+        // Asked with an EMPTY passphrase on purpose: that is the query "is this
+        // archive encrypted at all", which is exactly what separates a bad
+        // password from a full disk.
+        if (!passphrase.isEmpty()) {
+            Status probe = Status::Ok;
+            buildTree(archivePath, QString(), &probe, nullptr);
+            if (probe == Status::NeedPassword)
+                result.status = Status::WrongPassword;
+        }
+        // Drop the folder this attempt created, if it is still empty, so a retry
+        // reuses the name instead of landing in "name (2)". Only ever a folder
+        // this call made: when the layout extracts in place, finalDir IS the
+        // destination the user chose and must not be touched.
+        if (finalDir != baseDestDir) {
+            QDir made(finalDir);
+            if (made.exists() && made.isEmpty())
+                made.removeRecursively();
+        }
         return result;
+    }
 
     result.ok = true;
     result.finalDir = finalDir;

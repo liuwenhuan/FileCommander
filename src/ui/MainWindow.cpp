@@ -4744,8 +4744,14 @@ void MainWindow::showFileContextMenu(FilePanel *panel, const QPoint &viewPos) {
     // does not override it.
     if (!isDirectory && ArchiveHandler::isSupportedArchive(panel->currentEntryPath())) {
         FileProvider *provider = panel->model() ? panel->model()->provider() : nullptr;
-        if (provider && provider->isLocalFilesystem())
-            add(QStringLiteral("extractHere"), tr("Extract Here"), [this] { extractArchiveHere(); });
+        if (provider && provider->isLocalFilesystem()) {
+            QMenu *extractMenu = menu.addMenu(commandText(QStringLiteral("extractTo"), tr("Extract To")));
+            Typography::applyChromeFont(extractMenu, m_settings);
+            addCommandAction(extractMenu, QStringLiteral("extractHere"), tr("Extract Here"),
+                             [this] { extractArchiveHere(); });
+            addCommandAction(extractMenu, QStringLiteral("extractToDir"),
+                             tr("Extract to Folder..."), [this] { extractArchiveToDir(); });
+        }
     }
     menu.addSeparator();
     if (isDirectory)
@@ -4826,37 +4832,97 @@ void MainWindow::viewCurrent() {
     });
 }
 
+// A .tar.gz is two containers deep, and a few packaging habits add another; well
+// past that, a chain this long is a malformed or hostile file rather than
+// something a user meant to unpack, and the loop must not follow it forever.
+static constexpr int kMaxNestedExtractions = 16;
+
 void MainWindow::smartExtractArchive(const QString &archivePath, const QString &destDir) {
     QString source = archivePath;
     QString base = destDir;
     QString finalDir;
+    // Carried between levels: nested archives are very often encrypted with the
+    // same password as their wrapper, so try it before asking again. If it does
+    // not fit, the attempt costs one listing pass and the prompt follows.
+    QString passphrase;
+    bool promptedForThisArchive = false;
+    int depth = 0;
+
     for (;;) {
         QString err;
-        const ArchiveHandler::SmartResult res = ArchiveHandler::smartExtract(source, base, &err);
-        if (!res.ok) {
-            ttc::warning(this, tr("Extract"), tr("Extraction failed: %1").arg(err));
-            return;
+        const ArchiveHandler::SmartResult res =
+            ArchiveHandler::smartExtract(source, base, passphrase, &err);
+
+        // Encrypted: ask, then retry the SAME archive. Nothing has been written
+        // yet -- the encryption was found while listing -- so this is a retry,
+        // not a partial extraction being resumed.
+        if (res.status == ArchiveHandler::Status::NeedPassword ||
+            res.status == ArchiveHandler::Status::WrongPassword) {
+            const QString name = QFileInfo(source).fileName();
+            // "Wrong password" only once the user has actually typed one for
+            // this archive. A carried-over password that does not fit is not
+            // the user's mistake, so it asks plainly instead of accusing.
+            const bool wrong =
+                promptedForThisArchive && res.status == ArchiveHandler::Status::WrongPassword;
+            bool ok = false;
+            const QString entered = ttc::getText(
+                this, tr("Password required"),
+                wrong ? tr("Incorrect password. Try again for “%1”:").arg(name)
+                      : tr("“%1” is encrypted. Enter its password:").arg(name),
+                QLineEdit::Password, QString(), &ok);
+            if (!ok || entered.isEmpty())
+                break; // Cancelled: keep whatever earlier levels produced.
+            passphrase = entered;
+            promptedForThisArchive = true;
+            continue;
         }
+        if (res.status == ArchiveHandler::Status::EncryptedUnsupported) {
+            ttc::warning(this, tr("Extract"),
+                         tr("“%1” uses an encryption this build cannot read.")
+                             .arg(QFileInfo(source).fileName()));
+            break;
+        }
+        if (!res.ok) {
+            // A failure on an inner level still leaves the outer levels
+            // extracted, so report it without discarding what worked.
+            ttc::warning(this, tr("Extract"), tr("Extraction failed: %1").arg(err));
+            if (depth == 0)
+                return;
+            break;
+        }
+
         finalDir = res.finalDir;
         if (res.nestedArchivePath.isEmpty())
             break;
-        const auto answer = ttc::question(
-            this, tr("Nested archive"),
-            tr("The result contains a single archive:\n%1\n\nExtract it too?")
-                .arg(QFileInfo(res.nestedArchivePath).fileName()),
-            QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
-        if (answer != QMessageBox::Yes)
+
+        if (++depth >= kMaxNestedExtractions) {
+            ttc::warning(this, tr("Extract"),
+                         tr("Stopped after %1 nested archives; the innermost one was left "
+                            "packed.")
+                             .arg(depth));
             break;
+        }
+
         source = res.nestedArchivePath;
         base = QFileInfo(res.nestedArchivePath).absolutePath();
+        promptedForThisArchive = false; // a new archive, so a new prompt is not a retry
     }
+
+    // Cancelled at the very first password prompt: nothing was written, so
+    // saying where it landed would be a lie.
+    if (finalDir.isEmpty())
+        return;
 
     // Refresh whichever panel is showing the destination so the new files appear.
     for (FilePanel *panel : {m_leftPanel, m_rightPanel}) {
         if (panel && panel->currentPath() == destDir)
             panel->refresh();
     }
-    ttc::information(this, tr("Extract"), tr("Extracted archive to %1").arg(finalDir));
+    // The count matters when it is not 1: recursion is automatic now, so this is
+    // the only place the user learns how far it went.
+    ttc::information(this, tr("Extract"),
+                     depth > 0 ? tr("Extracted %1 nested archives to %2").arg(depth + 1).arg(finalDir)
+                               : tr("Extracted archive to %1").arg(finalDir));
 }
 
 // True when the active panel's current row is an archive this machine can read.
