@@ -462,6 +462,10 @@ private:
     // backend that listed it rather than to QFileInfo (which knows nothing about
     // a server's or an archive's paths).
     bool currentEntryIsDir() const;
+    // Whether the current entry is an archive this machine can actually open --
+    // a supported format AND on a local backend, since ArchiveHandler reads
+    // through QFile. Gates both the menu item and the slots behind it.
+    bool currentEntryIsExtractableArchive() const;
     // Asks for a REAL path on this machine for `path` as `panel` lists it, and
     // calls `then(realPath)` on the GUI thread -- with an empty string when
     // there isn't one, which is a normal answer every caller must handle.

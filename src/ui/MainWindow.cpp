@@ -4735,6 +4735,18 @@ void MainWindow::showFileContextMenu(FilePanel *panel, const QPoint &viewPos) {
     add(QStringLiteral("rename"), tr("Rename"), [this] { renameCurrent(); });
     add(QStringLiteral("delete"), tr("Delete"), [this] { deleteSelected(false); });
     add(QStringLiteral("compress"), tr("Compress"), [this] { compressSelected(); });
+    // Only for something this machine can actually open. ArchiveHandler reads
+    // with QFile, so on a network tab -- or inside another archive -- the
+    // panel's path names something the local filesystem knows nothing about,
+    // and extracting would either fail or, worse, quietly work on a same-named
+    // local file. isLocalFilesystem() is the capability query written for this;
+    // a displayName() test would let archive tabs through, since ArchiveProvider
+    // does not override it.
+    if (!isDirectory && ArchiveHandler::isSupportedArchive(panel->currentEntryPath())) {
+        FileProvider *provider = panel->model() ? panel->model()->provider() : nullptr;
+        if (provider && provider->isLocalFilesystem())
+            add(QStringLiteral("extractHere"), tr("Extract Here"), [this] { extractArchiveHere(); });
+    }
     menu.addSeparator();
     if (isDirectory)
         add(QStringLiteral("calcSize"), tr("Calculate Folder Size"));
@@ -4847,21 +4859,34 @@ void MainWindow::smartExtractArchive(const QString &archivePath, const QString &
     ttc::information(this, tr("Extract"), tr("Extracted archive to %1").arg(finalDir));
 }
 
-void MainWindow::extractArchiveHere() {
+// True when the active panel's current row is an archive this machine can read.
+//
+// The locality test is the point. ArchiveHandler opens with QFile, so a path
+// from a network tab, or from inside another archive, is not something it can
+// open -- and a same-named local file would be operated on instead of failing
+// cleanly. isLocalFilesystem() answers that directly; inferring it from
+// displayName() being empty would wave archive tabs through, because
+// ArchiveProvider does not override displayName().
+bool MainWindow::currentEntryIsExtractableArchive() const {
     if (!m_activePanel)
-        return;
+        return false;
     const QString path = m_activePanel->currentEntryPath();
     if (path.isEmpty() || !ArchiveHandler::isSupportedArchive(path))
+        return false;
+    FileProvider *provider = m_activePanel->model() ? m_activePanel->model()->provider() : nullptr;
+    return provider && provider->isLocalFilesystem();
+}
+
+void MainWindow::extractArchiveHere() {
+    if (!currentEntryIsExtractableArchive())
         return;
-    smartExtractArchive(path, m_activePanel->currentPath());
+    smartExtractArchive(m_activePanel->currentEntryPath(), m_activePanel->currentPath());
 }
 
 void MainWindow::extractArchiveToDir() {
-    if (!m_activePanel)
+    if (!currentEntryIsExtractableArchive())
         return;
     const QString path = m_activePanel->currentEntryPath();
-    if (path.isEmpty() || !ArchiveHandler::isSupportedArchive(path))
-        return;
     const QString dir = QFileDialog::getExistingDirectory(
         this, tr("Extract to"), otherPanel(m_activePanel)->currentPath());
     if (!dir.isEmpty())
