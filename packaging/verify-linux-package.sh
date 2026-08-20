@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Every check below reads the English output of file/readelf. On a localized
+# builder (zh_CN here) readelf translates even the "Machine:" field label, so
+# the ELF architecture check found nothing to compare and failed every build.
+export LC_ALL=C
+
 if [[ $# -ne 3 ]]; then
     echo "usage: verify-linux-package.sh <root> <manifest-json> <elf-arch>" >&2
     exit 2
