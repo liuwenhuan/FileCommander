@@ -71,7 +71,7 @@
 #include "ArchiveHandler.h"
 #include "ArchiveModel.h"
 #include "PackageInfo.h"
-#include "ImageViewer.h"
+#include "ImageFormats.h"
 #include "IconCache.h"
 #include "FileInfo.h"
 #if FILECOMMANDER_MEDIA_BACKEND_MPV
@@ -88,6 +88,7 @@
 #include "MotionPolicy.h"
 #include "SeekSlider.h"
 #include "SlideSceneBuilder.h"
+#include "TextEditor.h"
 #include "TextEncodingDetector.h"
 #include "config/Settings.h"
 #include "media/Id3Reader.h"
@@ -330,7 +331,7 @@ bool QuickView::isStaticPageEligible(QWidget *page) const {
         return false;
 
     const bool approved =
-        page == m_imagePage || page == m_textPage || page == m_markdown ||
+        page == m_imagePage || page == m_textPage || page == m_markdownPage ||
         page == m_pdfPage || page == m_officeTabs || page == m_archivePage ||
         page == m_slidesPage || page == m_info;
     if (!approved)
@@ -354,7 +355,7 @@ QWidget *QuickView::staticContentTarget(QWidget *page) const {
         return m_imageScroll ? m_imageScroll->viewport() : nullptr;
     if (page == m_textPage)
         return m_text ? m_text->viewport() : nullptr;
-    if (page == m_markdown)
+    if (page == m_markdownPage)
         return m_markdown ? m_markdown->viewport() : nullptr;
     if (page == m_pdfPage)
         return m_pdfView ? m_pdfView->viewport() : nullptr;
@@ -687,7 +688,7 @@ void QuickView::focusPreview() {
     QWidget *target = nullptr;
     if (page == m_textPage)
         target = m_text;
-    else if (page == m_markdown)
+    else if (page == m_markdownPage)
         target = m_markdown;
     else if (page == m_imagePage)
         target = m_imageScroll;
@@ -925,12 +926,10 @@ QWidget *QuickView::buildTextPage() {
     // native combo popup ignores them and paints from the palette Text role,
     // which turns non-selected rows invisible in the light theme.
     m_textEncoding->setView(new QListView(m_textEncoding));
+    m_textEncoding->setObjectName(QStringLiteral("textEncodingCombo"));
     for (const TextEncoding &e : kTextEncodings)
         m_textEncoding->addItem(QString::fromLatin1(e.label));
     m_textToolbar->addWidget(m_textEncoding);
-    m_textEncodingStatus = new QLabel(m_textToolbar);
-    m_textEncodingStatus->setObjectName(QStringLiteral("textEncodingStatus"));
-    m_textToolbar->addWidget(m_textEncodingStatus);
     connect(m_textEncoding, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             [this](int) { renderText(); });
 
@@ -955,7 +954,21 @@ QWidget *QuickView::buildTextPage() {
     m_textToolbar->addWidget(m_textFind);
     connect(m_textFind, &QLineEdit::returnPressed, this, &QuickView::findNext);
 
+    // Far right: hand the file to the F4 editor. The host decides how (the
+    // embedded pane re-runs F4 on the panel's entry, so a network file still
+    // gets its writable mount); the pane only names the file it is showing.
+    auto *rightSpacer = new QWidget(m_textToolbar);
+    rightSpacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    m_textToolbar->addWidget(rightSpacer);
+    m_textEditAction = m_textToolbar->addAction(tr("Edit"));
+    m_textEditAction->setToolTip(tr("Open this file in the editor"));
+    connect(m_textEditAction, &QAction::triggered, this, [this]() {
+        if (!m_textPath.isEmpty())
+            emit editRequested(m_textPath);
+    });
+
     m_text = new QPlainTextEdit(m_textPage);
+    m_text->setObjectName(QStringLiteral("quickViewTextView"));
     m_text->setReadOnly(true);
     m_text->setLineWrapMode(QPlainTextEdit::NoWrap);
     m_text->setFont(QFont(QStringLiteral("monospace")));
@@ -969,6 +982,62 @@ QWidget *QuickView::buildTextPage() {
     layout->addWidget(m_textToolbar);
     layout->addWidget(m_text, 1);
     return m_textPage;
+}
+
+void QuickView::setTextEditingEnabled(bool enabled) {
+    if (m_textEditAction)
+        m_textEditAction->setVisible(enabled);
+    if (m_markdownEditAction)
+        m_markdownEditAction->setVisible(enabled);
+}
+
+bool QuickView::isEditing() const {
+    return m_editor && m_stack->currentWidget() == m_editor;
+}
+
+bool QuickView::beginEditing(const QString &path) {
+    if (path.isEmpty())
+        return false;
+    if (!m_editor) {
+        // TextEditor is written as a window; setEmbedded() strips its chrome so
+        // it can live as a page here. WA_DeleteOnClose has to go with it, or a
+        // close would delete a page this widget owns.
+        m_editor = new TextEditor(this);
+        m_editor->setAttribute(Qt::WA_DeleteOnClose, false);
+        m_editor->setEmbedded(this);
+        m_stack->addWidget(m_editor);
+        connect(m_editor, &TextEditor::previewRequested, this, [this](const QString &file) {
+            m_textRestorePath = file;
+            m_textRestoreLine = m_editor->codeEditor()->verticalScrollBar()->value();
+            showFile(file);
+        });
+    }
+    // A probe already in flight would land on the text page and reveal it,
+    // pulling the user straight back out of the editor.
+    ++m_textLoadGeneration;
+    m_textLoadPending = false;
+    if (!m_editor->loadFile(path))
+        return false;
+
+    // Both views are NoWrap, so a vertical scrollbar value is the number of the
+    // first visible line and carries directly from one to the other. Deferred
+    // because the editor's scrollbar range is only known after it lays out.
+    const int line = (!m_textHex && path == m_textPath) ? m_text->verticalScrollBar()->value() : -1;
+    m_stack->setCurrentWidget(m_editor);
+    if (line > 0) {
+        QPointer<TextEditor> editor = m_editor;
+        QTimer::singleShot(0, this, [editor, line]() {
+            if (editor)
+                editor->codeEditor()->verticalScrollBar()->setValue(line);
+        });
+    }
+    m_editor->setFocus();
+    emit editingChanged(true);
+    return true;
+}
+
+bool QuickView::confirmDiscardEdits() {
+    return !isEditing() || m_editor->promptSaveIfModified();
 }
 
 QString QuickView::toHexDump(const QByteArray &data) {
@@ -1003,19 +1072,17 @@ void QuickView::renderText() {
         detected = m_textAutoResult;
         if (!m_textAutoResultValid)
             detected = {QStringLiteral("Unknown"), QByteArrayLiteral("UTF-8"), 0, false, true};
+        // The detection result rides in the combo's own Auto row rather than in
+        // a label beside it: one control then says both what is selected and
+        // what that selection resolved to.
         if (detected.binary) {
-            m_textEncodingStatus->setText(tr("Auto: Binary (Hex)"));
+            m_textEncoding->setItemText(0, tr("Auto (Binary)"));
             displayHex = true;
         } else {
-            QString status = tr("Auto: %1").arg(detected.label);
-            if (detected.ambiguous)
-                status += tr(" (ambiguous)");
-            m_textEncodingStatus->setText(status);
+            m_textEncoding->setItemText(0, detected.ambiguous
+                                               ? tr("Auto (%1, ambiguous)").arg(detected.label)
+                                               : tr("Auto (%1)").arg(detected.label));
         }
-    } else {
-        const QString label = QString::fromLatin1(kTextEncodings[encodingIndex].label);
-        m_textEncodingStatus->setText(displayHex ? tr("Manual: %1 (Hex)").arg(label)
-                                              : tr("Manual: %1").arg(label));
     }
 
     QString content;
@@ -1036,6 +1103,16 @@ void QuickView::renderText() {
 }
 
 void QuickView::findNext() {
+    if (m_stack->currentWidget() == m_markdownPage && m_markdownFind) {
+        const QString needle = m_markdownFind->text();
+        if (needle.isEmpty())
+            return;
+        if (!m_markdown->find(needle)) {
+            m_markdown->moveCursor(QTextCursor::Start); // wrap around
+            m_markdown->find(needle);
+        }
+        return;
+    }
     if (m_stack->currentWidget() != m_textPage || !m_textFind)
         return;
     const QString needle = m_textFind->text();
@@ -1053,7 +1130,7 @@ void QuickView::loadImageSiblings() {
         dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot, QDir::Name);
     m_imageSiblings.clear();
     for (const QFileInfo &fi : entries)
-        if (ImageViewer::isImage(fi.absoluteFilePath()))
+        if (fc::isImage(fi.absoluteFilePath()))
             m_imageSiblings.append(fi.absoluteFilePath());
     m_imageSiblingIndex = m_imageSiblings.indexOf(QFileInfo(m_imagePath).absoluteFilePath());
 }
@@ -1835,13 +1912,55 @@ void QuickView::stopPlayback() {
 }
 
 QWidget *QuickView::buildMarkdownPage() {
+    m_markdownPage = new QWidget(this);
+
+    // The same three controls as the text page, in the same places: what the
+    // bytes were decoded as, find, and the editor on the far right. No Wrap or
+    // Hex here -- rendered Markdown wraps by definition, and a hex dump is what
+    // the plain-text page is for.
+    m_markdownToolbar = new QToolBar(m_markdownPage);
+    m_markdownToolbar->setObjectName(QStringLiteral("markdownToolbar"));
+
+    m_markdownEncoding = new QComboBox(m_markdownToolbar);
+    // A plain QListView popup honours our QSS `::item` colours; see buildTextPage.
+    m_markdownEncoding->setView(new QListView(m_markdownEncoding));
+    m_markdownEncoding->setObjectName(QStringLiteral("markdownEncodingCombo"));
+    for (const TextEncoding &e : kTextEncodings)
+        m_markdownEncoding->addItem(QString::fromLatin1(e.label));
+    m_markdownToolbar->addWidget(m_markdownEncoding);
+    connect(m_markdownEncoding, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            [this](int) { renderMarkdown(); });
+
+    m_markdownToolbar->addSeparator();
+    m_markdownFind = new QLineEdit(m_markdownToolbar);
+    m_markdownFind->setObjectName(QStringLiteral("markdownFindField"));
+    m_markdownFind->setPlaceholderText(tr("Find… (Enter / F3)"));
+    m_markdownFind->setClearButtonEnabled(true);
+    m_markdownToolbar->addWidget(m_markdownFind);
+    connect(m_markdownFind, &QLineEdit::returnPressed, this, &QuickView::findNext);
+
+    auto *rightSpacer = new QWidget(m_markdownToolbar);
+    rightSpacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    m_markdownToolbar->addWidget(rightSpacer);
+    m_markdownEditAction = m_markdownToolbar->addAction(tr("Edit"));
+    m_markdownEditAction->setToolTip(tr("Open this file in the editor"));
+    connect(m_markdownEditAction, &QAction::triggered, this, [this]() {
+        if (!m_markdownPath.isEmpty())
+            emit editRequested(m_markdownPath);
+    });
+
     // A read-only rich-text browser. Qt renders Markdown through its bundled
     // MD4C parser (QTextDocument::setMarkdown), so no external md4c is linked.
     // Open links in the user's browser rather than trying to navigate in-panel.
-    m_markdown = new QTextBrowser(this);
+    m_markdown = new QTextBrowser(m_markdownPage);
     m_markdown->setOpenExternalLinks(true);
     m_markdown->document()->setDefaultStyleSheet(kMarkdownDefaultCss);
-    return m_markdown;
+
+    auto *layout = new QVBoxLayout(m_markdownPage);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(m_markdownToolbar);
+    layout->addWidget(m_markdown, 1);
+    return m_markdownPage;
 }
 
 QString QuickView::softenTableLineBreaks(const QString &markdown) {
@@ -1872,6 +1991,70 @@ void QuickView::loadMarkdownAsync(const QString &path) {
     ++m_markdownGen;
     const int gen = m_markdownGen;
 
+    // Read and sniff off-thread, as the text page does: it is a synchronous read
+    // plus an encoding detection on every cursor move, and on a slow medium that
+    // is a visible hitch.
+    struct MarkdownProbe {
+        QByteArray bytes;
+        bool complete = false;
+        bool opened = false;
+    };
+    auto *watcher = new QFutureWatcher<MarkdownProbe>(this);
+    connect(watcher, &QFutureWatcher<MarkdownProbe>::finished, this,
+            [this, watcher, gen, path]() {
+                const MarkdownProbe probe = watcher->result();
+                watcher->deleteLater();
+                if (gen != m_markdownGen)
+                    return; // a newer selection superseded this read
+                if (!probe.opened)
+                    return; // unreadable file; leave the current preview in place
+                m_markdownRaw = probe.bytes;
+                m_markdownAutoResult = TextEncodingDetector::detect(
+                    probe.bytes, probe.complete
+                                     ? TextEncodingDetector::InputEnd::Complete
+                                     : TextEncodingDetector::InputEnd::MayBeTruncated);
+                m_markdownAutoResultValid = true;
+                m_markdownPath = path;
+                m_markdownEncoding->blockSignals(true);
+                m_markdownEncoding->setCurrentIndex(0); // every new file starts in Auto
+                m_markdownEncoding->blockSignals(false);
+                m_markdownToolbar->show(); // an office document may have hidden it
+                renderMarkdown();
+            });
+    watcher->setFuture(QtConcurrent::run([path]() {
+        MarkdownProbe probe;
+        QFile f(path);
+        if (!f.open(QIODevice::ReadOnly))
+            return probe;
+        probe.opened = true;
+        // Cap the read so a pathologically large .md can't stall the render.
+        probe.bytes = f.read(kMarkdownMaxBytes);
+        probe.complete = f.atEnd();
+        return probe;
+    }));
+}
+
+void QuickView::renderMarkdown() {
+    if (!m_markdownAutoResultValid)
+        return;
+    const int encodingIndex = m_markdownEncoding->currentIndex();
+    QString text;
+    if (encodingIndex == TextEncodingDetector::autoEncodingIndex) {
+        // The detection result rides in the combo's own Auto row rather than in
+        // a label beside it, exactly as on the text page.
+        m_markdownEncoding->setItemText(
+            0, m_markdownAutoResult.ambiguous
+                   ? tr("Auto (%1, ambiguous)").arg(m_markdownAutoResult.label)
+                   : tr("Auto (%1)").arg(m_markdownAutoResult.label));
+        text = TextEncodingDetector::decode(m_markdownRaw, m_markdownAutoResult);
+    } else {
+        QTextCodec *codec = TextEncodingDetector::codecForSelectableIndex(encodingIndex);
+        text = codec ? codec->toUnicode(m_markdownRaw) : QString::fromUtf8(m_markdownRaw);
+    }
+
+    ++m_markdownGen;
+    const int gen = m_markdownGen;
+
     // Capture the browser's font + current width so the off-thread layout matches
     // the final on-screen layout -- installing the ready-made document then costs
     // no extra re-layout on the GUI thread.
@@ -1884,7 +2067,7 @@ void QuickView::loadMarkdownAsync(const QString &path) {
                 watcher->deleteLater();
                 QTextDocument *doc = watcher->result();
                 if (!doc)
-                    return; // unreadable file; leave the current preview in place
+                    return;
                 if (gen != m_markdownGen) {
                     delete doc; // a newer selection superseded this render
                     return;
@@ -1893,20 +2076,14 @@ void QuickView::loadMarkdownAsync(const QString &path) {
                 // browser: the previous child document is deleted on the next swap.
                 doc->setParent(m_markdown);
                 m_markdown->setDocument(doc);
-                revealStaticPage(m_markdown);
+                revealStaticPage(m_markdownPage);
             });
-    watcher->setFuture(QtConcurrent::run([path, font, width]() -> QTextDocument * {
-        QFile f(path);
-        if (!f.open(QIODevice::ReadOnly))
-            return nullptr;
-        // Cap the read so a pathologically large .md can't stall the render.
-        const QByteArray data = f.read(kMarkdownMaxBytes);
+    watcher->setFuture(QtConcurrent::run([text, font, width]() -> QTextDocument * {
         auto *doc = new QTextDocument;
         doc->setDefaultFont(font);
         doc->setDefaultStyleSheet(kMarkdownDefaultCss);
         // QTextDocument::setMarkdown wants the GitHub dialect (tables, task lists).
-        doc->setMarkdown(softenTableLineBreaks(QString::fromUtf8(data)),
-                         QTextDocument::MarkdownDialectGitHub);
+        doc->setMarkdown(softenTableLineBreaks(text), QTextDocument::MarkdownDialectGitHub);
         doc->setTextWidth(width); // force the expensive layout here, off the GUI thread
         // The document was created on this worker thread; hand it to the GUI thread
         // so setParent()/setDocument() there are legal.
@@ -2037,7 +2214,7 @@ QWidget *QuickView::buildDownloadPage() {
     m_downloadProgress->setRange(0, 0); // indeterminate until a total is known
     column->addWidget(m_downloadProgress, 0, Qt::AlignHCenter);
 
-    m_downloadStopButton = new QPushButton(tr("停止下载"), m_downloadPage);
+    m_downloadStopButton = new QPushButton(tr("Stop Download"), m_downloadPage);
     m_downloadStopButton->setFixedWidth(160);
     column->addWidget(m_downloadStopButton, 0, Qt::AlignHCenter);
 
@@ -2051,7 +2228,7 @@ QWidget *QuickView::buildDownloadPage() {
 
 void QuickView::showDownloading(const QString &name) {
     cancelPendingPreviewWork();
-    m_downloadLabel->setText(tr("正在下载到本地以便预览…\n%1").arg(name));
+    m_downloadLabel->setText(tr("Downloading a local copy for preview…\n%1").arg(name));
     m_downloadProgress->setRange(0, 0); // reset to indeterminate
     m_downloadProgress->setVisible(true);
     m_downloadStopButton->setVisible(true);
@@ -2083,7 +2260,7 @@ void QuickView::setDownloadProgress(qint64 done, qint64 total) {
 
 void QuickView::showDownloadCancelled(const QString &name) {
     cancelPendingPreviewWork();
-    m_downloadLabel->setText(tr("已取消预览：本文件的预览下载被用户停止。\n%1").arg(name));
+    m_downloadLabel->setText(tr("Preview cancelled: the download for this file was stopped.\n%1").arg(name));
     m_downloadProgress->setVisible(false);
     m_downloadStopButton->setVisible(false);
     m_stack->setCurrentWidget(m_downloadPage);
@@ -2197,7 +2374,11 @@ void QuickView::handleOfficeResult(const OfficeConverter::Result &r, const QStri
         // stale until it's shown as the current page below.
         const int avail = qMax(200, m_stack->width() - 32);
         m_markdown->setHtml(fitImagesToWidth(r.html, avail));
-        revealStaticPage(m_markdown);
+        // Not a text file the user can re-decode or edit: the toolbar stands down.
+        m_markdownToolbar->hide();
+        m_markdownPath.clear();
+        m_markdownAutoResultValid = false;
+        revealStaticPage(m_markdownPage);
         m_officeShownPath = path;
         return;
     }
@@ -3430,6 +3611,17 @@ void QuickView::showFile(const QString &path) {
     const bool preserveTextEncoding =
         path == m_textPath && m_stack->currentWidget() == m_textPage;
     m_textPath.clear();
+    if (isEditing()) {
+        // The file cursor moved while an unsaved buffer is open on a different
+        // file: stay put rather than throwing the edit away. Prompting here
+        // would fire on every arrow key.
+        if (m_editor->isDocumentModified() && path != m_editor->filePath())
+            return;
+        // Leave now, not when the load finishes, so isEditing() is already false
+        // by the time an async probe lands.
+        m_stack->setCurrentWidget(m_textPage);
+        emit editingChanged(false);
+    }
     if (path.isEmpty() || (!streamed && (!info.exists() || info.isDir()))) {
         stopVideo();
         stopAudio();
@@ -3576,7 +3768,7 @@ void QuickView::showFile(const QString &path) {
     if (OfficeConverter::isOfficeFile(path) && OfficeConverter::isAvailable() &&
         path == m_officeShownPath &&
         (m_stack->currentWidget() == m_slidesPage ||
-         m_stack->currentWidget() == m_markdown ||
+         m_stack->currentWidget() == m_markdownPage ||
          m_stack->currentWidget() == m_officeTabs)) {
         return;
     }
@@ -3605,7 +3797,7 @@ void QuickView::showFile(const QString &path) {
         // Unreadable: fall through to the generic text/no-preview handling below.
     }
 
-    if (ImageViewer::isImage(path)) {
+    if (fc::isImage(path)) {
         m_infoOverlay->hide();
         if (reloadWaitsForRotation) {
             preserveImageTransitionSnapshot();
@@ -3686,6 +3878,18 @@ void QuickView::showFile(const QString &path) {
                     m_textPath = path;
                     renderText();
                     revealStaticPage(m_textPage);
+                    // Coming back from the editor: land on the line it was
+                    // showing. One shot -- a later, unrelated load must not.
+                    const int line = m_textRestorePath == path ? m_textRestoreLine : -1;
+                    m_textRestorePath.clear();
+                    m_textRestoreLine = -1;
+                    if (line > 0) {
+                        QPointer<QPlainTextEdit> text = m_text;
+                        QTimer::singleShot(0, this, [text, line]() {
+                            if (text)
+                                text->verticalScrollBar()->setValue(line);
+                        });
+                    }
                 });
         watcher->setFuture(QtConcurrent::run([path, cap]() {
             TextProbe probe;

@@ -152,13 +152,26 @@ public:
     int addView(QWidget *view);
     void setCurrentView(int index);
     const QByteArray &fileBytes() const { return m_raw; }
+    QString filePath() const { return m_path; }
+
+    // Asks about an unsaved buffer and returns false if the user chose Cancel.
+    // Public because an embedded editor never gets a close event of its own:
+    // the host window has to ask on its behalf before it goes away.
+    bool promptSaveIfModified();
 
     // Test/seam accessors for the toolbar's own controls.
     QAction *saveAction() const { return m_saveAction; }
     QComboBox *encodingCombo() const { return m_encodingCombo; }
+    // What the combo currently shows -- for Auto that includes the encoding the
+    // detector settled on, e.g. "Auto (GB18030)".
     QString encodingStatusText() const;
     // The codec the buffer was decoded with and Save will encode with.
     QByteArray currentCodecName() const;
+
+signals:
+    // The Preview button was pressed. The host opens its preview window: this
+    // library is below the UI layer and cannot reach it.
+    void previewRequested(const QString &path);
 
 public slots:
     // Returns false if nothing reached disk.
@@ -172,8 +185,6 @@ private slots:
     void onEncodingSelected(int index);
 
 private:
-    // Returns false if the user chose Cancel.
-    bool promptSaveIfModified();
     void updateTitle();
     void updateModifiedIndicator();
     // Re-decodes m_raw under the combo's current selection and replaces the
@@ -188,7 +199,7 @@ private:
     QVBoxLayout *m_layout = nullptr;
     QAction *m_saveAction = nullptr;
     QComboBox *m_encodingCombo = nullptr;
-    QLabel *m_encodingStatus = nullptr;
+    QAction *m_previewAction = nullptr;
     QLabel *m_modifiedLabel = nullptr;
 
     QString m_path;

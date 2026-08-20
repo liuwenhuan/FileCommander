@@ -106,7 +106,7 @@ TEST(TextEditorEditingTest, AutoDetectsTheEncodingOnOpen) {
     ASSERT_TRUE(editor.loadFile(path));
 
     EXPECT_EQ(editor.encodingCombo()->currentIndex(), 0); // Auto
-    EXPECT_TRUE(editor.encodingStatusText().startsWith(QStringLiteral("Auto:")))
+    EXPECT_TRUE(editor.encodingStatusText().startsWith(QStringLiteral("Auto (")))
         << qPrintable(editor.encodingStatusText());
     EXPECT_EQ(editor.codeEditor()->toPlainText(), chinese);
 }
@@ -152,7 +152,8 @@ TEST(TextEditorEditingTest, ChangingEncodingReDecodesTheBytesRatherThanTheBuffer
     // Latin-1 is one byte per character, so the reinterpretation must have the
     // length of the FILE, not of the previously decoded string.
     EXPECT_EQ(mojibake.size(), gbk->fromUnicode(chinese).size());
-    EXPECT_TRUE(editor.encodingStatusText().startsWith(QStringLiteral("Manual:")));
+    // A manual pick needs no extra wording: the combo already shows that codec.
+    EXPECT_EQ(editor.encodingStatusText(), QStringLiteral("ISO-8859-1"));
 
     // Going back to Auto restores the original text exactly. It could not, if
     // the switch had reinterpreted the decoded QString instead of the bytes --

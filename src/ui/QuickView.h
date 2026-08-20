@@ -50,6 +50,7 @@ class QTextEdit;
 class QTimer;
 class ArchiveModel;
 class Settings;
+class TextEditor;
 
 // Poppler's document type is only referenced through a unique_ptr member, so a
 // forward declaration keeps the heavy poppler-qt5.h out of this header.
@@ -157,7 +158,32 @@ signals:
     // streaming existed.
     void streamFailed(const QString &url);
 
+    // The Edit button on the text toolbar was pressed for this file. The host
+    // resolves the path -- only it knows whether the file is editable in place
+    // (a downloaded copy is not) -- and then calls beginEditing().
+    void editRequested(const QString &path);
+
+    // The stack moved into or out of the editor page. The host uses it to keep
+    // its own preview-only shortcuts off the editor's keystrokes.
+    void editingChanged(bool editing);
+
 public:
+    // Hides the text toolbar's Edit button. Set for a preview opened on a
+    // downloaded copy, where saving would write to a temp file the user never
+    // sees again.
+    void setTextEditingEnabled(bool enabled);
+
+    // Swaps the stack to a full TextEditor on `path`, in place: no second
+    // window opens, and the Preview button on the editor's toolbar brings this
+    // same widget back to the text page. Returns false if the file could not be
+    // loaded, leaving the current page alone.
+    bool beginEditing(const QString &path);
+    bool isEditing() const;
+    // Asks about an unsaved buffer on behalf of the editor page, which -- being
+    // a child widget rather than a window -- never receives a close event.
+    // Returns false if the user chose Cancel.
+    bool confirmDiscardEdits();
+
     // Sets the point size of the text-preview font, so the preview tracks the
     // app's file-list font-size setting. Applies to the plain-text/hex page and
     // the markdown/office rich-text page; the monospace text page keeps its
@@ -237,6 +263,7 @@ private:
     // finished QTextDocument into m_markdown (keeps the GUI responsive on large or
     // table-heavy files). Stale renders are dropped via m_markdownGen.
     void loadMarkdownAsync(const QString &path);
+    void renderMarkdown();        // (re)decode m_markdownRaw per the encoding chooser
     QWidget *buildPdfPage();
     QWidget *buildSlidesPage();            // pptx slide-image preview (per-slide SVG)
     QWidget *buildOfficeTablePage();       // spreadsheet (xls/xlsx) preview as a grid
@@ -395,7 +422,7 @@ private:
     QWidget *m_textPage = nullptr;
     QToolBar *m_textToolbar = nullptr;
     QComboBox *m_textEncoding = nullptr;
-    QLabel *m_textEncodingStatus = nullptr;
+    QAction *m_textEditAction = nullptr; // hands the file to the F4 editor
     QLineEdit *m_textFind = nullptr;
     QByteArray m_textRaw;              // raw bytes of the current text file
     QString m_textPath;                // keeps manual encoding only for this selection
@@ -407,6 +434,12 @@ private:
     // Newest text probe. A read that lands after the cursor moved is dropped.
     quint64 m_textLoadGeneration = 0;
     bool m_textLoadPending = false;
+    // In-place editing. The editor is a page of the same stack, built on first
+    // use; m_textRestore* carries the scroll position across a switch in either
+    // direction (both views are NoWrap, so a scrollbar value is a line number).
+    TextEditor *m_editor = nullptr;
+    QString m_textRestorePath;
+    int m_textRestoreLine = -1;
 
     // Image sibling navigation (prev/next among images in the same directory).
     QString m_imagePath;
@@ -415,8 +448,20 @@ private:
 
     // Markdown page: a rich-text browser that renders the
     // file via QTextDocument's bundled MD4C support (Qt 5.14+), no extra deps.
+    // Its toolbar carries the same three controls as the text page -- encoding,
+    // find, edit -- and hides itself when the page is showing a converted office
+    // document, which is not a file the user can re-decode or edit as text.
+    QWidget *m_markdownPage = nullptr;
+    QToolBar *m_markdownToolbar = nullptr;
+    QComboBox *m_markdownEncoding = nullptr;
+    QLineEdit *m_markdownFind = nullptr;
+    QAction *m_markdownEditAction = nullptr;
     QTextBrowser *m_markdown = nullptr;
     int m_markdownGen = 0; // supersede stale async markdown renders
+    QByteArray m_markdownRaw; // raw bytes, kept so a new encoding needs no re-read
+    QString m_markdownPath;
+    TextEncodingDetector::Result m_markdownAutoResult;
+    bool m_markdownAutoResultValid = false;
 
     // Office spreadsheet page: a read-only grid populated from office_oxide's CSV
     // output. Word/PowerPoint documents reuse the markdown page above.

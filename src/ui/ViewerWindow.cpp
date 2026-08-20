@@ -1,5 +1,6 @@
 #include "ViewerWindow.h"
 
+#include <QCloseEvent>
 #include <QFileInfo>
 #include <QKeySequence>
 #include <QShortcut>
@@ -8,7 +9,8 @@
 #include "QuickView.h"
 #include "config/Settings.h"
 
-ViewerWindow::ViewerWindow(Settings &settings, const QString &path, QWidget *parent)
+ViewerWindow::ViewerWindow(Settings &settings, const QString &path, QWidget *parent,
+                           bool editing)
     : FramelessWindow(parent) {
     setAttribute(Qt::WA_DeleteOnClose);
     setWindowTitle(QFileInfo(path).fileName());
@@ -32,7 +34,36 @@ ViewerWindow::ViewerWindow(Settings &settings, const QString &path, QWidget *par
     auto *next = new QShortcut(QKeySequence(Qt::Key_Right), this);
     connect(next, &QShortcut::activated, m_preview, &QuickView::showNextSibling);
 
-    m_preview->showFile(path);
+    // The preview switches into the editor itself, in place; nothing above this
+    // window needs to know. While it is editing, the shortcuts above would eat
+    // the editor's own keys (Esc, F3 find, cursor keys), so they stand down.
+    connect(m_preview, &QuickView::editRequested, m_preview, &QuickView::beginEditing);
+    connect(m_preview, &QuickView::editingChanged, this, [this](bool editing) {
+        for (QShortcut *shortcut : findChildren<QShortcut *>())
+            shortcut->setEnabled(!editing);
+    });
+
+    // In edit mode, INSTEAD of showFile(): its async text probe would finish
+    // later and reveal the preview page over the editor.
+    if (!editing || !m_preview->beginEditing(path))
+        m_preview->showFile(path);
+}
+
+bool ViewerWindow::beginEditing(const QString &path) {
+    return m_preview && m_preview->beginEditing(path);
+}
+
+void ViewerWindow::closeEvent(QCloseEvent *event) {
+    // The embedded editor is a child widget, so its own closeEvent never fires.
+    if (m_preview && !m_preview->confirmDiscardEdits())
+        event->ignore();
+    else
+        FramelessWindow::closeEvent(event);
+}
+
+void ViewerWindow::setEditingEnabled(bool enabled) {
+    if (m_preview)
+        m_preview->setTextEditingEnabled(enabled);
 }
 
 void ViewerWindow::refreshPhosphor() {

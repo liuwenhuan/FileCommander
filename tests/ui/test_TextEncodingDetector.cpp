@@ -10,6 +10,7 @@
 #include <QByteArray>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QComboBox>
 #include <QLabel>
 #include <QPlainTextEdit>
 #include <QTemporaryDir>
@@ -454,24 +455,24 @@ TEST(TextEncodingDetectorTest, QuickViewShowsAutoDetectionAndBinaryHexStatus) {
     Settings settings;
     ASSERT_NE(std::setlocale(LC_NUMERIC, "C"), nullptr);
     QuickView view(settings);
-    auto *status = view.findChild<QLabel *>(QStringLiteral("textEncodingStatus"));
+    auto *status = view.findChild<QComboBox *>(QStringLiteral("textEncodingCombo"));
     auto *editor = view.findChild<QPlainTextEdit *>();
     ASSERT_NE(status, nullptr);
     ASSERT_NE(editor, nullptr);
 
     view.showFile(textPath);
     ASSERT_TRUE(view.waitForTextIdleForTest());
-    EXPECT_EQ(status->text(), QStringLiteral("Auto: UTF-8"));
+    EXPECT_EQ(status->currentText(), QStringLiteral("Auto (UTF-8)"));
     EXPECT_EQ(editor->toPlainText(), QString::fromUtf8(u8"中文"));
 
     view.showFile(ambiguousPath);
     ASSERT_TRUE(view.waitForTextIdleForTest());
-    EXPECT_TRUE(status->text().startsWith(QStringLiteral("Auto: ")));
-    EXPECT_TRUE(status->text().endsWith(QStringLiteral(" (ambiguous)")));
+    EXPECT_TRUE(status->currentText().startsWith(QStringLiteral("Auto (")));
+    EXPECT_TRUE(status->currentText().endsWith(QStringLiteral(", ambiguous)")));
 
     view.showFile(binaryPath);
     ASSERT_TRUE(view.waitForTextIdleForTest());
-    EXPECT_EQ(status->text(), QStringLiteral("Auto: Binary (Hex)"));
+    EXPECT_EQ(status->currentText(), QStringLiteral("Auto (Binary)"));
     EXPECT_TRUE(editor->toPlainText().startsWith(QStringLiteral("00000000")));
 }
 
@@ -487,14 +488,14 @@ TEST(TextEncodingDetectorTest, QuickViewBoundsHexOutputBeforeTheTextPreviewLimit
     Settings settings;
     ASSERT_NE(std::setlocale(LC_NUMERIC, "C"), nullptr);
     QuickView view(settings);
-    auto *status = view.findChild<QLabel *>(QStringLiteral("textEncodingStatus"));
+    auto *status = view.findChild<QComboBox *>(QStringLiteral("textEncodingCombo"));
     auto *editor = view.findChild<QPlainTextEdit *>();
     ASSERT_NE(status, nullptr);
     ASSERT_NE(editor, nullptr);
 
     view.showFile(binary.fileName());
     ASSERT_TRUE(view.waitForTextIdleForTest());
-    EXPECT_EQ(status->text(), QStringLiteral("Auto: Binary (Hex)"));
+    EXPECT_EQ(status->currentText(), QStringLiteral("Auto (Binary)"));
     const QString rendered = editor->toPlainText();
     EXPECT_TRUE(rendered.startsWith(QStringLiteral("00000000")));
     EXPECT_TRUE(rendered.endsWith(QStringLiteral("\n\n[... truncated ...]")));
@@ -515,7 +516,7 @@ TEST(TextEncodingDetectorTest, QuickViewShowsRegistryTransactionLogsAsBoundedHex
     Settings settings;
     ASSERT_NE(std::setlocale(LC_NUMERIC, "C"), nullptr);
     QuickView view(settings);
-    auto *status = view.findChild<QLabel *>(QStringLiteral("textEncodingStatus"));
+    auto *status = view.findChild<QComboBox *>(QStringLiteral("textEncodingCombo"));
     auto *editor = view.findChild<QPlainTextEdit *>();
     ASSERT_NE(status, nullptr);
     ASSERT_NE(editor, nullptr);
@@ -529,7 +530,7 @@ TEST(TextEncodingDetectorTest, QuickViewShowsRegistryTransactionLogsAsBoundedHex
     // Release against 1500 ms in Debug, so a millisecond budget measured here
     // judges the compiler rather than the code. The figure is still recorded.
     FC_EXPECT_WITHIN_BUDGET(elapsed.elapsed(), 1000, "bounded hex render");
-    EXPECT_EQ(status->text(), QStringLiteral("Auto: Binary (Hex)"));
+    EXPECT_EQ(status->currentText(), QStringLiteral("Auto (Binary)"));
     const QString rendered = editor->toPlainText();
     EXPECT_TRUE(rendered.startsWith(QStringLiteral("00000000")));
     EXPECT_LT(rendered.size(), 2 * 1024 * 1024);
@@ -549,14 +550,14 @@ TEST(TextEncodingDetectorTest, QuickViewSafelyTruncatesLargeGb18030ProbeTail) {
     Settings settings;
     ASSERT_NE(std::setlocale(LC_NUMERIC, "C"), nullptr);
     QuickView view(settings);
-    auto *status = view.findChild<QLabel *>(QStringLiteral("textEncodingStatus"));
+    auto *status = view.findChild<QComboBox *>(QStringLiteral("textEncodingCombo"));
     auto *editor = view.findChild<QPlainTextEdit *>();
     ASSERT_NE(status, nullptr);
     ASSERT_NE(editor, nullptr);
 
     view.showFile(text.fileName());
     ASSERT_TRUE(view.waitForTextIdleForTest());
-    EXPECT_TRUE(status->text().startsWith(QStringLiteral("Auto: GB18030")));
+    EXPECT_TRUE(status->currentText().startsWith(QStringLiteral("Auto (GB18030")));
     const QString rendered = editor->toPlainText();
     EXPECT_FALSE(rendered.contains(QChar::ReplacementCharacter));
     EXPECT_TRUE(rendered.endsWith(QStringLiteral("\n\n[... truncated ...]")));

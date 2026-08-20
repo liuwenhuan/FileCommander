@@ -61,6 +61,8 @@ set(UI_TEST_SOURCES
     test_ProviderChecksum.cpp
     test_SelectedEntryInfos.cpp
     test_QuickViewLazyPages.cpp
+    test_QuickViewInPlaceEdit.cpp
+    test_QuickViewMarkdownToolbar.cpp
     test_QuickViewMotion.cpp
     test_MainWindowPreviewSwap.cpp
     test_DeleteConfirmDialog.cpp

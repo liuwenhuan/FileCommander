@@ -242,10 +242,6 @@ void TextEditor::buildToolBar() {
     m_encodingCombo->setToolTip(tr("Re-read the file on disk in this encoding"));
     m_toolBar->addWidget(m_encodingCombo);
 
-    m_encodingStatus = new QLabel(m_toolBar);
-    m_encodingStatus->setObjectName(QStringLiteral("textEncodingStatus"));
-    m_toolBar->addWidget(m_encodingStatus);
-
     connect(m_encodingCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &TextEditor::onEncodingSelected);
 
@@ -256,6 +252,16 @@ void TextEditor::buildToolBar() {
     m_modifiedLabel = new QLabel(m_toolBar);
     m_modifiedLabel->setObjectName(QStringLiteral("textEditorModified"));
     m_toolBar->addWidget(m_modifiedLabel);
+
+    // Far right, mirroring the preview's Edit button. The host switches back to
+    // the preview: this library sits below the UI layer and does not know about
+    // it. Ask about an unsaved buffer first -- going back re-reads the file from
+    // disk, so anything still in the buffer would be dropped silently.
+    m_previewAction = m_toolBar->addAction(tr("Preview"), this, [this]() {
+        if (!m_path.isEmpty() && promptSaveIfModified())
+            emit previewRequested(m_path);
+    });
+    m_previewAction->setToolTip(tr("Go back to the preview"));
 }
 
 void TextEditor::addAuxiliaryBar(QWidget *bar) {
@@ -278,7 +284,7 @@ void TextEditor::setCurrentView(int index) {
 }
 
 QString TextEditor::encodingStatusText() const {
-    return m_encodingStatus ? m_encodingStatus->text() : QString();
+    return m_encodingCombo ? m_encodingCombo->currentText() : QString();
 }
 
 QByteArray TextEditor::currentCodecName() const {
@@ -337,7 +343,9 @@ bool TextEditor::loadFile(const QString &path) {
         // Nothing to decode and nothing to choose: the encoding controls
         // describe a text buffer that does not exist in this mode.
         m_encodingCombo->setEnabled(false);
-        m_encodingStatus->setText(tr("Binary — edited as hex"));
+        QSignalBlocker hexBlocker(m_encodingCombo);
+        m_encodingCombo->setItemText(kAutoEncodingIndex, tr("Binary (hex)"));
+        m_encodingCombo->setCurrentIndex(kAutoEncodingIndex);
         updateTitle();
         updateModifiedIndicator();
         return true;
@@ -361,12 +369,14 @@ void TextEditor::applyEncodingToBuffer() {
     QString text;
     if (index == kAutoEncodingIndex) {
         text = TextEncodingDetector::decode(m_raw, m_detected);
-        QString status = tr("Auto: %1").arg(m_detected.label);
+        // What Auto resolved to goes into the Auto row itself, so the combo
+        // alone tells the whole story and no second widget is needed.
+        QString autoLabel = tr("Auto (%1)").arg(m_detected.label);
         if (m_detected.binary)
-            status = tr("Auto: Binary");
+            autoLabel = tr("Auto (Binary)");
         else if (m_detected.ambiguous)
-            status += tr(" (ambiguous)");
-        m_encodingStatus->setText(status);
+            autoLabel = tr("Auto (%1, ambiguous)").arg(m_detected.label);
+        m_encodingCombo->setItemText(kAutoEncodingIndex, autoLabel);
     } else {
         QTextCodec *codec = TextEncodingDetector::codecForSelectableIndex(index);
         // A default ConverterState consumes a leading BOM instead of turning it
@@ -374,8 +384,6 @@ void TextEditor::applyEncodingToBuffer() {
         QTextCodec::ConverterState state;
         text = codec ? codec->toUnicode(m_raw.constData(), m_raw.size(), &state)
                      : QString::fromUtf8(m_raw);
-        m_encodingStatus->setText(
-            tr("Manual: %1").arg(QString::fromLatin1(kTextEncodings[index].label)));
     }
 
     // Sampled BEFORE the text reaches the document, which is the last moment a

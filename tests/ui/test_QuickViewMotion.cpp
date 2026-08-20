@@ -135,8 +135,14 @@ QWidget *textPage(QuickView &view) {
   return editor ? editor->parentWidget() : nullptr;
 }
 
-QTextBrowser *markdownPage(QuickView &view) {
+QTextBrowser *markdownBrowser(QuickView &view) {
   return view.findChild<QTextBrowser *>();
+}
+
+// The browser sits under a toolbar; the stack's page is the wrapper around both.
+QWidget *markdownPage(QuickView &view) {
+  auto *browser = markdownBrowser(view);
+  return browser ? browser->parentWidget() : nullptr;
 }
 
 QWidget *scrollContent(QWidget *scrollable) {
@@ -223,7 +229,7 @@ TEST(QuickViewMotion, ApprovedStaticPagesUseOnlyTemporaryOpacity) {
        scrollContent(view.findChild<QScrollArea *>(
            QStringLiteral("imagePreviewScroll")))},
       {textPage(view), scrollContent(view.findChild<QPlainTextEdit *>())},
-      {markdownPage(view), scrollContent(markdownPage(view))},
+      {markdownPage(view), scrollContent(markdownBrowser(view))},
       {pdf, scrollContent(pdf->findChild<QGraphicsView *>())},
       {archive, scrollContent(archive->findChild<QTableView *>())},
       {slides, scrollContent(slides->findChild<QGraphicsView *>())},
@@ -424,7 +430,7 @@ TEST(QuickViewMotion, MarkdownRouteKeepsOldPageUntilContentIsReady) {
   EXPECT_EQ(previewStack(view)->currentWidget(), oldPage);
   FC_TRY_COMPARE_WITH_TIMEOUT(previewStack(view)->currentWidget(),
                             markdownPage(view), 5000);
-  auto *browser = markdownPage(view);
+  auto *browser = markdownBrowser(view);
   ASSERT_NE(browser, nullptr);
   EXPECT_TRUE(browser->toPlainText().contains(QStringLiteral("Accepted Markdown")));
   EXPECT_EQ(browser->graphicsEffect(), nullptr);
@@ -498,7 +504,7 @@ TEST(QuickViewMotion, OfficeDocumentRouteRevealsMarkdownContentOnly) {
   EXPECT_EQ(previewStack(view)->currentWidget(), oldPage);
   FC_TRY_COMPARE_WITH_TIMEOUT(previewStack(view)->currentWidget(),
                             markdownPage(view), 5000);
-  auto *browser = markdownPage(view);
+  auto *browser = markdownBrowser(view);
   ASSERT_NE(browser, nullptr);
   EXPECT_TRUE(browser->toPlainText().contains(QStringLiteral("Fixture document")));
   EXPECT_EQ(browser->graphicsEffect(), nullptr);

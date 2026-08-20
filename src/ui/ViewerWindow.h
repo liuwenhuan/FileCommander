@@ -21,7 +21,9 @@ class ViewerWindow : public FramelessWindow {
     Q_OBJECT
 
 public:
-    ViewerWindow(Settings &settings, const QString &path, QWidget *parent = nullptr);
+    // `editing` opens straight into the editor rather than the preview.
+    ViewerWindow(Settings &settings, const QString &path, QWidget *parent = nullptr,
+                 bool editing = false);
 
     // Forwards a theme / "tint images" change to the preview this window wraps.
     // A viewer opened with F3 is a separate top-level window, so MainWindow has
@@ -31,6 +33,17 @@ public:
     // Same reason refreshPhosphor() exists: this window is invisible to the
     // usual chrome-font pass, so MainWindow forwards the interface font here.
     void applyChromeFont(const QFont &font);
+
+    // Hides the preview's Edit button. Passed false when the window was opened
+    // on a downloaded copy, which is not editable in place.
+    void setEditingEnabled(bool enabled);
+
+    // Switches the preview into the editor, in place. Same window either way --
+    // F4 opens one of these already in edit mode instead of a second window.
+    bool beginEditing(const QString &path);
+
+protected:
+    void closeEvent(QCloseEvent *event) override;
 
 private:
     QuickView *m_preview;

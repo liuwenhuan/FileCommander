@@ -41,6 +41,14 @@ public:
 
     DialogTitleBar *titleBar() const { return m_titleBar; }
 
+    // Demotes this window to an ordinary child widget of `parent`: no title bar,
+    // no shadow margin, no edge resize. One-way and permanent -- it exists so a
+    // subclass written as a window (the text editor) can also be stacked inside
+    // another widget, which is how the preview switches into edit mode in place
+    // instead of popping a second window. setParent() itself is what clears
+    // Qt::Window; the rest of the chrome has to be taken down by hand.
+    void setEmbedded(QWidget *parent);
+
 protected:
     void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
@@ -51,6 +59,7 @@ private:
     void updateTitleBarLayout();
 
     DialogTitleBar *m_titleBar = nullptr;
+    bool m_embedded = false;
     QPixmap m_backgroundTile;
     QPixmap m_frameCache;
     QColor m_frameCacheColor;

@@ -7,8 +7,8 @@ add_library(viewer STATIC
     HexEditor.cpp
     BinarySniff.h
     BinarySniff.cpp
-    ImageViewer.h
-    ImageViewer.cpp
+    ImageFormats.h
+    ImageFormats.cpp
     OfficeConverter.h
     OfficeConverter.cpp
 )

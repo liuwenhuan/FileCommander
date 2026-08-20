@@ -28,10 +28,21 @@ FramelessWindow::FramelessWindow(QWidget *parent) : QWidget(parent) {
     m_titleBar->raise();
 }
 
+void FramelessWindow::setEmbedded(QWidget *parent) {
+    m_embedded = true;
+    setParent(parent); // resets the window flags to Qt::Widget
+    setAttribute(Qt::WA_TranslucentBackground, false);
+    setMouseTracking(false);
+    delete m_titleBar;
+    m_titleBar = nullptr;
+    updateTitleBarLayout();
+}
+
 void FramelessWindow::updateTitleBarLayout() {
     // Maximized: no shadow margin, so nothing transparent shows at the screen
-    // edges (MainWindow::changeEvent does the same).
-    const int margin = isMaximized() ? 0 : kShadowMargin;
+    // edges (MainWindow::changeEvent does the same). Embedded: no margin either,
+    // because the host widget owns the frame around this one.
+    const int margin = (m_embedded || isMaximized()) ? 0 : kShadowMargin;
     const int titleHeight = m_titleBar ? m_titleBar->height() : 0;
     setContentsMargins(margin, margin + titleHeight, margin, margin);
     if (m_titleBar)
@@ -98,8 +109,9 @@ void FramelessWindow::changeEvent(QEvent *event) {
 bool FramelessWindow::event(QEvent *event) {
     // Frameless edge resize: the thin shadow band around the content reaches
     // this handler. Show the resize cursor on hover, hand off to the WM on
-    // press. A maximized window has no band and must not resize.
-    if (!isMaximized() &&
+    // press. A maximized window has no band and must not resize, and neither
+    // does an embedded one -- there its edges belong to the host.
+    if (!m_embedded && !isMaximized() &&
         (event->type() == QEvent::MouseMove || event->type() == QEvent::MouseButtonPress)) {
         auto *me = static_cast<QMouseEvent *>(event);
         const QRect content =
