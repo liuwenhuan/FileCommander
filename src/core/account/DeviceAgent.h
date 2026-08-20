@@ -51,8 +51,11 @@ signals:
     void disconnected();
 
     // The server pushed a ticket: `from` wants to connect to us. The caller
-    // hands the ticket to FileShareServer, which will then accept it.
-    void ticketOffered(const QString &ticket, const QString &from, int expiresIn);
+    // hands the ticket to FileShareServer, which will then accept it, and uses
+    // the session id to meet the peer on the relay if it cannot reach us
+    // directly -- we cannot tell which it will be, so both are prepared.
+    void ticketOffered(const QString &sessionId, const QString &ticket, const QString &from,
+                       int expiresIn);
 
 private:
     void openSocket();

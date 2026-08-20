@@ -126,7 +126,8 @@ void DeviceAgent::onTextMessage(const QString &text) {
     } else if (type == QLatin1String("incoming")) {
         const QString ticket = message.value(QStringLiteral("ticket")).toString();
         if (!ticket.isEmpty())
-            emit ticketOffered(ticket, message.value(QStringLiteral("from")).toString(),
+            emit ticketOffered(message.value(QStringLiteral("session_id")).toString(), ticket,
+                               message.value(QStringLiteral("from")).toString(),
                                message.value(QStringLiteral("expires_in")).toInt());
     }
 }

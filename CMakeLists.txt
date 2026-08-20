@@ -63,9 +63,12 @@ set(FILECOMMANDER_UPDATE_MANIFEST_URL "https://updates.invalid/FileCommander/ver
     CACHE STRING "URL of the online-update manifest (version.json)")
 
 # Where sign-in and device-to-device transfer talk to (see server/README.md).
-# Same rules as the manifest URL above: unreachable by default, overridable at
-# runtime with the environment variable FILECOMMANDER_ACCOUNT_API_URL.
-set(FILECOMMANDER_ACCOUNT_API_URL "https://account.invalid"
+# Overridable at configure time, and at runtime with the environment variable
+# FILECOMMANDER_ACCOUNT_API_URL, so a build can be pointed at a local server
+# without recompiling. The default is the deployed one; a build that should
+# have no account server at all sets this to https://account.invalid, which
+# apiUrlIsConfigured() reports as "not configured".
+set(FILECOMMANDER_ACCOUNT_API_URL "https://sgvps.aigutta.com:39443"
     CACHE STRING "Root URL of the FileCommander account server")
 
 # Generated version header (TTC_VERSION etc.) derived from the project()

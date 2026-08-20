@@ -76,6 +76,8 @@ if(FILECOMMANDER_ENABLE_NETWORK)
         account/DeviceAgent.cpp
         account/FileShareServer.h
         account/FileShareServer.cpp
+        account/RelayTunnel.h
+        account/RelayTunnel.cpp
     )
 endif()
 

@@ -322,6 +322,40 @@ QString AccountClient::agentSocketUrl() const {
     return url.toString();
 }
 
+QString AccountClient::relaySocketUrl(const QString &sessionId, const QString &ticket) const {
+    const QString root = m_apiUrl.isEmpty() ? apiUrl() : m_apiUrl;
+    QUrl url(root + QStringLiteral("/v1/relay/") + sessionId);
+    url.setScheme(url.scheme() == QLatin1String("https") ? QStringLiteral("wss")
+                                                         : QStringLiteral("ws"));
+    // No access token: the ticket is the whole authority here, which is what
+    // lets the accepting side open a socket for a session it did not start.
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("ticket"), ticket);
+    url.setQuery(query);
+    return url.toString();
+}
+
+void AccountClient::removeDevice(const QString &deviceId) {
+    if (!isLoggedIn()) {
+        emit requestFailed(tr("Not signed in."));
+        return;
+    }
+    request(Verb::Delete, QStringLiteral("/v1/devices/") + deviceId, QByteArray(), true,
+            [this, deviceId](QNetworkReply *reply) {
+                const QByteArray payload = reply->readAll();
+                const int status =
+                    reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                // 404 counts as removed: the row is gone either way, and telling
+                // the user a device they just removed cannot be found is noise.
+                if (status != 204 && status != 200 && status != 404) {
+                    emit requestFailed(errorText(reply, payload));
+                    return;
+                }
+                emit deviceRemoved(deviceId);
+                fetchDevices();
+            });
+}
+
 void AccountClient::openSession(const QString &deviceId) {
     if (!isLoggedIn()) {
         emit requestFailed(tr("Not signed in."));

@@ -8,15 +8,18 @@
 pub mod agent;
 pub mod api;
 pub mod db;
+pub mod relay;
 
 use std::collections::HashMap;
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex};
+use std::collections::VecDeque;
 use std::time::Instant;
 
+use axum::extract::ws::WebSocket;
 use axum::routing::{delete, get, post};
 use axum::Router;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 use db::Db;
 
@@ -32,10 +35,23 @@ pub struct AgentConn {
     pub generation: u64,
 }
 
+/// A relay session, live from the moment /v1/session mints it until a ticket
+/// lifetime after its devices stop connecting. The queues hold sockets that
+/// arrived before their opposite number; each entry is the waiting task, which
+/// does the pumping once it is handed a peer.
+pub struct RelaySession {
+    pub ticket: String,
+    pub expires: Instant,
+    pub accepting: VecDeque<oneshot::Sender<WebSocket>>,
+    pub connecting: VecDeque<oneshot::Sender<WebSocket>>,
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub db: Db,
     pub agents: Arc<Mutex<HashMap<String, AgentConn>>>,
+    /// Sessions the relay will join two sockets for, keyed by session id.
+    pub sessions: Arc<Mutex<HashMap<String, RelaySession>>>,
     /// Sign-in attempts per client address, for the built-in rate limit.
     pub attempts: Arc<Mutex<HashMap<String, (u32, Instant)>>>,
     pub generation: Arc<AtomicU64>,
@@ -46,6 +62,7 @@ impl AppState {
         AppState {
             db,
             agents: Arc::new(Mutex::new(HashMap::new())),
+            sessions: Arc::new(Mutex::new(HashMap::new())),
             attempts: Arc::new(Mutex::new(HashMap::new())),
             generation: Arc::new(AtomicU64::new(1)),
         }
@@ -69,5 +86,6 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/devices/{device_id}", delete(api::forget_device))
         .route("/v1/agent", get(agent::agent_ws))
         .route("/v1/session", post(agent::open_session))
+        .route("/v1/relay/{session_id}", get(relay::relay_ws))
         .with_state(state)
 }

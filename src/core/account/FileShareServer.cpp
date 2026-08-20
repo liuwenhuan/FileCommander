@@ -119,7 +119,7 @@ private:
 
     QTcpServer *m_server = nullptr;
     QMap<QString, QString> m_shares;      // share name -> absolute local path
-    QHash<QString, QDateTime> m_tickets;  // ticket -> expiry
+    QHash<QString, QPair<QDateTime, int>> m_tickets;  // ticket -> expiry, TTL
 };
 
 // One client connection: an HTTP/1.1 state machine that never blocks. Bodies
@@ -679,18 +679,26 @@ void ShareWorker::addTicket(const QString &ticket, int ttlSeconds) {
     // No floor on the TTL: a ticket handed over already expired is worthless
     // by construction, and clamping it up to a second would make it briefly
     // usable instead.
-    m_tickets.insert(ticket, QDateTime::currentDateTimeUtc().addSecs(ttlSeconds));
+    m_tickets.insert(ticket, {QDateTime::currentDateTimeUtc().addSecs(ttlSeconds), ttlSeconds});
 }
 
 bool ShareWorker::ticketValid(const QString &ticket) {
     const QDateTime now = QDateTime::currentDateTimeUtc();
     for (auto it = m_tickets.begin(); it != m_tickets.end();) {
-        if (it.value() <= now)
+        if (it.value().first <= now)
             it = m_tickets.erase(it);
         else
             ++it;
     }
-    return !ticket.isEmpty() && m_tickets.contains(ticket);
+    if (ticket.isEmpty())
+        return false;
+    auto it = m_tickets.find(ticket);
+    if (it == m_tickets.end())
+        return false;
+    // Sliding: the TTL measures idleness, not total lifetime. A fixed expiry
+    // would 401 in the middle of a browse the user is still using.
+    it.value().first = now.addSecs(it.value().second);
+    return true;
 }
 
 QString ShareWorker::resolve(const QString &davPath) const {

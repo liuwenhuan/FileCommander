@@ -282,3 +282,82 @@ async fn a_session_needs_an_owned_device_that_is_online() {
     assert_eq!(offline.status(), StatusCode::CONFLICT);
     assert_eq!(json_of(offline).await["detail"], "device is offline");
 }
+
+/// Opens a session between two devices, returning (session_id, ticket) and the
+/// agent socket, which has to stay alive for the session to be reachable.
+async fn open_relay_session(
+    state: &AppState,
+    addr: SocketAddr,
+) -> (String, String) {
+    use futures_util::{SinkExt, StreamExt};
+
+    register(state, "user@example.com", "correct horse").await;
+    let host = login(state, "user@example.com", "desktop", "").await;
+    let guest = login(state, "user@example.com", "laptop", "").await;
+
+    let url = format!("ws://{addr}/v1/agent?token={}", host["access_token"].as_str().unwrap());
+    let (mut agent, _) = tokio_tungstenite::connect_async(url).await.unwrap();
+    agent.next().await; // welcome
+    agent
+        .send(tokio_tungstenite::tungstenite::Message::Text(
+            json!({"type": "hello", "lan_addrs": [], "port": 45001}).to_string().into(),
+        ))
+        .await
+        .unwrap();
+    agent.next().await; // ready
+
+    let opened = json_of(
+        send(state, "POST", "/v1/session", guest["access_token"].as_str().unwrap(),
+             json!({"device_id": host["device_id"]})).await,
+    )
+    .await;
+    (opened["session_id"].as_str().unwrap().to_string(),
+     opened["ticket"].as_str().unwrap().to_string())
+}
+
+#[tokio::test]
+async fn the_relay_joins_the_two_sockets_of_one_session() {
+    use futures_util::{SinkExt, StreamExt};
+    use tokio_tungstenite::tungstenite::Message;
+
+    let state = state();
+    let addr = serve(state.clone()).await;
+    let (session_id, ticket) = open_relay_session(&state, addr).await;
+
+    // The serving side parks first, exactly as the client's tunnel does.
+    let park = format!("ws://{addr}/v1/relay/{session_id}?ticket={ticket}&role=accept");
+    let (mut accepting, _) = tokio_tungstenite::connect_async(park).await.unwrap();
+    let dial = format!("ws://{addr}/v1/relay/{session_id}?ticket={ticket}&role=connect");
+    let (mut connecting, _) = tokio_tungstenite::connect_async(dial).await.unwrap();
+
+    // Both learn they are paired before any payload moves.
+    assert!(accepting.next().await.unwrap().unwrap().to_text().unwrap().contains("paired"));
+    assert!(connecting.next().await.unwrap().unwrap().to_text().unwrap().contains("paired"));
+
+    connecting.send(Message::Binary(b"PROPFIND / HTTP/1.1".to_vec().into())).await.unwrap();
+    let seen = accepting.next().await.unwrap().unwrap();
+    assert_eq!(seen.into_data().as_ref(), b"PROPFIND / HTTP/1.1");
+
+    accepting.send(Message::Binary(b"HTTP/1.1 207".to_vec().into())).await.unwrap();
+    let back = connecting.next().await.unwrap().unwrap();
+    assert_eq!(back.into_data().as_ref(), b"HTTP/1.1 207");
+
+    // Either side closing takes the pipe down, so the peer is not left hanging.
+    drop(connecting);
+    assert!(accepting.next().await.map(|m| m.is_err() || m.unwrap().is_close()).unwrap_or(true));
+}
+
+#[tokio::test]
+async fn the_relay_refuses_a_wrong_ticket_or_an_unknown_session() {
+    let state = state();
+    let addr = serve(state.clone()).await;
+    let (session_id, ticket) = open_relay_session(&state, addr).await;
+
+    for url in [
+        format!("ws://{addr}/v1/relay/{session_id}?ticket=wrong&role=accept"),
+        format!("ws://{addr}/v1/relay/deadbeef?ticket={ticket}&role=accept"),
+        format!("ws://{addr}/v1/relay/{session_id}?ticket={ticket}&role=sideways"),
+    ] {
+        assert!(tokio_tungstenite::connect_async(url).await.is_err());
+    }
+}

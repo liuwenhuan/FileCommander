@@ -102,6 +102,13 @@ public:
     // Lists the account's devices. Emits devicesReady() or requestFailed().
     void fetchDevices();
 
+    // Signs another device out of the account: its refresh token stops working
+    // and it disappears from the device list. Emits deviceRemoved() (followed
+    // by a fresh devicesReady()) or requestFailed(). Removing this device is
+    // the caller's business, not ours -- it should log out instead, so the
+    // local keyring entry goes with it.
+    void removeDevice(const QString &deviceId);
+
     // Asks the server to open a transfer session against `deviceId`. The server
     // pushes the ticket to that device over its agent socket, so by the time
     // sessionReady() fires the peer already knows to accept it. Emits
@@ -112,6 +119,11 @@ public:
     // the query string. Empty when not signed in. Read afresh on every reconnect
     // so a renewed token is picked up without anyone wiring it through.
     QString agentSocketUrl() const;
+
+    // WebSocket URL of the relay for `sessionId`. Only the ticket authenticates
+    // it, so both devices of a session use the same URL; RelayTunnel appends the
+    // role that says which side of it this socket is.
+    QString relaySocketUrl(const QString &sessionId, const QString &ticket) const;
 
     bool isLoggedIn() const;
     AccountInfo account() const;
@@ -127,6 +139,7 @@ signals:
     void loggedOut();
     void devicesReady(const QVector<AccountDeviceInfo> &devices);
     void sessionReady(const AccountSession &session);
+    void deviceRemoved(const QString &deviceId);
 
     // Every failed request lands here, with a message already fit to show.
     void requestFailed(const QString &error);

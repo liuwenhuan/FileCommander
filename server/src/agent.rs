@@ -5,7 +5,9 @@
 //! another of the account's devices wants to connect. The bytes of a transfer
 //! never pass through this socket -- the two devices talk WebDAV directly.
 
+use std::collections::VecDeque;
 use std::sync::atomic::Ordering;
+use std::time::{Duration, Instant};
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Query, State};
@@ -20,12 +22,12 @@ use tokio::sync::mpsc;
 
 use crate::api::{authenticate, fail, ApiError};
 use crate::db::{iso, now, random_hex, random_token};
-use crate::{AgentConn, AppState};
+use crate::{AgentConn, AppState, RelaySession};
 
 /// How long a device has to use a ticket before the peer forgets it. Long
 /// enough to survive a slow LAN probe, short enough that a leaked ticket is
 /// worth little.
-const TICKET_TTL_SECONDS: i64 = 300;
+pub const TICKET_TTL_SECONDS: i64 = 300;
 
 #[derive(Deserialize)]
 pub struct AgentQuery {
@@ -231,6 +233,23 @@ pub async fn open_session(
             .map_err(|_| fail(StatusCode::CONFLICT, "device is offline"))?;
         (agent.lan_addrs.clone(), agent.share_port)
     };
+
+    // Recorded only once the target has actually been told: a session nobody
+    // was notified about is one nothing will ever join.
+    {
+        let mut sessions = state.sessions.lock().unwrap_or_else(|e| e.into_inner());
+        let now = Instant::now();
+        sessions.retain(|_, s| s.expires > now);
+        sessions.insert(
+            session_id.clone(),
+            RelaySession {
+                ticket: ticket.clone(),
+                expires: now + Duration::from_secs(TICKET_TTL_SECONDS as u64),
+                accepting: VecDeque::new(),
+                connecting: VecDeque::new(),
+            },
+        );
+    }
 
     Ok(Json(SessionResponse {
         session_id,
