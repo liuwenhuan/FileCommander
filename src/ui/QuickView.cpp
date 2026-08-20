@@ -1372,12 +1372,7 @@ void QuickView::refreshPhosphor() {
         applyImageScale();
 
     // Audio cover: kept as decoded, for exactly this reason.
-    if (!m_audioCoverSource.isNull() && m_audioCover) {
-        m_audioCover->setPixmap(fc::tintedPixmap(
-            m_audioCoverSource.scaled(m_audioCover->size(), Qt::KeepAspectRatio,
-                                      Qt::SmoothTransformation),
-            tint));
-    }
+    updateAudioCover();
 
     // PDF: the page bitmaps were tinted as they came out of Poppler. Marking
     // every page un-rendered makes renderVisiblePdfPages() redraw the on-screen
@@ -1408,6 +1403,23 @@ void QuickView::applyVideoPhosphor() {
     settings.tint = fc::previewTint();
     settings.pixelBlock = fc::contentPixelBlock();
     m_mediaEngine->setVideoEffect(settings);
+}
+
+// Both branches of the cover live here because both follow the theme and
+// neither notices a theme change on its own: the art is tinted as it is drawn,
+// and the no-art placeholder is a glyph that used to be taken raw from the
+// platform style -- a dark grey speaker on the CRT theme's dark page.
+void QuickView::updateAudioCover() {
+    if (!m_audioCover)
+        return;
+    if (m_audioCoverSource.isNull()) {
+        m_audioCover->setPixmap(mediaIcon(QStyle::SP_MediaVolume).pixmap(96, 96));
+        return;
+    }
+    m_audioCover->setPixmap(fc::tintedPixmap(
+        m_audioCoverSource.scaled(m_audioCover->size(), Qt::KeepAspectRatio,
+                                  Qt::SmoothTransformation),
+        fc::previewTint()));
 }
 
 QIcon QuickView::mediaIcon(QStyle::StandardPixmap standardPixmap) const {
@@ -1720,17 +1732,7 @@ void QuickView::showAudio(const QString &path) {
     if (tags.hasCover())
         cover.loadFromData(tags.coverData);
     m_audioCoverSource = cover; // kept undyed so refreshPhosphor() can redo it
-    if (!cover.isNull()) {
-        m_audioCover->setPixmap(
-            fc::tintedPixmap(cover.scaled(m_audioCover->size(), Qt::KeepAspectRatio,
-                                          Qt::SmoothTransformation),
-                             fc::previewTint()));
-    } else {
-        m_audioCover->setPixmap(
-            style()
-                ->standardIcon(QStyle::SP_MediaVolume)
-                .pixmap(96, 96));
-    }
+    updateAudioCover();
 
     m_audioTitle->setText(title.toHtmlEscaped());
 
