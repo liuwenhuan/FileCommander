@@ -139,6 +139,13 @@ public:
     }
 };
 
+QStringList actionLabels(QMenu *menu) {
+    QStringList labels;
+    for (QAction *action : menu->actions())
+        labels << action->text();
+    return labels;
+}
+
 } // namespace
 
 TEST(MainWindowActionsTest, StartupKeepsMenuButtonsButDefersMenuContents) {
@@ -146,14 +153,72 @@ TEST(MainWindowActionsTest, StartupKeepsMenuButtonsButDefersMenuContents) {
     ScopedUiLanguage language(QStringLiteral("en"));
     MainWindow window;
 
-    EXPECT_EQ(window.findChildren<QToolButton *>(QStringLiteral("TitleMenuButton")).size(), 3);
+    // Four menu buttons plus the account button, which shares the object name.
+    EXPECT_EQ(window.findChildren<QToolButton *>(QStringLiteral("TitleMenuButton")).size(), 5);
     for (const QString &title : {QStringLiteral("&Interface"), QStringLiteral("&Tools"),
-                                 QStringLiteral("Con&fig")}) {
+                                 QStringLiteral("Con&fig"), QStringLiteral("&Actions")}) {
         QMenu *menu = findMenu(window, title);
         ASSERT_NE(menu, nullptr);
         EXPECT_TRUE(menu->actions().isEmpty()) << title.toStdString();
     }
     EXPECT_TRUE(window.findChildren<QWidgetAction *>().isEmpty());
+}
+
+TEST(MainWindowActionsTest, ActionsMenuOffersTheSameCommandsAsTheStarButton) {
+    ThemeStateGuard themeState;
+    ScopedUiLanguage language(QStringLiteral("en"));
+    MainWindow window;
+
+    const QList<FilePanel *> panels = window.findChildren<FilePanel *>();
+    ASSERT_GE(panels.size(), 2);
+    FilePanel *left = panels.at(0);
+    window.setActivePanel(left);
+
+    QMenu *actionsMenu = findMenu(window, QStringLiteral("&Actions"));
+    ASSERT_NE(actionsMenu, nullptr);
+    // ... and it is on the menu bar, not merely parented to the window: the
+    // title bar gives every menu it was handed a button of its own.
+    bool onMenuBar = false;
+    for (QToolButton *button :
+         window.findChildren<QToolButton *>(QStringLiteral("TitleMenuButton")))
+        onMenuBar = onMenuBar || button->menu() == actionsMenu;
+    EXPECT_TRUE(onMenuBar);
+    openMenu(actionsMenu);
+
+    // The "✳" button pops exactly this list, so the two must agree entry for
+    // entry. The popup builds its actions fresh on every click (each one is
+    // bound to the panel it was opened from), so the labels are the strongest
+    // comparison available -- there is no shared QAction instance to point at.
+    QScopedPointer<QMenu> starMenu(window.buildShortcutMenu(left));
+    ASSERT_FALSE(starMenu->actions().isEmpty());
+    EXPECT_EQ(actionLabels(actionsMenu), actionLabels(starMenu.data()));
+}
+
+TEST(MainWindowActionsTest, ActionsMenuCommandsRunOnTheActivePanel) {
+    ThemeStateGuard themeState;
+    ScopedUiLanguage language(QStringLiteral("en"));
+    MainWindow window;
+
+    const QList<FilePanel *> panels = window.findChildren<FilePanel *>();
+    ASSERT_GE(panels.size(), 2);
+    FilePanel *left = panels.at(0);
+    FilePanel *right = panels.at(1);
+    window.setActivePanel(right);
+
+    QMenu *actionsMenu = findMenu(window, QStringLiteral("&Actions"));
+    ASSERT_NE(actionsMenu, nullptr);
+    openMenu(actionsMenu);
+
+    const bool leftBefore = left->isThumbnailMode();
+    const bool rightBefore = right->isThumbnailMode();
+    QAction *toggle = findAction(actionsMenu, rightBefore ? QStringLiteral("Switch to List View")
+                                                          : QStringLiteral("Switch to Thumbnail View"));
+    ASSERT_NE(toggle, nullptr);
+    toggle->trigger();
+    qApp->processEvents();
+
+    EXPECT_NE(right->isThumbnailMode(), rightBefore);
+    EXPECT_EQ(left->isThumbnailMode(), leftBefore);
 }
 
 TEST(MainWindowActionsTest, ReplayedMenuMouseMoveDoesNotLeaveResizeCursor) {

@@ -297,6 +297,10 @@ private:
     void syncInterfaceMenuState();
     QAction *addCommandAction(QMenu *menu, const QString &id, const QString &label,
                               std::function<void()> handler = {});
+    // The shortcut-menu entries, into a menu the caller already owns. The "✳"
+    // popup and the menu bar's "Actions" entry both go through here, so the two
+    // cannot drift apart.
+    void fillShortcutMenu(QMenu *menu, FilePanel *panel);
     QString commandText(const QString &id, const QString &label) const;
     void applyInterfaceTypography();
     // Re-applies every translatable string in the persistent UI after a live
@@ -434,6 +438,7 @@ private:
     QMenu *m_toolsMenu = nullptr;    // owned; rebuilt on language change
     QMenu *m_configMenu = nullptr;   // owned; rebuilt on language change
     QMenu *m_interfaceMenu = nullptr; // owned; rebuilt on language change
+    QMenu *m_actionsMenu = nullptr;  // owned; rebuilt on language change
 
     // Frameless-chrome paint cache: the shadow + rounded frame rendered once at
     // a small canonical size and blitted 9-patch style at any window size.
