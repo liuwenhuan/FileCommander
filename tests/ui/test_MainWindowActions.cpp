@@ -3,17 +3,23 @@
 #include <QAction>
 #include <QActionGroup>
 #include <QApplication>
+#include <QDir>
+#include <QFile>
 #include <QKeySequence>
 #include <QMenu>
 #include <QMouseEvent>
 #include <QShortcut>
 #include <QTemporaryDir>
+#include <QTest>
+#include <QTimer>
 #include <QToolButton>
 #include <QWidgetAction>
 
 #include <clocale>
 
+#include "ArchiveHandler.h"
 #include "FilePanel.h"
+#include "FileSystemModel.h"
 #include "FunctionKeyBar.h"
 #include "MainWindow.h"
 #include "Settings.h"
@@ -214,10 +220,13 @@ TEST(MainWindowActionsTest, FirstOpenBuildsEachMenuOnceWithCurrentState) {
               QStringLiteral("Skip confirmation only when deleting local files to the trash. "
                              "Shift+Delete and remote deletes always require confirmation."));
     ASSERT_FALSE(configMenu->actions().isEmpty());
-    // Trailing "\tCtrl+Alt+U" stripped the same way findAction() does: this entry
+    // Trailing "\tCtrl+Alt+P" stripped the same way findAction() does: this entry
     // carries a shortcut, unlike the retired one that used to sit last here.
     EXPECT_EQ(configMenu->actions().last()->text().section(QLatin1Char('\t'), 0, 0),
-              QStringLiteral("Automatic Update Check"));
+              QStringLiteral("Show System Partitions"));
+    // The entry that used to sit last is still built -- the assertion above is
+    // about the menu being complete, not about which entry happens to end it.
+    EXPECT_NE(findAction(configMenu, QStringLiteral("Automatic Update Check")), nullptr);
     const int configActionCount = configMenu->actions().size();
     openMenu(configMenu);
     EXPECT_EQ(configMenu->actions().size(), configActionCount);
@@ -445,4 +454,88 @@ TEST(MainWindowActionsTest, TheArchiveEntryIsTickedWhenArchivesOpenAsFolders) {
     EXPECT_FALSE(Settings().archiveAsFolder());
     action->trigger();
     EXPECT_TRUE(Settings().archiveAsFolder());
+}
+
+// Extraction used to run entirely inside the menu handler, so on a network
+// path -- where every read crosses the wire -- the window froze with no bar and
+// no way out. It now runs on a worker thread and reports back, which this
+// pins down from the outside: right after the command returns, nothing has
+// been unpacked yet, and the files only appear once the event loop runs.
+TEST(MainWindowActionsTest, ExtractingAnArchiveDoesNotRunOnTheGuiThread) {
+    ThemeStateGuard themeState;
+    std::setlocale(LC_NUMERIC, "C");
+    ScopedUiLanguage language(QStringLiteral("en"));
+
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString payload = QDir(dir.path()).filePath(QStringLiteral("hello.txt"));
+    {
+        QFile file(payload);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+        // Incompressible, and big enough that unpacking it cannot finish in the
+        // handful of microseconds between the command returning and the check
+        // below -- which is what makes that check a fact rather than a race.
+        QByteArray blob(8 << 20, Qt::Uninitialized);
+        for (int i = 0; i < blob.size(); ++i)
+            blob[i] = char(i * 2654435761u >> 13);
+        file.write(blob);
+    }
+    const QString archive = QDir(dir.path()).filePath(QStringLiteral("fixture.zip"));
+    QString createError;
+    ASSERT_TRUE(ArchiveHandler::create(archive, {payload}, QStringLiteral("zip"), &createError))
+        << createError.toStdString();
+    ASSERT_TRUE(QFile::remove(payload)); // so its reappearance means the extraction ran
+
+    MainWindow window;
+    FilePanel *panel = window.findChildren<FilePanel *>().value(0);
+    ASSERT_NE(panel, nullptr);
+    window.setActivePanel(panel);
+    panel->navigateTo(dir.path());
+
+    int row = -1;
+    ASSERT_TRUE(QTest::qWaitFor([panel, &row] {
+        for (int r = 0; r < panel->model()->rowCount(); ++r) {
+            if (!panel->model()->isParentEntry(r) &&
+                panel->model()->fileInfoAt(r).name() == QStringLiteral("fixture.zip")) {
+                row = r;
+                return true;
+            }
+        }
+        return false;
+    }, 10000)) << "the panel never listed the archive";
+    panel->view()->setCurrentIndex(panel->model()->index(row, 0));
+
+    // The command ends in a modal report, and with no user here nothing else
+    // would close it.
+    QTimer dismisser;
+    QObject::connect(&dismisser, &QTimer::timeout, [] {
+        if (QWidget *modal = QApplication::activeModalWidget())
+            modal->close();
+    });
+    dismisser.start(100);
+
+    ASSERT_TRUE(QMetaObject::invokeMethod(&window, "extractArchiveHere", Qt::DirectConnection));
+    // The whole point: the handler returned with the work still outstanding.
+    const QString extracted =
+        QDir(dir.path()).filePath(QStringLiteral("fixture/hello.txt"));
+    EXPECT_FALSE(QFile::exists(extracted) || QFile::exists(payload))
+        << "extraction finished inside the handler, so it is still blocking the GUI thread";
+
+    EXPECT_TRUE(QTest::qWaitFor(
+        [&extracted, &payload] { return QFile::exists(extracted) || QFile::exists(payload); },
+        30000))
+        << "the archive was never unpacked";
+
+    // ...and the panel showing that directory re-lists itself, so the user sees
+    // what came out without pressing refresh. Which of the two names appears
+    // depends on whether smartExtract wrapped the single entry in a folder.
+    EXPECT_TRUE(QTest::qWaitFor([panel] {
+        for (int r = 0; r < panel->model()->rowCount(); ++r) {
+            const QString name = panel->model()->fileInfoAt(r).name();
+            if (!panel->model()->isParentEntry(r) &&
+                (name == QStringLiteral("fixture") || name == QStringLiteral("hello.txt")))
+                return true;
+        }
+        return false;
+    }, 10000)) << "the panel never picked up the extracted files";
 }

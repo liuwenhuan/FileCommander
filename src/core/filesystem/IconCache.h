@@ -115,11 +115,19 @@ public:
     // `blockPixels` is the quantisation grid for file icons, in image pixels.
     // No theme sets it: quantising a glyph made file types unidentifiable at
     // list-view sizes (see ThemeManager). Kept so the pass stays reachable.
-    void setGlyphTint(const QColor &tint);
+    //
+    // `selectedTint` is the same colour question asked for a SELECTED row,
+    // where the theme's selection colour is the fill behind the glyph: the CRT
+    // theme selects by inverting, so a phosphor glyph on a phosphor fill
+    // vanishes. Glyphs are built with a QIcon::Selected variant in that colour,
+    // which is what a stock QStyledItemDelegate already asks for. Invalid =>
+    // no such variant, and a selected glyph keeps the ordinary colour.
+    void setGlyphTint(const QColor &tint, const QColor &selectedTint = QColor());
     void setFileIconTint(const QColor &tint, int blockPixels = 0);
     // Which of the two is in force, for whoever needs to reason about it --
     // an invalid colour means that kind of icon is left in its own colours.
     QColor glyphTint() const { return m_glyphTint; }
+    QColor glyphSelectedTint() const { return m_glyphSelectedTint; }
     QColor fileIconTint() const { return m_fileIconTint; }
 
 private:
@@ -133,6 +141,7 @@ private:
     mutable QMutex m_mutex;
     QCache<QString, QIcon> m_cache;
     QColor m_glyphTint;    // invalid => hand our own SVG chrome through untouched
+    QColor m_glyphSelectedTint; // invalid => no QIcon::Selected variant is built
     QColor m_fileIconTint; // invalid => leave the system's artwork in its colours
     int m_blockPixels = 0; // icon quantisation grid; 0 => none
 };

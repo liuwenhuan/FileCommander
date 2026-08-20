@@ -8,6 +8,7 @@
 #include <QScopedPointer>
 #include <QString>
 
+#include "ArchiveHandler.h"
 #include "FileProvider.h"
 
 class QTemporaryDir;
@@ -43,10 +44,20 @@ public:
     // (archive_read_open_filename), unsquashfs and 7z all open an archive by
     // name, so an archive that lives on a server has to be copied down first.
     // See setExitPath()/setOwnsArchiveFile() for the two things that then differ.
-    explicit ArchiveProvider(const QString &archivePath, QString *error = nullptr);
+    // `passphrase` decrypts an encrypted archive. An encrypted one opened
+    // WITHOUT it is left invalid with status() == NeedPassword rather than
+    // half-readable: ZIP lists its names without a password, but every byte
+    // read out of it would be ciphertext, so the browse would show a tree of
+    // files that all preview as garbage. The caller prompts and opens again.
+    explicit ArchiveProvider(const QString &archivePath, QString *error = nullptr,
+                             const QString &passphrase = QString());
     ~ArchiveProvider() override;
 
     bool isValid() const { return m_valid; }
+
+    // Why the open failed, when it failed because of encryption. Ok for every
+    // other outcome, including plain errors -- check isValid() for those.
+    ArchiveHandler::Status status() const { return m_status; }
 
     // Where ".." at the archive root leads. Defaults to the directory the
     // archive file itself sits in, which is right whenever the user is looking
@@ -134,6 +145,8 @@ private:
     QString tempFilePath(const QString &realPath) const;
 
     QString m_archivePath;
+    QString m_passphrase;
+    ArchiveHandler::Status m_status = ArchiveHandler::Status::Ok;
     QString m_baseName;
     QString m_exitPath;           // "" => derive from m_archivePath (local archive)
     bool m_ownsArchiveFile = false;

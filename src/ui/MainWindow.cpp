@@ -916,6 +916,20 @@ void MainWindow::buildTitleBarMenus() {
     autoUpdate->setChecked(m_settings.autoUpdateCheck());
     connect(autoUpdate, &QAction::toggled, this,
             [this](bool on) { m_settings.setAutoUpdateCheck(on); });
+    QAction *systemVolumes = configMenu->addAction(
+        commandText(QStringLiteral("toggleSystemVolumes"), tr("Show System Partitions")));
+    systemVolumes->setObjectName(QStringLiteral("configSystemVolumesAction"));
+    systemVolumes->setCheckable(true);
+    systemVolumes->setChecked(m_settings.showSystemVolumes());
+    systemVolumes->setToolTip(
+        tr("List the operating system's own mount points (/boot, /var, ...) in the "
+           "Computer view, and every mount point of a disk rather than one row per disk."));
+    connect(systemVolumes, &QAction::toggled, this, [this](bool on) {
+        m_settings.setShowSystemVolumes(on);
+        // A panel already sitting in the computer view would otherwise keep the
+        // old listing until the user navigated away and back.
+        refreshComputerViews();
+    });
     syncConfigMenuState();
     });
 
@@ -1210,6 +1224,7 @@ void MainWindow::syncConfigMenuState() {
     syncChecked(QStringLiteral("configDirectArchivesAction"), m_settings.archiveAsFolder());
     syncChecked(QStringLiteral("configDeleteConfirmationAction"), !m_settings.confirmDelete());
     syncChecked(QStringLiteral("configAutoUpdateAction"), m_settings.autoUpdateCheck());
+    syncChecked(QStringLiteral("configSystemVolumesAction"), m_settings.showSystemVolumes());
 }
 
 void MainWindow::syncInterfaceMenuState() {
@@ -1501,6 +1516,17 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
                 m_activePanel->view()->setFocus(Qt::TabFocusReason);
                 return true; // consume: preview -> list
             }
+        }
+        // Left/Right scrub the previewed video/audio while the file list itself
+        // has focus, so playback can be driven without leaving the list. LIST
+        // MODE ONLY: the icon view needs both arrows to move its cursor across
+        // a row, whereas the list view moves only up and down.
+        if ((ke->key() == Qt::Key_Left || ke->key() == Qt::Key_Right) &&
+            ke->modifiers() == Qt::NoModifier &&
+            m_activePanel->activeView() == m_activePanel->view() &&
+            QApplication::focusWidget() == m_activePanel->view() &&
+            m_quickView->nudgeMediaPosition(ke->key() == Qt::Key_Right ? 5 : -5)) {
+            return true;
         }
     }
     return QMainWindow::eventFilter(watched, event);
@@ -2196,7 +2222,7 @@ void MainWindow::browseSmbHost(const QString &hostName) {
 // outlives the panel has simply warmed the cache for the next one.
 void MainWindow::warmDriveIcons(FilePanel *panel) {
     QStringList roots;
-    for (const ComputerEntry &drive : ComputerCatalog::drives())
+    for (const ComputerEntry &drive : ComputerCatalog::drives(m_settings.showSystemVolumes()))
         roots << drive.target;
     if (roots.isEmpty())
         return;
@@ -2247,7 +2273,7 @@ QVector<ComputerEntry> MainWindow::computerEntries() {
 #endif
 
     QVector<ComputerEntry> entries;
-    for (const ComputerEntry &drive : ComputerCatalog::drives()) {
+    for (const ComputerEntry &drive : ComputerCatalog::drives(m_settings.showSystemVolumes())) {
         QString root = drive.target;
         while (root.size() > 1 && root.endsWith(QLatin1Char('/')))
             root.chop(1); // "C:/" and "C:" name the same volume as a mount point
@@ -2306,8 +2332,11 @@ void MainWindow::openComputerEntry(FilePanel *panel, const ComputerEntry &entry)
     case ComputerEntry::Kind::UserFolder:
         // navigateTo() steps out of the computer view itself. Doing it here as
         // well would hide the transition from it, and with it the history entry
-        // that lets Back return to the view.
-        panel->navigateTo(entry.target);
+        // that lets Back return to the view. Drop: both kinds name a place on
+        // THIS machine, so a server connection the tab had parked must not come
+        // back with us -- it would list the local path through the remote
+        // provider, e.g. "Documents" landing on "user@host : Documents".
+        panel->navigateTo(entry.target, FilePanel::ParkedConnection::Drop);
         break;
     case ComputerEntry::Kind::RemovableDevice: {
 #if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
@@ -2332,7 +2361,9 @@ void MainWindow::openComputerEntry(FilePanel *panel, const ComputerEntry &entry)
                 return;
             }
         }
-        panel->navigateTo(mountPoint); // steps out of the computer view itself
+        // Steps out of the computer view itself; the mount is local, so any
+        // parked server connection is dropped rather than restored.
+        panel->navigateTo(mountPoint, FilePanel::ParkedConnection::Drop);
 #endif
         break;
     }
@@ -2591,6 +2622,11 @@ void MainWindow::setupShortcuts() {
     bindShortcut("toggleAutoUpdate", tr("Automatic Update Check"),
                  QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_U), [this] {
                      m_settings.setAutoUpdateCheck(!m_settings.autoUpdateCheck());
+                 });
+    bindShortcut("toggleSystemVolumes", tr("Show System Partitions"),
+                 QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_P), [this] {
+                     m_settings.setShowSystemVolumes(!m_settings.showSystemVolumes());
+                     refreshComputerViews();
                  });
     bindShortcut("openTerminal", tr("Open Terminal Here"),
                  QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_Return), [this] { openTerminalHere(); });
@@ -3288,19 +3324,18 @@ void MainWindow::chooseApplicationAndOpen() {
 void MainWindow::runOpenWithHandler(const fc::OpenWithHandler &handler, const QString &path) {
     if (!m_activePanel || path.isEmpty())
         return;
-    FileProvider *prov = m_activePanel->model()->provider();
-    if (prov && !prov->displayName().isEmpty()) {
-        // Network tab: the application needs a real file, not the provider's
-        // path, which names something on the server.
-        fetchRemoteCopy(m_activePanel, path, [handler](const QString &localPath) {
-            fc::launchOpenWithHandler(handler, localPath);
-        });
-        return;
-    }
-    if (!fc::launchOpenWithHandler(handler, path)) {
-        ttc::warning(this, tr("Open With"),
-                     tr("%1 could not be started.").arg(handler.displayName));
-    }
+    // The application opens the path itself, so it needs one this machine has:
+    // a gvfs mount where there is one (nothing copied, edits saved back), a
+    // downloaded copy otherwise. withLocalFile() is that whole rule, and it also
+    // covers archive entries -- the displayName() test this used to make waved
+    // those through to the local branch, which then launched the application on
+    // an in-archive path.
+    withLocalFile(m_activePanel, path, [this, handler](const QString &local) {
+        if (!fc::launchOpenWithHandler(handler, local)) {
+            ttc::warning(this, tr("Open With"),
+                         tr("%1 could not be started.").arg(handler.displayName));
+        }
+    });
 }
 
 QMenu *MainWindow::buildOpenWithMenu(const QString &path) {
@@ -3550,14 +3585,21 @@ QString MainWindow::ensurePreviewTempDir() {
 void MainWindow::updateQuickView() {
     if (!m_quickViewActive || !m_activePanel)
         return;
-    // An archive under the cursor previews from its raw path (a header scan).
+    // An archive under the cursor previews from its raw path (a header scan),
+    // which only works when that path is one this machine can open -- on a
+    // network tab it scanned nothing, or a same-named local archive. Everywhere
+    // else it falls through to the download below and previews the copy.
     const QString entry = m_activePanel->currentEntryPath();
-    if (ArchiveHandler::isSupportedArchive(entry)) {
+    FileProvider *prov = m_activePanel->model()->provider();
+    const bool local = prov && prov->isLocalFilesystem();
+    if (local && ArchiveHandler::isSupportedArchive(entry)) {
         m_quickView->showFile(entry);
         return;
     }
 
-    FileProvider *prov = m_activePanel->model()->provider();
+    // The branch below is about connections, not locality: an archive tab has
+    // no connection to download through, and its own extract-then-preview path
+    // is the one that handles it.
     const bool network = prov && !prov->displayName().isEmpty();
     if (!network) {
         // A local file is its own answer. An archive entry may not be: the
@@ -3818,9 +3860,10 @@ void MainWindow::openWithAssociatedApp(FilePanel *panel, const QString &path) {
     if (path.isEmpty())
         return;
     FileProvider *prov = panel ? panel->model()->provider() : nullptr;
-    // Same test the preview pane uses: only network backends name a connection.
-    const bool network = prov && !prov->displayName().isEmpty();
-    if (!network) {
+    // Ask the backend, not displayName(): an archive tab names no connection
+    // either, and its entries are no more openable by path than a share's.
+    const bool local = !prov || prov->isLocalFilesystem();
+    if (local) {
         // An AppImage straight from a browser download has no execute bit, and
         // opening it then does nothing at all -- or, worse, hands it to a text
         // editor. Offer to fix that here, where the user is already trying to
@@ -4743,20 +4786,19 @@ void MainWindow::showFileContextMenu(FilePanel *panel, const QPoint &viewPos) {
     add(QStringLiteral("rename"), tr("Rename"), [this] { renameCurrent(); });
     add(QStringLiteral("delete"), tr("Delete"), [this] { deleteSelected(false); });
     add(QStringLiteral("compress"), tr("Compress"), [this] { compressSelected(); });
-    // Only for something this machine can actually open. ArchiveHandler reads
-    // with QFile, so on a network tab -- or inside another archive -- the
-    // panel's path names something the local filesystem knows nothing about,
-    // and extracting would either fail or, worse, quietly work on a same-named
-    // local file. isLocalFilesystem() is the capability query written for this;
-    // a displayName() test would let archive tabs through, since ArchiveProvider
+    // A panel path is only a path on this machine when the backend says so.
+    // isLocalFilesystem() is the capability query written for this; a
+    // displayName() test would let archive tabs through, since ArchiveProvider
     // does not override it.
-    // A panel path is only a path on this machine when the backend says so, and
-    // both of the submenus below hand it to something that opens it directly.
     FileProvider *provider = panel->model() ? panel->model()->provider() : nullptr;
     const bool localBackend = provider && provider->isLocalFilesystem();
 
-    if (!isDirectory && localBackend &&
-        ArchiveHandler::isSupportedArchive(panel->currentEntryPath())) {
+    // Offered on every backend: an archive on a server is still an archive, and
+    // the extract actions below resolve it to a real path (gvfs mount, else a
+    // downloaded copy) before ArchiveHandler opens it with QFile. Hiding the
+    // entry was the older answer, and it left no way at all to unpack a file
+    // sitting on a share.
+    if (!isDirectory && ArchiveHandler::isSupportedArchive(panel->currentEntryPath())) {
         QMenu *extractMenu = menu.addMenu(commandText(QStringLiteral("extractTo"), tr("Extract To")));
         Typography::applyChromeFont(extractMenu, m_settings);
         addCommandAction(extractMenu, QStringLiteral("extractHere"), tr("Extract Here"),
@@ -4873,110 +4915,242 @@ void MainWindow::viewCurrent() {
 // something a user meant to unpack, and the loop must not follow it forever.
 static constexpr int kMaxNestedExtractions = 16;
 
-void MainWindow::smartExtractArchive(const QString &archivePath, const QString &destDir) {
-    QString source = archivePath;
-    QString base = destDir;
-    QString finalDir;
-    // Carried between levels: nested archives are very often encrypted with the
-    // same password as their wrapper, so try it before asking again. If it does
-    // not fit, the attempt costs one listing pass and the prompt follows.
-    QString passphrase;
-    bool promptedForThisArchive = false;
-    int depth = 0;
+void MainWindow::smartExtractArchive(const QString &archivePath, const QString &destDir,
+                                     FilePanel *refreshPanel) {
+    const quint64 reqId = ++m_archiveJobId;
+    ArchiveJob job;
+    job.title = tr("Extract");
+    job.source = archivePath;
+    job.base = destDir;
+    job.destDir = destDir;
+    job.refreshPanel = refreshPanel;
+    job.cancel = std::make_shared<std::atomic<bool>>(false);
+    m_archiveJobs.insert(reqId, job);
+    runExtractLevel(reqId);
+}
 
-    for (;;) {
+// Runs ONE level of the extraction on a worker thread. Each level comes back to
+// onExtractLevelDone, which decides whether to prompt for a password, recurse
+// into a nested archive, or finish -- all of which need the GUI thread.
+void MainWindow::runExtractLevel(quint64 reqId) {
+    auto it = m_archiveJobs.find(reqId);
+    if (it == m_archiveJobs.end())
+        return;
+    it->description = tr("Extracting %1...").arg(QFileInfo(it->source).fileName());
+    showArchiveJobProgressLater(reqId);
+
+    const QString source = it->source;
+    const QString base = it->base;
+    const QString passphrase = it->passphrase;
+    std::shared_ptr<std::atomic<bool>> cancel = it->cancel;
+    MainWindow *self = this; // outlives the job: closeEvent cancels every one
+    QtConcurrent::run([self, reqId, source, base, passphrase, cancel] {
+        ArchiveHandler::Progress progress;
+        progress.cancel = cancel.get();
+        // The totals are filled in by smartExtract's listing pass, so they are
+        // read out of `progress` at report time rather than captured now.
+        progress.report = [self, reqId, &progress](const QString &entry, qint64 doneItems,
+                                                   qint64 doneBytes) {
+            QMetaObject::invokeMethod(self, "onArchiveJobProgress", Qt::QueuedConnection,
+                                      Q_ARG(quint64, reqId), Q_ARG(QString, entry),
+                                      Q_ARG(qint64, doneItems), Q_ARG(qint64, progress.totalItems),
+                                      Q_ARG(qint64, doneBytes), Q_ARG(qint64, progress.totalBytes));
+        };
         QString err;
         const ArchiveHandler::SmartResult res =
-            ArchiveHandler::smartExtract(source, base, passphrase, &err);
+            ArchiveHandler::smartExtract(source, base, passphrase, &err, &progress);
+        QMetaObject::invokeMethod(self, "onExtractLevelDone", Qt::QueuedConnection,
+                                  Q_ARG(quint64, reqId), Q_ARG(bool, res.ok),
+                                  Q_ARG(int, int(res.status)), Q_ARG(QString, res.finalDir),
+                                  Q_ARG(QString, res.nestedArchivePath), Q_ARG(QString, err));
+    });
+}
 
-        // Encrypted: ask, then retry the SAME archive. Nothing has been written
-        // yet -- the encryption was found while listing -- so this is a retry,
-        // not a partial extraction being resumed.
-        if (res.status == ArchiveHandler::Status::NeedPassword ||
-            res.status == ArchiveHandler::Status::WrongPassword) {
-            const QString name = QFileInfo(source).fileName();
-            // "Wrong password" only once the user has actually typed one for
-            // this archive. A carried-over password that does not fit is not
-            // the user's mistake, so it asks plainly instead of accusing.
-            const bool wrong =
-                promptedForThisArchive && res.status == ArchiveHandler::Status::WrongPassword;
-            bool ok = false;
-            const QString entered = ttc::getText(
-                this, tr("Password required"),
-                wrong ? tr("Incorrect password. Try again for “%1”:").arg(name)
-                      : tr("“%1” is encrypted. Enter its password:").arg(name),
-                QLineEdit::Password, QString(), &ok);
-            if (!ok || entered.isEmpty())
-                break; // Cancelled: keep whatever earlier levels produced.
-            passphrase = entered;
-            promptedForThisArchive = true;
-            continue;
-        }
-        if (res.status == ArchiveHandler::Status::EncryptedUnsupported) {
-            ttc::warning(this, tr("Extract"),
-                         tr("“%1” uses an encryption this build cannot read.")
-                             .arg(QFileInfo(source).fileName()));
-            break;
-        }
-        if (!res.ok) {
-            // A failure on an inner level still leaves the outer levels
-            // extracted, so report it without discarding what worked.
-            ttc::warning(this, tr("Extract"), tr("Extraction failed: %1").arg(err));
-            if (depth == 0)
-                return;
-            break;
-        }
-
-        finalDir = res.finalDir;
-        if (res.nestedArchivePath.isEmpty())
-            break;
-
-        if (++depth >= kMaxNestedExtractions) {
-            ttc::warning(this, tr("Extract"),
-                         tr("Stopped after %1 nested archives; the innermost one was left "
-                            "packed.")
-                             .arg(depth));
-            break;
-        }
-
-        source = res.nestedArchivePath;
-        base = QFileInfo(res.nestedArchivePath).absolutePath();
-        promptedForThisArchive = false; // a new archive, so a new prompt is not a retry
+void MainWindow::onExtractLevelDone(quint64 reqId, bool ok, int status, const QString &finalDir,
+                                    const QString &nested, const QString &error) {
+    auto it = m_archiveJobs.find(reqId);
+    if (it == m_archiveJobs.end())
+        return;
+    // Cancelled while this level ran: keep whatever landed, say nothing.
+    if (it->cancel && it->cancel->load()) {
+        finishExtractJob(reqId, /*announce=*/false);
+        return;
     }
 
-    // Cancelled at the very first password prompt: nothing was written, so
-    // saying where it landed would be a lie.
-    if (finalDir.isEmpty())
-        return;
+    const ArchiveHandler::Status st = ArchiveHandler::Status(status);
 
-    // Refresh whichever panel is showing the destination so the new files appear.
+    // Encrypted: ask, then retry the SAME archive. Nothing has been written yet
+    // -- the encryption was found while listing -- so this is a retry, not a
+    // partial extraction being resumed.
+    if (st == ArchiveHandler::Status::NeedPassword ||
+        st == ArchiveHandler::Status::WrongPassword) {
+        const QString name = QFileInfo(it->source).fileName();
+        // "Wrong password" only once the user has actually typed one for this
+        // archive. A carried-over password that does not fit is not the user's
+        // mistake, so it asks plainly instead of accusing.
+        const bool wrong =
+            it->promptedForThisArchive && st == ArchiveHandler::Status::WrongPassword;
+        hideArchiveJobDialog(reqId); // no frozen bar behind the prompt
+        bool accepted = false;
+        const QString entered =
+            ttc::getText(this, tr("Password required"),
+                         wrong ? tr("Incorrect password. Try again for “%1”:").arg(name)
+                               : tr("“%1” is encrypted. Enter its password:").arg(name),
+                         QLineEdit::Password, QString(), &accepted);
+        // The prompt spun the event loop, so re-find rather than reuse `it`.
+        it = m_archiveJobs.find(reqId);
+        if (it == m_archiveJobs.end())
+            return;
+        if (!accepted || entered.isEmpty()) {
+            finishExtractJob(reqId, /*announce=*/true); // keep the earlier levels
+            return;
+        }
+        it->passphrase = entered;
+        it->promptedForThisArchive = true;
+        runExtractLevel(reqId);
+        return;
+    }
+
+    if (st == ArchiveHandler::Status::EncryptedUnsupported || !ok) {
+        const QString message =
+            st == ArchiveHandler::Status::EncryptedUnsupported
+                ? tr("“%1” uses an encryption this build cannot read.")
+                      .arg(QFileInfo(it->source).fileName())
+                // A failure on an inner level still leaves the outer levels
+                // extracted, so report it without discarding what worked.
+                : tr("Extraction failed: %1").arg(error);
+        hideArchiveJobDialog(reqId);
+        ttc::warning(this, tr("Extract"), message);
+        finishExtractJob(reqId, /*announce=*/true);
+        return;
+    }
+
+    it->finalDir = finalDir;
+    if (nested.isEmpty()) {
+        finishExtractJob(reqId, /*announce=*/true);
+        return;
+    }
+
+    if (++it->depth >= kMaxNestedExtractions) {
+        const int depth = it->depth;
+        hideArchiveJobDialog(reqId);
+        ttc::warning(this, tr("Extract"),
+                     tr("Stopped after %1 nested archives; the innermost one was left "
+                        "packed.")
+                         .arg(depth));
+        finishExtractJob(reqId, /*announce=*/true);
+        return;
+    }
+
+    it->source = nested;
+    it->base = QFileInfo(nested).absolutePath();
+    it->promptedForThisArchive = false; // a new archive, so a new prompt is not a retry
+    runExtractLevel(reqId);
+}
+
+void MainWindow::finishExtractJob(quint64 reqId, bool announce) {
+    auto it = m_archiveJobs.find(reqId);
+    if (it == m_archiveJobs.end())
+        return;
+    const ArchiveJob job = *it;
+    m_archiveJobs.erase(it);
+    if (job.dialog) {
+        job.dialog->close();
+        job.dialog->deleteLater();
+    }
+
+    // Refresh whichever panel is showing the destination so the new files
+    // appear -- also after a cancel, which leaves a partial extraction behind.
     for (FilePanel *panel : {m_leftPanel, m_rightPanel}) {
-        if (panel && panel->currentPath() == destDir)
+        if (panel && panel->currentPath() == job.destDir)
             panel->refresh();
     }
+    // The caller's own panel, for when it shows the same directory under a name
+    // the comparison above cannot match (a network tab unpacking via a mount).
+    if (job.refreshPanel && job.refreshPanel->currentPath() != job.destDir)
+        job.refreshPanel->refresh();
+    // Cancelled at the very first password prompt: nothing was written, so
+    // saying where it landed would be a lie.
+    if (!announce || job.finalDir.isEmpty())
+        return;
     // The count matters when it is not 1: recursion is automatic now, so this is
     // the only place the user learns how far it went.
     ttc::information(this, tr("Extract"),
-                     depth > 0 ? tr("Extracted %1 nested archives to %2").arg(depth + 1).arg(finalDir)
-                               : tr("Extracted archive to %1").arg(finalDir));
+                     job.depth > 0
+                         ? tr("Extracted %1 nested archives to %2").arg(job.depth + 1).arg(job.finalDir)
+                         : tr("Extracted archive to %1").arg(job.finalDir));
 }
 
-// True when the active panel's current row is an archive this machine can read.
+// Shows the progress dialog once the level has run for half a second, so
+// unpacking a small archive doesn't flash one (same threshold as the remote
+// download). A later level reuses the dialog that is already up.
+void MainWindow::showArchiveJobProgressLater(quint64 reqId) {
+    auto it = m_archiveJobs.find(reqId);
+    if (it == m_archiveJobs.end())
+        return;
+    if (it->dialog) {
+        it->dialog->setDescription(it->description);
+        return;
+    }
+    QTimer::singleShot(500, this, [this, reqId] {
+        auto job = m_archiveJobs.find(reqId);
+        if (job == m_archiveJobs.end() || job->dialog)
+            return; // finished already, or a dialog is up
+        auto *dlg = new OperationProgressDialog(this);
+        dlg->setWindowTitle(job->title);
+        dlg->setPauseVisible(false); // libarchive has no pause point to stop on
+        dlg->setDescription(job->description);
+        dlg->setProgress(0, 0, 0, 0, QString());
+        connect(dlg, &OperationProgressDialog::cancelRequested, this,
+                [this, reqId] { cancelArchiveJob(reqId); });
+        job->dialog = dlg;
+        dlg->show();
+    });
+}
+
+// Takes the bar down without ending the job -- for the modal prompts that
+// happen between levels, which would otherwise sit in front of a frozen bar.
+void MainWindow::hideArchiveJobDialog(quint64 reqId) {
+    auto it = m_archiveJobs.find(reqId);
+    if (it == m_archiveJobs.end() || !it->dialog)
+        return;
+    it->dialog->close();
+    it->dialog->deleteLater();
+    it->dialog = nullptr;
+}
+
+void MainWindow::onArchiveJobProgress(quint64 reqId, const QString &entry, qint64 doneItems,
+                                      qint64 totalItems, qint64 doneBytes, qint64 totalBytes) {
+    auto it = m_archiveJobs.find(reqId);
+    if (it == m_archiveJobs.end() || !it->dialog)
+        return; // done, cancelled, or still inside the 0.5s quiet window
+    it->dialog->setProgress(doneItems, totalItems, doneBytes, totalBytes, entry);
+}
+
+void MainWindow::cancelArchiveJob(quint64 reqId) {
+    auto it = m_archiveJobs.find(reqId);
+    if (it == m_archiveJobs.end())
+        return;
+    if (it->cancel)
+        it->cancel->store(true); // the worker aborts on the next entry or block
+    // The entry itself stays until the worker reports back: only then is it
+    // certain nothing is still writing files.
+    hideArchiveJobDialog(reqId);
+}
+
+
+// True when the active panel's current row is an archive we can unpack.
 //
-// The locality test is the point. ArchiveHandler opens with QFile, so a path
-// from a network tab, or from inside another archive, is not something it can
-// open -- and a same-named local file would be operated on instead of failing
-// cleanly. isLocalFilesystem() answers that directly; inferring it from
-// displayName() being empty would wave archive tabs through, because
-// ArchiveProvider does not override displayName().
+// The backend is deliberately not part of the test. ArchiveHandler opens with
+// QFile, so an archive on a share (or inside another archive) has to become a
+// real path first -- which is what the two extract actions do -- rather than be
+// hidden from the menu, which is what used to happen and left a file on a
+// server with no way to unpack it at all.
 bool MainWindow::currentEntryIsExtractableArchive() const {
     if (!m_activePanel)
         return false;
     const QString path = m_activePanel->currentEntryPath();
-    if (path.isEmpty() || !ArchiveHandler::isSupportedArchive(path))
-        return false;
-    FileProvider *provider = m_activePanel->model() ? m_activePanel->model()->provider() : nullptr;
-    return provider && provider->isLocalFilesystem();
+    return !path.isEmpty() && ArchiveHandler::isSupportedArchive(path);
 }
 
 void MainWindow::sendShortcutTo(fc::ShellShortcuts::Destination where) {
@@ -5048,7 +5222,35 @@ bool MainWindow::offerExecutableBit(const QString &path) {
 void MainWindow::extractArchiveHere() {
     if (!currentEntryIsExtractableArchive())
         return;
-    smartExtractArchive(m_activePanel->currentEntryPath(), m_activePanel->currentPath());
+    const QString path = m_activePanel->currentEntryPath();
+    FileProvider *prov = m_activePanel->model()->provider();
+    if (prov && prov->isLocalFilesystem()) {
+        smartExtractArchive(path, m_activePanel->currentPath(), m_activePanel);
+        return;
+    }
+
+    // "Here" means the archive's own directory, so this needs a real path for
+    // the archive AND somewhere real to write the result. A gvfs mount gives
+    // both at once -- the files land back on the server, which is what the user
+    // asked for. A downloaded copy would give only the first, and the unpacked
+    // files would appear in a temp folder nobody sees, so say so instead and
+    // point at the action that does work.
+    const QString name = QFileInfo(path).fileName();
+    FilePanel *panel = m_activePanel;
+    resolveRealPath(m_activePanel, path, [this, name, panel](const QString &real) {
+        if (real.isEmpty()) {
+            ttc::warning(this, tr("Extract"),
+                         tr("“%1” cannot be unpacked where it is.\n\nUse “Extract to "
+                            "Folder...” to unpack it into a folder on this computer.")
+                             .arg(name));
+            return;
+        }
+        // The mounted archive's own directory, not the panel's: in a flat search
+        // listing those are not the same place. The panel has to be named
+        // explicitly because it is on the provider's path for that directory,
+        // which never equals the mount path the extraction writes to.
+        smartExtractArchive(real, QFileInfo(real).absolutePath(), panel);
+    });
 }
 
 void MainWindow::extractArchiveToDir() {
@@ -5057,8 +5259,14 @@ void MainWindow::extractArchiveToDir() {
     const QString path = m_activePanel->currentEntryPath();
     const QString dir = QFileDialog::getExistingDirectory(
         this, tr("Extract to"), otherPanel(m_activePanel)->currentPath());
-    if (!dir.isEmpty())
-        smartExtractArchive(path, dir);
+    if (dir.isEmpty())
+        return;
+    // The destination is a local folder the user just picked, so only the
+    // archive still has to be made real -- and here a downloaded copy is a fine
+    // fallback, since nothing needs writing back to where it came from.
+    withLocalFile(m_activePanel, path, [this, dir](const QString &local) {
+        smartExtractArchive(local, dir);
+    });
 }
 
 void MainWindow::editCurrent() {
@@ -5304,20 +5512,86 @@ void MainWindow::compressSelected() {
     if (sources.isEmpty())
         return;
 
-    const QString destDir = otherPanel(m_activePanel)->currentPath();
+    FilePanel *dest = otherPanel(m_activePanel);
+    // ArchiveHandler reads the sources with QFile and writes the archive with
+    // QFile, so both ends have to be paths on this machine. Unchecked, a
+    // network or archive tab either failed for no stated reason or -- where a
+    // local file happened to share the name -- packed that file instead.
+    FileProvider *srcProv = m_activePanel->model()->provider();
+    FileProvider *dstProv = dest ? dest->model()->provider() : nullptr;
+    if (!srcProv || !srcProv->isLocalFilesystem() || !dstProv ||
+        !dstProv->isLocalFilesystem()) {
+        ttc::information(this, tr("Compress"),
+                         tr("Compressing needs both the files and the destination folder to "
+                            "be on this computer. Copy them to a local folder first."));
+        return;
+    }
+
+    const QString destDir = dest->currentPath();
     const QString defaultName = QFileInfo(sources.first()).completeBaseName();
 
     CompressDialog dlg(destDir, defaultName, this);
     if (dlg.exec() != QDialog::Accepted)
         return;
 
-    QString err;
-    if (!ArchiveHandler::create(dlg.archivePath(), sources, dlg.format(), dlg.passphrase(),
-                                 dlg.encryptHeaders(), dlg.compressionLevel(), &err)) {
-        ttc::warning(this, tr("Compress"), tr("Compression failed: %1").arg(err));
+    const quint64 reqId = ++m_archiveJobId;
+    ArchiveJob job;
+    job.title = tr("Compress");
+    job.description = tr("Compressing %1...").arg(QFileInfo(dlg.archivePath()).fileName());
+    job.source = dlg.archivePath();
+    job.refreshPanel = dest;
+    job.cancel = std::make_shared<std::atomic<bool>>(false);
+    m_archiveJobs.insert(reqId, job);
+    showArchiveJobProgressLater(reqId);
+
+    const QString archivePath = dlg.archivePath();
+    const QString format = dlg.format();
+    const QString passphrase = dlg.passphrase();
+    const bool encryptHeaders = dlg.encryptHeaders();
+    const int level = dlg.compressionLevel();
+    std::shared_ptr<std::atomic<bool>> cancel = job.cancel;
+    MainWindow *self = this;
+    QtConcurrent::run([self, reqId, archivePath, sources, format, passphrase, encryptHeaders,
+                       level, cancel] {
+        ArchiveHandler::Progress progress;
+        progress.cancel = cancel.get();
+        // No totals: knowing them means walking the whole source tree first,
+        // which on a big folder costs about as much as the compression. The bar
+        // stays indeterminate and reports the entry it is on.
+        progress.report = [self, reqId](const QString &entry, qint64 doneItems, qint64 doneBytes) {
+            QMetaObject::invokeMethod(self, "onArchiveJobProgress", Qt::QueuedConnection,
+                                      Q_ARG(quint64, reqId), Q_ARG(QString, entry),
+                                      Q_ARG(qint64, doneItems), Q_ARG(qint64, qint64(0)),
+                                      Q_ARG(qint64, doneBytes), Q_ARG(qint64, qint64(0)));
+        };
+        QString err;
+        const bool ok = ArchiveHandler::create(archivePath, sources, format, passphrase,
+                                                encryptHeaders, level, &err, &progress);
+        QMetaObject::invokeMethod(self, "onCompressDone", Qt::QueuedConnection,
+                                  Q_ARG(quint64, reqId), Q_ARG(bool, ok), Q_ARG(QString, err));
+    });
+}
+
+void MainWindow::onCompressDone(quint64 reqId, bool ok, const QString &error) {
+    auto it = m_archiveJobs.find(reqId);
+    if (it == m_archiveJobs.end())
         return;
+    const ArchiveJob job = *it;
+    m_archiveJobs.erase(it);
+    if (job.dialog) {
+        job.dialog->close();
+        job.dialog->deleteLater();
     }
-    otherPanel(m_activePanel)->refresh();
+
+    const bool cancelled = job.cancel && job.cancel->load();
+    // A half-written archive is not a file anyone wants, and unlike a partial
+    // extraction it cannot be told apart from a good one by looking at it.
+    if (cancelled)
+        QFile::remove(job.source);
+    else if (!ok)
+        ttc::warning(this, tr("Compress"), tr("Compression failed: %1").arg(error));
+    if (job.refreshPanel)
+        job.refreshPanel->refresh();
 }
 
 void MainWindow::openSearch() {
@@ -5325,14 +5599,16 @@ void MainWindow::openSearch() {
         return;
     FilePanel *panel = m_activePanel;
     FileProvider *prov = panel->model()->provider();
-    const bool network = prov && !prov->displayName().isEmpty();
+    const bool remoteBackend = prov && !prov->isLocalFilesystem();
     // A network tab browses provider-internal paths (an SMB share's "/share/docs"),
     // which name nothing on this machine -- searching them with QDirIterator finds
     // exactly zero files. Hand the dialog the backend so it walks that instead.
+    // Same for an archive tab, which the old displayName() test let through to
+    // the local walk because ArchiveProvider names no connection.
     // Sharing ownership is what keeps it valid: the search is asynchronous and
     // the tab may be closed or reconnected before it ends.
     std::shared_ptr<FileProvider> searchProvider =
-        network ? panel->model()->providerPtr() : nullptr;
+        remoteBackend ? panel->model()->providerPtr() : nullptr;
     auto *dlg = new SearchDialog(panel->currentPath(), searchProvider, this);
     dlg->setAttribute(Qt::WA_DeleteOnClose);
     connect(dlg, &SearchDialog::navigateRequested, this,
@@ -5406,6 +5682,10 @@ void MainWindow::closeEvent(QCloseEvent *event) {
     // every chunk. The downloaded copies themselves are left on disk on purpose
     // (see ensureOpenTempDir).
     for (auto it = m_remoteFetches.begin(); it != m_remoteFetches.end(); ++it)
+        if (it->cancel)
+            it->cancel->store(true);
+    // Same for an extraction or compression still walking an archive.
+    for (auto it = m_archiveJobs.begin(); it != m_archiveJobs.end(); ++it)
         if (it->cancel)
             it->cancel->store(true);
     // Downloaded archives, unlike those copies, ARE ours to clean up: nothing

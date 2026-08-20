@@ -446,6 +446,14 @@ void Settings::setAutoUpdateCheck(bool on) {
     m_settings.setValue("update/autoCheck", on);
 }
 
+bool Settings::showSystemVolumes() const {
+    return m_settings.value("behavior/showSystemVolumes", false).toBool();
+}
+
+void Settings::setShowSystemVolumes(bool show) {
+    m_settings.setValue("behavior/showSystemVolumes", show);
+}
+
 bool Settings::notepadVisible() const {
     return m_settings.value("view/notepadVisible", false).toBool();
 }

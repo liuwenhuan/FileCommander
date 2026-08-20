@@ -92,6 +92,7 @@ void MpvMediaEngine::load(const MediaSource &source, MediaKind kind) {
     m_source = source;
     m_kind = kind;
     m_pendingVideoLoad = false;
+    m_pendingSeek = -1.0;
     clearObservedValues();
 
     m_videoMode = kind == MediaKind::Audio ? QStringLiteral("no") : QStringLiteral("auto");
@@ -148,7 +149,20 @@ void MpvMediaEngine::seekFraction(double fraction) {
     const double duration = durationSeconds();
     if (duration <= 0.0)
         return;
-    double position = qBound(0.0, fraction, 1.0) * duration;
+    const double position = qBound(0.0, fraction, 1.0) * duration;
+    // At EOF mpv has unloaded the file, so "time-pos" no longer exists and the
+    // seek is dropped -- the slider moved and nothing happened. Load it again
+    // (the way playPause() replays) and seek once the file is back.
+    if (ended()) {
+        const MediaSource source = m_source;
+        load(source, m_kind);
+        m_pendingSeek = position; // after load(), which clears a stale one
+        return;
+    }
+    applySeek(position);
+}
+
+void MpvMediaEngine::applySeek(double position) {
     if (mpv_set_property(m_mpv, "time-pos", MPV_FORMAT_DOUBLE, &position) >= 0) {
         m_position = position;
         emit positionChanged(m_position);
@@ -242,6 +256,11 @@ void MpvMediaEngine::processEvents() {
             pollProperties();
             refreshMetadata();
             setState(getFlag("pause") ? MediaState::Paused : MediaState::Playing);
+            if (m_pendingSeek >= 0.0) {
+                const double position = m_pendingSeek;
+                m_pendingSeek = -1.0;
+                applySeek(position); // a seek that arrived while the file was at EOF
+            }
             break;
         case MPV_EVENT_END_FILE: {
             auto *end = static_cast<mpv_event_end_file *>(event->data);
@@ -261,7 +280,12 @@ void MpvMediaEngine::processEvents() {
 }
 
 void MpvMediaEngine::pollProperties() {
-    if (!m_mpv || m_state == MediaState::Idle || m_state == MediaState::Failed)
+    // Ended is polled no further: mpv has unloaded the file, so every property
+    // reads back 0 and the poll would wipe the duration and position the UI
+    // still needs -- a zero duration also made seekFraction() bail out, which
+    // is why the slider did nothing once a clip had played to the end.
+    if (!m_mpv || m_state == MediaState::Idle || m_state == MediaState::Failed ||
+        m_state == MediaState::Ended)
         return;
 
     const double duration = getDouble("duration");

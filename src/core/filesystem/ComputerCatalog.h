@@ -49,11 +49,19 @@ namespace ComputerCatalog {
 
 
 // Mounted fixed volumes. On Windows these are the drive letters with their
-// volume labels; on Linux they are the real block-device filesystems, named by
-// label where one exists and by device node otherwise. Pseudo filesystems
-// (tmpfs, proc, cgroup, snap loopbacks, ...) are left out: they are not drives
-// in any sense the user means.
-QVector<ComputerEntry> drives();
+// volume labels; on Linux they are the real block-device filesystems, named
+// "<label> (<mount point>)" -- by mount point alone when the filesystem carries
+// no label. Left out: pseudo filesystems (tmpfs, proc, cgroup, snap loopbacks,
+// ...), which are not drives in any sense the user means; the operating
+// system's own mount points (/boot, /var, /sysroot, an ostree layout's
+// /persistent, ...); and every mount of a device beyond the one best mount
+// point for it, so a disk bind-mounted to five places is still one row.
+//
+// `includeSystemVolumes` turns both of those last two off -- every mount of
+// every real filesystem, listed separately. It exists for the "Show System
+// Partitions" setting; the UI layer passes the user's choice, so this layer
+// never reads Settings itself.
+QVector<ComputerEntry> drives(bool includeSystemVolumes = false);
 
 // Desktop / Documents / Pictures / Music / Videos / Downloads, in that order,
 // skipping any the platform does not define or that does not exist.
@@ -63,6 +71,6 @@ QVector<ComputerEntry> userFolders();
 QVector<ComputerEntry> savedServers();
 
 // drives() + userFolders() + savedServers(), i.e. everything this layer knows.
-QVector<ComputerEntry> localAndSaved();
+QVector<ComputerEntry> localAndSaved(bool includeSystemVolumes = false);
 
 } // namespace ComputerCatalog

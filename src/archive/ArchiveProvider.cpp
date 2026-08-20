@@ -45,8 +45,9 @@ QString basenameOf(const QString &virtualPath) {
 
 } // namespace
 
-ArchiveProvider::ArchiveProvider(const QString &archivePath, QString *error)
-    : m_archivePath(archivePath) {
+ArchiveProvider::ArchiveProvider(const QString &archivePath, QString *error,
+                                 const QString &passphrase)
+    : m_archivePath(archivePath), m_passphrase(passphrase) {
     // One volume of a split set is not an archive -- only the FIRST volume is,
     // and it holds the directory for all of them. Resolved before anything else
     // so every path below (including the temp-copy bookkeeping) works on the
@@ -152,6 +153,10 @@ void ArchiveProvider::setProgressCallback(std::function<void(qint64, qint64)> cb
 }
 
 bool ArchiveProvider::openForRead(struct archive *a) const {
+    // Every reader in this class opens through here, so this is also the one
+    // place the passphrase has to be handed to libarchive (before the open).
+    if (!m_passphrase.isEmpty())
+        archive_read_add_passphrase(a, m_passphrase.toUtf8().constData());
     // A raw split is opened as the ordered list of its volumes: libarchive
     // reads them back to back as one stream, which is byte for byte the file
     // they were split from. Anything else is the single archive file.
@@ -201,7 +206,7 @@ void ArchiveProvider::readEntryList(QString *error) {
     // can actually be extracted.
     if (m_useExternal) {
         const ExternalArchiveTool::Status s = ExternalArchiveTool::list(
-            m_archivePath, QString(), [&](const ExternalArchiveTool::Entry &e) {
+            m_archivePath, m_passphrase, [&](const ExternalArchiveTool::Entry &e) {
                 QString path = e.path;
                 while (path.endsWith(QLatin1Char('/')))
                     path.chop(1);
@@ -217,6 +222,10 @@ void ArchiveProvider::readEntryList(QString *error) {
                 m_rawEntries.append(r);
             });
         if (s != ExternalArchiveTool::Status::Ok) {
+            if (s == ExternalArchiveTool::Status::NeedPassword)
+                m_status = ArchiveHandler::Status::NeedPassword;
+            else if (s == ExternalArchiveTool::Status::WrongPassword)
+                m_status = ArchiveHandler::Status::WrongPassword;
             if (error)
                 *error = s == ExternalArchiveTool::Status::Unavailable
                              ? QStringLiteral("7z not installed")
@@ -241,6 +250,8 @@ void ArchiveProvider::readEntryList(QString *error) {
 
     struct archive_entry *entry;
     int r;
+    bool sawEncrypted = false;
+    bool verified = false;
     while ((r = archive_read_next_header(a, &entry)) == ARCHIVE_OK) {
         const QString path = normalisedEntryPath(entry);
         if (path.isEmpty()) {
@@ -256,12 +267,36 @@ void ArchiveProvider::readEntryList(QString *error) {
         if (!e.isDir)
             m_totalBytes += e.size;
         m_rawEntries.append(e);
-        archive_read_data_skip(a);
+        if (archive_entry_is_encrypted(entry))
+            sawEncrypted = true;
+        // With a passphrase, check it against the first encrypted file by
+        // decrypting a little of it, so a wrong one is caught here rather than
+        // after the tree is on screen (same probe as ArchiveHandler::buildTree).
+        if (!m_passphrase.isEmpty() && !verified && !e.isDir &&
+            archive_entry_is_encrypted(entry)) {
+            char buf[4096];
+            if (archive_read_data(a, buf, sizeof buf) < 0) {
+                if (error)
+                    *error = lastArchiveError(a);
+                m_status = ArchiveHandler::Status::WrongPassword;
+                archive_read_close(a);
+                archive_read_free(a);
+                return;
+            }
+            verified = true;
+        } else {
+            archive_read_data_skip(a);
+        }
     }
 
     if (r != ARCHIVE_EOF) {
+        const QString e = lastArchiveError(a);
+        // A header-encrypted 7z fails the whole read ("archive header is
+        // encrypted, but currently not supported") rather than listing.
+        if (e.contains(QLatin1String("encrypted"), Qt::CaseInsensitive))
+            m_status = ArchiveHandler::Status::EncryptedUnsupported;
         if (error && error->isEmpty())
-            *error = lastArchiveError(a);
+            *error = e;
         archive_read_close(a);
         archive_read_free(a);
         return;
@@ -269,6 +304,12 @@ void ArchiveProvider::readEntryList(QString *error) {
 
     archive_read_close(a);
     archive_read_free(a);
+    // Encrypted with nothing to decrypt it: refuse the browse and let the caller
+    // ask for the password. Listing succeeded, but the contents would not.
+    if (sawEncrypted && m_passphrase.isEmpty()) {
+        m_status = ArchiveHandler::Status::NeedPassword;
+        return;
+    }
     m_valid = true;
 }
 
@@ -644,7 +685,7 @@ QString ArchiveProvider::extractSingle(const QString &realPath) {
                 break;
             }
         }
-        if (ExternalArchiveTool::readEntry(m_archivePath, QString(), realPath, destPath, nullptr,
+        if (ExternalArchiveTool::readEntry(m_archivePath, m_passphrase, realPath, destPath, nullptr,
                                            expected) != ExternalArchiveTool::Status::Ok)
             return QString();
         return destPath;
@@ -682,10 +723,15 @@ QString ArchiveProvider::extractSingle(const QString &realPath) {
         const qint64 total = archive_entry_size(entry);
         fc::setEntryPathname(entry, destPath);
         if (archive_write_header(ext, entry) == ARCHIVE_OK) {
+            // A failed copy leaves a truncated (or, for a bad passphrase, an
+            // empty) file behind -- serving that path would preview garbage, so
+            // report "no such entry" instead.
+            bool copied = true;
             if (total > 0)
-                copyDataProgress(a, ext, done, total, m_progress);
+                copied = copyDataProgress(a, ext, done, total, m_progress) >= ARCHIVE_OK;
             archive_write_finish_entry(ext);
-            resultPath = destPath;
+            if (copied)
+                resultPath = destPath;
         }
         break; // found our entry; stop scanning
     }

@@ -195,6 +195,11 @@ public:
     void showPrevSibling();   // Left: previous image in the same directory
     void showNextSibling();   // Right: next image in the same directory
 
+    // Moves playback `seconds` forwards (or backwards, when negative) on the
+    // video/audio page. Returns false -- taking no action -- when no media page
+    // is current, so the caller can leave the key to whatever else wants it.
+    bool nudgeMediaPosition(int seconds);
+
 protected:
     void resizeEvent(QResizeEvent *event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;

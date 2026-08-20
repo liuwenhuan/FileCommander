@@ -5,6 +5,7 @@
 #include <QStringList>
 
 #include <atomic>
+#include <functional>
 
 #include "ArchiveNode.h"
 
@@ -18,6 +19,20 @@ public:
     // passphrase is supplied; encrypted 7z/rar is not (this libarchive has no
     // crypto backend for them), reported as EncryptedUnsupported.
     enum class Status { Ok, NeedPassword, WrongPassword, EncryptedUnsupported, Error };
+
+    // Optional progress/cancel hook for the long-running calls, so a caller can
+    // run them on a worker thread and still show a bar. `cancel` is polled per
+    // entry and per block of a large one; a cancelled call returns false with an
+    // empty errorMessage, so the caller tells the two apart by its own flag.
+    // `report` is called on the calling thread with cumulative counters. The
+    // totals are filled in by the callee before the first report if it knows
+    // them (smartExtract does, from its listing pass); 0 means unknown.
+    struct Progress {
+        std::atomic<bool> *cancel = nullptr;
+        qint64 totalItems = 0;
+        qint64 totalBytes = 0;
+        std::function<void(const QString &entry, qint64 doneItems, qint64 doneBytes)> report;
+    };
 
     static bool isSupportedArchive(const QString &path);
 
@@ -40,7 +55,7 @@ public:
     // Passphrase-aware variant (for extracting from an encrypted archive).
     static bool extract(const QString &archivePath, const QStringList &entryFullPaths,
                          const QString &destDir, const QString &passphrase,
-                         QString *errorMessage);
+                         QString *errorMessage, Progress *progress = nullptr);
 
     // Outcome of a Bandizip-style "smart" whole-archive extraction.
     struct SmartResult {
@@ -67,7 +82,8 @@ public:
     // encryption is reported through SmartResult::status while listing, before
     // any file is written, so the caller can prompt and call again.
     static SmartResult smartExtract(const QString &archivePath, const QString &baseDestDir,
-                                    const QString &passphrase, QString *errorMessage);
+                                    const QString &passphrase, QString *errorMessage,
+                                    Progress *progress = nullptr);
 
     // format: one of "zip", "tar", "tar.gz", "tar.bz2", "tar.xz".
     // Each entry in sourcePaths (file or directory) is added at the
@@ -81,5 +97,5 @@ public:
     static bool create(const QString &archivePath, const QStringList &sourcePaths,
                         const QString &format, const QString &passphrase,
                         bool encryptHeaders, int compressionLevel,
-                        QString *errorMessage = nullptr);
+                        QString *errorMessage = nullptr, Progress *progress = nullptr);
 };

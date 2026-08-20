@@ -474,12 +474,12 @@ TEST(SmbLiveTest, NoSpaceWriteReportsSpecificError) {
     ops.setErrorResolver([](const QString &, const QString &) { return ErrorAction::Cancel; });
     QSignalSpy errors(&ops, &FileOperations::errorOccurred);
     QString uploadError;
-    const bool uploaded = ops.copyAcrossProviders(LocalFileProvider::instance(), {fixture}, &smb,
-                                                   remoteRoot, /*removeSource=*/false, nullptr,
-                                                   &uploadError);
+    const bool uploaded = ops.copyAcrossProviders(LocalFileProvider::instance(), {fixture},
+                                                   smb.get(), remoteRoot, /*removeSource=*/false,
+                                                   nullptr, &uploadError);
 
     QString cleanupError;
-    const bool cleanupOk = cleanupRemoteRoot(&smb, config, remoteRoot, &cleanupError);
+    const bool cleanupOk = cleanupRemoteRoot(smb.get(), config, remoteRoot, &cleanupError);
 
     const QString remotePath = joinProviderPath(remoteRoot, QFileInfo(fixture).fileName());
     const QString expected = QStringLiteral("The destination has no space for %1").arg(remotePath);
@@ -523,12 +523,14 @@ TEST(SmbLiveTest, ApplicationOperationsRoundTripMoveQueueReconnectAndCleanup) {
     ASSERT_TRUE(writePatternFile(queuedA, 2 * kMiB, &localError)) << localError.toStdString();
     ASSERT_TRUE(writePatternFile(queuedB, 3 * kMiB, &localError)) << localError.toStdString();
 
-    SmbProvider smb;
+    // Shared, because runScenario hands the provider to OperationQueue, which
+    // keeps its own reference for the queued copies.
+    auto smb = std::make_shared<SmbProvider>();
     QString connectError;
-    ASSERT_TRUE(connectProvider(&smb, config, &connectError)) << connectError.toStdString();
+    ASSERT_TRUE(connectProvider(smb.get(), config, &connectError)) << connectError.toStdString();
 
-    const QString parent = smb.cleanPath(config.shareParent);
-    ASSERT_TRUE(smb.exists(parent) && smb.isDir(parent))
+    const QString parent = smb->cleanPath(config.shareParent);
+    ASSERT_TRUE(smb->exists(parent) && smb->isDir(parent))
         << "Configured SMB parent is not an existing directory";
     const QString runId = QUuid::createUuid().toString(QUuid::WithoutBraces);
     const QString rootName = QStringLiteral("FC-SMB-E2E-") + runId;
@@ -536,9 +538,9 @@ TEST(SmbLiveTest, ApplicationOperationsRoundTripMoveQueueReconnectAndCleanup) {
 
     FileOperations setup;
     QString setupError;
-    if (!setup.makeProviderDirectory(&smb, parent, rootName, &setupError)) {
+    if (!setup.makeProviderDirectory(smb.get(), parent, rootName, &setupError)) {
         QString cleanupError;
-        const bool cleanupOk = cleanupRemoteRoot(&smb, config, remoteRoot, &cleanupError);
+        const bool cleanupOk = cleanupRemoteRoot(smb.get(), config, remoteRoot, &cleanupError);
         ADD_FAILURE() << setupError.toStdString();
         EXPECT_TRUE(cleanupOk)
             << (QStringLiteral("Cleanup after setup failure failed for ") + remoteRoot +

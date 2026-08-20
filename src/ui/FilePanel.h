@@ -54,7 +54,16 @@ public:
     qreal focusProgress() const;
 
     QString currentPath() const;
-    void navigateTo(const QString &path);
+
+    // What becomes of the server connection parked by the computer view when a
+    // navigation steps out of it. Restore is the ordinary answer -- the tab goes
+    // back to being a window onto that server. Drop is for a destination that is
+    // on THIS machine: the computer view's own drive, user-folder and mounted-
+    // device rows all name local places, and restoring the connection for one of
+    // them lists a local path through the remote provider. Ignored outside the
+    // computer view.
+    enum class ParkedConnection { Restore, Drop };
+    void navigateTo(const QString &path, ParkedConnection parked = ParkedConnection::Restore);
 
     // Shows the "Computer" listing -- drives, user folders, removable media,
     // saved servers and discovered hosts -- in place of the directory listing.
@@ -67,7 +76,7 @@ public:
     // Puts the backend the computer view was entered from back (re-attaching a
     // parked server connection) without touching the listing -- the caller
     // navigates somewhere itself. No-op outside the computer view.
-    void leaveComputerView();
+    void leaveComputerView(ParkedConnection parked = ParkedConnection::Restore);
 
     // Identity of the backend this panel is browsing: "scheme://user@host" for a
     // network tab, empty for a local one. Two panels sharing it are looking at
@@ -332,9 +341,11 @@ public:
     // not when the archive is open: constructing the provider scans the whole
     // archive (and may shell out), so that happens on a worker and the swap
     // lands later. A failure emits openRequested() so the file still opens the
-    // ordinary way, which is what the old synchronous `false` caused.
+    // ordinary way, which is what the old synchronous `false` caused. An
+    // encrypted archive prompts for its password and opens again with it, so
+    // the browse never shows a tree whose files all decrypt to garbage.
     bool enterArchive(const QString &localArchivePath, const QString &sourcePath,
-                      bool ownsLocalCopy);
+                      bool ownsLocalCopy, const QString &passphrase = QString());
 
     // List <-> thumbnail (icon) view. The * menu offers the toggle with a label
     // that depends on the current mode.
@@ -728,6 +739,12 @@ private:
     // take this panel's backend away wholesale (tab switch, panel swap), where
     // the computer view cannot travel with it.
     void backOutOfComputerView();
+
+    // Strips the active tab's record of a server: this tab is local from here
+    // on, so it neither labels itself "user@host" nor gets reconnected as remote
+    // at the next launch. Says nothing about the session itself, which stays
+    // alive as long as a history entry co-owns it.
+    void clearTabConnection();
 
     // The two above, applied to whichever synthetic backend happens to be
     // active. Every caller that is about to replace this panel's backend uses

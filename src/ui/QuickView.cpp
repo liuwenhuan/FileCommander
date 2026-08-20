@@ -1089,6 +1089,18 @@ void QuickView::showPrevSibling() {
     showFile(m_imageSiblings.at(prev));
 }
 
+bool QuickView::nudgeMediaPosition(int seconds) {
+    QWidget *page = m_stack->currentWidget();
+    if (!m_mediaEngine || (page != m_videoPage && page != m_audioPage))
+        return false;
+    const double duration = m_mediaEngine->durationSeconds();
+    if (duration <= 0.0)
+        return false;
+    const double target = qBound(0.0, m_mediaEngine->positionSeconds() + seconds, duration);
+    m_mediaEngine->seekFraction(target / duration);
+    return true;
+}
+
 bool QuickView::isVideo(const QString &path) {
     static const QSet<QString> kVideoSuffixes = {
         "mp4", "mkv", "avi",  "mov", "webm", "flv", "wmv",

@@ -217,6 +217,13 @@ public:
     bool autoUpdateCheck() const;
     void setAutoUpdateCheck(bool on);
 
+    // Whether the Computer view lists the operating system's own mount points
+    // (/boot, /var, an ostree layout's /persistent, ...) and every mount of a
+    // disk rather than one row per disk. Off by default: on a bind-mount-heavy
+    // layout it turns two disks into nine rows of partition trivia.
+    bool showSystemVolumes() const;
+    void setShowSystemVolumes(bool show);
+
     // Whether the quick-notepad third column was open when the app last closed,
     // so it reappears on restart.
     bool notepadVisible() const;

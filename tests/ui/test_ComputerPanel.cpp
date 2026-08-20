@@ -15,7 +15,11 @@
 #include "BreadcrumbBar.h"
 #include "FilePanel.h"
 #include "FileListView.h"
+#include "FileProvider.h"
+#include "FileSystemModel.h"
 #include "filesystem/ComputerProvider.h"
+
+#include <memory>
 
 namespace {
 
@@ -422,6 +426,108 @@ TEST(ComputerPanelTest, BackFromADriveOpenedInTheViewReturnsToTheView) {
     settle(panel);
     EXPECT_TRUE(panel.isComputerView());
     EXPECT_EQ(panel.model()->rootPath(), ComputerProvider::rootPath());
+}
+
+namespace {
+
+// A stand-in for a mounted server, enough for the panel to hold a session.
+class FakeShare : public FileProvider {
+public:
+    explicit FakeShare(QString root) : m_root(std::move(root)) {}
+
+    QString displayName() const override { return QStringLiteral("tester@share"); }
+    QString scheme() const override { return QStringLiteral("smb"); }
+
+    QVector<FileInfo> list(const QString &, bool) const override {
+        return {FileInfo::fromFields(m_root + QStringLiteral("/remote-only.txt"),
+                                     QStringLiteral("remote-only.txt"), 3,
+                                     QDateTime::fromSecsSinceEpoch(1000000), false,
+                                     QFile::ReadOwner)};
+    }
+    bool isDir(const QString &path) const override { return cleanPath(path) == m_root; }
+    bool exists(const QString &path) const override { return cleanPath(path) == m_root; }
+    QString cleanPath(const QString &path) const override {
+        QString clean = path;
+        while (clean.size() > 1 && clean.endsWith(QLatin1Char('/')))
+            clean.chop(1);
+        return clean;
+    }
+    RenameResult rename(const QString &, const QString &, QString *) override {
+        return RenameResult::Failed;
+    }
+    QString parentPath(const QString &path) const override {
+        const QString clean = cleanPath(path);
+        const int slash = clean.lastIndexOf(QLatin1Char('/'));
+        if (slash < 0)
+            return {};
+        return slash == 0 ? QStringLiteral("/") : clean.left(slash);
+    }
+
+private:
+    QString m_root;
+};
+
+bool listHasName(FileSystemModel *model, const QString &name) {
+    for (int row = 0; row < model->rowCount(); ++row)
+        if (model->fileInfoAt(row).name() == name)
+            return true;
+    return false;
+}
+
+} // namespace
+
+TEST(ComputerPanelTest, ALocalPlacePickedFromTheViewDropsTheServerBehindTheTab) {
+    QTemporaryDir local;
+    ASSERT_TRUE(local.isValid());
+    ASSERT_TRUE(QFile(QDir(local.path()).filePath(QStringLiteral("local-only.txt")))
+                    .open(QIODevice::WriteOnly));
+
+    const QString remoteDir = QStringLiteral("/share/docs");
+    FilePanel panel;
+    panel.resize(800, 500);
+    panel.show();
+    panel.connectTabTo(0, std::make_shared<FakeShare>(remoteDir), [](QString *) { return true; },
+                       remoteDir, QStringLiteral("tester@share"), SavedConnection{},
+                       FileSystemModel::AuthRetryFactory());
+    settle(panel);
+    ASSERT_TRUE(panel.model()->hasNetworkSession());
+
+    panel.showComputer(
+        {makeEntry(ComputerEntry::Kind::UserFolder, QStringLiteral("Documents"), local.path())});
+    settle(panel);
+    ASSERT_TRUE(panel.isComputerView());
+
+    // What activating that row does. The place is on THIS machine, so the parked
+    // server must not come back with the tab: restoring it listed the local path
+    // through the remote provider, i.e. "tester@share : Documents".
+    panel.navigateTo(local.path(), FilePanel::ParkedConnection::Drop);
+    settle(panel);
+
+    EXPECT_FALSE(panel.isComputerView());
+    EXPECT_FALSE(panel.model()->hasNetworkSession());
+    EXPECT_EQ(QDir(panel.model()->rootPath()).canonicalPath(), QDir(local.path()).canonicalPath());
+    EXPECT_TRUE(listHasName(panel.model(), QStringLiteral("local-only.txt")));
+}
+
+TEST(ComputerPanelTest, ARemoteDestinationStillGetsTheParkedServerBack) {
+    const QString remoteDir = QStringLiteral("/share/docs");
+    FilePanel panel;
+    panel.resize(800, 500);
+    panel.show();
+    panel.connectTabTo(0, std::make_shared<FakeShare>(remoteDir), [](QString *) { return true; },
+                       remoteDir, QStringLiteral("tester@share"), SavedConnection{},
+                       FileSystemModel::AuthRetryFactory());
+    settle(panel);
+
+    panel.showComputer(
+        {makeEntry(ComputerEntry::Kind::Drive, QStringLiteral("C"), QStringLiteral("C:/"))});
+    settle(panel);
+    ASSERT_TRUE(panel.isComputerView());
+
+    panel.navigateTo(remoteDir); // default: this tab is still a window onto the server
+    settle(panel);
+    EXPECT_TRUE(panel.model()->hasNetworkSession());
+    EXPECT_TRUE(listHasName(panel.model(), QStringLiteral("remote-only.txt")));
 }
 
 TEST(ComputerPanelTest, DriveRowsShowUsedSpaceAndFoldersShowNone) {

@@ -304,6 +304,24 @@ TEST_F(MpvMediaEngine, EndedPlayPauseReplaysTheSameSource) {
     EXPECT_EQ(engine.currentSource().path, sourceBeforeReplay);
 }
 
+TEST_F(MpvMediaEngine, SeekAfterTheFileEndsResumesAtThatPosition) {
+    if (!fixturesReady())
+        GTEST_SKIP() << "ffmpeg could not generate the local media fixtures";
+    ::MpvMediaEngine engine(headlessOptions());
+    engine.initialize();
+    engine.load({audioPath, {}, false}, MediaKind::Audio);
+    ASSERT_TRUE(waitForState(engine, MediaState::Ended, 8000));
+    // The duration has to survive EOF, or the seek below has nothing to scale
+    // its fraction against and the slider is dead once a clip has played out.
+    const double duration = engine.durationSeconds();
+    ASSERT_GT(duration, 0.0);
+
+    engine.seekFraction(0.5);
+
+    ASSERT_TRUE(waitForState(engine, MediaState::Playing));
+    EXPECT_NEAR(engine.positionSeconds(), 0.5 * duration, 0.2);
+}
+
 TEST_F(MpvMediaEngine, EndedSourceCanBeReplacedByANewLoad) {
     if (!fixturesReady())
         GTEST_SKIP() << "ffmpeg could not generate the local media fixtures";

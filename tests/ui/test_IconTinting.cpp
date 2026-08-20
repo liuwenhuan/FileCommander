@@ -7,6 +7,8 @@
 #include <QImage>
 #include <QPixmap>
 
+#include <utility>
+
 #include "filesystem/FileInfo.h"
 #include "filesystem/IconCache.h"
 
@@ -109,6 +111,63 @@ TEST(IconTinting, AGlyphLandsOnTheThemeColourAtFullStrength) {
         << "glyph ink is " << solid.name().toStdString() << ", theme colour is "
         << phosphor.name().toStdString();
     EXPECT_TRUE(anySoftEdge) << "anti-aliasing was flattened away with the colour";
+
+    cache.setGlyphTint(QColor());
+}
+
+// A selected row in the CRT theme inverts: the fill becomes the very phosphor
+// the glyph is drawn in, so the glyph disappears. Qt's own generated Selected
+// pixmap blends 30% of the highlight over the icon, which on a monochrome glyph
+// of that same colour changes nothing -- the variant has to be built here.
+TEST(IconTinting, ASelectedGlyphIsDrawnInTheSelectionsTextColour) {
+    IconCache &cache = IconCache::instance();
+    const QColor phosphor(0x33, 0xff, 0x88);
+    const QColor inverted(0x04, 0x14, 0x0a); // green.qss selection-color
+    cache.setGlyphTint(phosphor, inverted);
+    cache.setFileIconTint(QColor());
+
+    // The middle of a stroke, as above: alpha is untouched by the recolour, so
+    // the most opaque pixel is the one carrying the flat ink colour.
+    const auto ink = [](const QImage &image) {
+        int bestAlpha = 0;
+        QColor solid;
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                const QColor pixel = image.pixelColor(x, y);
+                if (pixel.alpha() > bestAlpha) {
+                    bestAlpha = pixel.alpha();
+                    solid = pixel;
+                }
+            }
+        }
+        return std::make_pair(bestAlpha, solid);
+    };
+
+    const QIcon icon = cache.glyphIcon(QStringLiteral(":/icons/dev-hdd.svg"));
+    const auto normal = ink(icon.pixmap(48, 48, QIcon::Normal).toImage());
+    const auto selected = ink(icon.pixmap(48, 48, QIcon::Selected).toImage());
+    ASSERT_GT(normal.first, 200) << "the glyph did not render";
+    ASSERT_GT(selected.first, 200) << "the selected glyph did not render";
+
+    EXPECT_EQ(normal.second.rgb(), phosphor.rgb());
+    EXPECT_EQ(selected.second.rgb(), inverted.rgb())
+        << "selected glyph ink is " << selected.second.name().toStdString()
+        << " -- on a " << phosphor.name().toStdString() << " fill that is invisible";
+    // The thumbnail grid asks for no mode at all, and must keep the ordinary
+    // colour: QIcon::pixmap() defaults to Normal.
+    EXPECT_EQ(ink(icon.pixmap(48, 48).toImage()).second.rgb(), phosphor.rgb());
+
+    // With no selected tint named there is no variant, and what Qt generates in
+    // its place is the reason this exists: a 30% blend of the highlight over a
+    // glyph already painted in that same colour, i.e. still a green on green.
+    cache.setGlyphTint(phosphor);
+    EXPECT_FALSE(cache.glyphSelectedTint().isValid());
+    const QIcon plain = cache.glyphIcon(QStringLiteral(":/icons/dev-hdd.svg"));
+    const QColor generated = ink(plain.pixmap(48, 48, QIcon::Selected).toImage()).second;
+    EXPECT_GT(generated.lightness(), inverted.lightness() + 64)
+        << "Qt's generated Selected pixmap is " << generated.name().toStdString()
+        << " -- if it ever became readable on the selection fill, this whole "
+           "variant could go";
 
     cache.setGlyphTint(QColor());
 }

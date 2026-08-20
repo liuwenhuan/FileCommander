@@ -93,19 +93,27 @@ void ThemeManager::apply(Settings::Theme theme, bool phosphorImages, bool phosph
     // they are full-colour artwork, and putting this same tint on them turned
     // every folder in the light theme into a dark grey slab.
     QColor glyphTint;
+    // The colour a SELECTED row paints its text in -- the "selection-color" of
+    // the theme's own QTableView rule, kept in step with it by hand because a
+    // stylesheet colour is not readable back out of Qt until a widget is
+    // polished, and this is set before any widget exists.
+    QColor glyphSelectedTint;
     switch (effective) {
     case Settings::Theme::Crt:
         glyphTint = kPhosphor;
+        glyphSelectedTint = QColor(0x04, 0x14, 0x0a); // green.qss selection-color
         break;
     case Settings::Theme::Dark:
         glyphTint = QColor(0xe0, 0xe0, 0xe0); // dark.qss's text colour
+        glyphSelectedTint = QColor(0xff, 0xff, 0xff);
         break;
     case Settings::Theme::Light:
     case Settings::Theme::Auto:
         glyphTint = QColor(0x40, 0x40, 0x40); // darker than #888 on white
+        glyphSelectedTint = QColor(0xff, 0xff, 0xff);
         break;
     }
-    IconCache::instance().setGlyphTint(glyphTint);
+    IconCache::instance().setGlyphTint(glyphTint, glyphSelectedTint);
 
     // File icons and thumbnails together, under the images switch: they sit in
     // the same grid, and "the pictures in the file list match the theme" is one

@@ -172,3 +172,35 @@ endif()
 
 add_test(NAME ui_tests COMMAND ui_tests)
 filecommander_set_test_runtime(ui_tests)
+
+# Right-click actions against a real server (SMB or WebDAV, whichever bookmark
+# it is pointed at). Same gate as tests/core's live suites: nothing here runs,
+# or is even built, without a server to point it at.
+if(TTC_BUILD_LIVE_SMB_TESTS OR TTC_BUILD_LIVE_WEBDAV_TESTS)
+    add_executable(remote_archive_live_tests
+        test_main.cpp
+        test_RemoteArchiveLive.cpp
+        ../../resources/resources.qrc
+    )
+    target_include_directories(remote_archive_live_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../support)
+    target_compile_definitions(remote_archive_live_tests PRIVATE TTC_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+    target_link_libraries(remote_archive_live_tests PRIVATE
+        ui
+        GTest::gtest
+        Qt5::Core
+        Qt5::Widgets
+        Qt5::Test
+    )
+    add_dependencies(remote_archive_live_tests FileCommander-smb-helper)
+    set_target_properties(remote_archive_live_tests PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+    )
+
+    add_test(NAME remote_archive_live_tests COMMAND $<TARGET_FILE:remote_archive_live_tests>)
+    filecommander_set_test_runtime(remote_archive_live_tests)
+    set_tests_properties(remote_archive_live_tests PROPERTIES
+        LABELS "live;smb;webdav"
+        RUN_SERIAL TRUE
+        TIMEOUT 900
+    )
+endif()

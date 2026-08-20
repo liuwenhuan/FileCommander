@@ -66,6 +66,7 @@ private:
     mpv_handle *handle() const;
     void videoSurfaceReady();
     void issueLoad();
+    void applySeek(double position);
     void setState(MediaState state);
     void clearObservedValues();
     void refreshMetadata();
@@ -96,4 +97,8 @@ private:
     bool m_initialized = false;
     bool m_surfaceReady = false;
     bool m_pendingVideoLoad = false;
+    // Seconds to seek to as soon as the file finishes (re)loading, or < 0 for
+    // none. Set only by a seek issued at EOF, where the file is gone and the
+    // seek has to wait for the reload.
+    double m_pendingSeek = -1.0;
 };

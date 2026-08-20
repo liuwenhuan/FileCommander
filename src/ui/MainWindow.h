@@ -209,6 +209,14 @@ private slots:
     // another).
     void onRemoteFetchProgress(quint64 reqId, qint64 done, qint64 total);
     void onRemoteFetchDone(quint64 reqId, const QString &localPath, bool cancelled);
+    // Archive worker callbacks (same queued-invocation shape). An extraction
+    // reports one of these per level, because a nested level may need a password
+    // and only the GUI thread can ask for one.
+    void onArchiveJobProgress(quint64 reqId, const QString &entry, qint64 doneItems,
+                              qint64 totalItems, qint64 doneBytes, qint64 totalBytes);
+    void onExtractLevelDone(quint64 reqId, bool ok, int status, const QString &finalDir,
+                            const QString &nested, const QString &error);
+    void onCompressDone(quint64 reqId, bool ok, const QString &error);
     void undoLast(); // Ctrl+Z
     void runCommand(const QString &command, const QString &directory);
     void openExternalConnections(); // external-connect command (leading button default)
@@ -326,7 +334,10 @@ private:
     bool blockWithoutWorkingDirectory(FilePanel *panel, const QString &title);
     // Smart-extracts `archivePath` into `destDir`, prompting to recurse into a
     // single nested archive. Shared by the "Extract Here/To..." context actions.
-    void smartExtractArchive(const QString &archivePath, const QString &destDir);
+    // `refreshPanel` is re-listed when the job ends, for the callers whose panel
+    // path is not `destDir` (a network tab unpacking through a mount point).
+    void smartExtractArchive(const QString &archivePath, const QString &destDir,
+                             FilePanel *refreshPanel = nullptr);
     void showFileContextMenu(FilePanel *panel, const QPoint &viewPos);
     void showBlankContextMenu(FilePanel *panel, const QPoint &viewPos);
     // Fills a menu with "bookmark current" + separator + saved favorites,
@@ -459,6 +470,34 @@ private:
     // are only ever read by this process and are deleted as soon as the user
     // steps back out of the archive (see ArchiveProvider::setOwnsArchiveFile).
     QString ensureArchiveTempDir();
+
+    // A running extraction or compression. ArchiveHandler walks the archive one
+    // entry at a time through QFile, and on a gvfs-mounted share every one of
+    // those reads crosses the wire, so the call runs on a worker thread and
+    // reports back here. An extraction runs ONE level per worker run: recursing
+    // into a nested archive has to come back to the GUI thread anyway, since an
+    // encrypted level has to ask for a password.
+    struct ArchiveJob {
+        QString title;              // dialog title, also used in messages
+        QString description;        // what the bar says about the level in flight
+        QString source;             // archive being unpacked (extract) or written (compress)
+        QString base;               // destination of the level in flight
+        QString destDir;            // destination the user picked (level 0)
+        QString finalDir;           // where the last finished level landed
+        QString passphrase;         // carried into nested levels
+        bool promptedForThisArchive = false;
+        int depth = 0;
+        QPointer<FilePanel> refreshPanel;          // panel to re-list when done
+        std::shared_ptr<std::atomic<bool>> cancel; // flipped by the Cancel button
+        OperationProgressDialog *dialog = nullptr; // created only if slow (500ms)
+    };
+    quint64 m_archiveJobId = 0;
+    QHash<quint64, ArchiveJob> m_archiveJobs;
+    void showArchiveJobProgressLater(quint64 reqId);
+    void hideArchiveJobDialog(quint64 reqId); // for the prompts between levels
+    void runExtractLevel(quint64 reqId);      // starts (or continues) an extraction
+    void finishExtractJob(quint64 reqId, bool announce);
+    void cancelArchiveJob(quint64 reqId); // Cancel button / shutdown
     // Whether the active panel's current entry is a directory, according to the
     // backend that listed it rather than to QFileInfo (which knows nothing about
     // a server's or an archive's paths).

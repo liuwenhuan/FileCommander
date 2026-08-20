@@ -785,7 +785,11 @@ FilePanel::NavEntry FilePanel::currentLocation() const {
         NavEntry computer;
         computer.computerView = true;
         computer.dir = m_computerExitDir; // makes it valid(), and the fallback
-        computer.conn = m_model->peekConnection();
+        // The connection is PARKED while the view is up, so the model has none
+        // to peek at: read it from where it is being held. Without this, Back
+        // into the computer view rebuilt it with no server behind it, and
+        // stepping out of that landed on the remote exit path locally.
+        computer.conn = m_computerExitConn;
         if (auto tab = m_tabManager->activeTab()) {
             computer.connScheme = tab->connScheme;
             computer.connLabel = tab->connLabel;
@@ -964,7 +968,7 @@ void FilePanel::pumpThumbnailSweep() {
     }
 }
 
-void FilePanel::navigateTo(const QString &path) {
+void FilePanel::navigateTo(const QString &path, ParkedConnection parked) {
     cancelDirectorySizeTask();
     cancelRemoteThumbnails();
 
@@ -984,7 +988,7 @@ void FilePanel::navigateTo(const QString &path) {
     // needs in order to come back to it.
     const NavEntry fromComputerView = leavingComputerView ? currentLocation() : NavEntry();
     if (leavingComputerView)
-        leaveComputerView();
+        leaveComputerView(parked);
 
     // Go through the model's provider so this works for remote backends too;
     // for the local provider these are the same QDir/QFileInfo calls as before.
@@ -1858,7 +1862,7 @@ void FilePanel::onActivated(const QModelIndex &index) {
 }
 
 bool FilePanel::enterArchive(const QString &localArchivePath, const QString &sourcePath,
-                             bool ownsLocalCopy) {
+                             bool ownsLocalCopy, const QString &passphrase) {
     if (m_archiveProvider || m_archiveOpenPending)
         return false; // no nested-archive browse yet, and one open at a time
 
@@ -1887,13 +1891,41 @@ bool FilePanel::enterArchive(const QString &localArchivePath, const QString &sou
     };
     auto *watcher = new QFutureWatcher<OpenResult>(this);
     connect(watcher, &QFutureWatcher<OpenResult>::finished, this,
-            [this, watcher, generation, exitDir, from, sourcePath, ownsLocalCopy]() {
+            [this, watcher, generation, exitDir, from, localArchivePath, sourcePath, ownsLocalCopy,
+             passphrase]() {
                 const OpenResult result = watcher->result();
                 watcher->deleteLater();
                 if (generation != m_archiveOpenGeneration)
                     return; // superseded: the user went somewhere else
                 m_archiveOpenPending = false;
                 m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
+                const ArchiveHandler::Status status =
+                    result.provider ? result.provider->status() : ArchiveHandler::Status::Ok;
+                if (status == ArchiveHandler::Status::EncryptedUnsupported) {
+                    ttc::warning(this, tr("Open archive"),
+                                 tr("“%1” uses an encryption this build cannot read.")
+                                     .arg(QFileInfo(sourcePath).fileName()));
+                    return;
+                }
+                // Encrypted: ask, then open the same archive again with the
+                // password. Nothing was read out of it, so this is a retry.
+                if (status == ArchiveHandler::Status::NeedPassword ||
+                    status == ArchiveHandler::Status::WrongPassword) {
+                    const QString name = QFileInfo(sourcePath).fileName();
+                    // "Wrong password" only once the user typed one for this
+                    // archive; otherwise ask plainly.
+                    const bool wrong = !passphrase.isEmpty() &&
+                                       status == ArchiveHandler::Status::WrongPassword;
+                    bool accepted = false;
+                    const QString entered =
+                        ttc::getText(this, tr("Password required"),
+                                     wrong ? tr("Incorrect password. Try again for “%1”:").arg(name)
+                                           : tr("“%1” is encrypted. Enter its password:").arg(name),
+                                     QLineEdit::Password, QString(), &accepted);
+                    if (accepted && !entered.isEmpty())
+                        enterArchive(localArchivePath, sourcePath, ownsLocalCopy, entered);
+                    return; // cancelled: stay put rather than open ciphertext
+                }
                 if (!result.provider || !result.provider->isValid()) {
                     // Same outcome as the old synchronous false: let the file be
                     // opened the ordinary way instead.
@@ -1902,9 +1934,10 @@ bool FilePanel::enterArchive(const QString &localArchivePath, const QString &sou
                 }
                 finishEnterArchive(result.provider, exitDir, from, sourcePath, ownsLocalCopy);
             });
-    watcher->setFuture(QtConcurrent::run([localArchivePath]() {
+    watcher->setFuture(QtConcurrent::run([localArchivePath, passphrase]() {
         OpenResult result;
-        result.provider = std::make_shared<ArchiveProvider>(localArchivePath, &result.error);
+        result.provider =
+            std::make_shared<ArchiveProvider>(localArchivePath, &result.error, passphrase);
         return result;
     }));
     return true;
@@ -2000,7 +2033,7 @@ void FilePanel::showComputer(const QVector<ComputerEntry> &entries) {
     updateActiveTabLabel();
 }
 
-void FilePanel::leaveComputerView() {
+void FilePanel::leaveComputerView(ParkedConnection parked) {
     if (!m_computerProvider)
         return;
     // Genuinely leaving: the tab should not come back here. The two paths that
@@ -2013,6 +2046,17 @@ void FilePanel::leaveComputerView() {
     }
     m_computerProvider.reset();
     m_computerExitDir.clear();
+    if (parked == ParkedConnection::Drop) {
+        // Off to a place on this machine, so the tab stops being a window onto
+        // the server: dropping the parked connection here is what makes the
+        // attach below install the LOCAL provider. Restoring it instead is how
+        // a click on "Documents" produced a tab reading "user@host : Documents"
+        // listing the server's home directory. The session is not stopped -- the
+        // history entry recorded on the way into the view co-owns it, so Back
+        // still returns to a live connection.
+        m_computerExitConn = FileSystemModel::NetworkConn();
+        clearTabConnection();
+    }
     m_model->attachConnection(std::move(m_computerExitConn));
     m_computerExitConn = FileSystemModel::NetworkConn();
     if (!m_model->hasNetworkSession()) {
@@ -3039,6 +3083,19 @@ void FilePanel::onTabBarCurrentChanged(int index) {
     updateActiveTabLabel();
 }
 
+void FilePanel::clearTabConnection() {
+    auto tab = m_tabManager->activeTab();
+    if (!tab)
+        return;
+    tab->provider.reset();
+    tab->session.reset();
+    tab->connScheme.clear();
+    tab->connLabel.clear();
+    tab->authLabel.clear();
+    tab->authFactory = nullptr;
+    tab->connInfo = {}; // now a local tab: don't persist/reconnect it as remote
+}
+
 void FilePanel::openLocalInTab(int tabIndex, const QString &path) {
     cancelDirectorySizeTask();
     // Switch to the target tab (which swaps in its own connection) ...
@@ -3066,15 +3123,7 @@ void FilePanel::openLocalInTab(int tabIndex, const QString &path) {
     // the session and make Back unable to restore it. This tab is now local.
     cancelRemoteThumbnails();
     m_model->detachConnection();
-    if (auto tab = m_tabManager->activeTab()) {
-        tab->provider.reset();
-        tab->session.reset();
-        tab->connScheme.clear();
-        tab->connLabel.clear();
-        tab->authLabel.clear();
-        tab->authFactory = nullptr;
-        tab->connInfo = {}; // now a local tab: don't persist/reconnect it as remote
-    }
+    clearTabConnection();
     resetNetworkStatusFeedback();
     m_statusBar->setConnectionStatus(QString(), StatusBarWidget::ConnNone);
 

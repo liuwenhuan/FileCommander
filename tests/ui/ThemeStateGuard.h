@@ -39,6 +39,7 @@ public:
         , m_thumbnailTint(fc::thumbnailTint())
         , m_previewTint(fc::previewTint())
         , m_glyphTint(IconCache::instance().glyphTint())
+        , m_glyphSelectedTint(IconCache::instance().glyphSelectedTint())
         , m_fileIconTint(IconCache::instance().fileIconTint())
         , m_themedAppIcon(ttc::themedAppIcon())
         , m_iconRecolour(ttc::iconRecolour()) {}
@@ -48,7 +49,7 @@ public:
         qApp->setFont(m_font);
         fc::setThumbnailTint(m_thumbnailTint);
         fc::setPreviewTint(m_previewTint);
-        IconCache::instance().setGlyphTint(m_glyphTint);
+        IconCache::instance().setGlyphTint(m_glyphTint, m_glyphSelectedTint);
         IconCache::instance().setFileIconTint(m_fileIconTint);
         // Both of these are how a theme reaches artwork built LATER -- a dialog
         // opened after the theme was applied. That is what makes them useful,
@@ -67,6 +68,7 @@ private:
     QColor m_thumbnailTint;
     QColor m_previewTint;
     QColor m_glyphTint;
+    QColor m_glyphSelectedTint;
     QColor m_fileIconTint;
     QIcon m_themedAppIcon;
     ttc::IconRecolour m_iconRecolour;

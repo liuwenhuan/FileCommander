@@ -320,9 +320,21 @@ QIcon IconCache::glyphIcon(const QString &resourcePath) {
             const QPixmap pixmap = source.pixmap(size, size);
             if (pixmap.isNull())
                 continue;
-            QImage image = pixmap.toImage();
+            const QImage base = pixmap.toImage();
+            QImage image = base;
             fc::flattenToTint(image, m_glyphTint);
             out.addPixmap(QPixmap::fromImage(image));
+            // The selected row's fill IS the theme's selection colour, so the
+            // glyph has to change with it -- the CRT theme inverts the row and
+            // a phosphor glyph on a phosphor fill is simply not there. Qt's own
+            // generated Selected pixmap cannot help: it blends 30% of the
+            // highlight colour over the icon, which on a monochrome glyph of
+            // that same colour changes nothing.
+            if (m_glyphSelectedTint.isValid()) {
+                QImage selected = base;
+                fc::flattenToTint(selected, m_glyphSelectedTint);
+                out.addPixmap(QPixmap::fromImage(selected), QIcon::Selected);
+            }
         }
         if (!out.availableSizes().isEmpty())
             result = out;
@@ -345,11 +357,12 @@ static bool sameTint(const QColor &a, const QColor &b) {
     return a == b && a.isValid() == b.isValid();
 }
 
-void IconCache::setGlyphTint(const QColor &tint) {
+void IconCache::setGlyphTint(const QColor &tint, const QColor &selectedTint) {
     QMutexLocker locker(&m_mutex);
-    if (sameTint(m_glyphTint, tint))
+    if (sameTint(m_glyphTint, tint) && sameTint(m_glyphSelectedTint, selectedTint))
         return;
     m_glyphTint = tint;
+    m_glyphSelectedTint = selectedTint;
     // themedIcon() results are not cached here (their callers hold them), but
     // clearing costs nothing on a theme switch and keeps the two setters alike.
     m_cache.clear();

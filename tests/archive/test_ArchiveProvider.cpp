@@ -265,3 +265,31 @@ TEST(ArchiveProviderTest, LocalArchiveFileSurvivesItsProvider) {
     EXPECT_TRUE(QFile::exists(archivePath));
     EXPECT_TRUE(QDir(workDir.path()).exists());
 }
+
+TEST(ArchiveProviderTest, EncryptedArchiveIsNotBrowsableWithoutItsPassword) {
+    QTemporaryDir srcDir, workDir;
+    ASSERT_TRUE(srcDir.isValid() && workDir.isValid());
+    writeFile(srcDir.path(), "secret.txt", "top secret");
+    const QString archivePath = QDir(workDir.path()).filePath("locked.zip");
+    QString err;
+    ASSERT_TRUE(ArchiveHandler::create(archivePath,
+                                       {QDir(srcDir.path()).filePath("secret.txt")}, "zip",
+                                       QStringLiteral("hunter2"), /*encryptHeaders=*/false,
+                                       /*compressionLevel=*/5, &err))
+        << err.toStdString();
+
+    // No password: refuse the browse instead of listing names whose contents
+    // would every one of them read back as ciphertext.
+    ArchiveProvider blind(archivePath);
+    EXPECT_FALSE(blind.isValid());
+    EXPECT_EQ(blind.status(), ArchiveHandler::Status::NeedPassword);
+
+    ArchiveProvider wrong(archivePath, nullptr, QStringLiteral("not-it"));
+    EXPECT_FALSE(wrong.isValid());
+    EXPECT_EQ(wrong.status(), ArchiveHandler::Status::WrongPassword);
+
+    ArchiveProvider ok(archivePath, &err, QStringLiteral("hunter2"));
+    ASSERT_TRUE(ok.isValid()) << err.toStdString();
+    EXPECT_EQ(ok.status(), ArchiveHandler::Status::Ok);
+    EXPECT_EQ(readEntry(ok, "/secret.txt"), QByteArray("top secret"));
+}

@@ -21,6 +21,17 @@ QString lastArchiveError(struct archive *a) {
     return msg ? QString::fromUtf8(msg) : QString();
 }
 
+using Progress = ArchiveHandler::Progress;
+
+bool cancelled(const Progress *p) {
+    return p && p->cancel && p->cancel->load();
+}
+
+void report(const Progress *p, const QString &entry, qint64 doneItems, qint64 doneBytes) {
+    if (p && p->report)
+        p->report(entry, doneItems, doneBytes);
+}
+
 // .7z gets its own in-process reader (SevenZipReader) rather than libarchive:
 // it decodes AES-256 encrypted archives (which this libarchive cannot) and
 // lists solid archives from the header index without a full decompress.
@@ -65,14 +76,16 @@ ArchiveHandler::Status sevenZipToStatus(SevenZipReader::Status s) {
 // the caller can fall back to libarchive. Each readEntry re-decodes the entry's
 // solid block; fine for preview-scale use.
 bool extractSevenZip(const QString &archivePath, const QStringList &sel, const QString &destDir,
-                     const QString &passphrase, QString *errorMessage, bool *handled) {
+                     const QString &passphrase, QString *errorMessage, bool *handled,
+                     const Progress *p) {
     QVector<SevenZipReader::Entry> files;
     const SevenZipReader::Status ls = SevenZipReader::list(
         archivePath, passphrase,
         [&](const SevenZipReader::Entry &e) {
             if (!e.isDir)
                 files.append(e);
-        });
+        },
+        p ? p->cancel : nullptr);
     if (ls == SevenZipReader::Status::Unsupported) {
         *handled = false;
         return false;
@@ -86,7 +99,11 @@ bool extractSevenZip(const QString &archivePath, const QStringList &sel, const Q
 
     QDir().mkpath(destDir);
     bool ok = true;
+    qint64 doneItems = 0;
+    qint64 doneBytes = 0;
     for (const SevenZipReader::Entry &e : files) {
+        if (cancelled(p))
+            return false;
         bool want = sel.isEmpty();
         for (const QString &s : sel) {
             if (e.path == s || e.path.startsWith(s + QLatin1Char('/'))) {
@@ -98,13 +115,15 @@ bool extractSevenZip(const QString &archivePath, const QStringList &sel, const Q
             continue;
         const QString destPath = QDir(destDir).filePath(e.path);
         QDir().mkpath(QFileInfo(destPath).absolutePath());
-        const SevenZipReader::Status rs =
-            SevenZipReader::readEntry(archivePath, passphrase, e.path, destPath);
+        const SevenZipReader::Status rs = SevenZipReader::readEntry(
+            archivePath, passphrase, e.path, destPath, p ? p->cancel : nullptr);
         if (rs != SevenZipReader::Status::Ok) {
             ok = false;
             if (errorMessage && errorMessage->isEmpty())
                 *errorMessage = QStringLiteral("7z extract '%1': %2").arg(e.path).arg(int(rs));
         }
+        doneBytes += e.size;
+        report(p, e.path, ++doneItems, doneBytes);
     }
     return ok;
 }
@@ -112,14 +131,15 @@ bool extractSevenZip(const QString &archivePath, const QStringList &sel, const Q
 // Same shape as extractSevenZip but via the external CLI tool -- the extract-side
 // fallback for archives libarchive can't decode (e.g. encrypted RAR).
 bool extractExternal(const QString &archivePath, const QStringList &sel, const QString &destDir,
-                     const QString &passphrase, QString *errorMessage) {
+                     const QString &passphrase, QString *errorMessage, const Progress *p) {
     QVector<ExternalArchiveTool::Entry> files;
     const ExternalArchiveTool::Status ls = ExternalArchiveTool::list(
         archivePath, passphrase,
         [&](const ExternalArchiveTool::Entry &e) {
             if (!e.isDir)
                 files.append(e);
-        });
+        },
+        p ? p->cancel : nullptr);
     if (ls != ExternalArchiveTool::Status::Ok) {
         if (errorMessage && errorMessage->isEmpty())
             *errorMessage = QStringLiteral("external list: %1").arg(int(ls));
@@ -127,7 +147,11 @@ bool extractExternal(const QString &archivePath, const QStringList &sel, const Q
     }
     QDir().mkpath(destDir);
     bool ok = true;
+    qint64 doneItems = 0;
+    qint64 doneBytes = 0;
     for (const ExternalArchiveTool::Entry &e : files) {
+        if (cancelled(p))
+            return false;
         bool want = sel.isEmpty();
         for (const QString &s : sel) {
             if (e.path == s || e.path.startsWith(s + QLatin1Char('/'))) {
@@ -149,12 +173,14 @@ bool extractExternal(const QString &archivePath, const QStringList &sel, const Q
         const QString destPath = QDir(destDir).filePath(e.path);
         QDir().mkpath(QFileInfo(destPath).absolutePath());
         const ExternalArchiveTool::Status rs = ExternalArchiveTool::readEntry(
-            archivePath, passphrase, e.path, destPath, nullptr, e.size);
+            archivePath, passphrase, e.path, destPath, p ? p->cancel : nullptr, e.size);
         if (rs != ExternalArchiveTool::Status::Ok) {
             ok = false;
             if (errorMessage && errorMessage->isEmpty())
                 *errorMessage = QStringLiteral("external extract '%1': %2").arg(e.path).arg(int(rs));
         }
+        doneBytes += e.size;
+        report(p, e.path, ++doneItems, doneBytes);
     }
     return ok;
 }
@@ -187,11 +213,18 @@ QSharedPointer<ArchiveNode> ensurePath(QSharedPointer<ArchiveNode> &root, const 
     return current;
 }
 
-int copyData(struct archive *ar, struct archive *aw) {
+// Copies one entry's data. Reports (and checks for cancellation) per block, not
+// just per entry, so a single big file still moves the bar -- throttled to a
+// report per megabyte, since every one crosses a thread boundary in the GUI.
+int copyData(struct archive *ar, struct archive *aw, const Progress *p, const QString &entryPath,
+             qint64 doneItems, qint64 *doneBytes) {
     const void *buff;
     size_t size;
     la_int64_t offset;
+    qint64 reportedAt = doneBytes ? *doneBytes : 0;
     for (;;) {
+        if (cancelled(p))
+            return ARCHIVE_FATAL;
         int r = archive_read_data_block(ar, &buff, &size, &offset);
         if (r == ARCHIVE_EOF)
             return ARCHIVE_OK;
@@ -200,11 +233,21 @@ int copyData(struct archive *ar, struct archive *aw) {
         r = archive_write_data_block(aw, buff, size, offset);
         if (r < ARCHIVE_OK)
             return r;
+        if (!doneBytes)
+            continue;
+        *doneBytes += qint64(size);
+        if (*doneBytes - reportedAt >= 1024 * 1024) {
+            reportedAt = *doneBytes;
+            report(p, entryPath, doneItems, *doneBytes);
+        }
     }
 }
 
 bool addEntryRecursive(struct archive *a, const QString &fsPath, const QString &archivePath,
-                        QString *errorMessage) {
+                        QString *errorMessage, const Progress *p, qint64 *doneItems,
+                        qint64 *doneBytes) {
+    if (cancelled(p))
+        return false;
     QFileInfo info(fsPath);
     struct archive_entry *entry = archive_entry_new();
     fc::setEntryPathname(entry, archivePath);
@@ -226,7 +269,8 @@ bool addEntryRecursive(struct archive *a, const QString &fsPath, const QString &
             QDir(fsPath).entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
         for (const QFileInfo &child : children) {
             const QString childArchivePath = archivePath + QLatin1Char('/') + child.fileName();
-            if (!addEntryRecursive(a, child.absoluteFilePath(), childArchivePath, errorMessage))
+            if (!addEntryRecursive(a, child.absoluteFilePath(), childArchivePath, errorMessage, p,
+                                   doneItems, doneBytes))
                 return false;
         }
         return true;
@@ -250,6 +294,10 @@ bool addEntryRecursive(struct archive *a, const QString &fsPath, const QString &
         return false;
     }
     archive_write_data(a, content.constData(), content.size());
+    if (doneItems && doneBytes) {
+        *doneBytes += content.size();
+        report(p, archivePath, ++*doneItems, *doneBytes);
+    }
     return true;
 }
 
@@ -505,8 +553,12 @@ bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entr
 
 bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entryFullPaths,
                               const QString &destDir, const QString &passphrase,
-                              QString *errorMessage) {
-    // AppImage: extract the appended squashfs via unsquashfs.
+                              QString *errorMessage, Progress *progress) {
+    if (cancelled(progress))
+        return false;
+
+    // AppImage: extract the appended squashfs via unsquashfs. One pass, so
+    // cancellation can only be honoured before it starts (checked above).
     if (isAppImage(archivePath))
         return extractAppImage(archivePath, entryFullPaths, destDir, errorMessage);
 
@@ -514,14 +566,15 @@ bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entr
     // does -- libarchive would "succeed" on the ISO9660 bridge stub and write
     // the wrong files without ever reporting an error.
     if (ExternalArchiveTool::preferExternal(archivePath))
-        return extractExternal(archivePath, entryFullPaths, destDir, passphrase, errorMessage);
+        return extractExternal(archivePath, entryFullPaths, destDir, passphrase, errorMessage,
+                               progress);
 
     // .7z goes through the in-process reader (handles encrypted + solid); only a
     // container it can't decode falls through to libarchive.
     if (isSevenZip(archivePath)) {
         bool handled = false;
-        const bool ok =
-            extractSevenZip(archivePath, entryFullPaths, destDir, passphrase, errorMessage, &handled);
+        const bool ok = extractSevenZip(archivePath, entryFullPaths, destDir, passphrase,
+                                        errorMessage, &handled, progress);
         if (handled)
             return ok;
     }
@@ -544,7 +597,8 @@ bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entr
         archive_read_free(a);
         archive_write_free(ext);
         if (ExternalArchiveTool::available(archivePath))
-            return extractExternal(archivePath, entryFullPaths, destDir, passphrase, errorMessage);
+            return extractExternal(archivePath, entryFullPaths, destDir, passphrase, errorMessage,
+                                   progress);
         if (errorMessage)
             *errorMessage = e;
         return false;
@@ -552,9 +606,16 @@ bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entr
 
     QDir().mkpath(destDir);
     bool ok = true;
+    bool aborted = false;
+    qint64 doneItems = 0;
+    qint64 doneBytes = 0;
     struct archive_entry *entry;
     int r;
     while ((r = archive_read_next_header(a, &entry)) == ARCHIVE_OK) {
+        if (cancelled(progress)) {
+            aborted = true;
+            break;
+        }
         QString entryPath = fc::entryPathname(entry);
         entryPath = entryPath.replace(QLatin1Char('\\'), QLatin1Char('/'));
         while (entryPath.endsWith('/'))
@@ -583,14 +644,20 @@ bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entr
                 *errorMessage = lastArchiveError(ext);
             ok = false;
         } else if (archive_entry_size(entry) > 0) {
-            wr = copyData(a, ext);
+            wr = copyData(a, ext, progress, entryPath, doneItems, &doneBytes);
             if (wr < ARCHIVE_OK) {
+                if (cancelled(progress)) {
+                    aborted = true;
+                    archive_write_finish_entry(ext);
+                    break;
+                }
                 if (errorMessage)
                     *errorMessage = lastArchiveError(ext);
                 ok = false;
             }
         }
         archive_write_finish_entry(ext);
+        report(progress, entryPath, ++doneItems, doneBytes);
     }
 
     if (r != ARCHIVE_EOF && r != ARCHIVE_OK && errorMessage && errorMessage->isEmpty())
@@ -600,11 +667,13 @@ bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entr
     archive_read_free(a);
     archive_write_close(ext);
     archive_write_free(ext);
+    if (aborted)
+        return false;
     // libarchive couldn't fully extract (e.g. an encrypted RAR) -> retry via the
     // external CLI tool if one is installed.
     if (!ok && ExternalArchiveTool::available(archivePath)) {
         QString exErr;
-        if (extractExternal(archivePath, entryFullPaths, destDir, passphrase, &exErr)) {
+        if (extractExternal(archivePath, entryFullPaths, destDir, passphrase, &exErr, progress)) {
             if (errorMessage)
                 errorMessage->clear();
             return true;
@@ -638,6 +707,17 @@ QString uniqueDir(const QString &dir) {
     return dir;
 }
 
+// Sums what the extraction is about to write, so the progress bar has totals
+// before the first entry lands.
+void tallyTree(const QSharedPointer<ArchiveNode> &node, qint64 *items, qint64 *bytes) {
+    for (const auto &child : node->children) {
+        ++*items;
+        *bytes += child->size;
+        if (child->isDir)
+            tallyTree(child, items, bytes);
+    }
+}
+
 } // namespace
 
 ArchiveHandler::SmartResult ArchiveHandler::smartExtract(const QString &archivePath,
@@ -649,7 +729,8 @@ ArchiveHandler::SmartResult ArchiveHandler::smartExtract(const QString &archiveP
 ArchiveHandler::SmartResult ArchiveHandler::smartExtract(const QString &archivePath,
                                                           const QString &baseDestDir,
                                                           const QString &passphrase,
-                                                          QString *errorMessage) {
+                                                          QString *errorMessage,
+                                                          Progress *progress) {
     SmartResult result;
 
     QString err;
@@ -658,13 +739,17 @@ ArchiveHandler::SmartResult ArchiveHandler::smartExtract(const QString &archiveP
     // decrypts a little of the first encrypted file so a wrong one surfaces
     // here rather than half-way through writing files.
     Status status = Status::Ok;
-    const QSharedPointer<ArchiveNode> root = buildTree(archivePath, passphrase, &status, &err);
+    const QSharedPointer<ArchiveNode> root =
+        buildTree(archivePath, passphrase, &status, &err, progress ? progress->cancel : nullptr);
     result.status = status;
     if (!root) {
         if (errorMessage)
             *errorMessage = err;
         return result;
     }
+
+    if (progress)
+        tallyTree(root, &progress->totalItems, &progress->totalBytes);
 
     QStringList entryPaths;
     collectEntryPaths(root, entryPaths);
@@ -678,7 +763,7 @@ ArchiveHandler::SmartResult ArchiveHandler::smartExtract(const QString &archiveP
     if (layout.wrapInArchiveNamedFolder)
         finalDir = uniqueDir(QDir(baseDestDir).filePath(base));
 
-    if (!extract(archivePath, {}, finalDir, passphrase, errorMessage)) {
+    if (!extract(archivePath, {}, finalDir, passphrase, errorMessage, progress)) {
         // A wrong passphrase does not always surface while listing. buildTree
         // verifies one by decrypting a little of the first encrypted file, and
         // for AES-256 ZIP written here that check passes even when the password
@@ -751,7 +836,7 @@ bool ArchiveHandler::create(const QString &archivePath, const QStringList &sourc
     bool ok = true;
     for (const QString &source : sourcePaths) {
         const QString baseName = QFileInfo(source).fileName();
-        if (!addEntryRecursive(a, source, baseName, errorMessage)) {
+        if (!addEntryRecursive(a, source, baseName, errorMessage, nullptr, nullptr, nullptr)) {
             ok = false;
             break;
         }
@@ -765,7 +850,7 @@ bool ArchiveHandler::create(const QString &archivePath, const QStringList &sourc
 bool ArchiveHandler::create(const QString &archivePath, const QStringList &sourcePaths,
                              const QString &format, const QString &passphrase,
                              bool encryptHeaders, int compressionLevel,
-                             QString *errorMessage) {
+                             QString *errorMessage, Progress *progress) {
     struct archive *a = archive_write_new();
 
     if (format == QLatin1String("zip")) {
@@ -818,9 +903,12 @@ bool ArchiveHandler::create(const QString &archivePath, const QStringList &sourc
     }
 
     bool ok = true;
+    qint64 doneItems = 0;
+    qint64 doneBytes = 0;
     for (const QString &source : sourcePaths) {
         const QString baseName = QFileInfo(source).fileName();
-        if (!addEntryRecursive(a, source, baseName, errorMessage)) {
+        if (!addEntryRecursive(a, source, baseName, errorMessage, progress, &doneItems,
+                               &doneBytes)) {
             ok = false;
             break;
         }

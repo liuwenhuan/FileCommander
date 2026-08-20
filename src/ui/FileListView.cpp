@@ -38,6 +38,7 @@
 #include "DragPixmap.h"
 #include "ExternalPaths.h"
 #include "FileSystemModel.h"
+#include "filesystem/IconCache.h"
 #include "MotionPolicy.h"
 
 namespace {
@@ -233,8 +234,18 @@ public:
         if (!opt.icon.isNull()) {
             const int sz = opt.decorationSize.height() > 0 ? opt.decorationSize.height() : 16;
             const QRect ir(r.left(), r.top() + (r.height() - sz) / 2, sz, sz);
+            // Selected mode only where the row really inverts: IconCache builds
+            // that variant in the ACTIVE selection's text colour, and the
+            // inactive panel does not invert -- it dims the fill and keeps its
+            // ordinary text colour, so the ordinary glyph is the readable one
+            // there. Compared against the palette rather than against the
+            // panelActive property so a view that never sets one still gets the
+            // right answer.
+            const bool inverted =
+                selected
+                && pal.highlightedText().color() == IconCache::instance().glyphSelectedTint();
             opt.icon.paint(painter, ir, Qt::AlignCenter,
-                           selected ? QIcon::Selected : QIcon::Normal);
+                           inverted ? QIcon::Selected : QIcon::Normal);
             r.setLeft(ir.right() + 4);
         }
 

@@ -104,6 +104,8 @@ if(TTC_BUILD_LIVE_SMB_TESTS)
         Qt5::Core
         Qt5::Test
     )
+    # Shares test_main.cpp with core_tests, so it needs the same helpers.
+    target_include_directories(smb_live_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../support)
     add_dependencies(smb_live_tests FileCommander-smb-helper)
     set_target_properties(smb_live_tests PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
@@ -131,6 +133,8 @@ if(TTC_BUILD_LIVE_WEBDAV_TESTS)
         Qt5::Core
         Qt5::Test
     )
+    # Shares test_main.cpp with core_tests, so it needs the same helpers.
+    target_include_directories(webdav_live_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../support)
 
     add_test(NAME webdav_live_tests COMMAND $<TARGET_FILE:webdav_live_tests>)
     filecommander_set_test_runtime(webdav_live_tests)

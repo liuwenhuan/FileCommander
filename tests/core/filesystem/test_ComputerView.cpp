@@ -5,6 +5,7 @@
 #include <QSet>
 #include <QSignalSpy>
 #include <QStandardPaths>
+#include <QStorageInfo>
 #include <QTemporaryDir>
 
 #include "filesystem/ComputerCatalog.h"
@@ -59,18 +60,19 @@ TEST(ComputerViewTest, CatalogTest_EveryDriveIsNamedAndPointsSomewhereReal) {
 }
 
 TEST(ComputerViewTest, CatalogTest_OneDiskIsListedOnceEvenWhenMountedTwice) {
-    // A bind mount puts the same device at a second mount point (WSL does it for
-    // /mnt/wslg/distro; any fstab "bind" entry does it too). Listing both reads
-    // as two disks that are really one.
+    // A bind mount puts the same device at a second mount point (an ostree root
+    // does it for /home, /var and /root off one partition; WSL does it for
+    // /mnt/wslg/distro; any fstab "bind" entry does it too). Listing them all
+    // reads as several disks that are really one.
+    //
+    // Asked of the mount point rather than parsed out of the display name: the
+    // name is a user-facing string that has already changed shape once, and the
+    // device behind a mount point is the thing actually being asserted about.
     QSet<QString> devices;
     for (const ComputerEntry &drive : ComputerCatalog::drives()) {
-        // Recovered from the name, which is "<label or mount> (<device>)" on
-        // Linux; on Windows the parenthesised part is the drive letter, which is
-        // just as unique per volume.
-        const int open = drive.name.lastIndexOf(QLatin1Char('('));
-        if (open < 0)
+        const QString device = QString::fromLocal8Bit(QStorageInfo(drive.target).device());
+        if (device.isEmpty())
             continue;
-        const QString device = drive.name.mid(open);
         EXPECT_FALSE(devices.contains(device))
             << "listed twice: " << device.toStdString() << " (" << drive.target.toStdString() << ")";
         devices.insert(device);
@@ -86,6 +88,70 @@ TEST(ComputerViewTest, CatalogTest_DrivesExcludePseudoFilesystems) {
         EXPECT_FALSE(drive.target.startsWith(QStringLiteral("/snap")));
     }
 }
+
+#ifndef Q_OS_WIN
+TEST(ComputerViewTest, CatalogTest_SystemMountPointsAreHiddenButTheRootIsNot) {
+    // These are real block-device filesystems, so the pseudo-filesystem filter
+    // cannot remove them -- but nobody browses to /boot from a file manager,
+    // and an ostree layout mounts most of this list off one partition.
+    const QStringList hidden = {
+        QStringLiteral("/boot"),       QStringLiteral("/efi"),  QStringLiteral("/sysroot"),
+        QStringLiteral("/ostree"),     QStringLiteral("/var"),  QStringLiteral("/persistent"),
+        QStringLiteral("/persistent/ostree"), QStringLiteral("/root"), QStringLiteral("/usr"),
+    };
+    bool sawRoot = false;
+    for (const ComputerEntry &drive : ComputerCatalog::drives()) {
+        EXPECT_FALSE(hidden.contains(drive.target)) << drive.target.toStdString();
+        if (drive.target == QStringLiteral("/"))
+            sawRoot = true;
+    }
+    // The prefix matching must never swallow "/" itself: it is the prefix of
+    // every path in the list above, and hiding it would leave a machine with no
+    // system disk at all.
+    EXPECT_TRUE(sawRoot) << "the root filesystem is missing from the drive list";
+}
+
+TEST(ComputerViewTest, CatalogTest_DrivesAreNamedByMountPointNotByDeviceNode) {
+    for (const ComputerEntry &drive : ComputerCatalog::drives()) {
+        // "/dev/nvme0n1p5" identifies the volume precisely and means nothing to
+        // anyone who is not in a terminal -- and neither does the filesystem
+        // label an installer wrote ("Roota", "_dde_data"). The mount point is
+        // the whole name.
+        EXPECT_EQ(drive.name, drive.target) << drive.name.toStdString();
+    }
+}
+
+TEST(ComputerViewTest, CatalogTest_ShowingSystemVolumesRestoresEveryMountPoint) {
+    const QVector<ComputerEntry> plain = ComputerCatalog::drives(false);
+    const QVector<ComputerEntry> all = ComputerCatalog::drives(true);
+    // Strictly a superset: the flag only ever stops rows being dropped.
+    EXPECT_GE(all.size(), plain.size());
+
+    QSet<QString> allTargets;
+    for (const ComputerEntry &drive : all)
+        allTargets.insert(drive.target);
+    for (const ComputerEntry &drive : plain)
+        EXPECT_TRUE(allTargets.contains(drive.target)) << drive.target.toStdString();
+
+    if (all.size() < 2)
+        GTEST_SKIP() << "only " << all.size() << " mounted volume(s) on this machine";
+    // And where a disk really is mounted more than once, the two modes have to
+    // differ -- otherwise the deduplication above passed only because this
+    // machine had no bind mounts to collapse.
+    QSet<QString> devices;
+    bool repeatedDevice = false;
+    for (const ComputerEntry &drive : all) {
+        const QString device = QString::fromLocal8Bit(QStorageInfo(drive.target).device());
+        if (device.isEmpty())
+            continue;
+        if (devices.contains(device))
+            repeatedDevice = true;
+        devices.insert(device);
+    }
+    if (repeatedDevice)
+        EXPECT_LT(plain.size(), all.size());
+}
+#endif
 
 TEST(ComputerViewTest, CatalogTest_UserFoldersAreExistingDirectoriesWithoutDuplicates) {
     const QVector<ComputerEntry> folders = ComputerCatalog::userFolders();
