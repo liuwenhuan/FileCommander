@@ -1538,6 +1538,11 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <translation>Автоматическая проверка обновлений</translation>
     </message>
     <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="900"/>
+        <source>&amp;Actions</source>
+        <translation>&amp;Действия</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/MainWindow.cpp" line="969"/>
         <source>&amp;Interface</source>
         <translation>&amp;Интерфейс</translation>

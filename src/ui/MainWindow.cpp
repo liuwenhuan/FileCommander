@@ -893,6 +893,19 @@ void MainWindow::buildTitleBarMenus() {
     delete m_toolsMenu;
     delete m_configMenu;
     delete m_interfaceMenu;
+    delete m_actionsMenu;
+
+    // The "✳" button's command list, also on the menu bar. Filled on every open
+    // rather than once, because each entry is bound to the panel that is active
+    // at that moment -- and because fillShortcutMenu() labels the view-mode
+    // entry after that panel's current mode.
+    auto *actionsMenu = new QMenu(tr("&Actions"), this);
+    Typography::applyChromeFont(actionsMenu, m_settings);
+    m_actionsMenu = actionsMenu;
+    connect(actionsMenu, &QMenu::aboutToShow, this, [this, actionsMenu] {
+        actionsMenu->clear();
+        fillShortcutMenu(actionsMenu, m_activePanel);
+    });
 
     auto *toolsMenu = new QMenu(tr("&Tools"), this);
     Typography::applyChromeFont(toolsMenu, m_settings);
@@ -1233,7 +1246,7 @@ void MainWindow::buildTitleBarMenus() {
 
     // Embed the menus in our self-drawn title bar (app icon + menu buttons +
     // window buttons), placed where the menu bar would normally sit.
-    m_titleBar = new TitleBar(this, {interfaceMenu, toolsMenu, configMenu});
+    m_titleBar = new TitleBar(this, {interfaceMenu, toolsMenu, configMenu, actionsMenu});
     m_titleBar->setCursor(Qt::ArrowCursor); // don't inherit the window resize cursor
     setMenuWidget(m_titleBar);
     // Clicking the title-bar "New Version" badge opens the pending-update dialog.
@@ -2560,7 +2573,13 @@ void MainWindow::showShortcutMenu(FilePanel *panel, const QPoint &globalPos) {
 
 QMenu *MainWindow::buildShortcutMenu(FilePanel *panel) {
     auto *menu = new QMenu(this);
-    // Every command here is scoped to the panel whose "✳" was clicked, not to
+    fillShortcutMenu(menu, panel);
+    return menu;
+}
+
+void MainWindow::fillShortcutMenu(QMenu *menu, FilePanel *panel) {
+    // Every command here is scoped to `panel` -- the panel whose "✳" was
+    // clicked, or the active one when the menu bar opened this list -- not to
     // whichever panel happens to be active when the item is chosen. The button
     // does emit panelActivated() before opening the menu, but closing a popup
     // restores keyboard focus to the widget that had it beforehand -- the OTHER
@@ -2596,7 +2615,6 @@ QMenu *MainWindow::buildShortcutMenu(FilePanel *panel) {
     addCommand(QStringLiteral("invertSelection"), tr("Invert Selection"));
     addCommand(QStringLiteral("undo"), tr("Undo Previous Operation"));
     addCommand(QStringLiteral("openTerminal"), tr("Open Terminal Here"));
-    return menu;
 }
 
 void MainWindow::setupShortcuts() {
@@ -2998,7 +3016,7 @@ void MainWindow::applyInterfaceTypography() {
     // this is why the menu-font-size and list-font-size caption rows kept
     // displaying a stale size after being adjusted with a menu open, even though
     // adjusting them did correctly change every other chrome surface's font.
-    for (QMenu *menu : {m_interfaceMenu, m_toolsMenu, m_configMenu}) {
+    for (QMenu *menu : {m_interfaceMenu, m_toolsMenu, m_configMenu, m_actionsMenu}) {
         Typography::applyChromeFont(menu, chrome);
         // Force the embedded font-size-stepper rows to match right now, rather than
         // trust MenuChromeSynchronizer's own deferred re-sync (installed on this

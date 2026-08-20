@@ -1534,6 +1534,11 @@ La suppression en tant qu&apos;administrateur contourne la corbeille et est irr�
         <translation>Vérification automatique des mises à jour</translation>
     </message>
     <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="900"/>
+        <source>&amp;Actions</source>
+        <translation>&amp;Actions</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/MainWindow.cpp" line="969"/>
         <source>&amp;Interface</source>
         <translation>&amp;Interface</translation>

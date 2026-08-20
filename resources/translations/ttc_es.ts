@@ -1534,6 +1534,11 @@ Eliminar como administrador omite la papelera de reciclaje y no se puede deshace
         <translation>Búsqueda automática de actualizaciones</translation>
     </message>
     <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="900"/>
+        <source>&amp;Actions</source>
+        <translation>&amp;Acciones</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/MainWindow.cpp" line="969"/>
         <source>&amp;Interface</source>
         <translation>&amp;Interfaz</translation>

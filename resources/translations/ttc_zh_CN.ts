@@ -1898,6 +1898,11 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <translation>自动升级检测</translation>
     </message>
     <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="900"/>
+        <source>&amp;Actions</source>
+        <translation>操作(&amp;A)</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/MainWindow.cpp" line="969"/>
         <source>&amp;Interface</source>
         <translation>界面(&amp;I)</translation>

@@ -1534,6 +1534,11 @@ Excluir como administrador ignora a Lixeira e não pode ser desfeito.</translati
         <translation>Verificação automática de atualizações</translation>
     </message>
     <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="900"/>
+        <source>&amp;Actions</source>
+        <translation>&amp;Ações</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/MainWindow.cpp" line="969"/>
         <source>&amp;Interface</source>
         <translation>&amp;Interface</translation>

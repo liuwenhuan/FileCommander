@@ -1534,6 +1534,11 @@ Das Löschen als Administrator umgeht den Papierkorb und kann nicht rückgängig
         <translation>Automatische Updateprüfung</translation>
     </message>
     <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="900"/>
+        <source>&amp;Actions</source>
+        <translation>&amp;Aktionen</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/MainWindow.cpp" line="969"/>
         <source>&amp;Interface</source>
         <translation>&amp;Oberfläche</translation>
