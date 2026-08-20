@@ -657,3 +657,83 @@ QLabel#quickViewVideoInfoOverlay {
     padding: 6px;
     border-radius: 4px;
 }
+
+/* Media sliders (preview seek and volume). Left unstyled they fell back to the
+   platform style -- a dotted grey groove that belongs to no theme at all. Same
+   parts as the scrollbars above, so the played portion reads as a filled
+   channel rather than a stock track. */
+QSlider::groove:horizontal {
+    height: 6px;
+    background: #232323;
+    border: 1px solid #1a1a1a;
+    border-radius: 3px;
+}
+
+QSlider::groove:vertical {
+    width: 6px;
+    background: #232323;
+    border: 1px solid #1a1a1a;
+    border-radius: 3px;
+}
+
+QSlider::sub-page:horizontal, QSlider::add-page:vertical {
+    background: #565b63;
+    border: 1px solid #1a1a1a;
+    border-radius: 3px;
+}
+
+QSlider::add-page:horizontal, QSlider::sub-page:vertical {
+    background: #232323;
+    border: 1px solid #1a1a1a;
+    border-radius: 3px;
+}
+
+QSlider::handle:horizontal {
+    background: #8e949c;
+    border: 1px solid #1a1a1a;
+    width: 10px;
+    /* Negative margin so the handle overhangs the 6px groove instead of being
+       clipped to it. */
+    margin: -5px 0;
+    border-radius: 5px;
+}
+
+QSlider::handle:vertical {
+    background: #8e949c;
+    border: 1px solid #1a1a1a;
+    height: 10px;
+    margin: 0 -5px;
+    border-radius: 5px;
+}
+
+QSlider::handle:hover {
+    background: #b0b6be;
+}
+
+QSlider::sub-page:horizontal:disabled, QSlider::add-page:vertical:disabled {
+    background: #3a3a3a;
+}
+
+QSlider::handle:horizontal:disabled, QSlider::handle:vertical:disabled {
+    background: #4a4a4a;
+}
+
+/* Tabbed preview (Office documents): QTabBar is themed above, but the pane
+   behind it kept the platform's own frame. */
+QTabWidget::pane {
+    background: #2b2b2b;
+    border: 1px solid #1a1a1a;
+}
+
+/* Framed views that were left on the platform's own frame: dialog lists, the
+   image preview's scroll area, and the PDF/slides pages. Same values as
+   QTreeView above so a list in a dialog matches the directory tree.
+   QListWidget rather than QListView on purpose -- IconFileView is a QListView
+   and has its own rule, which a generic one would override. */
+QListWidget, QScrollArea, QGraphicsView {
+    background-color: #232323;
+    color: #e0e0e0;
+    border: 1px solid #1a1a1a;
+    selection-background-color: #565b63;
+    selection-color: #ffffff;
+}
