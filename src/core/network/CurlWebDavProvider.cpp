@@ -109,6 +109,19 @@ QString davUrl(const QString &host, int port, bool useHttps, const QString &path
     return url;
 }
 
+// Pins the peer's public key and, since the certificate behind it is
+// self-signed and answers to no name we could check, turns CA and hostname
+// verification off. curl enforces CURLOPT_PINNEDPUBLICKEY independently of
+// CURLOPT_SSL_VERIFYPEER (a mismatch is CURLE_SSL_PINNEDPUBKEYNOTMATCH), so
+// the pin carries the whole identity check on its own.
+void applyPinnedKey(CURL *curl, const QString &pin) {
+    if (pin.isEmpty())
+        return;
+    curl_easy_setopt(curl, CURLOPT_PINNEDPUBLICKEY, pin.toUtf8().constData());
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+}
+
 } // namespace
 
 struct WebDavHandle : public FileHandle {
@@ -121,6 +134,7 @@ struct WebDavHandle : public FileHandle {
     QString user;
     QString password;
     bool useHttps = false;
+    QString pinnedKey;
     qint64 resumeOffset = 0;
     qint64 uploadSize = -1; // total PUT body length, or -1 when the caller didn't say
     bool started = false;
@@ -188,6 +202,7 @@ void startWebDavTransfer(WebDavHandle *h) {
     const QString url = davUrl(h->host, h->port, h->useHttps, h->path, false);
     const QByteArray urlUtf8 = url.toUtf8();
     curl_easy_setopt(h->curl, CURLOPT_URL, urlUtf8.constData());
+    applyPinnedKey(h->curl, h->pinnedKey);
     curl_easy_setopt(h->curl, CURLOPT_ERRORBUFFER, state->errorBuffer);
     curl_easy_setopt(h->curl, CURLOPT_NOSIGNAL, 1L);
     // Bound the connect phase only. No total CURLOPT_TIMEOUT_MS: a bulk GET/PUT
@@ -317,6 +332,7 @@ bool CurlWebDavProvider::connectToHost(const QString &host, int port, const QStr
 
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, m_errorBuffer);
     curl_easy_setopt(curl, CURLOPT_URL, urlUtf8.constData());
+    applyPinnedKey(curl, m_pinnedKey);
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     // These timeouts persist on the handle (kept as m_curl) and bound every
     // later control-plane request (PROPFIND/MOVE/DELETE/MKCOL/size). m_curl
@@ -375,6 +391,11 @@ bool CurlWebDavProvider::connectToHost(const QString &host, int port, const QStr
     m_password = password;
     m_connected = true;
     return true;
+}
+
+void CurlWebDavProvider::setPinnedPublicKey(const QString &pin) {
+    QMutexLocker locker(&m_mutex);
+    m_pinnedKey = pin;
 }
 
 bool CurlWebDavProvider::reconnect(QString *error) {
@@ -859,7 +880,7 @@ QVector<FileInfo> CurlWebDavProvider::parsePropfindXml(const QByteArray &data,
 }
 
 FileHandle *CurlWebDavProvider::openRead(const QString &path) {
-    QString h, u, p;
+    QString h, u, p, pin;
     int port, timeout;
     bool https;
     {
@@ -871,6 +892,7 @@ FileHandle *CurlWebDavProvider::openRead(const QString &path) {
         u = m_user;
         p = m_password;
         https = m_useHttps;
+        pin = m_pinnedKey;
         timeout = m_timeoutMs;
     }
     auto *handle = new WebDavHandle();
@@ -881,12 +903,13 @@ FileHandle *CurlWebDavProvider::openRead(const QString &path) {
     handle->user = u;
     handle->password = p;
     handle->useHttps = https;
+    handle->pinnedKey = pin;
     handle->timeoutMs = timeout;
     return handle;
 }
 
 FileHandle *CurlWebDavProvider::openWrite(const QString &path, bool /*truncate*/) {
-    QString h, u, p;
+    QString h, u, p, pin;
     int port, timeout;
     bool https;
     {
@@ -898,6 +921,7 @@ FileHandle *CurlWebDavProvider::openWrite(const QString &path, bool /*truncate*/
         u = m_user;
         p = m_password;
         https = m_useHttps;
+        pin = m_pinnedKey;
         timeout = m_timeoutMs;
     }
     auto *handle = new WebDavHandle();
@@ -908,6 +932,7 @@ FileHandle *CurlWebDavProvider::openWrite(const QString &path, bool /*truncate*/
     handle->user = u;
     handle->password = p;
     handle->useHttps = https;
+    handle->pinnedKey = pin;
     handle->timeoutMs = timeout;
     // truncate is intentionally ignored: WebDAV PUT always replaces the whole
     // resource (there is no append mode), and seek() refuses resume for

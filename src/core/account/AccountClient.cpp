@@ -372,6 +372,7 @@ void AccountClient::openSession(const QString &deviceId) {
                 session.ticket = o.value(QStringLiteral("ticket")).toString();
                 session.peerPort = static_cast<quint16>(
                     o.value(QStringLiteral("peer_port")).toInt());
+                session.peerPin = o.value(QStringLiteral("peer_pin")).toString();
                 session.expiresIn = o.value(QStringLiteral("expires_in")).toInt();
                 for (const QJsonValue &a : o.value(QStringLiteral("peer_lan_addrs")).toArray())
                     session.peerLanAddresses.append(a.toString());

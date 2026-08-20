@@ -9,10 +9,15 @@
 #include <QLocale>
 #include <QMap>
 #include <QNetworkProxy>
+#include <QSslCertificate>
+#include <QSslKey>
+#include <QSslSocket>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QThread>
 #include <QUrl>
+
+#include "ShareIdentity.h"
 
 namespace {
 
@@ -89,6 +94,46 @@ QString cleanDavPath(const QString &raw) {
 
 } // namespace
 
+// The listener, wrapping every accepted connection in TLS before anything
+// above sees it. Without this the relay operator reads every transferred byte,
+// which is the whole reason it exists.
+//
+// The certificate is self-signed and the peer checks it by pin (see
+// ShareIdentity), so nothing here needs a CA, a hostname, or a renewal.
+class TlsShareServer : public QTcpServer {
+public:
+    TlsShareServer(const QSslCertificate &certificate, const QSslKey &key, QObject *parent)
+        : QTcpServer(parent), m_certificate(certificate), m_key(key) {}
+
+protected:
+    void incomingConnection(qintptr descriptor) override {
+        auto *socket = new QSslSocket(this);
+        if (!socket->setSocketDescriptor(descriptor)) {
+            delete socket;
+            return;
+        }
+        socket->setLocalCertificate(m_certificate);
+        socket->setPrivateKey(m_key);
+        socket->setProtocol(QSsl::TlsV1_2OrLater);
+        connect(socket, QOverload<const QList<QSslError> &>::of(&QSslSocket::sslErrors), socket,
+                [](const QList<QSslError> &errors) {
+                    // Nothing to decide here -- a handshake the peer refuses simply
+                    // never encrypts and the connection dies. Logged, not acted on.
+                    for (const QSslError &error : errors)
+                        qWarning("FileShareServer: TLS error: %s",
+                                 qPrintable(error.errorString()));
+                });
+        socket->startServerEncryption();
+        // Handed over before the handshake finishes: ShareConnection only ever
+        // waits on readyRead, which QSslSocket emits for decrypted data only.
+        addPendingConnection(socket);
+    }
+
+private:
+    QSslCertificate m_certificate;
+    QSslKey m_key;
+};
+
 // The listening half. Lives on the server thread, so its shares and tickets are
 // touched by one thread only and need no lock.
 class ShareWorker : public QObject {
@@ -117,7 +162,7 @@ signals:
 private:
     void onNewConnection();
 
-    QTcpServer *m_server = nullptr;
+    TlsShareServer *m_server = nullptr;
     QMap<QString, QString> m_shares;      // share name -> absolute local path
     QHash<QString, QPair<QDateTime, int>> m_tickets;  // ticket -> expiry, TTL
 };
@@ -630,7 +675,17 @@ private:
 void ShareWorker::startListening(int port) {
     if (m_server)
         return;
-    m_server = new QTcpServer(this);
+    const ShareIdentity::Identity identity = ShareIdentity::local();
+    const QList<QSslCertificate> certificates =
+        QSslCertificate::fromData(identity.certPem, QSsl::Pem);
+    const QSslKey key(identity.keyPem, QSsl::Ec, QSsl::Pem);
+    if (certificates.isEmpty() || key.isNull()) {
+        // Refusing to listen is the right failure: serving this in the clear
+        // would hand the relay operator every byte, silently.
+        emit failed(QStringLiteral("No TLS identity for the file share"));
+        return;
+    }
+    m_server = new TlsShareServer(certificates.first(), key, this);
     // Peers reach this port directly, over the LAN or through the relay -- never
     // through the user's proxy. Without this, an $all_proxy in the environment
     // makes QTcpServer try to bind through SOCKS and listen() simply fails.

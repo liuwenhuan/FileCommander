@@ -11,6 +11,7 @@
 
 #include "account/FileShareServer.h"
 #include "account/RelayTunnel.h"
+#include "account/ShareIdentity.h"
 #include "network/CurlWebDavProvider.h"
 
 // The relay half of device transfer, end to end and in one process: a stand-in
@@ -170,10 +171,14 @@ protected:
     bool connectProvider() {
         m_provider = std::make_shared<CurlWebDavProvider>();
         m_provider->setTimeoutMs(15000);
+        // The relay is a raw byte pipe, so the TLS session runs end to end
+        // between this provider and the share server on the far side -- which
+        // is the point: whoever runs the relay sees ciphertext.
+        m_provider->setPinnedPublicKey(ShareIdentity::local().pin);
         return m_provider->connectToHost(QStringLiteral("127.0.0.1"), int(m_localPort),
                                          QStringLiteral("device"),
                                          QString::fromLatin1(kTicket),
-                                         /*useHttps=*/false, &m_error);
+                                         /*useHttps=*/true, &m_error);
     }
 
     QTemporaryDir m_dir;

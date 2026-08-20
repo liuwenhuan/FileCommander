@@ -64,6 +64,18 @@ public:
     QString shellAccessiblePath(const QString &path) const override;
     static QString webDavUrlToUncForShell(const QString &url);
 
+    // Pins the peer's public key: `pin` is curl's --pinnedpubkey format,
+    // "sha256//<base64 SPKI digest>". Setting it also turns peer and hostname
+    // verification OFF -- the device-to-device certificates this exists for are
+    // self-signed and are reached by bare IP (or through a loopback relay
+    // tunnel), so no CA or name could ever match. curl enforces the pin
+    // regardless of VERIFYPEER, which is what makes that safe rather than
+    // merely convenient.
+    //
+    // Must be set before connectToHost(); it applies to the control-plane
+    // handle and to every streaming transfer handle.
+    void setPinnedPublicKey(const QString &pin);
+
     // Bounds the connect phase (and control-plane requests) by ms. Must be set
     // before connectToHost(). Ignored if <= 0.
     void setTimeoutMs(int ms) override { m_timeoutMs = ms > 0 ? ms : m_timeoutMs; }
@@ -145,6 +157,7 @@ private:
     QString m_user;
     QString m_password;
     bool m_useHttps = false;
+    QString m_pinnedKey;
     int m_timeoutMs = 12000;
     bool m_connected = false;
 };

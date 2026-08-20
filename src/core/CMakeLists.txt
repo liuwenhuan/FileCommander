@@ -76,6 +76,8 @@ if(FILECOMMANDER_ENABLE_NETWORK)
         account/DeviceAgent.cpp
         account/FileShareServer.h
         account/FileShareServer.cpp
+        account/ShareIdentity.h
+        account/ShareIdentity.cpp
         account/RelayTunnel.h
         account/RelayTunnel.cpp
     )
@@ -151,6 +153,9 @@ if(FILECOMMANDER_ENABLE_NETWORK)
         pkg_check_modules(LIBSSH2 REQUIRED IMPORTED_TARGET libssh2)
         pkg_check_modules(CURL REQUIRED IMPORTED_TARGET libcurl)
     endif()
+    # ShareIdentity only: Qt5 cannot generate a keypair, so the device's
+    # self-signed share certificate is made with the OpenSSL C API.
+    find_package(OpenSSL REQUIRED)
 endif()
 
 if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
@@ -189,6 +194,7 @@ endif()
 
 if(FILECOMMANDER_ENABLE_NETWORK)
     target_link_libraries(core PUBLIC Qt5::WebSockets)
+    target_link_libraries(core PUBLIC OpenSSL::SSL OpenSSL::Crypto)
     if(WIN32)
         target_link_libraries(core PUBLIC libssh2::libssh2 CURL::libcurl ws2_32 Mpr Netapi32)
     else()

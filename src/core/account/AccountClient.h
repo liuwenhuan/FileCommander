@@ -29,6 +29,10 @@ struct AccountSession {
     QString ticket;
     QStringList peerLanAddresses;
     quint16 peerPort = 0;
+    // The peer's TLS pin, in curl's --pinnedpubkey form. Hand it to
+    // CurlWebDavProvider::setPinnedPublicKey() before dialling: the peer serves
+    // a self-signed certificate, so this is the only thing identifying it.
+    QString peerPin;
     int expiresIn = 0;
 };
 

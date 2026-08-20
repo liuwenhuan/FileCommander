@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS devices (
     created   TEXT NOT NULL,
     last_seen TEXT,
     lan_addrs TEXT NOT NULL DEFAULT '',
-    share_port INTEGER NOT NULL DEFAULT 0
+    share_port INTEGER NOT NULL DEFAULT 0,
+    share_pin TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS tokens (
     token_hash TEXT PRIMARY KEY,
@@ -48,6 +49,15 @@ impl Db {
     pub fn open(path: &str) -> rusqlite::Result<Db> {
         let conn = Connection::open(path)?;
         conn.execute_batch(SCHEMA)?;
+        // CREATE TABLE IF NOT EXISTS leaves an already-populated `devices`
+        // exactly as it is, so a database from before share_pin never gets the
+        // column from SCHEMA alone. Adding it here migrates the deployed
+        // database in place; the error on the second run is "duplicate column
+        // name", which is the success case from then on.
+        let _ = conn.execute(
+            "ALTER TABLE devices ADD COLUMN share_pin TEXT NOT NULL DEFAULT ''",
+            [],
+        );
         Ok(Db(Arc::new(Mutex::new(conn))))
     }
 
@@ -126,4 +136,60 @@ pub fn constant_time_eq(a: &str, b: &str) -> bool {
         return false;
     }
     a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The deployed database predates share_pin and has rows in it, so `open`
+    /// has to add the column without disturbing them.
+    #[test]
+    fn open_adds_share_pin_to_an_older_database() {
+        // No tempfile dependency for one test: a pid-stamped name in the
+        // system temp dir is enough, removed at the end.
+        let file = std::env::temp_dir().join(format!("fc-migrate-{}.db", std::process::id()));
+        let _ = std::fs::remove_file(&file);
+        let path = file.to_str().expect("utf-8 path");
+
+        {
+            let conn = Connection::open(path).expect("create");
+            conn.execute_batch(
+                "CREATE TABLE devices (
+                    id        TEXT PRIMARY KEY,
+                    user_id   INTEGER NOT NULL,
+                    name      TEXT NOT NULL,
+                    platform  TEXT NOT NULL,
+                    created   TEXT NOT NULL,
+                    last_seen TEXT,
+                    lan_addrs TEXT NOT NULL DEFAULT '',
+                    share_port INTEGER NOT NULL DEFAULT 0
+                );
+                INSERT INTO devices (id, user_id, name, platform, created, lan_addrs, share_port)
+                VALUES ('dev-1', 1, 'Laptop', 'linux', '2026-01-01T00:00:00+00:00',
+                        '10.0.0.2', 4711);",
+            )
+            .expect("old schema");
+        }
+
+        Db::open(path).expect("migrate");
+
+        let conn = Connection::open(path).expect("reopen");
+        let (name, port, pin): (String, i64, String) = conn
+            .query_row(
+                "SELECT name, share_port, share_pin FROM devices WHERE id = 'dev-1'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .expect("row survived");
+        assert_eq!(name, "Laptop");
+        assert_eq!(port, 4711);
+        assert_eq!(pin, "");
+
+        // Running it again must be a no-op, not an error.
+        Db::open(path).expect("second open");
+
+        drop(conn);
+        let _ = std::fs::remove_file(&file);
+    }
 }

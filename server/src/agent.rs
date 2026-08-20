@@ -66,7 +66,13 @@ async fn serve_agent(state: AppState, device_id: String, socket: WebSocket) {
         // old one is usually a half-dead connection the device already gave up on.
         agents.insert(
             device_id.clone(),
-            AgentConn { tx: tx.clone(), lan_addrs: Vec::new(), share_port: 0, generation },
+            AgentConn {
+                tx: tx.clone(),
+                lan_addrs: Vec::new(),
+                share_port: 0,
+                share_pin: String::new(),
+                generation,
+            },
         );
     }
     let _ = tx.send(json!({"type": "welcome"}).to_string());
@@ -104,12 +110,23 @@ async fn serve_agent(state: AppState, device_id: String, socket: WebSocket) {
                     })
                     .unwrap_or_default();
                 let port = value.get("port").and_then(Value::as_u64).unwrap_or(0).min(65535) as u16;
+                // The device's TLS pin, passed straight through to whoever asks
+                // to connect to it. Only the shape is checked -- the server has
+                // no way to know which key the device actually holds -- but a
+                // value that is not a pin must never reach a peer's curl.
+                let pin = value
+                    .get("pin")
+                    .and_then(Value::as_str)
+                    .filter(|s| s.starts_with("sha256//") && s.len() <= 128 && !s.contains(','))
+                    .unwrap_or_default()
+                    .to_string();
                 {
                     let mut agents = state.agents.lock().unwrap_or_else(|e| e.into_inner());
                     if let Some(agent) = agents.get_mut(&device_id) {
                         if agent.generation == generation {
                             agent.lan_addrs = addrs.clone();
                             agent.share_port = port;
+                            agent.share_pin = pin.clone();
                         }
                     }
                 }
@@ -119,9 +136,9 @@ async fn serve_agent(state: AppState, device_id: String, socket: WebSocket) {
                     .db
                     .call(move |conn| {
                         let _ = conn.execute(
-                            "UPDATE devices SET last_seen = ?1, lan_addrs = ?2, share_port = ?3 \
-                             WHERE id = ?4",
-                            params![iso(now()), joined, port as i64, id],
+                            "UPDATE devices SET last_seen = ?1, lan_addrs = ?2, share_port = ?3, \
+                             share_pin = ?4 WHERE id = ?5",
+                            params![iso(now()), joined, port as i64, pin, id],
                         );
                     })
                     .await;
@@ -167,6 +184,9 @@ pub struct SessionResponse {
     pub expires_in: i64,
     pub peer_lan_addrs: Vec<String>,
     pub peer_port: u16,
+    /// The peer's TLS pin. Empty when the peer is running a build from before
+    /// this existed, in which case the caller gets no confidentiality and knows it.
+    pub peer_pin: String,
 }
 
 /// Asks a peer device to accept one connection. The ticket is pushed to that
@@ -214,7 +234,7 @@ pub async fn open_session(
     let session_id = random_hex(16);
     let ticket = random_token();
 
-    let (lan_addrs, port) = {
+    let (lan_addrs, port, pin) = {
         let agents = state.agents.lock().unwrap_or_else(|e| e.into_inner());
         let agent = agents
             .get(&target)
@@ -231,7 +251,7 @@ pub async fn open_session(
             .tx
             .send(notice.to_string())
             .map_err(|_| fail(StatusCode::CONFLICT, "device is offline"))?;
-        (agent.lan_addrs.clone(), agent.share_port)
+        (agent.lan_addrs.clone(), agent.share_port, agent.share_pin.clone())
     };
 
     // Recorded only once the target has actually been told: a session nobody
@@ -257,5 +277,6 @@ pub async fn open_session(
         expires_in: TICKET_TTL_SECONDS,
         peer_lan_addrs: lan_addrs,
         peer_port: port,
+        peer_pin: pin,
     }))
 }

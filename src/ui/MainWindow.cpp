@@ -4680,6 +4680,10 @@ MainWindow::DeviceLink MainWindow::deviceLink(const AccountSession &session) {
                                                      // through this port.
                                                      tunnel->deleteLater();
                                                  });
+    // The peer serves a self-signed certificate, so the pin the account server
+    // relayed is the whole identity check -- and the only reason a transfer
+    // over the relay is not readable by whoever runs it.
+    provider->setPinnedPublicKey(session.peerPin);
     const QString ticket = session.ticket;
     auto connectFn = [provider, targets, ticket](QString *error) {
         // The account server pushes the ticket to the peer and answers us
@@ -4692,7 +4696,7 @@ MainWindow::DeviceLink MainWindow::deviceLink(const AccountSession &session) {
                 QThread::msleep(500);
             for (const QPair<QString, quint16> &target : targets) {
                 if (provider->connectToHost(target.first, target.second, QStringLiteral("device"),
-                                            ticket, /*useHttps=*/false, error))
+                                            ticket, /*useHttps=*/true, error))
                     return true;
             }
         }
