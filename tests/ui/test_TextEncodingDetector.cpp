@@ -97,6 +97,20 @@ TEST(TextEncodingDetectorTest, DetectsSupportedLegacyEncodingGrammars) {
     expectEncoding(QByteArray::fromHex("C7D1B1B9BEEE"), "EUC-KR");    // 한국어
 }
 
+TEST(TextEncodingDetectorTest, ReadsHanjaHeavyBytesAsChineseRatherThanKorean) {
+    // 求职简历北京朝阳联系方式意向岗位工作经历 -- every byte is in EUC-KR's
+    // lead/trail range too, and Qt's EUC-KR codec decodes them without a single
+    // replacement, so this used to come out as Korean: half hangul, half hanja,
+    // and nonsense throughout.
+    expectEncoding(QByteArray::fromHex("C7F3D6B0BCF2C0FAB1B1BEA9B3AFD1F4C1AACF"
+                                       "B5B7BDCABDD2E2CFF2B8DACEBBB9A4D7F7BEADC0FA"),
+                   "GB18030");
+
+    // 商 encodes to a lead byte whose EUC-KR row is unassigned, which rules the
+    // Korean reading out on grammar alone.
+    expectEncoding(QByteArray::fromHex("C9CCCEF1D0C5CFA2B7FECEF1D6D0D0C4"), "GB18030");
+}
+
 TEST(TextEncodingDetectorTest, RejectsInvalidLegacyGrammar) {
     const TextEncodingDetector::Result result = detectHex("8140FF");
 

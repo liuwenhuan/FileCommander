@@ -365,7 +365,13 @@ qint64 scriptQuality(const QString &text, ScriptPreference preference) {
             break;
         case ScriptPreference::Korean:
             score += hangul ? 15 : 0;
-            score += han ? 1 : 0;
+            // Modern Korean writes hanja rarely, so a reading that is a third
+            // hanja is far more likely to be another language's bytes landing
+            // in the EUC-KR table than it is to be Korean. Without this,
+            // Chinese GB18030 text decoded as EUC-KR comes out roughly half
+            // hangul and half hanja, and the hangul bonus alone outbids the
+            // correct Chinese reading.
+            score -= han ? 6 : 0;
             score -= kana ? 6 : 0;
             break;
         }
@@ -491,7 +497,13 @@ GrammarResult parseLegacyGrammar(const QByteArray &data, const QByteArray &codec
                     return invalid();
             }
         } else if (codecName == "EUC-KR") {
-            if (first < 0xa1 || first > 0xfe)
+            // Five lead bytes name rows KS X 1001 never assigned, so a pair
+            // starting with one is not EUC-KR however plausible its range
+            // looks. Chinese GB18030 text hits them regularly, and Qt's codec
+            // maps them to hanja instead of rejecting them, which is enough to
+            // make a whole misread file look like Korean.
+            if (first < 0xa1 || first > 0xfd || (first >= 0xad && first <= 0xaf) ||
+                first == 0xc9)
                 return invalid();
             if (i >= data.size())
                 return incomplete();
