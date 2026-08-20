@@ -36,6 +36,29 @@ constexpr int kCacheBudget = 200;
 // between them ask for everything from 16 up.
 constexpr int kTintSizes[] = {16, 22, 24, 32, 48, 64, 128, 256};
 
+// Whether every inked pixel is a grey -- i.e. the artwork carries no colour of
+// its own and only its shape means anything. A stock media glyph is one flat
+// near-black triangle; a message-box mark is a blue disc. The two want opposite
+// recolourings, and this is the only thing that tells them apart, since both
+// arrive as an anonymous QIcon from the platform style.
+bool isMonochrome(const QImage &image) {
+    if (image.isNull())
+        return false;
+    const QImage rgb = image.format() == QImage::Format_ARGB32
+                           ? image
+                           : image.convertToFormat(QImage::Format_ARGB32);
+    for (int y = 0; y < rgb.height(); ++y) {
+        const auto *line = reinterpret_cast<const QRgb *>(rgb.scanLine(y));
+        for (int x = 0; x < rgb.width(); ++x) {
+            if (qAlpha(line[x]) == 0)
+                continue;
+            if (qRed(line[x]) != qGreen(line[x]) || qGreen(line[x]) != qBlue(line[x]))
+                return false;
+        }
+    }
+    return true;
+}
+
 #ifdef Q_OS_WIN
 QImage imageFromHIcon(HICON icon, int size) {
     BITMAPINFO info = {};
@@ -344,11 +367,11 @@ QIcon IconCache::glyphIcon(const QString &resourcePath) {
 }
 
 QIcon IconCache::themedIcon(const QIcon &icon) const {
-    return tinted(icon, m_glyphTint);
+    return tinted(icon, m_glyphTint, /*flattenMonochrome=*/true);
 }
 
 QIcon IconCache::themedIcon(const QIcon &icon, const QColor &tint) const {
-    return tinted(icon, tint);
+    return tinted(icon, tint, /*flattenMonochrome=*/true);
 }
 
 // Compare by value: an invalid QColor equals another invalid one, so clearing
@@ -377,7 +400,8 @@ void IconCache::setFileIconTint(const QColor &tint, int blockPixels) {
     m_cache.clear(); // entries were built under the old tint/grid
 }
 
-QIcon IconCache::tinted(const QIcon &icon, const QColor &tint) const {
+QIcon IconCache::tinted(const QIcon &icon, const QColor &tint,
+                        bool flattenMonochrome) const {
     if (!tint.isValid())
         return icon;
     QList<QSize> sizes = icon.availableSizes();
@@ -391,6 +415,16 @@ QIcon IconCache::tinted(const QIcon &icon, const QColor &tint) const {
         const QPixmap src = icon.pixmap(size);
         if (src.isNull())
             continue;
+        if (flattenMonochrome) {
+            QImage image = src.toImage();
+            if (isMonochrome(image)) {
+                fc::flattenToTint(image, tint);
+                QPixmap flat = QPixmap::fromImage(image);
+                flat.setDevicePixelRatio(src.devicePixelRatio());
+                out.addPixmap(flat);
+                continue;
+            }
+        }
         // The same luma-to-phosphor map thumbnails, previews and video use.
         out.addPixmap(fc::tintedPixmap(src, tint, m_blockPixels));
     }

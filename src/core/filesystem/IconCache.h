@@ -83,7 +83,11 @@ public:
     static QImage cropPaddedIcon(const QImage &image, int size);
 
     // Applies the theme-owned tint and pixel grid to an arbitrary chrome icon --
-    // one whose colours DO mean something, such as a platform standard icon.
+    // one whose colours may mean something, such as a platform standard icon.
+    // Artwork that turns out to be monochrome takes glyphIcon()'s full-strength
+    // recolour instead of the luma ramp, for the reason given there: the
+    // platform's media glyphs are flat near-black, which the ramp reads as dark
+    // rather than as flat and leaves at its floor.
     // With no active tint, returns the icon unchanged.
     QIcon themedIcon(const QIcon &icon) const;
     // The same treatment against a colour the caller names, for artwork whose
@@ -134,7 +138,11 @@ private:
     IconCache();
     // Luminance-to-hue remap of every pixmap in `icon` to `tint`, alpha
     // preserved. Returns `icon` unchanged when `tint` is invalid.
-    QIcon tinted(const QIcon &icon, const QColor &tint) const;
+    // `flattenMonochrome` recolours monochrome artwork at full strength rather
+    // than through the ramp; the file icons it is off for are full-colour by
+    // nature, and a greyscale one among them is shading that has to survive.
+    QIcon tinted(const QIcon &icon, const QColor &tint,
+                 bool flattenMonochrome = false) const;
 
     // Guards the cache and the tints. The cache is filled from a worker (see
     // warmSystemIconForPath) as well as from the GUI thread.

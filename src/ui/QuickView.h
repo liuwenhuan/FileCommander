@@ -258,6 +258,7 @@ private:
     void updateAudioTransport();          // sync play/pause label + seek + times
     QIcon mediaIcon(QStyle::StandardPixmap standardPixmap) const;
     void refreshMediaControlIcons();
+    void updateAudioCover();
     QWidget *buildMarkdownPage();
     // Reads, parses and lays out a .md file on a worker thread, then installs the
     // finished QTextDocument into m_markdown (keeps the GUI responsive on large or

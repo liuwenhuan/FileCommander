@@ -1,6 +1,9 @@
 #include <gtest/gtest.h>
 
+#include <QApplication>
 #include <QDateTime>
+#include <QPainter>
+#include <QStyle>
 #include <QFile>
 #include <QIcon>
 #include <QSet>
@@ -11,6 +14,8 @@
 
 #include "filesystem/FileInfo.h"
 #include "filesystem/IconCache.h"
+
+#include "ThemeStateGuard.h"
 
 // There are two kinds of icon and they must not share a tint.
 //
@@ -170,4 +175,60 @@ TEST(IconTinting, ASelectedGlyphIsDrawnInTheSelectionsTextColour) {
            "variant could go";
 
     cache.setGlyphTint(QColor());
+}
+
+// The audio preview's transport buttons take their glyphs from the platform
+// style, which draws them as flat near-black artwork. Through the luma ramp a
+// black glyph lands on the ramp's floor -- a play triangle at a fifth of the
+// phosphor, on a button whose border the theme painted at full strength, which
+// is how it was reported. Only monochrome artwork takes that shortcut: a mark
+// whose colours mean something must still go through the ramp.
+TEST(IconTinting, AMonochromeStockGlyphLandsOnTheThemeColour) {
+    ThemeStateGuard guard;
+    IconCache &cache = IconCache::instance();
+    const QColor phosphor(0x33, 0xff, 0x88);
+    cache.setGlyphTint(phosphor);
+    cache.setFileIconTint(QColor());
+
+    const auto ink = [](const QImage &image) {
+        int bestAlpha = 0;
+        QColor solid;
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                const QColor pixel = image.pixelColor(x, y);
+                if (pixel.alpha() > bestAlpha) {
+                    bestAlpha = pixel.alpha();
+                    solid = pixel;
+                }
+            }
+        }
+        return std::make_pair(bestAlpha, solid);
+    };
+
+    const QIcon stock = qApp->style()->standardIcon(QStyle::SP_MediaPlay);
+    const QImage themed = cache.themedIcon(stock).pixmap(32, 32).toImage();
+    ASSERT_FALSE(themed.isNull());
+    const auto glyph = ink(themed);
+    // Well short of 255: the style hands back a small bitmap scaled up, so
+    // even the middle of the triangle is part anti-aliasing.
+    ASSERT_GT(glyph.first, 128) << "the stock glyph did not render";
+    // Within a channel step rather than exactly: the style's bitmap is smaller
+    // than the size asked for, and scaling it back up rounds.
+    EXPECT_NEAR(glyph.second.red(), phosphor.red(), 2);
+    EXPECT_NEAR(glyph.second.green(), phosphor.green(), 2);
+    EXPECT_NEAR(glyph.second.blue(), phosphor.blue(), 2)
+        << "media glyph ink is " << glyph.second.name().toStdString()
+        << ", theme colour is " << phosphor.name().toStdString();
+
+    // Two colours in, two colours out: a message-box mark is full-colour
+    // artwork and flattening it would leave a disc-shaped hole.
+    QPixmap coloured(8, 8);
+    coloured.fill(QColor(0x20, 0x60, 0xc0));
+    {
+        QPainter painter(&coloured);
+        painter.fillRect(0, 0, 8, 4, QColor(0xf0, 0xc0, 0x20));
+    }
+    const QImage mark = cache.themedIcon(QIcon(coloured), phosphor).pixmap(8, 8).toImage();
+    EXPECT_NE(mark.pixelColor(0, 0).rgb(), mark.pixelColor(0, 7).rgb())
+        << "a full-colour mark was flattened to one tone";
 }
