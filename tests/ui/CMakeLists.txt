@@ -58,6 +58,7 @@ set(UI_TEST_SOURCES
     test_TreeNavigation.cpp
     test_PanelDiskInfo.cpp
     test_PanelRemoval.cpp
+    test_PanelDeleteRefresh.cpp
     test_OverwritePrompt.cpp
     test_ProviderChecksum.cpp
     test_SelectedEntryInfos.cpp
