@@ -9,6 +9,7 @@
 #include <QTcpSocket>
 #include <QTimer>
 
+#include "MockHttpServer.h"
 #include "update/UpdateChecker.h"
 
 #include "version.h"
@@ -24,95 +25,6 @@ QString sha256Of(const QByteArray &data) {
     return QString::fromLatin1(
         QCryptographicHash::hash(data, QCryptographicHash::Sha256).toHex());
 }
-
-// An event-driven HTTP peer. Event-driven rather than blocking because
-// QNetworkAccessManager lives on the test's own thread: a server that blocked
-// waiting for a connection would deadlock against the client it is serving.
-class MockUpdateServer : public QObject {
-public:
-    struct Route {
-        int status = 200;
-        QByteArray contentType = "application/json";
-        QByteArray body;
-        int delayMs = 0;      // answer this late (exercises the client timeout)
-        bool silent = false;  // accept the request and never answer at all
-        bool dropAfterHeaders = false; // send the headers, then hang up mid-body
-    };
-
-    MockUpdateServer() {
-        m_server.listen(QHostAddress::LocalHost, 0);
-        connect(&m_server, &QTcpServer::newConnection, this, &MockUpdateServer::onConnection);
-    }
-
-    quint16 port() const { return m_server.serverPort(); }
-    QString url(const QString &path) const {
-        return QStringLiteral("http://127.0.0.1:%1%2").arg(port()).arg(path);
-    }
-    void setRoute(const QString &path, const Route &route) { m_routes.insert(path, route); }
-    int requestCount(const QString &path) const { return m_hits.value(path); }
-    QByteArray lastRequestHead() const { return m_lastHead; }
-
-private:
-    void onConnection() {
-        QTcpSocket *sock = m_server.nextPendingConnection();
-        if (!sock)
-            return;
-        connect(sock, &QTcpSocket::readyRead, this, [this, sock] {
-            m_pending[sock] += sock->readAll();
-            if (!m_pending.value(sock).contains("\r\n\r\n"))
-                return;
-            const QByteArray head = m_pending.take(sock);
-            m_lastHead = head;
-            const QByteArray requestLine = head.left(head.indexOf("\r\n"));
-            const QList<QByteArray> parts = requestLine.split(' ');
-            const QString path = parts.size() > 1 ? QString::fromUtf8(parts.at(1)) : QString();
-            m_hits[path] += 1;
-            respond(sock, path, head);
-        });
-        connect(sock, &QTcpSocket::disconnected, sock, &QObject::deleteLater);
-    }
-
-    void respond(QTcpSocket *sock, const QString &path, const QByteArray &head) {
-        Q_UNUSED(head);
-        if (!m_routes.contains(path)) {
-            sock->write("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
-            sock->disconnectFromHost();
-            return;
-        }
-        const Route route = m_routes.value(path);
-        if (route.silent)
-            return; // hold the connection open, say nothing
-
-        auto send = [sock, route] {
-            if (!sock || sock->state() != QAbstractSocket::ConnectedState)
-                return;
-            QByteArray head = "HTTP/1.1 " + QByteArray::number(route.status) + " X\r\n";
-            head += "Content-Type: " + route.contentType + "\r\n";
-            head += "Content-Length: " + QByteArray::number(route.body.size()) + "\r\n";
-            head += "Connection: close\r\n\r\n";
-            sock->write(head);
-            if (route.dropAfterHeaders) {
-                sock->flush();
-                sock->abort();
-                return;
-            }
-            sock->write(route.body);
-            sock->flush();
-            sock->disconnectFromHost();
-        };
-
-        if (route.delayMs > 0)
-            QTimer::singleShot(route.delayMs, sock, send);
-        else
-            send();
-    }
-
-    QTcpServer m_server;
-    QHash<QString, Route> m_routes;
-    QHash<QString, int> m_hits;
-    QHash<QTcpSocket *, QByteArray> m_pending;
-    QByteArray m_lastHead;
-};
 
 // Waits for the first of the checker's three outcome signals.
 struct CheckOutcome {
@@ -291,8 +203,8 @@ TEST(UpdateManifestTest, SegmentKeyMatchesHowThisBuildWasInstalled) {
 // --- the checker over a real socket ----------------------------------------
 
 TEST(UpdateCheckerNetworkTest, ReportsAnAvailableReleaseFromTheServer) {
-    MockUpdateServer server;
-    MockUpdateServer::Route route;
+    MockHttpServer server;
+    MockHttpServer::Route route;
     route.body = manifestJson("99.0.0", UpdateChecker::packageSegmentKey(), kAnyUrl, kAnyHash);
     server.setRoute(QStringLiteral("/version.json"), route);
 
@@ -309,8 +221,8 @@ TEST(UpdateCheckerNetworkTest, ReportsAnAvailableReleaseFromTheServer) {
 }
 
 TEST(UpdateCheckerNetworkTest, ReportsUpToDateAgainstTheRunningVersion) {
-    MockUpdateServer server;
-    MockUpdateServer::Route route;
+    MockHttpServer server;
+    MockHttpServer::Route route;
     route.body = manifestJson(QStringLiteral(TTC_VERSION), UpdateChecker::packageSegmentKey(),
                               kAnyUrl, kAnyHash);
     server.setRoute(QStringLiteral("/version.json"), route);
@@ -324,8 +236,8 @@ TEST(UpdateCheckerNetworkTest, ReportsUpToDateAgainstTheRunningVersion) {
 }
 
 TEST(UpdateCheckerNetworkTest, AnHttpErrorIsReportedNotSwallowed) {
-    MockUpdateServer server;
-    MockUpdateServer::Route route;
+    MockHttpServer server;
+    MockHttpServer::Route route;
     route.status = 500;
     route.body = "boom";
     server.setRoute(QStringLiteral("/version.json"), route);
@@ -339,7 +251,7 @@ TEST(UpdateCheckerNetworkTest, AnHttpErrorIsReportedNotSwallowed) {
 }
 
 TEST(UpdateCheckerNetworkTest, AMissingManifestIsReported) {
-    MockUpdateServer server; // no routes at all -> 404
+    MockHttpServer server; // no routes at all -> 404
     UpdateChecker checker;
     checker.setManifestUrl(server.url(QStringLiteral("/version.json")));
     const CheckOutcome out = runCheck(checker);
@@ -351,8 +263,8 @@ TEST(UpdateCheckerNetworkTest, AMissingManifestIsReported) {
 // check pending forever: neither signal would ever fire, and the daily check
 // would leak one checker per launch.
 TEST(UpdateCheckerNetworkTest, ASilentServerTimesOutInsteadOfHangingForever) {
-    MockUpdateServer server;
-    MockUpdateServer::Route route;
+    MockHttpServer server;
+    MockHttpServer::Route route;
     route.silent = true;
     server.setRoute(QStringLiteral("/version.json"), route);
 

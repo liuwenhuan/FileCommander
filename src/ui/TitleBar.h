@@ -5,6 +5,7 @@
 #include <QIcon>
 #include <QWidget>
 
+class QAction;
 class QMenu;
 class QAbstractButton;
 class QEvent;
@@ -52,9 +53,20 @@ public:
     // release, and the badge's click emits updateRequested().
     void setUpdateAvailable(bool available);
 
+    // The account entry sitting immediately left of the minimize button. Empty
+    // means signed out, and the button reads "Account"; otherwise it carries
+    // the signed-in address, which is the only place the window shows who is
+    // signed in.
+    void setAccountName(const QString &name);
+
 signals:
     // Emitted when the "New Version" badge is clicked (opens the update dialog).
     void updateRequested();
+
+    // Account menu: open the account dialog, and sign out (the second is only
+    // offered while there is a session).
+    void accountRequested();
+    void signOutRequested();
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -77,5 +89,8 @@ private:
     QLabel *m_title = nullptr;
     QAbstractButton *m_maxButton = nullptr; // a TitleButton (cast in the .cpp)
     QAbstractButton *m_updateBadge = nullptr; // "New Version" badge, hidden until an update is found
+    QAbstractButton *m_accountButton = nullptr; // account menu, left of the window buttons
+    QAction *m_accountAction = nullptr;
+    QAction *m_signOutAction = nullptr;
     bool m_pressed = false;                 // left button down (for drag vs double-click)
 };

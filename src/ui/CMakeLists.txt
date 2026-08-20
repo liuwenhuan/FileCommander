@@ -148,6 +148,8 @@ if(FILECOMMANDER_ENABLE_NETWORK)
     list(APPEND UI_SOURCES
         dialogs/ConnectDialog.h
         dialogs/ConnectDialog.cpp
+        dialogs/AccountDialog.h
+        dialogs/AccountDialog.cpp
     )
 endif()
 

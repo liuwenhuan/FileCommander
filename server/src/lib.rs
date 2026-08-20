@@ -1,0 +1,73 @@
+//! FileCommander account server: accounts, device registry and the signalling
+//! a transfer between two of the account's devices needs.
+//!
+//! Deliberately small -- SQLite, no ORM, no JWT library -- but it does terminate
+//! its own TLS and rate-limit its own sign-in endpoints, because there is no
+//! reverse proxy in front of it.
+
+pub mod agent;
+pub mod api;
+pub mod db;
+
+use std::collections::HashMap;
+use std::sync::atomic::AtomicU64;
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
+
+use axum::routing::{delete, get, post};
+use axum::Router;
+use tokio::sync::mpsc;
+
+use db::Db;
+
+/// One device's live agent WebSocket, as far as the rest of the server cares:
+/// somewhere to push a connection request, plus what the device last told us
+/// about how to reach it directly.
+pub struct AgentConn {
+    pub tx: mpsc::UnboundedSender<String>,
+    pub lan_addrs: Vec<String>,
+    pub share_port: u16,
+    /// Distinguishes two connections from the same device, so a socket that
+    /// closes after a newer one registered does not evict the newer one.
+    pub generation: u64,
+}
+
+#[derive(Clone)]
+pub struct AppState {
+    pub db: Db,
+    pub agents: Arc<Mutex<HashMap<String, AgentConn>>>,
+    /// Sign-in attempts per client address, for the built-in rate limit.
+    pub attempts: Arc<Mutex<HashMap<String, (u32, Instant)>>>,
+    pub generation: Arc<AtomicU64>,
+}
+
+impl AppState {
+    pub fn new(db: Db) -> AppState {
+        AppState {
+            db,
+            agents: Arc::new(Mutex::new(HashMap::new())),
+            attempts: Arc::new(Mutex::new(HashMap::new())),
+            generation: Arc::new(AtomicU64::new(1)),
+        }
+    }
+}
+
+pub fn router(state: AppState) -> Router {
+    // Only the credential endpoints are rate limited: an authenticated caller
+    // already cost an attacker a valid token, and throttling /v1/devices would
+    // punish a device that reconnects a lot on a flaky link.
+    let auth = Router::new()
+        .route("/v1/auth/register", post(api::register))
+        .route("/v1/auth/login", post(api::login))
+        .route("/v1/auth/refresh", post(api::refresh))
+        .layer(axum::middleware::from_fn_with_state(state.clone(), api::rate_limit));
+
+    Router::new()
+        .merge(auth)
+        .route("/v1/auth/logout", post(api::logout))
+        .route("/v1/devices", get(api::devices))
+        .route("/v1/devices/{device_id}", delete(api::forget_device))
+        .route("/v1/agent", get(agent::agent_ws))
+        .route("/v1/session", post(agent::open_session))
+        .with_state(state)
+}

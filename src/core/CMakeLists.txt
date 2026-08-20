@@ -70,6 +70,12 @@ if(FILECOMMANDER_ENABLE_NETWORK)
         network/TransferErrorMapping.cpp
         network/ConnectionStore.h
         network/ConnectionStore.cpp
+        account/AccountClient.h
+        account/AccountClient.cpp
+        account/DeviceAgent.h
+        account/DeviceAgent.cpp
+        account/FileShareServer.h
+        account/FileShareServer.cpp
     )
 endif()
 
@@ -162,6 +168,7 @@ target_include_directories(core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/devices
     ${CMAKE_CURRENT_SOURCE_DIR}/notepad
     ${CMAKE_CURRENT_SOURCE_DIR}/update
+    ${CMAKE_CURRENT_SOURCE_DIR}/account
     ${CMAKE_CURRENT_SOURCE_DIR}/text
 )
 
@@ -179,6 +186,7 @@ if(WIN32)
 endif()
 
 if(FILECOMMANDER_ENABLE_NETWORK)
+    target_link_libraries(core PUBLIC Qt5::WebSockets)
     if(WIN32)
         target_link_libraries(core PUBLIC libssh2::libssh2 CURL::libcurl ws2_32 Mpr Netapi32)
     else()

@@ -217,6 +217,27 @@ public:
     bool autoUpdateCheck() const;
     void setAutoUpdateCheck(bool on);
 
+    // Account sign-in. Non-secret bookkeeping only: the refresh token lives in
+    // the login keyring (AccountClient puts it there), never here. The device
+    // id is what re-claims this machine's row on the account server, so a
+    // second sign-in does not add a second device.
+    QString accountEmail() const;
+    void setAccountEmail(const QString &email);
+    QString accountDeviceId() const;
+    void setAccountDeviceId(const QString &id);
+    // Empty means "use the address this build was compiled with". Set when the
+    // user runs their own account server.
+    QString accountServerUrl() const;
+    void setAccountServerUrl(const QString &url);
+
+    // Device-to-device sharing: whether this machine serves its shared folders
+    // to the account's other devices, and which folders those are. Off by
+    // default -- until the user turns it on there is no listening port at all.
+    bool deviceSharingEnabled() const;
+    void setDeviceSharingEnabled(bool on);
+    QStringList sharedFolders() const;
+    void setSharedFolders(const QStringList &folders);
+
     // Whether the Computer view lists the operating system's own mount points
     // (/boot, /var, an ostree layout's /persistent, ...) and every mount of a
     // disk rather than one row per disk. Off by default: on a bind-mount-heavy

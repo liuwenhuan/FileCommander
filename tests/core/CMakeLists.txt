@@ -44,6 +44,8 @@ if(FILECOMMANDER_ENABLE_NETWORK)
         network/test_WebDavChunkedUpload.cpp
         network/test_NetworkSession.cpp
         network/test_SmbListingErrors.cpp
+        account/test_AccountClient.cpp
+        account/test_FileShareServer.cpp
     )
     if(NOT WIN32)
         list(APPEND CORE_TEST_SOURCES network/test_ConnectionPool.cpp)

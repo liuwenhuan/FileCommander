@@ -41,6 +41,7 @@ class FunctionKeyBar;
 class CommandBar;
 class CommandOutputDialog;
 class QuickView;
+class ViewerWindow;
 class OperationProgressDialog;
 class OperationQueue;
 class TransferProgressDialog;
@@ -54,6 +55,10 @@ class QMenu;
 class TitleBar;
 class RemovableDeviceMonitor;
 class NetworkTreeRegistry;
+class AccountClient;
+class DeviceAgent;
+class FileShareServer;
+struct AccountSession;
 class SmbHostBrowser;
 class NotepadPanel;
 
@@ -132,11 +137,19 @@ private:
     void markStartupPanelLoaded(FilePanel *panel, quint64 generation);
     void scheduleStartupPanelInteraction(FilePanel *panel);
     qint64 elapsedSinceStartup() const;
+    // F3 and F4 open the same window: preview and editor are two pages of one
+    // QuickView and swap in place. `startEditing` picks which page it opens on.
+    ViewerWindow *openViewerWindow(const QString &path, bool editable,
+                                   bool startEditing = false);
+    // Resolves the entry under the cursor to a local path that can be EDITED --
+    // a gvfs mount, never a downloaded copy -- and runs `then` on it. Explains
+    // the refusal to the user and does not call `then` when there is none.
+    void resolveEditableCurrent(std::function<void(const QString &)> then);
 
 private slots:
 
     void viewCurrent();  // F3
-    void editCurrent();  // F4 (stub for now, Phase 2 adds TextEditor)
+    void editCurrent();  // F4
     void copySelected();  // F5
     void moveSelected();  // F6
     void makeDirectory();// F7
@@ -231,6 +244,25 @@ private slots:
     void refreshComputerViews();
     void toggleNotepad();           // quick-notepad command (trailing button default)
     void showAboutDialog();         // View > About this program
+    // Config > FileCommander Account: sign in / out, list the account's other
+    // devices. The client behind it is created on first use and then kept, so
+    // the session outlives the dialog.
+    void showAccountDialog();
+
+    // Creates m_accountClient if needed and restores the keyring session. Also
+    // the place the title-bar name is wired up, so the entry follows the
+    // session whether the dialog or startup brought the client into being.
+    void ensureAccountClient();
+    // Opens a tab browsing another device of the same account: asks the server
+    // for a session, then points a plain CurlWebDavProvider at the peer's
+    // FileShareServer. The peer needs no new client code and this needs no new
+    // transfer code -- it is an ordinary network tab from here on.
+    void openAccountDevice(const QString &deviceId, const QString &name);
+    void openDeviceSession(const AccountSession &session, const QString &name);
+    // Starts or stops the serving half to match the settings: signed in, with
+    // sharing on and at least one folder chosen. Off in every other case, port
+    // and all.
+    void updateDeviceSharing();
     void checkForUpdatesNow();      // View > Check for Updates (manual)
     // The silent daily check. Runs at startup and on a timer thereafter; does
     // nothing unless updateCheckIsDue(). Never pops a dialog -- a release it
@@ -581,6 +613,15 @@ private:
     // the tabs that were browsing it.
     QStringList m_removableMounts;
     SmbHostBrowser *m_smbBrowser = nullptr;            // SMB neighbourhood discovery
+    // Created on first use by showAccountDialog() and kept afterwards: the
+    // signed-in session (and, later, the device agent) has to outlive the
+    // dialog that started it.
+    AccountClient *m_accountClient = nullptr;
+    // The serving half, alive only while sharing is on: the agent keeps the
+    // account server posted on this machine and hands over the tickets the
+    // share server will accept.
+    DeviceAgent *m_deviceAgent = nullptr;
+    FileShareServer *m_shareServer = nullptr;
     UpdateInfo m_pendingUpdate;                        // valid when m_hasUpdate
     bool m_hasUpdate = false;                          // an update is available
 };

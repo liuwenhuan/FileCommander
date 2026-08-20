@@ -102,12 +102,16 @@
 #include "filesystem/ComputerCatalog.h"
 #include "LocalFileProvider.h"
 #include "FunctionKeyBar.h"
-#include "ImageViewer.h"
+#include "ImageFormats.h"
 #include "OperationQueue.h"
+#include "account/AccountClient.h"
+#include "account/DeviceAgent.h"
+#include "account/FileShareServer.h"
 #include "diagnostics/RuntimeCounters.h"
 #include "SearchDialog.h"
 #include "SessionManager.h"
 #include "TitleBar.h"
+#include "dialogs/AccountDialog.h"
 #include "dialogs/ChecksumDialog.h"
 #include "dialogs/CommandOutputDialog.h"
 #include "dialogs/ConnectDialog.h"
@@ -117,7 +121,6 @@
 #endif
 #include "Settings.h"
 #include "ThemeManager.h"
-#include "TextEditor.h"
 #include "Typography.h"
 #include "dialogs/CompareDialog.h"
 #include "dialogs/DeleteConfirmDialog.h"
@@ -882,6 +885,7 @@ void MainWindow::buildTitleBarMenus() {
     addCommandAction(configMenu, QStringLiteral("keyboardShortcuts"), tr("Keyboard Shortcuts"));
     addCommandAction(configMenu, QStringLiteral("connectionManager"),
                      tr("Manage Network Connections"));
+    addCommandAction(configMenu, QStringLiteral("account"), tr("FileCommander Account"));
     configMenu->addSeparator();
     // Checked means "browse into it", which is what the label says. It used to
     // be inverted -- the entry read "Directly Open Archives" while ticking it
@@ -1195,6 +1199,20 @@ void MainWindow::buildTitleBarMenus() {
     setMenuWidget(m_titleBar);
     // Clicking the title-bar "New Version" badge opens the pending-update dialog.
     connect(m_titleBar, &TitleBar::updateRequested, this, &MainWindow::showUpdateDialog);
+    // Account entry, left of the window buttons.
+    connect(m_titleBar, &TitleBar::accountRequested, this, &MainWindow::showAccountDialog);
+    connect(m_titleBar, &TitleBar::signOutRequested, this, [this] {
+#if FILECOMMANDER_HAS_NETWORK
+        if (m_accountClient)
+            m_accountClient->logout();
+#endif
+    });
+#if FILECOMMANDER_HAS_NETWORK
+    // A stored account means there may be a keyring session to restore; doing
+    // it now is what puts the name in the title bar without opening the dialog.
+    if (!m_settings.accountEmail().isEmpty())
+        ensureAccountClient();
+#endif
 
     // The recurring half of the update check. The FIRST check is deferred with
     // the rest of the background services below, but arming the timer costs
@@ -1717,6 +1735,13 @@ QuickView *MainWindow::ensureQuickView() {
     // Stop button on the remote-preview download page cancels the in-flight fetch.
     connect(m_quickView, &QuickView::downloadCancelRequested, this,
             &MainWindow::cancelPreviewDownload);
+    // The pane's Edit button does not open the path it is showing: on a network
+    // tab that path needs resolving to a writable mount first, and F4's resolver
+    // is what knows how (and what refuses when there is none). The editor then
+    // takes over the pane itself -- no window opens.
+    connect(m_quickView, &QuickView::editRequested, this, [this](const QString &) {
+        resolveEditableCurrent([this](const QString &real) { m_quickView->beginEditing(real); });
+    });
     // A streamed remote clip that wouldn't play falls back to the download path
     // by re-running the preview with streaming suppressed for that one file.
     connect(m_quickView, &QuickView::streamFailed, this, [this](const QString &) {
@@ -2560,6 +2585,7 @@ void MainWindow::setupShortcuts() {
     bindShortcut("connectionManager", tr("Manage Network Connections"),
                  QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_O),
                  [this] { openServerConnectDialog(false); });
+    registerCommand("account", tr("FileCommander Account"), [this] { showAccountDialog(); });
     bindShortcut("chooseFont", tr("Choose Font"), QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_F),
                  [this] { chooseGlobalFont(); });
     bindShortcut("increaseFontSize", tr("Increase Font Size"),
@@ -3182,13 +3208,7 @@ void MainWindow::createNewTextFile() {
 
     m_activePanel->refresh();
     m_activePanel->selectPathAfterReload(target);
-    auto *editor = new TextEditor();
-    if (!editor->loadFile(target)) {
-        delete editor; // loadFile already reported why
-        return;
-    }
-    editor->resize(900, 700);
-    editor->show();
+    openViewerWindow(target, true, true);
 }
 
 void MainWindow::copyInSameDirectory() {
@@ -4258,10 +4278,10 @@ void MainWindow::showFavoritesMenu(const QPoint &globalPos, int tabIndex) {
     // user can manage the connection directly (there was no manual entry before).
     if (tabIndex >= 0 && panel->tabHasConnection(tabIndex)) {
         if (!panel->tabConnInfo(tabIndex).host.isEmpty()) {
-            menu.addAction(tr("重新连接"), this,
+            menu.addAction(tr("Reconnect"), this,
                            [this, panel, tabIndex] { reconnectSavedTab(panel, tabIndex); });
         }
-        menu.addAction(tr("断开连接"), this,
+        menu.addAction(tr("Disconnect"), this,
                        [panel, tabIndex] { panel->disconnectTab(tabIndex); });
         menu.addSeparator();
     }
@@ -4277,7 +4297,7 @@ void MainWindow::reconnectSavedTab(FilePanel *panel, int index) {
     setupFeatureBatch();
     auto native = providerForSaved(c);
     if (!native.provider) {
-        ttc::critical(this, tr("重新连接"), tr("不支持的连接类型。"));
+        ttc::critical(this, tr("Reconnect"), tr("Unsupported connection type."));
         return;
     }
     const QString path = c.remotePath.isEmpty() ? QStringLiteral("/") : c.remotePath;
@@ -4391,12 +4411,15 @@ FilePanel *MainWindow::otherPanel(FilePanel *panel) const {
 
 bool MainWindow::promptCredentials(const QString &host, QString *user, QString *pass,
                                    const QString &error) {
-    QDialog dlg(this);
-    dlg.setWindowTitle(tr("需要密码"));
+    // FramelessDialog, not a bare QDialog: a plain dialog keeps the native
+    // window-manager title bar, which no theme of ours can reach -- the body
+    // went dark and the caption stayed white.
+    FramelessDialog dlg(this);
+    dlg.setWindowTitle(tr("Password Required"));
     auto *form = new QFormLayout(&dlg);
     auto *info = new QLabel(
-        host.isEmpty() ? tr("此连接需要用户名和密码。")
-                       : tr("连接“%1”需要用户名和密码。").arg(host),
+        host.isEmpty() ? tr("This connection requires a user name and password.")
+                       : tr("Connecting to \"%1\" requires a user name and password.").arg(host),
         &dlg);
     info->setWordWrap(true);
     form->addRow(info);
@@ -4411,8 +4434,8 @@ bool MainWindow::promptCredentials(const QString &host, QString *user, QString *
     auto *userEdit = new QLineEdit(&dlg);
     auto *passEdit = new QLineEdit(&dlg);
     passEdit->setEchoMode(QLineEdit::Password);
-    form->addRow(tr("用户名："), userEdit);
-    form->addRow(tr("密码："), passEdit);
+    form->addRow(tr("User name:"), userEdit);
+    form->addRow(tr("Password:"), passEdit);
     auto *box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
     ttc::localizeStandardButtons(box);
     form->addRow(box);
@@ -4436,6 +4459,145 @@ FilePanel *MainWindow::beginServerConnection() {
     panel->newTab();
     panel->view()->setFocus();
     return panel;
+}
+
+void MainWindow::ensureAccountClient() {
+#if FILECOMMANDER_HAS_NETWORK
+    if (m_accountClient)
+        return;
+    m_accountClient = new AccountClient(this);
+    if (!m_settings.accountServerUrl().isEmpty())
+        m_accountClient->setApiUrl(m_settings.accountServerUrl());
+    if (m_titleBar) {
+        connect(m_accountClient, &AccountClient::loggedIn, this,
+                [this](const AccountInfo &info) { m_titleBar->setAccountName(info.email); });
+        connect(m_accountClient, &AccountClient::loggedOut, this,
+                [this] { m_titleBar->setAccountName(QString()); });
+    }
+    connect(m_accountClient, &AccountClient::loggedIn, this,
+            [this] { updateDeviceSharing(); });
+    connect(m_accountClient, &AccountClient::loggedOut, this,
+            [this] { updateDeviceSharing(); });
+    // Sign back in from the keyring token rather than asking again. Async,
+    // and a failure just leaves the dialog on its sign-in page.
+    if (!m_settings.accountEmail().isEmpty() && !m_settings.accountDeviceId().isEmpty())
+        m_accountClient->restoreSession(m_settings.accountEmail(),
+                                        m_settings.accountDeviceId());
+#endif
+}
+
+void MainWindow::showAccountDialog() {
+#if FILECOMMANDER_HAS_NETWORK
+    ensureAccountClient();
+    AccountDialog dlg(*m_accountClient, m_settings, this);
+    connect(&dlg, &AccountDialog::openDevice, this, &MainWindow::openAccountDevice);
+    dlg.exec();
+    // The dialog edits the sharing settings in place, so pick them up on the
+    // way out rather than making it call back for every checkbox click.
+    updateDeviceSharing();
+#endif
+}
+
+void MainWindow::updateDeviceSharing() {
+#if FILECOMMANDER_HAS_NETWORK
+    const bool wanted = m_accountClient && m_accountClient->isLoggedIn() &&
+                        m_settings.deviceSharingEnabled() &&
+                        !m_settings.sharedFolders().isEmpty();
+    if (!wanted) {
+        if (m_shareServer)
+            m_shareServer->stop();
+        if (m_deviceAgent)
+            m_deviceAgent->stop();
+        return;
+    }
+    if (!m_shareServer) {
+        m_shareServer = new FileShareServer(this);
+        m_deviceAgent = new DeviceAgent(m_accountClient, this);
+        // The port is only known once it is bound, and the agent is what tells
+        // the account server about it -- so a peer can only ever be handed a
+        // port that is actually listening.
+        connect(m_shareServer, &FileShareServer::started, m_deviceAgent,
+                &DeviceAgent::setSharePort);
+        // A ticket the server pushed to us is a peer about to knock: teach the
+        // share server to accept it before the connection arrives.
+        connect(m_deviceAgent, &DeviceAgent::ticketOffered, this,
+                [this](const QString &ticket, const QString &, int expiresIn) {
+                    m_shareServer->addTicket(ticket, expiresIn);
+                });
+    }
+    m_shareServer->setSharedFolders(m_settings.sharedFolders());
+    if (!m_shareServer->isRunning())
+        m_shareServer->start();
+    if (!m_deviceAgent->isConnected())
+        m_deviceAgent->start();
+#endif
+}
+
+void MainWindow::openAccountDevice(const QString &deviceId, const QString &name) {
+#if FILECOMMANDER_HAS_NETWORK
+    ensureAccountClient();
+    if (!m_accountClient->isLoggedIn()) {
+        ttc::information(this, tr("FileCommander Account"), tr("Not signed in."));
+        return;
+    }
+    // openSession answers asynchronously on a client that outlives this call, so
+    // both handlers unhook themselves -- otherwise the next session opened would
+    // also open a second tab for this one.
+    auto guards = std::make_shared<QPair<QMetaObject::Connection, QMetaObject::Connection>>();
+    auto drop = [this, guards] {
+        disconnect(guards->first);
+        disconnect(guards->second);
+    };
+    guards->first = connect(m_accountClient, &AccountClient::sessionReady, this,
+                            [this, name, drop](const AccountSession &session) {
+                                drop();
+                                openDeviceSession(session, name);
+                            });
+    guards->second = connect(m_accountClient, &AccountClient::requestFailed, this,
+                             [this, drop](const QString &error) {
+                                 drop();
+                                 ttc::critical(this, tr("Connection Failed"), error);
+                             });
+    m_accountClient->openSession(deviceId);
+#else
+    Q_UNUSED(deviceId);
+    Q_UNUSED(name);
+#endif
+}
+
+void MainWindow::openDeviceSession(const AccountSession &session, const QString &name) {
+#if FILECOMMANDER_HAS_NETWORK
+    if (session.peerLanAddresses.isEmpty() || session.peerPort == 0) {
+        // ponytail: LAN only for now; the relay tunnel is the next phase, and
+        // this is where it plugs in.
+        ttc::critical(this, tr("Connection Failed"),
+                      tr("%1 cannot be reached on this network.").arg(name));
+        return;
+    }
+    auto provider = std::make_shared<CurlWebDavProvider>();
+    const QStringList hosts = session.peerLanAddresses;
+    const quint16 port = session.peerPort;
+    const QString ticket = session.ticket;
+    auto connectFn = [provider, hosts, port, ticket](QString *error) {
+        // A machine on two networks reports both of its addresses and only one
+        // of them is reachable from here, so try them in order.
+        for (const QString &host : hosts) {
+            if (provider->connectToHost(host, port, QStringLiteral("device"), ticket,
+                                        /*useHttps=*/false, error))
+                return true;
+        }
+        return false;
+    };
+    FilePanel *panel = beginServerConnection();
+    panel->model()->connectNetwork(provider, connectFn, QStringLiteral("/"));
+    panel->setConnectingLabel(name, provider->scheme());
+    // Deliberately no setActiveTabConnInfo(): the ticket is short-lived, so a
+    // persisted "connection" would restore as a tab nothing can reconnect.
+    panel->navigateTo(QStringLiteral("/"));
+#else
+    Q_UNUSED(session);
+    Q_UNUSED(name);
+#endif
 }
 
 void MainWindow::openServerConnectDialog(bool preselectSmb) {
@@ -4598,8 +4760,8 @@ void MainWindow::handleFilesDropped(const QStringList &sources, const QString &d
     case FileListView::DropActionKind::Link:
         if (crossProvider) {
             // Symlinks are a local-filesystem concept; can't span a remote backend.
-            ttc::warning(this, tr("创建链接"),
-                         tr("无法为网络位置创建符号链接。"));
+            ttc::warning(this, tr("Create Link"),
+                         tr("Cannot create a symbolic link for a network location."));
         } else {
             ensureTransferProgressDialog();
             m_queue->enqueueSymlink(sources, destDir);
@@ -4667,8 +4829,8 @@ void MainWindow::pasteFromClipboard() {
         if (!sources.isEmpty() && !explicitSrcProv) {
             // The source connection is gone: refuse rather than silently reading a
             // same-named local file at these paths.
-            ttc::warning(this, tr("粘贴"),
-                         tr("源连接（%1）已关闭，无法从远端粘贴。").arg(displayName));
+            ttc::warning(this, tr("Paste"),
+                         tr("The source connection (%1) is closed, so nothing can be pasted from the remote side.").arg(displayName));
             return;
         }
     } else if (mime->hasFormat(QLatin1String(fc::kInternalPathsMime))) {
@@ -4880,6 +5042,17 @@ bool MainWindow::currentEntryIsDir() const {
     return QFileInfo(path).isDir();
 }
 
+ViewerWindow *MainWindow::openViewerWindow(const QString &path, bool editable,
+                                           bool startEditing) {
+    // Preview and editor are pages of the window's own QuickView and swap in
+    // place, so nothing here has to open or close a second window when the user
+    // presses Edit or Preview.
+    auto *viewer = new ViewerWindow(m_settings, path, this, startEditing);
+    viewer->setEditingEnabled(editable);
+    viewer->show();
+    return viewer;
+}
+
 void MainWindow::viewCurrent() {
     if (!m_activePanel)
         return;
@@ -4897,15 +5070,17 @@ void MainWindow::viewCurrent() {
     QPointer<FilePanel> guard(m_activePanel);
     resolveRealPath(m_activePanel, path, [this, guard, path](const QString &real) {
         if (!real.isEmpty()) {
-            (new ViewerWindow(m_settings, real, this))->show();
+            openViewerWindow(real, true);
             return;
         }
         if (!guard)
             return;
         // No mount to read through. Viewing is read-only anyway, so a temp copy
-        // loses nothing here -- unlike F4, where it would be a dead end.
+        // loses nothing here -- unlike F4, where it would be a dead end. The
+        // Edit button is hidden for the same reason: saving would write to a
+        // temp file the user never sees again.
         fetchRemoteCopy(guard, path, [this](const QString &localPath) {
-            (new ViewerWindow(m_settings, localPath, this))->show();
+            openViewerWindow(localPath, false);
         });
     });
 }
@@ -5269,14 +5444,14 @@ void MainWindow::extractArchiveToDir() {
     });
 }
 
-void MainWindow::editCurrent() {
+void MainWindow::resolveEditableCurrent(std::function<void(const QString &)> then) {
     if (!m_activePanel)
         return;
     const QString path = m_activePanel->currentEntryPath();
     if (path.isEmpty() || currentEntryIsDir())
         return;
 
-    if (ImageViewer::isImage(path)) {
+    if (fc::isImage(path)) {
         ttc::information(this, tr("Edit"),
                                   tr("Image files can't be edited; use F3 to view."));
         return;
@@ -5294,7 +5469,7 @@ void MainWindow::editCurrent() {
     // which QFile could not open, and the failure below then swallowed it -- so
     // on a network tab F4 did nothing at all, with no message.
     const QString name = QFileInfo(path).fileName();
-    resolveRealPath(m_activePanel, path, [this, name](const QString &real) {
+    resolveRealPath(m_activePanel, path, [this, name, then](const QString &real) {
         if (real.isEmpty()) {
             // Deliberately NOT a downloaded copy. The copy is read-only, and
             // even if it were not, Save would write to a temp file the user
@@ -5317,14 +5492,12 @@ void MainWindow::editCurrent() {
             return;
         }
         probe.close();
-        auto *editor = new TextEditor();
-        if (!editor->loadFile(real)) {
-            delete editor; // loadFile already said why
-            return;
-        }
-        editor->resize(900, 700);
-        editor->show();
+        then(real);
     });
+}
+
+void MainWindow::editCurrent() {
+    resolveEditableCurrent([this](const QString &real) { openViewerWindow(real, true, true); });
 }
 
 // A flat search listing spans many directories, so "create it here" has no

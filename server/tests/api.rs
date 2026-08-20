@@ -1,0 +1,284 @@
+//! End-to-end tests for the account API.
+//!
+//! Most drive the router directly through `oneshot`, which needs no listener.
+//! The agent/session pair needs a real socket, so those tests bind one.
+
+use std::net::SocketAddr;
+
+use axum::body::Body;
+use axum::http::{Request, StatusCode};
+use axum::response::Response;
+use filecommander_account::{db::Db, router, AppState};
+use http_body_util::BodyExt;
+use serde_json::{json, Value};
+use tower::ServiceExt;
+
+fn state() -> AppState {
+    AppState::new(Db::memory().expect("in-memory database"))
+}
+
+async fn send(state: &AppState, method: &str, path: &str, token: &str, body: Value) -> Response {
+    let mut req = Request::builder()
+        .method(method)
+        .uri(path)
+        .header("content-type", "application/json");
+    if !token.is_empty() {
+        req = req.header("authorization", format!("Bearer {token}"));
+    }
+    let body = if body.is_null() { Body::empty() } else { Body::from(body.to_string()) };
+    router(state.clone()).oneshot(req.body(body).unwrap()).await.unwrap()
+}
+
+async fn json_of(response: Response) -> Value {
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    serde_json::from_slice(&bytes).unwrap_or(Value::Null)
+}
+
+async fn register(state: &AppState, email: &str, password: &str) -> Response {
+    send(state, "POST", "/v1/auth/register", "", json!({"email": email, "password": password})).await
+}
+
+async fn login(state: &AppState, email: &str, name: &str, device_id: &str) -> Value {
+    let response = send(
+        state,
+        "POST",
+        "/v1/auth/login",
+        "",
+        json!({
+            "email": email,
+            "password": "correct horse",
+            "device_name": name,
+            "platform": "linux",
+            "device_id": device_id,
+        }),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    json_of(response).await
+}
+
+#[tokio::test]
+async fn register_rejects_bad_input_and_duplicates() {
+    let state = state();
+    assert_eq!(register(&state, "user@example.com", "correct horse").await.status(),
+               StatusCode::CREATED);
+
+    let duplicate = register(&state, "USER@example.com", "correct horse").await;
+    assert_eq!(duplicate.status(), StatusCode::CONFLICT);
+    assert_eq!(json_of(duplicate).await["detail"], "email already registered");
+
+    assert_eq!(register(&state, "nope", "correct horse").await.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(register(&state, "a@b.c", "short").await.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn login_hides_whether_the_account_exists() {
+    let state = state();
+    register(&state, "user@example.com", "correct horse").await;
+
+    let wrong = send(&state, "POST", "/v1/auth/login", "",
+                     json!({"email": "user@example.com", "password": "wrong password"})).await;
+    let missing = send(&state, "POST", "/v1/auth/login", "",
+                       json!({"email": "ghost@example.com", "password": "correct horse"})).await;
+    assert_eq!(wrong.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(missing.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(json_of(wrong).await["detail"], json_of(missing).await["detail"]);
+}
+
+#[tokio::test]
+async fn login_reclaims_the_device_id_it_is_given() {
+    let state = state();
+    register(&state, "user@example.com", "correct horse").await;
+
+    let first = login(&state, "user@example.com", "desktop", "").await;
+    let device_id = first["device_id"].as_str().unwrap().to_string();
+    assert!(!first["access_token"].as_str().unwrap().is_empty());
+    assert_eq!(first["expires_in"], 900);
+
+    let again = login(&state, "user@example.com", "desktop", &device_id).await;
+    assert_eq!(again["device_id"], device_id.as_str());
+
+    let fresh = login(&state, "user@example.com", "laptop", "").await;
+    assert_ne!(fresh["device_id"], device_id.as_str());
+
+    // A device id belonging to nobody must not be claimable.
+    let stolen = login(&state, "user@example.com", "laptop", "ffffffffffffffffffffffffffffffff").await;
+    assert_ne!(stolen["device_id"], "ffffffffffffffffffffffffffffffff");
+}
+
+#[tokio::test]
+async fn refresh_rotates_and_spends_the_old_token() {
+    let state = state();
+    register(&state, "user@example.com", "correct horse").await;
+    let session = login(&state, "user@example.com", "desktop", "").await;
+    let refresh_token = session["refresh_token"].as_str().unwrap().to_string();
+
+    let renewed = send(&state, "POST", "/v1/auth/refresh", "",
+                       json!({"refresh_token": refresh_token})).await;
+    assert_eq!(renewed.status(), StatusCode::OK);
+    let renewed = json_of(renewed).await;
+    assert_eq!(renewed["device_id"], session["device_id"]);
+    assert_ne!(renewed["refresh_token"], refresh_token.as_str());
+
+    // The spent token, and the access token it replaced, are both dead now.
+    let replayed = send(&state, "POST", "/v1/auth/refresh", "",
+                        json!({"refresh_token": refresh_token})).await;
+    assert_eq!(replayed.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(json_of(replayed).await["detail"], "invalid refresh token");
+
+    let old_access = session["access_token"].as_str().unwrap();
+    assert_eq!(send(&state, "GET", "/v1/devices", old_access, Value::Null).await.status(),
+               StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn devices_lists_the_account_and_marks_this_one() {
+    let state = state();
+    register(&state, "user@example.com", "correct horse").await;
+    let desktop = login(&state, "user@example.com", "desktop", "").await;
+    let laptop = login(&state, "user@example.com", "laptop", "").await;
+    let token = laptop["access_token"].as_str().unwrap();
+
+    let response = send(&state, "GET", "/v1/devices", token, Value::Null).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = json_of(response).await;
+    // The Qt client rejects anything that is not a bare array.
+    let list = body.as_array().expect("a JSON array");
+    assert_eq!(list.len(), 2);
+    assert_eq!(list[0]["name"], "desktop");
+    assert_eq!(list[0]["self"], false);
+    assert_eq!(list[1]["self"], true);
+    // Nothing has been seen by the agent socket yet.
+    assert_eq!(list[0]["online"], false);
+    assert!(list[0]["lan_addrs"].as_array().unwrap().is_empty());
+
+    let device_id = desktop["device_id"].as_str().unwrap();
+    let path = format!("/v1/devices/{device_id}");
+    assert_eq!(send(&state, "DELETE", &path, token, Value::Null).await.status(),
+               StatusCode::NO_CONTENT);
+    let gone = send(&state, "DELETE", &path, token, Value::Null).await;
+    assert_eq!(gone.status(), StatusCode::NOT_FOUND);
+    assert_eq!(json_of(gone).await["detail"], "no such device");
+
+    // The removed device's session went with it.
+    assert_eq!(send(&state, "GET", "/v1/devices", desktop["access_token"].as_str().unwrap(),
+                    Value::Null).await.status(),
+               StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn authentication_is_required_and_logout_ends_the_session() {
+    let state = state();
+    register(&state, "user@example.com", "correct horse").await;
+    let session = login(&state, "user@example.com", "desktop", "").await;
+    let token = session["access_token"].as_str().unwrap().to_string();
+
+    let anonymous = send(&state, "GET", "/v1/devices", "", Value::Null).await;
+    assert_eq!(anonymous.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(json_of(anonymous).await["detail"], "missing bearer token");
+
+    let bogus = send(&state, "GET", "/v1/devices", "not-a-token", Value::Null).await;
+    assert_eq!(bogus.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(json_of(bogus).await["detail"], "invalid or expired token");
+
+    assert_eq!(send(&state, "POST", "/v1/auth/logout", &token, Value::Null).await.status(),
+               StatusCode::NO_CONTENT);
+    assert_eq!(send(&state, "GET", "/v1/devices", &token, Value::Null).await.status(),
+               StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn sign_in_attempts_are_rate_limited() {
+    let state = state();
+    register(&state, "user@example.com", "correct horse").await;
+    let mut last = StatusCode::OK;
+    for _ in 0..25 {
+        last = send(&state, "POST", "/v1/auth/login", "",
+                    json!({"email": "user@example.com", "password": "wrong password"}))
+            .await
+            .status();
+    }
+    assert_eq!(last, StatusCode::TOO_MANY_REQUESTS);
+
+    // Only the credential endpoints are throttled.
+    assert_eq!(send(&state, "GET", "/v1/devices", "", Value::Null).await.status(),
+               StatusCode::UNAUTHORIZED);
+}
+
+/// Serves `state` on a real loopback port, for the tests that need a WebSocket.
+async fn serve(state: AppState) -> SocketAddr {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let app = router(state).into_make_service_with_connect_info::<SocketAddr>();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    addr
+}
+
+#[tokio::test]
+async fn an_agent_reports_presence_and_receives_a_ticket() {
+    use futures_util::{SinkExt, StreamExt};
+
+    let state = state();
+    let addr = serve(state.clone()).await;
+    register(&state, "user@example.com", "correct horse").await;
+    let host = login(&state, "user@example.com", "desktop", "").await;
+    let guest = login(&state, "user@example.com", "laptop", "").await;
+    let host_id = host["device_id"].as_str().unwrap().to_string();
+
+    let url = format!("ws://{addr}/v1/agent?token={}", host["access_token"].as_str().unwrap());
+    let (mut socket, _) = tokio_tungstenite::connect_async(url).await.unwrap();
+    assert!(socket.next().await.unwrap().unwrap().to_text().unwrap().contains("welcome"));
+
+    socket
+        .send(tokio_tungstenite::tungstenite::Message::Text(
+            json!({"type": "hello", "lan_addrs": ["192.168.1.7"], "port": 45001})
+                .to_string()
+                .into(),
+        ))
+        .await
+        .unwrap();
+    assert!(socket.next().await.unwrap().unwrap().to_text().unwrap().contains("ready"));
+
+    // Presence reached the device row, so the other device sees it online.
+    let listed = json_of(send(&state, "GET", "/v1/devices",
+                              guest["access_token"].as_str().unwrap(), Value::Null).await).await;
+    let seen = listed.as_array().unwrap().iter().find(|d| d["id"] == host_id.as_str()).unwrap();
+    assert_eq!(seen["online"], true);
+    assert_eq!(seen["lan_addrs"][0], "192.168.1.7");
+
+    let opened = send(&state, "POST", "/v1/session", guest["access_token"].as_str().unwrap(),
+                      json!({"device_id": host_id})).await;
+    assert_eq!(opened.status(), StatusCode::OK);
+    let opened = json_of(opened).await;
+    assert_eq!(opened["peer_port"], 45001);
+    assert_eq!(opened["peer_lan_addrs"][0], "192.168.1.7");
+
+    // The same ticket the caller got was pushed to the device being asked for.
+    let pushed: Value =
+        serde_json::from_str(socket.next().await.unwrap().unwrap().to_text().unwrap()).unwrap();
+    assert_eq!(pushed["type"], "incoming");
+    assert_eq!(pushed["ticket"], opened["ticket"]);
+    assert_eq!(pushed["from"], "laptop");
+}
+
+#[tokio::test]
+async fn a_session_needs_an_owned_device_that_is_online() {
+    let state = state();
+    register(&state, "user@example.com", "correct horse").await;
+    register(&state, "other@example.com", "correct horse").await;
+    let mine = login(&state, "user@example.com", "desktop", "").await;
+    let theirs = login(&state, "other@example.com", "their box", "").await;
+    let token = mine["access_token"].as_str().unwrap();
+
+    let foreign = send(&state, "POST", "/v1/session", token,
+                       json!({"device_id": theirs["device_id"]})).await;
+    assert_eq!(foreign.status(), StatusCode::NOT_FOUND);
+
+    let laptop = login(&state, "user@example.com", "laptop", "").await;
+    let offline = send(&state, "POST", "/v1/session", token,
+                       json!({"device_id": laptop["device_id"]})).await;
+    assert_eq!(offline.status(), StatusCode::CONFLICT);
+    assert_eq!(json_of(offline).await["detail"], "device is offline");
+}

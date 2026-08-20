@@ -45,6 +45,7 @@ set(UI_TEST_SOURCES
     test_TabSessionLifecycle.cpp
     test_NetworkArchiveBrowse.cpp
     test_FilePanelTreeSync.cpp
+    test_TitleBarAccount.cpp
     test_TitleBarTheme.cpp
     test_FramelessWindowChrome.cpp
     test_TreeRootBuilder.cpp
@@ -75,6 +76,7 @@ set(UI_TEST_SOURCES
     test_ChecksumDialog.cpp
     test_NotepadPanel.cpp
     test_ExternalConnectDialog.cpp
+    test_AccountDialog.cpp
     test_ShortcutsDialog.cpp
     test_StandardButtonLocalization.cpp
     test_TranslationCatalogs.cpp

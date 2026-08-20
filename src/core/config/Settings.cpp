@@ -446,6 +446,46 @@ void Settings::setAutoUpdateCheck(bool on) {
     m_settings.setValue("update/autoCheck", on);
 }
 
+QString Settings::accountEmail() const {
+    return m_settings.value("account/email").toString();
+}
+
+void Settings::setAccountEmail(const QString &email) {
+    m_settings.setValue("account/email", email);
+}
+
+QString Settings::accountDeviceId() const {
+    return m_settings.value("account/deviceId").toString();
+}
+
+void Settings::setAccountDeviceId(const QString &id) {
+    m_settings.setValue("account/deviceId", id);
+}
+
+QString Settings::accountServerUrl() const {
+    return m_settings.value("account/serverUrl").toString();
+}
+
+void Settings::setAccountServerUrl(const QString &url) {
+    m_settings.setValue("account/serverUrl", url);
+}
+
+bool Settings::deviceSharingEnabled() const {
+    return m_settings.value("account/sharingEnabled", false).toBool();
+}
+
+void Settings::setDeviceSharingEnabled(bool on) {
+    m_settings.setValue("account/sharingEnabled", on);
+}
+
+QStringList Settings::sharedFolders() const {
+    return m_settings.value("account/sharedFolders").toStringList();
+}
+
+void Settings::setSharedFolders(const QStringList &folders) {
+    m_settings.setValue("account/sharedFolders", folders);
+}
+
 bool Settings::showSystemVolumes() const {
     return m_settings.value("behavior/showSystemVolumes", false).toBool();
 }

@@ -45,6 +45,12 @@ find_package(Qt5 REQUIRED COMPONENTS Core Widgets Gui Concurrent Network)
 if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
     find_package(Qt5 REQUIRED COMPONENTS DBus)
 endif()
+# Device signalling: the agent socket to the account server, and the relay
+# tunnel that carries a transfer when the two machines cannot reach each other
+# directly. Only the network build has either.
+if(FILECOMMANDER_ENABLE_NETWORK)
+    find_package(Qt5 REQUIRED COMPONENTS WebSockets)
+endif()
 find_package(LibArchive)
 
 # Where the online updater fetches its release manifest. Override per build with
@@ -55,6 +61,12 @@ find_package(LibArchive)
 # a local server -- see tools/mock-update-server.py).
 set(FILECOMMANDER_UPDATE_MANIFEST_URL "https://updates.invalid/FileCommander/version.json"
     CACHE STRING "URL of the online-update manifest (version.json)")
+
+# Where sign-in and device-to-device transfer talk to (see server/README.md).
+# Same rules as the manifest URL above: unreachable by default, overridable at
+# runtime with the environment variable FILECOMMANDER_ACCOUNT_API_URL.
+set(FILECOMMANDER_ACCOUNT_API_URL "https://account.invalid"
+    CACHE STRING "Root URL of the FileCommander account server")
 
 # Generated version header (TTC_VERSION etc.) derived from the project()
 # version above, so the About box and the online-update checker can read the

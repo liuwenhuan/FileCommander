@@ -5,6 +5,7 @@
 #include "TitleButton.h"
 
 #include <QAbstractButton>
+#include <QAction>
 #include <QEvent>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -99,6 +100,28 @@ TitleBar::TitleBar(QWidget *window, const QList<QMenu *> &menus, QWidget *parent
     layout->addWidget(badge);
     m_updateBadge = badge;
 
+    // Account entry, immediately left of the window buttons: the sign-in door,
+    // and once signed in the label that says who is signed in.
+    auto *account = new QToolButton(this);
+    account->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    account->setPopupMode(QToolButton::InstantPopup);
+    account->setAutoRaise(true);
+    account->setFocusPolicy(Qt::NoFocus);
+    account->setObjectName(QStringLiteral("TitleMenuButton"));
+    auto *accountMenu = new QMenu(this);
+    m_accountAction = accountMenu->addAction(QString());
+    connect(m_accountAction, &QAction::triggered, this, [this] { emit accountRequested(); });
+    m_signOutAction = accountMenu->addAction(tr("Sign Out"));
+    connect(m_signOutAction, &QAction::triggered, this, [this] { emit signOutRequested(); });
+    account->setMenu(accountMenu);
+    layout->addWidget(account);
+    m_accountButton = account;
+    if (m_window) {
+        connect(accountMenu, &QMenu::aboutToHide, m_window,
+                [window = m_window] { window->unsetCursor(); });
+    }
+    setAccountName(QString());
+
     auto *minButton = new TitleButton(TitleButton::Minimize, this);
     m_maxButton = new TitleButton(TitleButton::Maximize, this);
     auto *closeButton = new TitleButton(TitleButton::Close, this);
@@ -121,6 +144,12 @@ TitleBar::TitleBar(QWidget *window, const QList<QMenu *> &menus, QWidget *parent
     setFixedHeight(30);
     positionTitle();
     m_title->raise();
+}
+
+void TitleBar::setAccountName(const QString &name) {
+    m_accountButton->setText(name.isEmpty() ? tr("Account") : name);
+    m_accountAction->setText(name.isEmpty() ? tr("Sign In") : tr("Account"));
+    m_signOutAction->setVisible(!name.isEmpty());
 }
 
 void TitleBar::setBackgroundTile(const QPixmap &tile) {
