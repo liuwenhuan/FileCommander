@@ -25,10 +25,10 @@ class OperationQueue;
 // a caller only needs to construct it -- it decides when to make itself visible.
 //
 // Cancel vs Abort (取消 / 中止): Cancel asks the batch to stop and leaves the
-// window to run out its normal lifecycle (it stays up when the batch ended in an
-// error, so the message is readable). Abort is the escape hatch -- it stops the
-// batch and closes this window in the same gesture, which is also the only way
-// out of a window left standing by a failed batch.
+// window to run out its normal lifecycle (it stays up when the batch ended with
+// an error message, so the message is readable). Abort is the escape hatch -- it
+// stops the batch and closes this window in the same gesture, which is also the
+// only way out of a window left standing by a reported error.
 //
 // Visibility policy (so quick operations never flash a window): the dialog stays
 // hidden when a job starts and shows itself only if the job is still running

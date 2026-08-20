@@ -26,6 +26,78 @@ QLabel *labelShowing(const QWidget &dialog, const QString &needle) {
 
 } // namespace
 
+namespace {
+
+// Drives the dialog the way OperationQueue does for a batch big enough to be
+// revealed at once, and leaves it finished with the given outcome.
+void runOneBatch(TransferProgressDialog &dialog, bool ok) {
+    QMetaObject::invokeMethod(&dialog, "onStarted", Qt::DirectConnection,
+                              Q_ARG(QString, QStringLiteral("Copying to /tmp")));
+    QMetaObject::invokeMethod(&dialog, "onProgress", Qt::DirectConnection,
+                              Q_ARG(qint64, 0), Q_ARG(qint64, 1), Q_ARG(qint64, 0),
+                              Q_ARG(qint64, 512LL * 1024 * 1024),
+                              Q_ARG(QString, QStringLiteral("big.bin")));
+    QTest::qWaitForWindowExposed(&dialog);
+    ASSERT_TRUE(dialog.isVisible());
+    QMetaObject::invokeMethod(&dialog, "onFinished", Qt::DirectConnection, Q_ARG(bool, ok));
+}
+
+} // namespace
+
+// Skip and Cancel in the overwrite prompt end the batch as "not ok" without
+// emitting any error, so this window used to sit there for good: a red bar, an
+// empty message, and nothing that would ever take it down again.
+TEST(TransferProgressLayout, AFailedBatchWithNoMessageStillClosesItself) {
+    OperationQueue queue;
+    TransferProgressDialog dialog(&queue);
+
+    runOneBatch(dialog, /*ok=*/false);
+
+    EXPECT_TRUE(QTest::qWaitFor([&dialog] { return !dialog.isVisible(); }, 2000));
+}
+
+// The other half of the same gate: a message the user has to read keeps the
+// window up until they close it.
+TEST(TransferProgressLayout, AReportedErrorKeepsTheWindowUp) {
+    OperationQueue queue;
+    TransferProgressDialog dialog(&queue);
+
+    QMetaObject::invokeMethod(&dialog, "onStarted", Qt::DirectConnection,
+                              Q_ARG(QString, QStringLiteral("Copying to /tmp")));
+    QMetaObject::invokeMethod(&dialog, "onProgress", Qt::DirectConnection,
+                              Q_ARG(qint64, 0), Q_ARG(qint64, 1), Q_ARG(qint64, 0),
+                              Q_ARG(qint64, 512LL * 1024 * 1024),
+                              Q_ARG(QString, QStringLiteral("big.bin")));
+    QTest::qWaitForWindowExposed(&dialog);
+    QMetaObject::invokeMethod(&dialog, "onErrorOccurred", Qt::DirectConnection,
+                              Q_ARG(QString, QStringLiteral("Permission denied")));
+    QMetaObject::invokeMethod(&dialog, "onFinished", Qt::DirectConnection, Q_ARG(bool, false));
+
+    QTest::qWait(400); // well past kOutcomeDurationMs
+    EXPECT_TRUE(dialog.isVisible());
+}
+
+// A batch whose only work was one conflicting file must never put a window on
+// screen at all: the deferred-show timer fires while the modal overwrite prompt
+// holds the user, and releasing the suppression used to reveal the window a
+// fraction of a second before the finished batch took it away again.
+TEST(TransferProgressLayout, SkippingTheOnlyFileNeverFlashesTheWindow) {
+    OperationQueue queue;
+    TransferProgressDialog dialog(&queue);
+
+    QMetaObject::invokeMethod(&dialog, "onStarted", Qt::DirectConnection,
+                              Q_ARG(QString, QStringLiteral("Copying to /tmp")));
+    dialog.suppressAutoShow(true); // the overwrite prompt is up
+    QTest::qWait(1200);            // past kShowDelayMs: the show timer fires, suppressed
+    ASSERT_FALSE(dialog.isVisible());
+
+    dialog.suppressAutoShow(false); // user answered Skip
+    QMetaObject::invokeMethod(&dialog, "onFinished", Qt::DirectConnection, Q_ARG(bool, false));
+
+    QTest::qWait(300);
+    EXPECT_FALSE(dialog.isVisible());
+}
+
 TEST(TransferProgressLayout, ALongPathIsGivenTheRoomToWrapInto) {
     OperationQueue queue;
     TransferProgressDialog dialog(&queue);

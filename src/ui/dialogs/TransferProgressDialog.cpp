@@ -297,7 +297,13 @@ void TransferProgressDialog::suppressAutoShow(bool suppressed) {
     m_showSuppressed = suppressed;
     if (!suppressed && m_wantsShowWhileSuppressed) {
         m_wantsShowWhileSuppressed = false;
-        showIfHidden();
+        // Not showIfHidden(): the answer the user just gave may end the batch
+        // outright (Skip/Cancel on the only conflicting file), and revealing the
+        // window at that instant only to hide it again is exactly the flash the
+        // deferred-show policy exists to prevent. Re-arm the delay instead, so
+        // the window appears only if there is still work happening a moment later.
+        if (m_batchActive && !m_showTimer->isActive())
+            m_showTimer->start();
     }
 }
 
@@ -399,7 +405,12 @@ void TransferProgressDialog::onFinished(bool ok) {
                                   : QColor(0xe0, 0x4a, 0x4a));
     // Auto-hide the dialog once done, unless an error is on display (then the
     // user closes it after reading). A quick job that never showed stays hidden.
-    if (m_shown && m_batchOk && !m_hasError)
+    //
+    // The gate is the error *message*, not the ok flag: Skip and Cancel in the
+    // overwrite prompt both report the batch as failed without emitting an
+    // error, so keying on ok left this window on screen with a red bar, an
+    // empty message and no way to know it was finished.
+    if (m_shown && !m_hasError)
         m_terminalHideTimer->start();
 }
 
