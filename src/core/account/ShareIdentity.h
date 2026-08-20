@@ -14,8 +14,11 @@
 // verification, and a name that would never match a certificate anyway (a LAN
 // address, or 127.0.0.1 at the end of the relay tunnel) costs nothing.
 //
-// Qt5 cannot generate keys, hence the OpenSSL C API here; the PEM it produces
-// goes straight into QSslCertificate/QSslKey on the serving side.
+// Qt5 cannot generate keys, so the generating half lives in ShareIdentity.cpp
+// and talks to a platform crypto library directly -- the only file in this
+// project that does. Nothing of that leaks through here: the PEM below goes
+// straight into QSslCertificate/QSslKey, and every other caller sees Qt types
+// only. See the head of the .cpp for what a non-Linux port has to rewrite.
 //
 // ponytail: the account server mediates the pin, so it could actively MITM a
 // transfer by substituting its own -- confidentiality against a passive relay

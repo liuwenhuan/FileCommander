@@ -1,3 +1,13 @@
+// The one file in this project that includes or calls OpenSSL, deliberately.
+// Everything else -- FileShareServer, DeviceAgent, CurlWebDavProvider,
+// MainWindow, the tests -- sees Qt types only, so a port to a platform with no
+// libssl-dev rewrites this file and nothing else: on Windows the equivalents
+// are CNG for the keypair and CertCreateSelfSignCertificate for the
+// certificate. Nothing else about the design is Linux-specific -- curl has
+// supported sha256 CURLOPT_PINNEDPUBLICKEY on Schannel since 7.58.1, and the
+// pin is a hash of the DER SubjectPublicKeyInfo, which no TLS backend gets to
+// disagree about.
+
 #include "ShareIdentity.h"
 
 #include <QCryptographicHash>

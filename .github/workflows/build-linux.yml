@@ -30,7 +30,7 @@ jobs:
       - name: Install build and preview dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build pkg-config libarchive-dev libssh2-1-dev libsecret-1-dev libcurl4-openssl-dev libsmbclient-dev libmpv-dev libpoppler-qt5-dev libqt5x11extras5-dev qtbase5-dev qttools5-dev-tools libgtest-dev zlib1g-dev libxcb1-dev ffmpeg p7zip-full squashfs-tools
+          sudo apt-get install -y cmake ninja-build pkg-config libarchive-dev libssh2-1-dev libsecret-1-dev libcurl4-openssl-dev libssl-dev libsmbclient-dev libmpv-dev libpoppler-qt5-dev libqt5x11extras5-dev qtbase5-dev qttools5-dev-tools libgtest-dev zlib1g-dev libxcb1-dev ffmpeg p7zip-full squashfs-tools
       - name: Debug regression
         run: |
           cmake --preset linux-debug

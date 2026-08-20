@@ -103,7 +103,7 @@ if [[ -z "$SHLIB_DEPS" ]]; then
     echo "==> dpkg-shlibdeps unavailable or failed; using the static dependency list"
     SHLIB_DEPS="libqt5core5a, libqt5gui5, libqt5widgets5, libqt5concurrent5, \
 libqt5dbus5, libqt5network5, libqt5opengl5, libqt5x11extras5, libarchive13, \
-libssh2-1, libsecret-1-0, libcurl4, libsmbclient0, libmpv2, libpoppler-qt5-1, \
+libssh2-1, libsecret-1-0, libcurl4, libssl3, libsmbclient0, libmpv2, libpoppler-qt5-1, \
 libxcb1, zlib1g, libglib2.0-0, libc6, libstdc++6"
 fi
 
