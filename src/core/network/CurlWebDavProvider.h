@@ -27,10 +27,13 @@
 //
 // WebDAV has no standardised way to resume an interrupted PUT upload (unlike
 // FTP's APPE/REST or HTTP GET's Range header), so seek() on a write handle
-// refuses any nonzero offset: FileOperations::streamCopy() then reports a
-// clean, retryable failure instead of silently uploading only the tail of a
-// file and corrupting the remote copy. Resumed *downloads* are fully
-// supported via the Range header.
+// refuses a nonzero offset unless the server said, during connect, that it
+// continues a PUT from a Content-Range offset -- which FileShareServer (the
+// device-to-device transfer peer) does and a third-party server does not.
+// Without that promise FileOperations::streamCopy() reports a clean, retryable
+// failure instead of silently uploading only the tail of a file and corrupting
+// the remote copy. Resumed *downloads* are fully supported via the Range
+// header, against any server.
 class CurlWebDavProvider : public FileProvider {
 public:
     CurlWebDavProvider();
@@ -90,7 +93,7 @@ public:
     qint64 read(FileHandle *handle, char *buffer, qint64 maxSize) override;
     qint64 write(FileHandle *handle, const char *buffer, qint64 size) override;
     bool seek(FileHandle *handle, qint64 offset) override;
-    bool supportsWriteResume() const override { return false; }
+    bool supportsWriteResume() const override;
     qint64 handleSize(FileHandle *handle) override;
     void closeHandle(FileHandle *handle) override;
     bool closeHandleStatus(FileHandle *handle) override;
@@ -147,4 +150,7 @@ private:
     bool m_useHttps = false;
     int m_timeoutMs = 12000;
     bool m_connected = false;
+    // Set by the connect handshake when the server advertised that it continues
+    // a PUT from a Content-Range offset; gates supportsWriteResume().
+    bool m_serverPutRange = false;
 };

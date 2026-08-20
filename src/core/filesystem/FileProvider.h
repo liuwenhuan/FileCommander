@@ -300,7 +300,8 @@ public:
     virtual bool seek(FileHandle * /*handle*/, qint64 /*offset*/) { return false; }
     // Whether an existing partial destination may be continued by seeking an
     // open write handle. WebDAV supports ranged reads but has no standard PUT
-    // resume, so it overrides this while local, SMB, SFTP, and FTP keep true.
+    // resume, so it answers per-server (yes only where the server promised it);
+    // local, SMB, SFTP, and FTP keep true.
     virtual bool supportsWriteResume() const { return true; }
     // Size in bytes of an open handle's file, or -1 if unknown (used for resume).
     virtual qint64 handleSize(FileHandle * /*handle*/) { return -1; }
