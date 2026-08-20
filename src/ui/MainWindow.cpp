@@ -299,6 +299,26 @@ bool isMissingRemovablePath(const QString &path) {
         return false;
     return !QFileInfo(path).isDir();
 }
+
+// Whether a delete that removed `deleted` out of `changedDir` changed what a
+// panel sitting in `panelDir` is showing: the same directory, or one that lived
+// inside a folder that has just gone. Both paths have to belong to the same
+// backend for the comparison to mean anything -- see the "path == local
+// filesystem path" trap -- which the caller establishes before asking.
+bool deleteAffectsDir(const QString &panelDir, const QString &changedDir,
+                      const QStringList &deleted) {
+    if (panelDir.isEmpty())
+        return false;
+    const QString dir = QDir::cleanPath(panelDir);
+    if (dir == QDir::cleanPath(changedDir))
+        return true;
+    for (const QString &path : deleted) {
+        const QString gone = QDir::cleanPath(path);
+        if (dir == gone || dir.startsWith(gone + QLatin1Char('/')))
+            return true;
+    }
+    return false;
+}
 } // namespace
 
 MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectStartupPhases,
@@ -494,11 +514,19 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
             // instead -- see FilePanel::settleAfterRemoval.
             FilePanel *panel = m_pendingDeletePanel;
             m_pendingDeletePanel = nullptr;
-            panel->settleAfterRemoval(m_pendingDeletePaths);
+            const QStringList deleted = m_pendingDeletePaths;
             m_pendingDeletePaths.clear();
-            // The other panel may show the same directory, so refresh it fully.
-            FilePanel *other = (panel == m_leftPanel) ? m_rightPanel : m_leftPanel;
-            other->refresh();
+            panel->settleAfterRemoval(deleted);
+            // The other panel only has to relist when the delete changed what it
+            // is showing: the same directory, or one that sat inside a folder
+            // that has just gone. Relisting it every time threw away its scroll
+            // position and selection -- and on a network or archive tab cost a
+            // round trip -- to redraw a listing nothing had touched. The paths
+            // are only comparable when both panels are on the same backend.
+            FilePanel *other = otherPanel(panel);
+            if (other && other->model()->provider() == panel->model()->provider() &&
+                deleteAffectsDir(other->currentPath(), panel->currentPath(), deleted))
+                other->refresh();
             handledPlan = true;
         }
 
