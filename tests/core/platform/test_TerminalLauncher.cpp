@@ -18,6 +18,13 @@ bool installed(const fc::TerminalCandidate &candidate) {
     return !QStandardPaths::findExecutable(candidate.program).isEmpty();
 }
 
+QStringList programsIn(const QVector<fc::TerminalCandidate> &candidates) {
+    QStringList programs;
+    for (const fc::TerminalCandidate &candidate : candidates)
+        programs << candidate.program;
+    return programs;
+}
+
 } // namespace
 
 TEST(TerminalLauncherTest, OffersAtLeastOneTerminalThatExistsOnThisMachine) {
@@ -87,28 +94,58 @@ TEST(TerminalLauncherTest, ConsoleHostsAreLaunchedWithNoArgumentsAtAll) {
     }
 }
 #else
-// This application targets deepin/UOS, so its terminal is the one a user
-// expects to get -- ahead of the Debian x-terminal-emulator alternative, which
-// on a deepin desktop is not guaranteed to point back at it.
-TEST(TerminalLauncherTest, DeepinTerminalIsTheFirstThingTried) {
-    const QVector<fc::TerminalCandidate> candidates = fc::terminalCandidates(kSomeDirectory);
-    ASSERT_FALSE(candidates.isEmpty());
-    EXPECT_EQ(candidates.first().program, QStringLiteral("deepin-terminal"));
+// "Open Terminal Here" always opened deepin-terminal no matter what the user
+// had configured, because the list named terminals ahead of the Debian
+// alternative. The alternative is the entry that asks the desktop instead of
+// guessing -- on deepin it resolves to dde-daemon's default-terminal shim,
+// which dispatches to the configured default-applications terminal -- so it has
+// to come first for the setting to be honoured at all.
+TEST(TerminalLauncherTest, TheDesktopsConfiguredTerminalOutranksAnyNamedOne) {
+    const QStringList programs = programsIn(fc::terminalCandidates(kSomeDirectory));
+    ASSERT_FALSE(programs.isEmpty());
+    EXPECT_EQ(programs.first(), QStringLiteral("x-terminal-emulator"));
+    EXPECT_LT(programs.indexOf(QStringLiteral("x-terminal-emulator")),
+              programs.indexOf(QStringLiteral("deepin-terminal")));
+}
 
-    QStringList programs;
-    for (const fc::TerminalCandidate &candidate : candidates)
-        programs << candidate.program;
+// The named entries are only for systems that register no alternative, and on
+// such a deepin box the terminal that belongs there is still deepin's own.
+TEST(TerminalLauncherTest, DeepinTerminalLeadsTheFallbacks) {
+    const QStringList programs = programsIn(fc::terminalCandidates(kSomeDirectory));
     // The pre-Qt build, still present on older deepin installs.
-    EXPECT_TRUE(programs.contains(QStringLiteral("deepin-terminal-gtk")));
-    EXPECT_LT(programs.indexOf(QStringLiteral("deepin-terminal-gtk")),
-              programs.indexOf(QStringLiteral("x-terminal-emulator")));
+    ASSERT_TRUE(programs.contains(QStringLiteral("deepin-terminal-gtk")));
+    for (const QString &other : {QStringLiteral("gnome-terminal"), QStringLiteral("konsole"),
+                                 QStringLiteral("xfce4-terminal")}) {
+        SCOPED_TRACE(other.toStdString());
+        ASSERT_TRUE(programs.contains(other));
+        EXPECT_LT(programs.indexOf(QStringLiteral("deepin-terminal")), programs.indexOf(other));
+    }
+}
+
+// $TERMINAL is the user saying it outright rather than through a desktop
+// setting, so it outranks even the alternative -- but only when it names
+// something that exists, or the list would lead with a value that can never
+// start.
+TEST(TerminalLauncherTest, AnExplicitTerminalEnvironmentVariableComesFirst) {
+    const bool hadTerminal = qEnvironmentVariableIsSet("TERMINAL");
+    const QByteArray previous = qgetenv("TERMINAL");
+
+    qputenv("TERMINAL", QByteArrayLiteral("sh"));
+    EXPECT_EQ(programsIn(fc::terminalCandidates(kSomeDirectory)).first(), QStringLiteral("sh"));
+
+    qputenv("TERMINAL", QByteArrayLiteral("fc-no-such-terminal"));
+    const QStringList withNonsense = programsIn(fc::terminalCandidates(kSomeDirectory));
+    EXPECT_FALSE(withNonsense.contains(QStringLiteral("fc-no-such-terminal")));
+    EXPECT_EQ(withNonsense.first(), QStringLiteral("x-terminal-emulator"));
+
+    if (hadTerminal)
+        qputenv("TERMINAL", previous);
+    else
+        qunsetenv("TERMINAL");
 }
 
 TEST(TerminalLauncherTest, LinuxKeepsTheDesktopTerminalsAheadOfTheFallback) {
-    const QVector<fc::TerminalCandidate> candidates = fc::terminalCandidates(kSomeDirectory);
-    QStringList programs;
-    for (const fc::TerminalCandidate &candidate : candidates)
-        programs << candidate.program;
+    const QStringList programs = programsIn(fc::terminalCandidates(kSomeDirectory));
 
     // xterm exists almost everywhere and looks nothing like the desktop's own
     // terminal, so it has to stay last.

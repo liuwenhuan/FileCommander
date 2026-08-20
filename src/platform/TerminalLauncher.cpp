@@ -22,18 +22,23 @@ QVector<TerminalCandidate> terminalCandidates(const QString &workingDirectory) {
     };
 #else
     Q_UNUSED(workingDirectory);
-    return {
-        // deepin/UOS first, and by name rather than through the
-        // x-terminal-emulator alternative: on a deepin desktop that alternative
-        // is not guaranteed to point at deepin-terminal, and opening GNOME's or
-        // KDE's terminal on a deepin system is exactly the kind of mismatch a
-        // user notices. deepin-terminal-gtk is the pre-Qt build, still present
-        // on older installs.
+    QVector<TerminalCandidate> candidates = {
+        // The Debian alternative first, because it is the only entry that asks
+        // the desktop rather than guessing. On deepin it resolves to
+        // dde-daemon's default-terminal shim, which reads the user's
+        // com.deepin.desktop.default-applications.terminal setting and
+        // dispatches to whatever that names -- so honouring the alternative is
+        // how the configured terminal gets honoured. Naming terminals ahead of
+        // it, as this list used to, is what made "Open Terminal Here" jump over
+        // the setting and always open deepin-terminal.
+        {QStringLiteral("x-terminal-emulator"), {}},
+        // Everything below is for systems that register no alternative. deepin's
+        // own terminal stays ahead of GNOME's and KDE's so a deepin box missing
+        // the alternative still lands on the terminal that belongs there;
+        // deepin-terminal-gtk is the pre-Qt build, still present on older
+        // installs.
         {QStringLiteral("deepin-terminal"), {}},
         {QStringLiteral("deepin-terminal-gtk"), {}},
-        // The Debian alternative, which is the right answer on anything that is
-        // not deepin and has a desktop-provided default.
-        {QStringLiteral("x-terminal-emulator"), {}},
         {QStringLiteral("gnome-terminal"), {}},
         {QStringLiteral("konsole"), {}},
         {QStringLiteral("xfce4-terminal"), {}},
@@ -41,6 +46,14 @@ QVector<TerminalCandidate> terminalCandidates(const QString &workingDirectory) {
         // desktop, so it is a fallback rather than a choice.
         {QStringLiteral("xterm"), {}},
     };
+    // An explicit $TERMINAL is the user saying it outright, so nothing outranks
+    // it. Checked against PATH here rather than left for the caller to skip, so
+    // a stale value cannot sit at the head of the list pretending to be the
+    // answer.
+    const QString preferred = qEnvironmentVariable("TERMINAL");
+    if (!preferred.isEmpty() && !QStandardPaths::findExecutable(preferred).isEmpty())
+        candidates.prepend({preferred, {}});
+    return candidates;
 #endif
 }
 

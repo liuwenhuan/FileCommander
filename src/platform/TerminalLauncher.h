@@ -22,7 +22,12 @@ struct TerminalCandidate {
 // `workingDirectory` is baked into the arguments where a terminal needs to be
 // told explicitly rather than inheriting it. Every Linux terminal here inherits
 // it -- a terminal opens its shell in the directory it was started from -- so
-// only Windows Terminal ends up carrying it.
+// only Windows Terminal ends up carrying it. That still holds through deepin's
+// two indirections, which is not obvious and so was measured rather than
+// assumed: launching x-terminal-emulator from a directory goes through
+// dde-daemon's shim and then through deepin-terminal's single-instance
+// hand-off to an already-running window, and the shell in the new tab still
+// starts in that directory. No explicit flag is needed.
 QVector<TerminalCandidate> terminalCandidates(const QString &workingDirectory);
 
 // Starts the first candidate that is both installed and launches successfully.
