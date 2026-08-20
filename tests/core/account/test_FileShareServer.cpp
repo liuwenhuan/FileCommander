@@ -9,6 +9,8 @@
 #include <QThread>
 #include <QTimer>
 
+#include "LocalFileProvider.h"
+#include "OperationQueue.h"
 #include "account/FileShareServer.h"
 #include "network/CurlWebDavProvider.h"
 
@@ -454,6 +456,71 @@ TEST_F(FileShareServerTest, AnInterruptedDownloadContinuesWhereItStopped) {
     EXPECT_TRUE(m_provider->closeHandleStatus(h));
     EXPECT_EQ(tail.size(), payload.size() - offset) << "the server resent the whole file";
     EXPECT_EQ(got + tail, payload);
+}
+
+// Everything above drives the provider by hand. Production does not: it hands
+// the job to OperationQueue, and the decision to resume at all is taken by
+// FileOperations::transferFile, which asks the destination provider whether it
+// supports write resume and how much of the file it already holds. That
+// decision has never run against this provider, and if it fell through to
+// conflict resolution instead, none of the resume work above would ever be
+// reached.
+TEST_F(FileShareServerTest, TheTransferQueueResumesAnInterruptedCopy) {
+    const QByteArray payload = blob(16 * 1024 * 1024, 61);
+    const QString source = m_dir.path() + QStringLiteral("/queued.bin");
+    const QString landed = m_share + QStringLiteral("/queued.bin");
+    ASSERT_TRUE(writeFile(source, payload));
+    connectOk();
+
+    auto local = std::make_shared<LocalFileProvider>();
+    OperationQueue queue;
+    queue.setMaxConcurrentTransfers(1);
+    // A prompt here would mean the transfer took the conflict branch instead of
+    // resuming, so record it rather than answering it.
+    bool conflictAsked = false;
+    queue.setConflictHandler([&conflictAsked](const FileConflict &) {
+        conflictAsked = true;
+        return ErrorAction::Skip;
+    });
+
+    // First attempt, stopped mid-file: cancelActiveJobs() is honoured between
+    // chunks, so the server keeps whatever had already arrived.
+    qint64 firstBytesSeen = 0;
+    bool stopped = false;
+    QObject::connect(&queue, &OperationQueue::progress, &queue,
+                     [&](qint64, qint64, qint64 doneBytes, qint64, const QString &) {
+                         if (firstBytesSeen == 0 && doneBytes > 0)
+                             firstBytesSeen = doneBytes;
+                         if (!stopped && doneBytes >= 4 * 1024 * 1024) {
+                             stopped = true;
+                             queue.cancelActiveJobs();
+                         }
+                     });
+
+    QSignalSpy interrupted(&queue, &OperationQueue::finished);
+    queue.enqueueProviderCopy(local, {source}, m_provider, QStringLiteral("/share"));
+    ASSERT_TRUE(interrupted.count() > 0 || interrupted.wait(60000));
+    EXPECT_FALSE(interrupted.takeFirst().at(0).toBool());
+    ASSERT_TRUE(stopped) << "the copy finished before it could be interrupted";
+
+    const qint64 partial = settledSize(landed);
+    ASSERT_GT(partial, 128 * 1024) << "too little landed to tell a resume from a restart";
+    ASSERT_LT(partial, payload.size());
+
+    // Second attempt, through the same call the UI makes. transferFile sees a
+    // shorter file at the destination and resumes it.
+    firstBytesSeen = 0;
+    QSignalSpy done(&queue, &OperationQueue::finished);
+    queue.enqueueProviderCopy(local, {source}, m_provider, QStringLiteral("/share"));
+    ASSERT_TRUE(done.count() > 0 || done.wait(60000));
+    EXPECT_TRUE(done.takeFirst().at(0).toBool());
+
+    EXPECT_FALSE(conflictAsked) << "the transfer asked to overwrite instead of resuming";
+    // The resume credits the bytes already on the server before sending one of
+    // its own, so the first progress of the second attempt is the resume point.
+    // A restart from zero would report its first chunk, 64 KiB, instead.
+    EXPECT_GE(firstBytesSeen, partial) << "the second attempt re-sent the prefix";
+    EXPECT_EQ(readFile(landed), payload);
 }
 
 } // namespace
