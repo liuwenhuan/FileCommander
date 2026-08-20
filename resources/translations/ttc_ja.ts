@@ -1860,6 +1860,11 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <translation>プレビューに表示される画像・動画・文書をテーマの色に着色します。</translation>
     </message>
     <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="1019"/>
+        <source>The light theme leaves content in its own colours, so this has no effect there.</source>
+        <translation>ライトテーマはコンテンツを本来の色のままにするため、この設定は効果がありません。</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1177"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2658"/>
         <source>Show Function Key Bar</source>

@@ -1864,6 +1864,11 @@ Das Löschen als Administrator umgeht den Papierkorb und kann nicht rückgängig
         <translation>Färbt Bilder, Videos und Dokumente in der Vorschau im Farbton des Designs.</translation>
     </message>
     <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="1019"/>
+        <source>The light theme leaves content in its own colours, so this has no effect there.</source>
+        <translation>Das helle Design belässt Inhalte in ihren eigenen Farben; diese Einstellung hat dort keine Wirkung.</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1177"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2658"/>
         <source>Show Function Key Bar</source>

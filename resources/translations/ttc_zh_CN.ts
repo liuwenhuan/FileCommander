@@ -1415,6 +1415,11 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <translation>将预览窗格中的图片、视频和文档重新着色为主题色。</translation>
     </message>
     <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="1019"/>
+        <source>The light theme leaves content in its own colours, so this has no effect there.</source>
+        <translation>浅色主题让内容保持它原本的配色，因此该选项在浅色主题下不起作用。</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2771"/>
         <source>Copy to Clipboard</source>
         <translation>复制到剪贴板</translation>

@@ -1864,6 +1864,11 @@ Excluir como administrador ignora a Lixeira e não pode ser desfeito.</translati
         <translation>Recolore imagens, vídeos e documentos do painel de visualização com o tom do tema.</translation>
     </message>
     <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="1019"/>
+        <source>The light theme leaves content in its own colours, so this has no effect there.</source>
+        <translation>O tema claro mantém o conteúdo com suas cores originais, portanto esta opção não tem efeito nele.</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1177"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2658"/>
         <source>Show Function Key Bar</source>
