@@ -54,6 +54,11 @@ DeviceAgent::DeviceAgent(AccountClient *client, QObject *parent)
                 scheduleReconnect();
             });
     connect(m_socket, &QWebSocket::textMessageReceived, this, &DeviceAgent::onTextMessage);
+    // Same reason FileShareServer stops itself: once signed out this device
+    // must stop announcing itself as online, and openSocket()'s "keep trying"
+    // would otherwise reconnect forever on a session nobody has any more.
+    if (m_client)
+        connect(m_client, &AccountClient::loggedOut, this, &DeviceAgent::stop);
 }
 
 DeviceAgent::~DeviceAgent() = default;
