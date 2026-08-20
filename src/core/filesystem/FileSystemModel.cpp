@@ -647,7 +647,7 @@ QVariant FileSystemModel::data(const QModelIndex &index, int role) const {
                 if (it != m_dirSizes.constEnd())
                     return FileSystemModel::formatSize(it.value());
                 if (m_calculatingDirSizes.contains(info.path()))
-                    return QStringLiteral("计算中");
+                    return QObject::tr("calculating");
                 return QStringLiteral("<DIR>");
             }
             return FileSystemModel::formatSize(info.size());

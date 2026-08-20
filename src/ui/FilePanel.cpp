@@ -1076,19 +1076,19 @@ void FilePanel::showNetworkStatus(int state, int attempt) {
     m_networkStatusVisible = true;
     switch (state) {
     case NetworkSession::Connecting:
-        m_statusBar->setConnectionStatus(tr("正在等待连接…"), StatusBarWidget::ConnConnecting);
+        m_statusBar->setConnectionStatus(tr("Waiting for the connection…"), StatusBarWidget::ConnConnecting);
         animateNetworkStatusColor(QColor(0x9a, 0x9a, 0x9a));
         break;
     case NetworkSession::Reconnecting:
         m_statusBar->setConnectionStatus(
-            tr("断线，正在重连（%1/%2）…").arg(attempt).arg(NetworkSession::kMaxReconnects),
+            tr("Disconnected, reconnecting (%1/%2)…").arg(attempt).arg(NetworkSession::kMaxReconnects),
             StatusBarWidget::ConnReconnecting);
         animateNetworkStatusColor(QColor(0xd0, 0x8a, 0x2a));
         break;
     case NetworkSession::Failed: {
         const QString err = m_model->lastNetworkError();
         m_statusBar->setConnectionStatus(
-            err.isEmpty() ? tr("多次重连失败") : tr("连接失败：%1").arg(err),
+            err.isEmpty() ? tr("Reconnecting failed repeatedly") : tr("Connection failed: %1").arg(err),
             StatusBarWidget::ConnFailed);
         animateNetworkStatusColor(QColor(0xe0, 0x4a, 0x4a));
         break;
@@ -1111,8 +1111,8 @@ void FilePanel::showReusedSessionNotice(const QString &user) {
     m_awaitingLogin = false;
     m_networkStatusVisible = true;
     m_statusBar->setConnectionStatus(user.isEmpty()
-                                         ? tr("正在复用已有会话")
-                                         : tr("正在复用已有会话（用户：%1）").arg(user),
+                                         ? tr("Reusing the existing session")
+                                         : tr("Reusing the existing session (user: %1)").arg(user),
                                      StatusBarWidget::ConnNotice);
     m_networkStatusDotColor = QColor();
     refreshTabIcons();
@@ -1130,7 +1130,7 @@ void FilePanel::showListingError(const QString &reason) {
     m_networkStatusColorAnimation->stop();
     m_awaitingLogin = false;
     m_networkStatusVisible = true;
-    m_statusBar->setConnectionStatus(tr("无法列出目录：%1").arg(reason),
+    m_statusBar->setConnectionStatus(tr("Cannot list the directory: %1").arg(reason),
                                      StatusBarWidget::ConnFailed);
     m_networkStatusDotColor = QColor(0xe0, 0x4a, 0x4a);
     refreshTabIcons();
@@ -1175,7 +1175,7 @@ void FilePanel::showLoginPrompt() {
     m_networkStatusColorAnimation->stop();
     m_networkStatusDotColor = QColor(0xd0, 0x8a, 0x2a);
     m_networkStatusVisible = true;
-    m_statusBar->setConnectionStatus(tr("需要登录"), StatusBarWidget::ConnNeedsAuth);
+    m_statusBar->setConnectionStatus(tr("Sign-in required"), StatusBarWidget::ConnNeedsAuth);
     refreshTabIcons();
 }
 

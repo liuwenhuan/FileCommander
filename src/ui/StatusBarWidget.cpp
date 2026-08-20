@@ -77,7 +77,7 @@ void StatusBarWidget::setConnectionStatus(const QString &text, int level) {
     QString html = text.toHtmlEscaped();
     if (level == ConnFailed || level == ConnNeedsAuth) {
         html += QStringLiteral("&nbsp;<a href='#retry' style='color:inherit'>%1</a>")
-                    .arg(level == ConnNeedsAuth ? tr("登录") : tr("重试"));
+                    .arg(level == ConnNeedsAuth ? tr("Log in") : tr("Retry"));
     }
     m_connLabel->setText(html);
     m_connLabel->show();

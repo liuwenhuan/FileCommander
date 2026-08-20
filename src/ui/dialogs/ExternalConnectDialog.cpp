@@ -315,7 +315,7 @@ void ExternalConnectDialog::addDeviceRow(const RemovableDevice &dev) {
     eject->setIcon(themedResourceIcon(ejectIconPath));
     eject->setAutoRaise(true);
     eject->setCursor(Qt::PointingHandCursor);
-    eject->setToolTip(tr("弹出（安全移除）"));
+    eject->setToolTip(tr("Eject (safely remove)"));
     connect(eject, &QToolButton::clicked, this, [this, id = dev.id] { ejectDevice(id); });
     lay->addWidget(eject);
     item->setSizeHint(row->sizeHint());
@@ -330,8 +330,8 @@ void ExternalConnectDialog::ejectDevice(const QString &id) {
     const bool ok = m_devices->eject(id, &error);
     QApplication::restoreOverrideCursor();
     if (!ok) {
-        ttc::critical(this, tr("弹出失败"),
-                      tr("无法弹出该设备。\n\n%1").arg(error));
+        ttc::critical(this, tr("Eject Failed"),
+                      tr("Cannot eject this device.\n\n%1").arg(error));
         return; // keep the panel open
     }
     // devicesChanged() from the monitor's refresh() already triggers rebuild(),
@@ -386,7 +386,7 @@ void ExternalConnectDialog::rebuild() {
     // 2. Saved connections. The header carries a "connection manager" button that
     // opens the add/edit/delete dialog for saved bookmarks.
     addHeader(tr("Saved Connections"),
-              {{QStringLiteral(":/icons/ext-connect.svg"), tr("连接管理器…"),
+              {{QStringLiteral(":/icons/ext-connect.svg"), tr("Connection Manager…"),
                 [this] {
                     emit openConnectionManager();
                     close();
@@ -410,10 +410,10 @@ void ExternalConnectDialog::rebuild() {
     // rescan), or a "Searching…" label while a scan runs (click to abort it).
     HeaderAction netAction;
     if (m_discoveryDone) {
-        netAction = {QStringLiteral(":/icons/refresh.svg"), tr("重新搜索网络共享"),
+        netAction = {QStringLiteral(":/icons/refresh.svg"), tr("Search for network shares again"),
                      [this] { rescanNetwork(); }, QString()};
     } else {
-        netAction = {QString(), tr("正在搜索，点击停止"), [this] { stopNetworkScan(); },
+        netAction = {QString(), tr("Searching — click to stop"), [this] { stopNetworkScan(); },
                      tr("Searching…")};
     }
     addHeader(tr("Network Neighborhood"), {netAction});
@@ -438,7 +438,7 @@ void ExternalConnectDialog::rebuild() {
     // The "searching" state now lives on the header button, so the list only
     // shows a definite empty state once a completed scan turned up nothing.
     if (m_discoveryDone && m_hosts.isEmpty()) {
-        auto *note = new QListWidgetItem(tr("未发现网络主机"), m_list);
+        auto *note = new QListWidgetItem(tr("No network hosts found"), m_list);
         note->setFlags(Qt::NoItemFlags);
     }
 
