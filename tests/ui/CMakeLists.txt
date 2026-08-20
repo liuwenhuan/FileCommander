@@ -6,6 +6,7 @@ set(UI_TEST_SOURCES
     test_AnimatedPreview.cpp
     test_MarkdownTables.cpp
     test_ThemedChromeArtwork.cpp
+    test_FramelessShadow.cpp
     test_CommandRegistry.cpp
     test_ScratchDirs.cpp
     test_CommandHistory.cpp
