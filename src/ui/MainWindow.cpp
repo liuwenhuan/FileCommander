@@ -20,6 +20,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QStorageInfo>
+#include <QThread>
 #include <QTemporaryDir>
 
 #include <atomic>
@@ -107,6 +108,7 @@
 #include "account/AccountClient.h"
 #include "account/DeviceAgent.h"
 #include "account/FileShareServer.h"
+#include "account/RelayTunnel.h"
 #include "diagnostics/RuntimeCounters.h"
 #include "SearchDialog.h"
 #include "SessionManager.h"
@@ -2180,6 +2182,21 @@ void MainWindow::openExternalConnections() {
     // manager (add/edit/delete saved bookmarks; manual connect lives here too).
     connect(dlg, &ExternalConnectDialog::openConnectionManager, this,
             [this] { openServerConnectDialog(false); });
+
+    // The account's own devices, from the same cache the "Send to Device" menu
+    // uses. Seeded with what we already know so the section is there the moment
+    // the panel opens, then refreshed: a device that came online since the last
+    // fetch rebuilds the list under the open panel rather than needing a reopen.
+    if (m_accountClient && m_accountClient->isLoggedIn()) {
+        dlg->setAccountDevices(m_accountDevices);
+        connect(dlg, &ExternalConnectDialog::openAccountDevice, this,
+                &MainWindow::openAccountDevice);
+        connect(m_accountClient, &AccountClient::devicesReady, dlg,
+                [dlg](const QVector<AccountDeviceInfo> &devices) {
+                    dlg->setAccountDevices(devices);
+                });
+        m_accountClient->fetchDevices();
+    }
 
     // Pop up directly above the leading function-key button that launched it.
     dlg->popUpAbove(m_functionKeyBar->leadingButtonGlobalRect());
@@ -4502,10 +4519,16 @@ void MainWindow::ensureAccountClient() {
         connect(m_accountClient, &AccountClient::loggedOut, this,
                 [this] { m_titleBar->setAccountName(QString()); });
     }
-    connect(m_accountClient, &AccountClient::loggedIn, this,
-            [this] { updateDeviceSharing(); });
-    connect(m_accountClient, &AccountClient::loggedOut, this,
-            [this] { updateDeviceSharing(); });
+    connect(m_accountClient, &AccountClient::loggedIn, this, [this] {
+        updateDeviceSharing();
+        m_accountClient->fetchDevices(); // for the context menu, before it opens
+    });
+    connect(m_accountClient, &AccountClient::loggedOut, this, [this] {
+        m_accountDevices.clear();
+        updateDeviceSharing();
+    });
+    connect(m_accountClient, &AccountClient::devicesReady, this,
+            [this](const QVector<AccountDeviceInfo> &devices) { m_accountDevices = devices; });
     // Sign back in from the keyring token rather than asking again. Async,
     // and a failure just leaves the dialog on its sign-in page.
     if (!m_settings.accountEmail().isEmpty() && !m_settings.accountDeviceId().isEmpty())
@@ -4528,14 +4551,20 @@ void MainWindow::showAccountDialog() {
 
 void MainWindow::updateDeviceSharing() {
 #if FILECOMMANDER_HAS_NETWORK
-    const bool wanted = m_accountClient && m_accountClient->isLoggedIn() &&
-                        m_settings.deviceSharingEnabled() &&
-                        !m_settings.sharedFolders().isEmpty();
+    // Signing in is enough: "Send to Device" needs the other end listening, and
+    // the other end is always another machine of this same account. The port
+    // still says nothing to anyone without a ticket the account server issued.
+    const bool wanted = m_accountClient && m_accountClient->isLoggedIn();
     if (!wanted) {
         if (m_shareServer)
             m_shareServer->stop();
         if (m_deviceAgent)
             m_deviceAgent->stop();
+        // ponytail: tunnels live until sharing stops, rather than until the
+        // peer goes away -- an idle one is a parked socket, not a transfer.
+        // Give them a session-ended signal if that ever adds up.
+        qDeleteAll(m_incomingTunnels);
+        m_incomingTunnels.clear();
         return;
     }
     if (!m_shareServer) {
@@ -4549,11 +4578,31 @@ void MainWindow::updateDeviceSharing() {
         // A ticket the server pushed to us is a peer about to knock: teach the
         // share server to accept it before the connection arrives.
         connect(m_deviceAgent, &DeviceAgent::ticketOffered, this,
-                [this](const QString &ticket, const QString &, int expiresIn) {
+                [this](const QString &sessionId, const QString &ticket, const QString &,
+                       int expiresIn) {
                     m_shareServer->addTicket(ticket, expiresIn);
+                    // The peer may not be able to reach this machine directly,
+                    // and we cannot know from here whether it can: park sockets
+                    // on the relay either way. Unused ones cost one idle
+                    // WebSocket each and go away with the session.
+                    if (sessionId.isEmpty() || m_incomingTunnels.contains(sessionId))
+                        return;
+                    auto *tunnel = new RelayTunnel(this);
+                    tunnel->serveLocal(m_accountClient->relaySocketUrl(sessionId, ticket),
+                                       m_shareServer->port());
+                    m_incomingTunnels.insert(sessionId, tunnel);
                 });
     }
-    m_shareServer->setSharedFolders(m_settings.sharedFolders());
+    // The received-files folder is always shared -- it is what a peer writes
+    // into -- and has to exist before it can be. Anything else is shared only
+    // when the user turned sharing on.
+    QStringList folders;
+    const QString received = ComputerCatalog::receivedFilesPath();
+    if (QDir().mkpath(received))
+        folders.append(received);
+    if (m_settings.deviceSharingEnabled())
+        folders += m_settings.sharedFolders();
+    m_shareServer->setSharedFolders(folders);
     if (!m_shareServer->isRunning())
         m_shareServer->start();
     if (!m_deviceAgent->isConnected())
@@ -4568,18 +4617,27 @@ void MainWindow::openAccountDevice(const QString &deviceId, const QString &name)
         ttc::information(this, tr("FileCommander Account"), tr("Not signed in."));
         return;
     }
-    // openSession answers asynchronously on a client that outlives this call, so
-    // both handlers unhook themselves -- otherwise the next session opened would
-    // also open a second tab for this one.
+    withDeviceSession(deviceId, [this, name](const AccountSession &session) {
+        openDeviceSession(session, name);
+    });
+#else
+    Q_UNUSED(deviceId);
+    Q_UNUSED(name);
+#endif
+}
+
+void MainWindow::withDeviceSession(const QString &deviceId,
+                                   std::function<void(const AccountSession &)> then) {
+#if FILECOMMANDER_HAS_NETWORK
     auto guards = std::make_shared<QPair<QMetaObject::Connection, QMetaObject::Connection>>();
     auto drop = [this, guards] {
         disconnect(guards->first);
         disconnect(guards->second);
     };
     guards->first = connect(m_accountClient, &AccountClient::sessionReady, this,
-                            [this, name, drop](const AccountSession &session) {
+                            [then, drop](const AccountSession &session) {
                                 drop();
-                                openDeviceSession(session, name);
+                                then(session);
                             });
     guards->second = connect(m_accountClient, &AccountClient::requestFailed, this,
                              [this, drop](const QString &error) {
@@ -4589,42 +4647,137 @@ void MainWindow::openAccountDevice(const QString &deviceId, const QString &name)
     m_accountClient->openSession(deviceId);
 #else
     Q_UNUSED(deviceId);
-    Q_UNUSED(name);
+    Q_UNUSED(then);
+#endif
+}
+
+MainWindow::DeviceLink MainWindow::deviceLink(const AccountSession &session) {
+#if FILECOMMANDER_HAS_NETWORK
+    // A machine on two networks reports both of its addresses and only one of
+    // them is reachable from here, so they are all candidates.
+    QVector<QPair<QString, quint16>> targets;
+    if (session.peerPort != 0) {
+        for (const QString &host : session.peerLanAddresses)
+            targets.append({host, session.peerPort});
+    }
+    // The relay goes last: it works from anywhere, but every byte takes a
+    // detour through the account server, so a direct route wins when there is
+    // one. The tunnel outlives this call and belongs to the provider.
+    RelayTunnel *tunnel = new RelayTunnel;
+    const quint16 tunnelPort =
+        tunnel->listenLocal(m_accountClient->relaySocketUrl(session.sessionId, session.ticket));
+    if (tunnelPort != 0)
+        targets.append({QStringLiteral("127.0.0.1"), tunnelPort});
+    if (targets.isEmpty()) {
+        delete tunnel;
+        return {};
+    }
+    std::shared_ptr<CurlWebDavProvider> provider(new CurlWebDavProvider,
+                                                 [tunnel](CurlWebDavProvider *p) {
+                                                     delete p;
+                                                     // Not before the provider:
+                                                     // its connections run
+                                                     // through this port.
+                                                     tunnel->deleteLater();
+                                                 });
+    const QString ticket = session.ticket;
+    auto connectFn = [provider, targets, ticket](QString *error) {
+        // The account server pushes the ticket to the peer and answers us
+        // without waiting for it to arrive, so on a fast LAN we can knock
+        // before the share server has been taught the ticket -- which is a 401,
+        // not an unreachable host. Give that push time to land rather than
+        // telling the user the device cannot be reached.
+        for (int attempt = 0; attempt < 3; ++attempt) {
+            if (attempt > 0)
+                QThread::msleep(500);
+            for (const QPair<QString, quint16> &target : targets) {
+                if (provider->connectToHost(target.first, target.second, QStringLiteral("device"),
+                                            ticket, /*useHttps=*/false, error))
+                    return true;
+            }
+        }
+        return false;
+    };
+    return {provider, connectFn};
+#else
+    Q_UNUSED(session);
+    return {};
 #endif
 }
 
 void MainWindow::openDeviceSession(const AccountSession &session, const QString &name) {
 #if FILECOMMANDER_HAS_NETWORK
-    if (session.peerLanAddresses.isEmpty() || session.peerPort == 0) {
-        // ponytail: LAN only for now; the relay tunnel is the next phase, and
-        // this is where it plugs in.
+    DeviceLink link = deviceLink(session);
+    if (!link.provider) {
         ttc::critical(this, tr("Connection Failed"),
                       tr("%1 cannot be reached on this network.").arg(name));
         return;
     }
-    auto provider = std::make_shared<CurlWebDavProvider>();
-    const QStringList hosts = session.peerLanAddresses;
-    const quint16 port = session.peerPort;
-    const QString ticket = session.ticket;
-    auto connectFn = [provider, hosts, port, ticket](QString *error) {
-        // A machine on two networks reports both of its addresses and only one
-        // of them is reachable from here, so try them in order.
-        for (const QString &host : hosts) {
-            if (provider->connectToHost(host, port, QStringLiteral("device"), ticket,
-                                        /*useHttps=*/false, error))
-                return true;
-        }
-        return false;
-    };
+    std::shared_ptr<FileProvider> provider = link.provider;
+    std::function<bool(QString *)> connectFn = link.connect;
     FilePanel *panel = beginServerConnection();
     panel->model()->connectNetwork(provider, connectFn, QStringLiteral("/"));
-    panel->setConnectingLabel(name, provider->scheme());
+    panel->setConnectingLabel(name, link.provider->scheme());
     // Deliberately no setActiveTabConnInfo(): the ticket is short-lived, so a
     // persisted "connection" would restore as a tab nothing can reconnect.
     panel->navigateTo(QStringLiteral("/"));
 #else
     Q_UNUSED(session);
     Q_UNUSED(name);
+#endif
+}
+
+void MainWindow::sendToDevice(const QString &deviceId, const QString &name,
+                              const QStringList &sources) {
+#if FILECOMMANDER_HAS_NETWORK
+    if (sources.isEmpty())
+        return;
+    ensureAccountClient();
+    if (!m_accountClient->isLoggedIn()) {
+        ttc::information(this, tr("FileCommander Account"), tr("Not signed in."));
+        return;
+    }
+    std::shared_ptr<FileProvider> srcProv = providerOwningPath(sources.first());
+    if (!srcProv)
+        return;
+    withDeviceSession(deviceId, [this, name, sources, srcProv](const AccountSession &session) {
+        DeviceLink link = deviceLink(session);
+        if (!link.provider) {
+            ttc::critical(this, tr("Connection Failed"),
+                          tr("%1 cannot be reached on this network.").arg(name));
+            return;
+        }
+        // Dialling is a network round trip per candidate address, and over the
+        // relay it can take seconds -- far too long to spend on the GUI thread,
+        // which is why opening a tab hands this to NetworkSession. There is no
+        // session here, so it goes to the pool directly.
+        auto *watcher = new QFutureWatcher<bool>(this);
+        connect(watcher, &QFutureWatcher<bool>::finished, this,
+                [this, watcher, link, srcProv, sources, name] {
+                    watcher->deleteLater();
+                    if (!watcher->result()) {
+                        ttc::critical(this, tr("Connection Failed"),
+                                      tr("%1 cannot be reached on this network.").arg(name));
+                        return;
+                    }
+                    // The share name is the folder's own name, which is how
+                    // FileShareServer names every share it publishes.
+                    const QString destDir =
+                        QLatin1Char('/') +
+                        QFileInfo(ComputerCatalog::receivedFilesPath()).fileName();
+                    ensureTransferProgressDialog();
+                    m_queue->enqueueProviderCopy(srcProv, sources, link.provider, destDir);
+                });
+        auto connectFn = link.connect;
+        watcher->setFuture(QtConcurrent::run([connectFn] {
+            QString error;
+            return connectFn(&error);
+        }));
+    });
+#else
+    Q_UNUSED(deviceId);
+    Q_UNUSED(name);
+    Q_UNUSED(sources);
 #endif
 }
 
@@ -5021,6 +5174,36 @@ void MainWindow::showFileContextMenu(FilePanel *panel, const QPoint &viewPos) {
                              [this] { sendShortcutTo(Destination::Startup); });
         }
     }
+
+#if FILECOMMANDER_HAS_NETWORK
+    // Only local files: the other device pulls the bytes from this machine, so
+    // a path this machine cannot open is nothing to send. The list is whatever
+    // the last fetch reported; opening the menu refreshes it for the next time,
+    // since a device that just came online would otherwise never appear.
+    if (localBackend && m_accountClient && m_accountClient->isLoggedIn()) {
+        QMenu *deviceMenu =
+            menu.addMenu(commandText(QStringLiteral("sendToDevice"), tr("Send to Device")));
+        Typography::applyChromeFont(deviceMenu, m_settings);
+        const QStringList sources = panel->selectedPaths();
+        int offered = 0;
+        for (const AccountDeviceInfo &device : qAsConst(m_accountDevices)) {
+            if (device.self || !device.online)
+                continue;
+            ++offered;
+            const QString id = device.id;
+            const QString name = device.name;
+            // Not the templated addAction overload: the label is data, and that
+            // overload would take it for a slot name on older Qt 5.
+            QAction *action = deviceMenu->addAction(name);
+            connect(action, &QAction::triggered, this,
+                    [this, id, name, sources] { sendToDevice(id, name, sources); });
+        }
+        if (offered == 0)
+            deviceMenu->addAction(tr("No other device is online"))->setEnabled(false);
+        m_accountClient->fetchDevices();
+    }
+#endif
+
     menu.addSeparator();
     if (isDirectory)
         add(QStringLiteral("calcSize"), tr("Calculate Folder Size"));

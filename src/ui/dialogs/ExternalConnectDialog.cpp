@@ -367,6 +367,11 @@ void ExternalConnectDialog::stopNetworkScan() {
     rebuild();
 }
 
+void ExternalConnectDialog::setAccountDevices(const QVector<AccountDeviceInfo> &devices) {
+    m_accountDevices = devices;
+    rebuild();
+}
+
 void ExternalConnectDialog::rebuild() {
     m_list->clear();
     m_saved = ConnectionStore::loadAll();
@@ -383,7 +388,28 @@ void ExternalConnectDialog::rebuild() {
             addDeviceRow(d);
     }
 
-    // 2. Saved connections. The header carries a "connection manager" button that
+    // 2. The account's own devices, when signed in and the list has arrived.
+    // No section at all when signed out: an empty "My Devices" header would be
+    // one more row explaining something the user has not asked for yet.
+    if (!m_accountDevices.isEmpty()) {
+        addHeader(tr("My Devices"));
+        for (int i = 0; i < m_accountDevices.size(); ++i) {
+            const AccountDeviceInfo &device = m_accountDevices.at(i);
+            auto *item = new QListWidgetItem(
+                themedResourceIcon(QStringLiteral(":/icons/computer.svg")), device.name, m_list);
+            if (device.online && !device.self) {
+                item->setData(Qt::UserRole, KindAccountDevice);
+                item->setData(Qt::UserRole + 1, i);
+            } else {
+                // This machine, or one that is not listening: nothing to open.
+                item->setFlags(Qt::NoItemFlags);
+                item->setText(device.self ? tr("%1 (this device)").arg(device.name)
+                                          : tr("%1 (offline)").arg(device.name));
+            }
+        }
+    }
+
+    // 3. Saved connections. The header carries a "connection manager" button that
     // opens the add/edit/delete dialog for saved bookmarks.
     addHeader(tr("Saved Connections"),
               {{QStringLiteral(":/icons/ext-connect.svg"), tr("Connection Manager…"),
@@ -405,7 +431,7 @@ void ExternalConnectDialog::rebuild() {
         }
     }
 
-    // 3. Network neighbourhood (populated as discovery reports hosts). The header
+    // 4. Network neighbourhood (populated as discovery reports hosts). The header
     // button doubles as the scan indicator: a refresh icon when idle (click to
     // rescan), or a "Searching…" label while a scan runs (click to abort it).
     HeaderAction netAction;
@@ -511,6 +537,14 @@ void ExternalConnectDialog::onItemActivated(QListWidgetItem *item) {
         if (i < 0 || i >= m_saved.size())
             return;
         emit openSavedConnection(m_saved.at(i));
+        close();
+        break;
+    }
+    case KindAccountDevice: {
+        const int i = item->data(Qt::UserRole + 1).toInt();
+        if (i < 0 || i >= m_accountDevices.size())
+            return;
+        emit openAccountDevice(m_accountDevices.at(i).id, m_accountDevices.at(i).name);
         close();
         break;
     }

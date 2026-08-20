@@ -8,6 +8,9 @@
 
 #include <functional>
 
+// AccountDeviceInfo is held by value in a QVector member, so moc and QVector
+// both need its full definition here.
+#include "account/AccountClient.h"
 #include "network/ConnectionStore.h"
 // SmbHost is used by value in QVector<SmbHost> members and signal arguments, so
 // moc needs its full definition here (a forward declaration won't compile).
@@ -55,6 +58,13 @@ public:
     // screen the anchor sits on.
     void popUpAbove(const QRect &anchorGlobalRect);
 
+    // The account's other devices, as the last GET /v1/devices reported them.
+    // Pushed in rather than fetched: the panel has no account client, and the
+    // caller already keeps this list for the "Send to Device" menu. Safe to
+    // call while the panel is up -- a list that arrives late just rebuilds it,
+    // which is how a device coming online shows up without reopening.
+    void setAccountDevices(const QVector<AccountDeviceInfo> &devices);
+
     // Reapplies the current chrome-icon treatment without rebuilding this popup,
     // preserving its rows, focus, scroll position, and anchored geometry.
     void refreshThemeIcons();
@@ -67,6 +77,9 @@ signals:
     void openSavedConnection(const SavedConnection &conn);
     // A network-neighbourhood host name; the caller assembles smb://host.
     void openSmbHost(const QString &hostName);
+    // One of the account's own devices; the caller opens a tab on its shared
+    // folders.
+    void openAccountDevice(const QString &deviceId, const QString &name);
     // The manager button next to the "Saved Connections" header: open the
     // connection manager (add/edit/delete saved bookmarks; manual connect,
     // including SMB, lives in its form too).
@@ -81,7 +94,7 @@ private slots:
 
 private:
     // Kind of a selectable row, stored in Qt::UserRole.
-    enum Kind { KindDevice = 1, KindSaved, KindHost };
+    enum Kind { KindDevice = 1, KindSaved, KindHost, KindAccountDevice };
 
     // Repopulates the whole list from the current device / bookmark / host
     // state and re-fits the panel size to the content.
@@ -120,6 +133,7 @@ private:
 
     QVector<SavedConnection> m_saved; // parallel payload for KindSaved rows
     QVector<SmbHost> m_hosts;         // hosts accumulated from discovery
+    QVector<AccountDeviceInfo> m_accountDevices; // parallel payload for KindAccountDevice rows
     bool m_discoveryDone = false;     // all sources finished (drives empty state)
     // Fly-out anchoring: the popup grows UPWARD as hosts arrive -- its bottom edge
     // stays pinned to the launching button, so newly discovered rows push the top

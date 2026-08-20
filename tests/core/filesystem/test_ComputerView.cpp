@@ -172,6 +172,29 @@ TEST(ComputerViewTest, CatalogTest_UserFoldersAreExistingDirectoriesWithoutDupli
         EXPECT_FALSE(folders.isEmpty());
 }
 
+TEST(ComputerViewTest, CatalogTest_ReceivedFilesIsListedLastOnceItExists) {
+    // Both halves of the feature agree on this one directory: the share server
+    // publishes it and the computer view lists it, so a wrong path here means
+    // files arrive somewhere nobody looks.
+    const QString received = ComputerCatalog::receivedFilesPath();
+    EXPECT_EQ(received, QDir::homePath() + QStringLiteral("/ReceivedFiles"));
+
+    const QVector<ComputerEntry> folders = ComputerCatalog::userFolders();
+    int index = -1;
+    for (int i = 0; i < folders.size(); ++i) {
+        if (folders.at(i).target == received)
+            index = i;
+    }
+    if (QFileInfo(received).isDir()) {
+        ASSERT_GE(index, 0) << "existing received-files folder was not listed";
+        EXPECT_EQ(index, folders.size() - 1);
+    } else {
+        // A row pointing at a directory that is not there would navigate to
+        // nothing, so nothing is offered until the first file arrives.
+        EXPECT_EQ(index, -1);
+    }
+}
+
 TEST(ComputerViewTest, ProviderTest_ListsOneRowPerEntryAndMapsItBack) {
     ComputerProvider provider;
     provider.setEntries({

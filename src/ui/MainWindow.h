@@ -29,6 +29,7 @@ class QTemporaryDir;
 #include "ScratchDirs.h"
 #include "StartupTrace.h"
 #include "Settings.h"
+#include "account/AccountClient.h" // AccountDeviceInfo (stored by value)
 #include "filesystem/ComputerCatalog.h" // ComputerEntry (passed by value)
 #include "network/ConnectionStore.h" // SavedConnection (session reconnect)
 #include "update/UpdateChecker.h" // UpdateInfo (stored by value)
@@ -58,6 +59,7 @@ class NetworkTreeRegistry;
 class AccountClient;
 class DeviceAgent;
 class FileShareServer;
+class RelayTunnel;
 struct AccountSession;
 class SmbHostBrowser;
 class NotepadPanel;
@@ -259,9 +261,15 @@ private slots:
     // transfer code -- it is an ordinary network tab from here on.
     void openAccountDevice(const QString &deviceId, const QString &name);
     void openDeviceSession(const AccountSession &session, const QString &name);
-    // Starts or stops the serving half to match the settings: signed in, with
-    // sharing on and at least one folder chosen. Off in every other case, port
-    // and all.
+    // Copies `sources` (local paths) into the peer's "Files I Received" folder,
+    // over the same session and the same provider a device tab would use. The
+    // peer needs no prompt: it is another device of the same account.
+    void sendToDevice(const QString &deviceId, const QString &name, const QStringList &sources);
+
+    // Starts or stops the serving half: on whenever an account is signed in,
+    // because receiving is what "Send to Device" needs and it is always the
+    // user's own devices at the other end. The folders the user chose to share
+    // are added on top of the received-files folder only when sharing is on.
     void updateDeviceSharing();
     void checkForUpdatesNow();      // View > Check for Updates (manual)
     // The silent daily check. Runs at startup and on a timer thereafter; does
@@ -616,12 +624,34 @@ private:
     // Created on first use by showAccountDialog() and kept afterwards: the
     // signed-in session (and, later, the device agent) has to outlive the
     // dialog that started it.
+    // Asks the account server for a session against `deviceId` and calls `then`
+    // with it. Answers asynchronously on a client that outlives the call, so
+    // both handlers unhook themselves -- otherwise the next session opened
+    // would also run this one's continuation.
+    void withDeviceSession(const QString &deviceId, std::function<void(const AccountSession &)> then);
+
+    // A provider aimed at a peer device, and the closure that dials it: the
+    // peer's LAN addresses first, the relay last. The provider is null when
+    // there is no route at all. Both callers -- opening a tab and sending files
+    // -- need the pair, and the relay tunnel rides along in the deleter.
+    struct DeviceLink {
+        std::shared_ptr<FileProvider> provider;
+        std::function<bool(QString *)> connect;
+    };
+    DeviceLink deviceLink(const AccountSession &session);
+
     AccountClient *m_accountClient = nullptr;
+    // Last device list the server sent. A cache, because the "Send to Device"
+    // submenu has to be populated the instant the menu opens; opening it also
+    // asks for a fresh list, for the next time.
+    QVector<AccountDeviceInfo> m_accountDevices;
     // The serving half, alive only while sharing is on: the agent keeps the
     // account server posted on this machine and hands over the tickets the
     // share server will accept.
     DeviceAgent *m_deviceAgent = nullptr;
     FileShareServer *m_shareServer = nullptr;
+    // Relay sockets parked for peers that asked to connect, by session id.
+    QHash<QString, RelayTunnel *> m_incomingTunnels;
     UpdateInfo m_pendingUpdate;                        // valid when m_hasUpdate
     bool m_hasUpdate = false;                          // an update is available
 };

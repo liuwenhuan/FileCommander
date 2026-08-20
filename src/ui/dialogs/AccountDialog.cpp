@@ -73,7 +73,9 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
     shareButtons->addStretch();
 
     auto *signOut = new QPushButton(tr("Sign Out"), account);
+    auto *removeDevice = new QPushButton(tr("Remove Device"), account);
     auto *accountButtons = new QHBoxLayout;
+    accountButtons->addWidget(removeDevice);
     accountButtons->addStretch();
     accountButtons->addWidget(signOut);
     accountLayout->addWidget(m_accountLabel);
@@ -109,6 +111,21 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
     connect(removeFolder, &QPushButton::clicked, this, [this] {
         delete m_sharedFolders->takeItem(m_sharedFolders->currentRow());
         saveSharedFolders();
+    });
+    connect(removeDevice, &QPushButton::clicked, this, [this] {
+        QListWidgetItem *item = m_devices->currentItem();
+        // No id means this machine or the placeholder row. Signing this device
+        // out is what the Sign Out button is for, and doing it from here would
+        // leave the keyring token behind.
+        const QString id = item ? item->data(Qt::UserRole).toString() : QString();
+        if (id.isEmpty())
+            return;
+        const QString name = item->data(Qt::UserRole + 2).toString();
+        if (QMessageBox::question(this, tr("FileCommander Account"),
+                                  tr("Sign %1 out of this account?").arg(name))
+            != QMessageBox::Yes)
+            return;
+        m_client.removeDevice(id);
     });
     connect(m_devices, &QListWidget::itemActivated, this, [this](QListWidgetItem *item) {
         const QString id = item->data(Qt::UserRole).toString();

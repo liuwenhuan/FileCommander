@@ -64,8 +64,15 @@ namespace ComputerCatalog {
 QVector<ComputerEntry> drives(bool includeSystemVolumes = false);
 
 // Desktop / Documents / Pictures / Music / Videos / Downloads, in that order,
-// skipping any the platform does not define or that does not exist.
+// skipping any the platform does not define or that does not exist. The folder
+// receivedFilesPath() names is listed last, once it exists.
 QVector<ComputerEntry> userFolders();
+
+// Where files another device of the same account sends land: $HOME/ReceivedFiles.
+// It is not a standard location, so it is spelled out here rather than asked of
+// QStandardPaths -- the serving half shares this one path, and the computer
+// view lists it, and both have to mean the same directory.
+QString receivedFilesPath();
 
 // Saved server bookmarks, newest-saved order preserved from the store.
 QVector<ComputerEntry> savedServers();

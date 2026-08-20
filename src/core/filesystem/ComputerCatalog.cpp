@@ -236,7 +236,22 @@ QVector<ComputerEntry> ComputerCatalog::userFolders() {
         // icon theme.
         result.append(entry);
     }
+
+    // Last, and only once something has arrived (or sharing created it): an
+    // empty row for a directory that does not exist would navigate to nothing.
+    const QString received = receivedFilesPath();
+    if (QFileInfo(received).isDir()) {
+        ComputerEntry entry;
+        entry.kind = ComputerEntry::Kind::UserFolder;
+        entry.name = QObject::tr("Files I Received");
+        entry.target = received;
+        result.append(entry);
+    }
     return result;
+}
+
+QString ComputerCatalog::receivedFilesPath() {
+    return QDir::homePath() + QLatin1String("/ReceivedFiles");
 }
 
 QVector<ComputerEntry> ComputerCatalog::savedServers() {

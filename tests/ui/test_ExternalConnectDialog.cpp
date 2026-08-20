@@ -11,6 +11,7 @@
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QSet>
+#include <QSignalSpy>
 #include <QToolButton>
 
 namespace {
@@ -215,4 +216,61 @@ TEST(ExternalConnectDialogTest, SectionHeaderRowsTrackFontMetricsWithoutClipping
     }
 
     qApp->setStyleSheet(originalStyleSheet);
+}
+
+// The "My Devices" section: present only when the account list is, and only the
+// peers that can actually be opened are openable.
+TEST(ExternalConnectDialogTest, AccountDevicesGetTheirOwnSectionOfOpenablePeers) {
+    // On the heap: activating a row closes the panel, and the panel deletes
+    // itself when it closes.
+    auto *dialog = new ExternalConnectDialog(nullptr, nullptr);
+    auto *list = dialog->findChild<QListWidget *>(QStringLiteral("ExternalConnectList"));
+    ASSERT_NE(list, nullptr);
+    // Signed out: three sections, exactly as every other test sees it.
+    EXPECT_EQ(sectionHeaders(*dialog).size(), 3);
+
+    AccountDeviceInfo here;
+    here.id = QStringLiteral("self-id");
+    here.name = QStringLiteral("this laptop");
+    here.online = true;
+    here.self = true;
+    AccountDeviceInfo away;
+    away.id = QStringLiteral("away-id");
+    away.name = QStringLiteral("sleeping desktop");
+    AccountDeviceInfo peer;
+    peer.id = QStringLiteral("peer-id");
+    peer.name = QStringLiteral("work laptop");
+    peer.online = true;
+
+    // An empty list takes the section away again; a rebuild retires the old
+    // header widgets with deleteLater(), so pump those before counting.
+    dialog->setAccountDevices({here, away, peer});
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    EXPECT_EQ(sectionHeaders(*dialog).size(), 4);
+    dialog->setAccountDevices({});
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    EXPECT_EQ(sectionHeaders(*dialog).size(), 3);
+
+    dialog->setAccountDevices({here, away, peer});
+    QListWidgetItem *openable = nullptr;
+    int openableRows = 0;
+    for (int i = 0; i < list->count(); ++i) {
+        QListWidgetItem *item = list->item(i);
+        if (item->data(Qt::UserRole).toInt() != 4) // KindAccountDevice
+            continue;
+        ++openableRows;
+        openable = item;
+    }
+    // This device and the offline one are shown but carry no kind, so nothing
+    // dispatches on them.
+    ASSERT_EQ(openableRows, 1);
+    ASSERT_NE(openable, nullptr);
+    EXPECT_EQ(openable->text(), peer.name);
+
+    QSignalSpy opened(dialog, &ExternalConnectDialog::openAccountDevice);
+    emit list->itemActivated(openable);
+    ASSERT_EQ(opened.size(), 1);
+    EXPECT_EQ(opened.first().at(0).toString(), peer.id);
+    EXPECT_EQ(opened.first().at(1).toString(), peer.name);
+    // Closed by the activation, so it is on its way out; nothing to delete here.
 }
