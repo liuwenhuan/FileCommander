@@ -1000,8 +1000,9 @@ void MainWindow::buildTitleBarMenus() {
                 [this, theme = entry.theme]() { setTheme(theme); });
     }
 
-    // Content recolouring, under every theme -- each recolours to a bright
-    // member of its own palette (see ThemeManager::apply).
+    // Content recolouring, under any theme that names a bright colour of its
+    // own for it. The light theme names none, so both switches show as
+    // unavailable there -- see ThemeManager::apply for why.
     themeMenu->addSeparator();
     // Two switches, not one. The file list's pictures and the picture someone
     // opened to LOOK at are different decisions -- recolouring a wall of small
@@ -1013,7 +1014,10 @@ void MainWindow::buildTitleBarMenus() {
     imageColours->setChecked(m_settings.phosphorImages());
     imageColours->setToolTip(
         tr("Recolour the file list's icons and thumbnails to the theme's hue. "
-           "The preview pane is not affected."));
+           "The preview pane is not affected.") +
+        QLatin1Char(' ') +
+        tr("The light theme leaves content in its own colours, so this has no "
+           "effect there."));
     connect(imageColours, &QAction::triggered, this,
             &MainWindow::setPhosphorImages);
 
@@ -1023,7 +1027,10 @@ void MainWindow::buildTitleBarMenus() {
     previewColours->setChecked(m_settings.phosphorPreview());
     previewColours->setToolTip(
         tr("Recolour images, video and documents shown in the preview pane to the "
-           "theme's hue."));
+           "theme's hue.") +
+        QLatin1Char(' ') +
+        tr("The light theme leaves content in its own colours, so this has no "
+           "effect there."));
     connect(previewColours, &QAction::triggered, this,
             &MainWindow::setPhosphorPreview);
 
@@ -1297,6 +1304,14 @@ void MainWindow::syncInterfaceMenuState() {
     }
     syncChecked(QStringLiteral("interfacePhosphorImagesAction"), m_settings.phosphorImages());
     syncChecked(QStringLiteral("interfacePhosphorPreviewAction"), m_settings.phosphorPreview());
+    // A theme that names no content colour has nothing for the two switches to
+    // do, so they read as unavailable instead of as switches that do nothing.
+    const bool contentThemed = m_themeManager->contentTint().isValid();
+    for (const QString &name : {QStringLiteral("interfacePhosphorImagesAction"),
+                                QStringLiteral("interfacePhosphorPreviewAction")}) {
+        if (QAction *action = m_interfaceMenu->findChild<QAction *>(name))
+            action->setEnabled(contentThemed);
+    }
     syncChecked(QStringLiteral("interfaceFunctionKeyBarAction"), !m_functionKeyBar->isHidden());
     syncChecked(QStringLiteral("interfaceCommandBarAction"), !m_commandBar->isHidden());
     syncChecked(QStringLiteral("interfaceTabBarAction"), m_settings.showTabBar());

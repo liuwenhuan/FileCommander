@@ -1864,6 +1864,11 @@ Eliminar como administrador omite la papelera de reciclaje y no se puede deshace
         <translation>Recolorea imágenes, vídeos y documentos de la vista previa con el tono del tema.</translation>
     </message>
     <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="1019"/>
+        <source>The light theme leaves content in its own colours, so this has no effect there.</source>
+        <translation>El tema claro deja el contenido con sus colores originales, por lo que esta opción no tiene efecto en él.</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1177"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2658"/>
         <source>Show Function Key Bar</source>

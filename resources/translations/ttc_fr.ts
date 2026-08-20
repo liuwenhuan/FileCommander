@@ -1864,6 +1864,11 @@ La suppression en tant qu&apos;administrateur contourne la corbeille et est irr�
         <translation>Recolore les images, vidéos et documents du volet d’aperçu dans la teinte du thème.</translation>
     </message>
     <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="1019"/>
+        <source>The light theme leaves content in its own colours, so this has no effect there.</source>
+        <translation>Le thème clair conserve les couleurs d’origine du contenu ; cette option n’y a donc aucun effet.</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1177"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2658"/>
         <source>Show Function Key Bar</source>

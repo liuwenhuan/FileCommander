@@ -1860,6 +1860,11 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
         <translation>將預覽窗格中的圖片、影片和文件重新著色為主題色。</translation>
     </message>
     <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="1019"/>
+        <source>The light theme leaves content in its own colours, so this has no effect there.</source>
+        <translation>淺色主題讓內容保持它原本的配色，因此此選項在淺色主題下不會生效。</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/MainWindow.cpp" line="1177"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2658"/>
         <source>Show Function Key Bar</source>

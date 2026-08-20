@@ -401,8 +401,7 @@ TEST(CrtContentSurfacesTest, EveryThemesContentTintIsBrightEnoughToTintRatherTha
         }
     } restore;
 
-    for (Settings::Theme theme : {Settings::Theme::Crt, Settings::Theme::Dark,
-                                  Settings::Theme::Light}) {
+    for (Settings::Theme theme : {Settings::Theme::Crt, Settings::Theme::Dark}) {
         manager.apply(theme, true, true);
         const QColor tint = fc::thumbnailTint();
         ASSERT_TRUE(tint.isValid()) << "theme " << int(theme);
@@ -414,6 +413,42 @@ TEST(CrtContentSurfacesTest, EveryThemesContentTintIsBrightEnoughToTintRatherTha
             << "theme " << int(theme) << " content tint " << tint.name().toStdString()
             << " is what white becomes -- too dark to be a tint";
     }
+}
+
+// ...and the light theme is the case where no bright colour exists to pick. On
+// a white page a bright hue over full-colour artwork is a colour cast, not a
+// duotone: the #9cc0f0 tried here was reported as a dead blue film over every
+// icon in the file list. Darker brings back the grey slab above, whiter erases
+// the icons into the page, so the light theme recolours nothing -- with BOTH
+// switches on. (Auto resolves to this same branch when the desktop is light.)
+TEST(CrtContentSurfacesTest, TheLightThemeForcesNoColourOntoContent) {
+    ThemeStateGuard themeState;
+    ThemeManager manager;
+    struct Restore {
+        ~Restore() {
+            fc::setThumbnailTint(QColor());
+            fc::setPreviewTint(QColor());
+            IconCache::instance().setFileIconTint(QColor());
+        }
+    } restore;
+
+    // Seed a tint a bug could leave standing, so "no tint" cannot pass by
+    // nothing having been set in the first place.
+    manager.apply(Settings::Theme::Crt, true, true);
+    ASSERT_TRUE(fc::thumbnailTint().isValid());
+
+    manager.apply(Settings::Theme::Light, true, true);
+    EXPECT_FALSE(manager.contentTint().isValid())
+        << "light content tint " << manager.contentTint().name().toStdString();
+    EXPECT_FALSE(fc::thumbnailTint().isValid()) << "thumbnails took a cast";
+    EXPECT_FALSE(IconCache::instance().fileIconTint().isValid())
+        << "file-type icons took a cast";
+    EXPECT_FALSE(fc::previewTint().isValid()) << "the preview pane took a cast";
+
+    // The chrome glyphs are a separate decision and must NOT have gone with it:
+    // they are monochrome line art, and flattening them to the theme's text
+    // colour is what keeps them at the weight of the labels beside them.
+    EXPECT_TRUE(IconCache::instance().glyphTint().isValid());
 }
 
 // The dark theme's accent must not be the one saturated thing in an otherwise
