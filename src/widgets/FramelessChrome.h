@@ -16,9 +16,10 @@ class QPainter;
 // F3 viewer and the F4 editor). It lives here rather than in either of them so
 // the two cannot drift apart.
 //
-// MainWindow keeps its own copy of the same constants and the same 9-patch
-// blit, because it also maintains an XShape mask and an opaque-region hint that
-// only a QMainWindow needs; the values below are kept in sync with it by hand.
+// MainWindow renders its frame with renderFrameTile() below but keeps its own
+// copy of the constants and of the 9-patch blit, because it also maintains an
+// XShape mask and an opaque-region hint that only a QMainWindow needs; those
+// values are kept in sync with the ones below by hand.
 namespace ttc::chrome {
 
 constexpr int kShadowMargin = 16; // translucent margin: drop shadow + resize band

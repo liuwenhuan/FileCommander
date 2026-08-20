@@ -1,5 +1,7 @@
 #include "MainWindow.h"
 
+#include "FramelessChrome.h"
+
 #include <algorithm>
 
 #include <QAbstractItemView>
@@ -1686,28 +1688,9 @@ void MainWindow::ensureFrameCache() {
     // and edges are fully representative; paintEvent then blits it 9-patch
     // style. The old path re-rasterized 17 anti-aliased rounded rects over the
     // whole window on every repaint, which made interactive resizing crawl.
-    // Corner tiles must span the shadow margin + corner radius; one extra pixel
-    // row/column in the middle stretches cleanly (all mid-frame rows are
-    // identical).
-    const int corner = kShadowMargin + kCornerRadius + 1;
-    const int size = corner * 2 + 2;
-    m_frameCache = QPixmap(size, size);
-    m_frameCache.fill(Qt::transparent);
-
-    QPainter p(&m_frameCache);
-    p.setRenderHint(QPainter::Antialiasing);
-    const QRect content = QRect(0, 0, size, size)
-                              .adjusted(kShadowMargin, kShadowMargin, -kShadowMargin,
-                                        -kShadowMargin);
-    p.setPen(Qt::NoPen);
-    for (int i = kShadowMargin; i >= 1; --i) {
-        const int alpha = 46 * (kShadowMargin - i + 1) / kShadowMargin;
-        p.setBrush(QColor(0, 0, 0, alpha));
-        p.drawRoundedRect(QRectF(content).adjusted(-i, -i + 1, i, i + 1),
-                          kCornerRadius + i, kCornerRadius + i);
-    }
-    p.setBrush(bg);
-    p.drawRoundedRect(content, kCornerRadius, kCornerRadius);
+    // The dialogs' chrome draws the identical frame, so share that one render
+    // rather than keeping a second copy of the shadow ramp in sync by hand.
+    m_frameCache = ttc::chrome::renderFrameTile(bg, QPixmap());
 }
 
 void MainWindow::paintEvent(QPaintEvent *) {

@@ -46,8 +46,13 @@ QPixmap renderFrameTile(const QColor &background, const QPixmap &tile) {
                               .adjusted(kShadowMargin, kShadowMargin, -kShadowMargin,
                                         -kShadowMargin);
     p.setPen(Qt::NoPen);
+    // Falloff. The rings stack, so a linear ramp piles up into a near-opaque
+    // halo right at the content edge; squaring it keeps the weight close to the
+    // window and lets the outer rings fade to nothing.
+    constexpr int kShadowAlpha = 16; // alpha of the innermost ring
     for (int i = kShadowMargin; i >= 1; --i) {
-        const int alpha = 46 * (kShadowMargin - i + 1) / kShadowMargin;
+        const int step = kShadowMargin - i + 1;
+        const int alpha = kShadowAlpha * step * step / (kShadowMargin * kShadowMargin);
         p.setBrush(QColor(0, 0, 0, alpha));
         p.drawRoundedRect(QRectF(content).adjusted(-i, -i + 1, i, i + 1), kCornerRadius + i,
                           kCornerRadius + i);
