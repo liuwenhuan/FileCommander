@@ -30,6 +30,12 @@ public:
     // backends that buffer (WebDAV's curl pipe) report this from their transfer
     // engine's own progress, so the UI tracks the wire rather than the buffer.
     virtual qint64 bytesSent() const { return -1; }
+
+    // Asks an in-flight streaming transfer to stop now rather than at its next
+    // natural boundary. Backends that buffer (WebDAV's curl pipe) override it
+    // to tear down their transfer engine immediately; the default is a no-op.
+    // Safe to call from any thread; idempotent.
+    virtual void cancel() {}
 };
 
 struct CloseHandleResult {

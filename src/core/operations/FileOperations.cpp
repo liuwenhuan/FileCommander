@@ -103,6 +103,15 @@ FileOperations::FileOperations(QObject *parent)
 
 void FileOperations::requestCancel() {
     m_cancelled.store(true);
+    // Tell the in-flight streaming backend to stop now. Without this the worker
+    // could sit blocked in a full write buffer until the transfer engine's own
+    // progress callback notices -- up to a second -- which is what left a fresh
+    // send stuck "queued" behind the dying one.
+    {
+        QMutexLocker lock(&m_handleMutex);
+        if (m_activeWriteHandle)
+            m_activeWriteHandle->cancel();
+    }
     // Wake a paused worker so it can observe the cancellation and unwind.
     QMutexLocker lock(&m_pauseMutex);
     m_paused = false;
@@ -1281,6 +1290,10 @@ bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileP
         *failMsg = tr("Failed to open %1 for writing").arg(destPath);
         return false;
     }
+    {
+        QMutexLocker lock(&m_handleMutex);
+        m_activeWriteHandle = out;
+    }
 
     // Tell the destination how many bytes are coming, where the source can say.
     // A streamed HTTP PUT must commit to Content-Length vs chunked before the
@@ -1402,6 +1415,10 @@ bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileP
     }
 
     src->closeHandle(in);
+    {
+        QMutexLocker lock(&m_handleMutex);
+        m_activeWriteHandle = nullptr;
+    }
     // A streamed upload (FTP/WebDAV) only learns the real server-side result
     // when its transfer thread finishes here, at close time -- so even after a
     // clean read/write loop the commit can still fail (disk full, dropped link,

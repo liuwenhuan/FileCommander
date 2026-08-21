@@ -196,6 +196,17 @@ struct WebDavHandle : public FileHandle {
         return static_cast<qint64>(state->uploadedBytes);
     }
 
+    // Stop a transfer from the outside (the GUI thread's cancel) instead of
+    // waiting for the worker to notice at its next checkpoint.
+    void cancel() override {
+        QMutexLocker locker(&state->mutex);
+        state->aborted = true;
+        state->noMoreInput = true;
+        state->cond.wakeAll();
+        if (state->socketFd != CURL_SOCKET_BAD)
+            shutdownSocket(state->socketFd);
+    }
+
     StreamError streamError() const override {
         QMutexLocker locker(&state->mutex);
         if (!state->curlFinished)
@@ -1111,11 +1122,11 @@ qint64 CurlWebDavProvider::write(FileHandle *handle, const char *buffer, qint64 
 
     auto &state = *h->state;
     QMutexLocker locker(&state.mutex);
-    if (state.curlFinished)
+    if (state.curlFinished || state.aborted)
         return -1;
-    while (state.buffer.size() >= kPipeCapacity && !state.curlFinished)
+    while (state.buffer.size() >= kPipeCapacity && !state.curlFinished && !state.aborted)
         state.cond.wait(&state.mutex);
-    if (state.curlFinished)
+    if (state.curlFinished || state.aborted)
         return -1;
     state.buffer.append(buffer, static_cast<int>(size));
     state.cond.wakeAll();

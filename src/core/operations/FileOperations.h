@@ -13,6 +13,7 @@
 #include "privilege/PrivilegeBroker.h"
 
 class FileProvider;
+class FileHandle;
 
 // Performs the actual filesystem I/O for copy/move/delete/mkdir/rename.
 // Methods here are blocking and meant to be invoked from a background
@@ -234,6 +235,12 @@ private:
     static QString lastComponent(const QString &path);
 
     std::atomic<bool> m_cancelled{false};
+    // The write handle of the transfer currently streaming on this worker, so
+    // requestCancel() can tell the backend to stop now rather than waiting for
+    // the copy loop to reach its next checkpoint. Guarded by m_handleMutex
+    // because the cancel arrives on the GUI thread while the loop runs here.
+    QMutex m_handleMutex;
+    FileHandle *m_activeWriteHandle = nullptr;
     qint64 m_rateLimitBps = 0;   // 0 = unlimited
     QElapsedTimer m_rateClock;   // paces one file's chunks
     qint64 m_rateBytes = 0;      // bytes transferred since m_rateClock started
