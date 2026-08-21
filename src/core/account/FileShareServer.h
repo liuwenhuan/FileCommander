@@ -49,6 +49,11 @@ public:
     // Accepts `ticket` as a password until it expires.
     void addTicket(const QString &ticket, int ttlSeconds);
 
+    // Overrides the compile-time ceilings on concurrent connections and on one
+    // upload's size; pass 0 to keep a default. Mostly a test hook, but a
+    // deployment that wants tighter bounds can set them without a rebuild.
+    void setLimits(int maxConnections, qint64 maxUploadBytes);
+
     // Starts listening on all interfaces. Port 0 picks a free one, which is the
     // normal case -- the port is reported to the account server, so it never
     // has to be a fixed number. Answers with started() or failed().

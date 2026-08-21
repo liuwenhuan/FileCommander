@@ -136,6 +136,7 @@ public:
 
     bool remove(const QString &path) override;
     bool mkdir(const QString &path) override;
+    bool setModifiedTime(const QString &path, const QDateTime &modified) override;
 
     // Pure parser exposed for unit testing without a live WebDAV server.
     // `basePath` is excluded from the results (PROPFIND Depth:1 includes the
