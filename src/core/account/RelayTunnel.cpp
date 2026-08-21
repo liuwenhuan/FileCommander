@@ -21,9 +21,19 @@ constexpr int kReparkDelayMs = 1000;
 // local side before giving up on it.
 constexpr int kFlushTimeoutMs = 5000;
 
+// Back-pressure: once a side has this many bytes queued in its own write
+// buffer, the pipe stops feeding it and leaves the data upstream, so TCP/WS
+// flow control stalls the sender instead of the relay buffering a whole file
+// in RAM (which is what made the transfer progress race ahead of the wire).
+constexpr qint64 kHighWaterBytes = 1024 * 1024;
+// Forward in bounded chunks so no single WebSocket frame is ever the whole file.
+constexpr qint64 kChunkBytes = 64 * 1024;
+
 // Joins one relay WebSocket to one TCP connection and copies bytes both ways
 // until either end goes away. Either end may still be connecting when the pipe
-// is built, so both directions buffer until their side is up.
+// is built, so both directions buffer until their side is up -- and both are
+// gated by the receiving side's pending bytes, so a slow peer stalls the sender
+// through real flow control rather than through unbounded buffering.
 class Pipe : public QObject {
     Q_OBJECT
 
@@ -34,35 +44,19 @@ public:
         tcp->setParent(this);
 
         connect(ws, &QWebSocket::binaryMessageReceived, this, [this](const QByteArray &bytes) {
-            if (m_tcp->state() == QAbstractSocket::ConnectedState)
-                m_tcp->write(bytes);
-            else
-                m_toTcp.append(bytes);
+            m_pendingToTcp.append(bytes);
+            pumpToTcp();
         });
-        connect(ws, &QWebSocket::connected, this, [this] {
-            if (m_toWs.isEmpty())
-                return;
-            m_ws->sendBinaryMessage(m_toWs);
-            m_toWs.clear();
-        });
+        connect(ws, &QWebSocket::connected, this, [this] { pumpToWebSocket(); });
+        connect(ws, &QWebSocket::bytesWritten, this, [this](qint64) { pumpToWebSocket(); });
         connect(ws, &QWebSocket::disconnected, this, &Pipe::finish);
         // String-based, because the typed overload of error() is deprecated in
         // favour of a signal that does not exist in older Qt 5.
         connect(ws, SIGNAL(error(QAbstractSocket::SocketError)), this, SLOT(finish()));
 
-        connect(tcp, &QTcpSocket::readyRead, this, [this] {
-            const QByteArray bytes = m_tcp->readAll();
-            if (m_ws->state() == QAbstractSocket::ConnectedState)
-                m_ws->sendBinaryMessage(bytes);
-            else
-                m_toWs.append(bytes);
-        });
-        connect(tcp, &QTcpSocket::connected, this, [this] {
-            if (m_toTcp.isEmpty())
-                return;
-            m_tcp->write(m_toTcp);
-            m_toTcp.clear();
-        });
+        connect(tcp, &QTcpSocket::readyRead, this, [this] { pumpToWebSocket(); });
+        connect(tcp, &QTcpSocket::connected, this, [this] { pumpToTcp(); });
+        connect(tcp, &QTcpSocket::bytesWritten, this, [this](qint64) { pumpToTcp(); });
         connect(tcp, &QTcpSocket::disconnected, this, &Pipe::finish);
         connect(tcp, SIGNAL(error(QAbstractSocket::SocketError)), this, SLOT(finish()));
     }
@@ -90,10 +84,50 @@ private slots:
     }
 
 private:
+    // Local socket -> relay. While the relay socket is not yet up, the bytes
+    // park in m_toWs; once it is, they are forwarded in chunks but only while
+    // the relay's own send queue is below the high-water mark. When it is not,
+    // the unread bytes stay in the local socket's receive buffer, which is what
+    // pushes TCP flow control back onto curl.
+    void pumpToWebSocket() {
+        if (m_ws->state() != QAbstractSocket::ConnectedState) {
+            m_toWs.append(m_tcp->readAll());
+            return;
+        }
+        if (!m_toWs.isEmpty()) {
+            m_ws->sendBinaryMessage(m_toWs);
+            m_toWs.clear();
+        }
+        while (m_ws->bytesToWrite() < kHighWaterBytes && m_tcp->bytesAvailable() > 0) {
+            const qint64 n = qMin<qint64>(m_tcp->bytesAvailable(), kChunkBytes);
+            const QByteArray bytes = m_tcp->read(n);
+            if (bytes.isEmpty())
+                break;
+            m_ws->sendBinaryMessage(bytes);
+        }
+    }
+
+    // Relay -> local socket, the mirror image: frames are written as the local
+    // socket drains, never dropped, and paused while its write queue is full.
+    void pumpToTcp() {
+        if (m_tcp->state() != QAbstractSocket::ConnectedState)
+            return;
+        while (!m_pendingToTcp.isEmpty() && m_tcp->bytesToWrite() < kHighWaterBytes) {
+            const QByteArray &bytes = m_pendingToTcp.first();
+            const qint64 n = m_tcp->write(bytes);
+            if (n <= 0)
+                return;
+            if (n < bytes.size())
+                m_pendingToTcp.first() = bytes.mid(static_cast<int>(n));
+            else
+                m_pendingToTcp.removeFirst();
+        }
+    }
+
     QWebSocket *m_ws;
     QTcpSocket *m_tcp;
-    QByteArray m_toWs;
-    QByteArray m_toTcp;
+    QByteArray m_toWs;                  // bytes waiting for the relay socket to come up
+    QList<QByteArray> m_pendingToTcp;   // frames waiting for room in the local socket
     bool m_done = false;
 };
 
