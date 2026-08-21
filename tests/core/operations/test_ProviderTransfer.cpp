@@ -7,6 +7,9 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <cstring>
+#ifndef Q_OS_WIN
+#include <sys/stat.h> // mkfifo, for the special-file test
+#endif
 
 #include "FileOperations.h"
 #include "FileProvider.h"
@@ -755,3 +758,31 @@ TEST(ProviderTransferTest, ADestinationWithTooLittleSpaceFailsEarly) {
         << "a transfer into a full destination started writing";
     EXPECT_TRUE(dst.file("/destination/big.bin").isEmpty());
 }
+
+#ifndef Q_OS_WIN
+TEST(ProviderTransferTest, SymbolicLinksAndSpecialFilesAreSkippedNotCopied) {
+    QTemporaryDir srcDir, dstDir;
+    ASSERT_TRUE(srcDir.isValid() && dstDir.isValid());
+
+    const QString real = writeFile(srcDir.path(), "real.txt", patternedPayload(1024));
+    const QString link = QDir(srcDir.path()).filePath("link.txt");
+    ASSERT_TRUE(QFile::link(real, link)); // link.txt -> real.txt
+
+    const QString fifo = QDir(srcDir.path()).filePath("pipe");
+    ASSERT_EQ(::mkfifo(fifo.toUtf8().constData(), 0644), 0);
+
+    auto *local = LocalFileProvider::instance();
+    FileOperations ops;
+    QString err;
+    ASSERT_TRUE(ops.copyAcrossProviders(local, {real, link, fifo}, local, dstDir.path(),
+                                        /*removeSource=*/false, nullptr, &err))
+        << err.toStdString();
+
+    // The regular file crossed; its content is intact.
+    EXPECT_EQ(readFile(QDir(dstDir.path()).filePath("real.txt")), patternedPayload(1024));
+    // The link was skipped, not dereferenced into a copy of its target.
+    EXPECT_FALSE(QFile::exists(QDir(dstDir.path()).filePath("link.txt")));
+    // The fifo was skipped, not fabricated into a zero-byte file.
+    EXPECT_FALSE(QFile::exists(QDir(dstDir.path()).filePath("pipe")));
+}
+#endif

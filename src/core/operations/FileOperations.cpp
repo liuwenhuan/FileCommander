@@ -1513,6 +1513,15 @@ bool FileOperations::transferEntry(FileProvider *src, const QString &srcPath, Fi
     if (m_cancelled)
         return false;
 
+    // A symbolic link has no bytes to copy, and dereferencing it would replace
+    // the link with a copy of whatever it points at (a directory link would be
+    // recursed into, a file link streamed). Cross-provider symlink creation is
+    // not supported, so skip rather than silently lose the link.
+    if (src->isSymLink(srcPath)) {
+        emit errorOccurred(tr("Skipped symbolic link %1").arg(srcPath));
+        return true; // skipped, not a failure
+    }
+
     if (src->isDir(srcPath)) {
         // Recreate the directory on the destination, then recurse its entries.
         // mkdir failing because the directory already exists (a merge into an
@@ -1529,7 +1538,11 @@ bool FileOperations::transferEntry(FileProvider *src, const QString &srcPath, Fi
         for (const FileInfo &entry : entries) {
             if (m_cancelled)
                 return false;
-            const QString childDest = joinPath(destPath, entry.name());
+            // macOS writes decomposed (NFD) names; most of the world composes
+            // (NFC). Normalise to NFC before writing so a file transferred from
+            // a Mac does not land with a subtly different name elsewhere.
+            const QString childDest = joinPath(destPath, entry.name().normalized(
+                                                           QString::NormalizationForm_C));
             // The listing above already carries each child's timestamp, so hand
             // it down rather than making the child re-list this directory to
             // rediscover it.
@@ -1548,6 +1561,14 @@ bool FileOperations::transferEntry(FileProvider *src, const QString &srcPath, Fi
         }
         emitProgress(srcPath);
         return true;
+    }
+
+    // A fifo, socket or device node is not streamable: reading one blocks (a
+    // fifo waits for a writer) or yields a bogus empty stream that would land
+    // as a zero-byte file. Skip rather than fabricate.
+    if (!src->isRegularFile(srcPath)) {
+        emit errorOccurred(tr("Skipped non-regular file %1").arg(srcPath));
+        return true; // skipped, not a failure
     }
 
     const FileResult result =
@@ -1631,7 +1652,8 @@ bool FileOperations::copyAcrossProviders(FileProvider *src, const QStringList &s
         if (m_cancelled)
             return false;
 
-        const QString destPath = joinPath(destDir, lastComponent(source));
+        const QString destPath = joinPath(
+            destDir, lastComponent(source).normalized(QString::NormalizationForm_C));
 
         if (serverMoveViable) {
             const MoveOutcome outcome = tryServerSideMove(src, source, destPath);

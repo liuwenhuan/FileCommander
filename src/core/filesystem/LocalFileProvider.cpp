@@ -37,6 +37,14 @@ bool LocalFileProvider::isDir(const QString &path) const {
     return QFileInfo(path).isDir();
 }
 
+bool LocalFileProvider::isSymLink(const QString &path) const {
+    return QFileInfo(path).isSymLink();
+}
+
+bool LocalFileProvider::isRegularFile(const QString &path) const {
+    return QFileInfo(path).isFile();
+}
+
 QString LocalFileProvider::cleanPath(const QString &path) const {
     return QDir(path).absolutePath();
 }
@@ -66,6 +74,11 @@ FileProvider::RenameResult LocalFileProvider::rename(const QString &path, const 
 }
 
 FileHandle *LocalFileProvider::openRead(const QString &path) {
+    // A fifo, socket or device node is not a regular file: QFile::open on a
+    // fifo blocks until a writer arrives, which is a hang, not a read. Refuse
+    // it up front so size probes and transfers skip it instead of stalling.
+    if (!QFileInfo(path).isFile())
+        return nullptr;
     auto *h = new LocalHandle(path);
     if (!h->file.open(QIODevice::ReadOnly)) {
         delete h;

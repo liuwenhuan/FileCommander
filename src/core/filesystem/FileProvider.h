@@ -102,6 +102,17 @@ public:
     // Whether path is (or resolves to) a directory.
     virtual bool isDir(const QString &path) const = 0;
 
+    // Whether path is a symbolic link. Default false: only backends that can
+    // actually see a link report it, and a backend that cannot must not claim
+    // it can (that would make the transfer skip real files as links).
+    virtual bool isSymLink(const QString & /*path*/) const { return false; }
+
+    // Whether path is a regular file -- i.e. streamable as bytes. A fifo,
+    // socket or device node is NOT: reading one blocks or yields a bogus empty
+    // stream, which the transfer would otherwise copy as a zero-byte file.
+    // Default true: network backends have no such entries to report.
+    virtual bool isRegularFile(const QString & /*path*/) const { return true; }
+
     // Normalised absolute form of path.
     virtual QString cleanPath(const QString &path) const = 0;
 

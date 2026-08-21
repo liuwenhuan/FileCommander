@@ -11,6 +11,8 @@ public:
 
     QVector<FileInfo> list(const QString &path, bool showHidden) const override;
     bool isDir(const QString &path) const override;
+    bool isSymLink(const QString &path) const override;
+    bool isRegularFile(const QString &path) const override;
     QString cleanPath(const QString &path) const override;
     QString parentPath(const QString &path) const override;
     bool exists(const QString &path) const override;
