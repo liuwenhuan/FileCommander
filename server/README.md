@@ -48,7 +48,8 @@ client displays that field verbatim. Authenticated calls send
 | `GET /v1/devices` | bare JSON array of `{id, name, platform, online, self, last_seen, lan_addrs}` |
 | `DELETE /v1/devices/{id}` | `204`, or `404` if the account does not own it |
 | `WS /v1/agent` | presence socket, see below |
-| `POST /v1/session` | `{session_id, ticket, expires_in, peer_lan_addrs, peer_port}` |
+| `POST /v1/session` | `{session_id, ticket, expires_in, peer_lan_addrs, peer_port, peer_pin}` |
+| `WS /v1/relay/{session_id}` | byte pipe between two devices with no direct route |
 
 Access tokens last 15 minutes, refresh tokens 90 days, and refreshing rotates
 both — a replayed refresh token is rejected. `login` re-claims a `device_id`
@@ -64,10 +65,13 @@ the upgrade, so a bad token fails as an ordinary HTTP error.
 The server sends `{"type":"welcome"}` on connect. The client then sends
 
 ```json
-{"type": "hello", "lan_addrs": ["192.168.1.7"], "port": 45001}
+{"type": "hello", "lan_addrs": ["192.168.1.7"], "port": 45001, "pin": "sha256//…"}
 ```
 
-naming the addresses and port its own file-share server listens on, and gets
+naming the addresses and port its own file-share server listens on, plus the
+pin of the self-signed certificate that share serves (curl's `--pinnedpubkey`
+form). The pin is stored and handed to a peer as `peer_pin`, so the peer can
+pin the certificate without any CA in the picture. It gets
 `{"type":"ready"}` back. A `{"type":"ping"}` every so often keeps the device
 marked online (`{"type":"pong"}` in reply); a device counts as online for 90
 seconds after its last message. Reconnecting replaces the previous socket, and
@@ -84,13 +88,14 @@ socket as
 ```
 
 and returns the same ticket to the caller along with the target's LAN
-addresses and port. The caller then talks WebDAV to the target directly, using
-the ticket as its bearer token; the target accepts it because it was handed
+addresses, port and pin. The caller then talks WebDAV over TLS to the target
+directly, pinning that certificate and using the ticket as its bearer token; the target accepts it because it was handed
 the ticket over a channel only the server can write to. There is no
 ticket-verification endpoint, and the server never sees the transfer itself.
 
-Cross-network relaying (for devices with no path between them) is not
-implemented yet.
+Devices with no direct route fall back to `WS /v1/relay/{session_id}`, which
+splices two sockets bearing the same ticket into one byte pipe. The transfer
+is TLS end-to-end, so the relay carries ciphertext it cannot read.
 
 ## Security notes
 

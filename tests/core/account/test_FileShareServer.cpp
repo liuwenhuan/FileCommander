@@ -4,6 +4,7 @@
 #include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
+#include <QProcess>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QThread>
@@ -12,6 +13,7 @@
 #include "LocalFileProvider.h"
 #include "OperationQueue.h"
 #include "account/FileShareServer.h"
+#include "account/ShareIdentity.h"
 #include "network/CurlWebDavProvider.h"
 
 // The point of this file, and of the whole "serve WebDAV" decision: the
@@ -19,6 +21,10 @@
 // FileProvider contract assertions, made against a real socket -- if the server
 // gets a verb, a status code or a PROPFIND body wrong, the provider fails the
 // same way it would against a broken third-party server, and this test says so.
+//
+// Everything here now runs over TLS, because the server only speaks TLS. The
+// pin is what makes that worth anything, so it gets tests of its own at the
+// bottom of the file.
 namespace {
 
 const char kTicket[] = "ticket-for-the-tests";
@@ -120,15 +126,17 @@ protected:
         m_server = nullptr;
     }
 
-    // Connects a provider with `password` as the ticket. Returns false when the
-    // server refused the credentials, which is what the 401 test asserts.
-    bool connectWith(const QString &password) {
+    // Connects a provider with `password` as the ticket and `pin` as the peer
+    // pin. Returns false when the server refused the credentials or the pin did
+    // not match, which is what the 401 and wrong-pin tests assert.
+    bool connectWith(const QString &password, const QString &pin = ShareIdentity::local().pin) {
         m_provider = std::make_shared<CurlWebDavProvider>();
         m_provider->setTimeoutMs(8000);
+        m_provider->setPinnedPublicKey(pin);
         QString error;
         return m_provider->connectToHost(QStringLiteral("127.0.0.1"), int(m_port),
                                          QStringLiteral("device"), password,
-                                         /*useHttps=*/false, &error);
+                                         /*useHttps=*/true, &error);
     }
 
     void connectOk() { ASSERT_TRUE(connectWith(QString::fromLatin1(kTicket))); }
@@ -521,6 +529,52 @@ TEST_F(FileShareServerTest, TheTransferQueueResumesAnInterruptedCopy) {
     // A restart from zero would report its first chunk, 64 KiB, instead.
     EXPECT_GE(firstBytesSeen, partial) << "the second attempt re-sent the prefix";
     EXPECT_EQ(readFile(landed), payload);
+}
+
+// The one that proves pinning is switched on rather than merely configured: a
+// correct ticket, a reachable server, and nothing but a substituted pin between
+// them. Without this test the whole feature could be decoration.
+TEST_F(FileShareServerTest, AWrongPinGetsNothing) {
+    const ShareIdentity::Identity other = ShareIdentity::generate();
+    ASSERT_TRUE(other.isValid());
+    ASSERT_NE(other.pin, ShareIdentity::local().pin);
+
+    EXPECT_FALSE(connectWith(QString::fromLatin1(kTicket), other.pin));
+    EXPECT_TRUE(m_provider->list(QStringLiteral("/"), true).isEmpty());
+
+    // And the right pin still works against the same server, so the failure
+    // above was the pin and not something else about this connection.
+    EXPECT_TRUE(connectWith(QString::fromLatin1(kTicket)));
+}
+
+// The pin is only a shared secret if both sides derive it the same way. curl's
+// documented recipe is the reference, so compare against it directly.
+TEST(ShareIdentityTest, ThePinMatchesTheOpenSslRecipe) {
+    const ShareIdentity::Identity identity = ShareIdentity::generate();
+    ASSERT_TRUE(identity.isValid());
+    EXPECT_TRUE(identity.pin.startsWith(QStringLiteral("sha256//")));
+    EXPECT_EQ(ShareIdentity::pinForCertificate(identity.certPem), identity.pin);
+
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString certPath = dir.path() + QStringLiteral("/cert.pem");
+    ASSERT_TRUE(writeFile(certPath, identity.certPem));
+
+    // openssl x509 -pubkey -noout | openssl pkey -pubin -outform der
+    //   | openssl dgst -sha256 -binary | base64
+    QProcess openssl;
+    openssl.start(QStringLiteral("sh"),
+                  {QStringLiteral("-c"),
+                   QStringLiteral("openssl x509 -in %1 -pubkey -noout | "
+                                  "openssl pkey -pubin -outform der | "
+                                  "openssl dgst -sha256 -binary | base64 -w0")
+                       .arg(certPath)});
+    if (!openssl.waitForFinished(15000) || openssl.exitStatus() != QProcess::NormalExit ||
+        openssl.exitCode() != 0)
+        GTEST_SKIP() << "no usable openssl CLI on this machine";
+    const QString expected =
+        QStringLiteral("sha256//") + QString::fromLatin1(openssl.readAllStandardOutput()).trimmed();
+    EXPECT_EQ(identity.pin, expected);
 }
 
 } // namespace

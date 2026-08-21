@@ -137,7 +137,7 @@ xlsx 预览；没装的话这个功能静默跳过，其余一切正常。
 # Debian / Deepin 的依赖包名
 sudo apt install qtbase5-dev qtbase5-dev-tools libqt5x11extras5-dev qttools5-dev-tools \
                  libarchive-dev libssh2-1-dev libsecret-1-dev libcurl4-openssl-dev \
-                 libsmbclient-dev libmpv-dev libpoppler-qt5-dev zlib1g-dev libxcb1-dev
+                 libssl-dev libsmbclient-dev libmpv-dev libpoppler-qt5-dev zlib1g-dev libxcb1-dev
 
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)

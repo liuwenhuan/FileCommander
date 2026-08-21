@@ -10,6 +10,7 @@
 
 #include "AccountClient.h"
 #include "NetworkSession.h"
+#include "ShareIdentity.h"
 
 namespace {
 
@@ -118,9 +119,13 @@ void DeviceAgent::sendHello() {
     QJsonArray addresses;
     for (const QString &address : localAddresses())
         addresses.append(address);
+    // The pin travels with the address and port because it is part of "how to
+    // reach this device": without it the peer has no way to tell our file
+    // share from anything else that answers on that port.
     m_socket->sendTextMessage(encode({{"type", "hello"},
                                       {"lan_addrs", addresses},
-                                      {"port", static_cast<int>(m_sharePort)}}));
+                                      {"port", static_cast<int>(m_sharePort)},
+                                      {"pin", ShareIdentity::local().pin}}));
 }
 
 void DeviceAgent::onTextMessage(const QString &text) {

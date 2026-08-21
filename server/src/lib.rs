@@ -30,6 +30,9 @@ pub struct AgentConn {
     pub tx: mpsc::UnboundedSender<String>,
     pub lan_addrs: Vec<String>,
     pub share_port: u16,
+    /// The device's TLS pin, in curl's `sha256//<base64>` form. Handed to the
+    /// peer so it can pin the self-signed certificate the file share serves.
+    pub share_pin: String,
     /// Distinguishes two connections from the same device, so a socket that
     /// closes after a newer one registered does not evict the newer one.
     pub generation: u64,

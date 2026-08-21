@@ -16,7 +16,7 @@ cmake --build build -j$(nproc)
 ./build/FileCommander
 ```
 
-Build dependencies (Debian/Deepin package names): `qtbase5-dev qtbase5-dev-tools libqt5x11extras5-dev qttools5-dev-tools libarchive-dev libssh2-1-dev libsecret-1-dev libcurl4-openssl-dev libsmbclient-dev libmpv-dev libpoppler-qt5-dev zlib1g-dev libxcb1-dev`, plus `libgtest-dev` for the test suite (source-only package; tests build it via `add_subdirectory(/usr/src/googletest ...)`).
+Build dependencies (Debian/Deepin package names): `qtbase5-dev qtbase5-dev-tools libqt5x11extras5-dev qttools5-dev-tools libarchive-dev libssh2-1-dev libsecret-1-dev libcurl4-openssl-dev libssl-dev libsmbclient-dev libmpv-dev libpoppler-qt5-dev zlib1g-dev libxcb1-dev`, plus `libgtest-dev` for the test suite (source-only package; tests build it via `add_subdirectory(/usr/src/googletest ...)`).
 
 Office document preview (docx/pptx/xlsx, and the planned WPS formats) shells out to an external CLI, `office-oxide` (a separate codework fork project, not vendored here) — resolved at runtime via `OfficeConverter::resolveBinary` from `PATH`, then `~/.local/bin`, then `~/.cargo/bin`. Without it, Office preview silently does nothing.
 

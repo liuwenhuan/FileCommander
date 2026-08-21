@@ -17,6 +17,11 @@ class QThread;
 // Only the verbs that provider actually sends are implemented: OPTIONS,
 // PROPFIND (Depth 0 and 1), GET, HEAD, PUT, MKCOL, DELETE and MOVE.
 //
+// Every connection is TLS, with the device's own self-signed certificate from
+// ShareIdentity; the peer checks it by pin rather than by CA or hostname. That
+// is what keeps the relay operator -- who sees every byte when the LAN route
+// does not work -- from reading any of them.
+//
 // Authentication is HTTP Basic, with a ticket as the password. Tickets come
 // from the account server over DeviceAgent's socket, so a request can be judged
 // here without a round trip. No ticket means 401, always: a machine that merely

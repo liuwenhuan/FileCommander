@@ -76,6 +76,8 @@ if(FILECOMMANDER_ENABLE_NETWORK)
         account/DeviceAgent.cpp
         account/FileShareServer.h
         account/FileShareServer.cpp
+        account/ShareIdentity.h
+        account/ShareIdentity.cpp
         account/RelayTunnel.h
         account/RelayTunnel.cpp
     )
@@ -151,6 +153,13 @@ if(FILECOMMANDER_ENABLE_NETWORK)
         pkg_check_modules(LIBSSH2 REQUIRED IMPORTED_TARGET libssh2)
         pkg_check_modules(CURL REQUIRED IMPORTED_TARGET libcurl)
     endif()
+    # ShareIdentity.cpp only: Qt5 cannot generate a keypair, so the device's
+    # self-signed share certificate is made with the OpenSSL C API. Left
+    # unconditional because the surrounding WIN32/else split is about *how* a
+    # package is found (vcpkg config vs pkg-config), not about skipping one --
+    # and libssh2 drags OpenSSL onto Windows anyway. A port that drops it
+    # rewrites that one file and guards these two lines together.
+    find_package(OpenSSL REQUIRED)
 endif()
 
 if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
@@ -189,6 +198,8 @@ endif()
 
 if(FILECOMMANDER_ENABLE_NETWORK)
     target_link_libraries(core PUBLIC Qt5::WebSockets)
+    # Crypto only: the TLS itself is Qt's and curl's, we just make the key.
+    target_link_libraries(core PUBLIC OpenSSL::Crypto)
     if(WIN32)
         target_link_libraries(core PUBLIC libssh2::libssh2 CURL::libcurl ws2_32 Mpr Netapi32)
     else()

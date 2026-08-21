@@ -14,6 +14,7 @@
 #include "account/AccountClient.h"
 #include "account/DeviceAgent.h"
 #include "account/FileShareServer.h"
+#include "account/ShareIdentity.h"
 #include "account/RelayTunnel.h"
 #include "filesystem/ComputerCatalog.h"
 #include "network/CurlWebDavProvider.h"
@@ -218,16 +219,17 @@ protected:
     // peer has (a router's among them, on a machine with a second interface),
     // and it answers before the ticket it pushed has reached the peer.
     std::shared_ptr<CurlWebDavProvider> dialAny(const QStringList &hosts, int port,
-                                                const QString &ticket) {
+                                                const QString &ticket, const QString &pin) {
         auto provider = std::make_shared<CurlWebDavProvider>();
         provider->setTimeoutMs(30000);
+        provider->setPinnedPublicKey(pin);
         QString error;
         for (int attempt = 0; attempt < 3; ++attempt) {
             if (attempt > 0)
                 spin(500);
             for (const QString &host : hosts) {
                 if (provider->connectToHost(host, port, QStringLiteral("device"), ticket,
-                                            /*useHttps=*/false, &error))
+                                            /*useHttps=*/true, &error))
                     return provider;
             }
         }
@@ -236,12 +238,13 @@ protected:
     }
 
     std::shared_ptr<CurlWebDavProvider> dial(const QString &host, int port,
-                                             const QString &ticket) {
+                                             const QString &ticket, const QString &pin) {
         auto provider = std::make_shared<CurlWebDavProvider>();
         provider->setTimeoutMs(30000);
+        provider->setPinnedPublicKey(pin);
         QString error;
         if (!provider->connectToHost(host, port, QStringLiteral("device"), ticket,
-                                     /*useHttps=*/false, &error)) {
+                                     /*useHttps=*/true, &error)) {
             ADD_FAILURE() << "connect to " << host.toStdString() << ':' << port << ": "
                           << error.toStdString();
             return nullptr;
@@ -276,6 +279,10 @@ TEST_F(LiveAccountServerTest, ThePeerShowsAsOnlineWithAddressesToDial) {
     ASSERT_FALSE(session.sessionId.isEmpty());
     EXPECT_FALSE(session.ticket.isEmpty());
     EXPECT_EQ(session.peerPort, m_sharePort);
+    // Both "devices" are this machine, so the pin the server handed back is the
+    // one this install serves -- which also proves it survived the round trip
+    // through hello, the database and open_session.
+    EXPECT_EQ(session.peerPin, ShareIdentity::local().pin);
     EXPECT_FALSE(session.peerLanAddresses.isEmpty());
 }
 
@@ -287,7 +294,8 @@ TEST_F(LiveAccountServerTest, AFileTravelsOverTheLanAddressTheServerHandedOut) {
 
     // Both devices are this machine, so one of the addresses the server reports
     // is reachable; that is exactly what a same-LAN pair sees.
-    m_provider = dialAny(session.peerLanAddresses, session.peerPort, session.ticket);
+    m_provider = dialAny(session.peerLanAddresses, session.peerPort, session.ticket,
+                         session.peerPin);
     ASSERT_NE(m_provider, nullptr);
     expectRoundTrip(blob(256 * 1024, 3), QStringLiteral("over-lan.bin"));
 }
@@ -305,7 +313,7 @@ TEST_F(LiveAccountServerTest, AFileTravelsOverTheRelayWhenTheLanIsNotUsed) {
     // a round trip through the server; dialling before that would race it.
     spin(3000);
 
-    m_provider = dial(QStringLiteral("127.0.0.1"), local, session.ticket);
+    m_provider = dial(QStringLiteral("127.0.0.1"), local, session.ticket, session.peerPin);
     ASSERT_NE(m_provider, nullptr);
     expectRoundTrip(blob(256 * 1024, 9), QStringLiteral("over-relay.bin"));
 }
@@ -319,7 +327,8 @@ TEST_F(LiveAccountServerTest, AFileSentToADeviceLandsInItsReceivedFilesFolder) {
     ASSERT_FALSE(session.ticket.isEmpty());
     ASSERT_FALSE(session.peerLanAddresses.isEmpty());
 
-    m_provider = dialAny(session.peerLanAddresses, session.peerPort, session.ticket);
+    m_provider = dialAny(session.peerLanAddresses, session.peerPort, session.ticket,
+                         session.peerPin);
     ASSERT_NE(m_provider, nullptr);
 
     const QString share = QFileInfo(ComputerCatalog::receivedFilesPath()).fileName();
