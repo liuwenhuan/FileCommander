@@ -80,6 +80,8 @@ if(FILECOMMANDER_ENABLE_NETWORK)
         account/ShareIdentity.cpp
         account/RelayTunnel.h
         account/RelayTunnel.cpp
+        account/PendingTransferStore.h
+        account/PendingTransferStore.cpp
     )
 endif()
 

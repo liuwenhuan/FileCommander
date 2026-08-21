@@ -30,6 +30,7 @@ class QTemporaryDir;
 #include "StartupTrace.h"
 #include "Settings.h"
 #include "account/AccountClient.h" // AccountDeviceInfo (stored by value)
+#include "account/PendingTransferStore.h"
 #include "filesystem/ComputerCatalog.h" // ComputerEntry (passed by value)
 #include "network/ConnectionStore.h" // SavedConnection (session reconnect)
 #include "update/UpdateChecker.h" // UpdateInfo (stored by value)
@@ -647,6 +648,7 @@ private:
     DeviceLink deviceLink(const AccountSession &session);
 
     AccountClient *m_accountClient = nullptr;
+    PendingTransferStore m_pendingTransfers;
     // Last device list the server sent. A cache, because the "Send to Device"
     // submenu has to be populated the instant the menu opens; opening it also
     // asks for a fresh list, for the next time.

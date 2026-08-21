@@ -4570,6 +4570,13 @@ void MainWindow::ensureAccountClient() {
         // invisible until the user navigates away and back.
         refreshComputerViews();
         m_accountClient->fetchDevices(); // for the context menu, before it opens
+        // Offer to resume transfers a previous launch left unfinished. Re-sending
+        // the same files to the same device picks up the partial automatically.
+        const QVector<PendingSend> pending = m_pendingTransfers.entries();
+        if (!pending.isEmpty())
+            ttc::notify(tr("FileCommander Account"),
+                        tr("%1 unfinished transfer(s). Send the same files to the same "
+                           "device to resume.").arg(pending.size()));
     });
     connect(m_accountClient, &AccountClient::loggedOut, this, [this] {
         m_accountDevices.clear();
@@ -4831,7 +4838,10 @@ void MainWindow::sendToDevice(const QString &deviceId, const QString &name,
     std::shared_ptr<FileProvider> srcProv = providerOwningPath(sources.first());
     if (!srcProv)
         return;
-    withDeviceSession(deviceId, [this, name, sources, srcProv](const AccountSession &session) {
+    // Record the send so a crash or dropped link leaves a resumable trail; the
+    // record is removed when the transfer is reported done.
+    m_pendingTransfers.add(deviceId, name, sources);
+    withDeviceSession(deviceId, [this, deviceId, name, sources, srcProv](const AccountSession &session) {
         DeviceLink link = deviceLink(session);
         if (!link.provider) {
             ttc::critical(this, tr("Connection Failed"),
@@ -4852,7 +4862,7 @@ void MainWindow::sendToDevice(const QString &deviceId, const QString &name,
         auto connectError = std::make_shared<QString>();
         auto *watcher = new QFutureWatcher<bool>(this);
         connect(watcher, &QFutureWatcher<bool>::finished, this,
-                [this, watcher, dialog, link, srcProv, sources, name, connectError] {
+                [this, watcher, dialog, link, srcProv, sources, name, connectError, deviceId] {
                     watcher->deleteLater();
                     if (!watcher->result()) {
                         dialog->dismissAfterAbort();
@@ -4869,6 +4879,17 @@ void MainWindow::sendToDevice(const QString &deviceId, const QString &name,
                     const QString destDir =
                         QLatin1Char('/') +
                         QFileInfo(ComputerCatalog::receivedFilesPath()).fileName();
+                    // One-shot: when this send's job finishes, drop the pending
+                    // record on success (a failure keeps it for the next launch
+                    // to offer again).
+                    auto *guard = new QMetaObject::Connection;
+                    *guard = connect(m_queue, &OperationQueue::finished, this,
+                                     [this, guard, deviceId, sources](bool ok) {
+                                         disconnect(*guard);
+                                         delete guard;
+                                         if (ok)
+                                             m_pendingTransfers.remove(deviceId, sources);
+                                     });
                     m_queue->enqueueProviderCopy(srcProv, sources, link.provider, destDir);
                 });
         auto connectFn = link.connect;

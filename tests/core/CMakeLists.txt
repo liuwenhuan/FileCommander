@@ -47,6 +47,7 @@ if(FILECOMMANDER_ENABLE_NETWORK)
         account/test_AccountClient.cpp
         account/test_AccountSignOut.cpp
         account/test_DeviceAgent.cpp
+        account/test_PendingTransferStore.cpp
         account/test_FileShareServer.cpp
         account/test_RelayTunnel.cpp
         account/test_LiveAccountServer.cpp
