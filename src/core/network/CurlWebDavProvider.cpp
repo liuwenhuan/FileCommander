@@ -62,6 +62,9 @@ struct WebDavTransferState {
     CURLcode curlCode = CURLE_OK;
     long httpCode = 0;
     char errorBuffer[CURL_ERROR_SIZE] = {};
+    // Bytes curl has actually handed to the socket (its own upload progress),
+    // so the UI can show delivered bytes rather than bytes in the pipe.
+    curl_off_t uploadedBytes = 0;
 };
 
 size_t downloadWriteCallback(char *ptr, size_t size, size_t nmemb, void *userdata) {
@@ -94,9 +97,10 @@ size_t uploadReadCallback(char *ptr, size_t size, size_t nmemb, void *userdata) 
     return static_cast<size_t>(n);
 }
 
-int progressCallback(void *userdata, curl_off_t, curl_off_t, curl_off_t, curl_off_t) {
+int progressCallback(void *userdata, curl_off_t, curl_off_t, curl_off_t, curl_off_t ulnow) {
     auto *state = static_cast<WebDavTransferState *>(userdata);
     QMutexLocker locker(&state->mutex);
+    state->uploadedBytes = ulnow;
     return state->aborted ? 1 : 0;
 }
 
@@ -159,6 +163,11 @@ struct WebDavHandle : public FileHandle {
     curl_slist *requestHeaders = nullptr;
     std::thread worker;
     std::shared_ptr<WebDavTransferState> state = std::make_shared<WebDavTransferState>();
+
+    qint64 bytesSent() const override {
+        QMutexLocker locker(&state->mutex);
+        return static_cast<qint64>(state->uploadedBytes);
+    }
 
     StreamError streamError() const override {
         QMutexLocker locker(&state->mutex);

@@ -23,6 +23,13 @@ public:
     virtual ~FileHandle() = default;
     virtual StreamError streamError() const { return StreamError::None; }
     virtual QString streamErrorDetail() const { return {}; }
+
+    // Bytes the backend has actually pushed toward the peer so far, as opposed
+    // to bytes it has merely accepted into a local buffer. -1 when it cannot
+    // say; callers then fall back to counting their own writes. Network
+    // backends that buffer (WebDAV's curl pipe) report this from their transfer
+    // engine's own progress, so the UI tracks the wire rather than the buffer.
+    virtual qint64 bytesSent() const { return -1; }
 };
 
 struct CloseHandleResult {

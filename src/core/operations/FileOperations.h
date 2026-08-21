@@ -152,7 +152,7 @@ private:
     // when `target` already exists, and carries the source's permissions over.
     bool copyFileChunked(const QString &source, const QString &target, qint64 *nativeCode);
 #endif
-    void emitProgress(const QString &currentFile);
+    void emitProgress(const QString &currentFile, qint64 displayDoneBytes = -1);
     void waitIfPaused(); // blocks the worker while paused, until resume/cancel
     void paceTransfer(); // throttles the last chunk to m_rateLimitBps (no-op at 0)
     // Returns true if the caller should treat the failed entry as handled

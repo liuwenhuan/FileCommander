@@ -183,8 +183,10 @@ qint64 FileOperations::countBytes(const QStringList &paths) {
     return total;
 }
 
-void FileOperations::emitProgress(const QString &currentFile) {
-    emit progress(m_doneItems, m_totalItems, m_doneBytes, m_totalBytes, currentFile);
+void FileOperations::emitProgress(const QString &currentFile, qint64 displayDoneBytes) {
+    emit progress(m_doneItems, m_totalItems,
+                  displayDoneBytes >= 0 ? displayDoneBytes : m_doneBytes, m_totalBytes,
+                  currentFile);
 }
 
 ErrorAction FileOperations::resolveError(const OperationError &error) {
@@ -1312,6 +1314,10 @@ bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileP
     char buffer[64 * 1024];
     m_rateClock.start();
     m_rateBytes = 0;
+    // Bytes already counted before this file's loop (includes the resume offset,
+    // if any). The progress shown is this plus the backend's actual send count,
+    // so a buffered upload does not race ahead of what the peer has received.
+    const qint64 progressBase = m_doneBytes;
     while (ok) {
         // Pause/cancel are honoured mid-file (not just per file) so a large
         // remote transfer can be interrupted promptly.
@@ -1362,7 +1368,8 @@ bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileP
         if (remainingBytes > 0)
             remainingBytes -= got;
         m_doneBytes += got;
-        emitProgress(srcPath);
+        const qint64 sent = out->bytesSent();
+        emitProgress(srcPath, sent >= 0 ? progressBase + sent : -1);
         m_rateBytes += got;
         paceTransfer();
     }
