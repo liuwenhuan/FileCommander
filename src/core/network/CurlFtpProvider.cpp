@@ -48,9 +48,12 @@ struct FtpTransferState {
     bool curlFinished = false; // curl_easy_perform() thread has returned
     bool noMoreInput = false;  // write mode: caller signalled EOF (no more write() calls)
     bool aborted = false;      // caller wants to stop the transfer early
+    bool paused = false;       // user pause: the transfer engine stops, not just the feeder
     CURLcode curlCode = CURLE_OK;
     long responseCode = 0;
     char errorBuffer[CURL_ERROR_SIZE] = {};
+    curl_off_t uploadedBytes = 0; // curl's own upload progress, for bytesSent()
+    curl_socket_t socketFd = CURL_SOCKET_BAD; // so cancel() can shut a blocked transfer down
 };
 
 // WRITEFUNCTION for a download: append incoming bytes to the pipe, blocking
@@ -74,7 +77,7 @@ size_t uploadReadCallback(char *ptr, size_t size, size_t nmemb, void *userdata) 
     auto *state = static_cast<FtpTransferState *>(userdata);
     const size_t want = size * nmemb;
     QMutexLocker locker(&state->mutex);
-    while (state->buffer.isEmpty() && !state->noMoreInput && !state->aborted)
+    while ((state->buffer.isEmpty() || state->paused) && !state->noMoreInput && !state->aborted)
         state->cond.wait(&state->mutex);
     if (state->aborted)
         return CURL_READFUNC_ABORT;
@@ -88,11 +91,35 @@ size_t uploadReadCallback(char *ptr, size_t size, size_t nmemb, void *userdata) 
 }
 
 // XFERINFOFUNCTION: lets closeHandle() abort an in-flight transfer promptly
-// instead of leaving curl to keep transferring data nobody will read.
-int progressCallback(void *userdata, curl_off_t, curl_off_t, curl_off_t, curl_off_t) {
+// instead of leaving curl to keep transferring data nobody will read, and
+// records the raw upload progress for bytesSent().
+int progressCallback(void *userdata, curl_off_t, curl_off_t, curl_off_t, curl_off_t ulnow) {
     auto *state = static_cast<FtpTransferState *>(userdata);
     QMutexLocker locker(&state->mutex);
+    state->uploadedBytes = ulnow;
     return state->aborted ? 1 : 0;
+}
+
+// Remembers the socket curl opens, so cancel() can shut it down out from under
+// a blocked send/recv instead of waiting for the progress callback.
+curl_socket_t opensocketCallback(void *clientp, curlsocktype, struct curl_sockaddr *address) {
+    auto *state = static_cast<FtpTransferState *>(clientp);
+    const curl_socket_t fd = socket(address->family, address->socktype, address->protocol);
+    if (fd != CURL_SOCKET_BAD) {
+        QMutexLocker locker(&state->mutex);
+        state->socketFd = fd;
+    }
+    return fd;
+}
+
+// Makes the socket error out immediately; shutdown rather than close, so the fd
+// is not reclaimed and there is no close/reuse race while curl is still in it.
+void shutdownSocket(curl_socket_t fd) {
+#ifdef Q_OS_WIN
+    ::shutdown(fd, SD_BOTH);
+#else
+    ::shutdown(fd, SHUT_RDWR);
+#endif
 }
 
 QString ftpUrl(const QString &host, int port, const QString &path, bool isDirectory) {
@@ -157,6 +184,28 @@ struct FtpHandle : public FileHandle {
         return {};
     }
 
+    qint64 bytesSent() const override {
+        QMutexLocker locker(&state->mutex);
+        return static_cast<qint64>(state->uploadedBytes);
+    }
+
+    // Stop a transfer from the outside (the GUI thread's cancel) instead of
+    // waiting for the worker to notice at its next checkpoint.
+    void cancel() override {
+        QMutexLocker locker(&state->mutex);
+        state->aborted = true;
+        state->noMoreInput = true;
+        state->cond.wakeAll();
+        if (state->socketFd != CURL_SOCKET_BAD)
+            shutdownSocket(state->socketFd);
+    }
+
+    void setPaused(bool paused) override {
+        QMutexLocker locker(&state->mutex);
+        state->paused = paused;
+        state->cond.wakeAll();
+    }
+
     ~FtpHandle() override {
         if (worker.joinable()) {
             {
@@ -164,6 +213,8 @@ struct FtpHandle : public FileHandle {
                 state->aborted = true;
                 state->noMoreInput = true;
                 state->cond.wakeAll();
+                if (state->socketFd != CURL_SOCKET_BAD)
+                    shutdownSocket(state->socketFd);
             }
             worker.join();
         }
@@ -208,6 +259,8 @@ void startFtpTransfer(FtpHandle *h) {
     curl_easy_setopt(h->curl, CURLOPT_NOPROGRESS, 0L);
     curl_easy_setopt(h->curl, CURLOPT_XFERINFOFUNCTION, progressCallback);
     curl_easy_setopt(h->curl, CURLOPT_XFERINFODATA, state.get());
+    curl_easy_setopt(h->curl, CURLOPT_OPENSOCKETFUNCTION, opensocketCallback);
+    curl_easy_setopt(h->curl, CURLOPT_OPENSOCKETDATA, state.get());
 
     if (h->mode == FtpHandle::Mode::Read) {
         curl_easy_setopt(h->curl, CURLOPT_WRITEFUNCTION, downloadWriteCallback);
@@ -761,11 +814,11 @@ qint64 CurlFtpProvider::write(FileHandle *handle, const char *buffer, qint64 siz
 
     auto &state = *h->state;
     QMutexLocker locker(&state.mutex);
-    if (state.curlFinished)
+    if (state.curlFinished || state.aborted)
         return -1;
-    while (state.buffer.size() >= kPipeCapacity && !state.curlFinished)
+    while (state.buffer.size() >= kPipeCapacity && !state.curlFinished && !state.aborted)
         state.cond.wait(&state.mutex);
-    if (state.curlFinished)
+    if (state.curlFinished || state.aborted)
         return -1;
     state.buffer.append(buffer, static_cast<int>(size));
     state.cond.wakeAll();
