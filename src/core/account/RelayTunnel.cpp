@@ -48,7 +48,10 @@ public:
             pumpToTcp();
         });
         connect(ws, &QWebSocket::connected, this, [this] { pumpToWebSocket(); });
-        connect(ws, &QWebSocket::bytesWritten, this, [this](qint64) { pumpToWebSocket(); });
+        connect(ws, &QWebSocket::bytesWritten, this, [this](qint64 n) {
+            m_pendingWs -= n;
+            pumpToWebSocket();
+        });
         connect(ws, &QWebSocket::disconnected, this, &Pipe::finish);
         // String-based, because the typed overload of error() is deprecated in
         // favour of a signal that does not exist in older Qt 5.
@@ -96,14 +99,22 @@ private:
         }
         if (!m_toWs.isEmpty()) {
             m_ws->sendBinaryMessage(m_toWs);
+            m_pendingWs += m_toWs.size();
             m_toWs.clear();
         }
-        while (m_ws->bytesToWrite() < kHighWaterBytes && m_tcp->bytesAvailable() > 0) {
+        // Back-pressure on the relay socket. m_pendingWs is the number of bytes
+        // queued to the WebSocket but not yet flushed to the wire (bytesWritten
+        // decrements it). bytesToWrite() is not used because QWebSocket may have
+        // already handed the bytes to its underlying socket, whose own write
+        // buffer is unbounded -- so it never looked "backed up" and the whole
+        // file buffered in RAM while the progress raced to 99%.
+        while (m_pendingWs < kHighWaterBytes && m_tcp->bytesAvailable() > 0) {
             const qint64 n = qMin<qint64>(m_tcp->bytesAvailable(), kChunkBytes);
             const QByteArray bytes = m_tcp->read(n);
             if (bytes.isEmpty())
                 break;
             m_ws->sendBinaryMessage(bytes);
+            m_pendingWs += bytes.size();
         }
     }
 
@@ -127,6 +138,7 @@ private:
     QWebSocket *m_ws;
     QTcpSocket *m_tcp;
     QByteArray m_toWs;                  // bytes waiting for the relay socket to come up
+    qint64 m_pendingWs = 0;             // bytes queued to the relay socket, not yet flushed
     QList<QByteArray> m_pendingToTcp;   // frames waiting for room in the local socket
     bool m_done = false;
 };
