@@ -299,6 +299,17 @@ TEST(SettingsTest, MenuFontSizeClampsToRange) {
     EXPECT_EQ(settings.menuFontSize(), 16);
 }
 
+TEST(SettingsTest, NotifyOnReceivedDefaultsOnAndRoundTrips) {
+    IsolatedConfigDir isolated;
+    ASSERT_TRUE(isolated.isValid());
+    Settings settings;
+    // An arrival that leaves no trace except a new file is easy to miss, so the
+    // notice is on unless the user turns it off.
+    EXPECT_TRUE(settings.notifyOnReceived());
+    settings.setNotifyOnReceived(false);
+    EXPECT_FALSE(settings.notifyOnReceived());
+}
+
 TEST(SettingsTest, RemovesLegacyReduceMotionPreference) {
     QTemporaryDir temporaryDir;
     ASSERT_TRUE(temporaryDir.isValid());

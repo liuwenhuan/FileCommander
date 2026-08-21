@@ -174,6 +174,7 @@ signals:
     void listening(quint16 port);
     void failed(const QString &error);
     void closed();
+    void received(const QString &fileName);
 
 private:
     void onNewConnection();
@@ -340,6 +341,7 @@ private:
             }
             m_uploadLockedPath = local; // held until finishBody() or destruction
             m_uploadExisted = have > 0;
+            m_uploadPath = local;
             m_phase = Phase::Body;
             return true;
         }
@@ -436,6 +438,9 @@ private:
                 m_worker->unlockUpload(m_uploadLockedPath);
                 m_uploadLockedPath.clear();
             }
+            if (ok && !m_uploadPath.isEmpty())
+                m_worker->received(m_uploadPath);
+            m_uploadPath.clear();
             respond(ok ? (m_uploadExisted ? 204 : 201) : 500);
             return;
         }
@@ -733,6 +738,7 @@ private:
     QByteArray m_bodyBuffer;
 
     QFile *m_upload = nullptr;
+    QString m_uploadPath;   // the local path m_upload is writing, for received()
     bool m_uploadExisted = false;
     QString m_uploadLockedPath; // canonical path locked for the duration of a PUT
     QFile *m_download = nullptr;
@@ -867,6 +873,7 @@ FileShareServer::FileShareServer(AccountClient *client, QObject *parent)
     connect(m_worker, SIGNAL(listening(quint16)), this, SIGNAL(started(quint16)));
     connect(m_worker, SIGNAL(failed(QString)), this, SIGNAL(failed(QString)));
     connect(m_worker, SIGNAL(closed()), this, SIGNAL(stopped()));
+    connect(m_worker, SIGNAL(received(QString)), this, SIGNAL(received(QString)));
     connect(m_worker, SIGNAL(listening(quint16)), this, SLOT(rememberPort(quint16)));
     connect(m_worker, SIGNAL(closed()), this, SLOT(forgetPort()));
     m_thread->start();

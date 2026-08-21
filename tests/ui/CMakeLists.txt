@@ -79,6 +79,7 @@ set(UI_TEST_SOURCES
     test_NotepadPanel.cpp
     test_ExternalConnectDialog.cpp
     test_AccountDialog.cpp
+    test_PendingSendQueue.cpp
     test_ShortcutsDialog.cpp
     test_StandardButtonLocalization.cpp
     test_TranslationCatalogs.cpp

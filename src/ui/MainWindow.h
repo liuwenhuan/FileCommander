@@ -60,6 +60,7 @@ class AccountClient;
 class DeviceAgent;
 class FileShareServer;
 class RelayTunnel;
+class PendingSendQueue;
 struct AccountSession;
 class SmbHostBrowser;
 class NotepadPanel;
@@ -655,6 +656,9 @@ private:
     // share server will accept.
     DeviceAgent *m_deviceAgent = nullptr;
     FileShareServer *m_shareServer = nullptr;
+    // Sends queued while the target device was offline, drained when it next
+    // shows as online. Session-only, see PendingSendQueue.
+    PendingSendQueue *m_pendingSends = nullptr;
     // Relay sockets parked for peers that asked to connect, by session id.
     QHash<QString, RelayTunnel *> m_incomingTunnels;
     UpdateInfo m_pendingUpdate;                        // valid when m_hasUpdate
