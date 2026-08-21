@@ -17,6 +17,8 @@ QString kindTag(ComputerEntry::Kind kind) {
         return QStringLiteral("server");
     case ComputerEntry::Kind::NetworkHost:
         return QStringLiteral("host");
+    case ComputerEntry::Kind::AccountDevice:
+        return QStringLiteral("accountdevice");
     }
     return QStringLiteral("entry");
 }
@@ -34,10 +36,12 @@ int sortGroup(ComputerEntry::Kind kind) {
         return 2;
     case ComputerEntry::Kind::SavedServer:
         return 3;
-    case ComputerEntry::Kind::NetworkHost:
+    case ComputerEntry::Kind::AccountDevice:
         return 4;
+    case ComputerEntry::Kind::NetworkHost:
+        return 5;
     }
-    return 5;
+    return 6;
 }
 
 // Same 1024-based, one-decimal form the file listing uses, so a drive's numbers
@@ -66,6 +70,8 @@ QString typeLabel(ComputerEntry::Kind kind) {
     case ComputerEntry::Kind::SavedServer:
     case ComputerEntry::Kind::NetworkHost:
         return QObject::tr("Server");
+    case ComputerEntry::Kind::AccountDevice:
+        return QObject::tr("Device");
     }
     return QObject::tr("Folder");
 }
@@ -195,4 +201,10 @@ int ComputerProvider::entrySortGroup(const QString &path) const {
     QMutexLocker locker(&m_mutex);
     auto it = m_byPath.constFind(path);
     return it == m_byPath.constEnd() ? 0 : sortGroup(it->kind);
+}
+
+bool ComputerProvider::entryEnabled(const QString &path) const {
+    QMutexLocker locker(&m_mutex);
+    auto it = m_byPath.constFind(path);
+    return it == m_byPath.constEnd() ? true : it->online;
 }

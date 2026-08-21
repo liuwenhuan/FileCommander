@@ -52,6 +52,7 @@ public:
     QString entryIconPath(const QString &path) const override;
     QString entrySystemIconPath(const QString &path) const override;
     int entrySortGroup(const QString &path) const override;
+    bool entryEnabled(const QString &path) const override;
 
 private:
     // Synthetic path identifying one row, e.g. "computer://server/<uuid>".

@@ -2365,6 +2365,24 @@ QVector<ComputerEntry> MainWindow::computerEntries() {
     entries += ComputerCatalog::userFolders();
     entries += removable;
     entries += ComputerCatalog::savedServers();
+#if FILECOMMANDER_HAS_NETWORK
+    // The account's other devices, alongside the saved servers: a peer is the
+    // same kind of "place elsewhere" and belongs in this view, not just the
+    // connect fly-out. Offline devices are listed too (greyed and unselectable,
+    // see FileSystemModel::flags), so the section reads as "my devices" even
+    // when nothing is reachable.
+    for (const AccountDeviceInfo &device : qAsConst(m_accountDevices)) {
+        if (device.self)
+            continue;
+        ComputerEntry entry;
+        entry.kind = ComputerEntry::Kind::AccountDevice;
+        entry.name = device.name.isEmpty() ? device.id : device.name;
+        entry.target = device.id;
+        entry.iconPath = QStringLiteral(":/icons/computer.svg");
+        entry.online = device.online;
+        entries.append(entry);
+    }
+#endif
     // Discovered SMB hosts are deliberately NOT listed here. Filling this view
     // would mean running a network scan every time it opens, for results that
     // are a browse of the neighbourhood rather than a place on this machine;
@@ -2460,6 +2478,13 @@ void MainWindow::openComputerEntry(FilePanel *panel, const ComputerEntry &entry)
     }
     case ComputerEntry::Kind::NetworkHost:
         browseSmbHost(entry.target);
+        break;
+    case ComputerEntry::Kind::AccountDevice:
+        // Offline rows are already unselectable in the view; this is the
+        // backstop for a stray activation. Online: open the peer's shared
+        // folders as a tab.
+        if (entry.online)
+            openAccountDevice(entry.target, entry.name);
         break;
     }
 }
@@ -4547,9 +4572,16 @@ void MainWindow::ensureAccountClient() {
     connect(m_accountClient, &AccountClient::loggedOut, this, [this] {
         m_accountDevices.clear();
         updateDeviceSharing();
+        // The device rows disappear with the account.
+        refreshComputerViews();
     });
     connect(m_accountClient, &AccountClient::devicesReady, this,
-            [this](const QVector<AccountDeviceInfo> &devices) { m_accountDevices = devices; });
+            [this](const QVector<AccountDeviceInfo> &devices) {
+                m_accountDevices = devices;
+                // A device that just came online (or went offline) changes which
+                // computer-view rows are activatable, so re-list any open view.
+                refreshComputerViews();
+            });
     // Sign back in from the keyring token rather than asking again. Async,
     // and a failure just leaves the dialog on its sign-in page.
     if (!m_settings.accountEmail().isEmpty() && !m_settings.accountDeviceId().isEmpty())

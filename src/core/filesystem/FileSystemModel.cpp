@@ -826,6 +826,13 @@ Qt::ItemFlags FileSystemModel::flags(const QModelIndex &index) const {
         f |= Qt::ItemIsDragEnabled;
         return f;
     }
+    // An offline account device is listed but greyed and unselectable.
+    // Withholding ItemIsEnabled makes the delegate draw it in the disabled
+    // palette and stops the view from activating it, so a click on an offline
+    // peer is a visible no-op rather than a row that silently ignores the user.
+    if (m_virtualListing && !isParentEntry(index.row()) &&
+        !m_provider->entryEnabled(fileInfoAt(index.row()).path()))
+        return f & ~(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsDragEnabled);
     // Inline rename is offered on the Name cell of any real entry (never
     // ".."), and on the Ext cell of real files (directories have no
     // extension to edit). Views must still call edit() explicitly (see

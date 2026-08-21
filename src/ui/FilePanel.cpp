@@ -1797,7 +1797,9 @@ void FilePanel::onActivated(const QModelIndex &index) {
     // connection, and calls leaveComputerView() before it navigates.
     if (m_computerProvider) {
         const ComputerEntry entry = m_computerProvider->entryFor(info.path());
-        if (!entry.target.isEmpty())
+        // An offline account device is listed but not activatable; the model
+        // already greys it, and this is the backstop for a stray activation.
+        if (!entry.target.isEmpty() && entry.online)
             emit computerEntryActivated(this, entry);
         return;
     }
