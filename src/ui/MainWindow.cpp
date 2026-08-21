@@ -4785,10 +4785,19 @@ MainWindow::DeviceLink MainWindow::deviceLink(const AccountSession &session) {
         // before the share server has been taught the ticket -- which is a 401,
         // not an unreachable host. Give that push time to land rather than
         // telling the user the device cannot be reached.
+        //
+        // LAN probes fail fast: a peer on the same LAN answers a connect in
+        // milliseconds, and one that is not is not worth the full 12s internet
+        // timeout each. Two devices on different networks used to burn 12s on
+        // every LAN address before the relay was even tried, which is what made
+        // opening a device take so long. Only the relay (127.0.0.1) keeps the
+        // long timeout, because its bytes actually cross the internet.
         for (int attempt = 0; attempt < 3; ++attempt) {
             if (attempt > 0)
                 QThread::msleep(500);
             for (const QPair<QString, quint16> &target : targets) {
+                const bool relay = target.first == QLatin1String("127.0.0.1");
+                provider->setTimeoutMs(relay ? 12000 : 2000);
                 if (provider->connectToHost(target.first, target.second, QStringLiteral("device"),
                                             ticket, /*useHttps=*/true, error))
                     return true;
