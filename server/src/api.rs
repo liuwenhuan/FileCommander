@@ -394,9 +394,13 @@ pub async fn devices(
     let rows = state
         .db
         .call(move |conn| {
+            // `created` is only accurate to the second, so two devices signed
+            // in from the same machine land on the same value and the tiebreak
+            // decides the order the user sees. It has to be rowid, not id: id
+            // is random hex, which would shuffle the list on every call.
             let mut stmt = match conn.prepare(
                 "SELECT id, name, platform, last_seen, lan_addrs FROM devices \
-                 WHERE user_id = ?1 ORDER BY created, id",
+                 WHERE user_id = ?1 ORDER BY created, rowid",
             ) {
                 Ok(stmt) => stmt,
                 Err(_) => return Vec::new(),
