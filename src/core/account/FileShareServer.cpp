@@ -255,7 +255,18 @@ public:
         m_socket->setSocketOption(QAbstractSocket::LowDelayOption, 1);
         connect(m_socket, &QTcpSocket::readyRead, this, &ShareConnection::onReadyRead);
         connect(m_socket, &QTcpSocket::bytesWritten, this, [this] { pump(); });
-        connect(m_socket, &QTcpSocket::disconnected, m_socket, &QObject::deleteLater);
+        connect(m_socket, &QTcpSocket::disconnected, this, [this] {
+            // Release the path lock the moment the connection is gone. The
+            // destructor is the backstop, but it runs an event-loop turn later
+            // (after deleteLater), which is long enough for a peer that cancels
+            // and immediately re-sends to hit 423 on a lock the dead connection
+            // still holds.
+            if (!m_uploadLockedPath.isEmpty()) {
+                m_worker->unlockUpload(m_uploadLockedPath);
+                m_uploadLockedPath.clear();
+            }
+            m_socket->deleteLater();
+        });
     }
 
     ~ShareConnection() override {
@@ -397,6 +408,7 @@ private:
             // Bound one upload so a hostile peer cannot fill the disk.
             if (m_bodyRemaining > 0 && at + m_bodyRemaining > m_worker->maxUploadBytes()) {
                 m_keepAlive = false;
+                m_worker->unlockUpload(target);
                 respond(413);
                 return false;
             }
