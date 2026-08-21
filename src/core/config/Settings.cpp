@@ -390,6 +390,14 @@ void Settings::setMaxConcurrentTransfers(int count) {
     m_settings.setValue("network/maxConcurrentTransfers", qBound(1, count, 8));
 }
 
+int Settings::transferRateLimitKib() const {
+    return qMax(0, m_settings.value("network/transferRateLimitKib", 0).toInt());
+}
+
+void Settings::setTransferRateLimitKib(int kib) {
+    m_settings.setValue("network/transferRateLimitKib", qMax(0, kib));
+}
+
 int Settings::thumbnailIconSize(const QString &side) const {
     return m_settings.value(QStringLiteral("view/thumbnailIconSize/%1").arg(side), 0).toInt();
 }

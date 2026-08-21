@@ -11,6 +11,7 @@
 #include <QLocale>
 #include <QMap>
 #include <QNetworkProxy>
+#include <QSet>
 #include <QSslCertificate>
 #include <QSslKey>
 #include <QSslSocket>
@@ -50,6 +51,7 @@ QByteArray statusText(int code) {
     case 412: return "Precondition Failed";
     case 413: return "Payload Too Large";
     case 416: return "Range Not Satisfiable";
+    case 423: return "Locked";
     case 500: return "Internal Server Error";
     default: return "Error";
     }
@@ -156,6 +158,18 @@ public:
     // check is on the canonical result rather than on the text.
     QString resolve(const QString &davPath) const;
 
+    // Guards against two peers writing the same destination at once. Keyed by
+    // the canonical path (what resolve() returned), so one file reached by two
+    // different share names is still one lock. Only the server thread calls
+    // these, so a plain set needs no mutex.
+    bool tryLockUpload(const QString &canonical) {
+        if (m_uploading.contains(canonical))
+            return false;
+        m_uploading.insert(canonical);
+        return true;
+    }
+    void unlockUpload(const QString &canonical) { m_uploading.remove(canonical); }
+
 signals:
     void listening(quint16 port);
     void failed(const QString &error);
@@ -167,6 +181,7 @@ private:
     TlsShareServer *m_server = nullptr;
     QMap<QString, QString> m_shares;      // share name -> absolute local path
     QHash<QString, QPair<QDateTime, int>> m_tickets;  // ticket -> expiry, TTL
+    QSet<QString> m_uploading;            // canonical paths with an in-flight PUT
 };
 
 // One client connection: an HTTP/1.1 state machine that never blocks. Bodies
@@ -185,6 +200,12 @@ public:
     }
 
     ~ShareConnection() override {
+        // A connection that dies mid-upload must release the path lock it took,
+        // or a second peer would be refused forever.
+        if (!m_uploadLockedPath.isEmpty()) {
+            m_worker->unlockUpload(m_uploadLockedPath);
+            m_uploadLockedPath.clear();
+        }
         delete m_upload;
         delete m_download;
     }
@@ -274,6 +295,14 @@ private:
                 respond(403);
                 return false;
             }
+            // Two peers writing the same file at once would interleave bytes.
+            // Refuse the second until the first finishes; the lock is dropped
+            // when the body completes or the connection dies.
+            if (!m_worker->tryLockUpload(local)) {
+                m_keepAlive = false;
+                respond(423);
+                return false;
+            }
             // A plain PUT replaces the whole resource. A resumed one says where
             // its body belongs with Content-Range, and then everything before
             // that offset must survive untouched -- that is the whole point of
@@ -288,6 +317,7 @@ private:
                 // is the only answer that cannot corrupt the file.
                 if (!ok || at < 0 || at > have) {
                     m_keepAlive = false;
+                    m_worker->unlockUpload(local);
                     respond(416, QByteArray(), "text/plain",
                             "Content-Range: bytes */" + QByteArray::number(have) + "\r\n");
                     return false;
@@ -304,9 +334,11 @@ private:
                 delete m_upload;
                 m_upload = nullptr;
                 m_keepAlive = false;
+                m_worker->unlockUpload(local);
                 respond(409);
                 return false;
             }
+            m_uploadLockedPath = local; // held until finishBody() or destruction
             m_uploadExisted = have > 0;
             m_phase = Phase::Body;
             return true;
@@ -400,6 +432,10 @@ private:
             m_upload->close();
             delete m_upload;
             m_upload = nullptr;
+            if (!m_uploadLockedPath.isEmpty()) {
+                m_worker->unlockUpload(m_uploadLockedPath);
+                m_uploadLockedPath.clear();
+            }
             respond(ok ? (m_uploadExisted ? 204 : 201) : 500);
             return;
         }
@@ -698,6 +734,7 @@ private:
 
     QFile *m_upload = nullptr;
     bool m_uploadExisted = false;
+    QString m_uploadLockedPath; // canonical path locked for the duration of a PUT
     QFile *m_download = nullptr;
     qint64 m_sendRemaining = 0;
 };

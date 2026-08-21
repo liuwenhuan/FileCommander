@@ -7,6 +7,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QProcess>
+#include <QThread>
 #include <QUuid>
 #include <cstring>
 
@@ -123,6 +124,26 @@ void FileOperations::waitIfPaused() {
     QMutexLocker lock(&m_pauseMutex);
     while (m_paused && !m_cancelled.load())
         m_pauseCond.wait(&m_pauseMutex);
+}
+
+void FileOperations::setTransferRateLimit(qint64 bytesPerSecond) {
+    m_rateLimitBps = qMax<qint64>(0, bytesPerSecond);
+}
+
+// Sleeps just long enough that the bytes moved so far in this file average out
+// to m_rateLimitBps. Called once per chunk; the sleep is sliced so a cancel
+// arriving mid-pace is still seen within a few tens of milliseconds rather than
+// after the whole deficit.
+void FileOperations::paceTransfer() {
+    if (m_rateLimitBps <= 0)
+        return;
+    const qint64 targetUsec = (m_rateBytes * 1000000LL) / m_rateLimitBps;
+    qint64 deficitUsec = targetUsec - m_rateClock.nsecsElapsed() / 1000;
+    while (deficitUsec > 0 && !m_cancelled.load()) {
+        const qint64 slice = qMin<qint64>(deficitUsec, 20000); // 20 ms
+        QThread::msleep(static_cast<unsigned long>(slice / 1000 + 1));
+        deficitUsec = targetUsec - m_rateClock.nsecsElapsed() / 1000;
+    }
 }
 
 qint64 FileOperations::countEntries(const QStringList &paths) {
@@ -1271,6 +1292,8 @@ bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileP
     }
 
     char buffer[64 * 1024];
+    m_rateClock.start();
+    m_rateBytes = 0;
     while (ok) {
         // Pause/cancel are honoured mid-file (not just per file) so a large
         // remote transfer can be interrupted promptly.
@@ -1322,6 +1345,8 @@ bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileP
             remainingBytes -= got;
         m_doneBytes += got;
         emitProgress(srcPath);
+        m_rateBytes += got;
+        paceTransfer();
     }
 
     if (ok && expectedBytes == 0 && dst->write(out, "", 0) < 0) {

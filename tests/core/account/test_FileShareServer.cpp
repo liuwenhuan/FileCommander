@@ -577,4 +577,59 @@ TEST(ShareIdentityTest, ThePinMatchesTheOpenSslRecipe) {
     EXPECT_EQ(identity.pin, expected);
 }
 
+// Two peers writing the same destination at once: the second is refused with 423
+// (Locked) rather than interleaving its bytes with the first's. The first upload
+// holds the path lock from the moment its PUT headers arrive until its body is
+// done or its connection drops, so the test keeps it "in flight" by declaring a
+// body far larger than the one chunk it actually sends.
+TEST_F(FileShareServerTest, AConcurrentPutToTheSamePathIsRefused) {
+    connectOk();
+
+    // Second, independent peer talking to the same server.
+    auto second = std::make_shared<CurlWebDavProvider>();
+    second->setTimeoutMs(8000);
+    second->setPinnedPublicKey(ShareIdentity::local().pin);
+    QString err;
+    ASSERT_TRUE(second->connectToHost(QStringLiteral("127.0.0.1"), int(m_port),
+                                      QStringLiteral("device"), QString::fromLatin1(kTicket),
+                                      /*useHttps=*/true, &err))
+        << err.toStdString();
+
+    // First peer declares 8 MiB but sends only one 64 KiB chunk, then stops --
+    // the server has consumed the headers (and taken the lock) and is now
+    // waiting for the rest of the body.
+    const QString davPath = QStringLiteral("/share/locked.bin");
+    FileHandle *first = m_provider->openWrite(davPath, /*truncate=*/true);
+    ASSERT_NE(first, nullptr);
+    m_provider->setExpectedWriteSize(first, 8 * 1024 * 1024);
+    const QByteArray chunk(64 * 1024, 'x');
+    ASSERT_GT(m_provider->write(first, chunk.constData(), chunk.size()), 0);
+
+    // Give the first PUT's headers a moment to reach the server.
+    QThread::msleep(100);
+
+    // Second peer writes the same path while the lock is held.
+    FileHandle *secondHandle = second->openWrite(davPath, /*truncate=*/true);
+    ASSERT_NE(secondHandle, nullptr);
+    second->setExpectedWriteSize(secondHandle, 1024);
+    const QByteArray small = blob(1024, 5);
+    EXPECT_GT(second->write(secondHandle, small.constData(), small.size()), 0);
+    EXPECT_FALSE(second->closeHandleStatus(secondHandle))
+        << "the second concurrent PUT was not refused";
+
+    // Release the first upload (abort): the connection drops, so the server
+    // gives the lock back. A fresh upload to the same path then has to work,
+    // proving the refusal above was the lock and not a wedged server.
+    m_provider->closeHandle(first);
+
+    const QByteArray full = blob(4096, 9);
+    bool committed = false;
+    for (int i = 0; i < 50 && !committed; ++i) {
+        QThread::msleep(20);
+        committed = putFrom(m_provider.get(), davPath, full, 0);
+    }
+    ASSERT_TRUE(committed) << "the path lock was never released after the aborted upload";
+    EXPECT_EQ(readFile(m_share + QStringLiteral("/locked.bin")), full);
+}
+
 } // namespace

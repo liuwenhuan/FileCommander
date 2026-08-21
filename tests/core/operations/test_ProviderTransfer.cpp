@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QHash>
 #include <QSignalSpy>
@@ -690,4 +691,46 @@ TEST(ProviderTransferTest, KnownSizeEarlyEofFailsAndRollsBackTransferProgress) {
     EXPECT_EQ(dst.closeWriteCalls(), 2);
     ASSERT_FALSE(observedProgress.isEmpty());
     EXPECT_EQ(observedProgress.back(), 4);
+}
+
+TEST(ProviderTransferTest, ThrottledCopyPacesToTheRateLimit) {
+    QTemporaryDir srcDir, dstDir;
+    ASSERT_TRUE(srcDir.isValid() && dstDir.isValid());
+    const int size = 512 * 1024; // 512 KiB
+    const QByteArray payload = patternedPayload(size);
+    const QString source = writeFile(srcDir.path(), "big.bin", payload);
+    const QString target = QDir(dstDir.path()).filePath("big.bin");
+    auto *provider = LocalFileProvider::instance();
+
+    // Baseline without a cap: near-instant.
+    QElapsedTimer clock;
+    clock.start();
+    {
+        FileOperations ops;
+        QString err;
+        ASSERT_TRUE(ops.copyAcrossProviders(provider, {source}, provider, dstDir.path(),
+                                            /*removeSource=*/false, nullptr, &err))
+            << err.toStdString();
+    }
+    const qint64 unthrottledMs = clock.elapsed();
+    QFile::remove(target);
+
+    // Capped to 512 KiB/s: the same 512 KiB has to take ~1 s.
+    clock.restart();
+    {
+        FileOperations ops;
+        ops.setTransferRateLimit(512 * 1024);
+        QString err;
+        ASSERT_TRUE(ops.copyAcrossProviders(provider, {source}, provider, dstDir.path(),
+                                            /*removeSource=*/false, nullptr, &err))
+            << err.toStdString();
+    }
+    const qint64 throttledMs = clock.elapsed();
+
+    EXPECT_GE(throttledMs, 500) << "throttled copy finished in " << throttledMs
+                                << " ms, far under the 512 KiB/s pace";
+    EXPECT_GT(throttledMs, unthrottledMs * 2)
+        << "throttled (" << throttledMs << " ms) was not slower than unthrottled ("
+        << unthrottledMs << " ms)";
+    EXPECT_EQ(readFile(target), payload);
 }
