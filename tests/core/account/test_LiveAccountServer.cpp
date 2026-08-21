@@ -132,7 +132,7 @@ protected:
     // server first, its port announced over the agent socket, and every ticket
     // the server pushes both accepted locally and answered on the relay.
     void startReceiver() {
-        m_server = new FileShareServer;
+        m_server = new FileShareServer(&m_b);
         m_server->setSharedFolders({m_share, m_received});
         QSignalSpy up(m_server, &FileShareServer::started);
         m_server->start();

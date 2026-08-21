@@ -53,7 +53,7 @@ protected:
         // Something outside the share, to prove no path can reach it.
         ASSERT_TRUE(writeFile(m_dir.path() + QStringLiteral("/secret.txt"), "not yours"));
 
-        m_server = new FileShareServer;
+        m_server = new FileShareServer(nullptr);
         m_server->setSharedFolders({m_share});
         m_server->addTicket(QString::fromLatin1(kTicket), 300);
 

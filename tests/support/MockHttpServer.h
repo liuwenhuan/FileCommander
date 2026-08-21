@@ -43,6 +43,16 @@ public:
         m_routes.insert(path, routes);
     }
     int requestCount(const QString &path) const { return m_hits.value(path); }
+    // Hits on every path starting with `prefix`. For a request whose query
+    // string the test cannot predict -- a WebSocket handshake carries a fresh
+    // access token in its URL -- this is what requestCount() cannot key on.
+    int requestCountUnder(const QString &prefix) const {
+        int total = 0;
+        for (auto it = m_hits.constBegin(); it != m_hits.constEnd(); ++it)
+            if (it.key().startsWith(prefix))
+                total += it.value();
+        return total;
+    }
     QByteArray lastRequestHead() const { return m_lastHead; }
 
 private:

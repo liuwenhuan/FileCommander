@@ -1,5 +1,7 @@
 #include "FileShareServer.h"
 
+#include "AccountClient.h"
+
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -732,8 +734,14 @@ void ShareWorker::onNewConnection() {
         new ShareConnection(socket, this);
 }
 
-FileShareServer::FileShareServer(QObject *parent)
+FileShareServer::FileShareServer(AccountClient *client, QObject *parent)
     : QObject(parent), m_thread(new QThread(this)), m_worker(new ShareWorker) {
+    // Sign-out closes the listener, and drops the tickets with it. Not the
+    // caller's job to remember: a port still accepting connections after the
+    // session that justified it is gone is the one failure mode here that is a
+    // security bug rather than a bug.
+    if (client)
+        connect(client, &AccountClient::loggedOut, this, &FileShareServer::stop);
     m_worker->moveToThread(m_thread);
     connect(m_thread, &QThread::finished, m_worker, &QObject::deleteLater);
     connect(m_worker, SIGNAL(listening(quint16)), this, SIGNAL(started(quint16)));

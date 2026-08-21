@@ -4,6 +4,7 @@
 #include <QString>
 #include <QStringList>
 
+class AccountClient;
 class QThread;
 
 // The serving half of device-to-device transfer: a minimal WebDAV server over
@@ -27,7 +28,12 @@ class FileShareServer : public QObject {
     Q_OBJECT
 
 public:
-    explicit FileShareServer(QObject *parent = nullptr);
+    // `client` has no default on purpose: the share exists for the account's
+    // other devices, so signing out has to close the port, and wiring that here
+    // is what keeps it true no matter which call site does the signing out. A
+    // test driving the server on its own passes an explicit nullptr, which is
+    // then visible in review rather than hidden in a default argument.
+    explicit FileShareServer(AccountClient *client, QObject *parent = nullptr);
     ~FileShareServer() override;
 
     // Absolute paths of the folders to serve. Each appears at the root under

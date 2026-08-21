@@ -4584,7 +4584,7 @@ void MainWindow::updateDeviceSharing() {
         return;
     }
     if (!m_shareServer) {
-        m_shareServer = new FileShareServer(this);
+        m_shareServer = new FileShareServer(m_accountClient, this);
         m_deviceAgent = new DeviceAgent(m_accountClient, this);
         // The port is only known once it is bound, and the agent is what tells
         // the account server about it -- so a peer can only ever be handed a

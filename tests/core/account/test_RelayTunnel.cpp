@@ -126,7 +126,7 @@ protected:
                          .arg(relayPort)
                          .arg(QString::fromLatin1(kTicket));
 
-        m_server = new FileShareServer;
+        m_server = new FileShareServer(nullptr);
         m_server->setSharedFolders({m_share});
         m_server->addTicket(QString::fromLatin1(kTicket), 300);
         QSignalSpy up(m_server, &FileShareServer::started);
