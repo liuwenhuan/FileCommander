@@ -59,6 +59,7 @@ struct WebDavTransferState {
     bool curlFinished = false;
     bool noMoreInput = false;
     bool aborted = false;
+    bool paused = false; // a user pause: the transfer engine stops, not just the feeder
     CURLcode curlCode = CURLE_OK;
     long httpCode = 0;
     char errorBuffer[CURL_ERROR_SIZE] = {};
@@ -87,7 +88,7 @@ size_t uploadReadCallback(char *ptr, size_t size, size_t nmemb, void *userdata) 
     auto *state = static_cast<WebDavTransferState *>(userdata);
     const size_t want = size * nmemb;
     QMutexLocker locker(&state->mutex);
-    while (state->buffer.isEmpty() && !state->noMoreInput && !state->aborted)
+    while ((state->buffer.isEmpty() || state->paused) && !state->noMoreInput && !state->aborted)
         state->cond.wait(&state->mutex);
     if (state->aborted)
         return CURL_READFUNC_ABORT;
@@ -205,6 +206,12 @@ struct WebDavHandle : public FileHandle {
         state->cond.wakeAll();
         if (state->socketFd != CURL_SOCKET_BAD)
             shutdownSocket(state->socketFd);
+    }
+
+    void setPaused(bool paused) override {
+        QMutexLocker locker(&state->mutex);
+        state->paused = paused;
+        state->cond.wakeAll();
     }
 
     StreamError streamError() const override {

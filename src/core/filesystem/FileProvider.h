@@ -36,6 +36,12 @@ public:
     // to tear down their transfer engine immediately; the default is a no-op.
     // Safe to call from any thread; idempotent.
     virtual void cancel() {}
+
+    // Pauses (or resumes) the backend's own transfer engine, not just the copy
+    // loop that feeds it. Without this the buffered bytes a network backend has
+    // already accepted keep flowing to the wire after the UI reports "paused",
+    // so the progress leaps ahead on resume. Safe to call from any thread.
+    virtual void setPaused(bool /*paused*/) {}
 };
 
 struct CloseHandleResult {

@@ -119,14 +119,27 @@ void FileOperations::requestCancel() {
 }
 
 void FileOperations::requestPause() {
-    QMutexLocker lock(&m_pauseMutex);
-    m_paused = true;
+    {
+        QMutexLocker lock(&m_pauseMutex);
+        m_paused = true;
+    }
+    // Pause the backend's own transfer engine too, not just the copy loop: the
+    // buffered bytes a network backend already accepted would otherwise keep
+    // flowing to the wire while the UI says "paused".
+    QMutexLocker handleLock(&m_handleMutex);
+    if (m_activeWriteHandle)
+        m_activeWriteHandle->setPaused(true);
 }
 
 void FileOperations::requestResume() {
-    QMutexLocker lock(&m_pauseMutex);
-    m_paused = false;
-    m_pauseCond.wakeAll();
+    {
+        QMutexLocker lock(&m_pauseMutex);
+        m_paused = false;
+        m_pauseCond.wakeAll();
+    }
+    QMutexLocker handleLock(&m_handleMutex);
+    if (m_activeWriteHandle)
+        m_activeWriteHandle->setPaused(false);
 }
 
 void FileOperations::waitIfPaused() {
