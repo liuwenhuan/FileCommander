@@ -93,6 +93,10 @@ public:
             m_files[input->path].append(m_growth);
             m_growthPending = false;
         }
+        if (m_growthAtArmed && input->path == m_growthAtPath && input->offset >= m_growthAtOffset) {
+            m_files[input->path].append(m_growthAtData);
+            m_growthAtArmed = false;
+        }
         if (m_readFailureOffsets.value(input->path, -1) == input->offset)
             return -1;
         const QByteArray &data = m_files[input->path];
@@ -193,6 +197,15 @@ public:
         m_growth = data;
         m_growthPending = true;
     }
+    // Appends once a read reaches `offset`, so a prefix-verification read that
+    // stays below the resume point does not fire it -- only the copy loop, where
+    // the source-mutation guard lives, sees it.
+    void growOnReadAt(const QString &path, qint64 offset, const QByteArray &data) {
+        m_growthAtPath = path;
+        m_growthAtOffset = offset;
+        m_growthAtData = data;
+        m_growthAtArmed = true;
+    }
     QByteArray file(const QString &path) const { return m_files.value(path); }
     const QVector<qint64> &expectedWriteSizes() const { return m_expectedWriteSizes; }
     int closeWriteCalls() const { return m_closeWriteCalls; }
@@ -208,6 +221,10 @@ private:
     QHash<QString, qint64> m_shrinkAfterFirstReadSizes;
     QByteArray m_growth;
     bool m_growthPending = false;
+    QString m_growthAtPath;
+    qint64 m_growthAtOffset = 0;
+    QByteArray m_growthAtData;
+    bool m_growthAtArmed = false;
     bool m_failZeroWrites = false;
     FileHandle::StreamError m_writeFailure = FileHandle::StreamError::None;
     QString m_writeFailureDetail;
@@ -365,7 +382,10 @@ TEST(ProviderTransferTest, ResumedKnownSizeCopyRejectsSourceGrowth) {
     InMemoryProvider src;
     InMemoryProvider dst;
     src.addFile("/source/resume.bin", initial);
-    src.growOnFirstRead(QByteArray("later growth"));
+    // Growth below the resume point is absorbed by the prefix verification; the
+    // guard under test is the one that fires during the copy loop, so arm it at
+    // the resume offset.
+    src.growOnReadAt("/source/resume.bin", startOffset, QByteArray("later growth"));
     dst.addFile("/destination/resume.bin", initial.left(startOffset));
 
     FileOperations ops;
@@ -381,26 +401,52 @@ TEST(ProviderTransferTest, ResumedKnownSizeCopyRejectsSourceGrowth) {
     EXPECT_EQ(dst.closeWriteCalls(), 1);
 }
 
-TEST(ProviderTransferTest, RejectsResumeOffsetPastKnownCurrentSourceSize) {
+TEST(ProviderTransferTest, ResumeVerifiesThePrefixBeforeAppending) {
+    const QByteArray first = QByteArray("aaaaaaaaaa"); // 10 bytes
     InMemoryProvider src;
     InMemoryProvider dst;
-    src.addFile("/source/shrunk.bin", QByteArray("1234"));
-    // Sizing before resume observes the old 10-byte file; the stream handle
-    // observes the already-shrunk 4-byte file after the destination chose offset 6.
-    src.reportSizeSequence("/source/shrunk.bin", {10, 10, 4});
-    dst.addFile("/destination/shrunk.bin", QByteArray("123456"));
+    src.addFile("/source/file.bin", first);
+    dst.addFile("/destination/file.bin", first.left(4)); // 4-byte partial of `first`
+
+    // The source is replaced between the two attempts with a different, larger
+    // file. Its prefix differs from the partial, so resuming would splice the
+    // old prefix onto the new tail.
+    const QByteArray second = QByteArray("bbbbbbbbbbbbbbbbbbbb"); // 20 bytes
+    src.addFile("/source/file.bin", second);
+
+    int prompts = 0;
+    FileOperations ops;
+    QString err;
+    ops.copyAcrossProviders(&src, {"/source/file.bin"}, &dst, "/destination",
+                            /*removeSource=*/false,
+                            [&](const FileConflict &) {
+                                ++prompts;
+                                return ErrorAction::Skip;
+                            },
+                            &err);
+
+    EXPECT_EQ(prompts, 1) << "a mismatched partial must be offered, not silently resumed";
+    EXPECT_EQ(dst.file("/destination/file.bin"), first.left(4))
+        << "the partial was left alone on skip";
+}
+
+TEST(ProviderTransferTest, ResumeStillResumesWhenTheSourceOnlyAppended) {
+    const QByteArray prefix = QByteArray("aaaaaaaaaa");
+    const QByteArray tail = QByteArray("BBBBBBBBBB");
+    InMemoryProvider src;
+    InMemoryProvider dst;
+    src.addFile("/source/file.bin", prefix);
+    dst.addFile("/destination/file.bin", prefix.left(4));
+
+    // Growth by append keeps the prefix intact, so the resume stays valid.
+    src.addFile("/source/file.bin", prefix + tail);
 
     FileOperations ops;
-    ops.setErrorResolver([](const QString &, const QString &) { return ErrorAction::Cancel; });
-    QString error;
-    ASSERT_FALSE(ops.copyAcrossProviders(&src, {"/source/shrunk.bin"}, &dst, "/destination",
-                                          /*removeSource=*/true, nullptr, &error));
-
-    EXPECT_FALSE(error.isEmpty());
-    EXPECT_EQ(src.file("/source/shrunk.bin"), QByteArray("1234"));
-    EXPECT_EQ(dst.file("/destination/shrunk.bin"), QByteArray("123456"));
-    EXPECT_EQ(src.closeReadCalls(), 3);
-    EXPECT_EQ(dst.closeWriteCalls(), 1);
+    QString err;
+    ASSERT_TRUE(ops.copyAcrossProviders(&src, {"/source/file.bin"}, &dst, "/destination",
+                                          /*removeSource=*/false, nullptr, &err))
+        << err.toStdString();
+    EXPECT_EQ(dst.file("/destination/file.bin"), prefix + tail);
 }
 
 TEST(ProviderTransferTest, RejectsObservableSourceShrinkAfterExpectedBytes) {

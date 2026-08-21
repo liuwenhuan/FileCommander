@@ -214,6 +214,12 @@ private:
     // instead of calling this (see transferEntry's sourceTime); otherwise copying
     // a directory of N files would re-list its parent N times.
     static QDateTime providerFileModified(FileProvider *provider, const QString &path);
+    // Whether the first `prefixLen` bytes of srcPath and destPath are identical,
+    // read through their providers. The only way to know a partial destination
+    // was written from this same source: sizes alone cannot tell a file that was
+    // edited in place between two attempts from one that merely grew by append.
+    static bool prefixMatches(FileProvider *src, const QString &srcPath, FileProvider *dst,
+                              const QString &destPath, qint64 prefixLen);
     static QString uniqueProviderDestination(FileProvider *dst, const QString &destPath);
     static QString joinPath(const QString &dir, const QString &name);
     static QString lastComponent(const QString &path);

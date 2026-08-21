@@ -8,6 +8,7 @@
 #include <QFileInfo>
 #include <QProcess>
 #include <QUuid>
+#include <cstring>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -1089,6 +1090,52 @@ qint64 FileOperations::providerFileSize(FileProvider *provider, const QString &p
     return size;
 }
 
+bool FileOperations::prefixMatches(FileProvider *src, const QString &srcPath,
+                                   FileProvider *dst, const QString &destPath,
+                                   qint64 prefixLen) {
+    if (prefixLen <= 0)
+        return true;
+    // A resume only makes sense if the bytes already on the destination are the
+    // start of THIS source. Sizes agreeing is not enough: a file edited in place
+    // between two attempts can keep a size that still looks "longer than the
+    // partial", and resuming would splice the old prefix onto the new tail. The
+    // comparison is read in chunks and aborts on the first mismatch, so a source
+    // that changed early is caught without reading the whole partial back.
+    // ponytail: this reads up to `prefixLen` bytes from both ends, which on a
+    // remote destination means re-downloading the partial to verify it. That is
+    // the price of not persisting a per-transfer source snapshot; a sidecar hash
+    // record would make it cheap if large resumes ever hurt.
+    FileHandle *in = src->openRead(srcPath);
+    if (!in)
+        return false;
+    FileHandle *out = dst->openRead(destPath);
+    if (!out) {
+        src->closeHandle(in);
+        return false;
+    }
+
+    QByteArray a(64 * 1024, Qt::Uninitialized);
+    QByteArray b(64 * 1024, Qt::Uninitialized);
+    qint64 compared = 0;
+    bool match = true;
+    while (compared < prefixLen) {
+        const qint64 chunk = qMin<qint64>(64 * 1024, prefixLen - compared);
+        const qint64 ra = src->read(in, a.data(), chunk);
+        const qint64 rb = dst->read(out, b.data(), chunk);
+        if (ra < 0 || rb < 0 || ra != rb || (ra > 0 && memcmp(a.constData(), b.constData(),
+                                                               static_cast<size_t>(ra)) != 0)) {
+            match = false;
+            break;
+        }
+        if (ra == 0)
+            break; // both ended before prefixLen: the partial cannot match
+        compared += ra;
+    }
+    src->closeHandle(in);
+    dst->closeHandle(out);
+    return match && compared == prefixLen;
+}
+
 QDateTime FileOperations::providerFileModified(FileProvider *provider, const QString &path) {
     // There is no per-file stat in the FileProvider interface, so the file's own
     // entry is picked out of its parent's listing -- the same listing the model
@@ -1355,8 +1402,17 @@ FileOperations::transferFile(FileProvider *src, const QString &srcPath, FileProv
             // stand-in -- goes to conflict resolution. Equal size is NOT "done":
             // two files can match in size and differ in content, and silently
             // skipping them would leave the wrong bytes while reporting success.
-            if (dst->supportsWriteResume() && dstSize > 0 && srcSize > 0 && dstSize < srcSize) {
-                // A partial copy is present: resume from its end rather than
+            //
+            // Resuming is only safe once the partial's bytes are proven to be
+            // this source's prefix. Sizes alone can't tell a source that grew by
+            // append (resume is fine) from one edited in place (resume splices
+            // old bytes onto new), so the prefix is verified byte-for-byte and
+            // anything that fails the check falls through to the conflict prompt.
+            bool resume = false;
+            if (dst->supportsWriteResume() && dstSize > 0 && srcSize > 0 && dstSize < srcSize)
+                resume = prefixMatches(src, srcPath, dst, target, dstSize);
+            if (resume) {
+                // A partial copy of this source: resume from its end rather than
                 // restarting (断点续传).
                 truncate = false;
                 startOffset = dstSize;
