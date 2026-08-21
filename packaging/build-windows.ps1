@@ -3,6 +3,7 @@ param(
     [string]$QtRoot = $env:FILECOMMANDER_QT_ROOT,
     [string]$VcpkgRoot = $env:VCPKG_ROOT,
     [string]$PopplerQt5Root = $env:FILECOMMANDER_POPPLER_QT5_ROOT,
+    [string]$OpenSsl111Root = $env:FILECOMMANDER_OPENSSL111_ROOT,
     [ValidateSet('x64', 'x86', 'arm64')]
     [string]$Architecture = 'x64',
     [ValidateSet('windows-portable')]
@@ -49,6 +50,9 @@ if (-not $VcpkgRoot -or -not (Test-Path -LiteralPath $VcpkgRoot)) {
 }
 if (-not $PopplerQt5Root) {
     $PopplerQt5Root = Join-Path (Split-Path -Parent $VcpkgRoot) 'poppler-qt5'
+}
+if (-not $OpenSsl111Root) {
+    $OpenSsl111Root = Join-Path (Split-Path -Parent $VcpkgRoot) 'openssl-1.1.1'
 }
 $triplet = "$Architecture-windows"
 $build = Join-Path $repo "build/windows-msvc-release-$Architecture"
@@ -221,6 +225,23 @@ if ($pdfPreview) {
 }
 if (Test-Path -LiteralPath (Join-Path $stage 'libmpv-2.dll')) {
     throw "Profile $Profile forbids libmpv-2.dll."
+}
+
+# Qt 5.15.2 on Windows is built against OpenSSL 1.1.1 and loads these two DLLs
+# by name at runtime. Without them QSslSocket/QWebSocket have no TLS backend
+# (supportsSsl() is false), which breaks the device-transfer share server and
+# every wss connection. OpenSSL 3.x -- already linked directly for ShareIdentity's
+# certificate generation -- is NOT ABI-compatible with the 1.1.1 those Qt classes
+# expect (renaming 3.x to the 1_1 names heap-corrupts during a real handshake),
+# so the genuine 1.1.1 runtime ships alongside it. See scripts/build-openssl-111.ps1
+# for the source-build path.
+if (Test-Path -LiteralPath (Join-Path $OpenSsl111Root 'bin')) {
+    Get-ChildItem -LiteralPath (Join-Path $OpenSsl111Root 'bin') -Filter '*.dll' | ForEach-Object {
+        $destination = Join-Path $stage $_.Name
+        if (-not (Test-Path -LiteralPath $destination)) {
+            Copy-StageFile -Source $_.FullName -Destination $stage -Group 'network'
+        }
+    }
 }
 
 $officeBinary = Join-Path $repo 'build/office-oxide/office-oxide.exe'
