@@ -11,7 +11,7 @@ pub mod db;
 pub mod relay;
 
 use std::collections::HashMap;
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicU64, AtomicUsize};
 use std::sync::{Arc, Mutex};
 use std::collections::VecDeque;
 use std::time::Instant;
@@ -58,6 +58,14 @@ pub struct AppState {
     /// Sign-in attempts per client address, for the built-in rate limit.
     pub attempts: Arc<Mutex<HashMap<String, (u32, Instant)>>>,
     pub generation: Arc<AtomicU64>,
+    /// Relay WebSockets currently open (paired or parked). Bounded by
+    /// relay_max_conns so a flood of connections cannot exhaust the server.
+    pub relay_conns: Arc<AtomicUsize>,
+    /// Ceiling on relay_conns; a connection beyond it is refused.
+    pub relay_max_conns: usize,
+    /// How long an active relayed connection may sit with no byte moving
+    /// before the relay reclaims it (see relay.rs).
+    pub relay_idle_seconds: u64,
 }
 
 impl AppState {
@@ -68,6 +76,9 @@ impl AppState {
             sessions: Arc::new(Mutex::new(HashMap::new())),
             attempts: Arc::new(Mutex::new(HashMap::new())),
             generation: Arc::new(AtomicU64::new(1)),
+            relay_conns: Arc::new(AtomicUsize::new(0)),
+            relay_max_conns: 64,
+            relay_idle_seconds: 300,
         }
     }
 }

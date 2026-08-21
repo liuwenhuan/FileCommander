@@ -4,6 +4,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkInterface>
+#include <QNetworkRequest>
 #include <QTimer>
 #include <QUrl>
 #include <QWebSocket>
@@ -93,17 +94,18 @@ void DeviceAgent::setSharePort(quint16 port) {
 void DeviceAgent::openSocket() {
     if (!m_wanted)
         return;
-    // Read the URL afresh every time: it carries the access token, and a
-    // reconnect after a token refresh must use the new one.
-    const QString url = m_client ? m_client->agentSocketUrl() : QString();
-    if (url.isEmpty()) {
+    // Read the request afresh every time: it carries the access token as an
+    // Authorization header, and a reconnect after a token refresh must use the
+    // new one.
+    const QNetworkRequest request = m_client ? m_client->agentSocketRequest() : QNetworkRequest();
+    if (request.url().isEmpty()) {
         // Signed out, or signed out again between the failure and this retry.
         // Keep trying: a session restored later should bring the agent back
         // without anyone calling start() a second time.
         scheduleReconnect();
         return;
     }
-    m_socket->open(QUrl(url));
+    m_socket->open(request);
 }
 
 void DeviceAgent::scheduleReconnect() {

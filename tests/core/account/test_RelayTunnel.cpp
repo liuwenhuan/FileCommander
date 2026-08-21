@@ -123,9 +123,9 @@ protected:
         QMetaObject::invokeMethod(m_relay, "start", Qt::BlockingQueuedConnection,
                                   Q_RETURN_ARG(int, relayPort));
         ASSERT_NE(relayPort, 0);
-        m_relayUrl = QStringLiteral("ws://127.0.0.1:%1/v1/relay/session?ticket=%2")
-                         .arg(relayPort)
-                         .arg(QString::fromLatin1(kTicket));
+        // No ticket in the URL: it travels as an Authorization header set by
+        // RelayTunnel, the same way the real client sends it.
+        m_relayUrl = QStringLiteral("ws://127.0.0.1:%1/v1/relay/session").arg(relayPort);
 
         m_server = new FileShareServer(nullptr);
         m_server->setSharedFolders({m_share});
@@ -136,13 +136,13 @@ protected:
         const quint16 sharePort = quint16(up.first().first().toUInt());
 
         m_serving = new RelayTunnel;
-        m_serving->serveLocal(m_relayUrl, sharePort, 2);
+        m_serving->serveLocal(m_relayUrl, QString::fromLatin1(kTicket), sharePort, 2);
         // The accessing side must find a socket already parked; otherwise the
         // first request races the pool coming up.
         ASSERT_TRUE(waitForParked(2));
 
         m_accessing = new RelayTunnel;
-        m_localPort = m_accessing->listenLocal(m_relayUrl);
+        m_localPort = m_accessing->listenLocal(m_relayUrl, QString::fromLatin1(kTicket));
         ASSERT_NE(m_localPort, 0);
     }
 

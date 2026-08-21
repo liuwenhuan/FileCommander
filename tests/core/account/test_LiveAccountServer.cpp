@@ -148,7 +148,7 @@ protected:
                              m_server->addTicket(ticket, expiresIn);
                              if (!m_serving)
                                  m_serving = new RelayTunnel;
-                             m_serving->serveLocal(m_b.relaySocketUrl(sessionId, ticket),
+                             m_serving->serveLocal(m_b.relaySocketUrl(sessionId), ticket,
                                                    m_sharePort, 2);
                          });
         QSignalSpy connected(m_agent, &DeviceAgent::connected);
@@ -306,8 +306,8 @@ TEST_F(LiveAccountServerTest, AFileTravelsOverTheRelayWhenTheLanIsNotUsed) {
     ASSERT_FALSE(session.ticket.isEmpty());
 
     m_tunnel = new RelayTunnel;
-    const quint16 local = m_tunnel->listenLocal(m_a.relaySocketUrl(session.sessionId,
-                                                                  session.ticket));
+    const quint16 local =
+        m_tunnel->listenLocal(m_a.relaySocketUrl(session.sessionId), session.ticket);
     ASSERT_NE(local, 0);
     // The receiving side parks its sockets when the ticket reaches it, which is
     // a round trip through the server; dialling before that would race it.
