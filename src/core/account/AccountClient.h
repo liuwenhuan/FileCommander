@@ -64,6 +64,13 @@ class AccountClient : public QObject {
     Q_OBJECT
 
 public:
+    // The wire-protocol version this build speaks. Sent on every authenticated
+    // request and the agent handshake so the server can refuse a client whose
+    // protocol predates a breaking change with a clear "please update" error.
+    // Bump it whenever a change would make an older client misbehave against a
+    // newer server.
+    static constexpr int kProtocolVersion = 1;
+
     explicit AccountClient(QObject *parent = nullptr);
     ~AccountClient() override;
 

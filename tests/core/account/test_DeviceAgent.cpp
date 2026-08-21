@@ -74,6 +74,14 @@ public:
         for (QWebSocket *socket : m_live)
             socket->sendTextMessage(QStringLiteral("{\"type\":\"ready\"}"));
     }
+    void sendPresence(const QString &deviceId, bool online) {
+        const QByteArray frame = QJsonDocument(QJsonObject{{"type", QStringLiteral("presence")},
+                                                           {"device_id", deviceId},
+                                                           {"online", online}})
+                                     .toJson(QJsonDocument::Compact);
+        for (QWebSocket *socket : m_live)
+            socket->sendTextMessage(QString::fromUtf8(frame));
+    }
 
 private:
     QWebSocketServer *m_server = nullptr;
@@ -116,4 +124,31 @@ TEST(DeviceAgent, AnnouncedFiresOnReadyNotOnConnect) {
 
     peer.sendReady();
     FC_TRY_COMPARE_WITH_TIMEOUT(announced.count(), 1, 5000);
+}
+
+TEST(DeviceAgent, APresenceFrameEmitsPresenceChanged) {
+    MockHttpServer http;
+    AccountClient client;
+    client.setApiUrl(http.url(QString()));
+    ASSERT_TRUE(signIn(client, http));
+
+    AgentPeer peer;
+    client.setApiUrl(peer.apiUrl());
+
+    DeviceAgent agent(&client);
+    QSignalSpy presence(&agent, &DeviceAgent::presenceChanged);
+    agent.start();
+    FC_TRY_VERIFY_WITH_TIMEOUT(peer.gotHello(), 5000);
+
+    peer.sendPresence(QStringLiteral("dev-2"), true);
+    FC_TRY_COMPARE_WITH_TIMEOUT(presence.count(), 1, 5000);
+    const QList<QVariant> online = presence.takeFirst();
+    EXPECT_EQ(online.at(0).toString(), QStringLiteral("dev-2"));
+    EXPECT_TRUE(online.at(1).toBool());
+
+    peer.sendPresence(QStringLiteral("dev-2"), false);
+    FC_TRY_COMPARE_WITH_TIMEOUT(presence.count(), 1, 5000);
+    const QList<QVariant> offline = presence.takeFirst();
+    EXPECT_EQ(offline.at(0).toString(), QStringLiteral("dev-2"));
+    EXPECT_FALSE(offline.at(1).toBool());
 }
