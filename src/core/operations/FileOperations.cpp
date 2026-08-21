@@ -1350,20 +1350,19 @@ FileOperations::transferFile(FileProvider *src, const QString &srcPath, FileProv
             const qint64 srcSize = providerFileSize(src, srcPath);
             const qint64 dstSize = providerFileSize(dst, target);
 
-            if (dstSize >= 0 && srcSize >= 0 && dstSize == srcSize) {
-                // Destination already holds the whole file: treat as complete.
-                m_doneBytes += qMax<qint64>(0, srcSize);
-                emitProgress(srcPath);
-                return FileResult::Done;
-            }
+            // A shorter destination is a partial copy to resume; anything else
+            // occupying the target -- the same size, larger, or a zero-length
+            // stand-in -- goes to conflict resolution. Equal size is NOT "done":
+            // two files can match in size and differ in content, and silently
+            // skipping them would leave the wrong bytes while reporting success.
             if (dst->supportsWriteResume() && dstSize > 0 && srcSize > 0 && dstSize < srcSize) {
                 // A partial copy is present: resume from its end rather than
                 // restarting (断点续传).
                 truncate = false;
                 startOffset = dstSize;
             } else {
-                // The destination is unrelated (larger than, or a zero-length
-                // stand-in for, the source): fall back to conflict resolution.
+                // Whatever occupies the target is not a resumable partial of
+                // this source: ask, rather than guess.
                 ErrorAction action = batchAction;
                 if (action != ErrorAction::OverwriteAll && action != ErrorAction::SkipAll) {
                     // Both sizes are already in hand from the resume probe above,

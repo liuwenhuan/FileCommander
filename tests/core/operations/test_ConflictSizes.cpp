@@ -27,6 +27,7 @@ public:
     };
 
     void put(const QString &path, const QByteArray &data) { m_files.insert(path, data); }
+    int fileSize(const QString &path) const { return m_files.value(path).size(); }
 
     QVector<FileInfo> list(const QString &, bool) const override { return {}; }
     bool isDir(const QString &) const override { return false; }
@@ -99,6 +100,32 @@ QString writeFile(const QString &dir, const QString &name, int bytes) {
 }
 
 } // namespace
+
+TEST(ConflictSizesTest, SameSizeDestinationStillRaisesThePrompt) {
+    MemoryProvider src, dst;
+    // Same byte count, different content: only a prompt can tell them apart. A
+    // "same size = already done" shortcut here would skip the copy and leave the
+    // destination's bytes in place while reporting success.
+    src.put(QStringLiteral("/share/report.pdf"), QByteArray(1000, 'a'));
+    dst.put(QStringLiteral("/backup/report.pdf"), QByteArray(1000, 'b'));
+
+    int prompts = 0;
+    ConflictResolver resolver = [&](const FileConflict &conflict) {
+        ++prompts;
+        EXPECT_EQ(conflict.sourceSize, 1000);
+        EXPECT_EQ(conflict.destSize, 1000);
+        return ErrorAction::Skip;
+    };
+
+    FileOperations ops;
+    QString err;
+    ops.copyAcrossProviders(&src, {QStringLiteral("/share/report.pdf")}, &dst,
+                            QStringLiteral("/backup"), /*removeSource=*/false, resolver, &err);
+
+    EXPECT_EQ(prompts, 1) << "an equal-size destination must still be offered for a decision";
+    // Skipped, so the destination is untouched.
+    EXPECT_EQ(dst.fileSize(QStringLiteral("/backup/report.pdf")), 1000);
+}
 
 TEST(ConflictSizesTest, CrossProviderTransferReportsTheRealSizesOfBothFiles) {
     MemoryProvider src, dst;
