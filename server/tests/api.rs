@@ -21,7 +21,8 @@ async fn send(state: &AppState, method: &str, path: &str, token: &str, body: Val
     let mut req = Request::builder()
         .method(method)
         .uri(path)
-        .header("content-type", "application/json");
+        .header("content-type", "application/json")
+        .header("x-filecommander-protocol", "1");
     if !token.is_empty() {
         req = req.header("authorization", format!("Bearer {token}"));
     }
@@ -229,6 +230,9 @@ fn ws_request(addr: SocketAddr, path: &str, bearer: &str) -> Request<()> {
     request
         .headers_mut()
         .insert("authorization", format!("Bearer {bearer}").parse().unwrap());
+    request
+        .headers_mut()
+        .insert("x-filecommander-protocol", "1".parse().unwrap());
     request
 }
 
@@ -488,4 +492,87 @@ async fn an_idle_relay_connection_is_reclaimed() {
         Err(_) => true,
     }).unwrap_or(true);
     assert!(closed, "the relay should have dropped the idle connection");
+}
+
+#[tokio::test]
+async fn an_old_client_is_told_to_update() {
+    let state = state();
+    register(&state, "user@example.com", "correct horse").await;
+    // No x-filecommander-protocol header: the server reads it as version 0,
+    // below the wire protocol it now speaks.
+    let req = Request::builder()
+        .method("POST")
+        .uri("/v1/auth/login")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            json!({
+                "email": "user@example.com",
+                "password": "correct horse",
+                "device_name": "old build",
+                "platform": "linux",
+                "device_id": "",
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    let response = router(state.clone()).oneshot(req).await.unwrap();
+    assert_eq!(response.status(), StatusCode::UPGRADE_REQUIRED);
+    assert_eq!(
+        json_of(response).await["detail"],
+        "Your version of FileCommander is too old. Please update to continue."
+    );
+}
+
+#[tokio::test]
+async fn a_peer_is_pushed_when_a_device_comes_online() {
+    use futures_util::{SinkExt, StreamExt};
+
+    let state = state();
+    let addr = serve(state.clone()).await;
+    register(&state, "user@example.com", "correct horse").await;
+    let host = login(&state, "user@example.com", "desktop", "").await;
+    let guest = login(&state, "user@example.com", "laptop", "").await;
+
+    // The guest finishes its hello first, so it is a registered peer by the
+    // time the host comes online.
+    let (mut guest_socket, _) = tokio_tungstenite::connect_async(ws_request(
+        addr,
+        "/v1/agent",
+        guest["access_token"].as_str().unwrap(),
+    ))
+    .await
+    .unwrap();
+    assert!(guest_socket.next().await.unwrap().unwrap().to_text().unwrap().contains("welcome"));
+    guest_socket
+        .send(tokio_tungstenite::tungstenite::Message::Text(
+            json!({"type": "hello", "lan_addrs": [], "port": 45001}).to_string().into(),
+        ))
+        .await
+        .unwrap();
+    assert!(guest_socket.next().await.unwrap().unwrap().to_text().unwrap().contains("ready"));
+
+    // The host connects and announces itself; that announcement must be pushed
+    // to the guest over the guest's own socket.
+    let (mut host_socket, _) = tokio_tungstenite::connect_async(ws_request(
+        addr,
+        "/v1/agent",
+        host["access_token"].as_str().unwrap(),
+    ))
+    .await
+    .unwrap();
+    assert!(host_socket.next().await.unwrap().unwrap().to_text().unwrap().contains("welcome"));
+    host_socket
+        .send(tokio_tungstenite::tungstenite::Message::Text(
+            json!({"type": "hello", "lan_addrs": [], "port": 45002}).to_string().into(),
+        ))
+        .await
+        .unwrap();
+    assert!(host_socket.next().await.unwrap().unwrap().to_text().unwrap().contains("ready"));
+
+    let pushed: Value =
+        serde_json::from_str(guest_socket.next().await.unwrap().unwrap().to_text().unwrap())
+            .unwrap();
+    assert_eq!(pushed["type"], "presence");
+    assert_eq!(pushed["device_id"], host["device_id"].as_str().unwrap());
+    assert_eq!(pushed["online"], true);
 }

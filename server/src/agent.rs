@@ -5,7 +5,7 @@
 //! another of the account's devices wants to connect. The bytes of a transfer
 //! never pass through this socket -- the two devices talk WebDAV directly.
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
@@ -20,9 +20,27 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::sync::mpsc;
 
-use crate::api::{authenticate, fail, ApiError};
+use crate::api::{authenticate, check_protocol, fail, log_line, ApiError};
 use crate::db::{iso, now, random_hex, random_token};
 use crate::{AgentConn, AppState, RelaySession};
+
+/// Pushes a presence change to the account's other connected devices, so they
+/// can refresh their device list immediately instead of waiting for a manual
+/// fetch. The sender is skipped; the frame is idempotent, so a peer that gets
+/// several just re-fetches.
+fn broadcast_presence(
+    agents: &HashMap<String, AgentConn>,
+    user_id: i64,
+    device_id: &str,
+    online: bool,
+) {
+    let frame = json!({"type": "presence", "device_id": device_id, "online": online}).to_string();
+    for (id, agent) in agents {
+        if id != device_id && agent.user_id == user_id {
+            let _ = agent.tx.send(frame.clone());
+        }
+    }
+}
 
 /// How long a device has to use a ticket before the peer forgets it. Long
 /// enough to survive a slow LAN probe, short enough that a leaked ticket is
@@ -40,12 +58,15 @@ pub async fn agent_ws(
     headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Result<Response, ApiError> {
+    check_protocol(&headers)?;
     let principal = authenticate(&state, &headers).await?;
+    let user_id = principal.user_id;
     let device_id = principal.device_id;
-    Ok(ws.on_upgrade(move |socket| serve_agent(state, device_id, socket)))
+    log_line("agent", &format!("connect dev={device_id}"));
+    Ok(ws.on_upgrade(move |socket| serve_agent(state, user_id, device_id, socket)))
 }
 
-async fn serve_agent(state: AppState, device_id: String, socket: WebSocket) {
+async fn serve_agent(state: AppState, user_id: i64, device_id: String, socket: WebSocket) {
     let (mut sink, mut stream) = socket.split();
     let (tx, mut rx) = mpsc::unbounded_channel::<String>();
     let generation = state.generation.fetch_add(1, Ordering::Relaxed);
@@ -58,6 +79,7 @@ async fn serve_agent(state: AppState, device_id: String, socket: WebSocket) {
             device_id.clone(),
             AgentConn {
                 tx: tx.clone(),
+                user_id,
                 lan_addrs: Vec::new(),
                 share_port: 0,
                 share_pin: String::new(),
@@ -148,6 +170,13 @@ async fn serve_agent(state: AppState, device_id: String, socket: WebSocket) {
                         );
                     })
                     .await;
+                // last_seen is now fresh, so tell this device's peers it is
+                // online: they re-fetch and see it, instead of waiting for a
+                // manual poll.
+                {
+                    let agents = state.agents.lock().unwrap_or_else(|e| e.into_inner());
+                    broadcast_presence(&agents, user_id, &device_id, true);
+                }
                 let _ = tx.send(json!({"type": "ready"}).to_string());
             }
             "ping" => {
@@ -172,8 +201,10 @@ async fn serve_agent(state: AppState, device_id: String, socket: WebSocket) {
         // Only if a newer socket has not already taken this device's slot.
         if agents.get(&device_id).map(|a| a.generation) == Some(generation) {
             agents.remove(&device_id);
+            broadcast_presence(&agents, user_id, &device_id, false);
         }
     }
+    log_line("agent", &format!("disconnect dev={device_id}"));
     writer.abort();
 }
 

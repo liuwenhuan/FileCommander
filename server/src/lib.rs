@@ -28,6 +28,9 @@ use db::Db;
 /// about how to reach it directly.
 pub struct AgentConn {
     pub tx: mpsc::UnboundedSender<String>,
+    /// Which account the socket belongs to, so a presence change can be pushed
+    /// to that account's other devices and only them.
+    pub user_id: i64,
     pub lan_addrs: Vec<String>,
     pub share_port: u16,
     /// The device's TLS pin, in curl's `sha256//<base64>` form. Handed to the

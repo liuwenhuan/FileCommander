@@ -49,6 +49,37 @@ pub fn fail(code: StatusCode, detail: &str) -> ApiError {
     ApiError(code, detail.to_string())
 }
 
+/// The wire protocol version the client declares. Bumped on a breaking wire
+/// change (the last was moving the agent token from the URL query to a header);
+/// a client below it is told to update rather than being let in to half-work.
+const MIN_PROTOCOL_VERSION: i32 = 1;
+
+fn protocol_version(headers: &HeaderMap) -> i32 {
+    headers
+        .get("x-filecommander-protocol")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.trim().parse::<i32>().ok())
+        .unwrap_or(0)
+}
+
+/// Refuses a client that predates the current wire protocol, so an old build
+/// fails with a "please update" message instead of silently breaking.
+pub fn check_protocol(headers: &HeaderMap) -> Result<(), ApiError> {
+    if protocol_version(headers) < MIN_PROTOCOL_VERSION {
+        return Err(fail(
+            StatusCode::UPGRADE_REQUIRED,
+            "Your version of FileCommander is too old. Please update to continue.",
+        ));
+    }
+    Ok(())
+}
+
+/// One timestamped log line to stdout (journald captures it). Tag + message
+/// only; passwords, access tokens, refresh tokens and tickets never reach here.
+pub fn log_line(tag: &str, message: &str) {
+    println!("{} [{}] {}", iso(now()), tag, message);
+}
+
 /// The caller behind a bearer token.
 pub struct Principal {
     pub user_id: i64,
@@ -99,6 +130,7 @@ pub async fn rate_limit(State(state): State<AppState>, req: Request, next: Next)
         .get::<ConnectInfo<SocketAddr>>()
         .map(|info| info.0.ip().to_string())
         .unwrap_or_else(|| "unknown".to_string());
+    let log_key = key.clone();
 
     let allowed = {
         let mut attempts = state.attempts.lock().unwrap_or_else(|e| e.into_inner());
@@ -116,6 +148,7 @@ pub async fn rate_limit(State(state): State<AppState>, req: Request, next: Next)
     };
 
     if !allowed {
+        log_line("ratelimit", &format!("reject {log_key}"));
         return fail(StatusCode::TOO_MANY_REQUESTS, "too many attempts, try again later")
             .into_response();
     }
@@ -151,13 +184,16 @@ fn check_password(password: &str) -> Result<(), ApiError> {
 
 pub async fn register(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(body): Json<RegisterRequest>,
 ) -> Result<Response, ApiError> {
+    check_protocol(&headers)?;
     let email = clean_email(&body.email)?;
     check_password(&body.password)?;
     let password = body.password;
+    let log_email = email.clone();
 
-    state
+    let result = state
         .db
         .call(move |conn| {
             let taken: bool = conn
@@ -177,7 +213,12 @@ pub async fn register(
             .map_err(|_| fail(StatusCode::CONFLICT, "email already registered"))?;
             Ok((StatusCode::CREATED, Json(json!({ "email": email }))).into_response())
         })
-        .await
+        .await;
+    match &result {
+        Ok(_) => log_line("register", &format!("ok {log_email}")),
+        Err(e) => log_line("register", &format!("fail {log_email} ({})", e.1)),
+    }
+    result
 }
 
 #[derive(Deserialize)]
@@ -239,9 +280,12 @@ fn issue_tokens(conn: &Connection, user_id: i64, device_id: &str) -> TokenPair {
 
 pub async fn login(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(body): Json<LoginRequest>,
 ) -> Result<Json<TokenPair>, ApiError> {
+    check_protocol(&headers)?;
     let email = body.email.trim().to_lowercase();
+    let log_email = email.clone();
     let password = body.password;
     let name = if body.device_name.trim().is_empty() {
         "unnamed device".to_string()
@@ -255,7 +299,7 @@ pub async fn login(
     };
     let claimed = body.device_id.trim().to_string();
 
-    state
+    let result = state
         .db
         .call(move |conn| {
             let found: Option<(i64, String, String)> = conn
@@ -317,7 +361,12 @@ pub async fn login(
             };
             Ok(Json(issue_tokens(conn, user_id, &device_id)))
         })
-        .await
+        .await;
+    match &result {
+        Ok(pair) => log_line("login", &format!("ok {log_email} dev={}", pair.device_id)),
+        Err(e) => log_line("login", &format!("fail {log_email} ({})", e.1)),
+    }
+    result
 }
 
 #[derive(Deserialize)]
