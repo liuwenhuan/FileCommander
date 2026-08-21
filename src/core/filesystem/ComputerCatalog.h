@@ -23,6 +23,7 @@ struct ComputerEntry {
         RemovableDevice, // target is the RemovableDeviceMonitor id, NOT a path
         SavedServer,     // target is the SavedConnection id
         NetworkHost,     // target is the host name or address to browse
+        AccountDevice,   // target is the device id; `online` gates activation
     };
 
     Kind kind = Kind::Drive;
@@ -30,6 +31,9 @@ struct ComputerEntry {
     QString target;    // meaning depends on kind; see above
     QString iconPath;  // ":/icons/....svg"; empty = let IconCache decide
     QDateTime created; // only saved bookmarks have one; invalid renders blank
+    // Only AccountDevice rows use this: an offline device is listed but shown
+    // grey and not activatable. Every other kind is always "online".
+    bool online = true;
     // Set for drives so the row can say how full the volume is. -1 when unknown
     // (an unreadable or not-ready volume), which renders as nothing rather than
     // as "0 bytes free".

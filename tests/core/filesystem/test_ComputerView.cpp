@@ -386,3 +386,73 @@ TEST(ComputerViewTest, CatalogOrderTest_DrivesAreListedByMountRootNotByLabel) {
     }
 #endif
 }
+
+ComputerEntry makeAccountDevice(const QString &name, const QString &target, bool online) {
+    ComputerEntry entry;
+    entry.kind = ComputerEntry::Kind::AccountDevice;
+    entry.name = name;
+    entry.target = target;
+    entry.online = online;
+    return entry;
+}
+
+TEST(ComputerViewTest, ProviderTest_AccountDeviceMapsBackAndReportsItsOnlineState) {
+    ComputerProvider provider;
+    provider.setEntries({
+        makeAccountDevice(QStringLiteral("work laptop"), QStringLiteral("dev-1"), true),
+        makeAccountDevice(QStringLiteral("home tower"), QStringLiteral("dev-2"), false),
+    });
+
+    const QVector<FileInfo> rows = provider.list(ComputerProvider::rootPath(), false);
+    ASSERT_EQ(rows.size(), 2);
+
+    const ComputerEntry online = provider.entryFor(rows.at(0).path());
+    EXPECT_EQ(online.kind, ComputerEntry::Kind::AccountDevice);
+    EXPECT_EQ(online.target, QStringLiteral("dev-1"));
+    EXPECT_TRUE(online.online);
+    EXPECT_TRUE(provider.entryEnabled(rows.at(0).path()));
+    EXPECT_EQ(provider.entryTypeLabel(rows.at(0).path()), QStringLiteral("Device"));
+
+    // An offline device is still listed (so the section reads as "my devices"
+    // even when nothing is reachable) but answers not-enabled, which is what
+    // greys and deactivates it.
+    const ComputerEntry offline = provider.entryFor(rows.at(1).path());
+    EXPECT_EQ(offline.target, QStringLiteral("dev-2"));
+    EXPECT_FALSE(offline.online);
+    EXPECT_FALSE(provider.entryEnabled(rows.at(1).path()));
+}
+
+TEST(ComputerViewTest, ViewModelTest_OfflineAccountDeviceIsListedButNotEnabled) {
+    auto provider = std::make_shared<ComputerProvider>();
+    provider->setEntries({
+        makeAccountDevice(QStringLiteral("work laptop"), QStringLiteral("dev-1"), true),
+        makeAccountDevice(QStringLiteral("home tower"), QStringLiteral("dev-2"), false),
+    });
+
+    FileSystemModel model;
+    model.setProvider(provider);
+    model.setRootPath(ComputerProvider::rootPath());
+    waitForLoad(model);
+
+    ASSERT_EQ(model.rowCount(), 2);
+
+    // Rows sort by name within their section, so find each by name rather than
+    // by insertion order.
+    int onlineRow = -1, offlineRow = -1;
+    for (int row = 0; row < model.rowCount(); ++row) {
+        if (model.fileInfoAt(row).name() == QStringLiteral("work laptop"))
+            onlineRow = row;
+        if (model.fileInfoAt(row).name() == QStringLiteral("home tower"))
+            offlineRow = row;
+    }
+    ASSERT_NE(onlineRow, -1);
+    ASSERT_NE(offlineRow, -1);
+
+    const QModelIndex online = model.index(onlineRow, FileSystemModel::NameColumn);
+    const QModelIndex offline = model.index(offlineRow, FileSystemModel::NameColumn);
+    EXPECT_TRUE(model.flags(online) & Qt::ItemIsEnabled);
+    // The whole point of greying: the row is present but cannot be selected or
+    // activated, so a click on an offline peer is a visible no-op.
+    EXPECT_FALSE(model.flags(offline) & Qt::ItemIsEnabled);
+    EXPECT_FALSE(model.flags(offline) & Qt::ItemIsSelectable);
+}

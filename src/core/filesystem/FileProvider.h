@@ -179,6 +179,12 @@ public:
     // consulted) unless isVirtualListing() is true.
     virtual int entrySortGroup(const QString & /*path*/) const { return 0; }
 
+    // Whether the synthetic row at `path` is activatable. A computer-view
+    // device that is offline is listed but answered false, so the model greys
+    // it and the panel refuses to activate it. True for every other row and for
+    // every backend that does not override this (real files are always openable).
+    virtual bool entryEnabled(const QString & /*path*/) const { return true; }
+
     // Concise human label for the connection this provider represents (e.g.
     // "user@host"), shown alongside the current directory on network tabs. The
     // default is empty: local/archive backends have no connection identity and
