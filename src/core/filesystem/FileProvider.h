@@ -366,6 +366,11 @@ public:
     // Creates a directory (including parents where the backend allows). Default fails.
     virtual bool mkdir(const QString & /*path*/) { return false; }
 
+    // Free bytes on the filesystem holding `path`, or -1 when the backend cannot
+    // say (network backends, archives). Best-effort like setModifiedTime(): a
+    // -1 must never block or fail a transfer, only skip the early space check.
+    virtual qint64 freeSpace(const QString & /*path*/) const { return -1; }
+
     // Sets the maximum number of independent physical connections this provider
     // may open for concurrent streaming transfers (its internal connection
     // pool's cap). Backends without a pool (local/archive, and the FTP/WebDAV

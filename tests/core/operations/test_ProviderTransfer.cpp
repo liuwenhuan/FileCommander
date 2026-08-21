@@ -188,6 +188,8 @@ public:
         m_writeFailureDetail = detail;
     }
     void disableWriteResume() { m_supportsWriteResume = false; }
+    void setFreeSpace(qint64 bytes) { m_freeSpace = bytes; }
+    qint64 freeSpace(const QString &) const override { return m_freeSpace; }
     void failCloseWrites(FileHandle::StreamError error = FileHandle::StreamError::Other,
                          const QString &detail = {}) {
         m_failCloseWrites = true;
@@ -230,6 +232,7 @@ private:
     FileHandle::StreamError m_writeFailure = FileHandle::StreamError::None;
     QString m_writeFailureDetail;
     bool m_supportsWriteResume = true;
+    qint64 m_freeSpace = -1;
     bool m_failCloseWrites = false;
     FileHandle::StreamError m_closeFailure = FileHandle::StreamError::None;
     QString m_closeFailureDetail;
@@ -733,4 +736,22 @@ TEST(ProviderTransferTest, ThrottledCopyPacesToTheRateLimit) {
         << "throttled (" << throttledMs << " ms) was not slower than unthrottled ("
         << unthrottledMs << " ms)";
     EXPECT_EQ(readFile(target), payload);
+}
+
+TEST(ProviderTransferTest, ADestinationWithTooLittleSpaceFailsEarly) {
+    InMemoryProvider src;
+    InMemoryProvider dst;
+    src.addFile("/source/big.bin", QByteArray(1000, 'x'));
+    dst.setFreeSpace(10); // claims 10 bytes free, source is 1000
+
+    FileOperations ops;
+    QString err;
+    ASSERT_FALSE(ops.copyAcrossProviders(&src, {"/source/big.bin"}, &dst, "/destination",
+                                          /*removeSource=*/false, nullptr, &err));
+    EXPECT_FALSE(err.isEmpty());
+    // The transfer must not have even started writing the destination.
+    EXPECT_FALSE(dst.file("/destination/big.bin").isEmpty() == false &&
+                 dst.file("/destination/big.bin").size() > 0)
+        << "a transfer into a full destination started writing";
+    EXPECT_TRUE(dst.file("/destination/big.bin").isEmpty());
 }

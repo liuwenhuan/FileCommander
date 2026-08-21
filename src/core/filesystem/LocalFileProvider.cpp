@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QStorageInfo>
 
 namespace {
 // Wraps a QFile so it can travel through the FileHandle interface. The QFile is
@@ -120,6 +121,12 @@ bool LocalFileProvider::setModifiedTime(const QString &path, const QDateTime &mo
     const bool ok = file.setFileTime(modified, QFileDevice::FileModificationTime);
     file.close();
     return ok;
+}
+
+qint64 LocalFileProvider::freeSpace(const QString &path) const {
+    // QStorageInfo answers for the filesystem holding `path`; an invalid path or
+    // an unreadable mount is -1, which the caller reads as "cannot say".
+    return QStorageInfo(path).bytesAvailable();
 }
 
 bool LocalFileProvider::remove(const QString &path) {

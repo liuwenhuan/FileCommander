@@ -31,6 +31,7 @@ public:
     bool canStream() const override { return true; }
 
     bool setModifiedTime(const QString &path, const QDateTime &modified) override;
+    qint64 freeSpace(const QString &path) const override;
 
     bool remove(const QString &path) override;
     bool mkdir(const QString &path) override;

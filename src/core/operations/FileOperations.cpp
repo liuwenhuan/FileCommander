@@ -1604,6 +1604,17 @@ bool FileOperations::copyAcrossProviders(FileProvider *src, const QStringList &s
     }
 
     m_totalBytes = countProviderBytes(src, sources);
+    // Fail early when the destination genuinely cannot hold the bytes, rather
+    // than mid-write when the disk fills. Best-effort: a -1 (unknown, i.e. most
+    // network backends) skips the check rather than blocking the transfer.
+    const qint64 free = dst->freeSpace(destDir);
+    if (free >= 0 && m_totalBytes > free) {
+        const QString msg = tr("Not enough space on the destination");
+        if (errorMessage)
+            *errorMessage = msg;
+        emit errorOccurred(msg);
+        return false;
+    }
     dst->mkdir(destDir);
 
     // Whether the server-side move is still worth trying for this batch. The
