@@ -158,6 +158,10 @@ void DeviceAgent::onTextMessage(const QString &text) {
             emit ticketOffered(message.value(QStringLiteral("session_id")).toString(), ticket,
                                message.value(QStringLiteral("from")).toString(),
                                message.value(QStringLiteral("expires_in")).toInt());
+    } else if (type == QLatin1String("presence")) {
+        const QString deviceId = message.value(QStringLiteral("device_id")).toString();
+        if (!deviceId.isEmpty())
+            emit presenceChanged(deviceId, message.value(QStringLiteral("online")).toBool());
     }
 }
 

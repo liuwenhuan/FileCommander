@@ -212,3 +212,37 @@ TEST(AccountClient, FetchingDevicesWhileSignedOutNeverReachesTheNetwork) {
     ASSERT_EQ(failed.count(), 1); // synchronous: no request was ever issued
     EXPECT_EQ(server.requestCount(QStringLiteral("/v1/devices")), 0);
 }
+
+TEST(AccountClient, RequestsCarryTheProtocolVersion) {
+    MockHttpServer server;
+    server.setRoute(QStringLiteral("/v1/auth/login"), json(tokenReply("access-1", "refresh-1", "dev-1")));
+
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    QSignalSpy in(&client, &AccountClient::loggedIn);
+    client.login(QStringLiteral("a@example.com"), QStringLiteral("correct horse"),
+                 QStringLiteral("laptop"));
+    waitForSignal(in);
+
+    EXPECT_TRUE(QString::fromUtf8(server.lastRequestHead())
+                    .contains(QStringLiteral("X-FileCommander-Protocol: 1")))
+        << "the protocol header is how the server refuses a client that is too old";
+}
+
+TEST(AccountClient, AnOldClientIsRefusedWithTheServersUpdateMessage) {
+    MockHttpServer server;
+    server.setRoute(QStringLiteral("/v1/auth/login"),
+                    json(R"({"detail":"Your version of FileCommander is too old. Please update to continue."})",
+                         426));
+
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    QSignalSpy failed(&client, &AccountClient::requestFailed);
+    client.login(QStringLiteral("a@example.com"), QStringLiteral("correct horse"),
+                 QStringLiteral("laptop"));
+    waitForSignal(failed);
+
+    ASSERT_EQ(failed.count(), 1);
+    EXPECT_EQ(failed.takeFirst().at(0).toString(),
+              QStringLiteral("Your version of FileCommander is too old. Please update to continue."));
+}

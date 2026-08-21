@@ -66,6 +66,11 @@ signals:
     void ticketOffered(const QString &sessionId, const QString &ticket, const QString &from,
                        int expiresIn);
 
+    // The server told us another device of this account came online or went
+    // offline. The caller re-fetches the device list so the peer's row flips
+    // in real time rather than on the next manual refresh.
+    void presenceChanged(const QString &deviceId, bool online);
+
 private:
     void openSocket();
     void scheduleReconnect();

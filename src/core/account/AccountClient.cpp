@@ -87,6 +87,11 @@ void AccountClient::request(Verb verb, const QString &path, const QByteArray &bo
     req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
     req.setHeader(QNetworkRequest::UserAgentHeader,
                   QStringLiteral("FileCommander/%1").arg(QStringLiteral(TTC_VERSION)));
+    // Lets the server refuse a client whose protocol predates a breaking change
+    // (currently: credentials moved out of the URL query) instead of letting it
+    // half-work.
+    req.setRawHeader("X-FileCommander-Protocol",
+                     QByteArray::number(AccountClient::kProtocolVersion));
     if (authenticated)
         req.setRawHeader("Authorization", "Bearer " + m_accessToken.toUtf8());
 
@@ -322,8 +327,11 @@ QString AccountClient::agentSocketUrl() const {
 
 QNetworkRequest AccountClient::agentSocketRequest() const {
     QNetworkRequest request{QUrl(agentSocketUrl())};
-    if (!request.url().isEmpty())
+    if (!request.url().isEmpty()) {
         request.setRawHeader("Authorization", "Bearer " + m_accessToken.toUtf8());
+        request.setRawHeader("X-FileCommander-Protocol",
+                             QByteArray::number(AccountClient::kProtocolVersion));
+    }
     return request;
 }
 

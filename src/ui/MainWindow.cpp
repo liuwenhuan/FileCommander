@@ -4662,6 +4662,12 @@ void MainWindow::updateDeviceSharing() {
         connect(m_deviceAgent, &DeviceAgent::announced, this, [this] {
             m_accountClient->fetchDevices();
         });
+        // A peer came online or went offline: re-list so its row flips now
+        // rather than on the next manual refresh. Cheap -- it reuses the same
+        // poll-on-demand path the menus already trigger.
+        connect(m_deviceAgent, &DeviceAgent::presenceChanged, this, [this] {
+            m_accountClient->fetchDevices();
+        });
         // The port is only known once it is bound, and the agent is what tells
         // the account server about it -- so a peer can only ever be handed a
         // port that is actually listening.
