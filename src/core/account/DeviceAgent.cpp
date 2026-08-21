@@ -133,6 +133,11 @@ void DeviceAgent::onTextMessage(const QString &text) {
     const QString type = message.value(QStringLiteral("type")).toString();
     if (type == QLatin1String("welcome")) {
         sendHello();
+    } else if (type == QLatin1String("ready")) {
+        // The server sends this only after it has written last_seen for our
+        // hello, so a device list fetched from here on shows this device online
+        // -- which the caller uses to stop the fresh sign-in looking offline.
+        emit announced();
     } else if (type == QLatin1String("incoming")) {
         const QString ticket = message.value(QStringLiteral("ticket")).toString();
         if (!ticket.isEmpty())

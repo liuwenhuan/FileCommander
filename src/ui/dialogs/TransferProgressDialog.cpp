@@ -293,6 +293,20 @@ void TransferProgressDialog::showIfHidden() {
     raise();
 }
 
+void TransferProgressDialog::showConnecting(const QString &description) {
+    m_descriptionLabel->setText(description);
+    m_progressBar->setRange(0, 0); // indeterminate until the real job starts
+    m_fileLabel->clear();
+    m_bytesLabel->clear();
+    m_speedLabel->clear();
+    m_etaLabel->clear();
+    m_errorLabel->clear();
+    m_queueLabel->clear();
+    m_shown = true;
+    show();
+    raise();
+}
+
 void TransferProgressDialog::suppressAutoShow(bool suppressed) {
     m_showSuppressed = suppressed;
     if (!suppressed && m_wantsShowWhileSuppressed) {

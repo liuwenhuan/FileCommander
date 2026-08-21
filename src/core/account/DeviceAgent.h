@@ -49,6 +49,11 @@ public:
 signals:
     void connected();
     void disconnected();
+    // The server answered "ready", i.e. it has recorded this device's hello and
+    // written last_seen -- so a device list fetched now would show us online.
+    // Emitted on the initial hello and again whenever the share port changes,
+    // which is what re-sends the hello.
+    void announced();
 
     // The server pushed a ticket: `from` wants to connect to us. The caller
     // hands the ticket to FileShareServer, which will then accept it, and uses

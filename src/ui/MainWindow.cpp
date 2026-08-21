@@ -4537,6 +4537,11 @@ void MainWindow::ensureAccountClient() {
     }
     connect(m_accountClient, &AccountClient::loggedIn, this, [this] {
         updateDeviceSharing();
+        // The received-files folder is created by updateDeviceSharing(), so a
+        // computer view already on screen must re-list to show it -- otherwise
+        // signing in while parked on the computer view leaves the new folder
+        // invisible until the user navigates away and back.
+        refreshComputerViews();
         m_accountClient->fetchDevices(); // for the context menu, before it opens
     });
     connect(m_accountClient, &AccountClient::loggedOut, this, [this] {
@@ -4586,6 +4591,13 @@ void MainWindow::updateDeviceSharing() {
     if (!m_shareServer) {
         m_shareServer = new FileShareServer(m_accountClient, this);
         m_deviceAgent = new DeviceAgent(m_accountClient, this);
+        // The first device list is fetched the moment the account signs in, but
+        // the agent socket has not finished its hello by then, so this device
+        // shows as offline until something re-fetches. "announced" is that
+        // something: it fires once the server has recorded the hello.
+        connect(m_deviceAgent, &DeviceAgent::announced, this, [this] {
+            m_accountClient->fetchDevices();
+        });
         // The port is only known once it is bound, and the agent is what tells
         // the account server about it -- so a peer can only ever be handed a
         // port that is actually listening.
@@ -4771,13 +4783,26 @@ void MainWindow::sendToDevice(const QString &deviceId, const QString &name,
         // relay it can take seconds -- far too long to spend on the GUI thread,
         // which is why opening a tab hands this to NetworkSession. There is no
         // session here, so it goes to the pool directly.
+        //
+        // The progress window appears before the dial, not after it: the dial is
+        // the part that takes long enough to leave the user with no feedback at
+        // all, and a window that only opens once bytes are moving arrives when
+        // the job is already past the point of being cancelled or watched.
+        auto *dialog = ensureTransferProgressDialog();
+        dialog->showConnecting(tr("Connecting to %1…").arg(name));
+        auto connectError = std::make_shared<QString>();
         auto *watcher = new QFutureWatcher<bool>(this);
         connect(watcher, &QFutureWatcher<bool>::finished, this,
-                [this, watcher, link, srcProv, sources, name] {
+                [this, watcher, dialog, link, srcProv, sources, name, connectError] {
                     watcher->deleteLater();
                     if (!watcher->result()) {
+                        dialog->dismissAfterAbort();
+                        const QString error = connectError->trimmed();
                         ttc::critical(this, tr("Connection Failed"),
-                                      tr("%1 cannot be reached on this network.").arg(name));
+                                      error.isEmpty()
+                                          ? tr("%1 cannot be reached on this network.")
+                                                .arg(name)
+                                          : error);
                         return;
                     }
                     // The share name is the folder's own name, which is how
@@ -4785,13 +4810,11 @@ void MainWindow::sendToDevice(const QString &deviceId, const QString &name,
                     const QString destDir =
                         QLatin1Char('/') +
                         QFileInfo(ComputerCatalog::receivedFilesPath()).fileName();
-                    ensureTransferProgressDialog();
                     m_queue->enqueueProviderCopy(srcProv, sources, link.provider, destDir);
                 });
         auto connectFn = link.connect;
-        watcher->setFuture(QtConcurrent::run([connectFn] {
-            QString error;
-            return connectFn(&error);
+        watcher->setFuture(QtConcurrent::run([connectFn, connectError] {
+            return connectFn(connectError.get());
         }));
     });
 #else

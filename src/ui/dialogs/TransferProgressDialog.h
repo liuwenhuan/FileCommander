@@ -49,6 +49,14 @@ public:
     explicit TransferProgressDialog(OperationQueue *queue, QWidget *parent = nullptr);
     void dismissAfterAbort();
 
+    // Shows the dialog now, before any job has been enqueued, in an
+    // indeterminate "working" state. The send-to-device path needs this: it
+    // dials the peer for seconds before the transfer queue ever starts, and a
+    // window that only appears once bytes are moving is feedback about a job the
+    // user no longer controls. The first started() signal takes over and drives
+    // the real progress.
+    void showConnecting(const QString &description);
+
     // While suppressed, showIfHidden() remembers that it wants to show but does not
     // actually call show()/raise(). MainWindow holds this while a modal
     // OperationErrorDialog is open so the deferred-show timer firing mid-decision (a
