@@ -59,6 +59,10 @@ Result webDavHttpError(long httpCode) {
     case 403:
     case 407:
         return {FileHandle::StreamError::PermissionDenied, detail};
+    case 423:
+        // The peer still holds the per-path upload lock (a concurrent or
+        // just-cancelled transfer). Transient: the caller retries shortly.
+        return {FileHandle::StreamError::Locked, detail};
     default:
         return {FileHandle::StreamError::Other, detail};
     }

@@ -10,10 +10,8 @@
 #include <QWaitCondition>
 
 #include "FileOpTypes.h"
+#include "FileProvider.h"
 #include "privilege/PrivilegeBroker.h"
-
-class FileProvider;
-class FileHandle;
 
 // Performs the actual filesystem I/O for copy/move/delete/mkdir/rename.
 // Methods here are blocking and meant to be invoked from a background
@@ -207,7 +205,8 @@ private:
     // Streams one file's bytes; startOffset>0 resumes an interrupted transfer.
     bool streamCopy(FileProvider *src, const QString &srcPath, FileProvider *dst,
                     const QString &destPath, bool truncate, qint64 startOffset,
-                    QString *failMsg, const QDateTime &sourceTime = {});
+                    QString *failMsg, const QDateTime &sourceTime = {},
+                    FileHandle::StreamError *closeError = nullptr);
     // Recursively removes a remote entry (depth-first) via the provider; used by
     // deleteProviderPaths. Honours pause/cancel and the error resolver per node.
     bool removeProviderTree(FileProvider *provider, const QString &path, QString *errorMessage);

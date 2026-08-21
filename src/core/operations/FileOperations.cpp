@@ -1253,7 +1253,8 @@ QString FileOperations::uniqueProviderDestination(FileProvider *dst, const QStri
 
 bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileProvider *dst,
                                 const QString &destPath, bool truncate, qint64 startOffset,
-                                QString *failMsg, const QDateTime &sourceTime) {
+                                QString *failMsg, const QDateTime &sourceTime,
+                                FileHandle::StreamError *closeError) {
     // Roll back progress accounting if the attempt fails so a retry starts from
     // a clean byte count rather than double-counting.
     const qint64 doneBytesAtStart = m_doneBytes;
@@ -1266,6 +1267,8 @@ bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileP
             return tr("You do not have permission to write %1").arg(path);
         case FileHandle::StreamError::ConnectionLost:
             return tr("Connection to the server was lost while transferring %1").arg(path);
+        case FileHandle::StreamError::Locked:
+            return tr("Another transfer is still writing to %1").arg(path);
         case FileHandle::StreamError::Other:
             if (!detail.isEmpty()) {
                 return finalCommit ? tr("Upload of %1 did not complete: %2").arg(path, detail)
@@ -1428,6 +1431,8 @@ bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileP
         ok = false;
         *failMsg = writeFailureMessage(closeResult.error, closeResult.detail, destPath, true);
     }
+    if (closeError)
+        *closeError = closeResult.error;
     if (!ok) {
         m_doneBytes = doneBytesAtStart;
         return false;
@@ -1514,10 +1519,23 @@ FileOperations::transferFile(FileProvider *src, const QString &srcPath, FileProv
         }
 
         QString failMsg;
-        if (streamCopy(src, srcPath, dst, target, truncate, startOffset, &failMsg, sourceTime))
-            return FileResult::Done;
-        if (m_cancelled)
-            return FileResult::Failed;
+        FileHandle::StreamError closeError = FileHandle::StreamError::None;
+        // A path locked by a just-cancelled transfer is transient: the lock is
+        // dropped as soon as the old connection tears down, which over the relay
+        // takes a beat. Retry a few times rather than surfacing the 423, so a
+        // cancel-then-resend does not fail on a lock the dead transfer is about
+        // to give back.
+        for (int attempt = 0; ; ++attempt) {
+            closeError = FileHandle::StreamError::None;
+            if (streamCopy(src, srcPath, dst, target, truncate, startOffset, &failMsg,
+                           sourceTime, &closeError))
+                return FileResult::Done;
+            if (m_cancelled)
+                return FileResult::Failed;
+            if (closeError != FileHandle::StreamError::Locked || attempt >= 2)
+                break;
+            QThread::msleep(500);
+        }
 
         if (resolveError(OperationType::Copy, srcPath, target, 0, failMsg, false) ==
             ErrorAction::Retry)

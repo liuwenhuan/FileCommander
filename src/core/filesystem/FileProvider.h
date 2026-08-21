@@ -18,7 +18,7 @@
 // openRead/openWrite and operates on it via read/write/seek/closeHandle.
 class FileHandle {
 public:
-    enum class StreamError { None, NoSpace, PermissionDenied, ConnectionLost, Other };
+    enum class StreamError { None, NoSpace, PermissionDenied, ConnectionLost, Locked, Other };
 
     virtual ~FileHandle() = default;
     virtual StreamError streamError() const { return StreamError::None; }
