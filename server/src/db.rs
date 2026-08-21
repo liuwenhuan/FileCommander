@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS devices (
     last_seen TEXT,
     lan_addrs TEXT NOT NULL DEFAULT '',
     share_port INTEGER NOT NULL DEFAULT 0,
-    share_pin TEXT NOT NULL DEFAULT ''
+    share_pin TEXT NOT NULL DEFAULT '',
+    shares TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS tokens (
     token_hash TEXT PRIMARY KEY,
@@ -56,6 +57,10 @@ impl Db {
         // name", which is the success case from then on.
         let _ = conn.execute(
             "ALTER TABLE devices ADD COLUMN share_pin TEXT NOT NULL DEFAULT ''",
+            [],
+        );
+        let _ = conn.execute(
+            "ALTER TABLE devices ADD COLUMN shares TEXT NOT NULL DEFAULT ''",
             [],
         );
         Ok(Db(Arc::new(Mutex::new(conn))))
@@ -175,16 +180,17 @@ mod tests {
         Db::open(path).expect("migrate");
 
         let conn = Connection::open(path).expect("reopen");
-        let (name, port, pin): (String, i64, String) = conn
+        let (name, port, pin, shares): (String, i64, String, String) = conn
             .query_row(
-                "SELECT name, share_port, share_pin FROM devices WHERE id = 'dev-1'",
+                "SELECT name, share_port, share_pin, shares FROM devices WHERE id = 'dev-1'",
                 [],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
             )
             .expect("row survived");
         assert_eq!(name, "Laptop");
         assert_eq!(port, 4711);
         assert_eq!(pin, "");
+        assert_eq!(shares, "");
 
         // Running it again must be a no-op, not an error.
         Db::open(path).expect("second open");

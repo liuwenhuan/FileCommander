@@ -110,6 +110,21 @@ async fn serve_agent(state: AppState, device_id: String, socket: WebSocket) {
                     .filter(|s| s.starts_with("sha256//") && s.len() <= 128 && !s.contains(','))
                     .unwrap_or_default()
                     .to_string();
+                // The share names this device is actually serving, for the
+                // device list to show before a peer browses it. Same
+                // comma-separated convention as lan_addrs.
+                let shares: Vec<String> = value
+                    .get("shares")
+                    .and_then(Value::as_array)
+                    .map(|items| {
+                        items
+                            .iter()
+                            .filter_map(Value::as_str)
+                            .filter(|s| !s.is_empty() && !s.contains(','))
+                            .map(|s| s.to_string())
+                            .collect()
+                    })
+                    .unwrap_or_default();
                 {
                     let mut agents = state.agents.lock().unwrap_or_else(|e| e.into_inner());
                     if let Some(agent) = agents.get_mut(&device_id) {
@@ -121,14 +136,15 @@ async fn serve_agent(state: AppState, device_id: String, socket: WebSocket) {
                     }
                 }
                 let joined = addrs.join(",");
+                let shares_joined = shares.join(",");
                 let id = device_id.clone();
                 state
                     .db
                     .call(move |conn| {
                         let _ = conn.execute(
                             "UPDATE devices SET last_seen = ?1, lan_addrs = ?2, share_port = ?3, \
-                             share_pin = ?4 WHERE id = ?5",
-                            params![iso(now()), joined, port as i64, pin, id],
+                             share_pin = ?4, shares = ?5 WHERE id = ?6",
+                            params![iso(now()), joined, port as i64, pin, shares_joined, id],
                         );
                     })
                     .await;

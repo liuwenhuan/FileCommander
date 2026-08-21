@@ -208,6 +208,10 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
                         item->setData(Qt::UserRole, d.id);
                     item->setData(Qt::UserRole + 1, d.online);
                     item->setData(Qt::UserRole + 2, name);
+                    // Show what the peer is serving before the user commits to
+                    // opening a tab, so the device row itself is the usage entry.
+                    if (!d.shares.isEmpty())
+                        item->setToolTip(tr("Shares: %1").arg(d.shares.join(QLatin1String(", "))));
                 }
             });
 

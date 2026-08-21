@@ -1084,6 +1084,22 @@ FileShareServer::~FileShareServer() {
 }
 
 void FileShareServer::setSharedFolders(const QStringList &folders) {
+    // Mirror the names this side, so the agent can report what is being served
+    // without a round trip into the worker. Same basename + collision-suffix
+    // computation the worker performs; keep them in step.
+    m_shareNames.clear();
+    for (const QString &folder : folders) {
+        const QString canonical = QFileInfo(folder).canonicalFilePath();
+        if (canonical.isEmpty())
+            continue;
+        QString name = QFileInfo(canonical).fileName();
+        if (name.isEmpty())
+            name = QStringLiteral("root");
+        QString unique = name;
+        for (int n = 2; m_shareNames.contains(unique); ++n)
+            unique = name + QStringLiteral(" (%1)").arg(n);
+        m_shareNames.append(unique);
+    }
     QMetaObject::invokeMethod(m_worker, "setFolders", Qt::QueuedConnection,
                               Q_ARG(QStringList, folders));
 }

@@ -62,6 +62,9 @@ public:
 
     quint16 port() const { return m_port; }
     bool isRunning() const { return m_port != 0; }
+    // The root-level names the shared folders are served under (basenames with
+    // a collision suffix), so the agent can report what is being served.
+    QStringList shareNames() const { return m_shareNames; }
 
 signals:
     void started(quint16 port);
@@ -85,4 +88,5 @@ private:
     // through queued invocations by name, so worker-owned state needs no lock.
     QObject *m_worker;
     quint16 m_port = 0;
+    QStringList m_shareNames; // mirror of the worker's share names, set in setSharedFolders
 };

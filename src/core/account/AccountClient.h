@@ -17,6 +17,7 @@ struct AccountDeviceInfo {
     bool online = false;
     bool self = false;         // this install
     QStringList lanAddresses;  // addresses to try before falling back to relay
+    QStringList shares;        // folder names the device is serving, empty when unknown
     QString lastSeen;          // ISO-8601, empty when never seen
 };
 

@@ -298,6 +298,8 @@ void AccountClient::fetchDevices() {
                     d.lastSeen = o.value(QStringLiteral("last_seen")).toString();
                     for (const QJsonValue &a : o.value(QStringLiteral("lan_addrs")).toArray())
                         d.lanAddresses.append(a.toString());
+                    for (const QJsonValue &a : o.value(QStringLiteral("shares")).toArray())
+                        d.shares.append(a.toString());
                     if (!d.id.isEmpty())
                         devices.append(d);
                 }

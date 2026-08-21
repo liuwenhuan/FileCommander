@@ -400,6 +400,8 @@ void ExternalConnectDialog::rebuild() {
             if (device.online && !device.self) {
                 item->setData(Qt::UserRole, KindAccountDevice);
                 item->setData(Qt::UserRole + 1, i);
+                if (!device.shares.isEmpty())
+                    item->setToolTip(tr("Shares: %1").arg(device.shares.join(QLatin1String(", "))));
             } else {
                 // This machine, or one that is not listening: nothing to open.
                 item->setFlags(Qt::NoItemFlags);

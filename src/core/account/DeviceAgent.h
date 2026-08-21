@@ -41,6 +41,10 @@ public:
     // a share that starts after the socket does is still announced.
     void setSharePort(quint16 port);
 
+    // The names of the folders this device is actually serving, so a peer can
+    // show them before it browses. Reported with the hello, like the port.
+    void setShareNames(const QStringList &names);
+
     // This machine's LAN addresses, in the order a peer should try them.
     // Loopback, link-local and down interfaces are left out, as is anything
     // containing a comma -- the server stores the list comma-separated.
@@ -73,6 +77,7 @@ private:
     QTimer *m_heartbeat;
     QTimer *m_reconnect;
     quint16 m_sharePort = 0;
+    QStringList m_shareNames;
     int m_attempt = 0;
     bool m_wanted = false; // start() called and stop() not
 };

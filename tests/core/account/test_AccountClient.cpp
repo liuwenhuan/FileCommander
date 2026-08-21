@@ -110,7 +110,8 @@ TEST(AccountClient, SignInKeepsTheTokenOffTheAccountAndSendsItAsBearer) {
                                            QJsonObject{{"id", "dev-2"},
                                                        {"name", "desktop"},
                                                        {"online", true},
-                                                       {"lan_addrs", QJsonArray{"192.168.1.5"}}},
+                                                       {"lan_addrs", QJsonArray{"192.168.1.5"}},
+                                                       {"shares", QJsonArray{"Downloads", "Photos"}}},
                                        })
                              .toJson()));
     QSignalSpy ready(&client, &AccountClient::devicesReady);
@@ -123,6 +124,7 @@ TEST(AccountClient, SignInKeepsTheTokenOffTheAccountAndSendsItAsBearer) {
     EXPECT_TRUE(devices.at(0).self);
     EXPECT_TRUE(devices.at(1).online);
     EXPECT_EQ(devices.at(1).lanAddresses, QStringList{QStringLiteral("192.168.1.5")});
+    EXPECT_EQ(devices.at(1).shares, (QStringList{QStringLiteral("Downloads"), QStringLiteral("Photos")}));
     EXPECT_TRUE(server.lastRequestHead().contains("Authorization: Bearer access-1"));
 }
 

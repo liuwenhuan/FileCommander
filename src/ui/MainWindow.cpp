@@ -4687,6 +4687,9 @@ void MainWindow::updateDeviceSharing() {
     if (m_settings.deviceSharingEnabled())
         folders += m_settings.sharedFolders();
     m_shareServer->setSharedFolders(folders);
+    // The agent reports what is being served, so a peer can show it before
+    // browsing. The names are the share roots, in the same order they serve.
+    m_deviceAgent->setShareNames(m_shareServer->shareNames());
     if (!m_shareServer->isRunning())
         m_shareServer->start();
     if (!m_deviceAgent->isConnected())

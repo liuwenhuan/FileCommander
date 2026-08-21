@@ -91,6 +91,14 @@ void DeviceAgent::setSharePort(quint16 port) {
         sendHello();
 }
 
+void DeviceAgent::setShareNames(const QStringList &names) {
+    if (m_shareNames == names)
+        return;
+    m_shareNames = names;
+    if (isConnected())
+        sendHello();
+}
+
 void DeviceAgent::openSocket() {
     if (!m_wanted)
         return;
@@ -121,13 +129,17 @@ void DeviceAgent::sendHello() {
     QJsonArray addresses;
     for (const QString &address : localAddresses())
         addresses.append(address);
+    QJsonArray shares;
+    for (const QString &name : m_shareNames)
+        shares.append(name);
     // The pin travels with the address and port because it is part of "how to
     // reach this device": without it the peer has no way to tell our file
     // share from anything else that answers on that port.
     m_socket->sendTextMessage(encode({{"type", "hello"},
                                       {"lan_addrs", addresses},
                                       {"port", static_cast<int>(m_sharePort)},
-                                      {"pin", ShareIdentity::local().pin}}));
+                                      {"pin", ShareIdentity::local().pin},
+                                      {"shares", shares}}));
 }
 
 void DeviceAgent::onTextMessage(const QString &text) {

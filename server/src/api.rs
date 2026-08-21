@@ -377,6 +377,7 @@ pub struct DeviceView {
     pub platform: String,
     pub online: bool,
     pub lan_addrs: Vec<String>,
+    pub shares: Vec<String>,
     pub last_seen: String,
     #[serde(rename = "self")]
     pub is_self: bool,
@@ -399,7 +400,7 @@ pub async fn devices(
             // decides the order the user sees. It has to be rowid, not id: id
             // is random hex, which would shuffle the list on every call.
             let mut stmt = match conn.prepare(
-                "SELECT id, name, platform, last_seen, lan_addrs FROM devices \
+                "SELECT id, name, platform, last_seen, lan_addrs, shares FROM devices \
                  WHERE user_id = ?1 ORDER BY created, rowid",
             ) {
                 Ok(stmt) => stmt,
@@ -409,6 +410,7 @@ pub async fn devices(
                 let id: String = r.get(0)?;
                 let last_seen: Option<String> = r.get(3)?;
                 let addrs: String = r.get(4)?;
+                let shares: String = r.get(5)?;
                 Ok(DeviceView {
                     online: last_seen.as_deref().map(|s| s >= cutoff.as_str()).unwrap_or(false),
                     is_self: id == this_device,
@@ -416,6 +418,11 @@ pub async fn devices(
                     name: r.get(1)?,
                     platform: r.get(2)?,
                     lan_addrs: addrs
+                        .split(',')
+                        .filter(|s| !s.is_empty())
+                        .map(|s| s.to_string())
+                        .collect(),
+                    shares: shares
                         .split(',')
                         .filter(|s| !s.is_empty())
                         .map(|s| s.to_string())
