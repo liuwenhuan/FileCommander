@@ -202,6 +202,8 @@ void AccountClient::registerAccount(const QString &email, const QString &passwor
                     reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
                 if (status == 201)
                     emit registered(email);
+                else if (status == 426)
+                    emit updateRequired(errorText(reply, payload));
                 else
                     emit requestFailed(errorText(reply, payload));
             });
@@ -230,7 +232,9 @@ void AccountClient::login(const QString &email, const QString &password,
     request(Verb::Post, QStringLiteral("/v1/auth/login"), body, false,
             [this, email](QNetworkReply *reply) {
                 const QByteArray payload = reply->readAll();
-                if (acceptTokens(payload, email))
+                if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 426)
+                    emit updateRequired(errorText(reply, payload));
+                else if (acceptTokens(payload, email))
                     emit loggedIn(m_account);
                 else
                     emit requestFailed(errorText(reply, payload));
@@ -254,7 +258,9 @@ void AccountClient::restoreSession(const QString &email, const QString &deviceId
     request(Verb::Post, QStringLiteral("/v1/auth/refresh"), body, false,
             [this, email](QNetworkReply *reply) {
                 const QByteArray payload = reply->readAll();
-                if (acceptTokens(payload, email))
+                if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 426)
+                    emit updateRequired(errorText(reply, payload));
+                else if (acceptTokens(payload, email))
                     emit loggedIn(m_account);
                 else
                     emit requestFailed(errorText(reply, payload));

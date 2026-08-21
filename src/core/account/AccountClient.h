@@ -164,6 +164,11 @@ signals:
     // Every failed request lands here, with a message already fit to show.
     void requestFailed(const QString &error);
 
+    // The server refused this client as too old to talk to it (HTTP 426). Not a
+    // requestFailed() because it is not the user's fault and typing something
+    // different will not help -- the fix is to update, so it gets its own prompt.
+    void updateRequired(const QString &detail);
+
 private:
     enum class Verb { Get, Post, Delete };
 

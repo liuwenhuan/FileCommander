@@ -191,6 +191,18 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
         showCurrentState();
     });
     connect(&m_client, &AccountClient::requestFailed, this, &AccountDialog::reportError);
+    // The protocol version gate is not a sign-in failure: a modal prompt with a
+    // title and icon, not a line of status text, because the only fix is to
+    // update and there is nothing the user can type to get past it.
+    connect(&m_client, &AccountClient::updateRequired, this, [this](const QString &detail) {
+        setBusy(false);
+        m_status->clear();
+        QMessageBox::warning(this, tr("FileCommander Account"),
+                             detail.isEmpty()
+                                 ? tr("This version of FileCommander can no longer be used. "
+                                      "Please update to the latest version.")
+                                 : detail);
+    });
     connect(&m_client, &AccountClient::devicesReady, this,
             [this](const QVector<AccountDeviceInfo> &devices) {
                 m_devices->clear();

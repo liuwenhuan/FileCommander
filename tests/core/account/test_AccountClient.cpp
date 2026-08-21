@@ -237,12 +237,15 @@ TEST(AccountClient, AnOldClientIsRefusedWithTheServersUpdateMessage) {
 
     AccountClient client;
     client.setApiUrl(server.url(QString()));
+    QSignalSpy update(&client, &AccountClient::updateRequired);
     QSignalSpy failed(&client, &AccountClient::requestFailed);
     client.login(QStringLiteral("a@example.com"), QStringLiteral("correct horse"),
                  QStringLiteral("laptop"));
-    waitForSignal(failed);
+    waitForSignal(update);
 
-    ASSERT_EQ(failed.count(), 1);
-    EXPECT_EQ(failed.takeFirst().at(0).toString(),
+    ASSERT_EQ(update.count(), 1);
+    EXPECT_EQ(update.takeFirst().at(0).toString(),
               QStringLiteral("Your version of FileCommander is too old. Please update to continue."));
+    EXPECT_TRUE(failed.isEmpty())
+        << "an update-required refusal is not a sign-in failure and must not ride requestFailed";
 }
