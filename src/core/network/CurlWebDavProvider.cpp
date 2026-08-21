@@ -778,6 +778,49 @@ bool CurlWebDavProvider::mkdir(const QString &path) {
     return res == CURLE_OK && (httpCode == 201 || httpCode == 405);
 }
 
+bool CurlWebDavProvider::setModifiedTime(const QString &path, const QDateTime &modified) {
+    const QString clean = cleanPath(path);
+    QMutexLocker locker(&m_mutex);
+    if (!m_connected || !modified.isValid())
+        return false;
+    CURL *curl = static_cast<CURL *>(m_curl);
+
+    // The same RFC 1123 "GMT" form FileShareServer emits and parses back. Both
+    // ends are FileCommander's own, so the format is not up for negotiation; a
+    // third-party server that does not understand PROPPATCH simply answers
+    // non-2xx and this returns false, which the caller ignores by contract.
+    //
+    // The stamp rides in a header rather than a PROPPATCH body: libcurl does
+    // not reliably transmit a body paired with a custom method, and the two
+    // ends are our own, so a header is the smallest thing that round-trips.
+    static const QLocale en(QLocale::English, QLocale::UnitedStates);
+    const QByteArray stamp = en.toString(modified.toUTC(),
+                                         QStringLiteral("ddd, dd MMM yyyy HH:mm:ss 'GMT'")).toUtf8();
+
+    struct curl_slist *headers = nullptr;
+    const QByteArray mtimeHeader = QByteArray("X-FileCommander-Mtime: ") + stamp;
+    headers = curl_slist_append(headers, mtimeHeader.constData());
+
+    const QString url = buildUrl(clean, false);
+    const QByteArray urlUtf8 = url.toUtf8();
+    curl_easy_setopt(curl, CURLOPT_URL, urlUtf8.constData());
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PROPPATCH");
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_NOBODY, 0L);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discardCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, nullptr);
+
+    const CURLcode res = curl_easy_perform(curl);
+    long httpCode = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpCode);
+
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, nullptr);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, nullptr);
+    curl_slist_free_all(headers);
+
+    return res == CURLE_OK && httpCode >= 200 && httpCode < 300;
+}
+
 QVector<FileInfo> CurlWebDavProvider::list(const QString &path, bool showHidden) const {
     const QString dirPath = cleanPath(path);
     QMutexLocker locker(&m_mutex);

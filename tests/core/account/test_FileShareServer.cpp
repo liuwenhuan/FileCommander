@@ -93,6 +93,15 @@ QByteArray readFile(const QString &path) {
     return f.readAll();
 }
 
+// The hidden staging name FileShareServer writes an in-progress upload under:
+// the final path stays empty (or complete) while a partial transfer is under
+// way, so a truncated upload never shows up as a real file.
+QString partialPath(const QString &final) {
+    const QFileInfo info(final);
+    return info.absolutePath() + QStringLiteral("/.") + info.fileName() +
+           QStringLiteral(".filecommander-part");
+}
+
 // One shared server plus one connected provider per test, torn down in order --
 // the provider's streaming handles own sockets into the server, so the server
 // must outlive them.
@@ -377,7 +386,10 @@ TEST_F(FileShareServerTest, AResumedUploadKeepsWhatIsAlreadyOnTheServer) {
     const int offset = 1024 * 1024;
     const QByteArray sentinel(offset, '\x5a');
     const QString local = m_share + QStringLiteral("/sentinel.bin");
-    ASSERT_TRUE(writeFile(local, sentinel));
+    // A prior interrupted attempt is what put the prefix on the server, and it
+    // did so under the hidden staging name -- that is the partial a resume has
+    // to continue, not a file at the final path.
+    ASSERT_TRUE(writeFile(partialPath(local), sentinel));
 
     EXPECT_TRUE(putFrom(m_provider.get(), QStringLiteral("/share/sentinel.bin"), payload, offset));
 
@@ -412,7 +424,7 @@ TEST_F(FileShareServerTest, AnInterruptedUploadContinuesWhereItStopped) {
     // reported as a completed upload.
     EXPECT_FALSE(m_provider->closeHandleStatus(h));
 
-    const qint64 partial = settledSize(local);
+    const qint64 partial = settledSize(partialPath(local));
     ASSERT_GT(partial, 0) << "nothing survived the interrupted upload, so there is nothing to resume";
     ASSERT_LT(partial, payload.size());
 
@@ -540,7 +552,7 @@ TEST_F(FileShareServerTest, TheTransferQueueResumesAnInterruptedCopy) {
     EXPECT_FALSE(interrupted.takeFirst().at(0).toBool());
     ASSERT_TRUE(stopped) << "the copy finished before it could be interrupted";
 
-    const qint64 partial = settledSize(landed);
+    const qint64 partial = settledSize(partialPath(landed));
     ASSERT_GT(partial, 128 * 1024) << "too little landed to tell a resume from a restart";
     ASSERT_LT(partial, payload.size());
 
@@ -558,6 +570,109 @@ TEST_F(FileShareServerTest, TheTransferQueueResumesAnInterruptedCopy) {
     // A restart from zero would report its first chunk, 64 KiB, instead.
     EXPECT_GE(firstBytesSeen, partial) << "the second attempt re-sent the prefix";
     EXPECT_EQ(readFile(landed), payload);
+}
+
+// The modification time survives the trip over the link: the peer sends a
+// PROPPATCH, the server stamps the local file, and a later read of the same
+// path sees the original time, not "now".
+TEST_F(FileShareServerTest, TheModifiedTimeSurvivesTheRoundTrip) {
+    connectOk();
+    const QByteArray payload = blob(64 * 1024, 9);
+    const QString dav = QStringLiteral("/share/stamped.bin");
+    const QString local = m_share + QStringLiteral("/stamped.bin");
+
+    FileHandle *h = m_provider->openWrite(dav, true);
+    ASSERT_NE(h, nullptr);
+    m_provider->setExpectedWriteSize(h, payload.size());
+    qint64 sent = 0;
+    while (sent < payload.size()) {
+        const qint64 n = m_provider->write(h, payload.constData() + sent,
+                                           qMin<qint64>(16 * 1024, payload.size() - sent));
+        ASSERT_GT(n, 0);
+        sent += n;
+    }
+    ASSERT_TRUE(m_provider->closeHandleStatus(h));
+
+    // A moment deliberately in the past: a fresh timestamp would pass if the
+    // PROPPATCH were silently ignored, so only the exact value can pass.
+    const QDateTime stamp = QDateTime::fromString(QStringLiteral("2019-05-17T12:34:56Z"),
+                                                  Qt::ISODate);
+    ASSERT_TRUE(stamp.isValid());
+    EXPECT_TRUE(m_provider->setModifiedTime(dav, stamp));
+
+    EXPECT_EQ(QFileInfo(local).lastModified().toSecsSinceEpoch(), stamp.toSecsSinceEpoch())
+        << "the mtime did not survive the device link";
+}
+
+// An upload that dies mid-body must not leave a truncated file at the final
+// name: the receiving folder would show it as a complete file. The partial
+// lives only under the hidden staging name, which is the resume point.
+TEST_F(FileShareServerTest, AnAbortedUploadLeavesNoPartialAtTheFinalName) {
+    connectOk();
+    const QByteArray payload = blob(2 * 1024 * 1024, 13);
+    const QString dav = QStringLiteral("/share/aborted.bin");
+    const QString local = m_share + QStringLiteral("/aborted.bin");
+
+    FileHandle *h = m_provider->openWrite(dav, true);
+    ASSERT_NE(h, nullptr);
+    m_provider->setExpectedWriteSize(h, payload.size());
+    qint64 sent = 0;
+    while (sent < 512 * 1024) {
+        const qint64 n = m_provider->write(h, payload.constData() + sent,
+                                           qMin<qint64>(64 * 1024, payload.size() - sent));
+        ASSERT_GT(n, 0);
+        sent += n;
+    }
+    EXPECT_FALSE(m_provider->closeHandleStatus(h));
+
+    EXPECT_FALSE(QFileInfo(local).exists()) << "a truncated file showed up under the real name";
+    EXPECT_GT(settledSize(partialPath(local)), 0) << "the resume partial was not kept";
+}
+
+// A single upload is bounded, so a hostile peer cannot fill the disk with one
+// unbounded PUT. The cap is checked on the declared Content-Length before any
+// body is read.
+TEST_F(FileShareServerTest, AnOversizedUploadIsRefused) {
+    // Lower the ceiling so the test does not have to ship 4 GiB to prove it.
+    m_server->setLimits(0, 64 * 1024);
+    connectOk();
+
+    const QByteArray payload = blob(128 * 1024, 5);
+    const QString dav = QStringLiteral("/share/big.bin");
+    const QString local = m_share + QStringLiteral("/big.bin");
+
+    FileHandle *h = m_provider->openWrite(dav, true);
+    ASSERT_NE(h, nullptr);
+    m_provider->setExpectedWriteSize(h, payload.size());
+    qint64 sent = 0;
+    while (sent < payload.size()) {
+        const qint64 n = m_provider->write(h, payload.constData() + sent,
+                                           qMin<qint64>(16 * 1024, payload.size() - sent));
+        if (n <= 0)
+            break;
+        sent += n;
+    }
+    EXPECT_FALSE(m_provider->closeHandleStatus(h));
+    EXPECT_FALSE(QFileInfo(local).exists()) << "an over-limit upload wrote a file";
+}
+
+// A machine that guessed the port cannot brute-force tickets at wire speed:
+// after a budget of failed authentications the server answers 429 instead of
+// another 401.
+TEST_F(FileShareServerTest, RepeatedBadTicketsAreThrottled) {
+    int throttled = 0;
+    for (int i = 0; i < 30; ++i) {
+        auto provider = std::make_shared<CurlWebDavProvider>();
+        provider->setTimeoutMs(8000);
+        provider->setPinnedPublicKey(ShareIdentity::local().pin);
+        QString error;
+        EXPECT_FALSE(provider->connectToHost(QStringLiteral("127.0.0.1"), int(m_port),
+                                             QStringLiteral("device"), QStringLiteral("bad"),
+                                             /*useHttps=*/true, &error));
+        if (error.contains(QStringLiteral("429")))
+            ++throttled;
+    }
+    EXPECT_GT(throttled, 0) << "bad tickets were never throttled";
 }
 
 // The one that proves pinning is switched on rather than merely configured: a

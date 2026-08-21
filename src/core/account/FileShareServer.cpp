@@ -34,6 +34,16 @@ constexpr qint64 kSendChunk = 64 * 1024;
 // cannot make us buffer a whole file in RAM.
 constexpr qint64 kSendHighWater = 512 * 1024;
 
+// Bounding the surface a peer can abuse: a runaway or hostile device must not
+// be able to eat every connection or fill the disk with one upload. Generous
+// by design -- a real transfer never brushes these, a broken one hits them.
+constexpr int kMaxConnections = 32;
+constexpr qint64 kMaxUploadBytes = 4LL * 1024 * 1024 * 1024; // 4 GiB per file
+// Bad-ticket throttle, mirroring the account server's credential rate limit: a
+// machine that merely guessed the port cannot brute-force tickets at wire speed.
+constexpr int kAuthWindowSeconds = 60;
+constexpr int kAuthMaxFailures = 20;
+
 QByteArray statusText(int code) {
     switch (code) {
     case 100: return "Continue";
@@ -52,6 +62,7 @@ QByteArray statusText(int code) {
     case 413: return "Payload Too Large";
     case 416: return "Range Not Satisfiable";
     case 423: return "Locked";
+    case 429: return "Too Many Requests";
     case 500: return "Internal Server Error";
     default: return "Error";
     }
@@ -95,6 +106,32 @@ QString cleanDavPath(const QString &raw) {
         path = QStringLiteral("/");
     return path;
 }
+
+// Where an in-progress upload of `final` is staged: a hidden sibling, so a
+// half-written transfer never shows up under the file's real name.
+QString partialFor(const QString &final) {
+    const QFileInfo info(final);
+    return info.absolutePath() + QLatin1String("/.") + info.fileName() +
+           QLatin1String(".filecommander-part");
+}
+
+// Best-effort mtime stamp, the same mechanism LocalFileProvider uses. A false
+// return is reported but never fatal -- the file is already written.
+bool setLocalMtime(const QString &path, const QDateTime &modified) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadWrite))
+        return false;
+    const bool ok = file.setFileTime(modified, QFileDevice::FileModificationTime);
+    file.close();
+    return ok;
+}
+
+// A per-address count of rejected authentications within one window. The share
+// worker's own thread touches it, so it needs no lock.
+struct AuthBudget {
+    int count = 0;
+    QDateTime windowStart;
+};
 
 } // namespace
 
@@ -148,6 +185,11 @@ public:
     Q_INVOKABLE void stopListening();
     Q_INVOKABLE void setFolders(const QStringList &folders);
     Q_INVOKABLE void addTicket(const QString &ticket, int ttlSeconds);
+    // Overrides the compile-time ceilings; 0 keeps the default. Exposed so a
+    // test can lower them instead of uploading 4 GiB to prove the bound exists.
+    Q_INVOKABLE void setLimits(int maxConnections, qint64 maxUploadBytes);
+    int maxConnections() const { return m_maxConnections; }
+    qint64 maxUploadBytes() const { return m_maxUploadBytes; }
 
     bool ticketValid(const QString &ticket);
     QStringList shareNames() const { return m_shares.keys(); }
@@ -170,6 +212,18 @@ public:
     }
     void unlockUpload(const QString &canonical) { m_uploading.remove(canonical); }
 
+    // resolve() for a READ (GET/HEAD/PROPFIND): when the final path is absent
+    // but its staged partial exists, that partial stands in for it -- so a
+    // resumed transfer can be probed for its true size, and an in-progress file
+    // reads as itself rather than as "not there".
+    QString resolveRead(const QString &davPath) const;
+
+    // Cheap bad-ticket throttle: true when this address has already failed
+    // kAuthMaxFailures times inside the current window and should be refused
+    // without another credential check.
+    bool authThrottled(const QString &address);
+    void noteAuthFailure(const QString &address);
+
 signals:
     void listening(quint16 port);
     void failed(const QString &error);
@@ -183,6 +237,10 @@ private:
     QMap<QString, QString> m_shares;      // share name -> absolute local path
     QHash<QString, QPair<QDateTime, int>> m_tickets;  // ticket -> expiry, TTL
     QSet<QString> m_uploading;            // canonical paths with an in-flight PUT
+    QHash<QString, AuthBudget> m_authFailures;        // address -> failed-auth budget
+    int m_connections = 0;                 // live connections, bounded by m_maxConnections
+    int m_maxConnections = kMaxConnections;
+    qint64 m_maxUploadBytes = kMaxUploadBytes;
 };
 
 // One client connection: an HTTP/1.1 state machine that never blocks. Bodies
@@ -207,7 +265,10 @@ public:
             m_worker->unlockUpload(m_uploadLockedPath);
             m_uploadLockedPath.clear();
         }
-        delete m_upload;
+        // An upload torn down mid-body leaves its staged partial in place: that
+        // partial is the resume point, and it is hidden under the staging name
+        // rather than the final one, so it never reads as a completed file.
+        delete m_upload; // closes the file
         delete m_download;
     }
 
@@ -280,6 +341,13 @@ private:
             // The body (if any) is still coming, so the stream is out of step:
             // answer and hang up. libcurl reconnects with credentials, and for
             // a sizeable upload it is still waiting on our 100-continue.
+            const QString address = m_socket->peerAddress().toString();
+            if (m_worker->authThrottled(address)) {
+                m_keepAlive = false;
+                respond(429);
+                return false;
+            }
+            m_worker->noteAuthFailure(address);
             m_keepAlive = false;
             respond(401, QByteArray(), "text/plain",
                     "WWW-Authenticate: Basic realm=\"FileCommander\"\r\n");
@@ -290,8 +358,8 @@ private:
             m_socket->write("HTTP/1.1 100 Continue\r\n\r\n");
 
         if (m_method == "PUT") {
-            const QString local = m_worker->resolve(cleanDavPath(QString::fromUtf8(m_target)));
-            if (local.isEmpty()) {
+            const QString target = m_worker->resolve(cleanDavPath(QString::fromUtf8(m_target)));
+            if (target.isEmpty()) {
                 m_keepAlive = false;
                 respond(403);
                 return false;
@@ -299,16 +367,18 @@ private:
             // Two peers writing the same file at once would interleave bytes.
             // Refuse the second until the first finishes; the lock is dropped
             // when the body completes or the connection dies.
-            if (!m_worker->tryLockUpload(local)) {
+            if (!m_worker->tryLockUpload(target)) {
                 m_keepAlive = false;
                 respond(423);
                 return false;
             }
-            // A plain PUT replaces the whole resource. A resumed one says where
-            // its body belongs with Content-Range, and then everything before
-            // that offset must survive untouched -- that is the whole point of
-            // resuming, and truncating here would silently restart from zero.
-            const qint64 have = QFileInfo(local).size();
+            // Stage the upload into a hidden sibling and rename it into place
+            // only on clean completion: a PUT that dies mid-body must not leave
+            // a truncated file at the final name. A resumed PUT continues the
+            // same staged file, so the partial is found again.
+            const QString staging = partialFor(target);
+            const qint64 have = QFileInfo(target).exists() ? QFileInfo(target).size()
+                                                           : QFileInfo(staging).size();
             qint64 at = 0;
             const QByteArray range = m_headers.value("content-range");
             if (range.startsWith("bytes ")) {
@@ -318,13 +388,21 @@ private:
                 // is the only answer that cannot corrupt the file.
                 if (!ok || at < 0 || at > have) {
                     m_keepAlive = false;
-                    m_worker->unlockUpload(local);
+                    m_worker->unlockUpload(target);
                     respond(416, QByteArray(), "text/plain",
                             "Content-Range: bytes */" + QByteArray::number(have) + "\r\n");
                     return false;
                 }
             }
-            m_upload = new QFile(local);
+            // Bound one upload so a hostile peer cannot fill the disk.
+            if (m_bodyRemaining > 0 && at + m_bodyRemaining > m_worker->maxUploadBytes()) {
+                m_keepAlive = false;
+                respond(413);
+                return false;
+            }
+            m_uploadTarget = target;
+            m_uploadStaging = staging;
+            m_upload = new QFile(staging);
             // ReadWrite, not WriteOnly: WriteOnly on its own truncates the file
             // as it opens it, which is precisely what a resume must not do.
             const QIODevice::OpenMode mode =
@@ -335,13 +413,12 @@ private:
                 delete m_upload;
                 m_upload = nullptr;
                 m_keepAlive = false;
-                m_worker->unlockUpload(local);
+                m_worker->unlockUpload(target);
                 respond(409);
                 return false;
             }
-            m_uploadLockedPath = local; // held until finishBody() or destruction
-            m_uploadExisted = have > 0;
-            m_uploadPath = local;
+            m_uploadLockedPath = target; // held until finishBody() or destruction
+            m_uploadExisted = QFileInfo(target).exists();
             m_phase = Phase::Body;
             return true;
         }
@@ -360,10 +437,20 @@ private:
     }
 
     void sinkWrite(const QByteArray &data) {
-        if (m_upload)
+        if (m_upload) {
+            m_uploadBytes += data.size();
+            if (m_uploadBytes > m_worker->maxUploadBytes()) {
+                // Same bound as the Content-Length path, for the chunked PUT a
+                // client sends when it could not declare a size up front.
+                m_keepAlive = false;
+                m_dead = true;
+                respond(413);
+                return;
+            }
             m_upload->write(data);
-        else
+        } else {
             m_bodyBuffer += data;
+        }
     }
 
     // True once the whole body has been consumed. Handles both framings: a
@@ -372,6 +459,8 @@ private:
     bool consumeBody() {
         if (m_chunked) {
             while (true) {
+                if (m_dead)
+                    return false;
                 if (m_chunkRemaining > 0) {
                     const qint64 take = qMin<qint64>(m_chunkRemaining, m_buffer.size());
                     if (take > 0) {
@@ -434,14 +523,40 @@ private:
             m_upload->close();
             delete m_upload;
             m_upload = nullptr;
+            if (!ok) {
+                if (!m_uploadLockedPath.isEmpty()) {
+                    m_worker->unlockUpload(m_uploadLockedPath);
+                    m_uploadLockedPath.clear();
+                }
+                respond(500);
+                return;
+            }
+            // Atomically move the staged bytes into place, replacing whatever
+            // complete file this PUT is overwriting. On any failure the staged
+            // partial stays where it is -- it is the resume point, and a retry
+            // continues from it rather than starting over.
+            if (m_uploadExisted && !QFile::remove(m_uploadTarget)) {
+                if (!m_uploadLockedPath.isEmpty()) {
+                    m_worker->unlockUpload(m_uploadLockedPath);
+                    m_uploadLockedPath.clear();
+                }
+                respond(403);
+                return;
+            }
+            if (!QFile::rename(m_uploadStaging, m_uploadTarget)) {
+                if (!m_uploadLockedPath.isEmpty()) {
+                    m_worker->unlockUpload(m_uploadLockedPath);
+                    m_uploadLockedPath.clear();
+                }
+                respond(500);
+                return;
+            }
             if (!m_uploadLockedPath.isEmpty()) {
                 m_worker->unlockUpload(m_uploadLockedPath);
                 m_uploadLockedPath.clear();
             }
-            if (ok && !m_uploadPath.isEmpty())
-                m_worker->received(m_uploadPath);
-            m_uploadPath.clear();
-            respond(ok ? (m_uploadExisted ? 204 : 201) : 500);
+            m_worker->received(m_uploadTarget);
+            respond(m_uploadExisted ? 204 : 201);
             return;
         }
         dispatch();
@@ -462,9 +577,11 @@ private:
         const QString path = cleanDavPath(QString::fromUtf8(m_target));
         if (m_method == "OPTIONS") {
             respond(200, QByteArray(), "text/plain",
-                    "DAV: 1,2\r\nAllow: OPTIONS, PROPFIND, GET, HEAD, PUT, MKCOL, DELETE, MOVE\r\n");
+                    "DAV: 1,2\r\nAllow: OPTIONS, PROPFIND, GET, HEAD, PUT, MKCOL, DELETE, MOVE, PROPPATCH\r\n");
         } else if (m_method == "PROPFIND") {
             doPropfind(path);
+        } else if (m_method == "PROPPATCH") {
+            doProppatch(path);
         } else if (m_method == "GET" || m_method == "HEAD") {
             doGet(path, m_method == "HEAD");
         } else if (m_method == "MKCOL") {
@@ -514,7 +631,7 @@ private:
                     body += propEntry(QLatin1Char('/') + name, name,
                                       QFileInfo(m_worker->resolve(QLatin1Char('/') + name)), true);
         } else {
-            const QString local = m_worker->resolve(path);
+            const QString local = m_worker->resolveRead(path);
             const QFileInfo info(local);
             if (local.isEmpty() || !info.exists()) {
                 respond(404);
@@ -539,8 +656,33 @@ private:
         respond(207, body, "application/xml; charset=utf-8");
     }
 
-    void doGet(const QString &path, bool headOnly) {
+    void doProppatch(const QString &path) {
         const QString local = m_worker->resolve(path);
+        const QFileInfo info(local);
+        if (local.isEmpty() || !info.exists()) {
+            respond(404);
+            return;
+        }
+        // Best-effort by contract: the file is already written, so a stamp that
+        // fails to parse or apply must not fail the calling transfer. The stamp
+        // rides in a header rather than the PROPPATCH body -- the two ends are
+        // FileCommander's own, and a header sidesteps libcurl's habit of
+        // dropping a body sent with a custom method.
+        const QString stamp = QString::fromUtf8(m_headers.value("x-filecommander-mtime"));
+        const QDateTime modified = QDateTime::fromString(stamp, Qt::RFC2822Date);
+        if (modified.isValid())
+            setLocalMtime(local, modified);
+        // A 207 with an empty propstat is all the client checks for (2xx).
+        QByteArray out = "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+                         "<D:multistatus xmlns:D=\"DAV:\"><D:response><D:href>" +
+                         hrefFor(path, info.isDir()) + "</D:href>";
+        out += "<D:propstat><D:prop/><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>";
+        out += "</D:multistatus>";
+        respond(207, out, "application/xml; charset=utf-8");
+    }
+
+    void doGet(const QString &path, bool headOnly) {
+        const QString local = m_worker->resolveRead(path);
         const QFileInfo info(local);
         if (local.isEmpty() || !info.exists()) {
             respond(404);
@@ -738,9 +880,11 @@ private:
     QByteArray m_bodyBuffer;
 
     QFile *m_upload = nullptr;
-    QString m_uploadPath;   // the local path m_upload is writing, for received()
     bool m_uploadExisted = false;
     QString m_uploadLockedPath; // canonical path locked for the duration of a PUT
+    QString m_uploadStaging; // where the PUT is being written before rename
+    QString m_uploadTarget;  // the final path the staging renames into
+    qint64 m_uploadBytes = 0; // bytes written, to bound chunked uploads
     QFile *m_download = nullptr;
     qint64 m_sendRemaining = 0;
 };
@@ -781,6 +925,13 @@ void ShareWorker::stopListening() {
     m_server = nullptr;
     m_tickets.clear();
     emit closed();
+}
+
+void ShareWorker::setLimits(int maxConnections, qint64 maxUploadBytes) {
+    if (maxConnections > 0)
+        m_maxConnections = maxConnections;
+    if (maxUploadBytes > 0)
+        m_maxUploadBytes = maxUploadBytes;
 }
 
 void ShareWorker::setFolders(const QStringList &folders) {
@@ -855,9 +1006,56 @@ QString ShareWorker::resolve(const QString &davPath) const {
     return canonical;
 }
 
+QString ShareWorker::resolveRead(const QString &davPath) const {
+    const QString canonical = resolve(davPath);
+    if (canonical.isEmpty() || QFileInfo(canonical).exists())
+        return canonical;
+    const QString partial = partialFor(canonical);
+    return QFileInfo(partial).exists() ? partial : canonical;
+}
+
+bool ShareWorker::authThrottled(const QString &address) {
+    const QDateTime now = QDateTime::currentDateTimeUtc();
+    AuthBudget &budget = m_authFailures[address];
+    if (!budget.windowStart.isValid() || budget.windowStart.secsTo(now) >= kAuthWindowSeconds) {
+        budget.count = 0;
+        budget.windowStart = now;
+    }
+    // Cheap sweep, same as the account server: without it a NATed address that
+    // failed once is remembered forever.
+    if (m_authFailures.size() > 1024) {
+        for (auto it = m_authFailures.begin(); it != m_authFailures.end();) {
+            if (it.value().windowStart.secsTo(now) >= kAuthWindowSeconds)
+                it = m_authFailures.erase(it);
+            else
+                ++it;
+        }
+    }
+    return budget.count >= kAuthMaxFailures;
+}
+
+void ShareWorker::noteAuthFailure(const QString &address) {
+    const QDateTime now = QDateTime::currentDateTimeUtc();
+    AuthBudget &budget = m_authFailures[address];
+    if (!budget.windowStart.isValid() || budget.windowStart.secsTo(now) >= kAuthWindowSeconds) {
+        budget.count = 0;
+        budget.windowStart = now;
+    }
+    budget.count += 1;
+}
+
 void ShareWorker::onNewConnection() {
-    while (QTcpSocket *socket = m_server->nextPendingConnection())
+    while (QTcpSocket *socket = m_server->nextPendingConnection()) {
+        if (m_connections >= m_maxConnections) {
+            // Too many peers already: drop this one rather than starve them.
+            socket->disconnectFromHost();
+            socket->deleteLater();
+            continue;
+        }
+        ++m_connections;
+        connect(socket, &QTcpSocket::disconnected, this, [this] { --m_connections; });
         new ShareConnection(socket, this);
+    }
 }
 
 FileShareServer::FileShareServer(AccountClient *client, QObject *parent)
@@ -893,6 +1091,11 @@ void FileShareServer::setSharedFolders(const QStringList &folders) {
 void FileShareServer::addTicket(const QString &ticket, int ttlSeconds) {
     QMetaObject::invokeMethod(m_worker, "addTicket", Qt::QueuedConnection,
                               Q_ARG(QString, ticket), Q_ARG(int, ttlSeconds));
+}
+
+void FileShareServer::setLimits(int maxConnections, qint64 maxUploadBytes) {
+    QMetaObject::invokeMethod(m_worker, "setLimits", Qt::QueuedConnection,
+                              Q_ARG(int, maxConnections), Q_ARG(qint64, maxUploadBytes));
 }
 
 void FileShareServer::start(quint16 port) {
