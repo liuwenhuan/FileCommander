@@ -42,6 +42,13 @@ public:
         : QObject(parent), m_ws(ws), m_tcp(tcp) {
         ws->setParent(this);
         tcp->setParent(this);
+        // Bound the loopback socket's own read buffer. Without this the socket
+        // keeps draining curl's send into an unbounded internal buffer even
+        // while the pipe is not forwarding, so TCP flow control never reaches
+        // curl and its upload progress races ahead of the relay. A capped
+        // buffer means the OS receive window closes once the pipe stalls, which
+        // is what actually slows the sender down.
+        tcp->setReadBufferSize(kHighWaterBytes);
 
         connect(ws, &QWebSocket::binaryMessageReceived, this, [this](const QByteArray &bytes) {
             m_pendingToTcp.append(bytes);
