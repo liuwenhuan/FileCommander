@@ -1138,23 +1138,41 @@ bool FileOperations::prefixMatches(FileProvider *src, const QString &srcPath,
     QByteArray a(64 * 1024, Qt::Uninitialized);
     QByteArray b(64 * 1024, Qt::Uninitialized);
     qint64 compared = 0;
-    bool match = true;
     while (compared < prefixLen) {
         const qint64 chunk = qMin<qint64>(64 * 1024, prefixLen - compared);
-        const qint64 ra = src->read(in, a.data(), chunk);
-        const qint64 rb = dst->read(out, b.data(), chunk);
-        if (ra < 0 || rb < 0 || ra != rb || (ra > 0 && memcmp(a.constData(), b.constData(),
-                                                               static_cast<size_t>(ra)) != 0)) {
-            match = false;
-            break;
+        // read() may return fewer bytes than asked on a network backend (the
+        // curl buffer fills asynchronously), so each side is read until its
+        // buffer is full or EOF before the two are compared. One short read is
+        // a framing detail, not a content mismatch -- comparing two bare read()
+        // returns would reject a genuine resume whenever the buffer happened to
+        // be part-filled.
+        qint64 ra = 0;
+        while (ra < chunk) {
+            const qint64 r = src->read(in, a.data() + ra, chunk - ra);
+            if (r <= 0)
+                break;
+            ra += r;
         }
-        if (ra == 0)
-            break; // both ended before prefixLen: the partial cannot match
+        qint64 rb = 0;
+        while (rb < chunk) {
+            const qint64 r = dst->read(out, b.data() + rb, chunk - rb);
+            if (r <= 0)
+                break;
+            rb += r;
+        }
+        if (ra != rb ||
+            (ra > 0 && memcmp(a.constData(), b.constData(), static_cast<size_t>(ra)) != 0)) {
+            src->closeHandle(in);
+            dst->closeHandle(out);
+            return false;
+        }
+        if (ra < chunk)
+            break; // both ended before prefixLen: the partial cannot be this source
         compared += ra;
     }
     src->closeHandle(in);
     dst->closeHandle(out);
-    return match && compared == prefixLen;
+    return compared == prefixLen;
 }
 
 QDateTime FileOperations::providerFileModified(FileProvider *provider, const QString &path) {
