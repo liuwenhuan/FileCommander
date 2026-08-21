@@ -8,7 +8,6 @@
 #include <QNetworkRequest>
 #include <QTimer>
 #include <QUrl>
-#include <QUrlQuery>
 
 #include "CredentialStore.h"
 #include "version.h"
@@ -313,25 +312,27 @@ QString AccountClient::agentSocketUrl() const {
     QUrl url(root + QStringLiteral("/v1/agent"));
     url.setScheme(url.scheme() == QLatin1String("https") ? QStringLiteral("wss")
                                                          : QStringLiteral("ws"));
-    // The token goes in the query rather than a header: QWebSocket can carry a
-    // header, but a reconnect built from a stored URL cannot, and the server
-    // accepts either.
-    QUrlQuery query;
-    query.addQueryItem(QStringLiteral("token"), m_accessToken);
-    url.setQuery(query);
+    // No credential in the URL: the access token rides as an Authorization
+    // header (agentSocketRequest), because a query string is written to access
+    // logs and a header is not.
     return url.toString();
 }
 
-QString AccountClient::relaySocketUrl(const QString &sessionId, const QString &ticket) const {
+QNetworkRequest AccountClient::agentSocketRequest() const {
+    QNetworkRequest request{QUrl(agentSocketUrl())};
+    if (!request.url().isEmpty())
+        request.setRawHeader("Authorization", "Bearer " + m_accessToken.toUtf8());
+    return request;
+}
+
+QString AccountClient::relaySocketUrl(const QString &sessionId) const {
     const QString root = m_apiUrl.isEmpty() ? apiUrl() : m_apiUrl;
     QUrl url(root + QStringLiteral("/v1/relay/") + sessionId);
     url.setScheme(url.scheme() == QLatin1String("https") ? QStringLiteral("wss")
                                                          : QStringLiteral("ws"));
-    // No access token: the ticket is the whole authority here, which is what
-    // lets the accepting side open a socket for a session it did not start.
-    QUrlQuery query;
-    query.addQueryItem(QStringLiteral("ticket"), ticket);
-    url.setQuery(query);
+    // The ticket is the whole authority here, which is what lets the accepting
+    // side open a socket for a session it did not start -- but it travels as an
+    // Authorization header set by RelayTunnel, never in this URL.
     return url.toString();
 }
 

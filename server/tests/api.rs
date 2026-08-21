@@ -216,6 +216,22 @@ async fn serve(state: AppState) -> SocketAddr {
     addr
 }
 
+/// Builds a WebSocket handshake request with a bearer credential in the
+/// `Authorization` header -- the way the client now sends it, so the secret
+/// never appears in the URL. Built from the URL string so tungstenite fills in
+/// the handshake headers (Sec-WebSocket-Key, Upgrade) before the auth header
+/// is added.
+fn ws_request(addr: SocketAddr, path: &str, bearer: &str) -> Request<()> {
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    let mut request: Request<()> = format!("ws://{addr}{path}")
+        .into_client_request()
+        .expect("valid ws url");
+    request
+        .headers_mut()
+        .insert("authorization", format!("Bearer {bearer}").parse().unwrap());
+    request
+}
+
 #[tokio::test]
 async fn an_agent_reports_presence_and_receives_a_ticket() {
     use futures_util::{SinkExt, StreamExt};
@@ -227,8 +243,13 @@ async fn an_agent_reports_presence_and_receives_a_ticket() {
     let guest = login(&state, "user@example.com", "laptop", "").await;
     let host_id = host["device_id"].as_str().unwrap().to_string();
 
-    let url = format!("ws://{addr}/v1/agent?token={}", host["access_token"].as_str().unwrap());
-    let (mut socket, _) = tokio_tungstenite::connect_async(url).await.unwrap();
+    let (mut socket, _) = tokio_tungstenite::connect_async(ws_request(
+        addr,
+        "/v1/agent",
+        host["access_token"].as_str().unwrap(),
+    ))
+    .await
+    .unwrap();
     assert!(socket.next().await.unwrap().unwrap().to_text().unwrap().contains("welcome"));
 
     socket
@@ -295,8 +316,13 @@ async fn open_relay_session(
     let host = login(state, "user@example.com", "desktop", "").await;
     let guest = login(state, "user@example.com", "laptop", "").await;
 
-    let url = format!("ws://{addr}/v1/agent?token={}", host["access_token"].as_str().unwrap());
-    let (mut agent, _) = tokio_tungstenite::connect_async(url).await.unwrap();
+    let (mut agent, _) = tokio_tungstenite::connect_async(ws_request(
+        addr,
+        "/v1/agent",
+        host["access_token"].as_str().unwrap(),
+    ))
+    .await
+    .unwrap();
     agent.next().await; // welcome
     agent
         .send(tokio_tungstenite::tungstenite::Message::Text(
@@ -324,11 +350,16 @@ async fn the_relay_joins_the_two_sockets_of_one_session() {
     let addr = serve(state.clone()).await;
     let (session_id, ticket) = open_relay_session(&state, addr).await;
 
-    // The serving side parks first, exactly as the client's tunnel does.
-    let park = format!("ws://{addr}/v1/relay/{session_id}?ticket={ticket}&role=accept");
-    let (mut accepting, _) = tokio_tungstenite::connect_async(park).await.unwrap();
-    let dial = format!("ws://{addr}/v1/relay/{session_id}?ticket={ticket}&role=connect");
-    let (mut connecting, _) = tokio_tungstenite::connect_async(dial).await.unwrap();
+    // The serving side parks first, exactly as the client's tunnel does. The
+    // ticket rides in the Authorization header; only the role is in the URL.
+    let park = format!("/v1/relay/{session_id}?role=accept");
+    let (mut accepting, _) = tokio_tungstenite::connect_async(ws_request(addr, &park, &ticket))
+        .await
+        .unwrap();
+    let dial = format!("/v1/relay/{session_id}?role=connect");
+    let (mut connecting, _) = tokio_tungstenite::connect_async(ws_request(addr, &dial, &ticket))
+        .await
+        .unwrap();
 
     // Both learn they are paired before any payload moves.
     assert!(accepting.next().await.unwrap().unwrap().to_text().unwrap().contains("paired"));
@@ -353,11 +384,108 @@ async fn the_relay_refuses_a_wrong_ticket_or_an_unknown_session() {
     let addr = serve(state.clone()).await;
     let (session_id, ticket) = open_relay_session(&state, addr).await;
 
-    for url in [
-        format!("ws://{addr}/v1/relay/{session_id}?ticket=wrong&role=accept"),
-        format!("ws://{addr}/v1/relay/deadbeef?ticket={ticket}&role=accept"),
-        format!("ws://{addr}/v1/relay/{session_id}?ticket={ticket}&role=sideways"),
-    ] {
-        assert!(tokio_tungstenite::connect_async(url).await.is_err());
-    }
+    // Wrong ticket, unknown session, bad role -- each refused before the upgrade.
+    assert!(tokio_tungstenite::connect_async(ws_request(
+        addr,
+        &format!("/v1/relay/{session_id}?role=accept"),
+        "wrong",
+    ))
+    .await
+    .is_err());
+    assert!(tokio_tungstenite::connect_async(ws_request(
+        addr,
+        "/v1/relay/deadbeef?role=accept",
+        &ticket,
+    ))
+    .await
+    .is_err());
+    assert!(tokio_tungstenite::connect_async(ws_request(
+        addr,
+        &format!("/v1/relay/{session_id}?role=sideways"),
+        &ticket,
+    ))
+    .await
+    .is_err());
+}
+
+/// The agent no longer accepts its token from the URL query: only an
+/// Authorization header authenticates the upgrade, because a query token is
+/// written to access logs and a header is not.
+#[tokio::test]
+async fn the_agent_takes_the_token_from_the_header_not_the_query() {
+    use futures_util::StreamExt;
+
+    let state = state();
+    let addr = serve(state.clone()).await;
+    register(&state, "user@example.com", "correct horse").await;
+    let host = login(&state, "user@example.com", "desktop", "").await;
+    let token = host["access_token"].as_str().unwrap();
+
+    // A token in the query, with no header, is refused: the URL is the thing
+    // that gets logged, so it must not carry the credential.
+    let leaked = format!("ws://{addr}/v1/agent?token={token}");
+    assert!(tokio_tungstenite::connect_async(leaked).await.is_err());
+
+    // The same token in a header succeeds.
+    let (mut socket, _) =
+        tokio_tungstenite::connect_async(ws_request(addr, "/v1/agent", token))
+            .await
+            .unwrap();
+    assert!(socket.next().await.unwrap().unwrap().to_text().unwrap().contains("welcome"));
+}
+
+/// The relay refuses to grow beyond its connection budget, so a flood of
+/// sockets cannot exhaust the server.
+#[tokio::test]
+async fn the_relay_caps_concurrent_connections() {
+    let mut state = state();
+    state.relay_max_conns = 2;
+    let addr = serve(state.clone()).await;
+    let (session_id, ticket) = open_relay_session(&state, addr).await;
+
+    let park = format!("/v1/relay/{session_id}?role=accept");
+    let _a = tokio_tungstenite::connect_async(ws_request(addr, &park, &ticket))
+        .await
+        .unwrap();
+    let _b = tokio_tungstenite::connect_async(ws_request(addr, &park, &ticket))
+        .await
+        .unwrap();
+
+    // The third exceeds the cap and is refused before the upgrade.
+    assert!(tokio_tungstenite::connect_async(ws_request(addr, &park, &ticket))
+        .await
+        .is_err());
+}
+
+/// An active relayed connection that goes quiet is reclaimed after the idle
+/// bound, so a half-dead link (no FIN, no bytes) cannot be held forever.
+#[tokio::test]
+async fn an_idle_relay_connection_is_reclaimed() {
+    use futures_util::StreamExt;
+
+    let mut state = state();
+    state.relay_idle_seconds = 1;
+    let addr = serve(state.clone()).await;
+    let (session_id, ticket) = open_relay_session(&state, addr).await;
+
+    let park = format!("/v1/relay/{session_id}?role=accept");
+    let (mut accepting, _) = tokio_tungstenite::connect_async(ws_request(addr, &park, &ticket))
+        .await
+        .unwrap();
+    let dial = format!("/v1/relay/{session_id}?role=connect");
+    let (mut connecting, _) = tokio_tungstenite::connect_async(ws_request(addr, &dial, &ticket))
+        .await
+        .unwrap();
+
+    // Both learn they are paired.
+    assert!(accepting.next().await.unwrap().unwrap().to_text().unwrap().contains("paired"));
+    assert!(connecting.next().await.unwrap().unwrap().to_text().unwrap().contains("paired"));
+
+    // Then go quiet. Within the idle bound the relay tears the pair down and
+    // the peer sees the socket close rather than hanging.
+    let closed = accepting.next().await.map(|m| match m {
+        Ok(msg) => msg.is_close(),
+        Err(_) => true,
+    }).unwrap_or(true);
+    assert!(closed, "the relay should have dropped the idle connection");
 }

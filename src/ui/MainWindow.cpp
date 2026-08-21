@@ -4616,7 +4616,7 @@ void MainWindow::updateDeviceSharing() {
                     if (sessionId.isEmpty() || m_incomingTunnels.contains(sessionId))
                         return;
                     auto *tunnel = new RelayTunnel(this);
-                    tunnel->serveLocal(m_accountClient->relaySocketUrl(sessionId, ticket),
+                    tunnel->serveLocal(m_accountClient->relaySocketUrl(sessionId), ticket,
                                        m_shareServer->port());
                     m_incomingTunnels.insert(sessionId, tunnel);
                 });
@@ -4692,8 +4692,8 @@ MainWindow::DeviceLink MainWindow::deviceLink(const AccountSession &session) {
     // detour through the account server, so a direct route wins when there is
     // one. The tunnel outlives this call and belongs to the provider.
     RelayTunnel *tunnel = new RelayTunnel;
-    const quint16 tunnelPort =
-        tunnel->listenLocal(m_accountClient->relaySocketUrl(session.sessionId, session.ticket));
+    const quint16 tunnelPort = tunnel->listenLocal(
+        m_accountClient->relaySocketUrl(session.sessionId), session.ticket);
     if (tunnelPort != 0)
         targets.append({QStringLiteral("127.0.0.1"), tunnelPort});
     if (targets.isEmpty()) {

@@ -45,6 +45,7 @@ struct AccountInfo {
 
 class QNetworkAccessManager;
 class QNetworkReply;
+class QNetworkRequest;
 
 // REST client for the FileCommander account server (see server/README.md):
 // register, sign in, keep the session alive, list the account's other devices.
@@ -119,15 +120,22 @@ public:
     // sessionReady() or requestFailed().
     void openSession(const QString &deviceId);
 
-    // The ws:// (or wss://) URL DeviceAgent connects to, access token already in
-    // the query string. Empty when not signed in. Read afresh on every reconnect
-    // so a renewed token is picked up without anyone wiring it through.
+    // The ws:// (or wss://) URL of the agent socket, without any credential --
+    // the access token travels as an Authorization header (see
+    // agentSocketRequest), never in the URL, so it cannot leak into server or
+    // proxy access logs. Empty when not signed in. Read afresh on every
+    // reconnect so a renewed token is picked up without wiring it through.
     QString agentSocketUrl() const;
 
-    // WebSocket URL of the relay for `sessionId`. Only the ticket authenticates
-    // it, so both devices of a session use the same URL; RelayTunnel appends the
-    // role that says which side of it this socket is.
-    QString relaySocketUrl(const QString &sessionId, const QString &ticket) const;
+    // The agent handshake request, Authorization header already set. An empty
+    // URL means "not signed in", which DeviceAgent reads as "keep trying".
+    QNetworkRequest agentSocketRequest() const;
+
+    // WebSocket URL of the relay for `sessionId`. The ticket authenticates it
+    // but is deliberately NOT in the URL: it travels as an Authorization header
+    // set by RelayTunnel, which is passed the ticket separately. RelayTunnel
+    // appends the role that says which side of the socket this is.
+    QString relaySocketUrl(const QString &sessionId) const;
 
     bool isLoggedIn() const;
     AccountInfo account() const;

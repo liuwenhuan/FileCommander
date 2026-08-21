@@ -2,6 +2,7 @@
 
 #include <QHostAddress>
 #include <QNetworkProxy>
+#include <QNetworkRequest>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QThread>
@@ -106,10 +107,11 @@ public:
     ~RelayWorker() override { shutdown(); }
 
 public slots:
-    int startListen(const QString &relayUrl) {
+    int startListen(const QString &relayUrl, const QString &ticket) {
         if (m_listener)
             return m_listener->serverPort();
         m_url = relayUrl;
+        m_ticket = ticket;
         m_listener = new QTcpServer(this);
         // Same reason FileShareServer needs it: an $all_proxy in the
         // environment otherwise makes listen() try to bind through SOCKS.
@@ -125,8 +127,9 @@ public slots:
         return m_listener->serverPort();
     }
 
-    void startServe(const QString &relayUrl, int localPort, int channels) {
+    void startServe(const QString &relayUrl, const QString &ticket, int localPort, int channels) {
         m_url = relayUrl;
+        m_ticket = ticket;
         m_localPort = static_cast<quint16>(localPort);
         for (int i = 0; i < channels; ++i)
             park();
@@ -149,7 +152,11 @@ private:
         if (!query.isEmpty())
             query += QLatin1Char('&');
         url.setQuery(query + QLatin1String("role=") + QLatin1String(role));
-        ws->open(url);
+        // The ticket is the credential for this socket and must not ride in the
+        // URL (access logs); send it as a header instead.
+        QNetworkRequest request(url);
+        request.setRawHeader("Authorization", "Bearer " + m_ticket.toUtf8());
+        ws->open(request);
         return ws;
     }
 
@@ -187,6 +194,7 @@ private:
 
     QTcpServer *m_listener = nullptr;
     QString m_url;
+    QString m_ticket;
     quint16 m_localPort = 0;
     bool m_stopping = false;
 };
@@ -204,17 +212,19 @@ RelayTunnel::~RelayTunnel() {
     m_thread->wait();
 }
 
-quint16 RelayTunnel::listenLocal(const QString &relayUrl) {
+quint16 RelayTunnel::listenLocal(const QString &relayUrl, const QString &ticket) {
     int port = 0;
     QMetaObject::invokeMethod(m_worker, "startListen", Qt::BlockingQueuedConnection,
-                              Q_RETURN_ARG(int, port), Q_ARG(QString, relayUrl));
+                              Q_RETURN_ARG(int, port), Q_ARG(QString, relayUrl),
+                              Q_ARG(QString, ticket));
     return static_cast<quint16>(port);
 }
 
-void RelayTunnel::serveLocal(const QString &relayUrl, quint16 localPort, int channels) {
+void RelayTunnel::serveLocal(const QString &relayUrl, const QString &ticket, quint16 localPort,
+                             int channels) {
     QMetaObject::invokeMethod(m_worker, "startServe", Qt::QueuedConnection,
-                              Q_ARG(QString, relayUrl), Q_ARG(int, static_cast<int>(localPort)),
-                              Q_ARG(int, channels));
+                              Q_ARG(QString, relayUrl), Q_ARG(QString, ticket),
+                              Q_ARG(int, static_cast<int>(localPort)), Q_ARG(int, channels));
 }
 
 #include "RelayTunnel.moc"

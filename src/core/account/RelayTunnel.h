@@ -29,13 +29,16 @@ public:
     // Accessing side. Listens on 127.0.0.1 and returns the port, or 0 if it
     // could not bind. Every connection made to that port opens a relay socket
     // and comes out at the peer's FileShareServer. Synchronous, because the
-    // caller needs the port to build the provider's connect closure.
-    quint16 listenLocal(const QString &relayUrl);
+    // caller needs the port to build the provider's connect closure. `ticket`
+    // authenticates each socket and travels as an Authorization header, never in
+    // the URL.
+    quint16 listenLocal(const QString &relayUrl, const QString &ticket);
 
     // Serving side. Parks `channels` sockets on the relay; each one, when its
     // peer arrives, opens a connection to 127.0.0.1:`localPort` -- the local
     // FileShareServer -- and parks a replacement.
-    void serveLocal(const QString &relayUrl, quint16 localPort, int channels = 4);
+    void serveLocal(const QString &relayUrl, const QString &ticket, quint16 localPort,
+                    int channels = 4);
 
 private:
     QThread *m_thread;

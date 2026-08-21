@@ -10,7 +10,7 @@ use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Query, State};
+use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use axum::Json;
@@ -29,27 +29,17 @@ use crate::{AgentConn, AppState, RelaySession};
 /// worth little.
 pub const TICKET_TTL_SECONDS: i64 = 300;
 
-#[derive(Deserialize)]
-pub struct AgentQuery {
-    /// Fallback for clients that cannot set headers on the upgrade request.
-    #[serde(default)]
-    pub token: String,
-}
-
 /// The upgrade is authenticated before it is accepted: an unauthenticated
 /// socket would let anyone hold a connection slot.
+///
+/// The access token arrives only as an `Authorization: Bearer …` header. It is
+/// deliberately NOT accepted from the URL query any more: a token in the query
+/// string is written to server/proxy access logs, which a header is not.
 pub async fn agent_ws(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Query(query): Query<AgentQuery>,
     ws: WebSocketUpgrade,
 ) -> Result<Response, ApiError> {
-    let mut headers = headers;
-    if !headers.contains_key("authorization") && !query.token.is_empty() {
-        if let Ok(value) = format!("Bearer {}", query.token).parse() {
-            headers.insert("authorization", value);
-        }
-    }
     let principal = authenticate(&state, &headers).await?;
     let device_id = principal.device_id;
     Ok(ws.on_upgrade(move |socket| serve_agent(state, device_id, socket)))
