@@ -65,6 +65,9 @@ struct WebDavTransferState {
     // Bytes curl has actually handed to the socket (its own upload progress),
     // so the UI can show delivered bytes rather than bytes in the pipe.
     curl_off_t uploadedBytes = 0;
+    // The socket curl opened for this transfer, so an abort can shut it down
+    // out from under a blocked send/recv instead of waiting for curl to notice.
+    curl_socket_t socketFd = CURL_SOCKET_BAD;
 };
 
 size_t downloadWriteCallback(char *ptr, size_t size, size_t nmemb, void *userdata) {
@@ -102,6 +105,30 @@ int progressCallback(void *userdata, curl_off_t, curl_off_t, curl_off_t, curl_of
     QMutexLocker locker(&state->mutex);
     state->uploadedBytes = ulnow;
     return state->aborted ? 1 : 0;
+}
+
+// Remembers the socket curl opens, so an abort can shut it down out from under
+// a blocked send/recv. The fd is created exactly as curl's own default would,
+// then handed straight back; curl still owns it and closes it on cleanup.
+curl_socket_t opensocketCallback(void *clientp, curlsocktype, struct curl_sockaddr *address) {
+    auto *state = static_cast<WebDavTransferState *>(clientp);
+    const curl_socket_t fd = socket(address->family, address->socktype, address->protocol);
+    if (fd != CURL_SOCKET_BAD) {
+        QMutexLocker locker(&state->mutex);
+        state->socketFd = fd;
+    }
+    return fd;
+}
+
+// Makes the socket error out immediately. shutdown() rather than close(): the
+// fd is not reclaimed, so there is no close/reuse race with another thread
+// while curl is still inside it.
+void shutdownSocket(curl_socket_t fd) {
+#ifdef Q_OS_WIN
+    ::shutdown(fd, SD_BOTH);
+#else
+    ::shutdown(fd, SHUT_RDWR);
+#endif
 }
 
 QString davUrl(const QString &host, int port, bool useHttps, const QString &path,
@@ -202,6 +229,11 @@ struct WebDavHandle : public FileHandle {
                 state->aborted = true;
                 state->noMoreInput = true;
                 state->cond.wakeAll();
+                // Force curl out of a blocked send/recv immediately: shutting the
+                // socket down makes its next I/O error instead of waiting up to a
+                // progress-callback interval (~1s) for the abort to be noticed.
+                if (state->socketFd != CURL_SOCKET_BAD)
+                    shutdownSocket(state->socketFd);
             }
             worker.join();
         }
@@ -267,6 +299,8 @@ void startWebDavTransfer(WebDavHandle *h) {
     }
     curl_easy_setopt(h->curl, CURLOPT_NOPROGRESS, 0L);
     curl_easy_setopt(h->curl, CURLOPT_XFERINFOFUNCTION, progressCallback);
+    curl_easy_setopt(h->curl, CURLOPT_OPENSOCKETFUNCTION, opensocketCallback);
+    curl_easy_setopt(h->curl, CURLOPT_OPENSOCKETDATA, state.get());
     curl_easy_setopt(h->curl, CURLOPT_XFERINFODATA, state.get());
 
     if (h->mode == WebDavHandle::Mode::Read) {
