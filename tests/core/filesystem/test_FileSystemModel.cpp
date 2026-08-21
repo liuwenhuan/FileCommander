@@ -330,7 +330,7 @@ TEST(FileSystemModelTest, SizeTest_CalculatingMarkerIsReplacedByComputedSize) {
     const QString folderPath = QDir(dir.path()).filePath("folder");
     const QModelIndex sizeIdx = model.index(folderRow, FileSystemModel::SizeColumn);
     model.setDirectorySizeCalculating(folderPath, true);
-    EXPECT_EQ(model.data(sizeIdx).toString(), QStringLiteral("计算中"));
+    EXPECT_EQ(model.data(sizeIdx).toString(), QObject::tr("calculating"));
 
     model.setComputedDirSize(folderPath, 4096);
     EXPECT_EQ(model.data(sizeIdx).toString(), QStringLiteral("4.0 KB"));
@@ -353,11 +353,11 @@ TEST(FileSystemModelTest, FilePanelDirectorySize_SlowRequestShowsCalculatingMark
     const QModelIndex sizeIdx = panel.model()->index(0, FileSystemModel::SizeColumn);
     EXPECT_EQ(panel.model()->data(sizeIdx).toString(), QStringLiteral("<DIR>"));
     FC_TRY_COMPARE_WITH_TIMEOUT(panel.model()->data(sizeIdx).toString(),
-                              QStringLiteral("计算中"), 2000);
+                              QObject::tr("calculating"), 2000);
 
     view->setCurrentIndex(second);
     QTest::qWait(50);
-    EXPECT_EQ(panel.model()->data(sizeIdx).toString(), QStringLiteral("计算中"));
+    EXPECT_EQ(panel.model()->data(sizeIdx).toString(), QObject::tr("calculating"));
 
     provider->releaseFirstRequest();
     FC_TRY_COMPARE_WITH_TIMEOUT(panel.model()->data(sizeIdx).toString(),
