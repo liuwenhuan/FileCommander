@@ -76,6 +76,7 @@ public:
         settings.setAccountEmail(QString());
         settings.setAccountDeviceId(QString());
         settings.setAccountServerUrl(QString());
+        settings.setAccountDeviceName(QString());
     }
 };
 
@@ -102,6 +103,9 @@ TEST(AccountDialog, SigningInShowsTheDevicesAndRemembersTheAccount) {
     EXPECT_TRUE(devices->item(1)->text().contains(QStringLiteral("laptop")));
     EXPECT_EQ(settings.accountEmail(), QStringLiteral("someone@example.com"));
     EXPECT_EQ(settings.accountDeviceId(), QStringLiteral("device-1"));
+    // The device name is remembered so the next sign-in offers it, not the
+    // hostname.
+    EXPECT_EQ(settings.accountDeviceName(), QStringLiteral("this box"));
     // The typed address is kept so a self-hosted server is entered once.
     EXPECT_EQ(settings.accountServerUrl(), server.url(QString()));
 }
@@ -127,6 +131,20 @@ TEST(AccountDialog, ARefusedSignInStaysOnTheFormAndShowsTheServersReason) {
     // A failure has to re-enable the button, or the user gets one attempt.
     EXPECT_TRUE(signIn->isEnabled());
     EXPECT_TRUE(settings.accountDeviceId().isEmpty());
+}
+
+TEST(AccountDialog, TheDeviceNamePrefillsFromLastSignInNotTheHostname) {
+    AccountSettingsGuard guard;
+    Settings settings;
+    settings.setAccountDeviceName(QStringLiteral("my tower"));
+
+    AccountClient client;
+    AccountDialog dialog(client, settings);
+
+    // server, email, password, device name.
+    const QList<QLineEdit *> fields = dialog.findChildren<QLineEdit *>();
+    ASSERT_EQ(fields.size(), 4);
+    EXPECT_EQ(fields.at(3)->text(), QStringLiteral("my tower"));
 }
 
 TEST(AccountDialog, CreatingAnAccountSignsInWithoutAskingAgain) {

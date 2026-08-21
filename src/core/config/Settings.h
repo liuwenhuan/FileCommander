@@ -225,6 +225,10 @@ public:
     void setAccountEmail(const QString &email);
     QString accountDeviceId() const;
     void setAccountDeviceId(const QString &id);
+    // The name this install signed in under. Persisted so the next sign-in
+    // pre-fills it instead of defaulting back to the hostname.
+    QString accountDeviceName() const;
+    void setAccountDeviceName(const QString &name);
     // Empty means "use the address this build was compiled with". Set when the
     // user runs their own account server.
     QString accountServerUrl() const;

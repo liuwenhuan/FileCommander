@@ -36,7 +36,13 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
     m_password = new QLineEdit(form);
     m_password->setEchoMode(QLineEdit::Password);
     m_deviceName = new QLineEdit(form);
-    m_deviceName->setText(QHostInfo::localHostName());
+    // Pre-fill the name the user chose last time rather than the hostname: the
+    // device name is this install's identity on the account, and silently
+    // snapping it back to the machine's hostname on every sign-in would change
+    // it out from under the user (and rename the device on the account).
+    m_deviceName->setText(m_settings.accountDeviceName().isEmpty()
+                              ? QHostInfo::localHostName()
+                              : m_settings.accountDeviceName());
     fields->addRow(tr("Server:"), m_server);
     fields->addRow(tr("Email:"), m_email);
     fields->addRow(tr("Password:"), m_password);
@@ -169,6 +175,9 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
         m_password->clear();
         m_settings.setAccountEmail(info.email);
         m_settings.setAccountDeviceId(info.deviceId);
+        // Remember what this install signed in as, so the next sign-in (and any
+        // re-registration after a sign-out) offers that name, not the hostname.
+        m_settings.setAccountDeviceName(m_deviceName->text().trimmed());
         setBusy(false);
         m_status->clear();
         showCurrentState();

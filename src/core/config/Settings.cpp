@@ -462,6 +462,14 @@ void Settings::setAccountDeviceId(const QString &id) {
     m_settings.setValue("account/deviceId", id);
 }
 
+QString Settings::accountDeviceName() const {
+    return m_settings.value("account/deviceName").toString();
+}
+
+void Settings::setAccountDeviceName(const QString &name) {
+    m_settings.setValue("account/deviceName", name);
+}
+
 QString Settings::accountServerUrl() const {
     return m_settings.value("account/serverUrl").toString();
 }
