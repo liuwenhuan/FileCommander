@@ -100,6 +100,12 @@ public:
     void setMaxConcurrentTransfers(int count);
     int maxConcurrentTransfers() const { return m_maxConcurrentTransfers; }
 
+    // Byte-rate cap (bytes/second) applied to every provider-transfer worker.
+    // 0 = unlimited. Changing it updates existing workers; new workers are
+    // created with it already applied.
+    void setTransferRateLimit(qint64 bytesPerSecond);
+    qint64 transferRateLimit() const { return m_transferRateBps; }
+
     bool isLocalWorkerStarted() const { return m_ops != nullptr; }
     int transferWorkerCount() const { return m_transferWorkers.size(); }
 
@@ -157,6 +163,7 @@ private:
     QQueue<Job> m_transferQueue;
     QVector<TransferWorker *> m_transferWorkers;
     int m_maxConcurrentTransfers = 2;
+    qint64 m_transferRateBps = 0;
 
     ConflictResolver m_conflictHandler;
     ErrorResolver m_errorHandler;

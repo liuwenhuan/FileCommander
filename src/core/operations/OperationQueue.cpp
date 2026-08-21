@@ -8,6 +8,7 @@
 
 OperationQueue::OperationQueue(QObject *parent) : QObject(parent) {
     m_maxConcurrentTransfers = Settings().maxConcurrentTransfers();
+    m_transferRateBps = qint64(Settings().transferRateLimitKib()) * 1024;
 }
 
 OperationQueue::~OperationQueue() {
@@ -264,6 +265,14 @@ void OperationQueue::setMaxConcurrentTransfers(int count) {
     maybeStartNextTransfer();
 }
 
+void OperationQueue::setTransferRateLimit(qint64 bytesPerSecond) {
+    m_transferRateBps = qMax<qint64>(0, bytesPerSecond);
+    for (TransferWorker *worker : qAsConst(m_transferWorkers)) {
+        if (worker->ops)
+            worker->ops->setTransferRateLimit(m_transferRateBps);
+    }
+}
+
 bool OperationQueue::isBusy() const {
     if (m_busy)
         return true;
@@ -330,6 +339,7 @@ void OperationQueue::addTransferWorker() {
         std::make_unique<fc::RuntimeCounterGuard>(fc::RuntimeCounter::TransferWorker);
     worker->thread = new QThread();
     worker->ops = new FileOperations();
+    worker->ops->setTransferRateLimit(m_transferRateBps);
     worker->ops->moveToThread(worker->thread);
     connect(worker->thread, &QThread::finished, worker->ops, &QObject::deleteLater);
     connect(worker->ops, &FileOperations::progress, this, &OperationQueue::progress);

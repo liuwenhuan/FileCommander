@@ -170,6 +170,13 @@ public:
     int maxConcurrentTransfers() const;
     void setMaxConcurrentTransfers(int count);
 
+    // Byte-rate cap for provider transfers, in KiB/s. 0 means unlimited (the
+    // default); the streaming loop paces its chunks against it so a device-
+    // to-device copy does not saturate the link. Applies to the transfer pool,
+    // not to single-file local copies.
+    int transferRateLimitKib() const;
+    void setTransferRateLimitKib(int kib);
+
     // Per-side ("left"/"right") thumbnail icon size and list row height, set via
     // each panel's status-bar -/+ buttons. 0 means "not customized yet" -- the
     // panel then derives the size from the View-menu font instead.

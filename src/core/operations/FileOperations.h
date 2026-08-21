@@ -3,6 +3,7 @@
 #include <atomic>
 
 #include <QDateTime>
+#include <QElapsedTimer>
 #include <QMutex>
 #include <QObject>
 #include <QStringList>
@@ -71,6 +72,13 @@ public:
     // Pause/resume between entries (same per-file granularity as cancel).
     void requestPause();
     void requestResume();
+
+    // Byte-rate cap (bytes/second) for cross-provider streaming copies. 0 (the
+    // default) disables pacing; otherwise streamCopy() sleeps between chunks so
+    // the average rate over a file stays at or under this. Per-transfer, not
+    // shared across workers. Pacing sleeps in short slices so a cancel still
+    // lands promptly.
+    void setTransferRateLimit(qint64 bytesPerSecond);
 
     // The interruption checkpoint reached from inside one file's copy: fires the
     // test hook and answers whether the copy should give up now. Public only
@@ -146,6 +154,7 @@ private:
 #endif
     void emitProgress(const QString &currentFile);
     void waitIfPaused(); // blocks the worker while paused, until resume/cancel
+    void paceTransfer(); // throttles the last chunk to m_rateLimitBps (no-op at 0)
     // Returns true if the caller should treat the failed entry as handled
     // (retried successfully is handled by the caller's loop; here Skip/SkipAll
     // return true, Retry signals retry, Cancel sets m_cancelled).
@@ -219,6 +228,9 @@ private:
     static QString lastComponent(const QString &path);
 
     std::atomic<bool> m_cancelled{false};
+    qint64 m_rateLimitBps = 0;   // 0 = unlimited
+    QElapsedTimer m_rateClock;   // paces one file's chunks
+    qint64 m_rateBytes = 0;      // bytes transferred since m_rateClock started
     QMutex m_pauseMutex;
     QWaitCondition m_pauseCond;
     bool m_paused = false;
