@@ -629,6 +629,35 @@ TEST_F(FileShareServerTest, AnAbortedUploadLeavesNoPartialAtTheFinalName) {
     EXPECT_GT(settledSize(partialPath(local)), 0) << "the resume partial was not kept";
 }
 
+// The overwrite case: the peer already has a file under the target name, the
+// sender chose to replace it, and then aborted. The original must survive
+// untouched -- the incoming bytes went to the staging name, and an aborted
+// upload never reaches the rename that swaps it in, so the peer never sees a
+// half-written file under the name it already had.
+TEST_F(FileShareServerTest, AnAbortedOverwriteLeavesTheOriginalIntact) {
+    connectOk();
+    const QByteArray payload = blob(2 * 1024 * 1024, 17);
+    const QString dav = QStringLiteral("/share/replaced.bin");
+    const QString local = m_share + QStringLiteral("/replaced.bin");
+    ASSERT_TRUE(writeFile(local, "the original bytes"));
+
+    FileHandle *h = m_provider->openWrite(dav, true);
+    ASSERT_NE(h, nullptr);
+    m_provider->setExpectedWriteSize(h, payload.size());
+    qint64 sent = 0;
+    while (sent < 512 * 1024) {
+        const qint64 n = m_provider->write(h, payload.constData() + sent,
+                                           qMin<qint64>(64 * 1024, payload.size() - sent));
+        ASSERT_GT(n, 0);
+        sent += n;
+    }
+    EXPECT_FALSE(m_provider->closeHandleStatus(h));
+
+    EXPECT_EQ(readFile(local), QByteArray("the original bytes"))
+        << "an aborted overwrite clobbered the file it was replacing";
+    EXPECT_GT(settledSize(partialPath(local)), 0) << "the resume partial was not kept";
+}
+
 // A single upload is bounded, so a hostile peer cannot fill the disk with one
 // unbounded PUT. The cap is checked on the declared Content-Length before any
 // body is read.
