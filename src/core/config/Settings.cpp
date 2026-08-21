@@ -486,6 +486,14 @@ void Settings::setDeviceSharingEnabled(bool on) {
     m_settings.setValue("account/sharingEnabled", on);
 }
 
+bool Settings::notifyOnReceived() const {
+    return m_settings.value("account/notifyOnReceived", true).toBool();
+}
+
+void Settings::setNotifyOnReceived(bool on) {
+    m_settings.setValue("account/notifyOnReceived", on);
+}
+
 QStringList Settings::sharedFolders() const {
     return m_settings.value("account/sharedFolders").toStringList();
 }

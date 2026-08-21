@@ -62,6 +62,10 @@ signals:
     void started(quint16 port);
     void failed(const QString &error);
     void stopped();
+    // A peer finished writing a file into one of the shared folders, so the
+    // user can be told something arrived without polling the folder. `fileName`
+    // is the local absolute path that just landed.
+    void received(const QString &fileName);
 
 private slots:
     // The worker owns the listener, so the port is only knowable once it is

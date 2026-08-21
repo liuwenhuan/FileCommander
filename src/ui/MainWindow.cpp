@@ -111,6 +111,8 @@
 #include "account/DeviceAgent.h"
 #include "account/FileShareServer.h"
 #include "account/RelayTunnel.h"
+#include "DesktopNotify.h"
+#include "PendingSendQueue.h"
 #include "diagnostics/RuntimeCounters.h"
 #include "SearchDialog.h"
 #include "SessionManager.h"
@@ -4548,8 +4550,24 @@ void MainWindow::ensureAccountClient() {
         m_accountDevices.clear();
         updateDeviceSharing();
     });
+    if (!m_pendingSends) {
+        m_pendingSends = new PendingSendQueue(this);
+        connect(m_pendingSends, &PendingSendQueue::sendReady, this,
+                [this](const QString &id, const QString &name, const QStringList &sources) {
+                    sendToDevice(id, name, sources);
+                });
+    }
     connect(m_accountClient, &AccountClient::devicesReady, this,
-            [this](const QVector<AccountDeviceInfo> &devices) { m_accountDevices = devices; });
+            [this](const QVector<AccountDeviceInfo> &devices) {
+                m_accountDevices = devices;
+                // Drain sends queued while a device was offline: the moment it
+                // shows as online is the moment it can actually receive them.
+                QStringList onlineIds;
+                for (const AccountDeviceInfo &device : devices)
+                    if (device.online && !device.self)
+                        onlineIds.append(device.id);
+                m_pendingSends->devicesChanged(onlineIds);
+            });
     // Sign back in from the keyring token rather than asking again. Async,
     // and a failure just leaves the dialog on its sign-in page.
     if (!m_settings.accountEmail().isEmpty() && !m_settings.accountDeviceId().isEmpty())
@@ -4591,6 +4609,14 @@ void MainWindow::updateDeviceSharing() {
     if (!m_shareServer) {
         m_shareServer = new FileShareServer(m_accountClient, this);
         m_deviceAgent = new DeviceAgent(m_accountClient, this);
+        // A peer finished writing a file into our shared folders: tell the user
+        // something arrived, unless they turned the notice off.
+        connect(m_shareServer, &FileShareServer::received, this, [this](const QString &fileName) {
+            if (!m_settings.notifyOnReceived())
+                return;
+            ttc::notify(tr("File received"),
+                        tr("%1 arrived from another device.").arg(QFileInfo(fileName).fileName()));
+        });
         // The first device list is fetched the moment the account signs in, but
         // the agent socket has not finished its hello by then, so this device
         // shows as offline until something re-fetches. "announced" is that
@@ -5230,19 +5256,32 @@ void MainWindow::showFileContextMenu(FilePanel *panel, const QPoint &viewPos) {
         const QStringList sources = panel->selectedPaths();
         int offered = 0;
         for (const AccountDeviceInfo &device : qAsConst(m_accountDevices)) {
-            if (device.self || !device.online)
+            if (device.self)
                 continue;
             ++offered;
             const QString id = device.id;
             const QString name = device.name;
+            const bool online = device.online;
             // Not the templated addAction overload: the label is data, and that
             // overload would take it for a slot name on older Qt 5.
-            QAction *action = deviceMenu->addAction(name);
-            connect(action, &QAction::triggered, this,
-                    [this, id, name, sources] { sendToDevice(id, name, sources); });
+            QAction *action =
+                deviceMenu->addAction(online ? name : tr("%1 (offline)").arg(name));
+            connect(action, &QAction::triggered, this, [this, id, name, sources, online] {
+                if (online) {
+                    sendToDevice(id, name, sources);
+                    return;
+                }
+                // Offline: hold it and fire the moment the device shows as
+                // online (devicesReady drains the queue), rather than dropping
+                // the user's choice.
+                m_pendingSends->enqueue(id, name, sources);
+                ttc::information(
+                    this, tr("FileCommander Account"),
+                    tr("Queued for %1; it will be sent when that device is online.").arg(name));
+            });
         }
         if (offered == 0)
-            deviceMenu->addAction(tr("No other device is online"))->setEnabled(false);
+            deviceMenu->addAction(tr("No other device"))->setEnabled(false);
         m_accountClient->fetchDevices();
     }
 #endif

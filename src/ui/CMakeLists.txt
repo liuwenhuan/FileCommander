@@ -57,6 +57,10 @@ set(UI_SOURCES
     FunctionKeyBar.cpp
     DragPixmap.h
     DragPixmap.cpp
+    DesktopNotify.h
+    DesktopNotify.cpp
+    PendingSendQueue.h
+    PendingSendQueue.cpp
     NotepadPanel.h
     NotepadPanel.cpp
     StatusBarWidget.h
@@ -281,5 +285,5 @@ if(FILECOMMANDER_PREVIEW_PDF)
     target_link_libraries(ui PRIVATE FileCommander::PopplerQt5)
 endif()
 if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
-    target_link_libraries(ui PRIVATE Qt5::X11Extras PkgConfig::XCB)
+    target_link_libraries(ui PRIVATE Qt5::X11Extras PkgConfig::XCB Qt5::DBus)
 endif()

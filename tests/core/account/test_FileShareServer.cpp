@@ -237,6 +237,35 @@ TEST_F(FileShareServerTest, AnUploadLandsInTheSharedFolder) {
     EXPECT_EQ(readFile(m_share + QStringLiteral("/up.bin")), payload);
 }
 
+TEST_F(FileShareServerTest, AnUploadSignalsThatAFileWasReceived) {
+    const QByteArray payload = blob(48 * 1024, 5);
+    connectOk();
+
+    QSignalSpy received(m_server, &FileShareServer::received);
+
+    FileHandle *h = m_provider->openWrite(QStringLiteral("/share/arrived.bin"), true);
+    ASSERT_NE(h, nullptr);
+    m_provider->setExpectedWriteSize(h, payload.size());
+    qint64 sent = 0;
+    while (sent < payload.size()) {
+        const qint64 n = m_provider->write(h, payload.constData() + sent,
+                                           qMin<qint64>(48 * 1024, payload.size() - sent));
+        ASSERT_GT(n, 0);
+        sent += n;
+    }
+    EXPECT_TRUE(m_provider->closeHandleStatus(h));
+
+    // The signal travels from the server's worker thread back to this thread as
+    // a queued connection, so it may land a moment after closeHandleStatus().
+    if (received.isEmpty())
+        received.wait(5000);
+    ASSERT_EQ(received.count(), 1);
+    // resolve() reports the canonical path, so compare against that, not the
+    // raw share + name string.
+    EXPECT_EQ(received.first().first().toString(),
+              QFileInfo(m_share + QStringLiteral("/arrived.bin")).canonicalFilePath());
+}
+
 // Without a declared size libcurl falls back to Transfer-Encoding: chunked, so
 // the server has to accept both framings -- this is the one FileOperations
 // actually uses when the source size is unknown.

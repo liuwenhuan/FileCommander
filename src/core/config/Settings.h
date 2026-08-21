@@ -241,6 +241,11 @@ public:
     void setDeviceSharingEnabled(bool on);
     QStringList sharedFolders() const;
     void setSharedFolders(const QStringList &folders);
+    // Whether a file arriving from another device pops a desktop notification.
+    // On by default: an arrival that leaves no trace except a new file is easy
+    // to miss entirely.
+    bool notifyOnReceived() const;
+    void setNotifyOnReceived(bool on);
 
     // Whether the Computer view lists the operating system's own mount points
     // (/boot, /var, an ostree layout's /persistent, ...) and every mount of a
