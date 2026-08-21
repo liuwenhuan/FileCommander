@@ -219,13 +219,13 @@ void AccountClient::login(const QString &email, const QString &password,
                                               {"email", email},
                                               {"password", password},
                                               {"device_name", deviceName},
-                                              {"platform", QStringLiteral(
+                                              {"platform",
 #ifdef Q_OS_WIN
-                                                   "windows"
+                                               QStringLiteral("windows")
 #else
-                                                   "linux"
+                                               QStringLiteral("linux")
 #endif
-                                                   )},
+                                              },
                                               {"device_id", deviceId},
                                           })
                                 .toJson();
