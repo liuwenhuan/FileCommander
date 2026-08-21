@@ -637,13 +637,12 @@ private:
     // would also run this one's continuation.
     void withDeviceSession(const QString &deviceId, std::function<void(const AccountSession &)> then);
 
-    // A provider aimed at a peer device, and the closure that dials it: the
-    // peer's LAN addresses first, the relay last. The provider is null when
-    // there is no route at all. Both callers -- opening a tab and sending files
-    // -- need the pair, and the relay tunnel rides along in the deleter.
+    // How to dial a peer device. connect() dials every candidate route -- the
+    // peer's LAN addresses and the relay -- concurrently and returns the route
+    // that won, or nullptr when none is reachable. The providers live inside
+    // connect(); the relay tunnel rides along in the relay provider's deleter.
     struct DeviceLink {
-        std::shared_ptr<FileProvider> provider;
-        std::function<bool(QString *)> connect;
+        std::function<std::shared_ptr<FileProvider>(QString *)> connect;
     };
     DeviceLink deviceLink(const AccountSession &session);
 

@@ -28,6 +28,7 @@
 #include <atomic>
 #include <cstdlib>
 #include <functional>
+#include <mutex>
 #include <QLabel>
 #include <QHBoxLayout>
 #include <QMouseEvent>
@@ -4754,9 +4755,11 @@ MainWindow::DeviceLink MainWindow::deviceLink(const AccountSession &session) {
         for (const QString &host : session.peerLanAddresses)
             targets.append({host, session.peerPort});
     }
-    // The relay goes last: it works from anywhere, but every byte takes a
-    // detour through the account server, so a direct route wins when there is
-    // one. The tunnel outlives this call and belongs to the provider.
+    // The relay is dialled concurrently with the LAN addresses, not after them:
+    // waiting for every LAN address to time out before touching it is what made
+    // opening a device slow. Its bytes detour through the account server, so a
+    // direct route still wins when one exists -- "concurrent" means whichever
+    // dial lands first, not "always the relay".
     RelayTunnel *tunnel = new RelayTunnel;
     const quint16 tunnelPort = tunnel->listenLocal(
         m_accountClient->relaySocketUrl(session.sessionId), session.ticket);
@@ -4764,48 +4767,96 @@ MainWindow::DeviceLink MainWindow::deviceLink(const AccountSession &session) {
         targets.append({QStringLiteral("127.0.0.1"), tunnelPort});
     if (targets.isEmpty()) {
         delete tunnel;
-        return {};
+        DeviceLink link;
+        link.connect = [](QString *) -> std::shared_ptr<FileProvider> { return nullptr; };
+        return link;
     }
-    std::shared_ptr<CurlWebDavProvider> provider(new CurlWebDavProvider,
-                                                 [tunnel](CurlWebDavProvider *p) {
-                                                     delete p;
-                                                     // Not before the provider:
-                                                     // its connections run
-                                                     // through this port.
-                                                     tunnel->deleteLater();
-                                                 });
-    // The peer serves a self-signed certificate, so the pin the account server
-    // relayed is the whole identity check -- and the only reason a transfer
-    // over the relay is not readable by whoever runs it.
-    provider->setPinnedPublicKey(session.peerPin);
+
+    // One provider per route: CurlWebDavProvider holds a single connection, so
+    // two routes cannot be dialled on one instance. A LAN probe fails fast
+    // (1s); only the relay keeps the long internet timeout. The relay provider
+    // owns the tunnel through its deleter.
+    QVector<std::shared_ptr<CurlWebDavProvider>> providers;
+    providers.reserve(targets.size());
+    for (const QPair<QString, quint16> &target : targets) {
+        const bool relay = target.first == QLatin1String("127.0.0.1");
+        std::shared_ptr<CurlWebDavProvider> provider;
+        if (relay) {
+            provider = std::shared_ptr<CurlWebDavProvider>(
+                new CurlWebDavProvider, [tunnel](CurlWebDavProvider *p) {
+                    delete p;
+                    tunnel->deleteLater();
+                });
+        } else {
+            provider = std::shared_ptr<CurlWebDavProvider>(new CurlWebDavProvider);
+        }
+        // The peer serves a self-signed certificate, so the pin the account
+        // server relayed is the whole identity check.
+        provider->setPinnedPublicKey(session.peerPin);
+        provider->setTimeoutMs(relay ? 12000 : 1000);
+        providers.append(provider);
+    }
+
     const QString ticket = session.ticket;
-    auto connectFn = [provider, targets, ticket](QString *error) {
-        // The account server pushes the ticket to the peer and answers us
-        // without waiting for it to arrive, so on a fast LAN we can knock
-        // before the share server has been taught the ticket -- which is a 401,
-        // not an unreachable host. Give that push time to land rather than
-        // telling the user the device cannot be reached.
-        //
-        // LAN probes fail fast: a peer on the same LAN answers a connect in
-        // milliseconds, and one that is not is not worth the full 12s internet
-        // timeout each. Two devices on different networks used to burn 12s on
-        // every LAN address before the relay was even tried, which is what made
-        // opening a device take so long. Only the relay (127.0.0.1) keeps the
-        // long timeout, because its bytes actually cross the internet.
+    DeviceLink link;
+    link.connect = [providers, targets, ticket](QString *error) -> std::shared_ptr<FileProvider> {
+        // Dial every route concurrently and take the first that connects. The
+        // account server pushes the ticket to the peer before it answers us, but
+        // the peer teaches its share server about it a beat later, so on a fast
+        // LAN the first knock can be a 401 -- hence the retry, which waits for
+        // that teach to land rather than declaring the device unreachable.
         for (int attempt = 0; attempt < 3; ++attempt) {
             if (attempt > 0)
                 QThread::msleep(500);
-            for (const QPair<QString, quint16> &target : targets) {
-                const bool relay = target.first == QLatin1String("127.0.0.1");
-                provider->setTimeoutMs(relay ? 12000 : 2000);
-                if (provider->connectToHost(target.first, target.second, QStringLiteral("device"),
-                                            ticket, /*useHttps=*/true, error))
-                    return true;
+
+            // Shared by the dial tasks and the poll below; the tasks hold it by
+            // shared_ptr so it outlives this iteration even when a loser task is
+            // still winding down.
+            struct DialState {
+                std::mutex mutex;
+                std::shared_ptr<FileProvider> winner;
+                QString firstError;
+                std::atomic<int> pending{0};
+            };
+            auto state = std::make_shared<DialState>();
+            state->pending = static_cast<int>(providers.size());
+            for (int i = 0; i < providers.size(); ++i) {
+                QtConcurrent::run([provider = providers[i], target = targets[i], ticket,
+                                   state]() {
+                    QString localError;
+                    if (provider->connectToHost(target.first, target.second,
+                                                QStringLiteral("device"), ticket,
+                                                /*useHttps=*/true, &localError)) {
+                        std::lock_guard<std::mutex> lock(state->mutex);
+                        if (!state->winner)
+                            state->winner = provider;
+                    } else if (!localError.isEmpty()) {
+                        std::lock_guard<std::mutex> lock(state->mutex);
+                        if (state->firstError.isEmpty())
+                            state->firstError = localError;
+                    }
+                    state->pending.fetch_sub(1);
+                });
             }
+            while (true) {
+                {
+                    std::lock_guard<std::mutex> lock(state->mutex);
+                    if (state->winner)
+                        break;
+                }
+                if (state->pending.load() == 0)
+                    break;
+                QThread::msleep(10);
+            }
+            std::lock_guard<std::mutex> lock(state->mutex);
+            if (state->winner)
+                return state->winner;
+            if (attempt == 0 && error && !state->firstError.isEmpty())
+                *error = state->firstError;
         }
-        return false;
+        return nullptr;
     };
-    return {provider, connectFn};
+    return link;
 #else
     Q_UNUSED(session);
     return {};
@@ -4815,19 +4866,31 @@ MainWindow::DeviceLink MainWindow::deviceLink(const AccountSession &session) {
 void MainWindow::openDeviceSession(const AccountSession &session, const QString &name) {
 #if FILECOMMANDER_HAS_NETWORK
     DeviceLink link = deviceLink(session);
-    if (!link.provider) {
-        ttc::critical(this, tr("Connection Failed"),
-                      tr("%1 cannot be reached on this network.").arg(name));
-        return;
-    }
-    std::shared_ptr<FileProvider> provider = link.provider;
-    std::function<bool(QString *)> connectFn = link.connect;
-    FilePanel *panel = beginServerConnection();
-    panel->model()->connectNetwork(provider, connectFn, QStringLiteral("/"));
-    panel->setConnectingLabel(name, link.provider->scheme());
-    // Deliberately no setActiveTabConnInfo(): the ticket is short-lived, so a
-    // persisted "connection" would restore as a tab nothing can reconnect.
-    panel->navigateTo(QStringLiteral("/"));
+    // Dial every route in parallel off the GUI thread; the winner becomes the
+    // tab's provider. By the time connectNetwork is called the provider is
+    // already connected, so its connect closure is a no-op that just tells the
+    // session it is up.
+    auto *watcher = new QFutureWatcher<std::shared_ptr<FileProvider>>(this);
+    connect(watcher, &QFutureWatcher<std::shared_ptr<FileProvider>>::finished, this,
+            [this, watcher, name] {
+                watcher->deleteLater();
+                std::shared_ptr<FileProvider> provider = watcher->result();
+                if (!provider) {
+                    ttc::critical(this, tr("Connection Failed"),
+                                  tr("%1 cannot be reached on this network.").arg(name));
+                    return;
+                }
+                FilePanel *panel = beginServerConnection();
+                panel->model()->connectNetwork(provider, [](QString *) { return true; },
+                                               QStringLiteral("/"));
+                panel->setConnectingLabel(name, provider->scheme());
+                // Deliberately no setActiveTabConnInfo(): the ticket is
+                // short-lived, so a persisted "connection" would restore as a
+                // tab nothing can reconnect.
+                panel->navigateTo(QStringLiteral("/"));
+            });
+    auto connectFn = link.connect;
+    watcher->setFuture(QtConcurrent::run([connectFn] { return connectFn(nullptr); }));
 #else
     Q_UNUSED(session);
     Q_UNUSED(name);
@@ -4852,15 +4915,10 @@ void MainWindow::sendToDevice(const QString &deviceId, const QString &name,
     m_pendingTransfers.add(deviceId, name, sources);
     withDeviceSession(deviceId, [this, deviceId, name, sources, srcProv](const AccountSession &session) {
         DeviceLink link = deviceLink(session);
-        if (!link.provider) {
-            ttc::critical(this, tr("Connection Failed"),
-                          tr("%1 cannot be reached on this network.").arg(name));
-            return;
-        }
         // Dialling is a network round trip per candidate address, and over the
         // relay it can take seconds -- far too long to spend on the GUI thread,
-        // which is why opening a tab hands this to NetworkSession. There is no
-        // session here, so it goes to the pool directly.
+        // which is why it goes to the pool directly (the routes are dialled in
+        // parallel inside link.connect, so it returns as soon as any lands).
         //
         // The progress window appears before the dial, not after it: the dial is
         // the part that takes long enough to leave the user with no feedback at
@@ -4869,11 +4927,12 @@ void MainWindow::sendToDevice(const QString &deviceId, const QString &name,
         auto *dialog = ensureTransferProgressDialog();
         dialog->showConnecting(tr("Connecting to %1…").arg(name));
         auto connectError = std::make_shared<QString>();
-        auto *watcher = new QFutureWatcher<bool>(this);
-        connect(watcher, &QFutureWatcher<bool>::finished, this,
-                [this, watcher, dialog, link, srcProv, sources, name, connectError, deviceId] {
+        auto *watcher = new QFutureWatcher<std::shared_ptr<FileProvider>>(this);
+        connect(watcher, &QFutureWatcher<std::shared_ptr<FileProvider>>::finished, this,
+                [this, watcher, dialog, srcProv, sources, name, connectError, deviceId] {
                     watcher->deleteLater();
-                    if (!watcher->result()) {
+                    std::shared_ptr<FileProvider> provider = watcher->result();
+                    if (!provider) {
                         dialog->dismissAfterAbort();
                         const QString error = connectError->trimmed();
                         ttc::critical(this, tr("Connection Failed"),
@@ -4899,7 +4958,7 @@ void MainWindow::sendToDevice(const QString &deviceId, const QString &name,
                                          if (ok)
                                              m_pendingTransfers.remove(deviceId, sources);
                                      });
-                    m_queue->enqueueProviderCopy(srcProv, sources, link.provider, destDir);
+                    m_queue->enqueueProviderCopy(srcProv, sources, provider, destDir);
                 });
         auto connectFn = link.connect;
         watcher->setFuture(QtConcurrent::run([connectFn, connectError] {
