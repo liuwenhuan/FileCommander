@@ -39,6 +39,17 @@ size_t discardCallback(char * /*ptr*/, size_t size, size_t nmemb, void * /*userd
     return size * nmemb;
 }
 
+// Watches the connect handshake's response headers for the one marker that says
+// this server continues a PUT from an offset instead of replacing the resource.
+size_t putRangeProbeCallback(char *ptr, size_t size, size_t nmemb, void *userdata) {
+    const size_t bytes = size * nmemb;
+    if (QByteArray::fromRawData(ptr, static_cast<int>(bytes))
+            .toLower()
+            .startsWith("x-filecommander-put-range:"))
+        *static_cast<bool *>(userdata) = true;
+    return bytes;
+}
+
 constexpr qint64 kPipeCapacity = 512 * 1024;
 
 struct WebDavTransferState {
@@ -122,12 +133,16 @@ struct WebDavHandle : public FileHandle {
     QString password;
     bool useHttps = false;
     qint64 resumeOffset = 0;
+    // Whether this server advertised that it honours Content-Range on a PUT.
+    // Off for every server that did not say so, which is all of them but ours.
+    bool putRange = false;
     qint64 uploadSize = -1; // total PUT body length, or -1 when the caller didn't say
     bool started = false;
     qint64 cachedSize = -1;
     int timeoutMs = 12000; // connect-phase timeout for the transfer
 
     CURL *curl = nullptr;
+    curl_slist *requestHeaders = nullptr;
     std::thread worker;
     std::shared_ptr<WebDavTransferState> state = std::make_shared<WebDavTransferState>();
 
@@ -169,6 +184,8 @@ struct WebDavHandle : public FileHandle {
         }
         if (curl)
             curl_easy_cleanup(curl);
+        if (requestHeaders)
+            curl_slist_free_all(requestHeaders);
     }
 };
 
@@ -264,6 +281,18 @@ void startWebDavTransfer(WebDavHandle *h) {
             curl_easy_setopt(h->curl, CURLOPT_INFILESIZE_LARGE,
                              static_cast<curl_off_t>(h->uploadSize));
         }
+        // A resumed upload: seek() only accepted the offset because the server
+        // said it honours this header, so the body is the tail and the server
+        // keeps everything before `resumeOffset`.
+        if (h->resumeOffset > 0 && h->uploadSize > 0) {
+            const qint64 end = h->resumeOffset + h->uploadSize - 1;
+            const QByteArray header = "Content-Range: bytes " +
+                                      QByteArray::number(h->resumeOffset) + "-" +
+                                      QByteArray::number(end) + "/" +
+                                      QByteArray::number(end + 1);
+            h->requestHeaders = curl_slist_append(h->requestHeaders, header.constData());
+            curl_easy_setopt(h->curl, CURLOPT_HTTPHEADER, h->requestHeaders);
+        }
     }
 
     CURL *curl = h->curl;
@@ -342,11 +371,16 @@ bool CurlWebDavProvider::connectToHost(const QString &host, int port, const QStr
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(std::strlen(body)));
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discardCallback);
+    bool putRange = false;
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, putRangeProbeCallback);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &putRange);
 
     const CURLcode res = curl_easy_perform(curl);
     long httpCode = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpCode);
 
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, nullptr);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, nullptr);
     curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, nullptr);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, nullptr);
     curl_slist_free_all(headers);
@@ -373,6 +407,7 @@ bool CurlWebDavProvider::connectToHost(const QString &host, int port, const QStr
     m_curl = curl;
     m_user = user;
     m_password = password;
+    m_serverPutRange = putRange;
     m_connected = true;
     return true;
 }
@@ -403,6 +438,7 @@ void CurlWebDavProvider::disconnect() {
         m_curl = nullptr;
     }
     m_connected = false;
+    m_serverPutRange = false;
     m_host.clear();
     m_user.clear();
     m_password.clear();
@@ -888,7 +924,7 @@ FileHandle *CurlWebDavProvider::openRead(const QString &path) {
 FileHandle *CurlWebDavProvider::openWrite(const QString &path, bool /*truncate*/) {
     QString h, u, p;
     int port, timeout;
-    bool https;
+    bool https, putRange;
     {
         QMutexLocker locker(&m_mutex);
         if (!m_connected)
@@ -899,6 +935,7 @@ FileHandle *CurlWebDavProvider::openWrite(const QString &path, bool /*truncate*/
         p = m_password;
         https = m_useHttps;
         timeout = m_timeoutMs;
+        putRange = m_serverPutRange;
     }
     auto *handle = new WebDavHandle();
     handle->mode = WebDavHandle::Mode::Write;
@@ -909,10 +946,16 @@ FileHandle *CurlWebDavProvider::openWrite(const QString &path, bool /*truncate*/
     handle->password = p;
     handle->useHttps = https;
     handle->timeoutMs = timeout;
-    // truncate is intentionally ignored: WebDAV PUT always replaces the whole
-    // resource (there is no append mode), and seek() refuses resume for
-    // write handles, so every openWrite() ends up doing a full PUT anyway.
+    // truncate is intentionally ignored: a PUT replaces the whole resource, and
+    // the one case where it must not -- continuing a partial file -- is driven
+    // by seek() plus Content-Range, not by this flag.
+    handle->putRange = putRange;
     return handle;
+}
+
+bool CurlWebDavProvider::supportsWriteResume() const {
+    QMutexLocker locker(&m_mutex);
+    return m_serverPutRange;
 }
 
 void CurlWebDavProvider::setExpectedWriteSize(FileHandle *handle, qint64 totalSize) {
@@ -976,10 +1019,17 @@ bool CurlWebDavProvider::seek(FileHandle *handle, qint64 offset) {
         h->resumeOffset = offset;
         return true;
     }
-    // Write (upload): WebDAV PUT has no standardised append/resume; refuse a
-    // nonzero offset so the caller surfaces a clean, retryable error instead
-    // of silently uploading only the tail of the file (see class comment).
-    return offset == 0;
+    // Write (upload): plain WebDAV PUT has no standardised append/resume, so a
+    // nonzero offset is refused unless this server advertised that it continues
+    // a PUT from a Content-Range offset (device-to-device transfer does). The
+    // caller then surfaces a clean, retryable error instead of silently
+    // uploading only the tail of the file (see class comment).
+    if (offset == 0)
+        return true;
+    if (!h->putRange || h->uploadSize <= 0)
+        return false;
+    h->resumeOffset = offset;
+    return true;
 }
 
 qint64 CurlWebDavProvider::handleSize(FileHandle *handle) {

@@ -3,10 +3,14 @@
 #include <QDir>
 #include <QEventLoop>
 #include <QFile>
+#include <QFileInfo>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QThread>
 #include <QTimer>
 
+#include "LocalFileProvider.h"
+#include "OperationQueue.h"
 #include "account/FileShareServer.h"
 #include "network/CurlWebDavProvider.h"
 
@@ -24,6 +28,49 @@ QByteArray blob(int size, char seed) {
     for (int i = 0; i < size; ++i)
         data[i] = static_cast<char>((i * 31 + seed) & 0xff);
     return data;
+}
+
+// The server writes an aborted PUT's partial body on its own thread and only
+// closes the file when the dropped connection is reaped, so what landed is not
+// readable the instant closeHandleStatus() returns. Wait for the size to stop
+// moving.
+qint64 settledSize(const QString &path) {
+    qint64 last = -1;
+    int stable = 0;
+    for (int i = 0; i < 100; ++i) {
+        QThread::msleep(20);
+        const qint64 now = QFileInfo(path).size();
+        stable = (now == last && now > 0) ? stable + 1 : 0;
+        if (stable >= 2)
+            return now;
+        last = now;
+    }
+    return last;
+}
+
+// Sends payload.mid(offset) exactly the way FileOperations::streamCopy() drives
+// a resumed transfer: openWrite(truncate=false), declare the *tail* length (not
+// the file length), seek the write handle to the resume point, then stream.
+// Returns closeHandleStatus(), i.e. whether the server committed it.
+bool putFrom(CurlWebDavProvider *provider, const QString &davPath, const QByteArray &payload,
+             qint64 offset) {
+    FileHandle *h = provider->openWrite(davPath, offset == 0);
+    if (!h)
+        return false;
+    provider->setExpectedWriteSize(h, payload.size() - offset);
+    if (!provider->seek(h, offset)) {
+        provider->closeHandle(h);
+        return false;
+    }
+    qint64 sent = offset;
+    while (sent < payload.size()) {
+        const qint64 n = provider->write(h, payload.constData() + sent,
+                                         qMin<qint64>(64 * 1024, payload.size() - sent));
+        if (n <= 0)
+            break;
+        sent += n;
+    }
+    return provider->closeHandleStatus(h);
 }
 
 bool writeFile(const QString &path, const QByteArray &data) {
@@ -270,6 +317,210 @@ TEST_F(FileShareServerTest, AWrongTicketGetsNothing) {
 TEST_F(FileShareServerTest, AnExpiredTicketStopsWorking) {
     m_server->addTicket(QStringLiteral("brief"), 0);
     EXPECT_FALSE(connectWith(QStringLiteral("brief")));
+}
+
+// --- Resume ------------------------------------------------------------------
+//
+// Device-to-device transfer is the one WebDAV link where an interrupted upload
+// can be continued: a PUT normally replaces the whole resource, so the provider
+// only ever resumes against a server that promised, at connect time, to honour
+// Content-Range on a PUT. These tests are the proof that promise is kept.
+
+// The strong form of the claim: what is already on the server before the resume
+// point must still be there afterwards. The destination is pre-filled with
+// bytes that are deliberately NOT the source's, so a server that quietly
+// restarted the PUT from zero, or truncated the file when it opened it, fails
+// here even though the transfer itself reports success.
+TEST_F(FileShareServerTest, AResumedUploadKeepsWhatIsAlreadyOnTheServer) {
+    connectOk();
+    // The gate FileOperations::transferFile() consults before resuming at all.
+    EXPECT_TRUE(m_provider->supportsWriteResume());
+
+    const QByteArray payload = blob(3 * 1024 * 1024, 23);
+    const int offset = 1024 * 1024;
+    const QByteArray sentinel(offset, '\x5a');
+    const QString local = m_share + QStringLiteral("/sentinel.bin");
+    ASSERT_TRUE(writeFile(local, sentinel));
+
+    EXPECT_TRUE(putFrom(m_provider.get(), QStringLiteral("/share/sentinel.bin"), payload, offset));
+
+    const QByteArray got = readFile(local);
+    ASSERT_EQ(got.size(), payload.size());
+    EXPECT_EQ(got.left(offset), sentinel) << "the server rewrote bytes before the resume point";
+    EXPECT_EQ(got.mid(offset), payload.mid(offset));
+}
+
+// The realistic round trip: a multi-megabyte upload dies partway, and the
+// second attempt sends only the tail. The partial file the server is left
+// holding is what transferFile() measures to pick the offset, so that size is
+// asserted too -- it is the input to the whole decision.
+TEST_F(FileShareServerTest, AnInterruptedUploadContinuesWhereItStopped) {
+    connectOk();
+    const QByteArray payload = blob(3 * 1024 * 1024, 5);
+    const QString dav = QStringLiteral("/share/interrupted.bin");
+    const QString local = m_share + QStringLiteral("/interrupted.bin");
+
+    // First attempt: declare the whole file, then hang up a third of the way in.
+    FileHandle *h = m_provider->openWrite(dav, true);
+    ASSERT_NE(h, nullptr);
+    m_provider->setExpectedWriteSize(h, payload.size());
+    qint64 sent = 0;
+    while (sent < 1024 * 1024) {
+        const qint64 n = m_provider->write(h, payload.constData() + sent,
+                                           qMin<qint64>(64 * 1024, payload.size() - sent));
+        ASSERT_GT(n, 0);
+        sent += n;
+    }
+    // The body is short of the declared Content-Length, so this must not be
+    // reported as a completed upload.
+    EXPECT_FALSE(m_provider->closeHandleStatus(h));
+
+    const qint64 partial = settledSize(local);
+    ASSERT_GT(partial, 0) << "nothing survived the interrupted upload, so there is nothing to resume";
+    ASSERT_LT(partial, payload.size());
+
+    // The size the resume decision is made on, read back through the provider.
+    FileHandle *probe = m_provider->openRead(dav);
+    ASSERT_NE(probe, nullptr);
+    EXPECT_EQ(m_provider->handleSize(probe), partial);
+    m_provider->closeHandle(probe);
+
+    EXPECT_TRUE(putFrom(m_provider.get(), dav, payload, partial));
+    EXPECT_EQ(readFile(local), payload);
+}
+
+// A resume offset the server cannot honour (it holds fewer bytes than that)
+// must be refused outright rather than written at the wrong place: the caller
+// falls back to a fresh copy, and the file on disk is left as it was.
+TEST_F(FileShareServerTest, AResumeBeyondWhatTheServerHoldsIsRefused) {
+    connectOk();
+    const QByteArray payload = blob(256 * 1024, 41);
+    const QByteArray already = blob(4096, 77);
+    const QString local = m_share + QStringLiteral("/short.bin");
+    ASSERT_TRUE(writeFile(local, already));
+
+    // Not putFrom(): the refusal has to come from the server, so the client
+    // side of the handshake is asserted to have succeeded first.
+    FileHandle *h = m_provider->openWrite(QStringLiteral("/share/short.bin"), false);
+    ASSERT_NE(h, nullptr);
+    m_provider->setExpectedWriteSize(h, payload.size() - 128 * 1024);
+    ASSERT_TRUE(m_provider->seek(h, 128 * 1024));
+    qint64 sent = 128 * 1024;
+    while (sent < payload.size()) {
+        const qint64 n = m_provider->write(h, payload.constData() + sent,
+                                           qMin<qint64>(64 * 1024, payload.size() - sent));
+        if (n <= 0)
+            break;
+        sent += n;
+    }
+    EXPECT_FALSE(m_provider->closeHandleStatus(h));
+    EXPECT_EQ(readFile(local), already);
+}
+
+// Download resume, driven the way streamCopy() drives it: the first attempt
+// dies partway, the second asks for the tail only. If the server answered 200
+// from byte zero instead of 206 from the offset, the reassembled file would be
+// the wrong length and the wrong bytes -- both are asserted.
+TEST_F(FileShareServerTest, AnInterruptedDownloadContinuesWhereItStopped) {
+    const QByteArray payload = blob(3 * 1024 * 1024, 31);
+    ASSERT_TRUE(writeFile(m_share + QStringLiteral("/down.bin"), payload));
+    connectOk();
+    const QString dav = QStringLiteral("/share/down.bin");
+
+    // First attempt: take a megabyte, then drop the connection.
+    QByteArray got;
+    FileHandle *h = m_provider->openRead(dav);
+    ASSERT_NE(h, nullptr);
+    QByteArray chunk(64 * 1024, Qt::Uninitialized);
+    while (got.size() < 1024 * 1024) {
+        const qint64 n = m_provider->read(h, chunk.data(), chunk.size());
+        ASSERT_GT(n, 0);
+        got.append(chunk.constData(), int(n));
+    }
+    m_provider->closeHandle(h);
+    const int offset = got.size();
+    ASSERT_LT(offset, payload.size());
+
+    // Second attempt: the tail only.
+    h = m_provider->openRead(dav);
+    ASSERT_NE(h, nullptr);
+    ASSERT_TRUE(m_provider->seek(h, offset));
+    QByteArray tail;
+    while (true) {
+        const qint64 n = m_provider->read(h, chunk.data(), chunk.size());
+        ASSERT_GE(n, 0);
+        if (n == 0)
+            break;
+        tail.append(chunk.constData(), int(n));
+    }
+    EXPECT_TRUE(m_provider->closeHandleStatus(h));
+    EXPECT_EQ(tail.size(), payload.size() - offset) << "the server resent the whole file";
+    EXPECT_EQ(got + tail, payload);
+}
+
+// Everything above drives the provider by hand. Production does not: it hands
+// the job to OperationQueue, and the decision to resume at all is taken by
+// FileOperations::transferFile, which asks the destination provider whether it
+// supports write resume and how much of the file it already holds. That
+// decision has never run against this provider, and if it fell through to
+// conflict resolution instead, none of the resume work above would ever be
+// reached.
+TEST_F(FileShareServerTest, TheTransferQueueResumesAnInterruptedCopy) {
+    const QByteArray payload = blob(16 * 1024 * 1024, 61);
+    const QString source = m_dir.path() + QStringLiteral("/queued.bin");
+    const QString landed = m_share + QStringLiteral("/queued.bin");
+    ASSERT_TRUE(writeFile(source, payload));
+    connectOk();
+
+    auto local = std::make_shared<LocalFileProvider>();
+    OperationQueue queue;
+    queue.setMaxConcurrentTransfers(1);
+    // A prompt here would mean the transfer took the conflict branch instead of
+    // resuming, so record it rather than answering it.
+    bool conflictAsked = false;
+    queue.setConflictHandler([&conflictAsked](const FileConflict &) {
+        conflictAsked = true;
+        return ErrorAction::Skip;
+    });
+
+    // First attempt, stopped mid-file: cancelActiveJobs() is honoured between
+    // chunks, so the server keeps whatever had already arrived.
+    qint64 firstBytesSeen = 0;
+    bool stopped = false;
+    QObject::connect(&queue, &OperationQueue::progress, &queue,
+                     [&](qint64, qint64, qint64 doneBytes, qint64, const QString &) {
+                         if (firstBytesSeen == 0 && doneBytes > 0)
+                             firstBytesSeen = doneBytes;
+                         if (!stopped && doneBytes >= 4 * 1024 * 1024) {
+                             stopped = true;
+                             queue.cancelActiveJobs();
+                         }
+                     });
+
+    QSignalSpy interrupted(&queue, &OperationQueue::finished);
+    queue.enqueueProviderCopy(local, {source}, m_provider, QStringLiteral("/share"));
+    ASSERT_TRUE(interrupted.count() > 0 || interrupted.wait(60000));
+    EXPECT_FALSE(interrupted.takeFirst().at(0).toBool());
+    ASSERT_TRUE(stopped) << "the copy finished before it could be interrupted";
+
+    const qint64 partial = settledSize(landed);
+    ASSERT_GT(partial, 128 * 1024) << "too little landed to tell a resume from a restart";
+    ASSERT_LT(partial, payload.size());
+
+    // Second attempt, through the same call the UI makes. transferFile sees a
+    // shorter file at the destination and resumes it.
+    firstBytesSeen = 0;
+    QSignalSpy done(&queue, &OperationQueue::finished);
+    queue.enqueueProviderCopy(local, {source}, m_provider, QStringLiteral("/share"));
+    ASSERT_TRUE(done.count() > 0 || done.wait(60000));
+    EXPECT_TRUE(done.takeFirst().at(0).toBool());
+
+    EXPECT_FALSE(conflictAsked) << "the transfer asked to overwrite instead of resuming";
+    // The resume credits the bytes already on the server before sending one of
+    // its own, so the first progress of the second attempt is the resume point.
+    // A restart from zero would report its first chunk, 64 KiB, instead.
+    EXPECT_GE(firstBytesSeen, partial) << "the second attempt re-sent the prefix";
+    EXPECT_EQ(readFile(landed), payload);
 }
 
 } // namespace

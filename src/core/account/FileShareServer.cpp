@@ -229,17 +229,40 @@ private:
                 respond(403);
                 return false;
             }
-            // PUT replaces the whole resource -- the client never resumes an
-            // upload, it re-sends it.
+            // A plain PUT replaces the whole resource. A resumed one says where
+            // its body belongs with Content-Range, and then everything before
+            // that offset must survive untouched -- that is the whole point of
+            // resuming, and truncating here would silently restart from zero.
+            const qint64 have = QFileInfo(local).size();
+            qint64 at = 0;
+            const QByteArray range = m_headers.value("content-range");
+            if (range.startsWith("bytes ")) {
+                bool ok = false;
+                at = range.mid(6).split('/').value(0).split('-').value(0).trimmed().toLongLong(&ok);
+                // Nothing to continue from past what we actually hold: refusing
+                // is the only answer that cannot corrupt the file.
+                if (!ok || at < 0 || at > have) {
+                    m_keepAlive = false;
+                    respond(416, QByteArray(), "text/plain",
+                            "Content-Range: bytes */" + QByteArray::number(have) + "\r\n");
+                    return false;
+                }
+            }
             m_upload = new QFile(local);
-            if (!m_upload->open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            // ReadWrite, not WriteOnly: WriteOnly on its own truncates the file
+            // as it opens it, which is precisely what a resume must not do.
+            const QIODevice::OpenMode mode =
+                at > 0 ? QIODevice::ReadWrite : QIODevice::WriteOnly | QIODevice::Truncate;
+            // resize() drops any stale tail beyond the resume point, so the
+            // result is the same whether or not the last attempt overshot.
+            if (!m_upload->open(mode) || (at > 0 && (!m_upload->resize(at) || !m_upload->seek(at)))) {
                 delete m_upload;
                 m_upload = nullptr;
                 m_keepAlive = false;
                 respond(409);
                 return false;
             }
-            m_uploadExisted = QFileInfo(local).size() > 0;
+            m_uploadExisted = have > 0;
             m_phase = Phase::Body;
             return true;
         }
@@ -452,7 +475,7 @@ private:
         qint64 offset = 0;
         qint64 length = total;
         int status = 200;
-        QByteArray extra = "Accept-Ranges: bytes\r\n";
+        QByteArray extra; // Accept-Ranges goes out on every response, see sendHead()
         const QByteArray range = m_headers.value("range");
         if (range.startsWith("bytes=")) {
             const QList<QByteArray> bounds = range.mid(6).split('-');
@@ -573,6 +596,11 @@ private:
         QByteArray head = "HTTP/1.1 " + QByteArray::number(status) + " " + statusText(status) +
                           "\r\n";
         head += "Date: " + httpDate(QDateTime::currentDateTimeUtc()) + "\r\n";
+        // Resuming a PUT is not something WebDAV standardises, so a client may
+        // not simply assume it: a server that ignored Content-Range would store
+        // the tail as the whole file. Say so explicitly, on every response, and
+        // the peer's provider can turn resume on for this link only.
+        head += "Accept-Ranges: bytes\r\nX-FileCommander-Put-Range: bytes\r\n";
         if (contentLength >= 0) {
             head += "Content-Length: " + QByteArray::number(contentLength) + "\r\n";
             if (contentLength > 0)
