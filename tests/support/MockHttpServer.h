@@ -79,7 +79,7 @@ private:
         Q_UNUSED(head);
         if (!m_routes.contains(path)) {
             sock->write("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
-            sock->disconnectFromHost();
+            sock->flush();
             return;
         }
         const QList<Route> &routes = m_routes[path];
@@ -94,15 +94,20 @@ private:
             head += "Content-Type: " + route.contentType + "\r\n";
             head += "Content-Length: " + QByteArray::number(route.body.size()) + "\r\n";
             head += "Connection: close\r\n\r\n";
-            sock->write(head);
             if (route.dropAfterHeaders) {
+                sock->write(head);
                 sock->flush();
                 sock->abort();
                 return;
             }
-            sock->write(route.body);
+            // Write the whole reply and leave the socket open. Closing it here --
+            // even through disconnectFromHost() -- resets the connection on
+            // Windows before the peer reads the buffered response, so the client
+            // sees a truncated reply or nothing at all. "Connection: close" plus
+            // Content-Length lets the client finish on its own, and the client's
+            // close then fires the disconnected handler that deletes the socket.
+            sock->write(head + route.body);
             sock->flush();
-            sock->disconnectFromHost();
         };
 
         if (route.delayMs > 0)
