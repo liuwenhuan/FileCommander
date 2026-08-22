@@ -101,11 +101,6 @@
         <translation>服务器地址</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="89"/>
-        <source>Remember automatic login</source>
-        <translation>记住自动登录</translation>
-    </message>
-    <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="93"/>
         <source>Server:</source>
         <translation>服务器：</translation>

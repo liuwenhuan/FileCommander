@@ -86,15 +86,11 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
     m_deviceName->setText(m_settings.accountDeviceName().isEmpty()
                               ? QHostInfo::localHostName()
                               : m_settings.accountDeviceName());
-    m_rememberAutoLogin = new QCheckBox(tr("Remember automatic login"), form);
-    m_rememberAutoLogin->setObjectName(QStringLiteral("RememberAutoLogin"));
-    m_rememberAutoLogin->setChecked(m_settings.rememberAccountAutoLogin());
 
     fields->addRow(tr("Server:"), serverChoices);
     fields->addRow(tr("Email:"), m_email);
     fields->addRow(tr("Password:"), m_password);
     fields->addRow(tr("This device:"), m_deviceName);
-    fields->addRow(QString(), m_rememberAutoLogin);
 
     m_signIn = new QPushButton(tr("Sign In"), form);
     m_signIn->setDefault(true);
@@ -202,8 +198,7 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
         setBusy(true);
         m_status->setText(tr("Signing in…"));
         m_client.login(m_email->text().trimmed(), m_password->text(),
-                       m_deviceName->text().trimmed(), m_settings.accountDeviceId(),
-                       m_submittedRememberAutoLogin);
+                       m_deviceName->text().trimmed(), m_settings.accountDeviceId());
     });
     connect(m_registerButton, &QPushButton::clicked, this, [this] {
         if (!applyServerSelection())
@@ -221,7 +216,7 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
         m_status->setText(tr("Account created, signing in…"));
         m_settings.setAccountEmail(email);
         m_client.login(email, m_password->text(), m_deviceName->text().trimmed(),
-                       m_settings.accountDeviceId(), m_submittedRememberAutoLogin);
+                       m_settings.accountDeviceId());
     });
     connect(&m_client, &AccountClient::loggedIn, this, [this](const AccountInfo &info) {
         m_password->clear();
@@ -230,7 +225,6 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
         // Remember what this install signed in as, so the next sign-in (and any
         // re-registration after a sign-out) offers that name, not the hostname.
         m_settings.setAccountDeviceName(m_deviceName->text().trimmed());
-        m_settings.setRememberAccountAutoLogin(m_submittedRememberAutoLogin);
         setBusy(false);
         m_status->clear();
         showCurrentState();
@@ -239,8 +233,6 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
         // The device id stays: it is this machine's identity on the account, not
         // a credential, and reusing it keeps a later sign-in from adding a
         // second row for the same machine.
-        m_settings.setRememberAccountAutoLogin(false);
-        m_rememberAutoLogin->setChecked(false);
         setBusy(false);
         m_status->clear();
         showCurrentState();
@@ -316,16 +308,11 @@ bool AccountDialog::applyServerSelection() {
     const QString oldCustom = m_settings.accountCustomServerUrl();
     const bool endpointChanged =
         wasOfficial != official || (!official && oldCustom != customUrl);
-    m_submittedRememberAutoLogin = m_rememberAutoLogin->isChecked();
 
     // Refresh tokens are keyed by device id rather than host. Never carry one
-    // across a deliberate endpoint change, or retain one after an unchecked login.
-    if ((endpointChanged || !m_submittedRememberAutoLogin) &&
-        !m_settings.accountDeviceId().isEmpty()) {
+    // across a deliberate endpoint change.
+    if (endpointChanged && !m_settings.accountDeviceId().isEmpty())
         AccountClient::forgetStoredSession(m_settings.accountDeviceId());
-    }
-    if (endpointChanged || !m_submittedRememberAutoLogin)
-        m_settings.setRememberAccountAutoLogin(false);
 
     m_settings.setAccountUsesOfficialServer(official);
     if (!official)
@@ -350,7 +337,6 @@ void AccountDialog::setBusy(bool busy) {
     m_registerButton->setEnabled(!busy);
     m_officialServer->setEnabled(!busy);
     m_customServer->setEnabled(!busy);
-    m_rememberAutoLogin->setEnabled(!busy);
     m_email->setEnabled(!busy);
     m_password->setEnabled(!busy);
     m_deviceName->setEnabled(!busy);

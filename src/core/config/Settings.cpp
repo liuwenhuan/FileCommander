@@ -94,8 +94,7 @@ Settings::Settings(const QString &iniFilePath)
             m_settings.setValue(QStringLiteral("account/customServerUrl"), legacy);
     }
     m_settings.remove(QStringLiteral("account/serverUrl"));
-    if (!m_settings.contains(QStringLiteral("account/rememberAutoLogin")))
-        m_settings.setValue(QStringLiteral("account/rememberAutoLogin"), true);
+    m_settings.remove(QStringLiteral("account/rememberAutoLogin"));
 
     // First run: seed the favorites with the user's home directory. Guarded by
     // a one-shot flag so clearing all favorites later doesn't re-add it.
@@ -521,14 +520,6 @@ QString Settings::accountCustomServerUrl() const {
 
 void Settings::setAccountCustomServerUrl(const QString &url) {
     m_settings.setValue("account/customServerUrl", normalizedAccountServerUrl(url));
-}
-
-bool Settings::rememberAccountAutoLogin() const {
-    return m_settings.value("account/rememberAutoLogin", true).toBool();
-}
-
-void Settings::setRememberAccountAutoLogin(bool remember) {
-    m_settings.setValue("account/rememberAutoLogin", remember);
 }
 
 bool Settings::deviceSharingEnabled() const {

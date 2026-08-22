@@ -238,14 +238,11 @@ public:
     void setAccountDeviceName(const QString &name);
     // Explicit endpoint choice. Official mode uses AccountClient's compiled /
     // environment URL without exposing it in the login form; Custom stores the
-    // user's normalized API root. Automatic login controls keyring persistence
-    // and defaults on unless the user signs out or completes an unchecked login.
+    // user's normalized API root.
     bool accountUsesOfficialServer() const;
     void setAccountUsesOfficialServer(bool official);
     QString accountCustomServerUrl() const;
     void setAccountCustomServerUrl(const QString &url);
-    bool rememberAccountAutoLogin() const;
-    void setRememberAccountAutoLogin(bool remember);
 
     // Device-to-device sharing: whether this machine serves its shared folders
     // to the account's other devices, and which folders those are. Off by

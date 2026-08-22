@@ -72,7 +72,7 @@ bool signIn(AccountClient &client, MockHttpServer &server, const QString &device
     server.setRoute(QStringLiteral("/v1/auth/logout"), json("{}"));
     QSignalSpy in(&client, &AccountClient::loggedIn);
     client.login(QString::fromLatin1(kEmail), QString::fromLatin1(kPassword),
-                 QStringLiteral("laptop"), deviceId, true);
+                 QStringLiteral("laptop"), deviceId);
     if (in.isEmpty())
         in.wait(5000);
     return in.count() == 1 && client.isLoggedIn();

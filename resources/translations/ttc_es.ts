@@ -101,11 +101,6 @@
         <translation>URL del servidor</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="89"/>
-        <source>Remember automatic login</source>
-        <translation>Recordar inicio de sesión automático</translation>
-    </message>
-    <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="93"/>
         <source>Server:</source>
         <translation>Servidor:</translation>

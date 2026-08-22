@@ -6,7 +6,6 @@
 #include "config/Settings.h"
 #include "dialogs/AccountDialog.h"
 
-#include <QCheckBox>
 #include <QCoreApplication>
 #include <QLabel>
 #include <QLineEdit>
@@ -89,31 +88,26 @@ public:
         settings.setAccountDeviceId(QString());
         settings.setAccountUsesOfficialServer(true);
         settings.setAccountCustomServerUrl(QString());
-        settings.setRememberAccountAutoLogin(true);
         settings.setAccountDeviceName(QString());
     }
 };
 
 } // namespace
 
-TEST(AccountDialog, OfficialServerIsHostnameFreeAndAutomaticLoginStartsChecked) {
+TEST(AccountDialog, OfficialServerIsHostnameFree) {
     AccountSettingsGuard guard;
     Settings settings;
     settings.setAccountUsesOfficialServer(true);
     settings.setAccountCustomServerUrl(QString());
-    settings.setRememberAccountAutoLogin(true);
 
     AccountClient client;
     AccountDialog dialog(client, settings);
     auto *official = dialog.findChild<QRadioButton *>(QStringLiteral("OfficialServerRadio"));
     auto *customUrl = dialog.findChild<QLineEdit *>(QStringLiteral("CustomServerUrl"));
-    auto *remember = dialog.findChild<QCheckBox *>(QStringLiteral("RememberAutoLogin"));
     ASSERT_NE(official, nullptr);
     ASSERT_NE(customUrl, nullptr);
-    ASSERT_NE(remember, nullptr);
     EXPECT_TRUE(official->isChecked());
     EXPECT_TRUE(customUrl->isHidden());
-    EXPECT_TRUE(remember->isChecked());
 
     for (QLabel *label : dialog.findChildren<QLabel *>()) {
         EXPECT_FALSE(label->text().contains(QStringLiteral("fm.aigutta.com")));
@@ -144,26 +138,6 @@ TEST(AccountDialog, InvalidCustomServerDoesNotStartARequest) {
     EXPECT_TRUE(settings.accountUsesOfficialServer());
 }
 
-TEST(AccountDialog, UncheckedAutomaticLoginIsRememberedAfterSuccessfulSignIn) {
-    AccountSettingsGuard guard;
-    MockHttpServer server;
-    ASSERT_NE(server.port(), 0);
-    serveSignIn(server);
-
-    Settings settings;
-    AccountClient client;
-    AccountDialog dialog(client, settings);
-    ASSERT_NO_FATAL_FAILURE(fillForm(dialog, server));
-    auto *remember = dialog.findChild<QCheckBox *>(QStringLiteral("RememberAutoLogin"));
-    ASSERT_NE(remember, nullptr);
-    remember->setChecked(false);
-
-    button(dialog, QObject::tr("Sign In"))->click();
-
-    FC_TRY_COMPARE_WITH_TIMEOUT(currentPage(dialog), 1, kTimeoutMs);
-    EXPECT_FALSE(settings.rememberAccountAutoLogin());
-}
-
 TEST(AccountDialog, SigningInShowsTheDevicesAndRemembersTheAccount) {
     AccountSettingsGuard guard;
     MockHttpServer server;
@@ -191,7 +165,6 @@ TEST(AccountDialog, SigningInShowsTheDevicesAndRemembersTheAccount) {
     // The custom endpoint is kept so a self-hosted server is entered once.
     EXPECT_FALSE(settings.accountUsesOfficialServer());
     EXPECT_EQ(settings.accountCustomServerUrl(), server.url(QString()));
-    EXPECT_TRUE(settings.rememberAccountAutoLogin());
 }
 
 TEST(AccountDialog, ARefusedSignInStaysOnTheFormAndShowsTheServersReason) {
@@ -217,7 +190,6 @@ TEST(AccountDialog, ARefusedSignInStaysOnTheFormAndShowsTheServersReason) {
     EXPECT_TRUE(settings.accountDeviceId().isEmpty());
     EXPECT_FALSE(settings.accountUsesOfficialServer());
     EXPECT_EQ(settings.accountCustomServerUrl(), server.url(QString()));
-    EXPECT_FALSE(settings.rememberAccountAutoLogin());
 }
 
 TEST(AccountDialog, TheDeviceNamePrefillsFromLastSignInNotTheHostname) {
@@ -252,5 +224,4 @@ TEST(AccountDialog, CreatingAnAccountSignsInWithoutAskingAgain) {
     EXPECT_EQ(server.requestCount(QStringLiteral("/v1/auth/login")), 1);
     EXPECT_FALSE(settings.accountUsesOfficialServer());
     EXPECT_EQ(settings.accountCustomServerUrl(), server.url(QString()));
-    EXPECT_TRUE(settings.rememberAccountAutoLogin());
 }

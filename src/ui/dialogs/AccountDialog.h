@@ -19,8 +19,8 @@ class QStackedWidget;
 //
 // The dialog owns no session state. It drives the AccountClient it is handed --
 // which outlives it -- and writes only non-secret bookkeeping (email, device
-// id, endpoint choice and automatic-login preference) to Settings. Refresh
-// tokens are the client's business and never reach the INI.
+// id and endpoint choice) to Settings. Refresh tokens are the client's business
+// and never reach the INI.
 class AccountDialog : public FramelessDialog {
     Q_OBJECT
 
@@ -50,7 +50,6 @@ private:
     QRadioButton *m_officialServer;
     QRadioButton *m_customServer;
     QLineEdit *m_customServerUrl;
-    QCheckBox *m_rememberAutoLogin;
     QLineEdit *m_email;
     QLineEdit *m_password;
     QLineEdit *m_deviceName;
@@ -61,5 +60,4 @@ private:
     QListWidget *m_devices;
     QCheckBox *m_shareEnabled;
     QListWidget *m_sharedFolders;
-    bool m_submittedRememberAutoLogin = true;
 };

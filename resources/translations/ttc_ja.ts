@@ -101,11 +101,6 @@
         <translation>サーバーURL</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="89"/>
-        <source>Remember automatic login</source>
-        <translation>自動ログインを記憶する</translation>
-    </message>
-    <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="93"/>
         <source>Server:</source>
         <translation>サーバー:</translation>

@@ -77,7 +77,6 @@ void AccountClient::invalidateAuthentication() {
     m_accessToken.clear();
     m_refreshToken.clear();
     m_credentialDeviceId.clear();
-    m_persistRefreshToken = false;
     m_account = {};
 }
 
@@ -208,13 +207,10 @@ bool AccountClient::acceptTokens(const QByteArray &body, const QString &email) {
     if (!m_credentialDeviceId.isEmpty() && m_credentialDeviceId != deviceId)
         CredentialStore::remove(keyringId(m_credentialDeviceId));
     m_credentialDeviceId = deviceId;
-    // Keyring, never the INI. An unchecked login keeps the refresh token only
-    // in this object, which is enough to renew the active session without
-    // leaving a credential for the next process.
-    if (m_persistRefreshToken)
-        CredentialStore::save(keyringId(deviceId), refresh);
-    else
-        CredentialStore::remove(keyringId(deviceId));
+    // Keyring, never the INI: a refresh token is a password by another name.
+    // A keyring that refuses the write costs the user a re-login next launch,
+    // which is worth more than writing the token to a plain file.
+    CredentialStore::save(keyringId(deviceId), refresh);
     return true;
 }
 
@@ -241,17 +237,13 @@ void AccountClient::registerAccount(const QString &email, const QString &passwor
 }
 
 void AccountClient::login(const QString &email, const QString &password,
-                          const QString &deviceName, const QString &deviceId,
-                          bool rememberSession) {
+                          const QString &deviceName, const QString &deviceId) {
     if (!apiUrlIsConfigured() && m_apiUrl.isEmpty()) {
         emit requestFailed(tr("No account server is configured for this build."));
         return;
     }
     invalidateAuthentication();
-    m_persistRefreshToken = rememberSession;
     m_credentialDeviceId = deviceId;
-    if (!rememberSession)
-        forgetStoredSession(deviceId);
     const QByteArray body = QJsonDocument(QJsonObject{
                                               {"email", email},
                                               {"password", password},
@@ -292,7 +284,6 @@ void AccountClient::restoreSession(const QString &email, const QString &deviceId
     m_account.deviceId = deviceId;
     m_credentialDeviceId = deviceId;
     m_refreshToken = stored;
-    m_persistRefreshToken = true;
 
     const QByteArray body =
         QJsonDocument(QJsonObject{{"refresh_token", m_refreshToken}}).toJson();
@@ -325,7 +316,6 @@ void AccountClient::logout() {
     m_accessToken.clear();
     m_refreshToken.clear();
     m_credentialDeviceId.clear();
-    m_persistRefreshToken = false;
     m_account = {};
     forgetStoredSession(deviceId);
     if (credentialDeviceId != deviceId)

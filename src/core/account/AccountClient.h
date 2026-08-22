@@ -101,12 +101,10 @@ public:
     void registerAccount(const QString &email, const QString &password);
 
     // Signs in and registers (or re-registers) this machine as a device.
-    // `deviceId` re-claims an existing device row; `rememberSession` controls
-    // whether the refresh token also survives in the OS keyring. Emits
-    // loggedIn() or requestFailed().
+    // `deviceId` re-claims an existing device row so another sign-in does not
+    // add a duplicate device. Emits loggedIn() or requestFailed().
     void login(const QString &email, const QString &password,
-               const QString &deviceName, const QString &deviceId,
-               bool rememberSession);
+               const QString &deviceName, const QString &deviceId);
 
     // Restores a session from the keyring refresh token stored by a previous
     // login, without asking for the password again. Emits loggedIn() or
@@ -196,18 +194,16 @@ private:
     // server's own "detail" over Qt's generic network error.
     static QString errorText(QNetworkReply *reply, const QByteArray &body);
 
-    // Stores tokens from a login/refresh response. Both remain in memory for the
-    // active process; the refresh token is mirrored to the keyring only when the
-    // current session opted into automatic login.
+    // Stores tokens from a login/refresh response. The access and refresh
+    // tokens remain in memory, and the refresh token is mirrored to the keyring.
     bool acceptTokens(const QByteArray &body, const QString &email);
 
     QNetworkAccessManager *m_net;
     QString m_apiUrl;
     int m_timeoutMs = 15000;
     QString m_accessToken;  // memory only, never persisted
-    QString m_refreshToken; // memory, plus keyring when m_persistRefreshToken
+    QString m_refreshToken; // memory plus login keyring
     QString m_credentialDeviceId; // keyring entry loaded/requested for this session
-    bool m_persistRefreshToken = false;
     quint64 m_requestGeneration = 0;
     AccountInfo m_account;
 };
