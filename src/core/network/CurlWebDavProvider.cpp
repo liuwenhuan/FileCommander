@@ -281,6 +281,14 @@ void startWebDavTransfer(WebDavHandle *h) {
     applyPinnedKey(h->curl, h->pinnedKey);
     curl_easy_setopt(h->curl, CURLOPT_ERRORBUFFER, state->errorBuffer);
     curl_easy_setopt(h->curl, CURLOPT_NOSIGNAL, 1L);
+    // A pinned key marks the device-transfer link (the peer serves a self-signed
+    // certificate). That link is LAN or a local relay tunnel and must never be
+    // routed through the user's proxy -- an https_proxy in the environment would
+    // turn it into a CONNECT tunnel and an interrupted upload would leave the
+    // server holding its path lock. A plain WebDAV tab has no pin and keeps the
+    // proxy, which a user who needs one to reach the internet still needs there.
+    if (!h->pinnedKey.isEmpty())
+        curl_easy_setopt(h->curl, CURLOPT_PROXY, "");
     // Bound the connect phase only. No total CURLOPT_TIMEOUT_MS: a bulk GET/PUT
     // may legitimately run longer than the connect timeout, and a stalled
     // transfer is already abortable via the progress callback / closeHandle().
@@ -424,6 +432,11 @@ bool CurlWebDavProvider::connectToHost(const QString &host, int port, const QStr
     curl_easy_setopt(curl, CURLOPT_URL, urlUtf8.constData());
     applyPinnedKey(curl, m_pinnedKey);
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+    // Same rule as startWebDavTransfer(): the device link (pinned key set) is
+    // direct LAN/relay traffic, never proxied; a plain WebDAV tab keeps the
+    // proxy.
+    if (!m_pinnedKey.isEmpty())
+        curl_easy_setopt(curl, CURLOPT_PROXY, "");
     // These timeouts persist on the handle (kept as m_curl) and bound every
     // later control-plane request (PROPFIND/MOVE/DELETE/MKCOL/size). m_curl
     // never drives a bulk transfer (those use per-handle curl handles), so a
