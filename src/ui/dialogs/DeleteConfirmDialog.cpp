@@ -89,11 +89,12 @@ DeleteConfirmDialog::DeleteConfirmDialog(const QStringList &paths,
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Yes | QDialogButtonBox::No, this);
     ttc::localizeStandardButtons(buttons);
-    connect(buttons->button(QDialogButtonBox::Yes), &QPushButton::clicked, this,
-            &QDialog::accept);
-    connect(buttons->button(QDialogButtonBox::No), &QPushButton::clicked, this,
-            &QDialog::reject);
-    buttons->button(QDialogButtonBox::No)->setDefault(true); // deleting is the unsafe answer
+    QPushButton *yes = buttons->button(QDialogButtonBox::Yes);
+    QPushButton *no = buttons->button(QDialogButtonBox::No);
+    connect(yes, &QPushButton::clicked, this, &QDialog::accept);
+    connect(no, &QPushButton::clicked, this, &QDialog::reject);
+    yes->setDefault(true);
+    yes->setFocus(Qt::OtherFocusReason);
     layout->addWidget(buttons);
 
     // Show what is known straight away, then refine it. Only folders need the

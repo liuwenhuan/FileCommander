@@ -9,6 +9,7 @@
 #include <QPushButton>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QTest>
 #include <QTimer>
 
 #include "FileSystemModel.h"
@@ -153,10 +154,15 @@ TEST(DeleteConfirmDialogTest, IsAnswerableBeforeTheMeasurementFinishes) {
     ASSERT_NE(buttons, nullptr);
     EXPECT_TRUE(buttons->button(QDialogButtonBox::Yes)->isEnabled());
     EXPECT_TRUE(buttons->button(QDialogButtonBox::No)->isEnabled());
-    // Deleting is the destructive answer, so it must not be the one a stray
-    // Return key picks.
-    EXPECT_TRUE(buttons->button(QDialogButtonBox::No)->isDefault());
-    EXPECT_FALSE(buttons->button(QDialogButtonBox::Yes)->isDefault());
+    EXPECT_TRUE(buttons->button(QDialogButtonBox::Yes)->isDefault());
+    EXPECT_FALSE(buttons->button(QDialogButtonBox::No)->isDefault());
+    EXPECT_EQ(dialog.focusWidget(), buttons->button(QDialogButtonBox::Yes))
+        << "Return should activate Yes without requiring a mouse click";
+    QSignalSpy accepted(&dialog, &QDialog::accepted);
+    dialog.show();
+    qApp->processEvents();
+    QTest::keyClick(&dialog, Qt::Key_Return);
+    EXPECT_EQ(accepted.count(), 1);
 
     settleMeasurement(dialog);
 }
