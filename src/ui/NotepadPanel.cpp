@@ -14,6 +14,7 @@
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QProgressBar>
 #include <QScreen>
 #include <QSplitter>
 #include <QVBoxLayout>
@@ -97,6 +98,10 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
     m_status = new QLabel;
     m_status->setObjectName(QStringLiteral("CloudClipboardStatus"));
     m_status->setWordWrap(true);
+    m_progress = new QProgressBar;
+    m_progress->setObjectName(QStringLiteral("CloudClipboardImageProgress"));
+    m_progress->setRange(0, 100);
+    m_progress->setVisible(false);
 
     m_editor = new QPlainTextEdit;
     m_editor->setObjectName(QStringLiteral("CloudClipboardEditor"));
@@ -148,6 +153,7 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
     layout->setSizeConstraint(QLayout::SetNoConstraint);
     layout->addLayout(tools);
     layout->addWidget(m_status);
+    layout->addWidget(m_progress);
     layout->addWidget(m_splitter, 1);
 
     m_controller = existingController ? existingController
@@ -168,17 +174,21 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
     connect(m_controller, &CloudClipboardController::imageDownloadProgress, this,
             [this](const QString &, qint64 received, qint64 total) {
                 const int percent = total > 0 ? int(received * 100 / total) : 0;
+                m_progress->setValue(percent);
+                m_progress->setVisible(true);
                 m_status->setText(tr("Synchronizing original image: %1% (%2 / %3 bytes)")
                                       .arg(percent).arg(received).arg(total));
                 m_status->setVisible(true);
             });
     connect(m_controller, &CloudClipboardController::imageDownloadFailed, this,
             [this](const QString &, const QString &error) {
+                m_progress->setVisible(false);
                 m_status->setText(error);
                 m_status->setVisible(true);
             });
     connect(m_controller, &CloudClipboardController::imageCopied, this,
             [this](const QString &) {
+                m_progress->setVisible(false);
                 m_status->setText(tr("Original image synchronized and copied. You can paste it now."));
                 m_status->setVisible(true);
             });

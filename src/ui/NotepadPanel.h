@@ -18,6 +18,7 @@ class QLineEdit;
 class QListWidget;
 class QPlainTextEdit;
 class QPushButton;
+class QProgressBar;
 class QSplitter;
 
 // Compatibility name for the existing "notepad" command. The popup is now an
@@ -62,6 +63,7 @@ private:
     QSplitter *m_splitter = nullptr;
     QPlainTextEdit *m_editor = nullptr;
     QLabel *m_status = nullptr;
+    QProgressBar *m_progress = nullptr;
     QCheckBox *m_autoUpload = nullptr;
     QCheckBox *m_autoReceive = nullptr;
     QPushButton *m_copy = nullptr;
