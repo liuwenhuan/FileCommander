@@ -67,11 +67,12 @@ set(FILECOMMANDER_UPDATE_MANIFEST_URL "https://updates.invalid/FileCommander/ver
 # fallback. A user-selected Custom server is an instance override above both.
 # Migrate build trees whose cache still contains the retired official default;
 # preserve every other explicitly configured endpoint.
-if(FILECOMMANDER_ACCOUNT_API_URL STREQUAL "https://sgvps.aigutta.com")
-    set(FILECOMMANDER_ACCOUNT_API_URL "https://fm.aigutta.com"
+if(FILECOMMANDER_ACCOUNT_API_URL STREQUAL "https://sgvps.aigutta.com" OR
+   FILECOMMANDER_ACCOUNT_API_URL STREQUAL "https://fm.aigutta.com")
+    set(FILECOMMANDER_ACCOUNT_API_URL "https://fc.aigutta.com"
         CACHE STRING "Official root URL of the FileCommander account server" FORCE)
 else()
-    set(FILECOMMANDER_ACCOUNT_API_URL "https://fm.aigutta.com"
+    set(FILECOMMANDER_ACCOUNT_API_URL "https://fc.aigutta.com"
         CACHE STRING "Official root URL of the FileCommander account server")
 endif()
 

@@ -110,6 +110,7 @@ TEST(AccountDialog, OfficialServerIsHostnameFree) {
     EXPECT_TRUE(customUrl->isHidden());
 
     for (QLabel *label : dialog.findChildren<QLabel *>()) {
+        EXPECT_FALSE(label->text().contains(QStringLiteral("fc.aigutta.com")));
         EXPECT_FALSE(label->text().contains(QStringLiteral("fm.aigutta.com")));
         EXPECT_FALSE(label->text().contains(QStringLiteral("sgvps.aigutta.com")));
     }
