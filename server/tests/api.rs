@@ -4,6 +4,7 @@
 //! The agent/session pair needs a real socket, so those tests bind one.
 
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
@@ -380,6 +381,65 @@ async fn the_relay_joins_the_two_sockets_of_one_session() {
     // Either side closing takes the pipe down, so the peer is not left hanging.
     drop(connecting);
     assert!(accepting.next().await.map(|m| m.is_err() || m.unwrap().is_close()).unwrap_or(true));
+}
+
+#[tokio::test]
+async fn the_relay_delivers_the_last_frame_before_eof() {
+    use futures_util::{SinkExt, StreamExt};
+    use tokio_tungstenite::tungstenite::Message;
+
+    let state = state();
+    let addr = serve(state.clone()).await;
+    let (session_id, ticket) = open_relay_session(&state, addr).await;
+
+    let park = format!("/v1/relay/{session_id}?role=accept");
+    let (mut accepting, _) = tokio_tungstenite::connect_async(ws_request(addr, &park, &ticket))
+        .await
+        .unwrap();
+    let dial = format!("/v1/relay/{session_id}?role=connect");
+    let (mut connecting, _) = tokio_tungstenite::connect_async(ws_request(addr, &dial, &ticket))
+        .await
+        .unwrap();
+    accepting.next().await;
+    connecting.next().await;
+
+    connecting.send(Message::Binary(b"request tail".to_vec().into())).await.unwrap();
+    connecting.send(Message::Text("{\"type\":\"eof\"}".into())).await.unwrap();
+
+    let last = tokio::time::timeout(Duration::from_secs(2), accepting.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    assert_eq!(last.into_data().as_ref(), b"request tail");
+
+    // One direction ending must not close the pipe before the peer sends its tail.
+    assert!(tokio::time::timeout(Duration::from_millis(100), accepting.next()).await.is_err());
+    accepting.send(Message::Binary(b"response tail".to_vec().into())).await.unwrap();
+    accepting.send(Message::Text("{\"type\":\"eof\"}".into())).await.unwrap();
+
+    let last = tokio::time::timeout(Duration::from_secs(2), connecting.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    assert_eq!(last.into_data().as_ref(), b"response tail");
+    let closed = tokio::time::timeout(Duration::from_secs(2), connecting.next()).await.unwrap();
+    assert!(closed.map(|m| m.is_err() || m.unwrap().is_close()).unwrap_or(true));
+
+    // After EOF the stream is still polled for its physical fallback close.
+    let (mut accepting, _) = tokio_tungstenite::connect_async(ws_request(addr, &park, &ticket))
+        .await
+        .unwrap();
+    let (mut connecting, _) = tokio_tungstenite::connect_async(ws_request(addr, &dial, &ticket))
+        .await
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(2), accepting.next()).await.unwrap();
+    tokio::time::timeout(Duration::from_secs(2), connecting.next()).await.unwrap();
+    connecting.send(Message::Text("{\"type\":\"eof\"}".into())).await.unwrap();
+    drop(connecting);
+    let closed = tokio::time::timeout(Duration::from_secs(2), accepting.next()).await.unwrap();
+    assert!(closed.map(|m| m.is_err() || m.unwrap().is_close()).unwrap_or(true));
 }
 
 #[tokio::test]

@@ -32,6 +32,7 @@ use crate::AppState;
 /// client parks a replacement immediately, and that reconnect is also what
 /// keeps the session alive while the peer sits idle.
 const PARK_SECONDS: u64 = 60;
+const END_MESSAGE: &str = "{\"type\":\"eof\"}";
 
 #[derive(Deserialize)]
 pub struct RelayQuery {
@@ -164,24 +165,30 @@ async fn pump(a: WebSocket, b: WebSocket, idle_secs: u64) {
     let _ = a_sink.send(paired.clone()).await;
     let _ = b_sink.send(paired).await;
 
-    loop {
-        let result = tokio::time::timeout(
-            Duration::from_secs(idle_secs),
-            async {
-                tokio::select! {
-                    msg = a_stream.next() => forward(msg, &mut b_sink).await,
-                    msg = b_stream.next() => forward(msg, &mut a_sink).await,
-                }
-            },
-        )
+    let mut a_eof = false;
+    let mut b_eof = false;
+    while !a_eof || !b_eof {
+        let result = tokio::time::timeout(Duration::from_secs(idle_secs), async {
+            tokio::select! {
+                msg = a_stream.next() => (true, forward(msg, &mut b_sink, a_eof).await),
+                msg = b_stream.next() => (false, forward(msg, &mut a_sink, b_eof).await),
+            }
+        })
         .await;
-        match result {
-            Ok(alive) => {
-                if !alive {
-                    break;
+        let (from_a, outcome) = match result {
+            Ok(result) => result,
+            Err(_) => break, // idle: reclaim a connection nobody is using
+        };
+        match outcome {
+            ForwardResult::Continue => {}
+            ForwardResult::Eof => {
+                if from_a {
+                    a_eof = true;
+                } else {
+                    b_eof = true;
                 }
             }
-            Err(_) => break, // idle: reclaim a connection nobody is using
+            ForwardResult::Closed => break,
         }
     }
     let _ = a_sink.close().await;
@@ -190,13 +197,34 @@ async fn pump(a: WebSocket, b: WebSocket, idle_secs: u64) {
 
 type Incoming = Option<Result<Message, axum::Error>>;
 
-async fn forward(msg: Incoming, out: &mut SplitSink<WebSocket, Message>) -> bool {
+enum ForwardResult {
+    Continue,
+    Eof,
+    Closed,
+}
+
+async fn forward(
+    msg: Incoming,
+    out: &mut SplitSink<WebSocket, Message>,
+    eof: bool,
+) -> ForwardResult {
     match msg {
-        Some(Ok(Message::Binary(bytes))) => out.send(Message::Binary(bytes)).await.is_ok(),
-        // Text frames are control, and there is no control to relay; ping/pong
-        // are the socket's own business.
-        Some(Ok(Message::Ping(_) | Message::Pong(_) | Message::Text(_))) => true,
-        _ => false,
+        Some(Ok(Message::Binary(bytes))) if !eof => {
+            if out.send(Message::Binary(bytes)).await.is_ok() {
+                ForwardResult::Continue
+            } else {
+                ForwardResult::Closed
+            }
+        }
+        // EOF closes only this input direction. Keep polling it for the physical
+        // close, but reject payload after EOF while the peer drains its own tail.
+        Some(Ok(Message::Text(text))) if text == END_MESSAGE => ForwardResult::Eof,
+        Some(Ok(Message::Binary(_))) => ForwardResult::Closed,
+        // Other text frames are control; ping/pong are the socket's own business.
+        Some(Ok(Message::Ping(_) | Message::Pong(_) | Message::Text(_))) => {
+            ForwardResult::Continue
+        }
+        _ => ForwardResult::Closed,
     }
 }
 

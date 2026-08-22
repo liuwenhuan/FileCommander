@@ -6,6 +6,7 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QThread>
+#include <QTimer>
 #include <QWebSocket>
 #include <QWebSocketServer>
 
@@ -59,10 +60,23 @@ private:
                     else
                         m_pending[socket].append(bytes);
                 });
+        connect(socket, &QWebSocket::textMessageReceived, this,
+                [this, socket](const QString &text) {
+                    if (text != QLatin1String("{\"type\":\"eof\"}"))
+                        return;
+                    socket->setProperty("eof", true);
+                    QWebSocket *peer = m_peers.value(socket);
+                    if (!peer || !peer->property("eof").toBool())
+                        return;
+                    m_peers.remove(socket);
+                    m_peers.remove(peer);
+                    closeWhenDrained(peer);
+                    closeWhenDrained(socket);
+                });
         connect(socket, &QWebSocket::disconnected, this, [this, socket] {
             if (QWebSocket *peer = m_peers.take(socket)) {
                 m_peers.remove(peer);
-                peer->close();
+                closeWhenDrained(peer);
             }
             m_parked.removeAll(socket);
             m_waiting.removeAll(socket);
@@ -75,6 +89,16 @@ private:
         else
             m_waiting.append(socket);
         pair();
+    }
+
+    void closeWhenDrained(QWebSocket *socket) {
+        QObject::connect(socket, &QWebSocket::bytesWritten, socket, [socket](qint64) {
+            if (socket->bytesToWrite() == 0)
+                QTimer::singleShot(0, socket, [socket] { socket->close(); });
+        });
+        socket->flush();
+        if (socket->bytesToWrite() == 0)
+            QTimer::singleShot(0, socket, [socket] { socket->close(); });
     }
 
     void pair() {
@@ -119,6 +143,8 @@ protected:
         m_relayThread.start();
         m_relay = new FakeRelay;
         m_relay->moveToThread(&m_relayThread);
+        QObject::connect(&m_relayThread, &QThread::finished, m_relay,
+                         &QObject::deleteLater);
         int relayPort = 0;
         QMetaObject::invokeMethod(m_relay, "start", Qt::BlockingQueuedConnection,
                                   Q_RETURN_ARG(int, relayPort));
@@ -153,7 +179,7 @@ protected:
         delete m_server;
         m_relayThread.quit();
         m_relayThread.wait();
-        delete m_relay;
+        m_relay = nullptr;
     }
 
     bool waitForParked(int count) {
@@ -205,7 +231,7 @@ TEST_F(RelayTunnelTest, AListingCrossesTheRelay) {
 TEST_F(RelayTunnelTest, AFileRoundTripsThroughTheRelay) {
     ASSERT_TRUE(connectProvider()) << m_error.toStdString();
 
-    const QByteArray payload = blob(120 * 1024, 5);
+    const QByteArray payload = blob(2 * 1024 * 1024 + 123, 5);
     FileHandle *out = m_provider->openWrite(QStringLiteral("/share/up.bin"), true);
     ASSERT_NE(out, nullptr);
     m_provider->setExpectedWriteSize(out, payload.size());

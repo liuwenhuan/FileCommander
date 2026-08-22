@@ -3,6 +3,7 @@
 #include <QHostAddress>
 #include <QNetworkProxy>
 #include <QNetworkRequest>
+#include <QSslSocket>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QThread>
@@ -17,9 +18,10 @@ namespace {
 // leaving the pool one short, but not in a tight loop if the relay is down.
 constexpr int kReparkDelayMs = 1000;
 
-// How long a closing pipe waits for what it has already written to reach the
-// local side before giving up on it.
-constexpr int kFlushTimeoutMs = 5000;
+// How long a drained pipe waits for the peer's close/disconnect signal before
+// falling back, never a deadline for payload still queued in Qt.
+constexpr int kCloseFallbackMs = 5000;
+const char kEndMessage[] = "{\"type\":\"eof\"}";
 
 // Back-pressure: once a side has this many bytes queued in its own write
 // buffer, the pipe stops feeding it and leaves the data upstream, so TCP/WS
@@ -55,9 +57,10 @@ public:
             pumpToTcp();
         });
         connect(ws, &QWebSocket::connected, this, [this] { pumpToWebSocket(); });
-        connect(ws, &QWebSocket::bytesWritten, this, [this](qint64 n) {
-            m_pendingWs -= n;
+        connect(ws, &QWebSocket::bytesWritten, this, [this](qint64) {
             pumpToWebSocket();
+            sendEndIfDrained();
+            startEndFallbackIfDrained();
         });
         connect(ws, &QWebSocket::disconnected, this, &Pipe::finish);
         // String-based, because the typed overload of error() is deprecated in
@@ -66,7 +69,10 @@ public:
 
         connect(tcp, &QTcpSocket::readyRead, this, [this] { pumpToWebSocket(); });
         connect(tcp, &QTcpSocket::connected, this, [this] { pumpToTcp(); });
-        connect(tcp, &QTcpSocket::bytesWritten, this, [this](qint64) { pumpToTcp(); });
+        connect(tcp, &QTcpSocket::bytesWritten, this, [this](qint64) {
+            pumpToTcp();
+            disconnectTcpIfDrained();
+        });
         connect(tcp, &QTcpSocket::disconnected, this, &Pipe::finish);
         connect(tcp, SIGNAL(error(QAbstractSocket::SocketError)), this, SLOT(finish()));
     }
@@ -76,24 +82,88 @@ private slots:
         if (m_done)
             return;
         m_done = true;
-        // The other half is told rather than left hanging: a half-open pipe
-        // would keep a WebDAV connection alive with nothing behind it.
-        m_ws->close();
+
+        if (sender() == m_tcp) {
+            // RemoteHostClosedError can arrive while the socket still has the
+            // last TLS record buffered. Forward it, then keep this pipe alive
+            // until QWebSocket reports those bytes written.
+            pumpToWebSocket();
+            if (m_ws->state() != QAbstractSocket::ConnectedState) {
+                deleteLater();
+                return;
+            }
+            m_sendEndWhenDrained = true;
+            connect(m_ws, &QWebSocket::disconnected, this, &QObject::deleteLater);
+            sendEndIfDrained();
+            return;
+        }
+
+        // The WebSocket has ended; finish draining its last frames into the
+        // local socket rather than closing the already-invalid native socket again.
         if (m_tcp->state() != QAbstractSocket::ConnectedState) {
             m_tcp->close();
             deleteLater();
             return;
         }
-        // A last response is routinely still in the write buffer when the
-        // server end hangs up -- FileShareServer answers 401 with
-        // "Connection: close" and libcurl retries -- so disconnect gracefully
-        // and outlive the flush, rather than closing on top of it.
+        // The last TLS record may still be in QTcpSocket's write buffer. Wait
+        // until both queues drain before asking Qt for a graceful disconnect.
         connect(m_tcp, &QTcpSocket::disconnected, this, &QObject::deleteLater);
-        QTimer::singleShot(kFlushTimeoutMs, this, &QObject::deleteLater);
-        m_tcp->disconnectFromHost();
+        m_disconnectTcpWhenDrained = true;
+        pumpToTcp();
+        // Qt 5 queues QWebSocket's readyRead parser. Queue this check behind it
+        // so a final complete binary frame can reach binaryMessageReceived
+        // before an apparently empty local queue is disconnected.
+        QMetaObject::invokeMethod(this, [this] {
+            pumpToTcp();
+            disconnectTcpIfDrained();
+        }, Qt::QueuedConnection);
     }
 
 private:
+    qint64 webSocketBytesToWrite() const {
+        qint64 bytes = m_ws->bytesToWrite();
+        // For WSS, QWebSocket::bytesToWrite() is QSslSocket's unencrypted
+        // queue. Ciphertext waiting on the TCP socket is a separate public
+        // counter on the QSslSocket child that QWebSocket creates in open().
+        if (auto *ssl = m_ws->findChild<QSslSocket *>(QString(), Qt::FindDirectChildrenOnly))
+            bytes += ssl->encryptedBytesToWrite();
+        return bytes;
+    }
+
+    void sendEndIfDrained() {
+        if (!m_sendEndWhenDrained || webSocketBytesToWrite() > 0)
+            return;
+        m_sendEndWhenDrained = false;
+        m_waitEndWrite = true;
+        m_ws->sendTextMessage(QString::fromLatin1(kEndMessage));
+        m_ws->flush();
+        startEndFallbackIfDrained();
+    }
+
+    void startEndFallbackIfDrained() {
+        if (!m_waitEndWrite || webSocketBytesToWrite() > 0)
+            return;
+        m_waitEndWrite = false;
+        // EOF itself is now out of Qt's plaintext and TLS ciphertext queues.
+        // Wait only for an old relay that ignores the control message.
+        QTimer::singleShot(kCloseFallbackMs, this, [this] {
+            if (m_ws->state() != QAbstractSocket::UnconnectedState)
+                m_ws->close();
+            deleteLater();
+        });
+    }
+
+    void disconnectTcpIfDrained() {
+        if (!m_disconnectTcpWhenDrained || !m_pendingToTcp.isEmpty() ||
+            m_tcp->bytesToWrite() > 0)
+            return;
+        m_disconnectTcpWhenDrained = false;
+        m_tcp->disconnectFromHost();
+        // At this point no payload remains queued; only bound a missing
+        // disconnected signal rather than timing the data drain itself.
+        QTimer::singleShot(kCloseFallbackMs, this, &QObject::deleteLater);
+    }
+
     // Local socket -> relay. While the relay socket is not yet up, the bytes
     // park in m_toWs; once it is, they are forwarded in chunks but only while
     // the relay's own send queue is below the high-water mark. When it is not,
@@ -106,22 +176,17 @@ private:
         }
         if (!m_toWs.isEmpty()) {
             m_ws->sendBinaryMessage(m_toWs);
-            m_pendingWs += m_toWs.size();
             m_toWs.clear();
         }
-        // Back-pressure on the relay socket. m_pendingWs is the number of bytes
-        // queued to the WebSocket but not yet flushed to the wire (bytesWritten
-        // decrements it). bytesToWrite() is not used because QWebSocket may have
-        // already handed the bytes to its underlying socket, whose own write
-        // buffer is unbounded -- so it never looked "backed up" and the whole
-        // file buffered in RAM while the progress raced to 99%.
-        while (m_pendingWs < kHighWaterBytes && m_tcp->bytesAvailable() > 0) {
+        // Bound both QSslSocket queues. This covers plaintext waiting for TLS
+        // and ciphertext waiting for TCP, so a slow relay applies real flow
+        // control instead of accumulating an uncounted encrypted backlog.
+        while (webSocketBytesToWrite() < kHighWaterBytes && m_tcp->bytesAvailable() > 0) {
             const qint64 n = qMin<qint64>(m_tcp->bytesAvailable(), kChunkBytes);
             const QByteArray bytes = m_tcp->read(n);
             if (bytes.isEmpty())
                 break;
             m_ws->sendBinaryMessage(bytes);
-            m_pendingWs += bytes.size();
         }
     }
 
@@ -145,8 +210,10 @@ private:
     QWebSocket *m_ws;
     QTcpSocket *m_tcp;
     QByteArray m_toWs;                  // bytes waiting for the relay socket to come up
-    qint64 m_pendingWs = 0;             // bytes queued to the relay socket, not yet flushed
     QList<QByteArray> m_pendingToTcp;   // frames waiting for room in the local socket
+    bool m_sendEndWhenDrained = false;
+    bool m_waitEndWrite = false;
+    bool m_disconnectTcpWhenDrained = false;
     bool m_done = false;
 };
 
