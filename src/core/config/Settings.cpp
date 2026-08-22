@@ -1,5 +1,8 @@
 #include "Settings.h"
 
+#include "text/TextEncodingDetector.h"
+
+#include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -63,6 +66,22 @@ QString Settings::configFilePath() {
 }
 
 namespace {
+constexpr int kMaximumRememberedTextEncodings = 256;
+const QString kTextEncodingOverrides = QStringLiteral("textEncoding/overrides/");
+const QString kTextEncodingOrder = QStringLiteral("textEncoding/overrideOrder");
+
+QString textEncodingIdentityHash(const QString &identity) {
+    if (identity.isEmpty())
+        return {};
+    return QString::fromLatin1(
+        QCryptographicHash::hash(identity.toUtf8(), QCryptographicHash::Sha256).toHex());
+}
+
+bool isManualTextEncodingIndex(int index) {
+    return index > TextEncodingDetector::autoEncodingIndex &&
+           index < TextEncodingDetector::selectableEncodingCount;
+}
+
 QString normalizedAccountServerUrl(QString url) {
     url = url.trimmed();
     while (url.endsWith(QLatin1Char('/')))
@@ -146,6 +165,48 @@ QString Settings::language() const {
 
 void Settings::setLanguage(const QString &language) {
     m_settings.setValue("appearance/language", language);
+}
+
+int Settings::rememberedTextEncodingIndex(const QString &stableIdentity) const {
+    const QString hash = textEncodingIdentityHash(stableIdentity);
+    if (hash.isEmpty())
+        return TextEncodingDetector::autoEncodingIndex;
+    bool ok = false;
+    const int index = m_settings.value(kTextEncodingOverrides + hash).toInt(&ok);
+    return ok && isManualTextEncodingIndex(index)
+               ? index
+               : TextEncodingDetector::autoEncodingIndex;
+}
+
+void Settings::setRememberedTextEncodingIndex(const QString &stableIdentity, int index) {
+    const QString hash = textEncodingIdentityHash(stableIdentity);
+    if (hash.isEmpty())
+        return;
+
+    const QString key = kTextEncodingOverrides + hash;
+    QStringList order = m_settings.value(kTextEncodingOrder).toStringList();
+    order.removeAll(hash);
+
+    if (!isManualTextEncodingIndex(index)) {
+        if (!m_settings.contains(key))
+            return;
+        m_settings.remove(key);
+        m_settings.setValue(kTextEncodingOrder, order);
+        return;
+    }
+
+    bool ok = false;
+    const int existing = m_settings.value(key).toInt(&ok);
+    if (ok && existing == index)
+        return;
+
+    m_settings.setValue(key, index);
+    order.append(hash);
+    while (order.size() > kMaximumRememberedTextEncodings) {
+        const QString evicted = order.takeFirst();
+        m_settings.remove(kTextEncodingOverrides + evicted);
+    }
+    m_settings.setValue(kTextEncodingOrder, order);
 }
 
 QString Settings::globalFontFamily() const {

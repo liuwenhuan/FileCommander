@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QString>
+#include <QStringList>
 
 enum class PlatformError {
     None,
@@ -17,8 +18,14 @@ struct PlatformResult {
     PlatformError code = PlatformError::None;
     QString message;
     qint64 nativeCode = 0;
+    // Opaque locations the trash backend can use to restore this operation.
+    QStringList undoEntries;
 
-    static PlatformResult success() { return {}; }
+    static PlatformResult success(QStringList undoEntries = {}) {
+        PlatformResult result;
+        result.undoEntries = std::move(undoEntries);
+        return result;
+    }
     static PlatformResult failure(PlatformError code, QString message, qint64 nativeCode = 0) {
         return {false, code, std::move(message), nativeCode};
     }

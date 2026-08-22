@@ -144,7 +144,8 @@ private:
     // F3 and F4 open the same window: preview and editor are two pages of one
     // QuickView and swap in place. `startEditing` picks which page it opens on.
     ViewerWindow *openViewerWindow(const QString &path, bool editable,
-                                   bool startEditing = false);
+                                   bool startEditing = false,
+                                   const QString &encodingIdentity = QString());
     // Resolves the entry under the cursor to a local path that can be EDITED --
     // a gvfs mount, never a downloaded copy -- and runs `then` on it. Explains
     // the refusal to the user and does not call `then` when there is none.
@@ -202,6 +203,11 @@ private slots:
     void showContextMenuForCurrent();// Shift+F10
     void copyPathToCommandLine();    // Ctrl+P
     void createNewTextFile();        // Shift+F4
+    // Shared by Shift+F4 and the blank-area "New File" submenu: prompts for a
+    // name, creates the file empty, and selects it. `openInEditor` is what
+    // separates the keyboard route (which edits straight away) from the menu
+    // items (which just drop the file in the listing, like "New Folder").
+    void createNewFile(const QString &title, const QString &defaultName, bool openInEditor);
     void copyInSameDirectory();      // Shift+F5
     void swapPanels();
     void openTerminalHere();
@@ -392,9 +398,9 @@ private:
     void populateFavoritesMenu(QMenu *menu, FilePanel *panel, int tabIndex = -1);
     void recordMoveUndo(const QStringList &sources, const QString &destDir);
 
-    // Last reversible operation, for Ctrl+Z. Best-effort: rename and move only.
+    // Last reversible operation, for Ctrl+Z. Best-effort: rename, move, and trash delete.
     struct UndoRecord {
-        enum Type { None, Rename, Move } type = None;
+        enum Type { None, Rename, Move, Trash } type = None;
         QString fromPath;      // Rename: current path to move back
         QString toName;        // Rename: original name to restore
         QStringList movedPaths;// Move: current paths at the destination
@@ -405,6 +411,11 @@ private:
         std::shared_ptr<FileProvider> provider;
     };
     UndoRecord m_lastUndo;
+    // Trash restore tokens have a different lifetime/owner from rename's remote
+    // provider; keep them out of the mixed UndoRecord so queue completion only
+    // copies value types across the async boundary.
+    QStringList m_lastTrashPaths;
+    QStringList m_lastTrashEntries;
 
     // Initialised, because anything the constructor triggers before it reaches
     // the panel construction can reach these -- and a raw uninitialised pointer
@@ -485,6 +496,7 @@ private:
     quint64 m_previewReqId = 0;
     bool m_previewRunning = false;                       // a remote fetch is in flight
     QString m_previewName;                               // current file's name (for messages)
+    QString m_previewEncodingIdentity;                   // source before temp download
     std::shared_ptr<std::atomic<bool>> m_previewCancel;  // current download's cancel flag
     // The one file whose streamed preview failed, so retrying it downloads
     // instead of streaming again (which would fail the same way, forever).

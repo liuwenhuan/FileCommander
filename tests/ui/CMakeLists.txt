@@ -49,6 +49,7 @@ set(UI_TEST_SOURCES
     test_TitleBarAccount.cpp
     test_TitleBarTheme.cpp
     test_FramelessWindowChrome.cpp
+    test_QuickViewClipboard.cpp
     test_TreeRootBuilder.cpp
     test_DirectoryTreeModel.cpp
     test_SlideSceneImageCache.cpp

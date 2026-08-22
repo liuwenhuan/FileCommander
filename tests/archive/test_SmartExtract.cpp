@@ -201,3 +201,28 @@ TEST(SmartExtractTest, ASecondExtractionGetsItsOwnFolderInsteadOfOverwriting) {
     EXPECT_TRUE(QFileInfo::exists(QDir(first.finalDir).filePath(QStringLiteral("mine.txt"))))
         << "the second extraction wrote over the first";
 }
+
+TEST(SmartExtractTest, SkippingASingleNestedArchiveDoesNotRecurseIntoTheExistingFile) {
+    QTemporaryDir work;
+    ASSERT_TRUE(work.isValid());
+    const QString src = QDir(work.path()).filePath(QStringLiteral("src"));
+    const QString incoming = writeFile(src, QStringLiteral("inner.zip"), "incoming archive");
+    ASSERT_FALSE(incoming.isEmpty());
+    const QString outer = makeZip(work.path(), QStringLiteral("outer"), {incoming});
+    if (outer.isEmpty())
+        GTEST_SKIP() << "this build cannot write zip archives";
+
+    const QString dest = QDir(work.path()).filePath(QStringLiteral("dest"));
+    ASSERT_FALSE(writeFile(dest, QStringLiteral("inner.zip"), "keep existing").isEmpty());
+    QString err;
+    const ArchiveHandler::SmartResult result = ArchiveHandler::smartExtract(
+        outer, dest, QString(), &err, nullptr,
+        [](const FileConflict &) { return ErrorAction::Skip; });
+
+    ASSERT_TRUE(result.ok) << qPrintable(err);
+    EXPECT_TRUE(result.nestedArchivePath.isEmpty())
+        << "a skipped entry made smart extraction recurse into an existing file";
+    QFile preserved(QDir(dest).filePath(QStringLiteral("inner.zip")));
+    ASSERT_TRUE(preserved.open(QIODevice::ReadOnly));
+    EXPECT_EQ(preserved.readAll(), QByteArray("keep existing"));
+}

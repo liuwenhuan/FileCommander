@@ -7,12 +7,16 @@
 #include <QLabel>
 #include <QStackedWidget>
 #include <QTemporaryDir>
+#include <QTest>
+#include <QTimer>
 #include <QTextCodec>
 #include <QTextCursor>
 #include <QToolBar>
 #include <QVBoxLayout>
 
 #include "TextEditor.h"
+#include "TryUntil.h"
+#include "config/Settings.h"
 
 namespace {
 
@@ -46,32 +50,42 @@ void typeAtEnd(TextEditor &editor, const QString &text) {
 
 } // namespace
 
-TEST(TextEditorEditingTest, NothingReachesDiskUntilSaveIsPressed) {
+TEST(TextEditorEditingTest, AutomaticallySavesTheLatestTextAfterTheDebounce) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
     const QByteArray original = "alpha\nbeta\n";
-    const QString path = writeBytes(dir, QStringLiteral("save.txt"), original);
+    const QString path = writeBytes(dir, QStringLiteral("autosave.txt"), original);
 
     TextEditor editor;
     ASSERT_TRUE(editor.loadFile(path));
-    EXPECT_FALSE(editor.saveAction()->isEnabled());
+    auto *timer = editor.findChild<QTimer *>(QStringLiteral("textEditorAutoSaveTimer"));
+    ASSERT_NE(timer, nullptr);
+    EXPECT_TRUE(timer->isSingleShot());
+    EXPECT_EQ(timer->interval(), 600);
+    EXPECT_FALSE(timer->isActive()) << "loading the file scheduled an autosave";
 
     typeAtEnd(editor, QStringLiteral("gamma\n"));
+    QTest::qWait(350);
+    typeAtEnd(editor, QStringLiteral("latest\n"));
+    QTest::qWait(350);
     qApp->processEvents();
 
-    // The whole point of the Save button: the buffer is dirty and the file is not.
+    // More than 600 ms has elapsed since the first edit, but not since the
+    // second: each keystroke must move the deadline so only the latest burst is
+    // committed.
     EXPECT_EQ(readBytes(path), original);
     EXPECT_TRUE(editor.codeEditor()->document()->isModified());
     EXPECT_TRUE(editor.saveAction()->isEnabled());
     EXPECT_TRUE(editor.windowTitle().endsWith(QLatin1Char('*')));
 
-    editor.saveAction()->trigger();
-    qApp->processEvents();
-
-    EXPECT_EQ(readBytes(path), QByteArray("alpha\nbeta\ngamma\n"));
+    const QByteArray latest = "alpha\nbeta\ngamma\nlatest\n";
+    FC_TRY_COMPARE_WITH_TIMEOUT(readBytes(path), latest, 3000);
     EXPECT_FALSE(editor.codeEditor()->document()->isModified());
     EXPECT_FALSE(editor.saveAction()->isEnabled());
     EXPECT_FALSE(editor.windowTitle().endsWith(QLatin1Char('*')));
+    auto *label = editor.toolBar()->findChild<QLabel *>(QStringLiteral("textEditorModified"));
+    ASSERT_NE(label, nullptr);
+    EXPECT_TRUE(label->text().isEmpty());
 }
 
 TEST(TextEditorEditingTest, ModifiedStateIsVisibleInTheToolbar) {
@@ -318,4 +332,37 @@ TEST(TextEditorEditingTest, SeamAcceptsAnAuxiliaryBarAndAnExtraView) {
     EXPECT_EQ(editor.viewStack()->currentWidget(), hexView);
     editor.setCurrentView(0);
     EXPECT_EQ(editor.viewStack()->currentWidget(), editor.codeEditor());
+}
+
+TEST(TextEditorEditingTest, ManualEncodingIsRememberedByStableFileIdentity) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString settingsPath = dir.filePath(QStringLiteral("settings.ini"));
+    const QString path = writeBytes(dir, QStringLiteral("remember.txt"),
+                                    QByteArray::fromHex("D6D0CEC4"));
+    const QString identity = QStringLiteral("stable-identity-for-remember.txt");
+    Settings settings(settingsPath);
+
+    {
+        TextEditor editor(settings);
+        ASSERT_TRUE(editor.loadFile(path, identity));
+        const int latin1 = encodingIndex(editor, QStringLiteral("ISO-8859-1"));
+        ASSERT_GT(latin1, 0);
+        editor.encodingCombo()->setCurrentIndex(latin1);
+        qApp->processEvents();
+        EXPECT_EQ(settings.rememberedTextEncodingIndex(identity), latin1);
+    }
+
+    {
+        TextEditor reopened(settings);
+        ASSERT_TRUE(reopened.loadFile(path, identity));
+        EXPECT_EQ(reopened.encodingCombo()->currentText(), QStringLiteral("ISO-8859-1"));
+        reopened.encodingCombo()->setCurrentIndex(TextEncodingDetector::autoEncodingIndex);
+        qApp->processEvents();
+    }
+
+    TextEditor backToAuto(settings);
+    ASSERT_TRUE(backToAuto.loadFile(path, identity));
+    EXPECT_EQ(backToAuto.encodingCombo()->currentIndex(),
+              TextEncodingDetector::autoEncodingIndex);
 }

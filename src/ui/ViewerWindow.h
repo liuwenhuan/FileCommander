@@ -24,6 +24,8 @@ public:
     // `editing` opens straight into the editor rather than the preview.
     ViewerWindow(Settings &settings, const QString &path, QWidget *parent = nullptr,
                  bool editing = false);
+    ViewerWindow(Settings &settings, const QString &path, QWidget *parent, bool editing,
+                 const QString &encodingIdentity);
 
     // Forwards a theme / "tint images" change to the preview this window wraps.
     // A viewer opened with F3 is a separate top-level window, so MainWindow has
@@ -41,6 +43,7 @@ public:
     // Switches the preview into the editor, in place. Same window either way --
     // F4 opens one of these already in edit mode instead of a second window.
     bool beginEditing(const QString &path);
+    bool beginEditing(const QString &path, const QString &encodingIdentity);
 
 protected:
     void closeEvent(QCloseEvent *event) override;

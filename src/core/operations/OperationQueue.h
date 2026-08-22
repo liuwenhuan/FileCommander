@@ -54,6 +54,7 @@ public:
     void enqueueCopyAs(const QString &source, const QString &destPath);
     void enqueueMove(const QStringList &sources, const QString &destDir);
     void enqueueDelete(const QStringList &paths, bool toTrash);
+    void enqueueRestoreFromTrash(const QStringList &entries);
     void enqueueMkdir(const QString &parentDir, const QString &name);
     void enqueueRename(const QString &path, const QString &newName);
     void enqueueSymlink(const QStringList &sources, const QString &destDir);
@@ -126,12 +127,15 @@ signals:
                    const QString &currentFile);
     void errorOccurred(const QString &message);
     void finished(bool ok);
+    // Emitted before finished() when a successful local trash delete can be restored.
+    void trashDeleteFinished(const QStringList &paths, const QStringList &entries);
     void aborted();
 
 private:
     struct Job {
         QString description;
         std::function<bool(FileOperations &, QString &)> run;
+        std::function<void(bool)> completed;
     };
 
     // One worker in the provider-transfer pool: its own FileOperations

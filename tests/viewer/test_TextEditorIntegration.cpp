@@ -2,13 +2,18 @@
 
 #include <QApplication>
 #include <QFile>
+#include <QDir>
 #include <QStackedWidget>
 #include <QTemporaryDir>
+#include <QTest>
+#include <QTimer>
+#include <QTextCursor>
 
 #include "ByteSearch.h"
 #include "FindBar.h"
 #include "HexEditor.h"
 #include "TextEditor.h"
+#include "TryUntil.h"
 
 namespace {
 
@@ -98,7 +103,8 @@ TEST(TextEditorIntegration, SavingInHexModeWritesTheEditedBytes) {
     editor.hexEditor()->setContents(edited);
     editor.hexEditor()->setModified(true);
 
-    // Still untouched on disk: nothing is written until Save.
+    // Still untouched before the debounce expires; explicit Save remains an
+    // immediate flush and is what this test exercises.
     QFile before(path);
     ASSERT_TRUE(before.open(QIODevice::ReadOnly));
     EXPECT_EQ(before.readAll(), binary) << "the edit reached disk without a save";
@@ -158,4 +164,77 @@ TEST(TextEditorIntegration, TheFindBarLandsOnTheRightCharacterInAMultiByteFile) 
     EXPECT_EQ(cursor.selectedText(), QStringLiteral("MARK"));
     EXPECT_EQ(cursor.selectionStart(), 4)
         << "the byte offset was used as a character position";
+}
+
+TEST(TextEditorIntegration, HexEditsAreAutomaticallySavedAfterTheDebounce) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    QByteArray binary("\x00\x01\x02\x03", 4);
+    binary.append(QByteArray(300, '\0'));
+    const QString path = writeFile(dir, QStringLiteral("autosave.bin"), binary);
+
+    TextEditor editor;
+    ASSERT_TRUE(editor.loadFile(path));
+    ASSERT_TRUE(editor.isHexMode());
+    QByteArray edited = binary;
+    edited[2] = char(0xFE);
+    editor.hexEditor()->setContents(edited);
+    editor.hexEditor()->setModified(true);
+
+    QFile before(path);
+    ASSERT_TRUE(before.open(QIODevice::ReadOnly));
+    EXPECT_EQ(before.readAll(), binary);
+    before.close();
+
+    FC_TRY_VERIFY_WITH_TIMEOUT(([&]() {
+        QFile saved(path);
+        return saved.open(QIODevice::ReadOnly) && saved.readAll() == edited;
+    })(), 3000);
+    EXPECT_FALSE(editor.isDocumentModified());
+}
+
+TEST(TextEditorIntegration, FailedAutosaveWarnsOnceAndKeepsTheBufferDirty) {
+#ifdef Q_OS_WIN
+    if (QGuiApplication::platformName() == QStringLiteral("offscreen"))
+        GTEST_SKIP() << "the Windows offscreen plugin crashes while showing QMessageBox";
+#endif
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString path = writeFile(dir, QStringLiteral("blocked.txt"), QByteArray("original\n"));
+
+    TextEditor editor;
+    ASSERT_TRUE(editor.loadFile(path));
+    ASSERT_TRUE(QFile::remove(path));
+    ASSERT_TRUE(QDir().mkdir(path)); // QFile cannot truncate a directory
+
+    int warnings = 0;
+    QTimer dismissWarnings;
+    dismissWarnings.setInterval(10);
+    QObject::connect(&dismissWarnings, &QTimer::timeout, [&]() {
+        QWidget *modal = QApplication::activeModalWidget();
+        if (!modal || modal->property("autosave-test-counted").toBool())
+            return;
+        modal->setProperty("autosave-test-counted", true);
+        ++warnings;
+        QMetaObject::invokeMethod(modal, "reject", Qt::QueuedConnection);
+    });
+    dismissWarnings.start();
+
+    QTextCursor cursor(editor.codeEditor()->document());
+    cursor.movePosition(QTextCursor::End);
+    cursor.insertText(QStringLiteral("still in memory\n"));
+
+    FC_TRY_COMPARE_WITH_TIMEOUT(warnings, 1, 3000);
+    QTest::qWait(900); // a blocked autosave must not retry in the background
+    qApp->processEvents();
+    EXPECT_EQ(warnings, 1);
+    EXPECT_TRUE(editor.isDocumentModified());
+    EXPECT_TRUE(editor.codeEditor()->toPlainText().endsWith(QStringLiteral("still in memory\n")));
+    EXPECT_FALSE(editor.promptSaveIfModified()); // vetoes Preview/close, no second dialog
+    EXPECT_EQ(warnings, 1);
+
+    dismissWarnings.stop();
+    ASSERT_TRUE(QDir(path).removeRecursively());
+    ASSERT_TRUE(editor.save()); // explicit Save is always allowed to retry
+    EXPECT_FALSE(editor.isDocumentModified());
 }

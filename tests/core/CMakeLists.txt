@@ -6,6 +6,7 @@ set(CORE_TEST_SOURCES
     filesystem/test_DirectorySizeTask.cpp
     filesystem/test_IconCache.cpp
     filesystem/test_ProviderPath.cpp
+    text/test_TextEncodingIdentity.cpp
     filesystem/test_ProviderLocality.cpp
     filesystem/test_ExternalPaths.cpp
     filesystem/test_ParentEntry.cpp
@@ -64,6 +65,7 @@ endif()
 if(WIN32)
     list(APPEND CORE_TEST_SOURCES
         devices/test_WindowsRemovableStorage.cpp
+        platform/test_TrashService.cpp
     )
 endif()
 if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)

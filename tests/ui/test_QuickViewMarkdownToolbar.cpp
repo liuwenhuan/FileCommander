@@ -9,6 +9,7 @@
 #include <QToolBar>
 
 #include "QuickView.h"
+#include "TextEncodingDetector.h"
 #include "TryUntil.h"
 #include "config/Settings.h"
 
@@ -96,4 +97,41 @@ TEST(QuickViewMarkdownToolbar, FindAndEditActOnTheMarkdownPage) {
     edit->trigger();
     ASSERT_EQ(requested.size(), 1);
     EXPECT_EQ(requested.at(0).at(0).toString(), path);
+}
+
+TEST(QuickViewMarkdownToolbar, RemembersManualEncodingAndAutoClearsIt) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString path = writeFile(dir, QStringLiteral("remember.md"),
+                                   QByteArray::fromHex("2320D6D0CEC40A"));
+    ASSERT_FALSE(path.isEmpty());
+    Settings settings(dir.filePath(QStringLiteral("settings.ini")));
+    const QString identity = QStringLiteral("stable-markdown-identity");
+
+    int latin1 = -1;
+    {
+        QuickView view(settings, QuickView::Context::Window);
+        auto *combo = view.findChild<QComboBox *>(QStringLiteral("markdownEncodingCombo"));
+        auto *browser = view.findChild<QTextBrowser *>();
+        ASSERT_NE(combo, nullptr);
+        ASSERT_NE(browser, nullptr);
+        view.showFile(path, identity);
+        FC_TRY_VERIFY_WITH_TIMEOUT(!browser->toPlainText().trimmed().isEmpty(), 5000);
+        latin1 = combo->findText(QStringLiteral("ISO-8859-1"));
+        ASSERT_GT(latin1, 0);
+        combo->setCurrentIndex(latin1);
+        EXPECT_EQ(settings.rememberedTextEncodingIndex(identity), latin1);
+    }
+
+    QuickView reopened(settings, QuickView::Context::Window);
+    auto *combo = reopened.findChild<QComboBox *>(QStringLiteral("markdownEncodingCombo"));
+    auto *browser = reopened.findChild<QTextBrowser *>();
+    ASSERT_NE(combo, nullptr);
+    ASSERT_NE(browser, nullptr);
+    reopened.showFile(path, identity);
+    FC_TRY_VERIFY_WITH_TIMEOUT(!browser->toPlainText().trimmed().isEmpty(), 5000);
+    EXPECT_EQ(combo->currentIndex(), latin1);
+    combo->setCurrentIndex(TextEncodingDetector::autoEncodingIndex);
+    EXPECT_EQ(settings.rememberedTextEncodingIndex(identity),
+              TextEncodingDetector::autoEncodingIndex);
 }

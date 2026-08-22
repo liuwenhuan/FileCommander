@@ -32,6 +32,61 @@ void report(const Progress *p, const QString &entry, qint64 doneItems, qint64 do
         p->report(entry, doneItems, doneBytes);
 }
 
+bool isSelectedEntry(const QString &entryPath, const QStringList &selected) {
+    if (selected.isEmpty())
+        return true;
+    for (const QString &sel : selected) {
+        if (entryPath == sel || entryPath.startsWith(sel + QLatin1Char('/')))
+            return true;
+    }
+    return false;
+}
+
+enum class ConflictOutcome { Extract, Skip, Cancel };
+
+// The archive reader owns the only moment at which a second same-named entry is
+// visible. Resolve there rather than doing a one-off preflight, so duplicate
+// archive entries and files created while extraction is running stay protected.
+ConflictOutcome resolveConflict(const QString &archivePath, const QString &entryPath,
+                                qint64 sourceSize, bool sourceIsDir, const QString &destPath,
+                                const ConflictResolver &resolver, ErrorAction *batchAction,
+                                bool *skippedEntries) {
+    const QFileInfo destination(destPath);
+    if ((sourceIsDir && destination.isDir() && !destination.isSymLink()) ||
+        (!destination.exists() && !destination.isSymLink())) {
+        return ConflictOutcome::Extract;
+    }
+
+    if (*batchAction == ErrorAction::OverwriteAll)
+        return ConflictOutcome::Extract;
+    if (*batchAction == ErrorAction::SkipAll) {
+        if (skippedEntries)
+            *skippedEntries = true;
+        return ConflictOutcome::Skip;
+    }
+
+    const FileConflict conflict{archivePath + QLatin1Char(':') + entryPath, destPath, sourceSize,
+                                destination.isFile() ? destination.size() : -1};
+    const ErrorAction action = resolver ? resolver(conflict) : ErrorAction::Skip;
+    if (action == ErrorAction::OverwriteAll) {
+        *batchAction = action;
+        return ConflictOutcome::Extract;
+    }
+    if (action == ErrorAction::Overwrite)
+        return ConflictOutcome::Extract;
+    if (action == ErrorAction::SkipAll) {
+        *batchAction = action;
+        if (skippedEntries)
+            *skippedEntries = true;
+        return ConflictOutcome::Skip;
+    }
+    if (action == ErrorAction::Cancel)
+        return ConflictOutcome::Cancel;
+    if (skippedEntries)
+        *skippedEntries = true;
+    return ConflictOutcome::Skip;
+}
+
 // .7z gets its own in-process reader (SevenZipReader) rather than libarchive:
 // it decodes AES-256 encrypted archives (which this libarchive cannot) and
 // lists solid archives from the header index without a full decompress.
@@ -45,12 +100,43 @@ bool isAppImage(const QString &path) {
     return SquashfsReader::available() && SquashfsReader::isAppImage(path);
 }
 
-// Extracts an AppImage's squashfs (whole tree, or `sel`) in a SINGLE unsquashfs
-// pass. SquashfsReader::extractTo validates names and relies on unsquashfs's own
-// pathname sanitisation for containment.
+// AppImage extraction is delegated to unsquashfs, which only offers a whole-batch
+// overwrite switch. List first and pass the accepted paths explicitly so Skip and
+// Cancel retain the same per-entry meaning as every other archive backend.
 bool extractAppImage(const QString &archivePath, const QStringList &sel, const QString &destDir,
-                     QString *errorMessage) {
-    const SquashfsReader::Status s = SquashfsReader::extractTo(archivePath, sel, destDir);
+                     QString *errorMessage, const Progress *progress,
+                     const ConflictResolver &conflictResolver, bool *skippedEntries) {
+    QStringList accepted;
+    ErrorAction batchAction = ErrorAction::Retry;
+    bool conflictCancelled = false;
+    const SquashfsReader::Status listed = SquashfsReader::list(
+        archivePath,
+        [&](const SquashfsReader::Entry &entry) {
+            if (conflictCancelled || cancelled(progress) || !isSelectedEntry(entry.path, sel))
+                return;
+            const QString destPath = QDir(destDir).filePath(entry.path);
+            const ConflictOutcome decision = resolveConflict(
+                archivePath, entry.path, entry.size, entry.isDir, destPath, conflictResolver,
+                &batchAction, skippedEntries);
+            if (decision == ConflictOutcome::Cancel) {
+                conflictCancelled = true;
+                if (progress && progress->cancel)
+                    progress->cancel->store(true);
+                return;
+            }
+            // Selecting only leaf paths keeps unsquashfs from expanding an accepted
+            // parent directory back over children the user skipped.
+            if (decision == ConflictOutcome::Extract && !entry.isDir)
+                accepted.append(entry.path);
+        },
+        progress ? progress->cancel : nullptr);
+    if (listed != SquashfsReader::Status::Ok || conflictCancelled || cancelled(progress))
+        return false;
+    if (accepted.isEmpty())
+        return true; // every selected entry was skipped
+
+    const SquashfsReader::Status s =
+        SquashfsReader::extractTo(archivePath, accepted, destDir, progress ? progress->cancel : nullptr);
     if (s != SquashfsReader::Status::Ok) {
         if (errorMessage && errorMessage->isEmpty())
             *errorMessage = QStringLiteral("AppImage extract: %1").arg(int(s));
@@ -77,7 +163,8 @@ ArchiveHandler::Status sevenZipToStatus(SevenZipReader::Status s) {
 // solid block; fine for preview-scale use.
 bool extractSevenZip(const QString &archivePath, const QStringList &sel, const QString &destDir,
                      const QString &passphrase, QString *errorMessage, bool *handled,
-                     const Progress *p) {
+                     const Progress *p, const ConflictResolver &conflictResolver,
+                     bool *skippedEntries) {
     QVector<SevenZipReader::Entry> files;
     const SevenZipReader::Status ls = SevenZipReader::list(
         archivePath, passphrase,
@@ -99,21 +186,24 @@ bool extractSevenZip(const QString &archivePath, const QStringList &sel, const Q
 
     QDir().mkpath(destDir);
     bool ok = true;
+    ErrorAction batchAction = ErrorAction::Retry;
     qint64 doneItems = 0;
     qint64 doneBytes = 0;
     for (const SevenZipReader::Entry &e : files) {
         if (cancelled(p))
             return false;
-        bool want = sel.isEmpty();
-        for (const QString &s : sel) {
-            if (e.path == s || e.path.startsWith(s + QLatin1Char('/'))) {
-                want = true;
-                break;
-            }
-        }
-        if (!want)
+        if (!isSelectedEntry(e.path, sel))
             continue;
         const QString destPath = QDir(destDir).filePath(e.path);
+        const ConflictOutcome decision = resolveConflict(archivePath, e.path, e.size,
+                                                         /*sourceIsDir=*/false, destPath,
+                                                         conflictResolver, &batchAction, skippedEntries);
+        if (decision == ConflictOutcome::Cancel)
+            return false;
+        if (decision == ConflictOutcome::Skip) {
+            report(p, e.path, ++doneItems, doneBytes);
+            continue;
+        }
         QDir().mkpath(QFileInfo(destPath).absolutePath());
         const SevenZipReader::Status rs = SevenZipReader::readEntry(
             archivePath, passphrase, e.path, destPath, p ? p->cancel : nullptr);
@@ -131,7 +221,8 @@ bool extractSevenZip(const QString &archivePath, const QStringList &sel, const Q
 // Same shape as extractSevenZip but via the external CLI tool -- the extract-side
 // fallback for archives libarchive can't decode (e.g. encrypted RAR).
 bool extractExternal(const QString &archivePath, const QStringList &sel, const QString &destDir,
-                     const QString &passphrase, QString *errorMessage, const Progress *p) {
+                     const QString &passphrase, QString *errorMessage, const Progress *p,
+                     const ConflictResolver &conflictResolver, bool *skippedEntries) {
     QVector<ExternalArchiveTool::Entry> files;
     const ExternalArchiveTool::Status ls = ExternalArchiveTool::list(
         archivePath, passphrase,
@@ -147,19 +238,13 @@ bool extractExternal(const QString &archivePath, const QStringList &sel, const Q
     }
     QDir().mkpath(destDir);
     bool ok = true;
+    ErrorAction batchAction = ErrorAction::Retry;
     qint64 doneItems = 0;
     qint64 doneBytes = 0;
     for (const ExternalArchiveTool::Entry &e : files) {
         if (cancelled(p))
             return false;
-        bool want = sel.isEmpty();
-        for (const QString &s : sel) {
-            if (e.path == s || e.path.startsWith(s + QLatin1Char('/'))) {
-                want = true;
-                break;
-            }
-        }
-        if (!want)
+        if (!isSelectedEntry(e.path, sel))
             continue;
         // Entry names come from the archive, so they're untrusted: reject "..",
         // absolute paths, and anything that would land outside destDir.
@@ -171,6 +256,15 @@ bool extractExternal(const QString &archivePath, const QStringList &sel, const Q
             continue;
         }
         const QString destPath = QDir(destDir).filePath(e.path);
+        const ConflictOutcome decision = resolveConflict(archivePath, e.path, e.size,
+                                                         /*sourceIsDir=*/false, destPath,
+                                                         conflictResolver, &batchAction, skippedEntries);
+        if (decision == ConflictOutcome::Cancel)
+            return false;
+        if (decision == ConflictOutcome::Skip) {
+            report(p, e.path, ++doneItems, doneBytes);
+            continue;
+        }
         QDir().mkpath(QFileInfo(destPath).absolutePath());
         const ExternalArchiveTool::Status rs = ExternalArchiveTool::readEntry(
             archivePath, passphrase, e.path, destPath, p ? p->cancel : nullptr, e.size);
@@ -553,28 +647,31 @@ bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entr
 
 bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entryFullPaths,
                               const QString &destDir, const QString &passphrase,
-                              QString *errorMessage, Progress *progress) {
+                              QString *errorMessage, Progress *progress,
+                              const ConflictResolver &conflictResolver, bool *skippedEntries) {
     if (cancelled(progress))
         return false;
 
     // AppImage: extract the appended squashfs via unsquashfs. One pass, so
     // cancellation can only be honoured before it starts (checked above).
     if (isAppImage(archivePath))
-        return extractAppImage(archivePath, entryFullPaths, destDir, errorMessage);
+        return extractAppImage(archivePath, entryFullPaths, destDir, errorMessage, progress,
+                               conflictResolver, skippedEntries);
 
     // UDF disc image: extract via the external 7z for the same reason listing
     // does -- libarchive would "succeed" on the ISO9660 bridge stub and write
     // the wrong files without ever reporting an error.
     if (ExternalArchiveTool::preferExternal(archivePath))
         return extractExternal(archivePath, entryFullPaths, destDir, passphrase, errorMessage,
-                               progress);
+                               progress, conflictResolver, skippedEntries);
 
     // .7z goes through the in-process reader (handles encrypted + solid); only a
     // container it can't decode falls through to libarchive.
     if (isSevenZip(archivePath)) {
         bool handled = false;
         const bool ok = extractSevenZip(archivePath, entryFullPaths, destDir, passphrase,
-                                        errorMessage, &handled, progress);
+                                        errorMessage, &handled, progress, conflictResolver,
+                                        skippedEntries);
         if (handled)
             return ok;
     }
@@ -598,7 +695,7 @@ bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entr
         archive_write_free(ext);
         if (ExternalArchiveTool::available(archivePath))
             return extractExternal(archivePath, entryFullPaths, destDir, passphrase, errorMessage,
-                                   progress);
+                                   progress, conflictResolver, skippedEntries);
         if (errorMessage)
             *errorMessage = e;
         return false;
@@ -607,6 +704,7 @@ bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entr
     QDir().mkpath(destDir);
     bool ok = true;
     bool aborted = false;
+    ErrorAction batchAction = ErrorAction::Retry;
     qint64 doneItems = 0;
     qint64 doneBytes = 0;
     struct archive_entry *entry;
@@ -621,21 +719,25 @@ bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entr
         while (entryPath.endsWith('/'))
             entryPath.chop(1);
 
-        bool shouldExtract = entryFullPaths.isEmpty();
-        if (!shouldExtract) {
-            for (const QString &sel : entryFullPaths) {
-                if (entryPath == sel || entryPath.startsWith(sel + QLatin1Char('/'))) {
-                    shouldExtract = true;
-                    break;
-                }
-            }
-        }
-        if (!shouldExtract) {
+        if (!isSelectedEntry(entryPath, entryFullPaths)) {
             archive_read_data_skip(a);
             continue;
         }
 
         const QString destPath = QDir(destDir).filePath(entryPath);
+        const ConflictOutcome decision =
+            resolveConflict(archivePath, entryPath, archive_entry_size(entry),
+                            archive_entry_filetype(entry) == AE_IFDIR, destPath, conflictResolver,
+                            &batchAction, skippedEntries);
+        if (decision == ConflictOutcome::Cancel) {
+            aborted = true;
+            break;
+        }
+        if (decision == ConflictOutcome::Skip) {
+            archive_read_data_skip(a);
+            report(progress, entryPath, ++doneItems, doneBytes);
+            continue;
+        }
         fc::setEntryPathname(entry, destPath);
 
         int wr = archive_write_header(ext, entry);
@@ -673,7 +775,8 @@ bool ArchiveHandler::extract(const QString &archivePath, const QStringList &entr
     // external CLI tool if one is installed.
     if (!ok && ExternalArchiveTool::available(archivePath)) {
         QString exErr;
-        if (extractExternal(archivePath, entryFullPaths, destDir, passphrase, &exErr, progress)) {
+        if (extractExternal(archivePath, entryFullPaths, destDir, passphrase, &exErr, progress,
+                            conflictResolver, skippedEntries)) {
             if (errorMessage)
                 errorMessage->clear();
             return true;
@@ -730,7 +833,8 @@ ArchiveHandler::SmartResult ArchiveHandler::smartExtract(const QString &archiveP
                                                           const QString &baseDestDir,
                                                           const QString &passphrase,
                                                           QString *errorMessage,
-                                                          Progress *progress) {
+                                                          Progress *progress,
+                                                          const ConflictResolver &conflictResolver) {
     SmartResult result;
 
     QString err;
@@ -763,7 +867,9 @@ ArchiveHandler::SmartResult ArchiveHandler::smartExtract(const QString &archiveP
     if (layout.wrapInArchiveNamedFolder)
         finalDir = uniqueDir(QDir(baseDestDir).filePath(base));
 
-    if (!extract(archivePath, {}, finalDir, passphrase, errorMessage, progress)) {
+    bool skippedEntries = false;
+    if (!extract(archivePath, {}, finalDir, passphrase, errorMessage, progress,
+                 conflictResolver, &skippedEntries)) {
         // A wrong passphrase does not always surface while listing. buildTree
         // verifies one by decrypting a little of the first encrypted file, and
         // for AES-256 ZIP written here that check passes even when the password
@@ -797,7 +903,7 @@ ArchiveHandler::SmartResult ArchiveHandler::smartExtract(const QString &archiveP
 
     // Detection only: if the extracted payload is a single archive, tell the
     // caller where it landed so it can offer to unwrap it too.
-    if (layout.resultIsSingleArchive && !layout.innerArchiveName.isEmpty()) {
+    if (!skippedEntries && layout.resultIsSingleArchive && !layout.innerArchiveName.isEmpty()) {
         const QString stripped =
             layout.stripSingleRoot ? QDir(finalDir).filePath(layout.strippedPrefix) : finalDir;
         const QString nested = QDir(stripped).filePath(layout.innerArchiveName);

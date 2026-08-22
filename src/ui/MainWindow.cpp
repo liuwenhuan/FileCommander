@@ -479,6 +479,12 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
         }
         return action;
     });
+    connect(m_queue, &OperationQueue::trashDeleteFinished, this,
+            [this](const QStringList &paths, const QStringList &entries) {
+                m_lastUndo.type = UndoRecord::Trash;
+                m_lastTrashPaths = paths;
+                m_lastTrashEntries = entries;
+            });
     connect(m_queue, &OperationQueue::started, this,
             [this](const QString &) {
                 if (!m_operationAbortRequested)
@@ -808,7 +814,7 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
                         return;
                     if (panel->currentEntryPath() != entryPath)
                         return;
-                    m_quickView->showFile(localPath);
+                    m_quickView->showFile(localPath, panel->currentTextEncodingIdentity());
                 });
     }
 
@@ -1784,7 +1790,12 @@ QuickView *MainWindow::ensureQuickView() {
     // is what knows how (and what refuses when there is none). The editor then
     // takes over the pane itself -- no window opens.
     connect(m_quickView, &QuickView::editRequested, this, [this](const QString &) {
-        resolveEditableCurrent([this](const QString &real) { m_quickView->beginEditing(real); });
+        const QString identity = m_activePanel
+                                     ? m_activePanel->currentTextEncodingIdentity()
+                                     : QString();
+        resolveEditableCurrent([this, identity](const QString &real) {
+            m_quickView->beginEditing(real, identity);
+        });
     });
     // A streamed remote clip that wouldn't play falls back to the download path
     // by re-running the preview with streaming suppressed for that one file.
@@ -3265,39 +3276,43 @@ void MainWindow::copyPathToCommandLine() {
 }
 
 void MainWindow::createNewTextFile() {
+    createNewFile(tr("New Text File"), QStringLiteral("new.txt"), /*openInEditor=*/true);
+}
+
+void MainWindow::createNewFile(const QString &title, const QString &defaultName,
+                               bool openInEditor) {
     if (!m_activePanel || blockArchiveWrite(m_activePanel))
         return;
-    if (blockWithoutWorkingDirectory(m_activePanel, tr("New Text File")))
+    if (blockWithoutWorkingDirectory(m_activePanel, title))
         return;
     // Creating the file needs a real writable path, which only a local tab has.
     if (m_activePanel->model()->providerPtr().get() != LocalFileProvider::instance()) {
-        ttc::information(this, tr("New Text File"),
-                         tr("New files can only be created on a local tab."));
+        ttc::information(this, title, tr("New files can only be created on a local tab."));
         return;
     }
 
     bool ok = false;
-    const QString name = ttc::getText(this, tr("New Text File"), tr("File name:"),
-                                      QLineEdit::Normal, QStringLiteral("new.txt"), &ok);
+    const QString name =
+        ttc::getText(this, title, tr("File name:"), QLineEdit::Normal, defaultName, &ok);
     if (!ok || name.isEmpty())
         return;
 
     const QString target = QDir(m_activePanel->currentPath()).filePath(name);
     if (QFileInfo::exists(target)) {
-        ttc::warning(this, tr("New Text File"), tr("%1 already exists.").arg(name));
+        ttc::warning(this, title, tr("%1 already exists.").arg(name));
         return;
     }
     QFile file(target);
     if (!file.open(QIODevice::WriteOnly)) { // creates it empty
-        ttc::warning(this, tr("New Text File"),
-                     tr("Could not create %1: %2").arg(name, file.errorString()));
+        ttc::warning(this, title, tr("Could not create %1: %2").arg(name, file.errorString()));
         return;
     }
     file.close();
 
     m_activePanel->refresh();
     m_activePanel->selectPathAfterReload(target);
-    openViewerWindow(target, true, true);
+    if (openInEditor)
+        openViewerWindow(target, true, true);
 }
 
 void MainWindow::copyInSameDirectory() {
@@ -3577,6 +3592,23 @@ void MainWindow::recordMoveUndo(const QStringList &sources, const QString &destD
 }
 
 void MainWindow::undoLast() {
+    // Trash undo carries only platform tokens and original paths. Consume that
+    // variant without copying/destroying rename's provider-bearing record.
+    if (m_lastUndo.type == UndoRecord::Trash) {
+        const QStringList paths = m_lastTrashPaths;
+        const QStringList entries = m_lastTrashEntries;
+        m_lastUndo.type = UndoRecord::None;
+        m_lastTrashPaths.clear();
+        m_lastTrashEntries.clear();
+        if (!paths.isEmpty()) {
+            m_pendingDestPanel = panelShowingDir(QFileInfo(paths.first()).absolutePath());
+            m_pendingDestPaths = paths;
+        }
+        ensureTransferProgressDialog();
+        m_queue->enqueueRestoreFromTrash(entries);
+        return;
+    }
+
     const UndoRecord rec = m_lastUndo;
     m_lastUndo = UndoRecord{}; // consume, so undo isn't itself undoable
     switch (rec.type) {
@@ -3591,6 +3623,7 @@ void MainWindow::undoLast() {
         ensureTransferProgressDialog();
         m_queue->enqueueMove(rec.movedPaths, rec.restoreDir);
         break;
+    case UndoRecord::Trash: // handled before copying the mixed record
     case UndoRecord::None:
         break;
     }
@@ -3699,10 +3732,11 @@ void MainWindow::updateQuickView() {
     // network tab it scanned nothing, or a same-named local archive. Everywhere
     // else it falls through to the download below and previews the copy.
     const QString entry = m_activePanel->currentEntryPath();
+    const QString encodingIdentity = m_activePanel->currentTextEncodingIdentity();
     FileProvider *prov = m_activePanel->model()->provider();
     const bool local = prov && prov->isLocalFilesystem();
     if (local && ArchiveHandler::isSupportedArchive(entry)) {
-        m_quickView->showFile(entry);
+        m_quickView->showFile(entry, encodingIdentity);
         return;
     }
 
@@ -3717,7 +3751,7 @@ void MainWindow::updateQuickView() {
         // seconds with the window frozen and nothing on screen to explain it.
         const QString ready = m_activePanel->currentPreviewPathIfReady();
         if (!ready.isEmpty() || !m_activePanel->isArchive()) {
-            m_quickView->showFile(ready);
+            m_quickView->showFile(ready, encodingIdentity);
             return;
         }
         m_quickView->showPreparing(QFileInfo(entry).fileName());
@@ -3748,7 +3782,7 @@ void MainWindow::updateQuickView() {
         const QString url =
             MpvStreamSource::publish(m_activePanel->model()->providerPtr(), entry);
         if (!url.isEmpty()) {
-            m_quickView->showFile(url);
+            m_quickView->showFile(url, encodingIdentity);
             return;
         }
     }
@@ -3766,6 +3800,7 @@ void MainWindow::updateQuickView() {
 
     m_previewRunning = true;
     m_previewName = QFileInfo(entry).fileName();
+    m_previewEncodingIdentity = encodingIdentity;
     // Fresh cancel flag for this download; the Stop button flips it.
     m_previewCancel = std::make_shared<std::atomic<bool>>(false);
 
@@ -3809,10 +3844,12 @@ void MainWindow::onPreviewDone(quint64 reqId, const QString &tempPath, bool canc
     if (reqId != m_previewReqId)
         return; // a newer selection took over; this result is stale
     m_previewRunning = false;
-    if (cancelled)
+    if (cancelled) {
         m_quickView->showDownloadCancelled(m_previewName);
-    else
-        m_quickView->showFile(tempPath); // empty path -> "select a file" placeholder
+    } else {
+        // An empty path falls through to the "select a file" placeholder.
+        m_quickView->showFile(tempPath, m_previewEncodingIdentity);
+    }
 }
 
 void MainWindow::cancelPreviewDownload() {
@@ -5151,6 +5188,8 @@ void MainWindow::handleFilesDropped(const QStringList &sources, const QString &d
 }
 
 void MainWindow::copySelectionToClipboard() {
+    if (CommandRegistry::invokeFocusedWidgetCommand("copy"))
+        return;
     if (!m_activePanel)
         return;
     const QStringList paths = m_activePanel->selectedPaths();
@@ -5161,6 +5200,8 @@ void MainWindow::copySelectionToClipboard() {
 }
 
 void MainWindow::cutSelectionToClipboard() {
+    if (CommandRegistry::invokeFocusedWidgetCommand("cut"))
+        return;
     if (!m_activePanel)
         return;
     const QStringList paths = m_activePanel->selectedPaths();
@@ -5171,6 +5212,8 @@ void MainWindow::cutSelectionToClipboard() {
 }
 
 void MainWindow::pasteFromClipboard() {
+    if (CommandRegistry::invokeFocusedWidgetCommand("paste"))
+        return;
     if (!m_activePanel)
         return;
     if (blockArchiveWrite(m_activePanel))
@@ -5434,6 +5477,15 @@ void MainWindow::showBlankContextMenu(FilePanel *panel, const QPoint &viewPos) {
     menu.addAction(tr("Paste"), this, &MainWindow::pasteFromClipboard);
     menu.addSeparator();
     menu.addAction(tr("New Folder"), this, &MainWindow::makeDirectory);
+    // menu owns the submenu, which owns its actions, so all of it goes away
+    // with the stack-allocated menu when exec() returns.
+    QMenu *newFileMenu = menu.addMenu(tr("New File"));
+    newFileMenu->addAction(tr("Text Document (.txt)"), this, [this] {
+        createNewFile(tr("New Text File"), QStringLiteral("new.txt"), /*openInEditor=*/false);
+    });
+    newFileMenu->addAction(tr("Markdown Document (.md)"), this, [this] {
+        createNewFile(tr("New Markdown File"), QStringLiteral("new.md"), /*openInEditor=*/false);
+    });
     menu.addSeparator();
     menu.addAction(tr("Open Terminal Here"), this, &MainWindow::openTerminalHere);
     menu.addAction(tr("Refresh"), this, &MainWindow::refreshActivePanel);
@@ -5466,11 +5518,13 @@ bool MainWindow::currentEntryIsDir() const {
 }
 
 ViewerWindow *MainWindow::openViewerWindow(const QString &path, bool editable,
-                                           bool startEditing) {
+                                           bool startEditing,
+                                           const QString &encodingIdentity) {
     // Preview and editor are pages of the window's own QuickView and swap in
     // place, so nothing here has to open or close a second window when the user
     // presses Edit or Preview.
-    auto *viewer = new ViewerWindow(m_settings, path, this, startEditing);
+    auto *viewer =
+        new ViewerWindow(m_settings, path, this, startEditing, encodingIdentity);
     viewer->setEditingEnabled(editable);
     viewer->show();
     return viewer;
@@ -5490,10 +5544,12 @@ void MainWindow::viewCurrent() {
     // ViewerWindow reads with QFile, so it needs a path that exists on this
     // machine. It used to be handed the provider's path straight through, which
     // on a network or archive tab is why F3 opened an empty window.
+    const QString encodingIdentity = m_activePanel->currentTextEncodingIdentity();
     QPointer<FilePanel> guard(m_activePanel);
-    resolveRealPath(m_activePanel, path, [this, guard, path](const QString &real) {
+    resolveRealPath(m_activePanel, path,
+                    [this, guard, path, encodingIdentity](const QString &real) {
         if (!real.isEmpty()) {
-            openViewerWindow(real, true);
+            openViewerWindow(real, true, false, encodingIdentity);
             return;
         }
         if (!guard)
@@ -5502,8 +5558,8 @@ void MainWindow::viewCurrent() {
         // loses nothing here -- unlike F4, where it would be a dead end. The
         // Edit button is hidden for the same reason: saving would write to a
         // temp file the user never sees again.
-        fetchRemoteCopy(guard, path, [this](const QString &localPath) {
-            openViewerWindow(localPath, false);
+        fetchRemoteCopy(guard, path, [this, encodingIdentity](const QString &localPath) {
+            openViewerWindow(localPath, false, false, encodingIdentity);
         });
     });
 }
@@ -5543,6 +5599,24 @@ void MainWindow::runExtractLevel(quint64 reqId) {
     std::shared_ptr<std::atomic<bool>> cancel = it->cancel;
     MainWindow *self = this; // outlives the job: closeEvent cancels every one
     QtConcurrent::run([self, reqId, source, base, passphrase, cancel] {
+        const ConflictResolver resolveConflict = [self, reqId, cancel](const FileConflict &conflict) {
+            ErrorAction action = ErrorAction::Cancel;
+            QMetaObject::invokeMethod(
+                self,
+                [self, reqId, &conflict, &action] {
+                    // A conflict decision is modal just like password retry. Do not leave a
+                    // frozen progress window behind it, and resume the bar if extraction does.
+                    self->hideArchiveJobDialog(reqId);
+                    action = OverwriteConfirmDialog::ask(self, conflict,
+                                                        /*allowRename=*/false);
+                    if (action != ErrorAction::Cancel)
+                        self->showArchiveJobProgressLater(reqId);
+                },
+                Qt::BlockingQueuedConnection);
+            if (action == ErrorAction::Cancel)
+                cancel->store(true);
+            return action;
+        };
         ArchiveHandler::Progress progress;
         progress.cancel = cancel.get();
         // The totals are filled in by smartExtract's listing pass, so they are
@@ -5556,7 +5630,7 @@ void MainWindow::runExtractLevel(quint64 reqId) {
         };
         QString err;
         const ArchiveHandler::SmartResult res =
-            ArchiveHandler::smartExtract(source, base, passphrase, &err, &progress);
+            ArchiveHandler::smartExtract(source, base, passphrase, &err, &progress, resolveConflict);
         QMetaObject::invokeMethod(self, "onExtractLevelDone", Qt::QueuedConnection,
                                   Q_ARG(quint64, reqId), Q_ARG(bool, res.ok),
                                   Q_ARG(int, int(res.status)), Q_ARG(QString, res.finalDir),
@@ -5920,7 +5994,12 @@ void MainWindow::resolveEditableCurrent(std::function<void(const QString &)> the
 }
 
 void MainWindow::editCurrent() {
-    resolveEditableCurrent([this](const QString &real) { openViewerWindow(real, true, true); });
+    const QString encodingIdentity = m_activePanel
+                                         ? m_activePanel->currentTextEncodingIdentity()
+                                         : QString();
+    resolveEditableCurrent([this, encodingIdentity](const QString &real) {
+        openViewerWindow(real, true, true, encodingIdentity);
+    });
 }
 
 // A flat search listing spans many directories, so "create it here" has no
@@ -6095,10 +6174,11 @@ void MainWindow::deleteSelected(bool permanent) {
     m_pendingDeletePanel = m_activePanel;
     m_pendingDeletePaths = paths;
     ensureTransferProgressDialog();
-    if (remote)
+    if (remote) {
         m_queue->enqueueProviderDelete(prov, paths);
-    else
+    } else {
         m_queue->enqueueDelete(paths, /*toTrash=*/!permanent);
+    }
 }
 
 void MainWindow::compressSelected() {

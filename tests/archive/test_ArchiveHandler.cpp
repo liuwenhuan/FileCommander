@@ -1,5 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <archive.h>
+#include <archive_entry.h>
+
 #include <QDir>
 #include <QFile>
 #include <QProcess>
@@ -31,6 +34,39 @@ QString makeTestArchive(const QString &archiveDir) {
     proc.setWorkingDirectory(srcDir.path());
     proc.start("tar", {"-czf", archivePath, "a.txt", "sub"});
     proc.waitForFinished(10000);
+    return archivePath;
+}
+
+QString makeDuplicateEntryZip(const QString &archivePath) {
+    struct archive *archive = archive_write_new();
+    if (!archive)
+        return {};
+    if (archive_write_set_format_zip(archive) != ARCHIVE_OK) {
+        archive_write_free(archive);
+        return {};
+    }
+    const QByteArray localPath = QFile::encodeName(archivePath);
+    if (archive_write_open_filename(archive, localPath.constData()) != ARCHIVE_OK) {
+        archive_write_free(archive);
+        return {};
+    }
+    for (const QByteArray &contents : {QByteArray("first version"), QByteArray("second version")}) {
+        struct archive_entry *entry = archive_entry_new();
+        archive_entry_set_pathname(entry, "same.txt");
+        archive_entry_set_filetype(entry, AE_IFREG);
+        archive_entry_set_perm(entry, 0644);
+        archive_entry_set_size(entry, contents.size());
+        if (archive_write_header(archive, entry) != ARCHIVE_OK ||
+            archive_write_data(archive, contents.constData(), contents.size()) < 0) {
+            archive_entry_free(entry);
+            archive_write_close(archive);
+            archive_write_free(archive);
+            return {};
+        }
+        archive_entry_free(entry);
+    }
+    archive_write_close(archive);
+    archive_write_free(archive);
     return archivePath;
 }
 
@@ -177,4 +213,87 @@ TEST(ArchiveHandlerTest, BuildTreeFailsGracefullyOnMissingFile) {
     auto root = ArchiveHandler::buildTree("/nonexistent/path/does_not_exist.tar.gz", &err);
     EXPECT_FALSE(root);
     EXPECT_FALSE(err.isEmpty());
+}
+
+// Extraction must never replace a destination file until the caller has obtained
+// an explicit conflict decision from the user. This drives the real libarchive
+// extraction path rather than a filesystem helper, because archive entries are
+// what silently overwrote the destination.
+TEST(ArchiveHandlerTest, ExtractDoesNotOverwriteDestinationFilesWithoutConflictResolution) {
+    QTemporaryDir srcDir, workDir, destDir;
+    ASSERT_TRUE(srcDir.isValid() && workDir.isValid() && destDir.isValid());
+    const QString source = writeFile(srcDir.path(), "report.txt", "from archive");
+    const QString archivePath = QDir(workDir.path()).filePath("report.zip");
+    QString err;
+    ASSERT_TRUE(ArchiveHandler::create(archivePath, {source}, "zip", &err))
+        << err.toStdString();
+    ASSERT_FALSE(writeFile(destDir.path(), "report.txt", "keep this").isEmpty());
+
+    ASSERT_TRUE(ArchiveHandler::extract(archivePath, {}, destDir.path(), &err))
+        << err.toStdString();
+
+    QFile destination(QDir(destDir.path()).filePath("report.txt"));
+    ASSERT_TRUE(destination.open(QIODevice::ReadOnly));
+    EXPECT_EQ(destination.readAll(), QByteArray("keep this"));
+}
+
+TEST(ArchiveHandlerTest, ExtractConflictResolverSupportsOverwriteSkipAndCancel) {
+    QTemporaryDir srcDir, workDir, destDir;
+    ASSERT_TRUE(srcDir.isValid() && workDir.isValid() && destDir.isValid());
+    const QString first = writeFile(srcDir.path(), "first.txt", "archive first");
+    const QString second = writeFile(srcDir.path(), "second.txt", "archive second");
+    const QString archivePath = QDir(workDir.path()).filePath("choices.zip");
+    QString err;
+    ASSERT_TRUE(ArchiveHandler::create(archivePath, {first, second}, "zip", &err))
+        << err.toStdString();
+    ASSERT_FALSE(writeFile(destDir.path(), "first.txt", "keep first").isEmpty());
+    ASSERT_FALSE(writeFile(destDir.path(), "second.txt", "keep second").isEmpty());
+
+    int promptCount = 0;
+    const ConflictResolver resolver = [&promptCount](const FileConflict &) {
+        return ++promptCount == 1 ? ErrorAction::Overwrite : ErrorAction::Skip;
+    };
+    ASSERT_TRUE(ArchiveHandler::extract(archivePath, {}, destDir.path(), QString(), &err, nullptr,
+                                        resolver))
+        << err.toStdString();
+    EXPECT_EQ(promptCount, 2);
+
+    QFile firstDest(QDir(destDir.path()).filePath("first.txt"));
+    ASSERT_TRUE(firstDest.open(QIODevice::ReadOnly));
+    EXPECT_EQ(firstDest.readAll(), QByteArray("archive first"));
+    QFile secondDest(QDir(destDir.path()).filePath("second.txt"));
+    ASSERT_TRUE(secondDest.open(QIODevice::ReadOnly));
+    EXPECT_EQ(secondDest.readAll(), QByteArray("keep second"));
+
+    promptCount = 0;
+    const ConflictResolver cancel = [&promptCount](const FileConflict &) {
+        ++promptCount;
+        return ErrorAction::Cancel;
+    };
+    EXPECT_FALSE(ArchiveHandler::extract(archivePath, {}, destDir.path(), QString(), &err, nullptr,
+                                         cancel));
+    EXPECT_EQ(promptCount, 1);
+}
+
+TEST(ArchiveHandlerTest, ExtractConflictResolverAppliesOverwriteAllToDuplicateEntries) {
+    QTemporaryDir work, destDir;
+    ASSERT_TRUE(work.isValid() && destDir.isValid());
+    const QString archivePath = makeDuplicateEntryZip(QDir(work.path()).filePath("duplicate.zip"));
+    ASSERT_FALSE(archivePath.isEmpty());
+    ASSERT_FALSE(writeFile(destDir.path(), "same.txt", "keep this").isEmpty());
+
+    int promptCount = 0;
+    QString err;
+    ASSERT_TRUE(ArchiveHandler::extract(
+        archivePath, {}, destDir.path(), QString(), &err, nullptr,
+        [&promptCount](const FileConflict &) {
+            ++promptCount;
+            return ErrorAction::OverwriteAll;
+        }))
+        << err.toStdString();
+    EXPECT_EQ(promptCount, 1);
+
+    QFile destination(QDir(destDir.path()).filePath("same.txt"));
+    ASSERT_TRUE(destination.open(QIODevice::ReadOnly));
+    EXPECT_EQ(destination.readAll(), QByteArray("second version"));
 }

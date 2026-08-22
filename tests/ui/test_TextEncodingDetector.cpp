@@ -22,11 +22,14 @@
 namespace {
 
 TextEncodingDetector::Result detectHex(const char *hex) {
-    return TextEncodingDetector::detect(QByteArray::fromHex(hex));
+    return TextEncodingDetector::detect(QByteArray::fromHex(hex),
+                                        TextEncodingDetector::InputEnd::Complete,
+                                        QLocale(QLocale::English));
 }
 
 void expectEncoding(const QByteArray &bytes, const char *label) {
-    const TextEncodingDetector::Result result = TextEncodingDetector::detect(bytes);
+    const TextEncodingDetector::Result result = TextEncodingDetector::detect(
+        bytes, TextEncodingDetector::InputEnd::Complete, QLocale(QLocale::English));
     EXPECT_EQ(result.label, QString::fromLatin1(label));
     EXPECT_FALSE(result.binary);
 }
@@ -75,6 +78,93 @@ TEST(TextEncodingDetectorTest, PrefersUtf32BomOverUtf16Prefix) {
     expectEncoding(QByteArray::fromHex("0000FEFF00000041"), "UTF-32BE");
 }
 
+TEST(TextEncodingDetectorTest, MapsOperatingSystemLanguageToExpectedLegacyEncoding) {
+    EXPECT_EQ(TextEncodingDetector::expectedLegacyEncoding(
+                  QLocale(QLocale::Chinese, QLocale::China)),
+              QByteArrayLiteral("GB18030"));
+    EXPECT_EQ(TextEncodingDetector::expectedLegacyEncoding(
+                  QLocale(QLocale::Chinese, QLocale::Singapore)),
+              QByteArrayLiteral("GB18030"));
+    EXPECT_EQ(TextEncodingDetector::expectedLegacyEncoding(
+                  QLocale(QLocale::Chinese, QLocale::Taiwan)),
+              QByteArrayLiteral("Big5"));
+    EXPECT_EQ(TextEncodingDetector::expectedLegacyEncoding(
+                  QLocale(QLocale::Chinese, QLocale::HongKong)),
+              QByteArrayLiteral("Big5"));
+    EXPECT_EQ(TextEncodingDetector::expectedLegacyEncoding(
+                  QLocale(QLocale::Chinese, QLocale::Macau)),
+              QByteArrayLiteral("Big5"));
+    EXPECT_EQ(TextEncodingDetector::expectedLegacyEncoding(QLocale(QLocale::Korean)),
+              QByteArrayLiteral("EUC-KR"));
+    EXPECT_EQ(TextEncodingDetector::expectedLegacyEncoding(QLocale(QLocale::Japanese)),
+              QByteArrayLiteral("Shift-JIS"));
+    EXPECT_TRUE(TextEncodingDetector::expectedLegacyEncoding(QLocale(QLocale::English)).isEmpty());
+}
+
+TEST(TextEncodingDetectorTest, LocaleBreaksOnlyAnAlreadyAmbiguousLegacyTie) {
+    // C7 D1 is a valid GB18030 Chinese character and EUC-KR "한". With only
+    // one character, neither statistical reading is entitled to outrank the
+    // operating system's language.
+    const QByteArray bytes = QByteArray::fromHex("C7D1");
+    const auto simplified = TextEncodingDetector::detect(
+        bytes, TextEncodingDetector::InputEnd::Complete,
+        QLocale(QLocale::Chinese, QLocale::China));
+    const auto korean = TextEncodingDetector::detect(
+        bytes, TextEncodingDetector::InputEnd::Complete, QLocale(QLocale::Korean));
+
+    EXPECT_EQ(simplified.label, QStringLiteral("GB18030"));
+    EXPECT_EQ(korean.label, QStringLiteral("EUC-KR"));
+    EXPECT_TRUE(simplified.ambiguous);
+    EXPECT_TRUE(korean.ambiguous);
+}
+
+TEST(TextEncodingDetectorTest, ChineseRegionBreaksAShortGb18030Big5Tie) {
+    // A4 A4 is Big5 "中" and is also a complete GB18030 sequence. One
+    // character cannot carry enough statistics to overrule Simplified versus
+    // Traditional Chinese system language.
+    const QByteArray bytes = QByteArray::fromHex("A4A4");
+    const auto simplified = TextEncodingDetector::detect(
+        bytes, TextEncodingDetector::InputEnd::Complete,
+        QLocale(QLocale::Chinese, QLocale::China));
+    const auto traditional = TextEncodingDetector::detect(
+        bytes, TextEncodingDetector::InputEnd::Complete,
+        QLocale(QLocale::Chinese, QLocale::Taiwan));
+
+    EXPECT_EQ(simplified.label, QStringLiteral("GB18030"));
+    EXPECT_EQ(traditional.label, QStringLiteral("Big5"));
+    EXPECT_TRUE(simplified.ambiguous);
+    EXPECT_TRUE(traditional.ambiguous);
+}
+
+TEST(TextEncodingDetectorTest, LocalePrefersLegacyOverWeakBomlessUtf16ButKeepsAmbiguity) {
+    const QByteArray bytes = QByteArray::fromHex("2D4E87652D4E8765"); // UTF-16LE 中文中文
+    const auto neutral = TextEncodingDetector::detect(
+        bytes, TextEncodingDetector::InputEnd::Complete, QLocale(QLocale::English));
+    const auto simplified = TextEncodingDetector::detect(
+        bytes, TextEncodingDetector::InputEnd::Complete,
+        QLocale(QLocale::Chinese, QLocale::China));
+
+    EXPECT_EQ(neutral.label, QStringLiteral("UTF-16LE"));
+    EXPECT_EQ(simplified.label, QStringLiteral("GB18030"));
+    EXPECT_TRUE(simplified.ambiguous);
+}
+
+TEST(TextEncodingDetectorTest, LocaleNeverOverridesAuthoritativeUnicodeEvidence) {
+    const QLocale simplified(QLocale::Chinese, QLocale::China);
+    EXPECT_EQ(TextEncodingDetector::detect(QByteArray::fromHex("FFFE2D4E8765"),
+                                           TextEncodingDetector::InputEnd::Complete,
+                                           simplified).label,
+              QStringLiteral("UTF-16LE"));
+    EXPECT_EQ(TextEncodingDetector::detect(QString::fromUtf8(u8"中文").toUtf8(),
+                                           TextEncodingDetector::InputEnd::Complete,
+                                           simplified).label,
+              QStringLiteral("UTF-8"));
+    EXPECT_EQ(TextEncodingDetector::detect(QByteArray::fromHex("6800690068006900"),
+                                           TextEncodingDetector::InputEnd::Complete,
+                                           simplified).label,
+              QStringLiteral("UTF-16LE"));
+}
+
 TEST(TextEncodingDetectorTest, RecognizesAllUnicodeBoms) {
     expectEncoding(QByteArray::fromHex("EFBBBF4869"), "UTF-8");
     expectEncoding(QByteArray::fromHex("FFFE48006900"), "UTF-16LE");
@@ -110,6 +200,23 @@ TEST(TextEncodingDetectorTest, ReadsHanjaHeavyBytesAsChineseRatherThanKorean) {
     // 商 encodes to a lead byte whose EUC-KR row is unassigned, which rules the
     // Korean reading out on grammar alone.
     expectEncoding(QByteArray::fromHex("C9CCCEF1D0C5CFA2B7FECEF1D6D0D0C4"), "GB18030");
+}
+
+TEST(TextEncodingDetectorTest, ReadsShortGbTextSurroundedByAsciiMarkupAsChinese) {
+    // "# 服务器列表 #" -- a one-line GB18030 markdown heading. The ASCII markup
+    // is a third of the code points, which used to drop the Chinese reading
+    // below the "strong legacy evidence" bar and hand the file to a BOM-less
+    // UTF-16BE reading: those same GB bytes pair up into the Hangul Syllables
+    // block, so the preview showed a line of Korean. ASCII decodes identically
+    // under every candidate here, so it must not count as evidence against the
+    // one candidate that explains the non-ASCII bytes.
+    const QByteArray bytes = QByteArray::fromHex("2320B7FECEF1C6F7C1D0B1ED2023");
+    expectEncoding(bytes, "GB18030");
+    const auto simplified = TextEncodingDetector::detect(
+        bytes, TextEncodingDetector::InputEnd::Complete,
+        QLocale(QLocale::Chinese, QLocale::China));
+    EXPECT_EQ(simplified.label, QStringLiteral("GB18030"));
+    EXPECT_TRUE(simplified.ambiguous); // UTF-16BE remains a legal byte pairing
 }
 
 TEST(TextEncodingDetectorTest, RejectsInvalidLegacyGrammar) {
@@ -624,4 +731,40 @@ TEST(TextEncodingDetectorTest, AnIndexFromOutsideTheTableReadsAsTheSystemLocale)
         ASSERT_NE(codec, nullptr) << "index " << index;
         EXPECT_EQ(QString::fromLatin1(codec->name()), locale) << "index " << index;
     }
+}
+
+
+TEST(TextEncodingDetectorTest, QuickViewRemembersManualEncodingByStableIdentity) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("remember.txt"));
+    QFile file(path);
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    ASSERT_EQ(file.write(QByteArray::fromHex("D6D0CEC4")), 4);
+    file.close();
+
+    Settings settings(dir.filePath(QStringLiteral("settings.ini")));
+    const QString identity = QStringLiteral("stable-quick-view-text");
+    int latin1 = -1;
+    {
+        QuickView view(settings, QuickView::Context::Window);
+        auto *combo = view.findChild<QComboBox *>(QStringLiteral("textEncodingCombo"));
+        ASSERT_NE(combo, nullptr);
+        view.showFile(path, identity);
+        ASSERT_TRUE(view.waitForTextIdleForTest());
+        latin1 = combo->findText(QStringLiteral("ISO-8859-1"));
+        ASSERT_GT(latin1, 0);
+        combo->setCurrentIndex(latin1);
+        EXPECT_EQ(settings.rememberedTextEncodingIndex(identity), latin1);
+    }
+
+    QuickView reopened(settings, QuickView::Context::Window);
+    auto *combo = reopened.findChild<QComboBox *>(QStringLiteral("textEncodingCombo"));
+    ASSERT_NE(combo, nullptr);
+    reopened.showFile(path, identity);
+    ASSERT_TRUE(reopened.waitForTextIdleForTest());
+    EXPECT_EQ(combo->currentIndex(), latin1);
+    combo->setCurrentIndex(TextEncodingDetector::autoEncodingIndex);
+    EXPECT_EQ(settings.rememberedTextEncodingIndex(identity),
+              TextEncodingDetector::autoEncodingIndex);
 }

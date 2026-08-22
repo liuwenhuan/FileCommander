@@ -26,6 +26,9 @@ target_link_libraries(viewer_tests PRIVATE
     Qt5::Test
 )
 
+# Shared event-loop polling helpers used by widget autosave tests.
+target_include_directories(viewer_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../support)
+
 # resources.qrc is compiled into the app target, not this one, so the theme
 # tests read the real stylesheets out of the source tree instead.
 target_compile_definitions(viewer_tests PRIVATE

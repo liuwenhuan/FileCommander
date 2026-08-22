@@ -31,7 +31,9 @@ public:
                  const ConflictResolver &resolver, QString *errorMessage = nullptr);
     bool movePaths(const QStringList &sources, const QString &destDir,
                     const ConflictResolver &resolver, QString *errorMessage = nullptr);
-    bool deletePaths(const QStringList &paths, bool toTrash, QString *errorMessage = nullptr);
+    bool deletePaths(const QStringList &paths, bool toTrash, QString *errorMessage = nullptr,
+                     QStringList *trashUndoEntries = nullptr);
+    bool restoreTrashEntries(const QStringList &entries, QString *errorMessage = nullptr);
     bool makeDirectory(const QString &parentDir, const QString &name,
                         QString *errorMessage = nullptr);
     bool renamePath(const QString &path, const QString &newName,

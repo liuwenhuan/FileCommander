@@ -211,3 +211,13 @@ TEST(OverwritePromptTest, CompareDialogConstrainsLongPathsAndSummary) {
     }
     EXPECT_TRUE(foundWrappingSummary);
 }
+
+TEST(OverwritePromptTest, ArchiveConflictCanHideUnsupportedRenameAction) {
+    FileConflict conflict;
+    conflict.sourcePath = QStringLiteral("archive.zip:report.txt");
+    conflict.destPath = QStringLiteral("C:/extract/report.txt");
+
+    OverwriteConfirmDialog dialog(conflict, nullptr, /*allowRename=*/false);
+    for (QPushButton *button : dialog.findChildren<QPushButton *>())
+        EXPECT_NE(button->text(), QStringLiteral("Rename"));
+}

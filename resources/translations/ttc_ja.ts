@@ -239,6 +239,24 @@
 <context>
     <name>ArchiveBrowserDialog</name>
     <message>
+        <source>%1 already exists.
+
+Source: %2
+Destination: %3
+
+Overwrite it?</source>
+        <translation>%1 は既に存在します。
+
+ソース: %2
+保存先: %3
+
+上書きしますか？</translation>
+    </message>
+    <message>
+        <source>Confirm Overwrite</source>
+        <translation>上書きの確認</translation>
+    </message>
+    <message>
         <location filename="../../src/archive/ArchiveBrowserDialog.cpp" line="39"/>
         <source>Up</source>
         <translation>上へ</translation>
@@ -1328,6 +1346,22 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
 </context>
 <context>
     <name>MainWindow</name>
+    <message>
+        <source>New Markdown File</source>
+        <translation>新規 Markdown ファイル</translation>
+    </message>
+    <message>
+        <source>Markdown Document (.md)</source>
+        <translation>Markdown ドキュメント (.md)</translation>
+    </message>
+    <message>
+        <source>Text Document (.txt)</source>
+        <translation>テキスト ドキュメント (.txt)</translation>
+    </message>
+    <message>
+        <source>New File</source>
+        <translation>新規ファイル</translation>
+    </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="350"/>
         <location filename="../../src/ui/MainWindow.cpp" line="4480"/>
@@ -3307,6 +3341,10 @@ This is permanent and will NOT go to the trash.</source>
 </context>
 <context>
     <name>OperationQueue</name>
+    <message>
+        <source>Restoring %1 item(s) from the trash</source>
+        <translation>ゴミ箱から %1 個の項目を復元しています</translation>
+    </message>
     <message>
         <location filename="../../src/core/operations/OperationQueue.cpp" line="43"/>
         <location filename="../../src/core/operations/OperationQueue.cpp" line="137"/>

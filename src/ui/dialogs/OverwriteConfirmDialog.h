@@ -19,9 +19,11 @@ class OverwriteConfirmDialog : public FramelessDialog {
     Q_OBJECT
 
 public:
-    explicit OverwriteConfirmDialog(const FileConflict &conflict, QWidget *parent = nullptr);
+    explicit OverwriteConfirmDialog(const FileConflict &conflict, QWidget *parent = nullptr,
+                                    bool allowRename = true);
 
-    static ErrorAction ask(QWidget *parent, const FileConflict &conflict);
+    static ErrorAction ask(QWidget *parent, const FileConflict &conflict,
+                           bool allowRename = true);
 
     // The prompt's message, as a pure function of the conflict, so what the user
     // is actually told can be checked without opening a modal dialog.

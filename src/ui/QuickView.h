@@ -107,6 +107,7 @@ public:
     int videoRotation() const { return m_videoRotation; }
 
     void showFile(const QString &path);
+    void showFile(const QString &path, const QString &encodingIdentity);
     // Initializes the configured media backend once. MainWindow calls this after
     // first paint; a media request calls it immediately when it wins that race.
     // Audio/video controls remain lazy until their own first use.
@@ -178,10 +179,11 @@ public:
     // same widget back to the text page. Returns false if the file could not be
     // loaded, leaving the current page alone.
     bool beginEditing(const QString &path);
+    bool beginEditing(const QString &path, const QString &encodingIdentity);
     bool isEditing() const;
-    // Asks about an unsaved buffer on behalf of the editor page, which -- being
-    // a child widget rather than a window -- never receives a close event.
-    // Returns false if the user chose Cancel.
+    // Flushes pending edits on behalf of the editor page, which -- being a child
+    // widget rather than a window -- never receives a close event. Returns false
+    // when the write fails so the host keeps the editor and its buffer alive.
     bool confirmDiscardEdits();
 
     // Sets the point size of the text-preview font, so the preview tracks the
@@ -263,7 +265,7 @@ private:
     // Reads, parses and lays out a .md file on a worker thread, then installs the
     // finished QTextDocument into m_markdown (keeps the GUI responsive on large or
     // table-heavy files). Stale renders are dropped via m_markdownGen.
-    void loadMarkdownAsync(const QString &path);
+    void loadMarkdownAsync(const QString &path, const QString &encodingIdentity);
     void renderMarkdown();        // (re)decode m_markdownRaw per the encoding chooser
     QWidget *buildPdfPage();
     QWidget *buildSlidesPage();            // pptx slide-image preview (per-slide SVG)
@@ -426,7 +428,8 @@ private:
     QAction *m_textEditAction = nullptr; // hands the file to the F4 editor
     QLineEdit *m_textFind = nullptr;
     QByteArray m_textRaw;              // raw bytes of the current text file
-    QString m_textPath;                // keeps manual encoding only for this selection
+    QString m_textPath;
+    QString m_textEncodingIdentity;    // stable origin, not a temp preview path
     TextEncodingDetector::Result m_textAutoResult; // detected once per loaded file
     bool m_textAutoResultValid = false;
     bool m_textHex = false;           // hex-dump mode
@@ -461,6 +464,7 @@ private:
     int m_markdownGen = 0; // supersede stale async markdown renders
     QByteArray m_markdownRaw; // raw bytes, kept so a new encoding needs no re-read
     QString m_markdownPath;
+    QString m_markdownEncodingIdentity;
     TextEncodingDetector::Result m_markdownAutoResult;
     bool m_markdownAutoResultValid = false;
 

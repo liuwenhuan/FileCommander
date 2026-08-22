@@ -239,6 +239,24 @@
 <context>
     <name>ArchiveBrowserDialog</name>
     <message>
+        <source>%1 already exists.
+
+Source: %2
+Destination: %3
+
+Overwrite it?</source>
+        <translation>%1 existe déjà.
+
+Source : %2
+Destination : %3
+
+L’écraser ?</translation>
+    </message>
+    <message>
+        <source>Confirm Overwrite</source>
+        <translation>Confirmer l’écrasement</translation>
+    </message>
+    <message>
         <location filename="../../src/archive/ArchiveBrowserDialog.cpp" line="39"/>
         <source>Up</source>
         <translation>Remonter</translation>
@@ -1332,6 +1350,22 @@ La suppression en tant qu&apos;administrateur contourne la corbeille et est irr�
 </context>
 <context>
     <name>MainWindow</name>
+    <message>
+        <source>New Markdown File</source>
+        <translation>Nouveau fichier Markdown</translation>
+    </message>
+    <message>
+        <source>Markdown Document (.md)</source>
+        <translation>Document Markdown (.md)</translation>
+    </message>
+    <message>
+        <source>Text Document (.txt)</source>
+        <translation>Document texte (.txt)</translation>
+    </message>
+    <message>
+        <source>New File</source>
+        <translation>Nouveau fichier</translation>
+    </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="350"/>
         <location filename="../../src/ui/MainWindow.cpp" line="4480"/>
@@ -3311,6 +3345,10 @@ Cette action est définitive et NE passera PAS par la corbeille.</translation>
 </context>
 <context>
     <name>OperationQueue</name>
+    <message>
+        <source>Restoring %1 item(s) from the trash</source>
+        <translation>Restauration de %1 élément(s) depuis la corbeille</translation>
+    </message>
     <message>
         <location filename="../../src/core/operations/OperationQueue.cpp" line="43"/>
         <location filename="../../src/core/operations/OperationQueue.cpp" line="137"/>

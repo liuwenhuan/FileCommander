@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QSettings>
 #include <QStandardPaths>
@@ -16,6 +17,7 @@
 #include <vector>
 
 #include "Settings.h"
+#include "TextEncodingDetector.h"
 
 namespace {
 #ifdef Q_OS_WIN
@@ -462,6 +464,7 @@ TEST(SettingsTest, VideoVolumeClamps) {
     EXPECT_EQ(settings.videoVolume(), 100);
 }
 
+
 TEST(SettingsTest, AccountServerDefaultsToOfficial) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
@@ -548,4 +551,56 @@ TEST(SettingsTest, UnknownAccountServerModeFallsBackToOfficial) {
     }
     Settings settings(ini);
     EXPECT_TRUE(settings.accountUsesOfficialServer());
+}
+
+TEST(SettingsTest, RemembersManualTextEncodingWithoutPersistingThePath) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString ini = dir.filePath(QStringLiteral("settings.ini"));
+    const QString identity = QStringLiteral("remote-v1:sftp://alice@example/private/note.txt");
+
+    {
+        Settings settings(ini);
+        settings.setRememberedTextEncodingIndex(identity, 4); // GB18030
+        EXPECT_EQ(settings.rememberedTextEncodingIndex(identity), 4);
+    }
+    Settings reloaded(ini);
+    EXPECT_EQ(reloaded.rememberedTextEncodingIndex(identity), 4);
+
+    QFile stored(ini);
+    ASSERT_TRUE(stored.open(QIODevice::ReadOnly));
+    EXPECT_FALSE(stored.readAll().contains(identity.toUtf8()));
+}
+
+TEST(SettingsTest, AutoOrInvalidIndexRemovesRememberedTextEncoding) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    Settings settings(dir.filePath(QStringLiteral("settings.ini")));
+    const QString identity = QStringLiteral("file-one");
+
+    settings.setRememberedTextEncodingIndex(identity, 4);
+    settings.setRememberedTextEncodingIndex(identity,
+                                            TextEncodingDetector::autoEncodingIndex);
+    EXPECT_EQ(settings.rememberedTextEncodingIndex(identity),
+              TextEncodingDetector::autoEncodingIndex);
+
+    settings.setRememberedTextEncodingIndex(identity, 4);
+    settings.setRememberedTextEncodingIndex(
+        identity, TextEncodingDetector::selectableEncodingCount);
+    EXPECT_EQ(settings.rememberedTextEncodingIndex(identity),
+              TextEncodingDetector::autoEncodingIndex);
+}
+
+TEST(SettingsTest, RememberedTextEncodingsAreBoundedAndEvictOldestChangedEntry) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    Settings settings(dir.filePath(QStringLiteral("settings.ini")));
+
+    for (int i = 0; i < 257; ++i)
+        settings.setRememberedTextEncodingIndex(QStringLiteral("file-%1").arg(i), 4);
+
+    EXPECT_EQ(settings.rememberedTextEncodingIndex(QStringLiteral("file-0")),
+              TextEncodingDetector::autoEncodingIndex);
+    EXPECT_EQ(settings.rememberedTextEncodingIndex(QStringLiteral("file-1")), 4);
+    EXPECT_EQ(settings.rememberedTextEncodingIndex(QStringLiteral("file-256")), 4);
 }

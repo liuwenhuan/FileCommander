@@ -60,6 +60,7 @@
 #include "tree/TreeRootBuilder.h"
 #include "ThumbnailCache.h"
 #include "ThumbnailDelegate.h"
+#include "text/TextEncodingIdentity.h"
 #include "MotionPolicy.h"
 
 #include <algorithm>
@@ -2153,6 +2154,30 @@ QVector<FileInfo> FilePanel::selectedEntryInfos() const {
             infos.append(cur);
     }
     return infos;
+}
+
+QString FilePanel::currentTextEncodingIdentity() const {
+    const QString entry = currentEntryPath();
+    if (entry.isEmpty())
+        return {};
+
+    if (isArchive()) {
+        QString container;
+        if (m_archiveExitConn.provider) {
+            container = fc::TextEncodingIdentity::remotePath(
+                m_archiveExitConn.provider->remoteLocation(), m_archiveSourcePath);
+        } else {
+            container = fc::TextEncodingIdentity::localPath(m_archiveSourcePath);
+        }
+        return fc::TextEncodingIdentity::archiveEntry(container, entry);
+    }
+
+    FileProvider *provider = m_model ? m_model->provider() : nullptr;
+    if (!provider)
+        return {};
+    if (provider->isLocalFilesystem())
+        return fc::TextEncodingIdentity::localPath(entry);
+    return fc::TextEncodingIdentity::remotePath(provider->remoteLocation(), entry);
 }
 
 QString FilePanel::currentPreviewPathIfReady() {

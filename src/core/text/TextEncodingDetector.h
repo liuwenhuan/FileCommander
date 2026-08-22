@@ -3,6 +3,7 @@
 class QTextCodec;
 
 #include <QByteArray>
+#include <QLocale>
 #include <QString>
 
 // Stateless text-encoding classifier behind the per-file Auto mode of both the
@@ -66,7 +67,13 @@ public:
     // of rule that should not be copied.
     static QTextCodec *codecForSelectableIndex(int index);
 
+    // The locale is an explicit input so tests never have to mutate process-global
+    // locale state. It is consulted only to resolve genuinely ambiguous legacy/
+    // BOM-less-wide candidates; BOMs, strict UTF-8 and structural wide Unicode
+    // remain authoritative.
     static Result detect(const QByteArray &data, InputEnd inputEnd = InputEnd::Complete);
+    static Result detect(const QByteArray &data, InputEnd inputEnd, const QLocale &locale);
+    static QByteArray expectedLegacyEncoding(const QLocale &locale);
     // The scoring sample is bounded; grammar validation still covers all input.
     static constexpr int legacyScoreSampleBytes() { return 64 * 1024; }
     // Decodes a detected byte sequence after removing a validated BOM.

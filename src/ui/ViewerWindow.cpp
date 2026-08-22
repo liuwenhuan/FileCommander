@@ -11,6 +11,10 @@
 
 ViewerWindow::ViewerWindow(Settings &settings, const QString &path, QWidget *parent,
                            bool editing)
+    : ViewerWindow(settings, path, parent, editing, QString()) {}
+
+ViewerWindow::ViewerWindow(Settings &settings, const QString &path, QWidget *parent,
+                           bool editing, const QString &encodingIdentity)
     : FramelessWindow(parent) {
     setAttribute(Qt::WA_DeleteOnClose);
     setWindowTitle(QFileInfo(path).fileName());
@@ -37,7 +41,8 @@ ViewerWindow::ViewerWindow(Settings &settings, const QString &path, QWidget *par
     // The preview switches into the editor itself, in place; nothing above this
     // window needs to know. While it is editing, the shortcuts above would eat
     // the editor's own keys (Esc, F3 find, cursor keys), so they stand down.
-    connect(m_preview, &QuickView::editRequested, m_preview, &QuickView::beginEditing);
+    connect(m_preview, &QuickView::editRequested, m_preview,
+            [this](const QString &file) { m_preview->beginEditing(file); });
     connect(m_preview, &QuickView::editingChanged, this, [this](bool editing) {
         for (QShortcut *shortcut : findChildren<QShortcut *>())
             shortcut->setEnabled(!editing);
@@ -45,12 +50,16 @@ ViewerWindow::ViewerWindow(Settings &settings, const QString &path, QWidget *par
 
     // In edit mode, INSTEAD of showFile(): its async text probe would finish
     // later and reveal the preview page over the editor.
-    if (!editing || !m_preview->beginEditing(path))
-        m_preview->showFile(path);
+    if (!editing || !m_preview->beginEditing(path, encodingIdentity))
+        m_preview->showFile(path, encodingIdentity);
 }
 
 bool ViewerWindow::beginEditing(const QString &path) {
-    return m_preview && m_preview->beginEditing(path);
+    return beginEditing(path, QString());
+}
+
+bool ViewerWindow::beginEditing(const QString &path, const QString &encodingIdentity) {
+    return m_preview && m_preview->beginEditing(path, encodingIdentity);
 }
 
 void ViewerWindow::closeEvent(QCloseEvent *event) {

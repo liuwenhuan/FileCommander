@@ -239,6 +239,24 @@
 <context>
     <name>ArchiveBrowserDialog</name>
     <message>
+        <source>%1 already exists.
+
+Source: %2
+Destination: %3
+
+Overwrite it?</source>
+        <translation>%1 já existe.
+
+Origem: %2
+Destino: %3
+
+Sobrescrever?</translation>
+    </message>
+    <message>
+        <source>Confirm Overwrite</source>
+        <translation>Confirmar substituição</translation>
+    </message>
+    <message>
         <location filename="../../src/archive/ArchiveBrowserDialog.cpp" line="39"/>
         <source>Up</source>
         <translation>Acima</translation>
@@ -1332,6 +1350,22 @@ Excluir como administrador ignora a Lixeira e não pode ser desfeito.</translati
 </context>
 <context>
     <name>MainWindow</name>
+    <message>
+        <source>New Markdown File</source>
+        <translation>Novo arquivo Markdown</translation>
+    </message>
+    <message>
+        <source>Markdown Document (.md)</source>
+        <translation>Documento Markdown (.md)</translation>
+    </message>
+    <message>
+        <source>Text Document (.txt)</source>
+        <translation>Documento de texto (.txt)</translation>
+    </message>
+    <message>
+        <source>New File</source>
+        <translation>Novo arquivo</translation>
+    </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="350"/>
         <location filename="../../src/ui/MainWindow.cpp" line="4480"/>
@@ -3311,6 +3345,10 @@ Esta ação é permanente e NÃO irá para a lixeira.</translation>
 </context>
 <context>
     <name>OperationQueue</name>
+    <message>
+        <source>Restoring %1 item(s) from the trash</source>
+        <translation>Restaurando %1 item(ns) da lixeira</translation>
+    </message>
     <message>
         <location filename="../../src/core/operations/OperationQueue.cpp" line="43"/>
         <location filename="../../src/core/operations/OperationQueue.cpp" line="137"/>

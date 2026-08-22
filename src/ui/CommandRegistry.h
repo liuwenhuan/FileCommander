@@ -68,6 +68,11 @@ public:
     // Ignores ids that have no shortcut, so a dialog result cannot invent one.
     void setSequence(const QString &id, const QKeySequence &sequence);
 
+    // Gives standard editing commands (copy/cut/paste) to the focused text
+    // widget before a window-wide file command consumes the same shortcut.
+    // Returns true when a focus widget or one of its parents exposes `method()`.
+    static bool invokeFocusedWidgetCommand(const char *method);
+
     // One-shot guard for the connections that must not be made twice when
     // setupShortcuts() is re-run after a language change.
     bool isBuilt() const { return m_built; }

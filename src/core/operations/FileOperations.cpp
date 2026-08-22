@@ -779,7 +779,8 @@ bool FileOperations::movePaths(const QStringList &sources, const QString &destDi
     return allOk;
 }
 
-bool FileOperations::deletePaths(const QStringList &paths, bool toTrash, QString *errorMessage) {
+bool FileOperations::deletePaths(const QStringList &paths, bool toTrash, QString *errorMessage,
+                                 QStringList *trashUndoEntries) {
     m_cancelled = false;
     m_totalItems = paths.size();
     m_totalBytes = 0; // bytes freed aren't a meaningful transfer measure
@@ -798,6 +799,8 @@ bool FileOperations::deletePaths(const QStringList &paths, bool toTrash, QString
                 const PlatformResult result = createTrashService()->moveToTrash({path});
                 if (result.ok) {
                     removed = true;
+                    if (trashUndoEntries)
+                        *trashUndoEntries += result.undoEntries;
                     break;
                 }
                 OperationError operationError = classifyNativeOperationError(
@@ -887,6 +890,27 @@ bool FileOperations::deletePaths(const QStringList &paths, bool toTrash, QString
         emitProgress(path);
     }
     return allOk;
+}
+
+bool FileOperations::restoreTrashEntries(const QStringList &entries, QString *errorMessage) {
+    m_cancelled = false;
+    m_totalItems = entries.size();
+    m_totalBytes = 0;
+    m_doneItems = 0;
+    m_doneBytes = 0;
+
+    if (entries.isEmpty())
+        return false;
+    const PlatformResult result = createTrashService()->restoreFromTrash(entries);
+    if (!result.ok) {
+        if (errorMessage)
+            *errorMessage = result.message;
+        emit errorOccurred(result.message);
+        return false;
+    }
+    m_doneItems = entries.size();
+    emitProgress(QString());
+    return true;
 }
 
 bool FileOperations::makeDirectory(const QString &parentDir, const QString &name,

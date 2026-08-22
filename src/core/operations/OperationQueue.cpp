@@ -88,8 +88,24 @@ void OperationQueue::enqueueDelete(const QStringList &paths, bool toTrash) {
     ensureLocalWorkerStarted();
     Job job;
     job.description = tr("Deleting %1 item(s)").arg(paths.size());
-    job.run = [paths, toTrash](FileOperations &ops, QString &err) {
-        return ops.deletePaths(paths, toTrash, &err);
+    auto trashUndoEntries = std::make_shared<QStringList>();
+    job.run = [paths, toTrash, trashUndoEntries](FileOperations &ops, QString &err) {
+        return ops.deletePaths(paths, toTrash, &err, trashUndoEntries.get());
+    };
+    job.completed = [this, paths, toTrash, trashUndoEntries](bool ok) {
+        if (ok && toTrash && !trashUndoEntries->isEmpty())
+            emit trashDeleteFinished(paths, *trashUndoEntries);
+    };
+    m_queue.enqueue(job);
+    maybeStartNext();
+}
+
+void OperationQueue::enqueueRestoreFromTrash(const QStringList &entries) {
+    ensureLocalWorkerStarted();
+    Job job;
+    job.description = tr("Restoring %1 item(s) from the trash").arg(entries.size());
+    job.run = [entries](FileOperations &ops, QString &err) {
+        return ops.restoreTrashEntries(entries, &err);
     };
     m_queue.enqueue(job);
     maybeStartNext();
@@ -312,7 +328,13 @@ void OperationQueue::maybeStartNext() {
                 QString err;
                 bool ok = job.run(*m_ops, err);
                 QMetaObject::invokeMethod(
-                    this, [this, ok]() { onWorkerJobDone(ok); }, Qt::QueuedConnection);
+                    this,
+                    [this, ok, job]() {
+                        if (job.completed)
+                            job.completed(ok);
+                        onWorkerJobDone(ok);
+                    },
+                    Qt::QueuedConnection);
             },
             Qt::QueuedConnection);
     }

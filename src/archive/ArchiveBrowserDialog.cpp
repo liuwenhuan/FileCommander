@@ -120,14 +120,41 @@ QStringList ArchiveBrowserDialog::selectedEntryPaths() const {
 
 bool ArchiveBrowserDialog::doExtract(const QString &destDir) {
     const QStringList entries = selectedEntryPaths();
+    bool conflictCancelled = false;
+    const ConflictResolver resolveConflict = [this, &conflictCancelled](const FileConflict &conflict) {
+        const QString name = QFileInfo(conflict.destPath).fileName();
+        const auto answer = ttc::question(
+            this, tr("Confirm Overwrite"),
+            tr("%1 already exists.\n\nSource: %2\nDestination: %3\n\nOverwrite it?")
+                .arg(name, conflict.sourcePath, conflict.destPath),
+            QMessageBox::Yes | QMessageBox::YesToAll | QMessageBox::No |
+                QMessageBox::NoToAll | QMessageBox::Cancel,
+            QMessageBox::Cancel);
+        switch (answer) {
+        case QMessageBox::Yes:
+            return ErrorAction::Overwrite;
+        case QMessageBox::YesToAll:
+            return ErrorAction::OverwriteAll;
+        case QMessageBox::No:
+            return ErrorAction::Skip;
+        case QMessageBox::NoToAll:
+            return ErrorAction::SkipAll;
+        default:
+            conflictCancelled = true;
+            return ErrorAction::Cancel;
+        }
+    };
 
     // Selected entries: plain extraction, preserving their in-archive paths.
     if (!entries.isEmpty()) {
         QString err;
-        const bool ok = ArchiveHandler::extract(m_model->archivePath(), entries, destDir, &err);
-        if (!ok)
+        const bool ok = ArchiveHandler::extract(m_model->archivePath(), entries, destDir,
+                                                QString(), &err, nullptr, resolveConflict);
+        if (!ok) {
+            if (conflictCancelled)
+                return false;
             ttc::warning(this, tr("Extract"), tr("Extraction failed: %1").arg(err));
-        else
+        } else
             ttc::information(
                 this, tr("Extract"),
                 tr("Extracted %1 item(s) to %2").arg(entries.size()).arg(destDir));
@@ -141,8 +168,11 @@ bool ArchiveBrowserDialog::doExtract(const QString &destDir) {
     QString finalDir;
     for (;;) {
         QString err;
-        const ArchiveHandler::SmartResult res = ArchiveHandler::smartExtract(source, base, &err);
+        const ArchiveHandler::SmartResult res = ArchiveHandler::smartExtract(
+            source, base, QString(), &err, nullptr, resolveConflict);
         if (!res.ok) {
+            if (conflictCancelled)
+                return false;
             ttc::warning(this, tr("Extract"), tr("Extraction failed: %1").arg(err));
             return false;
         }

@@ -6,6 +6,7 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTextStream>
+#include <QTextCursor>
 
 #include "QuickView.h"
 #include "TextEditor.h"
@@ -90,4 +91,34 @@ TEST(QuickViewInPlaceEdit, AnUnsavedBufferSurvivesTheFileCursorMovingOn) {
 
     view.showFile(other);
     EXPECT_TRUE(view.isEditing()) << "the unsaved buffer was thrown away";
+}
+
+TEST(QuickViewInPlaceEdit, SameFilePreviewFlushesPendingAutosaveBeforeLeavingEditor) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString path = writeNumberedLines(dir, 20);
+    ASSERT_FALSE(path.isEmpty());
+
+    Settings settings(dir.filePath(QStringLiteral("settings.ini")));
+    QuickView view(settings, QuickView::Context::Window);
+    ASSERT_TRUE(view.beginEditing(path));
+    auto *editor = view.findChild<TextEditor *>();
+    ASSERT_NE(editor, nullptr);
+    editor->codeEditor()->moveCursor(QTextCursor::End);
+    editor->codeEditor()->insertPlainText(QStringLiteral("autosaved now\n"));
+    ASSERT_TRUE(editor->isDocumentModified());
+
+    // This is the transition Preview ultimately requests. It happens before the
+    // 600 ms timer has elapsed, so showFile() must synchronously flush first.
+    view.showFile(path);
+    EXPECT_FALSE(view.isEditing());
+    QFile saved(path);
+    ASSERT_TRUE(saved.open(QIODevice::ReadOnly));
+    const QByteArray savedBytes = saved.readAll();
+    EXPECT_TRUE(savedBytes.contains("autosaved now")) << savedBytes.toHex().constData();
+
+    QPlainTextEdit *text = textView(view);
+    ASSERT_NE(text, nullptr);
+    FC_TRY_VERIFY_WITH_TIMEOUT(text->toPlainText().endsWith(QStringLiteral("autosaved now\n")),
+                               5000);
 }

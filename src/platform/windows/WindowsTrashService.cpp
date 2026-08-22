@@ -1,10 +1,14 @@
 #include "TrashService.h"
 
+#include <QByteArray>
 #include <QDir>
+#include <QSet>
 
 #include <atomic>
+#include <cstring>
 
 #include <windows.h>
+#include <shlobj_core.h>
 #include <shobjidl.h>
 
 namespace {
@@ -96,12 +100,109 @@ bool deleteAccessDenied(const QString &path) {
     return GetLastError() == ERROR_ACCESS_DENIED;
 }
 
+HRESULT invokeUndelete(IShellFolder *folder, PCUITEMID_CHILD child) {
+    IContextMenu *menu = nullptr;
+    PCUITEMID_CHILD children[] = {child};
+    HRESULT hr = folder->GetUIObjectOf(nullptr, 1, children, IID_IContextMenu,
+                                       nullptr, reinterpret_cast<void **>(&menu));
+    if (FAILED(hr))
+        return hr;
+    HMENU commands = CreatePopupMenu();
+    if (!commands)
+        hr = HRESULT_FROM_WIN32(GetLastError());
+    else {
+        hr = menu->QueryContextMenu(commands, 0, 1, 0x7fff, CMF_NORMAL);
+        if (SUCCEEDED(hr)) {
+            CMINVOKECOMMANDINFO command{};
+            command.cbSize = sizeof(command);
+            command.lpVerb = "undelete";
+            command.nShow = SW_HIDE;
+            hr = menu->InvokeCommand(&command);
+        }
+        DestroyMenu(commands);
+    }
+    menu->Release();
+    return hr;
+}
+
+QStringList recycleEntryTokens() {
+    QStringList tokens;
+    IShellFolder *desktop = nullptr;
+    PIDLIST_ABSOLUTE recyclePidl = nullptr;
+    IShellFolder *recycle = nullptr;
+    IEnumIDList *items = nullptr;
+    HRESULT hr = SHGetDesktopFolder(&desktop);
+    if (SUCCEEDED(hr))
+        hr = SHGetKnownFolderIDList(FOLDERID_RecycleBinFolder, KF_FLAG_DEFAULT, nullptr,
+                                    &recyclePidl);
+    if (SUCCEEDED(hr))
+        hr = desktop->BindToObject(recyclePidl, nullptr, IID_PPV_ARGS(&recycle));
+    if (SUCCEEDED(hr))
+        hr = recycle->EnumObjects(nullptr, SHCONTF_FOLDERS | SHCONTF_NONFOLDERS, &items);
+    if (SUCCEEDED(hr)) {
+        PITEMID_CHILD child = nullptr;
+        ULONG fetched = 0;
+        while (items->Next(1, &child, &fetched) == S_OK) {
+            const UINT bytes = ILGetSize(child);
+            if (bytes != 0) {
+                tokens.append(QString::fromLatin1(
+                    QByteArray(reinterpret_cast<const char *>(child), static_cast<int>(bytes))
+                        .toBase64()));
+            }
+            CoTaskMemFree(child);
+        }
+    }
+    if (items)
+        items->Release();
+    if (recycle)
+        recycle->Release();
+    CoTaskMemFree(recyclePidl);
+    if (desktop)
+        desktop->Release();
+    return tokens;
+}
+
+HRESULT restoreEntry(const QString &entry) {
+    const QByteArray bytes = QByteArray::fromBase64(entry.toLatin1());
+    if (bytes.size() < int(sizeof(USHORT)))
+        return E_INVALIDARG;
+    auto *child = static_cast<PITEMID_CHILD>(CoTaskMemAlloc(bytes.size()));
+    if (!child)
+        return E_OUTOFMEMORY;
+    std::memcpy(child, bytes.constData(), static_cast<size_t>(bytes.size()));
+    if (ILGetSize(child) != static_cast<UINT>(bytes.size())) {
+        CoTaskMemFree(child);
+        return E_INVALIDARG;
+    }
+
+    IShellFolder *desktop = nullptr;
+    PIDLIST_ABSOLUTE recyclePidl = nullptr;
+    IShellFolder *recycle = nullptr;
+    HRESULT hr = SHGetDesktopFolder(&desktop);
+    if (SUCCEEDED(hr))
+        hr = SHGetKnownFolderIDList(FOLDERID_RecycleBinFolder, KF_FLAG_DEFAULT, nullptr,
+                                    &recyclePidl);
+    if (SUCCEEDED(hr))
+        hr = desktop->BindToObject(recyclePidl, nullptr, IID_PPV_ARGS(&recycle));
+    if (SUCCEEDED(hr))
+        hr = invokeUndelete(recycle, child);
+    if (recycle)
+        recycle->Release();
+    CoTaskMemFree(recyclePidl);
+    if (desktop)
+        desktop->Release();
+    CoTaskMemFree(child);
+    return hr;
+}
+
 class WindowsTrashService final : public TrashService {
 public:
     PlatformResult moveToTrash(const QStringList &paths) override {
         ComScope com;
         if (FAILED(com.result) && com.result != RPC_E_CHANGED_MODE)
             return failure(com.result, QStringLiteral("COM initialization failed."));
+        const QStringList beforeEntries = recycleEntryTokens();
+        const QSet<QString> before(beforeEntries.cbegin(), beforeEntries.cend());
         IFileOperation *operation = nullptr;
         HRESULT hr = CoCreateInstance(CLSID_FileOperation, nullptr, CLSCTX_INPROC_SERVER,
                                       IID_PPV_ARGS(&operation));
@@ -145,6 +246,27 @@ public:
                 reported = HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED);
             return failure(reported,
                            QStringLiteral("Windows could not move the selected item to the Recycle Bin."));
+        }
+        const QStringList afterEntries = recycleEntryTokens();
+        QStringList added;
+        for (const QString &token : afterEntries) {
+            if (!before.contains(token))
+                added.append(token);
+        }
+        // A concurrent Recycle Bin change makes the snapshot ambiguous. The
+        // delete still succeeded, but declining to advertise Undo is safer than
+        // restoring somebody else's item.
+        return PlatformResult::success(added.size() == paths.size() ? added : QStringList{});
+    }
+
+    PlatformResult restoreFromTrash(const QStringList &entries) override {
+        ComScope com;
+        if (FAILED(com.result) && com.result != RPC_E_CHANGED_MODE)
+            return failure(com.result, QStringLiteral("COM initialization failed."));
+        for (const QString &entry : entries) {
+            const HRESULT hr = restoreEntry(entry);
+            if (FAILED(hr))
+                return failure(hr, QStringLiteral("Windows could not restore the selected item."));
         }
         return PlatformResult::success();
     }

@@ -46,7 +46,8 @@ QString OverwriteConfirmDialog::describe(const FileConflict &conflict) {
              sizeText(conflict.destSize));
 }
 
-OverwriteConfirmDialog::OverwriteConfirmDialog(const FileConflict &conflict, QWidget *parent)
+OverwriteConfirmDialog::OverwriteConfirmDialog(const FileConflict &conflict, QWidget *parent,
+                                                   bool allowRename)
     : FramelessDialog(parent) {
     setWindowTitle(tr("Confirm Overwrite"));
     setModal(true);
@@ -75,7 +76,8 @@ OverwriteConfirmDialog::OverwriteConfirmDialog(const FileConflict &conflict, QWi
     addAction(tr("Overwrite All"), ErrorAction::OverwriteAll);
     addAction(tr("Skip"), ErrorAction::Skip);
     addAction(tr("Skip All"), ErrorAction::SkipAll);
-    addAction(tr("Rename"), ErrorAction::Rename);
+    if (allowRename)
+        addAction(tr("Rename"), ErrorAction::Rename);
     QPushButton *cancelBtn = buttons->addButton(QDialogButtonBox::Cancel);
     ttc::localizeStandardButtons(buttons);
     connect(cancelBtn, &QPushButton::clicked, this, [this]() {
@@ -127,8 +129,9 @@ void OverwriteConfirmDialog::showEvent(QShowEvent *event) {
     activateWindow();
 }
 
-ErrorAction OverwriteConfirmDialog::ask(QWidget *parent, const FileConflict &conflict) {
-    OverwriteConfirmDialog dlg(conflict, parent);
+ErrorAction OverwriteConfirmDialog::ask(QWidget *parent, const FileConflict &conflict,
+                                          bool allowRename) {
+    OverwriteConfirmDialog dlg(conflict, parent, allowRename);
     dlg.exec();
     return dlg.m_result;
 }

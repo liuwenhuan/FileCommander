@@ -98,6 +98,56 @@ int otherPanelReloadsWhileDeleting(MainWindow &window, FilePanel *source, FilePa
 
 } // namespace
 
+TEST(PanelDeleteRefreshTest, TrashDeleteCanBeUndoneWithCtrlZ) {
+    ThemeStateGuard themeState;
+    QTemporaryDir root;
+    ASSERT_TRUE(root.isValid());
+    const QString dir = QDir(root.path()).filePath(QStringLiteral("delete-undo"));
+    ASSERT_TRUE(QDir().mkpath(dir));
+    const QString doomed = QDir(dir).filePath(QStringLiteral("doomed.txt"));
+    touch(doomed);
+
+    MainWindow window;
+    const QList<FilePanel *> panels = window.findChildren<FilePanel *>();
+    ASSERT_GE(panels.size(), 2);
+    FilePanel *panel = panels.at(0);
+    panel->navigateTo(dir);
+    settle(panel);
+    panel->selectPathAfterReload(doomed);
+    panel->refresh();
+    settle(panel);
+    ASSERT_EQ(panel->selectedPaths(), QStringList{doomed});
+    window.setActivePanel(panel);
+
+    auto *queue = window.findChild<OperationQueue *>();
+    ASSERT_NE(queue, nullptr);
+    QSignalSpy finished(queue, &OperationQueue::finished);
+    ConfirmAccepter accepter;
+
+    QShortcut *deleteShortcut = nullptr;
+    QShortcut *undoShortcut = nullptr;
+    for (QShortcut *shortcut : window.findChildren<QShortcut *>()) {
+        if (shortcut->key() == QKeySequence(Qt::Key_Delete))
+            deleteShortcut = shortcut;
+        if (shortcut->key() == QKeySequence(Qt::CTRL | Qt::Key_Z))
+            undoShortcut = shortcut;
+    }
+    ASSERT_NE(deleteShortcut, nullptr);
+    ASSERT_NE(undoShortcut, nullptr);
+
+    ASSERT_TRUE(QMetaObject::invokeMethod(deleteShortcut, "activated", Qt::DirectConnection));
+    FC_TRY_VERIFY_WITH_TIMEOUT(finished.count() == 1, 5000);
+    ASSERT_TRUE(finished.at(0).at(0).toBool());
+    ASSERT_EQ(accepter.accepted(), 1);
+    ASSERT_FALSE(QFile::exists(doomed));
+
+    finished.clear();
+    ASSERT_TRUE(QMetaObject::invokeMethod(undoShortcut, "activated", Qt::DirectConnection));
+    FC_TRY_VERIFY_WITH_TIMEOUT(finished.count() == 1, 5000);
+    EXPECT_TRUE(finished.at(0).at(0).toBool());
+    EXPECT_TRUE(QFile::exists(doomed));
+}
+
 TEST(PanelDeleteRefreshTest, PanelOnAnotherDirectoryIsLeftAlone) {
     ThemeStateGuard themeState;
     QTemporaryDir root;

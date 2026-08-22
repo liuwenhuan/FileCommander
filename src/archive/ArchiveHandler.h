@@ -8,6 +8,7 @@
 #include <functional>
 
 #include "ArchiveNode.h"
+#include "FileOpTypes.h"
 
 // Thin facade over libarchive: build an in-memory tree of an archive's
 // contents, and extract selected entries (or everything) to a directory.
@@ -52,10 +53,15 @@ public:
     // the list extracts that directory and everything under it.
     static bool extract(const QString &archivePath, const QStringList &entryFullPaths,
                          const QString &destDir, QString *errorMessage = nullptr);
-    // Passphrase-aware variant (for extracting from an encrypted archive).
+    // Passphrase-aware variant (for extracting from an encrypted archive). An
+    // existing destination is never replaced without a resolver decision;
+    // omitting the resolver safely skips it. The resolver may return the same
+    // overwrite/skip/apply-to-all/cancel actions as file operations.
     static bool extract(const QString &archivePath, const QStringList &entryFullPaths,
                          const QString &destDir, const QString &passphrase,
-                         QString *errorMessage, Progress *progress = nullptr);
+                         QString *errorMessage, Progress *progress = nullptr,
+                         const ConflictResolver &conflictResolver = {},
+                         bool *skippedEntries = nullptr);
 
     // Outcome of a Bandizip-style "smart" whole-archive extraction.
     struct SmartResult {
@@ -83,7 +89,8 @@ public:
     // any file is written, so the caller can prompt and call again.
     static SmartResult smartExtract(const QString &archivePath, const QString &baseDestDir,
                                     const QString &passphrase, QString *errorMessage,
-                                    Progress *progress = nullptr);
+                                    Progress *progress = nullptr,
+                                    const ConflictResolver &conflictResolver = {});
 
     // format: one of "zip", "tar", "tar.gz", "tar.bz2", "tar.xz".
     // Each entry in sourcePaths (file or directory) is added at the

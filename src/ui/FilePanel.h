@@ -126,6 +126,10 @@ public:
     // Path under the keyboard cursor (not necessarily selected) -- used by
     // F3/F4 to know which single file to open.
     QString currentEntryPath() const;
+    // Stable origin used only for remembering a manual text encoding. Unlike a
+    // preview path, it keeps the remote server/archive container identity and
+    // never names a temporary downloaded or extracted copy.
+    QString currentTextEncodingIdentity() const;
     // Cheap cached-listing queries about the entry under the cursor (no provider
     // round-trip): used to gate network preview (skip directories / oversized
     // files) without a blocking remote stat.

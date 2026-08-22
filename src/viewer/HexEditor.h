@@ -15,7 +15,7 @@ class QUndoStack;
 // deliberate act (the Insert key).
 //
 // It never touches the disk. contents() hands the bytes back; writing them is
-// the caller's job, so nothing lands on disk until Save is pressed.
+// the caller's job, whether through TextEditor's debounce or an immediate Save.
 //
 // Only the visible rows are laid out and painted, so scrolling cost does not
 // grow with file size; the whole file still lives in one QByteArray, which is

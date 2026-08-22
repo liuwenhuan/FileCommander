@@ -1,4 +1,7 @@
 #include "TextEditor.h"
+
+#include "config/Settings.h"
+#include "text/TextEncodingIdentity.h"
 #include "FindBar.h"
 #include "HexEditor.h"
 #include "BinarySniff.h"
@@ -15,6 +18,7 @@
 #include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QTextCodec>
+#include <QTimer>
 #include <QToolBar>
 
 #include "ThemedDialogs.h"
@@ -182,7 +186,12 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event) {
     }
 }
 
-TextEditor::TextEditor(QWidget *parent) : FramelessWindow(parent) {
+TextEditor::TextEditor(QWidget *parent) : TextEditor(nullptr, parent) {}
+
+TextEditor::TextEditor(Settings &settings, QWidget *parent) : TextEditor(&settings, parent) {}
+
+TextEditor::TextEditor(Settings *settings, QWidget *parent)
+    : FramelessWindow(parent), m_settings(settings) {
     setAttribute(Qt::WA_DeleteOnClose);
 
     m_editor = new CodeEditor(this);
@@ -200,6 +209,14 @@ TextEditor::TextEditor(QWidget *parent) : FramelessWindow(parent) {
 
     connect(m_editor->document(), &QTextDocument::modificationChanged, this,
             &TextEditor::onModificationChanged);
+    connect(m_editor->document(), &QTextDocument::contentsChanged, this,
+            &TextEditor::onContentChanged);
+
+    m_autoSaveTimer = new QTimer(this);
+    m_autoSaveTimer->setObjectName(QStringLiteral("textEditorAutoSaveTimer"));
+    m_autoSaveTimer->setSingleShot(true);
+    m_autoSaveTimer->setInterval(kAutoSaveDelayMs);
+    connect(m_autoSaveTimer, &QTimer::timeout, this, [this]() { flushAutoSave(); });
 
     auto *saveShortcut = new QShortcut(QKeySequence::Save, this);
     connect(saveShortcut, &QShortcut::activated, this, [this]() { save(); });
@@ -255,8 +272,8 @@ void TextEditor::buildToolBar() {
 
     // Far right, mirroring the preview's Edit button. The host switches back to
     // the preview: this library sits below the UI layer and does not know about
-    // it. Ask about an unsaved buffer first -- going back re-reads the file from
-    // disk, so anything still in the buffer would be dropped silently.
+    // it. Flush a still-pending autosave first because going back re-reads the
+    // file from disk.
     m_previewAction = m_toolBar->addAction(tr("Preview"), this, [this]() {
         if (!m_path.isEmpty() && promptSaveIfModified())
             emit previewRequested(m_path);
@@ -301,6 +318,13 @@ QByteArray TextEditor::currentCodecName() const {
 }
 
 bool TextEditor::loadFile(const QString &path) {
+    return loadFile(path, QString());
+}
+
+bool TextEditor::loadFile(const QString &path, const QString &encodingIdentity) {
+    if (!m_path.isEmpty() && isDocumentModified() && !promptSaveIfModified())
+        return false;
+
     QFileInfo info(path);
     if (info.size() > kMaxEditableBytes) {
         ttc::warning(this, tr("Edit"),
@@ -317,7 +341,11 @@ bool TextEditor::loadFile(const QString &path) {
     m_raw = file.readAll();
     file.close();
 
+    resetAutoSaveState();
     m_path = path;
+    m_encodingIdentity = encodingIdentity.isEmpty()
+                             ? fc::TextEncodingIdentity::localPath(path)
+                             : encodingIdentity;
 
     // Text or hex, decided from the bytes rather than the extension. A file
     // that is not text must not be decoded into a buffer, because saving it
@@ -336,9 +364,13 @@ bool TextEditor::loadFile(const QString &path) {
             // own signal already goes through there.
             connect(m_hex, &HexEditor::modificationChanged, this,
                     &TextEditor::onModificationChanged);
+            connect(m_hex, &HexEditor::contentsChanged, this,
+                    &TextEditor::onContentChanged);
         }
+        m_installingContent = true;
         m_hex->setContents(m_raw);
         m_hex->setModified(false);
+        m_installingContent = false;
         setCurrentView(viewStack()->indexOf(m_hex));
         // Nothing to decode and nothing to choose: the encoding controls
         // describe a text buffer that does not exist in this mode.
@@ -354,9 +386,12 @@ bool TextEditor::loadFile(const QString &path) {
     setCurrentView(0);
     m_detected = TextEncodingDetector::detect(m_raw);
 
+    const int remembered = m_settings
+                               ? m_settings->rememberedTextEncodingIndex(m_encodingIdentity)
+                               : kAutoEncodingIndex;
     QSignalBlocker blocker(m_encodingCombo);
-    m_encodingCombo->setCurrentIndex(kAutoEncodingIndex);
-    m_appliedEncodingIndex = kAutoEncodingIndex;
+    m_encodingCombo->setCurrentIndex(remembered);
+    m_appliedEncodingIndex = remembered;
     blocker.unblock();
 
     applyEncodingToBuffer();
@@ -390,8 +425,11 @@ void TextEditor::applyEncodingToBuffer() {
     // CR still exists (see the m_usesCrlf note in the header).
     m_usesCrlf = text.contains(QLatin1String("\r\n"));
 
+    m_installingContent = true;
     m_editor->setPlainText(text);
     m_editor->document()->setModified(false);
+    m_installingContent = false;
+    resetAutoSaveState();
     m_appliedEncodingIndex = index;
     updateTitle();
     updateModifiedIndicator();
@@ -400,6 +438,8 @@ void TextEditor::applyEncodingToBuffer() {
 void TextEditor::onEncodingSelected(int index) {
     if (index == m_appliedEncodingIndex)
         return;
+    if (m_autoSaveTimer)
+        m_autoSaveTimer->stop();
 
     // Changing the encoding re-decodes the bytes on disk, which necessarily
     // replaces the buffer -- there is no way to reinterpret edited text without
@@ -417,6 +457,10 @@ void TextEditor::onEncodingSelected(int index) {
         if (answer != QMessageBox::Discard) {
             QSignalBlocker blocker(m_encodingCombo);
             m_encodingCombo->setCurrentIndex(m_appliedEncodingIndex);
+            // The user kept the old encoding and the dirty buffer, so this is
+            // still the same edit episode the timer was tracking.
+            if (m_autoSaveTimer)
+                m_autoSaveTimer->start();
             return;
         }
     }
@@ -433,6 +477,8 @@ void TextEditor::onEncodingSelected(int index) {
         m_detected = TextEncodingDetector::detect(m_raw);
     }
 
+    if (m_settings)
+        m_settings->setRememberedTextEncodingIndex(m_encodingIdentity, index);
     applyEncodingToBuffer();
 }
 
@@ -466,7 +512,7 @@ QByteArray TextEditor::encodeBuffer() const {
     return codec ? codec->fromUnicode(text) : text.toUtf8();
 }
 
-bool TextEditor::save() {
+bool TextEditor::writeCurrentBuffer() {
     if (m_path.isEmpty())
         return false;
 
@@ -474,22 +520,17 @@ bool TextEditor::save() {
     // a text buffer that was never decoded.
     const QByteArray bytes = m_hexMode ? m_hex->contents() : encodeBuffer();
 
-    // Same call as before: a plain QFile on the path handed to loadFile(). The
-    // permission and elevation behaviour is whatever opening that path gives,
-    // unchanged. Only QIODevice::Text is gone, so the bytes written are exactly
-    // the bytes encodeBuffer() produced.
+    // Keep QFile here: a network edit reaches a writable GVfs/FUSE path, where
+    // the temp-file rename used by QSaveFile is not guaranteed to have the same
+    // semantics as the existing direct write.
     QFile file(m_path);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        ttc::warning(this, tr("Save"), tr("Could not write to %1").arg(m_path));
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
         return false;
-    }
     const qint64 written = file.write(bytes);
     const bool flushed = file.flush();
     file.close();
-    if (written != bytes.size() || !flushed) {
-        ttc::warning(this, tr("Save"), tr("Could not write to %1").arg(m_path));
+    if (written != bytes.size() || !flushed)
         return false;
-    }
 
     // The bytes on disk are now these, so a later encoding change re-decodes
     // the saved file and not the one that was opened.
@@ -500,9 +541,43 @@ bool TextEditor::save() {
         m_detected = TextEncodingDetector::detect(m_raw);
         m_editor->document()->setModified(false);
     }
+    resetAutoSaveState();
     updateTitle();
     updateModifiedIndicator();
     return true;
+}
+
+void TextEditor::showSaveFailure() {
+    ttc::warning(this, tr("Save"), tr("Could not write to %1").arg(m_path));
+}
+
+bool TextEditor::flushAutoSave() {
+    if (m_autoSaveTimer)
+        m_autoSaveTimer->stop();
+    if (!isDocumentModified())
+        return true;
+    if (m_autoSaveBlocked)
+        return false;
+    if (writeCurrentBuffer())
+        return true;
+
+    // One modal per failure episode. Repeated timer/close/Preview attempts stay
+    // blocked until the user edits again or deliberately retries with Save.
+    m_autoSaveBlocked = true;
+    showSaveFailure();
+    return false;
+}
+
+bool TextEditor::save() {
+    if (m_path.isEmpty())
+        return false;
+    if (m_autoSaveTimer)
+        m_autoSaveTimer->stop();
+    if (writeCurrentBuffer())
+        return true;
+    m_autoSaveBlocked = true;
+    showSaveFailure();
+    return false;
 }
 
 void TextEditor::showFindBar() {
@@ -565,6 +640,22 @@ void TextEditor::onModificationChanged(bool) {
     updateModifiedIndicator();
 }
 
+void TextEditor::onContentChanged() {
+    if (m_installingContent || m_path.isEmpty())
+        return;
+    // A real edit starts a new failure episode and moves the deadline so the
+    // timer always writes the latest point in the typing burst.
+    m_autoSaveBlocked = false;
+    if (m_autoSaveTimer)
+        m_autoSaveTimer->start();
+}
+
+void TextEditor::resetAutoSaveState() {
+    if (m_autoSaveTimer)
+        m_autoSaveTimer->stop();
+    m_autoSaveBlocked = false;
+}
+
 void TextEditor::updateModifiedIndicator() {
     const bool modified = isDocumentModified();
     if (m_saveAction)
@@ -587,16 +678,7 @@ void TextEditor::updateTitle() {
 }
 
 bool TextEditor::promptSaveIfModified() {
-    if (!isDocumentModified())
-        return true;
-    const auto answer = ttc::question(
-        this, tr("Unsaved Changes"), tr("Save changes to %1?").arg(QFileInfo(m_path).fileName()),
-        QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
-    if (answer == QMessageBox::Cancel)
-        return false;
-    if (answer == QMessageBox::Save)
-        save();
-    return true;
+    return !isDocumentModified() || flushAutoSave();
 }
 
 void TextEditor::closeEvent(QCloseEvent *event) {

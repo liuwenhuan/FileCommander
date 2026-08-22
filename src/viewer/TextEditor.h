@@ -14,8 +14,10 @@ class QComboBox;
 class QLabel;
 class QStackedWidget;
 class QToolBar;
+class QTimer;
 class QVBoxLayout;
 class QAction;
+class Settings;
 
 // Editable QPlainTextEdit with a line-number gutter.
 //
@@ -92,8 +94,9 @@ private:
 // -- is derived from them, which is what lets the encoding be changed after the
 // fact without the original bytes having been thrown away.
 //
-// Edits live in the buffer only. Nothing is written until save() runs, and
-// closing with unsaved changes still prompts.
+// Edits live in the buffer and are written after a short idle debounce. Save /
+// Ctrl+S remains an immediate flush, and a failed write leaves the buffer dirty
+// so Preview or close cannot silently discard it.
 //
 // FramelessWindow, not a bare QWidget: this window kept the native decorations
 // (a stock light-grey title bar over a themed body) because the sweep that made
@@ -107,8 +110,10 @@ class TextEditor : public FramelessWindow {
 
 public:
     explicit TextEditor(QWidget *parent = nullptr);
+    TextEditor(Settings &settings, QWidget *parent = nullptr);
 
     bool loadFile(const QString &path);
+    bool loadFile(const QString &path, const QString &encodingIdentity);
 
     // ---------------------------------------------------------------------
     // Extension seam
@@ -153,10 +158,11 @@ public:
     void setCurrentView(int index);
     const QByteArray &fileBytes() const { return m_raw; }
     QString filePath() const { return m_path; }
+    QString encodingIdentity() const { return m_encodingIdentity; }
 
-    // Asks about an unsaved buffer and returns false if the user chose Cancel.
-    // Public because an embedded editor never gets a close event of its own:
-    // the host window has to ask on its behalf before it goes away.
+    // Flushes a pending/dirty autosave synchronously. Public because an
+    // embedded editor never gets a close event of its own: the host window has
+    // to require a successful write before it leaves the editor page.
     bool promptSaveIfModified();
 
     // Test/seam accessors for the toolbar's own controls.
@@ -182,15 +188,21 @@ protected:
 
 private slots:
     void onModificationChanged(bool modified);
+    void onContentChanged();
     void onEncodingSelected(int index);
 
 private:
+    TextEditor(Settings *settings, QWidget *parent);
     void updateTitle();
     void updateModifiedIndicator();
     // Re-decodes m_raw under the combo's current selection and replaces the
     // buffer. Never reads the buffer back -- the bytes are the source of truth.
     void applyEncodingToBuffer();
     QByteArray encodeBuffer() const;
+    bool writeCurrentBuffer();
+    bool flushAutoSave();
+    void showSaveFailure();
+    void resetAutoSaveState();
     void buildToolBar();
 
     CodeEditor *m_editor = nullptr;
@@ -201,14 +213,19 @@ private:
     QComboBox *m_encodingCombo = nullptr;
     QAction *m_previewAction = nullptr;
     QLabel *m_modifiedLabel = nullptr;
+    QTimer *m_autoSaveTimer = nullptr;
 
+    Settings *m_settings = nullptr;
     QString m_path;
+    QString m_encodingIdentity;
     // The file exactly as it is on disk. Refreshed by save(), so a later
     // encoding change always re-decodes what is really there.
     QByteArray m_raw;
     HexEditor *m_hex = nullptr;   // created only for a file opened as hex
     FindBar *m_findBar = nullptr;
     bool m_hexMode = false;
+    bool m_installingContent = false;
+    bool m_autoSaveBlocked = false;
     // Where the last hit was, so "find again" steps off it instead of
     // returning the same match forever.
     int m_lastMatchOffset = -1;
@@ -225,5 +242,6 @@ private:
     // stack sits, in m_layout.
     int m_auxiliaryInsertIndex = 1;
 
+    static constexpr int kAutoSaveDelayMs = 600;
     static constexpr qint64 kMaxEditableBytes = 50 * 1024 * 1024; // 50 MB
 };

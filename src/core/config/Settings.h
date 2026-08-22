@@ -49,6 +49,12 @@ public:
     QString language() const;
     void setLanguage(const QString &language);
 
+    // Per-source manual encoding choice. Auto (index 0) removes an override;
+    // only manual indexes from TextEncodingDetector's append-only chooser table
+    // are stored. The stable identity is hashed before it reaches config.ini.
+    int rememberedTextEncodingIndex(const QString &stableIdentity) const;
+    void setRememberedTextEncodingIndex(const QString &stableIdentity, int index);
+
     // The selected family is shared by every text surface in the application.
     // Empty means the platform/default font family.
     QString globalFontFamily() const;

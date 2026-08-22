@@ -239,6 +239,24 @@
 <context>
     <name>ArchiveBrowserDialog</name>
     <message>
+        <source>%1 already exists.
+
+Source: %2
+Destination: %3
+
+Overwrite it?</source>
+        <translation>%1 已存在。
+
+來源：%2
+目的地：%3
+
+要覆寫嗎？</translation>
+    </message>
+    <message>
+        <source>Confirm Overwrite</source>
+        <translation>確認覆寫</translation>
+    </message>
+    <message>
         <location filename="../../src/archive/ArchiveBrowserDialog.cpp" line="39"/>
         <source>Up</source>
         <translation>上一層</translation>
@@ -1328,6 +1346,22 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
 </context>
 <context>
     <name>MainWindow</name>
+    <message>
+        <source>New Markdown File</source>
+        <translation>新增 Markdown 檔案</translation>
+    </message>
+    <message>
+        <source>Markdown Document (.md)</source>
+        <translation>Markdown 文件 (.md)</translation>
+    </message>
+    <message>
+        <source>Text Document (.txt)</source>
+        <translation>文字文件 (.txt)</translation>
+    </message>
+    <message>
+        <source>New File</source>
+        <translation>新增檔案</translation>
+    </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="350"/>
         <location filename="../../src/ui/MainWindow.cpp" line="4480"/>
@@ -3335,6 +3369,10 @@ This is permanent and will NOT go to the trash.</source>
 </context>
 <context>
     <name>OperationQueue</name>
+    <message>
+        <source>Restoring %1 item(s) from the trash</source>
+        <translation>正在從資源回收筒還原 %1 個項目</translation>
+    </message>
     <message>
         <location filename="../../src/core/operations/OperationQueue.cpp" line="43"/>
         <location filename="../../src/core/operations/OperationQueue.cpp" line="137"/>

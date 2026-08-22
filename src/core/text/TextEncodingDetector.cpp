@@ -1,6 +1,7 @@
 #include "TextEncodingDetector.h"
 
 #include <QChar>
+#include <QLocale>
 #include <QTextCodec>
 #include <QVector>
 
@@ -539,15 +540,67 @@ bool hasDecodedTextQuality(const UnicodeQuality &quality) {
            quality.printable * 10 >= quality.codePoints * 9;
 }
 
+// Modern Korean writes hanja rarely, and never runs one into the middle of a
+// hangul word the way these readings do. scriptQuality() already docks each
+// hanja, but that is a per-character nudge: on a short sample hangul's larger
+// bonus still outbid the correct Chinese reading, because GB2312's common rows
+// overlap EUC-KR's hangul rows almost entirely. 服务器列表 decoded as EUC-KR to
+// four hangul syllables around one stray hanja and won on the hangul alone.
+// A reading that is a fifth hanja is another language's bytes landing in
+// EUC-KR's table, so rule it out rather than scoring it.
+bool isImplausibleKorean(const UnicodeQuality &quality) {
+    const qint64 hangul = quality.scripts[static_cast<int>(UnicodeScript::Hangul)];
+    const qint64 han = quality.scripts[static_cast<int>(UnicodeScript::Han)];
+    return han > 0 && han * 5 >= han + hangul;
+}
+
 bool hasStrongLegacyEvidence(const UnicodeQuality &quality) {
-    return hasDecodedTextQuality(quality) &&
-           quality.nonLatinScript * 4 >= quality.codePoints * 3;
+    // Weigh the reading over the characters that carry script -- the same
+    // denominator hasTextQuality() uses for wide candidates -- not over every
+    // code point. Markup, spaces and digits decode identically under every
+    // candidate considered here, so they are evidence for none of them; with
+    // them in the denominator, "# CJK #" was a third punctuation and a correct
+    // GB18030 reading fell below the bar, which handed the file to a BOM-less
+    // UTF-16 pairing of the same bytes. Latin LETTERS stay in the denominator
+    // on purpose: they are what a wide CJK file misread as a legacy encoding
+    // produces, interleaved with the ideographs rather than set off from them.
+    return hasDecodedTextQuality(quality) && quality.nonLatinScript > 0 &&
+           quality.nonLatinScript * 4 >= quality.recognizedScript * 3;
 }
 
 } // namespace
 
+QByteArray TextEncodingDetector::expectedLegacyEncoding(const QLocale &locale) {
+    switch (locale.language()) {
+    case QLocale::Chinese:
+        switch (locale.country()) {
+        case QLocale::China:
+        case QLocale::Singapore:
+            return QByteArrayLiteral("GB18030");
+        case QLocale::Taiwan:
+        case QLocale::HongKong:
+        case QLocale::Macau:
+            return QByteArrayLiteral("Big5");
+        default:
+            return {};
+        }
+    case QLocale::Korean:
+        return QByteArrayLiteral("EUC-KR");
+    case QLocale::Japanese:
+        return QByteArrayLiteral("Shift-JIS");
+    default:
+        return {};
+    }
+}
+
 TextEncodingDetector::Result TextEncodingDetector::detect(const QByteArray &data,
                                                            InputEnd inputEnd) {
+    return detect(data, inputEnd, QLocale::system());
+}
+
+TextEncodingDetector::Result TextEncodingDetector::detect(const QByteArray &data,
+                                                           InputEnd inputEnd,
+                                                           const QLocale &locale) {
     const auto unknown = []() {
         return Result{QStringLiteral("Unknown"), QByteArrayLiteral("UTF-8"), 0, false, true,
                       0, false};
@@ -706,41 +759,83 @@ TextEncodingDetector::Result TextEncodingDetector::detect(const QByteArray &data
         UnicodeQuality decodedQuality;
         const qint64 value = scoreDecodedText(data.left(sampleBytes), codec,
                                            candidate.preference, &decodedQuality);
+        if (candidate.preference == ScriptPreference::Korean &&
+            isImplausibleKorean(decodedQuality))
+            continue;
         if (hasDecodedTextQuality(decodedQuality))
             scores.append({&candidate, value, decodedQuality, grammar});
     }
 
     int bestLegacy = -1;
-    int secondLegacy = -1;
     for (int i = 0; i < scores.size(); ++i) {
-        if (bestLegacy < 0 || scores.at(i).value > scores.at(bestLegacy).value) {
-            secondLegacy = bestLegacy;
+        if (bestLegacy < 0 || scores.at(i).value > scores.at(bestLegacy).value)
             bestLegacy = i;
-        } else if (secondLegacy < 0 || scores.at(i).value > scores.at(secondLegacy).value) {
-            secondLegacy = i;
-        }
     }
 
-    const bool strongLegacy = bestLegacy >= 0 &&
-                              hasStrongLegacyEvidence(scores.at(bestLegacy).quality);
-    if (bestWide >= 0 &&
-        (wideCandidates.at(bestWide).structuralEvidence || !strongLegacy)) {
+    // A locale preference is a tie-breaker, not evidence. It can select only a
+    // candidate that passed the same whole-input grammar and decoded-text checks
+    // as every other legacy candidate, and only when it is already the winner or
+    // sits inside the detector's existing close-score window (or the sample is
+    // too short for its score difference to be meaningful).
+    const QByteArray expectedCodec = expectedLegacyEncoding(locale);
+    int localeLegacy = -1;
+    for (int i = 0; i < scores.size(); ++i) {
+        if (QByteArray(scores.at(i).candidate->codecName).compare(expectedCodec,
+                                                                  Qt::CaseInsensitive) == 0) {
+            localeLegacy = i;
+            break;
+        }
+    }
+    const bool shortLegacySample = bestLegacy >= 0 &&
+                                   scores.at(bestLegacy).grammar.completePrefixBytes < 8;
+    const bool localeIsPlausible = localeLegacy >= 0 && bestLegacy >= 0 &&
+                                   (localeLegacy == bestLegacy || shortLegacySample ||
+                                    scores.at(bestLegacy).value -
+                                            scores.at(localeLegacy).value <= 6);
+    const int selectedLegacy = localeIsPlausible ? localeLegacy : bestLegacy;
+    const bool localeChangedWinner = localeIsPlausible && localeLegacy != bestLegacy;
+    const bool strongLegacy = selectedLegacy >= 0 &&
+                              hasStrongLegacyEvidence(scores.at(selectedLegacy).quality);
+
+    if (bestWide >= 0) {
         const WideCandidate &winner = wideCandidates.at(bestWide);
         const bool closeWide = secondWide >= 0 &&
                                winner.score - wideCandidates.at(secondWide).score <= 6;
-        return {QString::fromLatin1(winner.label), QByteArray(winner.codecName), 0, false,
-                closeWide || bestLegacy >= 0, winner.grammar.completePrefixBytes,
-                winner.grammar.state == GrammarState::IncompleteAtEnd};
+        // A BOM-less wide reading with a stable byte layout remains stronger
+        // than locale. Without that structure, an OS-language legacy candidate
+        // that independently validated wins the conflict, but stays visibly
+        // ambiguous because the bytes still admit both readings.
+        if (winner.structuralEvidence || !localeIsPlausible) {
+            if (winner.structuralEvidence || !strongLegacy) {
+                return {QString::fromLatin1(winner.label), QByteArray(winner.codecName), 0,
+                        false, closeWide || selectedLegacy >= 0,
+                        winner.grammar.completePrefixBytes,
+                        winner.grammar.state == GrammarState::IncompleteAtEnd};
+            }
+        }
+        if (localeIsPlausible) {
+            const Score &preferred = scores.at(localeLegacy);
+            return {QString::fromLatin1(preferred.candidate->label),
+                    QByteArray(preferred.candidate->codecName), 0, false, true,
+                    preferred.grammar.completePrefixBytes,
+                    preferred.grammar.state == GrammarState::IncompleteAtEnd};
+        }
     }
 
-    if (bestLegacy >= 0) {
-        const Score &winner = scores.at(bestLegacy);
-        const bool closeScores = secondLegacy >= 0 &&
-                                 winner.value - scores.at(secondLegacy).value <= 6;
+    if (selectedLegacy >= 0) {
+        const Score &winner = scores.at(selectedLegacy);
+        bool closeScores = false;
+        for (int i = 0; i < scores.size(); ++i) {
+            if (i != selectedLegacy &&
+                qAbs(winner.value - scores.at(i).value) <= 6) {
+                closeScores = true;
+                break;
+            }
+        }
         const bool shortSample = winner.grammar.completePrefixBytes < 8;
         return {QString::fromLatin1(winner.candidate->label),
                 QByteArray(winner.candidate->codecName), 0, false,
-                shortSample || closeScores || bestWide >= 0,
+                shortSample || closeScores || localeChangedWinner,
                 winner.grammar.completePrefixBytes,
                 winner.grammar.state == GrammarState::IncompleteAtEnd};
     }

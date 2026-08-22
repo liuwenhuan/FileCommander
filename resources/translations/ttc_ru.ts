@@ -239,6 +239,24 @@
 <context>
     <name>ArchiveBrowserDialog</name>
     <message>
+        <source>%1 already exists.
+
+Source: %2
+Destination: %3
+
+Overwrite it?</source>
+        <translation>%1 уже существует.
+
+Источник: %2
+Назначение: %3
+
+Перезаписать?</translation>
+    </message>
+    <message>
+        <source>Confirm Overwrite</source>
+        <translation>Подтвердите перезапись</translation>
+    </message>
+    <message>
         <location filename="../../src/archive/ArchiveBrowserDialog.cpp" line="39"/>
         <source>Up</source>
         <translation>Вверх</translation>
@@ -1336,6 +1354,22 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
 </context>
 <context>
     <name>MainWindow</name>
+    <message>
+        <source>New Markdown File</source>
+        <translation>Новый файл Markdown</translation>
+    </message>
+    <message>
+        <source>Markdown Document (.md)</source>
+        <translation>Документ Markdown (.md)</translation>
+    </message>
+    <message>
+        <source>Text Document (.txt)</source>
+        <translation>Текстовый документ (.txt)</translation>
+    </message>
+    <message>
+        <source>New File</source>
+        <translation>Новый файл</translation>
+    </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="350"/>
         <location filename="../../src/ui/MainWindow.cpp" line="4480"/>
@@ -3315,6 +3349,10 @@ This is permanent and will NOT go to the trash.</source>
 </context>
 <context>
     <name>OperationQueue</name>
+    <message>
+        <source>Restoring %1 item(s) from the trash</source>
+        <translation>Восстановление элементов из корзины: %1</translation>
+    </message>
     <message>
         <location filename="../../src/core/operations/OperationQueue.cpp" line="43"/>
         <location filename="../../src/core/operations/OperationQueue.cpp" line="137"/>

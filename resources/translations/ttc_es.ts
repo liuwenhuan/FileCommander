@@ -239,6 +239,24 @@
 <context>
     <name>ArchiveBrowserDialog</name>
     <message>
+        <source>%1 already exists.
+
+Source: %2
+Destination: %3
+
+Overwrite it?</source>
+        <translation>%1 ya existe.
+
+Origen: %2
+Destino: %3
+
+¿Sobrescribir?</translation>
+    </message>
+    <message>
+        <source>Confirm Overwrite</source>
+        <translation>Confirmar sobrescritura</translation>
+    </message>
+    <message>
         <location filename="../../src/archive/ArchiveBrowserDialog.cpp" line="39"/>
         <source>Up</source>
         <translation>Subir</translation>
@@ -1332,6 +1350,22 @@ Eliminar como administrador omite la papelera de reciclaje y no se puede deshace
 </context>
 <context>
     <name>MainWindow</name>
+    <message>
+        <source>New Markdown File</source>
+        <translation>Nuevo archivo Markdown</translation>
+    </message>
+    <message>
+        <source>Markdown Document (.md)</source>
+        <translation>Documento Markdown (.md)</translation>
+    </message>
+    <message>
+        <source>Text Document (.txt)</source>
+        <translation>Documento de texto (.txt)</translation>
+    </message>
+    <message>
+        <source>New File</source>
+        <translation>Nuevo archivo</translation>
+    </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="350"/>
         <location filename="../../src/ui/MainWindow.cpp" line="4480"/>
@@ -3311,6 +3345,10 @@ Esta acción es permanente y NO irá a la papelera.</translation>
 </context>
 <context>
     <name>OperationQueue</name>
+    <message>
+        <source>Restoring %1 item(s) from the trash</source>
+        <translation>Restaurando %1 elemento(s) desde la papelera</translation>
+    </message>
     <message>
         <location filename="../../src/core/operations/OperationQueue.cpp" line="43"/>
         <location filename="../../src/core/operations/OperationQueue.cpp" line="137"/>

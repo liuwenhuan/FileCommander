@@ -1,5 +1,7 @@
 #include "CommandRegistry.h"
 
+#include <QApplication>
+#include <QByteArray>
 #include <QShortcut>
 #include <QWidget>
 
@@ -95,4 +97,19 @@ QMap<QString, QKeySequence> CommandRegistry::currentSequences() const {
 void CommandRegistry::setSequence(const QString &id, const QKeySequence &sequence) {
     if (QShortcut *shortcut = m_shortcuts.value(id))
         shortcut->setKey(sequence);
+}
+
+bool CommandRegistry::invokeFocusedWidgetCommand(const char *method) {
+    if (!method || !*method)
+        return false;
+
+    QByteArray signature(method);
+    signature.append("()");
+    for (QWidget *widget = QApplication::focusWidget(); widget;
+         widget = widget->parentWidget()) {
+        if (widget->metaObject()->indexOfMethod(signature.constData()) < 0)
+            continue;
+        return QMetaObject::invokeMethod(widget, method, Qt::DirectConnection);
+    }
+    return false;
 }

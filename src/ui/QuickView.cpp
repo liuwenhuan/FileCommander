@@ -89,6 +89,7 @@
 #include "SeekSlider.h"
 #include "SlideSceneBuilder.h"
 #include "TextEditor.h"
+#include "text/TextEncodingIdentity.h"
 #include "TextEncodingDetector.h"
 #include "config/Settings.h"
 #include "media/Id3Reader.h"
@@ -931,7 +932,10 @@ QWidget *QuickView::buildTextPage() {
         m_textEncoding->addItem(QString::fromLatin1(e.label));
     m_textToolbar->addWidget(m_textEncoding);
     connect(m_textEncoding, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-            [this](int) { renderText(); });
+            [this](int index) {
+                m_settings.setRememberedTextEncodingIndex(m_textEncodingIdentity, index);
+                renderText();
+            });
 
     QAction *wrap = m_textToolbar->addAction(tr("Wrap"));
     wrap->setCheckable(true);
@@ -996,27 +1000,40 @@ bool QuickView::isEditing() const {
 }
 
 bool QuickView::beginEditing(const QString &path) {
+    return beginEditing(path, QString());
+}
+
+bool QuickView::beginEditing(const QString &path, const QString &encodingIdentity) {
     if (path.isEmpty())
         return false;
+    QString resolvedIdentity = encodingIdentity;
+    if (resolvedIdentity.isEmpty()) {
+        if (path == m_textPath)
+            resolvedIdentity = m_textEncodingIdentity;
+        else if (path == m_markdownPath)
+            resolvedIdentity = m_markdownEncodingIdentity;
+        if (resolvedIdentity.isEmpty())
+            resolvedIdentity = fc::TextEncodingIdentity::localPath(path);
+    }
     if (!m_editor) {
         // TextEditor is written as a window; setEmbedded() strips its chrome so
         // it can live as a page here. WA_DeleteOnClose has to go with it, or a
         // close would delete a page this widget owns.
-        m_editor = new TextEditor(this);
+        m_editor = new TextEditor(m_settings, this);
         m_editor->setAttribute(Qt::WA_DeleteOnClose, false);
         m_editor->setEmbedded(this);
         m_stack->addWidget(m_editor);
         connect(m_editor, &TextEditor::previewRequested, this, [this](const QString &file) {
             m_textRestorePath = file;
             m_textRestoreLine = m_editor->codeEditor()->verticalScrollBar()->value();
-            showFile(file);
+            showFile(file, m_editor->encodingIdentity());
         });
     }
     // A probe already in flight would land on the text page and reveal it,
     // pulling the user straight back out of the editor.
     ++m_textLoadGeneration;
     m_textLoadPending = false;
-    if (!m_editor->loadFile(path))
+    if (!m_editor->loadFile(path, resolvedIdentity))
         return false;
 
     // Both views are NoWrap, so a vertical scrollbar value is the number of the
@@ -1931,7 +1948,10 @@ QWidget *QuickView::buildMarkdownPage() {
         m_markdownEncoding->addItem(QString::fromLatin1(e.label));
     m_markdownToolbar->addWidget(m_markdownEncoding);
     connect(m_markdownEncoding, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-            [this](int) { renderMarkdown(); });
+            [this](int index) {
+                m_settings.setRememberedTextEncodingIndex(m_markdownEncodingIdentity, index);
+                renderMarkdown();
+            });
 
     m_markdownToolbar->addSeparator();
     m_markdownFind = new QLineEdit(m_markdownToolbar);
@@ -1987,7 +2007,7 @@ QString QuickView::softenTableLineBreaks(const QString &markdown) {
     return lines.join(QLatin1Char('\n'));
 }
 
-void QuickView::loadMarkdownAsync(const QString &path) {
+void QuickView::loadMarkdownAsync(const QString &path, const QString &encodingIdentity) {
     // Supersede any in-flight render so a fast scroll through several .md files
     // only ever installs the newest one.
     ++m_markdownGen;
@@ -2003,7 +2023,7 @@ void QuickView::loadMarkdownAsync(const QString &path) {
     };
     auto *watcher = new QFutureWatcher<MarkdownProbe>(this);
     connect(watcher, &QFutureWatcher<MarkdownProbe>::finished, this,
-            [this, watcher, gen, path]() {
+            [this, watcher, gen, path, encodingIdentity]() {
                 const MarkdownProbe probe = watcher->result();
                 watcher->deleteLater();
                 if (gen != m_markdownGen)
@@ -2017,8 +2037,10 @@ void QuickView::loadMarkdownAsync(const QString &path) {
                                      : TextEncodingDetector::InputEnd::MayBeTruncated);
                 m_markdownAutoResultValid = true;
                 m_markdownPath = path;
+                m_markdownEncodingIdentity = encodingIdentity;
                 m_markdownEncoding->blockSignals(true);
-                m_markdownEncoding->setCurrentIndex(0); // every new file starts in Auto
+                m_markdownEncoding->setCurrentIndex(
+                    m_settings.rememberedTextEncodingIndex(m_markdownEncodingIdentity));
                 m_markdownEncoding->blockSignals(false);
                 m_markdownToolbar->show(); // an office document may have hidden it
                 renderMarkdown();
@@ -3590,6 +3612,29 @@ void QuickView::stopAnimation() {
 }
 
 void QuickView::showFile(const QString &path) {
+    showFile(path, QString());
+}
+
+void QuickView::showFile(const QString &path, const QString &encodingIdentity) {
+    const QString resolvedEncodingIdentity = encodingIdentity.isEmpty()
+                                                 ? fc::TextEncodingIdentity::localPath(path)
+                                                 : encodingIdentity;
+    if (isEditing()) {
+        // Cursor movement to another file must not tear down a dirty editor;
+        // the 600 ms autosave will clean it, and a later deliberate navigation
+        // can then proceed. A same-file Preview transition flushes immediately.
+        if (path != m_editor->filePath()) {
+            if (m_editor->isDocumentModified())
+                return;
+        } else if (!m_editor->promptSaveIfModified()) {
+            return;
+        }
+        // Leave now, not when the load finishes, so isEditing() is already false
+        // by the time an async probe lands.
+        m_stack->setCurrentWidget(m_textPage);
+        emit editingChanged(false);
+    }
+
     const bool reloadWaitsForRotation =
         path == m_imagePath && m_stack->currentWidget() == m_imagePage &&
         m_pendingImageRotations.value(path) > 0 && m_imageLabel->pixmap();
@@ -3607,23 +3652,8 @@ void QuickView::showFile(const QString &path) {
 #else
     const bool streamed = false;
 #endif
-    // An explicit encoding override belongs to the currently displayed text file
-    // only. Re-selecting that same text page preserves it; every different file
-    // begins in Auto. Hex is intentionally separate and therefore persists.
-    const bool preserveTextEncoding =
-        path == m_textPath && m_stack->currentWidget() == m_textPage;
     m_textPath.clear();
-    if (isEditing()) {
-        // The file cursor moved while an unsaved buffer is open on a different
-        // file: stay put rather than throwing the edit away. Prompting here
-        // would fire on every arrow key.
-        if (m_editor->isDocumentModified() && path != m_editor->filePath())
-            return;
-        // Leave now, not when the load finishes, so isEditing() is already false
-        // by the time an async probe lands.
-        m_stack->setCurrentWidget(m_textPage);
-        emit editingChanged(false);
-    }
+    m_textEncodingIdentity.clear();
     if (path.isEmpty() || (!streamed && (!info.exists() || info.isDir()))) {
         stopVideo();
         stopAudio();
@@ -3793,7 +3823,7 @@ void QuickView::showFile(const QString &path) {
             // QTextDocument layout is heavy on dense/table-rich files and would
             // otherwise freeze the GUI. loadMarkdownAsync installs the finished
             // document when it's ready.
-            loadMarkdownAsync(path);
+            loadMarkdownAsync(path, resolvedEncodingIdentity);
             return;
         }
         // Unreadable: fall through to the generic text/no-preview handling below.
@@ -3850,7 +3880,7 @@ void QuickView::showFile(const QString &path) {
         m_textLoadPending = true;
         auto *watcher = new QFutureWatcher<TextProbe>(this);
         connect(watcher, &QFutureWatcher<TextProbe>::finished, this,
-                [this, watcher, path, preserveTextEncoding, generation, info]() {
+                [this, watcher, path, resolvedEncodingIdentity, generation, info]() {
                     const TextProbe probe = watcher->result();
                     watcher->deleteLater();
                     if (generation != m_textLoadGeneration)
@@ -3872,11 +3902,11 @@ void QuickView::showFile(const QString &path) {
                                           probe.bytes, static_cast<int>(m_textCap),
                                           m_textAutoResult)
                                     : probe.bytes;
-                    if (!preserveTextEncoding) {
-                        m_textEncoding->blockSignals(true);
-                        m_textEncoding->setCurrentIndex(0); // every new file starts in Auto
-                        m_textEncoding->blockSignals(false);
-                    }
+                    m_textEncodingIdentity = resolvedEncodingIdentity;
+                    m_textEncoding->blockSignals(true);
+                    m_textEncoding->setCurrentIndex(
+                        m_settings.rememberedTextEncodingIndex(m_textEncodingIdentity));
+                    m_textEncoding->blockSignals(false);
                     m_textPath = path;
                     renderText();
                     revealStaticPage(m_textPage);

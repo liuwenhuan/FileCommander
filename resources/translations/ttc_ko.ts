@@ -239,6 +239,24 @@
 <context>
     <name>ArchiveBrowserDialog</name>
     <message>
+        <source>%1 already exists.
+
+Source: %2
+Destination: %3
+
+Overwrite it?</source>
+        <translation>%1이(가) 이미 있습니다.
+
+원본: %2
+대상: %3
+
+덮어쓰시겠습니까?</translation>
+    </message>
+    <message>
+        <source>Confirm Overwrite</source>
+        <translation>덮어쓰기 확인</translation>
+    </message>
+    <message>
         <location filename="../../src/archive/ArchiveBrowserDialog.cpp" line="39"/>
         <source>Up</source>
         <translation>위로</translation>
@@ -1328,6 +1346,22 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
 </context>
 <context>
     <name>MainWindow</name>
+    <message>
+        <source>New Markdown File</source>
+        <translation>새 마크다운 파일</translation>
+    </message>
+    <message>
+        <source>Markdown Document (.md)</source>
+        <translation>마크다운 문서 (.md)</translation>
+    </message>
+    <message>
+        <source>Text Document (.txt)</source>
+        <translation>텍스트 문서 (.txt)</translation>
+    </message>
+    <message>
+        <source>New File</source>
+        <translation>새 파일</translation>
+    </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="350"/>
         <location filename="../../src/ui/MainWindow.cpp" line="4480"/>
@@ -3307,6 +3341,10 @@ This is permanent and will NOT go to the trash.</source>
 </context>
 <context>
     <name>OperationQueue</name>
+    <message>
+        <source>Restoring %1 item(s) from the trash</source>
+        <translation>휴지통에서 %1개 항목 복원 중</translation>
+    </message>
     <message>
         <location filename="../../src/core/operations/OperationQueue.cpp" line="43"/>
         <location filename="../../src/core/operations/OperationQueue.cpp" line="137"/>

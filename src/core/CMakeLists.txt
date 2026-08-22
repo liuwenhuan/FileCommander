@@ -26,6 +26,8 @@ set(CORE_SOURCES
     # The class itself is QtCore-only and has no UI dependency.
     text/TextEncodingDetector.h
     text/TextEncodingDetector.cpp
+    text/TextEncodingIdentity.h
+    text/TextEncodingIdentity.cpp
     filesystem/ExternalPaths.h
     filesystem/ExternalPaths.cpp
     operations/FileOpTypes.h

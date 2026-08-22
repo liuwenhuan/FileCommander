@@ -239,6 +239,24 @@
 <context>
     <name>ArchiveBrowserDialog</name>
     <message>
+        <source>%1 already exists.
+
+Source: %2
+Destination: %3
+
+Overwrite it?</source>
+        <translation>%1 ist bereits vorhanden.
+
+Quelle: %2
+Ziel: %3
+
+Überschreiben?</translation>
+    </message>
+    <message>
+        <source>Confirm Overwrite</source>
+        <translation>Überschreiben bestätigen</translation>
+    </message>
+    <message>
         <location filename="../../src/archive/ArchiveBrowserDialog.cpp" line="39"/>
         <source>Up</source>
         <translation>Nach oben</translation>
@@ -1332,6 +1350,22 @@ Das Löschen als Administrator umgeht den Papierkorb und kann nicht rückgängig
 </context>
 <context>
     <name>MainWindow</name>
+    <message>
+        <source>New Markdown File</source>
+        <translation>Neue Markdown-Datei</translation>
+    </message>
+    <message>
+        <source>Markdown Document (.md)</source>
+        <translation>Markdown-Dokument (.md)</translation>
+    </message>
+    <message>
+        <source>Text Document (.txt)</source>
+        <translation>Textdokument (.txt)</translation>
+    </message>
+    <message>
+        <source>New File</source>
+        <translation>Neue Datei</translation>
+    </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="350"/>
         <location filename="../../src/ui/MainWindow.cpp" line="4480"/>
@@ -3311,6 +3345,10 @@ Dies ist endgültig und wird NICHT in den Papierkorb verschoben.</translation>
 </context>
 <context>
     <name>OperationQueue</name>
+    <message>
+        <source>Restoring %1 item(s) from the trash</source>
+        <translation>%1 Element(e) werden aus dem Papierkorb wiederhergestellt</translation>
+    </message>
     <message>
         <location filename="../../src/core/operations/OperationQueue.cpp" line="43"/>
         <location filename="../../src/core/operations/OperationQueue.cpp" line="137"/>
