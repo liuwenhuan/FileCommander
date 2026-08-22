@@ -135,11 +135,14 @@ void DeviceAgent::sendHello() {
     // The pin travels with the address and port because it is part of "how to
     // reach this device": without it the peer has no way to tell our file
     // share from anything else that answers on that port.
+    QJsonArray capabilities;
+    capabilities.append(QStringLiteral("clipboard"));
     m_socket->sendTextMessage(encode({{"type", "hello"},
                                       {"lan_addrs", addresses},
                                       {"port", static_cast<int>(m_sharePort)},
                                       {"pin", ShareIdentity::local().pin},
-                                      {"shares", shares}}));
+                                      {"shares", shares},
+                                      {"capabilities", capabilities}}));
 }
 
 void DeviceAgent::onTextMessage(const QString &text) {
@@ -157,7 +160,12 @@ void DeviceAgent::onTextMessage(const QString &text) {
         if (!ticket.isEmpty())
             emit ticketOffered(message.value(QStringLiteral("session_id")).toString(), ticket,
                                message.value(QStringLiteral("from")).toString(),
-                               message.value(QStringLiteral("expires_in")).toInt());
+                               message.value(QStringLiteral("expires_in")).toInt(),
+                               message.value(QStringLiteral("clipboard_item_id")).toString());
+    } else if (type == QLatin1String("clipboard_changed")) {
+        emit clipboardChanged(
+            static_cast<qint64>(message.value(QStringLiteral("revision")).toDouble()),
+            message.value(QStringLiteral("change")).toString());
     } else if (type == QLatin1String("presence")) {
         const QString deviceId = message.value(QStringLiteral("device_id")).toString();
         if (!deviceId.isEmpty())

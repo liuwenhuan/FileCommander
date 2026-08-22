@@ -569,52 +569,52 @@ QTreeView::branch:open:has-children:has-siblings {
     background: transparent;
 }
 
-/* Quick-notepad fly-out: same anchored-popup treatment as the external-connect
+/* Cloud Clipboard fly-out: same anchored-popup treatment as the external-connect
    panel (rounded top, accent border, bottom-flush). Split top list / bottom editor. */
-#NotepadPanel {
+#CloudClipboardPanel {
     background-color: #2b2b2b;
     border: 1px solid #8e949c;
     border-bottom: none;
     border-top-left-radius: 8px;
     border-top-right-radius: 8px;
 }
-#NotepadPanel QListWidget#NotepadList {
+#CloudClipboardPanel QListWidget#CloudClipboardList {
     background-color: #262626;
     border: 1px solid #1a1a1a;
     border-radius: 4px;
     outline: none;
 }
-#NotepadPanel QListWidget#NotepadList::item {
+#CloudClipboardPanel QListWidget#CloudClipboardList::item {
     padding: 4px 6px;
     border-radius: 3px;
     color: #e0e0e0;
 }
-#NotepadPanel QListWidget#NotepadList::item:hover {
+#CloudClipboardPanel QListWidget#CloudClipboardList::item:hover {
     background-color: #3a3a3a;
 }
-#NotepadPanel QListWidget#NotepadList::item:selected {
+#CloudClipboardPanel QListWidget#CloudClipboardList::item:selected {
     background-color: #565b63;
     color: #ffffff;
 }
-#NotepadPanel QPlainTextEdit#NotepadEditor {
+#CloudClipboardPanel QPlainTextEdit#CloudClipboardEditor {
     background-color: #262626;
     border: 1px solid #1a1a1a;
     border-radius: 4px;
     color: #e0e0e0;
 }
-#NotepadPanel QSplitter#NotepadSplitter::handle {
+#CloudClipboardPanel QSplitter#CloudClipboardSplitter::handle {
     background-color: #3a3a3a;
 }
 
 /* Notepad list: a thin scrollbar shown only when the list can't fit (i.e. the
    popup has hit the app-top ceiling). Handle colour inherits the global rule. */
-#NotepadPanel QListWidget#NotepadList QScrollBar:vertical {
+#CloudClipboardPanel QListWidget#CloudClipboardList QScrollBar:vertical {
     width: 7px;
     background: transparent;
     margin: 0;
 }
-#NotepadPanel QListWidget#NotepadList QScrollBar::add-line:vertical,
-#NotepadPanel QListWidget#NotepadList QScrollBar::sub-line:vertical {
+#CloudClipboardPanel QListWidget#CloudClipboardList QScrollBar::add-line:vertical,
+#CloudClipboardPanel QListWidget#CloudClipboardList QScrollBar::sub-line:vertical {
     height: 0;
     background: transparent;
 }

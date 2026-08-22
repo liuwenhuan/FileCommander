@@ -7,16 +7,18 @@
 
 pub mod agent;
 pub mod api;
+pub mod clipboard;
 pub mod db;
 pub mod relay;
 
 use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, AtomicUsize};
 use std::sync::{Arc, Mutex};
-use std::collections::VecDeque;
 use std::time::Instant;
 
 use axum::extract::ws::WebSocket;
+use axum::extract::DefaultBodyLimit;
 use axum::routing::{delete, get, post};
 use axum::Router;
 use tokio::sync::{mpsc, oneshot};
@@ -36,6 +38,8 @@ pub struct AgentConn {
     /// The device's TLS pin, in curl's `sha256//<base64>` form. Handed to the
     /// peer so it can pin the self-signed certificate the file share serves.
     pub share_pin: String,
+    /// True only after this socket's hello declared clipboard support.
+    pub clipboard: bool,
     /// Distinguishes two connections from the same device, so a socket that
     /// closes after a newer one registered does not evict the newer one.
     pub generation: u64,
@@ -94,10 +98,30 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/auth/register", post(api::register))
         .route("/v1/auth/login", post(api::login))
         .route("/v1/auth/refresh", post(api::refresh))
-        .layer(axum::middleware::from_fn_with_state(state.clone(), api::rate_limit));
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            api::rate_limit,
+        ));
+
+    let clipboard = Router::new()
+        .route(
+            "/v1/clipboard",
+            get(clipboard::list)
+                .post(clipboard::publish)
+                .delete(clipboard::clear),
+        )
+        .route("/v1/clipboard/{item_id}", delete(clipboard::delete_item))
+        .route(
+            "/v1/clipboard/{item_id}/thumbnail",
+            get(clipboard::thumbnail),
+        )
+        // Clipboard publishes include a base64 preview; reject oversized bodies
+        // before JSON deserialization or allocation.
+        .layer(DefaultBodyLimit::max(256 * 1024));
 
     Router::new()
         .merge(auth)
+        .merge(clipboard)
         .route("/v1/auth/logout", post(api::logout))
         .route("/v1/devices", get(api::devices))
         .route("/v1/devices/{device_id}", delete(api::forget_device))

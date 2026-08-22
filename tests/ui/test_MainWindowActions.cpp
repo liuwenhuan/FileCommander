@@ -139,13 +139,6 @@ public:
     }
 };
 
-QStringList actionLabels(QMenu *menu) {
-    QStringList labels;
-    for (QAction *action : menu->actions())
-        labels << action->text();
-    return labels;
-}
-
 } // namespace
 
 TEST(MainWindowActionsTest, StartupKeepsMenuButtonsButDefersMenuContents) {
@@ -153,10 +146,10 @@ TEST(MainWindowActionsTest, StartupKeepsMenuButtonsButDefersMenuContents) {
     ScopedUiLanguage language(QStringLiteral("en"));
     MainWindow window;
 
-    // Four menu buttons plus the account button, which shares the object name.
-    EXPECT_EQ(window.findChildren<QToolButton *>(QStringLiteral("TitleMenuButton")).size(), 5);
-    for (const QString &title : {QStringLiteral("&Interface"), QStringLiteral("&Tools"),
-                                 QStringLiteral("Con&fig"), QStringLiteral("&Actions")}) {
+    // Three menu buttons plus the account button, which shares the object name.
+    EXPECT_EQ(window.findChildren<QToolButton *>(QStringLiteral("TitleMenuButton")).size(), 4);
+    for (const QString &title : {QStringLiteral("&Interface"), QStringLiteral("Con&fig"),
+                                 QStringLiteral("&Actions")}) {
         QMenu *menu = findMenu(window, title);
         ASSERT_NE(menu, nullptr);
         EXPECT_TRUE(menu->actions().isEmpty()) << title.toStdString();
@@ -164,7 +157,7 @@ TEST(MainWindowActionsTest, StartupKeepsMenuButtonsButDefersMenuContents) {
     EXPECT_TRUE(window.findChildren<QWidgetAction *>().isEmpty());
 }
 
-TEST(MainWindowActionsTest, ActionsMenuOffersTheSameCommandsAsTheStarButton) {
+TEST(MainWindowActionsTest, ActionsMenuAppendsToolsAfterTheStarCommands) {
     ThemeStateGuard themeState;
     ScopedUiLanguage language(QStringLiteral("en"));
     MainWindow window;
@@ -191,7 +184,16 @@ TEST(MainWindowActionsTest, ActionsMenuOffersTheSameCommandsAsTheStarButton) {
     // comparison available -- there is no shared QAction instance to point at.
     QScopedPointer<QMenu> starMenu(window.buildShortcutMenu(left));
     ASSERT_FALSE(starMenu->actions().isEmpty());
-    EXPECT_EQ(actionLabels(actionsMenu), actionLabels(starMenu.data()));
+    const QList<QAction *> starActions = starMenu->actions();
+    const QList<QAction *> actions = actionsMenu->actions();
+    ASSERT_EQ(actions.size(), starActions.size() + 5); // separator + four tools
+    for (int i = 0; i < starActions.size(); ++i)
+        EXPECT_EQ(actions.at(i)->text(), starActions.at(i)->text());
+    EXPECT_TRUE(actions.at(starActions.size())->isSeparator());
+    EXPECT_NE(findAction(actionsMenu, QStringLiteral("Cloud Clipboard")), nullptr);
+    EXPECT_NE(findAction(actionsMenu, QStringLiteral("Calculate Checksums")), nullptr);
+    EXPECT_NE(findAction(actionsMenu, QStringLiteral("Secure Wipe")), nullptr);
+    EXPECT_NE(findAction(actionsMenu, QStringLiteral("Compare Files")), nullptr);
 }
 
 TEST(MainWindowActionsTest, ActionsMenuCommandsRunOnTheActivePanel) {
@@ -259,23 +261,23 @@ TEST(MainWindowActionsTest, FirstOpenBuildsEachMenuOnceWithCurrentState) {
     ScopedUiLanguage language(QStringLiteral("en"));
     MainWindow window;
 
-    QMenu *toolsMenu = findMenu(window, QStringLiteral("&Tools"));
+    QMenu *actionsMenu = findMenu(window, QStringLiteral("&Actions"));
     QMenu *configMenu = findMenu(window, QStringLiteral("Con&fig"));
     QMenu *interfaceMenu = findMenu(window, QStringLiteral("&Interface"));
-    ASSERT_NE(toolsMenu, nullptr);
+    ASSERT_NE(actionsMenu, nullptr);
     ASSERT_NE(configMenu, nullptr);
     ASSERT_NE(interfaceMenu, nullptr);
-    EXPECT_TRUE(toolsMenu->actions().isEmpty());
+    EXPECT_TRUE(actionsMenu->actions().isEmpty());
     EXPECT_TRUE(configMenu->actions().isEmpty());
     EXPECT_TRUE(interfaceMenu->actions().isEmpty());
 
-    openMenu(toolsMenu);
-    QAction *notepad = findAction(toolsMenu, QStringLiteral("Quick Notepad"));
+    openMenu(actionsMenu);
+    QAction *notepad = findAction(actionsMenu, QStringLiteral("Cloud Clipboard"));
     ASSERT_NE(notepad, nullptr);
     EXPECT_TRUE(notepad->isEnabled());
-    const int toolsActionCount = toolsMenu->actions().size();
-    openMenu(toolsMenu);
-    EXPECT_EQ(toolsMenu->actions().size(), toolsActionCount);
+    const int actionsCount = actionsMenu->actions().size();
+    openMenu(actionsMenu);
+    EXPECT_EQ(actionsMenu->actions().size(), actionsCount);
 
     openMenu(configMenu);
     QAction *noConfirm = findAction(configMenu, QStringLiteral("Skip Trash Delete Confirmation"));
@@ -423,15 +425,14 @@ TEST(MainWindowActionsTest, FirstOpenBuildsTranslatedMenuContents) {
     ScopedUiLanguage language(QStringLiteral("zh_CN"));
     MainWindow window;
 
-    QMenu *toolsMenu = findMenu(window, QStringLiteral("工具(&T)"));
+    QMenu *actionsMenu = findMenu(window, QStringLiteral("操作(&A)"));
     QMenu *configMenu = findMenu(window, QStringLiteral("配置(&F)"));
     QMenu *interfaceMenu = findMenu(window, QStringLiteral("界面(&I)"));
-    openMenu(toolsMenu);
+    openMenu(actionsMenu);
     openMenu(configMenu);
     openMenu(interfaceMenu);
 
-    EXPECT_NE(findAction(toolsMenu, QStringLiteral("快捷记事本")), nullptr);
-    EXPECT_NE(findAction(configMenu, QStringLiteral("删除时无需确认")), nullptr);
+    EXPECT_NE(findAction(actionsMenu, QStringLiteral("云剪贴板")), nullptr);
     EXPECT_NE(findAction(interfaceMenu, QStringLiteral("显示功能键栏")), nullptr);
 }
 

@@ -760,48 +760,48 @@ QToolTip {
     background: transparent;
 }
 
-/* Quick-notepad fly-out: same treatment. */
-#NotepadPanel {
+/* Cloud Clipboard fly-out: same treatment. */
+#CloudClipboardPanel {
     background: url(:/icons/crt-scan-screen.png) repeat;
     border: 1px solid #33ff88;
     border-bottom: none;
     border-top-left-radius: 0;
     border-top-right-radius: 0;
 }
-#NotepadPanel QListWidget#NotepadList {
+#CloudClipboardPanel QListWidget#CloudClipboardList {
     background-color: #04140a;
     border: 1px solid #12602f;
     border-radius: 0;
     outline: none;
 }
-#NotepadPanel QListWidget#NotepadList::item {
+#CloudClipboardPanel QListWidget#CloudClipboardList::item {
     padding: 4px 6px;
     border-radius: 0;
     color: #33ff88;
 }
-#NotepadPanel QListWidget#NotepadList::item:hover {
+#CloudClipboardPanel QListWidget#CloudClipboardList::item:hover {
     background-color: #12602f;
 }
-#NotepadPanel QListWidget#NotepadList::item:selected {
+#CloudClipboardPanel QListWidget#CloudClipboardList::item:selected {
     background-color: #33ff88;
     color: #04140a;
 }
-#NotepadPanel QPlainTextEdit#NotepadEditor {
+#CloudClipboardPanel QPlainTextEdit#CloudClipboardEditor {
     background-color: #04140a;
     border: 1px solid #12602f;
     border-radius: 0;
     color: #33ff88;
 }
-#NotepadPanel QSplitter#NotepadSplitter::handle {
+#CloudClipboardPanel QSplitter#CloudClipboardSplitter::handle {
     background-color: #12602f;
 }
-#NotepadPanel QListWidget#NotepadList QScrollBar:vertical {
+#CloudClipboardPanel QListWidget#CloudClipboardList QScrollBar:vertical {
     width: 7px;
     background: transparent;
     margin: 0;
 }
-#NotepadPanel QListWidget#NotepadList QScrollBar::add-line:vertical,
-#NotepadPanel QListWidget#NotepadList QScrollBar::sub-line:vertical {
+#CloudClipboardPanel QListWidget#CloudClipboardList QScrollBar::add-line:vertical,
+#CloudClipboardPanel QListWidget#CloudClipboardList QScrollBar::sub-line:vertical {
     height: 0;
     background: transparent;
 }

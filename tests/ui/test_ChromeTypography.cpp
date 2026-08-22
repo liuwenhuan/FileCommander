@@ -297,7 +297,7 @@ TEST(ChromeTypographyTest, EmbeddedMenuChromeDoesNotCoverCrtScanlines) {
     EXPECT_GE(verticalColors.size(), 2);
 }
 
-// The title bar's menu buttons (Interface / Tools / Config) and the F3-F8 row
+// The title bar's menu buttons (Interface / Config / Actions) and the F3-F8 row
 // were both left at their startup size by a menu-font change: the title bar was
 // never reached from applyInterfaceTypography() at all, and the function-key bar
 // was reached but only at the container level, whose own font already matched

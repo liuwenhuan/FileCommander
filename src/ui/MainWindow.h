@@ -58,6 +58,7 @@ class TitleBar;
 class RemovableDeviceMonitor;
 class NetworkTreeRegistry;
 class AccountClient;
+class CloudClipboardController;
 class DeviceAgent;
 class FileShareServer;
 class RelayTunnel;
@@ -298,7 +299,7 @@ private slots:
     void pasteFromClipboard();
 
 private:
-    // (Re)builds the Tools/Config/Interface menus and the title bar that hosts them.
+    // (Re)builds the Config/Interface/Actions menus and the title bar that hosts them.
     // Safe to call again on a language change (deletes the previous menus/bar).
     void buildTitleBarMenus();
     void syncConfigMenuState();
@@ -448,7 +449,6 @@ private:
     ThemeManager *m_themeManager;
     Settings m_settings;
     QSplitter *m_panelSplitter;
-    QMenu *m_toolsMenu = nullptr;    // owned; rebuilt on language change
     QMenu *m_configMenu = nullptr;   // owned; rebuilt on language change
     QMenu *m_interfaceMenu = nullptr; // owned; rebuilt on language change
     QMenu *m_actionsMenu = nullptr;  // owned; rebuilt on language change
@@ -657,8 +657,10 @@ private:
         std::function<std::shared_ptr<FileProvider>(QString *)> connect;
     };
     DeviceLink deviceLink(const AccountSession &session);
+    void downloadCloudClipboardImage(const AccountSession &session);
 
     AccountClient *m_accountClient = nullptr;
+    CloudClipboardController *m_cloudClipboard = nullptr;
     PendingTransferStore m_pendingTransfers;
     // Last device list the server sent. A cache, because the "Send to Device"
     // submenu has to be populated the instant the menu opens; opening it also

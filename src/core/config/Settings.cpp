@@ -631,3 +631,38 @@ int Settings::notepadEditorHeight() const {
 void Settings::setNotepadEditorHeight(int height) {
     m_settings.setValue("view/notepadEditorHeight", qMax(0, height));
 }
+
+bool Settings::cloudClipboardAutoUpload() const {
+    return m_settings.value("account/cloudClipboardAutoUpload", false).toBool();
+}
+
+void Settings::setCloudClipboardAutoUpload(bool on) {
+    m_settings.setValue("account/cloudClipboardAutoUpload", on);
+    if (!on)
+        m_settings.setValue("account/cloudClipboardAutoReceive", false);
+}
+
+bool Settings::cloudClipboardAutoReceive() const {
+    return cloudClipboardAutoUpload() &&
+           m_settings.value("account/cloudClipboardAutoReceive", false).toBool();
+}
+
+void Settings::setCloudClipboardAutoReceive(bool on) {
+    m_settings.setValue("account/cloudClipboardAutoReceive", on && cloudClipboardAutoUpload());
+}
+
+bool Settings::cloudClipboardPrivacyAcknowledged() const {
+    return m_settings.value("account/cloudClipboardPrivacyAcknowledged", false).toBool();
+}
+
+void Settings::setCloudClipboardPrivacyAcknowledged(bool acknowledged) {
+    m_settings.setValue("account/cloudClipboardPrivacyAcknowledged", acknowledged);
+}
+
+int Settings::cloudClipboardEditorHeight() const {
+    return m_settings.value("view/cloudClipboardEditorHeight", 0).toInt();
+}
+
+void Settings::setCloudClipboardEditorHeight(int height) {
+    m_settings.setValue("view/cloudClipboardEditorHeight", qMax(0, height));
+}

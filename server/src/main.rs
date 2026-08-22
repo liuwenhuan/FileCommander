@@ -21,8 +21,7 @@ async fn main() {
     let db = Db::open(&db_path).expect("could not open the account database");
     // ConnectInfo is what the rate limiter keys on; without this the whole
     // server shares one bucket.
-    let app = router(AppState::new(db))
-        .into_make_service_with_connect_info::<SocketAddr>();
+    let app = router(AppState::new(db)).into_make_service_with_connect_info::<SocketAddr>();
 
     match (cert, key) {
         (Some(cert), Some(key)) => {
@@ -33,13 +32,19 @@ async fn main() {
                 .await
                 .expect("could not read the TLS certificate or key");
             println!("filecommander-account: https://{addr} (db {db_path})");
-            axum_server::bind_rustls(addr, config).serve(app).await.expect("server failed");
+            axum_server::bind_rustls(addr, config)
+                .serve(app)
+                .await
+                .expect("server failed");
         }
         _ => {
             // Plain HTTP is for a local run or for a deployment that really has
             // something else terminating TLS. Tokens travel in the clear here.
             println!("filecommander-account: http://{addr} (db {db_path}) -- no TLS configured");
-            axum_server::bind(addr).serve(app).await.expect("server failed");
+            axum_server::bind(addr)
+                .serve(app)
+                .await
+                .expect("server failed");
         }
     }
 }

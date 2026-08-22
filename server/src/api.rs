@@ -16,9 +16,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::db::{
-    constant_time_eq, hash_password, hash_token, iso, now, random_hex, random_token,
-};
+use crate::db::{constant_time_eq, hash_password, hash_token, iso, now, random_hex, random_token};
 use crate::AppState;
 
 /// Short enough that a stolen access token is worth little, long enough that a
@@ -149,8 +147,11 @@ pub async fn rate_limit(State(state): State<AppState>, req: Request, next: Next)
 
     if !allowed {
         log_line("ratelimit", &format!("reject {log_key}"));
-        return fail(StatusCode::TOO_MANY_REQUESTS, "too many attempts, try again later")
-            .into_response();
+        return fail(
+            StatusCode::TOO_MANY_REQUESTS,
+            "too many attempts, try again later",
+        )
+        .into_response();
     }
     next.run(req).await
 }
@@ -197,7 +198,11 @@ pub async fn register(
         .db
         .call(move |conn| {
             let taken: bool = conn
-                .query_row("SELECT 1 FROM users WHERE email = ?1", params![email], |_| Ok(()))
+                .query_row(
+                    "SELECT 1 FROM users WHERE email = ?1",
+                    params![email],
+                    |_| Ok(()),
+                )
                 .optional()
                 .unwrap_or(None)
                 .is_some();
@@ -247,7 +252,10 @@ pub struct TokenPair {
 /// session per device: a second sign-in on the same machine invalidates the
 /// first, so a re-login after a token leak actually revokes something.
 fn issue_tokens(conn: &Connection, user_id: i64, device_id: &str) -> TokenPair {
-    let _ = conn.execute("DELETE FROM tokens WHERE device_id = ?1", params![device_id]);
+    let _ = conn.execute(
+        "DELETE FROM tokens WHERE device_id = ?1",
+        params![device_id],
+    );
     let access = random_token();
     let refresh = random_token();
     let _ = conn.execute(
@@ -355,7 +363,10 @@ pub async fn login(
                     params![id, user_id, name, platform, stamp],
                 )
                 .map_err(|_| {
-                    fail(StatusCode::INTERNAL_SERVER_ERROR, "could not register device")
+                    fail(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "could not register device",
+                    )
                 })?;
                 id
             };
@@ -394,8 +405,8 @@ pub async fn refresh(
                 )
                 .optional()
                 .unwrap_or(None);
-            let (user_id, device_id) = row
-                .ok_or_else(|| fail(StatusCode::UNAUTHORIZED, "invalid refresh token"))?;
+            let (user_id, device_id) =
+                row.ok_or_else(|| fail(StatusCode::UNAUTHORIZED, "invalid refresh token"))?;
             // Rotation: the presented refresh token is spent. issue_tokens
             // clears the rest of the device's tokens with it.
             Ok(Json(issue_tokens(conn, user_id, &device_id)))
@@ -409,11 +420,18 @@ pub async fn logout(
 ) -> Result<StatusCode, ApiError> {
     let principal = authenticate(&state, &headers).await?;
     let device_id = principal.device_id.clone();
-    state.agents.lock().unwrap_or_else(|e| e.into_inner()).remove(&device_id);
+    state
+        .agents
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .remove(&device_id);
     state
         .db
         .call(move |conn| {
-            let _ = conn.execute("DELETE FROM tokens WHERE device_id = ?1", params![device_id]);
+            let _ = conn.execute(
+                "DELETE FROM tokens WHERE device_id = ?1",
+                params![device_id],
+            );
         })
         .await;
     Ok(StatusCode::NO_CONTENT)
@@ -461,7 +479,10 @@ pub async fn devices(
                 let addrs: String = r.get(4)?;
                 let shares: String = r.get(5)?;
                 Ok(DeviceView {
-                    online: last_seen.as_deref().map(|s| s >= cutoff.as_str()).unwrap_or(false),
+                    online: last_seen
+                        .as_deref()
+                        .map(|s| s >= cutoff.as_str())
+                        .unwrap_or(false),
                     is_self: id == this_device,
                     id,
                     name: r.get(1)?,
@@ -495,9 +516,8 @@ pub async fn forget_device(
 ) -> Result<StatusCode, ApiError> {
     let principal = authenticate(&state, &headers).await?;
     let user_id = principal.user_id;
-    state.agents.lock().unwrap_or_else(|e| e.into_inner()).remove(&device_id);
-
-    state
+    let agent_device_id = device_id.clone();
+    let status = state
         .db
         .call(move |conn| {
             let removed = conn
@@ -510,8 +530,17 @@ pub async fn forget_device(
                 return Err(fail(StatusCode::NOT_FOUND, "no such device"));
             }
             // A device nobody can reach must not keep a usable session.
-            let _ = conn.execute("DELETE FROM tokens WHERE device_id = ?1", params![device_id]);
+            let _ = conn.execute(
+                "DELETE FROM tokens WHERE device_id = ?1",
+                params![device_id],
+            );
             Ok(StatusCode::NO_CONTENT)
         })
-        .await
+        .await?;
+    state
+        .agents
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .remove(&agent_device_id);
+    Ok(status)
 }

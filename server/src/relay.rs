@@ -109,7 +109,13 @@ pub async fn relay_ws(
 /// by the opposite role, or parks this one and waits. `slot` is the connection
 /// budget reservation made in relay_ws; holding it for the body of this task
 /// releases it exactly when the socket stops existing.
-async fn join(state: AppState, session_id: String, accept: bool, socket: WebSocket, _slot: RelaySlot) {
+async fn join(
+    state: AppState,
+    session_id: String,
+    accept: bool,
+    socket: WebSocket,
+    _slot: RelaySlot,
+) {
     let mut socket = socket;
     let idle_secs = state.relay_idle_seconds;
     loop {
@@ -118,7 +124,11 @@ async fn join(state: AppState, session_id: String, accept: bool, socket: WebSock
             let Some(session) = sessions.get_mut(&session_id) else {
                 return;
             };
-            let queue = if accept { &mut session.connecting } else { &mut session.accepting };
+            let queue = if accept {
+                &mut session.connecting
+            } else {
+                &mut session.accepting
+            };
             queue.pop_front()
         };
         match waiting {
@@ -221,10 +231,7 @@ async fn forward(
         Some(Ok(Message::Text(text))) if text == END_MESSAGE => ForwardResult::Eof,
         Some(Ok(Message::Binary(_))) => ForwardResult::Closed,
         // Other text frames are control; ping/pong are the socket's own business.
-        Some(Ok(Message::Ping(_) | Message::Pong(_) | Message::Text(_))) => {
-            ForwardResult::Continue
-        }
+        Some(Ok(Message::Ping(_) | Message::Pong(_) | Message::Text(_))) => ForwardResult::Continue,
         _ => ForwardResult::Closed,
     }
 }
-

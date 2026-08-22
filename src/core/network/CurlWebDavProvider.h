@@ -78,6 +78,9 @@ public:
     // Must be set before connectToHost(); it applies to the control-plane
     // handle and to every streaming transfer handle.
     void setPinnedPublicKey(const QString &pin);
+    // A scoped read-only endpoint can be probed with HEAD instead of the normal
+    // WebDAV PROPFIND / handshake (used by clipboard-image capability tickets).
+    void setConnectProbePath(const QString &path) { m_connectProbePath = path; }
 
     // Bounds the connect phase (and control-plane requests) by ms. Must be set
     // before connectToHost(). Ignored if <= 0.
@@ -162,6 +165,7 @@ private:
     QString m_password;
     bool m_useHttps = false;
     QString m_pinnedKey;
+    QString m_connectProbePath;
     int m_timeoutMs = 12000;
     bool m_connected = false;
     // Set by the connect handshake when the server advertised that it continues

@@ -6,6 +6,7 @@ description = "FileCommander account, device registry and transfer signalling se
 
 [dependencies]
 axum = { version = "0.8", features = ["ws"] }
+base64 = "0.22"
 axum-server = { version = "0.7", features = ["tls-rustls"] }
 chrono = "0.4"
 futures-util = "0.3"

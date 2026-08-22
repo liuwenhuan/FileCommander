@@ -1,17 +1,20 @@
 #include <gtest/gtest.h>
 
 #include <QDir>
+#include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
 #include <QProcess>
 #include <QSignalSpy>
+#include <QSslSocket>
 #include <QTemporaryDir>
 #include <QThread>
 #include <QTimer>
 
 #include "LocalFileProvider.h"
 #include "OperationQueue.h"
+#include "account/CloudClipboardImageCache.h"
 #include "account/FileShareServer.h"
 #include "account/ShareIdentity.h"
 #include "network/CurlWebDavProvider.h"
@@ -28,6 +31,49 @@
 namespace {
 
 const char kTicket[] = "ticket-for-the-tests";
+const char kClipboardTicket[] = "clipboard-ticket-for-the-tests";
+const char kMissingClipboardTicket[] = "missing-clipboard-ticket";
+const char kExpiredClipboardTicket[] = "expired-clipboard-ticket";
+const char kExpiredCacheTicket[] = "expired-cache-ticket";
+const QString kClipboardItemId = QStringLiteral("3b20b7ee-aeca-4f1e-a950-401880dfd9f7");
+const QString kMissingClipboardItemId = QStringLiteral("f5c4645d-38f5-43ef-ba7f-bd5c938965fd");
+const QString kExpiredCacheItemId = QStringLiteral("eaa608f4-7b4d-42dd-b8c5-52a1a11a01c4");
+
+QByteArray rawRequest(quint16 port, const QString &ticket, const QByteArray &method,
+                      const QString &path, const QByteArray &extra = QByteArray()) {
+    QSslSocket socket;
+    socket.setPeerVerifyMode(QSslSocket::VerifyNone);
+    socket.connectToHostEncrypted(QStringLiteral("127.0.0.1"), port);
+    if (!socket.waitForEncrypted(5000))
+        return {};
+    const QByteArray authorization = QByteArray("device:") + ticket.toUtf8();
+    const QByteArray request = method + " " + path.toUtf8() + " HTTP/1.1\r\n"
+                               "Host: 127.0.0.1\r\n"
+                               "Authorization: Basic " + authorization.toBase64() + "\r\n"
+                               "Connection: close\r\n" + extra + "\r\n";
+    if (socket.write(request) != request.size() || !socket.waitForBytesWritten(5000))
+        return {};
+    QByteArray response;
+    QElapsedTimer timer;
+    timer.start();
+    while (timer.elapsed() < 5000) {
+        if (socket.waitForReadyRead(100))
+            response += socket.readAll();
+        if (socket.state() == QAbstractSocket::UnconnectedState)
+            break;
+    }
+    response += socket.readAll();
+    return response;
+}
+
+int responseStatus(const QByteArray &response) {
+    return response.left(response.indexOf("\r\n")).split(' ').value(1).toInt();
+}
+
+QByteArray responseBody(const QByteArray &response) {
+    const int body = response.indexOf("\r\n\r\n");
+    return body < 0 ? QByteArray() : response.mid(body + 4);
+}
 
 QByteArray blob(int size, char seed) {
     QByteArray data(size, seed);
@@ -114,10 +160,24 @@ protected:
         ASSERT_TRUE(writeFile(m_share + QStringLiteral("/hello.txt"), "hello world"));
         // Something outside the share, to prove no path can reach it.
         ASSERT_TRUE(writeFile(m_dir.path() + QStringLiteral("/secret.txt"), "not yours"));
+        m_clipboardCacheDir = m_dir.path() + QStringLiteral("/clipboard-images");
+        m_clipboardPayload = blob(128 * 1024, 37);
+        CloudClipboardImageCache clipboardCache(m_clipboardCacheDir);
+        ASSERT_TRUE(clipboardCache.store(kClipboardItemId, m_clipboardPayload,
+                                         QStringLiteral("image/png")));
+        ASSERT_TRUE(clipboardCache.store(kExpiredCacheItemId, "short-lived-cache-image",
+                                         QStringLiteral("image/png"),
+                                         QDateTime::currentDateTimeUtc().addSecs(1)));
 
         m_server = new FileShareServer(nullptr);
         m_server->setSharedFolders({m_share});
+        m_server->setClipboardImageCacheDirectory(m_clipboardCacheDir);
         m_server->addTicket(QString::fromLatin1(kTicket), 300);
+        m_server->addClipboardTicket(QString::fromLatin1(kClipboardTicket), kClipboardItemId, 300);
+        m_server->addClipboardTicket(QString::fromLatin1(kMissingClipboardTicket),
+                                     kMissingClipboardItemId, 300);
+        m_server->addClipboardTicket(QString::fromLatin1(kExpiredClipboardTicket), kClipboardItemId, 0);
+        m_server->addClipboardTicket(QString::fromLatin1(kExpiredCacheTicket), kExpiredCacheItemId, 300);
 
         QSignalSpy up(m_server, &FileShareServer::started);
         QSignalSpy bad(m_server, &FileShareServer::failed);
@@ -152,6 +212,8 @@ protected:
 
     QTemporaryDir m_dir;
     QString m_share;
+    QString m_clipboardCacheDir;
+    QByteArray m_clipboardPayload;
     FileShareServer *m_server = nullptr;
     std::shared_ptr<CurlWebDavProvider> m_provider;
     quint16 m_port = 0;
@@ -363,6 +425,74 @@ TEST_F(FileShareServerTest, AWrongTicketGetsNothing) {
 TEST_F(FileShareServerTest, AnExpiredTicketStopsWorking) {
     m_server->addTicket(QStringLiteral("brief"), 0);
     EXPECT_FALSE(connectWith(QStringLiteral("brief")));
+}
+
+TEST_F(FileShareServerTest, ClipboardTicketServesOnlyItsExactOriginalWithRangeSupport) {
+    const QString path = QStringLiteral("/clipboard/") + kClipboardItemId;
+    const QByteArray whole = rawRequest(m_port, QString::fromLatin1(kClipboardTicket), "GET", path);
+    ASSERT_FALSE(whole.isEmpty());
+    EXPECT_EQ(responseStatus(whole), 200);
+    EXPECT_TRUE(whole.contains("Content-Type: image/png\r\n"));
+    EXPECT_TRUE(whole.contains("Content-Length: " + QByteArray::number(m_clipboardPayload.size()) + "\r\n"));
+    EXPECT_EQ(responseBody(whole), m_clipboardPayload);
+
+    const QByteArray range = rawRequest(m_port, QString::fromLatin1(kClipboardTicket), "GET", path,
+                                        "Range: bytes=65536-\r\n");
+    ASSERT_FALSE(range.isEmpty());
+    EXPECT_EQ(responseStatus(range), 206);
+    EXPECT_TRUE(range.contains("Content-Range: bytes 65536-" +
+                               QByteArray::number(m_clipboardPayload.size() - 1) + "/" +
+                               QByteArray::number(m_clipboardPayload.size()) + "\r\n"));
+    EXPECT_EQ(responseBody(range), m_clipboardPayload.mid(65536));
+
+    const QByteArray head = rawRequest(m_port, QString::fromLatin1(kClipboardTicket), "HEAD", path);
+    ASSERT_FALSE(head.isEmpty());
+    EXPECT_EQ(responseStatus(head), 200);
+    EXPECT_TRUE(responseBody(head).isEmpty());
+}
+
+TEST_F(FileShareServerTest, ClipboardTicketCannotAccessAnotherItemOrSharedFolders) {
+    const QByteArray wrong = rawRequest(m_port, QString::fromLatin1(kClipboardTicket), "GET",
+                                        QStringLiteral("/clipboard/") + kMissingClipboardItemId);
+    ASSERT_FALSE(wrong.isEmpty());
+    EXPECT_EQ(responseStatus(wrong), 403);
+
+    const QByteArray share = rawRequest(m_port, QString::fromLatin1(kClipboardTicket), "GET",
+                                        QStringLiteral("/share/hello.txt"));
+    ASSERT_FALSE(share.isEmpty());
+    EXPECT_EQ(responseStatus(share), 403);
+
+    const QByteArray list = rawRequest(m_port, QString::fromLatin1(kClipboardTicket), "PROPFIND",
+                                       QStringLiteral("/clipboard/") + kClipboardItemId);
+    ASSERT_FALSE(list.isEmpty());
+    EXPECT_EQ(responseStatus(list), 403);
+
+    // An ordinary shared-folder ticket receives no special route to private
+    // originals, even though it retains its existing shared-folder access.
+    const QByteArray ordinary = rawRequest(m_port, QString::fromLatin1(kTicket), "GET",
+                                           QStringLiteral("/clipboard/") + kClipboardItemId);
+    ASSERT_FALSE(ordinary.isEmpty());
+    EXPECT_EQ(responseStatus(ordinary), 404);
+}
+
+TEST_F(FileShareServerTest, ClipboardTicketsExpireAndMissingImagesAreNotServed) {
+    const QByteArray expired = rawRequest(m_port, QString::fromLatin1(kExpiredClipboardTicket), "GET",
+                                          QStringLiteral("/clipboard/") + kClipboardItemId);
+    ASSERT_FALSE(expired.isEmpty());
+    EXPECT_EQ(responseStatus(expired), 401);
+
+    const QByteArray missing = rawRequest(m_port, QString::fromLatin1(kMissingClipboardTicket), "GET",
+                                          QStringLiteral("/clipboard/") + kMissingClipboardItemId);
+    ASSERT_FALSE(missing.isEmpty());
+    EXPECT_EQ(responseStatus(missing), 404);
+}
+
+TEST_F(FileShareServerTest, ClipboardTicketDoesNotServeAnExpiredCachedImage) {
+    QThread::msleep(1200);
+    const QByteArray expired = rawRequest(m_port, QString::fromLatin1(kExpiredCacheTicket), "GET",
+                                          QStringLiteral("/clipboard/") + kExpiredCacheItemId);
+    ASSERT_FALSE(expired.isEmpty());
+    EXPECT_EQ(responseStatus(expired), 404);
 }
 
 // --- Resume ------------------------------------------------------------------

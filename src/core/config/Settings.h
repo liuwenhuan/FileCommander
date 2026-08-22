@@ -282,6 +282,17 @@ public:
     int notepadEditorHeight() const;
     void setNotepadEditorHeight(int height);
 
+    // Cloud Clipboard is opt-in. Receiving automatically is meaningful only
+    // while automatic uploading is also enabled.
+    bool cloudClipboardAutoUpload() const;
+    void setCloudClipboardAutoUpload(bool on);
+    bool cloudClipboardAutoReceive() const;
+    void setCloudClipboardAutoReceive(bool on);
+    bool cloudClipboardPrivacyAcknowledged() const;
+    void setCloudClipboardPrivacyAcknowledged(bool acknowledged);
+    int cloudClipboardEditorHeight() const;
+    void setCloudClipboardEditorHeight(int height);
+
 private:
     QSettings m_settings;
 };

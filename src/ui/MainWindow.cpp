@@ -110,6 +110,7 @@
 #include "OperationQueue.h"
 #include "account/AccountClient.h"
 #include "account/DeviceAgent.h"
+#include "account/CloudClipboardImageCache.h"
 #include "account/FileShareServer.h"
 #include "account/RelayTunnel.h"
 #include "DesktopNotify.h"
@@ -142,6 +143,7 @@
 #include "dialogs/SyncDialog.h"
 
 // Feature batch: external-connection picker, quick notepad, online update.
+#include "CloudClipboardController.h"
 #include "NotepadPanel.h"
 #include "dialogs/AboutDialog.h"
 #if FILECOMMANDER_HAS_LINUX_INTEGRATION || (defined(Q_OS_WIN) && FILECOMMANDER_HAS_NETWORK)
@@ -899,7 +901,6 @@ QAction *MainWindow::addCommandAction(QMenu *menu, const QString &id, const QStr
 void MainWindow::buildTitleBarMenus() {
     // Re-runnable (called again on a live language change): drop the previous
     // menus so we don't leak them. setMenuWidget() deletes the old title bar.
-    delete m_toolsMenu;
     delete m_configMenu;
     delete m_interfaceMenu;
     delete m_actionsMenu;
@@ -914,18 +915,12 @@ void MainWindow::buildTitleBarMenus() {
     connect(actionsMenu, &QMenu::aboutToShow, this, [this, actionsMenu] {
         actionsMenu->clear();
         fillShortcutMenu(actionsMenu, m_activePanel);
-    });
-
-    auto *toolsMenu = new QMenu(tr("&Tools"), this);
-    Typography::applyChromeFont(toolsMenu, m_settings);
-    m_toolsMenu = toolsMenu;
-    connect(toolsMenu, &QMenu::aboutToShow, this, [this, toolsMenu] {
-        if (!toolsMenu->isEmpty())
-            return;
-        addCommandAction(toolsMenu, QStringLiteral("notepad"), tr("Quick Notepad"));
-        addCommandAction(toolsMenu, QStringLiteral("checksums"), tr("Calculate Checksums"));
-        addCommandAction(toolsMenu, QStringLiteral("secureWipe"), tr("Secure Wipe"));
-        addCommandAction(toolsMenu, QStringLiteral("compareFiles"), tr("Compare Files"));
+        if (!actionsMenu->actions().isEmpty())
+            actionsMenu->addSeparator();
+        addCommandAction(actionsMenu, QStringLiteral("notepad"), tr("Cloud Clipboard"));
+        addCommandAction(actionsMenu, QStringLiteral("checksums"), tr("Calculate Checksums"));
+        addCommandAction(actionsMenu, QStringLiteral("secureWipe"), tr("Secure Wipe"));
+        addCommandAction(actionsMenu, QStringLiteral("compareFiles"), tr("Compare Files"));
     });
 
     auto *configMenu = new QMenu(tr("Con&fig"), this);
@@ -1255,7 +1250,7 @@ void MainWindow::buildTitleBarMenus() {
 
     // Embed the menus in our self-drawn title bar (app icon + menu buttons +
     // window buttons), placed where the menu bar would normally sit.
-    m_titleBar = new TitleBar(this, {interfaceMenu, toolsMenu, configMenu, actionsMenu});
+    m_titleBar = new TitleBar(this, {interfaceMenu, configMenu, actionsMenu});
     m_titleBar->setCursor(Qt::ArrowCursor); // don't inherit the window resize cursor
     setMenuWidget(m_titleBar);
     // Clicking the title-bar "New Version" badge opens the pending-update dialog.
@@ -2504,13 +2499,20 @@ void MainWindow::openComputerEntry(FilePanel *panel, const ComputerEntry &entry)
 }
 
 void MainWindow::toggleNotepad() {
-    // A floating fly-out anchored above the trailing function-key button that
-    // launched it (mirrors the external-connection panel), rather than a docked
-    // third column. Non-modal; it auto-saves and deletes itself on close.
+#if FILECOMMANDER_HAS_NETWORK
+    ensureAccountClient();
+    updateDeviceSharing();
+    if (!m_cloudClipboard)
+        m_cloudClipboard = new CloudClipboardController(m_settings, m_accountClient,
+                                                        m_deviceAgent, this);
+    auto *pad = new NotepadPanel(m_settings, m_cloudClipboard, this);
+#else
     auto *pad = new NotepadPanel(m_settings, this);
-    // The app window's VISIBLE content rect in global coords: contentsRect()
-    // excludes the frameless shadow margin, so the popup aligns to the real
-    // window edges, not the shadow.
+#endif
+    // Preserve the legacy command id and anchored popup geometry while the
+    // visible tool is now the account-backed Cloud Clipboard.
+    // The app window's visible content rect excludes the frameless shadow
+    // margin, so the popup aligns to the real window edges, not the shadow.
     const QRect appContent(mapToGlobal(contentsRect().topLeft()), contentsRect().size());
     pad->popUpAbove(m_functionKeyBar->trailingButtonGlobalRect(), appContent);
 }
@@ -2667,8 +2669,8 @@ void MainWindow::setupShortcuts() {
     registerCommand("delete", tr("Delete (to trash)"), [this] { deleteSelected(false); });
     registerCommand("external-connect", tr("Connect External / Devices"),
                     [this] { openExternalConnections(); });
-    registerCommand("notepad", tr("Quick Notepad"), [this] { toggleNotepad(); });
-    bindShortcut("notepad", tr("Quick Notepad"),
+    registerCommand("notepad", tr("Cloud Clipboard"), [this] { toggleNotepad(); });
+    bindShortcut("notepad", tr("Cloud Clipboard"),
                  QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_N), [this] { toggleNotepad(); });
     bindShortcut("checksums", tr("Calculate Checksums"),
                  QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_H), [this] { calculateChecksums(); });
@@ -3055,7 +3057,7 @@ void MainWindow::applyInterfaceTypography() {
     // this is why the menu-font-size and list-font-size caption rows kept
     // displaying a stale size after being adjusted with a menu open, even though
     // adjusting them did correctly change every other chrome surface's font.
-    for (QMenu *menu : {m_interfaceMenu, m_toolsMenu, m_configMenu, m_actionsMenu}) {
+    for (QMenu *menu : {m_interfaceMenu, m_configMenu, m_actionsMenu}) {
         Typography::applyChromeFont(menu, chrome);
         // Force the embedded font-size-stepper rows to match right now, rather than
         // trust MenuChromeSynchronizer's own deferred re-sync (installed on this
@@ -4592,6 +4594,11 @@ void MainWindow::ensureAccountClient() {
     if (m_accountClient)
         return;
     m_accountClient = new AccountClient(this);
+    if (!m_cloudClipboard) {
+        m_cloudClipboard = new CloudClipboardController(m_settings, m_accountClient, nullptr, this);
+        connect(m_cloudClipboard, &CloudClipboardController::imageSessionReady,
+                this, &MainWindow::downloadCloudClipboardImage);
+    }
     if (!m_settings.accountUsesOfficialServer() &&
         !m_settings.accountCustomServerUrl().isEmpty()) {
         m_accountClient->setApiUrl(m_settings.accountCustomServerUrl());
@@ -4686,6 +4693,9 @@ void MainWindow::updateDeviceSharing() {
     if (!m_shareServer) {
         m_shareServer = new FileShareServer(m_accountClient, this);
         m_deviceAgent = new DeviceAgent(m_accountClient, this);
+        m_shareServer->setClipboardImageCacheDirectory(CloudClipboardImageCache().directory());
+        if (m_cloudClipboard)
+            m_cloudClipboard->setAgent(m_deviceAgent);
         // A peer finished writing a file into our shared folders: tell the user
         // something arrived, unless they turned the notice off.
         connect(m_shareServer, &FileShareServer::received, this, [this](const QString &fileName) {
@@ -4716,8 +4726,11 @@ void MainWindow::updateDeviceSharing() {
         // share server to accept it before the connection arrives.
         connect(m_deviceAgent, &DeviceAgent::ticketOffered, this,
                 [this](const QString &sessionId, const QString &ticket, const QString &,
-                       int expiresIn) {
-                    m_shareServer->addTicket(ticket, expiresIn);
+                       int expiresIn, const QString &clipboardItemId) {
+                    if (clipboardItemId.isEmpty())
+                        m_shareServer->addTicket(ticket, expiresIn);
+                    else
+                        m_shareServer->addClipboardTicket(ticket, clipboardItemId, expiresIn);
                     // The peer may not be able to reach this machine directly,
                     // and we cannot know from here whether it can: park sockets
                     // on the relay either way. Unused ones cost one idle
@@ -4728,6 +4741,13 @@ void MainWindow::updateDeviceSharing() {
                     tunnel->serveLocal(m_accountClient->relaySocketUrl(sessionId), ticket,
                                        m_shareServer->port());
                     m_incomingTunnels.insert(sessionId, tunnel);
+                    QTimer::singleShot(qMax(1, expiresIn + 5) * 1000, this,
+                                       [this, sessionId, tunnel] {
+                        if (m_incomingTunnels.value(sessionId) != tunnel)
+                            return;
+                        m_incomingTunnels.remove(sessionId);
+                        tunnel->deleteLater();
+                    });
                 });
     }
     // The received-files folder is always shared -- it is what a peer writes
@@ -4774,8 +4794,11 @@ void MainWindow::withDeviceSession(const QString &deviceId,
         disconnect(guards->first);
         disconnect(guards->second);
     };
-    guards->first = connect(m_accountClient, &AccountClient::sessionReady, this,
-                            [then, drop](const AccountSession &session) {
+    guards->first = connect(m_accountClient, &AccountClient::sessionReadyForDevice, this,
+                            [deviceId, then, drop](const QString &requestedDevice,
+                                                   const AccountSession &session) {
+                                if (requestedDevice != deviceId)
+                                    return;
                                 drop();
                                 then(session);
                             });
@@ -4838,6 +4861,8 @@ MainWindow::DeviceLink MainWindow::deviceLink(const AccountSession &session) {
         // The peer serves a self-signed certificate, so the pin the account
         // server relayed is the whole identity check.
         provider->setPinnedPublicKey(session.peerPin);
+        if (!session.clipboardItemId.isEmpty())
+            provider->setConnectProbePath(QStringLiteral("/clipboard/") + session.clipboardItemId);
         provider->setTimeoutMs(relay ? 12000 : 1000);
         providers.append(provider);
     }
@@ -4905,6 +4930,66 @@ MainWindow::DeviceLink MainWindow::deviceLink(const AccountSession &session) {
 #else
     Q_UNUSED(session);
     return {};
+#endif
+}
+
+void MainWindow::downloadCloudClipboardImage(const AccountSession &session) {
+#if FILECOMMANDER_HAS_NETWORK
+    if (!m_cloudClipboard || session.clipboardItemId.isEmpty())
+        return;
+    const CloudClipboardItem item = m_cloudClipboard->item(session.clipboardItemId);
+    if (item.id.isEmpty()) {
+        m_cloudClipboard->failImageDownload(session.clipboardItemId,
+                                            tr("The cloud image is no longer available."));
+        return;
+    }
+    DeviceLink link = deviceLink(session);
+    using DownloadResult = QPair<QByteArray, QString>;
+    auto *watcher = new QFutureWatcher<DownloadResult>(this);
+    connect(watcher, &QFutureWatcher<DownloadResult>::finished, this,
+            [this, watcher, item] {
+                const DownloadResult result = watcher->result();
+                watcher->deleteLater();
+                if (!result.second.isEmpty())
+                    m_cloudClipboard->failImageDownload(item.id, result.second);
+                else
+                    m_cloudClipboard->completeImageDownload(item.id, result.first);
+            });
+    auto connectFn = link.connect;
+    QPointer<CloudClipboardController> controller(m_cloudClipboard);
+    watcher->setFuture(QtConcurrent::run([connectFn, controller, item] {
+        QString error;
+        std::shared_ptr<FileProvider> provider = connectFn(&error);
+        if (!provider)
+            return DownloadResult({}, error.isEmpty() ? QObject::tr("The source device is offline.") : error);
+        FileHandle *handle = provider->openRead(QStringLiteral("/clipboard/") + item.id);
+        if (!handle)
+            return DownloadResult({}, QObject::tr("The original image is no longer cached on the source device."));
+        QByteArray bytes;
+        bytes.reserve(int(qMin<qint64>(item.size, CloudClipboardImageCache::maximumImageBytes)));
+        QByteArray chunk(64 * 1024, Qt::Uninitialized);
+        bool ok = true;
+        while (bytes.size() <= CloudClipboardImageCache::maximumImageBytes) {
+            const qint64 n = provider->read(handle, chunk.data(), chunk.size());
+            if (n < 0) { ok = false; break; }
+            if (n == 0) break;
+            bytes.append(chunk.constData(), int(n));
+            if (controller) {
+                const qint64 received = bytes.size();
+                QMetaObject::invokeMethod(controller, [controller, id = item.id, received,
+                                                       total = item.size] {
+                    if (controller)
+                        controller->reportImageDownloadProgress(id, received, total);
+                }, Qt::QueuedConnection);
+            }
+        }
+        ok = provider->closeHandleStatus(handle) && ok &&
+             bytes.size() <= CloudClipboardImageCache::maximumImageBytes;
+        return ok ? DownloadResult(bytes, QString())
+                  : DownloadResult({}, QObject::tr("The original image download did not complete."));
+    }));
+#else
+    Q_UNUSED(session);
 #endif
 }
 

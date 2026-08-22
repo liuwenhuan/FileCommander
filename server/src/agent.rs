@@ -42,6 +42,29 @@ fn broadcast_presence(
     }
 }
 
+/// Clipboard updates contain no content. Capable peers re-fetch their own
+/// account history; the publisher is deliberately excluded.
+pub fn broadcast_clipboard(
+    state: &AppState,
+    user_id: i64,
+    source_device_id: &str,
+    revision: i64,
+    change: &str,
+) {
+    let frame = json!({
+        "type": "clipboard_changed",
+        "revision": revision,
+        "change": change,
+    })
+    .to_string();
+    let agents = state.agents.lock().unwrap_or_else(|e| e.into_inner());
+    for (device_id, agent) in agents.iter() {
+        if device_id != source_device_id && agent.user_id == user_id && agent.clipboard {
+            let _ = agent.tx.send(frame.clone());
+        }
+    }
+}
+
 /// How long a device has to use a ticket before the peer forgets it. Long
 /// enough to survive a slow LAN probe, short enough that a leaked ticket is
 /// worth little.
@@ -83,6 +106,7 @@ async fn serve_agent(state: AppState, user_id: i64, device_id: String, socket: W
                 lan_addrs: Vec::new(),
                 share_port: 0,
                 share_pin: String::new(),
+                clipboard: false,
                 generation,
             },
         );
@@ -105,8 +129,14 @@ async fn serve_agent(state: AppState, user_id: i64, device_id: String, socket: W
             Message::Close(_) => break,
             _ => continue,
         };
-        let Ok(value) = serde_json::from_str::<Value>(&text) else { continue };
-        match value.get("type").and_then(Value::as_str).unwrap_or_default() {
+        let Ok(value) = serde_json::from_str::<Value>(&text) else {
+            continue;
+        };
+        match value
+            .get("type")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+        {
             "hello" => {
                 let addrs: Vec<String> = value
                     .get("lan_addrs")
@@ -121,7 +151,11 @@ async fn serve_agent(state: AppState, user_id: i64, device_id: String, socket: W
                             .collect()
                     })
                     .unwrap_or_default();
-                let port = value.get("port").and_then(Value::as_u64).unwrap_or(0).min(65535) as u16;
+                let port = value
+                    .get("port")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(0)
+                    .min(65535) as u16;
                 // The device's TLS pin, passed straight through to whoever asks
                 // to connect to it. Only the shape is checked -- the server has
                 // no way to know which key the device actually holds -- but a
@@ -147,6 +181,12 @@ async fn serve_agent(state: AppState, user_id: i64, device_id: String, socket: W
                             .collect()
                     })
                     .unwrap_or_default();
+                let clipboard = value
+                    .get("capabilities")
+                    .and_then(Value::as_array)
+                    .is_some_and(|items| {
+                        items.iter().any(|item| item.as_str() == Some("clipboard"))
+                    });
                 {
                     let mut agents = state.agents.lock().unwrap_or_else(|e| e.into_inner());
                     if let Some(agent) = agents.get_mut(&device_id) {
@@ -154,6 +194,7 @@ async fn serve_agent(state: AppState, user_id: i64, device_id: String, socket: W
                             agent.lan_addrs = addrs.clone();
                             agent.share_port = port;
                             agent.share_pin = pin.clone();
+                            agent.clipboard = clipboard;
                         }
                     }
                 }
@@ -212,6 +253,8 @@ async fn serve_agent(state: AppState, user_id: i64, device_id: String, socket: W
 pub struct SessionRequest {
     #[serde(default)]
     pub device_id: String,
+    #[serde(default)]
+    pub clipboard_item_id: String,
 }
 
 #[derive(Serialize)]
@@ -224,6 +267,8 @@ pub struct SessionResponse {
     /// The peer's TLS pin. Empty when the peer is running a build from before
     /// this existed, in which case the caller gets no confidentiality and knows it.
     pub peer_pin: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub clipboard_item_id: Option<String>,
 }
 
 /// Asks a peer device to accept one connection. The ticket is pushed to that
@@ -242,7 +287,12 @@ pub async fn open_session(
 
     let user_id = principal.user_id;
     let from_device = principal.device_id.clone();
+    let requested_clipboard_item = (!body.clipboard_item_id.trim().is_empty())
+        .then(|| body.clipboard_item_id.trim().to_string());
     let lookup = target.clone();
+    let clipboard_target = target.clone();
+    let clipboard_for_lookup = requested_clipboard_item.clone();
+    let stamp = iso(now());
     let from_name = state
         .db
         .call(move |conn| {
@@ -258,10 +308,21 @@ pub async fn open_session(
             if !owned {
                 return Err(fail(StatusCode::NOT_FOUND, "no such device"));
             }
+            if let Some(item_id) = clipboard_for_lookup.as_deref() {
+                crate::clipboard::image_belongs_to_source(
+                    conn,
+                    user_id,
+                    item_id,
+                    &clipboard_target,
+                    &stamp,
+                )?;
+            }
             Ok(conn
-                .query_row("SELECT name FROM devices WHERE id = ?1", params![from_device], |r| {
-                    r.get::<_, String>(0)
-                })
+                .query_row(
+                    "SELECT name FROM devices WHERE id = ?1",
+                    params![from_device],
+                    |r| r.get::<_, String>(0),
+                )
                 .optional()
                 .unwrap_or(None)
                 .unwrap_or_default())
@@ -276,7 +337,7 @@ pub async fn open_session(
         let agent = agents
             .get(&target)
             .ok_or_else(|| fail(StatusCode::CONFLICT, "device is offline"))?;
-        let notice = json!({
+        let mut notice = json!({
             "type": "incoming",
             "session_id": session_id,
             "ticket": ticket,
@@ -284,11 +345,18 @@ pub async fn open_session(
             "from_device": principal.device_id,
             "expires_in": TICKET_TTL_SECONDS,
         });
+        if let Some(item_id) = requested_clipboard_item.as_deref() {
+            notice["clipboard_item_id"] = Value::String(item_id.to_string());
+        }
         agent
             .tx
             .send(notice.to_string())
             .map_err(|_| fail(StatusCode::CONFLICT, "device is offline"))?;
-        (agent.lan_addrs.clone(), agent.share_port, agent.share_pin.clone())
+        (
+            agent.lan_addrs.clone(),
+            agent.share_port,
+            agent.share_pin.clone(),
+        )
     };
 
     // Recorded only once the target has actually been told: a session nobody
@@ -315,5 +383,6 @@ pub async fn open_session(
         peer_lan_addrs: lan_addrs,
         peer_port: port,
         peer_pin: pin,
+        clipboard_item_id: requested_clipboard_item,
     }))
 }

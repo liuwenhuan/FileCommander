@@ -36,6 +36,41 @@ CREATE TABLE IF NOT EXISTS tokens (
     expires    TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_devices_user ON devices(user_id);
+CREATE TABLE IF NOT EXISTS clipboard_state (
+    user_id  INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    revision INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS clipboard_items (
+    id               TEXT PRIMARY KEY,
+    user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind             TEXT NOT NULL CHECK(kind IN ('text', 'image')),
+    text             TEXT,
+    thumbnail        BLOB,
+    thumbnail_mime   TEXT,
+    image_mime       TEXT,
+    image_size       INTEGER,
+    image_width      INTEGER,
+    image_height     INTEGER,
+    image_sha256     TEXT,
+    source_device_id TEXT,
+    revision         INTEGER NOT NULL,
+    created          TEXT NOT NULL,
+    expires          TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS clipboard_events (
+    user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    revision INTEGER NOT NULL,
+    kind     TEXT NOT NULL CHECK(kind IN ('publish', 'delete', 'clear')),
+    item_id  TEXT,
+    expires  TEXT NOT NULL,
+    PRIMARY KEY(user_id, revision, kind, item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_clipboard_items_user_created
+    ON clipboard_items(user_id, created DESC);
+CREATE INDEX IF NOT EXISTS idx_clipboard_items_user_revision
+    ON clipboard_items(user_id, revision);
+CREATE INDEX IF NOT EXISTS idx_clipboard_events_user_revision
+    ON clipboard_events(user_id, revision);
 ";
 
 /// One connection behind one lock, reached from async code through
@@ -110,7 +145,9 @@ pub fn random_token() -> String {
     let mut buf = [0u8; 32];
     rand::rng().fill_bytes(&mut buf);
     const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-    buf.iter().map(|b| ALPHABET[(*b & 0x3f) as usize] as char).collect()
+    buf.iter()
+        .map(|b| ALPHABET[(*b & 0x3f) as usize] as char)
+        .collect()
 }
 
 /// scrypt with the interactive-login parameters from RFC 7914 (N=2^15, r=8,

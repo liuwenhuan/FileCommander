@@ -74,6 +74,8 @@ if(FILECOMMANDER_ENABLE_NETWORK)
         network/ConnectionStore.cpp
         account/AccountClient.h
         account/AccountClient.cpp
+        account/CloudClipboardImageCache.h
+        account/CloudClipboardImageCache.cpp
         account/DeviceAgent.h
         account/DeviceAgent.cpp
         account/FileShareServer.h

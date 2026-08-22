@@ -2,10 +2,36 @@
 
 #include <functional>
 
+#include <QByteArray>
 #include <QObject>
 #include <QStringList>
 #include <QString>
 #include <QVector>
+
+struct CloudClipboardItem {
+    qint64 revision = 0;
+    QString id;
+    QString type; // "text" or "image"
+    QString text;
+    QString sourceDeviceId;
+    QString created;
+    QString expires;
+    QString mime;
+    qint64 size = 0;
+    int width = 0;
+    int height = 0;
+    QString sha256;
+    QString thumbnailMime;
+    QString thumbnailUrl;
+    QByteArray thumbnail;
+};
+
+struct CloudClipboardUpdate {
+    qint64 revision = 0;
+    QVector<CloudClipboardItem> items;
+    QStringList deletedIds;
+    bool cleared = false;
+};
 
 // One machine signed in to the account, as the server reports it. Populated
 // from GET /v1/devices; `id` is what a later transfer session is opened
@@ -34,6 +60,7 @@ struct AccountSession {
     // CurlWebDavProvider::setPinnedPublicKey() before dialling: the peer serves
     // a self-signed certificate, so this is the only thing identifying it.
     QString peerPin;
+    QString clipboardItemId; // non-empty for a scoped clipboard-image transfer
     int expiresIn = 0;
 };
 
@@ -131,6 +158,16 @@ public:
     // sessionReady() fires the peer already knows to accept it. Emits
     // sessionReady() or requestFailed().
     void openSession(const QString &deviceId);
+    void openClipboardImageSession(const QString &deviceId, const QString &itemId);
+
+    void fetchClipboard(qint64 afterRevision = 0);
+    void publishClipboardText(const QString &text);
+    void publishClipboardImage(const QByteArray &thumbnail, const QString &thumbnailMime,
+                               const QString &originalMime, qint64 originalSize,
+                               int width, int height, const QString &sha256);
+    void fetchClipboardThumbnail(const QString &itemId);
+    void deleteClipboardItem(const QString &itemId);
+    void clearClipboard();
 
     // The ws:// (or wss://) URL of the agent socket, without any credential --
     // the access token travels as an Authorization header (see
@@ -163,6 +200,14 @@ signals:
     void loggedOut();
     void devicesReady(const QVector<AccountDeviceInfo> &devices);
     void sessionReady(const AccountSession &session);
+    void sessionReadyForDevice(const QString &deviceId, const AccountSession &session);
+    void clipboardSessionReady(const AccountSession &session);
+    void clipboardReady(const CloudClipboardUpdate &update);
+    void clipboardPublished(const CloudClipboardItem &item);
+    void clipboardThumbnailReady(const QString &itemId, const QByteArray &bytes,
+                                 const QString &mime);
+    void clipboardItemDeleted(const QString &itemId, qint64 revision);
+    void clipboardCleared(qint64 revision);
     void deviceRemoved(const QString &deviceId);
 
     // Every failed request lands here, with a message already fit to show.
@@ -189,6 +234,7 @@ private:
     // Cancels replies from an earlier restore/login and clears the in-memory
     // account so no stale authentication response can win a later attempt.
     void invalidateAuthentication();
+    void openSessionRequest(const QString &deviceId, const QString &clipboardItemId);
 
     // Turns a finished reply into a message worth showing, preferring the
     // server's own "detail" over Qt's generic network error.
@@ -213,3 +259,5 @@ private:
 Q_DECLARE_METATYPE(AccountDeviceInfo)
 Q_DECLARE_METATYPE(AccountSession)
 Q_DECLARE_METATYPE(AccountInfo)
+Q_DECLARE_METATYPE(CloudClipboardItem)
+Q_DECLARE_METATYPE(CloudClipboardUpdate)

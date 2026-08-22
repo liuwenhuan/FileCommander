@@ -423,7 +423,10 @@ bool CurlWebDavProvider::connectToHost(const QString &host, int port, const QStr
     m_port = port;
     m_useHttps = useHttps;
 
-    const QString url = davUrl(host, port, useHttps, QStringLiteral("/"), true);
+    const bool scopedProbe = !m_connectProbePath.isEmpty();
+    const QString url = davUrl(host, port, useHttps,
+                               scopedProbe ? m_connectProbePath : QStringLiteral("/"),
+                               !scopedProbe);
     const QByteArray urlUtf8 = url.toUtf8();
     const QByteArray userUtf8 = user.toUtf8();
     const QByteArray passUtf8 = password.toUtf8();
@@ -451,19 +454,23 @@ bool CurlWebDavProvider::connectToHost(const QString &host, int port, const QStr
     }
 
     struct curl_slist *headers = nullptr;
-    headers = curl_slist_append(headers, "Depth: 0");
-    headers = curl_slist_append(headers, "Content-Type: application/xml; charset=utf-8");
-    static const char *body =
-        "<?xml version=\"1.0\"?><D:propfind xmlns:D=\"DAV:\"><D:prop>"
-        "<D:resourcetype/></D:prop></D:propfind>";
-    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PROPFIND");
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(std::strlen(body)));
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discardCallback);
     bool putRange = false;
-    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, putRangeProbeCallback);
-    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &putRange);
+    if (scopedProbe) {
+        curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
+    } else {
+        headers = curl_slist_append(headers, "Depth: 0");
+        headers = curl_slist_append(headers, "Content-Type: application/xml; charset=utf-8");
+        static const char *body =
+            "<?xml version=\"1.0\"?><D:propfind xmlns:D=\"DAV:\"><D:prop>"
+            "<D:resourcetype/></D:prop></D:propfind>";
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PROPFIND");
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(std::strlen(body)));
+        curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, putRangeProbeCallback);
+        curl_easy_setopt(curl, CURLOPT_HEADERDATA, &putRange);
+    }
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discardCallback);
 
     const CURLcode res = curl_easy_perform(curl);
     long httpCode = 0;
@@ -472,11 +479,15 @@ bool CurlWebDavProvider::connectToHost(const QString &host, int port, const QStr
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, nullptr);
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, nullptr);
     curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, nullptr);
+    curl_easy_setopt(curl, CURLOPT_NOBODY, 0L);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, nullptr);
-    curl_slist_free_all(headers);
+    if (headers)
+        curl_slist_free_all(headers);
 
     const bool ok = (res == CURLE_OK) &&
-                    (httpCode == 207 || httpCode == 200 || httpCode == 301 || httpCode == 302);
+                    (scopedProbe ? (httpCode == 200 || httpCode == 206)
+                                 : (httpCode == 207 || httpCode == 200 ||
+                                    httpCode == 301 || httpCode == 302));
     // 401 Unauthorized (or 407 proxy auth) means the server wants credentials --
     // the raw "Server returned HTTP 401" message carries no auth keyword, so flag
     // it explicitly for the reconnect state machine to prompt instead of retry.
