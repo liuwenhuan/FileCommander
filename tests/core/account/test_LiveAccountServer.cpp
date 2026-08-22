@@ -119,7 +119,7 @@ protected:
     QString signIn(AccountClient &client, const QString &name) {
         QSignalSpy in(&client, &AccountClient::loggedIn);
         QSignalSpy failed(&client, &AccountClient::requestFailed);
-        client.login(m_email, m_password, name);
+        client.login(m_email, m_password, name, QString(), true);
         if (!waitFor(in)) {
             ADD_FAILURE() << "login produced no answer for " << name.toStdString()
                           << (failed.isEmpty() ? ""

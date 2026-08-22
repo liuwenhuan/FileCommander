@@ -72,7 +72,7 @@ bool signIn(AccountClient &client, MockHttpServer &server, const QString &device
     server.setRoute(QStringLiteral("/v1/auth/logout"), json("{}"));
     QSignalSpy in(&client, &AccountClient::loggedIn);
     client.login(QString::fromLatin1(kEmail), QString::fromLatin1(kPassword),
-                 QStringLiteral("laptop"));
+                 QStringLiteral("laptop"), deviceId, true);
     if (in.isEmpty())
         in.wait(5000);
     return in.count() == 1 && client.isLoggedIn();
@@ -267,7 +267,8 @@ TEST(AccountSignOut, ConfigIniHoldsNoTokenAndNoPassword) {
     // writes the INI out in its destructor, and the file has to be on disk
     // before it can be read back.
     auto settings = std::make_unique<Settings>();
-    settings->setAccountServerUrl(server.url(QString()));
+    settings->setAccountUsesOfficialServer(false);
+    settings->setAccountCustomServerUrl(server.url(QString()));
 
     AccountClient client;
     client.setApiUrl(server.url(QString()));

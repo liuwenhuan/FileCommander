@@ -78,135 +78,167 @@
 <context>
     <name>AccountDialog</name>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="22"/>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="130"/>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="141"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="43"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="181"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="192"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="255"/>
         <source>FileCommander Account</source>
         <translation>檔案指揮官帳號</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="46"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="56"/>
+        <source>Official server</source>
+        <translation>官方伺服器</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="58"/>
+        <source>Custom server</source>
+        <translation>自訂伺服器</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="62"/>
+        <source>Server URL</source>
+        <translation>伺服器網址</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="89"/>
+        <source>Remember automatic login</source>
+        <translation>記住自動登入</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="93"/>
         <source>Server:</source>
         <translation>伺服器：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="47"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="94"/>
         <source>Email:</source>
         <translation>電子郵件：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="48"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="95"/>
         <source>Password:</source>
         <translation>密碼：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="49"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="96"/>
         <source>This device:</source>
         <translation>本裝置：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="51"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="99"/>
         <source>Sign In</source>
         <translation>登入</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="53"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="101"/>
         <source>Create Account</source>
         <translation>建立帳號</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="66"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="114"/>
         <source>Double-click a device to browse its shared folders.</source>
         <translation>按兩下裝置即可瀏覽它分享的資料夾。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="70"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="118"/>
         <source>Share these folders with my other devices</source>
         <translation>與我的其他裝置分享這些資料夾</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="74"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="122"/>
         <source>Add Folder…</source>
         <translation>新增資料夾…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="75"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="123"/>
         <source>Remove</source>
         <translation>移除</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="81"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="129"/>
         <source>Sign Out</source>
         <translation>登出</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="82"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="130"/>
         <source>Remove Device</source>
         <translation>移除裝置</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="88"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="136"/>
         <source>Devices on this account:</source>
         <translation>此帳號下的裝置：</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="109"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="160"/>
         <source>Share Folder</source>
         <translation>分享資料夾</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="131"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="182"/>
         <source>Sign %1 out of this account?</source>
         <translation>要讓 %1 登出此帳號嗎？</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="142"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="193"/>
         <source>%1 is offline.</source>
         <translation>%1 已離線。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="154"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="203"/>
         <source>Signing in…</source>
         <translation>正在登入…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="161"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="212"/>
         <source>Creating account…</source>
         <translation>正在建立帳號…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="170"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="221"/>
         <source>Account created, signing in…</source>
         <translation>帳號已建立，正在登入…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="201"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="257"/>
+        <source>This version of FileCommander can no longer be used. Please update to the latest version.</source>
+        <translation>此版本的檔案指揮官已無法繼續使用。請更新至最新版本。</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="268"/>
         <source> (this device)</source>
         <translation> （本裝置）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="202"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="269"/>
         <source> — online</source>
         <translation> — 線上</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="202"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="269"/>
         <source> — offline</source>
         <translation> — 離線</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="214"/>
-        <source>Shares: %1</source><translation>共用: %1</translation>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="281"/>
+        <source>Shares: %1</source>
+        <translation>共用: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="226"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="294"/>
         <source>Signed in as %1</source>
         <translation>已登入為 %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="228"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="296"/>
         <source>Loading…</source>
         <translation>正在載入…</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="310"/>
+        <source>Enter a valid server URL.</source>
+        <translation>請輸入有效的伺服器網址。</translation>
     </message>
 </context>
 <context>

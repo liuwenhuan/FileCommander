@@ -62,6 +62,15 @@ QString Settings::configFilePath() {
     return dir.isEmpty() ? QString() : QDir(dir).filePath(QStringLiteral("config.ini"));
 }
 
+namespace {
+QString normalizedAccountServerUrl(QString url) {
+    url = url.trimmed();
+    while (url.endsWith(QLatin1Char('/')))
+        url.chop(1);
+    return url;
+}
+} // namespace
+
 Settings::Settings() : Settings(configFilePath()) {}
 
 Settings::Settings(const QString &iniFilePath)
@@ -69,6 +78,24 @@ Settings::Settings(const QString &iniFilePath)
     // Motion is no longer user-configurable. Remove the retired preference so
     // an older `true` value cannot silently disable animation after upgrade.
     m_settings.remove(QStringLiteral("appearance/reduceMotion"));
+
+    // The old free-form field used an empty value for the compiled server and
+    // persisted the retired official host as if it were custom. Make the choice
+    // explicit once, preserving genuinely self-hosted endpoints.
+    if (!m_settings.contains(QStringLiteral("account/serverMode"))) {
+        const QString legacy =
+            normalizedAccountServerUrl(m_settings.value(QStringLiteral("account/serverUrl")).toString());
+        const bool official =
+            legacy.isEmpty() ||
+            legacy.compare(QStringLiteral("https://sgvps.aigutta.com"), Qt::CaseInsensitive) == 0;
+        m_settings.setValue(QStringLiteral("account/serverMode"),
+                            official ? QStringLiteral("official") : QStringLiteral("custom"));
+        if (!official)
+            m_settings.setValue(QStringLiteral("account/customServerUrl"), legacy);
+    }
+    m_settings.remove(QStringLiteral("account/serverUrl"));
+    if (!m_settings.contains(QStringLiteral("account/rememberAutoLogin")))
+        m_settings.setValue(QStringLiteral("account/rememberAutoLogin"), true);
 
     // First run: seed the favorites with the user's home directory. Guarded by
     // a one-shot flag so clearing all favorites later doesn't re-add it.
@@ -478,12 +505,30 @@ void Settings::setAccountDeviceName(const QString &name) {
     m_settings.setValue("account/deviceName", name);
 }
 
-QString Settings::accountServerUrl() const {
-    return m_settings.value("account/serverUrl").toString();
+bool Settings::accountUsesOfficialServer() const {
+    return m_settings.value("account/serverMode", QStringLiteral("official")).toString() !=
+           QStringLiteral("custom");
 }
 
-void Settings::setAccountServerUrl(const QString &url) {
-    m_settings.setValue("account/serverUrl", url);
+void Settings::setAccountUsesOfficialServer(bool official) {
+    m_settings.setValue("account/serverMode",
+                        official ? QStringLiteral("official") : QStringLiteral("custom"));
+}
+
+QString Settings::accountCustomServerUrl() const {
+    return normalizedAccountServerUrl(m_settings.value("account/customServerUrl").toString());
+}
+
+void Settings::setAccountCustomServerUrl(const QString &url) {
+    m_settings.setValue("account/customServerUrl", normalizedAccountServerUrl(url));
+}
+
+bool Settings::rememberAccountAutoLogin() const {
+    return m_settings.value("account/rememberAutoLogin", true).toBool();
+}
+
+void Settings::setRememberAccountAutoLogin(bool remember) {
+    m_settings.setValue("account/rememberAutoLogin", remember);
 }
 
 bool Settings::deviceSharingEnabled() const {

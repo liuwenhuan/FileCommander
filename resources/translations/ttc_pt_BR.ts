@@ -78,135 +78,167 @@
 <context>
     <name>AccountDialog</name>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="22"/>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="130"/>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="141"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="43"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="181"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="192"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="255"/>
         <source>FileCommander Account</source>
         <translation>Conta do FileCommander</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="46"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="56"/>
+        <source>Official server</source>
+        <translation>Servidor oficial</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="58"/>
+        <source>Custom server</source>
+        <translation>Servidor personalizado</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="62"/>
+        <source>Server URL</source>
+        <translation>URL do servidor</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="89"/>
+        <source>Remember automatic login</source>
+        <translation>Lembrar login automático</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="93"/>
         <source>Server:</source>
         <translation>Servidor:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="47"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="94"/>
         <source>Email:</source>
         <translation>E-mail:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="48"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="95"/>
         <source>Password:</source>
         <translation>Senha:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="49"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="96"/>
         <source>This device:</source>
         <translation>Este dispositivo:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="51"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="99"/>
         <source>Sign In</source>
         <translation>Entrar</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="53"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="101"/>
         <source>Create Account</source>
         <translation>Criar conta</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="66"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="114"/>
         <source>Double-click a device to browse its shared folders.</source>
         <translation>Clique duas vezes em um dispositivo para navegar nas pastas compartilhadas.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="70"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="118"/>
         <source>Share these folders with my other devices</source>
         <translation>Compartilhar estas pastas com meus outros dispositivos</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="74"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="122"/>
         <source>Add Folder…</source>
         <translation>Adicionar pasta…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="75"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="123"/>
         <source>Remove</source>
         <translation>Remover</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="81"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="129"/>
         <source>Sign Out</source>
         <translation>Sair</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="82"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="130"/>
         <source>Remove Device</source>
         <translation>Remover dispositivo</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="88"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="136"/>
         <source>Devices on this account:</source>
         <translation>Dispositivos desta conta:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="109"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="160"/>
         <source>Share Folder</source>
         <translation>Compartilhar pasta</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="131"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="182"/>
         <source>Sign %1 out of this account?</source>
         <translation>Desconectar %1 desta conta?</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="142"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="193"/>
         <source>%1 is offline.</source>
         <translation>%1 está offline.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="154"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="203"/>
         <source>Signing in…</source>
         <translation>Entrando…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="161"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="212"/>
         <source>Creating account…</source>
         <translation>Criando conta…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="170"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="221"/>
         <source>Account created, signing in…</source>
         <translation>Conta criada, entrando…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="201"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="257"/>
+        <source>This version of FileCommander can no longer be used. Please update to the latest version.</source>
+        <translation>Esta versão do FileCommander não pode mais ser usada. Atualize para a versão mais recente.</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="268"/>
         <source> (this device)</source>
         <translation> (este dispositivo)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="202"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="269"/>
         <source> — online</source>
         <translation> — online</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="202"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="269"/>
         <source> — offline</source>
         <translation> — offline</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="214"/>
-        <source>Shares: %1</source><translation>Compartilhamentos: %1</translation>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="281"/>
+        <source>Shares: %1</source>
+        <translation>Compartilhamentos: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="226"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="294"/>
         <source>Signed in as %1</source>
         <translation>Conectado como %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="228"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="296"/>
         <source>Loading…</source>
         <translation>Carregando…</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="310"/>
+        <source>Enter a valid server URL.</source>
+        <translation>Insira uma URL de servidor válida.</translation>
     </message>
 </context>
 <context>

@@ -14,10 +14,9 @@
 // to a host somebody else controls.
 #define TTC_UPDATE_MANIFEST_URL "@FILECOMMANDER_UPDATE_MANIFEST_URL@"
 
-// Root URL of the account server backing sign-in and device-to-device
+// Root URL of the official account server backing sign-in and device-to-device
 // transfers (see server/README.md). Set at configure time with
 // -DFILECOMMANDER_ACCOUNT_API_URL=...; the environment variable of the same
-// name overrides it at runtime so a build can be pointed at a local server.
-// The default is deliberately unreachable, so an unconfigured build never
-// sends credentials to a host somebody else controls.
+// name overrides it at runtime for controlled deployments and tests. A Custom
+// server selected in the account dialog is an instance-level override.
 #define TTC_ACCOUNT_API_URL "@FILECOMMANDER_ACCOUNT_API_URL@"

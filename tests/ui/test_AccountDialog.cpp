@@ -6,10 +6,13 @@
 #include "config/Settings.h"
 #include "dialogs/AccountDialog.h"
 
+#include <QCheckBox>
+#include <QCoreApplication>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QStackedWidget>
 
 // The dialog is glue, so these tests are about the glue: that a sign-in flips
@@ -58,12 +61,21 @@ QPushButton *button(AccountDialog &dialog, const QString &text) {
 
 // Fills in the form the way a user would, against the mock server.
 void fillForm(AccountDialog &dialog, MockHttpServer &server) {
-    const QList<QLineEdit *> fields = dialog.findChildren<QLineEdit *>();
-    ASSERT_EQ(fields.size(), 4); // server, email, password, device name
-    fields.at(0)->setText(server.url(QString()));
-    fields.at(1)->setText(QStringLiteral("someone@example.com"));
-    fields.at(2)->setText(QStringLiteral("hunter2"));
-    fields.at(3)->setText(QStringLiteral("this box"));
+    auto *custom = dialog.findChild<QRadioButton *>(QStringLiteral("CustomServerRadio"));
+    auto *serverUrl = dialog.findChild<QLineEdit *>(QStringLiteral("CustomServerUrl"));
+    auto *email = dialog.findChild<QLineEdit *>(QStringLiteral("AccountEmail"));
+    auto *password = dialog.findChild<QLineEdit *>(QStringLiteral("AccountPassword"));
+    auto *device = dialog.findChild<QLineEdit *>(QStringLiteral("AccountDeviceName"));
+    ASSERT_NE(custom, nullptr);
+    ASSERT_NE(serverUrl, nullptr);
+    ASSERT_NE(email, nullptr);
+    ASSERT_NE(password, nullptr);
+    ASSERT_NE(device, nullptr);
+    custom->click();
+    serverUrl->setText(server.url(QString()));
+    email->setText(QStringLiteral("someone@example.com"));
+    password->setText(QStringLiteral("hunter2"));
+    device->setText(QStringLiteral("this box"));
 }
 
 // Settings is process-wide storage (redirected to a test location by
@@ -75,12 +87,82 @@ public:
         Settings settings;
         settings.setAccountEmail(QString());
         settings.setAccountDeviceId(QString());
-        settings.setAccountServerUrl(QString());
+        settings.setAccountUsesOfficialServer(true);
+        settings.setAccountCustomServerUrl(QString());
+        settings.setRememberAccountAutoLogin(true);
         settings.setAccountDeviceName(QString());
     }
 };
 
 } // namespace
+
+TEST(AccountDialog, OfficialServerIsHostnameFreeAndAutomaticLoginStartsChecked) {
+    AccountSettingsGuard guard;
+    Settings settings;
+    settings.setAccountUsesOfficialServer(true);
+    settings.setAccountCustomServerUrl(QString());
+    settings.setRememberAccountAutoLogin(true);
+
+    AccountClient client;
+    AccountDialog dialog(client, settings);
+    auto *official = dialog.findChild<QRadioButton *>(QStringLiteral("OfficialServerRadio"));
+    auto *customUrl = dialog.findChild<QLineEdit *>(QStringLiteral("CustomServerUrl"));
+    auto *remember = dialog.findChild<QCheckBox *>(QStringLiteral("RememberAutoLogin"));
+    ASSERT_NE(official, nullptr);
+    ASSERT_NE(customUrl, nullptr);
+    ASSERT_NE(remember, nullptr);
+    EXPECT_TRUE(official->isChecked());
+    EXPECT_TRUE(customUrl->isHidden());
+    EXPECT_TRUE(remember->isChecked());
+
+    for (QLabel *label : dialog.findChildren<QLabel *>()) {
+        EXPECT_FALSE(label->text().contains(QStringLiteral("fm.aigutta.com")));
+        EXPECT_FALSE(label->text().contains(QStringLiteral("sgvps.aigutta.com")));
+    }
+    EXPECT_FALSE(customUrl->placeholderText().contains(QStringLiteral("aigutta.com")));
+}
+
+TEST(AccountDialog, InvalidCustomServerDoesNotStartARequest) {
+    AccountSettingsGuard guard;
+    Settings settings;
+    AccountClient client;
+    AccountDialog dialog(client, settings);
+    auto *custom = dialog.findChild<QRadioButton *>(QStringLiteral("CustomServerRadio"));
+    auto *customUrl = dialog.findChild<QLineEdit *>(QStringLiteral("CustomServerUrl"));
+    auto *status = dialog.findChild<QLabel *>(QStringLiteral("AccountStatus"));
+    ASSERT_NE(custom, nullptr);
+    ASSERT_NE(customUrl, nullptr);
+    ASSERT_NE(status, nullptr);
+    custom->click();
+    customUrl->setText(QStringLiteral("ftp://example.com?token=bad"));
+
+    button(dialog, QObject::tr("Sign In"))->click();
+
+    EXPECT_EQ(status->text(),
+              QCoreApplication::translate("AccountDialog", "Enter a valid server URL."));
+    EXPECT_FALSE(client.isLoggedIn());
+    EXPECT_TRUE(settings.accountUsesOfficialServer());
+}
+
+TEST(AccountDialog, UncheckedAutomaticLoginIsRememberedAfterSuccessfulSignIn) {
+    AccountSettingsGuard guard;
+    MockHttpServer server;
+    ASSERT_NE(server.port(), 0);
+    serveSignIn(server);
+
+    Settings settings;
+    AccountClient client;
+    AccountDialog dialog(client, settings);
+    ASSERT_NO_FATAL_FAILURE(fillForm(dialog, server));
+    auto *remember = dialog.findChild<QCheckBox *>(QStringLiteral("RememberAutoLogin"));
+    ASSERT_NE(remember, nullptr);
+    remember->setChecked(false);
+
+    button(dialog, QObject::tr("Sign In"))->click();
+
+    FC_TRY_COMPARE_WITH_TIMEOUT(currentPage(dialog), 1, kTimeoutMs);
+    EXPECT_FALSE(settings.rememberAccountAutoLogin());
+}
 
 TEST(AccountDialog, SigningInShowsTheDevicesAndRemembersTheAccount) {
     AccountSettingsGuard guard;
@@ -106,8 +188,10 @@ TEST(AccountDialog, SigningInShowsTheDevicesAndRemembersTheAccount) {
     // The device name is remembered so the next sign-in offers it, not the
     // hostname.
     EXPECT_EQ(settings.accountDeviceName(), QStringLiteral("this box"));
-    // The typed address is kept so a self-hosted server is entered once.
-    EXPECT_EQ(settings.accountServerUrl(), server.url(QString()));
+    // The custom endpoint is kept so a self-hosted server is entered once.
+    EXPECT_FALSE(settings.accountUsesOfficialServer());
+    EXPECT_EQ(settings.accountCustomServerUrl(), server.url(QString()));
+    EXPECT_TRUE(settings.rememberAccountAutoLogin());
 }
 
 TEST(AccountDialog, ARefusedSignInStaysOnTheFormAndShowsTheServersReason) {
@@ -131,6 +215,9 @@ TEST(AccountDialog, ARefusedSignInStaysOnTheFormAndShowsTheServersReason) {
     // A failure has to re-enable the button, or the user gets one attempt.
     EXPECT_TRUE(signIn->isEnabled());
     EXPECT_TRUE(settings.accountDeviceId().isEmpty());
+    EXPECT_FALSE(settings.accountUsesOfficialServer());
+    EXPECT_EQ(settings.accountCustomServerUrl(), server.url(QString()));
+    EXPECT_FALSE(settings.rememberAccountAutoLogin());
 }
 
 TEST(AccountDialog, TheDeviceNamePrefillsFromLastSignInNotTheHostname) {
@@ -141,10 +228,9 @@ TEST(AccountDialog, TheDeviceNamePrefillsFromLastSignInNotTheHostname) {
     AccountClient client;
     AccountDialog dialog(client, settings);
 
-    // server, email, password, device name.
-    const QList<QLineEdit *> fields = dialog.findChildren<QLineEdit *>();
-    ASSERT_EQ(fields.size(), 4);
-    EXPECT_EQ(fields.at(3)->text(), QStringLiteral("my tower"));
+    auto *device = dialog.findChild<QLineEdit *>(QStringLiteral("AccountDeviceName"));
+    ASSERT_NE(device, nullptr);
+    EXPECT_EQ(device->text(), QStringLiteral("my tower"));
 }
 
 TEST(AccountDialog, CreatingAnAccountSignsInWithoutAskingAgain) {
@@ -164,4 +250,7 @@ TEST(AccountDialog, CreatingAnAccountSignsInWithoutAskingAgain) {
     FC_TRY_COMPARE_WITH_TIMEOUT(currentPage(dialog), 1, kTimeoutMs);
     EXPECT_EQ(server.requestCount(QStringLiteral("/v1/auth/register")), 1);
     EXPECT_EQ(server.requestCount(QStringLiteral("/v1/auth/login")), 1);
+    EXPECT_FALSE(settings.accountUsesOfficialServer());
+    EXPECT_EQ(settings.accountCustomServerUrl(), server.url(QString()));
+    EXPECT_TRUE(settings.rememberAccountAutoLogin());
 }

@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <QCoreApplication>
+#include <QElapsedTimer>
 #include <QEventLoop>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -43,6 +45,14 @@ void waitForSignal(QSignalSpy &spy, int timeoutMs = 5000) {
     settle.exec();
 }
 
+bool waitForRequest(MockHttpServer &server, const QString &path, int timeoutMs = 5000) {
+    QElapsedTimer timer;
+    timer.start();
+    while (server.requestCount(path) == 0 && timer.elapsed() < timeoutMs)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 25);
+    return server.requestCount(path) > 0;
+}
+
 // Signs a client in against `server`, so the tests that need a live session do
 // not each repeat the handshake.
 AccountClient *signedIn(AccountClient *client, MockHttpServer &server) {
@@ -50,7 +60,7 @@ AccountClient *signedIn(AccountClient *client, MockHttpServer &server) {
                     json(tokenReply("access-1", "refresh-1", "dev-1")));
     QSignalSpy in(client, &AccountClient::loggedIn);
     client->login(QStringLiteral("a@example.com"), QStringLiteral("correct horse"),
-                  QStringLiteral("laptop"));
+                  QStringLiteral("laptop"), QString(), true);
     waitForSignal(in);
     return client;
 }
@@ -68,7 +78,47 @@ bool keyringWorks() {
     return ok;
 }
 
+class AccountUrlEnvironmentGuard {
+public:
+    AccountUrlEnvironmentGuard()
+        : wasSet(qEnvironmentVariableIsSet("FILECOMMANDER_ACCOUNT_API_URL")),
+          previous(qgetenv("FILECOMMANDER_ACCOUNT_API_URL")) {}
+    ~AccountUrlEnvironmentGuard() {
+        if (wasSet)
+            qputenv("FILECOMMANDER_ACCOUNT_API_URL", previous);
+        else
+            qunsetenv("FILECOMMANDER_ACCOUNT_API_URL");
+    }
+
+private:
+    bool wasSet;
+    QByteArray previous;
+};
+
 } // namespace
+
+TEST(AccountClient, CustomInstanceUrlTakesPrecedenceOverTheOfficialEnvironmentOverride) {
+    AccountUrlEnvironmentGuard environment;
+    MockHttpServer official;
+    MockHttpServer custom;
+    qputenv("FILECOMMANDER_ACCOUNT_API_URL", official.url(QString()).toUtf8());
+    official.setRoute(QStringLiteral("/v1/auth/login"),
+                      json(R"({"detail":"wrong server"})", 500));
+    custom.setRoute(QStringLiteral("/v1/auth/login"),
+                    json(tokenReply("access", "refresh", "custom-device")));
+
+    AccountClient client;
+    client.setApiUrl(custom.url(QString()) + QLatin1Char('/'));
+    QSignalSpy in(&client, &AccountClient::loggedIn);
+    client.login(QStringLiteral("a@example.com"), QStringLiteral("pw"),
+                 QStringLiteral("laptop"), QString(), false);
+    waitForSignal(in);
+
+    EXPECT_EQ(in.count(), 1);
+    EXPECT_EQ(custom.requestCount(QStringLiteral("/v1/auth/login")), 1);
+    EXPECT_EQ(official.requestCount(QStringLiteral("/v1/auth/login")), 0);
+    client.logout();
+}
 
 TEST(AccountClient, ASilentServerStillProducesExactlyOneFailure) {
     MockHttpServer server;
@@ -83,7 +133,7 @@ TEST(AccountClient, ASilentServerStillProducesExactlyOneFailure) {
     QSignalSpy in(&client, &AccountClient::loggedIn);
 
     client.login(QStringLiteral("a@example.com"), QStringLiteral("pw"),
-                 QStringLiteral("laptop"));
+                 QStringLiteral("laptop"), QString(), true);
     waitForSignal(failed, 3000);
 
     EXPECT_EQ(failed.count(), 1);
@@ -137,7 +187,7 @@ TEST(AccountClient, ARejectedSignInReportsTheServersOwnReason) {
     client.setApiUrl(server.url(QString()));
     QSignalSpy failed(&client, &AccountClient::requestFailed);
     client.login(QStringLiteral("a@example.com"), QStringLiteral("wrong"),
-                 QStringLiteral("laptop"));
+                 QStringLiteral("laptop"), QString(), true);
     waitForSignal(failed);
 
     ASSERT_EQ(failed.count(), 1);
@@ -201,6 +251,152 @@ TEST(AccountClient, AServerThatAlwaysSays401FailsOnceInsteadOfLooping) {
     client.logout();
 }
 
+TEST(AccountClient, RememberedSignInStoresTheRefreshTokenInTheKeyring) {
+    if (!keyringWorks())
+        GTEST_SKIP() << "no login keyring on this machine";
+
+    AccountClient::forgetStoredSession(QStringLiteral("dev-1"));
+    MockHttpServer server;
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    signedIn(&client, server);
+
+    QString stored;
+    ASSERT_TRUE(CredentialStore::load(QStringLiteral("account:dev-1"), &stored).ok);
+    EXPECT_EQ(stored, QStringLiteral("refresh-1"));
+    client.logout();
+}
+
+TEST(AccountClient, UnrememberedSignInRefreshesInMemoryWithoutLeavingAKeyringToken) {
+    if (!keyringWorks())
+        GTEST_SKIP() << "no login keyring on this machine";
+
+    ASSERT_TRUE(CredentialStore::save(QStringLiteral("account:dev-1"),
+                                      QStringLiteral("old-refresh")).ok);
+    MockHttpServer server;
+    server.setRoute(QStringLiteral("/v1/auth/login"),
+                    json(tokenReply("access-1", "refresh-1", "dev-1")));
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    QSignalSpy in(&client, &AccountClient::loggedIn);
+    client.login(QStringLiteral("a@example.com"), QStringLiteral("correct horse"),
+                 QStringLiteral("laptop"), QStringLiteral("dev-1"), false);
+    waitForSignal(in);
+    ASSERT_EQ(in.count(), 1);
+
+    QString stored;
+    EXPECT_FALSE(CredentialStore::load(QStringLiteral("account:dev-1"), &stored).ok);
+
+    server.setRouteSequence(QStringLiteral("/v1/devices"),
+                            {json(R"({"detail":"expired"})", 401),
+                             json(QJsonDocument(QJsonArray{QJsonObject{{"id", "dev-1"}}}).toJson())});
+    server.setRoute(QStringLiteral("/v1/auth/refresh"),
+                    json(tokenReply("access-2", "refresh-2", "dev-1")));
+    QSignalSpy ready(&client, &AccountClient::devicesReady);
+    client.fetchDevices();
+    waitForSignal(ready);
+
+    EXPECT_EQ(ready.count(), 1);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/auth/refresh")), 1);
+    stored.clear();
+    EXPECT_FALSE(CredentialStore::load(QStringLiteral("account:dev-1"), &stored).ok);
+    client.logout();
+}
+
+TEST(AccountClient, SwitchingServersInvalidatesAnInFlightRestoreAndItsTokens) {
+    if (!keyringWorks())
+        GTEST_SKIP() << "no login keyring on this machine";
+
+    const QString oldDevice = QStringLiteral("old-server-device");
+    const QString newDevice = QStringLiteral("new-server-device");
+    ASSERT_TRUE(CredentialStore::save(QStringLiteral("account:") + oldDevice,
+                                      QStringLiteral("old-refresh")).ok);
+
+    MockHttpServer oldServer;
+    MockHttpServer::Route delayed =
+        json(tokenReply("old-access", "old-refresh-2", "old-server-device"));
+    delayed.delayMs = 400;
+    oldServer.setRoute(QStringLiteral("/v1/auth/refresh"), delayed);
+
+    AccountClient client;
+    client.setApiUrl(oldServer.url(QString()));
+    QSignalSpy in(&client, &AccountClient::loggedIn);
+    QSignalSpy failed(&client, &AccountClient::requestFailed);
+    client.restoreSession(QStringLiteral("old@example.com"), oldDevice);
+    ASSERT_TRUE(waitForRequest(oldServer, QStringLiteral("/v1/auth/refresh")));
+
+    MockHttpServer newServer;
+    newServer.setRoute(QStringLiteral("/v1/auth/login"),
+                       json(tokenReply("new-access", "new-refresh", "new-server-device")));
+    newServer.setRoute(QStringLiteral("/v1/devices"), json("[]"));
+    client.switchApiUrl(newServer.url(QString()));
+    client.login(QStringLiteral("new@example.com"), QStringLiteral("pw"),
+                 QStringLiteral("laptop"), oldDevice, true);
+    waitForSignal(in);
+    ASSERT_EQ(in.count(), 1);
+
+    QEventLoop delayedReplyWindow;
+    QTimer::singleShot(600, &delayedReplyWindow, &QEventLoop::quit);
+    delayedReplyWindow.exec();
+    EXPECT_EQ(in.count(), 1) << "the old restore must not install a second session";
+    EXPECT_EQ(failed.count(), 0);
+    EXPECT_EQ(client.account().email, QStringLiteral("new@example.com"));
+    EXPECT_EQ(client.account().deviceId, newDevice);
+
+    QSignalSpy ready(&client, &AccountClient::devicesReady);
+    client.fetchDevices();
+    waitForSignal(ready);
+    ASSERT_EQ(ready.count(), 1);
+    EXPECT_TRUE(newServer.lastRequestHead().contains("Authorization: Bearer new-access"));
+
+    QString stored;
+    EXPECT_FALSE(CredentialStore::load(QStringLiteral("account:") + oldDevice, &stored).ok);
+    ASSERT_TRUE(CredentialStore::load(QStringLiteral("account:") + newDevice, &stored).ok);
+    EXPECT_EQ(stored, QStringLiteral("new-refresh"));
+    client.logout();
+    stored.clear();
+    EXPECT_FALSE(CredentialStore::load(QStringLiteral("account:") + newDevice, &stored).ok);
+}
+
+TEST(AccountClient, ManualLoginInvalidatesAnInFlightRestoreOnTheSameServer) {
+    if (!keyringWorks())
+        GTEST_SKIP() << "no login keyring on this machine";
+
+    const QString deviceId = QStringLiteral("same-server-device");
+    ASSERT_TRUE(CredentialStore::save(QStringLiteral("account:") + deviceId,
+                                      QStringLiteral("old-refresh")).ok);
+    MockHttpServer server;
+    MockHttpServer::Route delayed =
+        json(tokenReply("old-access", "old-refresh-2", "same-server-device"));
+    delayed.delayMs = 400;
+    server.setRoute(QStringLiteral("/v1/auth/refresh"), delayed);
+    server.setRoute(QStringLiteral("/v1/auth/login"),
+                    json(tokenReply("new-access", "new-refresh", "same-server-device")));
+
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    QSignalSpy in(&client, &AccountClient::loggedIn);
+    QSignalSpy failed(&client, &AccountClient::requestFailed);
+    client.restoreSession(QStringLiteral("old@example.com"), deviceId);
+    ASSERT_TRUE(waitForRequest(server, QStringLiteral("/v1/auth/refresh")));
+
+    client.login(QStringLiteral("new@example.com"), QStringLiteral("pw"),
+                 QStringLiteral("laptop"), deviceId, true);
+    waitForSignal(in);
+    ASSERT_EQ(in.count(), 1);
+
+    QEventLoop delayedReplyWindow;
+    QTimer::singleShot(600, &delayedReplyWindow, &QEventLoop::quit);
+    delayedReplyWindow.exec();
+    EXPECT_EQ(in.count(), 1);
+    EXPECT_EQ(failed.count(), 0);
+    EXPECT_EQ(client.account().email, QStringLiteral("new@example.com"));
+    QString stored;
+    ASSERT_TRUE(CredentialStore::load(QStringLiteral("account:") + deviceId, &stored).ok);
+    EXPECT_EQ(stored, QStringLiteral("new-refresh"));
+    client.logout();
+}
+
 TEST(AccountClient, FetchingDevicesWhileSignedOutNeverReachesTheNetwork) {
     MockHttpServer server;
     AccountClient client;
@@ -221,7 +417,7 @@ TEST(AccountClient, RequestsCarryTheProtocolVersion) {
     client.setApiUrl(server.url(QString()));
     QSignalSpy in(&client, &AccountClient::loggedIn);
     client.login(QStringLiteral("a@example.com"), QStringLiteral("correct horse"),
-                 QStringLiteral("laptop"));
+                 QStringLiteral("laptop"), QString(), true);
     waitForSignal(in);
 
     EXPECT_TRUE(QString::fromUtf8(server.lastRequestHead())
@@ -240,7 +436,7 @@ TEST(AccountClient, AnOldClientIsRefusedWithTheServersUpdateMessage) {
     QSignalSpy update(&client, &AccountClient::updateRequired);
     QSignalSpy failed(&client, &AccountClient::requestFailed);
     client.login(QStringLiteral("a@example.com"), QStringLiteral("correct horse"),
-                 QStringLiteral("laptop"));
+                 QStringLiteral("laptop"), QString(), true);
     waitForSignal(update);
 
     ASSERT_EQ(update.count(), 1);

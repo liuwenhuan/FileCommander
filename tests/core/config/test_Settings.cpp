@@ -461,3 +461,98 @@ TEST(SettingsTest, VideoVolumeClamps) {
     settings.setVideoVolume(200);
     EXPECT_EQ(settings.videoVolume(), 100);
 }
+
+TEST(SettingsTest, AccountServerAndAutomaticLoginDefaultsAreOfficialAndChecked) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    Settings settings(dir.filePath(QStringLiteral("settings.ini")));
+
+    EXPECT_TRUE(settings.accountUsesOfficialServer());
+    EXPECT_TRUE(settings.accountCustomServerUrl().isEmpty());
+    EXPECT_TRUE(settings.rememberAccountAutoLogin());
+}
+
+TEST(SettingsTest, CustomAccountServerAndAutomaticLoginRoundTrip) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString ini = dir.filePath(QStringLiteral("settings.ini"));
+    {
+        Settings settings(ini);
+        settings.setAccountUsesOfficialServer(false);
+        settings.setAccountCustomServerUrl(QStringLiteral("https://example.test/api///"));
+        settings.setRememberAccountAutoLogin(false);
+    }
+
+    Settings reloaded(ini);
+    EXPECT_FALSE(reloaded.accountUsesOfficialServer());
+    EXPECT_EQ(reloaded.accountCustomServerUrl(), QStringLiteral("https://example.test/api"));
+    EXPECT_FALSE(reloaded.rememberAccountAutoLogin());
+}
+
+TEST(SettingsTest, LegacyOfficialAccountServerMigratesToTheNewOfficialChoice) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString ini = dir.filePath(QStringLiteral("settings.ini"));
+    {
+        QSettings legacy(ini, QSettings::IniFormat);
+        legacy.setValue(QStringLiteral("account/serverUrl"),
+                        QStringLiteral("https://sgvps.aigutta.com/"));
+    }
+
+    Settings migrated(ini);
+    EXPECT_TRUE(migrated.accountUsesOfficialServer());
+    EXPECT_TRUE(migrated.accountCustomServerUrl().isEmpty());
+    EXPECT_TRUE(migrated.rememberAccountAutoLogin());
+    QSettings stored(ini, QSettings::IniFormat);
+    EXPECT_FALSE(stored.contains(QStringLiteral("account/serverUrl")));
+}
+
+TEST(SettingsTest, LegacyCustomAccountServerMigratesWithoutBeingReclassified) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString ini = dir.filePath(QStringLiteral("settings.ini"));
+    {
+        QSettings legacy(ini, QSettings::IniFormat);
+        legacy.setValue(QStringLiteral("account/serverUrl"),
+                        QStringLiteral(" http://localhost:9000/api/// "));
+    }
+
+    Settings migrated(ini);
+    EXPECT_FALSE(migrated.accountUsesOfficialServer());
+    EXPECT_EQ(migrated.accountCustomServerUrl(), QStringLiteral("http://localhost:9000/api"));
+    EXPECT_TRUE(migrated.rememberAccountAutoLogin());
+}
+
+TEST(SettingsTest, ExistingAccountServerSchemaIsNotOverwrittenByLegacyData) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString ini = dir.filePath(QStringLiteral("settings.ini"));
+    {
+        QSettings stored(ini, QSettings::IniFormat);
+        stored.setValue(QStringLiteral("account/serverMode"), QStringLiteral("custom"));
+        stored.setValue(QStringLiteral("account/customServerUrl"),
+                        QStringLiteral("https://custom.example/api/"));
+        stored.setValue(QStringLiteral("account/rememberAutoLogin"), false);
+        stored.setValue(QStringLiteral("account/serverUrl"),
+                        QStringLiteral("https://sgvps.aigutta.com"));
+    }
+
+    Settings settings(ini);
+    EXPECT_FALSE(settings.accountUsesOfficialServer());
+    EXPECT_EQ(settings.accountCustomServerUrl(), QStringLiteral("https://custom.example/api"));
+    EXPECT_FALSE(settings.rememberAccountAutoLogin());
+    QSettings stored(ini, QSettings::IniFormat);
+    EXPECT_FALSE(stored.contains(QStringLiteral("account/serverUrl")));
+}
+
+TEST(SettingsTest, UnknownAccountServerModeFallsBackToOfficial) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString ini = dir.filePath(QStringLiteral("settings.ini"));
+    {
+        QSettings stored(ini, QSettings::IniFormat);
+        stored.setValue(QStringLiteral("account/serverMode"), QStringLiteral("mystery"));
+    }
+    Settings settings(ini);
+    EXPECT_TRUE(settings.accountUsesOfficialServer());
+}

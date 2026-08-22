@@ -95,7 +95,7 @@ bool signIn(AccountClient &client, MockHttpServer &server) {
     server.setRoute(QStringLiteral("/v1/auth/login"), json(tokenReply()));
     QSignalSpy in(&client, &AccountClient::loggedIn);
     client.login(QStringLiteral("a@example.com"), QStringLiteral("correct horse"),
-                 QStringLiteral("laptop"));
+                 QStringLiteral("laptop"), QString(), true);
     if (in.isEmpty())
         in.wait(5000);
     return in.count() == 1 && client.isLoggedIn();

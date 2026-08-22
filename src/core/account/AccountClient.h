@@ -57,9 +57,9 @@ class QNetworkRequest;
 // on a server that connects and then says nothing.
 //
 // Token handling follows ConnectionStore's rule that secrets never reach the
-// INI file: the refresh token lives in the login keyring, the access token
-// lives in memory only, and config.ini holds nothing but the email, the device
-// id and the server address.
+// INI file: access and refresh tokens live in memory; remembered refresh tokens
+// additionally live in the login keyring. config.ini holds only non-secret
+// account, device and endpoint preferences.
 class AccountClient : public QObject {
     Q_OBJECT
 
@@ -89,6 +89,11 @@ public:
     // Overrides the API root for this instance only (tests, diagnostics).
     void setApiUrl(const QString &url);
 
+    // Changes the account identity boundary: aborts and invalidates requests
+    // issued to the previous root, clears its in-memory tokens, then applies the
+    // new instance URL. Used when the login dialog switches Official/Custom.
+    void switchApiUrl(const QString &url);
+
     // How long to wait for a reply before giving up. Default 15s.
     void setTimeoutMs(int ms);
 
@@ -96,11 +101,12 @@ public:
     void registerAccount(const QString &email, const QString &password);
 
     // Signs in and registers (or re-registers) this machine as a device.
-    // `deviceId` re-claims an existing device row; pass the stored one so a
-    // second sign-in does not add a second device. Emits loggedIn() or
-    // requestFailed().
+    // `deviceId` re-claims an existing device row; `rememberSession` controls
+    // whether the refresh token also survives in the OS keyring. Emits
+    // loggedIn() or requestFailed().
     void login(const QString &email, const QString &password,
-               const QString &deviceName, const QString &deviceId = QString());
+               const QString &deviceName, const QString &deviceId,
+               bool rememberSession);
 
     // Restores a session from the keyring refresh token stored by a previous
     // login, without asking for the password again. Emits loggedIn() or
@@ -182,18 +188,27 @@ private:
                  bool authenticated, std::function<void(QNetworkReply *)> handler,
                  bool retryAfterRefresh = true);
 
+    // Cancels replies from an earlier restore/login and clears the in-memory
+    // account so no stale authentication response can win a later attempt.
+    void invalidateAuthentication();
+
     // Turns a finished reply into a message worth showing, preferring the
     // server's own "detail" over Qt's generic network error.
     static QString errorText(QNetworkReply *reply, const QByteArray &body);
 
-    // Stores the tokens from a login/refresh response. The refresh token goes
-    // to the keyring, the access token stays in this object.
+    // Stores tokens from a login/refresh response. Both remain in memory for the
+    // active process; the refresh token is mirrored to the keyring only when the
+    // current session opted into automatic login.
     bool acceptTokens(const QByteArray &body, const QString &email);
 
     QNetworkAccessManager *m_net;
     QString m_apiUrl;
     int m_timeoutMs = 15000;
-    QString m_accessToken; // memory only, never persisted
+    QString m_accessToken;  // memory only, never persisted
+    QString m_refreshToken; // memory, plus keyring when m_persistRefreshToken
+    QString m_credentialDeviceId; // keyring entry loaded/requested for this session
+    bool m_persistRefreshToken = false;
+    quint64 m_requestGeneration = 0;
     AccountInfo m_account;
 };
 

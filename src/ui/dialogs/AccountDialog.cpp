@@ -11,31 +11,74 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QStackedWidget>
+#include <QUrl>
 #include <QVBoxLayout>
 
 #include "account/AccountClient.h"
 #include "config/Settings.h"
 
+namespace {
+
+QString normalizedServerUrl(QString value) {
+    value = value.trimmed();
+    while (value.endsWith(QLatin1Char('/')))
+        value.chop(1);
+    return value;
+}
+
+bool isValidCustomServerUrl(const QString &value) {
+    const QUrl url(value, QUrl::StrictMode);
+    const QString scheme = url.scheme().toLower();
+    return url.isValid() && (scheme == QLatin1String("http") || scheme == QLatin1String("https")) &&
+           !url.host().isEmpty() && url.userInfo().isEmpty() && url.query().isEmpty() &&
+           url.fragment().isEmpty();
+}
+
+} // namespace
+
 AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget *parent)
     : FramelessDialog(parent), m_client(client), m_settings(settings) {
     setWindowTitle(tr("FileCommander Account"));
     setModal(true);
-    resize(460, 380);
+    resize(500, 430);
 
     m_pages = new QStackedWidget(this);
 
     // Page 0: signed out.
     auto *form = new QWidget(m_pages);
     auto *fields = new QFormLayout(form);
-    m_server = new QLineEdit(form);
-    m_server->setPlaceholderText(AccountClient::apiUrl());
-    m_server->setText(m_settings.accountServerUrl());
+
+    auto *serverChoices = new QWidget(form);
+    auto *serverLayout = new QVBoxLayout(serverChoices);
+    serverLayout->setContentsMargins(0, 0, 0, 0);
+    m_officialServer = new QRadioButton(tr("Official server"), serverChoices);
+    m_officialServer->setObjectName(QStringLiteral("OfficialServerRadio"));
+    m_customServer = new QRadioButton(tr("Custom server"), serverChoices);
+    m_customServer->setObjectName(QStringLiteral("CustomServerRadio"));
+    m_customServerUrl = new QLineEdit(serverChoices);
+    m_customServerUrl->setObjectName(QStringLiteral("CustomServerUrl"));
+    m_customServerUrl->setPlaceholderText(tr("Server URL"));
+    m_customServerUrl->setText(m_settings.accountCustomServerUrl());
+    auto *customRow = new QHBoxLayout;
+    customRow->setContentsMargins(0, 0, 0, 0);
+    customRow->addWidget(m_customServer);
+    customRow->addWidget(m_customServerUrl, 1);
+    serverLayout->addWidget(m_officialServer);
+    serverLayout->addLayout(customRow);
+    const bool official = m_settings.accountUsesOfficialServer();
+    m_officialServer->setChecked(official);
+    m_customServer->setChecked(!official);
+
     m_email = new QLineEdit(form);
+    m_email->setObjectName(QStringLiteral("AccountEmail"));
     m_email->setText(m_settings.accountEmail());
     m_password = new QLineEdit(form);
+    m_password->setObjectName(QStringLiteral("AccountPassword"));
     m_password->setEchoMode(QLineEdit::Password);
     m_deviceName = new QLineEdit(form);
+    m_deviceName->setObjectName(QStringLiteral("AccountDeviceName"));
     // Pre-fill the name the user chose last time rather than the hostname: the
     // device name is this install's identity on the account, and silently
     // snapping it back to the machine's hostname on every sign-in would change
@@ -43,10 +86,15 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
     m_deviceName->setText(m_settings.accountDeviceName().isEmpty()
                               ? QHostInfo::localHostName()
                               : m_settings.accountDeviceName());
-    fields->addRow(tr("Server:"), m_server);
+    m_rememberAutoLogin = new QCheckBox(tr("Remember automatic login"), form);
+    m_rememberAutoLogin->setObjectName(QStringLiteral("RememberAutoLogin"));
+    m_rememberAutoLogin->setChecked(m_settings.rememberAccountAutoLogin());
+
+    fields->addRow(tr("Server:"), serverChoices);
     fields->addRow(tr("Email:"), m_email);
     fields->addRow(tr("Password:"), m_password);
     fields->addRow(tr("This device:"), m_deviceName);
+    fields->addRow(QString(), m_rememberAutoLogin);
 
     m_signIn = new QPushButton(tr("Sign In"), form);
     m_signIn->setDefault(true);
@@ -94,6 +142,7 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
     m_pages->addWidget(account);
 
     m_status = new QLabel(this);
+    m_status->setObjectName(QStringLiteral("AccountStatus"));
     m_status->setWordWrap(true);
     auto *closeBox = new QDialogButtonBox(QDialogButtonBox::Close, this);
 
@@ -103,6 +152,8 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
     layout->addWidget(closeBox);
 
     connect(closeBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect(m_customServer, &QRadioButton::toggled, this,
+            [this] { updateServerControls(); });
     connect(m_shareEnabled, &QCheckBox::toggled, this,
             [this](bool on) { m_settings.setDeviceSharingEnabled(on); });
     connect(addFolder, &QPushButton::clicked, this, [this] {
@@ -146,17 +197,17 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
         accept();
     });
     connect(m_signIn, &QPushButton::clicked, this, [this] {
-        // The typed address wins over the compiled-in one for this run and is
-        // remembered, so a self-hosted server only has to be entered once.
-        m_client.setApiUrl(m_server->text().trimmed());
-        m_settings.setAccountServerUrl(m_server->text().trimmed());
+        if (!applyServerSelection())
+            return;
         setBusy(true);
         m_status->setText(tr("Signing in…"));
         m_client.login(m_email->text().trimmed(), m_password->text(),
-                       m_deviceName->text().trimmed(), m_settings.accountDeviceId());
+                       m_deviceName->text().trimmed(), m_settings.accountDeviceId(),
+                       m_submittedRememberAutoLogin);
     });
     connect(m_registerButton, &QPushButton::clicked, this, [this] {
-        m_client.setApiUrl(m_server->text().trimmed());
+        if (!applyServerSelection())
+            return;
         setBusy(true);
         m_status->setText(tr("Creating account…"));
         m_client.registerAccount(m_email->text().trimmed(), m_password->text());
@@ -169,7 +220,8 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
         setBusy(true);
         m_status->setText(tr("Account created, signing in…"));
         m_settings.setAccountEmail(email);
-        m_client.login(email, m_password->text(), m_deviceName->text().trimmed());
+        m_client.login(email, m_password->text(), m_deviceName->text().trimmed(),
+                       m_settings.accountDeviceId(), m_submittedRememberAutoLogin);
     });
     connect(&m_client, &AccountClient::loggedIn, this, [this](const AccountInfo &info) {
         m_password->clear();
@@ -178,6 +230,7 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
         // Remember what this install signed in as, so the next sign-in (and any
         // re-registration after a sign-out) offers that name, not the hostname.
         m_settings.setAccountDeviceName(m_deviceName->text().trimmed());
+        m_settings.setRememberAccountAutoLogin(m_submittedRememberAutoLogin);
         setBusy(false);
         m_status->clear();
         showCurrentState();
@@ -186,6 +239,8 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
         // The device id stays: it is this machine's identity on the account, not
         // a credential, and reusing it keeps a later sign-in from adding a
         // second row for the same machine.
+        m_settings.setRememberAccountAutoLogin(false);
+        m_rememberAutoLogin->setChecked(false);
         setBusy(false);
         m_status->clear();
         showCurrentState();
@@ -227,6 +282,7 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
                 }
             });
 
+    updateServerControls();
     showCurrentState();
 }
 
@@ -241,6 +297,47 @@ void AccountDialog::showCurrentState() {
     m_client.fetchDevices();
 }
 
+void AccountDialog::updateServerControls() {
+    const bool custom = m_customServer->isChecked();
+    m_customServerUrl->setVisible(custom);
+    m_customServerUrl->setEnabled(custom && m_signIn->isEnabled());
+}
+
+bool AccountDialog::applyServerSelection() {
+    const bool official = m_officialServer->isChecked();
+    const QString customUrl = normalizedServerUrl(m_customServerUrl->text());
+    if (!official && !isValidCustomServerUrl(customUrl)) {
+        m_status->setText(tr("Enter a valid server URL."));
+        m_customServerUrl->setFocus();
+        return false;
+    }
+
+    const bool wasOfficial = m_settings.accountUsesOfficialServer();
+    const QString oldCustom = m_settings.accountCustomServerUrl();
+    const bool endpointChanged =
+        wasOfficial != official || (!official && oldCustom != customUrl);
+    m_submittedRememberAutoLogin = m_rememberAutoLogin->isChecked();
+
+    // Refresh tokens are keyed by device id rather than host. Never carry one
+    // across a deliberate endpoint change, or retain one after an unchecked login.
+    if ((endpointChanged || !m_submittedRememberAutoLogin) &&
+        !m_settings.accountDeviceId().isEmpty()) {
+        AccountClient::forgetStoredSession(m_settings.accountDeviceId());
+    }
+    if (endpointChanged || !m_submittedRememberAutoLogin)
+        m_settings.setRememberAccountAutoLogin(false);
+
+    m_settings.setAccountUsesOfficialServer(official);
+    if (!official)
+        m_settings.setAccountCustomServerUrl(customUrl);
+    const QString nextUrl = official ? QString() : customUrl;
+    if (endpointChanged)
+        m_client.switchApiUrl(nextUrl);
+    else
+        m_client.setApiUrl(nextUrl);
+    return true;
+}
+
 void AccountDialog::saveSharedFolders() {
     QStringList folders;
     for (int i = 0; i < m_sharedFolders->count(); ++i)
@@ -251,6 +348,13 @@ void AccountDialog::saveSharedFolders() {
 void AccountDialog::setBusy(bool busy) {
     m_signIn->setEnabled(!busy);
     m_registerButton->setEnabled(!busy);
+    m_officialServer->setEnabled(!busy);
+    m_customServer->setEnabled(!busy);
+    m_rememberAutoLogin->setEnabled(!busy);
+    m_email->setEnabled(!busy);
+    m_password->setEnabled(!busy);
+    m_deviceName->setEnabled(!busy);
+    updateServerControls();
 }
 
 void AccountDialog::reportError(const QString &error) {

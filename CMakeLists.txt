@@ -63,14 +63,17 @@ set(FILECOMMANDER_UPDATE_MANIFEST_URL "https://updates.invalid/FileCommander/ver
     CACHE STRING "URL of the online-update manifest (version.json)")
 
 # Where sign-in and device-to-device transfer talk to (see server/README.md).
-# This is only a fallback for a fresh install. The real address is a user
-# setting (the Server field in the account dialog, persisted to config.ini) and
-# then the FILECOMMANDER_ACCOUNT_API_URL environment variable, both of which
-# override this without a rebuild. A build that should have no account server
-# at all sets this to https://account.invalid, which apiUrlIsConfigured()
-# reports as "not configured".
-set(FILECOMMANDER_ACCOUNT_API_URL "https://sgvps.aigutta.com"
-    CACHE STRING "Fallback root URL of the FileCommander account server")
+# Official mode uses the environment override when present, then this compiled
+# fallback. A user-selected Custom server is an instance override above both.
+# Migrate build trees whose cache still contains the retired official default;
+# preserve every other explicitly configured endpoint.
+if(FILECOMMANDER_ACCOUNT_API_URL STREQUAL "https://sgvps.aigutta.com")
+    set(FILECOMMANDER_ACCOUNT_API_URL "https://fm.aigutta.com"
+        CACHE STRING "Official root URL of the FileCommander account server" FORCE)
+else()
+    set(FILECOMMANDER_ACCOUNT_API_URL "https://fm.aigutta.com"
+        CACHE STRING "Official root URL of the FileCommander account server")
+endif()
 
 # Generated version header (TTC_VERSION etc.) derived from the project()
 # version above, so the About box and the online-update checker can read the

@@ -53,9 +53,32 @@ bool AccountClient::apiUrlIsConfigured() {
 }
 
 void AccountClient::setApiUrl(const QString &url) {
-    m_apiUrl = url;
+    m_apiUrl = url.trimmed();
     while (m_apiUrl.endsWith(QLatin1Char('/')))
         m_apiUrl.chop(1);
+}
+
+void AccountClient::switchApiUrl(const QString &url) {
+    QString next = url.trimmed();
+    while (next.endsWith(QLatin1Char('/')))
+        next.chop(1);
+    if (next == m_apiUrl)
+        return;
+
+    invalidateAuthentication();
+    m_apiUrl = next;
+}
+
+void AccountClient::invalidateAuthentication() {
+    ++m_requestGeneration;
+    for (QNetworkReply *reply : m_net->findChildren<QNetworkReply *>())
+        if (reply->isRunning())
+            reply->abort();
+    m_accessToken.clear();
+    m_refreshToken.clear();
+    m_credentialDeviceId.clear();
+    m_persistRefreshToken = false;
+    m_account = {};
 }
 
 void AccountClient::setTimeoutMs(int ms) {
@@ -78,6 +101,7 @@ void AccountClient::forgetStoredSession(const QString &deviceId) {
 void AccountClient::request(Verb verb, const QString &path, const QByteArray &body,
                             bool authenticated, std::function<void(QNetworkReply *)> handler,
                             bool retryAfterRefresh) {
+    const quint64 generation = m_requestGeneration;
     const QString root = m_apiUrl.isEmpty() ? apiUrl() : m_apiUrl;
     QNetworkRequest req{QUrl(root + path)};
     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
@@ -121,37 +145,36 @@ void AccountClient::request(Verb verb, const QString &path, const QByteArray &bo
 
     connect(reply, &QNetworkReply::finished, this,
             [this, reply, timeout, verb, path, body, authenticated, handler,
-             retryAfterRefresh] {
+             retryAfterRefresh, generation] {
                 timeout->stop();
                 timeout->deleteLater();
                 reply->deleteLater();
+                if (generation != m_requestGeneration)
+                    return;
 
                 const int status =
                     reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
                 // An expired access token is the ordinary case, not an error:
-                // renew it from the keyring refresh token and replay the
+                // renew it from this session's refresh token and replay the
                 // request once. The replay cannot retry again.
                 if (authenticated && status == 401 && retryAfterRefresh &&
-                    !m_account.deviceId.isEmpty()) {
-                    QString stored;
-                    CredentialStore::load(keyringId(m_account.deviceId), &stored);
-                    if (!stored.isEmpty()) {
-                        const QByteArray refreshBody =
-                            QJsonDocument(QJsonObject{{"refresh_token", stored}}).toJson();
-                        const QString email = m_account.email;
-                        request(Verb::Post, QStringLiteral("/v1/auth/refresh"), refreshBody,
-                                false,
-                                [this, email, verb, path, body, handler](QNetworkReply *r) {
-                                    if (!acceptTokens(r->readAll(), email)) {
-                                        m_accessToken.clear();
-                                        emit requestFailed(tr("Session expired, please sign in again."));
-                                        return;
-                                    }
-                                    request(verb, path, body, true, handler, false);
-                                },
-                                false);
-                        return;
-                    }
+                    !m_refreshToken.isEmpty()) {
+                    const QByteArray refreshBody =
+                        QJsonDocument(QJsonObject{{"refresh_token", m_refreshToken}}).toJson();
+                    const QString email = m_account.email;
+                    request(Verb::Post, QStringLiteral("/v1/auth/refresh"), refreshBody,
+                            false,
+                            [this, email, verb, path, body, handler](QNetworkReply *r) {
+                                if (!acceptTokens(r->readAll(), email)) {
+                                    m_accessToken.clear();
+                                    m_refreshToken.clear();
+                                    emit requestFailed(tr("Session expired, please sign in again."));
+                                    return;
+                                }
+                                request(verb, path, body, true, handler, false);
+                            },
+                            false);
+                    return;
                 }
                 handler(reply);
             });
@@ -179,12 +202,19 @@ bool AccountClient::acceptTokens(const QByteArray &body, const QString &email) {
         return false;
 
     m_accessToken = access;
+    m_refreshToken = refresh;
     m_account.email = email;
     m_account.deviceId = deviceId;
-    // Keyring, never the INI: a refresh token is a password by another name.
-    // A keyring that refuses the write costs the user a re-login next launch,
-    // which is worth strictly more than writing the token to a plain file.
-    CredentialStore::save(keyringId(deviceId), refresh);
+    if (!m_credentialDeviceId.isEmpty() && m_credentialDeviceId != deviceId)
+        CredentialStore::remove(keyringId(m_credentialDeviceId));
+    m_credentialDeviceId = deviceId;
+    // Keyring, never the INI. An unchecked login keeps the refresh token only
+    // in this object, which is enough to renew the active session without
+    // leaving a credential for the next process.
+    if (m_persistRefreshToken)
+        CredentialStore::save(keyringId(deviceId), refresh);
+    else
+        CredentialStore::remove(keyringId(deviceId));
     return true;
 }
 
@@ -193,6 +223,7 @@ void AccountClient::registerAccount(const QString &email, const QString &passwor
         emit requestFailed(tr("No account server is configured for this build."));
         return;
     }
+    invalidateAuthentication();
     const QByteArray body =
         QJsonDocument(QJsonObject{{"email", email}, {"password", password}}).toJson();
     request(Verb::Post, QStringLiteral("/v1/auth/register"), body, false,
@@ -210,11 +241,17 @@ void AccountClient::registerAccount(const QString &email, const QString &passwor
 }
 
 void AccountClient::login(const QString &email, const QString &password,
-                          const QString &deviceName, const QString &deviceId) {
+                          const QString &deviceName, const QString &deviceId,
+                          bool rememberSession) {
     if (!apiUrlIsConfigured() && m_apiUrl.isEmpty()) {
         emit requestFailed(tr("No account server is configured for this build."));
         return;
     }
+    invalidateAuthentication();
+    m_persistRefreshToken = rememberSession;
+    m_credentialDeviceId = deviceId;
+    if (!rememberSession)
+        forgetStoredSession(deviceId);
     const QByteArray body = QJsonDocument(QJsonObject{
                                               {"email", email},
                                               {"password", password},
@@ -248,13 +285,17 @@ void AccountClient::restoreSession(const QString &email, const QString &deviceId
         emit requestFailed(tr("No saved sign-in for this device."));
         return;
     }
-    // Set before the request so a 401 on the retry path knows which keyring
-    // entry to reach for.
+    invalidateAuthentication();
+    // Set before the request so a 401 on the retry path knows which session is
+    // being restored, and so a rotated token returns to the keyring.
     m_account.email = email;
     m_account.deviceId = deviceId;
+    m_credentialDeviceId = deviceId;
+    m_refreshToken = stored;
+    m_persistRefreshToken = true;
 
     const QByteArray body =
-        QJsonDocument(QJsonObject{{"refresh_token", stored}}).toJson();
+        QJsonDocument(QJsonObject{{"refresh_token", m_refreshToken}}).toJson();
     request(Verb::Post, QStringLiteral("/v1/auth/refresh"), body, false,
             [this, email](QNetworkReply *reply) {
                 const QByteArray payload = reply->readAll();
@@ -269,6 +310,11 @@ void AccountClient::restoreSession(const QString &email, const QString &deviceId
 
 void AccountClient::logout() {
     const QString deviceId = m_account.deviceId;
+    const QString credentialDeviceId = m_credentialDeviceId;
+    ++m_requestGeneration;
+    for (QNetworkReply *reply : m_net->findChildren<QNetworkReply *>())
+        if (reply->isRunning())
+            reply->abort();
     if (isLoggedIn()) {
         // Best effort: the server-side revoke is the tidy half, but the session
         // is over locally whatever the server says, so the signal does not wait
@@ -277,8 +323,13 @@ void AccountClient::logout() {
                 [](QNetworkReply *) {}, false);
     }
     m_accessToken.clear();
+    m_refreshToken.clear();
+    m_credentialDeviceId.clear();
+    m_persistRefreshToken = false;
     m_account = {};
     forgetStoredSession(deviceId);
+    if (credentialDeviceId != deviceId)
+        forgetStoredSession(credentialDeviceId);
     emit loggedOut();
 }
 

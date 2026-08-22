@@ -236,10 +236,16 @@ public:
     // pre-fills it instead of defaulting back to the hostname.
     QString accountDeviceName() const;
     void setAccountDeviceName(const QString &name);
-    // Empty means "use the address this build was compiled with". Set when the
-    // user runs their own account server.
-    QString accountServerUrl() const;
-    void setAccountServerUrl(const QString &url);
+    // Explicit endpoint choice. Official mode uses AccountClient's compiled /
+    // environment URL without exposing it in the login form; Custom stores the
+    // user's normalized API root. Automatic login controls keyring persistence
+    // and defaults on unless the user signs out or completes an unchecked login.
+    bool accountUsesOfficialServer() const;
+    void setAccountUsesOfficialServer(bool official);
+    QString accountCustomServerUrl() const;
+    void setAccountCustomServerUrl(const QString &url);
+    bool rememberAccountAutoLogin() const;
+    void setRememberAccountAutoLogin(bool remember);
 
     // Device-to-device sharing: whether this machine serves its shared folders
     // to the account's other devices, and which folders those are. Off by

@@ -1263,10 +1263,12 @@ void MainWindow::buildTitleBarMenus() {
 #endif
     });
 #if FILECOMMANDER_HAS_NETWORK
-    // A stored account means there may be a keyring session to restore; doing
-    // it now is what puts the name in the title bar without opening the dialog.
-    if (!m_settings.accountEmail().isEmpty())
+    // Restore only when the user has kept automatic login enabled. Merely
+    // remembering the account identity must not create a network request.
+    if (m_settings.rememberAccountAutoLogin() && !m_settings.accountEmail().isEmpty() &&
+        !m_settings.accountDeviceId().isEmpty()) {
         ensureAccountClient();
+    }
 #endif
 
     // The recurring half of the update check. The FIRST check is deferred with
@@ -4555,8 +4557,10 @@ void MainWindow::ensureAccountClient() {
     if (m_accountClient)
         return;
     m_accountClient = new AccountClient(this);
-    if (!m_settings.accountServerUrl().isEmpty())
-        m_accountClient->setApiUrl(m_settings.accountServerUrl());
+    if (!m_settings.accountUsesOfficialServer() &&
+        !m_settings.accountCustomServerUrl().isEmpty()) {
+        m_accountClient->setApiUrl(m_settings.accountCustomServerUrl());
+    }
     if (m_titleBar) {
         connect(m_accountClient, &AccountClient::loggedIn, this,
                 [this](const AccountInfo &info) { m_titleBar->setAccountName(info.email); });
@@ -4580,6 +4584,7 @@ void MainWindow::ensureAccountClient() {
                            "device to resume.").arg(pending.size()));
     });
     connect(m_accountClient, &AccountClient::loggedOut, this, [this] {
+        m_settings.setRememberAccountAutoLogin(false);
         m_accountDevices.clear();
         updateDeviceSharing();
         // The device rows disappear with the account.
@@ -4606,11 +4611,13 @@ void MainWindow::ensureAccountClient() {
                         onlineIds.append(device.id);
                 m_pendingSends->devicesChanged(onlineIds);
             });
-    // Sign back in from the keyring token rather than asking again. Async,
-    // and a failure just leaves the dialog on its sign-in page.
-    if (!m_settings.accountEmail().isEmpty() && !m_settings.accountDeviceId().isEmpty())
+    // Sign back in from the keyring only when the user kept automatic login.
+    // A failure is asynchronous and leaves the account dialog signed out.
+    if (m_settings.rememberAccountAutoLogin() && !m_settings.accountEmail().isEmpty() &&
+        !m_settings.accountDeviceId().isEmpty()) {
         m_accountClient->restoreSession(m_settings.accountEmail(),
                                         m_settings.accountDeviceId());
+    }
 #endif
 }
 

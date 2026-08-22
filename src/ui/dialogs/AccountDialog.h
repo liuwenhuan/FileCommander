@@ -10,6 +10,7 @@ class QLabel;
 class QLineEdit;
 class QListWidget;
 class QPushButton;
+class QRadioButton;
 class QStackedWidget;
 
 // Sign in to the FileCommander account that device-to-device transfer runs on
@@ -18,8 +19,8 @@ class QStackedWidget;
 //
 // The dialog owns no session state. It drives the AccountClient it is handed --
 // which outlives it -- and writes only non-secret bookkeeping (email, device
-// id, server address) to Settings; the refresh token is the client's business
-// and goes to the login keyring, never to the INI.
+// id, endpoint choice and automatic-login preference) to Settings. Refresh
+// tokens are the client's business and never reach the INI.
 class AccountDialog : public FramelessDialog {
     Q_OBJECT
 
@@ -39,12 +40,17 @@ private:
     void saveSharedFolders();
     void setBusy(bool busy);
     void reportError(const QString &error);
+    void updateServerControls();
+    bool applyServerSelection();
 
     AccountClient &m_client;
     Settings &m_settings;
 
     QStackedWidget *m_pages;
-    QLineEdit *m_server;
+    QRadioButton *m_officialServer;
+    QRadioButton *m_customServer;
+    QLineEdit *m_customServerUrl;
+    QCheckBox *m_rememberAutoLogin;
     QLineEdit *m_email;
     QLineEdit *m_password;
     QLineEdit *m_deviceName;
@@ -55,4 +61,5 @@ private:
     QListWidget *m_devices;
     QCheckBox *m_shareEnabled;
     QListWidget *m_sharedFolders;
+    bool m_submittedRememberAutoLogin = true;
 };
