@@ -210,6 +210,18 @@ protected:
 
     void connectOk() { ASSERT_TRUE(connectWith(QString::fromLatin1(kTicket))); }
 
+    void connectClipboardOk() {
+        m_provider = std::make_shared<CurlWebDavProvider>();
+        m_provider->setTimeoutMs(8000);
+        m_provider->setPinnedPublicKey(ShareIdentity::local().pin);
+        m_provider->setConnectProbePath(QStringLiteral("/clipboard/") + kClipboardItemId);
+        QString error;
+        ASSERT_TRUE(m_provider->connectToHost(QStringLiteral("127.0.0.1"), int(m_port),
+                                               QStringLiteral("device"),
+                                               QString::fromLatin1(kClipboardTicket), true, &error))
+            << error.toStdString();
+    }
+
     QTemporaryDir m_dir;
     QString m_share;
     QString m_clipboardCacheDir;
@@ -425,6 +437,24 @@ TEST_F(FileShareServerTest, AWrongTicketGetsNothing) {
 TEST_F(FileShareServerTest, AnExpiredTicketStopsWorking) {
     m_server->addTicket(QStringLiteral("brief"), 0);
     EXPECT_FALSE(connectWith(QStringLiteral("brief")));
+}
+
+TEST_F(FileShareServerTest, CurlProviderCanConnectAndReadWithAScopedClipboardTicket) {
+    connectClipboardOk();
+    FileHandle *handle = m_provider->openRead(QStringLiteral("/clipboard/") + kClipboardItemId);
+    ASSERT_NE(handle, nullptr);
+    QByteArray bytes(m_clipboardPayload.size(), Qt::Uninitialized);
+    qint64 total = 0;
+    while (total < bytes.size()) {
+        const qint64 n = m_provider->read(handle, bytes.data() + total, bytes.size() - total);
+        ASSERT_GE(n, 0);
+        if (n == 0)
+            break;
+        total += n;
+    }
+    EXPECT_TRUE(m_provider->closeHandleStatus(handle));
+    bytes.resize(int(total));
+    EXPECT_EQ(bytes, m_clipboardPayload);
 }
 
 TEST_F(FileShareServerTest, ClipboardTicketServesOnlyItsExactOriginalWithRangeSupport) {
