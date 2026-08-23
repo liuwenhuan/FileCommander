@@ -182,7 +182,7 @@ bool ClipboardHistoryStore::saveManifest(const QVector<ClipboardHistoryRecord> &
         entry.insert(QStringLiteral("size"), static_cast<double>(record.size));
         entry.insert(QStringLiteral("width"), record.width);
         entry.insert(QStringLiteral("height"), record.height);
-        entry.insert(QStringLiteral("created"), record.created.toUTC().toString(Qt::ISODate));
+        entry.insert(QStringLiteral("created"), record.created.toUTC().toString(Qt::ISODateWithMs));
         entries.append(entry);
     }
     QJsonObject manifest;
@@ -263,7 +263,8 @@ bool ClipboardHistoryStore::load() {
         record.size = entry.value(QStringLiteral("size")).toVariant().toLongLong();
         record.width = entry.value(QStringLiteral("width")).toInt();
         record.height = entry.value(QStringLiteral("height")).toInt();
-        record.created = QDateTime::fromString(entry.value(QStringLiteral("created")).toString(), Qt::ISODate)
+        record.created = QDateTime::fromString(
+                             entry.value(QStringLiteral("created")).toString(), Qt::ISODateWithMs)
                              .toUTC();
         if (record.id.isEmpty() || ids.contains(record.id) || !record.created.isValid() ||
             record.sha256.size() != 64) {
