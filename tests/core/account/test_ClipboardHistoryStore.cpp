@@ -6,6 +6,9 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QMimeData>
 #include <QTemporaryDir>
 #include <QUrl>
@@ -301,6 +304,54 @@ TEST(ClipboardHistoryStoreTest, PreservesIncomingProvenanceAfterPersistentStorag
     EXPECT_EQ(reloaded.records().first().origin, ClipboardRecordOrigin::Incoming);
     EXPECT_EQ(reloaded.records().first().sourceDeviceId, QStringLiteral("device-2"));
     EXPECT_EQ(reloaded.records().first().created, deliveredAt);
+}
+
+TEST(ClipboardHistoryStoreTest, LoadsLegacyV1TimestampWithoutDeletingItsImage) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString history = historyPath(dir);
+    const QString images = QDir(history).filePath(QStringLiteral("images"));
+    ASSERT_TRUE(QDir().mkpath(images));
+
+    QImage image(3, 2, QImage::Format_ARGB32);
+    image.fill(Qt::green);
+    const QByteArray imageBytes = encodedPng(image);
+    const QString id = QStringLiteral("3b20b7ee-aeca-4f1e-a950-401880dfd9f7");
+    const QString imagePath = QDir(images).filePath(id + QStringLiteral(".bin"));
+    QFile imageFile(imagePath);
+    ASSERT_TRUE(imageFile.open(QIODevice::WriteOnly));
+    ASSERT_EQ(imageFile.write(imageBytes), imageBytes.size());
+    imageFile.close();
+
+    QJsonObject record;
+    record.insert(QStringLiteral("id"), id);
+    record.insert(QStringLiteral("origin"), QStringLiteral("local"));
+    record.insert(QStringLiteral("kind"), QStringLiteral("image"));
+    record.insert(QStringLiteral("text"), QString());
+    record.insert(QStringLiteral("mime"), QStringLiteral("image/png"));
+    record.insert(QStringLiteral("sha256"), QString::fromLatin1(
+        QCryptographicHash::hash(imageBytes, QCryptographicHash::Sha256).toHex()));
+    record.insert(QStringLiteral("sourceDeviceId"), QString());
+    record.insert(QStringLiteral("sourceDeviceName"), QString());
+    record.insert(QStringLiteral("size"), static_cast<double>(imageBytes.size()));
+    record.insert(QStringLiteral("width"), image.width());
+    record.insert(QStringLiteral("height"), image.height());
+    record.insert(QStringLiteral("created"), QStringLiteral("2026-08-23T12:00:00Z"));
+    QJsonObject manifest;
+    manifest.insert(QStringLiteral("version"), 1);
+    manifest.insert(QStringLiteral("records"), QJsonArray{record});
+    QFile manifestFile(QDir(history).filePath(QStringLiteral("manifest.json")));
+    ASSERT_TRUE(manifestFile.open(QIODevice::WriteOnly));
+    ASSERT_EQ(manifestFile.write(QJsonDocument(manifest).toJson(QJsonDocument::Compact)),
+              QJsonDocument(manifest).toJson(QJsonDocument::Compact).size());
+    manifestFile.close();
+
+    ClipboardHistoryStore store(dir.path());
+    ASSERT_TRUE(store.load());
+    ASSERT_EQ(store.records().size(), 1);
+    EXPECT_TRUE(store.records().first().created.isValid());
+    EXPECT_EQ(store.records().first().id, id);
+    EXPECT_TRUE(QFileInfo::exists(imagePath));
 }
 
 } // namespace

@@ -263,9 +263,13 @@ bool ClipboardHistoryStore::load() {
         record.size = entry.value(QStringLiteral("size")).toVariant().toLongLong();
         record.width = entry.value(QStringLiteral("width")).toInt();
         record.height = entry.value(QStringLiteral("height")).toInt();
-        record.created = QDateTime::fromString(
-                             entry.value(QStringLiteral("created")).toString(), Qt::ISODateWithMs)
-                             .toUTC();
+        const QString createdText = entry.value(QStringLiteral("created")).toString();
+        record.created = QDateTime::fromString(createdText, Qt::ISODateWithMs);
+        // Version 1 manifests written before millisecond precision used ISODate.
+        // Keep them readable while all new manifests use ISODateWithMs.
+        if (!record.created.isValid())
+            record.created = QDateTime::fromString(createdText, Qt::ISODate);
+        record.created = record.created.toUTC();
         if (record.id.isEmpty() || ids.contains(record.id) || !record.created.isValid() ||
             record.sha256.size() != 64) {
             continue;
