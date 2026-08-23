@@ -254,12 +254,14 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
     rebuild();
 }
 
-QString NotepadPanel::itemLabel(const CloudClipboardItem &item) const {
-    const QString source = m_controller ? m_controller->deviceName(item.sourceDeviceId)
-                                        : tr("Other device");
-    const QDateTime when = QDateTime::fromString(item.created, Qt::ISODate).toLocalTime();
+QString NotepadPanel::itemLabel(const ClipboardHistoryRecord &item) const {
+    const QString source = item.sourceDeviceName.isEmpty()
+                               ? (m_controller ? m_controller->deviceName(item.sourceDeviceId)
+                                               : tr("This device"))
+                               : item.sourceDeviceName;
+    const QDateTime when = item.created.toLocalTime();
     const QString time = when.isValid() ? when.toString(Qt::DefaultLocaleShortDate) : QString();
-    if (item.type == QLatin1String("image"))
+    if (item.kind == ClipboardRecordKind::Image)
         return QObject::tr("Image · %1 · %2").arg(source, time);
     return QStringLiteral("%1\n%2 · %3").arg(item.text.left(100), source, time);
 }
@@ -276,20 +278,13 @@ void NotepadPanel::rebuild() {
     const QString selectedId = m_list->currentItem() ?
         m_list->currentItem()->data(Qt::UserRole).toString() : QString();
     m_list->clear();
-    for (const CloudClipboardItem &item : m_controller->items()) {
+    for (const ClipboardHistoryRecord &item : m_controller->items()) {
         if (!query.isEmpty() && !itemLabel(item).contains(query, Qt::CaseInsensitive))
             continue;
         auto *row = new QListWidgetItem(itemLabel(item), m_list);
         row->setData(Qt::UserRole, item.id);
-        if (item.type == QLatin1String("image")) {
-            if (!item.thumbnail.isEmpty()) {
-                QPixmap pixmap;
-                pixmap.loadFromData(item.thumbnail);
-                row->setIcon(QIcon(pixmap));
-            } else {
-                m_controller->requestThumbnail(item.id);
-            }
-        }
+        if (item.kind == ClipboardRecordKind::Image && !item.imagePath.isEmpty())
+            row->setIcon(QIcon(item.imagePath));
         if (item.id == selectedId)
             m_list->setCurrentItem(row);
     }
@@ -299,12 +294,12 @@ void NotepadPanel::rebuild() {
     applyDynamicSize();
 }
 
-const CloudClipboardItem *NotepadPanel::selected() const {
+const ClipboardHistoryRecord *NotepadPanel::selected() const {
     const auto *row = m_list->currentItem();
     if (!row)
         return nullptr;
     const QString id = row->data(Qt::UserRole).toString();
-    for (const CloudClipboardItem &item : m_controller->items()) {
+    for (const ClipboardHistoryRecord &item : m_controller->items()) {
         if (item.id == id)
             return &item;
     }
@@ -312,22 +307,20 @@ const CloudClipboardItem *NotepadPanel::selected() const {
 }
 
 void NotepadPanel::updateSelection() {
-    const CloudClipboardItem *item = selected();
+    const ClipboardHistoryRecord *item = selected();
     const bool has = item != nullptr;
     m_copy->setEnabled(has);
     m_delete->setEnabled(has);
-    m_download->setEnabled(has && item->type == QLatin1String("image"));
-    if (!item || item->type != QLatin1String("image")) {
+    m_download->setEnabled(has && item->kind == ClipboardRecordKind::Image);
+    if (!item || item->kind != ClipboardRecordKind::Image) {
         m_contentStack->setCurrentWidget(m_editor);
         return;
     }
-    if (item->thumbnail.isEmpty()) {
+    const QPixmap pixmap(item->imagePath);
+    if (pixmap.isNull()) {
         m_imagePreview->setPixmap(QPixmap());
-        m_imagePreview->setText(tr("Loading image preview..."));
-        m_controller->requestThumbnail(item->id);
+        m_imagePreview->setText(tr("Could not load image preview."));
     } else {
-        QPixmap pixmap;
-        pixmap.loadFromData(item->thumbnail);
         m_imagePreview->setPixmap(pixmap.scaled(420, 220, Qt::KeepAspectRatio,
                                                 Qt::SmoothTransformation));
         m_imagePreview->setText(QString());
@@ -336,23 +329,18 @@ void NotepadPanel::updateSelection() {
 }
 
 void NotepadPanel::copySelected() {
-    const CloudClipboardItem *item = selected();
-    if (!item)
-        return;
-    if (item->type == QLatin1String("text"))
-        QGuiApplication::clipboard()->setText(item->text);
-    else if (item->type == QLatin1String("image"))
-        m_controller->requestOriginal(*item);
+    if (const ClipboardHistoryRecord *item = selected())
+        m_controller->copyRecordToClipboard(item->id);
 }
 
 void NotepadPanel::deleteSelected() {
-    if (const CloudClipboardItem *item = selected())
-        m_controller->deleteItem(item->id);
+    if (const ClipboardHistoryRecord *item = selected())
+        m_controller->removeRecord(item->id);
 }
 
 void NotepadPanel::downloadSelected() {
-    if (const CloudClipboardItem *item = selected())
-        m_controller->requestOriginal(*item);
+    if (const ClipboardHistoryRecord *item = selected())
+        m_controller->copyRecordToClipboard(item->id);
 }
 
 void NotepadPanel::send() {

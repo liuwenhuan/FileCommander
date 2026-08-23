@@ -4,150 +4,140 @@
 #include <QBuffer>
 #include <QClipboard>
 #include <QCryptographicHash>
-#include <QDateTime>
 #include <QFile>
-#include <QImage>
-#include <QImageWriter>
+#include <QFutureWatcher>
 #include <QMimeData>
-#include <QSet>
-#include <QTimer>
+#include <QTemporaryDir>
 #include <QUrl>
-#include <QUuid>
+#include <QtConcurrent>
 
-#include <algorithm>
-
-#include "account/CloudClipboardImageCache.h"
 #include "account/DeviceAgent.h"
 #include "config/Settings.h"
 
 namespace {
-constexpr int kDebounceMs = 300;
-constexpr int kMaximumTextBytes = 64 * 1024;
-constexpr qint64 kMaximumImageBytes = 25LL * 1024 * 1024;
-constexpr qint64 kMaximumPixels = 40LL * 1000 * 1000;
-constexpr int kThumbnailEdge = 480;
-constexpr int kMaximumThumbnailBytes = 128 * 1024;
-constexpr int kMaximumItems = 20;
 
-QDateTime itemDate(const CloudClipboardItem &item) {
-    return QDateTime::fromString(item.created, Qt::ISODate).toUTC();
+QString noOtherDevicesMessage() {
+    return QObject::tr("No other devices online or registered");
 }
+
+QDateTime deliveryDate(const ClipboardDeliveryInfo &delivery) {
+    QDateTime date = QDateTime::fromString(delivery.created, Qt::ISODateWithMs);
+    if (!date.isValid())
+        date = QDateTime::fromString(delivery.created, Qt::ISODate);
+    return date;
+}
+
 } // namespace
 
 CloudClipboardController::CloudClipboardController(Settings &settings, AccountClient *client,
                                                    DeviceAgent *agent, QObject *parent)
-    : QObject(parent), m_settings(settings), m_client(client),
-      m_clipboard(qApp ? qApp->clipboard() : nullptr) {
-    m_debounce = new QTimer(this);
-    m_debounce->setSingleShot(true);
-    m_debounce->setInterval(kDebounceMs);
-    connect(m_debounce, &QTimer::timeout, this, &CloudClipboardController::publishPendingClipboard);
-    if (m_clipboard) {
-        m_observedDigest = currentClipboardDigest();
-        connect(m_clipboard, &QClipboard::dataChanged, this,
-                &CloudClipboardController::onClipboardChanged);
-    }
+    : QObject(parent), m_ownedStore(std::make_unique<ClipboardHistoryStore>()),
+      m_store(m_ownedStore.get()) {
+    Q_UNUSED(settings);
+    initialize(client, agent);
+}
+
+CloudClipboardController::CloudClipboardController(ClipboardHistoryStore &store, AccountClient *client,
+                                                   DeviceAgent *agent, QObject *parent)
+    : QObject(parent), m_store(&store) {
+    initialize(client, agent);
+}
+
+void CloudClipboardController::initialize(AccountClient *client, DeviceAgent *agent) {
+    m_client = client;
+    m_clipboard = qApp ? qApp->clipboard() : nullptr;
+    m_downloadDirectory = std::make_unique<QTemporaryDir>();
+    if (m_clipboard)
+        connect(m_clipboard, &QClipboard::dataChanged, this, &CloudClipboardController::onClipboardChanged);
+
     if (!m_client)
         return;
-    setAgent(agent);
-    connect(m_client, &AccountClient::clipboardReady, this, &CloudClipboardController::acceptUpdate);
-    connect(m_client, &AccountClient::clipboardPublished, this,
-            [this](const CloudClipboardItem &item) {
-                if (item.type == QLatin1String("image")) {
-                    auto it = m_pendingOriginals.find(item.sha256.toLower());
-                    if (it != m_pendingOriginals.end()) {
-                        CloudClipboardImageCache().store(item.id, it.value().first, it.value().second,
-                                                          QDateTime::fromString(item.expires, Qt::ISODate));
-                        m_pendingOriginals.erase(it);
-                        emit localImagePublished();
-                    }
-                }
-                acceptItem(item);
-            });
-    connect(m_client, &AccountClient::clipboardThumbnailReady, this,
-            [this](const QString &id, const QByteArray &thumbnail, const QString &mime) {
-                for (CloudClipboardItem &item : m_items) {
-                    if (item.id == id) {
-                        item.thumbnail = thumbnail;
-                        item.thumbnailMime = mime;
-                        emit changed();
-                        return;
-                    }
-                }
-            });
-    connect(m_client, &AccountClient::clipboardItemDeleted, this,
-            [this](const QString &id, qint64) {
-                if (m_pendingDeleteId == id)
-                    m_pendingDeleteId.clear();
-                for (int i = m_items.size() - 1; i >= 0; --i) {
-                    if (m_items.at(i).id == id)
-                        m_items.removeAt(i);
-                }
-                setState(m_items.isEmpty() ? State::Empty : State::Ready);
-            });
-    connect(m_client, &AccountClient::clipboardCleared, this, [this](qint64) {
-        m_items.clear();
-        setState(State::Empty);
-    });
+
+    connect(m_client, &AccountClient::loggedIn, this, [this](const AccountInfo &) { refresh(); });
     connect(m_client, &AccountClient::loggedOut, this, [this] {
-        m_items.clear();
-        m_pendingOriginals.clear();
-        m_stagedImage = QImage();
-        m_pendingDigest.clear();
+        m_pendingDeliveries.clear();
         setState(State::SignedOut);
     });
-    connect(m_client, &AccountClient::loggedIn, this, [this] { refresh(); });
+    connect(m_client, &AccountClient::clipboardSendProgress, this,
+            [this](qint64 sent, qint64 total) {
+                emit transferProgress(m_selectedRecordId, sent, total);
+            });
+    connect(m_client, &AccountClient::clipboardSendFinished, this,
+            [this](const QString &, int recipientCount) {
+                if (recipientCount == 0)
+                    setTransferStatus(noOtherDevicesMessage());
+                else
+                    setTransferStatus(tr("Sent to %1 device(s).").arg(recipientCount));
+            });
+    connect(m_client, &AccountClient::clipboardDeliveriesReady, this,
+            &CloudClipboardController::receiveDeliveries);
+    connect(m_client, &AccountClient::clipboardDownloadProgress, this,
+            [this](const QString &id, qint64 received, qint64 total) {
+                emit transferProgress(id, received, total);
+                emit imageDownloadProgress(id, received, total); // legacy panel progress
+            });
+    connect(m_client, &AccountClient::clipboardDownloadFinished, this,
+            &CloudClipboardController::finishDeliveryDownload);
     connect(m_client, &AccountClient::requestFailed, this, [this](const QString &error) {
-        if (!m_pendingDownloadId.isEmpty()) {
-            const QString id = m_pendingDownloadId;
-            m_pendingDownloadId.clear();
-            emit imageDownloadFailed(id, error);
-        } else if (!m_pendingDeleteId.isEmpty()) {
-            m_pendingDeleteId.clear();
-            refresh();
+        if (!m_pendingDeliveries.isEmpty()) {
+            // The server retains unacknowledged deliveries. Forget in-flight IDs so
+            // the next login, agent notification, or manual refresh retries them.
+            m_pendingDeliveries.clear();
+            setTransferStatus(error);
         } else if (m_state == State::Loading) {
             setState(State::Error, error);
         }
     });
-    connect(m_client, &AccountClient::clipboardSessionReady, this, [this](const AccountSession &session) {
-        if (!session.clipboardItemId.isEmpty())
-            emit imageSessionReady(session);
-    });
+
+    setAgent(agent);
+    if (m_client->isLoggedIn())
+        refresh();
 }
 
 CloudClipboardController::State CloudClipboardController::state() const { return m_state; }
 QString CloudClipboardController::error() const { return m_error; }
-const QVector<CloudClipboardItem> &CloudClipboardController::items() const { return m_items; }
-bool CloudClipboardController::autoUpload() const { return m_settings.cloudClipboardAutoUpload(); }
-bool CloudClipboardController::autoReceive() const { return m_settings.cloudClipboardAutoReceive(); }
+const QVector<ClipboardHistoryRecord> &CloudClipboardController::items() const {
+    return m_store->records();
+}
+
+ClipboardHistoryRecord CloudClipboardController::record(const QString &id) const {
+    ClipboardHistoryRecord found;
+    if (m_store)
+        m_store->lookup(id, &found);
+    return found;
+}
+
+QString CloudClipboardController::selectedRecordId() const { return m_selectedRecordId; }
 
 void CloudClipboardController::setAgent(DeviceAgent *agent) {
     if (m_agentConnection)
         disconnect(m_agentConnection);
-    if (!agent) {
-        m_agentConnection = {};
+    if (m_agentReadyConnection)
+        disconnect(m_agentReadyConnection);
+    m_agentConnection = {};
+    m_agentReadyConnection = {};
+    if (!agent)
         return;
-    }
-    m_agentConnection = connect(agent, &DeviceAgent::clipboardChanged, this,
-                                [this](qint64 revision, const QString &) {
-        if (m_client && m_client->isLoggedIn()) {
-            m_refreshDigest = currentClipboardDigest();
-            setState(State::Loading);
-            m_client->fetchClipboard(revision > 0 ? revision - 1 : 0);
-        }
-    });
+    m_agentConnection = connect(agent, &DeviceAgent::clipboardDeliveryAvailable, this,
+                                [this](const QString &) { refresh(); });
+    m_agentReadyConnection = connect(agent, &DeviceAgent::announced, this,
+                                     &CloudClipboardController::refresh);
 }
 
 void CloudClipboardController::setDevices(const QVector<AccountDeviceInfo> &devices) {
+    m_devices = devices;
     m_deviceNames.clear();
-    for (const AccountDeviceInfo &device : devices)
+    for (const AccountDeviceInfo &device : devices) {
         m_deviceNames.insert(device.id, device.self ? tr("This device")
-                                                    : (device.name.isEmpty() ? tr("Other device")
-                                                                             : device.name));
+                                                     : (device.name.isEmpty() ? tr("Other device")
+                                                                              : device.name));
+    }
     emit changed();
 }
 
 QString CloudClipboardController::deviceName(const QString &deviceId) const {
+    if (deviceId.isEmpty())
+        return tr("This device");
     if (deviceId == (m_client ? m_client->account().deviceId : QString()))
         return tr("This device");
     return m_deviceNames.value(deviceId, tr("Other device"));
@@ -161,36 +151,135 @@ void CloudClipboardController::setState(State state, const QString &error) {
     emit changed();
 }
 
+void CloudClipboardController::setTransferStatus(const QString &status) {
+    if (m_transferStatus == status)
+        return;
+    m_transferStatus = status;
+    emit transferStatusChanged(status);
+    emit changed();
+}
+
 void CloudClipboardController::refresh() {
     if (!m_client || !m_client->isLoggedIn()) {
         setState(State::SignedOut);
         return;
     }
-    m_refreshDigest = currentClipboardDigest();
     setState(State::Loading);
-    m_client->fetchClipboard();
+    m_client->fetchClipboardDeliveries();
+}
+
+void CloudClipboardController::selectRecord(const QString &recordId) {
+    if (recordId == m_selectedRecordId)
+        return;
+    m_selectedRecordId = m_store->lookup(recordId) ? recordId : QString();
+    emit selectionChanged(m_selectedRecordId);
+    emit changed();
+}
+
+bool CloudClipboardController::copyRecordToClipboard(const QString &recordId) {
+    if (!m_clipboard)
+        return false;
+    const ClipboardHistoryRecord found = record(recordId);
+    if (found.id.isEmpty())
+        return false;
+
+    QByteArray fingerprint;
+    if (found.kind == ClipboardRecordKind::Text) {
+        fingerprint = QCryptographicHash::hash(QByteArrayLiteral("t") + found.text.toUtf8(),
+                                               QCryptographicHash::Sha256);
+        m_ignoredClipboardFingerprint = fingerprint;
+        m_copyingToClipboard = true;
+        m_clipboard->setText(found.text);
+        m_copyingToClipboard = false;
+    } else {
+        QFile imageFile(found.imagePath);
+        QImage image;
+        if (!imageFile.open(QIODevice::ReadOnly) || !image.loadFromData(imageFile.readAll()))
+            return false;
+        fingerprint = QCryptographicHash::hash(QByteArrayLiteral("i") + encodePng(image),
+                                               QCryptographicHash::Sha256);
+        m_ignoredClipboardFingerprint = fingerprint;
+        m_copyingToClipboard = true;
+        m_clipboard->setImage(image);
+        m_copyingToClipboard = false;
+    }
+    emit imageCopied(recordId); // retained for the old panel's selection feedback
+    return true;
+}
+
+bool CloudClipboardController::hasOtherDevices() const {
+    for (const AccountDeviceInfo &device : m_devices) {
+        if (!device.self && !device.id.isEmpty())
+            return true;
+    }
+    return false;
+}
+
+void CloudClipboardController::sendRecord(const QString &recordId) {
+    const ClipboardHistoryRecord found = record(recordId);
+    if (found.id.isEmpty() || found.origin != ClipboardRecordOrigin::Local)
+        return;
+    selectRecord(recordId);
+    if (!m_client || !m_client->isLoggedIn()) {
+        setState(State::SignedOut);
+        return;
+    }
+    if (!hasOtherDevices()) {
+        setTransferStatus(noOtherDevicesMessage());
+        return;
+    }
+
+    setTransferStatus(tr("Sending..."));
+    if (found.kind == ClipboardRecordKind::Text) {
+        m_client->sendClipboardText(found.text);
+        return;
+    }
+    m_client->sendClipboardImageFile(found.imagePath, found.mime, found.width, found.height,
+                                     QByteArray::fromHex(found.sha256.toLatin1()));
+}
+
+bool CloudClipboardController::removeRecord(const QString &recordId) {
+    if (!m_store->remove(recordId))
+        return false;
+    if (m_selectedRecordId == recordId)
+        m_selectedRecordId.clear();
+    emit changed();
+    return true;
+}
+
+void CloudClipboardController::clear() {
+    const QVector<ClipboardHistoryRecord> records = items();
+    for (const ClipboardHistoryRecord &known : records)
+        m_store->remove(known.id);
+    m_selectedRecordId.clear();
+    emit changed();
 }
 
 void CloudClipboardController::sendText(const QString &text) {
-    if (!m_client || !m_client->isLoggedIn() || text.toUtf8().size() > kMaximumTextBytes)
+    const ClipboardHistoryRecord added = m_store->addLocalText(text);
+    if (added.id.isEmpty())
         return;
-    m_client->publishClipboardText(text);
+    emit changed();
+    sendRecord(added.id);
 }
 
-bool CloudClipboardController::publishImage(const QImage &image) {
-    if (!m_client || !m_client->isLoggedIn())
-        return false;
-    const QByteArray original = encodePng(image);
-    const QByteArray preview = thumbnail(image);
-    if (original.isEmpty() || preview.isEmpty())
-        return false;
-    const QString hash = QString::fromLatin1(
-        QCryptographicHash::hash(original, QCryptographicHash::Sha256).toHex());
-    m_pendingOriginals.insert(hash, {original, QStringLiteral("image/png")});
-    m_client->publishClipboardImage(preview, QStringLiteral("image/jpeg"),
-                                    QStringLiteral("image/png"), original.size(),
-                                    image.width(), image.height(), hash);
-    return true;
+void CloudClipboardController::sendCurrentClipboard() {
+    if (!m_clipboard)
+        return;
+    ClipboardCapture capture;
+    if (!ClipboardHistoryStore::captureFromMimeData(m_clipboard->mimeData(), &capture))
+        return;
+    if (capture.kind == ClipboardRecordKind::Text) {
+        sendText(capture.text);
+        return;
+    }
+    const QByteArray png = encodePng(capture.image);
+    const ClipboardHistoryRecord added = m_store->addLocalImage(png, capture.mime,
+                                                                  capture.image.width(), capture.image.height());
+    if (!added.id.isEmpty()) {
+        emit changed();
+        sendRecord(added.id);
+    }
 }
 
 bool CloudClipboardController::sendImageFromMimeData(const QMimeData *mime) {
@@ -205,146 +294,120 @@ bool CloudClipboardController::sendImageFromMimeData(const QMimeData *mime) {
 bool CloudClipboardController::sendStagedImage() {
     if (m_stagedImage.isNull())
         return false;
-    const QByteArray imageDigest = digest(encodePng(m_stagedImage), 'i');
-    if (imageDigest == m_pendingDigest) {
-        m_debounce->stop();
-        m_pendingDigest.clear();
-    }
     const QImage image = m_stagedImage;
     m_stagedImage = QImage();
-    return publishImage(image);
+    const QByteArray png = encodePng(image);
+    const ClipboardHistoryRecord added = m_store->addLocalImage(png, QStringLiteral("image/png"),
+                                                                  image.width(), image.height());
+    if (added.id.isEmpty())
+        return false;
+    emit changed();
+    emit localImagePublished();
+    sendRecord(added.id);
+    return true;
 }
 
-void CloudClipboardController::sendCurrentClipboard() {
-    if (!m_client || !m_client->isLoggedIn() || !m_clipboard)
-        return;
-    const QMimeData *mime = m_clipboard->mimeData();
-    QImage image;
-    if (acceptsImage(mime, &image)) {
-        publishImage(image);
-        return;
-    }
-    QString text;
-    if (acceptsText(mime, &text))
-        m_client->publishClipboardText(text);
-}
-
-void CloudClipboardController::deleteItem(const QString &itemId) {
-    if (!m_client || itemId.isEmpty())
-        return;
-    for (int i = m_items.size() - 1; i >= 0; --i)
-        if (m_items.at(i).id == itemId)
-            m_items.removeAt(i);
-    const State nextState = m_items.isEmpty() ? State::Empty : State::Ready;
-    if (m_state == nextState)
-        emit changed();
-    else
-        setState(nextState);
-    m_pendingDeleteId = itemId;
-    m_client->deleteClipboardItem(itemId);
-}
-
-void CloudClipboardController::clear() {
-    if (m_client)
-        m_client->clearClipboard();
-}
-
-void CloudClipboardController::requestThumbnail(const QString &itemId) {
-    if (m_client && !itemId.isEmpty())
-        m_client->fetchClipboardThumbnail(itemId);
-}
-
-void CloudClipboardController::requestOriginal(const CloudClipboardItem &item) {
-    if (item.type != QLatin1String("image") || item.id.isEmpty())
-        return;
-    CloudClipboardImageCache cache;
-    CloudClipboardImageCache::Entry entry;
-    if (cache.lookup(item.id, &entry) && entry.size == item.size &&
-        QString::fromLatin1(entry.sha256.toHex()).compare(item.sha256, Qt::CaseInsensitive) == 0) {
-        QFile file(entry.filePath);
-        QImage image;
-        if (file.open(QIODevice::ReadOnly) && image.loadFromData(file.readAll())) {
-            m_applyingRemote = true;
-            m_clipboard->setImage(image);
-            m_applyingRemote = false;
-            emit imageCopied(item.id);
-            return;
-        }
-    }
-    if (m_client && !item.sourceDeviceId.isEmpty()) {
-        m_pendingDownloadId = item.id;
-        m_client->openClipboardImageSession(item.sourceDeviceId, item.id);
-    }
-}
-
-CloudClipboardItem CloudClipboardController::item(const QString &itemId) const {
-    for (const CloudClipboardItem &known : m_items)
-        if (known.id == itemId)
-            return known;
-    return {};
-}
-
-void CloudClipboardController::reportImageDownloadProgress(const QString &itemId,
-                                                           qint64 received, qint64 total) {
+void CloudClipboardController::reportImageDownloadProgress(const QString &itemId, qint64 received,
+                                                           qint64 total) {
     emit imageDownloadProgress(itemId, received, total);
 }
 
-void CloudClipboardController::completeImageDownload(const QString &itemId,
-                                                     const QByteArray &original) {
-    if (m_pendingDownloadId == itemId)
-        m_pendingDownloadId.clear();
-    const CloudClipboardItem found = item(itemId);
-    if (found.id.isEmpty() || original.size() != found.size ||
-        QString::fromLatin1(QCryptographicHash::hash(original, QCryptographicHash::Sha256).toHex())
-            .compare(found.sha256, Qt::CaseInsensitive) != 0) {
-        failImageDownload(itemId, tr("The downloaded image failed verification."));
-        return;
-    }
-    QImage image;
-    if (!image.loadFromData(original)) {
-        failImageDownload(itemId, tr("The downloaded image could not be decoded."));
-        return;
-    }
-    CloudClipboardImageCache cache;
-    if (!cache.store(itemId, original, found.mime,
-                     QDateTime::fromString(found.expires, Qt::ISODate))) {
-        failImageDownload(itemId, tr("The downloaded image could not be cached."));
-        return;
-    }
-    m_applyingRemote = true;
-    m_clipboard->setImage(image);
-    m_applyingRemote = false;
-    emit imageCopied(itemId);
+void CloudClipboardController::completeImageDownload(const QString &itemId, const QByteArray &original) {
+    Q_UNUSED(original);
+    // Legacy peer-image sessions are retired. Deliberately do not write QClipboard here.
+    emit imageDownloadFailed(itemId, tr("Clipboard image sessions are no longer supported."));
 }
 
 void CloudClipboardController::failImageDownload(const QString &itemId, const QString &error) {
-    if (m_pendingDownloadId == itemId)
-        m_pendingDownloadId.clear();
     emit imageDownloadFailed(itemId, error);
 }
 
-void CloudClipboardController::setAutoUpload(bool enabled) {
-    if (enabled && !m_settings.cloudClipboardPrivacyAcknowledged()) {
-        emit privacyWarningRequired();
+void CloudClipboardController::onClipboardChanged() {
+    if (m_copyingToClipboard || !m_clipboard)
+        return;
+    const QByteArray fingerprint = clipboardFingerprint(m_clipboard->mimeData());
+    if (!m_ignoredClipboardFingerprint.isEmpty() && fingerprint == m_ignoredClipboardFingerprint) {
+        m_ignoredClipboardFingerprint.clear();
         return;
     }
-    m_settings.setCloudClipboardAutoUpload(enabled);
-    if (!enabled)
-        m_settings.setCloudClipboardAutoReceive(false);
-    emit changed();
+    captureClipboard();
 }
 
-void CloudClipboardController::confirmAutoUpload(bool accepted) {
-    if (!accepted)
+void CloudClipboardController::captureClipboard() {
+    ClipboardCapture capture;
+    if (!m_clipboard || !ClipboardHistoryStore::captureFromMimeData(m_clipboard->mimeData(), &capture))
         return;
-    m_settings.setCloudClipboardPrivacyAcknowledged(true);
-    m_settings.setCloudClipboardAutoUpload(true);
-    emit changed();
+    if (capture.kind == ClipboardRecordKind::Text) {
+        if (!m_store->addLocalText(capture.text).id.isEmpty())
+            emit changed();
+        return;
+    }
+    addCapturedImage(capture.image);
 }
 
-void CloudClipboardController::setAutoReceive(bool enabled) {
-    m_settings.setCloudClipboardAutoReceive(enabled && autoUpload());
+void CloudClipboardController::addCapturedImage(const QImage &image) {
+    auto *watcher = new QFutureWatcher<QByteArray>(this);
+    connect(watcher, &QFutureWatcher<QByteArray>::finished, this, [this, watcher, image] {
+        const QByteArray encoded = watcher->result();
+        watcher->deleteLater();
+        if (!encoded.isEmpty() &&
+            !m_store->addLocalImage(encoded, QStringLiteral("image/png"), image.width(), image.height()).id.isEmpty()) {
+            emit changed();
+        }
+    });
+    watcher->setFuture(QtConcurrent::run([image] { return encodePng(image); }));
+}
+
+void CloudClipboardController::receiveDeliveries(const QVector<ClipboardDeliveryInfo> &deliveries) {
+    if (m_client && m_client->isLoggedIn())
+        setState(deliveries.isEmpty() && items().isEmpty() ? State::Empty : State::Ready);
+    if (!m_downloadDirectory || !m_downloadDirectory->isValid()) {
+        setTransferStatus(tr("Could not prepare clipboard download storage."));
+        return;
+    }
+    for (const ClipboardDeliveryInfo &delivery : deliveries) {
+        if (delivery.id.isEmpty() || m_pendingDeliveries.contains(delivery.id))
+            continue;
+        m_pendingDeliveries.insert(delivery.id, delivery);
+        setTransferStatus(tr("Receiving..."));
+        const QByteArray safeName = QCryptographicHash::hash(delivery.id.toUtf8(),
+                                                             QCryptographicHash::Sha256).toHex();
+        const QString partPath = m_downloadDirectory->filePath(
+            QString::fromLatin1(safeName) + QStringLiteral(".part"));
+        m_client->downloadClipboardDelivery(delivery, partPath);
+    }
+}
+
+void CloudClipboardController::finishDeliveryDownload(const QString &deliveryId, const QString &partPath) {
+    const ClipboardDeliveryInfo delivery = m_pendingDeliveries.take(deliveryId);
+    if (delivery.id.isEmpty())
+        return;
+
+    ClipboardHistoryRecord stored;
+    if (delivery.kind == QLatin1String("text")) {
+        QFile part(partPath);
+        const QByteArray bytes = part.open(QIODevice::ReadOnly) ? part.readAll() : QByteArray();
+        const QByteArray expected = QByteArray::fromHex(delivery.sha256.toLatin1());
+        if (bytes.size() == delivery.size && expected.size() == 32 &&
+            QCryptographicHash::hash(bytes, QCryptographicHash::Sha256) == expected) {
+            stored = m_store->addIncomingText(QString::fromUtf8(bytes), delivery.sourceDeviceId,
+                                              delivery.sourceDeviceName, deliveryDate(delivery));
+        }
+    } else if (delivery.kind == QLatin1String("image")) {
+        stored = m_store->addIncomingImageFile(partPath, delivery.mime, delivery.size, delivery.width,
+                                               delivery.height, delivery.sha256, delivery.sourceDeviceId,
+                                               delivery.sourceDeviceName, deliveryDate(delivery));
+    }
+    QFile::remove(partPath);
+
+    if (stored.id.isEmpty()) {
+        setTransferStatus(tr("Could not save the clipboard delivery."));
+        return;
+    }
     emit changed();
+    setTransferStatus(tr("Delivery received."));
+    if (m_client)
+        m_client->acknowledgeClipboardDelivery(delivery.id);
 }
 
 bool CloudClipboardController::isPrivateOrFileMime(const QMimeData *mime) {
@@ -366,7 +429,7 @@ bool CloudClipboardController::acceptsText(const QMimeData *mime, QString *text)
     if (!mime || isPrivateOrFileMime(mime) || !mime->hasText())
         return false;
     const QString candidate = mime->text();
-    if (candidate.isEmpty() || candidate.toUtf8().size() > kMaximumTextBytes)
+    if (candidate.isEmpty() || candidate.toUtf8().size() > ClipboardHistoryStore::maximumTextBytes)
         return false;
     if (text)
         *text = candidate;
@@ -374,22 +437,8 @@ bool CloudClipboardController::acceptsText(const QMimeData *mime, QString *text)
 }
 
 bool CloudClipboardController::acceptsImage(const QMimeData *mime, QImage *image) {
-    if (!mime)
+    if (!mime || isPrivateOrFileMime(mime))
         return false;
-    for (const QString &format : mime->formats()) {
-        const QString lower = format.toLower();
-        if (lower.contains(QLatin1String("password")) ||
-            lower.contains(QLatin1String("secret")) ||
-            lower.contains(QLatin1String("private")) ||
-            lower.contains(QLatin1String("gnome-copied")) ||
-            lower.contains(QLatin1String("kde-cutselection")) ||
-            lower.startsWith(QLatin1String("application/x-filecommander")))
-            return false;
-    }
-    for (const QUrl &url : mime->urls())
-        if (url.isLocalFile())
-            return false;
-
     QImage candidate = qvariant_cast<QImage>(mime->imageData());
     if (candidate.isNull()) {
         for (const QString &format : mime->formats()) {
@@ -400,20 +449,14 @@ bool CloudClipboardController::acceptsImage(const QMimeData *mime, QImage *image
                 break;
         }
     }
-    if (candidate.isNull() || qint64(candidate.width()) * candidate.height() > kMaximumPixels)
+    if (candidate.isNull() || qint64(candidate.width()) * candidate.height() > ClipboardHistoryStore::maximumPixels)
         return false;
     const QByteArray encoded = encodePng(candidate);
-    if (encoded.isEmpty() || encoded.size() > kMaximumImageBytes)
+    if (encoded.isEmpty() || encoded.size() > ClipboardHistoryStore::maximumImageBytes)
         return false;
     if (image)
         *image = candidate;
     return true;
-}
-
-QByteArray CloudClipboardController::digest(const QByteArray &bytes, char kind) {
-    QByteArray tagged(1, kind);
-    tagged += bytes;
-    return QCryptographicHash::hash(tagged, QCryptographicHash::Sha256);
 }
 
 QByteArray CloudClipboardController::encodePng(const QImage &image) {
@@ -424,118 +467,14 @@ QByteArray CloudClipboardController::encodePng(const QImage &image) {
     return bytes;
 }
 
-QByteArray CloudClipboardController::thumbnail(const QImage &image) {
-    const QImage scaled = image.scaled(kThumbnailEdge, kThumbnailEdge, Qt::KeepAspectRatio,
-                                       Qt::SmoothTransformation);
-    for (int quality = 88; quality >= 25; quality -= 9) {
-        QByteArray bytes;
-        QBuffer buffer(&bytes);
-        QImageWriter writer(&buffer, "JPEG");
-        writer.setQuality(quality);
-        if (buffer.open(QIODevice::WriteOnly) && writer.write(scaled) &&
-            bytes.size() <= kMaximumThumbnailBytes) {
-            return bytes;
-        }
-    }
-    return {};
-}
-
-QByteArray CloudClipboardController::currentClipboardDigest() const {
-    if (!m_clipboard)
-        return {};
-    const QMimeData *mime = m_clipboard->mimeData();
+QByteArray CloudClipboardController::clipboardFingerprint(const QMimeData *mime) {
     QImage image;
     if (acceptsImage(mime, &image))
-        return digest(encodePng(image), 'i');
+        return QCryptographicHash::hash(QByteArrayLiteral("i") + encodePng(image),
+                                        QCryptographicHash::Sha256);
     QString text;
     if (acceptsText(mime, &text))
-        return digest(text.toUtf8(), 't');
+        return QCryptographicHash::hash(QByteArrayLiteral("t") + text.toUtf8(),
+                                        QCryptographicHash::Sha256);
     return {};
-}
-
-void CloudClipboardController::onClipboardChanged() {
-    const QByteArray current = currentClipboardDigest();
-    m_observedDigest = current;
-    if (m_applyingRemote || !autoUpload() || current.isEmpty() || current == m_pendingDigest)
-        return;
-    m_pendingDigest = current;
-    m_debounce->start();
-}
-
-void CloudClipboardController::publishPendingClipboard() {
-    if (!m_client || !m_client->isLoggedIn() || !autoUpload() || m_pendingDigest.isEmpty())
-        return;
-    const QMimeData *mime = m_clipboard ? m_clipboard->mimeData() : nullptr;
-    QImage image;
-    if (acceptsImage(mime, &image)) {
-        const QByteArray original = encodePng(image);
-        if (digest(original, 'i') == m_pendingDigest) {
-            m_stagedImage = QImage();
-            publishImage(image);
-        }
-        return;
-    }
-    QString text;
-    if (acceptsText(mime, &text) && digest(text.toUtf8(), 't') == m_pendingDigest)
-        m_client->publishClipboardText(text);
-}
-
-void CloudClipboardController::acceptUpdate(const CloudClipboardUpdate &update) {
-    if (update.cleared)
-        m_items.clear();
-    for (const QString &id : update.deletedIds) {
-        for (int i = m_items.size() - 1; i >= 0; --i) {
-            if (m_items.at(i).id == id)
-                m_items.removeAt(i);
-        }
-    }
-    for (const CloudClipboardItem &item : update.items)
-        if (item.id != m_pendingDeleteId)
-            acceptItem(item);
-    if (m_items.isEmpty())
-        setState(State::Empty);
-    else {
-        setState(State::Ready);
-        applyLatestRemoteText();
-    }
-}
-
-void CloudClipboardController::acceptItem(const CloudClipboardItem &item) {
-    if (item.id.isEmpty())
-        return;
-    for (CloudClipboardItem &known : m_items) {
-        if (known.id == item.id) {
-            const QByteArray thumbnail = known.thumbnail;
-            known = item;
-            if (known.thumbnail.isEmpty())
-                known.thumbnail = thumbnail;
-            emit changed();
-            return;
-        }
-    }
-    m_items.append(item);
-    std::sort(m_items.begin(), m_items.end(), [](const CloudClipboardItem &left,
-                                                   const CloudClipboardItem &right) {
-        if (left.revision != right.revision)
-            return left.revision > right.revision;
-        return itemDate(left) > itemDate(right);
-    });
-    if (m_items.size() > kMaximumItems)
-        m_items.resize(kMaximumItems);
-    emit changed();
-}
-
-void CloudClipboardController::applyLatestRemoteText() {
-    if (!m_clipboard || !autoUpload() || !autoReceive() || m_items.isEmpty())
-        return;
-    const CloudClipboardItem &item = m_items.first();
-    if (item.type != QLatin1String("text") || item.text.isEmpty() || !m_client ||
-        item.sourceDeviceId == m_client->account().deviceId ||
-        currentClipboardDigest() != m_refreshDigest) {
-        return;
-    }
-    m_applyingRemote = true;
-    m_clipboard->setText(item.text);
-    m_observedDigest = digest(item.text.toUtf8(), 't');
-    m_applyingRemote = false;
 }

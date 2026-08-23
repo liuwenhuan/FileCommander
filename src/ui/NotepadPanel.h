@@ -12,7 +12,7 @@ class CloudClipboardController;
 class DeviceAgent;
 class QCloseEvent;
 class QEvent;
-struct CloudClipboardItem;
+struct ClipboardHistoryRecord;
 class QCheckBox;
 class QLabel;
 class QLineEdit;
@@ -56,8 +56,8 @@ private:
     void initialize(AccountClient *client, DeviceAgent *agent,
                     CloudClipboardController *existingController = nullptr);
     void applyDynamicSize();
-    const CloudClipboardItem *selected() const;
-    QString itemLabel(const CloudClipboardItem &item) const;
+    const ClipboardHistoryRecord *selected() const;
+    QString itemLabel(const ClipboardHistoryRecord &item) const;
 
     std::unique_ptr<Settings> m_ownedSettings;
     Settings &m_settings;
