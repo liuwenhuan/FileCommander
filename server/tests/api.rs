@@ -329,6 +329,73 @@ async fn devices_lists_the_account_and_marks_this_one() {
 }
 
 #[tokio::test]
+async fn removing_a_recipient_releases_its_pending_clipboard_delivery() {
+    let state = state();
+    register(&state, "owner@example.com", "correct horse").await;
+    let source = login(&state, "owner@example.com", "desktop", "").await;
+    let recipient = login(&state, "owner@example.com", "laptop", "").await;
+    let removed = login(&state, "owner@example.com", "tablet", "").await;
+
+    let queued = json_of(
+        send_text(
+            &state,
+            "/v1/clipboard/send",
+            source["access_token"].as_str().unwrap(),
+            "remove this recipient",
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(queued["recipient_count"], 2);
+    let deliveries = json_of(
+        send(
+            &state,
+            "GET",
+            "/v1/clipboard/deliveries",
+            recipient["access_token"].as_str().unwrap(),
+            Value::Null,
+        )
+        .await,
+    )
+    .await;
+    let delivery_id = deliveries["deliveries"][0]["id"].as_str().unwrap();
+    assert_eq!(
+        send(
+            &state,
+            "DELETE",
+            &format!("/v1/devices/{}", removed["device_id"].as_str().unwrap()),
+            recipient["access_token"].as_str().unwrap(),
+            Value::Null,
+        )
+        .await
+        .status(),
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        send(
+            &state,
+            "POST",
+            &format!("/v1/clipboard/deliveries/{delivery_id}/ack"),
+            recipient["access_token"].as_str().unwrap(),
+            Value::Null,
+        )
+        .await
+        .status(),
+        StatusCode::NO_CONTENT
+    );
+    let payloads = state
+        .db
+        .call(|conn| {
+            conn.query_row("SELECT COUNT(*) FROM clipboard_payloads", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .unwrap()
+        })
+        .await;
+    assert_eq!(payloads, 0);
+}
+
+#[tokio::test]
 async fn authentication_is_required_and_logout_ends_the_session() {
     let state = state();
     register(&state, "user@example.com", "correct horse").await;
@@ -574,6 +641,27 @@ async fn open_relay_session(state: &AppState, addr: SocketAddr) -> (String, Stri
         opened["session_id"].as_str().unwrap().to_string(),
         opened["ticket"].as_str().unwrap().to_string(),
     )
+}
+
+#[tokio::test]
+async fn a_session_rejects_retired_clipboard_ticket_requests() {
+    let state = state();
+    register(&state, "user@example.com", "correct horse").await;
+    let source = login(&state, "user@example.com", "desktop", "").await;
+
+    let rejected = send(
+        &state,
+        "POST",
+        "/v1/session",
+        source["access_token"].as_str().unwrap(),
+        json!({"device_id": "any-device", "clipboard_item_id": "retired-item"}),
+    )
+    .await;
+    assert_eq!(rejected.status(), StatusCode::UPGRADE_REQUIRED);
+    assert_eq!(
+        json_of(rejected).await["detail"],
+        "Your version of FileCommander is too old. Please update to continue."
+    );
 }
 
 #[tokio::test]
@@ -1207,102 +1295,6 @@ async fn clipboard_enforces_limits_retention_and_expiry() {
 }
 
 #[tokio::test]
-async fn clipboard_image_sessions_are_source_bound_and_plain_sessions_unchanged() {
-    use futures_util::{SinkExt, StreamExt};
-
-    let state = state();
-    let addr = serve(state.clone()).await;
-    register(&state, "user@example.com", "correct horse").await;
-    let host = login(&state, "user@example.com", "desktop", "").await;
-    let guest = login(&state, "user@example.com", "laptop", "").await;
-    let other = login(&state, "user@example.com", "tablet", "").await;
-    let (mut host_socket, _) = tokio_tungstenite::connect_async(ws_request(
-        addr,
-        "/v1/agent",
-        host["access_token"].as_str().unwrap(),
-    ))
-    .await
-    .unwrap();
-    host_socket.next().await;
-    host_socket
-        .send(tokio_tungstenite::tungstenite::Message::Text(
-            json!({"type": "hello", "lan_addrs": [], "port": 45001})
-                .to_string()
-                .into(),
-        ))
-        .await
-        .unwrap();
-    host_socket.next().await;
-
-    let plain = json_of(
-        send(
-            &state,
-            "POST",
-            "/v1/session",
-            guest["access_token"].as_str().unwrap(),
-            json!({"device_id": host["device_id"]}),
-        )
-        .await,
-    )
-    .await;
-    assert!(plain.get("clipboard_item_id").is_none());
-    let plain_notice: Value = serde_json::from_str(
-        host_socket
-            .next()
-            .await
-            .unwrap()
-            .unwrap()
-            .to_text()
-            .unwrap(),
-    )
-    .unwrap();
-    assert!(plain_notice.get("clipboard_item_id").is_none());
-
-    let image = publish_image(
-        &state,
-        host["access_token"].as_str().unwrap(),
-        host["device_id"].as_str().unwrap(),
-    )
-    .await;
-    let item_id = image["id"].as_str().unwrap();
-    assert_eq!(
-        send(
-            &state,
-            "POST",
-            "/v1/session",
-            guest["access_token"].as_str().unwrap(),
-            json!({"device_id": other["device_id"], "clipboard_item_id": item_id}),
-        )
-        .await
-        .status(),
-        StatusCode::BAD_REQUEST
-    );
-    let image_session = json_of(
-        send(
-            &state,
-            "POST",
-            "/v1/session",
-            guest["access_token"].as_str().unwrap(),
-            json!({"device_id": host["device_id"], "clipboard_item_id": item_id}),
-        )
-        .await,
-    )
-    .await;
-    assert_eq!(image_session["clipboard_item_id"], item_id);
-    let notice: Value = serde_json::from_str(
-        host_socket
-            .next()
-            .await
-            .unwrap()
-            .unwrap()
-            .to_text()
-            .unwrap(),
-    )
-    .unwrap();
-    assert_eq!(notice["clipboard_item_id"], item_id);
-}
-
-#[tokio::test]
 async fn clipboard_pushes_only_to_other_capable_devices() {
     use futures_util::StreamExt;
 
@@ -1594,6 +1586,97 @@ async fn clipboard_delivery_send_without_recipients_keeps_no_payload() {
 }
 
 #[tokio::test]
+async fn global_delivery_cleanup_purges_an_inactive_account() {
+    let state = state();
+    register(&state, "owner@example.com", "correct horse").await;
+    let source = login(&state, "owner@example.com", "desktop", "").await;
+    let _recipient = login(&state, "owner@example.com", "laptop", "").await;
+    let queued = json_of(
+        send_text(
+            &state,
+            "/v1/clipboard/send",
+            source["access_token"].as_str().unwrap(),
+            "purged without a client request",
+        )
+        .await,
+    )
+    .await;
+    let payload_id = queued["payload_id"].as_str().unwrap().to_string();
+    state
+        .db
+        .call(move |conn| {
+            conn.execute(
+                "UPDATE clipboard_payloads SET expires = '2000-01-01T00:00:00+00:00' WHERE id = ?1",
+                [payload_id],
+            )
+            .unwrap();
+            filecommander_account::clipboard::purge_expired_delivery_payloads(
+                conn,
+                "2026-08-23T00:00:00+00:00",
+            )
+            .unwrap();
+        })
+        .await;
+    let (payloads, deliveries) = state
+        .db
+        .call(|conn| {
+            (
+                conn.query_row("SELECT COUNT(*) FROM clipboard_payloads", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+                conn.query_row("SELECT COUNT(*) FROM clipboard_deliveries", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            )
+        })
+        .await;
+    assert_eq!((payloads, deliveries), (0, 0));
+}
+
+#[tokio::test]
+async fn global_delivery_cleanup_removes_payloads_without_pending_recipients() {
+    let state = state();
+    register(&state, "owner@example.com", "correct horse").await;
+    let source = login(&state, "owner@example.com", "desktop", "").await;
+    let _recipient = login(&state, "owner@example.com", "laptop", "").await;
+    let queued = json_of(
+        send_text(
+            &state,
+            "/v1/clipboard/send",
+            source["access_token"].as_str().unwrap(),
+            "recover an interrupted final acknowledgement",
+        )
+        .await,
+    )
+    .await;
+    let payload_id = queued["payload_id"].as_str().unwrap().to_string();
+    let payloads = state
+        .db
+        .call(move |conn| {
+            conn.execute(
+                "UPDATE clipboard_deliveries SET state = 'delivered', delivered_at = '2026-08-23T00:00:00+00:00'",
+                [],
+            )
+            .unwrap();
+            filecommander_account::clipboard::purge_expired_delivery_payloads(
+                conn,
+                "2026-08-23T00:00:00+00:00",
+            )
+            .unwrap();
+            conn.query_row(
+                "SELECT COUNT(*) FROM clipboard_payloads WHERE id = ?1",
+                [payload_id],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap()
+        })
+        .await;
+    assert_eq!(payloads, 0);
+}
+
+#[tokio::test]
 async fn clipboard_delivery_purges_expired_pending_payloads() {
     let state = state();
     register(&state, "owner@example.com", "correct horse").await;
@@ -1706,6 +1789,44 @@ async fn clipboard_delivery_removes_payload_after_every_recipient_acknowledges()
         })
         .await;
     assert_eq!(retained, 0);
+    let delivery_id = delivery_id.to_string();
+    let retained_delivery = state
+        .db
+        .call(move |conn| {
+            conn.query_row(
+                "SELECT COUNT(*) FROM clipboard_deliveries WHERE id = ?1 AND state = 'delivered'",
+                [delivery_id],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap()
+        })
+        .await;
+    assert_eq!(retained_delivery, 1);
+    state
+        .db
+        .call(|conn| {
+            conn.execute(
+                "UPDATE clipboard_deliveries SET delivered_at = '2000-01-01T00:00:00+00:00'",
+                [],
+            )
+            .unwrap();
+            filecommander_account::clipboard::purge_expired_delivery_payloads(
+                conn,
+                "2026-08-23T00:00:00+00:00",
+            )
+            .unwrap();
+        })
+        .await;
+    let remaining = state
+        .db
+        .call(|conn| {
+            conn.query_row("SELECT COUNT(*) FROM clipboard_deliveries", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .unwrap()
+        })
+        .await;
+    assert_eq!(remaining, 0);
 }
 
 #[tokio::test]
@@ -1803,6 +1924,24 @@ async fn clipboard_delivery_rejects_invalid_utf8() {
     )
     .await;
     assert_eq!(rejected.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn clipboard_delivery_rejects_empty_text() {
+    let state = state();
+    register(&state, "owner@example.com", "correct horse").await;
+    let source = login(&state, "owner@example.com", "desktop", "").await;
+
+    let rejected = send_raw(
+        &state,
+        "/v1/clipboard/send",
+        source["access_token"].as_str().unwrap(),
+        "text/plain; charset=utf-8",
+        Vec::new(),
+    )
+    .await;
+    assert_eq!(rejected.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(json_of(rejected).await["detail"], "clipboard text is empty");
 }
 
 #[tokio::test]

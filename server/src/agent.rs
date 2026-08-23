@@ -290,8 +290,10 @@ async fn serve_agent(state: AppState, user_id: i64, device_id: String, socket: W
 pub struct SessionRequest {
     #[serde(default)]
     pub device_id: String,
-    #[serde(default)]
-    pub clipboard_item_id: String,
+    // Deserialize the retired field only to reject old peer-clipboard clients
+    // explicitly rather than turning their scoped transfer into a folder share.
+    #[serde(default, rename = "clipboard_item_id")]
+    pub retired_clipboard_item_id: String,
 }
 
 #[derive(Serialize)]
@@ -304,8 +306,6 @@ pub struct SessionResponse {
     /// The peer's TLS pin. Empty when the peer is running a build from before
     /// this existed, in which case the caller gets no confidentiality and knows it.
     pub peer_pin: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub clipboard_item_id: Option<String>,
 }
 
 /// Asks a peer device to accept one connection. The ticket is pushed to that
@@ -317,6 +317,12 @@ pub async fn open_session(
     Json(body): Json<SessionRequest>,
 ) -> Result<Json<SessionResponse>, ApiError> {
     let principal = authenticate(&state, &headers).await?;
+    if !body.retired_clipboard_item_id.trim().is_empty() {
+        return Err(fail(
+            StatusCode::UPGRADE_REQUIRED,
+            "Your version of FileCommander is too old. Please update to continue.",
+        ));
+    }
     let target = body.device_id.trim().to_string();
     if target.is_empty() || target == principal.device_id {
         return Err(fail(StatusCode::BAD_REQUEST, "no target device"));
@@ -324,12 +330,7 @@ pub async fn open_session(
 
     let user_id = principal.user_id;
     let from_device = principal.device_id.clone();
-    let requested_clipboard_item = (!body.clipboard_item_id.trim().is_empty())
-        .then(|| body.clipboard_item_id.trim().to_string());
     let lookup = target.clone();
-    let clipboard_target = target.clone();
-    let clipboard_for_lookup = requested_clipboard_item.clone();
-    let stamp = iso(now());
     let from_name = state
         .db
         .call(move |conn| {
@@ -344,15 +345,6 @@ pub async fn open_session(
                 .is_some();
             if !owned {
                 return Err(fail(StatusCode::NOT_FOUND, "no such device"));
-            }
-            if let Some(item_id) = clipboard_for_lookup.as_deref() {
-                crate::clipboard::image_belongs_to_source(
-                    conn,
-                    user_id,
-                    item_id,
-                    &clipboard_target,
-                    &stamp,
-                )?;
             }
             Ok(conn
                 .query_row(
@@ -374,7 +366,7 @@ pub async fn open_session(
         let agent = agents
             .get(&target)
             .ok_or_else(|| fail(StatusCode::CONFLICT, "device is offline"))?;
-        let mut notice = json!({
+        let notice = json!({
             "type": "incoming",
             "session_id": session_id,
             "ticket": ticket,
@@ -382,9 +374,6 @@ pub async fn open_session(
             "from_device": principal.device_id,
             "expires_in": TICKET_TTL_SECONDS,
         });
-        if let Some(item_id) = requested_clipboard_item.as_deref() {
-            notice["clipboard_item_id"] = Value::String(item_id.to_string());
-        }
         agent
             .tx
             .send(notice.to_string())
@@ -420,6 +409,5 @@ pub async fn open_session(
         peer_lan_addrs: lan_addrs,
         peer_port: port,
         peer_pin: pin,
-        clipboard_item_id: requested_clipboard_item,
     }))
 }

@@ -520,20 +520,67 @@ pub async fn forget_device(
     let status = state
         .db
         .call(move |conn| {
-            let removed = conn
+            let transaction = conn.unchecked_transaction().map_err(|_| {
+                fail(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "could not remove device",
+                )
+            })?;
+            let owned = transaction
+                .query_row(
+                    "SELECT 1 FROM devices WHERE id = ?1 AND user_id = ?2",
+                    params![device_id, user_id],
+                    |_| Ok(()),
+                )
+                .optional()
+                .map_err(|_| fail(StatusCode::INTERNAL_SERVER_ERROR, "could not remove device"))?
+                .is_some();
+            if !owned {
+                return Err(fail(StatusCode::NOT_FOUND, "no such device"));
+            }
+            let payload_ids: Vec<String> = {
+                let mut statement = transaction
+                    .prepare(
+                        "SELECT DISTINCT d.payload_id FROM clipboard_deliveries d \
+                         JOIN clipboard_payloads p ON p.id = d.payload_id \
+                         WHERE d.target_device_id = ?1 AND p.user_id = ?2",
+                    )
+                    .map_err(|_| fail(StatusCode::INTERNAL_SERVER_ERROR, "could not remove device"))?;
+                let ids = statement
+                    .query_map(params![device_id, user_id], |row| row.get(0))
+                    .map_err(|_| fail(StatusCode::INTERNAL_SERVER_ERROR, "could not remove device"))?
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|_| fail(StatusCode::INTERNAL_SERVER_ERROR, "could not remove device"))?;
+                ids
+            };
+            transaction
+                .execute(
+                    "DELETE FROM clipboard_deliveries WHERE target_device_id = ?1",
+                    params![device_id],
+                )
+                .map_err(|_| fail(StatusCode::INTERNAL_SERVER_ERROR, "could not remove device"))?;
+            for payload_id in payload_ids {
+                transaction
+                    .execute(
+                        "DELETE FROM clipboard_payloads WHERE id = ?1 AND user_id = ?2 AND NOT EXISTS \
+                         (SELECT 1 FROM clipboard_deliveries WHERE payload_id = ?1 AND state = 'pending')",
+                        params![payload_id, user_id],
+                    )
+                    .map_err(|_| fail(StatusCode::INTERNAL_SERVER_ERROR, "could not remove device"))?;
+            }
+            transaction
                 .execute(
                     "DELETE FROM devices WHERE id = ?1 AND user_id = ?2",
                     params![device_id, user_id],
                 )
-                .unwrap_or(0);
-            if removed == 0 {
-                return Err(fail(StatusCode::NOT_FOUND, "no such device"));
-            }
+                .map_err(|_| fail(StatusCode::INTERNAL_SERVER_ERROR, "could not remove device"))?;
             // A device nobody can reach must not keep a usable session.
-            let _ = conn.execute(
-                "DELETE FROM tokens WHERE device_id = ?1",
-                params![device_id],
-            );
+            transaction
+                .execute("DELETE FROM tokens WHERE device_id = ?1", params![device_id])
+                .map_err(|_| fail(StatusCode::INTERNAL_SERVER_ERROR, "could not remove device"))?;
+            transaction
+                .commit()
+                .map_err(|_| fail(StatusCode::INTERNAL_SERVER_ERROR, "could not remove device"))?;
             Ok(StatusCode::NO_CONTENT)
         })
         .await?;

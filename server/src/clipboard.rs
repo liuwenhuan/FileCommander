@@ -1,5 +1,6 @@
-//! Account-scoped clipboard history. The server retains text and image previews,
-//! never the original image bytes.
+//! Account-scoped clipboard history and explicit device deliveries. History keeps
+//! text and image previews; explicit deliveries retain original bytes until every
+//! recipient acknowledges them or their retention window expires.
 
 use axum::body::to_bytes;
 use axum::extract::{Path, Query, Request, State};
@@ -195,18 +196,44 @@ fn event(
     Ok(())
 }
 
-/// Removes expired records before every operation. Expiry is also a history
-/// change, so clients polling with `after` can discard a stale local item.
-fn purge_expired(conn: &Connection, user_id: i64, stamp: &str) -> rusqlite::Result<()> {
+/// Removes expired explicit-delivery content for every account. This runs both
+/// from request handling and from the process-wide background task, so an idle
+/// account never keeps original clipboard content beyond the retention window.
+pub fn purge_expired_delivery_payloads(conn: &Connection, stamp: &str) -> rusqlite::Result<()> {
     conn.execute(
         "DELETE FROM clipboard_deliveries WHERE payload_id IN \
-         (SELECT id FROM clipboard_payloads WHERE user_id = ?1 AND expires <= ?2)",
-        params![user_id, stamp],
+         (SELECT id FROM clipboard_payloads WHERE expires <= ?1)",
+        params![stamp],
     )?;
     conn.execute(
-        "DELETE FROM clipboard_payloads WHERE user_id = ?1 AND expires <= ?2",
-        params![user_id, stamp],
+        "DELETE FROM clipboard_payloads WHERE expires <= ?1",
+        params![stamp],
     )?;
+    // A completed delivery's row stays as an ACK tombstone, but its payload has
+    // no reason to survive once every recipient is no longer pending. This also
+    // repairs any pre-transaction partial completion from an older server.
+    conn.execute(
+        "DELETE FROM clipboard_payloads WHERE NOT EXISTS \
+         (SELECT 1 FROM clipboard_deliveries WHERE payload_id = clipboard_payloads.id \
+          AND state = 'pending')",
+        [],
+    )?;
+    // Keep a delivered row only for the same seven-day window as a replay-safe
+    // ACK. It authorizes retrying an ACK without retaining metadata forever.
+    let delivered_cutoff = iso(now() - ChronoDuration::days(TTL_DAYS));
+    conn.execute(
+        "DELETE FROM clipboard_deliveries WHERE state = 'delivered' \
+         AND delivered_at IS NOT NULL AND delivered_at <= ?1",
+        params![delivered_cutoff],
+    )?;
+    Ok(())
+}
+
+/// Removes expired records before every account-scoped history operation.
+/// Expiry is also a history change, so clients polling with `after` can discard
+/// a stale local item.
+fn purge_expired(conn: &Connection, user_id: i64, stamp: &str) -> rusqlite::Result<()> {
+    purge_expired_delivery_payloads(conn, stamp)?;
     conn.execute(
         "DELETE FROM clipboard_events WHERE expires <= ?1",
         params![stamp],
@@ -644,6 +671,9 @@ pub async fn send_delivery(
         let body = to_bytes(body, MAX_TEXT_BYTES)
             .await
             .map_err(|_| fail(StatusCode::PAYLOAD_TOO_LARGE, "clipboard text is too large"))?;
+        if body.is_empty() {
+            return Err(fail(StatusCode::BAD_REQUEST, "clipboard text is empty"));
+        }
         if std::str::from_utf8(&body).is_err() {
             return Err(fail(
                 StatusCode::BAD_REQUEST,
@@ -984,11 +1014,18 @@ pub async fn acknowledge_delivery(
                     "could not acknowledge clipboard delivery",
                 )
             })?;
-            let payload_id: Option<String> = conn
+            let transaction = conn.unchecked_transaction().map_err(|_| {
+                fail(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "could not acknowledge clipboard delivery",
+                )
+            })?;
+            let payload_id: Option<String> = transaction
                 .query_row(
-                    "SELECT payload_id FROM clipboard_deliveries \
-                     WHERE id = ?1 AND target_device_id = ?2",
-                    params![delivery_id, device_id],
+                    "SELECT d.payload_id FROM clipboard_deliveries d \
+                     JOIN devices target ON target.id = d.target_device_id AND target.user_id = ?3 \
+                     WHERE d.id = ?1 AND d.target_device_id = ?2",
+                    params![delivery_id, device_id, user_id],
                     |row| row.get(0),
                 )
                 .optional()
@@ -1000,29 +1037,36 @@ pub async fn acknowledge_delivery(
                 })?;
             let payload_id = payload_id
                 .ok_or_else(|| fail(StatusCode::NOT_FOUND, "no such clipboard delivery"))?;
-            conn.execute(
-                "UPDATE clipboard_deliveries SET state = 'delivered', delivered_at = ?1 \
-                 WHERE id = ?2 AND target_device_id = ?3 AND state = 'pending'",
-                params![stamp, delivery_id, device_id],
-            )
-            .map_err(|_| {
+            transaction
+                .execute(
+                    "UPDATE clipboard_deliveries SET state = 'delivered', delivered_at = ?1 \
+                     WHERE id = ?2 AND target_device_id = ?3 AND state = 'pending'",
+                    params![stamp, delivery_id, device_id],
+                )
+                .map_err(|_| {
+                    fail(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "could not acknowledge clipboard delivery",
+                    )
+                })?;
+            transaction
+                .execute(
+                    "DELETE FROM clipboard_payloads WHERE id = ?1 AND user_id = ?2 AND NOT EXISTS \
+                     (SELECT 1 FROM clipboard_deliveries WHERE payload_id = ?1 AND state = 'pending')",
+                    params![payload_id, user_id],
+                )
+                .map_err(|_| {
+                    fail(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "could not acknowledge clipboard delivery",
+                    )
+                })?;
+            transaction.commit().map_err(|_| {
                 fail(
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "could not acknowledge clipboard delivery",
                 )
-            })?;
-            conn.execute(
-                "DELETE FROM clipboard_payloads WHERE id = ?1 AND NOT EXISTS \
-                 (SELECT 1 FROM clipboard_deliveries WHERE payload_id = ?1 AND state = 'pending')",
-                params![payload_id],
-            )
-            .map_err(|_| {
-                fail(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "could not acknowledge clipboard delivery",
-                )
-            })?;
-            Ok(())
+            })
         })
         .await?;
     Ok(StatusCode::NO_CONTENT)
@@ -1053,32 +1097,4 @@ pub async fn thumbnail(
         })
         .await?;
     Ok(([(header::CONTENT_TYPE, value.0)], value.1).into_response())
-}
-
-/// Used by session setup: image access is only ever requested from the exact
-/// source device recorded with the clipboard metadata.
-pub fn image_belongs_to_source(
-    conn: &Connection,
-    user_id: i64,
-    item_id: &str,
-    device_id: &str,
-    stamp: &str,
-) -> Result<(), ApiError> {
-    let source: Option<String> = conn
-        .query_row(
-            "SELECT source_device_id FROM clipboard_items WHERE id = ?1 AND user_id = ?2 \
-             AND kind = 'image' AND expires > ?3",
-            params![item_id, user_id, stamp],
-            |row| row.get(0),
-        )
-        .optional()
-        .unwrap_or(None);
-    match source {
-        Some(source) if source == device_id => Ok(()),
-        Some(_) => Err(fail(
-            StatusCode::BAD_REQUEST,
-            "clipboard item is not from target device",
-        )),
-        None => Err(fail(StatusCode::NOT_FOUND, "no such clipboard image")),
-    }
 }
