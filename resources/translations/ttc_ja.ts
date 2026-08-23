@@ -42,37 +42,72 @@
 <context>
     <name>AccountClient</name>
     <message>
-        <location filename="../../src/core/account/AccountClient.cpp" line="191"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="250"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="669"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="731"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="874"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="913"/>
         <source>Session expired, please sign in again.</source>
         <translation>セッションの有効期限が切れました。もう一度サインインしてください。</translation>
     </message>
     <message>
-        <location filename="../../src/core/account/AccountClient.cpp" line="210"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="266"/>
         <source>The account server did not respond.</source>
         <translation>アカウントサーバーが応答しませんでした。</translation>
     </message>
     <message>
-        <location filename="../../src/core/account/AccountClient.cpp" line="213"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="269"/>
         <source>The account server returned an unexpected reply.</source>
         <translation>アカウントサーバーが予期しない応答を返しました。</translation>
     </message>
     <message>
-        <location filename="../../src/core/account/AccountClient.cpp" line="240"/>
-        <location filename="../../src/core/account/AccountClient.cpp" line="263"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="296"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="319"/>
         <source>No account server is configured for this build.</source>
         <translation>このビルドにはアカウントサーバーが設定されていません。</translation>
     </message>
     <message>
-        <location filename="../../src/core/account/AccountClient.cpp" line="298"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="354"/>
         <source>No saved sign-in for this device.</source>
         <translation>このデバイスに保存されたサインイン情報はありません。</translation>
     </message>
     <message>
-        <location filename="../../src/core/account/AccountClient.cpp" line="349"/>
-        <location filename="../../src/core/account/AccountClient.cpp" line="419"/>
-        <location filename="../../src/core/account/AccountClient.cpp" line="448"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="405"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="475"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="504"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="661"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="676"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="742"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="768"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="894"/>
         <source>Not signed in.</source>
         <translation>サインインしていません。</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/account/AccountClient.cpp" line="689"/>
+        <source>Could not open the clipboard image.</source>
+        <translation>クリップボード画像を開けませんでした。</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/account/AccountClient.cpp" line="776"/>
+        <source>Invalid clipboard delivery.</source>
+        <translation>無効なクリップボード配信です。</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/account/AccountClient.cpp" line="792"/>
+        <source>Could not create the clipboard download file.</source>
+        <translation>クリップボードのダウンロードファイルを作成できませんでした。</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/account/AccountClient.cpp" line="847"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="884"/>
+        <source>Could not save the clipboard download.</source>
+        <translation>クリップボードのダウンロードを保存できませんでした。</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/account/AccountClient.cpp" line="882"/>
+        <source>Clipboard delivery integrity validation failed.</source>
+        <translation>クリップボード配信の整合性検証に失敗しました。</translation>
     </message>
 </context>
 <context>
@@ -415,31 +450,64 @@ Extract it too?</source>
 <context>
     <name>CloudClipboardController</name>
     <message>
-        <location filename="../../src/ui/CloudClipboardController.cpp" line="143"/>
-        <location filename="../../src/ui/CloudClipboardController.cpp" line="151"/>
+        <location filename="../../src/ui/CloudClipboardController.cpp" line="76"/>
+        <source>Sent to %1 device(s).</source>
+        <translation>%1 台のデバイスに送信しました。</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/CloudClipboardController.cpp" line="155"/>
+        <location filename="../../src/ui/CloudClipboardController.cpp" line="164"/>
+        <location filename="../../src/ui/CloudClipboardController.cpp" line="166"/>
         <source>This device</source>
         <translation>このデバイス</translation>
     </message>
     <message>
-        <location filename="../../src/ui/CloudClipboardController.cpp" line="144"/>
-        <location filename="../../src/ui/CloudClipboardController.cpp" line="152"/>
+        <location filename="../../src/ui/CloudClipboardController.cpp" line="156"/>
+        <location filename="../../src/ui/CloudClipboardController.cpp" line="167"/>
         <source>Other device</source>
         <translation>他のデバイス</translation>
     </message>
     <message>
-        <location filename="../../src/ui/CloudClipboardController.cpp" line="283"/>
+        <location filename="../../src/ui/CloudClipboardController.cpp" line="247"/>
+        <source>A clipboard delivery is already being sent.</source>
+        <translation>すでにクリップボード配信を送信中です。</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/CloudClipboardController.cpp" line="261"/>
+        <source>Sending...</source>
+        <translation>送信中...</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/CloudClipboardController.cpp" line="389"/>
+        <source>Could not prepare clipboard download storage.</source>
+        <translation>クリップボードのダウンロード保存領域を準備できませんでした。</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/CloudClipboardController.cpp" line="404"/>
+        <source>Receiving...</source>
+        <translation>受信中...</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/CloudClipboardController.cpp" line="438"/>
+        <source>Could not save the clipboard delivery.</source>
+        <translation>クリップボード配信を保存できませんでした。</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/CloudClipboardController.cpp" line="443"/>
+        <source>Delivery received.</source>
+        <translation>配信を受信しました。</translation>
+    </message>
+    <message>
         <source>The downloaded image failed verification.</source>
-        <translation>ダウンロードした画像の検証に失敗しました。</translation>
+        <translation type="vanished">ダウンロードした画像の検証に失敗しました。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/CloudClipboardController.cpp" line="288"/>
         <source>The downloaded image could not be decoded.</source>
-        <translation>ダウンロードした画像をデコードできませんでした。</translation>
+        <translation type="vanished">ダウンロードした画像をデコードできませんでした。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/CloudClipboardController.cpp" line="294"/>
         <source>The downloaded image could not be cached.</source>
-        <translation>ダウンロードした画像をキャッシュできませんでした。</translation>
+        <translation type="vanished">ダウンロードした画像をキャッシュできませんでした。</translation>
     </message>
 </context>
 <context>
@@ -1388,22 +1456,22 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5615"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5553"/>
         <source>New Markdown File</source>
         <translation>新規 Markdown ファイル</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5614"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5552"/>
         <source>Markdown Document (.md)</source>
         <translation>Markdown ドキュメント (.md)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5611"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5549"/>
         <source>Text Document (.txt)</source>
         <translation>テキスト ドキュメント (.txt)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5610"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5548"/>
         <source>New File</source>
         <translation>新規ファイル</translation>
     </message>
@@ -1463,14 +1531,14 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2844"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5383"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5605"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5321"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5543"/>
         <source>Paste</source>
         <translation>貼り付け</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2840"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5497"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5435"/>
         <source>Cut</source>
         <translation>切り取り</translation>
     </message>
@@ -1514,7 +1582,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2653"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2863"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5592"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5530"/>
         <source>Calculate Folder Size</source>
         <translation>フォルダーサイズを計算</translation>
     </message>
@@ -1535,7 +1603,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2854"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5598"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5536"/>
         <source>Properties</source>
         <translation>プロパティ</translation>
     </message>
@@ -1561,7 +1629,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2671"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5491"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5429"/>
         <source>View</source>
         <translation>表示</translation>
     </message>
@@ -1711,31 +1779,31 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2672"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2871"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5493"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="6080"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="6102"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="6115"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5431"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6018"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6040"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6053"/>
         <source>Edit</source>
         <translation>編集</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2673"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5496"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="6190"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5434"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6128"/>
         <source>Copy</source>
         <translation>コピー</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2674"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5498"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5436"/>
         <source>Move</source>
         <translation>移動</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2675"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5607"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="6246"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="6250"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5545"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6184"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6188"/>
         <source>New Folder</source>
         <translation>新しいフォルダー</translation>
     </message>
@@ -1757,7 +1825,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="769"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2781"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5499"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5437"/>
         <source>Rename</source>
         <translation>名前の変更</translation>
     </message>
@@ -1929,7 +1997,7 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2836"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5619"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5557"/>
         <source>Refresh</source>
         <translation>更新</translation>
     </message>
@@ -2052,9 +2120,9 @@ Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2241"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4851"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5052"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5111"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4849"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4990"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5049"/>
         <source>Connection Failed</source>
         <translation>接続失敗</translation>
     </message>
@@ -2328,7 +2396,7 @@ Download: %3</source>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2944"/>
         <location filename="../../src/ui/MainWindow.cpp" line="3296"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5612"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5550"/>
         <source>New Text File</source>
         <translation>新しいテキストファイル</translation>
     </message>
@@ -2415,8 +2483,8 @@ Their contents will be overwritten on disk and then deleted. This is IRREVERSIBL
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3476"/>
         <location filename="../../src/ui/MainWindow.cpp" line="3483"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5478"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5483"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5416"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5421"/>
         <source>Open With</source>
         <translation>アプリケーションで開く</translation>
     </message>
@@ -2503,7 +2571,7 @@ Their contents will be overwritten on disk and then deleted. This is IRREVERSIBL
         <location filename="../../src/ui/MainWindow.cpp" line="4152"/>
         <location filename="../../src/ui/MainWindow.cpp" line="4173"/>
         <location filename="../../src/ui/MainWindow.cpp" line="4225"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5476"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5414"/>
         <source>Open</source>
         <translation>開く</translation>
     </message>
@@ -2559,7 +2627,7 @@ Their contents will be overwritten on disk and then deleted. This is IRREVERSIBL
         <translation type="vanished">アプリケーションで開く...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5500"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5438"/>
         <source>Delete</source>
         <translation>削除</translation>
     </message>
@@ -2568,7 +2636,7 @@ Their contents will be overwritten on disk and then deleted. This is IRREVERSIBL
         <translation type="vanished">選択項目を圧縮...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5517"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5455"/>
         <source>Extract Here</source>
         <translation>ここに展開</translation>
     </message>
@@ -2578,7 +2646,7 @@ Their contents will be overwritten on disk and then deleted. This is IRREVERSIBL
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2828"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5593"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5531"/>
         <source>Copy Path</source>
         <translation>パスをコピー</translation>
     </message>
@@ -2589,7 +2657,7 @@ Their contents will be overwritten on disk and then deleted. This is IRREVERSIBL
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2665"/>
         <location filename="../../src/ui/MainWindow.cpp" line="2766"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5618"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5556"/>
         <source>Open Terminal Here</source>
         <translation>ここでターミナルを開く</translation>
     </message>
@@ -2719,7 +2787,7 @@ Changes made to it are not saved back to the server.</source>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="4480"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5183"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5121"/>
         <source>Network connections are not enabled in this build.</source>
         <translation>このビルドではネットワーク接続は有効になっていません。</translation>
     </message>
@@ -2744,7 +2812,7 @@ Changes made to it are not saved back to the server.</source>
         <translation type="vanished">パスワード:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5182"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5120"/>
         <source>Server Connection</source>
         <translation>サーバー接続</translation>
     </message>
@@ -2765,90 +2833,90 @@ Changes made to it are not saved back to the server.</source>
         <translation type="vanished">コピー元の接続（%1）が閉じられているため、リモートから貼り付けできません。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5515"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5453"/>
         <source>Extract To</source>
         <translation>展開先</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5520"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5458"/>
         <source>Extract to Folder...</source>
         <translation>フォルダーに展開…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5529"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5968"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5978"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5983"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5987"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5467"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5906"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5916"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5921"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5925"/>
         <source>Send To</source>
         <translation>送る</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5534"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5472"/>
         <source>Shortcut to Desktop</source>
         <translation>デスクトップにショートカットを作成</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5539"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5477"/>
         <source>Shortcut to Applications Menu</source>
         <translation>アプリケーションメニューに追加</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5543"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5481"/>
         <source>Run at Startup</source>
         <translation>サインイン時に起動</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5569"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5507"/>
         <source>%1 (offline)</source>
         <translation>%1 (オフライン)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5581"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5519"/>
         <source>Queued for %1; it will be sent when that device is online.</source>
         <translation>%1 向けにキューに追加しました。そのデバイスがオンラインになったら送信します。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5585"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5523"/>
         <source>No other device</source>
         <translation>他のデバイスはありません</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5721"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5659"/>
         <source>Extracting %1...</source>
         <translation>%1 を展開しています...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5796"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5734"/>
         <source>Password required</source>
         <translation>パスワードが必要です</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5797"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5735"/>
         <source>Incorrect password. Try again for “%1”:</source>
         <translation>パスワードが正しくありません。「%1」でもう一度お試しください:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5798"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5736"/>
         <source>“%1” is encrypted. Enter its password:</source>
         <translation>「%1」は暗号化されています。パスワードを入力してください:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5704"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5823"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5837"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5878"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="6042"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5642"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5761"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5775"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5816"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5980"/>
         <source>Extract</source>
         <translation>展開</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5817"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5755"/>
         <source>“%1” uses an encryption this build cannot read.</source>
         <translation>「%1」はこのビルドが読み取れない暗号化方式を使用しています。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5821"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5759"/>
         <source>Extraction failed: %1</source>
         <translation>展開に失敗しました: %1</translation>
     </message>
@@ -2867,17 +2935,17 @@ Extract it too?</source>
 これも展開しますか？</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5881"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5819"/>
         <source>Extracted archive to %1</source>
         <translation>アーカイブを %1 に展開しました</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5969"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5907"/>
         <source>Could not create the shortcut: %1</source>
         <translation>ショートカットを作成できませんでした: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5979"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5917"/>
         <source>“%1” will start at sign-in.
 Remove it from:
 %2</source>
@@ -2886,23 +2954,23 @@ Remove it from:
 %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5984"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5922"/>
         <source>“%1” was added to the applications menu.</source>
         <translation>「%1」をアプリケーションメニューに追加しました。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5987"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5925"/>
         <source>Shortcut created on the desktop.</source>
         <translation>デスクトップにショートカットを作成しました。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6004"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="6014"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5942"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5952"/>
         <source>Not executable</source>
         <translation>実行権限がありません</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6005"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5943"/>
         <source>“%1” is an AppImage but is not marked executable, so it cannot run.
 
 Add the execute permission now?</source>
@@ -2911,12 +2979,12 @@ Add the execute permission now?</source>
 今すぐ実行権限を付与しますか?</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6015"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5953"/>
         <source>Could not add the execute permission: %1</source>
         <translation>実行権限を付与できませんでした: %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6043"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5981"/>
         <source>“%1” cannot be unpacked where it is.
 
 Use “Extract to Folder...” to unpack it into a folder on this computer.</source>
@@ -2925,17 +2993,17 @@ Use “Extract to Folder...” to unpack it into a folder on this computer.</sou
 「フォルダーに展開…」を使って、このコンピューター上のフォルダーに展開してください。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6061"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5999"/>
         <source>Extract to</source>
         <translation>展開先</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6081"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6019"/>
         <source>Image files can&apos;t be edited; use F3 to view.</source>
         <translation>画像ファイルは編集できません。F3 で表示してください。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6103"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6041"/>
         <source>%1 cannot be edited in place.
 
 Editing a file on this connection needs it mounted through GVfs (the gvfs-backends package). Copy the file to a local folder to edit it.</source>
@@ -2944,37 +3012,37 @@ Editing a file on this connection needs it mounted through GVfs (the gvfs-backen
 この接続上のファイルを編集するには、GVfs（gvfs-backends パッケージ）でマウントする必要があります。編集するにはファイルをローカルフォルダーにコピーしてください。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6116"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6054"/>
         <source>Could not open %1 for editing: %2</source>
         <translation>%1 を編集用に開けませんでした: %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6140"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6078"/>
         <source>This tab lists results from several directories, so there is no single folder to create it in. Open one of the results&apos; folders first.</source>
         <translation>このタブは複数のディレクトリの結果を一覧表示しているため、作成先となるフォルダーが一つに定まりません。まず結果のいずれかのフォルダーを開いてください。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6149"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6087"/>
         <source>Read-only</source>
         <translation>読み取り専用</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6150"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6088"/>
         <source>This archive is read-only. Copy files out to a folder to modify them.</source>
         <translation>このアーカイブは読み取り専用です。変更するにはファイルをフォルダーにコピーしてください。</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="3353"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="6190"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6128"/>
         <source>Copy to:</source>
         <translation>コピー先:</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2697"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4665"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4820"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5080"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5580"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4663"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4818"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5018"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5518"/>
         <source>FileCommander Account</source>
         <translation>FileCommander アカウント</translation>
     </message>
@@ -3009,59 +3077,58 @@ Editing a file on this connection needs it mounted through GVfs (the gvfs-backen
         <translation>パスワード:</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4666"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4664"/>
         <source>%1 unfinished transfer(s). Send the same files to the same device to resume.</source>
         <translation>%1 件の未完了の転送があります。同じファイルを同じデバイスに再送信すると再開されます。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4747"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4745"/>
         <source>File received</source>
         <translation>ファイルを受信しました</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4748"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4746"/>
         <source>%1 arrived from another device.</source>
         <translation>%1 が別のデバイスから届きました。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4820"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5080"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4818"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5018"/>
         <source>Not signed in.</source>
         <translation>サインインしていません。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4986"/>
         <source>The cloud image is no longer available.</source>
-        <translation>クラウド画像は利用できなくなりました。</translation>
+        <translation type="vanished">クラウド画像は利用できなくなりました。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5053"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5113"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4991"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5051"/>
         <source>%1 cannot be reached on this network.</source>
         <translation>このネットワークでは %1 に接続できません。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5101"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5039"/>
         <source>Connecting to %1…</source>
         <translation>%1 に接続中…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5308"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5246"/>
         <source>Create Link</source>
         <translation>リンクを作成</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5309"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5247"/>
         <source>Cannot create a symbolic link for a network location.</source>
         <translation>ネットワーク上の場所にはシンボリックリンクを作成できません。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5384"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5322"/>
         <source>The source connection (%1) is closed, so nothing can be pasted from the remote side.</source>
         <translation>転送元の接続（%1）が閉じられているため、リモートから貼り付けできません。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5555"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5493"/>
         <source>Send to Device</source>
         <translation>デバイスに送る</translation>
     </message>
@@ -3070,17 +3137,17 @@ Editing a file on this connection needs it mounted through GVfs (the gvfs-backen
         <translation type="vanished">他のデバイスはオンラインではありません</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5838"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5776"/>
         <source>Stopped after %1 nested archives; the innermost one was left packed.</source>
         <translation>入れ子の書庫 %1 個で停止しました。最も内側のものは展開されていません。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5880"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5818"/>
         <source>Extracted %1 nested archives to %2</source>
         <translation>入れ子の書庫 %1 個を %2 に展開しました</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6250"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6188"/>
         <source>Folder name:</source>
         <translation>フォルダー名:</translation>
     </message>
@@ -3099,25 +3166,25 @@ This is permanent and will NOT go to the trash.</source>
 この操作は取り消せず、ごみ箱には移動されません。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5501"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="6328"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="6343"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="6396"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5439"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6266"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6281"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6334"/>
         <source>Compress</source>
         <translation>圧縮</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6329"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6267"/>
         <source>Compressing needs both the files and the destination folder to be on this computer. Copy them to a local folder first.</source>
         <translation>圧縮するには、ファイルと保存先フォルダーの両方がこのコンピューター上にある必要があります。まずローカルフォルダーにコピーしてください。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6344"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6282"/>
         <source>Compressing %1...</source>
         <translation>%1 を圧縮しています...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6396"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6334"/>
         <source>Compression failed: %1</source>
         <translation>圧縮に失敗しました: %1</translation>
     </message>
@@ -3257,85 +3324,98 @@ This is permanent and will NOT go to the trash.</source>
         <translation type="vanished">新規</translation>
     </message>
     <message>
-        <location filename="../../src/ui/NotepadPanel.cpp" line="95"/>
+        <location filename="../../src/ui/NotepadPanel.cpp" line="74"/>
+        <location filename="../../src/ui/NotepadPanel.cpp" line="202"/>
         <source>Search Cloud Clipboard...</source>
         <translation>クラウドクリップボードを検索...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/NotepadPanel.cpp" line="97"/>
+        <location filename="../../src/ui/NotepadPanel.cpp" line="76"/>
         <source>Copy</source>
         <translation>コピー</translation>
     </message>
     <message>
-        <location filename="../../src/ui/NotepadPanel.cpp" line="99"/>
+        <location filename="../../src/ui/NotepadPanel.cpp" line="78"/>
         <source>Delete</source>
         <translation>削除</translation>
     </message>
     <message>
-        <location filename="../../src/ui/NotepadPanel.cpp" line="101"/>
+        <location filename="../../src/ui/NotepadPanel.cpp" line="80"/>
         <source>Clear</source>
         <translation>消去</translation>
     </message>
     <message>
-        <location filename="../../src/ui/NotepadPanel.cpp" line="103"/>
+        <location filename="../../src/ui/NotepadPanel.cpp" line="118"/>
+        <source>Send to other devices</source>
+        <translation>他のデバイスに送信</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/NotepadPanel.cpp" line="167"/>
+        <source>Transfer progress: %1% (%2 / %3 bytes)</source>
+        <translation>転送の進行状況: %1%（%2 / %3 バイト）</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/NotepadPanel.cpp" line="189"/>
+        <source>This device</source>
+        <translation>このデバイス</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/NotepadPanel.cpp" line="201"/>
+        <source>Loading Cloud Clipboard...</source>
+        <translation>Cloud Clipboard を読み込んでいます...</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/NotepadPanel.cpp" line="266"/>
+        <source>Could not load image preview.</source>
+        <translation>画像プレビューを読み込めませんでした。</translation>
+    </message>
+    <message>
         <source>Download Original</source>
-        <translation>元の画像をダウンロード</translation>
+        <translation type="vanished">元の画像をダウンロード</translation>
     </message>
     <message>
-        <location filename="../../src/ui/NotepadPanel.cpp" line="132"/>
         <source>Type text to send to your devices...</source>
-        <translation>デバイスに送信するテキストを入力...</translation>
+        <translation type="vanished">デバイスに送信するテキストを入力...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/NotepadPanel.cpp" line="137"/>
-        <location filename="../../src/ui/NotepadPanel.cpp" line="206"/>
         <source>Paste or select an image to preview it here.</source>
-        <translation>画像を貼り付けるか選択すると、ここにプレビューされます。</translation>
+        <translation type="vanished">画像を貼り付けるか選択すると、ここにプレビューされます。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/NotepadPanel.cpp" line="142"/>
         <source>Send</source>
-        <translation>送信</translation>
+        <translation type="vanished">送信</translation>
     </message>
     <message>
-        <location filename="../../src/ui/NotepadPanel.cpp" line="144"/>
         <source>Auto-upload clipboard</source>
-        <translation>クリップボードを自動アップロード</translation>
+        <translation type="vanished">クリップボードを自動アップロード</translation>
     </message>
     <message>
-        <location filename="../../src/ui/NotepadPanel.cpp" line="146"/>
         <source>Auto-receive text</source>
-        <translation>テキストを自動受信</translation>
+        <translation type="vanished">テキストを自動受信</translation>
     </message>
     <message>
-        <location filename="../../src/ui/NotepadPanel.cpp" line="213"/>
         <source>Cloud Clipboard privacy</source>
-        <translation>クラウドクリップボードのプライバシー</translation>
+        <translation type="vanished">クラウドクリップボードのプライバシー</translation>
     </message>
     <message>
-        <location filename="../../src/ui/NotepadPanel.cpp" line="214"/>
         <source>Automatic upload sends copied text and images to your signed-in devices. Private, file and URL clipboard data is excluded. Continue?</source>
-        <translation>自動アップロードでは、コピーしたテキストと画像がサインイン中のデバイスに送信されます。非公開データ、ファイル、URL のクリップボードデータは対象外です。続行しますか？</translation>
+        <translation type="vanished">自動アップロードでは、コピーしたテキストと画像がサインイン中のデバイスに送信されます。非公開データ、ファイル、URL のクリップボードデータは対象外です。続行しますか？</translation>
     </message>
     <message>
-        <location filename="../../src/ui/NotepadPanel.cpp" line="226"/>
         <source>Synchronizing original image: %1% (%2 / %3 bytes)</source>
-        <translation>元の画像を同期中: %1%（%2 / %3 バイト）</translation>
+        <translation type="vanished">元の画像を同期中: %1%（%2 / %3 バイト）</translation>
     </message>
     <message>
-        <location filename="../../src/ui/NotepadPanel.cpp" line="239"/>
         <source>Original image synchronized and copied. You can paste it now.</source>
-        <translation>元の画像を同期してコピーしました。すぐに貼り付けできます。</translation>
+        <translation type="vanished">元の画像を同期してコピーしました。すぐに貼り付けできます。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/NotepadPanel.cpp" line="257"/>
         <source>Other device</source>
-        <translation>他のデバイス</translation>
+        <translation type="vanished">他のデバイス</translation>
     </message>
     <message>
-        <location filename="../../src/ui/NotepadPanel.cpp" line="320"/>
         <source>Loading image preview...</source>
-        <translation>画像プレビューを読み込み中…</translation>
+        <translation type="vanished">画像プレビューを読み込み中…</translation>
     </message>
     <message>
         <source>Write your note here...</source>
@@ -4001,32 +4081,28 @@ Destination: %4 (%5)</source>
         <translation>%1 をそれ自身の中へコピーすることはできません。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5007"/>
         <source>The source device is offline.</source>
-        <translation>送信元のデバイスはオフラインです。</translation>
+        <translation type="vanished">送信元のデバイスはオフラインです。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5010"/>
         <source>The original image is no longer cached on the source device.</source>
-        <translation>元の画像は送信元のデバイスでキャッシュされていません。</translation>
+        <translation type="vanished">元の画像は送信元のデバイスでキャッシュされていません。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5032"/>
         <source>The original image download did not complete.</source>
-        <translation>元の画像のダウンロードが完了しませんでした。</translation>
+        <translation type="vanished">元の画像のダウンロードが完了しませんでした。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/NotepadPanel.cpp" line="55"/>
+        <location filename="../../src/ui/NotepadPanel.cpp" line="34"/>
         <source>Sign in to use Cloud Clipboard.</source>
         <translation>クラウドクリップボードを使用するにはサインインしてください。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/NotepadPanel.cpp" line="56"/>
         <source>Loading Cloud Clipboard...</source>
-        <translation>クラウドクリップボードを読み込んでいます...</translation>
+        <translation type="vanished">クラウドクリップボードを読み込んでいます...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/NotepadPanel.cpp" line="57"/>
+        <location filename="../../src/ui/NotepadPanel.cpp" line="36"/>
         <source>Your Cloud Clipboard is empty.</source>
         <translation>クラウドクリップボードは空です。</translation>
     </message>
@@ -4035,9 +4111,19 @@ Destination: %4 (%5)</source>
         <translation type="vanished">不明なデバイス</translation>
     </message>
     <message>
-        <location filename="../../src/ui/NotepadPanel.cpp" line="261"/>
+        <location filename="../../src/ui/NotepadPanel.cpp" line="194"/>
         <source>Image · %1 · %2</source>
         <translation>画像 · %1 · %2</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/account/AccountClient.cpp" line="828"/>
+        <source>Clipboard delivery integrity validation failed.</source>
+        <translation>クリップボード配信の整合性検証に失敗しました。</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/CloudClipboardController.cpp" line="20"/>
+        <source>No other devices online or registered</source>
+        <translation>他にオンラインまたは登録済みのデバイスはありません</translation>
     </message>
 </context>
 <context>

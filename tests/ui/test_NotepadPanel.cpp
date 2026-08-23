@@ -11,6 +11,7 @@
 #include <QListWidget>
 #include <QMimeData>
 #include <QPlainTextEdit>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QScreen>
 #include <QSignalSpy>
@@ -508,54 +509,126 @@ TEST(CloudClipboardControllerTest, ImageAcknowledgementRefreshFailureRetriesWith
     EXPECT_EQ(store.records().size(), 1);
 }
 
-TEST(CloudClipboardPanelTest, StartsSignedOutWithAutomaticSyncOff) {
+TEST(CloudClipboardPanelTest, ShowsOnlyReadOnlyHistoryPreviewControls) {
     QTemporaryDir temporaryDir;
     ASSERT_TRUE(temporaryDir.isValid());
     Settings settings(temporaryDir.filePath(QStringLiteral("settings.ini")));
     NotepadPanel panel(settings);
 
     auto *status = panel.findChild<QLabel *>(QStringLiteral("CloudClipboardStatus"));
+    auto *preview = panel.findChild<QPlainTextEdit *>(QStringLiteral("CloudClipboardPreview"));
+    auto *editor = panel.findChild<QPlainTextEdit *>(QStringLiteral("CloudClipboardEditor"));
     auto *upload = panel.findChild<QCheckBox *>(QStringLiteral("CloudClipboardAutoUpload"));
     auto *receive = panel.findChild<QCheckBox *>(QStringLiteral("CloudClipboardAutoReceive"));
-    auto *download = panel.findChild<QPushButton *>(QStringLiteral("CloudClipboardDownloadButton"));
     ASSERT_NE(status, nullptr);
+    ASSERT_NE(preview, nullptr);
+    EXPECT_TRUE(preview->isReadOnly());
+    EXPECT_EQ(editor, nullptr);
     EXPECT_EQ(upload, nullptr);
     EXPECT_EQ(receive, nullptr);
-    EXPECT_EQ(download, nullptr);
     EXPECT_TRUE(status->text().contains(QStringLiteral("Sign in")));
-    EXPECT_FALSE(settings.cloudClipboardAutoUpload());
-    EXPECT_FALSE(settings.cloudClipboardAutoReceive());
 }
 
-TEST(CloudClipboardPanelTest, ListSelectionUpdatesControllerSelection) {
+TEST(CloudClipboardPanelTest, SelectionPreviewsTextAndShowsSendOnlyForLocalRecord) {
     QTemporaryDir temporaryDir;
     ASSERT_TRUE(temporaryDir.isValid());
     Settings settings(temporaryDir.filePath(QStringLiteral("settings.ini")));
     ClipboardHistoryStore store(temporaryDir.path());
-    const ClipboardHistoryRecord first = store.addLocalText(QStringLiteral("panel first"));
-    const ClipboardHistoryRecord second = store.addLocalText(QStringLiteral("panel second"));
-    ASSERT_FALSE(first.id.isEmpty());
-    ASSERT_FALSE(second.id.isEmpty());
+    const ClipboardHistoryRecord local = store.addLocalText(QStringLiteral("panel local"));
+    const ClipboardHistoryRecord incoming = store.addIncomingText(QStringLiteral("panel incoming"),
+                                                                   QStringLiteral("device-2"),
+                                                                   QStringLiteral("other device"));
+    ASSERT_FALSE(local.id.isEmpty());
+    ASSERT_FALSE(incoming.id.isEmpty());
+    CloudClipboardController controller(store, nullptr);
+    NotepadPanel panel(settings, &controller);
+    auto *list = panel.findChild<QListWidget *>(QStringLiteral("CloudClipboardList"));
+    auto *preview = panel.findChild<QPlainTextEdit *>(QStringLiteral("CloudClipboardPreview"));
+    auto *send = panel.findChild<QPushButton *>(QStringLiteral("CloudClipboardSendButton"));
+    ASSERT_NE(list, nullptr);
+    ASSERT_NE(preview, nullptr);
+    ASSERT_NE(send, nullptr);
+
+    panel.show();
+    QCoreApplication::processEvents();
+
+    auto select = [list](const QString &id) {
+        for (int row = 0; row < list->count(); ++row) {
+            if (list->item(row)->data(Qt::UserRole).toString() == id) {
+                list->setCurrentRow(row);
+                return;
+            }
+        }
+        ADD_FAILURE() << "history record missing from list";
+    };
+    select(local.id);
+    QCoreApplication::processEvents();
+    EXPECT_EQ(preview->toPlainText(), local.text);
+    EXPECT_TRUE(send->isVisible());
+
+    select(incoming.id);
+    QCoreApplication::processEvents();
+    EXPECT_EQ(preview->toPlainText(), incoming.text);
+    EXPECT_FALSE(send->isVisible());
+}
+
+TEST(CloudClipboardPanelTest, DoubleClickCopiesSelectedRecordWithoutAutomaticIncomingCopy) {
+    QTemporaryDir temporaryDir;
+    ASSERT_TRUE(temporaryDir.isValid());
+    Settings settings(temporaryDir.filePath(QStringLiteral("settings.ini")));
+    ClipboardHistoryStore store(temporaryDir.path());
+    const ClipboardHistoryRecord incoming = store.addIncomingText(QStringLiteral("copy on double click"),
+                                                                   QStringLiteral("device-2"),
+                                                                   QStringLiteral("other device"));
+    ASSERT_FALSE(incoming.id.isEmpty());
+    QApplication::clipboard()->setText(QStringLiteral("keep until double click"));
     CloudClipboardController controller(store, nullptr);
     NotepadPanel panel(settings, &controller);
     auto *list = panel.findChild<QListWidget *>(QStringLiteral("CloudClipboardList"));
     ASSERT_NE(list, nullptr);
-    ASSERT_EQ(list->count(), 2);
+    ASSERT_EQ(list->count(), 1);
+    EXPECT_EQ(QApplication::clipboard()->text(), QStringLiteral("keep until double click"));
 
-    list->setCurrentRow(1);
+    panel.show();
     QCoreApplication::processEvents();
-    EXPECT_EQ(controller.selectedRecordId(), list->currentItem()->data(Qt::UserRole).toString());
-
-    list->setCurrentItem(nullptr);
+    list->setCurrentItem(list->item(0));
+    ASSERT_TRUE(QMetaObject::invokeMethod(list, "itemDoubleClicked", Qt::DirectConnection,
+                                          Q_ARG(QListWidgetItem *, list->item(0))));
     QCoreApplication::processEvents();
-    EXPECT_TRUE(controller.selectedRecordId().isEmpty());
+    EXPECT_EQ(QApplication::clipboard()->text(), incoming.text);
 }
 
-TEST(CloudClipboardPanelTest, PreservesAnchoredPopupGeometryAndEditorHeight) {
+TEST(CloudClipboardPanelTest, TransferSignalsUpdateProgressAndStatus) {
     QTemporaryDir temporaryDir;
     ASSERT_TRUE(temporaryDir.isValid());
     Settings settings(temporaryDir.filePath(QStringLiteral("settings.ini")));
-    settings.setCloudClipboardEditorHeight(130);
+    ClipboardHistoryStore store(temporaryDir.path());
+    CloudClipboardController controller(store, nullptr);
+    NotepadPanel panel(settings, &controller);
+    auto *progress = panel.findChild<QProgressBar *>(QStringLiteral("CloudClipboardProgress"));
+    auto *status = panel.findChild<QLabel *>(QStringLiteral("CloudClipboardStatus"));
+    ASSERT_NE(progress, nullptr);
+    ASSERT_NE(status, nullptr);
+    panel.show();
+    QCoreApplication::processEvents();
+
+    ASSERT_TRUE(QMetaObject::invokeMethod(&controller, "transferProgress", Qt::DirectConnection,
+                                          Q_ARG(QString, QStringLiteral("record-1")),
+                                          Q_ARG(qint64, 25), Q_ARG(qint64, 100)));
+    EXPECT_TRUE(progress->isVisible());
+    EXPECT_EQ(progress->value(), 25);
+    EXPECT_TRUE(status->text().contains(QStringLiteral("25%")));
+    EXPECT_TRUE(status->text().contains(QStringLiteral("25 / 100 bytes")));
+
+    ASSERT_TRUE(QMetaObject::invokeMethod(&controller, "transferStatusChanged", Qt::DirectConnection,
+                                          Q_ARG(QString, QStringLiteral("Delivery received."))));
+    EXPECT_EQ(status->text(), QStringLiteral("Delivery received."));
+}
+
+TEST(CloudClipboardPanelTest, PreservesAnchoredPopupGeometryWithPreview) {
+    QTemporaryDir temporaryDir;
+    ASSERT_TRUE(temporaryDir.isValid());
+    Settings settings(temporaryDir.filePath(QStringLiteral("settings.ini")));
     NotepadPanel panel(settings);
     const QRect appContent(100, 100, 700, 700);
     const QRect anchor(700, 760, 40, 30);
@@ -564,7 +637,7 @@ TEST(CloudClipboardPanelTest, PreservesAnchoredPopupGeometryAndEditorHeight) {
 
     EXPECT_EQ(panel.geometry().top(), appContent.top());
     EXPECT_EQ(panel.geometry().bottom() + 1, anchor.top());
-    auto *editor = panel.findChild<QPlainTextEdit *>(QStringLiteral("CloudClipboardEditor"));
-    ASSERT_NE(editor, nullptr);
-    EXPECT_GE(editor->height(), 100);
+    auto *preview = panel.findChild<QPlainTextEdit *>(QStringLiteral("CloudClipboardPreview"));
+    ASSERT_NE(preview, nullptr);
+    EXPECT_GE(preview->height(), 100);
 }

@@ -1,6 +1,5 @@
 #include "NotepadPanel.h"
 
-#include <QClipboard>
 #include <QCloseEvent>
 #include <QDateTime>
 #include <QEvent>
@@ -11,7 +10,6 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
-#include <QMimeData>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QProgressBar>
@@ -28,28 +26,8 @@
 
 namespace {
 constexpr int kPanelWidth = 460;
-constexpr int kEditorPreferredHeight = 150;
-constexpr int kEditorMinimumHeight = 100;
-
-class CloudClipboardEditor final : public QPlainTextEdit {
-public:
-    using QPlainTextEdit::QPlainTextEdit;
-    void setController(CloudClipboardController *controller) { m_controller = controller; }
-
-protected:
-    bool canInsertFromMimeData(const QMimeData *source) const override {
-        return CloudClipboardController::acceptsImage(source) ||
-               QPlainTextEdit::canInsertFromMimeData(source);
-    }
-    void insertFromMimeData(const QMimeData *source) override {
-        if (m_controller && m_controller->sendImageFromMimeData(source))
-            return;
-        QPlainTextEdit::insertFromMimeData(source);
-    }
-
-private:
-    CloudClipboardController *m_controller = nullptr;
-};
+constexpr int kPreviewPreferredHeight = 150;
+constexpr int kPreviewMinimumHeight = 100;
 
 QString stateText(CloudClipboardController::State state, const QString &error) {
     switch (state) {
@@ -112,61 +90,53 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
     tools->addWidget(m_delete);
     tools->addWidget(clear);
 
-    m_list = new QListWidget;
+    m_list = new QListWidget(this);
     m_list->setObjectName(QStringLiteral("CloudClipboardList"));
     m_list->setFrameShape(QFrame::NoFrame);
     m_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    m_status = new QLabel;
+    m_status = new QLabel(this);
     m_status->setObjectName(QStringLiteral("CloudClipboardStatus"));
     m_status->setWordWrap(true);
-    m_progress = new QProgressBar;
-    m_progress->setObjectName(QStringLiteral("CloudClipboardImageProgress"));
+    m_progress = new QProgressBar(this);
+    m_progress->setObjectName(QStringLiteral("CloudClipboardProgress"));
     m_progress->setRange(0, 100);
     m_progress->setVisible(false);
 
-    m_editor = new CloudClipboardEditor;
-    m_editor->setObjectName(QStringLiteral("CloudClipboardEditor"));
-    m_editor->setFrameShape(QFrame::NoFrame);
-    m_editor->setMinimumHeight(kEditorMinimumHeight);
-    m_editor->setPlaceholderText(tr("Type text to send to your devices..."));
+    m_textPreview = new QPlainTextEdit;
+    m_textPreview->setObjectName(QStringLiteral("CloudClipboardPreview"));
+    m_textPreview->setReadOnly(true);
+    m_textPreview->setFrameShape(QFrame::NoFrame);
+    m_textPreview->setMinimumHeight(kPreviewMinimumHeight);
     m_imagePreview = new QLabel;
     m_imagePreview->setObjectName(QStringLiteral("CloudClipboardImagePreview"));
     m_imagePreview->setAlignment(Qt::AlignCenter);
-    m_imagePreview->setMinimumHeight(kEditorMinimumHeight);
-    m_imagePreview->setText(tr("Paste or select an image to preview it here."));
+    m_imagePreview->setMinimumHeight(kPreviewMinimumHeight);
     m_contentStack = new QStackedWidget;
     m_contentStack->setObjectName(QStringLiteral("CloudClipboardContentStack"));
-    m_contentStack->addWidget(m_editor);
+    m_contentStack->addWidget(m_textPreview);
     m_contentStack->addWidget(m_imagePreview);
-    auto *send = new QPushButton(tr("Send"));
-    send->setObjectName(QStringLiteral("CloudClipboardSendButton"));
+    m_send = new QPushButton(tr("Send to other devices"));
+    m_send->setObjectName(QStringLiteral("CloudClipboardSendButton"));
+    m_send->setFocusPolicy(Qt::NoFocus);
+    m_send->setVisible(false);
 
-    auto *editorTools = new QHBoxLayout;
-    editorTools->setContentsMargins(0, 0, 0, 0);
-    editorTools->addStretch();
-    editorTools->addWidget(send);
-    auto *editorPane = new QWidget;
-    auto *editorLayout = new QVBoxLayout(editorPane);
-    editorLayout->setContentsMargins(0, 0, 0, 0);
-    editorLayout->setSpacing(4);
-    editorLayout->addWidget(m_contentStack, 1);
-    editorLayout->addLayout(editorTools);
+    auto *previewTools = new QHBoxLayout;
+    previewTools->setContentsMargins(0, 0, 0, 0);
+    previewTools->addStretch();
+    previewTools->addWidget(m_send);
+    auto *previewPane = new QWidget;
+    auto *previewLayout = new QVBoxLayout(previewPane);
+    previewLayout->setContentsMargins(0, 0, 0, 0);
+    previewLayout->setSpacing(4);
+    previewLayout->addWidget(m_contentStack, 1);
+    previewLayout->addLayout(previewTools);
 
     m_splitter = new QSplitter(Qt::Vertical, this);
     m_splitter->setObjectName(QStringLiteral("CloudClipboardSplitter"));
     m_splitter->setChildrenCollapsible(false);
     m_splitter->addWidget(m_list);
-    m_splitter->addWidget(editorPane);
+    m_splitter->addWidget(previewPane);
     m_splitter->setStretchFactor(1, 1);
-    m_editorHeight = m_settings.cloudClipboardEditorHeight();
-    connect(m_splitter, &QSplitter::splitterMoved, this, [this] {
-        const QList<int> sizes = m_splitter->sizes();
-        if (sizes.size() == 2 && sizes.at(1) > 0) {
-            m_editorHeight = sizes.at(1);
-            m_settings.setCloudClipboardEditorHeight(m_editorHeight);
-            applyDynamicSize();
-        }
-    });
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(6, 6, 6, 6);
@@ -179,42 +149,23 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
 
     m_controller = existingController ? existingController
                                       : new CloudClipboardController(m_settings, client, agent, this);
-    static_cast<CloudClipboardEditor *>(m_editor)->setController(m_controller);
     connect(m_controller, &CloudClipboardController::changed, this, &NotepadPanel::rebuild);
-    connect(m_controller, &CloudClipboardController::localImagePreview, this,
-            [this](const QImage &image) {
-                const QPixmap pixmap = QPixmap::fromImage(image).scaled(
-                    420, 220, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-                m_imagePreview->setPixmap(pixmap);
-                m_contentStack->setCurrentWidget(m_imagePreview);
+    connect(m_controller, &CloudClipboardController::transferStatusChanged, this,
+            [this](const QString &status) {
+                m_transferStatus = status;
+                m_status->setText(status);
+                m_status->setVisible(!status.isEmpty());
             });
-    connect(m_controller, &CloudClipboardController::localImagePublished, this, [this] {
-        m_imagePreview->setPixmap(QPixmap());
-        m_imagePreview->setText(tr("Paste or select an image to preview it here."));
-        m_contentStack->setCurrentWidget(m_editor);
-        m_editor->clear();
-        if (isVisible())
-            m_editor->setFocus();
-    });
-    connect(m_controller, &CloudClipboardController::imageDownloadProgress, this,
-            [this](const QString &, qint64 received, qint64 total) {
-                const int percent = total > 0 ? int(received * 100 / total) : 0;
+    connect(m_controller, &CloudClipboardController::transferProgress, this,
+            [this](const QString &, qint64 completed, qint64 total) {
+                const int percent = total > 0 ? int(completed * 100 / total) : 0;
+                m_progress->setRange(0, 100);
                 m_progress->setValue(percent);
+                m_progress->setFormat(QStringLiteral("%1% (%2 / %3 bytes)")
+                                          .arg(percent).arg(completed).arg(total));
                 m_progress->setVisible(true);
-                m_status->setText(tr("Synchronizing original image: %1% (%2 / %3 bytes)")
-                                      .arg(percent).arg(received).arg(total));
-                m_status->setVisible(true);
-            });
-    connect(m_controller, &CloudClipboardController::imageDownloadFailed, this,
-            [this](const QString &, const QString &error) {
-                m_progress->setVisible(false);
-                m_status->setText(error);
-                m_status->setVisible(true);
-            });
-    connect(m_controller, &CloudClipboardController::imageCopied, this,
-            [this](const QString &) {
-                m_progress->setVisible(false);
-                m_status->setText(tr("Original image synchronized and copied. You can paste it now."));
+                m_status->setText(tr("Transfer progress: %1% (%2 / %3 bytes)")
+                                      .arg(percent).arg(completed).arg(total));
                 m_status->setVisible(true);
             });
     connect(m_search, &QLineEdit::textChanged, this, &NotepadPanel::rebuild);
@@ -223,10 +174,12 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
                 m_controller->selectRecord(current ? current->data(Qt::UserRole).toString() : QString());
                 updateSelection();
             });
+    connect(m_list, &QListWidget::itemDoubleClicked, this,
+            [this](QListWidgetItem *) { copySelected(); });
     connect(m_copy, &QPushButton::clicked, this, &NotepadPanel::copySelected);
     connect(m_delete, &QPushButton::clicked, this, &NotepadPanel::deleteSelected);
     connect(clear, &QPushButton::clicked, m_controller, &CloudClipboardController::clear);
-    connect(send, &QPushButton::clicked, this, &NotepadPanel::send);
+    connect(m_send, &QPushButton::clicked, this, &NotepadPanel::send);
     rebuild();
 }
 
@@ -248,7 +201,9 @@ void NotepadPanel::rebuild() {
     m_search->setPlaceholderText(loading ? tr("Loading Cloud Clipboard...")
                                          : tr("Search Cloud Clipboard..."));
     const QString query = m_search->text().trimmed();
-    const QString status = stateText(m_controller->state(), m_controller->error());
+    const QString status = m_transferStatus.isEmpty()
+                               ? stateText(m_controller->state(), m_controller->error())
+                               : m_transferStatus;
     m_status->setText(status);
     m_status->setVisible(!status.isEmpty());
     const QString selectedId = m_list->currentItem() ?
@@ -289,19 +244,30 @@ const ClipboardHistoryRecord *NotepadPanel::selected() const {
 void NotepadPanel::updateSelection() {
     const ClipboardHistoryRecord *item = selected();
     const bool has = item != nullptr;
+    const bool local = has && item->origin == ClipboardRecordOrigin::Local;
     m_copy->setEnabled(has);
     m_delete->setEnabled(has);
-    if (!item || item->kind != ClipboardRecordKind::Image) {
-        m_contentStack->setCurrentWidget(m_editor);
+    m_send->setVisible(local);
+    m_send->setEnabled(local);
+    if (!item) {
+        m_textPreview->clear();
+        m_contentStack->setCurrentWidget(m_textPreview);
         return;
     }
-    const QPixmap pixmap(item->imagePath);
-    if (pixmap.isNull()) {
+    if (item->kind != ClipboardRecordKind::Image) {
+        m_textPreview->setPlainText(item->text);
+        m_contentStack->setCurrentWidget(m_textPreview);
+        return;
+    }
+
+    const QImage image(item->imagePath);
+    if (image.isNull()) {
         m_imagePreview->setPixmap(QPixmap());
         m_imagePreview->setText(tr("Could not load image preview."));
     } else {
-        m_imagePreview->setPixmap(pixmap.scaled(420, 220, Qt::KeepAspectRatio,
-                                                Qt::SmoothTransformation));
+        const QImage scaled = image.scaled(420, 220, Qt::KeepAspectRatio,
+                                           Qt::SmoothTransformation);
+        m_imagePreview->setPixmap(QPixmap::fromImage(scaled));
         m_imagePreview->setText(QString());
     }
     m_contentStack->setCurrentWidget(m_imagePreview);
@@ -318,22 +284,9 @@ void NotepadPanel::deleteSelected() {
 }
 
 void NotepadPanel::send() {
-    if (m_contentStack->currentWidget() == m_imagePreview && m_controller->hasStagedImage()) {
-        if (m_controller->sendStagedImage()) {
-            m_imagePreview->setPixmap(QPixmap());
-            m_imagePreview->setText(tr("Paste or select an image to preview it here."));
-            m_contentStack->setCurrentWidget(m_editor);
-            m_editor->clear();
-            m_editor->setFocus();
-        }
-        return;
-    }
-    const QString text = m_editor->toPlainText();
-    if (text.isEmpty())
-        m_controller->sendCurrentClipboard();
-    else {
-        m_controller->sendText(text);
-        m_editor->clear();
+    if (const ClipboardHistoryRecord *item = selected();
+        item && item->origin == ClipboardRecordOrigin::Local) {
+        m_controller->sendRecord(item->id);
     }
 }
 
@@ -349,7 +302,7 @@ void NotepadPanel::popUpAbove(const QRect &anchorGlobalRect, const QRect &appCon
     show();
     applyDynamicSize();
     raise();
-    m_editor->setFocus();
+    m_search->setFocus();
 }
 
 void NotepadPanel::closeEvent(QCloseEvent *event) {
@@ -380,12 +333,11 @@ void NotepadPanel::applyDynamicSize() {
     const int toolbar = m_search->sizeHint().height();
     const int status = m_status->isVisible() ? m_status->sizeHint().height() + 6 : 0;
     const int progress = m_progress->isVisible() ? m_progress->sizeHint().height() + 6 : 0;
-    const int editor = qMax(kEditorMinimumHeight,
-                            m_editorHeight > 0 ? m_editorHeight : kEditorPreferredHeight);
     const int chrome = contentsMargins().top() + contentsMargins().bottom() + 18;
     const int splitHeight = qMax(0, popupHeight - toolbar - status - progress - chrome);
-    const int listHeight = qMax(28, splitHeight - editor);
-    m_splitter->setSizes({listHeight, qMax(kEditorMinimumHeight, splitHeight - listHeight)});
+    const int preview = qMax(kPreviewMinimumHeight, kPreviewPreferredHeight);
+    const int listHeight = qMax(28, splitHeight - preview);
+    m_splitter->setSizes({listHeight, qMax(kPreviewMinimumHeight, splitHeight - listHeight)});
 
     int x = m_appContentRect.right() - kPanelWidth + 1;
     if (QScreen *screen = QGuiApplication::screenAt(m_anchorRect.center())) {
