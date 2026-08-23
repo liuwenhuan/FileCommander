@@ -4,6 +4,7 @@
 #include <QClipboard>
 #include <QCloseEvent>
 #include <QDateTime>
+#include <QEvent>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QImage>
@@ -19,6 +20,7 @@
 #include <QScreen>
 #include <QSplitter>
 #include <QStackedWidget>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include "CloudClipboardController.h"
@@ -375,41 +377,57 @@ void NotepadPanel::onAutoReceiveToggled(bool enabled) {
 void NotepadPanel::popUpAbove(const QRect &anchorGlobalRect, const QRect &appContentGlobalRect) {
     m_anchorRect = anchorGlobalRect;
     m_appContentRect = appContentGlobalRect;
+    m_anchorSize = anchorGlobalRect.size();
+    m_anchorRightInset = appContentGlobalRect.right() - anchorGlobalRect.right();
+    m_anchorBottomInset = appContentGlobalRect.bottom() - anchorGlobalRect.bottom();
+    if (parentWidget())
+        parentWidget()->installEventFilter(this);
     m_controller->refresh();
-    applyDynamicSize();
     show();
+    applyDynamicSize();
     raise();
     m_editor->setFocus();
 }
 
 void NotepadPanel::closeEvent(QCloseEvent *event) {
+    if (parentWidget())
+        parentWidget()->removeEventFilter(this);
     QWidget::closeEvent(event);
 }
 
+bool NotepadPanel::eventFilter(QObject *watched, QEvent *event) {
+    if (watched == parentWidget() &&
+        (event->type() == QEvent::Move || event->type() == QEvent::Resize ||
+         event->type() == QEvent::WindowStateChange || event->type() == QEvent::Show)) {
+        const QRect local = parentWidget()->contentsRect();
+        m_appContentRect = QRect(parentWidget()->mapToGlobal(local.topLeft()), local.size());
+        const int right = m_appContentRect.right() - m_anchorRightInset;
+        const int bottom = m_appContentRect.bottom() - m_anchorBottomInset;
+        m_anchorRect = QRect(QPoint(right - m_anchorSize.width() + 1,
+                                   bottom - m_anchorSize.height() + 1), m_anchorSize);
+        QTimer::singleShot(0, this, [this] { applyDynamicSize(); });
+    }
+    return QWidget::eventFilter(watched, event);
+}
+
 void NotepadPanel::applyDynamicSize() {
-    if (m_anchorRect.isNull())
+    if (m_anchorRect.isNull() || m_appContentRect.isNull())
         return;
+    const int popupHeight = qMax(0, m_anchorRect.top() - m_appContentRect.top());
     const int toolbar = m_search->sizeHint().height();
     const int status = m_status->isVisible() ? m_status->sizeHint().height() + 6 : 0;
-    const int rows = qMax(28, qMin(8, m_list->count()) * qMax(28, m_list->sizeHintForRow(0)));
+    const int progress = m_progress->isVisible() ? m_progress->sizeHint().height() + 6 : 0;
     const int editor = qMax(kEditorMinimumHeight,
                             m_editorHeight > 0 ? m_editorHeight : kEditorPreferredHeight);
     const int chrome = contentsMargins().top() + contentsMargins().bottom() + 18;
-    int topLimit = m_appContentRect.top();
-    if (QScreen *screen = QGuiApplication::screenAt(m_anchorRect.center()))
-        topLimit = qMax(topLimit, screen->availableGeometry().top());
-    const int popupHeight = qMin(toolbar + status + rows + editor + chrome,
-                                 qMax(0, m_anchorRect.top() - topLimit));
-    resize(kPanelWidth, popupHeight);
-    const int splitHeight = qMax(0, popupHeight - toolbar - status - chrome);
+    const int splitHeight = qMax(0, popupHeight - toolbar - status - progress - chrome);
     const int listHeight = qMax(28, splitHeight - editor);
     m_splitter->setSizes({listHeight, qMax(kEditorMinimumHeight, splitHeight - listHeight)});
-    int x = m_appContentRect.right() - width() + 1;
-    int y = m_anchorRect.top() - height() - 2;
+
+    int x = m_appContentRect.right() - kPanelWidth + 1;
     if (QScreen *screen = QGuiApplication::screenAt(m_anchorRect.center())) {
         const QRect available = screen->availableGeometry();
-        x = qBound(available.left(), x, available.right() - width() + 1);
-        y = qMax(available.top(), y);
+        x = qBound(available.left(), x, available.right() - kPanelWidth + 1);
     }
-    move(x, y);
+    setGeometry(x, m_appContentRect.top(), kPanelWidth, popupHeight);
 }

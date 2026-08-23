@@ -80,8 +80,8 @@ TEST(CloudClipboardPanelTest, PreservesAnchoredPopupGeometryAndEditorHeight) {
     panel.popUpAbove(anchor, appContent);
     QCoreApplication::processEvents();
 
+    EXPECT_EQ(panel.geometry().top(), appContent.top());
     EXPECT_EQ(panel.geometry().bottom() + 1, anchor.top());
-    EXPECT_GE(panel.geometry().top(), appContent.top());
     auto *editor = panel.findChild<QPlainTextEdit *>(QStringLiteral("CloudClipboardEditor"));
     ASSERT_NE(editor, nullptr);
     EXPECT_GE(editor->height(), 100);

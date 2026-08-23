@@ -11,6 +11,7 @@ class AccountClient;
 class CloudClipboardController;
 class DeviceAgent;
 class QCloseEvent;
+class QEvent;
 struct CloudClipboardItem;
 class QCheckBox;
 class QLabel;
@@ -39,6 +40,7 @@ public:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private slots:
     void rebuild();
@@ -75,5 +77,8 @@ private:
     QPushButton *m_download = nullptr;
     QRect m_anchorRect;
     QRect m_appContentRect;
+    QSize m_anchorSize;
+    int m_anchorRightInset = 0;
+    int m_anchorBottomInset = 0;
     int m_editorHeight = 0;
 };
