@@ -266,6 +266,13 @@ private:
                  bool retryAfterRefresh = true,
                  QByteArray contentType = QByteArrayLiteral("application/json"));
     QNetworkRequest requestFor(const QString &path, bool authenticated) const;
+    void refreshAccessToken(std::function<void(bool)> handler);
+    void sendClipboardImageFileRequest(const QString &filePath, const QString &mime,
+                                       int width, int height, const QByteArray &sha256,
+                                       bool retryAfterRefresh);
+    void downloadClipboardDeliveryRequest(const ClipboardDeliveryInfo &delivery,
+                                          const QString &destinationPartPath,
+                                          bool retryAfterRefresh);
     void finishClipboardSend(QNetworkReply *reply);
 
     // Cancels replies from an earlier restore/login and clears the in-memory

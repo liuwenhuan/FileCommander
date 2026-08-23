@@ -467,6 +467,71 @@ TEST(AccountClient, ClipboardImageSendStreamsOriginalBytesAndReportsProgress) {
     EXPECT_EQ(progress.last().at(1).toLongLong(), image.size());
 }
 
+TEST(AccountClient, ClipboardImageSendRefreshesOnceAndReplaysTheFullFile) {
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QByteArray image("\x89PNG\r\n\x1a\nencoded-image", 21);
+    const QString imagePath = directory.filePath(QStringLiteral("image.png"));
+    QFile imageFile(imagePath);
+    ASSERT_TRUE(imageFile.open(QIODevice::WriteOnly));
+    ASSERT_EQ(imageFile.write(image), image.size());
+    imageFile.close();
+
+    MockHttpServer server;
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    signedIn(&client, server);
+    server.setRouteSequence(QStringLiteral("/v1/clipboard/send"),
+                            {json(R"({"detail":"expired"})", 401),
+                             json(R"({"payload_id":"payload-image","recipient_count":1})")});
+    server.setRoute(QStringLiteral("/v1/auth/refresh"),
+                    json(tokenReply("access-2", "refresh-2", "dev-1")));
+
+    const QByteArray sha256 = QCryptographicHash::hash(image, QCryptographicHash::Sha256);
+    QSignalSpy finished(&client, &AccountClient::clipboardSendFinished);
+    QSignalSpy failed(&client, &AccountClient::requestFailed);
+    client.sendClipboardImageFile(imagePath, QStringLiteral("image/png"), 32, 16, sha256);
+    waitForSignal(finished);
+
+    ASSERT_EQ(finished.count(), 1);
+    EXPECT_TRUE(failed.isEmpty());
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/clipboard/send")), 2);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/auth/refresh")), 1);
+    EXPECT_EQ(server.lastRequestBody(), image);
+    EXPECT_TRUE(server.lastRequestHead().contains("Authorization: Bearer access-2"));
+    EXPECT_TRUE(server.lastRequestHead().contains("X-Clipboard-Sha256: " + sha256.toHex()));
+}
+
+TEST(AccountClient, ClipboardImageSendFailsAfterTheRefreshedRequestAlsoSays401) {
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QByteArray image("\x89PNG\r\n\x1a\nencoded-image", 21);
+    const QString imagePath = directory.filePath(QStringLiteral("image.png"));
+    QFile imageFile(imagePath);
+    ASSERT_TRUE(imageFile.open(QIODevice::WriteOnly));
+    ASSERT_EQ(imageFile.write(image), image.size());
+    imageFile.close();
+
+    MockHttpServer server;
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    signedIn(&client, server);
+    server.setRoute(QStringLiteral("/v1/clipboard/send"), json(R"({"detail":"expired"})", 401));
+    server.setRoute(QStringLiteral("/v1/auth/refresh"),
+                    json(tokenReply("access-2", "refresh-2", "dev-1")));
+
+    QSignalSpy finished(&client, &AccountClient::clipboardSendFinished);
+    QSignalSpy failed(&client, &AccountClient::requestFailed);
+    client.sendClipboardImageFile(imagePath, QStringLiteral("image/png"), 32, 16,
+                                  QCryptographicHash::hash(image, QCryptographicHash::Sha256));
+    waitForSignal(failed);
+
+    EXPECT_TRUE(finished.isEmpty());
+    EXPECT_EQ(failed.count(), 1);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/clipboard/send")), 2);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/auth/refresh")), 1);
+}
+
 TEST(AccountClient, ClipboardPendingDeliveriesParseServerMetadata) {
     MockHttpServer server;
     AccountClient client;
@@ -529,6 +594,81 @@ TEST(AccountClient, ClipboardDeliveryDownloadStreamsVerifiedContentToPartFile) {
     ASSERT_FALSE(progress.isEmpty());
     EXPECT_EQ(progress.last().at(1).toLongLong(), content.size());
     EXPECT_EQ(progress.last().at(2).toLongLong(), content.size());
+}
+
+TEST(AccountClient, ClipboardDeliveryDownloadRefreshesOnceAndRestartsFromAnEmptyPartFile) {
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QByteArray content("original encoded image bytes");
+    const QByteArray sha256 = QCryptographicHash::hash(content, QCryptographicHash::Sha256);
+
+    MockHttpServer server;
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    signedIn(&client, server);
+    MockHttpServer::Route success;
+    success.contentType = "image/png";
+    success.body = content;
+    success.headers.insert("X-Content-Sha256", sha256.toHex());
+    server.setRouteSequence(QStringLiteral("/v1/clipboard/deliveries/delivery-1/content"),
+                            {json(R"({"detail":"expired"})", 401), success});
+    server.setRoute(QStringLiteral("/v1/auth/refresh"),
+                    json(tokenReply("access-2", "refresh-2", "dev-1")));
+
+    ClipboardDeliveryInfo delivery;
+    delivery.id = QStringLiteral("delivery-1");
+    delivery.kind = QStringLiteral("image");
+    delivery.mime = QStringLiteral("image/png");
+    delivery.size = content.size();
+    delivery.sha256 = QString::fromLatin1(sha256.toHex());
+    const QString partPath = directory.filePath(QStringLiteral("delivery.part"));
+    QSignalSpy finished(&client, &AccountClient::clipboardDownloadFinished);
+    QSignalSpy failed(&client, &AccountClient::requestFailed);
+    client.downloadClipboardDelivery(delivery, partPath);
+    waitForSignal(finished);
+
+    ASSERT_EQ(finished.count(), 1);
+    EXPECT_TRUE(failed.isEmpty());
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/clipboard/deliveries/delivery-1/content")), 2);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/auth/refresh")), 1);
+    EXPECT_TRUE(server.lastRequestHead().contains("Authorization: Bearer access-2"));
+    QFile downloaded(partPath);
+    ASSERT_TRUE(downloaded.open(QIODevice::ReadOnly));
+    EXPECT_EQ(downloaded.readAll(), content);
+}
+
+TEST(AccountClient, ClipboardDeliveryDownloadFailsAfterTheRefreshedRequestAlsoSays401) {
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QByteArray content("original encoded image bytes");
+    const QByteArray sha256 = QCryptographicHash::hash(content, QCryptographicHash::Sha256);
+
+    MockHttpServer server;
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    signedIn(&client, server);
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries/delivery-1/content"),
+                    json(R"({"detail":"expired"})", 401));
+    server.setRoute(QStringLiteral("/v1/auth/refresh"),
+                    json(tokenReply("access-2", "refresh-2", "dev-1")));
+
+    ClipboardDeliveryInfo delivery;
+    delivery.id = QStringLiteral("delivery-1");
+    delivery.kind = QStringLiteral("image");
+    delivery.mime = QStringLiteral("image/png");
+    delivery.size = content.size();
+    delivery.sha256 = QString::fromLatin1(sha256.toHex());
+    const QString partPath = directory.filePath(QStringLiteral("delivery.part"));
+    QSignalSpy finished(&client, &AccountClient::clipboardDownloadFinished);
+    QSignalSpy failed(&client, &AccountClient::requestFailed);
+    client.downloadClipboardDelivery(delivery, partPath);
+    waitForSignal(failed);
+
+    EXPECT_TRUE(finished.isEmpty());
+    EXPECT_EQ(failed.count(), 1);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/clipboard/deliveries/delivery-1/content")), 2);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/auth/refresh")), 1);
+    EXPECT_FALSE(QFile::exists(partPath));
 }
 
 TEST(AccountClient, ClipboardDeliveryDownloadRejectsMismatchedHashWithoutLeavingPartFile) {

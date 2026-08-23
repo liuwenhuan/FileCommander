@@ -223,25 +223,32 @@ void AccountClient::request(Verb verb, const QString &path, const QByteArray &bo
                 // request once. The replay cannot retry again.
                 if (authenticated && status == 401 && retryAfterRefresh &&
                     !m_refreshToken.isEmpty()) {
-                    const QByteArray refreshBody =
-                        QJsonDocument(QJsonObject{{"refresh_token", m_refreshToken}}).toJson();
-                    const QString email = m_account.email;
-                    request(Verb::Post, QStringLiteral("/v1/auth/refresh"), refreshBody,
-                            false,
-                            [this, email, verb, path, body, handler, contentType](QNetworkReply *r) {
-                                if (!acceptTokens(r->readAll(), email)) {
-                                    m_accessToken.clear();
-                                    m_refreshToken.clear();
-                                    emit requestFailed(tr("Session expired, please sign in again."));
-                                    return;
-                                }
-                                request(verb, path, body, true, handler, false, contentType);
-                            },
-                            false);
+                    refreshAccessToken([this, verb, path, body, handler, contentType](bool refreshed) {
+                        if (refreshed)
+                            request(verb, path, body, true, handler, false, contentType);
+                    });
                     return;
                 }
                 handler(reply);
             });
+}
+
+void AccountClient::refreshAccessToken(std::function<void(bool)> handler) {
+    const QByteArray body =
+        QJsonDocument(QJsonObject{{"refresh_token", m_refreshToken}}).toJson();
+    const QString email = m_account.email;
+    request(Verb::Post, QStringLiteral("/v1/auth/refresh"), body, false,
+            [this, email, handler](QNetworkReply *reply) {
+                if (!acceptTokens(reply->readAll(), email)) {
+                    m_accessToken.clear();
+                    m_refreshToken.clear();
+                    emit requestFailed(tr("Session expired, please sign in again."));
+                    handler(false);
+                    return;
+                }
+                handler(true);
+            },
+            false);
 }
 
 QString AccountClient::errorText(QNetworkReply *reply, const QByteArray &body) {
@@ -656,6 +663,12 @@ void AccountClient::sendClipboardImageFile(const QString &filePath, const QStrin
         emit requestFailed(tr("Not signed in."));
         return;
     }
+    sendClipboardImageFileRequest(filePath, mime, width, height, sha256, true);
+}
+
+void AccountClient::sendClipboardImageFileRequest(const QString &filePath, const QString &mime,
+                                                  int width, int height, const QByteArray &sha256,
+                                                  bool retryAfterRefresh) {
     auto *file = new QFile(filePath);
     if (!file->open(QIODevice::ReadOnly)) {
         emit requestFailed(tr("Could not open the clipboard image."));
@@ -687,12 +700,22 @@ void AccountClient::sendClipboardImageFile(const QString &filePath, const QStrin
                 if (total > 0)
                     emit clipboardSendProgress(sent, total);
             });
-    connect(reply, &QNetworkReply::finished, this, [this, reply, timeout, generation] {
-        timeout->stop();
-        if (generation == m_requestGeneration)
-            finishClipboardSend(reply);
-        reply->deleteLater();
-    });
+    connect(reply, &QNetworkReply::finished, this,
+            [this, reply, timeout, generation, filePath, mime, width, height, sha256,
+             retryAfterRefresh] {
+                timeout->stop();
+                const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                if (generation == m_requestGeneration && status == 401 && retryAfterRefresh &&
+                    !m_refreshToken.isEmpty()) {
+                    refreshAccessToken([this, filePath, mime, width, height, sha256, generation](bool refreshed) {
+                        if (refreshed && generation == m_requestGeneration)
+                            sendClipboardImageFileRequest(filePath, mime, width, height, sha256, false);
+                    });
+                } else if (generation == m_requestGeneration) {
+                    finishClipboardSend(reply);
+                }
+                reply->deleteLater();
+            });
 }
 
 void AccountClient::fetchClipboardDeliveries() {
@@ -732,7 +755,13 @@ void AccountClient::downloadClipboardDelivery(const ClipboardDeliveryInfo &deliv
         emit requestFailed(tr("Invalid clipboard delivery."));
         return;
     }
+    downloadClipboardDeliveryRequest(delivery, destinationPartPath, true);
+}
 
+void AccountClient::downloadClipboardDeliveryRequest(const ClipboardDeliveryInfo &delivery,
+                                                     const QString &destinationPartPath,
+                                                     bool retryAfterRefresh) {
+    const QByteArray expectedSha256 = delivery.sha256.toLatin1().trimmed().toLower();
     QFile::remove(destinationPartPath);
     auto state = std::make_shared<ClipboardDownloadState>(destinationPartPath, delivery.size,
                                                           expectedSha256);
@@ -801,16 +830,22 @@ void AccountClient::downloadClipboardDelivery(const ClipboardDeliveryInfo &deliv
     connect(reply, &QNetworkReply::readyRead, this, consume);
     connect(reply, &QNetworkReply::finished, this,
             [this, reply, timeout, state, delivery, destinationPartPath, generation, consume,
-             checkHeaders, fail] {
+             checkHeaders, fail, retryAfterRefresh] {
                 timeout->stop();
                 consume();
+                const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
                 if (generation != m_requestGeneration) {
                     state->output.cancelWriting();
                     QFile::remove(destinationPartPath);
+                } else if (status == 401 && retryAfterRefresh && !m_refreshToken.isEmpty()) {
+                    state->output.cancelWriting();
+                    QFile::remove(destinationPartPath);
+                    refreshAccessToken([this, delivery, destinationPartPath, generation](bool refreshed) {
+                        if (refreshed && generation == m_requestGeneration)
+                            downloadClipboardDeliveryRequest(delivery, destinationPartPath, false);
+                    });
                 } else if (!state->failed) {
                     const QByteArray payload = reply->readAll();
-                    const int status =
-                        reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
                     if (reply->error() != QNetworkReply::NoError || status < 200 || status >= 300)
                         fail(errorText(reply, payload));
                     else if (!checkHeaders() || state->received != state->expectedSize ||
