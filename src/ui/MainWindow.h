@@ -222,6 +222,7 @@ private slots:
                            const QVector<QPointer<QAction>> &actions);
     void chooseApplicationAndOpen();
     void toggleQuickView(); // Ctrl+Q
+    void quickEditCurrent(); // Ctrl+E
     void updateQuickView();
     // Remote-preview download callbacks (invoked from the worker thread via a
     // queued invocation; reqId discards a stale download after the cursor moves).
@@ -255,7 +256,7 @@ private slots:
     void refreshComputerViews();
     void toggleNotepad();           // quick-notepad command (trailing button default)
     void showAboutDialog();         // View > About this program
-    // Config > FileCommander Account: sign in / out, list the account's other
+    // Title-bar account entry: sign in / out, list the account's other
     // devices. The client behind it is created on first use and then kept, so
     // the session outlives the dialog.
     void showAccountDialog();

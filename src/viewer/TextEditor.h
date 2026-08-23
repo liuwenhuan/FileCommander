@@ -89,10 +89,9 @@ private:
 
 // Editable text file viewer, wired to F4.
 //
-// The file's bytes as they exist on disk are kept in m_raw for the lifetime of
-// the window. Everything else -- the decoded buffer, the encoding combo, Save
-// -- is derived from them, which is what lets the encoding be changed after the
-// fact without the original bytes having been thrown away.
+// m_raw holds the loaded portion of the file. Large files start with a
+// bounded prefix; Save re-reads and streams the untouched tail so that prefix
+// edits never discard the rest of the file.
 //
 // Edits live in the buffer and are written after a short idle debounce. Save /
 // Ctrl+S remains an immediate flush, and a failed write leaves the buffer dirty
@@ -156,6 +155,8 @@ public:
     bool isDocumentModified() const;
     int addView(QWidget *view);
     void setCurrentView(int index);
+    // The bytes currently materialised in the editor (a prefix for a lazily
+    // loaded file).
     const QByteArray &fileBytes() const { return m_raw; }
     QString filePath() const { return m_path; }
     QString encodingIdentity() const { return m_encodingIdentity; }
@@ -196,9 +197,13 @@ private:
     void updateTitle();
     void updateModifiedIndicator();
     // Re-decodes m_raw under the combo's current selection and replaces the
-    // buffer. Never reads the buffer back -- the bytes are the source of truth.
+    // buffer. Never reads the buffer back -- the loaded bytes are the source
+    // of truth for its visible portion.
     void applyEncodingToBuffer();
+    void loadRemainder();
+    void updatePartialIndicator();
     QByteArray encodeBuffer() const;
+    bool writePartialBuffer(const QByteArray &prefix);
     bool writeCurrentBuffer();
     bool flushAutoSave();
     void showSaveFailure();
@@ -211,16 +216,20 @@ private:
     QVBoxLayout *m_layout = nullptr;
     QAction *m_saveAction = nullptr;
     QComboBox *m_encodingCombo = nullptr;
+    QAction *m_loadRemainderAction = nullptr;
     QAction *m_previewAction = nullptr;
     QLabel *m_modifiedLabel = nullptr;
+    QLabel *m_partialLabel = nullptr;
     QTimer *m_autoSaveTimer = nullptr;
 
     Settings *m_settings = nullptr;
     QString m_path;
     QString m_encodingIdentity;
-    // The file exactly as it is on disk. Refreshed by save(), so a later
-    // encoding change always re-decodes what is really there.
+    // The whole file, or the safe prefix for a large file. The tail begins at
+    // m_loadedBytes on disk.
     QByteArray m_raw;
+    qint64 m_loadedBytes = 0;
+    bool m_partiallyLoaded = false;
     HexEditor *m_hex = nullptr;   // created only for a file opened as hex
     FindBar *m_findBar = nullptr;
     bool m_hexMode = false;
@@ -243,5 +252,7 @@ private:
     int m_auxiliaryInsertIndex = 1;
 
     static constexpr int kAutoSaveDelayMs = 600;
-    static constexpr qint64 kMaxEditableBytes = 50 * 1024 * 1024; // 50 MB
+    static constexpr qint64 kLazyLoadBytes = 5 * 1024 * 1024;
+    static constexpr qint64 kTextReadLookAheadBytes = 4;
+    static constexpr qint64 kTailCopyBytes = 64 * 1024;
 };

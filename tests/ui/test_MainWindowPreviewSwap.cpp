@@ -33,6 +33,8 @@
 #include "MainWindow.h"
 #include "QuickView.h"
 #include "TabBar.h"
+#include "TextEditor.h"
+#include "ViewerWindow.h"
 #include "config/Settings.h"
 #include "devices/RemovableDeviceMonitor.h"
 #include "media/MediaEngine.h"
@@ -434,6 +436,61 @@ TEST(MainWindowPreviewSwapTest, FirstQuickViewUseCreatesOneInstanceWithCurrentTy
     const QList<QuickView *> secondQuickViews = window.findChildren<QuickView *>();
     ASSERT_EQ(secondQuickViews.size(), 1);
     EXPECT_EQ(secondQuickViews.constFirst(), quickView);
+}
+
+TEST(MainWindowPreviewSwapTest, CtrlEOpensTheEmbeddedQuickViewEditorWithoutViewerWindow) {
+    ThemeStateGuard themeState;
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("editable.txt"));
+    QFile file(path);
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Text));
+    ASSERT_EQ(file.write("editable\n"), 9);
+    file.close();
+
+    MainWindow window(nullptr, 10000, true);
+    FilePanel *panel = window.findChildren<FilePanel *>().value(0);
+    ASSERT_NE(panel, nullptr);
+    window.setActivePanel(panel);
+    panel->navigateTo(dir.path());
+
+    int row = -1;
+    ASSERT_TRUE(QTest::qWaitFor([panel, &row] {
+        for (int r = 0; r < panel->model()->rowCount(); ++r) {
+            if (!panel->model()->isParentEntry(r) &&
+                panel->model()->fileInfoAt(r).name() == QStringLiteral("editable.txt")) {
+                row = r;
+                return true;
+            }
+        }
+        return false;
+    }, 5000));
+    panel->view()->setCurrentIndex(panel->model()->index(row, 0));
+
+    QShortcut *ctrlE = nullptr;
+    for (QShortcut *shortcut : window.findChildren<QShortcut *>()) {
+        if (shortcut->key() == QKeySequence(Qt::CTRL | Qt::Key_E)) {
+            ctrlE = shortcut;
+            break;
+        }
+    }
+    ASSERT_NE(ctrlE, nullptr);
+    ASSERT_TRUE(QMetaObject::invokeMethod(ctrlE, "activated", Qt::DirectConnection));
+
+    QuickView *quickView = window.findChild<QuickView *>();
+    ASSERT_NE(quickView, nullptr);
+    FC_TRY_VERIFY_WITH_TIMEOUT(quickView->isEditing(), 5000);
+    EXPECT_GE(panelSplitter(window)->indexOf(quickView), 0);
+    TextEditor *editor = quickView->findChild<TextEditor *>();
+    ASSERT_NE(editor, nullptr);
+    EXPECT_FALSE(editor->isWindow());
+    EXPECT_TRUE(window.findChildren<ViewerWindow *>().isEmpty());
+
+    ASSERT_TRUE(QMetaObject::invokeMethod(ctrlE, "activated", Qt::DirectConnection));
+    FC_TRY_VERIFY_WITH_TIMEOUT(!quickView->isEditing(), 5000);
+    EXPECT_EQ(panelSplitter(window)->indexOf(quickView), -1);
+    EXPECT_EQ(panelSplitter(window)->count(), 2);
+    EXPECT_GE(panelSplitter(window)->indexOf(panel), 0);
 }
 
 TEST(MainWindowPreviewSwapTest, TypographySettingsDoNotLeakPastTestScope) {

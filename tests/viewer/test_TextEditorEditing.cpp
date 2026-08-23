@@ -4,6 +4,7 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QFile>
+#include <QFileInfo>
 #include <QLabel>
 #include <QStackedWidget>
 #include <QTemporaryDir>
@@ -33,6 +34,15 @@ QByteArray readBytes(const QString &path) {
     QFile file(path);
     EXPECT_TRUE(file.open(QIODevice::ReadOnly));
     return file.readAll();
+}
+
+QByteArray largeCrlfText(qint64 minimumBytes) {
+    const QByteArray line("abcdefghijklmnopqrstuvwxy\r\n"); // 27 bytes
+    QByteArray bytes("\xef\xbb\xbf");
+    bytes.reserve(static_cast<int>(minimumBytes + line.size()));
+    while (bytes.size() <= minimumBytes)
+        bytes += line;
+    return bytes;
 }
 
 int encodingIndex(const TextEditor &editor, const QString &label) {
@@ -265,6 +275,79 @@ TEST(TextEditorEditingTest, SavePutsBackCrlfLineEndingsQTextDocumentDropped) {
     typeAtEnd(editor, QStringLiteral("three\n"));
     ASSERT_TRUE(editor.save());
     EXPECT_EQ(readBytes(path), QByteArray("one\r\ntwo\r\nthree\r\n"));
+}
+
+TEST(TextEditorEditingTest, LargeTextStartsPartiallyLoadedAndCanMaterializeRemainder) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QByteArray bytes = largeCrlfText(6 * 1024 * 1024);
+    const QString path = writeBytes(dir, QStringLiteral("large.txt"), bytes);
+
+    TextEditor editor;
+    ASSERT_TRUE(editor.loadFile(path));
+    EXPECT_LT(editor.fileBytes().size(), bytes.size());
+    EXPECT_TRUE(editor.codeEditor()->toPlainText().startsWith(QStringLiteral("abcdefghijklmnopqrstuvwxy\n")));
+    auto *partial = editor.toolBar()->findChild<QLabel *>(QStringLiteral("textEditorPartial"));
+    ASSERT_NE(partial, nullptr);
+    EXPECT_FALSE(partial->text().isEmpty());
+
+    QAction *loadRemainder = nullptr;
+    for (QAction *action : editor.toolBar()->actions()) {
+        if (action->text() == QStringLiteral("Load remainder")) {
+            loadRemainder = action;
+            break;
+        }
+    }
+    ASSERT_NE(loadRemainder, nullptr);
+    EXPECT_TRUE(loadRemainder->isEnabled());
+    loadRemainder->trigger();
+    EXPECT_EQ(editor.fileBytes(), bytes);
+    EXPECT_TRUE(partial->text().isEmpty());
+
+    TextEditor encodingEditor;
+    ASSERT_TRUE(encodingEditor.loadFile(path));
+    EXPECT_LT(encodingEditor.fileBytes().size(), bytes.size());
+    const int latin1 = encodingIndex(encodingEditor, QStringLiteral("ISO-8859-1"));
+    ASSERT_GE(latin1, 0);
+    encodingEditor.encodingCombo()->setCurrentIndex(latin1);
+    qApp->processEvents();
+    EXPECT_EQ(encodingEditor.fileBytes(), bytes);
+}
+
+TEST(TextEditorEditingTest, SavingLargePrefixPreservesBomCrlfAndUntouchedTail) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QByteArray original = largeCrlfText(6 * 1024 * 1024);
+    const QString path = writeBytes(dir, QStringLiteral("large-crlf.txt"), original);
+
+    TextEditor editor;
+    ASSERT_TRUE(editor.loadFile(path));
+    const QByteArray loadedPrefix = editor.fileBytes();
+    ASSERT_LT(loadedPrefix.size(), original.size());
+
+    typeAtEnd(editor, QStringLiteral("edited prefix\n"));
+    ASSERT_TRUE(editor.save());
+
+    const QByteArray expected = loadedPrefix + "edited prefix\r\n" +
+                                original.mid(loadedPrefix.size());
+    EXPECT_EQ(readBytes(path), expected);
+    EXPECT_TRUE(readBytes(path).startsWith(QByteArray("\xef\xbb\xbf")));
+}
+
+TEST(TextEditorEditingTest, TextPastTheFormer50MiBLimitOpensWithoutARejection) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("past-50-mib.txt"));
+    QFile file(path);
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    const QByteArray megabyte(1024 * 1024, 'x');
+    for (int i = 0; i < 51; ++i)
+        ASSERT_EQ(file.write(megabyte), megabyte.size());
+    file.close();
+
+    TextEditor editor;
+    ASSERT_TRUE(editor.loadFile(path));
+    EXPECT_LT(editor.fileBytes().size(), QFileInfo(path).size());
 }
 
 TEST(TextEditorEditingTest, SaveLeavesAnLfOnlyFileAlone) {

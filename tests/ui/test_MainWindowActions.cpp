@@ -8,6 +8,7 @@
 #include <QKeySequence>
 #include <QMenu>
 #include <QMouseEvent>
+#include <QPushButton>
 #include <QShortcut>
 #include <QTemporaryDir>
 #include <QTest>
@@ -24,6 +25,7 @@
 #include "MainWindow.h"
 #include "Settings.h"
 #include "ThemeManager.h"
+#include "TitleBar.h"
 #include "TranslationManager.h"
 #include "ThemeStateGuard.h"
 
@@ -256,6 +258,41 @@ TEST(MainWindowActionsTest, ReplayedMenuMouseMoveDoesNotLeaveResizeCursor) {
     EXPECT_NE(window.cursor().shape(), Qt::SizeVerCursor);
 }
 
+TEST(MainWindowActionsTest, QuickConnectClickClearsTopResizeCursor) {
+    ThemeStateGuard themeState;
+    ScopedUiLanguage language(QStringLiteral("en"));
+    MainWindow window;
+    window.resize(900, 600);
+    window.show();
+    qApp->processEvents();
+
+    FunctionKeyBar *functionKeyBar = window.findChild<FunctionKeyBar *>();
+    ASSERT_NE(functionKeyBar, nullptr);
+    QPushButton *quickConnectButton = nullptr;
+    for (QPushButton *button : functionKeyBar->findChildren<QPushButton *>()) {
+        if (button->toolTip() == QStringLiteral("Connect External / Devices")) {
+            quickConnectButton = button;
+            break;
+        }
+    }
+    ASSERT_NE(quickConnectButton, nullptr);
+    ASSERT_TRUE(quickConnectButton->isVisible());
+
+    // Hover the exposed top resize band first, then click the actual quick-connect
+    // launcher. The child click must clear the MainWindow's inherited resize cursor.
+    const QPoint exposedTop(window.width() / 2, 15);
+    ASSERT_EQ(window.childAt(exposedTop), nullptr);
+    QMouseEvent edgeMove(QEvent::MouseMove, exposedTop, Qt::NoButton, Qt::NoButton,
+                         Qt::NoModifier);
+    QApplication::sendEvent(&window, &edgeMove);
+    ASSERT_EQ(window.cursor().shape(), Qt::SizeVerCursor);
+
+    QTest::mouseClick(quickConnectButton, Qt::LeftButton);
+    qApp->processEvents();
+
+    EXPECT_EQ(window.cursor().shape(), Qt::ArrowCursor);
+}
+
 TEST(MainWindowActionsTest, FirstOpenBuildsEachMenuOnceWithCurrentState) {
     ThemeStateGuard themeState;
     ScopedUiLanguage language(QStringLiteral("en"));
@@ -294,6 +331,19 @@ TEST(MainWindowActionsTest, FirstOpenBuildsEachMenuOnceWithCurrentState) {
     // The entry that used to sit last is still built -- the assertion above is
     // about the menu being complete, not about which entry happens to end it.
     EXPECT_NE(findAction(configMenu, QStringLiteral("Automatic Update Check")), nullptr);
+    EXPECT_EQ(findAction(configMenu, QStringLiteral("FileCommander Account")), nullptr);
+    TitleBar *titleBar = window.findChild<TitleBar *>();
+    ASSERT_NE(titleBar, nullptr);
+    QToolButton *accountButton = nullptr;
+    for (QToolButton *button : titleBar->findChildren<QToolButton *>()) {
+        if (button->text() == QStringLiteral("Account")) {
+            accountButton = button;
+            break;
+        }
+    }
+    ASSERT_NE(accountButton, nullptr);
+    ASSERT_NE(accountButton->menu(), nullptr);
+    EXPECT_NE(findAction(accountButton->menu(), QStringLiteral("Sign In")), nullptr);
     const int configActionCount = configMenu->actions().size();
     openMenu(configMenu);
     EXPECT_EQ(configMenu->actions().size(), configActionCount);

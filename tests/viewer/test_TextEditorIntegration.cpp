@@ -1,13 +1,17 @@
 #include <gtest/gtest.h>
 
+#include <QAction>
 #include <QApplication>
-#include <QFile>
 #include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QLabel>
 #include <QStackedWidget>
 #include <QTemporaryDir>
 #include <QTest>
-#include <QTimer>
 #include <QTextCursor>
+#include <QTimer>
+#include <QToolBar>
 
 #include "ByteSearch.h"
 #include "FindBar.h"
@@ -27,6 +31,17 @@ QString writeFile(const QTemporaryDir &dir, const QString &name, const QByteArra
     return path;
 }
 
+QString writeSparseBinary(const QTemporaryDir &dir, const QString &name, qint64 size,
+                          const QByteArray &head, const QByteArray &tail) {
+    const QString path = dir.filePath(name);
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly) || !file.resize(size) ||
+        file.write(head) != head.size() || !file.seek(size - tail.size()) ||
+        file.write(tail) != tail.size())
+        return {};
+    file.close();
+    return path;
+}
 } // namespace
 
 // The three pieces were built separately; this is the seam between them. A file
@@ -47,6 +62,109 @@ TEST(TextEditorIntegration, ABinaryFileOpensInTheHexView) {
     ASSERT_NE(editor.hexEditor(), nullptr);
     EXPECT_EQ(editor.hexEditor()->contents(), binary);
     EXPECT_EQ(editor.viewStack()->currentWidget(), editor.hexEditor());
+}
+
+TEST(TextEditorIntegration, AHugeBinaryStartsWithALazyHexPrefixAndPreservesItsTailOnSave) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const qint64 originalSize = HexEditor::maximumSize() + 1024 * 1024;
+    const QByteArray head("\x7f\x45\x4c\x46\x02\x01\x01\x00", 8);
+    QByteArray tail(4096, '\0');
+    for (int i = 0; i < tail.size(); ++i)
+        tail[i] = char(i & 0xff);
+    tail.replace(100, 16, QByteArray("HUGE-BINARY-TAIL", 16));
+    const QString path = writeSparseBinary(dir, QStringLiteral("huge.bin"), originalSize,
+                                           head, tail);
+    ASSERT_FALSE(path.isEmpty());
+
+    // A regression must not leave a blocking over-size dialog behind. The
+    // timer makes a red run finish while still proving no modal was shown.
+    int modals = 0;
+    QTimer dismissModal;
+    dismissModal.setInterval(10);
+    QObject::connect(&dismissModal, &QTimer::timeout, [&]() {
+        QWidget *modal = QApplication::activeModalWidget();
+        if (!modal)
+            return;
+        ++modals;
+        QMetaObject::invokeMethod(modal, "reject", Qt::QueuedConnection);
+    });
+    dismissModal.start();
+
+    TextEditor editor;
+    ASSERT_TRUE(editor.loadFile(path));
+    dismissModal.stop();
+    qApp->processEvents();
+
+    EXPECT_EQ(modals, 0);
+    ASSERT_TRUE(editor.isHexMode());
+    ASSERT_NE(editor.hexEditor(), nullptr);
+    EXPECT_LT(editor.hexEditor()->contents().size(), QFileInfo(path).size());
+    auto *partial = editor.toolBar()->findChild<QLabel *>(QStringLiteral("textEditorPartial"));
+    ASSERT_NE(partial, nullptr);
+    EXPECT_FALSE(partial->text().isEmpty());
+    QAction *loadRemainder = nullptr;
+    for (QAction *action : editor.toolBar()->actions()) {
+        if (action->text() == QStringLiteral("Load remainder")) {
+            loadRemainder = action;
+            break;
+        }
+    }
+    ASSERT_NE(loadRemainder, nullptr);
+    EXPECT_FALSE(loadRemainder->isEnabled());
+
+    const QByteArray loadedPrefix = editor.hexEditor()->contents();
+    const QByteArray inserted("\xaa\xbb\xcc", 3);
+    QByteArray editedPrefix = loadedPrefix;
+    editedPrefix.insert(16, inserted);
+    ASSERT_TRUE(editor.hexEditor()->setContents(editedPrefix));
+    editor.hexEditor()->setModified(true);
+    ASSERT_TRUE(editor.save());
+
+    QFile saved(path);
+    ASSERT_TRUE(saved.open(QIODevice::ReadOnly));
+    EXPECT_EQ(saved.size(), originalSize + inserted.size());
+    ASSERT_TRUE(saved.seek(originalSize - tail.size() + inserted.size()));
+    EXPECT_EQ(saved.read(tail.size()), tail);
+    ASSERT_TRUE(saved.seek(0));
+    EXPECT_EQ(saved.read(head.size()), head);
+}
+
+TEST(TextEditorIntegration, AHugeBinaryAutosaveAndCloseFlushKeepItsUnloadedTail) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const qint64 originalSize = HexEditor::maximumSize() + 1024 * 1024;
+    const QByteArray head("\x7f\x45\x4c\x46\x02\x01\x01\x00", 8);
+    const QByteArray tail("HUGE-BINARY-TAIL", 16);
+    const QString path = writeSparseBinary(dir, QStringLiteral("huge-flush.bin"), originalSize,
+                                           head, tail);
+    ASSERT_FALSE(path.isEmpty());
+
+    TextEditor editor;
+    ASSERT_TRUE(editor.loadFile(path));
+    ASSERT_TRUE(editor.isHexMode());
+
+    QByteArray autosaved = editor.hexEditor()->contents();
+    autosaved[8] = char(0xfe);
+    ASSERT_TRUE(editor.hexEditor()->setContents(autosaved));
+    editor.hexEditor()->setModified(true);
+    FC_TRY_VERIFY_WITH_TIMEOUT(([&]() {
+        QFile saved(path);
+        return saved.open(QIODevice::ReadOnly) && saved.size() == originalSize &&
+               saved.seek(originalSize - tail.size()) && saved.read(tail.size()) == tail;
+    })(), 5000);
+
+    QByteArray closeFlushed = editor.hexEditor()->contents();
+    closeFlushed[9] = char(0xfd);
+    ASSERT_TRUE(editor.hexEditor()->setContents(closeFlushed));
+    editor.hexEditor()->setModified(true);
+    ASSERT_TRUE(editor.promptSaveIfModified());
+
+    QFile saved(path);
+    ASSERT_TRUE(saved.open(QIODevice::ReadOnly));
+    EXPECT_EQ(saved.size(), originalSize);
+    ASSERT_TRUE(saved.seek(originalSize - tail.size()));
+    EXPECT_EQ(saved.read(tail.size()), tail);
 }
 
 TEST(TextEditorIntegration, ATextFileStaysInTheTextView) {

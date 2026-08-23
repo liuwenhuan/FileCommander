@@ -934,7 +934,6 @@ void MainWindow::buildTitleBarMenus() {
     addCommandAction(configMenu, QStringLiteral("keyboardShortcuts"), tr("Keyboard Shortcuts"));
     addCommandAction(configMenu, QStringLiteral("connectionManager"),
                      tr("Manage Network Connections"));
-    addCommandAction(configMenu, QStringLiteral("account"), tr("FileCommander Account"));
     configMenu->addSeparator();
     // Checked means "browse into it", which is what the label says. It used to
     // be inverted -- the entry read "Directly Open Archives" while ticking it
@@ -1585,6 +1584,21 @@ void MainWindow::runPackageSmoke(const QString &directory) {
 }
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
+    // The resize band owns the window cursor, but mouse input delivered to a
+    // child bypasses MainWindow::event(). Clear that inherited override as
+    // soon as normal child chrome receives a hover or click.
+    if (watched != this && (event->type() == QEvent::MouseMove ||
+                            event->type() == QEvent::MouseButtonPress)) {
+        if (auto *widget = qobject_cast<QWidget *>(watched)) {
+            const auto *mouseEvent = static_cast<QMouseEvent *>(event);
+            if (isAncestorOf(widget) &&
+                (event->type() == QEvent::MouseButtonPress ||
+                 mouseEvent->buttons() == Qt::NoButton)) {
+                unsetCursor();
+            }
+        }
+    }
+
     // While the embedded preview is active, plain Tab/Backtab pressed with focus
     // inside the preview pane returns focus to the active file list (the reverse
     // of FilePanel::switchPanelRequested, which moves list -> preview). Cheap
@@ -1780,18 +1794,10 @@ QuickView *MainWindow::ensureQuickView() {
     // Stop button on the remote-preview download page cancels the in-flight fetch.
     connect(m_quickView, &QuickView::downloadCancelRequested, this,
             &MainWindow::cancelPreviewDownload);
-    // The pane's Edit button does not open the path it is showing: on a network
-    // tab that path needs resolving to a writable mount first, and F4's resolver
-    // is what knows how (and what refuses when there is none). The editor then
-    // takes over the pane itself -- no window opens.
-    connect(m_quickView, &QuickView::editRequested, this, [this](const QString &) {
-        const QString identity = m_activePanel
-                                     ? m_activePanel->currentTextEncodingIdentity()
-                                     : QString();
-        resolveEditableCurrent([this, identity](const QString &real) {
-            m_quickView->beginEditing(real, identity);
-        });
-    });
+    // The pane's Edit button and Ctrl+E share F4's writable-path resolver:
+    // downloaded remote copies and archive entries must never become dead-end editors.
+    connect(m_quickView, &QuickView::editRequested, this,
+            [this](const QString &) { quickEditCurrent(); });
     // A streamed remote clip that wouldn't play falls back to the download path
     // by re-running the preview with streaming suppressed for that one file.
     connect(m_quickView, &QuickView::streamFailed, this, [this](const QString &) {
@@ -2794,10 +2800,16 @@ void MainWindow::setupShortcuts() {
 
     bindShortcut("search", tr("Search Files"), QKeySequence(Qt::CTRL | Qt::Key_F),
                  [this] { openSearch(); });
-    // Focus the bottom command line (TC-style). Reveals it first if the user has
-    // hidden it via the View menu, so the command bar is always keyboard-reachable
-    // -- previously CommandBar::focusInput() was dead code with no way to reach it.
-    bindShortcut("focusCommandBar", tr("Command Line"), QKeySequence(Qt::CTRL | Qt::Key_E),
+    // Ctrl+E now belongs to the embedded quick editor. Clear a persisted copy
+    // of the old default so upgrades do not bind both commands to the same key;
+    // any other user-selected command-line shortcut is kept.
+    const QKeySequence oldCommandLineKey(Qt::CTRL | Qt::Key_E);
+    if (m_settings.shortcut(QStringLiteral("focusCommandBar"), QKeySequence()) ==
+        oldCommandLineKey) {
+        m_settings.setShortcut(QStringLiteral("focusCommandBar"), QKeySequence());
+    }
+    // A user-configurable command-line focus action. It reveals the bar if needed.
+    bindShortcut("focusCommandBar", tr("Command Line"), QKeySequence(),
                  [this] {
                      if (!m_commandBar)
                          return;
@@ -2856,6 +2868,8 @@ void MainWindow::setupShortcuts() {
                  QKeySequence(Qt::CTRL | Qt::Key_Right), [this] { syncOtherPanelToActive(); });
     bindShortcut("quickView", tr("Quick View"), QKeySequence(Qt::CTRL | Qt::Key_Q),
                  [this] { toggleQuickView(); });
+    bindShortcut("quickEdit", tr("Edit"), QKeySequence(Qt::CTRL | Qt::Key_E),
+                 [this] { quickEditCurrent(); });
     bindShortcut("undo", tr("Undo Last Operation"), QKeySequence(Qt::CTRL | Qt::Key_Z),
                  [this] { undoLast(); });
     // Ctrl+F1 follows the TC convention where the Ctrl+F<n> block selects the
@@ -3638,6 +3652,13 @@ void MainWindow::toggleQuickView() {
     const QList<int> sizes = m_panelSplitter->sizes();
 
     if (m_quickViewActive && m_quickView) {
+        if (m_quickView->isEditing()) {
+            if (!m_quickView->confirmDiscardEdits())
+                return;
+            // Leave the editor page too, so the next Ctrl+E starts from the
+            // file currently selected rather than reviving a hidden old edit.
+            m_quickView->showFile(QString());
+        }
         // Stop any playing media so it doesn't keep running behind the hidden pane.
         m_quickView->stopPlayback();
         // Put the previewed panel back where it was.
@@ -3663,6 +3684,25 @@ void MainWindow::toggleQuickView() {
     m_quickViewActive = true;
     m_panelSplitter->setSizes(sizes);
     updateQuickView();
+}
+
+void MainWindow::quickEditCurrent() {
+    if (!m_activePanel)
+        return;
+    if (m_quickViewActive && m_quickView && m_quickView->isEditing()) {
+        toggleQuickView();
+        return;
+    }
+    if (!m_quickViewActive)
+        toggleQuickView();
+    if (!m_quickViewActive || !m_quickView)
+        return;
+
+    const QString encodingIdentity = m_activePanel->currentTextEncodingIdentity();
+    resolveEditableCurrent([this, encodingIdentity](const QString &real) {
+        if (m_quickView && m_quickViewActive && !m_quickView->isEditing())
+            m_quickView->beginEditing(real, encodingIdentity);
+    });
 }
 
 namespace {

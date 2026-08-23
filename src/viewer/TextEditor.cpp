@@ -12,6 +12,7 @@
 #include <QEvent>
 #include <QFile>
 #include <QFileInfo>
+#include <QSaveFile>
 #include <QLabel>
 #include <QListView>
 #include <QMessageBox>
@@ -262,6 +263,14 @@ void TextEditor::buildToolBar() {
     connect(m_encodingCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &TextEditor::onEncodingSelected);
 
+    m_partialLabel = new QLabel(m_toolBar);
+    m_partialLabel->setObjectName(QStringLiteral("textEditorPartial"));
+    m_toolBar->addWidget(m_partialLabel);
+    m_loadRemainderAction = m_toolBar->addAction(tr("Load remainder"), this,
+                                                 &TextEditor::loadRemainder);
+    m_loadRemainderAction->setToolTip(tr("Load the rest of this file"));
+    m_loadRemainderAction->setEnabled(false);
+
     auto *spacer = new QWidget(m_toolBar);
     spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     m_toolBar->addWidget(spacer);
@@ -325,21 +334,16 @@ bool TextEditor::loadFile(const QString &path, const QString &encodingIdentity) 
     if (!m_path.isEmpty() && isDocumentModified() && !promptSaveIfModified())
         return false;
 
-    QFileInfo info(path);
-    if (info.size() > kMaxEditableBytes) {
-        ttc::warning(this, tr("Edit"),
-                              tr("%1 is too large to edit (over 50 MB).").arg(info.fileName()));
-        return false;
-    }
-
-    // Read as bytes, not through a QTextStream: the stream would decode with a
-    // codec of its own choosing and throw the original away, leaving nothing to
-    // re-decode when the user picks a different encoding.
+    // Files beyond the preview-sized window keep just a safe prefix. The
+    // few extra bytes let text safePrefix end on a complete encoded character.
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
         return false;
-    m_raw = file.readAll();
-    file.close();
+    const qint64 fileSize = file.size();
+    m_partiallyLoaded = fileSize > kLazyLoadBytes;
+    m_raw = m_partiallyLoaded ? file.read(kLazyLoadBytes + kTextReadLookAheadBytes)
+                              : file.readAll();
+    m_loadedBytes = m_raw.size();
 
     resetAutoSaveState();
     m_path = path;
@@ -351,11 +355,9 @@ bool TextEditor::loadFile(const QString &path, const QString &encodingIdentity) 
     // that is not text must not be decoded into a buffer, because saving it
     // would re-encode the decoder's guesses and write a different file back.
     m_hexMode = fc::shouldEditAsHex(m_raw.left(fc::sniffSampleBytes()), path);
+    file.close();
+
     if (m_hexMode) {
-        if (!HexEditor::fitsInEditor(m_raw.size())) {
-            ttc::warning(this, tr("Edit"), HexEditor::oversizeMessage(m_raw.size()));
-            return false;
-        }
         if (!m_hex) {
             m_hex = new HexEditor(this);
             addView(m_hex);
@@ -378,13 +380,22 @@ bool TextEditor::loadFile(const QString &path, const QString &encodingIdentity) 
         QSignalBlocker hexBlocker(m_encodingCombo);
         m_encodingCombo->setItemText(kAutoEncodingIndex, tr("Binary (hex)"));
         m_encodingCombo->setCurrentIndex(kAutoEncodingIndex);
+        updatePartialIndicator();
         updateTitle();
         updateModifiedIndicator();
         return true;
     }
+    if (m_partiallyLoaded) {
+        m_detected = TextEncodingDetector::detect(m_raw,
+                                                  TextEncodingDetector::InputEnd::MayBeTruncated);
+        m_raw = TextEncodingDetector::safePrefix(m_raw, static_cast<int>(kLazyLoadBytes),
+                                                 m_detected);
+        m_loadedBytes = m_raw.size();
+    } else {
+        m_detected = TextEncodingDetector::detect(m_raw);
+    }
     m_encodingCombo->setEnabled(true);
     setCurrentView(0);
-    m_detected = TextEncodingDetector::detect(m_raw);
 
     const int remembered = m_settings
                                ? m_settings->rememberedTextEncodingIndex(m_encodingIdentity)
@@ -397,6 +408,34 @@ bool TextEditor::loadFile(const QString &path, const QString &encodingIdentity) 
     applyEncodingToBuffer();
     updateTitle();
     return true;
+}
+
+void TextEditor::updatePartialIndicator() {
+    if (m_partialLabel)
+        m_partialLabel->setText(m_partiallyLoaded ? tr("Partially loaded") : QString());
+    if (m_loadRemainderAction)
+        m_loadRemainderAction->setEnabled(m_partiallyLoaded && !m_hexMode);
+}
+
+void TextEditor::loadRemainder() {
+    if (!m_partiallyLoaded || m_path.isEmpty())
+        return;
+    // Keep a pending prefix edit before replacing the visible document with
+    // the complete file. writePartialBuffer streams the old tail unchanged.
+    if (isDocumentModified() && !save())
+        return;
+
+    QFile file(m_path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        showSaveFailure();
+        return;
+    }
+    m_raw = file.readAll();
+    file.close();
+    m_loadedBytes = m_raw.size();
+    m_partiallyLoaded = false;
+    m_detected = TextEncodingDetector::detect(m_raw);
+    applyEncodingToBuffer();
 }
 
 void TextEditor::applyEncodingToBuffer() {
@@ -431,6 +470,7 @@ void TextEditor::applyEncodingToBuffer() {
     m_installingContent = false;
     resetAutoSaveState();
     m_appliedEncodingIndex = index;
+    updatePartialIndicator();
     updateTitle();
     updateModifiedIndicator();
 }
@@ -474,6 +514,8 @@ void TextEditor::onEncodingSelected(int index) {
     if (file.open(QIODevice::ReadOnly)) {
         m_raw = file.readAll();
         file.close();
+        m_loadedBytes = m_raw.size();
+        m_partiallyLoaded = false;
         m_detected = TextEncodingDetector::detect(m_raw);
     }
 
@@ -512,6 +554,43 @@ QByteArray TextEditor::encodeBuffer() const {
     return codec ? codec->fromUnicode(text) : text.toUtf8();
 }
 
+bool TextEditor::writePartialBuffer(const QByteArray &prefix) {
+    // QSaveFile keeps the original file intact until its prefix and untouched
+    // tail have both been copied. Direct truncate-and-write would destroy the
+    // tail before it could be appended.
+    QFile source(m_path);
+    if (!source.open(QIODevice::ReadOnly) || source.size() < m_loadedBytes ||
+        !source.seek(m_loadedBytes))
+        return false;
+
+    QSaveFile destination(m_path);
+    if (!destination.open(QIODevice::WriteOnly) ||
+        destination.write(prefix) != prefix.size())
+        return false;
+
+    qint64 tailBytes = 0;
+    while (!source.atEnd()) {
+        const QByteArray chunk = source.read(kTailCopyBytes);
+        if (chunk.isEmpty()) {
+            source.close();
+            return false;
+        }
+        if (destination.write(chunk) != chunk.size()) {
+            source.close();
+            return false;
+        }
+        tailBytes += chunk.size();
+    }
+    source.close(); // Windows cannot replace an open source file.
+    if (!destination.commit())
+        return false;
+
+    m_raw = prefix;
+    m_loadedBytes = prefix.size();
+    m_partiallyLoaded = tailBytes > 0;
+    return true;
+}
+
 bool TextEditor::writeCurrentBuffer() {
     if (m_path.isEmpty())
         return false;
@@ -520,28 +599,39 @@ bool TextEditor::writeCurrentBuffer() {
     // a text buffer that was never decoded.
     const QByteArray bytes = m_hexMode ? m_hex->contents() : encodeBuffer();
 
-    // Keep QFile here: a network edit reaches a writable GVfs/FUSE path, where
-    // the temp-file rename used by QSaveFile is not guaranteed to have the same
-    // semantics as the existing direct write.
-    QFile file(m_path);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
-        return false;
-    const qint64 written = file.write(bytes);
-    const bool flushed = file.flush();
-    file.close();
-    if (written != bytes.size() || !flushed)
-        return false;
+    if (m_partiallyLoaded) {
+        if (!writePartialBuffer(bytes))
+            return false;
+    } else {
+        // Keep QFile here for fully materialised files: a network edit reaches
+        // a writable GVfs/FUSE path, where QSaveFile's rename is not guaranteed
+        // to have the same semantics as the existing direct write.
+        QFile file(m_path);
+        if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            return false;
+        const qint64 written = file.write(bytes);
+        const bool flushed = file.flush();
+        file.close();
+        if (written != bytes.size() || !flushed)
+            return false;
+
+        m_raw = bytes;
+        m_loadedBytes = m_raw.size();
+        m_partiallyLoaded = false;
+    }
 
     // The bytes on disk are now these, so a later encoding change re-decodes
     // the saved file and not the one that was opened.
-    m_raw = bytes;
     if (m_hexMode) {
         m_hex->setModified(false);
     } else {
-        m_detected = TextEncodingDetector::detect(m_raw);
+        m_detected = TextEncodingDetector::detect(
+            m_raw, m_partiallyLoaded ? TextEncodingDetector::InputEnd::MayBeTruncated
+                                     : TextEncodingDetector::InputEnd::Complete);
         m_editor->document()->setModified(false);
     }
     resetAutoSaveState();
+    updatePartialIndicator();
     updateTitle();
     updateModifiedIndicator();
     return true;
