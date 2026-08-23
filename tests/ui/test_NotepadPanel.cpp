@@ -1,8 +1,10 @@
 #include <gtest/gtest.h>
 
 #include <QApplication>
+#include <QBuffer>
 #include <QCheckBox>
 #include <QClipboard>
+#include <QImage>
 #include <QLabel>
 #include <QMimeData>
 #include <QPlainTextEdit>
@@ -29,6 +31,23 @@ TEST(CloudClipboardControllerTest, RejectsFileUrlsAndOversizedText) {
     QString accepted;
     EXPECT_TRUE(CloudClipboardController::acceptsText(&text, &accepted));
     EXPECT_EQ(accepted, QStringLiteral("safe text"));
+}
+
+TEST(CloudClipboardControllerTest, AcceptsBrowserImageWithTextFallback) {
+    QImage source(32, 24, QImage::Format_ARGB32);
+    source.fill(Qt::red);
+    QByteArray png;
+    QBuffer buffer(&png);
+    ASSERT_TRUE(buffer.open(QIODevice::WriteOnly));
+    ASSERT_TRUE(source.save(&buffer, "PNG"));
+
+    QMimeData mime;
+    mime.setData(QStringLiteral("image/png"), png);
+    mime.setText(QStringLiteral("https://example.com/image.png"));
+    mime.setHtml(QStringLiteral("<img src=\"https://example.com/image.png\">"));
+    QImage accepted;
+    EXPECT_TRUE(CloudClipboardController::acceptsImage(&mime, &accepted));
+    EXPECT_EQ(accepted.size(), source.size());
 }
 
 TEST(CloudClipboardPanelTest, StartsSignedOutWithAutomaticSyncOff) {
@@ -61,7 +80,7 @@ TEST(CloudClipboardPanelTest, PreservesAnchoredPopupGeometryAndEditorHeight) {
     panel.popUpAbove(anchor, appContent);
     QCoreApplication::processEvents();
 
-    EXPECT_LE(qAbs(panel.geometry().bottom() - anchor.top()), 2);
+    EXPECT_EQ(panel.geometry().bottom() + 1, anchor.top());
     EXPECT_GE(panel.geometry().top(), appContent.top());
     auto *editor = panel.findChild<QPlainTextEdit *>(QStringLiteral("CloudClipboardEditor"));
     ASSERT_NE(editor, nullptr);

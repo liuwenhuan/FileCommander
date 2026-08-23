@@ -155,28 +155,43 @@ void CloudClipboardController::sendText(const QString &text) {
     m_client->publishClipboardText(text);
 }
 
-void CloudClipboardController::sendCurrentClipboard() {
-    if (!m_client || !m_client->isLoggedIn() || !m_clipboard)
-        return;
-    const QMimeData *mime = m_clipboard->mimeData();
-    QString text;
-    if (acceptsText(mime, &text)) {
-        m_client->publishClipboardText(text);
-        return;
-    }
-    QImage image;
-    if (!acceptsImage(mime, &image))
-        return;
+bool CloudClipboardController::publishImage(const QImage &image) {
+    if (!m_client || !m_client->isLoggedIn())
+        return false;
     const QByteArray original = encodePng(image);
     const QByteArray preview = thumbnail(image);
     if (original.isEmpty() || preview.isEmpty())
-        return;
+        return false;
     const QString hash = QString::fromLatin1(
         QCryptographicHash::hash(original, QCryptographicHash::Sha256).toHex());
     m_pendingOriginals.insert(hash, {original, QStringLiteral("image/png")});
     m_client->publishClipboardImage(preview, QStringLiteral("image/jpeg"),
                                     QStringLiteral("image/png"), original.size(),
                                     image.width(), image.height(), hash);
+    return true;
+}
+
+bool CloudClipboardController::sendImageFromMimeData(const QMimeData *mime) {
+    QImage image;
+    if (!acceptsImage(mime, &image))
+        return false;
+    const QByteArray imageDigest = digest(encodePng(image), 'i');
+    if (imageDigest == m_pendingDigest) {
+        m_debounce->stop();
+        m_pendingDigest.clear();
+    }
+    return publishImage(image);
+}
+
+void CloudClipboardController::sendCurrentClipboard() {
+    if (!m_client || !m_client->isLoggedIn() || !m_clipboard)
+        return;
+    const QMimeData *mime = m_clipboard->mimeData();
+    if (sendImageFromMimeData(mime))
+        return;
+    QString text;
+    if (acceptsText(mime, &text))
+        m_client->publishClipboardText(text);
 }
 
 void CloudClipboardController::deleteItem(const QString &itemId) {
@@ -314,9 +329,32 @@ bool CloudClipboardController::acceptsText(const QMimeData *mime, QString *text)
 }
 
 bool CloudClipboardController::acceptsImage(const QMimeData *mime, QImage *image) {
-    if (!mime || isPrivateOrFileMime(mime) || !mime->hasImage())
+    if (!mime)
         return false;
-    const QImage candidate = qvariant_cast<QImage>(mime->imageData());
+    for (const QString &format : mime->formats()) {
+        const QString lower = format.toLower();
+        if (lower.contains(QLatin1String("password")) ||
+            lower.contains(QLatin1String("secret")) ||
+            lower.contains(QLatin1String("private")) ||
+            lower.contains(QLatin1String("gnome-copied")) ||
+            lower.contains(QLatin1String("kde-cutselection")) ||
+            lower.startsWith(QLatin1String("application/x-filecommander")))
+            return false;
+    }
+    for (const QUrl &url : mime->urls())
+        if (url.isLocalFile())
+            return false;
+
+    QImage candidate = qvariant_cast<QImage>(mime->imageData());
+    if (candidate.isNull()) {
+        for (const QString &format : mime->formats()) {
+            if (!format.startsWith(QLatin1String("image/"), Qt::CaseInsensitive))
+                continue;
+            candidate = QImage::fromData(mime->data(format));
+            if (!candidate.isNull())
+                break;
+        }
+    }
     if (candidate.isNull() || qint64(candidate.width()) * candidate.height() > kMaximumPixels)
         return false;
     const QByteArray encoded = encodePng(candidate);
@@ -361,12 +399,12 @@ QByteArray CloudClipboardController::currentClipboardDigest() const {
     if (!m_clipboard)
         return {};
     const QMimeData *mime = m_clipboard->mimeData();
-    QString text;
-    if (acceptsText(mime, &text))
-        return digest(text.toUtf8(), 't');
     QImage image;
     if (acceptsImage(mime, &image))
         return digest(encodePng(image), 'i');
+    QString text;
+    if (acceptsText(mime, &text))
+        return digest(text.toUtf8(), 't');
     return {};
 }
 
@@ -383,26 +421,16 @@ void CloudClipboardController::publishPendingClipboard() {
     if (!m_client || !m_client->isLoggedIn() || !autoUpload() || m_pendingDigest.isEmpty())
         return;
     const QMimeData *mime = m_clipboard ? m_clipboard->mimeData() : nullptr;
-    QString text;
-    if (acceptsText(mime, &text) && digest(text.toUtf8(), 't') == m_pendingDigest) {
-        m_client->publishClipboardText(text);
+    QImage image;
+    if (acceptsImage(mime, &image)) {
+        const QByteArray original = encodePng(image);
+        if (digest(original, 'i') == m_pendingDigest)
+            publishImage(image);
         return;
     }
-    QImage image;
-    if (!acceptsImage(mime, &image))
-        return;
-    const QByteArray original = encodePng(image);
-    if (digest(original, 'i') != m_pendingDigest)
-        return;
-    const QByteArray preview = thumbnail(image);
-    if (preview.isEmpty())
-        return;
-    const QString hash = QString::fromLatin1(
-        QCryptographicHash::hash(original, QCryptographicHash::Sha256).toHex());
-    m_pendingOriginals.insert(hash, {original, QStringLiteral("image/png")});
-    m_client->publishClipboardImage(preview, QStringLiteral("image/jpeg"),
-                                    QStringLiteral("image/png"), original.size(),
-                                    image.width(), image.height(), hash);
+    QString text;
+    if (acceptsText(mime, &text) && digest(text.toUtf8(), 't') == m_pendingDigest)
+        m_client->publishClipboardText(text);
 }
 
 void CloudClipboardController::acceptUpdate(const CloudClipboardUpdate &update) {

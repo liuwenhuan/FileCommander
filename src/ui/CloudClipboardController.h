@@ -36,6 +36,7 @@ public:
     void refresh();
     void sendText(const QString &text);
     void sendCurrentClipboard();
+    bool sendImageFromMimeData(const QMimeData *mime);
     void deleteItem(const QString &itemId);
     void clear();
     void requestThumbnail(const QString &itemId);
@@ -70,6 +71,7 @@ private:
     static QByteArray encodePng(const QImage &image);
     static QByteArray thumbnail(const QImage &image);
     static bool isPrivateOrFileMime(const QMimeData *mime);
+    bool publishImage(const QImage &image);
     void setState(State state, const QString &error = QString());
     void acceptUpdate(const CloudClipboardUpdate &update);
     void acceptItem(const CloudClipboardItem &item);

@@ -12,6 +12,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMessageBox>
+#include <QMimeData>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QProgressBar>
@@ -27,6 +28,26 @@ namespace {
 constexpr int kPanelWidth = 460;
 constexpr int kEditorPreferredHeight = 150;
 constexpr int kEditorMinimumHeight = 100;
+
+class CloudClipboardEditor final : public QPlainTextEdit {
+public:
+    using QPlainTextEdit::QPlainTextEdit;
+    void setController(CloudClipboardController *controller) { m_controller = controller; }
+
+protected:
+    bool canInsertFromMimeData(const QMimeData *source) const override {
+        return CloudClipboardController::acceptsImage(source) ||
+               QPlainTextEdit::canInsertFromMimeData(source);
+    }
+    void insertFromMimeData(const QMimeData *source) override {
+        if (m_controller && m_controller->sendImageFromMimeData(source))
+            return;
+        QPlainTextEdit::insertFromMimeData(source);
+    }
+
+private:
+    CloudClipboardController *m_controller = nullptr;
+};
 
 QString stateText(CloudClipboardController::State state, const QString &error) {
     switch (state) {
@@ -103,7 +124,7 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
     m_progress->setRange(0, 100);
     m_progress->setVisible(false);
 
-    m_editor = new QPlainTextEdit;
+    m_editor = new CloudClipboardEditor;
     m_editor->setObjectName(QStringLiteral("CloudClipboardEditor"));
     m_editor->setFrameShape(QFrame::NoFrame);
     m_editor->setMinimumHeight(kEditorMinimumHeight);
@@ -158,6 +179,7 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
 
     m_controller = existingController ? existingController
                                       : new CloudClipboardController(m_settings, client, agent, this);
+    static_cast<CloudClipboardEditor *>(m_editor)->setController(m_controller);
     upload->setChecked(m_controller->autoUpload());
     receive->setChecked(m_controller->autoReceive());
     receive->setEnabled(upload->isChecked());
@@ -333,7 +355,7 @@ void NotepadPanel::applyDynamicSize() {
     const int listHeight = qMax(28, splitHeight - editor);
     m_splitter->setSizes({listHeight, qMax(kEditorMinimumHeight, splitHeight - listHeight)});
     int x = m_appContentRect.right() - width() + 1;
-    int y = m_anchorRect.top() - height() + 1;
+    int y = m_anchorRect.top() - height() - 2;
     if (QScreen *screen = QGuiApplication::screenAt(m_anchorRect.center())) {
         const QRect available = screen->availableGeometry();
         x = qBound(available.left(), x, available.right() - width() + 1);
