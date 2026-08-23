@@ -55,7 +55,7 @@ private:
 QString stateText(CloudClipboardController::State state, const QString &error) {
     switch (state) {
     case CloudClipboardController::State::SignedOut: return QObject::tr("Sign in to use Cloud Clipboard.");
-    case CloudClipboardController::State::Loading: return QObject::tr("Loading Cloud Clipboard...");
+    case CloudClipboardController::State::Loading: return QString();
     case CloudClipboardController::State::Empty: return QObject::tr("Your Cloud Clipboard is empty.");
     case CloudClipboardController::State::Error: return error;
     case CloudClipboardController::State::Ready: return QString();
@@ -265,6 +265,10 @@ QString NotepadPanel::itemLabel(const CloudClipboardItem &item) const {
 }
 
 void NotepadPanel::rebuild() {
+    const bool loading = m_controller->state() == CloudClipboardController::State::Loading;
+    m_search->setEnabled(!loading);
+    m_search->setPlaceholderText(loading ? tr("Loading Cloud Clipboard...")
+                                         : tr("Search Cloud Clipboard..."));
     const QString query = m_search->text().trimmed();
     const QString status = stateText(m_controller->state(), m_controller->error());
     m_status->setText(status);
@@ -352,6 +356,16 @@ void NotepadPanel::downloadSelected() {
 }
 
 void NotepadPanel::send() {
+    if (m_contentStack->currentWidget() == m_imagePreview && m_controller->hasStagedImage()) {
+        if (m_controller->sendStagedImage()) {
+            m_imagePreview->setPixmap(QPixmap());
+            m_imagePreview->setText(tr("Paste or select an image to preview it here."));
+            m_contentStack->setCurrentWidget(m_editor);
+            m_editor->clear();
+            m_editor->setFocus();
+        }
+        return;
+    }
     const QString text = m_editor->toPlainText();
     if (text.isEmpty())
         m_controller->sendCurrentClipboard();

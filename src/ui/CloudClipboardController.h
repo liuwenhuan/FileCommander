@@ -2,6 +2,7 @@
 
 #include <QByteArray>
 #include <QHash>
+#include <QImage>
 #include <QObject>
 #include <QString>
 #include <QVector>
@@ -39,6 +40,8 @@ public:
     void sendText(const QString &text);
     void sendCurrentClipboard();
     bool sendImageFromMimeData(const QMimeData *mime);
+    bool sendStagedImage();
+    bool hasStagedImage() const { return !m_stagedImage.isNull(); }
     void deleteItem(const QString &itemId);
     void clear();
     void requestThumbnail(const QString &itemId);
@@ -94,6 +97,7 @@ private:
     QByteArray m_refreshDigest;
     QByteArray m_pendingDigest;
     QHash<QString, QPair<QByteArray, QString>> m_pendingOriginals; // sha256 -> bytes,mime
+    QImage m_stagedImage;
     QString m_pendingDownloadId;
     QString m_pendingDeleteId;
     QMetaObject::Connection m_agentConnection;

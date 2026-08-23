@@ -92,6 +92,7 @@ CloudClipboardController::CloudClipboardController(Settings &settings, AccountCl
     connect(m_client, &AccountClient::loggedOut, this, [this] {
         m_items.clear();
         m_pendingOriginals.clear();
+        m_stagedImage = QImage();
         m_pendingDigest.clear();
         setState(State::SignedOut);
     });
@@ -196,12 +197,21 @@ bool CloudClipboardController::sendImageFromMimeData(const QMimeData *mime) {
     QImage image;
     if (!acceptsImage(mime, &image))
         return false;
+    m_stagedImage = image;
     emit localImagePreview(image);
-    const QByteArray imageDigest = digest(encodePng(image), 'i');
+    return true;
+}
+
+bool CloudClipboardController::sendStagedImage() {
+    if (m_stagedImage.isNull())
+        return false;
+    const QByteArray imageDigest = digest(encodePng(m_stagedImage), 'i');
     if (imageDigest == m_pendingDigest) {
         m_debounce->stop();
         m_pendingDigest.clear();
     }
+    const QImage image = m_stagedImage;
+    m_stagedImage = QImage();
     return publishImage(image);
 }
 
@@ -209,8 +219,11 @@ void CloudClipboardController::sendCurrentClipboard() {
     if (!m_client || !m_client->isLoggedIn() || !m_clipboard)
         return;
     const QMimeData *mime = m_clipboard->mimeData();
-    if (sendImageFromMimeData(mime))
+    QImage image;
+    if (acceptsImage(mime, &image)) {
+        publishImage(image);
         return;
+    }
     QString text;
     if (acceptsText(mime, &text))
         m_client->publishClipboardText(text);
@@ -222,7 +235,11 @@ void CloudClipboardController::deleteItem(const QString &itemId) {
     for (int i = m_items.size() - 1; i >= 0; --i)
         if (m_items.at(i).id == itemId)
             m_items.removeAt(i);
-    setState(m_items.isEmpty() ? State::Empty : State::Ready);
+    const State nextState = m_items.isEmpty() ? State::Empty : State::Ready;
+    if (m_state == nextState)
+        emit changed();
+    else
+        setState(nextState);
     m_pendingDeleteId = itemId;
     m_client->deleteClipboardItem(itemId);
 }
@@ -452,8 +469,10 @@ void CloudClipboardController::publishPendingClipboard() {
     QImage image;
     if (acceptsImage(mime, &image)) {
         const QByteArray original = encodePng(image);
-        if (digest(original, 'i') == m_pendingDigest)
+        if (digest(original, 'i') == m_pendingDigest) {
+            m_stagedImage = QImage();
             publishImage(image);
+        }
         return;
     }
     QString text;
@@ -471,7 +490,8 @@ void CloudClipboardController::acceptUpdate(const CloudClipboardUpdate &update) 
         }
     }
     for (const CloudClipboardItem &item : update.items)
-        acceptItem(item);
+        if (item.id != m_pendingDeleteId)
+            acceptItem(item);
     if (m_items.isEmpty())
         setState(State::Empty);
     else {
