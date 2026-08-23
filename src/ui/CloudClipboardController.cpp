@@ -175,6 +175,7 @@ bool CloudClipboardController::sendImageFromMimeData(const QMimeData *mime) {
     QImage image;
     if (!acceptsImage(mime, &image))
         return false;
+    emit localImagePreview(image);
     const QByteArray imageDigest = digest(encodePng(image), 'i');
     if (imageDigest == m_pendingDigest) {
         m_debounce->stop();

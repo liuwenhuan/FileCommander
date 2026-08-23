@@ -20,6 +20,7 @@ class QPlainTextEdit;
 class QPushButton;
 class QProgressBar;
 class QSplitter;
+class QStackedWidget;
 
 // Compatibility name for the existing "notepad" command. The popup is now an
 // account-backed Cloud Clipboard rather than a local note store.
@@ -47,6 +48,7 @@ private slots:
     void send();
     void onAutoUploadToggled(bool enabled);
     void onAutoReceiveToggled(bool enabled);
+    void updateSelection();
 
 private:
     void initialize(AccountClient *client, DeviceAgent *agent,
@@ -62,6 +64,8 @@ private:
     QListWidget *m_list = nullptr;
     QSplitter *m_splitter = nullptr;
     QPlainTextEdit *m_editor = nullptr;
+    QLabel *m_imagePreview = nullptr;
+    QStackedWidget *m_contentStack = nullptr;
     QLabel *m_status = nullptr;
     QProgressBar *m_progress = nullptr;
     QCheckBox *m_autoUpload = nullptr;

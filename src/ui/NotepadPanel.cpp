@@ -18,6 +18,7 @@
 #include <QProgressBar>
 #include <QScreen>
 #include <QSplitter>
+#include <QStackedWidget>
 #include <QVBoxLayout>
 
 #include "CloudClipboardController.h"
@@ -129,6 +130,15 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
     m_editor->setFrameShape(QFrame::NoFrame);
     m_editor->setMinimumHeight(kEditorMinimumHeight);
     m_editor->setPlaceholderText(tr("Type text to send to your devices..."));
+    m_imagePreview = new QLabel;
+    m_imagePreview->setObjectName(QStringLiteral("CloudClipboardImagePreview"));
+    m_imagePreview->setAlignment(Qt::AlignCenter);
+    m_imagePreview->setMinimumHeight(kEditorMinimumHeight);
+    m_imagePreview->setText(tr("Paste or select an image to preview it here."));
+    m_contentStack = new QStackedWidget;
+    m_contentStack->setObjectName(QStringLiteral("CloudClipboardContentStack"));
+    m_contentStack->addWidget(m_editor);
+    m_contentStack->addWidget(m_imagePreview);
     auto *send = new QPushButton(tr("Send"));
     send->setObjectName(QStringLiteral("CloudClipboardSendButton"));
     auto *upload = new QCheckBox(tr("Auto-upload clipboard"));
@@ -149,7 +159,7 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
     auto *editorLayout = new QVBoxLayout(editorPane);
     editorLayout->setContentsMargins(0, 0, 0, 0);
     editorLayout->setSpacing(4);
-    editorLayout->addWidget(m_editor, 1);
+    editorLayout->addWidget(m_contentStack, 1);
     editorLayout->addLayout(editorTools);
 
     m_splitter = new QSplitter(Qt::Vertical, this);
@@ -184,6 +194,13 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
     receive->setChecked(m_controller->autoReceive());
     receive->setEnabled(upload->isChecked());
     connect(m_controller, &CloudClipboardController::changed, this, &NotepadPanel::rebuild);
+    connect(m_controller, &CloudClipboardController::localImagePreview, this,
+            [this](const QImage &image) {
+                const QPixmap pixmap = QPixmap::fromImage(image).scaled(
+                    420, 220, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                m_imagePreview->setPixmap(pixmap);
+                m_contentStack->setCurrentWidget(m_imagePreview);
+            });
     connect(m_controller, &CloudClipboardController::privacyWarningRequired, this, [this] {
         const auto choice = QMessageBox::warning(this, tr("Cloud Clipboard privacy"),
             tr("Automatic upload sends copied text and images to your signed-in devices. "
@@ -215,6 +232,8 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
                 m_status->setVisible(true);
             });
     connect(m_search, &QLineEdit::textChanged, this, &NotepadPanel::rebuild);
+    connect(m_list, &QListWidget::currentItemChanged, this,
+            [this] { updateSelection(); });
     connect(m_copy, &QPushButton::clicked, this, &NotepadPanel::copySelected);
     connect(m_delete, &QPushButton::clicked, this, &NotepadPanel::deleteSelected);
     connect(clear, &QPushButton::clicked, m_controller, &CloudClipboardController::clear);
@@ -260,10 +279,9 @@ void NotepadPanel::rebuild() {
         if (item.id == selectedId)
             m_list->setCurrentItem(row);
     }
-    const bool has = selected() != nullptr;
-    m_copy->setEnabled(has);
-    m_delete->setEnabled(has);
-    m_download->setEnabled(has && selected()->type == QLatin1String("image"));
+    if (!m_list->currentItem() && m_list->count() > 0)
+        m_list->setCurrentRow(0);
+    updateSelection();
     applyDynamicSize();
 }
 
@@ -277,6 +295,30 @@ const CloudClipboardItem *NotepadPanel::selected() const {
             return &item;
     }
     return nullptr;
+}
+
+void NotepadPanel::updateSelection() {
+    const CloudClipboardItem *item = selected();
+    const bool has = item != nullptr;
+    m_copy->setEnabled(has);
+    m_delete->setEnabled(has);
+    m_download->setEnabled(has && item->type == QLatin1String("image"));
+    if (!item || item->type != QLatin1String("image")) {
+        m_contentStack->setCurrentWidget(m_editor);
+        return;
+    }
+    if (item->thumbnail.isEmpty()) {
+        m_imagePreview->setPixmap(QPixmap());
+        m_imagePreview->setText(tr("Loading image preview..."));
+        m_controller->requestThumbnail(item->id);
+    } else {
+        QPixmap pixmap;
+        pixmap.loadFromData(item->thumbnail);
+        m_imagePreview->setPixmap(pixmap.scaled(420, 220, Qt::KeepAspectRatio,
+                                                Qt::SmoothTransformation));
+        m_imagePreview->setText(QString());
+    }
+    m_contentStack->setCurrentWidget(m_imagePreview);
 }
 
 void NotepadPanel::copySelected() {

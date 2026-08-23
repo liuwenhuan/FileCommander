@@ -58,6 +58,7 @@ signals:
     void changed();
     void privacyWarningRequired();
     void imageSessionReady(const AccountSession &session);
+    void localImagePreview(const QImage &image);
     void imageDownloadProgress(const QString &itemId, qint64 received, qint64 total);
     void imageDownloadFailed(const QString &itemId, const QString &error);
     void imageCopied(const QString &itemId);
