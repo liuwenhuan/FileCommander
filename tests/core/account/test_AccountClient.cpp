@@ -719,6 +719,23 @@ TEST(AccountClient, ClipboardDeliveryAcknowledgementUsesTheDeliveryAckRoute) {
     EXPECT_EQ(server.requestCount(QStringLiteral("/v1/clipboard/deliveries/delivery-1/ack")), 1);
 }
 
+TEST(AccountClient, ClipboardTextSendReportsTypedFailureWhenTokenRefreshFails) {
+    MockHttpServer server;
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    signedIn(&client, server);
+    server.setRoute(QStringLiteral("/v1/clipboard/send"), json(R"({"detail":"expired"})", 401));
+    server.setRoute(QStringLiteral("/v1/auth/refresh"), json(R"({"detail":"refresh refused"})", 500));
+    QSignalSpy failed(&client, &AccountClient::clipboardSendFailed);
+
+    client.sendClipboardText(QStringLiteral("send text after refresh failure"));
+    waitForSignal(failed);
+
+    ASSERT_EQ(failed.count(), 1);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/clipboard/send")), 1);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/auth/refresh")), 1);
+}
+
 TEST(AccountClient, ClipboardImageSendReportsTypedFailureWhenTokenRefreshFails) {
     QTemporaryDir directory;
     ASSERT_TRUE(directory.isValid());

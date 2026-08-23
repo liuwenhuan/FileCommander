@@ -665,7 +665,9 @@ void AccountClient::sendClipboardText(const QString &text) {
     }
     request(Verb::Post, QStringLiteral("/v1/clipboard/send"), text.toUtf8(), true,
             [this](QNetworkReply *reply) { finishClipboardSend(reply); }, true,
-            QByteArrayLiteral("text/plain; charset=utf-8"));
+            QByteArrayLiteral("text/plain; charset=utf-8"), [this] {
+                emit clipboardSendFailed(tr("Session expired, please sign in again."));
+            });
 }
 
 void AccountClient::sendClipboardImageFile(const QString &filePath, const QString &mime,

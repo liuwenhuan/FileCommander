@@ -186,6 +186,38 @@ TEST(CloudClipboardControllerTest, SendsOnlySelectedLocalRecordExplicitly) {
     EXPECT_EQ(finished.count(), 1);
 }
 
+TEST(CloudClipboardControllerTest, TextRefreshFailureReleasesActiveSendForTheNextRecord) {
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    ClipboardHistoryStore store(directory.path());
+    const ClipboardHistoryRecord first = store.addLocalText(QStringLiteral("first refresh failure"));
+    const ClipboardHistoryRecord second = store.addLocalText(QStringLiteral("second after refresh"));
+    ASSERT_FALSE(first.id.isEmpty());
+    ASSERT_FALSE(second.id.isEmpty());
+
+    MockHttpServer server;
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    signIn(client, server);
+    server.setRoute(QStringLiteral("/v1/clipboard/send"), json(R"({"detail":"expired"})", 401));
+    server.setRoute(QStringLiteral("/v1/auth/refresh"), json(R"({"detail":"refresh refused"})", 500));
+    CloudClipboardController controller(store, &client);
+    controller.setDevices({{QStringLiteral("device-1"), QStringLiteral("this device"), {}, true, true},
+                           {QStringLiteral("device-2"), QStringLiteral("other device"), {}, false, false}});
+    QSignalSpy failed(&client, &AccountClient::clipboardSendFailed);
+
+    controller.sendRecord(first.id);
+    FC_TRY_COMPARE_WITH_TIMEOUT(failed.count(), 1, 5000);
+
+    signIn(client, server);
+    server.setRoute(QStringLiteral("/v1/clipboard/send"),
+                    json(R"({"payload_id":"payload-2","recipient_count":1})"));
+    QSignalSpy sent(&client, &AccountClient::clipboardSendFinished);
+    controller.sendRecord(second.id);
+    FC_TRY_COMPARE_WITH_TIMEOUT(sent.count(), 1, 5000);
+    EXPECT_EQ(server.lastRequestBody(), QByteArray("second after refresh"));
+}
+
 TEST(CloudClipboardControllerTest, IncomingTextIsStoredAcknowledgedAndNeverOverwritesClipboard) {
     QTemporaryDir directory;
     ASSERT_TRUE(directory.isValid());
