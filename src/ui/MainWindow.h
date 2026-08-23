@@ -658,7 +658,6 @@ private:
         std::function<std::shared_ptr<FileProvider>(QString *)> connect;
     };
     DeviceLink deviceLink(const AccountSession &session);
-    void downloadCloudClipboardImage(const AccountSession &session);
 
     AccountClient *m_accountClient = nullptr;
     CloudClipboardController *m_cloudClipboard = nullptr;

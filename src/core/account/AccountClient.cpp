@@ -635,13 +635,17 @@ void AccountClient::finishClipboardSend(QNetworkReply *reply) {
     const QByteArray payload = reply->readAll();
     const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
     if (reply->error() != QNetworkReply::NoError || status < 200 || status >= 300) {
-        emit requestFailed(errorText(reply, payload));
+        const QString error = errorText(reply, payload);
+        emit requestFailed(error);
+        emit clipboardSendFailed(error);
         return;
     }
     const QJsonObject result = parseObject(payload);
     const QString payloadId = result.value(QStringLiteral("payload_id")).toString();
     if (payloadId.isEmpty()) {
-        emit requestFailed(errorText(reply, payload));
+        const QString error = errorText(reply, payload);
+        emit requestFailed(error);
+        emit clipboardSendFailed(error);
         return;
     }
     emit clipboardSendFinished(payloadId, result.value(QStringLiteral("recipient_count")).toInt());
@@ -649,7 +653,9 @@ void AccountClient::finishClipboardSend(QNetworkReply *reply) {
 
 void AccountClient::sendClipboardText(const QString &text) {
     if (!isLoggedIn()) {
-        emit requestFailed(tr("Not signed in."));
+        const QString error = tr("Not signed in.");
+        emit requestFailed(error);
+        emit clipboardSendFailed(error);
         return;
     }
     request(Verb::Post, QStringLiteral("/v1/clipboard/send"), text.toUtf8(), true,
@@ -660,7 +666,9 @@ void AccountClient::sendClipboardText(const QString &text) {
 void AccountClient::sendClipboardImageFile(const QString &filePath, const QString &mime,
                                            int width, int height, const QByteArray &sha256) {
     if (!isLoggedIn()) {
-        emit requestFailed(tr("Not signed in."));
+        const QString error = tr("Not signed in.");
+        emit requestFailed(error);
+        emit clipboardSendFailed(error);
         return;
     }
     sendClipboardImageFileRequest(filePath, mime, width, height, sha256, true);
@@ -671,7 +679,9 @@ void AccountClient::sendClipboardImageFileRequest(const QString &filePath, const
                                                   bool retryAfterRefresh) {
     auto *file = new QFile(filePath);
     if (!file->open(QIODevice::ReadOnly)) {
-        emit requestFailed(tr("Could not open the clipboard image."));
+        const QString error = tr("Could not open the clipboard image.");
+        emit requestFailed(error);
+        emit clipboardSendFailed(error);
         delete file;
         return;
     }
@@ -766,7 +776,9 @@ void AccountClient::downloadClipboardDeliveryRequest(const ClipboardDeliveryInfo
     auto state = std::make_shared<ClipboardDownloadState>(destinationPartPath, delivery.size,
                                                           expectedSha256);
     if (!state->output.open(QIODevice::WriteOnly)) {
-        emit requestFailed(tr("Could not create the clipboard download file."));
+        const QString error = tr("Could not create the clipboard download file.");
+        emit requestFailed(error);
+        emit clipboardDeliveryDownloadFailed(delivery.id, error);
         return;
     }
 
@@ -781,13 +793,14 @@ void AccountClient::downloadClipboardDeliveryRequest(const ClipboardDeliveryInfo
     });
     timeout->start(m_timeoutMs);
 
-    const auto fail = [this, state, destinationPartPath](const QString &reason) {
+    const auto fail = [this, state, destinationPartPath, delivery](const QString &reason) {
         if (state->failed)
             return;
         state->failed = true;
         state->output.cancelWriting();
         QFile::remove(destinationPartPath);
         emit requestFailed(reason);
+        emit clipboardDeliveryDownloadFailed(delivery.id, reason);
     };
     const auto checkHeaders = [reply, state, fail]() {
         if (state->headersChecked)
@@ -862,7 +875,9 @@ void AccountClient::downloadClipboardDeliveryRequest(const ClipboardDeliveryInfo
 
 void AccountClient::acknowledgeClipboardDelivery(const QString &deliveryId) {
     if (!isLoggedIn()) {
-        emit requestFailed(tr("Not signed in."));
+        const QString error = tr("Not signed in.");
+        emit requestFailed(error);
+        emit clipboardDeliveryAcknowledgementFailed(deliveryId, error);
         return;
     }
     request(Verb::Post,
@@ -871,7 +886,9 @@ void AccountClient::acknowledgeClipboardDelivery(const QString &deliveryId) {
                 const QByteArray payload = reply->readAll();
                 const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
                 if (reply->error() != QNetworkReply::NoError || status < 200 || status >= 300) {
-                    emit requestFailed(errorText(reply, payload));
+                    const QString error = errorText(reply, payload);
+                    emit requestFailed(error);
+                    emit clipboardDeliveryAcknowledgementFailed(deliveryId, error);
                     return;
                 }
                 emit clipboardDeliveryAcknowledged(deliveryId);

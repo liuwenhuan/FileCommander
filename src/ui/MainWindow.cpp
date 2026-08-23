@@ -4637,8 +4637,6 @@ void MainWindow::ensureAccountClient() {
     m_accountClient = new AccountClient(this);
     if (!m_cloudClipboard) {
         m_cloudClipboard = new CloudClipboardController(m_settings, m_accountClient, nullptr, this);
-        connect(m_cloudClipboard, &CloudClipboardController::imageSessionReady,
-                this, &MainWindow::downloadCloudClipboardImage);
     }
     if (!m_settings.accountUsesOfficialServer() &&
         !m_settings.accountCustomServerUrl().isEmpty()) {
@@ -4973,66 +4971,6 @@ MainWindow::DeviceLink MainWindow::deviceLink(const AccountSession &session) {
 #else
     Q_UNUSED(session);
     return {};
-#endif
-}
-
-void MainWindow::downloadCloudClipboardImage(const AccountSession &session) {
-#if FILECOMMANDER_HAS_NETWORK
-    if (!m_cloudClipboard || session.clipboardItemId.isEmpty())
-        return;
-    const CloudClipboardItem item = m_cloudClipboard->item(session.clipboardItemId);
-    if (item.id.isEmpty()) {
-        m_cloudClipboard->failImageDownload(session.clipboardItemId,
-                                            tr("The cloud image is no longer available."));
-        return;
-    }
-    DeviceLink link = deviceLink(session);
-    using DownloadResult = QPair<QByteArray, QString>;
-    auto *watcher = new QFutureWatcher<DownloadResult>(this);
-    connect(watcher, &QFutureWatcher<DownloadResult>::finished, this,
-            [this, watcher, item] {
-                const DownloadResult result = watcher->result();
-                watcher->deleteLater();
-                if (!result.second.isEmpty())
-                    m_cloudClipboard->failImageDownload(item.id, result.second);
-                else
-                    m_cloudClipboard->completeImageDownload(item.id, result.first);
-            });
-    auto connectFn = link.connect;
-    QPointer<CloudClipboardController> controller(m_cloudClipboard);
-    watcher->setFuture(QtConcurrent::run([connectFn, controller, item] {
-        QString error;
-        std::shared_ptr<FileProvider> provider = connectFn(&error);
-        if (!provider)
-            return DownloadResult({}, error.isEmpty() ? QObject::tr("The source device is offline.") : error);
-        FileHandle *handle = provider->openRead(QStringLiteral("/clipboard/") + item.id);
-        if (!handle)
-            return DownloadResult({}, QObject::tr("The original image is no longer cached on the source device."));
-        QByteArray bytes;
-        bytes.reserve(int(qMin<qint64>(item.size, CloudClipboardImageCache::maximumImageBytes)));
-        QByteArray chunk(64 * 1024, Qt::Uninitialized);
-        bool ok = true;
-        while (bytes.size() <= CloudClipboardImageCache::maximumImageBytes) {
-            const qint64 n = provider->read(handle, chunk.data(), chunk.size());
-            if (n < 0) { ok = false; break; }
-            if (n == 0) break;
-            bytes.append(chunk.constData(), int(n));
-            if (controller) {
-                const qint64 received = bytes.size();
-                QMetaObject::invokeMethod(controller, [controller, id = item.id, received,
-                                                       total = item.size] {
-                    if (controller)
-                        controller->reportImageDownloadProgress(id, received, total);
-                }, Qt::QueuedConnection);
-            }
-        }
-        ok = provider->closeHandleStatus(handle) && ok &&
-             bytes.size() <= CloudClipboardImageCache::maximumImageBytes;
-        return ok ? DownloadResult(bytes, QString())
-                  : DownloadResult({}, QObject::tr("The original image download did not complete."));
-    }));
-#else
-    Q_UNUSED(session);
 #endif
 }
 

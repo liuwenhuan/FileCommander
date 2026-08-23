@@ -238,10 +238,13 @@ signals:
     void clipboardCleared(qint64 revision);
     void clipboardSendProgress(qint64 sent, qint64 total);
     void clipboardSendFinished(QString payloadId, int recipientCount);
+    void clipboardSendFailed(QString error);
     void clipboardDeliveriesReady(QVector<ClipboardDeliveryInfo> deliveries);
     void clipboardDownloadProgress(QString id, qint64 received, qint64 total);
     void clipboardDownloadFinished(QString id, QString partPath);
+    void clipboardDeliveryDownloadFailed(QString id, QString error);
     void clipboardDeliveryAcknowledged(QString id);
+    void clipboardDeliveryAcknowledgementFailed(QString id, QString error);
     void deviceRemoved(const QString &deviceId);
 
     // Every failed request lands here, with a message already fit to show.

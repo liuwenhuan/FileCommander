@@ -5,6 +5,7 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QCryptographicHash>
+#include <QFile>
 #include <QImage>
 #include <QLabel>
 #include <QMimeData>
@@ -40,6 +41,44 @@ void signIn(AccountClient &client, MockHttpServer &server) {
     client.login(QStringLiteral("clipboard@example.com"), QStringLiteral("password"),
                  QStringLiteral("test device"), QString());
     FC_TRY_COMPARE_WITH_TIMEOUT(loggedIn.count(), 1, 5000);
+}
+
+QByteArray pngBytes(QImage *image = nullptr) {
+    QImage generated(7, 5, QImage::Format_ARGB32);
+    generated.fill(Qt::green);
+    QByteArray bytes;
+    QBuffer buffer(&bytes);
+    EXPECT_TRUE(buffer.open(QIODevice::WriteOnly));
+    EXPECT_TRUE(generated.save(&buffer, "PNG"));
+    if (image)
+        *image = generated;
+    return bytes;
+}
+
+QByteArray deliveryListJson(const QString &id, const QString &kind, const QByteArray &content,
+                            const QImage &image = QImage()) {
+    const QByteArray hash = QCryptographicHash::hash(content, QCryptographicHash::Sha256).toHex();
+    QByteArray json = "{\"deliveries\":[{\"id\":\"" + id.toUtf8() + "\",\"payload_id\":\"payload-" +
+                      id.toUtf8() + "\",\"kind\":\"" + kind.toUtf8() + "\",\"mime\":\"" +
+                      (kind == QLatin1String("image") ? QByteArray("image/png") : QByteArray("text/plain")) +
+                      "\",\"size\":" + QByteArray::number(content.size()) +
+                      ",\"sha256\":\"" + hash +
+                      "\",\"source_device_id\":\"device-2\",\"source_device_name\":\"other device\",\"created\":\"2026-08-23T12:00:00Z\"";
+    if (!image.isNull())
+        json += ",\"width\":" + QByteArray::number(image.width()) + ",\"height\":" +
+                QByteArray::number(image.height());
+    return json + "}]}";
+}
+
+void serveDeliveryContent(MockHttpServer &server, const QString &id, const QByteArray &content,
+                          const QByteArray &hash = QByteArray()) {
+    MockHttpServer::Route route;
+    route.contentType = "image/png";
+    route.body = content;
+    route.headers.insert("X-Content-Sha256", hash.isEmpty()
+                                                 ? QCryptographicHash::hash(content, QCryptographicHash::Sha256).toHex()
+                                                 : hash);
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries/") + id + QStringLiteral("/content"), route);
 }
 
 } // namespace
@@ -176,6 +215,233 @@ TEST(CloudClipboardControllerTest, IncomingTextIsStoredAcknowledgedAndNeverOverw
     EXPECT_EQ(record.origin, ClipboardRecordOrigin::Incoming);
     EXPECT_EQ(record.text, QStringLiteral("incoming delivery"));
     EXPECT_EQ(QApplication::clipboard()->text(), QStringLiteral("keep local clipboard"));
+}
+
+TEST(CloudClipboardControllerTest, ExternalIdenticalClipboardChangeIsCapturedAfterSynchronousCopy) {
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    ClipboardHistoryStore store(directory.path());
+    const ClipboardHistoryRecord same = store.addLocalText(QStringLiteral("identical external text"));
+    ASSERT_FALSE(same.id.isEmpty());
+    CloudClipboardController controller(store, nullptr);
+    QSignalSpy changed(&controller, &CloudClipboardController::changed);
+
+    ASSERT_TRUE(controller.copyRecordToClipboard(same.id));
+    QApplication::clipboard()->setText(QStringLiteral("intervening external text"));
+    FC_TRY_COMPARE_WITH_TIMEOUT(controller.items().size(), 2, 1000);
+    changed.clear();
+    QApplication::clipboard()->setText(QStringLiteral("identical external text"));
+    FC_TRY_VERIFY_WITH_TIMEOUT(!changed.isEmpty(), 1000);
+
+    EXPECT_EQ(controller.items().first().id, same.id);
+}
+
+TEST(CloudClipboardControllerTest, ConcurrentRefreshDoesNotRedownloadDeliveryAwaitingAcknowledgement) {
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    ClipboardHistoryStore store(directory.path());
+    const QByteArray content("pending acknowledgement");
+
+    MockHttpServer server;
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries"),
+                    json(deliveryListJson(QStringLiteral("delivery-race"), QStringLiteral("text"), content)));
+    MockHttpServer::Route contentRoute;
+    contentRoute.contentType = "text/plain; charset=utf-8";
+    contentRoute.body = content;
+    contentRoute.headers.insert("X-Content-Sha256", QCryptographicHash::hash(content, QCryptographicHash::Sha256).toHex());
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries/delivery-race/content"), contentRoute);
+    MockHttpServer::Route ack = json({}, 204);
+    ack.delayMs = 300;
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries/delivery-race/ack"), ack);
+
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    CloudClipboardController controller(store, &client);
+    signIn(client, server);
+    FC_TRY_COMPARE_WITH_TIMEOUT(store.records().size(), 1, 5000);
+    controller.refresh();
+    FC_TRY_COMPARE_WITH_TIMEOUT(server.requestCount(QStringLiteral("/v1/clipboard/deliveries")), 2, 5000);
+    QTest::qWait(80);
+
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/clipboard/deliveries/delivery-race/content")), 1);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/clipboard/deliveries/delivery-race/ack")), 1);
+    EXPECT_EQ(store.records().size(), 1);
+}
+
+TEST(CloudClipboardControllerTest, SerializesOverlappingSendsUnderTheFirstRecordIdentity) {
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    ClipboardHistoryStore store(directory.path());
+    const ClipboardHistoryRecord first = store.addLocalText(QStringLiteral("first send"));
+    const ClipboardHistoryRecord second = store.addLocalText(QStringLiteral("second send"));
+    ASSERT_FALSE(first.id.isEmpty());
+    ASSERT_FALSE(second.id.isEmpty());
+
+    MockHttpServer server;
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    signIn(client, server);
+    MockHttpServer::Route pending;
+    pending.silent = true;
+    server.setRoute(QStringLiteral("/v1/clipboard/send"), pending);
+    CloudClipboardController controller(store, &client);
+    controller.setDevices({{QStringLiteral("device-1"), QStringLiteral("this device"), {}, true, true},
+                           {QStringLiteral("device-2"), QStringLiteral("other device"), {}, false, false}});
+    QSignalSpy progress(&controller, &CloudClipboardController::transferProgress);
+
+    controller.sendRecord(first.id);
+    FC_TRY_COMPARE_WITH_TIMEOUT(server.requestCount(QStringLiteral("/v1/clipboard/send")), 1, 5000);
+    controller.sendRecord(second.id);
+    QTest::qWait(30);
+    QMetaObject::invokeMethod(&client, "clipboardSendProgress", Qt::DirectConnection,
+                              Q_ARG(qint64, 4), Q_ARG(qint64, 10));
+
+    ASSERT_EQ(progress.count(), 1);
+    EXPECT_EQ(progress.first().at(0).toString(), first.id);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/clipboard/send")), 1);
+}
+
+TEST(CloudClipboardControllerTest, GenericRequestFailureDoesNotForgetOtherInFlightDelivery) {
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    ClipboardHistoryStore store(directory.path());
+    const QByteArray content("in flight content");
+    const QString id = QStringLiteral("delivery-in-flight");
+
+    MockHttpServer server;
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries"),
+                    json(deliveryListJson(id, QStringLiteral("text"), content)));
+    MockHttpServer::Route contentRoute;
+    contentRoute.contentType = "text/plain; charset=utf-8";
+    contentRoute.body = content;
+    contentRoute.delayMs = 300;
+    contentRoute.headers.insert("X-Content-Sha256", QCryptographicHash::hash(content, QCryptographicHash::Sha256).toHex());
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries/") + id + QStringLiteral("/content"), contentRoute);
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries/") + id + QStringLiteral("/ack"), json({}, 204));
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    CloudClipboardController controller(store, &client);
+    signIn(client, server);
+    FC_TRY_COMPARE_WITH_TIMEOUT(server.requestCount(QStringLiteral("/v1/clipboard/deliveries/") + id + QStringLiteral("/content")), 1, 5000);
+
+    QMetaObject::invokeMethod(&client, "requestFailed", Qt::DirectConnection,
+                              Q_ARG(QString, QStringLiteral("unrelated request failed")));
+    controller.refresh();
+    FC_TRY_COMPARE_WITH_TIMEOUT(server.requestCount(QStringLiteral("/v1/clipboard/deliveries")), 2, 5000);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/clipboard/deliveries/") + id + QStringLiteral("/content")), 1);
+    FC_TRY_COMPARE_WITH_TIMEOUT(server.requestCount(QStringLiteral("/v1/clipboard/deliveries/") + id + QStringLiteral("/ack")), 1, 5000);
+}
+
+TEST(CloudClipboardControllerTest, RemoveAndClearEmitDeselection) {
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    ClipboardHistoryStore store(directory.path());
+    const ClipboardHistoryRecord first = store.addLocalText(QStringLiteral("selected first"));
+    const ClipboardHistoryRecord second = store.addLocalText(QStringLiteral("selected second"));
+    ASSERT_FALSE(first.id.isEmpty());
+    ASSERT_FALSE(second.id.isEmpty());
+    CloudClipboardController controller(store, nullptr);
+    QSignalSpy selected(&controller, &CloudClipboardController::selectionChanged);
+
+    controller.selectRecord(first.id);
+    selected.clear();
+    ASSERT_TRUE(controller.removeRecord(first.id));
+    ASSERT_EQ(selected.count(), 1);
+    EXPECT_TRUE(selected.first().first().toString().isEmpty());
+
+    controller.selectRecord(second.id);
+    selected.clear();
+    controller.clear();
+    ASSERT_EQ(selected.count(), 1);
+    EXPECT_TRUE(selected.first().first().toString().isEmpty());
+}
+
+TEST(CloudClipboardControllerTest, FailedAcknowledgementRetriesWithoutRedownloadingOrDuplicatingHistory) {
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    ClipboardHistoryStore store(directory.path());
+    const QByteArray content("retry acknowledgement");
+    const QString id = QStringLiteral("delivery-ack-retry");
+
+    MockHttpServer server;
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries"),
+                    json(deliveryListJson(id, QStringLiteral("text"), content)));
+    MockHttpServer::Route contentRoute;
+    contentRoute.contentType = "text/plain; charset=utf-8";
+    contentRoute.body = content;
+    contentRoute.headers.insert("X-Content-Sha256", QCryptographicHash::hash(content, QCryptographicHash::Sha256).toHex());
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries/") + id + QStringLiteral("/content"), contentRoute);
+    server.setRouteSequence(QStringLiteral("/v1/clipboard/deliveries/") + id + QStringLiteral("/ack"),
+                            {json(R"({"detail":"temporary failure"})", 500), json({}, 204)});
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    CloudClipboardController controller(store, &client);
+    signIn(client, server);
+    FC_TRY_COMPARE_WITH_TIMEOUT(server.requestCount(QStringLiteral("/v1/clipboard/deliveries/") + id + QStringLiteral("/ack")), 1, 5000);
+    ASSERT_EQ(store.records().size(), 1);
+
+    controller.refresh();
+    FC_TRY_COMPARE_WITH_TIMEOUT(server.requestCount(QStringLiteral("/v1/clipboard/deliveries/") + id + QStringLiteral("/ack")), 2, 5000);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/clipboard/deliveries/") + id + QStringLiteral("/content")), 1);
+    EXPECT_EQ(store.records().size(), 1);
+}
+
+TEST(CloudClipboardControllerTest, IncomingImagePersistsThenAcknowledgesAndCleansStagingFile) {
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    ClipboardHistoryStore store(directory.path());
+    QImage image;
+    const QByteArray content = pngBytes(&image);
+    const QString id = QStringLiteral("delivery-image");
+
+    MockHttpServer server;
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries"),
+                    json(deliveryListJson(id, QStringLiteral("image"), content, image)));
+    serveDeliveryContent(server, id, content);
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries/") + id + QStringLiteral("/ack"), json({}, 204));
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    CloudClipboardController controller(store, &client);
+    QSignalSpy downloaded(&client, &AccountClient::clipboardDownloadFinished);
+    signIn(client, server);
+
+    FC_TRY_COMPARE_WITH_TIMEOUT(server.requestCount(QStringLiteral("/v1/clipboard/deliveries/") + id + QStringLiteral("/ack")), 1, 5000);
+    ASSERT_EQ(downloaded.count(), 1);
+    EXPECT_FALSE(QFile::exists(downloaded.first().at(1).toString()));
+    ASSERT_EQ(store.records().size(), 1);
+    const ClipboardHistoryRecord &record = store.records().first();
+    EXPECT_EQ(record.origin, ClipboardRecordOrigin::Incoming);
+    EXPECT_EQ(record.kind, ClipboardRecordKind::Image);
+    EXPECT_TRUE(QFile::exists(record.imagePath));
+}
+
+TEST(CloudClipboardControllerTest, InvalidIncomingImageIsNotAcknowledgedAndCanRetry) {
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    ClipboardHistoryStore store(directory.path());
+    const QByteArray invalid("not an image");
+    const QString id = QStringLiteral("delivery-invalid-image");
+    QImage declared(1, 1, QImage::Format_ARGB32);
+    declared.fill(Qt::black);
+
+    MockHttpServer server;
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries"),
+                    json(deliveryListJson(id, QStringLiteral("image"), invalid, declared)));
+    serveDeliveryContent(server, id, invalid);
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries/") + id + QStringLiteral("/ack"), json({}, 204));
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    CloudClipboardController controller(store, &client);
+    QSignalSpy downloaded(&client, &AccountClient::clipboardDownloadFinished);
+    signIn(client, server);
+
+    FC_TRY_COMPARE_WITH_TIMEOUT(downloaded.count(), 1, 5000);
+    EXPECT_FALSE(QFile::exists(downloaded.first().at(1).toString()));
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/clipboard/deliveries/") + id + QStringLiteral("/ack")), 0);
+    EXPECT_TRUE(store.records().isEmpty());
+    controller.refresh();
+    FC_TRY_COMPARE_WITH_TIMEOUT(server.requestCount(QStringLiteral("/v1/clipboard/deliveries/") + id + QStringLiteral("/content")), 2, 5000);
+    FC_TRY_COMPARE_WITH_TIMEOUT(downloaded.count(), 2, 5000);
 }
 
 TEST(CloudClipboardPanelTest, StartsSignedOutWithAutomaticSyncOff) {

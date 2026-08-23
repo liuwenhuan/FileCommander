@@ -6,6 +6,7 @@
 #include <QHash>
 #include <QImage>
 #include <QObject>
+#include <QSet>
 #include <QString>
 #include <QVector>
 
@@ -61,12 +62,6 @@ public:
     bool sendStagedImage();
     bool hasStagedImage() const { return !m_stagedImage.isNull(); }
     void deleteItem(const QString &itemId) { removeRecord(itemId); }
-    void requestThumbnail(const QString &) {}
-    void requestOriginal(const CloudClipboardItem &) {}
-    CloudClipboardItem item(const QString &) const { return {}; }
-    void reportImageDownloadProgress(const QString &itemId, qint64 received, qint64 total);
-    void completeImageDownload(const QString &itemId, const QByteArray &original);
-    void failImageDownload(const QString &itemId, const QString &error);
     void setAutoUpload(bool) {}
     void confirmAutoUpload(bool) {}
     void setAutoReceive(bool) {}
@@ -82,7 +77,6 @@ signals:
     void selectionChanged(const QString &recordId);
     void transferStatusChanged(const QString &status);
     void transferProgress(const QString &recordId, qint64 completed, qint64 total);
-    void imageSessionReady(const AccountSession &session); // legacy MainWindow signal
     void localImagePreview(const QImage &image);
     void localImagePublished();
     void imageDownloadProgress(const QString &itemId, qint64 received, qint64 total);
@@ -93,6 +87,12 @@ private slots:
     void onClipboardChanged();
 
 private:
+    enum class DeliveryState { Downloading, Acknowledging, AwaitingAcknowledgement };
+    struct DeliveryEntry {
+        ClipboardDeliveryInfo info;
+        DeliveryState state = DeliveryState::Downloading;
+    };
+
     void initialize(AccountClient *client, DeviceAgent *agent);
     void captureClipboard();
     void addCapturedImage(const QImage &image);
@@ -112,11 +112,13 @@ private:
     std::unique_ptr<QTemporaryDir> m_downloadDirectory;
     QVector<AccountDeviceInfo> m_devices;
     QHash<QString, QString> m_deviceNames;
-    QHash<QString, ClipboardDeliveryInfo> m_pendingDeliveries;
+    QHash<QString, DeliveryEntry> m_deliveries;
+    QSet<QString> m_completedDeliveryIds;
     State m_state = State::SignedOut;
     QString m_error;
     QString m_transferStatus;
     QString m_selectedRecordId;
+    QString m_activeSendRecordId;
     QImage m_stagedImage;
     QByteArray m_ignoredClipboardFingerprint;
     QMetaObject::Connection m_agentConnection;

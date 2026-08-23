@@ -55,20 +55,32 @@ void CloudClipboardController::initialize(AccountClient *client, DeviceAgent *ag
 
     connect(m_client, &AccountClient::loggedIn, this, [this](const AccountInfo &) { refresh(); });
     connect(m_client, &AccountClient::loggedOut, this, [this] {
-        m_pendingDeliveries.clear();
+        m_deliveries.clear();
+        m_completedDeliveryIds.clear();
+        m_activeSendRecordId.clear();
         setState(State::SignedOut);
     });
     connect(m_client, &AccountClient::clipboardSendProgress, this,
             [this](qint64 sent, qint64 total) {
-                emit transferProgress(m_selectedRecordId, sent, total);
+                if (!m_activeSendRecordId.isEmpty())
+                    emit transferProgress(m_activeSendRecordId, sent, total);
             });
     connect(m_client, &AccountClient::clipboardSendFinished, this,
             [this](const QString &, int recipientCount) {
+                if (m_activeSendRecordId.isEmpty())
+                    return;
+                m_activeSendRecordId.clear();
                 if (recipientCount == 0)
                     setTransferStatus(noOtherDevicesMessage());
                 else
                     setTransferStatus(tr("Sent to %1 device(s).").arg(recipientCount));
             });
+    connect(m_client, &AccountClient::clipboardSendFailed, this, [this](const QString &error) {
+        if (m_activeSendRecordId.isEmpty())
+            return;
+        m_activeSendRecordId.clear();
+        setTransferStatus(error);
+    });
     connect(m_client, &AccountClient::clipboardDeliveriesReady, this,
             &CloudClipboardController::receiveDeliveries);
     connect(m_client, &AccountClient::clipboardDownloadProgress, this,
@@ -78,15 +90,27 @@ void CloudClipboardController::initialize(AccountClient *client, DeviceAgent *ag
             });
     connect(m_client, &AccountClient::clipboardDownloadFinished, this,
             &CloudClipboardController::finishDeliveryDownload);
+    connect(m_client, &AccountClient::clipboardDeliveryDownloadFailed, this,
+            [this](const QString &id, const QString &error) {
+                m_deliveries.remove(id);
+                setTransferStatus(error);
+            });
+    connect(m_client, &AccountClient::clipboardDeliveryAcknowledged, this,
+            [this](const QString &id) {
+                if (m_deliveries.remove(id) > 0)
+                    m_completedDeliveryIds.insert(id);
+            });
+    connect(m_client, &AccountClient::clipboardDeliveryAcknowledgementFailed, this,
+            [this](const QString &id, const QString &error) {
+                auto delivery = m_deliveries.find(id);
+                if (delivery == m_deliveries.end())
+                    return;
+                delivery->state = DeliveryState::AwaitingAcknowledgement;
+                setTransferStatus(error);
+            });
     connect(m_client, &AccountClient::requestFailed, this, [this](const QString &error) {
-        if (!m_pendingDeliveries.isEmpty()) {
-            // The server retains unacknowledged deliveries. Forget in-flight IDs so
-            // the next login, agent notification, or manual refresh retries them.
-            m_pendingDeliveries.clear();
-            setTransferStatus(error);
-        } else if (m_state == State::Loading) {
+        if (m_state == State::Loading)
             setState(State::Error, error);
-        }
     });
 
     setAgent(agent);
@@ -219,6 +243,10 @@ void CloudClipboardController::sendRecord(const QString &recordId) {
     const ClipboardHistoryRecord found = record(recordId);
     if (found.id.isEmpty() || found.origin != ClipboardRecordOrigin::Local)
         return;
+    if (!m_activeSendRecordId.isEmpty()) {
+        setTransferStatus(tr("A clipboard delivery is already being sent."));
+        return;
+    }
     selectRecord(recordId);
     if (!m_client || !m_client->isLoggedIn()) {
         setState(State::SignedOut);
@@ -229,6 +257,7 @@ void CloudClipboardController::sendRecord(const QString &recordId) {
         return;
     }
 
+    m_activeSendRecordId = recordId;
     setTransferStatus(tr("Sending..."));
     if (found.kind == ClipboardRecordKind::Text) {
         m_client->sendClipboardText(found.text);
@@ -241,8 +270,10 @@ void CloudClipboardController::sendRecord(const QString &recordId) {
 bool CloudClipboardController::removeRecord(const QString &recordId) {
     if (!m_store->remove(recordId))
         return false;
-    if (m_selectedRecordId == recordId)
+    if (m_selectedRecordId == recordId) {
         m_selectedRecordId.clear();
+        emit selectionChanged(QString());
+    }
     emit changed();
     return true;
 }
@@ -251,7 +282,10 @@ void CloudClipboardController::clear() {
     const QVector<ClipboardHistoryRecord> records = items();
     for (const ClipboardHistoryRecord &known : records)
         m_store->remove(known.id);
-    m_selectedRecordId.clear();
+    if (!m_selectedRecordId.isEmpty()) {
+        m_selectedRecordId.clear();
+        emit selectionChanged(QString());
+    }
     emit changed();
 }
 
@@ -307,25 +341,15 @@ bool CloudClipboardController::sendStagedImage() {
     return true;
 }
 
-void CloudClipboardController::reportImageDownloadProgress(const QString &itemId, qint64 received,
-                                                           qint64 total) {
-    emit imageDownloadProgress(itemId, received, total);
-}
-
-void CloudClipboardController::completeImageDownload(const QString &itemId, const QByteArray &original) {
-    Q_UNUSED(original);
-    // Legacy peer-image sessions are retired. Deliberately do not write QClipboard here.
-    emit imageDownloadFailed(itemId, tr("Clipboard image sessions are no longer supported."));
-}
-
-void CloudClipboardController::failImageDownload(const QString &itemId, const QString &error) {
-    emit imageDownloadFailed(itemId, error);
-}
-
 void CloudClipboardController::onClipboardChanged() {
-    if (m_copyingToClipboard || !m_clipboard)
+    if (!m_clipboard)
         return;
     const QByteArray fingerprint = clipboardFingerprint(m_clipboard->mimeData());
+    if (m_copyingToClipboard) {
+        if (fingerprint == m_ignoredClipboardFingerprint)
+            m_ignoredClipboardFingerprint.clear();
+        return;
+    }
     if (!m_ignoredClipboardFingerprint.isEmpty() && fingerprint == m_ignoredClipboardFingerprint) {
         m_ignoredClipboardFingerprint.clear();
         return;
@@ -366,9 +390,17 @@ void CloudClipboardController::receiveDeliveries(const QVector<ClipboardDelivery
         return;
     }
     for (const ClipboardDeliveryInfo &delivery : deliveries) {
-        if (delivery.id.isEmpty() || m_pendingDeliveries.contains(delivery.id))
+        if (delivery.id.isEmpty() || m_completedDeliveryIds.contains(delivery.id))
             continue;
-        m_pendingDeliveries.insert(delivery.id, delivery);
+        auto known = m_deliveries.find(delivery.id);
+        if (known != m_deliveries.end()) {
+            if (known->state == DeliveryState::AwaitingAcknowledgement) {
+                known->state = DeliveryState::Acknowledging;
+                m_client->acknowledgeClipboardDelivery(delivery.id);
+            }
+            continue;
+        }
+        m_deliveries.insert(delivery.id, {delivery, DeliveryState::Downloading});
         setTransferStatus(tr("Receiving..."));
         const QByteArray safeName = QCryptographicHash::hash(delivery.id.toUtf8(),
                                                              QCryptographicHash::Sha256).toHex();
@@ -379,9 +411,10 @@ void CloudClipboardController::receiveDeliveries(const QVector<ClipboardDelivery
 }
 
 void CloudClipboardController::finishDeliveryDownload(const QString &deliveryId, const QString &partPath) {
-    const ClipboardDeliveryInfo delivery = m_pendingDeliveries.take(deliveryId);
-    if (delivery.id.isEmpty())
+    auto found = m_deliveries.find(deliveryId);
+    if (found == m_deliveries.end() || found->state != DeliveryState::Downloading)
         return;
+    const ClipboardDeliveryInfo delivery = found->info;
 
     ClipboardHistoryRecord stored;
     if (delivery.kind == QLatin1String("text")) {
@@ -401,9 +434,11 @@ void CloudClipboardController::finishDeliveryDownload(const QString &deliveryId,
     QFile::remove(partPath);
 
     if (stored.id.isEmpty()) {
+        m_deliveries.erase(found);
         setTransferStatus(tr("Could not save the clipboard delivery."));
         return;
     }
+    found->state = DeliveryState::Acknowledging;
     emit changed();
     setTransferStatus(tr("Delivery received."));
     if (m_client)
