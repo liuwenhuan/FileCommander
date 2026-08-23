@@ -22,6 +22,7 @@ set(CORE_TEST_SOURCES
     config/test_SessionManager.cpp
     config/test_Settings.cpp
     notepad/test_NotepadStore.cpp
+    account/test_ClipboardHistoryStore.cpp
     sync/test_DirectorySync.cpp
     sync/test_SyncScanner.cpp
     compare/test_TextDiff.cpp

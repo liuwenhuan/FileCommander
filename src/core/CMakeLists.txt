@@ -53,6 +53,8 @@ set(CORE_SOURCES
     media/Id3Reader.cpp
     notepad/NotepadStore.h
     notepad/NotepadStore.cpp
+    account/ClipboardHistoryStore.h
+    account/ClipboardHistoryStore.cpp
     network/NetworkSession.h
     network/NetworkSession.cpp
     update/UpdateChecker.h
