@@ -718,3 +718,81 @@ TEST(AccountClient, ClipboardDeliveryAcknowledgementUsesTheDeliveryAckRoute) {
     EXPECT_EQ(acknowledged.at(0).at(0).toString(), QStringLiteral("delivery-1"));
     EXPECT_EQ(server.requestCount(QStringLiteral("/v1/clipboard/deliveries/delivery-1/ack")), 1);
 }
+
+TEST(AccountClient, ClipboardImageSendReportsTypedFailureWhenTokenRefreshFails) {
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QByteArray image("encoded image");
+    const QString imagePath = directory.filePath(QStringLiteral("image.png"));
+    QFile file(imagePath);
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    ASSERT_EQ(file.write(image), image.size());
+    file.close();
+
+    MockHttpServer server;
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    signedIn(&client, server);
+    server.setRoute(QStringLiteral("/v1/clipboard/send"), json(R"({"detail":"expired"})", 401));
+    server.setRoute(QStringLiteral("/v1/auth/refresh"), json(R"({"detail":"refresh refused"})", 500));
+    QSignalSpy failed(&client, &AccountClient::clipboardSendFailed);
+
+    client.sendClipboardImageFile(imagePath, QStringLiteral("image/png"), 2, 2,
+                                  QCryptographicHash::hash(image, QCryptographicHash::Sha256));
+    waitForSignal(failed);
+
+    ASSERT_EQ(failed.count(), 1);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/clipboard/send")), 1);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/auth/refresh")), 1);
+}
+
+TEST(AccountClient, ClipboardDownloadReportsTypedFailureForInvalidMetadataAndRefreshFailure) {
+    MockHttpServer server;
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    signedIn(&client, server);
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    ClipboardDeliveryInfo invalid;
+    invalid.id = QStringLiteral("invalid-delivery");
+    invalid.size = 1;
+    invalid.sha256 = QStringLiteral("not-a-digest");
+    QSignalSpy failed(&client, &AccountClient::clipboardDeliveryDownloadFailed);
+
+    client.downloadClipboardDelivery(invalid, directory.filePath(QStringLiteral("invalid.part")));
+    ASSERT_EQ(failed.count(), 1);
+    EXPECT_EQ(failed.first().at(0).toString(), invalid.id);
+
+    const QByteArray content("delivery content");
+    ClipboardDeliveryInfo expired;
+    expired.id = QStringLiteral("expired-delivery");
+    expired.kind = QStringLiteral("image");
+    expired.mime = QStringLiteral("image/png");
+    expired.size = content.size();
+    expired.sha256 = QString::fromLatin1(QCryptographicHash::hash(content, QCryptographicHash::Sha256).toHex());
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries/expired-delivery/content"),
+                    json(R"({"detail":"expired"})", 401));
+    server.setRoute(QStringLiteral("/v1/auth/refresh"), json(R"({"detail":"refresh refused"})", 500));
+    client.downloadClipboardDelivery(expired, directory.filePath(QStringLiteral("expired.part")));
+    waitForSignal(failed);
+
+    ASSERT_EQ(failed.count(), 2);
+    EXPECT_EQ(failed.last().at(0).toString(), expired.id);
+}
+
+TEST(AccountClient, ClipboardAcknowledgementReportsTypedFailureWhenTokenRefreshFails) {
+    MockHttpServer server;
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    signedIn(&client, server);
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries/delivery-1/ack"),
+                    json(R"({"detail":"expired"})", 401));
+    server.setRoute(QStringLiteral("/v1/auth/refresh"), json(R"({"detail":"refresh refused"})", 500));
+    QSignalSpy failed(&client, &AccountClient::clipboardDeliveryAcknowledgementFailed);
+
+    client.acknowledgeClipboardDelivery(QStringLiteral("delivery-1"));
+    waitForSignal(failed);
+
+    ASSERT_EQ(failed.count(), 1);
+    EXPECT_EQ(failed.first().at(0).toString(), QStringLiteral("delivery-1"));
+}

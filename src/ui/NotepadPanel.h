@@ -13,7 +13,6 @@ class DeviceAgent;
 class QCloseEvent;
 class QEvent;
 struct ClipboardHistoryRecord;
-class QCheckBox;
 class QLabel;
 class QLineEdit;
 class QListWidget;
@@ -46,10 +45,7 @@ private slots:
     void rebuild();
     void copySelected();
     void deleteSelected();
-    void downloadSelected();
     void send();
-    void onAutoUploadToggled(bool enabled);
-    void onAutoReceiveToggled(bool enabled);
     void updateSelection();
 
 private:
@@ -70,11 +66,8 @@ private:
     QStackedWidget *m_contentStack = nullptr;
     QLabel *m_status = nullptr;
     QProgressBar *m_progress = nullptr;
-    QCheckBox *m_autoUpload = nullptr;
-    QCheckBox *m_autoReceive = nullptr;
     QPushButton *m_copy = nullptr;
     QPushButton *m_delete = nullptr;
-    QPushButton *m_download = nullptr;
     QRect m_anchorRect;
     QRect m_appContentRect;
     QSize m_anchorSize;

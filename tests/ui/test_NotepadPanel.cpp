@@ -8,6 +8,7 @@
 #include <QFile>
 #include <QImage>
 #include <QLabel>
+#include <QListWidget>
 #include <QMimeData>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -444,6 +445,37 @@ TEST(CloudClipboardControllerTest, InvalidIncomingImageIsNotAcknowledgedAndCanRe
     FC_TRY_COMPARE_WITH_TIMEOUT(downloaded.count(), 2, 5000);
 }
 
+TEST(CloudClipboardControllerTest, ImageAcknowledgementRefreshFailureRetriesWithoutRedownloadingHistory) {
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    ClipboardHistoryStore store(directory.path());
+    QImage image;
+    const QByteArray content = pngBytes(&image);
+    const QString id = QStringLiteral("delivery-image-refresh");
+
+    MockHttpServer server;
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries"),
+                    json(deliveryListJson(id, QStringLiteral("image"), content, image)));
+    serveDeliveryContent(server, id, content);
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries/") + id + QStringLiteral("/ack"),
+                    json(R"({"detail":"expired"})", 401));
+    server.setRoute(QStringLiteral("/v1/auth/refresh"), json(R"({"detail":"refresh refused"})", 500));
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    CloudClipboardController controller(store, &client);
+    QSignalSpy ackFailed(&client, &AccountClient::clipboardDeliveryAcknowledgementFailed);
+    signIn(client, server);
+    FC_TRY_COMPARE_WITH_TIMEOUT(ackFailed.count(), 1, 5000);
+    ASSERT_EQ(store.records().size(), 1);
+
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries/") + id + QStringLiteral("/ack"), json({}, 204));
+    signIn(client, server);
+    FC_TRY_COMPARE_WITH_TIMEOUT(server.requestCount(QStringLiteral("/v1/clipboard/deliveries/") + id + QStringLiteral("/ack")), 2, 5000);
+
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/clipboard/deliveries/") + id + QStringLiteral("/content")), 1);
+    EXPECT_EQ(store.records().size(), 1);
+}
+
 TEST(CloudClipboardPanelTest, StartsSignedOutWithAutomaticSyncOff) {
     QTemporaryDir temporaryDir;
     ASSERT_TRUE(temporaryDir.isValid());
@@ -453,14 +485,38 @@ TEST(CloudClipboardPanelTest, StartsSignedOutWithAutomaticSyncOff) {
     auto *status = panel.findChild<QLabel *>(QStringLiteral("CloudClipboardStatus"));
     auto *upload = panel.findChild<QCheckBox *>(QStringLiteral("CloudClipboardAutoUpload"));
     auto *receive = panel.findChild<QCheckBox *>(QStringLiteral("CloudClipboardAutoReceive"));
+    auto *download = panel.findChild<QPushButton *>(QStringLiteral("CloudClipboardDownloadButton"));
     ASSERT_NE(status, nullptr);
-    ASSERT_NE(upload, nullptr);
-    ASSERT_NE(receive, nullptr);
+    EXPECT_EQ(upload, nullptr);
+    EXPECT_EQ(receive, nullptr);
+    EXPECT_EQ(download, nullptr);
     EXPECT_TRUE(status->text().contains(QStringLiteral("Sign in")));
-    EXPECT_FALSE(upload->isChecked());
-    EXPECT_FALSE(receive->isEnabled());
     EXPECT_FALSE(settings.cloudClipboardAutoUpload());
     EXPECT_FALSE(settings.cloudClipboardAutoReceive());
+}
+
+TEST(CloudClipboardPanelTest, ListSelectionUpdatesControllerSelection) {
+    QTemporaryDir temporaryDir;
+    ASSERT_TRUE(temporaryDir.isValid());
+    Settings settings(temporaryDir.filePath(QStringLiteral("settings.ini")));
+    ClipboardHistoryStore store(temporaryDir.path());
+    const ClipboardHistoryRecord first = store.addLocalText(QStringLiteral("panel first"));
+    const ClipboardHistoryRecord second = store.addLocalText(QStringLiteral("panel second"));
+    ASSERT_FALSE(first.id.isEmpty());
+    ASSERT_FALSE(second.id.isEmpty());
+    CloudClipboardController controller(store, nullptr);
+    NotepadPanel panel(settings, &controller);
+    auto *list = panel.findChild<QListWidget *>(QStringLiteral("CloudClipboardList"));
+    ASSERT_NE(list, nullptr);
+    ASSERT_EQ(list->count(), 2);
+
+    list->setCurrentRow(1);
+    QCoreApplication::processEvents();
+    EXPECT_EQ(controller.selectedRecordId(), list->currentItem()->data(Qt::UserRole).toString());
+
+    list->setCurrentItem(nullptr);
+    QCoreApplication::processEvents();
+    EXPECT_TRUE(controller.selectedRecordId().isEmpty());
 }
 
 TEST(CloudClipboardPanelTest, PreservesAnchoredPopupGeometryAndEditorHeight) {

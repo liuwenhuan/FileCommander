@@ -267,7 +267,8 @@ private:
     void request(Verb verb, const QString &path, const QByteArray &body,
                  bool authenticated, std::function<void(QNetworkReply *)> handler,
                  bool retryAfterRefresh = true,
-                 QByteArray contentType = QByteArrayLiteral("application/json"));
+                 QByteArray contentType = QByteArrayLiteral("application/json"),
+                 std::function<void()> refreshFailureHandler = {});
     QNetworkRequest requestFor(const QString &path, bool authenticated) const;
     void refreshAccessToken(std::function<void(bool)> handler);
     void sendClipboardImageFileRequest(const QString &filePath, const QString &mime,

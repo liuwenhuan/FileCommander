@@ -1,6 +1,5 @@
 #include "NotepadPanel.h"
 
-#include <QCheckBox>
 #include <QClipboard>
 #include <QCloseEvent>
 #include <QDateTime>
@@ -12,12 +11,12 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
-#include <QMessageBox>
 #include <QMimeData>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QProgressBar>
 #include <QScreen>
+#include <QSignalBlocker>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QTimer>
@@ -102,9 +101,7 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
     m_delete->setObjectName(QStringLiteral("CloudClipboardDeleteButton"));
     auto *clear = new QPushButton(tr("Clear"), this);
     clear->setObjectName(QStringLiteral("CloudClipboardClearButton"));
-    m_download = new QPushButton(tr("Download Original"), this);
-    m_download->setObjectName(QStringLiteral("CloudClipboardDownloadButton"));
-    for (QPushButton *button : {m_copy, m_delete, clear, m_download})
+    for (QPushButton *button : {m_copy, m_delete, clear})
         button->setFocusPolicy(Qt::NoFocus);
 
     auto *tools = new QHBoxLayout;
@@ -143,19 +140,10 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
     m_contentStack->addWidget(m_imagePreview);
     auto *send = new QPushButton(tr("Send"));
     send->setObjectName(QStringLiteral("CloudClipboardSendButton"));
-    auto *upload = new QCheckBox(tr("Auto-upload clipboard"));
-    upload->setObjectName(QStringLiteral("CloudClipboardAutoUpload"));
-    auto *receive = new QCheckBox(tr("Auto-receive text"));
-    receive->setObjectName(QStringLiteral("CloudClipboardAutoReceive"));
-    m_autoUpload = upload;
-    m_autoReceive = receive;
 
     auto *editorTools = new QHBoxLayout;
     editorTools->setContentsMargins(0, 0, 0, 0);
-    editorTools->addWidget(upload);
-    editorTools->addWidget(receive);
     editorTools->addStretch();
-    editorTools->addWidget(m_download);
     editorTools->addWidget(send);
     auto *editorPane = new QWidget;
     auto *editorLayout = new QVBoxLayout(editorPane);
@@ -192,9 +180,6 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
     m_controller = existingController ? existingController
                                       : new CloudClipboardController(m_settings, client, agent, this);
     static_cast<CloudClipboardEditor *>(m_editor)->setController(m_controller);
-    upload->setChecked(m_controller->autoUpload());
-    receive->setChecked(m_controller->autoReceive());
-    receive->setEnabled(upload->isChecked());
     connect(m_controller, &CloudClipboardController::changed, this, &NotepadPanel::rebuild);
     connect(m_controller, &CloudClipboardController::localImagePreview, this,
             [this](const QImage &image) {
@@ -210,15 +195,6 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
         m_editor->clear();
         if (isVisible())
             m_editor->setFocus();
-    });
-    connect(m_controller, &CloudClipboardController::privacyWarningRequired, this, [this] {
-        const auto choice = QMessageBox::warning(this, tr("Cloud Clipboard privacy"),
-            tr("Automatic upload sends copied text and images to your signed-in devices. "
-               "Private, file and URL clipboard data is excluded. Continue?"),
-            QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
-        m_controller->confirmAutoUpload(choice == QMessageBox::Yes);
-        m_autoUpload->setChecked(m_controller->autoUpload());
-        m_autoReceive->setEnabled(m_autoUpload->isChecked());
     });
     connect(m_controller, &CloudClipboardController::imageDownloadProgress, this,
             [this](const QString &, qint64 received, qint64 total) {
@@ -243,14 +219,14 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
             });
     connect(m_search, &QLineEdit::textChanged, this, &NotepadPanel::rebuild);
     connect(m_list, &QListWidget::currentItemChanged, this,
-            [this] { updateSelection(); });
+            [this](QListWidgetItem *current) {
+                m_controller->selectRecord(current ? current->data(Qt::UserRole).toString() : QString());
+                updateSelection();
+            });
     connect(m_copy, &QPushButton::clicked, this, &NotepadPanel::copySelected);
     connect(m_delete, &QPushButton::clicked, this, &NotepadPanel::deleteSelected);
     connect(clear, &QPushButton::clicked, m_controller, &CloudClipboardController::clear);
-    connect(m_download, &QPushButton::clicked, this, &NotepadPanel::downloadSelected);
     connect(send, &QPushButton::clicked, this, &NotepadPanel::send);
-    connect(upload, &QCheckBox::toggled, this, &NotepadPanel::onAutoUploadToggled);
-    connect(receive, &QCheckBox::toggled, this, &NotepadPanel::onAutoReceiveToggled);
     rebuild();
 }
 
@@ -277,19 +253,23 @@ void NotepadPanel::rebuild() {
     m_status->setVisible(!status.isEmpty());
     const QString selectedId = m_list->currentItem() ?
         m_list->currentItem()->data(Qt::UserRole).toString() : QString();
-    m_list->clear();
-    for (const ClipboardHistoryRecord &item : m_controller->items()) {
-        if (!query.isEmpty() && !itemLabel(item).contains(query, Qt::CaseInsensitive))
-            continue;
-        auto *row = new QListWidgetItem(itemLabel(item), m_list);
-        row->setData(Qt::UserRole, item.id);
-        if (item.kind == ClipboardRecordKind::Image && !item.imagePath.isEmpty())
-            row->setIcon(QIcon(item.imagePath));
-        if (item.id == selectedId)
-            m_list->setCurrentItem(row);
+    {
+        QSignalBlocker block(m_list);
+        m_list->clear();
+        for (const ClipboardHistoryRecord &item : m_controller->items()) {
+            if (!query.isEmpty() && !itemLabel(item).contains(query, Qt::CaseInsensitive))
+                continue;
+            auto *row = new QListWidgetItem(itemLabel(item), m_list);
+            row->setData(Qt::UserRole, item.id);
+            if (item.kind == ClipboardRecordKind::Image && !item.imagePath.isEmpty())
+                row->setIcon(QIcon(item.imagePath));
+            if (item.id == selectedId)
+                m_list->setCurrentItem(row);
+        }
     }
-    if (!m_list->currentItem() && m_list->count() > 0)
-        m_list->setCurrentRow(0);
+    m_controller->selectRecord(m_list->currentItem()
+                                   ? m_list->currentItem()->data(Qt::UserRole).toString()
+                                   : QString());
     updateSelection();
     applyDynamicSize();
 }
@@ -311,7 +291,6 @@ void NotepadPanel::updateSelection() {
     const bool has = item != nullptr;
     m_copy->setEnabled(has);
     m_delete->setEnabled(has);
-    m_download->setEnabled(has && item->kind == ClipboardRecordKind::Image);
     if (!item || item->kind != ClipboardRecordKind::Image) {
         m_contentStack->setCurrentWidget(m_editor);
         return;
@@ -338,11 +317,6 @@ void NotepadPanel::deleteSelected() {
         m_controller->removeRecord(item->id);
 }
 
-void NotepadPanel::downloadSelected() {
-    if (const ClipboardHistoryRecord *item = selected())
-        m_controller->copyRecordToClipboard(item->id);
-}
-
 void NotepadPanel::send() {
     if (m_contentStack->currentWidget() == m_imagePreview && m_controller->hasStagedImage()) {
         if (m_controller->sendStagedImage()) {
@@ -361,19 +335,6 @@ void NotepadPanel::send() {
         m_controller->sendText(text);
         m_editor->clear();
     }
-}
-
-void NotepadPanel::onAutoUploadToggled(bool enabled) {
-    m_controller->setAutoUpload(enabled);
-    m_autoReceive->setEnabled(m_controller->autoUpload());
-    if (!m_controller->autoUpload())
-        m_autoReceive->setChecked(false);
-}
-
-void NotepadPanel::onAutoReceiveToggled(bool enabled) {
-    m_controller->setAutoReceive(enabled);
-    if (enabled != m_controller->autoReceive())
-        m_autoReceive->setChecked(m_controller->autoReceive());
 }
 
 void NotepadPanel::popUpAbove(const QRect &anchorGlobalRect, const QRect &appContentGlobalRect) {

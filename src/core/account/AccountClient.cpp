@@ -177,7 +177,8 @@ QNetworkRequest AccountClient::requestFor(const QString &path, bool authenticate
 
 void AccountClient::request(Verb verb, const QString &path, const QByteArray &body,
                             bool authenticated, std::function<void(QNetworkReply *)> handler,
-                            bool retryAfterRefresh, QByteArray contentType) {
+                            bool retryAfterRefresh, QByteArray contentType,
+                            std::function<void()> refreshFailureHandler) {
     const quint64 generation = m_requestGeneration;
     QNetworkRequest req = requestFor(path, authenticated);
     if (!contentType.isEmpty())
@@ -209,7 +210,7 @@ void AccountClient::request(Verb verb, const QString &path, const QByteArray &bo
 
     connect(reply, &QNetworkReply::finished, this,
             [this, reply, timeout, verb, path, body, authenticated, handler, contentType,
-             retryAfterRefresh, generation] {
+             retryAfterRefresh, refreshFailureHandler, generation] {
                 timeout->stop();
                 timeout->deleteLater();
                 reply->deleteLater();
@@ -223,9 +224,13 @@ void AccountClient::request(Verb verb, const QString &path, const QByteArray &bo
                 // request once. The replay cannot retry again.
                 if (authenticated && status == 401 && retryAfterRefresh &&
                     !m_refreshToken.isEmpty()) {
-                    refreshAccessToken([this, verb, path, body, handler, contentType](bool refreshed) {
+                    refreshAccessToken([this, verb, path, body, handler, contentType,
+                                        refreshFailureHandler](bool refreshed) {
                         if (refreshed)
-                            request(verb, path, body, true, handler, false, contentType);
+                            request(verb, path, body, true, handler, false, contentType,
+                                    refreshFailureHandler);
+                        else if (refreshFailureHandler)
+                            refreshFailureHandler();
                     });
                     return;
                 }
@@ -720,6 +725,8 @@ void AccountClient::sendClipboardImageFileRequest(const QString &filePath, const
                     refreshAccessToken([this, filePath, mime, width, height, sha256, generation](bool refreshed) {
                         if (refreshed && generation == m_requestGeneration)
                             sendClipboardImageFileRequest(filePath, mime, width, height, sha256, false);
+                        else if (generation == m_requestGeneration)
+                            emit clipboardSendFailed(tr("Session expired, please sign in again."));
                     });
                 } else if (generation == m_requestGeneration) {
                     finishClipboardSend(reply);
@@ -756,13 +763,17 @@ void AccountClient::fetchClipboardDeliveries() {
 void AccountClient::downloadClipboardDelivery(const ClipboardDeliveryInfo &delivery,
                                               const QString &destinationPartPath) {
     if (!isLoggedIn()) {
-        emit requestFailed(tr("Not signed in."));
+        const QString error = tr("Not signed in.");
+        emit requestFailed(error);
+        emit clipboardDeliveryDownloadFailed(delivery.id, error);
         return;
     }
     const QByteArray expectedSha256 = delivery.sha256.toLatin1().trimmed().toLower();
     if (delivery.id.isEmpty() || destinationPartPath.isEmpty() || delivery.size < 0 ||
         expectedSha256.size() != 64) {
-        emit requestFailed(tr("Invalid clipboard delivery."));
+        const QString error = tr("Invalid clipboard delivery.");
+        emit requestFailed(error);
+        emit clipboardDeliveryDownloadFailed(delivery.id, error);
         return;
     }
     downloadClipboardDeliveryRequest(delivery, destinationPartPath, true);
@@ -856,6 +867,9 @@ void AccountClient::downloadClipboardDeliveryRequest(const ClipboardDeliveryInfo
                     refreshAccessToken([this, delivery, destinationPartPath, generation](bool refreshed) {
                         if (refreshed && generation == m_requestGeneration)
                             downloadClipboardDeliveryRequest(delivery, destinationPartPath, false);
+                        else if (generation == m_requestGeneration)
+                            emit clipboardDeliveryDownloadFailed(
+                                delivery.id, tr("Session expired, please sign in again."));
                     });
                 } else if (!state->failed) {
                     const QByteArray payload = reply->readAll();
@@ -892,5 +906,8 @@ void AccountClient::acknowledgeClipboardDelivery(const QString &deliveryId) {
                     return;
                 }
                 emit clipboardDeliveryAcknowledged(deliveryId);
+            }, true, QByteArrayLiteral("application/json"), [this, deliveryId] {
+                emit clipboardDeliveryAcknowledgementFailed(
+                    deliveryId, tr("Session expired, please sign in again."));
             });
 }
