@@ -69,17 +69,21 @@ void CloudClipboardController::initialize(AccountClient *client, DeviceAgent *ag
             [this](const QString &, int recipientCount) {
                 if (m_activeSendRecordId.isEmpty())
                     return;
+                const QString recordId = m_activeSendRecordId;
                 m_activeSendRecordId.clear();
                 if (recipientCount == 0)
                     setTransferStatus(noOtherDevicesMessage());
                 else
                     setTransferStatus(tr("Sent to %1 device(s).").arg(recipientCount));
+                emit transferFinished(recordId);
             });
     connect(m_client, &AccountClient::clipboardSendFailed, this, [this](const QString &error) {
         if (m_activeSendRecordId.isEmpty())
             return;
+        const QString recordId = m_activeSendRecordId;
         m_activeSendRecordId.clear();
         setTransferStatus(error);
+        emit transferFinished(recordId);
     });
     connect(m_client, &AccountClient::clipboardDeliveriesReady, this,
             &CloudClipboardController::receiveDeliveries);
@@ -94,6 +98,7 @@ void CloudClipboardController::initialize(AccountClient *client, DeviceAgent *ag
             [this](const QString &id, const QString &error) {
                 m_deliveries.remove(id);
                 setTransferStatus(error);
+                emit transferFinished(id);
             });
     connect(m_client, &AccountClient::clipboardDeliveryAcknowledged, this,
             [this](const QString &id) {
@@ -436,11 +441,13 @@ void CloudClipboardController::finishDeliveryDownload(const QString &deliveryId,
     if (stored.id.isEmpty()) {
         m_deliveries.erase(found);
         setTransferStatus(tr("Could not save the clipboard delivery."));
+        emit transferFinished(deliveryId);
         return;
     }
     found->state = DeliveryState::Acknowledging;
     emit changed();
     setTransferStatus(tr("Delivery received."));
+    emit transferFinished(deliveryId);
     if (m_client)
         m_client->acknowledgeClipboardDelivery(delivery.id);
 }

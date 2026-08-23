@@ -154,9 +154,13 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
     connect(m_controller, &CloudClipboardController::transferStatusChanged, this,
             [this](const QString &status) {
                 m_transferStatus = status;
-                clearTransferProgress();
                 m_status->setText(status);
                 m_status->setVisible(!status.isEmpty());
+            });
+    connect(m_controller, &CloudClipboardController::transferFinished, this,
+            [this](const QString &recordId) {
+                if (recordId == m_activeTransferId)
+                    clearTransferProgress();
             });
     connect(m_controller, &CloudClipboardController::transferProgress, this,
             [this](const QString &recordId, qint64 completed, qint64 total) {

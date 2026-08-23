@@ -22,6 +22,8 @@
 #include <QUuid>
 #include <QUrl>
 
+#include <utility>
+
 #include "MockHttpServer.h"
 #include "TryUntil.h"
 #include "CloudClipboardController.h"
@@ -220,6 +222,62 @@ TEST(CloudClipboardControllerTest, TextRefreshFailureReleasesActiveSendForTheNex
     controller.sendRecord(second.id);
     FC_TRY_COMPARE_WITH_TIMEOUT(sent.count(), 1, 5000);
     EXPECT_EQ(server.lastRequestBody(), QByteArray("second after refresh"));
+}
+
+TEST(CloudClipboardControllerTest, CompletesEveryDeliveryEvenWithRepeatedTerminalStatus) {
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    ClipboardHistoryStore store(directory.path());
+    const QString firstId = QStringLiteral("delivery-first");
+    const QString secondId = QStringLiteral("delivery-second");
+    const QByteArray firstContent("first overlapping delivery");
+    const QByteArray secondContent("second overlapping delivery");
+    const auto delivery = [](const QString &id, const QByteArray &content) {
+        const QByteArray hash = QCryptographicHash::hash(content, QCryptographicHash::Sha256).toHex();
+        return QByteArray("{\"id\":\"") + id.toUtf8() + "\",\"payload_id\":\"payload-" +
+               id.toUtf8() + "\",\"kind\":\"text\",\"mime\":\"text/plain\",\"size\":" +
+               QByteArray::number(content.size()) + ",\"sha256\":\"" + hash +
+               "\",\"source_device_id\":\"device-2\",\"source_device_name\":\"other device\",\"created\":\"2026-08-23T12:00:00Z\"}";
+    };
+
+    MockHttpServer server;
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries"),
+                    json(QByteArray("{\"deliveries\":[") + delivery(firstId, firstContent) + "," +
+                         delivery(secondId, secondContent) + "]}"));
+    for (const auto &entry : {std::pair{firstId, firstContent}, std::pair{secondId, secondContent}}) {
+        MockHttpServer::Route content;
+        content.contentType = "text/plain; charset=utf-8";
+        content.body = entry.second;
+        content.delayMs = 30;
+        content.headers.insert("X-Content-Sha256",
+                               QCryptographicHash::hash(entry.second, QCryptographicHash::Sha256).toHex());
+        server.setRoute(QStringLiteral("/v1/clipboard/deliveries/") + entry.first +
+                        QStringLiteral("/content"), content);
+        server.setRoute(QStringLiteral("/v1/clipboard/deliveries/") + entry.first +
+                        QStringLiteral("/ack"), json({}, 204));
+    }
+
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    CloudClipboardController controller(store, &client);
+    QSignalSpy status(&controller, &CloudClipboardController::transferStatusChanged);
+    QSignalSpy finished(&controller, &CloudClipboardController::transferFinished);
+    signIn(client, server);
+
+    FC_TRY_COMPARE_WITH_TIMEOUT(finished.count(), 2, 5000);
+    EXPECT_EQ(store.records().size(), 2);
+    const QString completedFirst = finished.at(0).at(0).toString();
+    const QString completedSecond = finished.at(1).at(0).toString();
+    EXPECT_NE(completedFirst, completedSecond);
+    EXPECT_TRUE(completedFirst == firstId || completedFirst == secondId);
+    EXPECT_TRUE(completedSecond == firstId || completedSecond == secondId);
+
+    int receivedStatuses = 0;
+    for (const QList<QVariant> &arguments : status) {
+        if (arguments.at(0).toString() == QStringLiteral("Delivery received."))
+            ++receivedStatuses;
+    }
+    EXPECT_EQ(receivedStatuses, 1);
 }
 
 TEST(CloudClipboardControllerTest, IncomingTextIsStoredAcknowledgedAndNeverOverwritesClipboard) {
@@ -694,7 +752,11 @@ TEST(CloudClipboardPanelTest, TransferSignalsUpdateProgressAndStatus) {
 
     ASSERT_TRUE(QMetaObject::invokeMethod(&controller, "transferStatusChanged", Qt::DirectConnection,
                                           Q_ARG(QString, QStringLiteral("Delivery received."))));
+    EXPECT_TRUE(progress->isVisible());
+    ASSERT_TRUE(QMetaObject::invokeMethod(&controller, "transferFinished", Qt::DirectConnection,
+                                          Q_ARG(QString, QStringLiteral("record-1"))));
     EXPECT_FALSE(progress->isVisible());
+    EXPECT_EQ(progress->value(), 0);
     EXPECT_EQ(status->text(), QStringLiteral("Delivery received."));
 
     ASSERT_TRUE(QMetaObject::invokeMethod(&controller, "transferProgress", Qt::DirectConnection,
@@ -705,9 +767,12 @@ TEST(CloudClipboardPanelTest, TransferSignalsUpdateProgressAndStatus) {
     EXPECT_TRUE(status->text().contains(QStringLiteral("50 / 200 bytes")));
 
     ASSERT_TRUE(QMetaObject::invokeMethod(&controller, "transferStatusChanged", Qt::DirectConnection,
-                                          Q_ARG(QString, QStringLiteral("Transfer failed."))));
+                                          Q_ARG(QString, QStringLiteral("Delivery received."))));
+    EXPECT_TRUE(progress->isVisible());
+    ASSERT_TRUE(QMetaObject::invokeMethod(&controller, "transferFinished", Qt::DirectConnection,
+                                          Q_ARG(QString, QStringLiteral("record-2"))));
     EXPECT_FALSE(progress->isVisible());
-    EXPECT_EQ(status->text(), QStringLiteral("Transfer failed."));
+    EXPECT_EQ(progress->value(), 0);
 }
 
 TEST(CloudClipboardPanelTest, PreservesAnchoredPopupGeometryWithPreview) {

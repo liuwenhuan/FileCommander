@@ -77,6 +77,7 @@ signals:
     void selectionChanged(const QString &recordId);
     void transferStatusChanged(const QString &status);
     void transferProgress(const QString &recordId, qint64 completed, qint64 total);
+    void transferFinished(const QString &recordId);
     void localImagePreview(const QImage &image);
     void localImagePublished();
     void imageDownloadProgress(const QString &itemId, qint64 received, qint64 total);
