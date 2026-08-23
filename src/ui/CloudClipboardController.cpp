@@ -59,6 +59,7 @@ CloudClipboardController::CloudClipboardController(Settings &settings, AccountCl
                         CloudClipboardImageCache().store(item.id, it.value().first, it.value().second,
                                                           QDateTime::fromString(item.expires, Qt::ISODate));
                         m_pendingOriginals.erase(it);
+                        emit localImagePublished();
                     }
                 }
                 acceptItem(item);
@@ -76,6 +77,8 @@ CloudClipboardController::CloudClipboardController(Settings &settings, AccountCl
             });
     connect(m_client, &AccountClient::clipboardItemDeleted, this,
             [this](const QString &id, qint64) {
+                if (m_pendingDeleteId == id)
+                    m_pendingDeleteId.clear();
                 for (int i = m_items.size() - 1; i >= 0; --i) {
                     if (m_items.at(i).id == id)
                         m_items.removeAt(i);
@@ -98,6 +101,9 @@ CloudClipboardController::CloudClipboardController(Settings &settings, AccountCl
             const QString id = m_pendingDownloadId;
             m_pendingDownloadId.clear();
             emit imageDownloadFailed(id, error);
+        } else if (!m_pendingDeleteId.isEmpty()) {
+            m_pendingDeleteId.clear();
+            refresh();
         } else if (m_state == State::Loading) {
             setState(State::Error, error);
         }
@@ -129,6 +135,21 @@ void CloudClipboardController::setAgent(DeviceAgent *agent) {
             m_client->fetchClipboard(revision > 0 ? revision - 1 : 0);
         }
     });
+}
+
+void CloudClipboardController::setDevices(const QVector<AccountDeviceInfo> &devices) {
+    m_deviceNames.clear();
+    for (const AccountDeviceInfo &device : devices)
+        m_deviceNames.insert(device.id, device.self ? tr("This device")
+                                                    : (device.name.isEmpty() ? tr("Other device")
+                                                                             : device.name));
+    emit changed();
+}
+
+QString CloudClipboardController::deviceName(const QString &deviceId) const {
+    if (deviceId == (m_client ? m_client->account().deviceId : QString()))
+        return tr("This device");
+    return m_deviceNames.value(deviceId, tr("Other device"));
 }
 
 void CloudClipboardController::setState(State state, const QString &error) {
@@ -196,8 +217,14 @@ void CloudClipboardController::sendCurrentClipboard() {
 }
 
 void CloudClipboardController::deleteItem(const QString &itemId) {
-    if (m_client && !itemId.isEmpty())
-        m_client->deleteClipboardItem(itemId);
+    if (!m_client || itemId.isEmpty())
+        return;
+    for (int i = m_items.size() - 1; i >= 0; --i)
+        if (m_items.at(i).id == itemId)
+            m_items.removeAt(i);
+    setState(m_items.isEmpty() ? State::Empty : State::Ready);
+    m_pendingDeleteId = itemId;
+    m_client->deleteClipboardItem(itemId);
 }
 
 void CloudClipboardController::clear() {

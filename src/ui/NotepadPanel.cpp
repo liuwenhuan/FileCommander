@@ -201,6 +201,14 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
                 m_imagePreview->setPixmap(pixmap);
                 m_contentStack->setCurrentWidget(m_imagePreview);
             });
+    connect(m_controller, &CloudClipboardController::localImagePublished, this, [this] {
+        m_imagePreview->setPixmap(QPixmap());
+        m_imagePreview->setText(tr("Paste or select an image to preview it here."));
+        m_contentStack->setCurrentWidget(m_editor);
+        m_editor->clear();
+        if (isVisible())
+            m_editor->setFocus();
+    });
     connect(m_controller, &CloudClipboardController::privacyWarningRequired, this, [this] {
         const auto choice = QMessageBox::warning(this, tr("Cloud Clipboard privacy"),
             tr("Automatic upload sends copied text and images to your signed-in devices. "
@@ -244,9 +252,9 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
     rebuild();
 }
 
-QString NotepadPanel::itemLabel(const CloudClipboardItem &item) {
-    const QString source = item.sourceDeviceId.isEmpty() ? QObject::tr("Unknown device")
-                                                          : item.sourceDeviceId.left(12);
+QString NotepadPanel::itemLabel(const CloudClipboardItem &item) const {
+    const QString source = m_controller ? m_controller->deviceName(item.sourceDeviceId)
+                                        : tr("Other device");
     const QDateTime when = QDateTime::fromString(item.created, Qt::ISODate).toLocalTime();
     const QString time = when.isValid() ? when.toString(Qt::DefaultLocaleShortDate) : QString();
     if (item.type == QLatin1String("image"))

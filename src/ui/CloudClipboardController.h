@@ -32,6 +32,8 @@ public:
     bool autoUpload() const;
     bool autoReceive() const;
     void setAgent(DeviceAgent *agent);
+    void setDevices(const QVector<AccountDeviceInfo> &devices);
+    QString deviceName(const QString &deviceId) const;
 
     void refresh();
     void sendText(const QString &text);
@@ -59,6 +61,7 @@ signals:
     void privacyWarningRequired();
     void imageSessionReady(const AccountSession &session);
     void localImagePreview(const QImage &image);
+    void localImagePublished();
     void imageDownloadProgress(const QString &itemId, qint64 received, qint64 total);
     void imageDownloadFailed(const QString &itemId, const QString &error);
     void imageCopied(const QString &itemId);
@@ -84,6 +87,7 @@ private:
     QClipboard *m_clipboard = nullptr;
     QTimer *m_debounce = nullptr;
     QVector<CloudClipboardItem> m_items;
+    QHash<QString, QString> m_deviceNames;
     State m_state = State::SignedOut;
     QString m_error;
     QByteArray m_observedDigest;
@@ -91,6 +95,7 @@ private:
     QByteArray m_pendingDigest;
     QHash<QString, QPair<QByteArray, QString>> m_pendingOriginals; // sha256 -> bytes,mime
     QString m_pendingDownloadId;
+    QString m_pendingDeleteId;
     QMetaObject::Connection m_agentConnection;
     bool m_applyingRemote = false;
 };

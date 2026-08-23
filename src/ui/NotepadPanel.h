@@ -55,7 +55,7 @@ private:
                     CloudClipboardController *existingController = nullptr);
     void applyDynamicSize();
     const CloudClipboardItem *selected() const;
-    static QString itemLabel(const CloudClipboardItem &item);
+    QString itemLabel(const CloudClipboardItem &item) const;
 
     std::unique_ptr<Settings> m_ownedSettings;
     Settings &m_settings;

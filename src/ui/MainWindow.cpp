@@ -2505,6 +2505,7 @@ void MainWindow::toggleNotepad() {
     if (!m_cloudClipboard)
         m_cloudClipboard = new CloudClipboardController(m_settings, m_accountClient,
                                                         m_deviceAgent, this);
+    m_cloudClipboard->setDevices(m_accountDevices);
     auto *pad = new NotepadPanel(m_settings, m_cloudClipboard, this);
 #else
     auto *pad = new NotepadPanel(m_settings, this);
@@ -4641,6 +4642,8 @@ void MainWindow::ensureAccountClient() {
     connect(m_accountClient, &AccountClient::devicesReady, this,
             [this](const QVector<AccountDeviceInfo> &devices) {
                 m_accountDevices = devices;
+                if (m_cloudClipboard)
+                    m_cloudClipboard->setDevices(devices);
                 // A device that just came online (or went offline) changes which
                 // computer-view rows are activatable, so re-list any open view.
                 refreshComputerViews();
