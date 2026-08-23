@@ -129,7 +129,8 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/v1/clipboard/deliveries/{delivery_id}/ack",
             post(clipboard::acknowledge_delivery),
-        );
+        )
+        .layer(DefaultBodyLimit::max(25 * 1024 * 1024));
 
     Router::new()
         .merge(auth)

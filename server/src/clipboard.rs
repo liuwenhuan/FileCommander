@@ -12,7 +12,10 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::agent::broadcast_clipboard;
+use crate::agent::{
+    broadcast_clipboard, broadcast_clipboard_delivery, ClipboardDeliveryMetadata,
+    ClipboardDeliveryTarget,
+};
 use crate::api::{authenticate, fail, ApiError};
 use crate::db::{iso, now, random_hex};
 use crate::AppState;
@@ -120,6 +123,16 @@ pub struct DeliveryList {
 pub struct SendDeliveryResponse {
     pub payload_id: String,
     pub recipient_count: usize,
+}
+
+struct DeliveryPayload {
+    kind: String,
+    mime: String,
+    content: Vec<u8>,
+    size: i64,
+    width: Option<i64>,
+    height: Option<i64>,
+    sha256: String,
 }
 
 fn image_mime(value: &str) -> bool {
@@ -614,30 +627,98 @@ pub async fn send_delivery(
     let content_type = parts
         .headers
         .get(header::CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok());
-    if content_type != Some("text/plain; charset=utf-8") {
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned)
+        .ok_or_else(|| {
+            fail(
+                StatusCode::UNSUPPORTED_MEDIA_TYPE,
+                "invalid clipboard content type",
+            )
+        })?;
+    let payload = if content_type == "text/plain; charset=utf-8" {
+        let body = to_bytes(body, MAX_TEXT_BYTES)
+            .await
+            .map_err(|_| fail(StatusCode::PAYLOAD_TOO_LARGE, "clipboard text is too large"))?;
+        if std::str::from_utf8(&body).is_err() {
+            return Err(fail(
+                StatusCode::BAD_REQUEST,
+                "clipboard text must be UTF-8",
+            ));
+        }
+        DeliveryPayload {
+            kind: "text".to_string(),
+            mime: content_type,
+            size: body.len() as i64,
+            sha256: hex::encode(Sha256::digest(&body)),
+            content: body.to_vec(),
+            width: None,
+            height: None,
+        }
+    } else if image_mime(&content_type) && content_type.len() > "image/".len() {
+        let width = parts
+            .headers
+            .get("x-clipboard-width")
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<u64>().ok());
+        let height = parts
+            .headers
+            .get("x-clipboard-height")
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<u64>().ok());
+        let expected_sha256 = parts
+            .headers
+            .get("x-clipboard-sha256")
+            .and_then(|value| value.to_str().ok())
+            .filter(|value| sha256(value))
+            .map(str::to_ascii_lowercase);
+        let (width, height, expected_sha256) = match (width, height, expected_sha256) {
+            (Some(width), Some(height), Some(expected_sha256))
+                if width > 0
+                    && height > 0
+                    && width <= MAX_IMAGE_DIMENSION
+                    && height <= MAX_IMAGE_DIMENSION
+                    && width.checked_mul(height).unwrap_or(u64::MAX) <= MAX_IMAGE_PIXELS =>
+            {
+                (width, height, expected_sha256)
+            }
+            _ => return Err(fail(StatusCode::BAD_REQUEST, "invalid clipboard image")),
+        };
+        let body = to_bytes(body, MAX_IMAGE_BYTES as usize)
+            .await
+            .map_err(|_| {
+                fail(
+                    StatusCode::PAYLOAD_TOO_LARGE,
+                    "clipboard image is too large",
+                )
+            })?;
+        let actual_sha256 = hex::encode(Sha256::digest(&body));
+        if actual_sha256 != expected_sha256 {
+            return Err(fail(StatusCode::BAD_REQUEST, "invalid clipboard image"));
+        }
+        DeliveryPayload {
+            kind: "image".to_string(),
+            mime: content_type,
+            size: body.len() as i64,
+            sha256: actual_sha256,
+            content: body.to_vec(),
+            width: Some(width as i64),
+            height: Some(height as i64),
+        }
+    } else {
         return Err(fail(
             StatusCode::UNSUPPORTED_MEDIA_TYPE,
-            "clipboard delivery requires text/plain; charset=utf-8",
+            "clipboard delivery requires text/plain; charset=utf-8 or image/*",
         ));
-    }
-    let body = to_bytes(body, MAX_TEXT_BYTES)
-        .await
-        .map_err(|_| fail(StatusCode::PAYLOAD_TOO_LARGE, "clipboard text is too large"))?;
-    if std::str::from_utf8(&body).is_err() {
-        return Err(fail(
-            StatusCode::BAD_REQUEST,
-            "clipboard text must be UTF-8",
-        ));
-    }
+    };
 
     let payload_id = random_hex(16);
     let created = iso(now());
     let expires = iso(now() + ChronoDuration::days(TTL_DAYS));
-    let size = body.len() as i64;
-    let sha256 = hex::encode(Sha256::digest(&body));
-    let content = body.to_vec();
-    let response = state
+    let delivery_metadata = ClipboardDeliveryMetadata {
+        kind: payload.kind.clone(),
+        size: payload.size,
+    };
+    let (response, targets) = state
         .db
         .call(move |conn| {
             purge_expired(conn, user_id, &created).map_err(|_| {
@@ -683,25 +764,31 @@ pub async fn send_delivery(
                         "could not save clipboard delivery",
                     )
                 })?;
-                return Ok(SendDeliveryResponse {
-                    payload_id,
-                    recipient_count: 0,
-                });
+                return Ok((
+                    SendDeliveryResponse {
+                        payload_id,
+                        recipient_count: 0,
+                    },
+                    Vec::new(),
+                ));
             }
             transaction
                 .execute(
                     "INSERT INTO clipboard_payloads \
                      (id, user_id, source_device_id, kind, mime, content, size, width, height, \
                       sha256, created, expires) \
-                     VALUES (?1, ?2, ?3, 'text', 'text/plain; charset=utf-8', ?4, ?5, NULL, NULL, \
-                             ?6, ?7, ?8)",
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
                     params![
                         payload_id,
                         user_id,
                         source_device_id,
-                        content,
-                        size,
-                        sha256,
+                        payload.kind,
+                        payload.mime,
+                        payload.content,
+                        payload.size,
+                        payload.width,
+                        payload.height,
+                        payload.sha256,
                         created,
                         expires
                     ],
@@ -712,12 +799,14 @@ pub async fn send_delivery(
                         "could not save clipboard delivery",
                     )
                 })?;
-            for target_device_id in &recipients {
+            let mut targets = Vec::with_capacity(recipients.len());
+            for target_device_id in recipients {
+                let delivery_id = random_hex(16);
                 transaction
                     .execute(
                         "INSERT INTO clipboard_deliveries (id, payload_id, target_device_id) \
                          VALUES (?1, ?2, ?3)",
-                        params![random_hex(16), payload_id, target_device_id],
+                        params![delivery_id, payload_id, target_device_id],
                     )
                     .map_err(|_| {
                         fail(
@@ -725,6 +814,10 @@ pub async fn send_delivery(
                             "could not save clipboard delivery",
                         )
                     })?;
+                targets.push(ClipboardDeliveryTarget {
+                    device_id: target_device_id,
+                    delivery_id,
+                });
             }
             transaction.commit().map_err(|_| {
                 fail(
@@ -732,12 +825,16 @@ pub async fn send_delivery(
                     "could not save clipboard delivery",
                 )
             })?;
-            Ok(SendDeliveryResponse {
-                payload_id,
-                recipient_count: recipients.len(),
-            })
+            Ok((
+                SendDeliveryResponse {
+                    payload_id,
+                    recipient_count: targets.len(),
+                },
+                targets,
+            ))
         })
         .await?;
+    broadcast_clipboard_delivery(&state, user_id, &targets, &delivery_metadata);
     Ok(Json(response))
 }
 

@@ -71,6 +71,33 @@ async fn send_text(state: &AppState, path: &str, token: &str, text: &str) -> Res
     .await
 }
 
+async fn send_image(
+    state: &AppState,
+    token: &str,
+    mime: &str,
+    width: u64,
+    height: u64,
+    sha256: &str,
+    body: Vec<u8>,
+) -> Response {
+    router(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/clipboard/send")
+                .header("content-type", mime)
+                .header("x-filecommander-protocol", "1")
+                .header("authorization", format!("Bearer {token}"))
+                .header("x-clipboard-width", width)
+                .header("x-clipboard-height", height)
+                .header("x-clipboard-sha256", sha256)
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+}
+
 async fn json_of(response: Response) -> Value {
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
     serde_json::from_slice(&bytes).unwrap_or(Value::Null)
@@ -1793,4 +1820,227 @@ async fn clipboard_delivery_rejects_wrong_content_type() {
     )
     .await;
     assert_eq!(rejected.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+}
+
+#[tokio::test]
+async fn clipboard_delivery_queues_an_image_for_only_its_account() {
+    use sha2::{Digest, Sha256};
+
+    let state = state();
+    register(&state, "owner@example.com", "correct horse").await;
+    register(&state, "other@example.com", "correct horse").await;
+    let source = login(&state, "owner@example.com", "desktop", "").await;
+    let recipient = login(&state, "owner@example.com", "laptop", "").await;
+    let outsider = login(&state, "other@example.com", "other", "").await;
+    let image = b"raw png bytes".to_vec();
+    let digest = hex::encode(Sha256::digest(&image));
+
+    let queued = send_image(
+        &state,
+        source["access_token"].as_str().unwrap(),
+        "image/png",
+        12,
+        34,
+        &digest,
+        image.clone(),
+    )
+    .await;
+    assert_eq!(queued.status(), StatusCode::OK);
+    let queued = json_of(queued).await;
+    assert_eq!(queued["recipient_count"], 1);
+
+    let deliveries = json_of(
+        send(
+            &state,
+            "GET",
+            "/v1/clipboard/deliveries",
+            recipient["access_token"].as_str().unwrap(),
+            Value::Null,
+        )
+        .await,
+    )
+    .await;
+    let delivery = &deliveries["deliveries"][0];
+    assert_eq!(delivery["payload_id"], queued["payload_id"]);
+    assert_eq!(delivery["kind"], "image");
+    assert_eq!(delivery["mime"], "image/png");
+    assert_eq!(delivery["size"], image.len());
+    assert_eq!(delivery["width"], 12);
+    assert_eq!(delivery["height"], 34);
+    assert_eq!(delivery["sha256"], digest);
+
+    let delivery_id = delivery["id"].as_str().unwrap();
+    let content = send(
+        &state,
+        "GET",
+        &format!("/v1/clipboard/deliveries/{delivery_id}/content"),
+        recipient["access_token"].as_str().unwrap(),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(content.status(), StatusCode::OK);
+    assert_eq!(content.headers()["content-type"], "image/png");
+    assert_eq!(content.headers()["x-content-sha256"], digest);
+    assert_eq!(
+        content
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes()
+            .as_ref(),
+        image
+    );
+
+    let outsider_deliveries = json_of(
+        send(
+            &state,
+            "GET",
+            "/v1/clipboard/deliveries",
+            outsider["access_token"].as_str().unwrap(),
+            Value::Null,
+        )
+        .await,
+    )
+    .await;
+    assert!(outsider_deliveries["deliveries"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+}
+
+#[tokio::test]
+async fn clipboard_delivery_rejects_invalid_image_metadata_and_large_bodies() {
+    use sha2::{Digest, Sha256};
+
+    let state = state();
+    register(&state, "owner@example.com", "correct horse").await;
+    let source = login(&state, "owner@example.com", "desktop", "").await;
+    let token = source["access_token"].as_str().unwrap();
+    let image = b"raw png bytes".to_vec();
+    let digest = hex::encode(Sha256::digest(&image));
+
+    assert_eq!(
+        send_image(
+            &state,
+            token,
+            "image/png",
+            1,
+            1,
+            &"0".repeat(64),
+            image.clone()
+        )
+        .await
+        .status(),
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        send_image(&state, token, "image/png", 0, 1, &digest, image.clone())
+            .await
+            .status(),
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        send_image(
+            &state,
+            token,
+            "image/png",
+            1,
+            1,
+            &hex::encode(Sha256::digest(vec![b'x'; 25 * 1024 * 1024 + 1])),
+            vec![b'x'; 25 * 1024 * 1024 + 1],
+        )
+        .await
+        .status(),
+        StatusCode::PAYLOAD_TOO_LARGE
+    );
+}
+
+#[tokio::test]
+async fn clipboard_delivery_notifies_each_online_target_once_but_not_the_sender() {
+    use futures_util::{SinkExt, StreamExt};
+
+    let state = state();
+    let addr = serve(state.clone()).await;
+    register(&state, "owner@example.com", "correct horse").await;
+    let source = login(&state, "owner@example.com", "desktop", "").await;
+    let target = login(&state, "owner@example.com", "laptop", "").await;
+
+    async fn agent(
+        addr: SocketAddr,
+        token: &str,
+    ) -> tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>
+    {
+        let (mut socket, _) =
+            tokio_tungstenite::connect_async(ws_request(addr, "/v1/agent", token))
+                .await
+                .unwrap();
+        socket.next().await;
+        socket
+            .send(tokio_tungstenite::tungstenite::Message::Text(
+                json!({"type": "hello", "lan_addrs": [], "port": 45001})
+                    .to_string()
+                    .into(),
+            ))
+            .await
+            .unwrap();
+        socket.next().await;
+        socket
+    }
+
+    let mut source_socket = agent(addr, source["access_token"].as_str().unwrap()).await;
+    let mut target_socket = agent(addr, target["access_token"].as_str().unwrap()).await;
+    source_socket.next().await;
+
+    let queued = json_of(
+        send_text(
+            &state,
+            "/v1/clipboard/send",
+            source["access_token"].as_str().unwrap(),
+            "notify the target",
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(queued["recipient_count"], 1);
+
+    let notification: Value = serde_json::from_str(
+        target_socket
+            .next()
+            .await
+            .unwrap()
+            .unwrap()
+            .to_text()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(notification["type"], "clipboard_delivery");
+    assert_eq!(notification["kind"], "text");
+    assert_eq!(notification["size"], "notify the target".len());
+    let target_delivery = json_of(
+        send(
+            &state,
+            "GET",
+            "/v1/clipboard/deliveries",
+            target["access_token"].as_str().unwrap(),
+            Value::Null,
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(
+        notification["delivery_id"],
+        target_delivery["deliveries"][0]["id"]
+    );
+    assert!(notification.get("content").is_none());
+    assert!(
+        tokio::time::timeout(Duration::from_millis(150), source_socket.next())
+            .await
+            .is_err()
+    );
+    assert!(
+        tokio::time::timeout(Duration::from_millis(150), target_socket.next())
+            .await
+            .is_err()
+    );
 }

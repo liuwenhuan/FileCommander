@@ -65,6 +65,43 @@ pub fn broadcast_clipboard(
     }
 }
 
+/// One committed delivery and the specific device that may fetch it.
+pub struct ClipboardDeliveryTarget {
+    pub device_id: String,
+    pub delivery_id: String,
+}
+
+/// Lightweight delivery data safe to push over an agent WebSocket.
+pub struct ClipboardDeliveryMetadata {
+    pub kind: String,
+    pub size: i64,
+}
+
+/// Tells only online, account-owned recipients that their own pending delivery
+/// is ready. The payload bytes stay in SQLite and must be fetched separately.
+pub fn broadcast_clipboard_delivery(
+    state: &AppState,
+    user_id: i64,
+    target_device_ids: &[ClipboardDeliveryTarget],
+    delivery_metadata: &ClipboardDeliveryMetadata,
+) {
+    let agents = state.agents.lock().unwrap_or_else(|e| e.into_inner());
+    for target in target_device_ids {
+        if let Some(agent) = agents.get(&target.device_id) {
+            if agent.user_id == user_id {
+                let frame = json!({
+                    "type": "clipboard_delivery",
+                    "delivery_id": target.delivery_id,
+                    "kind": delivery_metadata.kind,
+                    "size": delivery_metadata.size,
+                })
+                .to_string();
+                let _ = agent.tx.send(frame);
+            }
+        }
+    }
+}
+
 /// How long a device has to use a ticket before the peer forgets it. Long
 /// enough to survive a slow LAN probe, short enough that a leaked ticket is
 /// worth little.
