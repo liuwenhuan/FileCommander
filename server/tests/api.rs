@@ -2094,6 +2094,16 @@ async fn clipboard_delivery_notifies_each_online_target_once_but_not_the_sender(
     assert!(image_notification.get("content").is_none());
     assert!(image_notification.get("payload").is_none());
     assert!(image_notification.get("bytes").is_none());
+    assert!(
+        tokio::time::timeout(Duration::from_millis(150), source_socket.next())
+            .await
+            .is_err()
+    );
+    assert!(
+        tokio::time::timeout(Duration::from_millis(150), target_socket.next())
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]
