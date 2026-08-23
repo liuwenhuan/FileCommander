@@ -82,6 +82,15 @@ public:
         for (QWebSocket *socket : m_live)
             socket->sendTextMessage(QString::fromUtf8(frame));
     }
+    void sendClipboardDelivery(const QString &deliveryId) {
+        const QByteArray frame = QJsonDocument(QJsonObject{{"type", QStringLiteral("clipboard_delivery")},
+                                                           {"delivery_id", deliveryId},
+                                                           {"kind", QStringLiteral("image")},
+                                                           {"size", 42}})
+                                     .toJson(QJsonDocument::Compact);
+        for (QWebSocket *socket : m_live)
+            socket->sendTextMessage(QString::fromUtf8(frame));
+    }
 
 private:
     QWebSocketServer *m_server = nullptr;
@@ -151,4 +160,23 @@ TEST(DeviceAgent, APresenceFrameEmitsPresenceChanged) {
     const QList<QVariant> offline = presence.takeFirst();
     EXPECT_EQ(offline.at(0).toString(), QStringLiteral("dev-2"));
     EXPECT_FALSE(offline.at(1).toBool());
+}
+
+TEST(DeviceAgent, AClipboardDeliveryFrameEmitsTheDeliveryId) {
+    MockHttpServer http;
+    AccountClient client;
+    client.setApiUrl(http.url(QString()));
+    ASSERT_TRUE(signIn(client, http));
+
+    AgentPeer peer;
+    client.setApiUrl(peer.apiUrl());
+
+    DeviceAgent agent(&client);
+    QSignalSpy available(&agent, &DeviceAgent::clipboardDeliveryAvailable);
+    agent.start();
+    FC_TRY_VERIFY_WITH_TIMEOUT(peer.gotHello(), 5000);
+
+    peer.sendClipboardDelivery(QStringLiteral("delivery-1"));
+    FC_TRY_COMPARE_WITH_TIMEOUT(available.count(), 1, 5000);
+    EXPECT_EQ(available.takeFirst().at(0).toString(), QStringLiteral("delivery-1"));
 }

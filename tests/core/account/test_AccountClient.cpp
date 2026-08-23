@@ -1,12 +1,15 @@
 #include <gtest/gtest.h>
 
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QElapsedTimer>
 #include <QEventLoop>
+#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QTimer>
 #include <QUuid>
 
@@ -408,4 +411,170 @@ TEST(AccountClient, AnOldClientIsRefusedWithTheServersUpdateMessage) {
               QStringLiteral("Your version of FileCommander is too old. Please update to continue."));
     EXPECT_TRUE(failed.isEmpty())
         << "an update-required refusal is not a sign-in failure and must not ride requestFailed";
+}
+
+TEST(AccountClient, ClipboardTextSendUsesUtf8PlainTextAndReportsRecipients) {
+    MockHttpServer server;
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    signedIn(&client, server);
+    server.setRoute(QStringLiteral("/v1/clipboard/send"),
+                    json(R"({"payload_id":"payload-1","recipient_count":2})"));
+
+    QSignalSpy finished(&client, &AccountClient::clipboardSendFinished);
+    const QString text = QString::fromUtf8("hello \xF0\x9F\x91\x8B");
+    client.sendClipboardText(text);
+    waitForSignal(finished);
+
+    ASSERT_EQ(finished.count(), 1);
+    EXPECT_EQ(finished.at(0).at(0).toString(), QStringLiteral("payload-1"));
+    EXPECT_EQ(finished.at(0).at(1).toInt(), 2);
+    EXPECT_EQ(server.lastRequestBody(), text.toUtf8());
+    EXPECT_TRUE(server.lastRequestHead().contains("Content-Type: text/plain; charset=utf-8"));
+}
+
+TEST(AccountClient, ClipboardImageSendStreamsOriginalBytesAndReportsProgress) {
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QByteArray image("\x89PNG\r\n\x1a\nencoded-image", 21);
+    const QString imagePath = directory.filePath(QStringLiteral("image.png"));
+    QFile imageFile(imagePath);
+    ASSERT_TRUE(imageFile.open(QIODevice::WriteOnly));
+    ASSERT_EQ(imageFile.write(image), image.size());
+    imageFile.close();
+
+    MockHttpServer server;
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    signedIn(&client, server);
+    server.setRoute(QStringLiteral("/v1/clipboard/send"),
+                    json(R"({"payload_id":"payload-image","recipient_count":1})"));
+
+    QSignalSpy progress(&client, &AccountClient::clipboardSendProgress);
+    QSignalSpy finished(&client, &AccountClient::clipboardSendFinished);
+    const QByteArray sha256 = QCryptographicHash::hash(image, QCryptographicHash::Sha256);
+    client.sendClipboardImageFile(imagePath, QStringLiteral("image/png"), 32, 16, sha256);
+    waitForSignal(finished);
+
+    ASSERT_EQ(finished.count(), 1);
+    EXPECT_EQ(server.lastRequestBody(), image);
+    EXPECT_TRUE(server.lastRequestHead().contains("Content-Type: image/png"));
+    EXPECT_TRUE(server.lastRequestHead().contains("X-Clipboard-Width: 32"));
+    EXPECT_TRUE(server.lastRequestHead().contains("X-Clipboard-Height: 16"));
+    EXPECT_TRUE(server.lastRequestHead().contains("X-Clipboard-Sha256: " + sha256.toHex()));
+    ASSERT_FALSE(progress.isEmpty());
+    EXPECT_EQ(progress.last().at(0).toLongLong(), image.size());
+    EXPECT_EQ(progress.last().at(1).toLongLong(), image.size());
+}
+
+TEST(AccountClient, ClipboardPendingDeliveriesParseServerMetadata) {
+    MockHttpServer server;
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    signedIn(&client, server);
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries"),
+                    json(R"({"deliveries":[{"id":"delivery-1","payload_id":"payload-1","kind":"image","mime":"image/png","size":42,"width":7,"height":6,"sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","source_device_id":"dev-2","source_device_name":"desktop","created":"2026-08-23T12:00:00Z","expires":"2026-08-30T12:00:00Z"}]})"));
+
+    QSignalSpy ready(&client, &AccountClient::clipboardDeliveriesReady);
+    client.fetchClipboardDeliveries();
+    waitForSignal(ready);
+
+    ASSERT_EQ(ready.count(), 1);
+    const auto deliveries = ready.at(0).at(0).value<QVector<ClipboardDeliveryInfo>>();
+    ASSERT_EQ(deliveries.size(), 1);
+    const ClipboardDeliveryInfo &delivery = deliveries.first();
+    EXPECT_EQ(delivery.id, QStringLiteral("delivery-1"));
+    EXPECT_EQ(delivery.payloadId, QStringLiteral("payload-1"));
+    EXPECT_EQ(delivery.kind, QStringLiteral("image"));
+    EXPECT_EQ(delivery.size, 42);
+    EXPECT_EQ(delivery.width, 7);
+    EXPECT_EQ(delivery.height, 6);
+    EXPECT_EQ(delivery.sourceDeviceName, QStringLiteral("desktop"));
+}
+
+TEST(AccountClient, ClipboardDeliveryDownloadStreamsVerifiedContentToPartFile) {
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QByteArray content("original encoded image bytes");
+    const QByteArray sha256 = QCryptographicHash::hash(content, QCryptographicHash::Sha256);
+
+    MockHttpServer server;
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    signedIn(&client, server);
+    MockHttpServer::Route route;
+    route.contentType = "image/png";
+    route.body = content;
+    route.headers.insert("X-Content-Sha256", sha256.toHex());
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries/delivery-1/content"), route);
+
+    ClipboardDeliveryInfo delivery;
+    delivery.id = QStringLiteral("delivery-1");
+    delivery.kind = QStringLiteral("image");
+    delivery.mime = QStringLiteral("image/png");
+    delivery.size = content.size();
+    delivery.sha256 = QString::fromLatin1(sha256.toHex());
+    const QString partPath = directory.filePath(QStringLiteral("delivery.part"));
+    QSignalSpy progress(&client, &AccountClient::clipboardDownloadProgress);
+    QSignalSpy finished(&client, &AccountClient::clipboardDownloadFinished);
+    client.downloadClipboardDelivery(delivery, partPath);
+    waitForSignal(finished);
+
+    ASSERT_EQ(finished.count(), 1);
+    EXPECT_EQ(finished.at(0).at(0).toString(), delivery.id);
+    EXPECT_EQ(finished.at(0).at(1).toString(), partPath);
+    QFile downloaded(partPath);
+    ASSERT_TRUE(downloaded.open(QIODevice::ReadOnly));
+    EXPECT_EQ(downloaded.readAll(), content);
+    ASSERT_FALSE(progress.isEmpty());
+    EXPECT_EQ(progress.last().at(1).toLongLong(), content.size());
+    EXPECT_EQ(progress.last().at(2).toLongLong(), content.size());
+}
+
+TEST(AccountClient, ClipboardDeliveryDownloadRejectsMismatchedHashWithoutLeavingPartFile) {
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QByteArray content("original encoded image bytes");
+
+    MockHttpServer server;
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    signedIn(&client, server);
+    MockHttpServer::Route route;
+    route.contentType = "image/png";
+    route.body = content;
+    route.headers.insert("X-Content-Sha256", QByteArray(64, '0'));
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries/delivery-1/content"), route);
+
+    ClipboardDeliveryInfo delivery;
+    delivery.id = QStringLiteral("delivery-1");
+    delivery.kind = QStringLiteral("image");
+    delivery.mime = QStringLiteral("image/png");
+    delivery.size = content.size();
+    delivery.sha256 = QString(64, QLatin1Char('0'));
+    const QString partPath = directory.filePath(QStringLiteral("delivery.part"));
+    QSignalSpy failed(&client, &AccountClient::requestFailed);
+    QSignalSpy finished(&client, &AccountClient::clipboardDownloadFinished);
+    client.downloadClipboardDelivery(delivery, partPath);
+    waitForSignal(failed);
+
+    EXPECT_EQ(failed.count(), 1);
+    EXPECT_TRUE(finished.isEmpty());
+    EXPECT_FALSE(QFile::exists(partPath));
+}
+
+TEST(AccountClient, ClipboardDeliveryAcknowledgementUsesTheDeliveryAckRoute) {
+    MockHttpServer server;
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    signedIn(&client, server);
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries/delivery-1/ack"), json({}, 204));
+
+    QSignalSpy acknowledged(&client, &AccountClient::clipboardDeliveryAcknowledged);
+    client.acknowledgeClipboardDelivery(QStringLiteral("delivery-1"));
+    waitForSignal(acknowledged);
+
+    ASSERT_EQ(acknowledged.count(), 1);
+    EXPECT_EQ(acknowledged.at(0).at(0).toString(), QStringLiteral("delivery-1"));
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/clipboard/deliveries/delivery-1/ack")), 1);
 }

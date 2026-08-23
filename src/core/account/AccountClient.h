@@ -33,6 +33,24 @@ struct CloudClipboardUpdate {
     bool cleared = false;
 };
 
+// Metadata for one pending, account-scoped clipboard delivery. The content is
+// deliberately not here; fetch it from the delivery content route and verify
+// the recorded size and SHA-256 before making it available locally.
+struct ClipboardDeliveryInfo {
+    QString id;
+    QString payloadId;
+    QString kind;
+    QString mime;
+    qint64 size = 0;
+    int width = 0;
+    int height = 0;
+    QString sha256;
+    QString sourceDeviceId;
+    QString sourceDeviceName;
+    QString created;
+    QString expires;
+};
+
 // One machine signed in to the account, as the server reports it. Populated
 // from GET /v1/devices; `id` is what a later transfer session is opened
 // against, so it is the field the UI carries around, not the name.
@@ -169,6 +187,16 @@ public:
     void deleteClipboardItem(const QString &itemId);
     void clearClipboard();
 
+    // Explicit cross-device clipboard delivery APIs. These coexist with the
+    // legacy clipboard history calls above until their callers migrate.
+    void sendClipboardText(const QString &text);
+    void sendClipboardImageFile(const QString &filePath, const QString &mime,
+                                int width, int height, const QByteArray &sha256);
+    void fetchClipboardDeliveries();
+    void downloadClipboardDelivery(const ClipboardDeliveryInfo &delivery,
+                                   const QString &destinationPartPath);
+    void acknowledgeClipboardDelivery(const QString &deliveryId);
+
     // The ws:// (or wss://) URL of the agent socket, without any credential --
     // the access token travels as an Authorization header (see
     // agentSocketRequest), never in the URL, so it cannot leak into server or
@@ -208,6 +236,12 @@ signals:
                                  const QString &mime);
     void clipboardItemDeleted(const QString &itemId, qint64 revision);
     void clipboardCleared(qint64 revision);
+    void clipboardSendProgress(qint64 sent, qint64 total);
+    void clipboardSendFinished(QString payloadId, int recipientCount);
+    void clipboardDeliveriesReady(QVector<ClipboardDeliveryInfo> deliveries);
+    void clipboardDownloadProgress(QString id, qint64 received, qint64 total);
+    void clipboardDownloadFinished(QString id, QString partPath);
+    void clipboardDeliveryAcknowledged(QString id);
     void deviceRemoved(const QString &deviceId);
 
     // Every failed request lands here, with a message already fit to show.
@@ -229,7 +263,10 @@ private:
     // loop.
     void request(Verb verb, const QString &path, const QByteArray &body,
                  bool authenticated, std::function<void(QNetworkReply *)> handler,
-                 bool retryAfterRefresh = true);
+                 bool retryAfterRefresh = true,
+                 QByteArray contentType = QByteArrayLiteral("application/json"));
+    QNetworkRequest requestFor(const QString &path, bool authenticated) const;
+    void finishClipboardSend(QNetworkReply *reply);
 
     // Cancels replies from an earlier restore/login and clears the in-memory
     // account so no stale authentication response can win a later attempt.
@@ -261,3 +298,4 @@ Q_DECLARE_METATYPE(AccountSession)
 Q_DECLARE_METATYPE(AccountInfo)
 Q_DECLARE_METATYPE(CloudClipboardItem)
 Q_DECLARE_METATYPE(CloudClipboardUpdate)
+Q_DECLARE_METATYPE(ClipboardDeliveryInfo)

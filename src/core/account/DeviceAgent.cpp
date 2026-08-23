@@ -166,6 +166,10 @@ void DeviceAgent::onTextMessage(const QString &text) {
         emit clipboardChanged(
             static_cast<qint64>(message.value(QStringLiteral("revision")).toDouble()),
             message.value(QStringLiteral("change")).toString());
+    } else if (type == QLatin1String("clipboard_delivery")) {
+        const QString deliveryId = message.value(QStringLiteral("delivery_id")).toString();
+        if (!deliveryId.isEmpty())
+            emit clipboardDeliveryAvailable(deliveryId);
     } else if (type == QLatin1String("presence")) {
         const QString deviceId = message.value(QStringLiteral("device_id")).toString();
         if (!deviceId.isEmpty())

@@ -3,11 +3,17 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QCryptographicHash>
+#include <QFile>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QSaveFile>
 #include <QTimer>
 #include <QUrl>
+
+#include <memory>
+#include <utility>
 
 #include "CredentialStore.h"
 #include "version.h"
@@ -45,6 +51,39 @@ CloudClipboardItem parseClipboardItem(const QJsonObject &o) {
     return item;
 }
 
+ClipboardDeliveryInfo parseClipboardDelivery(const QJsonObject &o) {
+    ClipboardDeliveryInfo delivery;
+    delivery.id = o.value(QStringLiteral("id")).toString();
+    delivery.payloadId = o.value(QStringLiteral("payload_id")).toString();
+    delivery.kind = o.value(QStringLiteral("kind")).toString();
+    delivery.mime = o.value(QStringLiteral("mime")).toString();
+    delivery.size = static_cast<qint64>(o.value(QStringLiteral("size")).toDouble());
+    delivery.width = o.value(QStringLiteral("width")).toInt();
+    delivery.height = o.value(QStringLiteral("height")).toInt();
+    delivery.sha256 = o.value(QStringLiteral("sha256")).toString();
+    delivery.sourceDeviceId = o.value(QStringLiteral("source_device_id")).toString();
+    delivery.sourceDeviceName = o.value(QStringLiteral("source_device_name")).toString();
+    delivery.created = o.value(QStringLiteral("created")).toString();
+    delivery.expires = o.value(QStringLiteral("expires")).toString();
+    return delivery;
+}
+
+struct ClipboardDownloadState {
+    ClipboardDownloadState(const QString &destinationPartPath, qint64 expectedSize,
+                           QByteArray expectedSha256)
+        : output(destinationPartPath), expectedSize(expectedSize),
+          expectedSha256(std::move(expectedSha256)),
+          hash(QCryptographicHash::Sha256) {}
+
+    QSaveFile output;
+    qint64 expectedSize;
+    QByteArray expectedSha256;
+    QCryptographicHash hash;
+    qint64 received = 0;
+    bool headersChecked = false;
+    bool failed = false;
+};
+
 } // namespace
 
 AccountClient::AccountClient(QObject *parent)
@@ -54,6 +93,8 @@ AccountClient::AccountClient(QObject *parent)
     qRegisterMetaType<AccountSession>();
     qRegisterMetaType<CloudClipboardItem>();
     qRegisterMetaType<CloudClipboardUpdate>();
+    qRegisterMetaType<ClipboardDeliveryInfo>();
+    qRegisterMetaType<QVector<ClipboardDeliveryInfo>>();
 }
 
 AccountClient::~AccountClient() = default;
@@ -118,26 +159,29 @@ void AccountClient::forgetStoredSession(const QString &deviceId) {
         CredentialStore::remove(keyringId(deviceId));
 }
 
-void AccountClient::request(Verb verb, const QString &path, const QByteArray &body,
-                            bool authenticated, std::function<void(QNetworkReply *)> handler,
-                            bool retryAfterRefresh) {
-    const quint64 generation = m_requestGeneration;
+QNetworkRequest AccountClient::requestFor(const QString &path, bool authenticated) const {
     const QString root = m_apiUrl.isEmpty() ? apiUrl() : m_apiUrl;
     QNetworkRequest req{QUrl(root + path)};
     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                      QNetworkRequest::NoLessSafeRedirectPolicy);
     req.setAttribute(QNetworkRequest::CacheLoadControlAttribute,
                      QNetworkRequest::AlwaysNetwork);
-    req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
     req.setHeader(QNetworkRequest::UserAgentHeader,
                   QStringLiteral("FileCommander/%1").arg(QStringLiteral(TTC_VERSION)));
-    // Lets the server refuse a client whose protocol predates a breaking change
-    // (currently: credentials moved out of the URL query) instead of letting it
-    // half-work.
     req.setRawHeader("X-FileCommander-Protocol",
                      QByteArray::number(AccountClient::kProtocolVersion));
     if (authenticated)
         req.setRawHeader("Authorization", "Bearer " + m_accessToken.toUtf8());
+    return req;
+}
+
+void AccountClient::request(Verb verb, const QString &path, const QByteArray &body,
+                            bool authenticated, std::function<void(QNetworkReply *)> handler,
+                            bool retryAfterRefresh, QByteArray contentType) {
+    const quint64 generation = m_requestGeneration;
+    QNetworkRequest req = requestFor(path, authenticated);
+    if (!contentType.isEmpty())
+        req.setHeader(QNetworkRequest::ContentTypeHeader, contentType);
 
     QNetworkReply *reply = nullptr;
     switch (verb) {
@@ -164,7 +208,7 @@ void AccountClient::request(Verb verb, const QString &path, const QByteArray &bo
     timeout->start(m_timeoutMs);
 
     connect(reply, &QNetworkReply::finished, this,
-            [this, reply, timeout, verb, path, body, authenticated, handler,
+            [this, reply, timeout, verb, path, body, authenticated, handler, contentType,
              retryAfterRefresh, generation] {
                 timeout->stop();
                 timeout->deleteLater();
@@ -184,14 +228,14 @@ void AccountClient::request(Verb verb, const QString &path, const QByteArray &bo
                     const QString email = m_account.email;
                     request(Verb::Post, QStringLiteral("/v1/auth/refresh"), refreshBody,
                             false,
-                            [this, email, verb, path, body, handler](QNetworkReply *r) {
+                            [this, email, verb, path, body, handler, contentType](QNetworkReply *r) {
                                 if (!acceptTokens(r->readAll(), email)) {
                                     m_accessToken.clear();
                                     m_refreshToken.clear();
                                     emit requestFailed(tr("Session expired, please sign in again."));
                                     return;
                                 }
-                                request(verb, path, body, true, handler, false);
+                                request(verb, path, body, true, handler, false, contentType);
                             },
                             false);
                     return;
@@ -577,5 +621,224 @@ void AccountClient::clearClipboard() {
                     return;
                 }
                 emit clipboardCleared(static_cast<qint64>(o.value(QStringLiteral("revision")).toDouble()));
+            });
+}
+
+void AccountClient::finishClipboardSend(QNetworkReply *reply) {
+    const QByteArray payload = reply->readAll();
+    const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    if (reply->error() != QNetworkReply::NoError || status < 200 || status >= 300) {
+        emit requestFailed(errorText(reply, payload));
+        return;
+    }
+    const QJsonObject result = parseObject(payload);
+    const QString payloadId = result.value(QStringLiteral("payload_id")).toString();
+    if (payloadId.isEmpty()) {
+        emit requestFailed(errorText(reply, payload));
+        return;
+    }
+    emit clipboardSendFinished(payloadId, result.value(QStringLiteral("recipient_count")).toInt());
+}
+
+void AccountClient::sendClipboardText(const QString &text) {
+    if (!isLoggedIn()) {
+        emit requestFailed(tr("Not signed in."));
+        return;
+    }
+    request(Verb::Post, QStringLiteral("/v1/clipboard/send"), text.toUtf8(), true,
+            [this](QNetworkReply *reply) { finishClipboardSend(reply); }, true,
+            QByteArrayLiteral("text/plain; charset=utf-8"));
+}
+
+void AccountClient::sendClipboardImageFile(const QString &filePath, const QString &mime,
+                                           int width, int height, const QByteArray &sha256) {
+    if (!isLoggedIn()) {
+        emit requestFailed(tr("Not signed in."));
+        return;
+    }
+    auto *file = new QFile(filePath);
+    if (!file->open(QIODevice::ReadOnly)) {
+        emit requestFailed(tr("Could not open the clipboard image."));
+        delete file;
+        return;
+    }
+
+    QByteArray hash = sha256;
+    if (hash.size() == QCryptographicHash::hashLength(QCryptographicHash::Sha256))
+        hash = hash.toHex();
+    QNetworkRequest request = requestFor(QStringLiteral("/v1/clipboard/send"), true);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, mime);
+    request.setRawHeader("X-Clipboard-Width", QByteArray::number(width));
+    request.setRawHeader("X-Clipboard-Height", QByteArray::number(height));
+    request.setRawHeader("X-Clipboard-Sha256", hash.toLower());
+
+    const quint64 generation = m_requestGeneration;
+    QNetworkReply *reply = m_net->post(request, file);
+    file->setParent(reply);
+    auto *timeout = new QTimer(reply);
+    timeout->setSingleShot(true);
+    connect(timeout, &QTimer::timeout, reply, [reply] {
+        if (reply->isRunning())
+            reply->abort();
+    });
+    timeout->start(m_timeoutMs);
+    connect(reply, &QNetworkReply::uploadProgress, this,
+            [this](qint64 sent, qint64 total) {
+                if (total > 0)
+                    emit clipboardSendProgress(sent, total);
+            });
+    connect(reply, &QNetworkReply::finished, this, [this, reply, timeout, generation] {
+        timeout->stop();
+        if (generation == m_requestGeneration)
+            finishClipboardSend(reply);
+        reply->deleteLater();
+    });
+}
+
+void AccountClient::fetchClipboardDeliveries() {
+    if (!isLoggedIn()) {
+        emit requestFailed(tr("Not signed in."));
+        return;
+    }
+    request(Verb::Get, QStringLiteral("/v1/clipboard/deliveries"), QByteArray(), true,
+            [this](QNetworkReply *reply) {
+                const QByteArray payload = reply->readAll();
+                const QJsonObject result = parseObject(payload);
+                if (!result.contains(QStringLiteral("deliveries"))) {
+                    emit requestFailed(errorText(reply, payload));
+                    return;
+                }
+                QVector<ClipboardDeliveryInfo> deliveries;
+                const QJsonArray listed = result.value(QStringLiteral("deliveries")).toArray();
+                deliveries.reserve(listed.size());
+                for (const QJsonValue &value : listed) {
+                    const ClipboardDeliveryInfo delivery = parseClipboardDelivery(value.toObject());
+                    if (!delivery.id.isEmpty())
+                        deliveries.append(delivery);
+                }
+                emit clipboardDeliveriesReady(deliveries);
+            });
+}
+
+void AccountClient::downloadClipboardDelivery(const ClipboardDeliveryInfo &delivery,
+                                              const QString &destinationPartPath) {
+    if (!isLoggedIn()) {
+        emit requestFailed(tr("Not signed in."));
+        return;
+    }
+    const QByteArray expectedSha256 = delivery.sha256.toLatin1().trimmed().toLower();
+    if (delivery.id.isEmpty() || destinationPartPath.isEmpty() || delivery.size < 0 ||
+        expectedSha256.size() != 64) {
+        emit requestFailed(tr("Invalid clipboard delivery."));
+        return;
+    }
+
+    QFile::remove(destinationPartPath);
+    auto state = std::make_shared<ClipboardDownloadState>(destinationPartPath, delivery.size,
+                                                          expectedSha256);
+    if (!state->output.open(QIODevice::WriteOnly)) {
+        emit requestFailed(tr("Could not create the clipboard download file."));
+        return;
+    }
+
+    const quint64 generation = m_requestGeneration;
+    QNetworkReply *reply = m_net->get(requestFor(
+        QStringLiteral("/v1/clipboard/deliveries/") + delivery.id + QStringLiteral("/content"), true));
+    auto *timeout = new QTimer(reply);
+    timeout->setSingleShot(true);
+    connect(timeout, &QTimer::timeout, reply, [reply] {
+        if (reply->isRunning())
+            reply->abort();
+    });
+    timeout->start(m_timeoutMs);
+
+    const auto fail = [this, state, destinationPartPath](const QString &reason) {
+        if (state->failed)
+            return;
+        state->failed = true;
+        state->output.cancelWriting();
+        QFile::remove(destinationPartPath);
+        emit requestFailed(reason);
+    };
+    const auto checkHeaders = [reply, state, fail]() {
+        if (state->headersChecked)
+            return !state->failed;
+        state->headersChecked = true;
+        bool lengthOk = false;
+        const qint64 contentLength =
+            reply->header(QNetworkRequest::ContentLengthHeader).toLongLong(&lengthOk);
+        const QByteArray contentSha256 = reply->rawHeader("X-Content-Sha256").trimmed().toLower();
+        if (!lengthOk || contentLength != state->expectedSize ||
+            contentSha256 != state->expectedSha256) {
+            fail(QObject::tr("Clipboard delivery integrity validation failed."));
+            return false;
+        }
+        return true;
+    };
+    const auto consume = [this, reply, state, delivery, checkHeaders, fail] {
+        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        if (status >= 300 || status < 200)
+            return;
+        if (!checkHeaders()) {
+            if (reply->isRunning())
+                reply->abort();
+            return;
+        }
+        const QByteArray chunk = reply->readAll();
+        if (chunk.isEmpty())
+            return;
+        if (state->received > state->expectedSize - chunk.size() ||
+            state->output.write(chunk) != chunk.size()) {
+            fail(tr("Could not save the clipboard download."));
+            if (reply->isRunning())
+                reply->abort();
+            return;
+        }
+        state->hash.addData(chunk);
+        state->received += chunk.size();
+        emit clipboardDownloadProgress(delivery.id, state->received, state->expectedSize);
+    };
+    connect(reply, &QNetworkReply::readyRead, this, consume);
+    connect(reply, &QNetworkReply::finished, this,
+            [this, reply, timeout, state, delivery, destinationPartPath, generation, consume,
+             checkHeaders, fail] {
+                timeout->stop();
+                consume();
+                if (generation != m_requestGeneration) {
+                    state->output.cancelWriting();
+                    QFile::remove(destinationPartPath);
+                } else if (!state->failed) {
+                    const QByteArray payload = reply->readAll();
+                    const int status =
+                        reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                    if (reply->error() != QNetworkReply::NoError || status < 200 || status >= 300)
+                        fail(errorText(reply, payload));
+                    else if (!checkHeaders() || state->received != state->expectedSize ||
+                             state->hash.result().toHex() != state->expectedSha256)
+                        fail(tr("Clipboard delivery integrity validation failed."));
+                    else if (!state->output.commit())
+                        fail(tr("Could not save the clipboard download."));
+                    else
+                        emit clipboardDownloadFinished(delivery.id, destinationPartPath);
+                }
+                reply->deleteLater();
+            });
+}
+
+void AccountClient::acknowledgeClipboardDelivery(const QString &deliveryId) {
+    if (!isLoggedIn()) {
+        emit requestFailed(tr("Not signed in."));
+        return;
+    }
+    request(Verb::Post,
+            QStringLiteral("/v1/clipboard/deliveries/") + deliveryId + QStringLiteral("/ack"),
+            QByteArray(), true, [this, deliveryId](QNetworkReply *reply) {
+                const QByteArray payload = reply->readAll();
+                const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                if (reply->error() != QNetworkReply::NoError || status < 200 || status >= 300) {
+                    emit requestFailed(errorText(reply, payload));
+                    return;
+                }
+                emit clipboardDeliveryAcknowledged(deliveryId);
             });
 }

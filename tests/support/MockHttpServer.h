@@ -22,6 +22,7 @@ public:
         int delayMs = 0;      // answer this late (exercises the client timeout)
         bool silent = false;  // accept the request and never answer at all
         bool dropAfterHeaders = false; // send the headers, then hang up mid-body
+        QHash<QByteArray, QByteArray> headers;
     };
 
     MockHttpServer() {
@@ -54,6 +55,7 @@ public:
         return total;
     }
     QByteArray lastRequestHead() const { return m_lastHead; }
+    QByteArray lastRequestBody() const { return m_lastBody; }
 
 private:
     void onConnection() {
@@ -62,13 +64,40 @@ private:
             return;
         connect(sock, &QTcpSocket::readyRead, this, [this, sock] {
             m_pending[sock] += sock->readAll();
-            if (!m_pending.value(sock).contains("\r\n\r\n"))
+            if (!m_heads.contains(sock)) {
+                const int headerEnd = m_pending.value(sock).indexOf("\r\n\r\n");
+                if (headerEnd < 0)
+                    return;
+                const QByteArray head = m_pending.value(sock).left(headerEnd + 4);
+                const QByteArray requestLine = head.left(head.indexOf("\r\n"));
+                const QList<QByteArray> parts = requestLine.split(' ');
+                qint64 contentLength = 0;
+                for (const QByteArray &line : head.split('\n')) {
+                    const QByteArray trimmed = line.trimmed();
+                    if (trimmed.startsWith("Content-Length:")) {
+                        bool ok = false;
+                        contentLength = trimmed.mid(sizeof("Content-Length:") - 1).trimmed().toLongLong(&ok);
+                        if (!ok || contentLength < 0) {
+                            sock->abort();
+                            return;
+                        }
+                        break;
+                    }
+                }
+                m_heads.insert(sock, head);
+                m_paths.insert(sock, parts.size() > 1 ? QString::fromUtf8(parts.at(1)) : QString());
+                m_contentLengths.insert(sock, contentLength);
+                m_pending[sock].remove(0, headerEnd + 4);
+            }
+            if (m_pending.value(sock).size() < m_contentLengths.value(sock))
                 return;
-            const QByteArray head = m_pending.take(sock);
+
+            const QByteArray head = m_heads.take(sock);
+            const QString path = m_paths.take(sock);
+            const qint64 contentLength = m_contentLengths.take(sock);
+            const QByteArray body = m_pending.take(sock).left(contentLength);
             m_lastHead = head;
-            const QByteArray requestLine = head.left(head.indexOf("\r\n"));
-            const QList<QByteArray> parts = requestLine.split(' ');
-            const QString path = parts.size() > 1 ? QString::fromUtf8(parts.at(1)) : QString();
+            m_lastBody = body;
             m_hits[path] += 1;
             respond(sock, path, head);
         });
@@ -93,6 +122,8 @@ private:
             QByteArray head = "HTTP/1.1 " + QByteArray::number(route.status) + " X\r\n";
             head += "Content-Type: " + route.contentType + "\r\n";
             head += "Content-Length: " + QByteArray::number(route.body.size()) + "\r\n";
+            for (auto it = route.headers.constBegin(); it != route.headers.constEnd(); ++it)
+                head += it.key() + ": " + it.value() + "\r\n";
             head += "Connection: close\r\n\r\n";
             if (route.dropAfterHeaders) {
                 sock->write(head);
@@ -120,5 +151,9 @@ private:
     QHash<QString, QList<Route>> m_routes;
     QHash<QString, int> m_hits;
     QHash<QTcpSocket *, QByteArray> m_pending;
+    QHash<QTcpSocket *, QByteArray> m_heads;
+    QHash<QTcpSocket *, QString> m_paths;
+    QHash<QTcpSocket *, qint64> m_contentLengths;
     QByteArray m_lastHead;
+    QByteArray m_lastBody;
 };

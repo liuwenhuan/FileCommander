@@ -67,6 +67,7 @@ signals:
                        int expiresIn, const QString &clipboardItemId);
 
     void clipboardChanged(qint64 revision, const QString &change);
+    void clipboardDeliveryAvailable(QString deliveryId);
 
     // The server told us another device of this account came online or went
     // offline. The caller re-fetches the device list so the peer's row flips
