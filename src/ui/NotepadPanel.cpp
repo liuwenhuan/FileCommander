@@ -105,6 +105,7 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
     m_textPreview = new QPlainTextEdit;
     m_textPreview->setObjectName(QStringLiteral("CloudClipboardPreview"));
     m_textPreview->setReadOnly(true);
+    m_textPreview->setTabChangesFocus(true);
     m_textPreview->setFrameShape(QFrame::NoFrame);
     m_textPreview->setMinimumHeight(kPreviewMinimumHeight);
     m_imagePreview = new QLabel;
@@ -117,7 +118,7 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
     m_contentStack->addWidget(m_imagePreview);
     m_send = new QPushButton(tr("Send to other devices"));
     m_send->setObjectName(QStringLiteral("CloudClipboardSendButton"));
-    m_send->setFocusPolicy(Qt::NoFocus);
+    m_send->setFocusPolicy(Qt::StrongFocus);
     m_send->setVisible(false);
 
     auto *previewTools = new QHBoxLayout;
@@ -153,11 +154,18 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
     connect(m_controller, &CloudClipboardController::transferStatusChanged, this,
             [this](const QString &status) {
                 m_transferStatus = status;
+                clearTransferProgress();
                 m_status->setText(status);
                 m_status->setVisible(!status.isEmpty());
             });
     connect(m_controller, &CloudClipboardController::transferProgress, this,
-            [this](const QString &, qint64 completed, qint64 total) {
+            [this](const QString &recordId, qint64 completed, qint64 total) {
+                if (recordId.isEmpty())
+                    return;
+                if (m_activeTransferId.isEmpty())
+                    m_activeTransferId = recordId;
+                if (m_activeTransferId != recordId)
+                    return;
                 const int percent = total > 0 ? int(completed * 100 / total) : 0;
                 m_progress->setRange(0, 100);
                 m_progress->setValue(percent);
@@ -227,6 +235,12 @@ void NotepadPanel::rebuild() {
                                    : QString());
     updateSelection();
     applyDynamicSize();
+}
+
+void NotepadPanel::clearTransferProgress() {
+    m_activeTransferId.clear();
+    m_progress->setValue(0);
+    m_progress->setVisible(false);
 }
 
 const ClipboardHistoryRecord *NotepadPanel::selected() const {

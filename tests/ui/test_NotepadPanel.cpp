@@ -11,11 +11,14 @@
 #include <QListWidget>
 #include <QMimeData>
 #include <QPlainTextEdit>
+#include <QPixmap>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QScreen>
 #include <QSignalSpy>
+#include <QStackedWidget>
 #include <QTemporaryDir>
+#include <QTest>
 #include <QUuid>
 #include <QUrl>
 
@@ -565,11 +568,74 @@ TEST(CloudClipboardPanelTest, SelectionPreviewsTextAndShowsSendOnlyForLocalRecor
     QCoreApplication::processEvents();
     EXPECT_EQ(preview->toPlainText(), local.text);
     EXPECT_TRUE(send->isVisible());
+    EXPECT_EQ(send->focusPolicy(), Qt::StrongFocus);
+    preview->setFocus();
+    ASSERT_TRUE(preview->hasFocus());
+    QTest::keyClick(preview, Qt::Key_Tab);
+    EXPECT_TRUE(send->hasFocus());
 
     select(incoming.id);
     QCoreApplication::processEvents();
     EXPECT_EQ(preview->toPlainText(), incoming.text);
     EXPECT_FALSE(send->isVisible());
+}
+
+TEST(CloudClipboardPanelTest, ImageSelectionPreviewsScaledImagesAndHandlesMissingFiles) {
+    QTemporaryDir temporaryDir;
+    ASSERT_TRUE(temporaryDir.isValid());
+    Settings settings(temporaryDir.filePath(QStringLiteral("settings.ini")));
+    ClipboardHistoryStore store(temporaryDir.path());
+
+    auto encode = [](const QImage &image) {
+        QByteArray bytes;
+        QBuffer buffer(&bytes);
+        EXPECT_TRUE(buffer.open(QIODevice::WriteOnly));
+        EXPECT_TRUE(image.save(&buffer, "PNG"));
+        return bytes;
+    };
+    QImage source(840, 440, QImage::Format_ARGB32);
+    source.fill(Qt::green);
+    const ClipboardHistoryRecord valid = store.addLocalImage(encode(source), QStringLiteral("image/png"),
+                                                              source.width(), source.height());
+    QImage unavailable(7, 5, QImage::Format_ARGB32);
+    unavailable.fill(Qt::red);
+    const ClipboardHistoryRecord missing = store.addLocalImage(encode(unavailable), QStringLiteral("image/png"),
+                                                                unavailable.width(), unavailable.height());
+    ASSERT_FALSE(valid.id.isEmpty());
+    ASSERT_FALSE(missing.id.isEmpty());
+    ASSERT_TRUE(QFile::remove(missing.imagePath));
+
+    CloudClipboardController controller(store, nullptr);
+    NotepadPanel panel(settings, &controller);
+    auto *list = panel.findChild<QListWidget *>(QStringLiteral("CloudClipboardList"));
+    auto *stack = panel.findChild<QStackedWidget *>(QStringLiteral("CloudClipboardContentStack"));
+    auto *imagePreview = panel.findChild<QLabel *>(QStringLiteral("CloudClipboardImagePreview"));
+    ASSERT_NE(list, nullptr);
+    ASSERT_NE(stack, nullptr);
+    ASSERT_NE(imagePreview, nullptr);
+
+    auto select = [list](const QString &id) {
+        for (int row = 0; row < list->count(); ++row) {
+            if (list->item(row)->data(Qt::UserRole).toString() == id) {
+                list->setCurrentRow(row);
+                return;
+            }
+        }
+        ADD_FAILURE() << "history image missing from list";
+    };
+    select(valid.id);
+    EXPECT_EQ(stack->currentWidget(), imagePreview);
+    const QPixmap *pixmap = imagePreview->pixmap();
+    ASSERT_NE(pixmap, nullptr);
+    EXPECT_FALSE(pixmap->isNull());
+    EXPECT_EQ(pixmap->size(), QSize(420, 220));
+    EXPECT_TRUE(imagePreview->text().isEmpty());
+
+    select(missing.id);
+    EXPECT_EQ(stack->currentWidget(), imagePreview);
+    const QPixmap *missingPixmap = imagePreview->pixmap();
+    EXPECT_TRUE(missingPixmap == nullptr || missingPixmap->isNull());
+    EXPECT_EQ(imagePreview->text(), QStringLiteral("Could not load image preview."));
 }
 
 TEST(CloudClipboardPanelTest, DoubleClickCopiesSelectedRecordWithoutAutomaticIncomingCopy) {
@@ -620,9 +686,28 @@ TEST(CloudClipboardPanelTest, TransferSignalsUpdateProgressAndStatus) {
     EXPECT_TRUE(status->text().contains(QStringLiteral("25%")));
     EXPECT_TRUE(status->text().contains(QStringLiteral("25 / 100 bytes")));
 
+    ASSERT_TRUE(QMetaObject::invokeMethod(&controller, "transferProgress", Qt::DirectConnection,
+                                          Q_ARG(QString, QStringLiteral("record-2")),
+                                          Q_ARG(qint64, 75), Q_ARG(qint64, 100)));
+    EXPECT_EQ(progress->value(), 25);
+    EXPECT_TRUE(status->text().contains(QStringLiteral("25 / 100 bytes")));
+
     ASSERT_TRUE(QMetaObject::invokeMethod(&controller, "transferStatusChanged", Qt::DirectConnection,
                                           Q_ARG(QString, QStringLiteral("Delivery received."))));
+    EXPECT_FALSE(progress->isVisible());
     EXPECT_EQ(status->text(), QStringLiteral("Delivery received."));
+
+    ASSERT_TRUE(QMetaObject::invokeMethod(&controller, "transferProgress", Qt::DirectConnection,
+                                          Q_ARG(QString, QStringLiteral("record-2")),
+                                          Q_ARG(qint64, 50), Q_ARG(qint64, 200)));
+    EXPECT_TRUE(progress->isVisible());
+    EXPECT_EQ(progress->value(), 25);
+    EXPECT_TRUE(status->text().contains(QStringLiteral("50 / 200 bytes")));
+
+    ASSERT_TRUE(QMetaObject::invokeMethod(&controller, "transferStatusChanged", Qt::DirectConnection,
+                                          Q_ARG(QString, QStringLiteral("Transfer failed."))));
+    EXPECT_FALSE(progress->isVisible());
+    EXPECT_EQ(status->text(), QStringLiteral("Transfer failed."));
 }
 
 TEST(CloudClipboardPanelTest, PreservesAnchoredPopupGeometryWithPreview) {

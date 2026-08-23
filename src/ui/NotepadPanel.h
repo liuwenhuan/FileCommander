@@ -52,6 +52,7 @@ private:
     void initialize(AccountClient *client, DeviceAgent *agent,
                     CloudClipboardController *existingController = nullptr);
     void applyDynamicSize();
+    void clearTransferProgress();
     const ClipboardHistoryRecord *selected() const;
     QString itemLabel(const ClipboardHistoryRecord &item) const;
 
@@ -70,6 +71,7 @@ private:
     QPushButton *m_delete = nullptr;
     QPushButton *m_send = nullptr;
     QString m_transferStatus;
+    QString m_activeTransferId;
     QRect m_anchorRect;
     QRect m_appContentRect;
     QSize m_anchorSize;
