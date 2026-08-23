@@ -38,6 +38,22 @@ async fn send(state: &AppState, method: &str, path: &str, token: &str, body: Val
         .unwrap()
 }
 
+async fn send_text(state: &AppState, path: &str, token: &str, text: &str) -> Response {
+    router(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(path)
+                .header("content-type", "text/plain; charset=utf-8")
+                .header("x-filecommander-protocol", "1")
+                .header("authorization", format!("Bearer {token}"))
+                .body(Body::from(text.to_owned()))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+}
+
 async fn json_of(response: Response) -> Value {
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
     serde_json::from_slice(&bytes).unwrap_or(Value::Null)
@@ -1323,4 +1339,327 @@ async fn clipboard_pushes_only_to_other_capable_devices() {
             .await
             .is_err()
     );
+}
+
+#[tokio::test]
+async fn clipboard_delivery_send_queues_text_for_other_account_devices() {
+    let state = state();
+    register(&state, "owner@example.com", "correct horse").await;
+    register(&state, "other@example.com", "correct horse").await;
+    let source = login(&state, "owner@example.com", "desktop", "").await;
+    let laptop = login(&state, "owner@example.com", "laptop", "").await;
+    let tablet = login(&state, "owner@example.com", "tablet", "").await;
+    let other = login(&state, "other@example.com", "other", "").await;
+    let source_token = source["access_token"].as_str().unwrap();
+    let text = "hello from the desktop — 你好";
+
+    let queued = send_text(&state, "/v1/clipboard/send", source_token, text).await;
+    assert_eq!(queued.status(), StatusCode::OK);
+    let queued = json_of(queued).await;
+    assert_eq!(queued["recipient_count"], 2);
+    let payload_id = queued["payload_id"]
+        .as_str()
+        .expect("payload id")
+        .to_string();
+
+    for recipient in [&laptop, &tablet] {
+        let deliveries = json_of(
+            send(
+                &state,
+                "GET",
+                "/v1/clipboard/deliveries",
+                recipient["access_token"].as_str().unwrap(),
+                Value::Null,
+            )
+            .await,
+        )
+        .await;
+        let rows = deliveries["deliveries"].as_array().expect("deliveries");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0]["payload_id"], payload_id);
+        assert_eq!(rows[0]["kind"], "text");
+        assert_eq!(rows[0]["mime"], "text/plain; charset=utf-8");
+        assert_eq!(rows[0]["size"], text.len());
+        assert!(rows[0]["width"].is_null());
+        assert!(rows[0]["height"].is_null());
+        assert_eq!(rows[0]["source_device_id"], source["device_id"]);
+        assert_eq!(rows[0]["source_device_name"], "desktop");
+        assert!(rows[0]["sha256"].as_str().unwrap().len() == 64);
+
+        let delivery_id = rows[0]["id"].as_str().unwrap();
+        let content = send(
+            &state,
+            "GET",
+            &format!("/v1/clipboard/deliveries/{delivery_id}/content"),
+            recipient["access_token"].as_str().unwrap(),
+            Value::Null,
+        )
+        .await;
+        assert_eq!(content.status(), StatusCode::OK);
+        assert_eq!(
+            content.headers()["content-type"],
+            "text/plain; charset=utf-8"
+        );
+        assert_eq!(
+            content
+                .into_body()
+                .collect()
+                .await
+                .unwrap()
+                .to_bytes()
+                .as_ref(),
+            text.as_bytes()
+        );
+    }
+
+    for session in [&source, &other] {
+        let deliveries = json_of(
+            send(
+                &state,
+                "GET",
+                "/v1/clipboard/deliveries",
+                session["access_token"].as_str().unwrap(),
+                Value::Null,
+            )
+            .await,
+        )
+        .await;
+        assert!(deliveries["deliveries"].as_array().unwrap().is_empty());
+    }
+}
+
+#[tokio::test]
+async fn clipboard_delivery_ack_is_device_owned_and_idempotent() {
+    let state = state();
+    register(&state, "owner@example.com", "correct horse").await;
+    let source = login(&state, "owner@example.com", "desktop", "").await;
+    let recipient = login(&state, "owner@example.com", "laptop", "").await;
+    let intruder = login(&state, "owner@example.com", "tablet", "").await;
+
+    let queued = json_of(
+        send_text(
+            &state,
+            "/v1/clipboard/send",
+            source["access_token"].as_str().unwrap(),
+            "one pending delivery",
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(queued["recipient_count"], 2);
+    let deliveries = json_of(
+        send(
+            &state,
+            "GET",
+            "/v1/clipboard/deliveries",
+            recipient["access_token"].as_str().unwrap(),
+            Value::Null,
+        )
+        .await,
+    )
+    .await;
+    let delivery_id = deliveries["deliveries"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let path = format!("/v1/clipboard/deliveries/{delivery_id}/ack");
+
+    assert_eq!(
+        send(
+            &state,
+            "POST",
+            &path,
+            intruder["access_token"].as_str().unwrap(),
+            Value::Null,
+        )
+        .await
+        .status(),
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        send(
+            &state,
+            "POST",
+            &path,
+            recipient["access_token"].as_str().unwrap(),
+            Value::Null,
+        )
+        .await
+        .status(),
+        StatusCode::NO_CONTENT
+    );
+    let pending = json_of(
+        send(
+            &state,
+            "GET",
+            "/v1/clipboard/deliveries",
+            recipient["access_token"].as_str().unwrap(),
+            Value::Null,
+        )
+        .await,
+    )
+    .await;
+    assert!(pending["deliveries"].as_array().unwrap().is_empty());
+    assert_eq!(
+        send(
+            &state,
+            "POST",
+            &path,
+            recipient["access_token"].as_str().unwrap(),
+            Value::Null,
+        )
+        .await
+        .status(),
+        StatusCode::NO_CONTENT
+    );
+}
+
+#[tokio::test]
+async fn clipboard_delivery_send_without_recipients_keeps_no_payload() {
+    let state = state();
+    register(&state, "owner@example.com", "correct horse").await;
+    let source = login(&state, "owner@example.com", "desktop", "").await;
+
+    let queued = json_of(
+        send_text(
+            &state,
+            "/v1/clipboard/send",
+            source["access_token"].as_str().unwrap(),
+            "nobody else is logged in",
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(queued["recipient_count"], 0);
+    let payload_id = queued["payload_id"]
+        .as_str()
+        .expect("payload id")
+        .to_string();
+    let retained = state
+        .db
+        .call(move |conn| {
+            conn.query_row(
+                "SELECT COUNT(*) FROM clipboard_payloads WHERE id = ?1",
+                [payload_id],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap()
+        })
+        .await;
+    assert_eq!(retained, 0);
+}
+
+#[tokio::test]
+async fn clipboard_delivery_purges_expired_pending_payloads() {
+    let state = state();
+    register(&state, "owner@example.com", "correct horse").await;
+    let source = login(&state, "owner@example.com", "desktop", "").await;
+    let recipient = login(&state, "owner@example.com", "laptop", "").await;
+    let queued = json_of(
+        send_text(
+            &state,
+            "/v1/clipboard/send",
+            source["access_token"].as_str().unwrap(),
+            "expires without being delivered",
+        )
+        .await,
+    )
+    .await;
+    let payload_id = queued["payload_id"].as_str().unwrap().to_string();
+    state
+        .db
+        .call(move |conn| {
+            conn.execute(
+                "UPDATE clipboard_payloads SET expires = '2000-01-01T00:00:00+00:00' WHERE id = ?1",
+                [payload_id],
+            )
+            .unwrap();
+        })
+        .await;
+
+    let pending = json_of(
+        send(
+            &state,
+            "GET",
+            "/v1/clipboard/deliveries",
+            recipient["access_token"].as_str().unwrap(),
+            Value::Null,
+        )
+        .await,
+    )
+    .await;
+    assert!(pending["deliveries"].as_array().unwrap().is_empty());
+    let (payloads, deliveries) = state
+        .db
+        .call(|conn| {
+            (
+                conn.query_row("SELECT COUNT(*) FROM clipboard_payloads", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+                conn.query_row("SELECT COUNT(*) FROM clipboard_deliveries", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            )
+        })
+        .await;
+    assert_eq!(payloads, 0);
+    assert_eq!(deliveries, 0);
+}
+
+#[tokio::test]
+async fn clipboard_delivery_removes_payload_after_every_recipient_acknowledges() {
+    let state = state();
+    register(&state, "owner@example.com", "correct horse").await;
+    let source = login(&state, "owner@example.com", "desktop", "").await;
+    let recipient = login(&state, "owner@example.com", "laptop", "").await;
+    let queued = json_of(
+        send_text(
+            &state,
+            "/v1/clipboard/send",
+            source["access_token"].as_str().unwrap(),
+            "remove after delivery",
+        )
+        .await,
+    )
+    .await;
+    let payload_id = queued["payload_id"].as_str().unwrap().to_string();
+    let deliveries = json_of(
+        send(
+            &state,
+            "GET",
+            "/v1/clipboard/deliveries",
+            recipient["access_token"].as_str().unwrap(),
+            Value::Null,
+        )
+        .await,
+    )
+    .await;
+    let delivery_id = deliveries["deliveries"][0]["id"].as_str().unwrap();
+    let path = format!("/v1/clipboard/deliveries/{delivery_id}/ack");
+    assert_eq!(
+        send(
+            &state,
+            "POST",
+            &path,
+            recipient["access_token"].as_str().unwrap(),
+            Value::Null,
+        )
+        .await
+        .status(),
+        StatusCode::NO_CONTENT
+    );
+    let retained = state
+        .db
+        .call(move |conn| {
+            conn.query_row(
+                "SELECT COUNT(*) FROM clipboard_payloads WHERE id = ?1",
+                [payload_id],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap()
+        })
+        .await;
+    assert_eq!(retained, 0);
 }

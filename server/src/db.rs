@@ -71,6 +71,28 @@ CREATE INDEX IF NOT EXISTS idx_clipboard_items_user_revision
     ON clipboard_items(user_id, revision);
 CREATE INDEX IF NOT EXISTS idx_clipboard_events_user_revision
     ON clipboard_events(user_id, revision);
+CREATE TABLE IF NOT EXISTS clipboard_payloads (
+    id               TEXT PRIMARY KEY,
+    user_id          INTEGER NOT NULL,
+    source_device_id TEXT NOT NULL,
+    kind             TEXT NOT NULL,
+    mime             TEXT NOT NULL,
+    content          BLOB NOT NULL,
+    size             INTEGER NOT NULL,
+    width            INTEGER,
+    height           INTEGER,
+    sha256           TEXT NOT NULL,
+    created          TEXT NOT NULL,
+    expires          TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS clipboard_deliveries (
+    id               TEXT PRIMARY KEY,
+    payload_id       TEXT NOT NULL,
+    target_device_id TEXT NOT NULL,
+    state            TEXT NOT NULL DEFAULT 'pending',
+    delivered_at     TEXT,
+    UNIQUE(payload_id, target_device_id)
+);
 ";
 
 /// One connection behind one lock, reached from async code through
@@ -231,6 +253,75 @@ mod tests {
 
         // Running it again must be a no-op, not an error.
         Db::open(path).expect("second open");
+
+        drop(conn);
+        let _ = std::fs::remove_file(&file);
+    }
+
+    #[test]
+    fn clipboard_delivery_tables_exist_after_opening_an_older_database() {
+        let file = std::env::temp_dir().join(format!(
+            "fc-clipboard-delivery-migrate-{}.db",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&file);
+        let path = file.to_str().expect("utf-8 path");
+
+        Connection::open(path).expect("older database");
+        Db::open(path).expect("migrate clipboard delivery tables");
+
+        let conn = Connection::open(path).expect("reopen");
+        for table in ["clipboard_payloads", "clipboard_deliveries"] {
+            let found: String = conn
+                .query_row(
+                    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?1",
+                    [table],
+                    |row| row.get(0),
+                )
+                .expect("clipboard delivery table");
+            assert_eq!(found, table);
+        }
+        let payload_columns: Vec<String> = conn
+            .prepare("PRAGMA table_info(clipboard_payloads)")
+            .expect("payload table info")
+            .query_map([], |row| row.get(1))
+            .expect("payload columns")
+            .map(|column| column.expect("column name"))
+            .collect();
+        assert_eq!(
+            payload_columns,
+            [
+                "id",
+                "user_id",
+                "source_device_id",
+                "kind",
+                "mime",
+                "content",
+                "size",
+                "width",
+                "height",
+                "sha256",
+                "created",
+                "expires"
+            ]
+        );
+        let delivery_columns: Vec<String> = conn
+            .prepare("PRAGMA table_info(clipboard_deliveries)")
+            .expect("delivery table info")
+            .query_map([], |row| row.get(1))
+            .expect("delivery columns")
+            .map(|column| column.expect("column name"))
+            .collect();
+        assert_eq!(
+            delivery_columns,
+            [
+                "id",
+                "payload_id",
+                "target_device_id",
+                "state",
+                "delivered_at"
+            ]
+        );
 
         drop(conn);
         let _ = std::fs::remove_file(&file);

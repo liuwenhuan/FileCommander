@@ -1,6 +1,7 @@
 //! Account-scoped clipboard history. The server retains text and image previews,
 //! never the original image bytes.
 
+use axum::body::Bytes;
 use axum::extract::{Path, Query, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -9,6 +10,7 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use chrono::Duration as ChronoDuration;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::agent::broadcast_clipboard;
 use crate::api::{authenticate, fail, ApiError};
@@ -93,6 +95,33 @@ pub struct ChangeResponse {
     pub revision: i64,
 }
 
+#[derive(Serialize)]
+pub struct DeliveryView {
+    pub id: String,
+    pub payload_id: String,
+    pub kind: String,
+    pub mime: String,
+    pub size: i64,
+    pub width: Option<i64>,
+    pub height: Option<i64>,
+    pub sha256: String,
+    pub source_device_id: String,
+    pub source_device_name: String,
+    pub created: String,
+    pub expires: String,
+}
+
+#[derive(Serialize)]
+pub struct DeliveryList {
+    pub deliveries: Vec<DeliveryView>,
+}
+
+#[derive(Serialize)]
+pub struct SendDeliveryResponse {
+    pub payload_id: String,
+    pub recipient_count: usize,
+}
+
 fn image_mime(value: &str) -> bool {
     value.starts_with("image/")
         && value.len() <= 127
@@ -151,6 +180,15 @@ fn event(
 /// Removes expired records before every operation. Expiry is also a history
 /// change, so clients polling with `after` can discard a stale local item.
 fn purge_expired(conn: &Connection, user_id: i64, stamp: &str) -> rusqlite::Result<()> {
+    conn.execute(
+        "DELETE FROM clipboard_deliveries WHERE payload_id IN \
+         (SELECT id FROM clipboard_payloads WHERE user_id = ?1 AND expires <= ?2)",
+        params![user_id, stamp],
+    )?;
+    conn.execute(
+        "DELETE FROM clipboard_payloads WHERE user_id = ?1 AND expires <= ?2",
+        params![user_id, stamp],
+    )?;
     conn.execute(
         "DELETE FROM clipboard_events WHERE expires <= ?1",
         params![stamp],
@@ -550,6 +588,331 @@ pub async fn clear(
         );
     }
     Ok(Json(ChangeResponse { revision }))
+}
+
+pub async fn send_delivery(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Json<SendDeliveryResponse>, ApiError> {
+    let principal = authenticate(&state, &headers).await?;
+    let content_type = headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok());
+    if content_type != Some("text/plain; charset=utf-8") {
+        return Err(fail(
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            "clipboard delivery requires text/plain; charset=utf-8",
+        ));
+    }
+    if body.len() > MAX_TEXT_BYTES {
+        return Err(fail(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "clipboard text is too large",
+        ));
+    }
+    if std::str::from_utf8(&body).is_err() {
+        return Err(fail(
+            StatusCode::BAD_REQUEST,
+            "clipboard text must be UTF-8",
+        ));
+    }
+
+    let user_id = principal.user_id;
+    let source_device_id = principal.device_id;
+    let payload_id = random_hex(16);
+    let created = iso(now());
+    let expires = iso(now() + ChronoDuration::days(TTL_DAYS));
+    let size = body.len() as i64;
+    let sha256 = hex::encode(Sha256::digest(&body));
+    let content = body.to_vec();
+    let response = state
+        .db
+        .call(move |conn| {
+            purge_expired(conn, user_id, &created).map_err(|_| {
+                fail(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "could not save clipboard delivery",
+                )
+            })?;
+            let transaction = conn.unchecked_transaction().map_err(|_| {
+                fail(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "could not save clipboard delivery",
+                )
+            })?;
+            let recipients: Vec<String> = {
+                let mut statement = transaction
+                    .prepare("SELECT id FROM devices WHERE user_id = ?1 AND id != ?2")
+                    .map_err(|_| {
+                        fail(
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            "could not save clipboard delivery",
+                        )
+                    })?;
+                let rows = statement
+                    .query_map(params![user_id, source_device_id], |row| row.get(0))
+                    .map_err(|_| {
+                        fail(
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            "could not save clipboard delivery",
+                        )
+                    })?;
+                rows.collect::<Result<Vec<_>, _>>().map_err(|_| {
+                    fail(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "could not save clipboard delivery",
+                    )
+                })?
+            };
+            if recipients.is_empty() {
+                transaction.commit().map_err(|_| {
+                    fail(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "could not save clipboard delivery",
+                    )
+                })?;
+                return Ok(SendDeliveryResponse {
+                    payload_id,
+                    recipient_count: 0,
+                });
+            }
+            transaction
+                .execute(
+                    "INSERT INTO clipboard_payloads \
+                     (id, user_id, source_device_id, kind, mime, content, size, width, height, \
+                      sha256, created, expires) \
+                     VALUES (?1, ?2, ?3, 'text', 'text/plain; charset=utf-8', ?4, ?5, NULL, NULL, \
+                             ?6, ?7, ?8)",
+                    params![
+                        payload_id,
+                        user_id,
+                        source_device_id,
+                        content,
+                        size,
+                        sha256,
+                        created,
+                        expires
+                    ],
+                )
+                .map_err(|_| {
+                    fail(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "could not save clipboard delivery",
+                    )
+                })?;
+            for target_device_id in &recipients {
+                transaction
+                    .execute(
+                        "INSERT INTO clipboard_deliveries (id, payload_id, target_device_id) \
+                         VALUES (?1, ?2, ?3)",
+                        params![random_hex(16), payload_id, target_device_id],
+                    )
+                    .map_err(|_| {
+                        fail(
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            "could not save clipboard delivery",
+                        )
+                    })?;
+            }
+            transaction.commit().map_err(|_| {
+                fail(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "could not save clipboard delivery",
+                )
+            })?;
+            Ok(SendDeliveryResponse {
+                payload_id,
+                recipient_count: recipients.len(),
+            })
+        })
+        .await?;
+    Ok(Json(response))
+}
+
+fn delivery_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<DeliveryView> {
+    Ok(DeliveryView {
+        id: row.get(0)?,
+        payload_id: row.get(1)?,
+        kind: row.get(2)?,
+        mime: row.get(3)?,
+        size: row.get(4)?,
+        width: row.get(5)?,
+        height: row.get(6)?,
+        sha256: row.get(7)?,
+        source_device_id: row.get(8)?,
+        source_device_name: row.get(9)?,
+        created: row.get(10)?,
+        expires: row.get(11)?,
+    })
+}
+
+pub async fn deliveries(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<DeliveryList>, ApiError> {
+    let principal = authenticate(&state, &headers).await?;
+    let user_id = principal.user_id;
+    let device_id = principal.device_id;
+    let stamp = iso(now());
+    let deliveries = state
+        .db
+        .call(move |conn| {
+            purge_expired(conn, user_id, &stamp).map_err(|_| {
+                fail(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "could not read clipboard deliveries",
+                )
+            })?;
+            let mut statement = conn
+                .prepare(
+                    "SELECT d.id, d.payload_id, p.kind, p.mime, p.size, p.width, p.height, p.sha256, \
+                     p.source_device_id, COALESCE(source.name, ''), p.created, p.expires \
+                     FROM clipboard_deliveries d \
+                     JOIN clipboard_payloads p ON p.id = d.payload_id \
+                     LEFT JOIN devices source ON source.id = p.source_device_id \
+                                           AND source.user_id = p.user_id \
+                     WHERE d.target_device_id = ?1 AND p.user_id = ?2 AND d.state = 'pending' \
+                     ORDER BY p.created DESC, d.rowid DESC",
+                )
+                .map_err(|_| {
+                    fail(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "could not read clipboard deliveries",
+                    )
+                })?;
+            let rows = statement
+                .query_map(params![device_id, user_id], delivery_from_row)
+                .map_err(|_| {
+                    fail(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "could not read clipboard deliveries",
+                    )
+                })?;
+            rows
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|_| {
+                    fail(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "could not read clipboard deliveries",
+                    )
+                })
+        })
+        .await?;
+    Ok(Json(DeliveryList { deliveries }))
+}
+
+pub async fn delivery_content(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(delivery_id): Path<String>,
+) -> Result<Response, ApiError> {
+    let principal = authenticate(&state, &headers).await?;
+    let user_id = principal.user_id;
+    let device_id = principal.device_id;
+    let stamp = iso(now());
+    let (mime, content, sha256) = state
+        .db
+        .call(move |conn| {
+            purge_expired(conn, user_id, &stamp).map_err(|_| {
+                fail(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "could not read clipboard delivery",
+                )
+            })?;
+            conn.query_row(
+                "SELECT p.mime, p.content, p.sha256 FROM clipboard_deliveries d \
+                 JOIN clipboard_payloads p ON p.id = d.payload_id \
+                 WHERE d.id = ?1 AND d.target_device_id = ?2 AND p.user_id = ?3 \
+                   AND d.state = 'pending'",
+                params![delivery_id, device_id, user_id],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, Vec<u8>>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(|_| {
+                fail(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "could not read clipboard delivery",
+                )
+            })?
+            .ok_or_else(|| fail(StatusCode::NOT_FOUND, "no such clipboard delivery"))
+        })
+        .await?;
+    let length = content.len().to_string();
+    Ok(Response::builder()
+        .header(header::CONTENT_TYPE, mime)
+        .header(header::CONTENT_LENGTH, length)
+        .header("x-content-sha256", sha256)
+        .body(axum::body::Body::from(content))
+        .expect("static response headers"))
+}
+
+pub async fn acknowledge_delivery(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(delivery_id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    let principal = authenticate(&state, &headers).await?;
+    let user_id = principal.user_id;
+    let device_id = principal.device_id;
+    let stamp = iso(now());
+    state
+        .db
+        .call(move |conn| {
+            purge_expired(conn, user_id, &stamp).map_err(|_| {
+                fail(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "could not acknowledge clipboard delivery",
+                )
+            })?;
+            let payload_id: Option<String> = conn
+                .query_row(
+                    "SELECT payload_id FROM clipboard_deliveries \
+                     WHERE id = ?1 AND target_device_id = ?2",
+                    params![delivery_id, device_id],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(|_| {
+                    fail(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "could not acknowledge clipboard delivery",
+                    )
+                })?;
+            let payload_id = payload_id
+                .ok_or_else(|| fail(StatusCode::NOT_FOUND, "no such clipboard delivery"))?;
+            conn.execute(
+                "UPDATE clipboard_deliveries SET state = 'delivered', delivered_at = ?1 \
+                 WHERE id = ?2 AND target_device_id = ?3 AND state = 'pending'",
+                params![stamp, delivery_id, device_id],
+            )
+            .map_err(|_| {
+                fail(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "could not acknowledge clipboard delivery",
+                )
+            })?;
+            conn.execute(
+                "DELETE FROM clipboard_payloads WHERE id = ?1 AND NOT EXISTS \
+                 (SELECT 1 FROM clipboard_deliveries WHERE payload_id = ?1 AND state = 'pending')",
+                params![payload_id],
+            )
+            .map_err(|_| {
+                fail(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "could not acknowledge clipboard delivery",
+                )
+            })?;
+            Ok(())
+        })
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn thumbnail(

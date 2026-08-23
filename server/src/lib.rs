@@ -119,9 +119,23 @@ pub fn router(state: AppState) -> Router {
         // before JSON deserialization or allocation.
         .layer(DefaultBodyLimit::max(256 * 1024));
 
+    let clipboard_delivery = Router::new()
+        .route("/v1/clipboard/send", post(clipboard::send_delivery))
+        .route("/v1/clipboard/deliveries", get(clipboard::deliveries))
+        .route(
+            "/v1/clipboard/deliveries/{delivery_id}/content",
+            get(clipboard::delivery_content),
+        )
+        .route(
+            "/v1/clipboard/deliveries/{delivery_id}/ack",
+            post(clipboard::acknowledge_delivery),
+        )
+        .layer(DefaultBodyLimit::max(64 * 1024));
+
     Router::new()
         .merge(auth)
         .merge(clipboard)
+        .merge(clipboard_delivery)
         .route("/v1/auth/logout", post(api::logout))
         .route("/v1/devices", get(api::devices))
         .route("/v1/devices/{device_id}", delete(api::forget_device))
