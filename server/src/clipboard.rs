@@ -136,11 +136,16 @@ struct DeliveryPayload {
 }
 
 fn image_mime(value: &str) -> bool {
-    value.starts_with("image/")
-        && value.len() <= 127
-        && value
+    let Some((media_type, subtype)) = value.split_once('/') else {
+        return false;
+    };
+    value.len() <= 127
+        && media_type.eq_ignore_ascii_case("image")
+        && !subtype.is_empty()
+        && !subtype.contains('/')
+        && subtype
             .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'+' | b'-' | b'.'))
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'-' | b'.'))
 }
 
 fn sha256(value: &str) -> bool {

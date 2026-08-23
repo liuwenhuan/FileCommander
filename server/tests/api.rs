@@ -2043,4 +2043,152 @@ async fn clipboard_delivery_notifies_each_online_target_once_but_not_the_sender(
             .await
             .is_err()
     );
+
+    let image = b"online image notification".to_vec();
+    let image_sha256 = {
+        use sha2::{Digest, Sha256};
+        hex::encode(Sha256::digest(&image))
+    };
+    let image_queued = send_image(
+        &state,
+        source["access_token"].as_str().unwrap(),
+        "image/png",
+        2,
+        3,
+        &image_sha256,
+        image.clone(),
+    )
+    .await;
+    assert_eq!(image_queued.status(), StatusCode::OK);
+    let image_notification: Value = serde_json::from_str(
+        target_socket
+            .next()
+            .await
+            .unwrap()
+            .unwrap()
+            .to_text()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(image_notification["type"], "clipboard_delivery");
+    assert_eq!(image_notification["kind"], "image");
+    assert_eq!(image_notification["size"], image.len());
+    let image_deliveries = json_of(
+        send(
+            &state,
+            "GET",
+            "/v1/clipboard/deliveries",
+            target["access_token"].as_str().unwrap(),
+            Value::Null,
+        )
+        .await,
+    )
+    .await;
+    let image_delivery = image_deliveries["deliveries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|delivery| delivery["kind"] == "image")
+        .unwrap();
+    assert_eq!(image_notification["delivery_id"], image_delivery["id"]);
+    assert!(image_notification.get("content").is_none());
+    assert!(image_notification.get("payload").is_none());
+    assert!(image_notification.get("bytes").is_none());
+}
+
+#[tokio::test]
+async fn clipboard_delivery_enforces_strict_image_media_types() {
+    use sha2::{Digest, Sha256};
+
+    let state = state();
+    register(&state, "owner@example.com", "correct horse").await;
+    let source = login(&state, "owner@example.com", "desktop", "").await;
+    let _recipient = login(&state, "owner@example.com", "laptop", "").await;
+    let image = b"strict image media type".to_vec();
+    let digest = hex::encode(Sha256::digest(&image));
+    let token = source["access_token"].as_str().unwrap();
+
+    for mime in [
+        "image/png/extra",
+        "image/",
+        "image/png; charset=binary",
+        "image/p ng",
+        "image/png\t",
+    ] {
+        assert_eq!(
+            send_image(&state, token, mime, 1, 1, &digest, image.clone())
+                .await
+                .status(),
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            "{mime} must be rejected"
+        );
+    }
+    assert_eq!(
+        send_image(&state, token, "IMAGE/PNG", 1, 1, &digest, image)
+            .await
+            .status(),
+        StatusCode::OK
+    );
+}
+
+#[tokio::test]
+async fn clipboard_delivery_enforces_image_dimension_and_pixel_boundaries() {
+    use sha2::{Digest, Sha256};
+
+    let state = state();
+    register(&state, "owner@example.com", "correct horse").await;
+    let source = login(&state, "owner@example.com", "desktop", "").await;
+    let _recipient = login(&state, "owner@example.com", "laptop", "").await;
+    let image = b"dimension boundary".to_vec();
+    let digest = hex::encode(Sha256::digest(&image));
+    let token = source["access_token"].as_str().unwrap();
+
+    assert_eq!(
+        send_image(
+            &state,
+            token,
+            "image/png",
+            16_384,
+            1,
+            &digest,
+            image.clone()
+        )
+        .await
+        .status(),
+        StatusCode::OK
+    );
+    assert_eq!(
+        send_image(
+            &state,
+            token,
+            "image/png",
+            16_385,
+            1,
+            &digest,
+            image.clone()
+        )
+        .await
+        .status(),
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        send_image(
+            &state,
+            token,
+            "image/png",
+            8_000,
+            5_000,
+            &digest,
+            image.clone()
+        )
+        .await
+        .status(),
+        StatusCode::OK
+    );
+    assert_eq!(
+        send_image(&state, token, "image/png", 8_001, 5_000, &digest, image)
+            .await
+            .status(),
+        StatusCode::BAD_REQUEST
+    );
 }
