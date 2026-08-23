@@ -90,7 +90,6 @@ void CloudClipboardController::initialize(AccountClient *client, DeviceAgent *ag
     connect(m_client, &AccountClient::clipboardDownloadProgress, this,
             [this](const QString &id, qint64 received, qint64 total) {
                 emit transferProgress(id, received, total);
-                emit imageDownloadProgress(id, received, total); // legacy panel progress
             });
     connect(m_client, &AccountClient::clipboardDownloadFinished, this,
             &CloudClipboardController::finishDeliveryDownload);
@@ -232,7 +231,6 @@ bool CloudClipboardController::copyRecordToClipboard(const QString &recordId) {
         m_clipboard->setImage(image);
         m_copyingToClipboard = false;
     }
-    emit imageCopied(recordId); // retained for the old panel's selection feedback
     return true;
 }
 
@@ -292,58 +290,6 @@ void CloudClipboardController::clear() {
         emit selectionChanged(QString());
     }
     emit changed();
-}
-
-void CloudClipboardController::sendText(const QString &text) {
-    const ClipboardHistoryRecord added = m_store->addLocalText(text);
-    if (added.id.isEmpty())
-        return;
-    emit changed();
-    sendRecord(added.id);
-}
-
-void CloudClipboardController::sendCurrentClipboard() {
-    if (!m_clipboard)
-        return;
-    ClipboardCapture capture;
-    if (!ClipboardHistoryStore::captureFromMimeData(m_clipboard->mimeData(), &capture))
-        return;
-    if (capture.kind == ClipboardRecordKind::Text) {
-        sendText(capture.text);
-        return;
-    }
-    const QByteArray png = encodePng(capture.image);
-    const ClipboardHistoryRecord added = m_store->addLocalImage(png, capture.mime,
-                                                                  capture.image.width(), capture.image.height());
-    if (!added.id.isEmpty()) {
-        emit changed();
-        sendRecord(added.id);
-    }
-}
-
-bool CloudClipboardController::sendImageFromMimeData(const QMimeData *mime) {
-    QImage image;
-    if (!acceptsImage(mime, &image))
-        return false;
-    m_stagedImage = image;
-    emit localImagePreview(image);
-    return true;
-}
-
-bool CloudClipboardController::sendStagedImage() {
-    if (m_stagedImage.isNull())
-        return false;
-    const QImage image = m_stagedImage;
-    m_stagedImage = QImage();
-    const QByteArray png = encodePng(image);
-    const ClipboardHistoryRecord added = m_store->addLocalImage(png, QStringLiteral("image/png"),
-                                                                  image.width(), image.height());
-    if (added.id.isEmpty())
-        return false;
-    emit changed();
-    emit localImagePublished();
-    sendRecord(added.id);
-    return true;
 }
 
 void CloudClipboardController::onClipboardChanged() {

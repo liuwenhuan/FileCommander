@@ -30,6 +30,7 @@
 #include "NotepadPanel.h"
 #include "account/AccountClient.h"
 #include "account/ClipboardHistoryStore.h"
+#include "account/DeviceAgent.h"
 #include "config/Settings.h"
 
 namespace {
@@ -127,7 +128,12 @@ TEST(CloudClipboardControllerTest, AutomaticallyCapturesLocalClipboardWithoutPub
     QTemporaryDir directory;
     ASSERT_TRUE(directory.isValid());
     ClipboardHistoryStore store(directory.path());
-    CloudClipboardController controller(store, nullptr);
+    MockHttpServer server;
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries"), json(R"({"deliveries":[]})"));
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    signIn(client, server);
+    CloudClipboardController controller(store, &client);
     QSignalSpy changed(&controller, &CloudClipboardController::changed);
     const QString text = QStringLiteral("local capture %1").arg(QUuid::createUuid().toString());
 
@@ -139,6 +145,28 @@ TEST(CloudClipboardControllerTest, AutomaticallyCapturesLocalClipboardWithoutPub
     EXPECT_EQ(record.kind, ClipboardRecordKind::Text);
     EXPECT_EQ(record.text, text);
     EXPECT_TRUE(changed.count() > 0);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/clipboard")), 0);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/session")), 0);
+}
+
+TEST(CloudClipboardControllerTest, AgentAnnouncementRefreshesMissedDeliveries) {
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    ClipboardHistoryStore store(directory.path());
+    MockHttpServer server;
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries"), json(R"({"deliveries":[]})"));
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    DeviceAgent agent(&client);
+    CloudClipboardController controller(store, &client, &agent);
+
+    signIn(client, server);
+    FC_TRY_COMPARE_WITH_TIMEOUT(server.requestCount(QStringLiteral("/v1/clipboard/deliveries")), 1,
+                                5000);
+
+    ASSERT_TRUE(QMetaObject::invokeMethod(&agent, "announced", Qt::DirectConnection));
+    FC_TRY_COMPARE_WITH_TIMEOUT(server.requestCount(QStringLiteral("/v1/clipboard/deliveries")), 2,
+                                5000);
 }
 
 TEST(CloudClipboardControllerTest, CopyingARecordDoesNotRecaptureItsOwnClipboardWrite) {

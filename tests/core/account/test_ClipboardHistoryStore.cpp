@@ -20,7 +20,9 @@
 #endif
 
 #include <algorithm>
+#include <filesystem>
 #include <string>
+#include <system_error>
 #include <vector>
 
 #include "account/ClipboardHistoryStore.h"
@@ -149,6 +151,30 @@ TEST(ClipboardHistoryStoreTest, RichTextStoresPlainTextOnly) {
     EXPECT_EQ(capture.text, QStringLiteral("Hello"));
 }
 
+TEST(ClipboardHistoryStoreTest, HtmlOnlyClipboardIsConvertedToPlainText) {
+    QMimeData mime;
+    mime.setHtml(QStringLiteral("<p>Hello &amp; goodbye<br>next line</p>"));
+
+    ClipboardCapture capture;
+    ASSERT_TRUE(ClipboardHistoryStore::captureFromMimeData(&mime, &capture));
+    EXPECT_EQ(capture.kind, ClipboardRecordKind::Text);
+    EXPECT_EQ(capture.text, QStringLiteral("Hello & goodbye\nnext line"));
+    EXPECT_FALSE(capture.text.contains(QLatin1Char('<')));
+    EXPECT_FALSE(capture.text.contains(QLatin1Char('>')));
+}
+
+TEST(ClipboardHistoryStoreTest, ExplicitPlainTextFallbackWinsOverHtml) {
+    QMimeData mime;
+    mime.setHtml(QStringLiteral("<p>formatted source</p>"));
+    const QString plain = QStringLiteral("if (left < right && right > 0) return \"&amp;\";");
+    mime.setText(plain);
+
+    ClipboardCapture capture;
+    ASSERT_TRUE(ClipboardHistoryStore::captureFromMimeData(&mime, &capture));
+    EXPECT_EQ(capture.kind, ClipboardRecordKind::Text);
+    EXPECT_EQ(capture.text, plain);
+}
+
 TEST(ClipboardHistoryStoreTest, RejectsFilesAndPrivateFormats) {
     QMimeData files;
     files.setUrls({QUrl::fromLocalFile(QStringLiteral("C:/secret.txt"))});
@@ -170,6 +196,13 @@ QByteArray encodedPng(const QImage &image) {
 
 QString historyPath(const QTemporaryDir &dir) {
     return dir.filePath(QStringLiteral("cloud-clipboard/history"));
+}
+
+bool createDirectorySymlink(const QString &target, const QString &link) {
+    std::error_code error;
+    std::filesystem::create_directory_symlink(std::filesystem::path(target.toStdWString()),
+                                              std::filesystem::path(link.toStdWString()), error);
+    return !error;
 }
 
 TEST(ClipboardHistoryStoreTest, PersistsFiftyNewestAndDeduplicates) {
@@ -352,6 +385,122 @@ TEST(ClipboardHistoryStoreTest, LoadsLegacyV1TimestampWithoutDeletingItsImage) {
     EXPECT_TRUE(store.records().first().created.isValid());
     EXPECT_EQ(store.records().first().id, id);
     EXPECT_TRUE(QFileInfo::exists(imagePath));
+}
+
+TEST(ClipboardHistoryStoreTest, RemovesRetiredLegacyImagesWithoutTouchingHistoryOrSiblingFiles) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString clipboardRoot = dir.filePath(QStringLiteral("cloud-clipboard"));
+    const QString legacyImages = QDir(clipboardRoot).filePath(QStringLiteral("images"));
+    ASSERT_TRUE(QDir().mkpath(legacyImages));
+
+    const QString legacyImage = QDir(legacyImages).filePath(
+        QStringLiteral("0123456789abcdef0123456789abcdef.bin"));
+    QFile legacyFile(legacyImage);
+    ASSERT_TRUE(legacyFile.open(QIODevice::WriteOnly));
+    ASSERT_EQ(legacyFile.write("old-image"), 9);
+    legacyFile.close();
+
+    const QString sibling = QDir(clipboardRoot).filePath(QStringLiteral("keep.txt"));
+    QFile siblingFile(sibling);
+    ASSERT_TRUE(siblingFile.open(QIODevice::WriteOnly));
+    ASSERT_EQ(siblingFile.write("keep"), 4);
+    siblingFile.close();
+
+    ClipboardHistoryStore store(dir.path());
+    ASSERT_TRUE(store.load());
+    EXPECT_FALSE(QFileInfo::exists(legacyImages));
+    EXPECT_TRUE(QFileInfo::exists(sibling));
+    EXPECT_TRUE(QFileInfo::exists(QDir(historyPath(dir)).filePath(QStringLiteral("manifest.json"))));
+
+    // The migration is safe to repeat if the app is restarted after a partial upgrade.
+    EXPECT_TRUE(store.load());
+    EXPECT_FALSE(QFileInfo::exists(legacyImages));
+    EXPECT_TRUE(QFileInfo::exists(sibling));
+}
+
+TEST(ClipboardHistoryStoreTest, LeavesUnexpectedRetiredCacheEntriesUntouched) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString legacyImages = dir.filePath(QStringLiteral("cloud-clipboard/images"));
+    ASSERT_TRUE(QDir().mkpath(legacyImages));
+
+    const QString recognized = QDir(legacyImages).filePath(
+        QStringLiteral("0123456789abcdef0123456789abcdef.bin"));
+    QFile recognizedFile(recognized);
+    ASSERT_TRUE(recognizedFile.open(QIODevice::WriteOnly));
+    ASSERT_EQ(recognizedFile.write("retired"), 7);
+    recognizedFile.close();
+
+    const QString unexpectedFile = QDir(legacyImages).filePath(QStringLiteral("keep.txt"));
+    QFile keepFile(unexpectedFile);
+    ASSERT_TRUE(keepFile.open(QIODevice::WriteOnly));
+    ASSERT_EQ(keepFile.write("keep"), 4);
+    keepFile.close();
+    const QString unexpectedDirectory = QDir(legacyImages).filePath(QStringLiteral("nested"));
+    ASSERT_TRUE(QDir().mkpath(unexpectedDirectory));
+    const QString nestedFile = QDir(unexpectedDirectory).filePath(QStringLiteral("keep.bin"));
+    QFile nestedKeepFile(nestedFile);
+    ASSERT_TRUE(nestedKeepFile.open(QIODevice::WriteOnly));
+    ASSERT_EQ(nestedKeepFile.write("keep"), 4);
+    nestedKeepFile.close();
+
+    ClipboardHistoryStore store(dir.path());
+    ASSERT_TRUE(store.load());
+    EXPECT_FALSE(QFileInfo::exists(recognized));
+    EXPECT_TRUE(QFileInfo::exists(unexpectedFile));
+    EXPECT_TRUE(QFileInfo::exists(nestedFile));
+    EXPECT_TRUE(QFileInfo::exists(legacyImages));
+}
+
+TEST(ClipboardHistoryStoreTest, RetiredLegacyImageCleanupNeverFollowsNestedSymlinks) {
+    QTemporaryDir dir;
+    QTemporaryDir outside;
+    ASSERT_TRUE(dir.isValid());
+    ASSERT_TRUE(outside.isValid());
+    const QString legacyImages = dir.filePath(QStringLiteral("cloud-clipboard/images"));
+    ASSERT_TRUE(QDir().mkpath(legacyImages));
+
+    const QString outsideFile = outside.filePath(QStringLiteral("must-survive.bin"));
+    QFile protectedFile(outsideFile);
+    ASSERT_TRUE(protectedFile.open(QIODevice::WriteOnly));
+    ASSERT_EQ(protectedFile.write("protected"), 9);
+    protectedFile.close();
+
+    const QString nestedLink = QDir(legacyImages).filePath(QStringLiteral("outside-link"));
+    if (!createDirectorySymlink(outside.path(), nestedLink))
+        GTEST_SKIP() << "Directory symlinks are unavailable in this test environment";
+
+    ClipboardHistoryStore store(dir.path());
+    ASSERT_TRUE(store.load());
+    EXPECT_FALSE(QFileInfo::exists(legacyImages));
+    EXPECT_TRUE(QFileInfo::exists(outsideFile));
+}
+
+TEST(ClipboardHistoryStoreTest, RetiredLegacyImageCleanupRemovesOnlyRootSymlink) {
+    QTemporaryDir dir;
+    QTemporaryDir outside;
+    ASSERT_TRUE(dir.isValid());
+    ASSERT_TRUE(outside.isValid());
+    const QString legacyParent = dir.filePath(QStringLiteral("cloud-clipboard"));
+    ASSERT_TRUE(QDir().mkpath(legacyParent));
+
+    const QString outsideFile = outside.filePath(QStringLiteral("must-survive.bin"));
+    QFile protectedFile(outsideFile);
+    ASSERT_TRUE(protectedFile.open(QIODevice::WriteOnly));
+    ASSERT_EQ(protectedFile.write("protected"), 9);
+    protectedFile.close();
+
+    const QString legacyImages = QDir(legacyParent).filePath(QStringLiteral("images"));
+    if (!createDirectorySymlink(outside.path(), legacyImages))
+        GTEST_SKIP() << "Directory symlinks are unavailable in this test environment";
+
+    ClipboardHistoryStore store(dir.path());
+    ASSERT_TRUE(store.load());
+    EXPECT_FALSE(QFileInfo(legacyImages).isSymbolicLink());
+    EXPECT_FALSE(QFileInfo::exists(legacyImages));
+    EXPECT_TRUE(QFileInfo::exists(outsideFile));
+    EXPECT_TRUE(QFileInfo::exists(QDir(historyPath(dir)).filePath(QStringLiteral("manifest.json"))));
 }
 
 } // namespace

@@ -8,31 +8,6 @@
 #include <QString>
 #include <QVector>
 
-struct CloudClipboardItem {
-    qint64 revision = 0;
-    QString id;
-    QString type; // "text" or "image"
-    QString text;
-    QString sourceDeviceId;
-    QString created;
-    QString expires;
-    QString mime;
-    qint64 size = 0;
-    int width = 0;
-    int height = 0;
-    QString sha256;
-    QString thumbnailMime;
-    QString thumbnailUrl;
-    QByteArray thumbnail;
-};
-
-struct CloudClipboardUpdate {
-    qint64 revision = 0;
-    QVector<CloudClipboardItem> items;
-    QStringList deletedIds;
-    bool cleared = false;
-};
-
 // Metadata for one pending, account-scoped clipboard delivery. The content is
 // deliberately not here; fetch it from the delivery content route and verify
 // the recorded size and SHA-256 before making it available locally.
@@ -78,7 +53,6 @@ struct AccountSession {
     // CurlWebDavProvider::setPinnedPublicKey() before dialling: the peer serves
     // a self-signed certificate, so this is the only thing identifying it.
     QString peerPin;
-    QString clipboardItemId; // non-empty for a scoped clipboard-image transfer
     int expiresIn = 0;
 };
 
@@ -176,16 +150,6 @@ public:
     // sessionReady() fires the peer already knows to accept it. Emits
     // sessionReady() or requestFailed().
     void openSession(const QString &deviceId);
-    void openClipboardImageSession(const QString &deviceId, const QString &itemId);
-
-    void fetchClipboard(qint64 afterRevision = 0);
-    void publishClipboardText(const QString &text);
-    void publishClipboardImage(const QByteArray &thumbnail, const QString &thumbnailMime,
-                               const QString &originalMime, qint64 originalSize,
-                               int width, int height, const QString &sha256);
-    void fetchClipboardThumbnail(const QString &itemId);
-    void deleteClipboardItem(const QString &itemId);
-    void clearClipboard();
 
     // Explicit cross-device clipboard delivery APIs. These coexist with the
     // legacy clipboard history calls above until their callers migrate.
@@ -229,13 +193,6 @@ signals:
     void devicesReady(const QVector<AccountDeviceInfo> &devices);
     void sessionReady(const AccountSession &session);
     void sessionReadyForDevice(const QString &deviceId, const AccountSession &session);
-    void clipboardSessionReady(const AccountSession &session);
-    void clipboardReady(const CloudClipboardUpdate &update);
-    void clipboardPublished(const CloudClipboardItem &item);
-    void clipboardThumbnailReady(const QString &itemId, const QByteArray &bytes,
-                                 const QString &mime);
-    void clipboardItemDeleted(const QString &itemId, qint64 revision);
-    void clipboardCleared(qint64 revision);
     void clipboardSendProgress(qint64 sent, qint64 total);
     void clipboardSendFinished(QString payloadId, int recipientCount);
     void clipboardSendFailed(QString error);
@@ -282,7 +239,7 @@ private:
     // Cancels replies from an earlier restore/login and clears the in-memory
     // account so no stale authentication response can win a later attempt.
     void invalidateAuthentication();
-    void openSessionRequest(const QString &deviceId, const QString &clipboardItemId);
+    void openSessionRequest(const QString &deviceId);
 
     // Turns a finished reply into a message worth showing, preferring the
     // server's own "detail" over Qt's generic network error.
@@ -307,6 +264,4 @@ private:
 Q_DECLARE_METATYPE(AccountDeviceInfo)
 Q_DECLARE_METATYPE(AccountSession)
 Q_DECLARE_METATYPE(AccountInfo)
-Q_DECLARE_METATYPE(CloudClipboardItem)
-Q_DECLARE_METATYPE(CloudClipboardUpdate)
 Q_DECLARE_METATYPE(ClipboardDeliveryInfo)

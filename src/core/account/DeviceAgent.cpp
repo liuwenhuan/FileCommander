@@ -160,12 +160,7 @@ void DeviceAgent::onTextMessage(const QString &text) {
         if (!ticket.isEmpty())
             emit ticketOffered(message.value(QStringLiteral("session_id")).toString(), ticket,
                                message.value(QStringLiteral("from")).toString(),
-                               message.value(QStringLiteral("expires_in")).toInt(),
-                               message.value(QStringLiteral("clipboard_item_id")).toString());
-    } else if (type == QLatin1String("clipboard_changed")) {
-        emit clipboardChanged(
-            static_cast<qint64>(message.value(QStringLiteral("revision")).toDouble()),
-            message.value(QStringLiteral("change")).toString());
+                               message.value(QStringLiteral("expires_in")).toInt());
     } else if (type == QLatin1String("clipboard_delivery")) {
         const QString deliveryId = message.value(QStringLiteral("delivery_id")).toString();
         if (!deliveryId.isEmpty())

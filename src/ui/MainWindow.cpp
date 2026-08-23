@@ -110,7 +110,6 @@
 #include "OperationQueue.h"
 #include "account/AccountClient.h"
 #include "account/DeviceAgent.h"
-#include "account/CloudClipboardImageCache.h"
 #include "account/FileShareServer.h"
 #include "account/RelayTunnel.h"
 #include "DesktopNotify.h"
@@ -4734,7 +4733,6 @@ void MainWindow::updateDeviceSharing() {
     if (!m_shareServer) {
         m_shareServer = new FileShareServer(m_accountClient, this);
         m_deviceAgent = new DeviceAgent(m_accountClient, this);
-        m_shareServer->setClipboardImageCacheDirectory(CloudClipboardImageCache().directory());
         if (m_cloudClipboard)
             m_cloudClipboard->setAgent(m_deviceAgent);
         // A peer finished writing a file into our shared folders: tell the user
@@ -4767,11 +4765,8 @@ void MainWindow::updateDeviceSharing() {
         // share server to accept it before the connection arrives.
         connect(m_deviceAgent, &DeviceAgent::ticketOffered, this,
                 [this](const QString &sessionId, const QString &ticket, const QString &,
-                       int expiresIn, const QString &clipboardItemId) {
-                    if (clipboardItemId.isEmpty())
-                        m_shareServer->addTicket(ticket, expiresIn);
-                    else
-                        m_shareServer->addClipboardTicket(ticket, clipboardItemId, expiresIn);
+                       int expiresIn) {
+                    m_shareServer->addTicket(ticket, expiresIn);
                     // The peer may not be able to reach this machine directly,
                     // and we cannot know from here whether it can: park sockets
                     // on the relay either way. Unused ones cost one idle
@@ -4902,8 +4897,6 @@ MainWindow::DeviceLink MainWindow::deviceLink(const AccountSession &session) {
         // The peer serves a self-signed certificate, so the pin the account
         // server relayed is the whole identity check.
         provider->setPinnedPublicKey(session.peerPin);
-        if (!session.clipboardItemId.isEmpty())
-            provider->setConnectProbePath(QStringLiteral("/clipboard/") + session.clipboardItemId);
         provider->setTimeoutMs(relay ? 12000 : 1000);
         providers.append(provider);
     }

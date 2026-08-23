@@ -50,15 +50,6 @@ public:
     // access to the configured shared folders.
     void addTicket(const QString &ticket, int ttlSeconds);
 
-    // A narrowly scoped, read-only ticket for exactly one cached clipboard
-    // original. It can only GET or HEAD /clipboard/<itemId>; it never grants
-    // access to shared folders or to WebDAV write/listing methods.
-    void addClipboardTicket(const QString &ticket, const QString &itemId, int ttlSeconds);
-
-    // Sets the directory containing CloudClipboardImageCache entries. An empty
-    // value uses <Settings::configDir()>/cloud-clipboard/images.
-    void setClipboardImageCacheDirectory(const QString &directory);
-
     // Overrides the compile-time ceilings on concurrent connections and on one
     // upload's size; pass 0 to keep a default. Mostly a test hook, but a
     // deployment that wants tighter bounds can set them without a rebuild.

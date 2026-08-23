@@ -1,7 +1,6 @@
 #include "FileShareServer.h"
 
 #include "AccountClient.h"
-#include "CloudClipboardImageCache.h"
 
 #include <QDateTime>
 #include <QDir>
@@ -186,19 +185,14 @@ public:
     Q_INVOKABLE void stopListening();
     Q_INVOKABLE void setFolders(const QStringList &folders);
     Q_INVOKABLE void addTicket(const QString &ticket, int ttlSeconds);
-    Q_INVOKABLE void addClipboardTicket(const QString &ticket, const QString &itemId, int ttlSeconds);
-    Q_INVOKABLE void setClipboardImageCacheDirectory(const QString &directory);
     // Overrides the compile-time ceilings; 0 keeps the default. Exposed so a
     // test can lower them instead of uploading 4 GiB to prove the bound exists.
     Q_INVOKABLE void setLimits(int maxConnections, qint64 maxUploadBytes);
     int maxConnections() const { return m_maxConnections; }
     qint64 maxUploadBytes() const { return m_maxUploadBytes; }
 
-    bool ticketValid(const QString &ticket, QString *clipboardItemId = nullptr);
+    bool ticketValid(const QString &ticket);
     QStringList shareNames() const { return m_shares.keys(); }
-    bool clipboardImage(const QString &itemId, CloudClipboardImageCache::Entry *entry) const {
-        return CloudClipboardImageCache(m_clipboardImageCacheDirectory).lookup(itemId, entry);
-    }
 
     // Maps a request path onto a real file. Empty when the path names no share,
     // or when it resolves outside one -- which covers "..", an absolute path
@@ -242,15 +236,11 @@ private:
     struct Ticket {
         QDateTime expiresAt;
         int ttlSeconds = 0;
-        // Empty means an ordinary shared-folder ticket. A non-empty value is a
-        // canonical UUID and scopes the ticket to one cached clipboard image.
-        QString clipboardItemId;
     };
 
     TlsShareServer *m_server = nullptr;
     QMap<QString, QString> m_shares;      // share name -> absolute local path
     QHash<QString, Ticket> m_tickets;
-    QString m_clipboardImageCacheDirectory;
     QSet<QString> m_uploading;            // canonical paths with an in-flight PUT
     QHash<QString, AuthBudget> m_authFailures;        // address -> failed-auth budget
     int m_connections = 0;                 // live connections, bounded by m_maxConnections
@@ -362,7 +352,6 @@ private:
         m_needChunkCrlf = false;
         m_chunkDone = false;
         m_bodyBuffer.clear();
-        m_clipboardItemId.clear();
 
         if (!authorised()) {
             // The body (if any) is still coming, so the stream is out of step:
@@ -379,18 +368,6 @@ private:
             respond(401, QByteArray(), "text/plain",
                     "WWW-Authenticate: Basic realm=\"FileCommander\"\r\n");
             return false;
-        }
-
-        // Clipboard tickets are capabilities, not reduced WebDAV credentials:
-        // authorize the exact object before a body or 100-continue can be sent.
-        if (!m_clipboardItemId.isEmpty()) {
-            const QString requested = cleanDavPath(QString::fromUtf8(m_target));
-            const QString allowed = QStringLiteral("/clipboard/") + m_clipboardItemId;
-            if ((m_method != "GET" && m_method != "HEAD") || requested != allowed) {
-                m_keepAlive = false;
-                respond(403);
-                return false;
-            }
         }
 
         if (m_headers.value("expect").toLower().contains("100-continue"))
@@ -610,8 +587,7 @@ private:
         const int colon = decoded.indexOf(':');
         if (colon < 0)
             return false;
-        return m_worker->ticketValid(QString::fromUtf8(decoded.mid(colon + 1)),
-                                     &m_clipboardItemId);
+        return m_worker->ticketValid(QString::fromUtf8(decoded.mid(colon + 1)));
     }
 
     void dispatch() {
@@ -723,22 +699,8 @@ private:
     }
 
     void doGet(const QString &path, bool headOnly) {
-        QString local;
-        QByteArray mimeType = "application/octet-stream";
-        if (!m_clipboardItemId.isEmpty()) {
-            // beginRequest() already checked the exact path and method. The
-            // cache derives its filename solely from the ticket's canonical id;
-            // no path segment supplied by the peer reaches QFile.
-            CloudClipboardImageCache::Entry image;
-            if (!m_worker->clipboardImage(m_clipboardItemId, &image)) {
-                respond(404);
-                return;
-            }
-            local = image.filePath;
-            mimeType = image.mimeType.toUtf8();
-        } else {
-            local = m_worker->resolveRead(path);
-        }
+        const QString local = m_worker->resolveRead(path);
+        const QByteArray mimeType = "application/octet-stream";
         const QFileInfo info(local);
         if (local.isEmpty() || !info.exists()) {
             respond(404);
@@ -925,7 +887,6 @@ private:
 
     QByteArray m_method;
     QByteArray m_target;
-    QString m_clipboardItemId; // non-empty only for a scoped clipboard ticket
     QHash<QByteArray, QByteArray> m_headers;
     bool m_keepAlive = true;
 
@@ -1015,22 +976,10 @@ void ShareWorker::addTicket(const QString &ticket, int ttlSeconds) {
     // No floor on the TTL: a ticket handed over already expired is worthless
     // by construction, and clamping it up to a second would make it briefly
     // usable instead.
-    m_tickets.insert(ticket, {QDateTime::currentDateTimeUtc().addSecs(ttlSeconds), ttlSeconds, {}});
+    m_tickets.insert(ticket, {QDateTime::currentDateTimeUtc().addSecs(ttlSeconds), ttlSeconds});
 }
 
-void ShareWorker::addClipboardTicket(const QString &ticket, const QString &itemId, int ttlSeconds) {
-    const QString normalizedItemId = CloudClipboardImageCache::normalizedItemId(itemId);
-    if (ticket.isEmpty() || normalizedItemId.isEmpty())
-        return;
-    m_tickets.insert(ticket, {QDateTime::currentDateTimeUtc().addSecs(ttlSeconds), ttlSeconds,
-                              normalizedItemId});
-}
-
-void ShareWorker::setClipboardImageCacheDirectory(const QString &directory) {
-    m_clipboardImageCacheDirectory = directory;
-}
-
-bool ShareWorker::ticketValid(const QString &ticket, QString *clipboardItemId) {
+bool ShareWorker::ticketValid(const QString &ticket) {
     const QDateTime now = QDateTime::currentDateTimeUtc();
     for (auto it = m_tickets.begin(); it != m_tickets.end();) {
         if (it.value().expiresAt <= now)
@@ -1046,8 +995,6 @@ bool ShareWorker::ticketValid(const QString &ticket, QString *clipboardItemId) {
     // Sliding: the TTL measures idleness, not total lifetime. A fixed expiry
     // would 401 in the middle of a browse the user is still using.
     it.value().expiresAt = now.addSecs(it.value().ttlSeconds);
-    if (clipboardItemId)
-        *clipboardItemId = it.value().clipboardItemId;
     return true;
 }
 
@@ -1178,18 +1125,6 @@ void FileShareServer::setSharedFolders(const QStringList &folders) {
 void FileShareServer::addTicket(const QString &ticket, int ttlSeconds) {
     QMetaObject::invokeMethod(m_worker, "addTicket", Qt::QueuedConnection,
                               Q_ARG(QString, ticket), Q_ARG(int, ttlSeconds));
-}
-
-void FileShareServer::addClipboardTicket(const QString &ticket, const QString &itemId,
-                                         int ttlSeconds) {
-    QMetaObject::invokeMethod(m_worker, "addClipboardTicket", Qt::QueuedConnection,
-                              Q_ARG(QString, ticket), Q_ARG(QString, itemId),
-                              Q_ARG(int, ttlSeconds));
-}
-
-void FileShareServer::setClipboardImageCacheDirectory(const QString &directory) {
-    QMetaObject::invokeMethod(m_worker, "setClipboardImageCacheDirectory", Qt::QueuedConnection,
-                              Q_ARG(QString, directory));
 }
 
 void FileShareServer::setLimits(int maxConnections, qint64 maxUploadBytes) {

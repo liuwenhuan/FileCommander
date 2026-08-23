@@ -187,6 +187,27 @@ TEST(SettingsTest, ExplicitIniPathPersistsWithoutChangingGlobalConfigLocation) {
     EXPECT_EQ(reloaded.notepadEditorHeight(), 180);
 }
 
+TEST(SettingsTest, RetiresCloudClipboardAutomaticMirroringKeysOnLoad) {
+    QTemporaryDir temporaryDir;
+    ASSERT_TRUE(temporaryDir.isValid());
+    const QString settingsPath = temporaryDir.filePath(QStringLiteral("settings.ini"));
+    {
+        QSettings legacy(settingsPath, QSettings::IniFormat);
+        legacy.setValue(QStringLiteral("account/cloudClipboardAutoUpload"), true);
+        legacy.setValue(QStringLiteral("account/cloudClipboardAutoReceive"), true);
+        legacy.setValue(QStringLiteral("account/cloudClipboardPrivacyAcknowledged"), true);
+        legacy.setValue(QStringLiteral("view/cloudClipboardEditorHeight"), 240);
+        legacy.sync();
+    }
+
+    Settings settings(settingsPath);
+    QSettings reloaded(settingsPath, QSettings::IniFormat);
+    EXPECT_FALSE(reloaded.contains(QStringLiteral("account/cloudClipboardAutoUpload")));
+    EXPECT_FALSE(reloaded.contains(QStringLiteral("account/cloudClipboardAutoReceive")));
+    EXPECT_FALSE(reloaded.contains(QStringLiteral("account/cloudClipboardPrivacyAcknowledged")));
+    EXPECT_FALSE(reloaded.contains(QStringLiteral("view/cloudClipboardEditorHeight")));
+}
+
 TEST(SettingsTest, EmptyExplicitIniPathUsesSafeDefaultLocation) {
     IsolatedConfigDir isolated;
     ASSERT_TRUE(isolated.isValid());

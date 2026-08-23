@@ -32,25 +32,6 @@ QJsonObject parseObject(const QByteArray &body) {
     return QJsonDocument::fromJson(body).object();
 }
 
-CloudClipboardItem parseClipboardItem(const QJsonObject &o) {
-    CloudClipboardItem item;
-    item.revision = static_cast<qint64>(o.value(QStringLiteral("revision")).toDouble());
-    item.id = o.value(QStringLiteral("id")).toString();
-    item.type = o.value(QStringLiteral("type")).toString();
-    item.text = o.value(QStringLiteral("text")).toString();
-    item.sourceDeviceId = o.value(QStringLiteral("source_device_id")).toString();
-    item.created = o.value(QStringLiteral("created")).toString();
-    item.expires = o.value(QStringLiteral("expires")).toString();
-    item.mime = o.value(QStringLiteral("mime")).toString();
-    item.size = static_cast<qint64>(o.value(QStringLiteral("size")).toDouble());
-    item.width = o.value(QStringLiteral("width")).toInt();
-    item.height = o.value(QStringLiteral("height")).toInt();
-    item.sha256 = o.value(QStringLiteral("sha256")).toString();
-    item.thumbnailMime = o.value(QStringLiteral("thumbnail_mime")).toString();
-    item.thumbnailUrl = o.value(QStringLiteral("thumbnail_url")).toString();
-    return item;
-}
-
 ClipboardDeliveryInfo parseClipboardDelivery(const QJsonObject &o) {
     ClipboardDeliveryInfo delivery;
     delivery.id = o.value(QStringLiteral("id")).toString();
@@ -91,8 +72,6 @@ AccountClient::AccountClient(QObject *parent)
     qRegisterMetaType<AccountInfo>();
     qRegisterMetaType<QVector<AccountDeviceInfo>>();
     qRegisterMetaType<AccountSession>();
-    qRegisterMetaType<CloudClipboardItem>();
-    qRegisterMetaType<CloudClipboardUpdate>();
     qRegisterMetaType<ClipboardDeliveryInfo>();
     qRegisterMetaType<QVector<ClipboardDeliveryInfo>>();
 }
@@ -492,24 +471,17 @@ void AccountClient::removeDevice(const QString &deviceId) {
 }
 
 void AccountClient::openSession(const QString &deviceId) {
-    openSessionRequest(deviceId, QString());
+    openSessionRequest(deviceId);
 }
 
-void AccountClient::openClipboardImageSession(const QString &deviceId, const QString &itemId) {
-    openSessionRequest(deviceId, itemId);
-}
-
-void AccountClient::openSessionRequest(const QString &deviceId, const QString &clipboardItemId) {
+void AccountClient::openSessionRequest(const QString &deviceId) {
     if (!isLoggedIn()) {
         emit requestFailed(tr("Not signed in."));
         return;
     }
-    QJsonObject requestBody{{"device_id", deviceId}};
-    if (!clipboardItemId.isEmpty())
-        requestBody.insert(QStringLiteral("clipboard_item_id"), clipboardItemId);
-    const QByteArray body = QJsonDocument(requestBody).toJson();
+    const QByteArray body = QJsonDocument(QJsonObject{{"device_id", deviceId}}).toJson();
     request(Verb::Post, QStringLiteral("/v1/session"), body, true,
-            [this, clipboardItemId, deviceId](QNetworkReply *reply) {
+            [this, deviceId](QNetworkReply *reply) {
                 const QByteArray payload = reply->readAll();
                 const QJsonObject o = parseObject(payload);
                 AccountSession session;
@@ -517,7 +489,6 @@ void AccountClient::openSessionRequest(const QString &deviceId, const QString &c
                 session.ticket = o.value(QStringLiteral("ticket")).toString();
                 session.peerPort = static_cast<quint16>(o.value(QStringLiteral("peer_port")).toInt());
                 session.peerPin = o.value(QStringLiteral("peer_pin")).toString();
-                session.clipboardItemId = o.value(QStringLiteral("clipboard_item_id")).toString();
                 session.expiresIn = o.value(QStringLiteral("expires_in")).toInt();
                 for (const QJsonValue &a : o.value(QStringLiteral("peer_lan_addrs")).toArray())
                     session.peerLanAddresses.append(a.toString());
@@ -525,114 +496,8 @@ void AccountClient::openSessionRequest(const QString &deviceId, const QString &c
                     emit requestFailed(errorText(reply, payload));
                     return;
                 }
-                if (clipboardItemId.isEmpty()) {
-                    emit sessionReady(session);
-                    emit sessionReadyForDevice(deviceId, session);
-                } else {
-                    emit clipboardSessionReady(session);
-                }
-            });
-}
-
-void AccountClient::fetchClipboard(qint64 afterRevision) {
-    QString path = QStringLiteral("/v1/clipboard");
-    if (afterRevision > 0)
-        path += QStringLiteral("?after=%1").arg(afterRevision);
-    request(Verb::Get, path, QByteArray(), true, [this](QNetworkReply *reply) {
-        const QByteArray payload = reply->readAll();
-        const QJsonObject o = parseObject(payload);
-        if (!o.contains(QStringLiteral("items"))) {
-            emit requestFailed(errorText(reply, payload));
-            return;
-        }
-        CloudClipboardUpdate update;
-        update.revision = static_cast<qint64>(o.value(QStringLiteral("revision")).toDouble());
-        update.cleared = o.value(QStringLiteral("cleared")).toBool();
-        for (const QJsonValue &v : o.value(QStringLiteral("items")).toArray())
-            update.items.append(parseClipboardItem(v.toObject()));
-        for (const QJsonValue &v : o.value(QStringLiteral("deleted_ids")).toArray())
-            update.deletedIds.append(v.toString());
-        emit clipboardReady(update);
-    });
-}
-
-void AccountClient::publishClipboardText(const QString &text) {
-    const QByteArray body = QJsonDocument(QJsonObject{{"type", "text"}, {"text", text}}).toJson();
-    request(Verb::Post, QStringLiteral("/v1/clipboard"), body, true,
-            [this](QNetworkReply *reply) {
-                const QByteArray payload = reply->readAll();
-                const QJsonObject o = parseObject(payload);
-                const CloudClipboardItem item = parseClipboardItem(o);
-                if (item.id.isEmpty()) {
-                    emit requestFailed(errorText(reply, payload));
-                    return;
-                }
-                emit clipboardPublished(item);
-            });
-}
-
-void AccountClient::publishClipboardImage(const QByteArray &thumbnail,
-                                          const QString &thumbnailMime,
-                                          const QString &originalMime,
-                                          qint64 originalSize, int width, int height,
-                                          const QString &sha256) {
-    const QByteArray body = QJsonDocument(QJsonObject{{"type", "image"},
-                                                      {"thumbnail_base64", QString::fromLatin1(thumbnail.toBase64())},
-                                                      {"thumbnail_mime", thumbnailMime},
-                                                      {"mime", originalMime},
-                                                      {"size", static_cast<double>(originalSize)},
-                                                      {"width", width}, {"height", height},
-                                                      {"sha256", sha256},
-                                                      {"source_device_id", m_account.deviceId}}).toJson();
-    request(Verb::Post, QStringLiteral("/v1/clipboard"), body, true,
-            [this](QNetworkReply *reply) {
-                const QByteArray payload = reply->readAll();
-                const CloudClipboardItem item = parseClipboardItem(parseObject(payload));
-                if (item.id.isEmpty()) {
-                    emit requestFailed(errorText(reply, payload));
-                    return;
-                }
-                emit clipboardPublished(item);
-            });
-}
-
-void AccountClient::fetchClipboardThumbnail(const QString &itemId) {
-    request(Verb::Get, QStringLiteral("/v1/clipboard/") + itemId + QStringLiteral("/thumbnail"),
-            QByteArray(), true, [this, itemId](QNetworkReply *reply) {
-                const QByteArray payload = reply->readAll();
-                if (reply->error() != QNetworkReply::NoError) {
-                    emit requestFailed(errorText(reply, payload));
-                    return;
-                }
-                emit clipboardThumbnailReady(itemId, payload,
-                    reply->header(QNetworkRequest::ContentTypeHeader).toString());
-            });
-}
-
-void AccountClient::deleteClipboardItem(const QString &itemId) {
-    request(Verb::Delete, QStringLiteral("/v1/clipboard/") + itemId, QByteArray(), true,
-            [this, itemId](QNetworkReply *reply) {
-                const QByteArray payload = reply->readAll();
-                const QJsonObject o = parseObject(payload);
-                if (!o.contains(QStringLiteral("revision"))) {
-                    emit requestFailed(errorText(reply, payload));
-                    return;
-                }
-                emit clipboardItemDeleted(itemId,
-                    static_cast<qint64>(o.value(QStringLiteral("revision")).toDouble()));
-            });
-}
-
-void AccountClient::clearClipboard() {
-    request(Verb::Delete, QStringLiteral("/v1/clipboard"), QByteArray(), true,
-            [this](QNetworkReply *reply) {
-                const QByteArray payload = reply->readAll();
-                const QJsonObject o = parseObject(payload);
-                if (!o.contains(QStringLiteral("revision"))) {
-                    emit requestFailed(errorText(reply, payload));
-                    return;
-                }
-                emit clipboardCleared(static_cast<qint64>(o.value(QStringLiteral("revision")).toDouble()));
+                emit sessionReady(session);
+                emit sessionReadyForDevice(deviceId, session);
             });
 }
 
@@ -785,7 +650,6 @@ void AccountClient::downloadClipboardDeliveryRequest(const ClipboardDeliveryInfo
                                                      const QString &destinationPartPath,
                                                      bool retryAfterRefresh) {
     const QByteArray expectedSha256 = delivery.sha256.toLatin1().trimmed().toLower();
-    QFile::remove(destinationPartPath);
     auto state = std::make_shared<ClipboardDownloadState>(destinationPartPath, delivery.size,
                                                           expectedSha256);
     if (!state->output.open(QIODevice::WriteOnly)) {
@@ -806,12 +670,11 @@ void AccountClient::downloadClipboardDeliveryRequest(const ClipboardDeliveryInfo
     });
     timeout->start(m_timeoutMs);
 
-    const auto fail = [this, state, destinationPartPath, delivery](const QString &reason) {
+    const auto fail = [this, state, delivery](const QString &reason) {
         if (state->failed)
             return;
         state->failed = true;
         state->output.cancelWriting();
-        QFile::remove(destinationPartPath);
         emit requestFailed(reason);
         emit clipboardDeliveryDownloadFailed(delivery.id, reason);
     };
@@ -862,10 +725,8 @@ void AccountClient::downloadClipboardDeliveryRequest(const ClipboardDeliveryInfo
                 const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
                 if (generation != m_requestGeneration) {
                     state->output.cancelWriting();
-                    QFile::remove(destinationPartPath);
                 } else if (status == 401 && retryAfterRefresh && !m_refreshToken.isEmpty()) {
                     state->output.cancelWriting();
-                    QFile::remove(destinationPartPath);
                     refreshAccessToken([this, delivery, destinationPartPath, generation](bool refreshed) {
                         if (refreshed && generation == m_requestGeneration)
                             downloadClipboardDeliveryRequest(delivery, destinationPartPath, false);

@@ -11,6 +11,8 @@
 #include <QMimeData>
 #include <QSaveFile>
 #include <QSet>
+#include <QStringList>
+#include <QTextDocument>
 #include <QUuid>
 #include <QVariant>
 
@@ -48,6 +50,28 @@ bool isPrivateOrFileMime(const QMimeData *mime) {
     return false;
 }
 
+bool hasPlainTextFormat(const QMimeData *mime) {
+    for (const QString &format : mime->formats()) {
+        if (format.compare(QLatin1String("text/plain"), Qt::CaseInsensitive) == 0)
+            return true;
+    }
+    return false;
+}
+
+QString capturedText(const QMimeData *mime) {
+    if (hasPlainTextFormat(mime)) {
+        const QString plain = mime->text();
+        if (!plain.isEmpty() && plain.toUtf8().size() <= ClipboardHistoryStore::maximumTextBytes)
+            return plain;
+    }
+    if (mime->hasHtml()) {
+        QTextDocument document;
+        document.setHtml(mime->html());
+        return document.toPlainText();
+    }
+    return mime->text();
+}
+
 QByteArray encodePng(const QImage &image) {
     QByteArray bytes;
     QBuffer buffer(&bytes);
@@ -79,6 +103,73 @@ bool safeRegularFile(const QString &path) {
     return info.exists() && info.isFile() && !info.isSymbolicLink();
 }
 
+bool isLegacyCacheItemId(const QString &id) {
+    const QString hex = id.toLower();
+    if (hex.size() == 32) {
+        for (const QChar character : hex)
+            if (!character.isDigit() && (character < QLatin1Char('a') || character > QLatin1Char('f')))
+                return false;
+        return true;
+    }
+    const QUuid uuid(id);
+    return !uuid.isNull() && id.compare(uuid.toString(QUuid::WithoutBraces), Qt::CaseInsensitive) == 0;
+}
+
+bool isLegacyCacheFileName(const QString &name) {
+    static const QStringList suffixes = {QStringLiteral(".bin"), QStringLiteral(".json"),
+                                         QStringLiteral(".part")};
+    for (const QString &suffix : suffixes) {
+        if (name.endsWith(suffix) && isLegacyCacheItemId(name.left(name.size() - suffix.size())))
+            return true;
+    }
+    return false;
+}
+
+// The old cache was a flat directory. Move a normal root aside first so a link
+// swapped in at its original path cannot redirect a later child unlink. Then
+// only inspect direct entries: symlinks/reparse points are unlinked, recognized
+// cache files are unlinked, and unexpected entries are left untouched.
+bool removeLegacyCacheDirectory(const QString &path) {
+    const QFileInfo root(path);
+    if (!root.exists() && !root.isSymbolicLink())
+        return true;
+    if (root.isSymbolicLink())
+        return root.isDir() ? QDir().rmdir(path) : QFile::remove(path);
+    if (!root.isDir())
+        return false;
+
+    const QString staged = QFileInfo(path).dir().filePath(
+        QStringLiteral(".images-retiring-") + QUuid::createUuid().toString(QUuid::WithoutBraces));
+    if (!QDir().rename(path, staged))
+        return false;
+
+    const QFileInfo stagedRoot(staged);
+    if (stagedRoot.isSymbolicLink())
+        return stagedRoot.isDir() ? QDir().rmdir(staged) : QFile::remove(staged);
+    if (!stagedRoot.isDir()) {
+        QDir().rename(staged, path);
+        return false;
+    }
+
+    QDir directory(staged);
+    const QFileInfoList entries = directory.entryInfoList(
+        QDir::AllEntries | QDir::Hidden | QDir::System | QDir::NoDotAndDotDot);
+    for (const QFileInfo &entry : entries) {
+        if (entry.isSymbolicLink()) {
+            if (entry.isDir())
+                QDir().rmdir(entry.filePath());
+            else
+                QFile::remove(entry.filePath());
+        } else if (entry.isFile() && isLegacyCacheFileName(entry.fileName())) {
+            QFile::remove(entry.filePath());
+        }
+    }
+    if (QDir().rmdir(staged))
+        return true;
+    QDir().rename(staged, path);
+    return false;
+}
+
 } // namespace
 
 ClipboardHistoryStore::ClipboardHistoryStore(const QString &configDirectory)
@@ -106,9 +197,9 @@ bool ClipboardHistoryStore::captureFromMimeData(const QMimeData *mime, Clipboard
         return true;
     }
 
-    if (!mime->hasText())
+    if (!mime->hasText() && !mime->hasHtml())
         return false;
-    const QString text = mime->text();
+    const QString text = capturedText(mime);
     if (text.isEmpty() || text.toUtf8().size() > maximumTextBytes)
         return false;
     if (capture) {
@@ -128,6 +219,10 @@ QString ClipboardHistoryStore::directory() const {
 
 QString ClipboardHistoryStore::imagesDirectory() const {
     return QDir(directory()).filePath(QStringLiteral("images"));
+}
+
+QString ClipboardHistoryStore::legacyImagesDirectory() const {
+    return QDir(m_configDirectory).filePath(QStringLiteral("cloud-clipboard/images"));
 }
 
 QString ClipboardHistoryStore::manifestPath() const {
@@ -161,6 +256,10 @@ bool ClipboardHistoryStore::ensureDirectories() const {
     }
     return PrivatePath::restrictDirectory(canonicalRoot) &&
            PrivatePath::restrictDirectory(canonicalImages);
+}
+
+void ClipboardHistoryStore::removeLegacyImagesDirectory() const {
+    removeLegacyCacheDirectory(legacyImagesDirectory());
 }
 
 bool ClipboardHistoryStore::saveManifest(const QVector<ClipboardHistoryRecord> &records) const {
@@ -219,6 +318,7 @@ bool ClipboardHistoryStore::load() {
             return false;
         m_loaded = true;
         cleanupOrphanImages();
+        removeLegacyImagesDirectory();
         return true;
     }
     if (!safeRegularFile(path) || !manifest.open(QIODevice::ReadOnly))
@@ -238,6 +338,7 @@ bool ClipboardHistoryStore::load() {
         }
         m_loaded = true;
         cleanupOrphanImages();
+        removeLegacyImagesDirectory();
         return true;
     }
 
@@ -305,7 +406,10 @@ bool ClipboardHistoryStore::load() {
         m_records.resize(maximumRecords);
     m_loaded = true;
     cleanupOrphanImages();
-    return saveManifest(m_records);
+    if (!saveManifest(m_records))
+        return false;
+    removeLegacyImagesDirectory();
+    return true;
 }
 
 const QVector<ClipboardHistoryRecord> &ClipboardHistoryStore::records() const {

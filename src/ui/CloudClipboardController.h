@@ -28,8 +28,7 @@ class CloudClipboardController : public QObject {
 public:
     enum class State { SignedOut, Loading, Empty, Ready, Error };
 
-    // Kept for NotepadPanel and MainWindow while their Task 6 migration is in
-    // progress. The controller owns the default persistent store in this form.
+    // The controller owns the default persistent store in this form.
     explicit CloudClipboardController(Settings &settings, AccountClient *client,
                                      DeviceAgent *agent = nullptr, QObject *parent = nullptr);
     // Injectable store keeps controller behavior independently testable.
@@ -41,8 +40,6 @@ public:
     const QVector<ClipboardHistoryRecord> &items() const;
     ClipboardHistoryRecord record(const QString &id) const;
     QString selectedRecordId() const;
-    bool autoUpload() const { return false; }
-    bool autoReceive() const { return false; }
     void setAgent(DeviceAgent *agent);
     void setDevices(const QVector<AccountDeviceInfo> &devices);
     QString deviceName(const QString &deviceId) const;
@@ -54,35 +51,16 @@ public:
     bool removeRecord(const QString &recordId);
     void clear();
 
-    // Transitional adapters for the pre-Task-6 panel. Each adapter remains
-    // explicit: it first saves content locally and then sends that local record.
-    void sendText(const QString &text);
-    void sendCurrentClipboard();
-    bool sendImageFromMimeData(const QMimeData *mime);
-    bool sendStagedImage();
-    bool hasStagedImage() const { return !m_stagedImage.isNull(); }
-    void deleteItem(const QString &itemId) { removeRecord(itemId); }
-    void setAutoUpload(bool) {}
-    void confirmAutoUpload(bool) {}
-    void setAutoReceive(bool) {}
-
-    // Kept public and side-effect free for compatibility tests. New automatic
-    // capture delegates to ClipboardHistoryStore::captureFromMimeData().
+    // Capture admission is public for focused policy tests.
     static bool acceptsText(const QMimeData *mime, QString *text = nullptr);
     static bool acceptsImage(const QMimeData *mime, QImage *image = nullptr);
 
 signals:
     void changed();
-    void privacyWarningRequired(); // legacy panel compatibility; never emitted
     void selectionChanged(const QString &recordId);
     void transferStatusChanged(const QString &status);
     void transferProgress(const QString &recordId, qint64 completed, qint64 total);
     void transferFinished(const QString &recordId);
-    void localImagePreview(const QImage &image);
-    void localImagePublished();
-    void imageDownloadProgress(const QString &itemId, qint64 received, qint64 total);
-    void imageDownloadFailed(const QString &itemId, const QString &error);
-    void imageCopied(const QString &itemId);
 
 private slots:
     void onClipboardChanged();
@@ -120,7 +98,6 @@ private:
     QString m_transferStatus;
     QString m_selectedRecordId;
     QString m_activeSendRecordId;
-    QImage m_stagedImage;
     QByteArray m_ignoredClipboardFingerprint;
     QMetaObject::Connection m_agentConnection;
     QMetaObject::Connection m_agentReadyConnection;

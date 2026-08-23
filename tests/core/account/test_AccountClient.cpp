@@ -703,6 +703,40 @@ TEST(AccountClient, ClipboardDeliveryDownloadRejectsMismatchedHashWithoutLeaving
     EXPECT_FALSE(QFile::exists(partPath));
 }
 
+TEST(AccountClient, ClipboardDeliveryDownloadFailurePreservesAnExistingDestination) {
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QByteArray preserved("do not overwrite this existing file");
+    const QByteArray expected("expected delivery content");
+    const QString partPath = directory.filePath(QStringLiteral("delivery.part"));
+    QFile existing(partPath);
+    ASSERT_TRUE(existing.open(QIODevice::WriteOnly));
+    ASSERT_EQ(existing.write(preserved), preserved.size());
+    existing.close();
+
+    MockHttpServer server;
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    signedIn(&client, server);
+    server.setRoute(QStringLiteral("/v1/clipboard/deliveries/delivery-1/content"),
+                    json(R"({"detail":"delivery unavailable"})", 500));
+
+    ClipboardDeliveryInfo delivery;
+    delivery.id = QStringLiteral("delivery-1");
+    delivery.kind = QStringLiteral("text");
+    delivery.mime = QStringLiteral("text/plain");
+    delivery.size = expected.size();
+    delivery.sha256 = QString::fromLatin1(
+        QCryptographicHash::hash(expected, QCryptographicHash::Sha256).toHex());
+    QSignalSpy failed(&client, &AccountClient::clipboardDeliveryDownloadFailed);
+    client.downloadClipboardDelivery(delivery, partPath);
+    waitForSignal(failed);
+
+    ASSERT_EQ(failed.count(), 1);
+    ASSERT_TRUE(existing.open(QIODevice::ReadOnly));
+    EXPECT_EQ(existing.readAll(), preserved);
+}
+
 TEST(AccountClient, ClipboardDeliveryAcknowledgementUsesTheDeliveryAckRoute) {
     MockHttpServer server;
     AccountClient client;

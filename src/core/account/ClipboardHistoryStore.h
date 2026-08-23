@@ -69,9 +69,11 @@ public:
 private:
     QString directory() const;
     QString imagesDirectory() const;
+    QString legacyImagesDirectory() const;
     QString manifestPath() const;
     QString imagePathFor(const QString &id) const;
     bool ensureDirectories() const;
+    void removeLegacyImagesDirectory() const;
     bool saveManifest(const QVector<ClipboardHistoryRecord> &records) const;
     bool persist(const QVector<ClipboardHistoryRecord> &records);
     void cleanupOrphanImages() const;

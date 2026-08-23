@@ -64,9 +64,8 @@ signals:
     // the session id to meet the peer on the relay if it cannot reach us
     // directly -- we cannot tell which it will be, so both are prepared.
     void ticketOffered(const QString &sessionId, const QString &ticket, const QString &from,
-                       int expiresIn, const QString &clipboardItemId);
+                       int expiresIn);
 
-    void clipboardChanged(qint64 revision, const QString &change);
     void clipboardDeliveryAvailable(QString deliveryId);
 
     // The server told us another device of this account came online or went

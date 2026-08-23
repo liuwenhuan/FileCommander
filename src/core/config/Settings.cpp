@@ -114,6 +114,13 @@ Settings::Settings(const QString &iniFilePath)
     }
     m_settings.remove(QStringLiteral("account/serverUrl"));
     m_settings.remove(QStringLiteral("account/rememberAutoLogin"));
+    // The redesigned clipboard only keeps local history and explicit deliveries.
+    // Remove automatic-mirroring preferences rather than preserving dormant data
+    // an older UI could accidentally reactivate after an upgrade.
+    m_settings.remove(QStringLiteral("account/cloudClipboardAutoUpload"));
+    m_settings.remove(QStringLiteral("account/cloudClipboardAutoReceive"));
+    m_settings.remove(QStringLiteral("account/cloudClipboardPrivacyAcknowledged"));
+    m_settings.remove(QStringLiteral("view/cloudClipboardEditorHeight"));
 
     // First run: seed the favorites with the user's home directory. Guarded by
     // a one-shot flag so clearing all favorites later doesn't re-add it.
@@ -630,39 +637,4 @@ int Settings::notepadEditorHeight() const {
 
 void Settings::setNotepadEditorHeight(int height) {
     m_settings.setValue("view/notepadEditorHeight", qMax(0, height));
-}
-
-bool Settings::cloudClipboardAutoUpload() const {
-    return m_settings.value("account/cloudClipboardAutoUpload", false).toBool();
-}
-
-void Settings::setCloudClipboardAutoUpload(bool on) {
-    m_settings.setValue("account/cloudClipboardAutoUpload", on);
-    if (!on)
-        m_settings.setValue("account/cloudClipboardAutoReceive", false);
-}
-
-bool Settings::cloudClipboardAutoReceive() const {
-    return cloudClipboardAutoUpload() &&
-           m_settings.value("account/cloudClipboardAutoReceive", false).toBool();
-}
-
-void Settings::setCloudClipboardAutoReceive(bool on) {
-    m_settings.setValue("account/cloudClipboardAutoReceive", on && cloudClipboardAutoUpload());
-}
-
-bool Settings::cloudClipboardPrivacyAcknowledged() const {
-    return m_settings.value("account/cloudClipboardPrivacyAcknowledged", false).toBool();
-}
-
-void Settings::setCloudClipboardPrivacyAcknowledged(bool acknowledged) {
-    m_settings.setValue("account/cloudClipboardPrivacyAcknowledged", acknowledged);
-}
-
-int Settings::cloudClipboardEditorHeight() const {
-    return m_settings.value("view/cloudClipboardEditorHeight", 0).toInt();
-}
-
-void Settings::setCloudClipboardEditorHeight(int height) {
-    m_settings.setValue("view/cloudClipboardEditorHeight", qMax(0, height));
 }
