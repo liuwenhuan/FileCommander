@@ -38,20 +38,37 @@ async fn send(state: &AppState, method: &str, path: &str, token: &str, body: Val
         .unwrap()
 }
 
-async fn send_text(state: &AppState, path: &str, token: &str, text: &str) -> Response {
+async fn send_raw(
+    state: &AppState,
+    path: &str,
+    token: &str,
+    content_type: &str,
+    body: Vec<u8>,
+) -> Response {
     router(state.clone())
         .oneshot(
             Request::builder()
                 .method("POST")
                 .uri(path)
-                .header("content-type", "text/plain; charset=utf-8")
+                .header("content-type", content_type)
                 .header("x-filecommander-protocol", "1")
                 .header("authorization", format!("Bearer {token}"))
-                .body(Body::from(text.to_owned()))
+                .body(Body::from(body))
                 .unwrap(),
         )
         .await
         .unwrap()
+}
+
+async fn send_text(state: &AppState, path: &str, token: &str, text: &str) -> Response {
+    send_raw(
+        state,
+        path,
+        token,
+        "text/plain; charset=utf-8",
+        text.as_bytes().to_vec(),
+    )
+    .await
 }
 
 async fn json_of(response: Response) -> Value {
@@ -1662,4 +1679,118 @@ async fn clipboard_delivery_removes_payload_after_every_recipient_acknowledges()
         })
         .await;
     assert_eq!(retained, 0);
+}
+
+#[tokio::test]
+async fn clipboard_delivery_accepts_exactly_64_kib_of_text() {
+    let state = state();
+    register(&state, "owner@example.com", "correct horse").await;
+    let source = login(&state, "owner@example.com", "desktop", "").await;
+    let recipient = login(&state, "owner@example.com", "laptop", "").await;
+    let text = vec![b'x'; 64 * 1024];
+
+    let queued = send_raw(
+        &state,
+        "/v1/clipboard/send",
+        source["access_token"].as_str().unwrap(),
+        "text/plain; charset=utf-8",
+        text,
+    )
+    .await;
+    assert_eq!(queued.status(), StatusCode::OK);
+    let deliveries = json_of(
+        send(
+            &state,
+            "GET",
+            "/v1/clipboard/deliveries",
+            recipient["access_token"].as_str().unwrap(),
+            Value::Null,
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(deliveries["deliveries"][0]["size"], 64 * 1024);
+}
+
+#[tokio::test]
+async fn clipboard_delivery_rejects_over_64_kib_after_purging_expired_payloads() {
+    let state = state();
+    register(&state, "owner@example.com", "correct horse").await;
+    let source = login(&state, "owner@example.com", "desktop", "").await;
+    let _recipient = login(&state, "owner@example.com", "laptop", "").await;
+    let queued = json_of(
+        send_text(
+            &state,
+            "/v1/clipboard/send",
+            source["access_token"].as_str().unwrap(),
+            "expired before an invalid send",
+        )
+        .await,
+    )
+    .await;
+    let payload_id = queued["payload_id"].as_str().unwrap().to_string();
+    state
+        .db
+        .call(move |conn| {
+            conn.execute(
+                "UPDATE clipboard_payloads SET expires = '2000-01-01T00:00:00+00:00' WHERE id = ?1",
+                [payload_id],
+            )
+            .unwrap();
+        })
+        .await;
+
+    let rejected = send_raw(
+        &state,
+        "/v1/clipboard/send",
+        source["access_token"].as_str().unwrap(),
+        "text/plain; charset=utf-8",
+        vec![b'x'; 64 * 1024 + 1],
+    )
+    .await;
+    assert_eq!(rejected.status(), StatusCode::PAYLOAD_TOO_LARGE);
+    let retained = state
+        .db
+        .call(|conn| {
+            conn.query_row("SELECT COUNT(*) FROM clipboard_payloads", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .unwrap()
+        })
+        .await;
+    assert_eq!(retained, 0);
+}
+
+#[tokio::test]
+async fn clipboard_delivery_rejects_invalid_utf8() {
+    let state = state();
+    register(&state, "owner@example.com", "correct horse").await;
+    let source = login(&state, "owner@example.com", "desktop", "").await;
+
+    let rejected = send_raw(
+        &state,
+        "/v1/clipboard/send",
+        source["access_token"].as_str().unwrap(),
+        "text/plain; charset=utf-8",
+        vec![0xff],
+    )
+    .await;
+    assert_eq!(rejected.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn clipboard_delivery_rejects_wrong_content_type() {
+    let state = state();
+    register(&state, "owner@example.com", "correct horse").await;
+    let source = login(&state, "owner@example.com", "desktop", "").await;
+
+    let rejected = send_raw(
+        &state,
+        "/v1/clipboard/send",
+        source["access_token"].as_str().unwrap(),
+        "application/json",
+        b"not text/plain".to_vec(),
+    )
+    .await;
+    assert_eq!(rejected.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
 }

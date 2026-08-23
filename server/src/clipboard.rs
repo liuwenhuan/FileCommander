@@ -1,8 +1,8 @@
 //! Account-scoped clipboard history. The server retains text and image previews,
 //! never the original image bytes.
 
-use axum::body::Bytes;
-use axum::extract::{Path, Query, State};
+use axum::body::to_bytes;
+use axum::extract::{Path, Query, Request, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -592,11 +592,27 @@ pub async fn clear(
 
 pub async fn send_delivery(
     State(state): State<AppState>,
-    headers: HeaderMap,
-    body: Bytes,
+    request: Request,
 ) -> Result<Json<SendDeliveryResponse>, ApiError> {
-    let principal = authenticate(&state, &headers).await?;
-    let content_type = headers
+    let (parts, body) = request.into_parts();
+    let principal = authenticate(&state, &parts.headers).await?;
+    let user_id = principal.user_id;
+    let source_device_id = principal.device_id;
+    let stamp = iso(now());
+    state
+        .db
+        .call(move |conn| {
+            purge_expired(conn, user_id, &stamp).map_err(|_| {
+                fail(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "could not save clipboard delivery",
+                )
+            })
+        })
+        .await?;
+
+    let content_type = parts
+        .headers
         .get(header::CONTENT_TYPE)
         .and_then(|value| value.to_str().ok());
     if content_type != Some("text/plain; charset=utf-8") {
@@ -605,12 +621,9 @@ pub async fn send_delivery(
             "clipboard delivery requires text/plain; charset=utf-8",
         ));
     }
-    if body.len() > MAX_TEXT_BYTES {
-        return Err(fail(
-            StatusCode::PAYLOAD_TOO_LARGE,
-            "clipboard text is too large",
-        ));
-    }
+    let body = to_bytes(body, MAX_TEXT_BYTES)
+        .await
+        .map_err(|_| fail(StatusCode::PAYLOAD_TOO_LARGE, "clipboard text is too large"))?;
     if std::str::from_utf8(&body).is_err() {
         return Err(fail(
             StatusCode::BAD_REQUEST,
@@ -618,8 +631,6 @@ pub async fn send_delivery(
         ));
     }
 
-    let user_id = principal.user_id;
-    let source_device_id = principal.device_id;
     let payload_id = random_hex(16);
     let created = iso(now());
     let expires = iso(now() + ChronoDuration::days(TTL_DAYS));
