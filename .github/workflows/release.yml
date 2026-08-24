@@ -131,7 +131,7 @@ jobs:
         run: |
           dnf -y install cmake ninja-build gcc-c++ make rpm-build rpm-sign binutils tar findutils which pkgconf-pkg-config qt5-qtbase-devel qt5-qtx11extras-devel qt5-qttools-devel qt5-qtwebsockets-devel libarchive-devel libssh2-devel libsecret-devel libcurl-devel openssl-devel libsmbclient-devel mpv-devel poppler-qt5-devel zlib-devel libxcb-devel squashfs-tools desktop-file-utils gtk3
       - name: Build and validate RPM
-        run: ./packaging/build-rpm.sh
+        run: bash ./packaging/build-rpm.sh
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: rpm-package
