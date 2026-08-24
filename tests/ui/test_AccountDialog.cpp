@@ -124,12 +124,15 @@ TEST(AccountDialog, InvalidCustomServerDoesNotStartARequest) {
     AccountDialog dialog(client, settings);
     auto *custom = dialog.findChild<QRadioButton *>(QStringLiteral("CustomServerRadio"));
     auto *customUrl = dialog.findChild<QLineEdit *>(QStringLiteral("CustomServerUrl"));
+    auto *email = dialog.findChild<QLineEdit *>(QStringLiteral("AccountEmail"));
     auto *status = dialog.findChild<QLabel *>(QStringLiteral("AccountStatus"));
     ASSERT_NE(custom, nullptr);
     ASSERT_NE(customUrl, nullptr);
+    ASSERT_NE(email, nullptr);
     ASSERT_NE(status, nullptr);
     custom->click();
     customUrl->setText(QStringLiteral("ftp://example.com?token=bad"));
+    email->setText(QStringLiteral("valid@example.com"));
 
     button(dialog, QObject::tr("Sign In"))->click();
 
@@ -137,6 +140,66 @@ TEST(AccountDialog, InvalidCustomServerDoesNotStartARequest) {
               QCoreApplication::translate("AccountDialog", "Enter a valid server URL."));
     EXPECT_FALSE(client.isLoggedIn());
     EXPECT_TRUE(settings.accountUsesOfficialServer());
+}
+
+TEST(AccountDialog, InvalidEmailDoesNotSubmitEitherAuthRequest) {
+    AccountSettingsGuard guard;
+    MockHttpServer server;
+    ASSERT_NE(server.port(), 0);
+    Settings settings;
+    AccountClient client;
+    AccountDialog dialog(client, settings);
+    ASSERT_NO_FATAL_FAILURE(fillForm(dialog, server));
+    auto *email = dialog.findChild<QLineEdit *>(QStringLiteral("AccountEmail"));
+    auto *status = dialog.findChild<QLabel *>(QStringLiteral("AccountStatus"));
+    QPushButton *signIn = button(dialog, QObject::tr("Sign In"));
+    QPushButton *create = button(dialog, QObject::tr("Create Account"));
+    ASSERT_NE(email, nullptr);
+    ASSERT_NE(status, nullptr);
+    ASSERT_NE(signIn, nullptr);
+    ASSERT_NE(create, nullptr);
+    email->setText(QStringLiteral("not-an-email"));
+    dialog.show();
+    QCoreApplication::processEvents();
+
+    signIn->click();
+    EXPECT_EQ(status->text(), QCoreApplication::translate("AccountDialog", "Enter a valid email address."));
+    EXPECT_TRUE(email->hasFocus());
+    EXPECT_TRUE(signIn->isEnabled());
+    EXPECT_TRUE(create->isEnabled());
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/auth/login")), 0);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/auth/register")), 0);
+    EXPECT_TRUE(settings.accountUsesOfficialServer());
+    EXPECT_TRUE(settings.accountCustomServerUrl().isEmpty());
+
+    create->click();
+    EXPECT_EQ(status->text(), QCoreApplication::translate("AccountDialog", "Enter a valid email address."));
+    EXPECT_TRUE(email->hasFocus());
+    EXPECT_TRUE(signIn->isEnabled());
+    EXPECT_TRUE(create->isEnabled());
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/auth/login")), 0);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/auth/register")), 0);
+}
+
+TEST(AccountDialog, CanonicalizesEmailBeforeSignInAndPersistence) {
+    AccountSettingsGuard guard;
+    MockHttpServer server;
+    ASSERT_NE(server.port(), 0);
+    serveSignIn(server);
+
+    Settings settings;
+    AccountClient client;
+    AccountDialog dialog(client, settings);
+    ASSERT_NO_FATAL_FAILURE(fillForm(dialog, server));
+    auto *email = dialog.findChild<QLineEdit *>(QStringLiteral("AccountEmail"));
+    ASSERT_NE(email, nullptr);
+    email->setText(QStringLiteral(" User.Name+tag@EXAMPLE.com "));
+
+    button(dialog, QObject::tr("Sign In"))->click();
+
+    FC_TRY_COMPARE_WITH_TIMEOUT(currentPage(dialog), 1, kTimeoutMs);
+    EXPECT_EQ(email->text(), QStringLiteral("user.name+tag@example.com"));
+    EXPECT_EQ(settings.accountEmail(), QStringLiteral("user.name+tag@example.com"));
 }
 
 TEST(AccountDialog, SigningInShowsTheDevicesAndRemembersTheAccount) {

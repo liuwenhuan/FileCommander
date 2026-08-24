@@ -109,6 +109,13 @@
         <source>Clipboard delivery integrity validation failed.</source>
         <translation>剪贴板传送完整性验证失败。</translation>
     </message>
+    <message>
+        <location filename="../../src/core/account/AccountClient.cpp" line="282"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="308"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="346"/>
+        <source>Enter a valid email address.</source>
+        <translation>请输入有效的邮箱地址。</translation>
+    </message>
 </context>
 <context>
     <name>AccountDialog</name>
@@ -264,6 +271,12 @@
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="288"/>
         <source>Loading…</source>
         <translation>正在加载…</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="199"/>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="214"/>
+        <source>Enter a valid email address.</source>
+        <translation>请输入有效的邮箱地址。</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="302"/>

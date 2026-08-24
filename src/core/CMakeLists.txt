@@ -74,6 +74,8 @@ if(FILECOMMANDER_ENABLE_NETWORK)
         network/TransferErrorMapping.cpp
         network/ConnectionStore.h
         network/ConnectionStore.cpp
+        account/EmailAddress.h
+        account/EmailAddress.cpp
         account/AccountClient.h
         account/AccountClient.cpp
         account/DeviceAgent.h

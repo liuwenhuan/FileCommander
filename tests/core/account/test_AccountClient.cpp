@@ -198,6 +198,72 @@ TEST(AccountClient, ARejectedSignInReportsTheServersOwnReason) {
     EXPECT_FALSE(client.isLoggedIn());
 }
 
+TEST(AccountClient, InvalidEmailNeverSubmitsAuthenticationRequests) {
+    MockHttpServer server;
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    QSignalSpy failed(&client, &AccountClient::requestFailed);
+
+    client.registerAccount(QStringLiteral("a@@example.com"), QStringLiteral("correct horse"));
+    client.login(QStringLiteral("user@localhost"), QStringLiteral("correct horse"),
+                 QStringLiteral("laptop"), QString());
+    QCoreApplication::processEvents();
+
+    ASSERT_EQ(failed.count(), 2);
+    EXPECT_EQ(failed.at(0).at(0).toString(), QStringLiteral("Enter a valid email address."));
+    EXPECT_EQ(failed.at(1).at(0).toString(), QStringLiteral("Enter a valid email address."));
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/auth/register")), 0);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/auth/login")), 0);
+    EXPECT_FALSE(client.isLoggedIn());
+}
+
+TEST(AccountClient, InvalidEmailPreservesAnExistingSession) {
+    MockHttpServer server;
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    signedIn(&client, server);
+    const AccountInfo before = client.account();
+    QSignalSpy failed(&client, &AccountClient::requestFailed);
+
+    client.login(QStringLiteral("invalid@localhost"), QStringLiteral("correct horse"),
+                 QStringLiteral("other"), QStringLiteral("new-device"));
+    QCoreApplication::processEvents();
+
+    ASSERT_EQ(failed.count(), 1);
+    EXPECT_TRUE(client.isLoggedIn());
+    EXPECT_EQ(client.account().email, before.email);
+    EXPECT_EQ(client.account().deviceId, before.deviceId);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/auth/login")), 1);
+}
+
+TEST(AccountClient, AuthenticationRequestsUseCanonicalEmail) {
+    MockHttpServer server;
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    server.setRoute(QStringLiteral("/v1/auth/register"),
+                    json(R"({"email":"user.name+tag@example.com"})", 201));
+    QSignalSpy registered(&client, &AccountClient::registered);
+    client.registerAccount(QStringLiteral(" User.Name+tag@EXAMPLE.com "),
+                           QStringLiteral("correct horse"));
+    waitForSignal(registered);
+
+    ASSERT_EQ(registered.count(), 1);
+    EXPECT_EQ(registered.first().first().toString(), QStringLiteral("user.name+tag@example.com"));
+    EXPECT_EQ(QJsonDocument::fromJson(server.lastRequestBody()).object().value("email").toString(),
+              QStringLiteral("user.name+tag@example.com"));
+
+    server.setRoute(QStringLiteral("/v1/auth/login"), json(tokenReply("access", "refresh", "dev-1")));
+    QSignalSpy loggedIn(&client, &AccountClient::loggedIn);
+    client.login(QStringLiteral(" User.Name+tag@EXAMPLE.com "), QStringLiteral("correct horse"),
+                 QStringLiteral("laptop"), QString());
+    waitForSignal(loggedIn);
+
+    ASSERT_EQ(loggedIn.count(), 1);
+    EXPECT_EQ(client.account().email, QStringLiteral("user.name+tag@example.com"));
+    EXPECT_EQ(QJsonDocument::fromJson(server.lastRequestBody()).object().value("email").toString(),
+              QStringLiteral("user.name+tag@example.com"));
+}
+
 TEST(AccountClient, AnExpiredAccessTokenIsRenewedOnceAndTheRequestReplayed) {
     if (!keyringWorks())
         GTEST_SKIP() << "no login keyring on this machine";

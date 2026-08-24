@@ -16,6 +16,7 @@
 #include <utility>
 
 #include "CredentialStore.h"
+#include "EmailAddress.h"
 #include "version.h"
 
 namespace {
@@ -276,18 +277,21 @@ bool AccountClient::acceptTokens(const QByteArray &body, const QString &email) {
 }
 
 void AccountClient::registerAccount(const QString &email, const QString &password) {
+    const std::optional<QString> canonical = AccountEmail::canonicalize(email);
+    if (!canonical) {
+        emit requestFailed(tr("Enter a valid email address."));
+        return;
+    }
     if (!apiUrlIsConfigured() && m_apiUrl.isEmpty()) {
         emit requestFailed(tr("No account server is configured for this build."));
         return;
     }
     invalidateAuthentication();
-    const QByteArray body =
-        QJsonDocument(QJsonObject{{"email", email}, {"password", password}}).toJson();
+    const QByteArray body = QJsonDocument(QJsonObject{{"email", *canonical}, {"password", password}}).toJson();
     request(Verb::Post, QStringLiteral("/v1/auth/register"), body, false,
-            [this, email](QNetworkReply *reply) {
+            [this, email = *canonical](QNetworkReply *reply) {
                 const QByteArray payload = reply->readAll();
-                const int status =
-                    reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
                 if (status == 201)
                     emit registered(email);
                 else if (status == 426)
@@ -299,6 +303,11 @@ void AccountClient::registerAccount(const QString &email, const QString &passwor
 
 void AccountClient::login(const QString &email, const QString &password,
                           const QString &deviceName, const QString &deviceId) {
+    const std::optional<QString> canonical = AccountEmail::canonicalize(email);
+    if (!canonical) {
+        emit requestFailed(tr("Enter a valid email address."));
+        return;
+    }
     if (!apiUrlIsConfigured() && m_apiUrl.isEmpty()) {
         emit requestFailed(tr("No account server is configured for this build."));
         return;
@@ -306,7 +315,7 @@ void AccountClient::login(const QString &email, const QString &password,
     invalidateAuthentication();
     m_credentialDeviceId = deviceId;
     const QByteArray body = QJsonDocument(QJsonObject{
-                                              {"email", email},
+                                              {"email", *canonical},
                                               {"password", password},
                                               {"device_name", deviceName},
                                               {"platform",
@@ -320,7 +329,7 @@ void AccountClient::login(const QString &email, const QString &password,
                                           })
                                 .toJson();
     request(Verb::Post, QStringLiteral("/v1/auth/login"), body, false,
-            [this, email](QNetworkReply *reply) {
+            [this, email = *canonical](QNetworkReply *reply) {
                 const QByteArray payload = reply->readAll();
                 if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 426)
                     emit updateRequired(errorText(reply, payload));
@@ -332,6 +341,11 @@ void AccountClient::login(const QString &email, const QString &password,
 }
 
 void AccountClient::restoreSession(const QString &email, const QString &deviceId) {
+    const std::optional<QString> canonical = AccountEmail::canonicalize(email);
+    if (!canonical) {
+        emit requestFailed(tr("Enter a valid email address."));
+        return;
+    }
     QString stored;
     CredentialStore::load(keyringId(deviceId), &stored);
     if (stored.isEmpty()) {
@@ -341,15 +355,14 @@ void AccountClient::restoreSession(const QString &email, const QString &deviceId
     invalidateAuthentication();
     // Set before the request so a 401 on the retry path knows which session is
     // being restored, and so a rotated token returns to the keyring.
-    m_account.email = email;
+    m_account.email = *canonical;
     m_account.deviceId = deviceId;
     m_credentialDeviceId = deviceId;
     m_refreshToken = stored;
 
-    const QByteArray body =
-        QJsonDocument(QJsonObject{{"refresh_token", m_refreshToken}}).toJson();
+    const QByteArray body = QJsonDocument(QJsonObject{{"refresh_token", m_refreshToken}}).toJson();
     request(Verb::Post, QStringLiteral("/v1/auth/refresh"), body, false,
-            [this, email](QNetworkReply *reply) {
+            [this, email = *canonical](QNetworkReply *reply) {
                 const QByteArray payload = reply->readAll();
                 if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 426)
                     emit updateRequired(errorText(reply, payload));

@@ -17,6 +17,7 @@
 #include <QVBoxLayout>
 
 #include "account/AccountClient.h"
+#include "account/EmailAddress.h"
 #include "config/Settings.h"
 
 namespace {
@@ -193,19 +194,33 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
         accept();
     });
     connect(m_signIn, &QPushButton::clicked, this, [this] {
+        const auto email = AccountEmail::canonicalize(m_email->text());
+        if (!email) {
+            m_status->setText(tr("Enter a valid email address."));
+            m_email->setFocus();
+            return;
+        }
+        m_email->setText(*email);
         if (!applyServerSelection())
             return;
         setBusy(true);
         m_status->setText(tr("Signing in…"));
-        m_client.login(m_email->text().trimmed(), m_password->text(),
-                       m_deviceName->text().trimmed(), m_settings.accountDeviceId());
+        m_client.login(*email, m_password->text(), m_deviceName->text().trimmed(),
+                       m_settings.accountDeviceId());
     });
     connect(m_registerButton, &QPushButton::clicked, this, [this] {
+        const auto email = AccountEmail::canonicalize(m_email->text());
+        if (!email) {
+            m_status->setText(tr("Enter a valid email address."));
+            m_email->setFocus();
+            return;
+        }
+        m_email->setText(*email);
         if (!applyServerSelection())
             return;
         setBusy(true);
         m_status->setText(tr("Creating account…"));
-        m_client.registerAccount(m_email->text().trimmed(), m_password->text());
+        m_client.registerAccount(*email, m_password->text());
     });
     connect(signOut, &QPushButton::clicked, this, [this] { m_client.logout(); });
 

@@ -46,6 +46,7 @@ if(FILECOMMANDER_ENABLE_NETWORK)
         network/test_WebDavChunkedUpload.cpp
         network/test_NetworkSession.cpp
         network/test_SmbListingErrors.cpp
+        account/test_EmailAddress.cpp
         account/test_AccountClient.cpp
         account/test_AccountSignOut.cpp
         account/test_DeviceAgent.cpp

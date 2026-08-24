@@ -4643,6 +4643,8 @@ void MainWindow::ensureAccountClient() {
         !m_settings.accountCustomServerUrl().isEmpty()) {
         m_accountClient->setApiUrl(m_settings.accountCustomServerUrl());
     }
+    connect(m_accountClient, &AccountClient::loggedIn, this,
+            [this](const AccountInfo &info) { m_settings.setAccountEmail(info.email); });
     if (m_titleBar) {
         connect(m_accountClient, &AccountClient::loggedIn, this,
                 [this](const AccountInfo &info) { m_titleBar->setAccountName(info.email); });
