@@ -1,235 +1,307 @@
 name: Release
 
-# Builds the three packages and attaches them to a GitHub Release.
-#
-# Tag-driven rather than push-driven: the version lives in one place --
-# project(FileCommander VERSION X.Y.Z) in CMakeLists.txt -- and the tag has to
-# agree with it, or the update manifest would advertise one number while the
-# binaries report another. The check below refuses the run instead of shipping
-# that mismatch.
-#
-# Can also be started by hand for a dry run from the Actions tab:
-# workflow_dispatch builds and uploads the artefacts but publishes no Release.
-
+# A vX.Y.Z tag is the normal release trigger. Manual runs are dry runs by
+# default; publishing from the Actions UI requires an explicit tag and
+# publish=true, so the branch selected in the UI can never become a release by
+# accident.
 on:
   push:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: CMake version to build (X.Y.Z)
+        required: true
+        type: string
+      tag:
+        description: Existing release tag (vX.Y.Z)
+        required: true
+        type: string
+      publish:
+        description: Publish GitHub Release and fc.aigutta.com update site
+        required: true
+        default: false
+        type: boolean
 
-# Serialised, NOT cancelled. The CI workflows cancel a superseded run because
-# its result is about code nobody is looking at any more; a release run is the
-# opposite -- it publishes artefacts, and killing one midway could leave a
-# Release with some of its files attached. Two tags pushed close together queue
-# up instead.
 concurrency:
   group: release
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   version-check:
-    # A ceiling, not an estimate; see the CI workflows for the hang that
-    # prompted these. A release job that wedges would otherwise burn the
-    # 360-minute default, and the Windows one bills at twice the rate.
     timeout-minutes: 10
     runs-on: ubuntu-22.04
     outputs:
-      version: ${{ steps.read.outputs.version }}
+      version: ${{ steps.identity.outputs.version }}
+      tag: ${{ steps.identity.outputs.tag }}
+      publish: ${{ steps.identity.outputs.publish }}
     steps:
-      - uses: actions/checkout@v4
-      - id: read
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # A manual publish always builds the immutable tag, never the selected
+          # workflow branch. Dry runs deliberately build the selected ref.
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.publish && inputs.tag || github.sha }}
+          fetch-depth: 0
+      - id: identity
+        shell: bash
+        env:
+          MANUAL_VERSION: ${{ inputs.version }}
+          MANUAL_TAG: ${{ inputs.tag }}
+          MANUAL_PUBLISH: ${{ inputs.publish }}
         run: |
-          version=$(sed -n 's/^project(FileCommander VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
-          if [ -z "$version" ]; then
-            echo "::error::could not read the version from the project() line"
-            exit 1
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "CMakeLists.txt says $version"
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            tag="${GITHUB_REF_NAME#v}"
-            if [ "$tag" != "$version" ]; then
-              echo "::error::tag $GITHUB_REF_NAME does not match the project version $version"
-              exit 1
+          set -euo pipefail
+          version="$(sed -n 's/^project(FileCommander VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          if [[ "${{ github.event_name }}" == push ]]; then
+            tag="$GITHUB_REF_NAME"
+            publish=true
+          else
+            [[ "$MANUAL_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+            [[ "$MANUAL_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+            [[ "$MANUAL_PUBLISH" == true || "$MANUAL_PUBLISH" == false ]]
+            tag="$MANUAL_TAG"
+            publish="$MANUAL_PUBLISH"
+            if [[ "$publish" == true ]]; then
+              test "$MANUAL_VERSION" = "$version"
+              test "$tag" = "v$version"
+              git rev-parse --verify "refs/tags/$tag" >/dev/null
+              test "$(git rev-parse HEAD)" = "$(git rev-list -n 1 "$tag")"
             fi
           fi
+          if [[ "$publish" == true ]]; then
+            test "$tag" = "v$version"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
 
   linux:
     timeout-minutes: 60
     needs: version-check
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - name: Install build and preview dependencies
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.publish && needs.version-check.outputs.tag || github.sha }}
+      - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build pkg-config libarchive-dev libssh2-1-dev libsecret-1-dev libcurl4-openssl-dev libssl-dev libsmbclient-dev libmpv-dev libpoppler-qt5-dev libqt5x11extras5-dev qtbase5-dev qttools5-dev-tools zlib1g-dev libxcb1-dev p7zip-full squashfs-tools
-
-      # Same optional sidecar as the CI workflows: without OFFICE_OXIDE_REPO the
-      # packages build without Office preview, exactly as they do on a machine
-      # that lacks it. Warned about so a release cannot be cut in ignorance.
-      # Deliberately NOT cached, unlike the CI workflows. A release is cut once
-      # and its contents are what users get; building the sidecar from source
-      # every time costs a few minutes and removes any question of a stale
-      # cache entry having been shipped.
-      - name: Build office-oxide
+          sudo apt-get install -y cmake ninja-build pkg-config libarchive-dev libssh2-1-dev libsecret-1-dev libcurl4-openssl-dev libssl-dev libsmbclient-dev libmpv-dev libpoppler-qt5-dev libqt5x11extras5-dev libqt5websockets5-dev qtbase5-dev qttools5-dev-tools zlib1g-dev libxcb1-dev p7zip-full squashfs-tools
+      - name: Build optional office converter
         env:
           OFFICE_OXIDE_REPO: ${{ vars.OFFICE_OXIDE_REPO }}
           OFFICE_OXIDE_REF: ${{ vars.OFFICE_OXIDE_REF }}
         run: |
-          if [ -z "${OFFICE_OXIDE_REPO}" ]; then
-            echo "::warning::OFFICE_OXIDE_REPO is not set: this release will have no Office document preview."
+          if [ -z "$OFFICE_OXIDE_REPO" ]; then
+            echo '::warning::Office preview sidecar is not configured.'
             exit 0
           fi
           git clone --depth 1 ${OFFICE_OXIDE_REF:+--branch "$OFFICE_OXIDE_REF"} "$OFFICE_OXIDE_REPO" build/office-oxide-src
-          # -p office_oxide_cli: the repository is a workspace whose other member
-          # is an MCP server this application never invokes.
           cargo build --release --manifest-path build/office-oxide-src/Cargo.toml -p office_oxide_cli
-          mkdir -p "$HOME/.local/bin"
+          install -d "$HOME/.local/bin"
           install -m 0755 build/office-oxide-src/target/release/office-oxide "$HOME/.local/bin/office-oxide"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
       - name: Debian package
         run: ./packaging/build-deb.sh
       - name: AppImage
         run: ./packaging/build-appimage.sh
-
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: linux-packages
           path: |
             dist/*.deb
             dist/*.AppImage
 
+  rpm:
+    timeout-minutes: 60
+    needs: version-check
+    runs-on: ubuntu-22.04
+    container:
+      # fedora:40 multi-architecture manifest list, resolved 2026-08-24.
+      image: fedora@sha256:3c86d25fef9d2001712bc3d9b091fc40cf04be4767e48f1aa3b785bf58d300ed
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.publish && needs.version-check.outputs.tag || github.sha }}
+      - name: Install Fedora build dependencies
+        run: |
+          dnf -y install cmake ninja-build gcc-c++ make rpm-build rpm-sign binutils tar findutils which pkgconf-pkg-config qt5-qtbase-devel qt5-qtx11extras-devel qt5-qttools-devel qt5-qtwebsockets-devel libarchive-devel libssh2-devel libsecret-devel libcurl-devel openssl-devel libsmbclient-devel mpv-devel poppler-qt5-devel zlib-devel libxcb-devel squashfs-tools desktop-file-utils gtk3
+      - name: Build and validate RPM
+        run: ./packaging/build-rpm.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: rpm-package
+          path: dist/*.rpm
+
   windows:
     timeout-minutes: 90
     needs: version-check
-    # windows-2022, not windows-latest. The newer image ships Visual Studio 18,
-    # whose STL has dropped stdext::make_checked_array_iterator -- and Qt
-    # 5.15.2's qlist.h still calls it, so every translation unit that includes
-    # QList fails with "'stdext': is not a class or namespace name". Nothing in
-    # this repository can fix that; the fix is a toolset the Qt build was made
-    # for. The Qt package itself is msvc2019_64, so 2022 is already the newer
-    # side of that pairing.
     runs-on: windows-2022
     env:
       POPPLER_VERSION: 26.04.0
       QT_VERSION: 5.15.2
     steps:
-      - uses: actions/checkout@v4
-      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.publish && needs.version-check.outputs.tag || github.sha }}
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
       - id: qt
-        uses: jurplel/install-qt-action@v4
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
           version: ${{ env.QT_VERSION }}
           arch: win64_msvc2019_64
-
-      # msvc-dev-cmd sets VCPKG_ROOT to the vcpkg bundled inside Visual Studio.
-      # That copy has no ports tree and none of the packages installed below --
-      # they go to the runner image's own vcpkg -- so CMake resolved its
-      # toolchain against one installation and every find_package against the
-      # other, and the build died on "Could NOT find LibArchive" with the
-      # packages sitting installed a directory away. Pinned here, AFTER that
-      # action has run, so every later step agrees with the step that installs.
-      - name: Point vcpkg at the runner's own installation
+      - name: Point vcpkg at runner installation
         shell: pwsh
-        run: |
-          "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" |
-              Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-
-      # Restore and save split apart -- see the same pair in build-windows.yml
-      # for why. Short version: actions/cache only writes when the whole job
-      # succeeds, so a ~25 minute poppler build was thrown away every time a
-      # later step failed, and the repository ended up with no cache at all.
-      # The key is shared with that workflow, so whichever runs first pays for
-      # the build and the other one gets it free.
-      - name: Restore poppler-qt5
+        run: '"VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8'
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         id: poppler-cache
-        uses: actions/cache/restore@v4
         with:
           path: build/poppler-qt5
           key: poppler-qt5-${{ env.POPPLER_VERSION }}-qt${{ env.QT_VERSION }}-x64-windows-${{ hashFiles('packaging/build-poppler-qt5.ps1') }}
-
-      - name: Install provider dependencies
+      - name: Install x64 provider dependencies
         shell: pwsh
-        run: |
-          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install --triplet x64-windows libarchive libssh2 curl zlib
-
-      - name: Build poppler-qt5
-        id: poppler-build
+        run: '& "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install --triplet x64-windows libarchive libssh2 curl zlib'
+      - name: Build Poppler Qt5
         if: steps.poppler-cache.outputs.cache-hit != 'true'
         shell: pwsh
         env:
           FILECOMMANDER_QT_ROOT: ${{ env.QT_ROOT_DIR }}
         run: ./packaging/build-poppler-qt5.ps1 -Version $env:POPPLER_VERSION
-
-      - name: Save poppler-qt5
-        if: steps.poppler-build.outcome == 'success'
-        uses: actions/cache/save@v4
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        if: steps.poppler-cache.outputs.cache-hit != 'true'
         with:
           path: build/poppler-qt5
           key: ${{ steps.poppler-cache.outputs.cache-primary-key }}
-
-      - name: Build office-oxide
+      - name: Build optional office converter
         shell: pwsh
         env:
           OFFICE_OXIDE_REPO: ${{ vars.OFFICE_OXIDE_REPO }}
           OFFICE_OXIDE_REF: ${{ vars.OFFICE_OXIDE_REF }}
         run: |
-          if (-not $env:OFFICE_OXIDE_REPO) {
-              Write-Warning 'OFFICE_OXIDE_REPO is not set: this release will have no Office document preview.'
-              exit 0
-          }
+          if (-not $env:OFFICE_OXIDE_REPO) { Write-Warning 'Office preview sidecar is not configured.'; exit 0 }
           git clone --depth 1 $(if ($env:OFFICE_OXIDE_REF) { "--branch=$env:OFFICE_OXIDE_REF" }) $env:OFFICE_OXIDE_REPO build/office-oxide-src
-          # -p office_oxide_cli: the repository is a workspace whose other member
-          # is an MCP server this application never invokes.
           cargo build --release --manifest-path build/office-oxide-src/Cargo.toml -p office_oxide_cli
           New-Item -ItemType Directory -Force -Path build/office-oxide | Out-Null
           Copy-Item build/office-oxide-src/target/release/office-oxide.exe build/office-oxide/
-
-      - name: Portable package
+      - name: Build and validate x64 portable package
         shell: pwsh
         env:
           FILECOMMANDER_QT_ROOT: ${{ env.QT_ROOT_DIR }}
           FILECOMMANDER_POPPLER_QT5_ROOT: ${{ github.workspace }}/build/poppler-qt5
-        run: ./packaging/build-windows.ps1 -Profile windows-portable
-
-      - uses: actions/upload-artifact@v4
+        run: ./packaging/build-windows.ps1 -Profile windows-portable -Architecture x64
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: windows-package
           path: dist/FileCommander-*-windows-x64.zip
 
   publish:
-    timeout-minutes: 20
-    # Only a tag publishes. A manual run stops after the artefacts, so the
-    # whole pipeline can be exercised without creating a Release.
-    if: github.ref_type == 'tag'
-    needs: [version-check, linux, windows]
+    timeout-minutes: 30
+    needs: [version-check, linux, rpm, windows]
+    if: needs.version-check.outputs.publish == 'true'
     runs-on: ubuntu-22.04
+    environment: production
+    permissions:
+      contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.version-check.outputs.tag }}
+          fetch-depth: 0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: artefacts
-      - name: List what will be published
+      - name: Generate release site and checksums
+        env:
+          VERSION: ${{ needs.version-check.outputs.version }}
+          TAG: ${{ needs.version-check.outputs.tag }}
         run: |
-          find artefacts -type f -printf '%s\t%p\n' | sort -rn
-      # The checksums are what the release checklist asks
-      # for by hand; publishing them alongside means the manifest can be filled
-      # in from the Release page rather than from somebody's terminal history.
-      - name: Checksums
-        run: |
-          cd artefacts
-          find . -type f \( -name '*.deb' -o -name '*.AppImage' -o -name '*.zip' \) \
-            -exec sha256sum {} + | tee SHA256SUMS.txt
-      - uses: softprops/action-gh-release@v2
+          set -euo pipefail
+          mkdir -p release-input
+          cp artefacts/windows-package/*.zip release-input/
+          cp artefacts/linux-packages/*.deb release-input/
+          cp artefacts/linux-packages/*.AppImage release-input/
+          cp artefacts/rpm-package/*.rpm release-input/
+          test "$(find release-input -maxdepth 1 -type f | wc -l)" = 4
+          previous="$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || :)"
+          if [[ -n "$previous" ]]; then
+            git log --format='%h %s%n%n%b' "$previous..$TAG" > release-notes.md
+          else
+            git log --format='%h %s%n%n%b' "$TAG" > release-notes.md
+          fi
+          if [[ ! -s release-notes.md ]]; then
+            printf 'FileCommander %s\n' "$VERSION" > release-notes.md
+          fi
+          python3 tools/generate-update-site.py --version "$VERSION" --date "$(date -u +%F)" --notes-file release-notes.md --output update-site release-input/*
+          (cd update-site && sha256sum -c SHA256SUMS.txt)
+      - name: Publish GitHub Release mirror
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
+          tag_name: ${{ needs.version-check.outputs.tag }}
           name: FileCommander ${{ needs.version-check.outputs.version }}
           generate_release_notes: true
           files: |
-            artefacts/**/*.deb
-            artefacts/**/*.AppImage
-            artefacts/**/*.zip
-            artefacts/SHA256SUMS.txt
+            release-input/*
+            update-site/SHA256SUMS.txt
+      - name: Configure restricted deploy SSH
+        env:
+          UPDATE_DEPLOY_KEY: ${{ secrets.UPDATE_DEPLOY_KEY }}
+          UPDATE_DEPLOY_KNOWN_HOSTS: ${{ secrets.UPDATE_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$UPDATE_DEPLOY_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$UPDATE_DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Atomically deploy update site
+        env:
+          UPDATE_DEPLOY_HOST: ${{ secrets.UPDATE_DEPLOY_HOST }}
+          UPDATE_DEPLOY_USER: ${{ secrets.UPDATE_DEPLOY_USER }}
+          UPDATE_DEPLOY_ROOT: ${{ secrets.UPDATE_DEPLOY_ROOT }}
+          VERSION: ${{ needs.version-check.outputs.version }}
+          TAG: ${{ needs.version-check.outputs.tag }}
+        run: |
+          set -euo pipefail
+          test -n "$UPDATE_DEPLOY_HOST" && test -n "$UPDATE_DEPLOY_USER" && test -n "$UPDATE_DEPLOY_ROOT"
+          target="$UPDATE_DEPLOY_USER@$UPDATE_DEPLOY_HOST"
+          stage="$UPDATE_DEPLOY_ROOT/.staging/$TAG-$GITHUB_RUN_ID"
+          ssh "$target" "umask 027; mkdir -p '$stage'"
+          rsync -e 'ssh -i ~/.ssh/id_ed25519' -a --chmod=Du=rwx,Dg=rx,Fu=rw,Fg=r --checksum release-input/ "$target:$stage/packages/"
+          rsync -e 'ssh -i ~/.ssh/id_ed25519' -a --chmod=Du=rwx,Dg=rx,Fu=rw,Fg=r --checksum update-site/ "$target:$stage/site/"
+          ssh "$target" "UPDATE_ROOT='$UPDATE_DEPLOY_ROOT' STAGE='$stage' VERSION='$VERSION' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$STAGE/site"
+          test -f SHA256SUMS.txt && test -f update.html && test -f version.json
+          sha256sum -c SHA256SUMS.txt
+          # Validate every package and all immutable destinations before moving a
+          # single file. A failed deployment must leave the current public site
+          # untouched rather than publish a partial release.
+          for package in "$STAGE"/packages/*; do
+            name="$(basename "$package")"
+            expected="$(awk -v name="$name" '$2 == name { print $1 }' SHA256SUMS.txt)"
+            test -n "$expected"
+            test "$(sha256sum "$package" | cut -d' ' -f1)" = "$expected"
+            destination="$UPDATE_ROOT/$name"
+            if [ -e "$destination" ]; then
+              test "$(sha256sum "$destination" | cut -d' ' -f1)" = "$expected"
+            fi
+          done
+          for package in "$STAGE"/packages/*; do
+            name="$(basename "$package")"
+            destination="$UPDATE_ROOT/$name"
+            if [ ! -e "$destination" ]; then
+              mv "$package" "$destination"
+            fi
+          done
+          install -m 0640 SHA256SUMS.txt "$UPDATE_ROOT/SHA256SUMS.txt.new"
+          mv -f "$UPDATE_ROOT/SHA256SUMS.txt.new" "$UPDATE_ROOT/SHA256SUMS.txt"
+          install -m 0640 update.html "$UPDATE_ROOT/update.html.new"
+          mv -f "$UPDATE_ROOT/update.html.new" "$UPDATE_ROOT/update.html"
+          # Manifest is deliberately visible last: it is the only mutable pointer.
+          install -m 0640 version.json "$UPDATE_ROOT/version.json.new"
+          mv -f "$UPDATE_ROOT/version.json.new" "$UPDATE_ROOT/version.json"
+          rm -rf "$STAGE"
+          REMOTE
