@@ -5325,6 +5325,11 @@ Right: %2</source>
         <translation>将编辑内容写入磁盘 (Ctrl+S)</translation>
     </message>
     <message>
+        <location filename="../../src/viewer/TextEditor.cpp" line="252"/>
+        <source>Wrap</source>
+        <translation>自动换行</translation>
+    </message>
+    <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="260"/>
         <source>Re-read the file on disk in this encoding</source>
         <translation>按此编码重新读取磁盘上的文件</translation>

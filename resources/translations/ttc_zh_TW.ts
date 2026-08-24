@@ -5245,6 +5245,11 @@ Right: %2</source>
         <translation>將緩衝區寫入磁碟（Ctrl+S）</translation>
     </message>
     <message>
+        <location filename="../../src/viewer/TextEditor.cpp" line="252"/>
+        <source>Wrap</source>
+        <translation>自動換行</translation>
+    </message>
+    <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="260"/>
         <source>Re-read the file on disk in this encoding</source>
         <translation>以此編碼重新讀取磁碟上的檔案</translation>

@@ -193,7 +193,7 @@ bool removeLegacyCacheDirectory(const QString &path) {
     if (!root.exists() && !root.isSymbolicLink())
         return true;
     if (root.isSymbolicLink())
-        return root.isDir() ? QDir().rmdir(path) : QFile::remove(path);
+        return QFile::remove(path);
     if (!root.isDir())
         return false;
 
@@ -204,7 +204,7 @@ bool removeLegacyCacheDirectory(const QString &path) {
 
     const QFileInfo stagedRoot(staged);
     if (stagedRoot.isSymbolicLink())
-        return stagedRoot.isDir() ? QDir().rmdir(staged) : QFile::remove(staged);
+        return QFile::remove(staged);
     if (!stagedRoot.isDir()) {
         QDir().rename(staged, path);
         return false;
@@ -215,10 +215,7 @@ bool removeLegacyCacheDirectory(const QString &path) {
         QDir::AllEntries | QDir::Hidden | QDir::System | QDir::NoDotAndDotDot);
     for (const QFileInfo &entry : entries) {
         if (entry.isSymbolicLink()) {
-            if (entry.isDir())
-                QDir().rmdir(entry.filePath());
-            else
-                QFile::remove(entry.filePath());
+            QFile::remove(entry.filePath());
         } else if (entry.isFile() && isLegacyCacheFileName(entry.fileName())) {
             QFile::remove(entry.filePath());
         }

@@ -5217,6 +5217,11 @@ Right: %2</source>
         <translation>버퍼를 디스크에 기록 (Ctrl+S)</translation>
     </message>
     <message>
+        <location filename="../../src/viewer/TextEditor.cpp" line="252"/>
+        <source>Wrap</source>
+        <translation>줄 바꿈</translation>
+    </message>
+    <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="260"/>
         <source>Re-read the file on disk in this encoding</source>
         <translation>이 인코딩으로 디스크의 파일을 다시 읽기</translation>

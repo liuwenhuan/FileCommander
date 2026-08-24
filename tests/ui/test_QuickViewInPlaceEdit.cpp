@@ -1,10 +1,12 @@
 #include <gtest/gtest.h>
 
+#include <QAction>
 #include <QFile>
 #include <QPlainTextEdit>
 #include <QScrollBar>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QTextBlock>
 #include <QTextStream>
 #include <QTextCursor>
 
@@ -34,6 +36,25 @@ QPlainTextEdit *textView(QuickView &view) {
     return view.findChild<QPlainTextEdit *>(QStringLiteral("quickViewTextView"));
 }
 
+QAction *actionWithText(QObject *owner, const QString &text) {
+    for (QAction *action : owner->findChildren<QAction *>()) {
+        if (action->text() == text)
+            return action;
+    }
+    return nullptr;
+}
+
+QString writeLongLines(const QTemporaryDir &dir, int count) {
+    const QString path = dir.filePath(QStringLiteral("wrapped.txt"));
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+        return {};
+    QTextStream out(&file);
+    for (int i = 0; i < count; ++i)
+        out << "line " << i << ' ' << QString(400, QLatin1Char('x')) << '\n';
+    return path;
+}
+
 } // namespace
 
 TEST(QuickViewInPlaceEdit, EditAndPreviewStayInOneWidgetAndKeepTheScrollPosition) {
@@ -53,6 +74,7 @@ TEST(QuickViewInPlaceEdit, EditAndPreviewStayInOneWidgetAndKeepTheScrollPosition
     // The text load is a background probe; nothing is on screen until it lands.
     FC_TRY_VERIFY_WITH_TIMEOUT(text->verticalScrollBar()->maximum() > 200, 5000);
     text->verticalScrollBar()->setValue(120);
+    const int previewPosition = text->cursorForPosition(text->viewport()->rect().topLeft()).position();
 
     QSignalSpy editing(&view, &QuickView::editingChanged);
     ASSERT_TRUE(view.beginEditing(path));
@@ -62,12 +84,65 @@ TEST(QuickViewInPlaceEdit, EditAndPreviewStayInOneWidgetAndKeepTheScrollPosition
     EXPECT_FALSE(editor->isWindow()) << "the editor popped up as its own window";
     ASSERT_EQ(editing.size(), 1);
     EXPECT_TRUE(editing.at(0).at(0).toBool());
-    FC_TRY_COMPARE_WITH_TIMEOUT(editor->codeEditor()->verticalScrollBar()->value(), 120, 5000);
+    FC_TRY_COMPARE_WITH_TIMEOUT(editor->codeEditor()->textCursor().position(), previewPosition, 5000);
 
     editor->codeEditor()->verticalScrollBar()->setValue(300);
+    const int editorPosition =
+        editor->codeEditor()->cursorForPosition(editor->codeEditor()->viewport()->rect().topLeft()).position();
     emit editor->previewRequested(path); // what the toolbar's Preview button does
     EXPECT_FALSE(view.isEditing());
-    FC_TRY_COMPARE_WITH_TIMEOUT(text->verticalScrollBar()->value(), 300, 5000);
+    FC_TRY_COMPARE_WITH_TIMEOUT(text->textCursor().position(), editorPosition, 5000);
+}
+
+TEST(QuickViewInPlaceEdit, WrapStaysSynchronizedAndKeepsLogicalTextPosition) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString path = writeLongLines(dir, 180);
+    ASSERT_FALSE(path.isEmpty());
+
+    Settings settings(dir.filePath(QStringLiteral("settings.ini")));
+    QuickView view(settings, QuickView::Context::Embedded);
+    view.resize(420, 300);
+    view.show();
+    view.showFile(path);
+
+    QPlainTextEdit *text = textView(view);
+    ASSERT_NE(text, nullptr);
+    FC_TRY_VERIFY_WITH_TIMEOUT(text->document()->blockCount() >= 180, 5000);
+    QAction *previewWrap = actionWithText(&view, QStringLiteral("Wrap"));
+    ASSERT_NE(previewWrap, nullptr);
+    EXPECT_FALSE(previewWrap->isChecked());
+    EXPECT_EQ(text->lineWrapMode(), QPlainTextEdit::NoWrap);
+
+    previewWrap->setChecked(true);
+    EXPECT_EQ(text->lineWrapMode(), QPlainTextEdit::WidgetWidth);
+    QTextCursor previewCursor(text->document()->findBlockByNumber(70));
+    text->setTextCursor(previewCursor);
+    text->centerCursor();
+    const int previewPosition = text->cursorForPosition(text->viewport()->rect().topLeft()).position();
+
+    ASSERT_TRUE(view.beginEditing(path));
+    auto *editor = view.findChild<TextEditor *>();
+    ASSERT_NE(editor, nullptr);
+    QAction *editorWrap = actionWithText(editor, QStringLiteral("Wrap"));
+    ASSERT_NE(editorWrap, nullptr);
+    EXPECT_TRUE(editorWrap->isChecked());
+    EXPECT_EQ(editor->codeEditor()->lineWrapMode(), QPlainTextEdit::WidgetWidth);
+    FC_TRY_COMPARE_WITH_TIMEOUT(editor->codeEditor()->textCursor().position(), previewPosition, 5000);
+
+    editorWrap->setChecked(false);
+    EXPECT_EQ(text->lineWrapMode(), QPlainTextEdit::NoWrap);
+    QTextCursor editorCursor(editor->codeEditor()->document()->findBlockByNumber(130));
+    editor->codeEditor()->setTextCursor(editorCursor);
+    editor->codeEditor()->centerCursor();
+    const int editorPosition = editor->codeEditor()
+                                   ->cursorForPosition(editor->codeEditor()->viewport()->rect().topLeft())
+                                   .position();
+    emit editor->previewRequested(path);
+
+    FC_TRY_VERIFY_WITH_TIMEOUT(!view.isEditing(), 5000);
+    FC_TRY_VERIFY_WITH_TIMEOUT(text->lineWrapMode() == QPlainTextEdit::NoWrap, 5000);
+    FC_TRY_COMPARE_WITH_TIMEOUT(text->textCursor().position(), editorPosition, 5000);
 }
 
 TEST(QuickViewInPlaceEdit, AnUnsavedBufferSurvivesTheFileCursorMovingOn) {

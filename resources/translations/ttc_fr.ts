@@ -5224,6 +5224,11 @@ Droite : %2</translation>
         <translation>Écrire le tampon sur le disque (Ctrl+S)</translation>
     </message>
     <message>
+        <location filename="../../src/viewer/TextEditor.cpp" line="252"/>
+        <source>Wrap</source>
+        <translation>Retour à la ligne</translation>
+    </message>
+    <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="260"/>
         <source>Re-read the file on disk in this encoding</source>
         <translation>Relire le fichier sur le disque avec cet encodage</translation>

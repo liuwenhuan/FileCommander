@@ -30,6 +30,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPlainTextEdit>
+#include <QSignalBlocker>
 #include <QProgressBar>
 #include <QPropertyAnimation>
 #include <QPushButton>
@@ -937,11 +938,10 @@ QWidget *QuickView::buildTextPage() {
                 renderText();
             });
 
-    QAction *wrap = m_textToolbar->addAction(tr("Wrap"));
-    wrap->setCheckable(true);
-    connect(wrap, &QAction::toggled, this, [this](bool on) {
-        m_text->setLineWrapMode(on ? QPlainTextEdit::WidgetWidth : QPlainTextEdit::NoWrap);
-    });
+    m_textWrapAction = m_textToolbar->addAction(tr("Wrap"));
+    m_textWrapAction->setCheckable(true);
+    connect(m_textWrapAction, &QAction::toggled, this,
+            [this](bool enabled) { setTextWrapEnabled(enabled); });
 
     QAction *hex = m_textToolbar->addAction(tr("Hex"));
     hex->setCheckable(true);
@@ -1025,9 +1025,11 @@ bool QuickView::beginEditing(const QString &path, const QString &encodingIdentit
         m_stack->addWidget(m_editor);
         connect(m_editor, &TextEditor::previewRequested, this, [this](const QString &file) {
             m_textRestorePath = file;
-            m_textRestoreLine = m_editor->codeEditor()->verticalScrollBar()->value();
+            m_textRestorePosition = textViewportPosition(m_editor->codeEditor());
             showFile(file, m_editor->encodingIdentity());
         });
+        connect(m_editor, &TextEditor::textWrapChanged, this,
+                [this](bool enabled) { setTextWrapEnabled(enabled); });
     }
     // A probe already in flight would land on the text page and reveal it,
     // pulling the user straight back out of the editor.
@@ -1035,17 +1037,17 @@ bool QuickView::beginEditing(const QString &path, const QString &encodingIdentit
     m_textLoadPending = false;
     if (!m_editor->loadFile(path, resolvedIdentity))
         return false;
+    m_editor->setTextWrapEnabled(m_textWrapAction && m_textWrapAction->isChecked());
 
-    // Both views are NoWrap, so a vertical scrollbar value is the number of the
-    // first visible line and carries directly from one to the other. Deferred
-    // because the editor's scrollbar range is only known after it lays out.
-    const int line = (!m_textHex && path == m_textPath) ? m_text->verticalScrollBar()->value() : -1;
+    // The editor and preview can have different widths (the editor has a gutter),
+    // so preserve a document position instead of copying visual scroll rows.
+    const int position = (!m_textHex && path == m_textPath) ? textViewportPosition(m_text) : -1;
     m_stack->setCurrentWidget(m_editor);
-    if (line > 0) {
+    if (position >= 0) {
         QPointer<TextEditor> editor = m_editor;
-        QTimer::singleShot(0, this, [editor, line]() {
+        QTimer::singleShot(0, this, [editor, position]() {
             if (editor)
-                editor->codeEditor()->verticalScrollBar()->setValue(line);
+                restoreTextViewportPosition(editor->codeEditor(), position);
         });
     }
     m_editor->setFocus();
@@ -1117,6 +1119,32 @@ void QuickView::renderText() {
     if (renderTruncated)
         content += tr("\n\n[... truncated ...]");
     m_text->setPlainText(content);
+}
+
+void QuickView::setTextWrapEnabled(bool enabled) {
+    if (m_textWrapAction && m_textWrapAction->isChecked() != enabled) {
+        const QSignalBlocker blocker(m_textWrapAction);
+        m_textWrapAction->setChecked(enabled);
+    }
+    if (m_text)
+        m_text->setLineWrapMode(enabled ? QPlainTextEdit::WidgetWidth : QPlainTextEdit::NoWrap);
+    if (m_editor)
+        m_editor->setTextWrapEnabled(enabled);
+}
+
+int QuickView::textViewportPosition(const QPlainTextEdit *text) {
+    if (!text || !text->viewport())
+        return -1;
+    return text->cursorForPosition(text->viewport()->rect().topLeft()).position();
+}
+
+void QuickView::restoreTextViewportPosition(QPlainTextEdit *text, int position) {
+    if (!text || position < 0)
+        return;
+    QTextCursor cursor(text->document());
+    cursor.setPosition(qBound(0, position, text->document()->characterCount() - 1));
+    text->setTextCursor(cursor);
+    text->ensureCursorVisible();
 }
 
 void QuickView::findNext() {
@@ -3910,16 +3938,15 @@ void QuickView::showFile(const QString &path, const QString &encodingIdentity) {
                     m_textPath = path;
                     renderText();
                     revealStaticPage(m_textPage);
-                    // Coming back from the editor: land on the line it was
-                    // showing. One shot -- a later, unrelated load must not.
-                    const int line = m_textRestorePath == path ? m_textRestoreLine : -1;
+                    // Coming back from the editor: restore its logical text
+                    // position once, never into a later unrelated load.
+                    const int position = m_textRestorePath == path ? m_textRestorePosition : -1;
                     m_textRestorePath.clear();
-                    m_textRestoreLine = -1;
-                    if (line > 0) {
+                    m_textRestorePosition = -1;
+                    if (position >= 0) {
                         QPointer<QPlainTextEdit> text = m_text;
-                        QTimer::singleShot(0, this, [text, line]() {
-                            if (text)
-                                text->verticalScrollBar()->setValue(line);
+                        QTimer::singleShot(0, this, [text, position]() {
+                            restoreTextViewportPosition(text, position);
                         });
                     }
                 });

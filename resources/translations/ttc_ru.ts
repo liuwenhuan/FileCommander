@@ -5231,6 +5231,11 @@ Right: %2</source>
         <translation>Записать буфер на диск (Ctrl+S)</translation>
     </message>
     <message>
+        <location filename="../../src/viewer/TextEditor.cpp" line="252"/>
+        <source>Wrap</source>
+        <translation>Перенос</translation>
+    </message>
+    <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="260"/>
         <source>Re-read the file on disk in this encoding</source>
         <translation>Перечитать файл с диска в этой кодировке</translation>

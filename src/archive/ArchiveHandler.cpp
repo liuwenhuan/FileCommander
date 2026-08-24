@@ -868,8 +868,16 @@ ArchiveHandler::SmartResult ArchiveHandler::smartExtract(const QString &archiveP
         finalDir = uniqueDir(QDir(baseDestDir).filePath(base));
 
     bool skippedEntries = false;
-    if (!extract(archivePath, {}, finalDir, passphrase, errorMessage, progress,
-                 conflictResolver, &skippedEntries)) {
+    // libarchive can expose plausible ZIP AES bytes for a wrong passphrase
+    // without reporting the authentication failure. 7z verifies the password
+    // while streaming each entry, so use it when an encrypted extraction is
+    // requested and it is available.
+    const bool extracted = !passphrase.isEmpty() && ExternalArchiveTool::available(archivePath)
+                               ? extractExternal(archivePath, {}, finalDir, passphrase, errorMessage,
+                                                 progress, conflictResolver, &skippedEntries)
+                               : extract(archivePath, {}, finalDir, passphrase, errorMessage, progress,
+                                         conflictResolver, &skippedEntries);
+    if (!extracted) {
         // A wrong passphrase does not always surface while listing. buildTree
         // verifies one by decrypting a little of the first encrypted file, and
         // for AES-256 ZIP written here that check passes even when the password

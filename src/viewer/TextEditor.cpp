@@ -249,6 +249,13 @@ void TextEditor::buildToolBar() {
 
     m_toolBar->addSeparator();
 
+    m_wrapAction = m_toolBar->addAction(tr("Wrap"));
+    m_wrapAction->setCheckable(true);
+    connect(m_wrapAction, &QAction::toggled, this, [this](bool enabled) {
+        m_editor->setLineWrapMode(enabled ? QPlainTextEdit::WidgetWidth : QPlainTextEdit::NoWrap);
+        emit textWrapChanged(enabled);
+    });
+
     m_encodingCombo = new QComboBox(m_toolBar);
     // A plain QListView popup honours the QSS `::item` colours; the platform's
     // native combo popup ignores them and paints from the palette Text role,
@@ -288,6 +295,18 @@ void TextEditor::buildToolBar() {
             emit previewRequested(m_path);
     });
     m_previewAction->setToolTip(tr("Go back to the preview"));
+}
+
+bool TextEditor::textWrapEnabled() const {
+    return m_wrapAction && m_wrapAction->isChecked();
+}
+
+void TextEditor::setTextWrapEnabled(bool enabled) {
+    if (!m_wrapAction || !m_editor)
+        return;
+    const QSignalBlocker blocker(m_wrapAction);
+    m_wrapAction->setChecked(enabled);
+    m_editor->setLineWrapMode(enabled ? QPlainTextEdit::WidgetWidth : QPlainTextEdit::NoWrap);
 }
 
 void TextEditor::addAuxiliaryBar(QWidget *bar) {

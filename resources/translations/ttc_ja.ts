@@ -5217,6 +5217,11 @@ Right: %2</source>
         <translation>バッファーをディスクに書き込む（Ctrl+S）</translation>
     </message>
     <message>
+        <location filename="../../src/viewer/TextEditor.cpp" line="252"/>
+        <source>Wrap</source>
+        <translation>折り返し</translation>
+    </message>
+    <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="260"/>
         <source>Re-read the file on disk in this encoding</source>
         <translation>この文字コードでディスク上のファイルを読み直す</translation>

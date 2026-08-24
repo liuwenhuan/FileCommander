@@ -122,6 +122,13 @@ public:
     explicit DirectoryTreeView(QWidget *parent = nullptr) : QTreeView(parent) {
         // The tree's built-in animation moves row geometry. Disclosure feedback
         // is painted locally below, leaving every real expand/collapse immediate.
+        // Not merely the default. `animated` comes out of QTreeView's constructor
+        // style-dependent: false under Fusion, true under Deepin's chameleon --
+        // measured, and not via SH_Widget_Animate, which chameleon reports as 0.
+        // So on the desktop this targets, leaving it implicit layers the built-in
+        // geometry animation under the paint-only feedback, and no Fusion-styled
+        // CI run would ever show it.
+        setAnimated(false);
 
         m_feedbackAnimation = new QVariantAnimation(this);
         m_feedbackAnimation->setObjectName(QString::fromLatin1(kTreeFeedbackAnimationName));

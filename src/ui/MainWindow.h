@@ -135,6 +135,7 @@ private:
     // alpha-blending it. No-op off X11. Coordinates are in device pixels.
     void updateOpaqueRegion();
     QuickView *ensureQuickView();
+    bool quickViewEditorActive() const;
     TransferProgressDialog *ensureTransferProgressDialog();
     void scheduleMediaWarmupAfterFirstPaint();
     void scheduleFeatureBatchAfterFirstPaint();

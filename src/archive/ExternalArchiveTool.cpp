@@ -334,6 +334,16 @@ ExternalArchiveTool::Status listWith7z(const QString &archivePath, const QString
     }
     flush();
 
+    // A ZIP exposes its names without decrypting the payload. 7z therefore
+    // returns entries AND a non-zero "wrong password" result for an encrypted
+    // ZIP given a bad password. Password failures always outrank that partial
+    // listing; generic non-zero exits still keep the UDF bridge exception below.
+    if (r.exitCode != 0) {
+        const ExternalArchiveTool::Status failure = classifyFailure(r.err, password);
+        if (failure != ExternalArchiveTool::Status::Error)
+            return failure;
+    }
+
     // Nothing parsed -> the run really did fail; let the exit code and stderr say
     // how (a password prompt is the common case).
     if (entries.isEmpty() && r.exitCode != 0)

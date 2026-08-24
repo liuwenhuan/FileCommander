@@ -169,9 +169,17 @@ if(Qt5LinguistTools_FOUND)
     set(LRELEASE_CMD Qt5::lrelease)
 else()
     find_program(LUPDATE_CMD NAMES lupdate lupdate-qt5
-        PATHS /usr/lib/qt5/bin /usr/lib/qt6/bin /usr/lib/qt5/libexec /usr/lib/qt6/libexec)
+        PATHS /usr/lib/qt5/bin /usr/lib/qt6/bin /usr/lib/qt5/libexec /usr/lib/qt6/libexec
+        NO_DEFAULT_PATH)
+    if(NOT LUPDATE_CMD)
+        find_program(LUPDATE_CMD NAMES lupdate lupdate-qt5)
+    endif()
     find_program(LRELEASE_CMD NAMES lrelease lrelease-qt5
-        PATHS /usr/lib/qt5/bin /usr/lib/qt6/bin /usr/lib/qt5/libexec /usr/lib/qt6/libexec)
+        PATHS /usr/lib/qt5/bin /usr/lib/qt6/bin /usr/lib/qt5/libexec /usr/lib/qt6/libexec
+        NO_DEFAULT_PATH)
+    if(NOT LRELEASE_CMD)
+        find_program(LRELEASE_CMD NAMES lrelease lrelease-qt5)
+    endif()
 endif()
 if(LUPDATE_CMD AND LRELEASE_CMD)
     add_custom_target(update-translations

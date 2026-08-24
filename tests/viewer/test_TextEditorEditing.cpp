@@ -392,6 +392,24 @@ TEST(TextEditorEditingTest, ToolbarCarriesSaveAndAnEncodingSelector) {
     EXPECT_EQ(editor.encodingCombo()->itemText(0), QStringLiteral("Auto"));
 }
 
+TEST(TextEditorEditingTest, WrapActionControlsTheCodeEditor) {
+    TextEditor editor;
+    QAction *wrap = editor.wrapAction();
+    ASSERT_NE(wrap, nullptr);
+    EXPECT_TRUE(editor.toolBar()->actions().contains(wrap));
+    EXPECT_FALSE(wrap->isChecked());
+    EXPECT_FALSE(editor.textWrapEnabled());
+    EXPECT_EQ(editor.codeEditor()->lineWrapMode(), QPlainTextEdit::NoWrap);
+
+    wrap->setChecked(true);
+    EXPECT_TRUE(editor.textWrapEnabled());
+    EXPECT_EQ(editor.codeEditor()->lineWrapMode(), QPlainTextEdit::WidgetWidth);
+
+    editor.setTextWrapEnabled(false);
+    EXPECT_FALSE(wrap->isChecked());
+    EXPECT_EQ(editor.codeEditor()->lineWrapMode(), QPlainTextEdit::NoWrap);
+}
+
 TEST(TextEditorEditingTest, SeamAcceptsAnAuxiliaryBarAndAnExtraView) {
     // Guards the two attachment points documented in TextEditor.h for the find
     // bar and the hex view, so a later change cannot quietly remove them.

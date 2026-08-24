@@ -5224,6 +5224,11 @@ Derecha: %2</translation>
         <translation>Escribir el búfer en el disco (Ctrl+S)</translation>
     </message>
     <message>
+        <location filename="../../src/viewer/TextEditor.cpp" line="252"/>
+        <source>Wrap</source>
+        <translation>Ajustar línea</translation>
+    </message>
+    <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="260"/>
         <source>Re-read the file on disk in this encoding</source>
         <translation>Volver a leer el archivo del disco con esta codificación</translation>

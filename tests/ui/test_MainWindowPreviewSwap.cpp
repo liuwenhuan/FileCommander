@@ -493,6 +493,63 @@ TEST(MainWindowPreviewSwapTest, CtrlEOpensTheEmbeddedQuickViewEditorWithoutViewe
     EXPECT_GE(panelSplitter(window)->indexOf(panel), 0);
 }
 
+TEST(MainWindowPreviewSwapTest, AuxiliaryPopupsDoNotReplaceEmbeddedQuickViewEditor) {
+    ThemeStateGuard themeState;
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    for (const QString &name : {QStringLiteral("first.txt"), QStringLiteral("second.txt")}) {
+        QFile file(dir.filePath(name));
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        ASSERT_EQ(file.write(name.toUtf8()), name.size());
+    }
+
+    MainWindow window(nullptr, 10000, true);
+    FilePanel *panel = window.findChildren<FilePanel *>().value(0);
+    ASSERT_NE(panel, nullptr);
+    window.setActivePanel(panel);
+    panel->navigateTo(dir.path());
+
+    int firstRow = -1;
+    int secondRow = -1;
+    ASSERT_TRUE(QTest::qWaitFor([panel, &firstRow, &secondRow] {
+        for (int row = 0; row < panel->model()->rowCount(); ++row) {
+            if (panel->model()->isParentEntry(row))
+                continue;
+            const QString name = panel->model()->fileInfoAt(row).name();
+            if (name == QStringLiteral("first.txt"))
+                firstRow = row;
+            else if (name == QStringLiteral("second.txt"))
+                secondRow = row;
+        }
+        return firstRow >= 0 && secondRow >= 0;
+    }, 5000));
+    panel->view()->setCurrentIndex(panel->model()->index(firstRow, 0));
+
+    QShortcut *ctrlE = nullptr;
+    for (QShortcut *shortcut : window.findChildren<QShortcut *>()) {
+        if (shortcut->key() == QKeySequence(Qt::CTRL | Qt::Key_E)) {
+            ctrlE = shortcut;
+            break;
+        }
+    }
+    ASSERT_NE(ctrlE, nullptr);
+    ASSERT_TRUE(QMetaObject::invokeMethod(ctrlE, "activated", Qt::DirectConnection));
+
+    QuickView *quickView = window.findChild<QuickView *>();
+    ASSERT_NE(quickView, nullptr);
+    FC_TRY_VERIFY_WITH_TIMEOUT(quickView->isEditing(), 5000);
+
+    panel->view()->setCurrentIndex(panel->model()->index(secondRow, 0));
+    ASSERT_TRUE(QMetaObject::invokeMethod(&window, "toggleNotepad"));
+    QTest::qWait(250); // exceeds the deferred preview refresh interval
+    EXPECT_TRUE(quickView->isEditing());
+
+    panel->view()->setCurrentIndex(panel->model()->index(firstRow, 0));
+    ASSERT_TRUE(QMetaObject::invokeMethod(&window, "openExternalConnections"));
+    QTest::qWait(250); // exceeds the deferred preview refresh interval
+    EXPECT_TRUE(quickView->isEditing());
+}
+
 TEST(MainWindowPreviewSwapTest, TypographySettingsDoNotLeakPastTestScope) {
     ThemeStateGuard themeState;
     Settings settings;

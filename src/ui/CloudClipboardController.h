@@ -9,6 +9,7 @@
 #include <QSet>
 #include <QString>
 #include <QStringList>
+#include <QTemporaryDir>
 #include <QVector>
 
 #include "account/AccountClient.h"
@@ -18,7 +19,6 @@ class QClipboard;
 class QMimeData;
 class Settings;
 class DeviceAgent;
-class QTemporaryDir;
 
 // UI policy for the private local clipboard history and explicit account
 // deliveries. AccountClient owns all network transport; this class never

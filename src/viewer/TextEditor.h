@@ -168,6 +168,9 @@ public:
 
     // Test/seam accessors for the toolbar's own controls.
     QAction *saveAction() const { return m_saveAction; }
+    QAction *wrapAction() const { return m_wrapAction; }
+    bool textWrapEnabled() const;
+    void setTextWrapEnabled(bool enabled);
     QComboBox *encodingCombo() const { return m_encodingCombo; }
     // What the combo currently shows -- for Auto that includes the encoding the
     // detector settled on, e.g. "Auto (GB18030)".
@@ -179,6 +182,7 @@ signals:
     // The Preview button was pressed. The host opens its preview window: this
     // library is below the UI layer and cannot reach it.
     void previewRequested(const QString &path);
+    void textWrapChanged(bool enabled);
 
 public slots:
     // Returns false if nothing reached disk.
@@ -215,6 +219,7 @@ private:
     QStackedWidget *m_stack = nullptr;
     QVBoxLayout *m_layout = nullptr;
     QAction *m_saveAction = nullptr;
+    QAction *m_wrapAction = nullptr;
     QComboBox *m_encodingCombo = nullptr;
     QAction *m_loadRemainderAction = nullptr;
     QAction *m_previewAction = nullptr;

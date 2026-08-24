@@ -5224,6 +5224,11 @@ Rechts: %2</translation>
         <translation>Puffer auf die Festplatte schreiben (Strg+S)</translation>
     </message>
     <message>
+        <location filename="../../src/viewer/TextEditor.cpp" line="252"/>
+        <source>Wrap</source>
+        <translation>Umbruch</translation>
+    </message>
+    <message>
         <location filename="../../src/viewer/TextEditor.cpp" line="260"/>
         <source>Re-read the file on disk in this encoding</source>
         <translation>Datei auf der Festplatte mit dieser Kodierung neu einlesen</translation>

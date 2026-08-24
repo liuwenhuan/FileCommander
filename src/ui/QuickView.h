@@ -246,6 +246,9 @@ private:
     QWidget *buildImagePage();
     QWidget *buildTextPage();     // toolbar (encoding/hex/wrap/find) + the editor
     void renderText();            // (re)render m_textRaw per the encoding/hex toggle
+    void setTextWrapEnabled(bool enabled);
+    static int textViewportPosition(const QPlainTextEdit *text);
+    static void restoreTextViewportPosition(QPlainTextEdit *text, int position);
     void loadImageSiblings();     // list sibling images in the current dir
     QWidget *buildVideoPage();
     // Adds `degrees` to the current quarter turn and pushes it to the engine.
@@ -425,6 +428,7 @@ private:
     QWidget *m_textPage = nullptr;
     QToolBar *m_textToolbar = nullptr;
     QComboBox *m_textEncoding = nullptr;
+    QAction *m_textWrapAction = nullptr;
     QAction *m_textEditAction = nullptr; // hands the file to the F4 editor
     QLineEdit *m_textFind = nullptr;
     QByteArray m_textRaw;              // raw bytes of the current text file
@@ -439,11 +443,11 @@ private:
     quint64 m_textLoadGeneration = 0;
     bool m_textLoadPending = false;
     // In-place editing. The editor is a page of the same stack, built on first
-    // use; m_textRestore* carries the scroll position across a switch in either
-    // direction (both views are NoWrap, so a scrollbar value is a line number).
+    // use; m_textRestore* carries a logical document position across a switch in
+    // either direction, so it remains valid when the two pages wrap differently.
     TextEditor *m_editor = nullptr;
     QString m_textRestorePath;
-    int m_textRestoreLine = -1;
+    int m_textRestorePosition = -1;
 
     // Image sibling navigation (prev/next among images in the same directory).
     QString m_imagePath;

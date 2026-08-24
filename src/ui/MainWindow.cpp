@@ -761,7 +761,7 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
             configureIconView(iconView);
         connect(panel->view()->selectionModel(), &QItemSelectionModel::currentRowChanged, this,
                 [this]() {
-                    if (m_quickViewActive)
+                    if (m_quickViewActive && !quickViewEditorActive())
                         m_quickViewDebounce->start(); // coalesce rapid cursor moves
                 });
         connect(panel->model(), &FileSystemModel::renameFailed, this, [this](const QString &msg) {
@@ -811,7 +811,7 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
         // user may have moved on, or switched panels, while it ran.
         connect(panel, &FilePanel::previewExtracted, this,
                 [this, panel](const QString &entryPath, const QString &localPath) {
-                    if (!m_quickViewActive || m_activePanel != panel)
+                    if (!m_quickViewActive || m_activePanel != panel || quickViewEditorActive())
                         return;
                     if (panel->currentEntryPath() != entryPath)
                         return;
@@ -1826,6 +1826,10 @@ QuickView *MainWindow::ensureQuickView() {
                 qWarning() << "Media engine warm-up failed:" << message;
             });
     return m_quickView;
+}
+
+bool MainWindow::quickViewEditorActive() const {
+    return m_quickViewActive && m_quickView && m_quickView->isEditing();
 }
 
 TransferProgressDialog *MainWindow::ensureTransferProgressDialog() {
@@ -3769,7 +3773,7 @@ QString MainWindow::ensurePreviewTempDir() {
 }
 
 void MainWindow::updateQuickView() {
-    if (!m_quickViewActive || !m_activePanel)
+    if (!m_quickViewActive || !m_activePanel || quickViewEditorActive())
         return;
     // An archive under the cursor previews from its raw path (a header scan),
     // which only works when that path is one this machine can open -- on a
@@ -3853,7 +3857,7 @@ void MainWindow::updateQuickView() {
     // just blank. A quick download finishes first and never shows it.
     const QString name = m_previewName;
     QTimer::singleShot(500, this, [this, reqId, name] {
-        if (reqId == m_previewReqId && m_previewRunning)
+        if (reqId == m_previewReqId && m_previewRunning && !quickViewEditorActive())
             m_quickView->showDownloading(name);
     });
 
@@ -3888,6 +3892,8 @@ void MainWindow::onPreviewDone(quint64 reqId, const QString &tempPath, bool canc
     if (reqId != m_previewReqId)
         return; // a newer selection took over; this result is stale
     m_previewRunning = false;
+    if (quickViewEditorActive())
+        return; // an edit begun after the fetch must retain the editor page
     if (cancelled) {
         m_quickView->showDownloadCancelled(m_previewName);
     } else {
