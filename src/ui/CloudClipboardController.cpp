@@ -8,8 +8,11 @@
 #include <QFutureWatcher>
 #include <QMimeData>
 #include <QTemporaryDir>
+#include <QTimer>
 #include <QUrl>
 #include <QtConcurrent>
+
+#include <algorithm>
 
 #include "account/DeviceAgent.h"
 #include "config/Settings.h"
@@ -17,7 +20,7 @@
 namespace {
 
 QString noOtherDevicesMessage() {
-    return QObject::tr("No other devices online or registered");
+    return QObject::tr("No other devices registered");
 }
 
 QDateTime deliveryDate(const ClipboardDeliveryInfo &delivery) {
@@ -32,8 +35,9 @@ QDateTime deliveryDate(const ClipboardDeliveryInfo &delivery) {
 CloudClipboardController::CloudClipboardController(Settings &settings, AccountClient *client,
                                                    DeviceAgent *agent, QObject *parent)
     : QObject(parent), m_ownedStore(std::make_unique<ClipboardHistoryStore>()),
-      m_store(m_ownedStore.get()) {
-    Q_UNUSED(settings);
+      m_store(m_ownedStore.get()), m_settings(&settings),
+      m_autoSendEnabled(settings.cloudClipboardAutoSend()),
+      m_selectedTargetDeviceId(settings.cloudClipboardTargetDeviceId()) {
     initialize(client, agent);
 }
 
@@ -55,36 +59,31 @@ void CloudClipboardController::initialize(AccountClient *client, DeviceAgent *ag
 
     connect(m_client, &AccountClient::loggedIn, this, [this](const AccountInfo &) { refresh(); });
     connect(m_client, &AccountClient::loggedOut, this, [this] {
+        const bool removedIncoming = m_store->removeIncomingRecords();
+        if (!m_selectedRecordId.isEmpty() && !m_store->lookup(m_selectedRecordId)) {
+            m_selectedRecordId.clear();
+            emit selectionChanged(QString());
+        }
+        ++m_autoSendGeneration;
+        m_lastAutomaticFingerprint.clear();
         m_deliveries.clear();
         m_completedDeliveryIds.clear();
-        m_activeSendRecordId.clear();
+        clearSendQueue();
+        setTransferStatus(QString());
+        emit transferReset();
+        if (removedIncoming)
+            emit changed();
         setState(State::SignedOut);
     });
     connect(m_client, &AccountClient::clipboardSendProgress, this,
             [this](qint64 sent, qint64 total) {
-                if (!m_activeSendRecordId.isEmpty())
-                    emit transferProgress(m_activeSendRecordId, sent, total);
+                if (!m_activeSend.recordId.isEmpty())
+                    emit transferProgress(m_activeSend.recordId, sent, total);
             });
     connect(m_client, &AccountClient::clipboardSendFinished, this,
-            [this](const QString &, int recipientCount) {
-                if (m_activeSendRecordId.isEmpty())
-                    return;
-                const QString recordId = m_activeSendRecordId;
-                m_activeSendRecordId.clear();
-                if (recipientCount == 0)
-                    setTransferStatus(noOtherDevicesMessage());
-                else
-                    setTransferStatus(tr("Sent to %1 device(s).").arg(recipientCount));
-                emit transferFinished(recordId);
-            });
-    connect(m_client, &AccountClient::clipboardSendFailed, this, [this](const QString &error) {
-        if (m_activeSendRecordId.isEmpty())
-            return;
-        const QString recordId = m_activeSendRecordId;
-        m_activeSendRecordId.clear();
-        setTransferStatus(error);
-        emit transferFinished(recordId);
-    });
+            [this](const QString &, int recipientCount) { finishActiveSend(recipientCount); });
+    connect(m_client, &AccountClient::clipboardSendFailed, this,
+            [this](const QString &error) { finishActiveSend(-1, error); });
     connect(m_client, &AccountClient::clipboardDeliveriesReady, this,
             &CloudClipboardController::receiveDeliveries);
     connect(m_client, &AccountClient::clipboardDownloadProgress, this,
@@ -160,7 +159,63 @@ void CloudClipboardController::setDevices(const QVector<AccountDeviceInfo> &devi
                                                      : (device.name.isEmpty() ? tr("Other device")
                                                                               : device.name));
     }
+    emit devicesChanged();
     emit changed();
+}
+
+const QVector<AccountDeviceInfo> &CloudClipboardController::devices() const { return m_devices; }
+
+bool CloudClipboardController::autoSendEnabled() const { return m_autoSendEnabled; }
+
+void CloudClipboardController::setAutoSendEnabled(bool enabled) {
+    if (m_autoSendEnabled == enabled)
+        return;
+    m_autoSendEnabled = enabled;
+    ++m_autoSendGeneration;
+    m_lastAutomaticFingerprint.clear();
+    if (m_settings)
+        m_settings->setCloudClipboardAutoSend(enabled);
+    if (!enabled) {
+        const int before = m_pendingSends.size();
+        m_pendingSends.erase(std::remove_if(m_pendingSends.begin(), m_pendingSends.end(),
+                                             [](const PendingSend &entry) {
+                                                 return entry.origin == SendOrigin::Automatic;
+                                             }),
+                             m_pendingSends.end());
+        const int removed = before - m_pendingSends.size();
+        m_sendBatchTotal = qMax(m_sendBatchCompleted +
+                                    (m_activeSend.recordId.isEmpty() ? 0 : 1),
+                                m_sendBatchTotal - removed);
+        if (m_activeSend.recordId.isEmpty() && m_pendingSends.isEmpty())
+            finishSendBatch();
+    }
+    emit autoSendChanged(enabled);
+}
+
+QString CloudClipboardController::selectedTargetDeviceId() const {
+    return m_selectedTargetDeviceId;
+}
+
+void CloudClipboardController::setSelectedTargetDeviceId(const QString &deviceId) {
+    if (!deviceId.isEmpty() && !isKnownTarget(deviceId))
+        return;
+    if (m_selectedTargetDeviceId == deviceId)
+        return;
+    m_selectedTargetDeviceId = deviceId;
+    if (m_settings)
+        m_settings->setCloudClipboardTargetDeviceId(deviceId);
+    emit selectedTargetDeviceChanged(deviceId);
+}
+
+bool CloudClipboardController::targetDeviceIsAvailable() const {
+    return m_selectedTargetDeviceId.isEmpty() || isKnownTarget(m_selectedTargetDeviceId);
+}
+
+bool CloudClipboardController::isKnownTarget(const QString &deviceId) const {
+    for (const AccountDeviceInfo &device : m_devices)
+        if (!device.self && device.id == deviceId)
+            return true;
+    return false;
 }
 
 QString CloudClipboardController::deviceName(const QString &deviceId) const {
@@ -184,7 +239,6 @@ void CloudClipboardController::setTransferStatus(const QString &status) {
         return;
     m_transferStatus = status;
     emit transferStatusChanged(status);
-    emit changed();
 }
 
 void CloudClipboardController::refresh() {
@@ -197,11 +251,11 @@ void CloudClipboardController::refresh() {
 }
 
 void CloudClipboardController::selectRecord(const QString &recordId) {
-    if (recordId == m_selectedRecordId)
+    const QString selected = m_store->lookup(recordId) ? recordId : QString();
+    if (selected == m_selectedRecordId)
         return;
-    m_selectedRecordId = m_store->lookup(recordId) ? recordId : QString();
+    m_selectedRecordId = selected;
     emit selectionChanged(m_selectedRecordId);
-    emit changed();
 }
 
 bool CloudClipboardController::copyRecordToClipboard(const QString &recordId) {
@@ -242,54 +296,199 @@ bool CloudClipboardController::hasOtherDevices() const {
     return false;
 }
 
-void CloudClipboardController::sendRecord(const QString &recordId) {
-    const ClipboardHistoryRecord found = record(recordId);
-    if (found.id.isEmpty() || found.origin != ClipboardRecordOrigin::Local)
-        return;
-    if (!m_activeSendRecordId.isEmpty()) {
-        setTransferStatus(tr("A clipboard delivery is already being sent."));
-        return;
-    }
-    selectRecord(recordId);
-    if (!m_client || !m_client->isLoggedIn()) {
-        setState(State::SignedOut);
-        return;
-    }
-    if (!hasOtherDevices()) {
-        setTransferStatus(noOtherDevicesMessage());
-        return;
-    }
-
-    m_activeSendRecordId = recordId;
-    setTransferStatus(tr("Sending..."));
-    if (found.kind == ClipboardRecordKind::Text) {
-        m_client->sendClipboardText(found.text);
-        return;
-    }
-    m_client->sendClipboardImageFile(found.imagePath, found.mime, found.width, found.height,
-                                     QByteArray::fromHex(found.sha256.toLatin1()));
+void CloudClipboardController::sendRecord(const QString &recordId, const QString &targetDeviceId) {
+    sendRecords({recordId}, targetDeviceId);
 }
 
-bool CloudClipboardController::removeRecord(const QString &recordId) {
-    if (!m_store->remove(recordId))
+void CloudClipboardController::sendRecords(const QStringList &recordIds, const QString &targetDeviceId) {
+    enqueueRecords(recordIds, targetDeviceId, SendOrigin::Manual);
+}
+
+bool CloudClipboardController::enqueueRecords(const QStringList &recordIds,
+                                              const QString &targetDeviceId, SendOrigin origin) {
+    if (!m_client || !m_client->isLoggedIn()) {
+        if (origin == SendOrigin::Manual)
+            setState(State::SignedOut);
         return false;
-    if (m_selectedRecordId == recordId) {
-        m_selectedRecordId.clear();
-        emit selectionChanged(QString());
+    }
+    if (!targetDeviceId.isEmpty() && !isKnownTarget(targetDeviceId)) {
+        setTransferStatus(tr("The selected clipboard device is unavailable."));
+        return false;
+    }
+    QSet<QString> seen;
+    int accepted = 0;
+    for (const QString &id : recordIds) {
+        if (id.isEmpty() || seen.contains(id))
+            continue;
+        seen.insert(id);
+        const ClipboardHistoryRecord found = record(id);
+        if (found.id.isEmpty() || found.origin != ClipboardRecordOrigin::Local)
+            continue;
+        const auto duplicate = [&id, &targetDeviceId](const PendingSend &entry) {
+            return entry.recordId == id && entry.targetDeviceId == targetDeviceId;
+        };
+        auto pending = std::find_if(m_pendingSends.begin(), m_pendingSends.end(), duplicate);
+        if (pending != m_pendingSends.end()) {
+            if (origin == SendOrigin::Manual && pending->origin == SendOrigin::Automatic)
+                pending->origin = SendOrigin::Manual;
+            continue;
+        }
+        if (duplicate(m_activeSend))
+            continue;
+        m_pendingSends.append({id, targetDeviceId, origin});
+        ++accepted;
+    }
+    if (!accepted)
+        return false;
+    if (m_activeSend.recordId.isEmpty() && m_pendingSends.size() == accepted) {
+        m_sendBatchTotal = m_sendBatchCompleted = m_sendBatchDelivered = 0;
+        m_sendBatchNoRecipients = m_sendBatchFailures = 0;
+    }
+    m_sendBatchTotal += accepted;
+    scheduleNextSend();
+    return true;
+}
+
+void CloudClipboardController::scheduleNextSend() {
+    if (m_nextSendScheduled || !m_activeSend.recordId.isEmpty() || m_pendingSends.isEmpty())
+        return;
+    m_nextSendScheduled = true;
+    QTimer::singleShot(0, this, [this] { m_nextSendScheduled = false; startNextSend(); });
+}
+
+void CloudClipboardController::startNextSend() {
+    if (!m_activeSend.recordId.isEmpty())
+        return;
+    while (!m_pendingSends.isEmpty()) {
+        const PendingSend entry = m_pendingSends.takeFirst();
+        const ClipboardHistoryRecord found = record(entry.recordId);
+        if (found.id.isEmpty() || found.origin != ClipboardRecordOrigin::Local ||
+            (!entry.targetDeviceId.isEmpty() && !isKnownTarget(entry.targetDeviceId))) {
+            --m_sendBatchTotal;
+            continue;
+        }
+        m_activeSend = entry;
+        setTransferStatus(entry.origin == SendOrigin::Automatic
+                              ? tr("Automatically queueing %1 of %2...").arg(m_sendBatchCompleted + 1).arg(m_sendBatchTotal)
+                              : tr("Sending %1 of %2...").arg(m_sendBatchCompleted + 1).arg(m_sendBatchTotal));
+        if (found.kind == ClipboardRecordKind::Text) {
+            entry.targetDeviceId.isEmpty() ? m_client->sendClipboardText(found.text)
+                                            : m_client->sendClipboardTextToTarget(found.text, entry.targetDeviceId);
+        } else if (entry.targetDeviceId.isEmpty()) {
+            m_client->sendClipboardImageFile(found.imagePath, found.mime, found.width, found.height,
+                                             QByteArray::fromHex(found.sha256.toLatin1()));
+        } else {
+            m_client->sendClipboardImageFileToTarget(found.imagePath, found.mime, found.width, found.height,
+                                                     QByteArray::fromHex(found.sha256.toLatin1()), entry.targetDeviceId);
+        }
+        return;
+    }
+    finishSendBatch();
+}
+
+void CloudClipboardController::finishActiveSend(int recipientCount, const QString &error) {
+    if (m_activeSend.recordId.isEmpty())
+        return;
+    const QString recordId = m_activeSend.recordId;
+    const SendOrigin origin = m_activeSend.origin;
+    m_activeSend = {};
+    ++m_sendBatchCompleted;
+    if (!error.isEmpty()) ++m_sendBatchFailures;
+    else if (recipientCount == 0) ++m_sendBatchNoRecipients;
+    else ++m_sendBatchDelivered;
+    emit transferFinished(recordId);
+    if (!m_pendingSends.isEmpty()) { scheduleNextSend(); return; }
+    finishSendBatch();
+    if (!error.isEmpty() && origin == SendOrigin::Automatic)
+        setTransferStatus(tr("Automatic clipboard send failed: %1").arg(error));
+}
+
+void CloudClipboardController::finishSendBatch() {
+    if (!m_activeSend.recordId.isEmpty() || !m_pendingSends.isEmpty()) return;
+    if (m_sendBatchTotal <= 0) setTransferStatus(QString());
+    else if (m_sendBatchFailures > 0)
+        setTransferStatus(tr("Queued %1 of %2 records; %3 failed.").arg(m_sendBatchDelivered).arg(m_sendBatchTotal).arg(m_sendBatchFailures));
+    else if (m_sendBatchNoRecipients > 0)
+        setTransferStatus(m_sendBatchDelivered > 0 ? tr("Queued %1 records; %2 had no recipients.").arg(m_sendBatchDelivered).arg(m_sendBatchNoRecipients) : noOtherDevicesMessage());
+    else setTransferStatus(tr("Queued %1 selected records.").arg(m_sendBatchDelivered));
+    m_sendBatchTotal = m_sendBatchCompleted = m_sendBatchDelivered = 0;
+    m_sendBatchNoRecipients = m_sendBatchFailures = 0;
+}
+
+void CloudClipboardController::clearSendQueue() {
+    m_activeSend = {};
+    m_pendingSends.clear();
+    m_sendBatchTotal = m_sendBatchCompleted = m_sendBatchDelivered = 0;
+    m_sendBatchNoRecipients = m_sendBatchFailures = 0;
+    m_nextSendScheduled = false;
+}
+
+bool CloudClipboardController::removeRecord(QString recordId) {
+    int index = -1;
+    for (int i = 0; i < items().size(); ++i) {
+        if (items().at(i).id == recordId) {
+            index = i;
+            break;
+        }
+    }
+    QString successor;
+    for (int i = index + 1; i < items().size(); ++i) {
+        if (items().at(i).id != recordId) {
+            successor = items().at(i).id;
+            break;
+        }
+    }
+    if (successor.isEmpty()) {
+        for (int i = index - 1; i >= 0; --i) {
+            if (items().at(i).id != recordId) {
+                successor = items().at(i).id;
+                break;
+            }
+        }
+    }
+    return removeRecords({recordId}, successor);
+}
+
+bool CloudClipboardController::removeRecords(const QStringList &recordIds,
+                                             const QString &preferredSelectionId) {
+    QSet<QString> ids;
+    for (const QString &id : recordIds) {
+        if (!id.isEmpty() && m_store->lookup(id))
+            ids.insert(id);
+    }
+    if (ids.isEmpty() || !m_store->removeRecords(ids.values()))
+        return false;
+
+    int removedQueued = 0;
+    for (int i = m_pendingSends.size() - 1; i >= 0; --i) {
+        if (ids.contains(m_pendingSends.at(i).recordId)) {
+            m_pendingSends.removeAt(i);
+            ++removedQueued;
+        }
+    }
+    m_sendBatchTotal -= removedQueued;
+    m_sendBatchTotal = qMax(m_sendBatchCompleted + (m_activeSend.recordId.isEmpty() ? 0 : 1),
+                            m_sendBatchTotal);
+
+    if (ids.contains(m_selectedRecordId)) {
+        const QString next = !preferredSelectionId.isEmpty() && !ids.contains(preferredSelectionId) &&
+                                     m_store->lookup(preferredSelectionId)
+                                 ? preferredSelectionId
+                                 : QString();
+        if (m_selectedRecordId != next) {
+            m_selectedRecordId = next;
+            emit selectionChanged(next);
+        }
     }
     emit changed();
     return true;
 }
 
 void CloudClipboardController::clear() {
-    const QVector<ClipboardHistoryRecord> records = items();
-    for (const ClipboardHistoryRecord &known : records)
-        m_store->remove(known.id);
-    if (!m_selectedRecordId.isEmpty()) {
-        m_selectedRecordId.clear();
-        emit selectionChanged(QString());
-    }
-    emit changed();
+    QStringList ids;
+    for (const ClipboardHistoryRecord &known : items())
+        ids.append(known.id);
+    removeRecords(ids);
 }
 
 void CloudClipboardController::onClipboardChanged() {
@@ -313,20 +512,51 @@ void CloudClipboardController::captureClipboard() {
     if (!m_clipboard || !ClipboardHistoryStore::captureFromMimeData(m_clipboard->mimeData(), &capture))
         return;
     if (capture.kind == ClipboardRecordKind::Text) {
-        if (!m_store->addLocalText(capture.text).id.isEmpty())
+        const ClipboardHistoryRecord stored = m_store->addLocalText(capture.text);
+        if (!stored.id.isEmpty()) {
+            enqueueAutomaticRecord(stored, m_selectedTargetDeviceId);
             emit changed();
+        }
         return;
     }
-    addCapturedImage(capture.image);
+    const bool autoSendRequested = m_autoSendEnabled && m_client && m_client->isLoggedIn() &&
+                                   targetDeviceIsAvailable();
+    const QString accountDeviceId = m_client ? m_client->account().deviceId : QString();
+    addCapturedImage(capture.image, autoSendRequested, m_selectedTargetDeviceId,
+                     m_autoSendGeneration, accountDeviceId);
 }
 
-void CloudClipboardController::addCapturedImage(const QImage &image) {
+void CloudClipboardController::enqueueAutomaticRecord(const ClipboardHistoryRecord &record,
+                                                       const QString &targetDeviceId) {
+    if (!m_autoSendEnabled || !m_client || !m_client->isLoggedIn() ||
+        (!targetDeviceId.isEmpty() && !isKnownTarget(targetDeviceId)))
+        return;
+    const QByteArray fingerprint = (record.kind == ClipboardRecordKind::Image ? QByteArrayLiteral("i")
+                                                                        : QByteArrayLiteral("t")) +
+                                   record.sha256.toLatin1();
+    if (fingerprint == m_lastAutomaticFingerprint)
+        return;
+    m_lastAutomaticFingerprint = fingerprint;
+    enqueueRecords({record.id}, targetDeviceId, SendOrigin::Automatic);
+}
+
+void CloudClipboardController::addCapturedImage(const QImage &image, bool autoSendRequested,
+                                                const QString &targetDeviceId, quint64 autoSendGeneration,
+                                                const QString &accountDeviceId) {
     auto *watcher = new QFutureWatcher<QByteArray>(this);
-    connect(watcher, &QFutureWatcher<QByteArray>::finished, this, [this, watcher, image] {
+    connect(watcher, &QFutureWatcher<QByteArray>::finished, this,
+            [this, watcher, image, autoSendRequested, targetDeviceId, autoSendGeneration, accountDeviceId] {
         const QByteArray encoded = watcher->result();
         watcher->deleteLater();
-        if (!encoded.isEmpty() &&
-            !m_store->addLocalImage(encoded, QStringLiteral("image/png"), image.width(), image.height()).id.isEmpty()) {
+        const ClipboardHistoryRecord stored = encoded.isEmpty()
+                                                   ? ClipboardHistoryRecord()
+                                                   : m_store->addLocalImage(encoded, QStringLiteral("image/png"),
+                                                                            image.width(), image.height());
+        if (!stored.id.isEmpty()) {
+            if (autoSendRequested && m_autoSendEnabled &&
+                autoSendGeneration == m_autoSendGeneration && m_client && m_client->isLoggedIn() &&
+                m_client->account().deviceId == accountDeviceId)
+                enqueueAutomaticRecord(stored, targetDeviceId);
             emit changed();
         }
     });
@@ -398,52 +628,25 @@ void CloudClipboardController::finishDeliveryDownload(const QString &deliveryId,
         m_client->acknowledgeClipboardDelivery(delivery.id);
 }
 
-bool CloudClipboardController::isPrivateOrFileMime(const QMimeData *mime) {
-    if (!mime || mime->hasUrls())
-        return true;
-    for (const QString &format : mime->formats()) {
-        const QString lower = format.toLower();
-        if (lower == QLatin1String("text/uri-list") || lower.contains(QLatin1String("file")) ||
-            lower.contains(QLatin1String("password")) || lower.contains(QLatin1String("secret")) ||
-            lower.contains(QLatin1String("private")) || lower.contains(QLatin1String("gnome-copied")) ||
-            lower.contains(QLatin1String("kde-cutselection"))) {
-            return true;
-        }
-    }
-    return false;
-}
-
 bool CloudClipboardController::acceptsText(const QMimeData *mime, QString *text) {
-    if (!mime || isPrivateOrFileMime(mime) || !mime->hasText())
+    ClipboardCapture capture;
+    if (!ClipboardHistoryStore::captureFromMimeData(mime, &capture) ||
+        capture.kind != ClipboardRecordKind::Text) {
         return false;
-    const QString candidate = mime->text();
-    if (candidate.isEmpty() || candidate.toUtf8().size() > ClipboardHistoryStore::maximumTextBytes)
-        return false;
+    }
     if (text)
-        *text = candidate;
+        *text = capture.text;
     return true;
 }
 
 bool CloudClipboardController::acceptsImage(const QMimeData *mime, QImage *image) {
-    if (!mime || isPrivateOrFileMime(mime))
+    ClipboardCapture capture;
+    if (!ClipboardHistoryStore::captureFromMimeData(mime, &capture) ||
+        capture.kind != ClipboardRecordKind::Image) {
         return false;
-    QImage candidate = qvariant_cast<QImage>(mime->imageData());
-    if (candidate.isNull()) {
-        for (const QString &format : mime->formats()) {
-            if (!format.startsWith(QLatin1String("image/"), Qt::CaseInsensitive))
-                continue;
-            candidate = QImage::fromData(mime->data(format));
-            if (!candidate.isNull())
-                break;
-        }
     }
-    if (candidate.isNull() || qint64(candidate.width()) * candidate.height() > ClipboardHistoryStore::maximumPixels)
-        return false;
-    const QByteArray encoded = encodePng(candidate);
-    if (encoded.isEmpty() || encoded.size() > ClipboardHistoryStore::maximumImageBytes)
-        return false;
     if (image)
-        *image = candidate;
+        *image = capture.image;
     return true;
 }
 

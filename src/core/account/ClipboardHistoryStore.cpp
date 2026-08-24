@@ -5,14 +5,17 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QImageReader>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMimeData>
+#include <QPixmap>
 #include <QSaveFile>
 #include <QSet>
 #include <QStringList>
 #include <QTextDocument>
+#include <QUrl>
 #include <QUuid>
 #include <QVariant>
 
@@ -70,6 +73,62 @@ QString capturedText(const QMimeData *mime) {
         return document.toPlainText();
     }
     return mime->text();
+}
+
+bool acceptableImageSize(const QSize &size) {
+    return size.isValid() && size.width() > 0 && size.height() > 0 &&
+           qint64(size.width()) * size.height() <= ClipboardHistoryStore::maximumPixels;
+}
+
+QImage imageFromMimeData(const QMimeData *mime) {
+    if (!mime)
+        return {};
+
+    const QVariant imageData = mime->imageData();
+    if (imageData.canConvert<QImage>()) {
+        const QImage image = qvariant_cast<QImage>(imageData);
+        if (!image.isNull())
+            return image;
+    }
+    if (imageData.canConvert<QPixmap>()) {
+        const QPixmap pixmap = qvariant_cast<QPixmap>(imageData);
+        if (!pixmap.isNull())
+            return pixmap.toImage();
+    }
+
+    for (const QString &format : mime->formats()) {
+        if (!format.startsWith(QLatin1String("image/"), Qt::CaseInsensitive))
+            continue;
+        const QByteArray bytes = mime->data(format);
+        if (bytes.isEmpty() || bytes.size() > ClipboardHistoryStore::maximumImageBytes)
+            continue;
+        const QImage image = QImage::fromData(bytes);
+        if (!image.isNull())
+            return image;
+    }
+
+    const QList<QUrl> urls = mime->urls();
+    if (urls.size() != 1 || !urls.first().isLocalFile())
+        return {};
+    const QString path = urls.first().toLocalFile();
+    const QFileInfo info(path);
+    if (!info.exists() || !info.isFile() || info.isSymbolicLink() || info.size() <= 0 ||
+        info.size() > ClipboardHistoryStore::maximumImageBytes) {
+        return {};
+    }
+
+    QImageReader reader(path);
+    reader.setAutoTransform(true);
+    const QSize declaredSize = reader.size();
+    if (declaredSize.isValid() && !acceptableImageSize(declaredSize))
+        return {};
+    return reader.read();
+}
+
+bool sameHistoryIdentity(const ClipboardHistoryRecord &left, const ClipboardHistoryRecord &right) {
+    return left.sha256 == right.sha256 && left.kind == right.kind && left.origin == right.origin &&
+           (left.origin != ClipboardRecordOrigin::Incoming ||
+            left.sourceDeviceId == right.sourceDeviceId);
 }
 
 QByteArray encodePng(const QImage &image) {
@@ -178,14 +237,11 @@ ClipboardHistoryStore::ClipboardHistoryStore(const QString &configDirectory)
 }
 
 bool ClipboardHistoryStore::captureFromMimeData(const QMimeData *mime, ClipboardCapture *capture) {
-    if (isPrivateOrFileMime(mime))
-        return false;
-
-    if (mime->hasImage()) {
-        const QImage image = qvariant_cast<QImage>(mime->imageData());
-        const QByteArray encoded = image.isNull() ? QByteArray() : encodePng(image);
-        if (image.isNull() || qint64(image.width()) * image.height() > maximumPixels ||
-            encoded.isEmpty() || encoded.size() > maximumImageBytes) {
+    const QImage image = imageFromMimeData(mime);
+    if (!image.isNull()) {
+        const QByteArray encoded = encodePng(image);
+        if (!acceptableImageSize(image.size()) || encoded.isEmpty() ||
+            encoded.size() > maximumImageBytes) {
             return false;
         }
         if (capture) {
@@ -197,6 +253,8 @@ bool ClipboardHistoryStore::captureFromMimeData(const QMimeData *mime, Clipboard
         return true;
     }
 
+    if (isPrivateOrFileMime(mime))
+        return false;
     if (!mime->hasText() && !mime->hasHtml())
         return false;
     const QString text = capturedText(mime);
@@ -445,7 +503,7 @@ ClipboardHistoryRecord ClipboardHistoryStore::addText(const QString &text, Clipb
 
     QVector<ClipboardHistoryRecord> updated = m_records;
     for (int i = 0; i < updated.size(); ++i) {
-        if (updated.at(i).sha256 != record.sha256)
+        if (!sameHistoryIdentity(updated.at(i), record))
             continue;
         ClipboardHistoryRecord duplicate = updated.takeAt(i);
         duplicate.created = record.created;
@@ -499,7 +557,7 @@ ClipboardHistoryRecord ClipboardHistoryStore::addImage(const QByteArray &encoded
 
     QVector<ClipboardHistoryRecord> updated = m_records;
     for (int i = 0; i < updated.size(); ++i) {
-        if (updated.at(i).sha256 != record.sha256)
+        if (!sameHistoryIdentity(updated.at(i), record))
             continue;
         ClipboardHistoryRecord duplicate = updated.takeAt(i);
         duplicate.created = record.created;
@@ -564,14 +622,46 @@ bool ClipboardHistoryStore::lookup(const QString &id, ClipboardHistoryRecord *re
 }
 
 bool ClipboardHistoryStore::remove(const QString &id) {
-    if ((!m_loaded && !load()) || id.isEmpty())
+    return removeRecords({id});
+}
+
+bool ClipboardHistoryStore::removeIncomingRecords() {
+    if ((!m_loaded && !load()))
         return false;
-    QVector<ClipboardHistoryRecord> updated = m_records;
-    for (int i = 0; i < updated.size(); ++i) {
-        if (updated.at(i).id != id)
+    QVector<ClipboardHistoryRecord> updated;
+    updated.reserve(m_records.size());
+    bool found = false;
+    for (const ClipboardHistoryRecord &record : m_records) {
+        if (record.origin == ClipboardRecordOrigin::Incoming) {
+            found = true;
             continue;
-        updated.removeAt(i);
-        return persist(updated);
+        }
+        updated.append(record);
     }
-    return false;
+    return found && persist(updated);
+}
+
+bool ClipboardHistoryStore::removeRecords(const QStringList &ids) {
+    if ((!m_loaded && !load()) || ids.isEmpty())
+        return false;
+
+    QSet<QString> removedIds;
+    for (const QString &id : ids) {
+        if (!id.isEmpty())
+            removedIds.insert(id);
+    }
+    if (removedIds.isEmpty())
+        return false;
+
+    QVector<ClipboardHistoryRecord> updated;
+    updated.reserve(m_records.size());
+    bool found = false;
+    for (const ClipboardHistoryRecord &record : m_records) {
+        if (removedIds.contains(record.id)) {
+            found = true;
+            continue;
+        }
+        updated.append(record);
+    }
+    return found && persist(updated);
 }

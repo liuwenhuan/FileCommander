@@ -585,7 +585,7 @@ QTreeView::branch:open:has-children:has-siblings {
     outline: none;
 }
 #CloudClipboardPanel QListWidget#CloudClipboardList::item {
-    padding: 4px 6px;
+    padding: 0;
     border-radius: 3px;
     color: #e0e0e0;
 }
@@ -596,7 +596,8 @@ QTreeView::branch:open:has-children:has-siblings {
     background-color: #565b63;
     color: #ffffff;
 }
-#CloudClipboardPanel QPlainTextEdit#CloudClipboardEditor {
+#CloudClipboardPanel QPlainTextEdit#CloudClipboardPreview,
+#CloudClipboardPanel QLabel#CloudClipboardImagePreview {
     background-color: #262626;
     border: 1px solid #1a1a1a;
     border-radius: 4px;

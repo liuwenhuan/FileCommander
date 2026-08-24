@@ -250,6 +250,14 @@ public:
     QString accountCustomServerUrl() const;
     void setAccountCustomServerUrl(const QString &url);
 
+    // Cloud Clipboard delivery is explicit by default. Auto Send, when enabled,
+    // applies only to future locally captured clipboard records. An empty target
+    // id denotes every other account device.
+    bool cloudClipboardAutoSend() const;
+    void setCloudClipboardAutoSend(bool enabled);
+    QString cloudClipboardTargetDeviceId() const;
+    void setCloudClipboardTargetDeviceId(const QString &id);
+
     // Device-to-device sharing: whether this machine serves its shared folders
     // to the account's other devices, and which folders those are. Off by
     // default -- until the user turns it on there is no listening port at all.

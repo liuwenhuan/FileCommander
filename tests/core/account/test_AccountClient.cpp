@@ -433,6 +433,45 @@ TEST(AccountClient, ClipboardTextSendUsesUtf8PlainTextAndReportsRecipients) {
     EXPECT_TRUE(server.lastRequestHead().contains("Content-Type: text/plain; charset=utf-8"));
 }
 
+TEST(AccountClient, ClipboardTargetedTextSendUsesDedicatedEncodedRoute) {
+    MockHttpServer server;
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    signedIn(&client, server);
+    const QString target = QStringLiteral("target id/2");
+    const QString route = QStringLiteral("/v1/clipboard/send-targeted?target=target%20id%2F2");
+    server.setRoute(route, json(R"({"payload_id":"payload-target","recipient_count":1})"));
+
+    QSignalSpy finished(&client, &AccountClient::clipboardSendFinished);
+    client.sendClipboardTextToTarget(QStringLiteral("only this target"), target);
+    waitForSignal(finished);
+
+    ASSERT_EQ(finished.count(), 1);
+    EXPECT_EQ(finished.first().at(0).toString(), QStringLiteral("payload-target"));
+    EXPECT_EQ(server.requestCount(route), 1);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/clipboard/send")), 0);
+    EXPECT_EQ(server.lastRequestBody(), QByteArray("only this target"));
+}
+
+TEST(AccountClient, ClipboardTargetedTextFailureNeverFallsBackToBroadcast) {
+    MockHttpServer server;
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    signedIn(&client, server);
+    const QString route = QStringLiteral("/v1/clipboard/send-targeted?target=target-2");
+    server.setRoute(route, json(R"({"detail":"target unavailable"})", 404));
+    server.setRoute(QStringLiteral("/v1/clipboard/send"),
+                    json(R"({"payload_id":"wrong","recipient_count":99})"));
+
+    QSignalSpy failed(&client, &AccountClient::clipboardSendFailed);
+    client.sendClipboardTextToTarget(QStringLiteral("do not broadcast"), QStringLiteral("target-2"));
+    waitForSignal(failed);
+
+    ASSERT_EQ(failed.count(), 1);
+    EXPECT_EQ(server.requestCount(route), 1);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/clipboard/send")), 0);
+}
+
 TEST(AccountClient, ClipboardImageSendStreamsOriginalBytesAndReportsProgress) {
     QTemporaryDir directory;
     ASSERT_TRUE(directory.isValid());
@@ -465,6 +504,44 @@ TEST(AccountClient, ClipboardImageSendStreamsOriginalBytesAndReportsProgress) {
     ASSERT_FALSE(progress.isEmpty());
     EXPECT_EQ(progress.last().at(0).toLongLong(), image.size());
     EXPECT_EQ(progress.last().at(1).toLongLong(), image.size());
+}
+
+TEST(AccountClient, ClipboardTargetedImageRefreshRetainsDedicatedRoute) {
+    if (!keyringWorks())
+        GTEST_SKIP() << "no login keyring on this machine";
+
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QByteArray image("\x89PNG\r\n\x1a\nencoded-image", 21);
+    const QString imagePath = directory.filePath(QStringLiteral("image.png"));
+    QFile imageFile(imagePath);
+    ASSERT_TRUE(imageFile.open(QIODevice::WriteOnly));
+    ASSERT_EQ(imageFile.write(image), image.size());
+    imageFile.close();
+
+    MockHttpServer server;
+    AccountClient client;
+    client.setApiUrl(server.url(QString()));
+    signedIn(&client, server);
+    const QString route = QStringLiteral("/v1/clipboard/send-targeted?target=target-2");
+    server.setRouteSequence(route, {json(R"({"detail":"expired"})", 401),
+                                    json(R"({"payload_id":"payload-image","recipient_count":1})")});
+    server.setRoute(QStringLiteral("/v1/auth/refresh"),
+                    json(tokenReply("access-2", "refresh-2", "dev-1")));
+
+    const QByteArray sha256 = QCryptographicHash::hash(image, QCryptographicHash::Sha256);
+    QSignalSpy finished(&client, &AccountClient::clipboardSendFinished);
+    client.sendClipboardImageFileToTarget(imagePath, QStringLiteral("image/png"), 32, 16, sha256,
+                                          QStringLiteral("target-2"));
+    waitForSignal(finished);
+
+    ASSERT_EQ(finished.count(), 1);
+    EXPECT_EQ(server.requestCount(route), 2);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/clipboard/send")), 0);
+    EXPECT_EQ(server.requestCount(QStringLiteral("/v1/auth/refresh")), 1);
+    EXPECT_EQ(server.lastRequestBody(), image);
+    EXPECT_TRUE(server.lastRequestHead().contains("Authorization: Bearer access-2"));
+    EXPECT_TRUE(server.lastRequestHead().contains("X-Clipboard-Sha256: " + sha256.toHex()));
 }
 
 TEST(AccountClient, ClipboardImageSendRefreshesOnceAndReplaysTheFullFile) {

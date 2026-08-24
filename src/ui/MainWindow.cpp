@@ -2511,6 +2511,8 @@ void MainWindow::toggleNotepad() {
         m_cloudClipboard = new CloudClipboardController(m_settings, m_accountClient,
                                                         m_deviceAgent, this);
     m_cloudClipboard->setDevices(m_accountDevices);
+    if (m_accountClient->isLoggedIn())
+        m_accountClient->fetchDevices();
     auto *pad = new NotepadPanel(m_settings, m_cloudClipboard, this);
 #else
     auto *pad = new NotepadPanel(m_settings, this);
@@ -4665,6 +4667,8 @@ void MainWindow::ensureAccountClient() {
     });
     connect(m_accountClient, &AccountClient::loggedOut, this, [this] {
         m_accountDevices.clear();
+        if (m_cloudClipboard)
+            m_cloudClipboard->setDevices({});
         updateDeviceSharing();
         // The device rows disappear with the account.
         refreshComputerViews();

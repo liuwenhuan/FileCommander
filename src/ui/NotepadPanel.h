@@ -1,6 +1,9 @@
 #pragma once
 
+#include <QHash>
+#include <QPair>
 #include <QRect>
+#include <QStringList>
 #include <QWidget>
 
 #include <memory>
@@ -11,6 +14,8 @@ class AccountClient;
 class CloudClipboardController;
 class DeviceAgent;
 class QCloseEvent;
+class QCheckBox;
+class QComboBox;
 class QEvent;
 struct ClipboardHistoryRecord;
 class QLabel;
@@ -53,7 +58,12 @@ private:
                     CloudClipboardController *existingController = nullptr);
     void applyDynamicSize();
     void clearTransferProgress();
+    void updateTransferProgress();
+    void rebuildTargetDevices();
     const ClipboardHistoryRecord *selected() const;
+    QStringList visibleRecordIds() const;
+    QStringList selectedRecordIds() const;
+    QString currentRecordId() const;
     QString itemLabel(const ClipboardHistoryRecord &item) const;
 
     std::unique_ptr<Settings> m_ownedSettings;
@@ -69,9 +79,11 @@ private:
     QProgressBar *m_progress = nullptr;
     QPushButton *m_copy = nullptr;
     QPushButton *m_delete = nullptr;
+    QCheckBox *m_autoSend = nullptr;
+    QComboBox *m_targetDevice = nullptr;
     QPushButton *m_send = nullptr;
     QString m_transferStatus;
-    QString m_activeTransferId;
+    QHash<QString, QPair<qint64, qint64>> m_transferProgress;
     QRect m_anchorRect;
     QRect m_appContentRect;
     QSize m_anchorSize;

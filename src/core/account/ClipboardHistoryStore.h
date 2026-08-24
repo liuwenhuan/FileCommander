@@ -4,6 +4,7 @@
 #include <QDateTime>
 #include <QImage>
 #include <QString>
+#include <QStringList>
 #include <QVector>
 
 class QMimeData;
@@ -64,6 +65,8 @@ public:
                                                 const QString &sourceDeviceName,
                                                 const QDateTime &created = QDateTime());
     bool remove(const QString &id);
+    bool removeRecords(const QStringList &ids);
+    bool removeIncomingRecords();
     bool lookup(const QString &id, ClipboardHistoryRecord *record = nullptr) const;
 
 private:

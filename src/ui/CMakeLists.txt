@@ -63,6 +63,8 @@ set(UI_SOURCES
     PendingSendQueue.cpp
     CloudClipboardController.h
     CloudClipboardController.cpp
+    CloudClipboardRowDelegate.h
+    CloudClipboardRowDelegate.cpp
     NotepadPanel.h
     NotepadPanel.cpp
     StatusBarWidget.h

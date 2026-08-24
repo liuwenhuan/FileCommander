@@ -590,6 +590,22 @@ void Settings::setAccountCustomServerUrl(const QString &url) {
     m_settings.setValue("account/customServerUrl", normalizedAccountServerUrl(url));
 }
 
+bool Settings::cloudClipboardAutoSend() const {
+    return m_settings.value("account/cloudClipboardAutoSend", false).toBool();
+}
+
+void Settings::setCloudClipboardAutoSend(bool enabled) {
+    m_settings.setValue("account/cloudClipboardAutoSend", enabled);
+}
+
+QString Settings::cloudClipboardTargetDeviceId() const {
+    return m_settings.value("account/cloudClipboardTargetDeviceId").toString();
+}
+
+void Settings::setCloudClipboardTargetDeviceId(const QString &id) {
+    m_settings.setValue("account/cloudClipboardTargetDeviceId", id.trimmed());
+}
+
 bool Settings::deviceSharingEnabled() const {
     return m_settings.value("account/sharingEnabled", false).toBool();
 }

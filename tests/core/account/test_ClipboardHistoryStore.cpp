@@ -186,6 +186,44 @@ TEST(ClipboardHistoryStoreTest, RejectsFilesAndPrivateFormats) {
     EXPECT_FALSE(ClipboardHistoryStore::captureFromMimeData(&privateMime, nullptr));
 }
 
+TEST(ClipboardHistoryStoreTest, CapturesSingleLocalImageFileFromClipboardUrls) {
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString imagePath = directory.filePath(QStringLiteral("copied-image.png"));
+    QImage source(32, 24, QImage::Format_ARGB32);
+    source.fill(Qt::magenta);
+    ASSERT_TRUE(source.save(imagePath, "PNG"));
+
+    QMimeData mime;
+    mime.setUrls({QUrl::fromLocalFile(imagePath)});
+    ClipboardCapture capture;
+    ASSERT_TRUE(ClipboardHistoryStore::captureFromMimeData(&mime, &capture));
+    EXPECT_EQ(capture.kind, ClipboardRecordKind::Image);
+    EXPECT_EQ(capture.image.size(), source.size());
+
+    QMimeData multiple;
+    multiple.setUrls({QUrl::fromLocalFile(imagePath), QUrl::fromLocalFile(imagePath)});
+    EXPECT_FALSE(ClipboardHistoryStore::captureFromMimeData(&multiple));
+}
+
+TEST(ClipboardHistoryStoreTest, MatchingLocalAndIncomingContentKeepSeparateOrigins) {
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    ClipboardHistoryStore store(directory.path());
+    const ClipboardHistoryRecord incoming = store.addIncomingText(QStringLiteral("same bytes"),
+                                                                   QStringLiteral("device-a"), QStringLiteral("A"));
+    const ClipboardHistoryRecord local = store.addLocalText(QStringLiteral("same bytes"));
+    const ClipboardHistoryRecord secondIncoming = store.addIncomingText(QStringLiteral("same bytes"),
+                                                                         QStringLiteral("device-b"), QStringLiteral("B"));
+    ASSERT_FALSE(incoming.id.isEmpty());
+    ASSERT_FALSE(local.id.isEmpty());
+    ASSERT_FALSE(secondIncoming.id.isEmpty());
+    EXPECT_NE(incoming.id, local.id);
+    EXPECT_NE(incoming.id, secondIncoming.id);
+    EXPECT_EQ(store.records().size(), 3);
+    EXPECT_EQ(store.records().at(1).origin, ClipboardRecordOrigin::Local);
+}
+
 QByteArray encodedPng(const QImage &image) {
     QByteArray bytes;
     QBuffer buffer(&bytes);
@@ -314,6 +352,57 @@ TEST(ClipboardHistoryStoreTest, RemovesRecordsAndTheirImageFiles) {
     ASSERT_TRUE(store.remove(added.id));
     EXPECT_FALSE(store.lookup(added.id, nullptr));
     EXPECT_FALSE(QFileInfo::exists(added.imagePath));
+}
+
+TEST(ClipboardHistoryStoreTest, RemovesMultipleRecordsAtomicallyAndPreservesSurvivors) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    ClipboardHistoryStore store(dir.path());
+    const ClipboardHistoryRecord oldest = store.addLocalText(QStringLiteral("oldest"));
+    const ClipboardHistoryRecord incoming = store.addIncomingText(
+        QStringLiteral("incoming"), QStringLiteral("device-2"), QStringLiteral("Laptop"));
+    QImage image(3, 2, QImage::Format_ARGB32);
+    image.fill(Qt::yellow);
+    const ClipboardHistoryRecord imageRecord = store.addLocalImage(
+        encodedPng(image), QStringLiteral("image/png"), image.width(), image.height());
+    const ClipboardHistoryRecord newest = store.addLocalText(QStringLiteral("newest"));
+    ASSERT_FALSE(oldest.id.isEmpty());
+    ASSERT_FALSE(incoming.id.isEmpty());
+    ASSERT_FALSE(imageRecord.id.isEmpty());
+    ASSERT_FALSE(newest.id.isEmpty());
+    ASSERT_TRUE(QFileInfo::exists(imageRecord.imagePath));
+
+    ASSERT_TRUE(store.removeRecords({imageRecord.id, incoming.id, imageRecord.id, QString(),
+                                     QStringLiteral("missing")}));
+    ASSERT_EQ(store.records().size(), 2);
+    EXPECT_EQ(store.records().at(0).id, newest.id);
+    EXPECT_EQ(store.records().at(1).id, oldest.id);
+    EXPECT_FALSE(QFileInfo::exists(imageRecord.imagePath));
+    EXPECT_FALSE(store.lookup(imageRecord.id));
+    EXPECT_FALSE(store.lookup(incoming.id));
+
+    ClipboardHistoryStore reloaded(dir.path());
+    ASSERT_TRUE(reloaded.load());
+    ASSERT_EQ(reloaded.records().size(), 2);
+    EXPECT_EQ(reloaded.records().at(0).id, newest.id);
+    EXPECT_EQ(reloaded.records().at(1).id, oldest.id);
+}
+
+TEST(ClipboardHistoryStoreTest, RejectsBatchRemovalWhenNoKnownRecordIsRequested) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    ClipboardHistoryStore store(dir.path());
+    const ClipboardHistoryRecord kept = store.addLocalText(QStringLiteral("keep"));
+    ASSERT_FALSE(kept.id.isEmpty());
+
+    EXPECT_FALSE(store.removeRecords({QString(), QStringLiteral("missing"), QStringLiteral("missing")}));
+    ASSERT_EQ(store.records().size(), 1);
+    EXPECT_EQ(store.records().first().id, kept.id);
+
+    ClipboardHistoryStore reloaded(dir.path());
+    ASSERT_TRUE(reloaded.load());
+    ASSERT_EQ(reloaded.records().size(), 1);
+    EXPECT_EQ(reloaded.records().first().id, kept.id);
 }
 
 TEST(ClipboardHistoryStoreTest, PreservesIncomingProvenanceAfterPersistentStorage) {

@@ -206,6 +206,36 @@ TEST(SettingsTest, RetiresCloudClipboardAutomaticMirroringKeysOnLoad) {
     EXPECT_FALSE(reloaded.contains(QStringLiteral("account/cloudClipboardAutoReceive")));
     EXPECT_FALSE(reloaded.contains(QStringLiteral("account/cloudClipboardPrivacyAcknowledged")));
     EXPECT_FALSE(reloaded.contains(QStringLiteral("view/cloudClipboardEditorHeight")));
+    EXPECT_FALSE(settings.cloudClipboardAutoSend());
+    EXPECT_TRUE(settings.cloudClipboardTargetDeviceId().isEmpty());
+}
+
+TEST(SettingsTest, CloudClipboardAutoSendAndTargetRoundTripWithoutLegacyMigration) {
+    QTemporaryDir temporaryDir;
+    ASSERT_TRUE(temporaryDir.isValid());
+    const QString settingsPath = temporaryDir.filePath(QStringLiteral("settings.ini"));
+    {
+        QSettings legacy(settingsPath, QSettings::IniFormat);
+        legacy.setValue(QStringLiteral("account/cloudClipboardAutoUpload"), true);
+        legacy.setValue(QStringLiteral("account/cloudClipboardAutoReceive"), true);
+        legacy.sync();
+    }
+
+    Settings settings(settingsPath);
+    EXPECT_FALSE(settings.cloudClipboardAutoSend());
+    EXPECT_TRUE(settings.cloudClipboardTargetDeviceId().isEmpty());
+    settings.setCloudClipboardAutoSend(true);
+    settings.setCloudClipboardTargetDeviceId(QStringLiteral("device-target-1"));
+
+    Settings reloaded(settingsPath);
+    EXPECT_TRUE(reloaded.cloudClipboardAutoSend());
+    EXPECT_EQ(reloaded.cloudClipboardTargetDeviceId(), QStringLiteral("device-target-1"));
+    reloaded.setCloudClipboardAutoSend(false);
+    reloaded.setCloudClipboardTargetDeviceId(QString());
+
+    Settings allDevices(settingsPath);
+    EXPECT_FALSE(allDevices.cloudClipboardAutoSend());
+    EXPECT_TRUE(allDevices.cloudClipboardTargetDeviceId().isEmpty());
 }
 
 TEST(SettingsTest, EmptyExplicitIniPathUsesSafeDefaultLocation) {

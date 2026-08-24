@@ -7,8 +7,9 @@ The current cloud clipboard treats the account server as a shared automatic hist
 The replacement separates three concepts:
 
 1. **Local automatic history** — the most recent clipboard contents observed on this device.
-2. **Explicit cross-device sends** — a user selects one local history entry and sends it to all other account devices.
-3. **Incoming deliveries** — content explicitly sent by another device, cached by the server for offline recipients and copied into the operating-system clipboard only after a user double-clicks it.
+2. **Targeted cross-device sends** — a user sends selected local history entries to one chosen account device or to all other account devices.
+3. **Opt-in Auto Send** — when explicitly enabled, future accepted local clipboard changes use the currently selected target; existing history and signed-out captures are never replayed.
+4. **Incoming deliveries** — content explicitly sent by another device, cached by the server for offline recipients and copied into the operating-system clipboard only after a user double-clicks it.
 
 ## Product Behavior
 
@@ -35,19 +36,22 @@ The existing popup remains anchored to the Quick Connect area but changes semant
 - Image preview scales the `QImage` before creating a pixmap.
 - Single-click selects and previews an item.
 - Double-click copies that item into the local operating-system clipboard.
-- A selected local item exposes **Send to other devices**.
-- An incoming item does not expose the send button, preventing accidental rebroadcast.
+- A selected local item exposes a target selector, **Send**, and an opt-in **Auto Send** control.
+- The selector lists all non-self account devices, including offline devices, plus an **All devices** choice; online/offline state is visible.
+- An incoming item cannot be manually or automatically rebroadcast.
 - The panel shows encoding/upload/download/delivery state and a progress bar.
 
-### Explicit sending
+### Sending
 
-- Sending targets every other device in the same account.
-- The sender is excluded.
+- Manual Send targets either one selected account device or **All devices**; the sender is always excluded.
+- The target list includes online and offline devices and displays their state. Offline recipients receive durable pending deliveries from the server.
 - Text is uploaded as UTF-8.
-- Images upload their original encoded bytes plus MIME, dimensions, size, SHA-256, and optional thumbnail.
+- Images upload their normalized encoded bytes plus MIME, dimensions, size and SHA-256.
 - Existing limits remain: 25 MiB encoded image, max dimension 16384, max 40 million pixels, text max 64 KiB.
-- The UI reports encoding, upload progress, waiting for recipients, and final queued/delivered state.
-- Sending is explicit only; old auto-upload/auto-receive settings and behavior are retired.
+- The UI reports encoding, upload progress, and final server-queued state.
+- Auto Send is a new, default-off opt-in setting. Once enabled, only future accepted local clipboard changes use the target selected at capture time.
+- Enabling Auto Send does not send existing history/current preview; signed-out captures are not replayed; incoming deliveries and controller-originated clipboard copies are never rebroadcast.
+- Disabling Auto Send removes not-yet-started automatic work but does not cancel an upload already handed to the network stack or remove manual sends.
 
 ### Incoming deliveries
 
@@ -83,11 +87,12 @@ The existing popup remains anchored to the Quick Connect area but changes semant
 - state (`pending` or `delivered`)
 - delivered timestamp
 
-Every send creates one payload and one pending delivery per other account device. Content is account-scoped. Payloads expire after seven days and are removed once all deliveries are delivered or expired.
+A send creates one payload and one pending delivery for the chosen device, or one delivery per other account device for **All devices**. Content is account-scoped. Payloads expire after seven days and are removed once all deliveries are delivered or expired.
 
 ## API Contract
 
-- `POST /v1/clipboard/send` — create payload and deliveries. Text can use JSON; image content uses a binary body or multipart endpoint so clients can report upload progress without Base64 expansion.
+- `POST /v1/clipboard/send` — create payload and deliveries for all other registered account devices.
+- `POST /v1/clipboard/send-targeted?target={device_id}` — fail-closed delivery to exactly one account-owned non-self device; an old server cannot silently broadcast this request.
 - `GET /v1/clipboard/deliveries` — pending delivery metadata for the authenticated device.
 - `GET /v1/clipboard/deliveries/{id}/content` — stream text/image content with content length, MIME and digest headers.
 - `POST /v1/clipboard/deliveries/{id}/ack` — mark delivered after verified local storage.
@@ -107,8 +112,8 @@ Legacy `/v1/clipboard` endpoints remain temporarily for compatibility but the re
 
 - Observes `QClipboard::dataChanged`.
 - Converts MIME data to local history records through the store.
-- Coordinates explicit sends and pending receives through `AccountClient`.
-- Maintains local/incoming origin and transfer state.
+- Coordinates manual/automatic targeted sends and pending receives through `AccountClient`.
+- Persists the default-off Auto Send setting and stable target device ID; queued sends snapshot their target and origin.
 - Guards against feedback loops when it writes a selected history record back to `QClipboard`.
 
 ### `AccountClient` (transport)
@@ -121,8 +126,8 @@ Legacy `/v1/clipboard` endpoints remain temporarily for compatibility but the re
 ### `NotepadPanel` (view)
 
 - Becomes a history/preview UI only.
-- Contains no editable composition state and no automatic-sync checkboxes.
-- Maps list actions to preview, copy, explicit send, delete-local-history, and progress display.
+- Contains no editable composition state; the only automatic control is the new default-off Auto Send checkbox for future local captures.
+- Maps list actions to preview, copy, target selection, manual/automatic send, delete-local-history, and progress display.
 
 ## Failure Handling
 
@@ -137,9 +142,9 @@ Legacy `/v1/clipboard` endpoints remain temporarily for compatibility but the re
 ## Migration
 
 - Stop consuming global automatic server history in the new UI.
-- Ignore old auto-upload/auto-receive settings; remove their controls and retire keys in a later cleanup.
+- Retired auto-upload/auto-receive keys never enable the new Auto Send option; the new setting starts disabled and requires an explicit checkbox action.
 - Existing local cloud-image cache can be migrated or cleaned separately; the redesigned store uses a versioned directory/schema.
-- Keep legacy server routes during one compatibility window.
+- Keep legacy server routes during one compatibility window; targeted clients use a distinct route so an old server fails rather than broadcasting.
 
 ## Testing
 
@@ -151,14 +156,15 @@ Legacy `/v1/clipboard` endpoints remain temporarily for compatibility but the re
 
 ### Server
 
-- Send creates deliveries for every other device, excludes sender, and handles zero recipients.
-- Account isolation and device ownership.
+- All-device send excludes the sender; targeted send creates a delivery only for the selected account-owned device and rejects self/unknown/foreign targets.
+- Account isolation and device ownership, including selected online-only notification and offline selected-device retrieval.
 - Offline pending query, streamed content, ACK, duplicate ACK, TTL cleanup.
 - Size/hash/type rejection and transactional rollback.
 
 ### UI/transport
 
-- Single-click preview, double-click clipboard copy, local-only send button.
+- Single-click preview, double-click clipboard copy, multi-select deletion, local-only manual send, and target dropdown state.
+- Default-off future-only Auto Send for text/images, target snapshotting, disable/logout races, and no incoming/controller-copy rebroadcast.
 - Text/image upload progress and incoming download progress.
 - Login/agent-ready pending fetch.
 - Feedback-loop suppression when writing to local clipboard.

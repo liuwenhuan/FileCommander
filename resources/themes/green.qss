@@ -775,7 +775,7 @@ QToolTip {
     outline: none;
 }
 #CloudClipboardPanel QListWidget#CloudClipboardList::item {
-    padding: 4px 6px;
+    padding: 0;
     border-radius: 0;
     color: #33ff88;
 }
@@ -786,7 +786,8 @@ QToolTip {
     background-color: #33ff88;
     color: #04140a;
 }
-#CloudClipboardPanel QPlainTextEdit#CloudClipboardEditor {
+#CloudClipboardPanel QPlainTextEdit#CloudClipboardPreview,
+#CloudClipboardPanel QLabel#CloudClipboardImagePreview {
     background-color: #04140a;
     border: 1px solid #12602f;
     border-radius: 0;

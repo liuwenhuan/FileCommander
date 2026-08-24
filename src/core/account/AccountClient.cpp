@@ -32,6 +32,11 @@ QJsonObject parseObject(const QByteArray &body) {
     return QJsonDocument::fromJson(body).object();
 }
 
+QString targetedClipboardSendPath(const QString &targetDeviceId) {
+    return QStringLiteral("/v1/clipboard/send-targeted?target=") +
+           QString::fromLatin1(QUrl::toPercentEncoding(targetDeviceId));
+}
+
 ClipboardDeliveryInfo parseClipboardDelivery(const QJsonObject &o) {
     ClipboardDeliveryInfo delivery;
     delivery.id = o.value(QStringLiteral("id")).toString();
@@ -535,6 +540,26 @@ void AccountClient::sendClipboardText(const QString &text) {
             });
 }
 
+void AccountClient::sendClipboardTextToTarget(const QString &text, const QString &targetDeviceId) {
+    if (!isLoggedIn()) {
+        const QString error = tr("Not signed in.");
+        emit requestFailed(error);
+        emit clipboardSendFailed(error);
+        return;
+    }
+    if (targetDeviceId.isEmpty()) {
+        const QString error = tr("No clipboard target device was selected.");
+        emit requestFailed(error);
+        emit clipboardSendFailed(error);
+        return;
+    }
+    request(Verb::Post, targetedClipboardSendPath(targetDeviceId), text.toUtf8(), true,
+            [this](QNetworkReply *reply) { finishClipboardSend(reply); }, true,
+            QByteArrayLiteral("text/plain; charset=utf-8"), [this] {
+                emit clipboardSendFailed(tr("Session expired, please sign in again."));
+            });
+}
+
 void AccountClient::sendClipboardImageFile(const QString &filePath, const QString &mime,
                                            int width, int height, const QByteArray &sha256) {
     if (!isLoggedIn()) {
@@ -543,12 +568,32 @@ void AccountClient::sendClipboardImageFile(const QString &filePath, const QStrin
         emit clipboardSendFailed(error);
         return;
     }
-    sendClipboardImageFileRequest(filePath, mime, width, height, sha256, true);
+    sendClipboardImageFileRequest(filePath, mime, width, height, sha256,
+                                  QStringLiteral("/v1/clipboard/send"), true);
+}
+
+void AccountClient::sendClipboardImageFileToTarget(const QString &filePath, const QString &mime,
+                                                   int width, int height, const QByteArray &sha256,
+                                                   const QString &targetDeviceId) {
+    if (!isLoggedIn()) {
+        const QString error = tr("Not signed in.");
+        emit requestFailed(error);
+        emit clipboardSendFailed(error);
+        return;
+    }
+    if (targetDeviceId.isEmpty()) {
+        const QString error = tr("No clipboard target device was selected.");
+        emit requestFailed(error);
+        emit clipboardSendFailed(error);
+        return;
+    }
+    sendClipboardImageFileRequest(filePath, mime, width, height, sha256,
+                                  targetedClipboardSendPath(targetDeviceId), true);
 }
 
 void AccountClient::sendClipboardImageFileRequest(const QString &filePath, const QString &mime,
                                                   int width, int height, const QByteArray &sha256,
-                                                  bool retryAfterRefresh) {
+                                                  const QString &path, bool retryAfterRefresh) {
     auto *file = new QFile(filePath);
     if (!file->open(QIODevice::ReadOnly)) {
         const QString error = tr("Could not open the clipboard image.");
@@ -561,7 +606,7 @@ void AccountClient::sendClipboardImageFileRequest(const QString &filePath, const
     QByteArray hash = sha256;
     if (hash.size() == QCryptographicHash::hashLength(QCryptographicHash::Sha256))
         hash = hash.toHex();
-    QNetworkRequest request = requestFor(QStringLiteral("/v1/clipboard/send"), true);
+    QNetworkRequest request = requestFor(path, true);
     request.setHeader(QNetworkRequest::ContentTypeHeader, mime);
     request.setRawHeader("X-Clipboard-Width", QByteArray::number(width));
     request.setRawHeader("X-Clipboard-Height", QByteArray::number(height));
@@ -583,15 +628,15 @@ void AccountClient::sendClipboardImageFileRequest(const QString &filePath, const
                     emit clipboardSendProgress(sent, total);
             });
     connect(reply, &QNetworkReply::finished, this,
-            [this, reply, timeout, generation, filePath, mime, width, height, sha256,
+            [this, reply, timeout, generation, filePath, mime, width, height, sha256, path,
              retryAfterRefresh] {
                 timeout->stop();
                 const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
                 if (generation == m_requestGeneration && status == 401 && retryAfterRefresh &&
                     !m_refreshToken.isEmpty()) {
-                    refreshAccessToken([this, filePath, mime, width, height, sha256, generation](bool refreshed) {
+                    refreshAccessToken([this, filePath, mime, width, height, sha256, path, generation](bool refreshed) {
                         if (refreshed && generation == m_requestGeneration)
-                            sendClipboardImageFileRequest(filePath, mime, width, height, sha256, false);
+                            sendClipboardImageFileRequest(filePath, mime, width, height, sha256, path, false);
                         else if (generation == m_requestGeneration)
                             emit clipboardSendFailed(tr("Session expired, please sign in again."));
                     });

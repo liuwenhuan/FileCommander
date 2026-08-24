@@ -493,9 +493,39 @@ Extract it too?</source>
         <translation>剪贴板传送已在发送中。</translation>
     </message>
     <message>
-        <location filename="../../src/ui/CloudClipboardController.cpp" line="261"/>
-        <source>Sending...</source>
-        <translation>正在发送...</translation>
+        <location filename="../../src/ui/CloudClipboardController.cpp" line="293"/>
+        <source>Sending %1 of %2...</source>
+        <translation>正在发送第 %1/%2 条...</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/CloudClipboardController.cpp" line="315"/>
+        <source>The selected clipboard device is unavailable.</source>
+        <translation>所选剪贴板设备不可用。</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/CloudClipboardController.cpp" line="373"/>
+        <source>Automatically queueing %1 of %2...</source>
+        <translation>正在自动加入队列，第 %1/%2 条...</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/CloudClipboardController.cpp" line="404"/>
+        <source>Automatic clipboard send failed: %1</source>
+        <translation>剪贴板自动发送失败：%1</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/CloudClipboardController.cpp" line="411"/>
+        <source>Queued %1 of %2 records; %3 failed.</source>
+        <translation>已将 %1/%2 条记录加入队列；%3 条失败。</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/CloudClipboardController.cpp" line="413"/>
+        <source>Queued %1 records; %2 had no recipients.</source>
+        <translation>已将 %1 条记录加入队列；%2 条没有接收设备。</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/CloudClipboardController.cpp" line="414"/>
+        <source>Queued %1 selected records.</source>
+        <translation>已将所选的 %1 条记录加入队列。</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="389"/>
@@ -3395,9 +3425,34 @@ This is permanent and will NOT go to the trash.</source>
         <translation>清除</translation>
     </message>
     <message>
-        <location filename="../../src/ui/NotepadPanel.cpp" line="118"/>
-        <source>Send to other devices</source>
-        <translation>发送到其他设备</translation>
+        <location filename="../../src/ui/NotepadPanel.cpp" line="135"/>
+        <source>Auto Send</source>
+        <translation>自动发送</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/NotepadPanel.cpp" line="143"/>
+        <source>Send</source>
+        <translation>发送</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/NotepadPanel.cpp" line="264"/>
+        <source>All devices</source>
+        <translation>全部设备</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/NotepadPanel.cpp" line="272"/>
+        <source>Online</source>
+        <translation>在线</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/NotepadPanel.cpp" line="272"/>
+        <source>Offline</source>
+        <translation>离线</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/NotepadPanel.cpp" line="279"/>
+        <source>Unavailable device</source>
+        <translation>设备不可用</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="167"/>
@@ -3430,10 +3485,6 @@ This is permanent and will NOT go to the trash.</source>
     <message>
         <source>Paste or select an image to preview it here.</source>
         <translation type="vanished">粘贴或选择图片后在此预览。</translation>
-    </message>
-    <message>
-        <source>Send</source>
-        <translation type="vanished">发送</translation>
     </message>
     <message>
         <source>Auto-upload clipboard</source>
@@ -4172,8 +4223,8 @@ Destination: %4 (%5)</source>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="20"/>
-        <source>No other devices online or registered</source>
-        <translation>没有其他在线或已注册的设备。</translation>
+        <source>No other devices registered</source>
+        <translation>没有其他已注册的设备。</translation>
     </message>
 </context>
 <context>

@@ -1,19 +1,29 @@
 #include "NotepadPanel.h"
 
+#include <QAbstractItemView>
+#include <QAbstractItemModel>
+#include <QCheckBox>
 #include <QCloseEvent>
+#include <QComboBox>
 #include <QDateTime>
 #include <QEvent>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QImage>
 #include <QIcon>
+#include <QKeyEvent>
 #include <QLabel>
+#include <QLocale>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QProgressBar>
 #include <QScreen>
+#include <QScrollBar>
+#include <QSet>
+#include <QStyleOptionViewItem>
+#include <QItemSelectionModel>
 #include <QSignalBlocker>
 #include <QSplitter>
 #include <QStackedWidget>
@@ -21,6 +31,7 @@
 #include <QVBoxLayout>
 
 #include "CloudClipboardController.h"
+#include "CloudClipboardRowDelegate.h"
 #include "account/AccountClient.h"
 #include "account/DeviceAgent.h"
 
@@ -79,14 +90,13 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
     m_delete->setObjectName(QStringLiteral("CloudClipboardDeleteButton"));
     auto *clear = new QPushButton(tr("Clear"), this);
     clear->setObjectName(QStringLiteral("CloudClipboardClearButton"));
-    for (QPushButton *button : {m_copy, m_delete, clear})
+    for (QPushButton *button : {m_delete, clear})
         button->setFocusPolicy(Qt::NoFocus);
 
     auto *tools = new QHBoxLayout;
     tools->setContentsMargins(0, 0, 0, 0);
     tools->setSpacing(4);
     tools->addWidget(m_search, 1);
-    tools->addWidget(m_copy);
     tools->addWidget(m_delete);
     tools->addWidget(clear);
 
@@ -94,6 +104,12 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
     m_list->setObjectName(QStringLiteral("CloudClipboardList"));
     m_list->setFrameShape(QFrame::NoFrame);
     m_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_list->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    m_list->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_list->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_list->setUniformItemSizes(true);
+    m_list->setItemDelegate(new CloudClipboardRowDelegate(m_list));
+    m_list->installEventFilter(this);
     m_status = new QLabel(this);
     m_status->setObjectName(QStringLiteral("CloudClipboardStatus"));
     m_status->setWordWrap(true);
@@ -116,14 +132,24 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
     m_contentStack->setObjectName(QStringLiteral("CloudClipboardContentStack"));
     m_contentStack->addWidget(m_textPreview);
     m_contentStack->addWidget(m_imagePreview);
-    m_send = new QPushButton(tr("Send to other devices"));
+    m_autoSend = new QCheckBox(tr("Auto Send"), this);
+    m_autoSend->setObjectName(QStringLiteral("CloudClipboardAutoSend"));
+    m_targetDevice = new QComboBox(this);
+    m_targetDevice->setObjectName(QStringLiteral("CloudClipboardTargetDeviceCombo"));
+    m_targetDevice->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    m_targetDevice->setMinimumContentsLength(10);
+    m_targetDevice->setMinimumWidth(120);
+    m_targetDevice->setMaximumWidth(180);
+    m_send = new QPushButton(tr("Send"), this);
     m_send->setObjectName(QStringLiteral("CloudClipboardSendButton"));
     m_send->setFocusPolicy(Qt::StrongFocus);
-    m_send->setVisible(false);
 
     auto *previewTools = new QHBoxLayout;
     previewTools->setContentsMargins(0, 0, 0, 0);
+    previewTools->addWidget(m_copy);
     previewTools->addStretch();
+    previewTools->addWidget(m_autoSend);
+    previewTools->addWidget(m_targetDevice);
     previewTools->addWidget(m_send);
     auto *previewPane = new QWidget;
     auto *previewLayout = new QVBoxLayout(previewPane);
@@ -150,48 +176,72 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
 
     m_controller = existingController ? existingController
                                       : new CloudClipboardController(m_settings, client, agent, this);
+    m_autoSend->setChecked(m_controller->autoSendEnabled());
+    rebuildTargetDevices();
     connect(m_controller, &CloudClipboardController::changed, this, &NotepadPanel::rebuild);
+    connect(m_controller, &CloudClipboardController::devicesChanged, this,
+            [this] {
+                rebuildTargetDevices();
+                updateSelection();
+            });
+    connect(m_controller, &CloudClipboardController::autoSendChanged, this,
+            [this](bool enabled) {
+                QSignalBlocker block(m_autoSend);
+                m_autoSend->setChecked(enabled);
+                updateSelection();
+            });
+    connect(m_controller, &CloudClipboardController::selectedTargetDeviceChanged, this,
+            [this](const QString &) {
+                rebuildTargetDevices();
+                updateSelection();
+            });
     connect(m_controller, &CloudClipboardController::transferStatusChanged, this,
             [this](const QString &status) {
                 m_transferStatus = status;
                 m_status->setText(status);
                 m_status->setVisible(!status.isEmpty());
             });
+    connect(m_controller, &CloudClipboardController::transferReset, this,
+            &NotepadPanel::clearTransferProgress);
     connect(m_controller, &CloudClipboardController::transferFinished, this,
             [this](const QString &recordId) {
-                if (recordId == m_activeTransferId)
-                    clearTransferProgress();
+                m_transferProgress.remove(recordId);
+                updateTransferProgress();
             });
     connect(m_controller, &CloudClipboardController::transferProgress, this,
             [this](const QString &recordId, qint64 completed, qint64 total) {
                 if (recordId.isEmpty())
                     return;
-                if (m_activeTransferId.isEmpty())
-                    m_activeTransferId = recordId;
-                if (m_activeTransferId != recordId)
-                    return;
-                const int percent = total > 0 ? int(completed * 100 / total) : 0;
-                m_progress->setRange(0, 100);
-                m_progress->setValue(percent);
-                m_progress->setFormat(QStringLiteral("%1% (%2 / %3 bytes)")
-                                          .arg(percent).arg(completed).arg(total));
-                m_progress->setVisible(true);
-                m_status->setText(tr("Transfer progress: %1% (%2 / %3 bytes)")
-                                      .arg(percent).arg(completed).arg(total));
-                m_status->setVisible(true);
+                m_transferProgress.insert(recordId, qMakePair(completed, total));
+                updateTransferProgress();
             });
     connect(m_search, &QLineEdit::textChanged, this, &NotepadPanel::rebuild);
     connect(m_list, &QListWidget::currentItemChanged, this,
             [this](QListWidgetItem *current) {
-                m_controller->selectRecord(current ? current->data(Qt::UserRole).toString() : QString());
+                m_controller->selectRecord(current ? current->data(CloudClipboardRowDelegate::RecordIdRole).toString()
+                                                   : QString());
                 updateSelection();
             });
+    connect(m_list, &QListWidget::itemSelectionChanged, this, &NotepadPanel::updateSelection);
+    connect(m_controller, &CloudClipboardController::selectionChanged, this,
+            [this](const QString &) { updateSelection(); });
     connect(m_list, &QListWidget::itemDoubleClicked, this,
             [this](QListWidgetItem *) { copySelected(); });
     connect(m_copy, &QPushButton::clicked, this, &NotepadPanel::copySelected);
     connect(m_delete, &QPushButton::clicked, this, &NotepadPanel::deleteSelected);
     connect(clear, &QPushButton::clicked, m_controller, &CloudClipboardController::clear);
+    connect(m_autoSend, &QCheckBox::toggled, m_controller,
+            &CloudClipboardController::setAutoSendEnabled);
+    connect(m_targetDevice, qOverload<int>(&QComboBox::currentIndexChanged), this,
+            [this](int index) {
+                if (index >= 0)
+                    m_controller->setSelectedTargetDeviceId(m_targetDevice->itemData(index).toString());
+            });
     connect(m_send, &QPushButton::clicked, this, &NotepadPanel::send);
+    QWidget::setTabOrder(m_textPreview, m_copy);
+    QWidget::setTabOrder(m_copy, m_autoSend);
+    QWidget::setTabOrder(m_autoSend, m_targetDevice);
+    QWidget::setTabOrder(m_targetDevice, m_send);
     rebuild();
 }
 
@@ -207,6 +257,34 @@ QString NotepadPanel::itemLabel(const ClipboardHistoryRecord &item) const {
     return QStringLiteral("%1\n%2 · %3").arg(item.text.left(100), source, time);
 }
 
+void NotepadPanel::rebuildTargetDevices() {
+    const QString targetId = m_controller->selectedTargetDeviceId();
+    QSignalBlocker block(m_targetDevice);
+    m_targetDevice->clear();
+    m_targetDevice->addItem(tr("All devices"), QString());
+    m_targetDevice->setItemData(0, tr("All devices"), Qt::ToolTipRole);
+
+    bool foundTarget = targetId.isEmpty();
+    for (const AccountDeviceInfo &device : m_controller->devices()) {
+        if (device.self || device.id.isEmpty())
+            continue;
+        const QString name = device.name.isEmpty() ? device.id : device.name;
+        const QString state = device.online ? tr("Online") : tr("Offline");
+        const QString label = tr("%1 — %2").arg(name, state);
+        m_targetDevice->addItem(label, device.id);
+        m_targetDevice->setItemData(m_targetDevice->count() - 1, label, Qt::ToolTipRole);
+        foundTarget = foundTarget || device.id == targetId;
+    }
+    if (!foundTarget) {
+        const QString label = tr("Unavailable device");
+        m_targetDevice->addItem(label, targetId);
+        m_targetDevice->setItemData(m_targetDevice->count() - 1, label, Qt::ToolTipRole);
+    }
+
+    const int index = m_targetDevice->findData(targetId);
+    m_targetDevice->setCurrentIndex(index >= 0 ? index : 0);
+}
+
 void NotepadPanel::rebuild() {
     const bool loading = m_controller->state() == CloudClipboardController::State::Loading;
     m_search->setEnabled(!loading);
@@ -218,40 +296,99 @@ void NotepadPanel::rebuild() {
                                : m_transferStatus;
     m_status->setText(status);
     m_status->setVisible(!status.isEmpty());
-    const QString selectedId = m_list->currentItem() ?
-        m_list->currentItem()->data(Qt::UserRole).toString() : QString();
+    if (!m_transferProgress.isEmpty())
+        updateTransferProgress();
+
+    const QStringList selectedIds = selectedRecordIds();
+    const QString oldCurrentId = currentRecordId();
+    const QString controllerCurrentId = m_controller->selectedRecordId();
+    const bool restoreFocus = m_list->hasFocus();
+    const int scrollValue = m_list->verticalScrollBar()->value();
+    QListWidgetItem *currentRow = nullptr;
     {
         QSignalBlocker block(m_list);
         m_list->clear();
         for (const ClipboardHistoryRecord &item : m_controller->items()) {
             if (!query.isEmpty() && !itemLabel(item).contains(query, Qt::CaseInsensitive))
                 continue;
-            auto *row = new QListWidgetItem(itemLabel(item), m_list);
-            row->setData(Qt::UserRole, item.id);
-            if (item.kind == ClipboardRecordKind::Image && !item.imagePath.isEmpty())
-                row->setIcon(QIcon(item.imagePath));
-            if (item.id == selectedId)
-                m_list->setCurrentItem(row);
+
+            const QString source = item.sourceDeviceName.isEmpty()
+                                       ? m_controller->deviceName(item.sourceDeviceId)
+                                       : item.sourceDeviceName;
+            const QDateTime when = item.created.toLocalTime();
+            const QString time = when.isValid() ? QLocale().toString(when, QLocale::ShortFormat)
+                                                : QString();
+            auto *row = new QListWidgetItem(m_list);
+            row->setData(CloudClipboardRowDelegate::RecordIdRole, item.id);
+            row->setData(CloudClipboardRowDelegate::KindRole,
+                         item.kind == ClipboardRecordKind::Image ? QStringLiteral("image")
+                                                                  : QStringLiteral("text"));
+            row->setData(CloudClipboardRowDelegate::ContentRole, item.text);
+            row->setData(CloudClipboardRowDelegate::ImagePathRole, item.imagePath);
+            row->setData(CloudClipboardRowDelegate::TimeRole, time);
+            row->setData(CloudClipboardRowDelegate::DeviceRole, source);
+            row->setData(Qt::AccessibleTextRole,
+                         item.kind == ClipboardRecordKind::Image
+                             ? tr("Image, %1, %2").arg(time, source)
+                             : tr("%1, %2, %3").arg(item.text, time, source));
+            row->setSizeHint(m_list->itemDelegate()->sizeHint(
+                QStyleOptionViewItem(), m_list->model()->index(m_list->row(row), 0)));
+            if (selectedIds.contains(item.id))
+                row->setSelected(true);
+            if (item.id == controllerCurrentId ||
+                (controllerCurrentId.isEmpty() && item.id == oldCurrentId)) {
+                currentRow = row;
+            }
         }
+        if (currentRow)
+            m_list->selectionModel()->setCurrentIndex(
+                m_list->model()->index(m_list->row(currentRow), 0), QItemSelectionModel::NoUpdate);
     }
-    m_controller->selectRecord(m_list->currentItem()
-                                   ? m_list->currentItem()->data(Qt::UserRole).toString()
-                                   : QString());
+    m_list->verticalScrollBar()->setValue(scrollValue);
+    if (currentRow && m_list->selectedItems().isEmpty())
+        currentRow->setSelected(true);
+    if (currentRow && oldCurrentId != controllerCurrentId)
+        m_list->scrollToItem(currentRow, QAbstractItemView::EnsureVisible);
+    if (restoreFocus)
+        m_list->setFocus();
     updateSelection();
     applyDynamicSize();
 }
 
 void NotepadPanel::clearTransferProgress() {
-    m_activeTransferId.clear();
+    m_transferProgress.clear();
     m_progress->setValue(0);
     m_progress->setVisible(false);
 }
 
+void NotepadPanel::updateTransferProgress() {
+    if (m_transferProgress.isEmpty()) {
+        m_progress->setValue(0);
+        m_progress->setVisible(false);
+        return;
+    }
+
+    qint64 completed = 0;
+    qint64 total = 0;
+    for (auto it = m_transferProgress.cbegin(); it != m_transferProgress.cend(); ++it) {
+        completed += qMax<qint64>(0, it.value().first);
+        total += qMax<qint64>(0, it.value().second);
+    }
+    const int percent = total > 0 ? qBound(0, int(completed * 100 / total), 100) : 0;
+    m_progress->setRange(0, 100);
+    m_progress->setValue(percent);
+    m_progress->setFormat(QStringLiteral("%1% (%2 / %3 bytes)")
+                              .arg(percent).arg(completed).arg(total));
+    m_progress->setVisible(true);
+    m_status->setText(tr("Transfer progress: %1% (%2 / %3 bytes)")
+                          .arg(percent).arg(completed).arg(total));
+    m_status->setVisible(true);
+}
+
 const ClipboardHistoryRecord *NotepadPanel::selected() const {
-    const auto *row = m_list->currentItem();
-    if (!row)
+    const QString id = currentRecordId();
+    if (id.isEmpty())
         return nullptr;
-    const QString id = row->data(Qt::UserRole).toString();
     for (const ClipboardHistoryRecord &item : m_controller->items()) {
         if (item.id == id)
             return &item;
@@ -259,14 +396,42 @@ const ClipboardHistoryRecord *NotepadPanel::selected() const {
     return nullptr;
 }
 
+QStringList NotepadPanel::visibleRecordIds() const {
+    QStringList ids;
+    for (int row = 0; row < m_list->count(); ++row)
+        ids.append(m_list->item(row)->data(CloudClipboardRowDelegate::RecordIdRole).toString());
+    return ids;
+}
+
+QStringList NotepadPanel::selectedRecordIds() const {
+    QStringList ids;
+    for (int row = 0; row < m_list->count(); ++row) {
+        const QListWidgetItem *item = m_list->item(row);
+        if (item->isSelected())
+            ids.append(item->data(CloudClipboardRowDelegate::RecordIdRole).toString());
+    }
+    return ids;
+}
+
+QString NotepadPanel::currentRecordId() const {
+    const QListWidgetItem *row = m_list->currentItem();
+    return row ? row->data(CloudClipboardRowDelegate::RecordIdRole).toString() : QString();
+}
+
 void NotepadPanel::updateSelection() {
     const ClipboardHistoryRecord *item = selected();
-    const bool has = item != nullptr;
-    const bool local = has && item->origin == ClipboardRecordOrigin::Local;
-    m_copy->setEnabled(has);
-    m_delete->setEnabled(has);
-    m_send->setVisible(local);
-    m_send->setEnabled(local);
+    const QStringList selectedIds = selectedRecordIds();
+    bool hasLocalSelection = false;
+    for (const QString &id : selectedIds) {
+        const ClipboardHistoryRecord record = m_controller->record(id);
+        if (record.origin == ClipboardRecordOrigin::Local) {
+            hasLocalSelection = true;
+            break;
+        }
+    }
+    m_copy->setEnabled(item != nullptr);
+    m_delete->setEnabled(!selectedIds.isEmpty());
+    m_send->setEnabled(hasLocalSelection && m_controller->targetDeviceIsAvailable());
     if (!item) {
         m_textPreview->clear();
         m_contentStack->setCurrentWidget(m_textPreview);
@@ -297,15 +462,45 @@ void NotepadPanel::copySelected() {
 }
 
 void NotepadPanel::deleteSelected() {
-    if (const ClipboardHistoryRecord *item = selected())
-        m_controller->removeRecord(item->id);
+    const QStringList ids = selectedRecordIds();
+    if (ids.isEmpty())
+        return;
+
+    const QStringList visible = visibleRecordIds();
+    QSet<QString> deleted;
+    for (const QString &id : ids)
+        deleted.insert(id);
+    int first = visible.size();
+    int last = -1;
+    for (int index = 0; index < visible.size(); ++index) {
+        if (!deleted.contains(visible.at(index)))
+            continue;
+        first = qMin(first, index);
+        last = qMax(last, index);
+    }
+
+    QString successor;
+    for (int index = last + 1; index < visible.size(); ++index) {
+        if (!deleted.contains(visible.at(index))) {
+            successor = visible.at(index);
+            break;
+        }
+    }
+    for (int index = first - 1; successor.isEmpty() && index >= 0; --index) {
+        if (!deleted.contains(visible.at(index))) {
+            successor = visible.at(index);
+            break;
+        }
+    }
+
+    if (m_controller->removeRecords(ids, successor))
+        m_list->setFocus();
 }
 
 void NotepadPanel::send() {
-    if (const ClipboardHistoryRecord *item = selected();
-        item && item->origin == ClipboardRecordOrigin::Local) {
-        m_controller->sendRecord(item->id);
-    }
+    if (!m_controller->targetDeviceIsAvailable())
+        return;
+    m_controller->sendRecords(selectedRecordIds(), m_targetDevice->currentData().toString());
 }
 
 void NotepadPanel::popUpAbove(const QRect &anchorGlobalRect, const QRect &appContentGlobalRect) {
@@ -330,6 +525,16 @@ void NotepadPanel::closeEvent(QCloseEvent *event) {
 }
 
 bool NotepadPanel::eventFilter(QObject *watched, QEvent *event) {
+    if (watched == m_list && event->type() == QEvent::KeyPress) {
+        auto *key = static_cast<QKeyEvent *>(event);
+        const Qt::KeyboardModifiers modifiers = key->modifiers();
+        if (key->key() == Qt::Key_Delete &&
+            (modifiers == Qt::NoModifier || modifiers == Qt::KeypadModifier)) {
+            deleteSelected();
+            event->accept();
+            return true;
+        }
+    }
     if (watched == parentWidget() &&
         (event->type() == QEvent::Move || event->type() == QEvent::Resize ||
          event->type() == QEvent::WindowStateChange || event->type() == QEvent::Show)) {

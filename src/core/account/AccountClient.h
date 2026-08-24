@@ -154,8 +154,12 @@ public:
     // Explicit cross-device clipboard delivery APIs. These coexist with the
     // legacy clipboard history calls above until their callers migrate.
     void sendClipboardText(const QString &text);
+    void sendClipboardTextToTarget(const QString &text, const QString &targetDeviceId);
     void sendClipboardImageFile(const QString &filePath, const QString &mime,
                                 int width, int height, const QByteArray &sha256);
+    void sendClipboardImageFileToTarget(const QString &filePath, const QString &mime,
+                                        int width, int height, const QByteArray &sha256,
+                                        const QString &targetDeviceId);
     void fetchClipboardDeliveries();
     void downloadClipboardDelivery(const ClipboardDeliveryInfo &delivery,
                                    const QString &destinationPartPath);
@@ -230,7 +234,7 @@ private:
     void refreshAccessToken(std::function<void(bool)> handler);
     void sendClipboardImageFileRequest(const QString &filePath, const QString &mime,
                                        int width, int height, const QByteArray &sha256,
-                                       bool retryAfterRefresh);
+                                       const QString &path, bool retryAfterRefresh);
     void downloadClipboardDeliveryRequest(const ClipboardDeliveryInfo &delivery,
                                           const QString &destinationPartPath,
                                           bool retryAfterRefresh);
