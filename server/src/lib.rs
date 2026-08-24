@@ -10,6 +10,7 @@ pub mod api;
 pub mod clipboard;
 pub mod db;
 pub mod relay;
+pub mod updates;
 
 use std::collections::HashMap;
 use std::collections::VecDeque;
@@ -73,6 +74,8 @@ pub struct AppState {
     /// How long an active relayed connection may sit with no byte moving
     /// before the relay reclaims it (see relay.rs).
     pub relay_idle_seconds: u64,
+    /// Optional read-only root for publicly downloadable release metadata and packages.
+    pub update_root: Option<Arc<updates::UpdateRoot>>,
 }
 
 impl AppState {
@@ -86,7 +89,13 @@ impl AppState {
             relay_conns: Arc::new(AtomicUsize::new(0)),
             relay_max_conns: 64,
             relay_idle_seconds: 300,
+            update_root: None,
         }
+    }
+
+    pub fn with_update_root(mut self, update_root: updates::UpdateRoot) -> AppState {
+        self.update_root = Some(Arc::new(update_root));
+        self
     }
 }
 
@@ -136,7 +145,20 @@ pub fn router(state: AppState) -> Router {
         )
         .layer(DefaultBodyLimit::max(25 * 1024 * 1024));
 
+    let updates = if state.update_root.is_some() {
+        Router::new()
+            .route("/version.json", get(updates::manifest))
+            .route("/SHA256SUMS.txt", get(updates::checksums))
+            .route("/update.html", get(updates::page))
+            .route("/updata.html", get(updates::legacy_page))
+            .route("/releases/{version}/{filename}", get(updates::release))
+            .route("/{filename}", get(updates::package))
+    } else {
+        Router::new()
+    };
+
     Router::new()
+        .merge(updates)
         .merge(auth)
         .merge(clipboard)
         .merge(clipboard_delivery)

@@ -10,6 +10,7 @@
 #include <QMouseEvent>
 #include <QPushButton>
 #include <QShortcut>
+#include <QStringList>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
@@ -150,6 +151,21 @@ TEST(MainWindowActionsTest, StartupKeepsMenuButtonsButDefersMenuContents) {
 
     // Three menu buttons plus the account button, which shares the object name.
     EXPECT_EQ(window.findChildren<QToolButton *>(QStringLiteral("TitleMenuButton")).size(), 4);
+    TitleBar *titleBar = window.findChild<TitleBar *>();
+    ASSERT_NE(titleBar, nullptr);
+    QStringList visibleMenuOrder;
+    for (QToolButton *button : titleBar->findChildren<QToolButton *>(
+             QStringLiteral("TitleMenuButton"), Qt::FindDirectChildrenOnly)) {
+        if (QMenu *menu = button->menu();
+            menu && (menu->title() == QStringLiteral("&Interface") ||
+                     menu->title() == QStringLiteral("&Actions") ||
+                     menu->title() == QStringLiteral("Con&fig"))) {
+            visibleMenuOrder.append(menu->title());
+        }
+    }
+    EXPECT_EQ(visibleMenuOrder,
+              (QStringList{QStringLiteral("&Interface"), QStringLiteral("&Actions"),
+                           QStringLiteral("Con&fig")}));
     for (const QString &title : {QStringLiteral("&Interface"), QStringLiteral("Con&fig"),
                                  QStringLiteral("&Actions")}) {
         QMenu *menu = findMenu(window, title);
@@ -330,7 +346,8 @@ TEST(MainWindowActionsTest, FirstOpenBuildsEachMenuOnceWithCurrentState) {
               QStringLiteral("Show System Partitions"));
     // The entry that used to sit last is still built -- the assertion above is
     // about the menu being complete, not about which entry happens to end it.
-    EXPECT_NE(findAction(configMenu, QStringLiteral("Automatic Update Check")), nullptr);
+    EXPECT_NE(findAction(configMenu, QStringLiteral("Check for Updates")), nullptr);
+    EXPECT_EQ(findAction(configMenu, QStringLiteral("Automatic Update Check")), nullptr);
     EXPECT_EQ(findAction(configMenu, QStringLiteral("FileCommander Account")), nullptr);
     TitleBar *titleBar = window.findChild<TitleBar *>();
     ASSERT_NE(titleBar, nullptr);

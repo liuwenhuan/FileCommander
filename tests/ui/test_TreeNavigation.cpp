@@ -230,11 +230,11 @@ TEST(MainWindowTest, ConfigMenuOmitsRetiredActions) {
     }
     ASSERT_NE(configMenu, nullptr);
 
-    // The menu fills itself on first show, so wait for an entry that is expected
-    // to survive before asserting on the ones that must not be there.
+    // The menu fills itself on first show, so wait for the manual update action
+    // before asserting on entries that must not be there.
     configMenu->popup(QPoint(10, 10));
     FC_TRY_VERIFY_WITH_TIMEOUT(
-        configMenu->findChild<QAction *>(QStringLiteral("configAutoUpdateAction")) != nullptr, 2000);
+        configMenu->findChild<QAction *>(QStringLiteral("configCheckForUpdatesAction")) != nullptr, 2000);
     configMenu->hide();
 
     ASSERT_FALSE(configMenu->actions().isEmpty());

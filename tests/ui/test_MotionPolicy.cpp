@@ -161,7 +161,7 @@ TEST(MotionPolicy, ConfigurationMenuDoesNotExposeReduceMotion) {
     configMenu->hide();
 
     QAction *action = findAction(configMenu, QStringLiteral("Reduce Motion"));
-    ASSERT_NE(configMenu->findChild<QAction *>(QStringLiteral("configAutoUpdateAction")), nullptr);
+    EXPECT_EQ(configMenu->findChild<QAction *>(QStringLiteral("configAutoUpdateAction")), nullptr);
     EXPECT_EQ(action, nullptr);
     EXPECT_EQ(configMenu->findChild<QAction *>(QStringLiteral("configReduceMotionAction")), nullptr);
 }

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<title>FileCommander $version</title>
+<style>
+:root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+body { max-width: 68rem; margin: 3rem auto; padding: 0 1rem; line-height: 1.5; }
+h1 { margin-bottom: .1rem; } table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; }
+th, td { border-bottom: 1px solid #8888; padding: .65rem; text-align: left; vertical-align: top; }
+code { overflow-wrap: anywhere; } pre { white-space: pre-wrap; font: inherit; }
+</style>
+</head>
+<body>
+<main>
+<h1>FileCommander $version</h1>
+<p>Released $date</p>
+<h2>Release notes</h2>
+<pre>$notes</pre>
+<h2>Downloads</h2>
+<table>
+<thead><tr><th>Package</th><th>File</th><th>Size</th><th>SHA-256</th></tr></thead>
+<tbody>
+$package_rows
+</tbody>
+</table>
+</main>
+</body>
+</html>

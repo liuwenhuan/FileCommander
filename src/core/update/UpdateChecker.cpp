@@ -1,5 +1,6 @@
 #include "UpdateChecker.h"
 
+#include <QDate>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkAccessManager>
@@ -14,71 +15,41 @@
 
 namespace {
 
-// The build-time default (docs/UPDATE_SERVER.md section 5). `.invalid` is the
-// reserved never-resolves TLD from RFC 2606, so an unconfigured build cannot
-// reach anybody's server even by accident.
-const QString kPlaceholderHostSuffix = QStringLiteral(".invalid");
+constexpr qint64 kMaximumManifestBytes = 64 * 1024;
+const QString kOfficialManifestUrl = QStringLiteral("https://fc.aigutta.com/version.json");
+const QString kUpdatePageUrl = QStringLiteral("https://fc.aigutta.com/update.html");
 
-const char kUrlEnvVar[] = "FILECOMMANDER_UPDATE_MANIFEST_URL";
-
-// Split a dotted version into its numeric components, dropping a leading 'v' and
-// any pre-release suffix after the first '-' ("v1.2.3-beta" -> {1, 2, 3}).
 QVector<int> versionParts(const QString &raw) {
-    QString v = raw.trimmed();
-    if (v.startsWith(QLatin1Char('v')) || v.startsWith(QLatin1Char('V')))
-        v = v.mid(1);
-    const int dash = v.indexOf(QLatin1Char('-'));
-    if (dash >= 0)
-        v = v.left(dash);
-
+    const QStringList tokens = raw.split(QLatin1Char('.'));
     QVector<int> parts;
-    const QStringList tokens = v.split(QLatin1Char('.'), Qt::SkipEmptyParts);
-    for (const QString &token : tokens)
-        parts.append(token.toInt());
-    return parts;
-}
-
-// Whether a manifest's version string is one we can actually compare. It has to
-// be checked separately from parsing it: toInt() turns anything unparseable into
-// 0, so "latest" would compare as 0.0.0 and quietly read as "you are up to
-// date" -- a broken manifest that hides every release instead of reporting
-// itself.
-bool looksLikeVersion(const QString &raw) {
-    QString v = raw.trimmed();
-    if (v.startsWith(QLatin1Char('v')) || v.startsWith(QLatin1Char('V')))
-        v = v.mid(1);
-    const int dash = v.indexOf(QLatin1Char('-'));
-    if (dash >= 0)
-        v = v.left(dash);
-
-    const QStringList tokens = v.split(QLatin1Char('.'), Qt::SkipEmptyParts);
-    if (tokens.isEmpty())
-        return false;
     for (const QString &token : tokens) {
         bool ok = false;
         const int value = token.toInt(&ok);
         if (!ok || value < 0)
+            return {};
+        parts.append(value);
+    }
+    return parts;
+}
+
+bool looksLikeVersion(const QString &raw) {
+    static const QRegularExpression version(QStringLiteral("\\A[0-9]+\\.[0-9]+\\.[0-9]+\\z"));
+    if (!version.match(raw).hasMatch())
+        return false;
+    for (const QString &component : raw.split(QLatin1Char('.'))) {
+        bool ok = false;
+        component.toInt(&ok);
+        if (!ok)
             return false;
     }
     return true;
 }
 
-// A package URL has to be one we are willing to hand to QNetworkAccessManager
-// and then execute the result of. Anything but http/https (file://, ftp://, a
-// relative path) is refused outright rather than "tried and failed": a manifest
-// is remote input, and the only reason it would name another scheme is to get
-// us to install something from somewhere we did not intend.
-bool isAcceptableDownloadUrl(const QString &raw) {
+bool isOfficialManifestUrl(const QString &raw) {
     const QUrl url(raw);
-    if (!url.isValid() || url.host().isEmpty())
-        return false;
-    const QString scheme = url.scheme().toLower();
-    return scheme == QLatin1String("http") || scheme == QLatin1String("https");
-}
-
-bool isSha256Hex(const QString &raw) {
-    static const QRegularExpression re(QStringLiteral("\\A[0-9a-fA-F]{64}\\z"));
-    return re.match(raw.trimmed()).hasMatch();
+    return url.isValid() && url.scheme() == QLatin1String("https") &&
+           url.host().compare(QStringLiteral("fc.aigutta.com"), Qt::CaseInsensitive) == 0 &&
+           url.path() == QLatin1String("/version.json") && !url.hasQuery() && !url.hasFragment();
 }
 
 } // namespace
@@ -86,42 +57,16 @@ bool isSha256Hex(const QString &raw) {
 UpdateChecker::UpdateChecker(QObject *parent)
     : QObject(parent), m_net(new QNetworkAccessManager(this)) {}
 
-QString UpdateChecker::manifestUrl() {
-    const QByteArray override = qgetenv(kUrlEnvVar);
-    if (!override.isEmpty())
-        return QString::fromUtf8(override).trimmed();
-    return QStringLiteral(TTC_UPDATE_MANIFEST_URL);
-}
+QString UpdateChecker::manifestUrl() { return kOfficialManifestUrl; }
+bool UpdateChecker::manifestUrlIsConfigured() { return true; }
+QString UpdateChecker::updatePageUrl() { return kUpdatePageUrl; }
 
-bool UpdateChecker::manifestUrlIsConfigured() {
-    const QUrl url(manifestUrl());
-    return url.isValid() && !url.host().isEmpty()
-           && !url.host().endsWith(kPlaceholderHostSuffix, Qt::CaseInsensitive);
-}
-
-void UpdateChecker::setManifestUrl(const QString &url) {
-    m_manifestUrl = url;
-}
-
-void UpdateChecker::setTimeoutMs(int ms) {
-    m_timeoutMs = ms;
-}
-
-bool UpdateChecker::runningAsAppImage() {
-    return !qEnvironmentVariableIsEmpty("APPIMAGE");
-}
-
-QString UpdateChecker::packageSegmentKey() {
-#ifdef Q_OS_WIN
-    return QStringLiteral("windows");
-#else
-    // One Linux binary can be running either way, so this is a runtime question:
-    // an AppImage replaces itself, a system install goes through the .deb.
-    return runningAsAppImage() ? QStringLiteral("appimage") : QStringLiteral("deb");
-#endif
-}
+void UpdateChecker::setManifestUrl(const QString &url) { m_manifestUrl = url; }
+void UpdateChecker::setTimeoutMs(int ms) { m_timeoutMs = ms; }
 
 bool UpdateChecker::isNewer(const QString &remote, const QString &local) {
+    if (!looksLikeVersion(remote) || !looksLikeVersion(local))
+        return false;
     const QVector<int> r = versionParts(remote);
     const QVector<int> l = versionParts(local);
     const int n = qMax(r.size(), l.size());
@@ -131,117 +76,126 @@ bool UpdateChecker::isNewer(const QString &remote, const QString &local) {
         if (rv != lv)
             return rv > lv;
     }
-    return false; // equal
+    return false;
 }
 
 UpdateChecker::ParseResult UpdateChecker::parseManifest(const QByteArray &body,
                                                         const QString &localVersion,
                                                         const QString &segmentKey,
                                                         UpdateInfo *info, QString *error) {
+    Q_UNUSED(segmentKey);
     auto fail = [error](const QString &message) {
         if (error)
             *error = message;
         return ParseResult::Invalid;
     };
-
     QJsonParseError parseError;
     const QJsonDocument doc = QJsonDocument::fromJson(body, &parseError);
     if (parseError.error != QJsonParseError::NoError || !doc.isObject())
-        return fail(tr("Malformed update manifest: %1").arg(parseError.errorString()));
+        return fail(QObject::tr("Malformed update manifest: %1").arg(parseError.errorString()));
 
     const QJsonObject root = doc.object();
+    const QJsonValue schema = root.value(QStringLiteral("schema"));
+    if (!schema.isDouble() || schema.toDouble() != 2.0)
+        return fail(QObject::tr("Update manifest has an unsupported schema."));
     const QString remoteVersion = root.value(QStringLiteral("version")).toString().trimmed();
-    if (remoteVersion.isEmpty())
-        return fail(tr("Update manifest is missing a version field."));
+    const QString date = root.value(QStringLiteral("date")).toString();
+    const QString notes = root.value(QStringLiteral("notes")).toString();
     if (!looksLikeVersion(remoteVersion))
-        return fail(tr("Update manifest has an unreadable version (\"%1\").").arg(remoteVersion));
-
+        return fail(QObject::tr("Update manifest has an unreadable version (\"%1\").").arg(remoteVersion));
+    const QDate parsedDate = QDate::fromString(date, Qt::ISODate);
+    if (!parsedDate.isValid() || parsedDate.toString(Qt::ISODate) != date)
+        return fail(QObject::tr("Update manifest has an unreadable release date."));
+    if (!root.value(QStringLiteral("notes")).isString())
+        return fail(QObject::tr("Update manifest is missing release notes."));
     if (!isNewer(remoteVersion, localVersion))
         return ParseResult::UpToDate;
-
-    const QJsonObject segment = root.value(segmentKey).toObject();
-    const QString url = segment.value(QStringLiteral("url")).toString().trimmed();
-    const QString sha256 = segment.value(QStringLiteral("sha256")).toString().trimmed();
-    if (url.isEmpty() || sha256.isEmpty())
-        return fail(
-            tr("Update manifest has no %1 package for this installation.").arg(segmentKey));
-    // Both checks below reject the manifest rather than letting a bad value
-    // reach the downloader: a non-http URL is a redirect to somewhere we never
-    // meant to fetch from, and a malformed hash is a verification step that
-    // could never pass -- better to say so now than after a long download.
-    if (!isAcceptableDownloadUrl(url))
-        return fail(tr("Update manifest gives an unusable download URL for %1.").arg(segmentKey));
-    if (!isSha256Hex(sha256))
-        return fail(tr("Update manifest gives a malformed SHA-256 for %1.").arg(segmentKey));
-
-    // Optional, and per segment first so a platform can point somewhere of its
-    // own (the Microsoft Store for Windows) before falling back to a shared
-    // link. Anything that is not http(s) is dropped rather than shown: this
-    // ends up in QDesktopServices::openUrl, and a manifest is remote input.
-    QString storeUrl = segment.value(QStringLiteral("storeUrl")).toString().trimmed();
-    if (storeUrl.isEmpty())
-        storeUrl = root.value(QStringLiteral("storeUrl")).toString().trimmed();
-    if (!storeUrl.isEmpty() && !isAcceptableDownloadUrl(storeUrl))
-        storeUrl.clear();
-
     if (info) {
         info->version = remoteVersion;
-        info->date = root.value(QStringLiteral("date")).toString();
-        info->notes = root.value(QStringLiteral("notes")).toString();
-        info->url = url;
-        info->sha256 = sha256;
-        info->storeUrl = storeUrl;
+        info->date = date;
+        info->notes = notes;
     }
     return ParseResult::UpdateAvailable;
 }
 
 void UpdateChecker::checkForUpdates() {
-    const QString url = m_manifestUrl.isEmpty() ? manifestUrl() : m_manifestUrl;
-    if (m_manifestUrl.isEmpty() && !manifestUrlIsConfigured()) {
-        emit checkFailed(tr("No update server is configured for this build."));
+    if (m_reply) {
+        emit checkFailed(tr("An update check is already in progress."));
         return;
     }
-    if (!isAcceptableDownloadUrl(url)) {
-        emit checkFailed(tr("The configured update manifest URL is not usable: %1").arg(url));
+    const QString urlText = m_manifestUrl.isEmpty() ? manifestUrl() : m_manifestUrl;
+    if (m_manifestUrl.isEmpty() && !isOfficialManifestUrl(urlText)) {
+        emit checkFailed(tr("The configured update manifest URL is not usable: %1").arg(urlText));
+        return;
+    }
+    const QUrl url(urlText);
+    if (!url.isValid() || url.host().isEmpty() ||
+        (m_manifestUrl.isEmpty() && url.scheme() != QLatin1String("https"))) {
+        emit checkFailed(tr("The configured update manifest URL is not usable: %1").arg(urlText));
         return;
     }
 
-    QNetworkRequest request{QUrl(url)};
+    QNetworkRequest request(url);
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
-                         QNetworkRequest::NoLessSafeRedirectPolicy);
-    // A cached manifest is a manifest that can hide a release. Ask every hop in
-    // the path for the live copy; the packages themselves stay cacheable.
+                         QNetworkRequest::SameOriginRedirectPolicy);
     request.setAttribute(QNetworkRequest::CacheLoadControlAttribute,
                          QNetworkRequest::AlwaysNetwork);
     request.setRawHeader("Cache-Control", "no-cache");
     request.setHeader(QNetworkRequest::UserAgentHeader,
                       QStringLiteral("FileCommander/%1").arg(QStringLiteral(TTC_VERSION)));
-
-    QNetworkReply *reply = m_net->get(request);
-
-    // Abort a server that connects and then goes quiet. Without this neither
-    // signal ever fires and the daily check leaks one checker per launch.
+    m_manifestBody.clear();
+    m_manifestBytes = 0;
+    m_tooLarge = false;
+    m_reply = m_net->get(request);
+    m_reply->setReadBufferSize(kMaximumManifestBytes + 1);
+    const QVariant contentLength = m_reply->header(QNetworkRequest::ContentLengthHeader);
+    if (contentLength.isValid() && contentLength.toLongLong() > kMaximumManifestBytes) {
+        m_tooLarge = true;
+        m_reply->abort();
+    }
+    connect(m_reply, &QNetworkReply::readyRead, this, [this] {
+        if (!m_reply)
+            return;
+        const QByteArray chunk = m_reply->readAll();
+        m_manifestBytes += chunk.size();
+        if (m_manifestBytes > kMaximumManifestBytes) {
+            m_tooLarge = true;
+            m_reply->abort();
+            return;
+        }
+        m_manifestBody.append(chunk);
+    });
     m_timeout = new QTimer(this);
     m_timeout->setSingleShot(true);
-    connect(m_timeout, &QTimer::timeout, reply, [reply] {
+    connect(m_timeout, &QTimer::timeout, m_reply, [reply = m_reply] {
         if (reply->isRunning())
-            reply->abort(); // surfaces as OperationCanceledError below
+            reply->abort();
     });
     m_timeout->start(m_timeoutMs);
-
-    connect(reply, &QNetworkReply::finished, this,
-            [this, reply]() { onManifestFinished(reply); });
+    connect(m_reply, &QNetworkReply::finished, this, [this, reply = m_reply] { onManifestFinished(reply); });
 }
 
 void UpdateChecker::onManifestFinished(QNetworkReply *reply) {
-    reply->deleteLater();
+    if (reply != m_reply)
+        return;
+    const QByteArray tail = reply->readAll();
+    m_manifestBytes += tail.size();
+    if (m_manifestBytes <= kMaximumManifestBytes)
+        m_manifestBody.append(tail);
+    else
+        m_tooLarge = true;
     const bool timedOut = m_timeout && !m_timeout->isActive();
     if (m_timeout) {
         m_timeout->stop();
         m_timeout->deleteLater();
         m_timeout = nullptr;
     }
-
+    m_reply = nullptr;
+    reply->deleteLater();
+    if (m_tooLarge) {
+        emit checkFailed(tr("The update manifest is too large."));
+        return;
+    }
     if (reply->error() != QNetworkReply::NoError) {
         if (timedOut && reply->error() == QNetworkReply::OperationCanceledError)
             emit checkFailed(tr("The update server did not respond in time."));
@@ -249,19 +203,11 @@ void UpdateChecker::onManifestFinished(QNetworkReply *reply) {
             emit checkFailed(reply->errorString());
         return;
     }
-
     UpdateInfo info;
     QString error;
-    switch (parseManifest(reply->readAll(), QStringLiteral(TTC_VERSION), packageSegmentKey(),
-                          &info, &error)) {
-    case ParseResult::UpdateAvailable:
-        emit updateAvailable(info);
-        return;
-    case ParseResult::UpToDate:
-        emit noUpdate();
-        return;
-    case ParseResult::Invalid:
-        emit checkFailed(error);
-        return;
+    switch (parseManifest(m_manifestBody, QStringLiteral(TTC_VERSION), QString(), &info, &error)) {
+    case ParseResult::UpdateAvailable: emit updateAvailable(info); return;
+    case ParseResult::UpToDate: emit noUpdate(); return;
+    case ParseResult::Invalid: emit checkFailed(error); return;
     }
 }

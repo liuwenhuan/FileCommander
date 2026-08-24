@@ -53,14 +53,10 @@ if(FILECOMMANDER_ENABLE_NETWORK)
 endif()
 find_package(LibArchive)
 
-# Where the online updater fetches its release manifest. Override per build with
-#   cmake -B build -DFILECOMMANDER_UPDATE_MANIFEST_URL=https://your.host/FileCommander/version.json
-# The default host does not resolve, so a build nobody configured cannot be
-# pointed at somebody else's server by accident. At runtime the environment
-# variable FILECOMMANDER_UPDATE_MANIFEST_URL overrides this (for testing against
-# a local server -- see tools/mock-update-server.py).
-set(FILECOMMANDER_UPDATE_MANIFEST_URL "https://updates.invalid/FileCommander/version.json"
-    CACHE STRING "URL of the online-update manifest (version.json)")
+# Official announcement-only update manifest. Tests inject a local URL through
+# UpdateChecker::setManifestUrl(); release builds always use this HTTPS endpoint.
+set(FILECOMMANDER_UPDATE_MANIFEST_URL "https://fc.aigutta.com/version.json"
+    CACHE STRING "URL of the online-update manifest (version.json)" FORCE)
 
 # Where sign-in and device-to-device transfer talk to (see server/README.md).
 # Official mode uses the environment override when present, then this compiled
