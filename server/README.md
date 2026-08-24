@@ -51,6 +51,7 @@ client displays that field verbatim. Authenticated calls send
 | `POST /v1/session` | `{session_id, ticket, expires_in, peer_lan_addrs, peer_port, peer_pin}` |
 | `WS /v1/relay/{session_id}` | byte pipe between two devices with no direct route |
 | `POST /v1/clipboard/send` | queues one explicit Clipboard payload for every other registered device on the account; see below |
+| `POST /v1/clipboard/send-targeted?target=<device_id>` | queues one explicit Clipboard payload for exactly one account-owned non-self device; see below |
 | `GET /v1/clipboard/deliveries` | this device's pending Clipboard deliveries |
 | `GET /v1/clipboard/deliveries/{delivery_id}/content` | the pending delivery's original bytes |
 | `POST /v1/clipboard/deliveries/{delivery_id}/ack` | acknowledges this device's delivery (`204`) |
@@ -105,11 +106,15 @@ is TLS end-to-end, so the relay carries ciphertext it cannot read.
 
 This is separate from the peer file-transfer flow above: it does not create a
 `/v1/session` or use the relay. The normal Clipboard history flow also remains
-separate. Explicit delivery uploads a payload to the account server so every
-other registered device can receive it, including devices that are offline when
-it is sent.
+separate. `POST /v1/clipboard/send` uploads a payload to the account server so
+every other registered device can receive it, including devices that are offline
+when it is sent. `POST /v1/clipboard/send-targeted?target=<device_id>` instead
+queues the same payload for exactly one non-self device owned by the account;
+it also accepts offline targets. Targeted sends never fall back to broadcast, so
+a client using that route against an older server fails safely rather than
+sending to unintended devices.
 
-`POST /v1/clipboard/send` takes the original bytes, not JSON. Use
+Both delivery routes take the original bytes, not JSON. Use
 `Content-Type: text/plain; charset=utf-8` for UTF-8 text, or a valid
 `image/*` media type for an image. Image requests also require
 `X-Clipboard-Width`, `X-Clipboard-Height`, and the lowercase-or-uppercase

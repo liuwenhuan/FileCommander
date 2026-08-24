@@ -1465,6 +1465,99 @@ async fn clipboard_delivery_send_queues_text_for_other_account_devices() {
 }
 
 #[tokio::test]
+async fn clipboard_delivery_targeted_send_queues_only_the_selected_device() {
+    let state = state();
+    register(&state, "owner@example.com", "correct horse").await;
+    register(&state, "other@example.com", "correct horse").await;
+    let source = login(&state, "owner@example.com", "desktop", "").await;
+    let target = login(&state, "owner@example.com", "laptop", "").await;
+    let sibling = login(&state, "owner@example.com", "tablet", "").await;
+    let other = login(&state, "other@example.com", "other", "").await;
+    let path = format!(
+        "/v1/clipboard/send-targeted?target={}",
+        target["device_id"].as_str().unwrap()
+    );
+
+    let queued = send_text(
+        &state,
+        &path,
+        source["access_token"].as_str().unwrap(),
+        "only laptop receives this",
+    )
+    .await;
+    assert_eq!(queued.status(), StatusCode::OK);
+    assert_eq!(json_of(queued).await["recipient_count"], 1);
+
+    let target_deliveries = json_of(
+        send(
+            &state,
+            "GET",
+            "/v1/clipboard/deliveries",
+            target["access_token"].as_str().unwrap(),
+            Value::Null,
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(target_deliveries["deliveries"].as_array().unwrap().len(), 1);
+    for session in [&source, &sibling, &other] {
+        let deliveries = json_of(
+            send(
+                &state,
+                "GET",
+                "/v1/clipboard/deliveries",
+                session["access_token"].as_str().unwrap(),
+                Value::Null,
+            )
+            .await,
+        )
+        .await;
+        assert!(deliveries["deliveries"].as_array().unwrap().is_empty());
+    }
+}
+
+#[tokio::test]
+async fn clipboard_delivery_targeted_send_rejects_invalid_or_unowned_targets() {
+    let state = state();
+    register(&state, "owner@example.com", "correct horse").await;
+    register(&state, "other@example.com", "correct horse").await;
+    let source = login(&state, "owner@example.com", "desktop", "").await;
+    let target = login(&state, "owner@example.com", "laptop", "").await;
+    let other = login(&state, "other@example.com", "other", "").await;
+    let token = source["access_token"].as_str().unwrap();
+    let self_id = source["device_id"].as_str().unwrap();
+    let other_id = other["device_id"].as_str().unwrap();
+    let target_id = target["device_id"].as_str().unwrap();
+
+    let invalid = vec![
+        "/v1/clipboard/send-targeted".to_string(),
+        "/v1/clipboard/send-targeted?target=".to_string(),
+        "/v1/clipboard/send-targeted?target=not-a-device".to_string(),
+        format!("/v1/clipboard/send-targeted?target={self_id}"),
+        format!("/v1/clipboard/send-targeted?target={target_id}&target={target_id}"),
+    ];
+    for path in invalid {
+        assert_eq!(
+            send_text(&state, &path, token, "must not queue")
+                .await
+                .status(),
+            StatusCode::BAD_REQUEST
+        );
+    }
+    for path in [
+        format!("/v1/clipboard/send-targeted?target={other_id}"),
+        "/v1/clipboard/send-targeted?target=00000000000000000000000000000000".to_string(),
+    ] {
+        assert_eq!(
+            send_text(&state, &path, token, "must not queue")
+                .await
+                .status(),
+            StatusCode::NOT_FOUND
+        );
+    }
+}
+
+#[tokio::test]
 async fn clipboard_delivery_ack_is_device_owned_and_idempotent() {
     let state = state();
     register(&state, "owner@example.com", "correct horse").await;

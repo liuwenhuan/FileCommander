@@ -639,10 +639,43 @@ pub async fn send_delivery(
     State(state): State<AppState>,
     request: Request,
 ) -> Result<Json<SendDeliveryResponse>, ApiError> {
+    send_delivery_to(state, request, None).await
+}
+
+pub async fn send_targeted_delivery(
+    State(state): State<AppState>,
+    request: Request,
+) -> Result<Json<SendDeliveryResponse>, ApiError> {
+    let query = request.uri().query().unwrap_or_default().to_string();
+    let mut parts = query.split('&');
+    let target = parts
+        .next()
+        .and_then(|part| part.strip_prefix("target="))
+        .filter(|target| !target.is_empty())
+        .filter(|target| canonical_device_id(target));
+    let target = target.map(str::to_owned);
+    if parts.next().is_some() || target.is_none() {
+        return Err(fail(StatusCode::BAD_REQUEST, "clipboard target is invalid"));
+    }
+    send_delivery_to(state, request, target).await
+}
+
+fn canonical_device_id(value: &str) -> bool {
+    value.len() == 32 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+async fn send_delivery_to(
+    state: AppState,
+    request: Request,
+    target: Option<String>,
+) -> Result<Json<SendDeliveryResponse>, ApiError> {
     let (parts, body) = request.into_parts();
     let principal = authenticate(&state, &parts.headers).await?;
     let user_id = principal.user_id;
     let source_device_id = principal.device_id;
+    if target.as_deref() == Some(source_device_id.as_str()) {
+        return Err(fail(StatusCode::BAD_REQUEST, "clipboard target is invalid"));
+    }
     let stamp = iso(now());
     state
         .db
@@ -768,7 +801,22 @@ pub async fn send_delivery(
                     "could not save clipboard delivery",
                 )
             })?;
-            let recipients: Vec<String> = {
+            let recipients: Vec<String> = if let Some(target_device_id) = target {
+                let owned: Option<String> = transaction
+                    .query_row(
+                        "SELECT id FROM devices WHERE id = ?1 AND user_id = ?2",
+                        params![target_device_id, user_id],
+                        |row| row.get(0),
+                    )
+                    .optional()
+                    .map_err(|_| {
+                        fail(
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            "could not save clipboard delivery",
+                        )
+                    })?;
+                vec![owned.ok_or_else(|| fail(StatusCode::NOT_FOUND, "no such device"))?]
+            } else {
                 let mut statement = transaction
                     .prepare("SELECT id FROM devices WHERE user_id = ?1 AND id != ?2")
                     .map_err(|_| {

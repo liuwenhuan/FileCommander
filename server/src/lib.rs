@@ -121,6 +121,10 @@ pub fn router(state: AppState) -> Router {
 
     let clipboard_delivery = Router::new()
         .route("/v1/clipboard/send", post(clipboard::send_delivery))
+        .route(
+            "/v1/clipboard/send-targeted",
+            post(clipboard::send_targeted_delivery),
+        )
         .route("/v1/clipboard/deliveries", get(clipboard::deliveries))
         .route(
             "/v1/clipboard/deliveries/{delivery_id}/content",
