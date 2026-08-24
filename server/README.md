@@ -61,6 +61,19 @@ both — a replayed refresh token is rejected. `login` re-claims a `device_id`
 the account already owns and otherwise issues a new one, so signing in twice
 on one machine does not create a second device row.
 
+### Account email format
+
+Registration and login accept syntax-only, ASCII email addresses. The server
+trims surrounding whitespace and stores the address in lowercase. An address
+must contain exactly one `@`; its local part is 1–64 characters and its domain
+has at least two DNS-style labels. Dots cannot begin, end, or repeat in the
+local part; domain labels are 1–63 ASCII alphanumeric/hyphen characters that
+begin and end with an alphanumeric character. Unicode/EAI addresses, IP
+literals, display names, comments, and whitespace inside the address are not
+accepted. Already-ASCII punycode and reserved syntactic domains such as
+`example.invalid` are accepted. This is format validation only: the server
+does not query MX, DNS, public suffix, or mailbox existence.
+
 ### Presence: `WS /v1/agent`
 
 Authenticated by the `Authorization` header. The connection is checked before

@@ -184,6 +184,120 @@ async fn register_rejects_bad_input_and_duplicates() {
 }
 
 #[tokio::test]
+async fn registration_canonicalizes_and_strictly_validates_email() {
+    let auth_state = state();
+    let canonical = register(
+        &auth_state,
+        " User.Name+tag@EXAMPLE.invalid ",
+        "correct horse",
+    )
+    .await;
+    assert_eq!(canonical.status(), StatusCode::CREATED);
+    assert_eq!(
+        json_of(canonical).await["email"],
+        "user.name+tag@example.invalid"
+    );
+    assert_eq!(
+        register(
+            &auth_state,
+            "user.name+tag@example.invalid",
+            "correct horse"
+        )
+        .await
+        .status(),
+        StatusCode::CONFLICT
+    );
+
+    let local_64 = format!("{}@example.invalid", "a".repeat(64));
+    assert_eq!(
+        register(&auth_state, &local_64, "correct horse")
+            .await
+            .status(),
+        StatusCode::CREATED
+    );
+    let label_63 = format!("user@{}.invalid", "a".repeat(63));
+    assert_eq!(
+        register(&auth_state, &label_63, "correct horse")
+            .await
+            .status(),
+        StatusCode::CREATED
+    );
+
+    for email in [
+        "user",
+        "user@localhost",
+        "a@@example.com",
+        "@example.com",
+        "user@",
+        ".user@example.com",
+        "user..name@example.com",
+        "user@example..com",
+        "user@-example.com",
+        "user@example-.com",
+        "user@exa_mple.com",
+        "user name@example.com",
+        "üser@example.com",
+        "user@bücher.example",
+        "uK@example.com",
+        "\u{0085}user@example.com\u{0085}",
+    ] {
+        let invalid_state = state();
+        let response = register(&invalid_state, email, "correct horse").await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{email}");
+        assert_eq!(
+            json_of(response).await["detail"],
+            "invalid email address",
+            "{email}"
+        );
+    }
+
+    let local_65 = format!("{}@example.invalid", "a".repeat(65));
+    let label_64 = format!("user@{}.invalid", "a".repeat(64));
+    for email in [local_65, label_64, format!("{}@x.y", "a".repeat(251))] {
+        let invalid_state = state();
+        assert_eq!(
+            register(&invalid_state, &email, "correct horse")
+                .await
+                .status(),
+            StatusCode::BAD_REQUEST
+        );
+    }
+}
+
+#[tokio::test]
+async fn login_uses_the_same_email_contract() {
+    let auth_state = state();
+    assert_eq!(
+        register(&auth_state, "user@example.invalid", "correct horse")
+            .await
+            .status(),
+        StatusCode::CREATED
+    );
+
+    let canonicalized = send(
+        &auth_state,
+        "POST",
+        "/v1/auth/login",
+        "",
+        json!({"email": " User@EXAMPLE.invalid ", "password": "correct horse", "device_name": "test", "platform": "linux", "device_id": ""}),
+    )
+    .await;
+    assert_eq!(canonicalized.status(), StatusCode::OK);
+
+    let invalid_state = state();
+    let malformed = send(
+        &invalid_state,
+        "POST",
+        "/v1/auth/login",
+        "",
+        json!({"email": "a@@example.com", "password": "correct horse", "device_name": "test", "platform": "linux", "device_id": ""}),
+    )
+    .await;
+    assert_eq!(malformed.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(json_of(malformed).await["detail"], "invalid email address");
+}
+
+#[tokio::test]
 async fn login_hides_whether_the_account_exists() {
     let state = state();
     register(&state, "user@example.com", "correct horse").await;

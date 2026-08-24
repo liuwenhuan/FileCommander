@@ -165,12 +165,69 @@ pub struct RegisterRequest {
 }
 
 fn clean_email(raw: &str) -> Result<String, ApiError> {
-    let email = raw.trim().to_lowercase();
-    // Leading/trailing '@' does not make an address: require one in the middle.
-    if email.len() < 3 || email.len() > 254 || !email.trim_matches('@').contains('@') {
-        return Err(fail(StatusCode::BAD_REQUEST, "invalid email address"));
+    let email = raw.trim_matches(|character: char| character.is_ascii_whitespace());
+    let invalid = || fail(StatusCode::BAD_REQUEST, "invalid email address");
+    if email.is_empty() || email.len() > 254 || !email.is_ascii() {
+        return Err(invalid());
     }
-    Ok(email)
+
+    let (local, domain) = email.split_once('@').ok_or_else(invalid)?;
+    if domain.contains('@') || local.is_empty() || local.len() > 64 || domain.is_empty() {
+        return Err(invalid());
+    }
+    if local.starts_with('.') || local.ends_with('.') || local.contains("..") {
+        return Err(invalid());
+    }
+    if !local.bytes().all(|byte| {
+        byte.is_ascii_alphanumeric()
+            || matches!(
+                byte,
+                b'!' | b'#'
+                    | b'$'
+                    | b'%'
+                    | b'&'
+                    | b'\''
+                    | b'*'
+                    | b'+'
+                    | b'/'
+                    | b'='
+                    | b'?'
+                    | b'^'
+                    | b'_'
+                    | b'`'
+                    | b'{'
+                    | b'|'
+                    | b'}'
+                    | b'~'
+                    | b'.'
+                    | b'-'
+            )
+    }) {
+        return Err(invalid());
+    }
+
+    let labels: Vec<&str> = domain.split('.').collect();
+    if labels.len() < 2
+        || labels.iter().any(|label| {
+            label.is_empty()
+                || label.len() > 63
+                || !label
+                    .as_bytes()
+                    .first()
+                    .is_some_and(u8::is_ascii_alphanumeric)
+                || !label
+                    .as_bytes()
+                    .last()
+                    .is_some_and(u8::is_ascii_alphanumeric)
+                || !label
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+        })
+    {
+        return Err(invalid());
+    }
+
+    Ok(email.to_ascii_lowercase())
 }
 
 fn check_password(password: &str) -> Result<(), ApiError> {
@@ -292,7 +349,7 @@ pub async fn login(
     Json(body): Json<LoginRequest>,
 ) -> Result<Json<TokenPair>, ApiError> {
     check_protocol(&headers)?;
-    let email = body.email.trim().to_lowercase();
+    let email = clean_email(&body.email)?;
     let log_email = email.clone();
     let password = body.password;
     let name = if body.device_name.trim().is_empty() {
