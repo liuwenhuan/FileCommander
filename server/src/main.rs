@@ -4,14 +4,32 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
+use axum::{extract::OriginalUri, response::Redirect, Router};
 use filecommander_account::{
     clipboard::purge_expired_delivery_payloads,
     db::{iso, now, Db},
-    router, AppState,
+    router,
+    updates::UpdateRoot,
+    AppState,
 };
 
 fn env_or(name: &str, fallback: &str) -> String {
     std::env::var(name).unwrap_or_else(|_| fallback.to_string())
+}
+
+fn enabled(name: &str) -> bool {
+    matches!(
+        std::env::var(name).as_deref(),
+        Ok("1") | Ok("true") | Ok("yes")
+    )
+}
+
+async fn redirect_to_https(OriginalUri(uri): OriginalUri, host: String) -> Redirect {
+    let path = uri
+        .path_and_query()
+        .map(|value| value.as_str())
+        .unwrap_or("/");
+    Redirect::permanent(&format!("https://{host}{path}"))
 }
 
 #[tokio::main]
@@ -22,6 +40,19 @@ async fn main() {
     let db_path = env_or("FILECOMMANDER_ACCOUNT_DB", "accounts.db");
     let cert = std::env::var("FILECOMMANDER_ACCOUNT_TLS_CERT").ok();
     let key = std::env::var("FILECOMMANDER_ACCOUNT_TLS_KEY").ok();
+    let update_root = std::env::var("FILECOMMANDER_UPDATE_ROOT")
+        .ok()
+        .map(UpdateRoot::open)
+        .transpose()
+        .expect("FILECOMMANDER_UPDATE_ROOT must name a readable directory");
+    let public_http_bind = std::env::var("FILECOMMANDER_PUBLIC_HTTP_BIND").ok();
+    let public_host = env_or("FILECOMMANDER_PUBLIC_HOST", "fc.aigutta.com");
+    if enabled("FILECOMMANDER_REQUIRE_TLS") && (cert.is_none() || key.is_none()) {
+        panic!("FILECOMMANDER_REQUIRE_TLS requires both TLS certificate and key");
+    }
+    if public_http_bind.is_some() && (cert.is_none() || key.is_none()) {
+        panic!("FILECOMMANDER_PUBLIC_HTTP_BIND requires TLS");
+    }
 
     let db = Db::open(&db_path).expect("could not open the account database");
     let startup_cleanup = iso(now());
@@ -41,9 +72,26 @@ async fn main() {
             }
         }
     });
-    // ConnectInfo is what the rate limiter keys on; without this the whole
-    // server shares one bucket.
-    let app = router(AppState::new(db)).into_make_service_with_connect_info::<SocketAddr>();
+    let app_state = if let Some(root) = update_root {
+        AppState::new(db).with_update_root(root)
+    } else {
+        AppState::new(db)
+    };
+    let app = router(app_state).into_make_service_with_connect_info::<SocketAddr>();
+
+    if let Some(http_bind) = public_http_bind {
+        let http_addr: SocketAddr = http_bind
+            .parse()
+            .expect("FILECOMMANDER_PUBLIC_HTTP_BIND must be host:port");
+        let redirect = Router::new()
+            .fallback(move |uri: OriginalUri| redirect_to_https(uri, public_host.clone()));
+        tokio::spawn(async move {
+            axum_server::bind(http_addr)
+                .serve(redirect.into_make_service())
+                .await
+                .expect("HTTP redirect listener failed");
+        });
+    }
 
     match (cert, key) {
         (Some(cert), Some(key)) => {

@@ -143,6 +143,7 @@
 
 // Feature batch: external-connection picker, quick notepad, online update.
 #include "CloudClipboardController.h"
+#include "version.h"
 #include "NotepadPanel.h"
 #include "dialogs/AboutDialog.h"
 #if FILECOMMANDER_HAS_LINUX_INTEGRATION || (defined(Q_OS_WIN) && FILECOMMANDER_HAS_NETWORK)
@@ -933,6 +934,9 @@ void MainWindow::buildTitleBarMenus() {
     addCommandAction(configMenu, QStringLiteral("keyboardShortcuts"), tr("Keyboard Shortcuts"));
     addCommandAction(configMenu, QStringLiteral("connectionManager"),
                      tr("Manage Network Connections"));
+    QAction *checkUpdates = configMenu->addAction(tr("Check for Updates"));
+    checkUpdates->setObjectName(QStringLiteral("configCheckForUpdatesAction"));
+    connect(checkUpdates, &QAction::triggered, this, &MainWindow::checkForUpdatesNow);
     configMenu->addSeparator();
     // Checked means "browse into it", which is what the label says. It used to
     // be inverted -- the entry read "Directly Open Archives" while ticking it
@@ -960,13 +964,6 @@ void MainWindow::buildTitleBarMenus() {
            "Shift+Delete and remote deletes always require confirmation."));
     connect(noConfirm, &QAction::toggled, this,
             [this](bool on) { m_settings.setConfirmDelete(!on); });
-    QAction *autoUpdate = configMenu->addAction(
-        commandText(QStringLiteral("toggleAutoUpdate"), tr("Automatic Update Check")));
-    autoUpdate->setObjectName(QStringLiteral("configAutoUpdateAction"));
-    autoUpdate->setCheckable(true);
-    autoUpdate->setChecked(m_settings.autoUpdateCheck());
-    connect(autoUpdate, &QAction::toggled, this,
-            [this](bool on) { m_settings.setAutoUpdateCheck(on); });
     QAction *systemVolumes = configMenu->addAction(
         commandText(QStringLiteral("toggleSystemVolumes"), tr("Show System Partitions")));
     systemVolumes->setObjectName(QStringLiteral("configSystemVolumesAction"));
@@ -1248,11 +1245,21 @@ void MainWindow::buildTitleBarMenus() {
 
     // Embed the menus in our self-drawn title bar (app icon + menu buttons +
     // window buttons), placed where the menu bar would normally sit.
-    m_titleBar = new TitleBar(this, {interfaceMenu, configMenu, actionsMenu});
+    m_titleBar = new TitleBar(this, {interfaceMenu, actionsMenu, configMenu});
     m_titleBar->setCursor(Qt::ArrowCursor); // don't inherit the window resize cursor
     setMenuWidget(m_titleBar);
     // Clicking the title-bar "New Version" badge opens the pending-update dialog.
     connect(m_titleBar, &TitleBar::updateRequested, this, &MainWindow::showUpdateDialog);
+    const QString pendingVersion = m_settings.updatePendingVersion();
+    if (UpdateChecker::isNewer(pendingVersion, QStringLiteral(TTC_VERSION))) {
+        m_pendingUpdate.version = pendingVersion;
+        m_pendingUpdate.date = m_settings.updatePendingDate();
+        m_pendingUpdate.notes = m_settings.updatePendingNotes();
+        m_hasUpdate = true;
+        m_titleBar->setUpdateAvailable(true);
+    } else {
+        m_settings.clearPendingUpdate();
+    }
     // Account entry, left of the window buttons.
     connect(m_titleBar, &TitleBar::accountRequested, this, &MainWindow::showAccountDialog);
     connect(m_titleBar, &TitleBar::signOutRequested, this, [this] {
@@ -1295,7 +1302,6 @@ void MainWindow::syncConfigMenuState() {
     };
     syncChecked(QStringLiteral("configDirectArchivesAction"), m_settings.archiveAsFolder());
     syncChecked(QStringLiteral("configDeleteConfirmationAction"), !m_settings.confirmDelete());
-    syncChecked(QStringLiteral("configAutoUpdateAction"), m_settings.autoUpdateCheck());
     syncChecked(QStringLiteral("configSystemVolumesAction"), m_settings.showSystemVolumes());
 }
 
@@ -2535,13 +2541,13 @@ void MainWindow::showAboutDialog() {
 }
 
 bool MainWindow::updateCheckIsDue() const {
-    return m_settings.autoUpdateCheck()
-           && m_settings.updateLastCheckDate() != QDate::currentDate().toString(Qt::ISODate);
+    return m_settings.updateLastCheckDate() != QDate::currentDate().toString(Qt::ISODate);
 }
 
 void MainWindow::maybeRunScheduledUpdateCheck() {
-    if (!updateCheckIsDue())
+    if (!updateCheckIsDue() || m_updateCheckInFlight)
         return;
+    m_updateCheckInFlight = true;
     // Quiet on purpose: a release found this way only lights the title-bar
     // badge. Interrupting somebody mid-task with a modal dialog they did not
     // ask for is what makes people turn auto-update off.
@@ -2550,32 +2556,47 @@ void MainWindow::maybeRunScheduledUpdateCheck() {
     auto stamp = [this, today] { m_settings.setUpdateLastCheckDate(today); };
     connect(checker, &UpdateChecker::updateAvailable, this,
             [this, checker, stamp](const UpdateInfo &info) {
+                m_updateCheckInFlight = false;
                 m_pendingUpdate = info;
                 m_hasUpdate = true;
+                m_settings.setPendingUpdate(info.version, info.date, info.notes);
                 if (m_titleBar)
                     m_titleBar->setUpdateAvailable(true);
                 stamp();
                 checker->deleteLater();
             });
-    connect(checker, &UpdateChecker::noUpdate, this, [checker, stamp] {
+    connect(checker, &UpdateChecker::noUpdate, this, [this, checker, stamp] {
+        m_updateCheckInFlight = false;
         stamp();
+        m_settings.clearPendingUpdate();
+        m_hasUpdate = false;
+        if (m_titleBar)
+            m_titleBar->setUpdateAvailable(false);
         checker->deleteLater();
     });
     // Deliberately NOT stamped: a check that failed did not happen, and a
     // machine that was offline this morning should try again this afternoon
     // rather than write the day off.
     connect(checker, &UpdateChecker::checkFailed, this,
-            [checker](const QString &) { checker->deleteLater(); });
+            [this, checker](const QString &) {
+                m_updateCheckInFlight = false;
+                checker->deleteLater();
+            });
     checker->checkForUpdates();
 }
 
 void MainWindow::checkForUpdatesNow() {
+    if (m_updateCheckInFlight)
+        return;
+    m_updateCheckInFlight = true;
     // A manual check: report the outcome directly (unlike the silent daily
     // check, which only lights the title-bar badge).
     auto *checker = new UpdateChecker(this);
     connect(checker, &UpdateChecker::updateAvailable, this, [this, checker](const UpdateInfo &info) {
+        m_updateCheckInFlight = false;
         m_pendingUpdate = info;
         m_hasUpdate = true;
+        m_settings.setPendingUpdate(info.version, info.date, info.notes);
         if (m_titleBar)
             m_titleBar->setUpdateAvailable(true);
         m_settings.setUpdateLastCheckDate(QDate::currentDate().toString(Qt::ISODate));
@@ -2583,12 +2604,18 @@ void MainWindow::checkForUpdatesNow() {
         showUpdateDialog();
     });
     connect(checker, &UpdateChecker::noUpdate, this, [this, checker] {
+        m_updateCheckInFlight = false;
         m_settings.setUpdateLastCheckDate(QDate::currentDate().toString(Qt::ISODate));
+        m_settings.clearPendingUpdate();
+        m_hasUpdate = false;
+        if (m_titleBar)
+            m_titleBar->setUpdateAvailable(false);
         checker->deleteLater();
         ttc::information(this, tr("Check for Updates"),
                          tr("You are running the latest version."));
     });
     connect(checker, &UpdateChecker::checkFailed, this, [this, checker](const QString &err) {
+        m_updateCheckInFlight = false;
         checker->deleteLater();
         ttc::warning(this, tr("Check for Updates"),
                      tr("Could not check for updates.\n\n%1").arg(err));
@@ -2607,9 +2634,9 @@ void MainWindow::showUpdateDialog() {
     dlg.exec();
 #else
     ttc::information(this, tr("Update Available"),
-                     tr("Version %1 is available.\n\n%2\n\nDownload: %3")
+                     tr("Version %1 is available.\n\n%2\n\nUpdate page: %3")
                          .arg(m_pendingUpdate.version, m_pendingUpdate.notes,
-                              m_pendingUpdate.url));
+                              UpdateChecker::updatePageUrl()));
 #endif
 }
 
@@ -2758,10 +2785,6 @@ void MainWindow::setupShortcuts() {
     bindShortcut("toggleDeleteConfirmation", tr("Skip Trash Delete Confirmation"),
                  QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_D), [this] {
                      m_settings.setConfirmDelete(!m_settings.confirmDelete());
-                 });
-    bindShortcut("toggleAutoUpdate", tr("Automatic Update Check"),
-                 QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_U), [this] {
-                     m_settings.setAutoUpdateCheck(!m_settings.autoUpdateCheck());
                  });
     bindShortcut("toggleSystemVolumes", tr("Show System Partitions"),
                  QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_P), [this] {

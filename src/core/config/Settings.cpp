@@ -121,6 +121,10 @@ Settings::Settings(const QString &iniFilePath)
     m_settings.remove(QStringLiteral("account/cloudClipboardAutoReceive"));
     m_settings.remove(QStringLiteral("account/cloudClipboardPrivacyAcknowledged"));
     m_settings.remove(QStringLiteral("view/cloudClipboardEditorHeight"));
+    // Update discovery is always scheduled; prior opt-out and shortcut values
+    // are retired so no invisible setting can suppress future checks.
+    m_settings.remove(QStringLiteral("update/autoCheck"));
+    m_settings.remove(QStringLiteral("shortcuts/toggleAutoUpdate"));
 
     // First run: seed the favorites with the user's home directory. Guarded by
     // a one-shot flag so clearing all favorites later doesn't re-add it.
@@ -540,12 +544,28 @@ void Settings::setUpdateLastCheckDate(const QString &date) {
     m_settings.setValue("update/lastCheckDate", date);
 }
 
-bool Settings::autoUpdateCheck() const {
-    return m_settings.value("update/autoCheck", true).toBool();
+QString Settings::updatePendingVersion() const {
+    return m_settings.value("update/pendingVersion").toString();
 }
 
-void Settings::setAutoUpdateCheck(bool on) {
-    m_settings.setValue("update/autoCheck", on);
+QString Settings::updatePendingDate() const {
+    return m_settings.value("update/pendingDate").toString();
+}
+
+QString Settings::updatePendingNotes() const {
+    return m_settings.value("update/pendingNotes").toString();
+}
+
+void Settings::setPendingUpdate(const QString &version, const QString &date, const QString &notes) {
+    m_settings.setValue("update/pendingVersion", version);
+    m_settings.setValue("update/pendingDate", date);
+    m_settings.setValue("update/pendingNotes", notes);
+}
+
+void Settings::clearPendingUpdate() {
+    m_settings.remove("update/pendingVersion");
+    m_settings.remove("update/pendingDate");
+    m_settings.remove("update/pendingNotes");
 }
 
 QString Settings::accountEmail() const {

@@ -679,4 +679,5 @@ private:
     QHash<QString, RelayTunnel *> m_incomingTunnels;
     UpdateInfo m_pendingUpdate;                        // valid when m_hasUpdate
     bool m_hasUpdate = false;                          // an update is available
+    bool m_updateCheckInFlight = false;
 };

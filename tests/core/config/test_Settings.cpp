@@ -187,6 +187,29 @@ TEST(SettingsTest, ExplicitIniPathPersistsWithoutChangingGlobalConfigLocation) {
     EXPECT_EQ(reloaded.notepadEditorHeight(), 180);
 }
 
+TEST(SettingsTest, PendingUpdateMetadataRoundTripsAndClears) {
+    QTemporaryDir temporaryDir;
+    ASSERT_TRUE(temporaryDir.isValid());
+    const QString settingsPath = temporaryDir.filePath(QStringLiteral("update.ini"));
+
+    {
+        Settings settings(settingsPath);
+        settings.setPendingUpdate(QStringLiteral("1.2.3"), QStringLiteral("2026-08-24"),
+                                  QStringLiteral("release notes"));
+    }
+    {
+        Settings reloaded(settingsPath);
+        EXPECT_EQ(reloaded.updatePendingVersion(), QStringLiteral("1.2.3"));
+        EXPECT_EQ(reloaded.updatePendingDate(), QStringLiteral("2026-08-24"));
+        EXPECT_EQ(reloaded.updatePendingNotes(), QStringLiteral("release notes"));
+        reloaded.clearPendingUpdate();
+    }
+    Settings cleared(settingsPath);
+    EXPECT_TRUE(cleared.updatePendingVersion().isEmpty());
+    EXPECT_TRUE(cleared.updatePendingDate().isEmpty());
+    EXPECT_TRUE(cleared.updatePendingNotes().isEmpty());
+}
+
 TEST(SettingsTest, RetiresCloudClipboardAutomaticMirroringKeysOnLoad) {
     QTemporaryDir temporaryDir;
     ASSERT_TRUE(temporaryDir.isValid());
@@ -388,17 +411,14 @@ TEST(SettingsTest, GlobalFontFamilyDefaultsToSystemAndRoundTrips) {
     EXPECT_TRUE(settings.globalFontFamily().isEmpty());
     EXPECT_TRUE(settings.showTabBar());
     EXPECT_TRUE(settings.showShortcutLabels());
-    EXPECT_TRUE(settings.autoUpdateCheck());
 
     settings.setGlobalFontFamily(QStringLiteral("Noto Sans CJK SC"));
     settings.setShowTabBar(false);
     settings.setShowShortcutLabels(false);
-    settings.setAutoUpdateCheck(false);
 
     EXPECT_EQ(settings.globalFontFamily(), QStringLiteral("Noto Sans CJK SC"));
     EXPECT_FALSE(settings.showTabBar());
     EXPECT_FALSE(settings.showShortcutLabels());
-    EXPECT_FALSE(settings.autoUpdateCheck());
 }
 
 TEST(SettingsTest, WindowGeometryRoundTrips) {

@@ -3,19 +3,63 @@
 //! Most drive the router directly through `oneshot`, which needs no listener.
 //! The agent/session pair needs a real socket, so those tests bind one.
 
+use std::fs;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use axum::response::Response;
-use filecommander_account::{db::Db, router, AppState};
+use filecommander_account::{db::Db, router, updates::UpdateRoot, AppState};
 use http_body_util::BodyExt;
 use serde_json::{json, Value};
 use tower::ServiceExt;
 
 fn state() -> AppState {
     AppState::new(Db::memory().expect("in-memory database"))
+}
+
+struct UpdateFixture {
+    path: PathBuf,
+}
+
+impl UpdateFixture {
+    fn new() -> Self {
+        let path = std::env::temp_dir().join(format!(
+            "filecommander-update-test-{}",
+            rand::random::<u64>()
+        ));
+        fs::create_dir_all(path.join("releases/v1.2.3")).unwrap();
+        fs::write(
+            path.join("version.json"),
+            br#"{"schema":2,"version":"1.2.3","date":"2026-08-24","notes":"Test"}"#,
+        )
+        .unwrap();
+        fs::write(path.join("update.html"), "<h1>Test</h1>").unwrap();
+        fs::write(
+            path.join("releases/v1.2.3/FileCommander-1.2.3-x86_64.AppImage"),
+            b"abcdef",
+        )
+        .unwrap();
+        fs::write(path.join("FileCommander-1.2.3-x86_64.AppImage"), b"abcdef").unwrap();
+        fs::write(
+            path.join("SHA256SUMS.txt"),
+            "abcdef  FileCommander-1.2.3-x86_64.AppImage\n",
+        )
+        .unwrap();
+        Self { path }
+    }
+
+    fn state(&self) -> AppState {
+        state().with_update_root(UpdateRoot::open(&self.path).unwrap())
+    }
+}
+
+impl Drop for UpdateFixture {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.path);
+    }
 }
 
 async fn send(state: &AppState, method: &str, path: &str, token: &str, body: Value) -> Response {
@@ -101,6 +145,143 @@ async fn send_image(
 async fn json_of(response: Response) -> Value {
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
     serde_json::from_slice(&bytes).unwrap_or(Value::Null)
+}
+
+#[tokio::test]
+async fn public_update_files_are_isolated_from_account_routes() {
+    let fixture = UpdateFixture::new();
+    let update_state = fixture.state();
+    let manifest = router(update_state.clone())
+        .oneshot(
+            Request::builder()
+                .uri("/version.json")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(manifest.status(), StatusCode::OK);
+    assert_eq!(manifest.headers()["content-type"], "application/json");
+    assert_eq!(
+        manifest.headers()["cache-control"],
+        "no-cache, must-revalidate"
+    );
+    assert_eq!(manifest.headers()["x-content-type-options"], "nosniff");
+
+    let checksums = router(update_state.clone())
+        .oneshot(
+            Request::builder()
+                .uri("/SHA256SUMS.txt")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(checksums.status(), StatusCode::OK);
+    assert_eq!(
+        checksums.headers()["content-type"],
+        "text/plain; charset=utf-8"
+    );
+    assert_eq!(
+        checksums.headers()["cache-control"],
+        "no-cache, must-revalidate"
+    );
+    assert!(checksums.headers().get("content-disposition").is_none());
+
+    let page = router(update_state.clone())
+        .oneshot(
+            Request::builder()
+                .uri("/update.html")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(page.status(), StatusCode::OK);
+    assert_eq!(
+        page.headers()["content-security-policy"],
+        "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"
+    );
+
+    let legacy = router(update_state.clone())
+        .oneshot(
+            Request::builder()
+                .uri("/updata.html")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(legacy.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(legacy.headers()["location"], "/update.html");
+
+    let api = send(
+        &update_state,
+        "POST",
+        "/v1/auth/register",
+        "",
+        json!({"email":"update@example.invalid","password":"correct horse"}),
+    )
+    .await;
+    assert_eq!(api.status(), StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn public_update_packages_are_range_safe_and_never_traverse() {
+    let fixture = UpdateFixture::new();
+    let update_state = fixture.state();
+    let full = router(update_state.clone())
+        .oneshot(
+            Request::builder()
+                .uri("/FileCommander-1.2.3-x86_64.AppImage")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(full.status(), StatusCode::OK);
+    assert_eq!(
+        full.headers()["content-disposition"],
+        "attachment; filename=\"FileCommander-1.2.3-x86_64.AppImage\""
+    );
+    assert_eq!(
+        full.headers()["cache-control"],
+        "public, max-age=31536000, immutable"
+    );
+    assert_eq!(
+        full.into_body().collect().await.unwrap().to_bytes(),
+        b"abcdef"[..]
+    );
+
+    let range = router(update_state.clone())
+        .oneshot(
+            Request::builder()
+                .uri("/FileCommander-1.2.3-x86_64.AppImage")
+                .header("range", "bytes=1-3")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(range.status(), StatusCode::PARTIAL_CONTENT);
+    assert_eq!(range.headers()["content-range"], "bytes 1-3/6");
+    assert_eq!(
+        range.into_body().collect().await.unwrap().to_bytes(),
+        b"bcd"[..]
+    );
+
+    for path in [
+        "/releases/v1.2.3/../version.json",
+        "/releases/v1.2.3/%2e%2e%2fversion.json",
+        "/releases/v1.2.3/",
+        "/releases/v1.2.3/not-an-asset.txt",
+    ] {
+        let response = router(update_state.clone())
+            .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
+    }
 }
 
 async fn register(state: &AppState, email: &str, password: &str) -> Response {

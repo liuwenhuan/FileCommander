@@ -25,10 +25,33 @@ FILECOMMANDER_ACCOUNT_TLS_KEY=/etc/filecommander/privkey.pem \
 | `FILECOMMANDER_ACCOUNT_DB` | `accounts.db` | SQLite file, created on first run |
 | `FILECOMMANDER_ACCOUNT_TLS_CERT` | — | PEM certificate chain |
 | `FILECOMMANDER_ACCOUNT_TLS_KEY` | — | PEM private key |
+| `FILECOMMANDER_UPDATE_ROOT` | — | read-only root containing `version.json`, `update.html`, and release packages |
+| `FILECOMMANDER_PUBLIC_HOST` | `fc.aigutta.com` | fixed host used by the optional HTTP-to-HTTPS redirect listener |
+| `FILECOMMANDER_PUBLIC_HTTP_BIND` | — | optional redirect-only HTTP bind address, e.g. `0.0.0.0:80` |
+| `FILECOMMANDER_REQUIRE_TLS` | — | `true` rejects a startup without both TLS files |
 
 With both TLS variables set the server serves HTTPS through rustls. With
 either missing it serves plain HTTP, which sends access tokens across the wire
-in the clear — acceptable for a local test run, never for a deployment.
+in the clear — acceptable for a local test run, never for a deployment. Set
+`FILECOMMANDER_REQUIRE_TLS=true` in production. If `FILECOMMANDER_PUBLIC_HTTP_BIND`
+is configured, it serves only permanent redirects to the configured HTTPS host.
+
+## Public update files
+
+When `FILECOMMANDER_UPDATE_ROOT` is configured, the server exposes only these
+unauthenticated read-only paths in addition to its `/v1` API:
+
+- `GET /version.json` — no-cache update announcement manifest;
+- `GET /SHA256SUMS.txt` — no-cache checksum text;
+- `GET /update.html` — static update/download page;
+- `GET /updata.html` — permanent redirect to the correctly spelled page;
+- `GET /releases/<version>/<filename>` — legacy immutable package alias with byte-range support;
+- `GET /<package-filename>` — canonical root-level immutable package/checksum download with byte-range support.
+
+The service user must be able to read but never write the update root. Publish
+packages first and atomically replace `version.json` last, so a manifest never
+points at a partial release. Directory listings, paths outside the configured
+root, and symlinks are rejected.
 
 Point a client at it with `FILECOMMANDER_ACCOUNT_API_URL`, or compile one with
 `-DFILECOMMANDER_ACCOUNT_API_URL=https://…`.

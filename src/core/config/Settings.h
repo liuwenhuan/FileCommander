@@ -223,12 +223,15 @@ public:
     int thumbnailCacheLimitMb() const;
     void setThumbnailCacheLimitMb(int mb);
 
-    // Online-update bookkeeping: the yyyy-MM-dd date of the last update check,
-    // so the background check runs only once on the first launch of a given day.
+    // Online-update bookkeeping: the yyyy-MM-dd date of the last successful
+    // update check. Checking is always enabled; the date enforces once per day.
     QString updateLastCheckDate() const;
     void setUpdateLastCheckDate(const QString &date);
-    bool autoUpdateCheck() const;
-    void setAutoUpdateCheck(bool on);
+    QString updatePendingVersion() const;
+    QString updatePendingDate() const;
+    QString updatePendingNotes() const;
+    void setPendingUpdate(const QString &version, const QString &date, const QString &notes);
+    void clearPendingUpdate();
 
     // Account sign-in. Non-secret bookkeeping only: the refresh token lives in
     // the login keyring (AccountClient puts it there), never here. The device
