@@ -64,11 +64,12 @@ set(FILECOMMANDER_UPDATE_MANIFEST_URL "https://fc.aigutta.com/version.json"
 # Migrate build trees whose cache still contains the retired official default;
 # preserve every other explicitly configured endpoint.
 if(FILECOMMANDER_ACCOUNT_API_URL STREQUAL "https://sgvps.aigutta.com" OR
-   FILECOMMANDER_ACCOUNT_API_URL STREQUAL "https://fm.aigutta.com")
-    set(FILECOMMANDER_ACCOUNT_API_URL "https://fc.aigutta.com"
+   FILECOMMANDER_ACCOUNT_API_URL STREQUAL "https://fm.aigutta.com" OR
+   FILECOMMANDER_ACCOUNT_API_URL STREQUAL "https://fc.aigutta.com")
+    set(FILECOMMANDER_ACCOUNT_API_URL "https://fclogin.aigutta.com"
         CACHE STRING "Official root URL of the FileCommander account server" FORCE)
 else()
-    set(FILECOMMANDER_ACCOUNT_API_URL "https://fc.aigutta.com"
+    set(FILECOMMANDER_ACCOUNT_API_URL "https://fclogin.aigutta.com"
         CACHE STRING "Official root URL of the FileCommander account server")
 endif()
 
