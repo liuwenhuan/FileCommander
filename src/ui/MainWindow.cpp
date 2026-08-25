@@ -4816,6 +4816,13 @@ void MainWindow::updateDeviceSharing() {
                     // authoritative metadata after the immediate UI update.
                     m_accountClient->fetchDevices();
                 });
+        connect(m_deviceAgent, &DeviceAgent::ticketRevoked, m_shareServer,
+                &FileShareServer::removeTicket);
+        connect(m_deviceAgent, &DeviceAgent::deviceRevoked, this, [this] {
+            // The server removed this install from the account. Clear local
+            // credentials and close the share listener immediately.
+            m_accountClient->logout();
+        });
         // The port is only known once it is bound, and the agent is what tells
         // the account server about it -- so a peer can only ever be handed a
         // port that is actually listening.

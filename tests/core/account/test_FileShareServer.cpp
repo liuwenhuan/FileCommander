@@ -32,7 +32,8 @@ namespace {
 const char kTicket[] = "ticket-for-the-tests";
 
 QByteArray rawRequest(quint16 port, const QString &ticket, const QByteArray &method,
-                      const QString &path, const QByteArray &extra = QByteArray()) {
+                      const QString &path, const QByteArray &extra = QByteArray(),
+                      const QByteArray &body = QByteArray()) {
     QSslSocket socket;
     socket.setPeerVerifyMode(QSslSocket::VerifyNone);
     socket.connectToHostEncrypted(QStringLiteral("127.0.0.1"), port);
@@ -42,7 +43,7 @@ QByteArray rawRequest(quint16 port, const QString &ticket, const QByteArray &met
     const QByteArray request = method + " " + path.toUtf8() + " HTTP/1.1\r\n"
                                "Host: 127.0.0.1\r\n"
                                "Authorization: Basic " + authorization.toBase64() + "\r\n"
-                               "Connection: close\r\n" + extra + "\r\n";
+                               "Connection: close\r\n" + extra + "\r\n" + body;
     if (socket.write(request) != request.size() || !socket.waitForBytesWritten(5000))
         return {};
     QByteArray response;
@@ -395,6 +396,83 @@ TEST_F(FileShareServerTest, AWrongTicketGetsNothing) {
 TEST_F(FileShareServerTest, AnExpiredTicketStopsWorking) {
     m_server->addTicket(QStringLiteral("brief"), 0);
     EXPECT_FALSE(connectWith(QStringLiteral("brief")));
+}
+
+TEST_F(FileShareServerTest, TicketLifetimeIsAbsoluteNotSliding) {
+    m_server->addTicket(QStringLiteral("brief"), 1);
+    QThread::msleep(20);
+    EXPECT_EQ(responseStatus(rawRequest(m_port, QStringLiteral("brief"), "OPTIONS", "/")), 200);
+    QThread::msleep(1100);
+    EXPECT_EQ(responseStatus(rawRequest(m_port, QStringLiteral("brief"), "OPTIONS", "/")), 401);
+}
+
+TEST_F(FileShareServerTest, ARevokedTicketStopsWorkingImmediately) {
+    m_server->addTicket(QStringLiteral("revoked"), 300);
+    QThread::msleep(20);
+    EXPECT_EQ(responseStatus(rawRequest(m_port, QStringLiteral("revoked"), "OPTIONS", "/")), 200);
+    m_server->removeTicket(QStringLiteral("revoked"));
+    QThread::msleep(20);
+    EXPECT_EQ(responseStatus(rawRequest(m_port, QStringLiteral("revoked"), "OPTIONS", "/")), 401);
+}
+
+TEST_F(FileShareServerTest, ShareRootsCannotBeDeletedOrMoved) {
+    const QByteArray removed = rawRequest(m_port, QString::fromLatin1(kTicket), "DELETE", "/share");
+    EXPECT_EQ(responseStatus(removed), 403);
+    EXPECT_TRUE(QFileInfo(m_share).isDir());
+    EXPECT_TRUE(QFileInfo::exists(m_share + QStringLiteral("/hello.txt")));
+
+    const QByteArray moved = rawRequest(
+        m_port, QString::fromLatin1(kTicket), "MOVE", "/share",
+        "Destination: https://127.0.0.1/share/sub/moved\r\nOverwrite: T\r\n");
+    EXPECT_EQ(responseStatus(moved), 403);
+    EXPECT_TRUE(QFileInfo(m_share).isDir());
+
+    EXPECT_EQ(responseStatus(rawRequest(m_port, QString::fromLatin1(kTicket), "MKCOL", "/share")),
+              403);
+    EXPECT_EQ(responseStatus(rawRequest(m_port, QString::fromLatin1(kTicket), "PUT", "/share",
+                                                "Content-Length: 0\r\n")),
+              403);
+}
+
+TEST_F(FileShareServerTest, MalformedOrOverflowingBodyFramingIsRejected) {
+    QByteArray response = rawRequest(
+        m_port, QString::fromLatin1(kTicket), "PUT", "/share/hello.txt",
+        "Content-Length: 9223372036854775807\r\nContent-Range: bytes 1-1/*\r\n");
+    EXPECT_EQ(responseStatus(response), 413);
+
+    response = rawRequest(m_port, QString::fromLatin1(kTicket), "PROPFIND", "/share",
+                          "Transfer-Encoding: chunked\r\nContent-Length: 1\r\n", "0\r\n\r\n");
+    EXPECT_EQ(responseStatus(response), 400);
+
+    response = rawRequest(m_port, QString::fromLatin1(kTicket), "PROPFIND", "/share",
+                          "Transfer-Encoding: chunked\r\n", "7fffffffffffffff\r\n");
+    EXPECT_EQ(responseStatus(response), 413);
+
+    response = rawRequest(m_port, QString::fromLatin1(kTicket), "PROPFIND", "/share",
+                          "Transfer-Encoding: chunked\r\n", "1\r\nxZZ0\r\n\r\n");
+    EXPECT_EQ(responseStatus(response), 400);
+}
+
+TEST_F(FileShareServerTest, DownloadRangesAreValidatedAndClamped) {
+    const QByteArray clamped = rawRequest(m_port, QString::fromLatin1(kTicket), "GET",
+                                          "/share/hello.txt", "Range: bytes=0-999\r\n");
+    EXPECT_EQ(responseStatus(clamped), 206);
+    EXPECT_TRUE(clamped.contains("Content-Range: bytes 0-10/11"));
+    EXPECT_TRUE(clamped.contains("Content-Length: 11"));
+
+    const QByteArray malformed = rawRequest(m_port, QString::fromLatin1(kTicket), "GET",
+                                            "/share/hello.txt", "Range: bytes=-1\r\n");
+    EXPECT_EQ(responseStatus(malformed), 416);
+}
+
+TEST_F(FileShareServerTest, IdleConnectionsAreReclaimed) {
+    m_server->setRequestTimeoutMs(100);
+    QThread::msleep(20);
+    QSslSocket socket;
+    socket.setPeerVerifyMode(QSslSocket::VerifyNone);
+    socket.connectToHostEncrypted(QStringLiteral("127.0.0.1"), m_port);
+    ASSERT_TRUE(socket.waitForEncrypted(5000));
+    EXPECT_TRUE(socket.waitForDisconnected(2000));
 }
 
 TEST_F(FileShareServerTest, ClipboardPathsAreNotExposedByFileShareTickets) {

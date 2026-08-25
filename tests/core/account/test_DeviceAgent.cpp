@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <QEventLoop>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSignalSpy>
@@ -91,6 +92,27 @@ public:
         for (QWebSocket *socket : m_live)
             socket->sendTextMessage(QString::fromUtf8(frame));
     }
+    void sendTicketRevoked(const QString &ticket) {
+        const QByteArray frame = QJsonDocument(QJsonObject{{"type", QStringLiteral("ticket_revoked")},
+                                                           {"ticket", ticket}})
+                                     .toJson(QJsonDocument::Compact);
+        for (QWebSocket *socket : m_live)
+            socket->sendTextMessage(QString::fromUtf8(frame));
+    }
+    void sendTicketsRevoked(const QStringList &tickets) {
+        QJsonArray values;
+        for (const QString &ticket : tickets)
+            values.append(ticket);
+        const QByteArray frame = QJsonDocument(QJsonObject{{"type", QStringLiteral("tickets_revoked")},
+                                                           {"tickets", values}})
+                                     .toJson(QJsonDocument::Compact);
+        for (QWebSocket *socket : m_live)
+            socket->sendTextMessage(QString::fromUtf8(frame));
+    }
+    void sendDeviceRevoked() {
+        for (QWebSocket *socket : m_live)
+            socket->sendTextMessage(QStringLiteral("{\"type\":\"device_revoked\"}"));
+    }
 
 private:
     QWebSocketServer *m_server = nullptr;
@@ -160,6 +182,35 @@ TEST(DeviceAgent, APresenceFrameEmitsPresenceChanged) {
     const QList<QVariant> offline = presence.takeFirst();
     EXPECT_EQ(offline.at(0).toString(), QStringLiteral("dev-2"));
     EXPECT_FALSE(offline.at(1).toBool());
+}
+
+TEST(DeviceAgent, ARevocationFrameEmitsTheSecuritySignals) {
+    MockHttpServer http;
+    AccountClient client;
+    client.setApiUrl(http.url(QString()));
+    ASSERT_TRUE(signIn(client, http));
+
+    AgentPeer peer;
+    client.setApiUrl(peer.apiUrl());
+
+    DeviceAgent agent(&client);
+    QSignalSpy ticket(&agent, &DeviceAgent::ticketRevoked);
+    QSignalSpy device(&agent, &DeviceAgent::deviceRevoked);
+    agent.start();
+    FC_TRY_VERIFY_WITH_TIMEOUT(peer.gotHello(), 5000);
+
+    peer.sendTicketRevoked(QStringLiteral("ticket-1"));
+    FC_TRY_COMPARE_WITH_TIMEOUT(ticket.count(), 1, 5000);
+    EXPECT_EQ(ticket.takeFirst().at(0).toString(), QStringLiteral("ticket-1"));
+
+    peer.sendTicketsRevoked({QStringLiteral("ticket-2"), QStringLiteral("ticket-3")});
+    FC_TRY_COMPARE_WITH_TIMEOUT(ticket.count(), 2, 5000);
+    EXPECT_EQ(ticket.at(0).at(0).toString(), QStringLiteral("ticket-2"));
+    EXPECT_EQ(ticket.at(1).at(0).toString(), QStringLiteral("ticket-3"));
+    ticket.clear();
+
+    peer.sendDeviceRevoked();
+    FC_TRY_COMPARE_WITH_TIMEOUT(device.count(), 1, 5000);
 }
 
 TEST(DeviceAgent, AClipboardDeliveryFrameEmitsTheDeliveryId) {

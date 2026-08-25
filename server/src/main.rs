@@ -24,6 +24,39 @@ fn enabled(name: &str) -> bool {
     )
 }
 
+fn validate_transport(
+    addr: SocketAddr,
+    cert: &Option<String>,
+    key: &Option<String>,
+    require_tls: bool,
+    allow_insecure: bool,
+) -> Result<(), &'static str> {
+    if cert.is_some() != key.is_some() {
+        return Err("both TLS certificate and key are required together");
+    }
+    if require_tls && cert.is_none() {
+        return Err("FILECOMMANDER_REQUIRE_TLS requires both TLS certificate and key");
+    }
+    if cert.is_none() && !addr.ip().is_loopback() && !allow_insecure {
+        return Err(
+            "plain HTTP on a non-loopback address requires FILECOMMANDER_ALLOW_INSECURE_HTTP=true",
+        );
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn secure_process_umask() {
+    // Protect SQLite journals/WAL and any other process-created sensitive file,
+    // including the short interval before Db::open can chmod the main database.
+    unsafe {
+        libc::umask(0o077);
+    }
+}
+
+#[cfg(not(unix))]
+fn secure_process_umask() {}
+
 async fn redirect_to_https(OriginalUri(uri): OriginalUri, host: String) -> Redirect {
     let path = uri
         .path_and_query()
@@ -34,7 +67,8 @@ async fn redirect_to_https(OriginalUri(uri): OriginalUri, host: String) -> Redir
 
 #[tokio::main]
 async fn main() {
-    let addr: SocketAddr = env_or("FILECOMMANDER_ACCOUNT_BIND", "0.0.0.0:8443")
+    secure_process_umask();
+    let addr: SocketAddr = env_or("FILECOMMANDER_ACCOUNT_BIND", "127.0.0.1:8443")
         .parse()
         .expect("FILECOMMANDER_ACCOUNT_BIND must be host:port");
     let db_path = env_or("FILECOMMANDER_ACCOUNT_DB", "accounts.db");
@@ -47,9 +81,14 @@ async fn main() {
         .expect("FILECOMMANDER_UPDATE_ROOT must name a readable directory");
     let public_http_bind = std::env::var("FILECOMMANDER_PUBLIC_HTTP_BIND").ok();
     let public_host = env_or("FILECOMMANDER_PUBLIC_HOST", "fc.aigutta.com");
-    if enabled("FILECOMMANDER_REQUIRE_TLS") && (cert.is_none() || key.is_none()) {
-        panic!("FILECOMMANDER_REQUIRE_TLS requires both TLS certificate and key");
-    }
+    validate_transport(
+        addr,
+        &cert,
+        &key,
+        enabled("FILECOMMANDER_REQUIRE_TLS"),
+        enabled("FILECOMMANDER_ALLOW_INSECURE_HTTP"),
+    )
+    .unwrap_or_else(|message| panic!("{message}"));
     if public_http_bind.is_some() && (cert.is_none() || key.is_none()) {
         panic!("FILECOMMANDER_PUBLIC_HTTP_BIND requires TLS");
     }
@@ -116,5 +155,29 @@ async fn main() {
                 .await
                 .expect("server failed");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plaintext_is_loopback_only_without_explicit_override() {
+        let loopback: SocketAddr = "127.0.0.1:8443".parse().unwrap();
+        let public: SocketAddr = "0.0.0.0:8443".parse().unwrap();
+        assert!(validate_transport(loopback, &None, &None, false, false).is_ok());
+        assert!(validate_transport(public, &None, &None, false, false).is_err());
+        assert!(validate_transport(public, &None, &None, false, true).is_ok());
+    }
+
+    #[test]
+    fn tls_configuration_must_be_complete() {
+        let public: SocketAddr = "0.0.0.0:8443".parse().unwrap();
+        let cert = Some("cert.pem".to_string());
+        let key = Some("key.pem".to_string());
+        assert!(validate_transport(public, &cert, &key, true, false).is_ok());
+        assert!(validate_transport(public, &cert, &None, false, false).is_err());
+        assert!(validate_transport(public, &None, &None, true, true).is_err());
     }
 }

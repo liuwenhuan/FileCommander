@@ -36,6 +36,15 @@ jobs:
           cmake --preset linux-debug
           cmake --build --preset linux-debug --parallel
           ctest --preset linux-debug
+      - name: Account server regression and static analysis
+        run: |
+          cargo test --release --manifest-path server/Cargo.toml
+          cargo clippy --manifest-path server/Cargo.toml --all-targets -- -D warnings
+      - name: Account server dependency audit
+        uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: server
       # office-oxide renders docx/pptx/xlsx for the preview pane. It lives in a
       # separate repository, and build-deb.sh / build-appimage.sh look for it on
       # PATH exactly the way the application does at runtime -- so putting it

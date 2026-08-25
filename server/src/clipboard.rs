@@ -375,7 +375,7 @@ pub async fn publish(
     let (kind, text, thumbnail, thumbnail_mime, mime, size, width, height, sha256, source) =
         match body.kind.as_str() {
             "text" => {
-                if body.text.as_bytes().len() > MAX_TEXT_BYTES {
+                if body.text.len() > MAX_TEXT_BYTES {
                     return Err(fail(
                         StatusCode::PAYLOAD_TOO_LARGE,
                         "clipboard text is too large",
@@ -403,7 +403,7 @@ pub async fn publish(
                     || body.height == 0
                     || body.width > MAX_IMAGE_DIMENSION
                     || body.height > MAX_IMAGE_DIMENSION
-                    || body.width.checked_mul(body.height).unwrap_or(u64::MAX) > MAX_IMAGE_PIXELS
+                    || body.width.saturating_mul(body.height) > MAX_IMAGE_PIXELS
                     || !sha256(&body.sha256)
                 {
                     return Err(fail(StatusCode::BAD_REQUEST, "invalid clipboard image"));
@@ -610,7 +610,7 @@ pub async fn clear(
             Ok(Some(change_revision))
         })
         .await?;
-    let revision = changed.unwrap_or_else(|| {
+    let revision = changed.unwrap_or({
         // The read is only needed for an idempotent clear; it never alters state.
         0
     });
@@ -745,7 +745,7 @@ async fn send_delivery_to(
                     && height > 0
                     && width <= MAX_IMAGE_DIMENSION
                     && height <= MAX_IMAGE_DIMENSION
-                    && width.checked_mul(height).unwrap_or(u64::MAX) <= MAX_IMAGE_PIXELS =>
+                    && width.saturating_mul(height) <= MAX_IMAGE_PIXELS =>
             {
                 (width, height, expected_sha256)
             }

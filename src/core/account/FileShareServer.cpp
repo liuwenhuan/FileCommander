@@ -18,6 +18,7 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QThread>
+#include <QTimer>
 #include <QUrl>
 
 #include "ShareIdentity.h"
@@ -39,6 +40,9 @@ constexpr qint64 kSendHighWater = 512 * 1024;
 // by design -- a real transfer never brushes these, a broken one hits them.
 constexpr int kMaxConnections = 32;
 constexpr qint64 kMaxUploadBytes = 4LL * 1024 * 1024 * 1024; // 4 GiB per file
+constexpr int kRequestIdleMs = 30 * 1000;
+constexpr int kMaxChunkLineBytes = 32;
+constexpr int kMaxPipelinedBytes = 64 * 1024;
 // Bad-ticket throttle, mirroring the account server's credential rate limit: a
 // machine that merely guessed the port cannot brute-force tickets at wire speed.
 constexpr int kAuthWindowSeconds = 60;
@@ -133,6 +137,18 @@ struct AuthBudget {
     QDateTime windowStart;
 };
 
+bool parseNonNegativeInt64(const QByteArray &text, qint64 *value, int base = 10) {
+    const QByteArray trimmed = text.trimmed();
+    if (trimmed.isEmpty())
+        return false;
+    bool ok = false;
+    const qint64 parsed = trimmed.toLongLong(&ok, base);
+    if (!ok || parsed < 0)
+        return false;
+    *value = parsed;
+    return true;
+}
+
 } // namespace
 
 // The listener, wrapping every accepted connection in TLS before anything
@@ -185,6 +201,8 @@ public:
     Q_INVOKABLE void stopListening();
     Q_INVOKABLE void setFolders(const QStringList &folders);
     Q_INVOKABLE void addTicket(const QString &ticket, int ttlSeconds);
+    Q_INVOKABLE void removeTicket(const QString &ticket);
+    Q_INVOKABLE void setRequestTimeoutMs(int timeoutMs);
     // Overrides the compile-time ceilings; 0 keeps the default. Exposed so a
     // test can lower them instead of uploading 4 GiB to prove the bound exists.
     Q_INVOKABLE void setLimits(int maxConnections, qint64 maxUploadBytes);
@@ -193,6 +211,8 @@ public:
 
     bool ticketValid(const QString &ticket);
     QStringList shareNames() const { return m_shares.keys(); }
+    bool isShareRoot(const QString &canonical) const { return m_shares.values().contains(canonical); }
+    int requestTimeoutMs() const { return m_requestTimeoutMs; }
 
     // Maps a request path onto a real file. Empty when the path names no share,
     // or when it resolves outside one -- which covers "..", an absolute path
@@ -235,7 +255,6 @@ private:
 
     struct Ticket {
         QDateTime expiresAt;
-        int ttlSeconds = 0;
     };
 
     TlsShareServer *m_server = nullptr;
@@ -246,6 +265,7 @@ private:
     int m_connections = 0;                 // live connections, bounded by m_maxConnections
     int m_maxConnections = kMaxConnections;
     qint64 m_maxUploadBytes = kMaxUploadBytes;
+    int m_requestTimeoutMs = kRequestIdleMs;
 };
 
 // One client connection: an HTTP/1.1 state machine that never blocks. Bodies
@@ -256,10 +276,21 @@ class ShareConnection : public QObject {
 
 public:
     ShareConnection(QTcpSocket *socket, ShareWorker *worker)
-        : QObject(socket), m_socket(socket), m_worker(worker) {
+        : QObject(socket), m_socket(socket), m_worker(worker), m_idleTimer(new QTimer(this)) {
         m_socket->setSocketOption(QAbstractSocket::LowDelayOption, 1);
+        m_idleTimer->setSingleShot(true);
+        m_idleTimer->setInterval(m_worker->requestTimeoutMs());
+        connect(m_idleTimer, &QTimer::timeout, this, [this] {
+            m_keepAlive = false;
+            m_dead = true;
+            m_socket->disconnectFromHost();
+        });
+        resetIdleTimer();
         connect(m_socket, &QTcpSocket::readyRead, this, &ShareConnection::onReadyRead);
-        connect(m_socket, &QTcpSocket::bytesWritten, this, [this] { pump(); });
+        connect(m_socket, &QTcpSocket::bytesWritten, this, [this] {
+            resetIdleTimer();
+            pump();
+        });
         connect(m_socket, &QTcpSocket::disconnected, this, [this] {
             // Release the path lock the moment the connection is gone. The
             // destructor is the backstop, but it runs an event-loop turn later
@@ -291,8 +322,22 @@ public:
 private:
     enum class Phase { Head, Body, Sending };
 
+    void resetIdleTimer() {
+        if (m_idleTimer && m_idleTimer->interval() > 0)
+            m_idleTimer->start();
+    }
+
     void onReadyRead() {
-        m_buffer += m_socket->readAll();
+        resetIdleTimer();
+        const QByteArray incoming = m_socket->readAll();
+        if (m_phase == Phase::Sending &&
+            incoming.size() > kMaxPipelinedBytes - qMin(m_buffer.size(), kMaxPipelinedBytes)) {
+            m_keepAlive = false;
+            m_dead = true;
+            m_socket->disconnectFromHost();
+            return;
+        }
+        m_buffer += incoming;
         process();
     }
 
@@ -311,6 +356,12 @@ private:
                     return;
                 if (!beginRequest())
                     return;
+                if (m_phase == Phase::Sending && m_buffer.size() > kMaxPipelinedBytes) {
+                    m_keepAlive = false;
+                    m_dead = true;
+                    m_socket->disconnectFromHost();
+                    return;
+                }
             } else if (m_phase == Phase::Body) {
                 if (!consumeBody())
                     return;
@@ -346,12 +397,33 @@ private:
     // Decides what the request needs before its body arrives: rejects it, or
     // opens the upload file, or dispatches it right away.
     bool beginRequest() {
-        m_chunked = m_headers.value("transfer-encoding").toLower().contains("chunked");
-        m_bodyRemaining = m_chunked ? 0 : m_headers.value("content-length").toLongLong();
+        const QByteArray transferEncoding = m_headers.value("transfer-encoding").trimmed().toLower();
+        const QByteArray contentLength = m_headers.value("content-length");
+        if (!transferEncoding.isEmpty() && transferEncoding != "chunked") {
+            m_keepAlive = false;
+            respond(400);
+            return false;
+        }
+        if (!transferEncoding.isEmpty() && !contentLength.isEmpty()) {
+            // Ambiguous framing is request-smuggling territory: reject it rather
+            // than guessing which declaration the peer meant.
+            m_keepAlive = false;
+            respond(400);
+            return false;
+        }
+        m_chunked = transferEncoding == "chunked";
+        m_bodyRemaining = 0;
+        if (!m_chunked && !contentLength.isEmpty() &&
+            !parseNonNegativeInt64(contentLength, &m_bodyRemaining)) {
+            m_keepAlive = false;
+            respond(400);
+            return false;
+        }
         m_chunkRemaining = 0;
         m_needChunkCrlf = false;
         m_chunkDone = false;
         m_bodyBuffer.clear();
+        m_uploadBytes = 0;
 
         if (!authorised()) {
             // The body (if any) is still coming, so the stream is out of step:
@@ -375,7 +447,7 @@ private:
 
         if (m_method == "PUT") {
             const QString target = m_worker->resolve(cleanDavPath(QString::fromUtf8(m_target)));
-            if (target.isEmpty()) {
+            if (target.isEmpty() || m_worker->isShareRoot(target)) {
                 m_keepAlive = false;
                 respond(403);
                 return false;
@@ -411,7 +483,9 @@ private:
                 }
             }
             // Bound one upload so a hostile peer cannot fill the disk.
-            if (m_bodyRemaining > 0 && at + m_bodyRemaining > m_worker->maxUploadBytes()) {
+            if (m_bodyRemaining > 0 &&
+                (at > m_worker->maxUploadBytes() ||
+                 m_bodyRemaining > m_worker->maxUploadBytes() - at)) {
                 m_keepAlive = false;
                 m_worker->unlockUpload(target);
                 respond(413);
@@ -492,19 +566,34 @@ private:
                 if (m_needChunkCrlf) {
                     if (m_buffer.size() < 2)
                         return false;
+                    if (!m_buffer.startsWith("\r\n")) {
+                        m_keepAlive = false;
+                        respond(400);
+                        return false;
+                    }
                     m_buffer.remove(0, 2);
                     m_needChunkCrlf = false;
                 }
                 if (m_chunkDone)
                     return true;
                 const int eol = m_buffer.indexOf("\r\n");
-                if (eol < 0)
+                if (eol < 0) {
+                    if (m_buffer.size() > kMaxChunkLineBytes) {
+                        m_keepAlive = false;
+                        respond(400);
+                    }
                     return false;
+                }
+                if (eol > kMaxChunkLineBytes) {
+                    m_keepAlive = false;
+                    respond(400);
+                    return false;
+                }
                 const QByteArray line = m_buffer.left(eol);
                 m_buffer.remove(0, eol + 2);
-                bool ok = false;
-                const qint64 size = line.split(';').value(0).trimmed().toLongLong(&ok, 16);
-                if (!ok || size < 0) {
+                const QByteArray sizeText = line.split(';').value(0).trimmed();
+                qint64 size = 0;
+                if (!parseNonNegativeInt64(sizeText, &size, 16)) {
                     m_keepAlive = false;
                     respond(400);
                     return false;
@@ -515,12 +604,22 @@ private:
                     m_needChunkCrlf = true;
                     continue;
                 }
-                m_chunkRemaining = size;
-                if (!m_upload && m_bodyBuffer.size() + size > kMaxBufferedBody) {
-                    m_keepAlive = false;
-                    respond(413);
-                    return false;
+                if (m_upload) {
+                    const qint64 maximum = m_worker->maxUploadBytes();
+                    if (m_uploadBytes > maximum || size > maximum - m_uploadBytes) {
+                        m_keepAlive = false;
+                        respond(413);
+                        return false;
+                    }
+                } else {
+                    const qint64 buffered = m_bodyBuffer.size();
+                    if (buffered > kMaxBufferedBody || size > kMaxBufferedBody - buffered) {
+                        m_keepAlive = false;
+                        respond(413);
+                        return false;
+                    }
                 }
+                m_chunkRemaining = size;
             }
         }
         if (m_bodyRemaining > 0) {
@@ -723,22 +822,49 @@ private:
         int status = 200;
         QByteArray extra; // Accept-Ranges goes out on every response, see sendHead()
         const QByteArray range = m_headers.value("range");
-        if (range.startsWith("bytes=")) {
-            const QList<QByteArray> bounds = range.mid(6).split('-');
-            offset = bounds.value(0).trimmed().toLongLong();
-            const QByteArray last = bounds.value(1).trimmed();
-            const qint64 end = last.isEmpty() ? total - 1 : last.toLongLong();
-            if (offset >= total || end < offset) {
+        if (!range.isEmpty()) {
+            if (!range.startsWith("bytes=") || range.mid(6).contains(',')) {
                 delete file;
                 respond(416, QByteArray(), "text/plain",
                         "Content-Range: bytes */" + QByteArray::number(total) + "\r\n");
                 return;
             }
-            length = end - offset + 1;
+            const QByteArray spec = range.mid(6);
+            if (spec.count('-') != 1) {
+                delete file;
+                respond(416, QByteArray(), "text/plain",
+                        "Content-Range: bytes */" + QByteArray::number(total) + "\r\n");
+                return;
+            }
+            const QList<QByteArray> bounds = spec.split('-');
+            qint64 requestedEnd = 0;
+            if (total <= 0 || !parseNonNegativeInt64(bounds.value(0), &offset) || offset >= total ||
+                (!bounds.value(1).trimmed().isEmpty() &&
+                 !parseNonNegativeInt64(bounds.value(1), &requestedEnd))) {
+                delete file;
+                respond(416, QByteArray(), "text/plain",
+                        "Content-Range: bytes */" + QByteArray::number(total) + "\r\n");
+                return;
+            }
+            const qint64 end = bounds.value(1).trimmed().isEmpty()
+                                   ? total - 1
+                                   : qMin(requestedEnd, total - 1);
+            if (end < offset) {
+                delete file;
+                respond(416, QByteArray(), "text/plain",
+                        "Content-Range: bytes */" + QByteArray::number(total) + "\r\n");
+                return;
+            }
+            length = end - offset + 1; // bounded by total, cannot overflow
             status = 206;
             extra += "Content-Range: bytes " + QByteArray::number(offset) + "-" +
                      QByteArray::number(end) + "/" + QByteArray::number(total) + "\r\n";
-            file->seek(offset);
+            if (!file->seek(offset)) {
+                delete file;
+                respond(416, QByteArray(), "text/plain",
+                        "Content-Range: bytes */" + QByteArray::number(total) + "\r\n");
+                return;
+            }
         }
         extra += "Last-Modified: " + httpDate(info.lastModified()) + "\r\n";
 
@@ -784,6 +910,10 @@ private:
             return;
         }
         const QFileInfo info(local);
+        if (m_worker->isShareRoot(local)) {
+            respond(403);
+            return;
+        }
         if (info.exists()) {
             respond(405);
             return;
@@ -802,6 +932,10 @@ private:
             respond(404);
             return;
         }
+        if (m_worker->isShareRoot(local)) {
+            respond(403);
+            return;
+        }
         const bool ok = info.isDir() ? QDir(local).removeRecursively() : QFile::remove(local);
         respond(ok ? 204 : 403);
     }
@@ -812,9 +946,13 @@ private:
             respond(404);
             return;
         }
+        if (m_worker->isShareRoot(from)) {
+            respond(403);
+            return;
+        }
         const QUrl destination(QString::fromUtf8(m_headers.value("destination")));
         const QString to = m_worker->resolve(cleanDavPath(destination.path()));
-        if (to.isEmpty()) {
+        if (to.isEmpty() || m_worker->isShareRoot(to)) {
             respond(403);
             return;
         }
@@ -881,6 +1019,7 @@ private:
 
     QTcpSocket *m_socket;
     ShareWorker *m_worker;
+    QTimer *m_idleTimer;
     QByteArray m_buffer;
     Phase m_phase = Phase::Head;
     bool m_dead = false;
@@ -976,7 +1115,17 @@ void ShareWorker::addTicket(const QString &ticket, int ttlSeconds) {
     // No floor on the TTL: a ticket handed over already expired is worthless
     // by construction, and clamping it up to a second would make it briefly
     // usable instead.
-    m_tickets.insert(ticket, {QDateTime::currentDateTimeUtc().addSecs(ttlSeconds), ttlSeconds});
+    m_tickets.insert(ticket, {QDateTime::currentDateTimeUtc().addSecs(ttlSeconds)});
+}
+
+void ShareWorker::removeTicket(const QString &ticket) {
+    if (!ticket.isEmpty())
+        m_tickets.remove(ticket);
+}
+
+void ShareWorker::setRequestTimeoutMs(int timeoutMs) {
+    if (timeoutMs > 0)
+        m_requestTimeoutMs = timeoutMs;
 }
 
 bool ShareWorker::ticketValid(const QString &ticket) {
@@ -990,12 +1139,7 @@ bool ShareWorker::ticketValid(const QString &ticket) {
     if (ticket.isEmpty())
         return false;
     auto it = m_tickets.find(ticket);
-    if (it == m_tickets.end())
-        return false;
-    // Sliding: the TTL measures idleness, not total lifetime. A fixed expiry
-    // would 401 in the middle of a browse the user is still using.
-    it.value().expiresAt = now.addSecs(it.value().ttlSeconds);
-    return true;
+    return it != m_tickets.end();
 }
 
 QString ShareWorker::resolve(const QString &davPath) const {
@@ -1125,6 +1269,16 @@ void FileShareServer::setSharedFolders(const QStringList &folders) {
 void FileShareServer::addTicket(const QString &ticket, int ttlSeconds) {
     QMetaObject::invokeMethod(m_worker, "addTicket", Qt::QueuedConnection,
                               Q_ARG(QString, ticket), Q_ARG(int, ttlSeconds));
+}
+
+void FileShareServer::removeTicket(const QString &ticket) {
+    QMetaObject::invokeMethod(m_worker, "removeTicket", Qt::QueuedConnection,
+                              Q_ARG(QString, ticket));
+}
+
+void FileShareServer::setRequestTimeoutMs(int timeoutMs) {
+    QMetaObject::invokeMethod(m_worker, "setRequestTimeoutMs", Qt::QueuedConnection,
+                              Q_ARG(int, timeoutMs));
 }
 
 void FileShareServer::setLimits(int maxConnections, qint64 maxUploadBytes) {

@@ -6,6 +6,7 @@
 //! never pass through this socket -- the two devices talk WebDAV directly.
 
 use std::collections::{HashMap, VecDeque};
+use std::net::IpAddr;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
@@ -14,6 +15,7 @@ use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use axum::Json;
+use base64::{engine::general_purpose::STANDARD, Engine};
 use futures_util::{SinkExt, StreamExt};
 use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
@@ -37,8 +39,55 @@ fn broadcast_presence(
     let frame = json!({"type": "presence", "device_id": device_id, "online": online}).to_string();
     for (id, agent) in agents {
         if id != device_id && agent.user_id == user_id {
-            let _ = agent.tx.send(frame.clone());
+            let _ = queue_frame(agent, frame.clone());
         }
+    }
+}
+
+/// Removes every not-yet-expired relay session involving `device_id` and tells
+/// the opposite endpoint to forget the FileShareServer bearer ticket too.
+pub fn revoke_device_sessions(state: &AppState, device_id: &str) {
+    let revoked = {
+        let mut sessions = state.sessions.lock().unwrap_or_else(|e| e.into_inner());
+        let ids: Vec<String> = sessions
+            .iter()
+            .filter(|(_, session)| {
+                session.source_device_id == device_id || session.target_device_id == device_id
+            })
+            .map(|(id, _)| id.clone())
+            .collect();
+        let mut revoked = Vec::with_capacity(ids.len());
+        for id in ids {
+            if let Some(session) = sessions.remove(&id) {
+                let peer = if session.source_device_id == device_id {
+                    session.target_device_id
+                } else {
+                    session.source_device_id
+                };
+                revoked.push((peer, session.ticket));
+            }
+        }
+        revoked
+    };
+    let agents = state.agents.lock().unwrap_or_else(|e| e.into_inner());
+    let mut by_peer: HashMap<String, Vec<String>> = HashMap::new();
+    for (peer, ticket) in revoked {
+        by_peer.entry(peer).or_default().push(ticket);
+    }
+    for (peer, tickets) in by_peer {
+        if let Some(agent) = agents.get(&peer) {
+            let frame = json!({"type": "tickets_revoked", "tickets": tickets}).to_string();
+            let _ = queue_control(agent, frame);
+        }
+    }
+}
+
+/// A device removed by another account peer must close its local share port and
+/// clear credentials, not keep serving until it happens to reconnect.
+pub fn notify_device_revoked(state: &AppState, device_id: &str) {
+    let agents = state.agents.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(agent) = agents.get(device_id) {
+        let _ = queue_control(agent, json!({"type": "device_revoked"}).to_string());
     }
 }
 
@@ -60,7 +109,7 @@ pub fn broadcast_clipboard(
     let agents = state.agents.lock().unwrap_or_else(|e| e.into_inner());
     for (device_id, agent) in agents.iter() {
         if device_id != source_device_id && agent.user_id == user_id && agent.clipboard {
-            let _ = agent.tx.send(frame.clone());
+            let _ = queue_frame(agent, frame.clone());
         }
     }
 }
@@ -96,7 +145,7 @@ pub fn broadcast_clipboard_delivery(
                     "size": delivery_metadata.size,
                 })
                 .to_string();
-                let _ = agent.tx.send(frame);
+                let _ = queue_frame(agent, frame);
             }
         }
     }
@@ -106,6 +155,36 @@ pub fn broadcast_clipboard_delivery(
 /// enough to survive a slow LAN probe, short enough that a leaked ticket is
 /// worth little.
 pub const TICKET_TTL_SECONDS: i64 = 300;
+const AGENT_QUEUE_CAPACITY: usize = 128;
+const AGENT_CONTROL_CAPACITY: usize = 16;
+const MAX_AGENT_MESSAGE_BYTES: usize = 64 * 1024;
+const MAX_LAN_ADDRESSES: usize = 16;
+const MAX_SHARES: usize = 64;
+const MAX_SHARE_NAME_BYTES: usize = 255;
+
+fn queue_frame(agent: &AgentConn, frame: String) -> bool {
+    agent.tx.try_send(frame).is_ok()
+}
+
+fn queue_control(agent: &AgentConn, frame: String) -> bool {
+    agent.control_tx.try_send(frame).is_ok()
+}
+
+fn valid_lan_address(value: &str) -> bool {
+    if value.len() > 64 || value.contains(',') {
+        return false;
+    }
+    let Ok(address) = value.parse::<IpAddr>() else {
+        return false;
+    };
+    if address.is_loopback() || address.is_unspecified() || address.is_multicast() {
+        return false;
+    }
+    match address {
+        IpAddr::V4(address) => !address.is_link_local(),
+        IpAddr::V6(address) => !address.is_unicast_link_local(),
+    }
+}
 
 /// The upgrade is authenticated before it is accepted: an unauthenticated
 /// socket would let anyone hold a connection slot.
@@ -123,12 +202,16 @@ pub async fn agent_ws(
     let user_id = principal.user_id;
     let device_id = principal.device_id;
     log_line("agent", &format!("connect dev={device_id}"));
-    Ok(ws.on_upgrade(move |socket| serve_agent(state, user_id, device_id, socket)))
+    Ok(ws
+        .max_message_size(MAX_AGENT_MESSAGE_BYTES)
+        .max_frame_size(MAX_AGENT_MESSAGE_BYTES)
+        .on_upgrade(move |socket| serve_agent(state, user_id, device_id, socket)))
 }
 
 async fn serve_agent(state: AppState, user_id: i64, device_id: String, socket: WebSocket) {
     let (mut sink, mut stream) = socket.split();
-    let (tx, mut rx) = mpsc::unbounded_channel::<String>();
+    let (tx, mut rx) = mpsc::channel::<String>(AGENT_QUEUE_CAPACITY);
+    let (control_tx, mut control_rx) = mpsc::channel::<String>(AGENT_CONTROL_CAPACITY);
     let generation = state.generation.fetch_add(1, Ordering::Relaxed);
 
     {
@@ -139,6 +222,7 @@ async fn serve_agent(state: AppState, user_id: i64, device_id: String, socket: W
             device_id.clone(),
             AgentConn {
                 tx: tx.clone(),
+                control_tx: control_tx.clone(),
                 user_id,
                 lan_addrs: Vec::new(),
                 share_port: 0,
@@ -148,12 +232,18 @@ async fn serve_agent(state: AppState, user_id: i64, device_id: String, socket: W
             },
         );
     }
-    let _ = tx.send(json!({"type": "welcome"}).to_string());
+    let _ = tx.try_send(json!({"type": "welcome"}).to_string());
 
     // One task owns the sink, so pushes from other requests never interleave
     // with replies to this device's own messages.
     let writer = tokio::spawn(async move {
-        while let Some(text) = rx.recv().await {
+        loop {
+            let text = tokio::select! {
+                biased;
+                text = control_rx.recv() => text,
+                text = rx.recv() => text,
+            };
+            let Some(text) = text else { break };
             if sink.send(Message::Text(text.into())).await.is_err() {
                 break;
             }
@@ -182,8 +272,8 @@ async fn serve_agent(state: AppState, user_id: i64, device_id: String, socket: W
                         items
                             .iter()
                             .filter_map(Value::as_str)
-                            // Comma is the column separator in devices.lan_addrs.
-                            .filter(|s| !s.is_empty() && !s.contains(','))
+                            .filter(|s| valid_lan_address(s))
+                            .take(MAX_LAN_ADDRESSES)
                             .map(|s| s.to_string())
                             .collect()
                     })
@@ -200,7 +290,11 @@ async fn serve_agent(state: AppState, user_id: i64, device_id: String, socket: W
                 let pin = value
                     .get("pin")
                     .and_then(Value::as_str)
-                    .filter(|s| s.starts_with("sha256//") && s.len() <= 128 && !s.contains(','))
+                    .filter(|s| {
+                        s.strip_prefix("sha256//")
+                            .and_then(|encoded| STANDARD.decode(encoded).ok())
+                            .is_some_and(|digest| digest.len() == 32)
+                    })
                     .unwrap_or_default()
                     .to_string();
                 // The share names this device is actually serving, for the
@@ -213,7 +307,13 @@ async fn serve_agent(state: AppState, user_id: i64, device_id: String, socket: W
                         items
                             .iter()
                             .filter_map(Value::as_str)
-                            .filter(|s| !s.is_empty() && !s.contains(','))
+                            .filter(|s| {
+                                !s.is_empty()
+                                    && s.len() <= MAX_SHARE_NAME_BYTES
+                                    && !s.contains(',')
+                                    && !s.chars().any(char::is_control)
+                            })
+                            .take(MAX_SHARES)
                             .map(|s| s.to_string())
                             .collect()
                     })
@@ -255,7 +355,7 @@ async fn serve_agent(state: AppState, user_id: i64, device_id: String, socket: W
                     let agents = state.agents.lock().unwrap_or_else(|e| e.into_inner());
                     broadcast_presence(&agents, user_id, &device_id, true);
                 }
-                let _ = tx.send(json!({"type": "ready"}).to_string());
+                let _ = tx.try_send(json!({"type": "ready"}).to_string());
             }
             "ping" => {
                 let id = device_id.clone();
@@ -268,7 +368,7 @@ async fn serve_agent(state: AppState, user_id: i64, device_id: String, socket: W
                         );
                     })
                     .await;
-                let _ = tx.send(json!({"type": "pong"}).to_string());
+                let _ = tx.try_send(json!({"type": "pong"}).to_string());
             }
             _ => {}
         }
@@ -374,10 +474,9 @@ pub async fn open_session(
             "from_device": principal.device_id,
             "expires_in": TICKET_TTL_SECONDS,
         });
-        agent
-            .tx
-            .send(notice.to_string())
-            .map_err(|_| fail(StatusCode::CONFLICT, "device is offline"))?;
+        if !queue_frame(agent, notice.to_string()) {
+            return Err(fail(StatusCode::CONFLICT, "device is offline"));
+        }
         (
             agent.lan_addrs.clone(),
             agent.share_port,
@@ -396,6 +495,8 @@ pub async fn open_session(
             RelaySession {
                 ticket: ticket.clone(),
                 expires: now + Duration::from_secs(TICKET_TTL_SECONDS as u64),
+                source_device_id: principal.device_id.clone(),
+                target_device_id: target.clone(),
                 accepting: VecDeque::new(),
                 connecting: VecDeque::new(),
             },
@@ -410,4 +511,37 @@ pub async fn open_session(
         peer_port: port,
         peer_pin: pin,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn slow_agent_queue_is_bounded() {
+        let (tx, _rx) = mpsc::channel(1);
+        let (control_tx, _control_rx) = mpsc::channel(1);
+        let agent = AgentConn {
+            tx,
+            control_tx,
+            user_id: 1,
+            lan_addrs: Vec::new(),
+            share_port: 0,
+            share_pin: String::new(),
+            clipboard: false,
+            generation: 1,
+        };
+        assert!(queue_frame(&agent, "first".to_string()));
+        assert!(!queue_frame(&agent, "second".to_string()));
+        assert!(queue_control(&agent, "revoke".to_string()));
+    }
+
+    #[test]
+    fn lan_addresses_reject_loopback_link_local_and_hostnames() {
+        assert!(valid_lan_address("192.168.1.10"));
+        assert!(valid_lan_address("2001:db8::1"));
+        assert!(!valid_lan_address("127.0.0.1"));
+        assert!(!valid_lan_address("169.254.1.1"));
+        assert!(!valid_lan_address("localhost"));
+    }
 }

@@ -16,6 +16,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
+use crate::agent::{notify_device_revoked, revoke_device_sessions};
 use crate::db::{constant_time_eq, hash_password, hash_token, iso, now, random_hex, random_token};
 use crate::AppState;
 
@@ -477,6 +478,7 @@ pub async fn logout(
 ) -> Result<StatusCode, ApiError> {
     let principal = authenticate(&state, &headers).await?;
     let device_id = principal.device_id.clone();
+    revoke_device_sessions(&state, &device_id);
     state
         .agents
         .lock()
@@ -641,6 +643,8 @@ pub async fn forget_device(
             Ok(StatusCode::NO_CONTENT)
         })
         .await?;
+    notify_device_revoked(&state, &agent_device_id);
+    revoke_device_sessions(&state, &agent_device_id);
     state
         .agents
         .lock()

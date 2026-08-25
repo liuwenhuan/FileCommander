@@ -46,9 +46,16 @@ public:
     // them is reachable, including through a symlink that points out.
     void setSharedFolders(const QStringList &folders);
 
-    // Accepts `ticket` as a password until it expires, with ordinary WebDAV
-    // access to the configured shared folders.
+    // Accepts `ticket` as a password until its absolute expiry, with ordinary
+    // WebDAV access to the configured shared folders. Use never extends it.
     void addTicket(const QString &ticket, int ttlSeconds);
+
+    // Revokes one transfer ticket immediately (source logout/device removal).
+    void removeTicket(const QString &ticket);
+
+    // Overrides the per-connection idle deadline; 0 keeps the default. Primarily
+    // a test hook for slow-header/body coverage.
+    void setRequestTimeoutMs(int timeoutMs);
 
     // Overrides the compile-time ceilings on concurrent connections and on one
     // upload's size; pass 0 to keep a default. Mostly a test hook, but a
