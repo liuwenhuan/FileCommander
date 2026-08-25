@@ -3299,6 +3299,26 @@ This is permanent and will NOT go to the trash.</source>
         <source>Folder Association</source>
         <translation type="vanished">文件夹关联</translation>
     </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2404"/>
+        <source>%1 (%2)</source>
+        <translation>%1（%2）</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2405"/>
+        <source>Online</source>
+        <translation>在线</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2405"/>
+        <source>Offline</source>
+        <translation>离线</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2510"/>
+        <source>This computer is offline.</source>
+        <translation>该计算机离线。</translation>
+    </message>
 </context>
 <context>
     <name>MultiRenameDialog</name>

@@ -494,8 +494,8 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
             });
     connect(m_queue, &OperationQueue::finished, this, [this](bool ok) {
         if (m_operationAbortRequested) {
-            m_leftPanel->refresh();
-            m_rightPanel->refresh();
+            m_leftPanel->refreshPreservingSelection();
+            m_rightPanel->refreshPreservingSelection();
             if (!m_queue->isBusy() && m_queue->queuedCount() == 0)
                 m_operationAbortRequested = false;
             return;
@@ -505,19 +505,19 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
 
         if (!ok) {
             if (m_pendingDeletePanel) {
-                m_pendingDeletePanel->refresh();
+                m_pendingDeletePanel->refreshPreservingSelection();
                 m_pendingDeletePanel = nullptr;
                 m_pendingDeletePaths.clear();
                 handledPlan = true;
             }
             if (m_pendingMovePanel) {
-                m_pendingMovePanel->refresh();
+                m_pendingMovePanel->refreshPreservingSelection();
                 m_pendingMovePanel = nullptr;
                 m_pendingMovePaths.clear();
                 handledPlan = true;
             }
             if (m_pendingDestPanel) {
-                m_pendingDestPanel->refresh();
+                m_pendingDestPanel->refreshPreservingSelection();
                 m_pendingDestPanel = nullptr;
                 m_pendingDestPaths.clear();
                 handledPlan = true;
@@ -544,7 +544,7 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
             FilePanel *other = otherPanel(panel);
             if (other && other->model()->provider() == panel->model()->provider() &&
                 deleteAffectsDir(other->currentPath(), panel->currentPath(), deleted))
-                other->refresh();
+                other->refreshPreservingSelection();
             handledPlan = true;
         }
 
@@ -572,8 +572,8 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
         }
 
         if (!handledPlan) {
-            m_leftPanel->refresh();
-            m_rightPanel->refresh();
+            m_leftPanel->refreshPreservingSelection();
+            m_rightPanel->refreshPreservingSelection();
         }
         // Report all per-file failures once, not one modal per error.
         if (!m_operationErrors.isEmpty()) {
@@ -2400,7 +2400,9 @@ QVector<ComputerEntry> MainWindow::computerEntries() {
             continue;
         ComputerEntry entry;
         entry.kind = ComputerEntry::Kind::AccountDevice;
-        entry.name = device.name.isEmpty() ? device.id : device.name;
+        entry.rawName = device.name.isEmpty() ? device.id : device.name;
+        entry.name = tr("%1 (%2)").arg(entry.rawName,
+                                        device.online ? tr("Online") : tr("Offline"));
         entry.target = device.id;
         entry.iconPath = QStringLiteral(":/icons/computer.svg");
         entry.online = device.online;
@@ -2504,11 +2506,11 @@ void MainWindow::openComputerEntry(FilePanel *panel, const ComputerEntry &entry)
         browseSmbHost(entry.target);
         break;
     case ComputerEntry::Kind::AccountDevice:
-        // Offline rows are already unselectable in the view; this is the
-        // backstop for a stray activation. Online: open the peer's shared
-        // folders as a tab.
-        if (entry.online)
-            openAccountDevice(entry.target, entry.name);
+        if (!entry.online) {
+            ttc::information(this, tr("FileCommander Account"), tr("This computer is offline."));
+            break;
+        }
+        openAccountDevice(entry.target, entry.rawName.isEmpty() ? entry.target : entry.rawName);
         break;
     }
 }
@@ -4788,9 +4790,32 @@ void MainWindow::updateDeviceSharing() {
         // A peer came online or went offline: re-list so its row flips now
         // rather than on the next manual refresh. Cheap -- it reuses the same
         // poll-on-demand path the menus already trigger.
-        connect(m_deviceAgent, &DeviceAgent::presenceChanged, this, [this] {
-            m_accountClient->fetchDevices();
-        });
+        connect(m_deviceAgent, &DeviceAgent::presenceChanged, this,
+                [this](const QString &deviceId, bool online) {
+                    bool found = false;
+                    for (AccountDeviceInfo &device : m_accountDevices) {
+                        if (device.id == deviceId) {
+                            device.online = online;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (found) {
+                        if (m_cloudClipboard)
+                            m_cloudClipboard->setDevices(m_accountDevices);
+                        refreshComputerViews();
+                        if (m_pendingSends) {
+                            QStringList onlineIds;
+                            for (const AccountDeviceInfo &device : qAsConst(m_accountDevices))
+                                if (device.online && !device.self)
+                                    onlineIds.append(device.id);
+                            m_pendingSends->devicesChanged(onlineIds);
+                        }
+                    }
+                    // Presence contains only one status bit. Reconcile the full
+                    // authoritative metadata after the immediate UI update.
+                    m_accountClient->fetchDevices();
+                });
         // The port is only known once it is bound, and the agent is what tells
         // the account server about it -- so a peer can only ever be handed a
         // port that is actually listening.

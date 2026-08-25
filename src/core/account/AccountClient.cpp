@@ -118,6 +118,7 @@ void AccountClient::switchApiUrl(const QString &url) {
 
 void AccountClient::invalidateAuthentication() {
     ++m_requestGeneration;
+    ++m_deviceListGeneration;
     for (QNetworkReply *reply : m_net->findChildren<QNetworkReply *>())
         if (reply->isRunning())
             reply->abort();
@@ -402,8 +403,11 @@ void AccountClient::fetchDevices() {
         emit requestFailed(tr("Not signed in."));
         return;
     }
+    const quint64 generation = ++m_deviceListGeneration;
     request(Verb::Get, QStringLiteral("/v1/devices"), QByteArray(), true,
-            [this](QNetworkReply *reply) {
+            [this, generation](QNetworkReply *reply) {
+                if (generation != m_deviceListGeneration)
+                    return;
                 const QByteArray payload = reply->readAll();
                 const QJsonDocument doc = QJsonDocument::fromJson(payload);
                 if (!doc.isArray()) {

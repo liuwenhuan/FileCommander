@@ -43,6 +43,7 @@ class QStackedWidget;
 class QTableView;
 class QTemporaryDir;
 class QToolBar;
+class QVBoxLayout;
 class QTableWidget;
 class QTabWidget;
 class QTextBrowser;
@@ -234,6 +235,7 @@ protected:
 
     static bool isVideo(const QString &path);
     static bool isMarkdown(const QString &path);
+    static bool isCsv(const QString &path);
     static bool isPdf(const QString &path);
     static bool isAudio(const QString &path);
 
@@ -246,6 +248,8 @@ private:
     QWidget *buildImagePage();
     QWidget *buildTextPage();     // toolbar (encoding/hex/wrap/find) + the editor
     void renderText();            // (re)render m_textRaw per the encoding/hex toggle
+    void renderCsv(const QString &content, bool truncated);
+    void setCsvMode(bool enabled);
     void setTextWrapEnabled(bool enabled);
     static int textViewportPosition(const QPlainTextEdit *text);
     static void restoreTextViewportPosition(QPlainTextEdit *text, int position);
@@ -427,16 +431,21 @@ private:
     // Window context; the embedded pane keeps a clean plaintext head.
     QWidget *m_textPage = nullptr;
     QToolBar *m_textToolbar = nullptr;
+    QVBoxLayout *m_textLayout = nullptr;
     QComboBox *m_textEncoding = nullptr;
     QAction *m_textWrapAction = nullptr;
+    QAction *m_textHexAction = nullptr;
     QAction *m_textEditAction = nullptr; // hands the file to the F4 editor
     QLineEdit *m_textFind = nullptr;
+    QTableWidget *m_csvTable = nullptr;
+    QLabel *m_csvNotice = nullptr;
     QByteArray m_textRaw;              // raw bytes of the current text file
     QString m_textPath;
     QString m_textEncodingIdentity;    // stable origin, not a temp preview path
     TextEncodingDetector::Result m_textAutoResult; // detected once per loaded file
     bool m_textAutoResultValid = false;
     bool m_textHex = false;           // hex-dump mode
+    bool m_textIsCsv = false;         // render decoded text as a table
     bool m_textTruncated = false;     // the read hit the cap
     qint64 m_textCap = 0;             // max bytes read (context-dependent)
     // Newest text probe. A read that lands after the cursor moved is dropped.

@@ -122,6 +122,9 @@ public:
     void goBack();
     void goForward();
     void refresh();
+    // Re-lists while restoring the current selection when those paths still
+    // appear in the new listing. Used after a failed network operation.
+    void refreshPreservingSelection();
 
     // Path under the keyboard cursor (not necessarily selected) -- used by
     // F3/F4 to know which single file to open.
@@ -213,8 +216,8 @@ public:
     bool removeDeletedAndSelectNext(const QStringList &paths);
 
     // Settles the listing after a delete or move took `paths` out of this panel:
-    // drops exactly the rows that really went (keeping the cursor where it was),
-    // or relists when this backend cannot be asked which of them those were.
+    // drops exactly the rows that really went and selects the next surviving
+    // entry, or relists when this backend cannot be asked which paths vanished.
     // Call once the operation has finished.
     void settleAfterRemoval(const QStringList &paths);
 

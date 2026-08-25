@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <QAbstractItemView>
 #include <QDir>
 #include <QFile>
 #include <QSignalSpy>
@@ -75,6 +76,11 @@ QStringList visibleEntryNames(FileSystemModel *model) {
             names.append(model->fileInfoAt(row).name());
     }
     return names;
+}
+
+QString currentEntryName(FilePanel &panel) {
+    const QModelIndex current = panel.activeView()->currentIndex();
+    return current.isValid() ? panel.model()->fileInfoAt(current.row()).name() : QString();
 }
 
 void touch(const QString &path) {
@@ -167,6 +173,51 @@ TEST(PanelRemovalTest, RemoteDeleteThatSucceededDropsTheRow) {
 
     EXPECT_FALSE(listHasName(panel.model(), QStringLiteral("report.pdf")));
     EXPECT_TRUE(listHasName(panel.model(), QStringLiteral("notes.txt")));
+}
+
+TEST(PanelRemovalTest, RemoteRemovalSelectsTheNextListedEntryAfterReload) {
+    auto share = std::make_shared<FakeShare>();
+    share->names = QStringList{QStringLiteral("alpha.txt"), QStringLiteral("middle.txt"),
+                               QStringLiteral("zulu.txt")};
+
+    FilePanel panel;
+    panel.connectTabTo(0, share, [](QString *) { return true; },
+                       QStringLiteral("/share/docs"), QStringLiteral("tester@share"),
+                       SavedConnection{}, FileSystemModel::AuthRetryFactory());
+    settle(panel);
+    const QString removed = QStringLiteral("/share/docs/middle.txt");
+    panel.selectPathAfterReload(removed);
+    panel.refresh();
+    settle(panel);
+    ASSERT_EQ(currentEntryName(panel), QStringLiteral("middle.txt"));
+
+    share->names = QStringList{QStringLiteral("alpha.txt"), QStringLiteral("zulu.txt")};
+    panel.settleAfterRemoval({removed});
+    settle(panel);
+
+    EXPECT_EQ(currentEntryName(panel), QStringLiteral("zulu.txt"));
+}
+
+TEST(PanelRemovalTest, RemoteRefreshPreservesTheCurrentEntryWhenItStillExists) {
+    auto share = std::make_shared<FakeShare>();
+    share->names = QStringList{QStringLiteral("alpha.txt"), QStringLiteral("middle.txt"),
+                               QStringLiteral("zulu.txt")};
+
+    FilePanel panel;
+    panel.connectTabTo(0, share, [](QString *) { return true; },
+                       QStringLiteral("/share/docs"), QStringLiteral("tester@share"),
+                       SavedConnection{}, FileSystemModel::AuthRetryFactory());
+    settle(panel);
+    const QString selected = QStringLiteral("/share/docs/middle.txt");
+    panel.selectPathAfterReload(selected);
+    panel.refresh();
+    settle(panel);
+    ASSERT_EQ(currentEntryName(panel), QStringLiteral("middle.txt"));
+
+    panel.refreshPreservingSelection();
+    settle(panel);
+
+    EXPECT_EQ(currentEntryName(panel), QStringLiteral("middle.txt"));
 }
 
 TEST(PanelRemovalTest, ClosingAnInactiveRemoteTabLeavesTheActiveTabLocal) {

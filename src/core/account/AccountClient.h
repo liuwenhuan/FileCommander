@@ -260,6 +260,7 @@ private:
     QString m_refreshToken; // memory plus login keyring
     QString m_credentialDeviceId; // keyring entry loaded/requested for this session
     quint64 m_requestGeneration = 0;
+    quint64 m_deviceListGeneration = 0;
     AccountInfo m_account;
 };
 

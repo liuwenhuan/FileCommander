@@ -28,6 +28,7 @@ struct ComputerEntry {
 
     Kind kind = Kind::Drive;
     QString name;      // what the Name column shows
+    QString rawName;   // stable undecorated name for opening an AccountDevice
     QString target;    // meaning depends on kind; see above
     QString iconPath;  // ":/icons/....svg"; empty = let IconCache decide
     QDateTime created; // only saved bookmarks have one; invalid renders blank

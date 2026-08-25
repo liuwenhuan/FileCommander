@@ -619,6 +619,13 @@ void QuickView::setContentFontSize(int pt) {
         f.setPointSize(pt);
         m_text->setFont(f);
     }
+    if (m_csvTable) {
+        QFont f = m_csvTable->font();
+        f.setPointSize(pt);
+        m_csvTable->setFont(f);
+        m_csvTable->verticalHeader()->setDefaultSectionSize(QFontMetrics(f).height() + 6);
+        m_csvTable->resizeColumnsToContents();
+    }
     if (m_markdown) {
         QFont f = m_markdown->font();
         f.setPointSize(pt);
@@ -677,6 +684,7 @@ void QuickView::setContentFontFamily(const QString &family) {
     };
     applyFamily(m_markdown);
     applyFamily(m_officeTabs);
+    applyFamily(m_csvTable);
     for (int i = 0; m_officeTabs && i < m_officeTabs->count(); ++i)
         applyFamily(m_officeTabs->widget(i));
 }
@@ -689,7 +697,7 @@ void QuickView::focusPreview() {
     // something useful (scroll text, navigate the grid, type the password).
     QWidget *target = nullptr;
     if (page == m_textPage)
-        target = m_text;
+        target = m_textIsCsv ? static_cast<QWidget *>(m_csvTable) : static_cast<QWidget *>(m_text);
     else if (page == m_markdownPage)
         target = m_markdown;
     else if (page == m_imagePage)
@@ -943,9 +951,9 @@ QWidget *QuickView::buildTextPage() {
     connect(m_textWrapAction, &QAction::toggled, this,
             [this](bool enabled) { setTextWrapEnabled(enabled); });
 
-    QAction *hex = m_textToolbar->addAction(tr("Hex"));
-    hex->setCheckable(true);
-    connect(hex, &QAction::toggled, this, [this](bool on) {
+    m_textHexAction = m_textToolbar->addAction(tr("Hex"));
+    m_textHexAction->setCheckable(true);
+    connect(m_textHexAction, &QAction::toggled, this, [this](bool on) {
         m_textHex = on;
         m_textEncoding->setEnabled(!on); // encoding is meaningless in hex mode
         renderText();
@@ -981,10 +989,15 @@ QWidget *QuickView::buildTextPage() {
     // consistent for text files (same encoding/hex/wrap/find controls). The
     // toolbar is added to the layout below and visible by default.
 
-    auto *layout = new QVBoxLayout(m_textPage);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->addWidget(m_textToolbar);
-    layout->addWidget(m_text, 1);
+    m_csvNotice = new QLabel(m_textPage);
+    m_csvNotice->setObjectName(QStringLiteral("quickViewCsvNotice"));
+    m_csvNotice->setVisible(false);
+
+    m_textLayout = new QVBoxLayout(m_textPage);
+    m_textLayout->setContentsMargins(0, 0, 0, 0);
+    m_textLayout->addWidget(m_textToolbar);
+    m_textLayout->addWidget(m_text, 1);
+    m_textLayout->addWidget(m_csvNotice);
     return m_textPage;
 }
 
@@ -1041,7 +1054,9 @@ bool QuickView::beginEditing(const QString &path, const QString &encodingIdentit
 
     // The editor and preview can have different widths (the editor has a gutter),
     // so preserve a document position instead of copying visual scroll rows.
-    const int position = (!m_textHex && path == m_textPath) ? textViewportPosition(m_text) : -1;
+    const int position = (!m_textHex && !m_textIsCsv && path == m_textPath)
+                             ? textViewportPosition(m_text)
+                             : -1;
     m_stack->setCurrentWidget(m_editor);
     if (position >= 0) {
         QPointer<TextEditor> editor = m_editor;
@@ -1116,9 +1131,120 @@ void QuickView::renderText() {
         QTextCodec *codec = TextEncodingDetector::codecForSelectableIndex(encodingIndex);
         content = codec ? codec->toUnicode(m_textRaw) : QString::fromUtf8(m_textRaw);
     }
+    if (m_textIsCsv && !displayHex) {
+        renderCsv(content, renderTruncated);
+        return;
+    }
     if (renderTruncated)
         content += tr("\n\n[... truncated ...]");
+    if (m_csvNotice)
+        m_csvNotice->setVisible(false);
+    setCsvMode(false);
     m_text->setPlainText(content);
+}
+
+void QuickView::setCsvMode(bool enabled) {
+    if (m_text)
+        m_text->setVisible(!enabled);
+    if (m_csvTable)
+        m_csvTable->setVisible(enabled);
+    if (m_textWrapAction)
+        m_textWrapAction->setVisible(!enabled);
+    if (m_textHexAction)
+        m_textHexAction->setVisible(!enabled);
+    if (m_textFind)
+        m_textFind->setVisible(!enabled);
+}
+
+void QuickView::renderCsv(const QString &content, bool truncated) {
+    struct ParsedCsv {
+        QVector<QStringList> rows;
+        bool truncated = false;
+    } parsed;
+    constexpr int kMaxRows = 500;
+    constexpr int kMaxColumns = 100;
+
+    QStringList row;
+    QString field;
+    bool quoted = false;
+    auto finishField = [&] {
+        if (row.size() < kMaxColumns)
+            row.append(field);
+        else
+            parsed.truncated = true;
+        field.clear();
+    };
+    auto finishRow = [&] {
+        finishField();
+        if (parsed.rows.size() < kMaxRows)
+            parsed.rows.append(row);
+        else
+            parsed.truncated = true;
+        row.clear();
+    };
+
+    for (int i = 0; i < content.size(); ++i) {
+        const QChar ch = content.at(i);
+        if (quoted) {
+            if (ch == QLatin1Char('"')) {
+                if (i + 1 < content.size() && content.at(i + 1) == QLatin1Char('"')) {
+                    field += ch;
+                    ++i;
+                } else {
+                    quoted = false;
+                }
+            } else {
+                field += ch;
+            }
+            continue;
+        }
+        if (ch == QLatin1Char('"') && field.isEmpty()) {
+            quoted = true;
+        } else if (ch == QLatin1Char(',')) {
+            finishField();
+        } else if (ch == QLatin1Char('\r') || ch == QLatin1Char('\n')) {
+            finishRow();
+            if (ch == QLatin1Char('\r') && i + 1 < content.size() && content.at(i + 1) == QLatin1Char('\n'))
+                ++i;
+            if (parsed.rows.size() >= kMaxRows && i + 1 < content.size()) {
+                parsed.truncated = true;
+                break;
+            }
+        } else {
+            field += ch;
+        }
+    }
+    if (!field.isEmpty() || !row.isEmpty())
+        finishRow();
+
+    if (!m_csvTable) {
+        m_csvTable = new QTableWidget(m_textPage);
+        m_csvTable->setObjectName(QStringLiteral("quickViewCsvTable"));
+        m_csvTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        m_csvTable->setSelectionMode(QAbstractItemView::NoSelection);
+        m_csvTable->horizontalHeader()->setVisible(false);
+        m_csvTable->verticalHeader()->setVisible(false);
+        m_textLayout->insertWidget(1, m_csvTable, 1);
+    }
+    int columns = 0;
+    for (const QStringList &cells : parsed.rows)
+        columns = qMax(columns, cells.size());
+    m_csvTable->clear();
+    m_csvTable->setRowCount(parsed.rows.size());
+    m_csvTable->setColumnCount(columns);
+    m_csvTable->setFont(m_text->font());
+    m_csvTable->verticalHeader()->setDefaultSectionSize(QFontMetrics(m_csvTable->font()).height() + 6);
+    for (int rowIndex = 0; rowIndex < parsed.rows.size(); ++rowIndex) {
+        const QStringList &cells = parsed.rows.at(rowIndex);
+        for (int column = 0; column < cells.size(); ++column)
+            m_csvTable->setItem(rowIndex, column, new QTableWidgetItem(cells.at(column)));
+    }
+    m_csvTable->resizeColumnsToContents();
+    if (m_csvNotice) {
+        m_csvNotice->setText(tr("[... truncated ...]"));
+        m_csvNotice->setVisible(truncated || parsed.truncated);
+    }
+    setCsvMode(true);
 }
 
 void QuickView::setTextWrapEnabled(bool enabled) {
@@ -1233,6 +1359,11 @@ bool QuickView::isVideo(const QString &path) {
 bool QuickView::isMarkdown(const QString &path) {
     static const QSet<QString> kMarkdownSuffixes = {"md", "markdown", "mkd", "mdown"};
     return kMarkdownSuffixes.contains(FileInfo::suffixForName(QFileInfo(path).fileName()).toLower());
+}
+
+bool QuickView::isCsv(const QString &path) {
+    return FileInfo::suffixForName(QFileInfo(path).fileName()).compare(
+               QLatin1String("csv"), Qt::CaseInsensitive) == 0;
 }
 
 bool QuickView::isPdf(const QString &path) {
@@ -3682,6 +3813,7 @@ void QuickView::showFile(const QString &path, const QString &encodingIdentity) {
 #endif
     m_textPath.clear();
     m_textEncodingIdentity.clear();
+    m_textIsCsv = false;
     if (path.isEmpty() || (!streamed && (!info.exists() || info.isDir()))) {
         stopVideo();
         stopAudio();
@@ -3904,11 +4036,12 @@ void QuickView::showFile(const QString &path, const QString &encodingIdentity) {
             bool opened = false;
         };
         const qint64 cap = m_textCap;
+        const bool csv = isCsv(path);
         const quint64 generation = ++m_textLoadGeneration;
         m_textLoadPending = true;
         auto *watcher = new QFutureWatcher<TextProbe>(this);
         connect(watcher, &QFutureWatcher<TextProbe>::finished, this,
-                [this, watcher, path, resolvedEncodingIdentity, generation, info]() {
+                [this, watcher, path, resolvedEncodingIdentity, generation, info, csv]() {
                     const TextProbe probe = watcher->result();
                     watcher->deleteLater();
                     if (generation != m_textLoadGeneration)
@@ -3936,6 +4069,14 @@ void QuickView::showFile(const QString &path, const QString &encodingIdentity) {
                         m_settings.rememberedTextEncodingIndex(m_textEncodingIdentity));
                     m_textEncoding->blockSignals(false);
                     m_textPath = path;
+                    m_textIsCsv = csv;
+                    if (m_textIsCsv && m_textHex) {
+                        m_textHex = false;
+                        if (m_textHexAction) {
+                            const QSignalBlocker blocker(m_textHexAction);
+                            m_textHexAction->setChecked(false);
+                        }
+                    }
                     renderText();
                     revealStaticPage(m_textPage);
                     // Coming back from the editor: restore its logical text

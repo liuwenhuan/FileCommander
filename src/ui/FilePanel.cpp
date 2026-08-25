@@ -1388,6 +1388,18 @@ void FilePanel::refresh() {
         m_model->setRootPath(m_model->rootPath());
 }
 
+void FilePanel::refreshPreservingSelection() {
+    QStringList paths = selectedPaths();
+    if (paths.isEmpty()) {
+        const QModelIndex current = activeView()->currentIndex();
+        if (current.isValid() && !m_model->isParentEntry(current.row()))
+            paths.append(m_model->fileInfoAt(current.row()).path());
+    }
+    for (const QString &path : paths)
+        selectPathAfterReload(path);
+    refresh();
+}
+
 void FilePanel::exchangeLocationWith(FilePanel *other) {
     if (!other || other == this)
         return;
@@ -2451,11 +2463,32 @@ void FilePanel::settleAfterRemoval(const QStringList &paths) {
     // NOT refreshed, that wrong answer was the last word.
     //
     // Asking the provider path by path would be a blocking round trip each, on
-    // the GUI thread. One relist costs a single round trip, answers for every
-    // entry at once, and is what the server actually says. The cursor returning
-    // to the top is the price; being told files are gone when they are still
-    // there is worse.
+    // the GUI thread. One relist costs a single round trip and is what the server
+    // actually says. Preserve a path from the stale listing as the post-reload
+    // cursor target, so the relist retains the local-panel rule of selecting the
+    // next entry (or the preceding one after a tail removal).
     if (!prov || !prov->isLocalFilesystem()) {
+        QString successor;
+        int firstRemoved = -1;
+        for (int row = 0; row < m_model->rowCount(); ++row) {
+            if (!m_model->isParentEntry(row) && paths.contains(m_model->fileInfoAt(row).path())) {
+                firstRemoved = row;
+                break;
+            }
+        }
+        if (firstRemoved >= 0) {
+            for (int row = firstRemoved + 1; row < m_model->rowCount(); ++row) {
+                if (!m_model->isParentEntry(row) && !paths.contains(m_model->fileInfoAt(row).path())) {
+                    successor = m_model->fileInfoAt(row).path();
+                    break;
+                }
+            }
+            for (int row = firstRemoved - 1; successor.isEmpty() && row >= 0; --row) {
+                if (!m_model->isParentEntry(row) && !paths.contains(m_model->fileInfoAt(row).path()))
+                    successor = m_model->fileInfoAt(row).path();
+            }
+        }
+        selectPathAfterReload(successor);
         refresh();
         return;
     }

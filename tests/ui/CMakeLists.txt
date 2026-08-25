@@ -12,6 +12,7 @@ set(UI_TEST_SOURCES
     test_CommandHistory.cpp
     test_TextViewer.cpp
     test_TextEncodingDetector.cpp
+    test_CsvPreview.cpp
     test_SeekSlider.cpp
     test_ByteSearch.cpp
     test_FindBar.cpp
