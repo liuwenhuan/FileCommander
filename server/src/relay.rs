@@ -24,7 +24,6 @@ use futures_util::{SinkExt, StreamExt};
 use serde::Deserialize;
 use tokio::sync::oneshot;
 
-use crate::agent::TICKET_TTL_SECONDS;
 use crate::api::{fail, ApiError};
 use crate::AppState;
 
@@ -94,10 +93,8 @@ pub async fn relay_ws(
         if session.ticket != ticket {
             return Err(fail(StatusCode::FORBIDDEN, "bad ticket"));
         }
-        // Sliding expiry: a session lives as long as its devices keep using it,
-        // and dies a ticket's lifetime after the last one stops. A fixed expiry
-        // would cut a long browse off mid-transfer.
-        session.expires = now + Duration::from_secs(TICKET_TTL_SECONDS as u64);
+        // Absolute expiry: an established pipe may finish, but the bearer ticket
+        // can never be refreshed into a permanent credential by reconnecting.
     }
     // Cap the number of relay WebSockets open at once, whatever they are doing.
     let slot = RelaySlot::acquire(&state.relay_conns, state.relay_max_conns)

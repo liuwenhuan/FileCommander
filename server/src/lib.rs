@@ -30,7 +30,10 @@ use db::Db;
 /// somewhere to push a connection request, plus what the device last told us
 /// about how to reach it directly.
 pub struct AgentConn {
-    pub tx: mpsc::UnboundedSender<String>,
+    pub tx: mpsc::Sender<String>,
+    /// Separate bounded lane for security controls such as ticket/device revoke;
+    /// ordinary notification backlogs cannot starve it.
+    pub control_tx: mpsc::Sender<String>,
     /// Which account the socket belongs to, so a presence change can be pushed
     /// to that account's other devices and only them.
     pub user_id: i64,
@@ -46,13 +49,15 @@ pub struct AgentConn {
     pub generation: u64,
 }
 
-/// A relay session, live from the moment /v1/session mints it until a ticket
-/// lifetime after its devices stop connecting. The queues hold sockets that
+/// A relay session, live from the moment /v1/session mints it until its absolute
+/// ticket deadline. The queues hold sockets that arrived before their opposite
 /// arrived before their opposite number; each entry is the waiting task, which
 /// does the pumping once it is handed a peer.
 pub struct RelaySession {
     pub ticket: String,
     pub expires: Instant,
+    pub source_device_id: String,
+    pub target_device_id: String,
     pub accepting: VecDeque<oneshot::Sender<WebSocket>>,
     pub connecting: VecDeque<oneshot::Sender<WebSocket>>,
 }

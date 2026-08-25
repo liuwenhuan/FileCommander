@@ -161,6 +161,19 @@ void DeviceAgent::onTextMessage(const QString &text) {
             emit ticketOffered(message.value(QStringLiteral("session_id")).toString(), ticket,
                                message.value(QStringLiteral("from")).toString(),
                                message.value(QStringLiteral("expires_in")).toInt());
+    } else if (type == QLatin1String("ticket_revoked")) {
+        const QString ticket = message.value(QStringLiteral("ticket")).toString();
+        if (!ticket.isEmpty())
+            emit ticketRevoked(ticket);
+    } else if (type == QLatin1String("tickets_revoked")) {
+        const QJsonArray tickets = message.value(QStringLiteral("tickets")).toArray();
+        for (const QJsonValue &value : tickets) {
+            const QString ticket = value.toString();
+            if (!ticket.isEmpty())
+                emit ticketRevoked(ticket);
+        }
+    } else if (type == QLatin1String("device_revoked")) {
+        emit deviceRevoked();
     } else if (type == QLatin1String("clipboard_delivery")) {
         const QString deliveryId = message.value(QStringLiteral("delivery_id")).toString();
         if (!deliveryId.isEmpty())

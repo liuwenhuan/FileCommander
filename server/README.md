@@ -21,20 +21,26 @@ FILECOMMANDER_ACCOUNT_TLS_KEY=/etc/filecommander/privkey.pem \
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `FILECOMMANDER_ACCOUNT_BIND` | `0.0.0.0:8443` | listen address |
-| `FILECOMMANDER_ACCOUNT_DB` | `accounts.db` | SQLite file, created on first run |
+| `FILECOMMANDER_ACCOUNT_BIND` | `127.0.0.1:8443` | listen address; use a non-loopback address only with TLS |
+| `FILECOMMANDER_ACCOUNT_DB` | `accounts.db` | SQLite file, forced to mode `0600` on Unix |
 | `FILECOMMANDER_ACCOUNT_TLS_CERT` | — | PEM certificate chain |
 | `FILECOMMANDER_ACCOUNT_TLS_KEY` | — | PEM private key |
 | `FILECOMMANDER_UPDATE_ROOT` | — | read-only root containing `version.json`, `update.html`, and release packages |
 | `FILECOMMANDER_PUBLIC_HOST` | `fc.aigutta.com` | fixed host used by the optional HTTP-to-HTTPS redirect listener |
 | `FILECOMMANDER_PUBLIC_HTTP_BIND` | — | optional redirect-only HTTP bind address, e.g. `0.0.0.0:80` |
 | `FILECOMMANDER_REQUIRE_TLS` | — | `true` rejects a startup without both TLS files |
+| `FILECOMMANDER_ALLOW_INSECURE_HTTP` | — | explicit development-only override for plaintext on a non-loopback bind |
 
-With both TLS variables set the server serves HTTPS through rustls. With
-either missing it serves plain HTTP, which sends access tokens across the wire
-in the clear — acceptable for a local test run, never for a deployment. Set
-`FILECOMMANDER_REQUIRE_TLS=true` in production. If `FILECOMMANDER_PUBLIC_HTTP_BIND`
-is configured, it serves only permanent redirects to the configured HTTPS host.
+With both TLS variables set the server serves HTTPS through rustls. Without TLS it
+serves plaintext only on a loopback bind. A non-loopback plaintext bind is rejected
+unless `FILECOMMANDER_ALLOW_INSECURE_HTTP=true` is set explicitly for an isolated
+development environment. Set `FILECOMMANDER_REQUIRE_TLS=true` in production. If
+`FILECOMMANDER_PUBLIC_HTTP_BIND` is configured, it serves only permanent redirects
+to the configured HTTPS host.
+
+Run the service as a dedicated user and pre-create the database directory with mode
+`0700`. The process uses umask `0077` and repairs the main database file to `0600` on
+Unix, covering SQLite journal and temporary files as well.
 
 ## Public update files
 
@@ -136,7 +142,10 @@ ticket-verification endpoint, and the server never sees the transfer itself.
 
 Devices with no direct route fall back to `WS /v1/relay/{session_id}`, which
 splices two sockets bearing the same ticket into one byte pipe. The transfer
-is TLS end-to-end, so the relay carries ciphertext it cannot read.
+is TLS end-to-end, so the relay carries ciphertext it cannot read. The five-minute
+ticket deadline is absolute: requests or relay reconnects never extend it. Logging
+out or removing either device removes unpaired relay state and pushes a ticket
+revocation to the opposite device's file server.
 
 ### Cloud Clipboard explicit delivery
 

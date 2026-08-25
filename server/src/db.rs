@@ -3,6 +3,9 @@
 
 use std::sync::{Arc, Mutex};
 
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+
 use chrono::{DateTime, SecondsFormat, Utc};
 use rand::RngCore;
 use rusqlite::Connection;
@@ -120,6 +123,12 @@ impl Db {
             "ALTER TABLE devices ADD COLUMN shares TEXT NOT NULL DEFAULT ''",
             [],
         );
+        #[cfg(unix)]
+        if path != ":memory:" {
+            let permissions = std::fs::Permissions::from_mode(0o600);
+            std::fs::set_permissions(path, permissions)
+                .map_err(|_| rusqlite::Error::InvalidPath(path.into()))?;
+        }
         Ok(Db(Arc::new(Mutex::new(conn))))
     }
 
@@ -256,6 +265,21 @@ mod tests {
 
         drop(conn);
         let _ = std::fs::remove_file(&file);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn database_file_is_private_even_with_a_wide_process_umask() {
+        let file = std::env::temp_dir().join(format!("fc-mode-{}.db", std::process::id()));
+        let _ = std::fs::remove_file(&file);
+        Db::open(file.to_str().expect("utf-8 path")).expect("open private database");
+        let mode = std::fs::metadata(&file)
+            .expect("metadata")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o600);
+        let _ = std::fs::remove_file(file);
     }
 
     #[test]

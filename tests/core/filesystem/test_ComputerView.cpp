@@ -422,7 +422,7 @@ TEST(ComputerViewTest, ProviderTest_AccountDeviceMapsBackAndReportsItsOnlineStat
     EXPECT_FALSE(provider.entryEnabled(rows.at(1).path()));
 }
 
-TEST(ComputerViewTest, ViewModelTest_OfflineAccountDeviceIsListedButNotEnabled) {
+TEST(ComputerViewTest, ViewModelTest_OfflineAccountDeviceRemainsSelectable) {
     auto provider = std::make_shared<ComputerProvider>();
     provider->setEntries({
         makeAccountDevice(QStringLiteral("work laptop"), QStringLiteral("dev-1"), true),
@@ -451,8 +451,8 @@ TEST(ComputerViewTest, ViewModelTest_OfflineAccountDeviceIsListedButNotEnabled) 
     const QModelIndex online = model.index(onlineRow, FileSystemModel::NameColumn);
     const QModelIndex offline = model.index(offlineRow, FileSystemModel::NameColumn);
     EXPECT_TRUE(model.flags(online) & Qt::ItemIsEnabled);
-    // The whole point of greying: the row is present but cannot be selected or
-    // activated, so a click on an offline peer is a visible no-op.
-    EXPECT_FALSE(model.flags(offline) & Qt::ItemIsEnabled);
-    EXPECT_FALSE(model.flags(offline) & Qt::ItemIsSelectable);
+    // Offline peers remain keyboard/mouse selectable; activation reports their
+    // state instead of silently ignoring the user.
+    EXPECT_TRUE(model.flags(offline) & Qt::ItemIsEnabled);
+    EXPECT_TRUE(model.flags(offline) & Qt::ItemIsSelectable);
 }

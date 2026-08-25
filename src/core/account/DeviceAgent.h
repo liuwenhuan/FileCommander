@@ -65,6 +65,8 @@ signals:
     // directly -- we cannot tell which it will be, so both are prepared.
     void ticketOffered(const QString &sessionId, const QString &ticket, const QString &from,
                        int expiresIn);
+    void ticketRevoked(const QString &ticket);
+    void deviceRevoked();
 
     void clipboardDeliveryAvailable(QString deliveryId);
 

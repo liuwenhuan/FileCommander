@@ -6,7 +6,7 @@
 use std::fs;
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
@@ -805,9 +805,15 @@ async fn an_agent_reports_presence_and_receives_a_ticket() {
 
     socket
         .send(tokio_tungstenite::tungstenite::Message::Text(
-            json!({"type": "hello", "lan_addrs": ["192.168.1.7"], "port": 45001})
-                .to_string()
-                .into(),
+            json!({
+                "type": "hello",
+                "lan_addrs": ["192.168.1.7", "127.0.0.1", "not-an-ip"],
+                "port": 45001,
+                "pin": "sha256//not-a-valid-digest",
+                "shares": ["Documents", "bad\nshare"]
+            })
+            .to_string()
+            .into(),
         ))
         .await
         .unwrap();
@@ -839,7 +845,8 @@ async fn an_agent_reports_presence_and_receives_a_ticket() {
         .find(|d| d["id"] == host_id.as_str())
         .unwrap();
     assert_eq!(seen["online"], true);
-    assert_eq!(seen["lan_addrs"][0], "192.168.1.7");
+    assert_eq!(seen["lan_addrs"], json!(["192.168.1.7"]));
+    assert_eq!(seen["shares"], json!(["Documents"]));
 
     let opened = send(
         &state,
@@ -853,6 +860,7 @@ async fn an_agent_reports_presence_and_receives_a_ticket() {
     let opened = json_of(opened).await;
     assert_eq!(opened["peer_port"], 45001);
     assert_eq!(opened["peer_lan_addrs"][0], "192.168.1.7");
+    assert_eq!(opened["peer_pin"], "");
 
     // The same ticket the caller got was pushed to the device being asked for.
     let pushed: Value =
@@ -860,6 +868,67 @@ async fn an_agent_reports_presence_and_receives_a_ticket() {
     assert_eq!(pushed["type"], "incoming");
     assert_eq!(pushed["ticket"], opened["ticket"]);
     assert_eq!(pushed["from"], "laptop");
+}
+
+#[tokio::test]
+async fn source_logout_revokes_peer_ticket_and_relay_session() {
+    use futures_util::{SinkExt, StreamExt};
+
+    let state = state();
+    let addr = serve(state.clone()).await;
+    register(&state, "user@example.com", "correct horse").await;
+    let host = login(&state, "user@example.com", "desktop", "").await;
+    let source = login(&state, "user@example.com", "laptop", "").await;
+
+    let (mut agent, _) = tokio_tungstenite::connect_async(ws_request(
+        addr,
+        "/v1/agent",
+        host["access_token"].as_str().unwrap(),
+    ))
+    .await
+    .unwrap();
+    agent.next().await;
+    agent
+        .send(tokio_tungstenite::tungstenite::Message::Text(
+            json!({"type": "hello", "lan_addrs": [], "port": 45001})
+                .to_string()
+                .into(),
+        ))
+        .await
+        .unwrap();
+    agent.next().await;
+
+    let opened = json_of(
+        send(
+            &state,
+            "POST",
+            "/v1/session",
+            source["access_token"].as_str().unwrap(),
+            json!({"device_id": host["device_id"]}),
+        )
+        .await,
+    )
+    .await;
+    let session_id = opened["session_id"].as_str().unwrap().to_string();
+    let ticket = opened["ticket"].as_str().unwrap().to_string();
+    let incoming: Value =
+        serde_json::from_str(agent.next().await.unwrap().unwrap().to_text().unwrap()).unwrap();
+    assert_eq!(incoming["ticket"], ticket);
+
+    let logged_out = send(
+        &state,
+        "POST",
+        "/v1/auth/logout",
+        source["access_token"].as_str().unwrap(),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(logged_out.status(), StatusCode::NO_CONTENT);
+    let revoked: Value =
+        serde_json::from_str(agent.next().await.unwrap().unwrap().to_text().unwrap()).unwrap();
+    assert_eq!(revoked["type"], "tickets_revoked");
+    assert_eq!(revoked["tickets"], json!([ticket]));
+    assert!(!state.sessions.lock().unwrap().contains_key(&session_id));
 }
 
 #[tokio::test]
@@ -1140,6 +1209,30 @@ async fn the_relay_refuses_a_wrong_ticket_or_an_unknown_session() {
     .is_err());
 }
 
+#[tokio::test]
+async fn relay_ticket_expiry_is_absolute() {
+    let state = state();
+    let addr = serve(state.clone()).await;
+    let (session_id, ticket) = open_relay_session(&state, addr).await;
+    {
+        let mut sessions = state.sessions.lock().unwrap();
+        sessions.get_mut(&session_id).unwrap().expires =
+            Instant::now() + Duration::from_millis(100);
+    }
+
+    // A connection before the deadline must not extend it.
+    let park = format!("/v1/relay/{session_id}?role=accept");
+    let _parked = tokio_tungstenite::connect_async(ws_request(addr, &park, &ticket))
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(150)).await;
+    assert!(
+        tokio_tungstenite::connect_async(ws_request(addr, &park, &ticket))
+            .await
+            .is_err()
+    );
+}
+
 /// The agent no longer accepts its token from the URL query: only an
 /// Authorization header authenticates the upgrade, because a query token is
 /// written to access logs and a header is not.
@@ -1170,6 +1263,34 @@ async fn the_agent_takes_the_token_from_the_header_not_the_query() {
         .to_text()
         .unwrap()
         .contains("welcome"));
+}
+
+#[tokio::test]
+async fn the_agent_rejects_oversized_frames() {
+    use futures_util::{SinkExt, StreamExt};
+
+    let state = state();
+    let addr = serve(state.clone()).await;
+    register(&state, "user@example.com", "correct horse").await;
+    let host = login(&state, "user@example.com", "desktop", "").await;
+    let (mut socket, _) = tokio_tungstenite::connect_async(ws_request(
+        addr,
+        "/v1/agent",
+        host["access_token"].as_str().unwrap(),
+    ))
+    .await
+    .unwrap();
+    socket.next().await; // welcome
+    socket
+        .send(tokio_tungstenite::tungstenite::Message::Text(
+            "x".repeat(70 * 1024).into(),
+        ))
+        .await
+        .unwrap();
+    let closed = tokio::time::timeout(Duration::from_secs(2), socket.next())
+        .await
+        .expect("server did not close oversized frame");
+    assert!(closed.is_none() || closed.is_some_and(|message| message.is_err()));
 }
 
 /// The relay refuses to grow beyond its connection budget, so a flood of
