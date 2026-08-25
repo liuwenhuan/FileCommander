@@ -38,14 +38,14 @@ impl UpdateFixture {
         .unwrap();
         fs::write(path.join("update.html"), "<h1>Test</h1>").unwrap();
         fs::write(
-            path.join("releases/v1.2.3/FileCommander-1.2.3-x86_64.AppImage"),
+            path.join("releases/v1.2.3/FileCommander-1.2.3-windows-x64-setup.exe"),
             b"abcdef",
         )
         .unwrap();
-        fs::write(path.join("FileCommander-1.2.3-x86_64.AppImage"), b"abcdef").unwrap();
+        fs::write(path.join("FileCommander-1.2.3-windows-x64-setup.exe"), b"abcdef").unwrap();
         fs::write(
             path.join("SHA256SUMS.txt"),
-            "abcdef  FileCommander-1.2.3-x86_64.AppImage\n",
+            "abcdef  FileCommander-1.2.3-windows-x64-setup.exe\n",
         )
         .unwrap();
         Self { path }
@@ -233,7 +233,7 @@ async fn public_update_packages_are_range_safe_and_never_traverse() {
     let full = router(update_state.clone())
         .oneshot(
             Request::builder()
-                .uri("/FileCommander-1.2.3-x86_64.AppImage")
+                .uri("/FileCommander-1.2.3-windows-x64-setup.exe")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -242,7 +242,7 @@ async fn public_update_packages_are_range_safe_and_never_traverse() {
     assert_eq!(full.status(), StatusCode::OK);
     assert_eq!(
         full.headers()["content-disposition"],
-        "attachment; filename=\"FileCommander-1.2.3-x86_64.AppImage\""
+        "attachment; filename=\"FileCommander-1.2.3-windows-x64-setup.exe\""
     );
     assert_eq!(
         full.headers()["cache-control"],
@@ -256,7 +256,7 @@ async fn public_update_packages_are_range_safe_and_never_traverse() {
     let range = router(update_state.clone())
         .oneshot(
             Request::builder()
-                .uri("/FileCommander-1.2.3-x86_64.AppImage")
+                .uri("/FileCommander-1.2.3-windows-x64-setup.exe")
                 .header("range", "bytes=1-3")
                 .body(Body::empty())
                 .unwrap(),

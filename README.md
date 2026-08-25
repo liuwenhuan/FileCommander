@@ -124,7 +124,7 @@ chmod +x FileCommander-0.1.0-x86_64.AppImage
 ./FileCommander-0.1.0-x86_64.AppImage
 ```
 
-**Windows** — zip 压缩包，解开即用。
+**Windows** — `FileCommander-<ver>-windows-x64-setup.exe` 是无需证书即可安装的用户级安装包，默认安装到当前用户的 `%LOCALAPPDATA%\Programs\FileCommander`，无需管理员权限。未签名安装包可能触发 Windows SmartScreen 的“未知发布者”提示；这是签名缺失造成的提示，不影响安装包内容。另提供 zip 便携版，解开即用；更新站点使用 setup EXE 作为规范包，zip 仅作为 GitHub Release 的便携附件。
 
 Office 文档预览需要外部 CLI `office-oxide`（单独的项目）。装了才有 docx / pptx /
 xlsx 预览；没装的话这个功能静默跳过，其余一切正常。

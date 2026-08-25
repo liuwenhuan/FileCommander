@@ -9,7 +9,7 @@ The production site is HTTPS-only:
 ```text
 https://fc.aigutta.com/version.json
 https://fc.aigutta.com/update.html
-https://fc.aigutta.com/FileCommander-X.Y.Z-windows-x64.zip
+https://fc.aigutta.com/FileCommander-X.Y.Z-windows-x64-setup.exe
 https://fc.aigutta.com/FileCommander_X.Y.Z_amd64.deb
 https://fc.aigutta.com/FileCommander-X.Y.Z-1.x86_64.rpm
 https://fc.aigutta.com/FileCommander-X.Y.Z-x86_64.AppImage
@@ -28,7 +28,7 @@ https://fc.aigutta.com/FileCommander-X.Y.Z-x86_64.AppImage
   "date": "2026-08-24",
   "notes": "Release notes",
   "packages": {
-    "windows": { "x86_64": { "filename": "...zip", "url": "https://fc.aigutta.com/...", "sha256": "...", "size": 1 } },
+    "windows": { "x86_64": { "filename": "...-setup.exe", "url": "https://fc.aigutta.com/...", "sha256": "...", "size": 1 } },
     "deb": { "x86_64": { "filename": "...deb", "url": "https://fc.aigutta.com/...", "sha256": "...", "size": 1 } },
     "rpm": { "x86_64": { "filename": "...rpm", "url": "https://fc.aigutta.com/...", "sha256": "...", "size": 1 } },
     "appimage": { "x86_64": { "filename": "...AppImage", "url": "https://fc.aigutta.com/...", "sha256": "...", "size": 1 } }
@@ -46,13 +46,13 @@ After the four final package files exist, generate a staging site with:
 python3 tools/generate-update-site.py \
   --version 1.2.3 --date 2026-08-24 --notes-file RELEASE_NOTES.txt \
   --output build/update-site \
-  FileCommander-1.2.3-windows-x64.zip \
+  FileCommander-1.2.3-windows-x64-setup.exe \
   FileCommander_1.2.3_amd64.deb \
   FileCommander-1.2.3-1.x86_64.rpm \
   FileCommander-1.2.3-x86_64.AppImage
 ```
 
-The generator computes hashes and sizes from the supplied bytes, copies packages to the output root, and atomically writes `version.json`, `update.html`, and basename-only `SHA256SUMS.txt`. Release versions must be exactly three numeric components (`X.Y.Z`), with every component at most `2147483647`, matching the desktop parser's signed 32-bit comparison bound. It rejects missing, unexpected, duplicated, malformed, or version-mismatched package names. `version.json` is capped at 60 KiB so it remains below the desktop checker's 64 KiB network limit; release notes must be shortened when generation rejects an oversized manifest.
+The generator computes hashes and sizes from the supplied bytes, copies packages to the output root, and atomically writes `version.json`, `update.html`, and basename-only `SHA256SUMS.txt`. The Windows setup EXE is the canonical Windows download; the portable ZIP is a GitHub Release-only attachment and is not copied to the update root or listed in this checksum file. Release versions must be exactly three numeric components (`X.Y.Z`), with every component at most `2147483647`, matching the desktop parser's signed 32-bit comparison bound. It rejects missing, unexpected, duplicated, malformed, or version-mismatched package names. `version.json` is capped at 60 KiB so it remains below the desktop checker's 64 KiB network limit; release notes must be shortened when generation rejects an oversized manifest.
 
 Run its tests with:
 

@@ -11,14 +11,14 @@ download, and you would spend the afternoon debugging the wrong half.
 Usage
 -----
     python tools/mock-update-server.py --version 9.9.9 \
-        --package dist/FileCommander-0.2.0-phase2-test-windows-x64.zip
+        --package dist/FileCommander-0.2.0-phase2-test-windows-x64-setup.exe
 
 then point a build at it:
 
     set FILECOMMANDER_UPDATE_MANIFEST_URL=http://127.0.0.1:8765/version.json
     dist\\FileCommander-windows-x64\\FileCommander.exe
 
-The segment key is chosen from the package's suffix (.zip -> windows,
+The segment key is chosen from the package's suffix (.zip or .exe -> windows,
 .AppImage -> appimage, .deb -> deb) unless --segment says otherwise.
 
 Fault injection, for the paths that are meant to fail:
@@ -41,6 +41,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 SEGMENT_BY_SUFFIX = {
     ".zip": "windows",
+    ".exe": "windows",
     ".appimage": "appimage",
     ".deb": "deb",
 }

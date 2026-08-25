@@ -44,7 +44,7 @@ def sha256_and_size(path: Path) -> tuple[str, int]:
 
 def package_specs(version: str) -> list[tuple[str, str, str, str]]:
     return [
-        ("windows", "x86_64", f"FileCommander-{version}-windows-x64.zip", "Windows x64 portable ZIP"),
+        ("windows", "x86_64", f"FileCommander-{version}-windows-x64-setup.exe", "Windows x64 installer"),
         ("deb", "x86_64", f"FileCommander_{version}_amd64.deb", "Linux x86_64 DEB"),
         ("rpm", "x86_64", f"FileCommander-{version}-1.x86_64.rpm", "Linux x86_64 RPM"),
         ("appimage", "x86_64", f"FileCommander-{version}-x86_64.AppImage", "Linux x86_64 AppImage"),

@@ -187,16 +187,21 @@ jobs:
           cargo build --release --manifest-path build/office-oxide-src/Cargo.toml -p office_oxide_cli
           New-Item -ItemType Directory -Force -Path build/office-oxide | Out-Null
           Copy-Item build/office-oxide-src/target/release/office-oxide.exe build/office-oxide/
-      - name: Build and validate x64 portable package
+      - name: Install NSIS
+        shell: pwsh
+        run: choco install nsis --no-progress --yes
+      - name: Build portable package and installer
         shell: pwsh
         env:
           FILECOMMANDER_QT_ROOT: ${{ env.QT_ROOT_DIR }}
           FILECOMMANDER_POPPLER_QT5_ROOT: ${{ github.workspace }}/build/poppler-qt5
-        run: ./packaging/build-windows.ps1 -Profile windows-portable -Architecture x64
+        run: ./packaging/build-windows-installer.ps1 -Architecture x64 -Smoke
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: windows-package
-          path: dist/FileCommander-*-windows-x64.zip
+          path: |
+            dist/FileCommander-*-windows-x64.zip
+            dist/FileCommander-*-windows-x64-setup.exe
 
   publish:
     timeout-minutes: 30
@@ -220,12 +225,15 @@ jobs:
           TAG: ${{ needs.version-check.outputs.tag }}
         run: |
           set -euo pipefail
-          mkdir -p release-input
-          cp artefacts/windows-package/*.zip release-input/
+          mkdir -p release-input release-portable
+          cp artefacts/windows-package/*-setup.exe release-input/
           cp artefacts/linux-packages/*.deb release-input/
           cp artefacts/linux-packages/*.AppImage release-input/
           cp artefacts/rpm-package/*.rpm release-input/
+          cp artefacts/windows-package/*.zip release-portable/
+          (cd release-portable && sha256sum *.zip > SHA256SUMS.txt)
           test "$(find release-input -maxdepth 1 -type f | wc -l)" = 4
+          test "$(find release-portable -maxdepth 1 -type f -name '*.zip' | wc -l)" = 1
           previous="$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || :)"
           if [[ -n "$previous" ]]; then
             git log --format='%h %s%n%n%b' "$previous..$TAG" > release-notes.md
@@ -245,6 +253,7 @@ jobs:
           generate_release_notes: true
           files: |
             release-input/*
+            release-portable/*
             update-site/SHA256SUMS.txt
       - name: Configure restricted deploy SSH
         env:

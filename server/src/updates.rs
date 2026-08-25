@@ -77,7 +77,8 @@ fn valid_filename(value: &str) -> bool {
         && (value.ends_with(".zip")
             || value.ends_with(".deb")
             || value.ends_with(".rpm")
-            || value.ends_with(".AppImage"))
+            || value.ends_with(".AppImage")
+            || value.ends_with(".exe"))
 }
 
 fn root(state: &AppState) -> Result<&UpdateRoot, StatusCode> {

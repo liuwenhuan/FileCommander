@@ -13,7 +13,7 @@ GENERATOR = ROOT / "tools" / "generate-update-site.py"
 class GenerateUpdateSiteTest(unittest.TestCase):
     VERSION = "1.2.3"
     ARTIFACTS = [
-        "FileCommander-1.2.3-windows-x64.zip",
+        "FileCommander-1.2.3-windows-x64-setup.exe",
         "FileCommander_1.2.3_amd64.deb",
         "FileCommander-1.2.3-1.x86_64.rpm",
         "FileCommander-1.2.3-x86_64.AppImage",

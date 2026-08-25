@@ -135,7 +135,7 @@ jobs:
           }
           Write-Host "$($headers.Count) headers checked, none reaches for a platform header."
 
-  # The portable zip, built where anyone can build it.
+  # The portable package and installer, built where anyone can build them.
   #
   # It is the FULL package: PDF preview included, because poppler-qt5 is built
   # here from source. There is no packaged one for Windows -- vcpkg's poppler
@@ -313,17 +313,23 @@ jobs:
           path: build/office-oxide
           key: ${{ steps.oxide-cache.outputs.cache-primary-key }}
 
-      - name: Build the portable package
+      - name: Install NSIS
+        shell: pwsh
+        run: choco install nsis --no-progress --yes
+
+      - name: Build portable package and installer
         shell: pwsh
         env:
           FILECOMMANDER_QT_ROOT: ${{ env.QT_ROOT_DIR }}
           FILECOMMANDER_POPPLER_QT5_ROOT: ${{ github.workspace }}/build/poppler-qt5
-        run: ./packaging/build-windows.ps1 -Profile windows-portable
+        run: ./packaging/build-windows-installer.ps1 -Architecture x64 -Smoke
 
       - uses: actions/upload-artifact@v4
         with:
-          name: FileCommander-windows-x64-zip
-          path: dist/FileCommander-*-windows-x64.zip
+          name: FileCommander-windows-x64-package
+          path: |
+            dist/FileCommander-*-windows-x64.zip
+            dist/FileCommander-*-windows-x64-setup.exe
 
   full-preview-package:
     timeout-minutes: 120
