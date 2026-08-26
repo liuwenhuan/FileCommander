@@ -174,7 +174,10 @@ jobs:
       - name: Install OpenSSL build tools
         if: steps.openssl-cache.outputs.cache-hit != 'true'
         shell: pwsh
-        run: choco install strawberryperl --no-progress --yes
+        run: |
+          choco install strawberryperl --no-progress --yes
+          "C:\\Strawberry\\perl\\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          "C:\\Strawberry\\c\\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
       - name: Build OpenSSL 1.1.1 runtime
         if: steps.openssl-cache.outputs.cache-hit != 'true'
         shell: pwsh

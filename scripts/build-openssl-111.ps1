@@ -35,6 +35,9 @@ function Find-VsDevCmd {
 
 $prefix = Join-Path $SdkRoot 'openssl-1.1.1'
 $bin = Join-Path $prefix 'bin'
+$tag = "OpenSSL_$($Version.Replace('.', '_'))"
+$archive = Join-Path $SdkRoot "openssl-111-src/openssl-$Version-github.tar.gz"
+$sourceDir = Join-Path $SdkRoot "openssl-111-src/openssl-$tag"
 
 $sslDll = Join-Path $bin 'libssl-1_1-x64.dll'
 $cryptoDll = Join-Path $bin 'libcrypto-1_1-x64.dll'
@@ -44,17 +47,15 @@ if ((Test-Path -LiteralPath $sslDll -PathType Leaf) -and
     exit 0
 }
 
-$work = Join-Path $SdkRoot 'openssl-111-src'
+$work = Split-Path -Parent $archive
 New-Item -ItemType Directory -Force -Path $work | Out-Null
 
-$archive = Join-Path $work "openssl-$Version.tar.gz"
 if (-not (Test-Path -LiteralPath $archive)) {
-    $url = "https://www.openssl.org/source/old/1.1.1/openssl-$Version.tar.gz"
+    $url = "https://github.com/openssl/openssl/archive/refs/tags/$tag.tar.gz"
     Write-Host "==> Fetching $url"
     Invoke-WebRequest -Uri $url -OutFile $archive
 }
 
-$sourceDir = Join-Path $work "openssl-$Version"
 if (-not (Test-Path -LiteralPath $sourceDir)) {
     Write-Host "==> Extracting openssl $Version"
     & (Join-Path $env:SystemRoot 'system32\tar.exe') -xzf $archive -C $work
