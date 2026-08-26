@@ -211,6 +211,11 @@ bool DirectoryTreeModel::canFetchMore(const QModelIndex &parent) const {
            && m_listers.at(node->rootIndex) != nullptr;
 }
 
+bool DirectoryTreeModel::isFetching(const QModelIndex &parent) const {
+    Node *node = nodeFor(parent);
+    return node && node->loading;
+}
+
 void DirectoryTreeModel::fetchMore(const QModelIndex &parent) {
     if (!canFetchMore(parent))
         return;

@@ -827,8 +827,11 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
         QTimer::singleShot(0, this, [this] {
             if (!isVisible())
                 return;
-            for (FilePanel *panel : m_startupComputerViewPanels)
-                showComputerView(panel);
+            const QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+            for (FilePanel *panel : m_startupComputerViewPanels) {
+                if (panel->activeTabWantsComputerView() && panel->model()->rootPath() == home)
+                    showComputerView(panel);
+            }
             m_startupComputerViewPanels.clear();
         });
     }
@@ -2432,7 +2435,7 @@ void MainWindow::showComputerView(FilePanel *panel) {
     // Only once the window is up. During construction this would pull the
     // device monitor in ahead of the first paint, which the startup path exists
     // to avoid; setupFeatureBatch refreshes the view itself when it later runs.
-    if (isVisible())
+    if (isVisible() && !m_startupComputerViewPanels.contains(panel))
         setupFeatureBatch();
     if (m_deviceMonitor)
         connect(m_deviceMonitor, &RemovableDeviceMonitor::devicesChanged, this,

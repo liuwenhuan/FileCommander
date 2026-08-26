@@ -867,6 +867,17 @@ ArchiveHandler::SmartResult ArchiveHandler::smartExtract(const QString &archiveP
     if (layout.wrapInArchiveNamedFolder)
         finalDir = uniqueDir(QDir(baseDestDir).filePath(base));
 
+    bool archiveNeedsPassword = false;
+    if (!passphrase.isEmpty()) {
+        // Probe before extraction: external 7z diagnostics are localized and may
+        // not contain the words classifyFailure recognises. A no-password listing
+        // is a stable encryption signal, while a failed extraction remains a
+        // generic error for an unencrypted archive.
+        Status probe = Status::Ok;
+        buildTree(archivePath, QString(), &probe, nullptr);
+        archiveNeedsPassword = probe == Status::NeedPassword;
+    }
+
     bool skippedEntries = false;
     // libarchive can expose plausible ZIP AES bytes for a wrong passphrase
     // without reporting the authentication failure. 7z verifies the password
@@ -884,16 +895,8 @@ ArchiveHandler::SmartResult ArchiveHandler::smartExtract(const QString &archiveP
         // is wrong -- measured; only the extraction then fails, with no error
         // text at all. Recovering the distinction here matters because the
         // caller retries on WrongPassword and gives up on a plain failure.
-        //
-        // Asked with an EMPTY passphrase on purpose: that is the query "is this
-        // archive encrypted at all", which is exactly what separates a bad
-        // password from a full disk.
-        if (!passphrase.isEmpty()) {
-            Status probe = Status::Ok;
-            buildTree(archivePath, QString(), &probe, nullptr);
-            if (probe == Status::NeedPassword)
-                result.status = Status::WrongPassword;
-        }
+        if (archiveNeedsPassword)
+            result.status = Status::WrongPassword;
         // Drop the folder this attempt created, if it is still empty, so a retry
         // reuses the name instead of landing in "name (2)". Only ever a folder
         // this call made: when the layout extracts in place, finalDir IS the

@@ -128,20 +128,24 @@ jobs:
           cmake --build --preset windows-msvc-debug --parallel
       - name: Run contract and UI suites
         shell: pwsh
+        timeout-minutes: 15
         env:
           FILECOMMANDER_QT_ROOT: ${{ env.QT_ROOT_DIR }}
           FILECOMMANDER_OPENSSL111_ROOT: ${{ github.workspace }}/build/openssl-1.1.1
         run: |
-          $env:Path = "$env:FILECOMMANDER_OPENSSL111_ROOT\bin;$env:Path"
-          ctest --preset windows-msvc-debug -E ui_tests
-          $uiTests = "build\windows-msvc-debug\tests\ui\ui_tests.exe"
-          $suites = & $uiTests --gtest_list_tests |
-              Where-Object { $_ -match '^[^\s].*\.$' } |
-              ForEach-Object { $_.TrimEnd('.') }
-          foreach ($suite in $suites) {
-              & $uiTests --gtest_color=no "--gtest_filter=$suite.*"
-              if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          }
+          $env:Path = "$env:FILECOMMANDER_QT_ROOT\bin;$env:FILECOMMANDER_OPENSSL111_ROOT\bin;$env:VCPKG_ROOT\installed\x64-windows\debug\bin;$env:VCPKG_ROOT\installed\x64-windows\bin;$env:Path"
+          $executables = @(
+              "build\windows-msvc-debug\tests\core\core_tests.exe",
+              "build\windows-msvc-debug\tests\platform\privilege_tests.exe",
+              "build\windows-msvc-debug\tests\platform\linux_privilege_broker_tests.exe",
+              "build\windows-msvc-debug\tests\platform\windows_privilege_broker_tests.exe",
+              "build\windows-msvc-debug\tests\platform\open_with_tests.exe",
+              "build\windows-msvc-debug\tests\archive\archive_tests.exe",
+              "build\windows-msvc-debug\tests\viewer\viewer_tests.exe",
+              "build\windows-msvc-debug\tests\ui\ui_tests.exe"
+          )
+          & ./scripts/run-gtest-suites.ps1 -Executables $executables -TimeoutSeconds 180
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       # Public headers in src/platform and src/core must not pull in a
       # platform's own headers; anything that needs them includes them in a .cpp.
       #
