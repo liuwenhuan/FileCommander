@@ -820,12 +820,18 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
                 });
     }
 
-    // Now that computerViewRequested is connected, the panels noted above can
-    // actually be put into the computer view -- a first launch's left pane, and
-    // any tab the last session left on it.
-    for (FilePanel *panel : m_startupComputerViewPanels)
-        showComputerView(panel);
-    m_startupComputerViewPanels.clear();
+    // Now that computerViewRequested is connected, enter any computer views after
+    // the window has been shown. Windows storage enumeration can touch shell/volume
+    // APIs that are not safe to run during top-level window construction.
+    if (!m_startupComputerViewPanels.isEmpty()) {
+        QTimer::singleShot(0, this, [this] {
+            if (!isVisible())
+                return;
+            for (FilePanel *panel : m_startupComputerViewPanels)
+                showComputerView(panel);
+            m_startupComputerViewPanels.clear();
+        });
+    }
 
     setActivePanel(m_leftPanel);
     m_leftPanel->view()->setFocus();
@@ -5723,13 +5729,19 @@ void MainWindow::runExtractLevel(quint64 reqId) {
     const QString base = it->base;
     const QString passphrase = it->passphrase;
     std::shared_ptr<std::atomic<bool>> cancel = it->cancel;
-    MainWindow *self = this; // outlives the job: closeEvent cancels every one
+    QPointer<MainWindow> self = this; // queued callbacks are dropped when the window closes
     QtConcurrent::run([self, reqId, source, base, passphrase, cancel] {
         const ConflictResolver resolveConflict = [self, reqId, cancel](const FileConflict &conflict) {
+            if (!self) {
+                cancel->store(true);
+                return ErrorAction::Cancel;
+            }
             ErrorAction action = ErrorAction::Cancel;
             QMetaObject::invokeMethod(
                 self,
                 [self, reqId, &conflict, &action] {
+                    if (!self)
+                        return;
                     // A conflict decision is modal just like password retry. Do not leave a
                     // frozen progress window behind it, and resume the bar if extraction does.
                     self->hideArchiveJobDialog(reqId);
@@ -5749,18 +5761,34 @@ void MainWindow::runExtractLevel(quint64 reqId) {
         // read out of `progress` at report time rather than captured now.
         progress.report = [self, reqId, &progress](const QString &entry, qint64 doneItems,
                                                    qint64 doneBytes) {
-            QMetaObject::invokeMethod(self, "onArchiveJobProgress", Qt::QueuedConnection,
-                                      Q_ARG(quint64, reqId), Q_ARG(QString, entry),
-                                      Q_ARG(qint64, doneItems), Q_ARG(qint64, progress.totalItems),
-                                      Q_ARG(qint64, doneBytes), Q_ARG(qint64, progress.totalBytes));
+            if (!self)
+                return;
+            const qint64 totalItems = progress.totalItems;
+            const qint64 totalBytes = progress.totalBytes;
+            QMetaObject::invokeMethod(
+                self,
+                [self, reqId, entry, doneItems, totalItems, doneBytes, totalBytes] {
+                    if (!self)
+                        return;
+                    self->onArchiveJobProgress(reqId, entry, doneItems, totalItems, doneBytes,
+                                               totalBytes);
+                },
+                Qt::QueuedConnection);
         };
         QString err;
         const ArchiveHandler::SmartResult res =
             ArchiveHandler::smartExtract(source, base, passphrase, &err, &progress, resolveConflict);
-        QMetaObject::invokeMethod(self, "onExtractLevelDone", Qt::QueuedConnection,
-                                  Q_ARG(quint64, reqId), Q_ARG(bool, res.ok),
-                                  Q_ARG(int, int(res.status)), Q_ARG(QString, res.finalDir),
-                                  Q_ARG(QString, res.nestedArchivePath), Q_ARG(QString, err));
+        if (!self)
+            return;
+        QMetaObject::invokeMethod(
+            self,
+            [self, reqId, ok = res.ok, status = int(res.status), finalDir = res.finalDir,
+             nested = res.nestedArchivePath, err] {
+                if (!self)
+                    return;
+                self->onExtractLevelDone(reqId, ok, status, finalDir, nested, err);
+            },
+            Qt::QueuedConnection);
     });
 }
 
@@ -5873,10 +5901,16 @@ void MainWindow::finishExtractJob(quint64 reqId, bool announce) {
         return;
     // The count matters when it is not 1: recursion is automatic now, so this is
     // the only place the user learns how far it went.
-    ttc::information(this, tr("Extract"),
-                     job.depth > 0
-                         ? tr("Extracted %1 nested archives to %2").arg(job.depth + 1).arg(job.finalDir)
-                         : tr("Extracted archive to %1").arg(job.finalDir));
+    const QString finalDir = job.finalDir;
+    const int depth = job.depth;
+    QTimer::singleShot(0, this, [this, finalDir, depth] {
+        if (!isVisible())
+            return;
+        ttc::information(this, tr("Extract"),
+                         depth > 0
+                             ? tr("Extracted %1 nested archives to %2").arg(depth + 1).arg(finalDir)
+                             : tr("Extracted archive to %1").arg(finalDir));
+    });
 }
 
 // Shows the progress dialog once the level has run for half a second, so
@@ -6352,7 +6386,7 @@ void MainWindow::compressSelected() {
     const bool encryptHeaders = dlg.encryptHeaders();
     const int level = dlg.compressionLevel();
     std::shared_ptr<std::atomic<bool>> cancel = job.cancel;
-    MainWindow *self = this;
+    QPointer<MainWindow> self = this;
     QtConcurrent::run([self, reqId, archivePath, sources, format, passphrase, encryptHeaders,
                        level, cancel] {
         ArchiveHandler::Progress progress;
@@ -6361,16 +6395,30 @@ void MainWindow::compressSelected() {
         // which on a big folder costs about as much as the compression. The bar
         // stays indeterminate and reports the entry it is on.
         progress.report = [self, reqId](const QString &entry, qint64 doneItems, qint64 doneBytes) {
-            QMetaObject::invokeMethod(self, "onArchiveJobProgress", Qt::QueuedConnection,
-                                      Q_ARG(quint64, reqId), Q_ARG(QString, entry),
-                                      Q_ARG(qint64, doneItems), Q_ARG(qint64, qint64(0)),
-                                      Q_ARG(qint64, doneBytes), Q_ARG(qint64, qint64(0)));
+            if (!self)
+                return;
+            QMetaObject::invokeMethod(
+                self,
+                [self, reqId, entry, doneItems, doneBytes] {
+                    if (!self)
+                        return;
+                    self->onArchiveJobProgress(reqId, entry, doneItems, 0, doneBytes, 0);
+                },
+                Qt::QueuedConnection);
         };
         QString err;
         const bool ok = ArchiveHandler::create(archivePath, sources, format, passphrase,
                                                 encryptHeaders, level, &err, &progress);
-        QMetaObject::invokeMethod(self, "onCompressDone", Qt::QueuedConnection,
-                                  Q_ARG(quint64, reqId), Q_ARG(bool, ok), Q_ARG(QString, err));
+        if (!self)
+            return;
+        QMetaObject::invokeMethod(
+            self,
+            [self, reqId, ok, err] {
+                if (!self)
+                    return;
+                self->onCompressDone(reqId, ok, err);
+            },
+            Qt::QueuedConnection);
     });
 }
 

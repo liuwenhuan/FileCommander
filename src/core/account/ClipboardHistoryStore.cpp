@@ -19,6 +19,8 @@
 #include <QUuid>
 #include <QVariant>
 
+#include <filesystem>
+
 #include "config/PrivatePath.h"
 #include "config/Settings.h"
 
@@ -184,6 +186,18 @@ bool isLegacyCacheFileName(const QString &name) {
     return false;
 }
 
+bool removePathEntry(const QString &path) {
+    if (QFile::remove(path))
+        return true;
+    std::error_code error;
+    const std::filesystem::path nativePath(path.toStdWString());
+    if (std::filesystem::remove(nativePath, error))
+        return true;
+    error.clear();
+    const bool exists = std::filesystem::exists(nativePath, error);
+    return !exists && !error;
+}
+
 // The old cache was a flat directory. Move a normal root aside first so a link
 // swapped in at its original path cannot redirect a later child unlink. Then
 // only inspect direct entries: symlinks/reparse points are unlinked, recognized
@@ -193,7 +207,7 @@ bool removeLegacyCacheDirectory(const QString &path) {
     if (!root.exists() && !root.isSymbolicLink())
         return true;
     if (root.isSymbolicLink())
-        return QFile::remove(path);
+        return removePathEntry(path);
     if (!root.isDir())
         return false;
 
@@ -204,7 +218,7 @@ bool removeLegacyCacheDirectory(const QString &path) {
 
     const QFileInfo stagedRoot(staged);
     if (stagedRoot.isSymbolicLink())
-        return QFile::remove(staged);
+        return removePathEntry(staged);
     if (!stagedRoot.isDir()) {
         QDir().rename(staged, path);
         return false;
@@ -215,12 +229,12 @@ bool removeLegacyCacheDirectory(const QString &path) {
         QDir::AllEntries | QDir::Hidden | QDir::System | QDir::NoDotAndDotDot);
     for (const QFileInfo &entry : entries) {
         if (entry.isSymbolicLink()) {
-            QFile::remove(entry.filePath());
+            removePathEntry(entry.filePath());
         } else if (entry.isFile() && isLegacyCacheFileName(entry.fileName())) {
             QFile::remove(entry.filePath());
         }
     }
-    if (QDir().rmdir(staged))
+    if (removePathEntry(staged))
         return true;
     QDir().rename(staged, path);
     return false;

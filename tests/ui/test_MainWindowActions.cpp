@@ -619,10 +619,17 @@ TEST(MainWindowActionsTest, ExtractingAnArchiveDoesNotRunOnTheGuiThread) {
         << createError.toStdString();
     ASSERT_TRUE(QFile::remove(payload)); // so its reappearance means the extraction ran
 
-    MainWindow window;
-    FilePanel *panel = window.findChildren<FilePanel *>().value(0);
+#ifdef Q_OS_WIN
+    // The Windows Debug CRT can assert during Qt/TSF teardown after this async test;
+    // the test runner exits without process-wide teardown on that platform.
+    auto *window = new MainWindow;
+#else
+    MainWindow windowStorage;
+    auto *window = &windowStorage;
+#endif
+    FilePanel *panel = window->findChildren<FilePanel *>().value(0);
     ASSERT_NE(panel, nullptr);
-    window.setActivePanel(panel);
+    window->setActivePanel(panel);
     panel->navigateTo(dir.path());
 
     int row = -1;
@@ -647,7 +654,7 @@ TEST(MainWindowActionsTest, ExtractingAnArchiveDoesNotRunOnTheGuiThread) {
     });
     dismisser.start(100);
 
-    ASSERT_TRUE(QMetaObject::invokeMethod(&window, "extractArchiveHere", Qt::DirectConnection));
+    ASSERT_TRUE(QMetaObject::invokeMethod(window, "extractArchiveHere", Qt::DirectConnection));
     // The whole point: the handler returned with the work still outstanding.
     const QString extracted =
         QDir(dir.path()).filePath(QStringLiteral("fixture/hello.txt"));

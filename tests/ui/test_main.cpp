@@ -22,6 +22,7 @@
 
 #include <iostream>
 #include <memory>
+#include <cstdlib>
 
 
 namespace {
@@ -293,15 +294,22 @@ int main(int argc, char **argv) {
     ::testing::UnitTest::GetInstance()->listeners().Append(themeState);
 
     const int result = RUN_ALL_TESTS();
-    if (themeState->offenders().isEmpty())
-        return result;
-
-    // A listener cannot record a gtest failure -- it runs outside any test body
-    // -- so the verdict is delivered here, where main() owns the exit code.
-    std::cerr << std::endl
-              << themeState->offenders().size()
-              << " test(s) left the process-wide theme state changed:" << std::endl;
-    for (const QString &who : themeState->offenders())
-        std::cerr << "    " << qPrintable(who) << std::endl;
-    return result == 0 ? 1 : result;
+    int finalResult = result;
+    if (!themeState->offenders().isEmpty()) {
+        // A listener cannot record a gtest failure -- it runs outside any test body
+        // -- so the verdict is delivered here, where main() owns the exit code.
+        std::cerr << std::endl
+                  << themeState->offenders().size()
+                  << " test(s) left the process-wide theme state changed:" << std::endl;
+        for (const QString &who : themeState->offenders())
+            std::cerr << "    " << qPrintable(who) << std::endl;
+        finalResult = result == 0 ? 1 : result;
+    }
+#ifdef Q_OS_WIN
+    // Qt's Windows text-services teardown can raise a CRT dialog after all tests
+    // have reported their result; the test verdict is complete before that cleanup.
+    std::_Exit(finalResult);
+#else
+    return finalResult;
+#endif
 }
