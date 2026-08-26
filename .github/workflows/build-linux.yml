@@ -40,7 +40,12 @@ jobs:
         run: |
           cmake --preset linux-debug
           cmake --build --preset linux-debug --parallel
-          ctest --preset linux-debug
+          ctest --test-dir build/linux-debug --output-on-failure -E '^ui_tests$'
+          ui_tests=build/linux-debug/tests/ui/ui_tests
+          suites=$("$ui_tests" --gtest_list_tests | awk '/^[^[:space:]].*\.$/ { sub(/\.$/, ""); print }')
+          while IFS= read -r suite; do
+            test -z "$suite" || "$ui_tests" --gtest_color=no --gtest_filter="${suite}.*"
+          done <<< "$suites"
       - name: Account server regression and static analysis
         run: |
           cargo test --release --manifest-path server/Cargo.toml

@@ -133,7 +133,15 @@ jobs:
           FILECOMMANDER_OPENSSL111_ROOT: ${{ github.workspace }}/build/openssl-1.1.1
         run: |
           $env:Path = "$env:FILECOMMANDER_OPENSSL111_ROOT\bin;$env:Path"
-          ctest --preset windows-msvc-debug
+          ctest --preset windows-msvc-debug -E ui_tests
+          $uiTests = "build\windows-msvc-debug\tests\ui\ui_tests.exe"
+          $suites = & $uiTests --gtest_list_tests |
+              Where-Object { $_ -match '^[^\s].*\.$' } |
+              ForEach-Object { $_.TrimEnd('.') }
+          foreach ($suite in $suites) {
+              & $uiTests --gtest_color=no "--gtest_filter=$suite.*"
+              if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          }
       # Public headers in src/platform and src/core must not pull in a
       # platform's own headers; anything that needs them includes them in a .cpp.
       #
