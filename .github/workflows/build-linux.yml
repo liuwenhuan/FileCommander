@@ -37,13 +37,12 @@ jobs:
           export TMPDIR="$GITHUB_WORKSPACE/build/tmp"
           mkdir -p "$XDG_DATA_HOME/Trash/files" "$XDG_DATA_HOME/Trash/info" "$TMPDIR"
           chmod 700 "$XDG_DATA_HOME/Trash" "$XDG_DATA_HOME/Trash/files" "$XDG_DATA_HOME/Trash/info" "$TMPDIR"
-          eval "$(dbus-launch --sh-syntax)"
-          gio list --hidden --print-uris trash:/// >/dev/null
           echo "XDG_DATA_HOME=$XDG_DATA_HOME" >> "$GITHUB_ENV"
           echo "TMPDIR=$TMPDIR" >> "$GITHUB_ENV"
-          echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" >> "$GITHUB_ENV"
       - name: Debug regression
         run: |
+          dbus-run-session -- bash -eu -o pipefail <<'EOF'
+          gio list --hidden --print-uris trash:/// >/dev/null
           cmake --preset linux-debug
           cmake --build --preset linux-debug --parallel
           ctest --test-dir build/linux-debug --output-on-failure -E '^ui_tests$'
@@ -52,6 +51,7 @@ jobs:
           while IFS= read -r suite; do
             test -z "$suite" || "$ui_tests" --gtest_color=no --gtest_filter="${suite}.*"
           done <<< "$suites"
+          EOF
       - name: Account server regression and static analysis
         run: |
           cargo test --release --manifest-path server/Cargo.toml
