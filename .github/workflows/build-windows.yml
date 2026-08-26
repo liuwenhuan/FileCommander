@@ -93,6 +93,27 @@ jobs:
         with:
           path: ${{ github.workspace }}/build/vcpkg-archives
           key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
+      - name: Restore OpenSSL 1.1.1 runtime
+        id: openssl-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ github.workspace }}/build/openssl-1.1.1
+          key: openssl-1.1.1w-x64-windows
+      - name: Install OpenSSL build tools
+        if: steps.openssl-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: choco install strawberryperl --no-progress --yes
+      - name: Build OpenSSL 1.1.1 runtime
+        if: steps.openssl-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: ./scripts/build-openssl-111.ps1 -SdkRoot "$env:GITHUB_WORKSPACE/build"
+      - name: Save OpenSSL 1.1.1 runtime
+        if: steps.openssl-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/build/openssl-1.1.1
+          key: ${{ steps.openssl-cache.outputs.cache-primary-key }}
+
       - name: Configure and build
         shell: pwsh
         env:
@@ -104,7 +125,10 @@ jobs:
         shell: pwsh
         env:
           FILECOMMANDER_QT_ROOT: ${{ env.QT_ROOT_DIR }}
-        run: ctest --preset windows-msvc-debug
+          FILECOMMANDER_OPENSSL111_ROOT: ${{ github.workspace }}/build/openssl-1.1.1
+        run: |
+          $env:Path = "$env:FILECOMMANDER_OPENSSL111_ROOT\bin;$env:Path"
+          ctest --preset windows-msvc-debug
       # Public headers in src/platform and src/core must not pull in a
       # platform's own headers; anything that needs them includes them in a .cpp.
       #
@@ -237,6 +261,27 @@ jobs:
           path: ${{ github.workspace }}/build/vcpkg-archives
           key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
 
+      - name: Restore OpenSSL 1.1.1 runtime
+        id: openssl-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ github.workspace }}/build/openssl-1.1.1
+          key: openssl-1.1.1w-x64-windows
+      - name: Install OpenSSL build tools
+        if: steps.openssl-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: choco install strawberryperl --no-progress --yes
+      - name: Build OpenSSL 1.1.1 runtime
+        if: steps.openssl-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: ./scripts/build-openssl-111.ps1 -SdkRoot "$env:GITHUB_WORKSPACE/build"
+      - name: Save OpenSSL 1.1.1 runtime
+        if: steps.openssl-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/build/openssl-1.1.1
+          key: ${{ steps.openssl-cache.outputs.cache-primary-key }}
+
       - name: Build poppler-qt5
         id: poppler-build
         if: steps.poppler-cache.outputs.cache-hit != 'true'
@@ -322,6 +367,7 @@ jobs:
         env:
           FILECOMMANDER_QT_ROOT: ${{ env.QT_ROOT_DIR }}
           FILECOMMANDER_POPPLER_QT5_ROOT: ${{ github.workspace }}/build/poppler-qt5
+          FILECOMMANDER_OPENSSL111_ROOT: ${{ github.workspace }}/build/openssl-1.1.1
         run: ./packaging/build-windows-installer.ps1 -Architecture x64 -Smoke
 
       - uses: actions/upload-artifact@v4
