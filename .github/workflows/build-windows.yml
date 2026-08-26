@@ -121,7 +121,9 @@ jobs:
         shell: pwsh
         env:
           FILECOMMANDER_QT_ROOT: ${{ env.QT_ROOT_DIR }}
+          FILECOMMANDER_OPENSSL111_ROOT: ${{ github.workspace }}/build/openssl-1.1.1
         run: |
+          $env:Path = "$env:FILECOMMANDER_OPENSSL111_ROOT\bin;$env:Path"
           cmake --preset windows-msvc-debug
           cmake --build --preset windows-msvc-debug --parallel
       - name: Run contract and UI suites
