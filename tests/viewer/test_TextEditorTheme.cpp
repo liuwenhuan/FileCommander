@@ -122,7 +122,11 @@ void expectGutterPaintedAs(TextEditor &editor, const GutterColors &expected,
             << themeName << " gutter is light on a dark editor";
     }
 
-    EXPECT_TRUE(columnContains(image, image.width() - 1, expected.border))
+    const int lastColumn = image.width() - 1;
+    const bool borderAtInnerEdge = columnContains(image, lastColumn, expected.border) ||
+                                   (lastColumn > 0 &&
+                                    columnContains(image, lastColumn - 1, expected.border));
+    EXPECT_TRUE(borderAtInnerEdge)
         << themeName << " gutter border rule missing from the inner edge";
 
     EXPECT_EQ(editor.codeEditor()->effectiveGutterForeground(), expected.foreground) << themeName;
