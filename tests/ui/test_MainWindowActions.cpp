@@ -597,7 +597,6 @@ TEST(MainWindowActionsTest, TheArchiveEntryIsTickedWhenArchivesOpenAsFolders) {
 TEST(MainWindowActionsTest, ExtractingAnArchiveDoesNotRunOnTheGuiThread) {
     ThemeStateGuard themeState;
     std::setlocale(LC_NUMERIC, "C");
-    ScopedUiLanguage language(QStringLiteral("en"));
 
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
@@ -620,9 +619,10 @@ TEST(MainWindowActionsTest, ExtractingAnArchiveDoesNotRunOnTheGuiThread) {
     ASSERT_TRUE(QFile::remove(payload)); // so its reappearance means the extraction ran
 
 #ifdef Q_OS_WIN
-    // The Windows Debug CRT can assert during Qt/TSF teardown after this async test;
-    // the test runner exits without process-wide teardown on that platform.
-    auto *window = new MainWindow;
+    // The Windows Debug CRT can assert while this async window tears down; keep
+    // it off the top-level list until the runner's process exit.
+    auto *windowHost = new QWidget;
+    auto *window = new MainWindow(windowHost);
 #else
     MainWindow windowStorage;
     auto *window = &windowStorage;
