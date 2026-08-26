@@ -30,15 +30,18 @@ jobs:
       - name: Install build and preview dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build pkg-config libarchive-dev libssh2-1-dev libsecret-1-dev libcurl4-openssl-dev libssl-dev libsmbclient-dev libmpv-dev libpoppler-qt5-dev libqt5x11extras5-dev libqt5websockets5-dev qtbase5-dev qttools5-dev-tools libgtest-dev zlib1g-dev libxcb1-dev ffmpeg p7zip-full squashfs-tools gvfs
+          sudo apt-get install -y cmake ninja-build pkg-config libarchive-dev libssh2-1-dev libsecret-1-dev libcurl4-openssl-dev libssl-dev libsmbclient-dev libmpv-dev libpoppler-qt5-dev libqt5x11extras5-dev libqt5websockets5-dev qtbase5-dev qttools5-dev-tools libgtest-dev zlib1g-dev libxcb1-dev ffmpeg p7zip-full squashfs-tools gvfs dbus-x11
       - name: Prepare XDG trash for file-operation tests
         run: |
           export XDG_DATA_HOME="$GITHUB_WORKSPACE/build/xdg-data"
           export TMPDIR="$GITHUB_WORKSPACE/build/tmp"
           mkdir -p "$XDG_DATA_HOME/Trash/files" "$XDG_DATA_HOME/Trash/info" "$TMPDIR"
           chmod 700 "$XDG_DATA_HOME/Trash" "$XDG_DATA_HOME/Trash/files" "$XDG_DATA_HOME/Trash/info" "$TMPDIR"
+          eval "$(dbus-launch --sh-syntax)"
+          gio list --hidden --print-uris trash:/// >/dev/null
           echo "XDG_DATA_HOME=$XDG_DATA_HOME" >> "$GITHUB_ENV"
           echo "TMPDIR=$TMPDIR" >> "$GITHUB_ENV"
+          echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" >> "$GITHUB_ENV"
       - name: Debug regression
         run: |
           cmake --preset linux-debug
