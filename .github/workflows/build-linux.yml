@@ -132,7 +132,10 @@ jobs:
         run: |
           cmake -S . -B build/linux-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DTTC_BUILD_TESTS=ON -DTTC_BUILD_BENCH=OFF
           cmake --build build/linux-release --parallel
+          dbus-run-session -- bash -eu -o pipefail <<'EOF'
+          gio list --hidden --print-uris trash:/// >/dev/null
           ctest --test-dir build/linux-release --output-on-failure
+          EOF
           ./packaging/build-deb.sh
       - name: Validate source boundaries
         run: |
