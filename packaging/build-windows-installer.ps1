@@ -71,7 +71,7 @@ if (-not (Test-Path -LiteralPath $output -PathType Leaf)) {
 if ($Smoke) {
     $smokeRoot = Join-Path ([System.IO.Path]::GetTempPath()) "FileCommander-installer-smoke-$([guid]::NewGuid())"
     $smokeInstall = Join-Path $smokeRoot 'install'
-    $smokeInstallArg = '/D="' + $smokeInstall + '"'
+    $smokeInstallArg = '/D=' + $smokeInstall
     New-Item -ItemType Directory -Force -Path $smokeRoot | Out-Null
     try {
         $install = Start-Process -FilePath $output -ArgumentList @('/S', $smokeInstallArg) -Wait -PassThru

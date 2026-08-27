@@ -71,7 +71,10 @@ TEST(AnimatedPreview, AGifPlaysAndOffersPlaybackInsteadOfRotation) {
     ASSERT_FALSE(path.isEmpty());
 
     Settings settings(QDir(dir.path()).filePath(QStringLiteral("s.ini")));
-    QuickView view(settings);
+    QWidget host;
+    QuickView view(settings, QuickView::Context::Embedded, &host);
+    host.resize(400, 300);
+    host.show();
     view.resize(400, 300);
     view.show();
     view.showFile(path);
@@ -139,7 +142,10 @@ TEST(AnimatedPreview, AStillImageStillOffersRotation) {
     ASSERT_TRUE(plain.save(png));
 
     Settings settings(QDir(dir.path()).filePath(QStringLiteral("s.ini")));
-    QuickView view(settings);
+    QWidget host;
+    QuickView view(settings, QuickView::Context::Embedded, &host);
+    host.resize(400, 300);
+    host.show();
     view.resize(400, 300);
     view.show();
     view.showFile(png);
@@ -172,7 +178,10 @@ TEST(AnimatedPreview, AGifZoomsAndReportsItsSizeLikeAnyOtherPicture) {
     ASSERT_FALSE(path.isEmpty());
 
     Settings settings(QDir(dir.path()).filePath(QStringLiteral("s.ini")));
-    QuickView view(settings);
+    QWidget host;
+    QuickView view(settings, QuickView::Context::Embedded, &host);
+    host.resize(400, 300);
+    host.show();
     view.resize(400, 300);
     view.show();
     view.showFile(path);

@@ -74,6 +74,7 @@ public:
     Qt::ItemFlags flags(const QModelIndex &index) const override;
     bool hasChildren(const QModelIndex &parent = {}) const override;
     bool canFetchMore(const QModelIndex &parent) const override;
+    bool isFetching(const QModelIndex &parent) const;
     void fetchMore(const QModelIndex &parent) override;
 
 signals:

@@ -66,7 +66,7 @@
         <location filename="../../src/core/account/AccountClient.cpp" line="308"/>
         <location filename="../../src/core/account/AccountClient.cpp" line="346"/>
         <source>Enter a valid email address.</source>
-        <translation>請輸入有效的電子郵件地址。</translation>
+        <translation>Enter a valid email address.</translation>
     </message>
     <message>
         <location filename="../../src/core/account/AccountClient.cpp" line="286"/>
@@ -97,7 +97,7 @@
         <location filename="../../src/core/account/AccountClient.cpp" line="564"/>
         <location filename="../../src/core/account/AccountClient.cpp" line="598"/>
         <source>No clipboard target device was selected.</source>
-        <translation>尚未選擇剪貼簿目標裝置。</translation>
+        <translation>No clipboard target device was selected.</translation>
     </message>
     <message>
         <location filename="../../src/core/account/AccountClient.cpp" line="612"/>
@@ -235,7 +235,7 @@
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="199"/>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="214"/>
         <source>Enter a valid email address.</source>
-        <translation>請輸入有效的電子郵件地址。</translation>
+        <translation>Enter a valid email address.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="207"/>
@@ -499,37 +499,37 @@ Extract it too?</source>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="315"/>
         <source>The selected clipboard device is unavailable.</source>
-        <translation>所選的剪貼簿裝置無法使用。</translation>
+        <translation>The selected clipboard device is unavailable.</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="372"/>
         <source>Automatically queueing %1 of %2...</source>
-        <translation>正在自動將 %1 / %2 加入佇列...</translation>
+        <translation>Automatically queueing %1 of %2...</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="373"/>
         <source>Sending %1 of %2...</source>
-        <translation>正在傳送 %1 / %2...</translation>
+        <translation>Sending %1 of %2...</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="403"/>
         <source>Automatic clipboard send failed: %1</source>
-        <translation>自動傳送剪貼簿失敗：%1</translation>
+        <translation>Automatic clipboard send failed: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="410"/>
         <source>Queued %1 of %2 records; %3 failed.</source>
-        <translation>已將 %1 / %2 筆記錄加入佇列；%3 筆失敗。</translation>
+        <translation>Queued %1 of %2 records; %3 failed.</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="412"/>
         <source>Queued %1 records; %2 had no recipients.</source>
-        <translation>已將 %1 筆記錄加入佇列；%2 筆沒有接收裝置。</translation>
+        <translation>Queued %1 records; %2 had no recipients.</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="413"/>
         <source>Queued %1 selected records.</source>
-        <translation>已將 %1 筆所選記錄加入佇列。</translation>
+        <translation>Queued %1 selected records.</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="570"/>
@@ -3116,11 +3116,11 @@ Editing a file on this connection needs it mounted through GVfs (the gvfs-backen
 %2
 
 Update page: %3</source>
-        <translation>版本 %1 已可用。
+        <translation>Version %1 is available.
 
 %2
 
-更新頁面：%3</translation>
+Update page: %3</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2729"/>
@@ -3454,23 +3454,23 @@ This is permanent and will NOT go to the trash.</source>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="135"/>
         <source>Auto Send</source>
-        <translation>自動傳送</translation>
+        <translation>Auto Send</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="264"/>
         <location filename="../../src/ui/NotepadPanel.cpp" line="265"/>
         <source>All devices</source>
-        <translation>所有裝置</translation>
+        <translation>All devices</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="272"/>
         <source>Online</source>
-        <translation>線上</translation>
+        <translation>Online</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="272"/>
         <source>Offline</source>
-        <translation>離線</translation>
+        <translation>Offline</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="273"/>
@@ -3480,7 +3480,7 @@ This is permanent and will NOT go to the trash.</source>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="279"/>
         <source>Unavailable device</source>
-        <translation>無法使用的裝置</translation>
+        <translation>Unavailable device</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="291"/>
@@ -3490,12 +3490,12 @@ This is permanent and will NOT go to the trash.</source>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="332"/>
         <source>Image, %1, %2</source>
-        <translation>圖片，%1，%2</translation>
+        <translation>Image, %1, %2</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="333"/>
         <source>%1, %2, %3</source>
-        <translation>%1，%2，%3</translation>
+        <translation>%1, %2, %3</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="449"/>
@@ -4286,7 +4286,7 @@ Destination: %4 (%5)</source>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="23"/>
         <source>No other devices registered</source>
-        <translation>未註冊其他裝置。</translation>
+        <translation>No other devices registered</translation>
     </message>
 </context>
 <context>

@@ -66,7 +66,7 @@
         <location filename="../../src/core/account/AccountClient.cpp" line="308"/>
         <location filename="../../src/core/account/AccountClient.cpp" line="346"/>
         <source>Enter a valid email address.</source>
-        <translation>올바른 이메일 주소를 입력하세요.</translation>
+        <translation>Enter a valid email address.</translation>
     </message>
     <message>
         <location filename="../../src/core/account/AccountClient.cpp" line="286"/>
@@ -97,7 +97,7 @@
         <location filename="../../src/core/account/AccountClient.cpp" line="564"/>
         <location filename="../../src/core/account/AccountClient.cpp" line="598"/>
         <source>No clipboard target device was selected.</source>
-        <translation>클립보드 대상 장치를 선택하지 않았습니다.</translation>
+        <translation>No clipboard target device was selected.</translation>
     </message>
     <message>
         <location filename="../../src/core/account/AccountClient.cpp" line="612"/>
@@ -235,7 +235,7 @@
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="199"/>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="214"/>
         <source>Enter a valid email address.</source>
-        <translation>올바른 이메일 주소를 입력하세요.</translation>
+        <translation>Enter a valid email address.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="207"/>
@@ -499,37 +499,37 @@ Extract it too?</source>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="315"/>
         <source>The selected clipboard device is unavailable.</source>
-        <translation>선택한 클립보드 장치를 사용할 수 없습니다.</translation>
+        <translation>The selected clipboard device is unavailable.</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="372"/>
         <source>Automatically queueing %1 of %2...</source>
-        <translation>%2개 중 %1개를 자동으로 대기열에 추가하는 중...</translation>
+        <translation>Automatically queueing %1 of %2...</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="373"/>
         <source>Sending %1 of %2...</source>
-        <translation>%2개 중 %1개를 보내는 중...</translation>
+        <translation>Sending %1 of %2...</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="403"/>
         <source>Automatic clipboard send failed: %1</source>
-        <translation>클립보드 자동 전송 실패: %1</translation>
+        <translation>Automatic clipboard send failed: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="410"/>
         <source>Queued %1 of %2 records; %3 failed.</source>
-        <translation>%2개 중 %1개를 대기열에 추가했습니다. %3개 실패했습니다.</translation>
+        <translation>Queued %1 of %2 records; %3 failed.</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="412"/>
         <source>Queued %1 records; %2 had no recipients.</source>
-        <translation>%1개를 대기열에 추가했습니다. %2개는 받는 장치가 없습니다.</translation>
+        <translation>Queued %1 records; %2 had no recipients.</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="413"/>
         <source>Queued %1 selected records.</source>
-        <translation>선택한 레코드 %1개를 대기열에 추가했습니다.</translation>
+        <translation>Queued %1 selected records.</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="570"/>
@@ -3096,11 +3096,11 @@ Editing a file on this connection needs it mounted through GVfs (the gvfs-backen
 %2
 
 Update page: %3</source>
-        <translation>버전 %1을 사용할 수 있습니다.
+        <translation>Version %1 is available.
 
 %2
 
-업데이트 페이지: %3</translation>
+Update page: %3</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2729"/>
@@ -3426,23 +3426,23 @@ This is permanent and will NOT go to the trash.</source>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="135"/>
         <source>Auto Send</source>
-        <translation>자동 전송</translation>
+        <translation>Auto Send</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="264"/>
         <location filename="../../src/ui/NotepadPanel.cpp" line="265"/>
         <source>All devices</source>
-        <translation>모든 장치</translation>
+        <translation>All devices</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="272"/>
         <source>Online</source>
-        <translation>온라인</translation>
+        <translation>Online</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="272"/>
         <source>Offline</source>
-        <translation>오프라인</translation>
+        <translation>Offline</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="273"/>
@@ -3452,7 +3452,7 @@ This is permanent and will NOT go to the trash.</source>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="279"/>
         <source>Unavailable device</source>
-        <translation>사용할 수 없는 장치</translation>
+        <translation>Unavailable device</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="291"/>
@@ -3462,7 +3462,7 @@ This is permanent and will NOT go to the trash.</source>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="332"/>
         <source>Image, %1, %2</source>
-        <translation>이미지, %1, %2</translation>
+        <translation>Image, %1, %2</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="333"/>
@@ -4258,7 +4258,7 @@ Destination: %4 (%5)</source>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="23"/>
         <source>No other devices registered</source>
-        <translation>등록된 다른 장치가 없습니다.</translation>
+        <translation>No other devices registered</translation>
     </message>
 </context>
 <context>

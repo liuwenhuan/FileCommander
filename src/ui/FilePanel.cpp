@@ -1723,8 +1723,12 @@ void FilePanel::advanceTreeSync() {
         m_treeTargetPath.clear(); // no root covers this path (e.g. an archive)
         return;
     }
+    if (m_dirTreeModel->isFetching(ancestor))
+        return;
     if (m_dirTreeModel->canFetchMore(ancestor)) {
         m_dirTree->expand(ancestor); // triggers fetchMore; we resume on childrenLoaded
+        if (m_dirTreeModel->canFetchMore(ancestor))
+            m_dirTreeModel->fetchMore(ancestor);
         return;
     }
     // The ancestor is fully loaded yet the target is still absent -- the

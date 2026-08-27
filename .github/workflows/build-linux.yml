@@ -30,12 +30,30 @@ jobs:
       - name: Install build and preview dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build pkg-config libarchive-dev libssh2-1-dev libsecret-1-dev libcurl4-openssl-dev libssl-dev libsmbclient-dev libmpv-dev libpoppler-qt5-dev libqt5x11extras5-dev libqt5websockets5-dev qtbase5-dev qttools5-dev-tools libgtest-dev zlib1g-dev libxcb1-dev ffmpeg p7zip-full squashfs-tools
+          sudo apt-get install -y cmake ninja-build pkg-config libarchive-dev libssh2-1-dev libsecret-1-dev libcurl4-openssl-dev libssl-dev libsmbclient-dev libmpv-dev libpoppler-qt5-dev libqt5x11extras5-dev libqt5websockets5-dev qtbase5-dev qttools5-dev-tools libgtest-dev zlib1g-dev libxcb1-dev ffmpeg p7zip-full squashfs-tools gvfs dbus-x11
+      - name: Prepare XDG trash for file-operation tests
+        run: |
+          export XDG_DATA_HOME="$GITHUB_WORKSPACE/build/xdg-data"
+          # QLocalServer appends a ~55-byte UUID name. A workspace-local TMPDIR
+          # exceeds Linux's 108-byte Unix-socket path limit on GitHub runners.
+          export TMPDIR="$RUNNER_TEMP/fc"
+          mkdir -p "$XDG_DATA_HOME/Trash/files" "$XDG_DATA_HOME/Trash/info" "$TMPDIR"
+          chmod 700 "$XDG_DATA_HOME/Trash" "$XDG_DATA_HOME/Trash/files" "$XDG_DATA_HOME/Trash/info" "$TMPDIR"
+          echo "XDG_DATA_HOME=$XDG_DATA_HOME" >> "$GITHUB_ENV"
+          echo "TMPDIR=$TMPDIR" >> "$GITHUB_ENV"
       - name: Debug regression
         run: |
+          dbus-run-session -- bash -eu -o pipefail <<'EOF'
+          gio list --hidden --print-uris trash:/// >/dev/null
           cmake --preset linux-debug
           cmake --build --preset linux-debug --parallel
-          ctest --preset linux-debug
+          ctest --test-dir build/linux-debug --output-on-failure -E '^ui_tests$'
+          ui_tests=build/linux-debug/tests/ui/ui_tests
+          suites=$("$ui_tests" --gtest_list_tests | awk '/^[^[:space:]].*\.$/ { sub(/\.$/, ""); print }')
+          while IFS= read -r suite; do
+            test -z "$suite" || "$ui_tests" --gtest_color=no --gtest_filter="${suite}.*"
+          done <<< "$suites"
+          EOF
       - name: Account server regression and static analysis
         run: |
           cargo test --release --manifest-path server/Cargo.toml

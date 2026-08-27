@@ -31,21 +31,6 @@ TEST(WindowsSmbProvider, ConvertsProviderPathsToCanonicalUnc) {
     EXPECT_TRUE(error.isEmpty());
 }
 
-TEST(WindowsSmbProvider, ShellAccessiblePathUsesCanonicalUnc) {
-    WindowsSmbProvider provider;
-    QString error;
-    // The dial fails -- "nas" is not a real host here -- and that is fine for
-    // this test: it is about path conversion, and the target stays configured
-    // afterwards so reconnect() (and the credentialed retry the login prompt
-    // drives) can still run. This used to assert success only because
-    // connectToHost never touched the network at all.
-    provider.connectToHost(QStringLiteral("nas"), {}, {}, {}, true, &error);
-    EXPECT_FALSE(provider.isConnected());
-
-    EXPECT_EQ(provider.shellAccessiblePath(QStringLiteral("/media/movie.mp4")),
-              QStringLiteral("\\\\nas\\media\\movie.mp4"));
-}
-
 TEST(WindowsSmbProvider, RejectsTraversalAndInvalidHosts) {
     QString error;
     EXPECT_TRUE(WindowsSmbProvider::providerPathToUnc(

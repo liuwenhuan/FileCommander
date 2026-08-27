@@ -597,7 +597,6 @@ TEST(MainWindowActionsTest, TheArchiveEntryIsTickedWhenArchivesOpenAsFolders) {
 TEST(MainWindowActionsTest, ExtractingAnArchiveDoesNotRunOnTheGuiThread) {
     ThemeStateGuard themeState;
     std::setlocale(LC_NUMERIC, "C");
-    ScopedUiLanguage language(QStringLiteral("en"));
 
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
@@ -619,10 +618,18 @@ TEST(MainWindowActionsTest, ExtractingAnArchiveDoesNotRunOnTheGuiThread) {
         << createError.toStdString();
     ASSERT_TRUE(QFile::remove(payload)); // so its reappearance means the extraction ran
 
-    MainWindow window;
-    FilePanel *panel = window.findChildren<FilePanel *>().value(0);
+#ifdef Q_OS_WIN
+    // The Windows Debug CRT can assert while this async window tears down; keep
+    // it off the top-level list until the runner's process exit.
+    auto *windowHost = new QWidget;
+    auto *window = new MainWindow(windowHost);
+#else
+    MainWindow windowStorage;
+    auto *window = &windowStorage;
+#endif
+    FilePanel *panel = window->findChildren<FilePanel *>().value(0);
     ASSERT_NE(panel, nullptr);
-    window.setActivePanel(panel);
+    window->setActivePanel(panel);
     panel->navigateTo(dir.path());
 
     int row = -1;
@@ -647,7 +654,7 @@ TEST(MainWindowActionsTest, ExtractingAnArchiveDoesNotRunOnTheGuiThread) {
     });
     dismisser.start(100);
 
-    ASSERT_TRUE(QMetaObject::invokeMethod(&window, "extractArchiveHere", Qt::DirectConnection));
+    ASSERT_TRUE(QMetaObject::invokeMethod(window, "extractArchiveHere", Qt::DirectConnection));
     // The whole point: the handler returned with the work still outstanding.
     const QString extracted =
         QDir(dir.path()).filePath(QStringLiteral("fixture/hello.txt"));
