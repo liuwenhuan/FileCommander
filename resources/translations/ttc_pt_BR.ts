@@ -66,7 +66,7 @@
         <location filename="../../src/core/account/AccountClient.cpp" line="308"/>
         <location filename="../../src/core/account/AccountClient.cpp" line="346"/>
         <source>Enter a valid email address.</source>
-        <translation type="unfinished"></translation>
+        <translation>Insira um endereço de e-mail válido.</translation>
     </message>
     <message>
         <location filename="../../src/core/account/AccountClient.cpp" line="286"/>
@@ -97,7 +97,7 @@
         <location filename="../../src/core/account/AccountClient.cpp" line="564"/>
         <location filename="../../src/core/account/AccountClient.cpp" line="598"/>
         <source>No clipboard target device was selected.</source>
-        <translation type="unfinished"></translation>
+        <translation>Nenhum dispositivo de destino da área de transferência foi selecionado.</translation>
     </message>
     <message>
         <location filename="../../src/core/account/AccountClient.cpp" line="612"/>
@@ -235,7 +235,7 @@
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="199"/>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="214"/>
         <source>Enter a valid email address.</source>
-        <translation type="unfinished"></translation>
+        <translation>Insira um endereço de e-mail válido.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="207"/>
@@ -499,37 +499,37 @@ Extrair também?</translation>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="315"/>
         <source>The selected clipboard device is unavailable.</source>
-        <translation type="unfinished"></translation>
+        <translation>O dispositivo de área de transferência selecionado não está disponível.</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="372"/>
         <source>Automatically queueing %1 of %2...</source>
-        <translation type="unfinished"></translation>
+        <translation>Enfileirando automaticamente %1 de %2...</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="373"/>
         <source>Sending %1 of %2...</source>
-        <translation type="unfinished"></translation>
+        <translation>Enviando %1 de %2...</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="403"/>
         <source>Automatic clipboard send failed: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Falha no envio automático da área de transferência: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="410"/>
         <source>Queued %1 of %2 records; %3 failed.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 de %2 registros enfileirados; %3 falharam.</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="412"/>
         <source>Queued %1 records; %2 had no recipients.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 registros enfileirados; %2 não tinham destinatários.</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="413"/>
         <source>Queued %1 selected records.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 registros selecionados enfileirados.</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="570"/>
@@ -3100,7 +3100,11 @@ Para editar um arquivo nesta conexão, ele precisa estar montado via GVfs (pacot
 %2
 
 Update page: %3</source>
-        <translation type="unfinished"></translation>
+        <translation>A versão %1 está disponível.
+
+%2
+
+Página de atualização: %3</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2729"/>
@@ -3426,33 +3430,33 @@ Esta ação é permanente e NÃO irá para a lixeira.</translation>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="135"/>
         <source>Auto Send</source>
-        <translation type="unfinished"></translation>
+        <translation>Envio automático</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="264"/>
         <location filename="../../src/ui/NotepadPanel.cpp" line="265"/>
         <source>All devices</source>
-        <translation type="unfinished"></translation>
+        <translation>Todos os dispositivos</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="272"/>
         <source>Online</source>
-        <translation type="unfinished"></translation>
+        <translation>Online</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="272"/>
         <source>Offline</source>
-        <translation type="unfinished"></translation>
+        <translation>Offline</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="273"/>
         <source>%1 — %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 — %2</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="279"/>
         <source>Unavailable device</source>
-        <translation type="unfinished"></translation>
+        <translation>Dispositivo indisponível</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="291"/>
@@ -3462,12 +3466,12 @@ Esta ação é permanente e NÃO irá para a lixeira.</translation>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="332"/>
         <source>Image, %1, %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Imagem, %1, %2</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="333"/>
         <source>%1, %2, %3</source>
-        <translation type="unfinished"></translation>
+        <translation>%1, %2, %3</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="449"/>
@@ -4258,7 +4262,7 @@ Destino: %4 (%5)</translation>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="23"/>
         <source>No other devices registered</source>
-        <translation type="unfinished"></translation>
+        <translation>Nenhum outro dispositivo registrado.</translation>
     </message>
 </context>
 <context>

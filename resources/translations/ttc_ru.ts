@@ -66,7 +66,7 @@
         <location filename="../../src/core/account/AccountClient.cpp" line="308"/>
         <location filename="../../src/core/account/AccountClient.cpp" line="346"/>
         <source>Enter a valid email address.</source>
-        <translation type="unfinished"></translation>
+        <translation>Введите корректный адрес электронной почты.</translation>
     </message>
     <message>
         <location filename="../../src/core/account/AccountClient.cpp" line="286"/>
@@ -97,7 +97,7 @@
         <location filename="../../src/core/account/AccountClient.cpp" line="564"/>
         <location filename="../../src/core/account/AccountClient.cpp" line="598"/>
         <source>No clipboard target device was selected.</source>
-        <translation type="unfinished"></translation>
+        <translation>Не выбрано целевое устройство буфера обмена.</translation>
     </message>
     <message>
         <location filename="../../src/core/account/AccountClient.cpp" line="612"/>
@@ -235,7 +235,7 @@
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="199"/>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="214"/>
         <source>Enter a valid email address.</source>
-        <translation type="unfinished"></translation>
+        <translation>Введите корректный адрес электронной почты.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="207"/>
@@ -499,37 +499,37 @@ Extract it too?</source>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="315"/>
         <source>The selected clipboard device is unavailable.</source>
-        <translation type="unfinished"></translation>
+        <translation>Выбранное устройство буфера обмена недоступно.</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="372"/>
         <source>Automatically queueing %1 of %2...</source>
-        <translation type="unfinished"></translation>
+        <translation>Автоматическая постановка в очередь: %1 из %2...</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="373"/>
         <source>Sending %1 of %2...</source>
-        <translation type="unfinished"></translation>
+        <translation>Отправка: %1 из %2...</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="403"/>
         <source>Automatic clipboard send failed: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Не удалось автоматически отправить буфер обмена: %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="410"/>
         <source>Queued %1 of %2 records; %3 failed.</source>
-        <translation type="unfinished"></translation>
+        <translation>В очередь добавлено %1 из %2 записей; ошибок: %3.</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="412"/>
         <source>Queued %1 records; %2 had no recipients.</source>
-        <translation type="unfinished"></translation>
+        <translation>В очередь добавлено %1 записей; у %2 не было получателей.</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="413"/>
         <source>Queued %1 selected records.</source>
-        <translation type="unfinished"></translation>
+        <translation>В очередь добавлено выбранных записей: %1.</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="570"/>
@@ -3104,7 +3104,11 @@ Editing a file on this connection needs it mounted through GVfs (the gvfs-backen
 %2
 
 Update page: %3</source>
-        <translation type="unfinished"></translation>
+        <translation>Доступна версия %1.
+
+%2
+
+Страница обновления: %3</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2729"/>
@@ -3430,33 +3434,33 @@ This is permanent and will NOT go to the trash.</source>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="135"/>
         <source>Auto Send</source>
-        <translation type="unfinished"></translation>
+        <translation>Автоотправка</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="264"/>
         <location filename="../../src/ui/NotepadPanel.cpp" line="265"/>
         <source>All devices</source>
-        <translation type="unfinished"></translation>
+        <translation>Все устройства</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="272"/>
         <source>Online</source>
-        <translation type="unfinished"></translation>
+        <translation>В сети</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="272"/>
         <source>Offline</source>
-        <translation type="unfinished"></translation>
+        <translation>Не в сети</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="273"/>
         <source>%1 — %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 — %2</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="279"/>
         <source>Unavailable device</source>
-        <translation type="unfinished"></translation>
+        <translation>Недоступное устройство</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="291"/>
@@ -3466,12 +3470,12 @@ This is permanent and will NOT go to the trash.</source>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="332"/>
         <source>Image, %1, %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Изображение, %1, %2</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="333"/>
         <source>%1, %2, %3</source>
-        <translation type="unfinished"></translation>
+        <translation>%1, %2, %3</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="449"/>
@@ -4262,7 +4266,7 @@ Destination: %4 (%5)</source>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="23"/>
         <source>No other devices registered</source>
-        <translation type="unfinished"></translation>
+        <translation>Другие устройства не зарегистрированы.</translation>
     </message>
 </context>
 <context>

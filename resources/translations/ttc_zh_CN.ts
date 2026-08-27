@@ -90,7 +90,7 @@
         <location filename="../../src/core/account/AccountClient.cpp" line="564"/>
         <location filename="../../src/core/account/AccountClient.cpp" line="598"/>
         <source>No clipboard target device was selected.</source>
-        <translation type="unfinished"></translation>
+        <translation>未选择云剪贴板目标设备。</translation>
     </message>
     <message>
         <location filename="../../src/core/account/AccountClient.cpp" line="612"/>
@@ -3134,7 +3134,11 @@ Editing a file on this connection needs it mounted through GVfs (the gvfs-backen
 %2
 
 Update page: %3</source>
-        <translation type="unfinished"></translation>
+        <translation>版本 %1 可用。
+
+%2
+
+更新页面：%3</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2729"/>
@@ -3500,7 +3504,7 @@ This is permanent and will NOT go to the trash.</source>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="273"/>
         <source>%1 — %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 — %2</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="279"/>
@@ -3510,12 +3514,12 @@ This is permanent and will NOT go to the trash.</source>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="332"/>
         <source>Image, %1, %2</source>
-        <translation type="unfinished"></translation>
+        <translation>图片，%1，%2</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="333"/>
         <source>%1, %2, %3</source>
-        <translation type="unfinished"></translation>
+        <translation>%1，%2，%3</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="383"/>

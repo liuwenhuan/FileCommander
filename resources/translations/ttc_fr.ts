@@ -66,7 +66,7 @@
         <location filename="../../src/core/account/AccountClient.cpp" line="308"/>
         <location filename="../../src/core/account/AccountClient.cpp" line="346"/>
         <source>Enter a valid email address.</source>
-        <translation type="unfinished"></translation>
+        <translation>Saisissez une adresse e-mail valide.</translation>
     </message>
     <message>
         <location filename="../../src/core/account/AccountClient.cpp" line="286"/>
@@ -97,7 +97,7 @@
         <location filename="../../src/core/account/AccountClient.cpp" line="564"/>
         <location filename="../../src/core/account/AccountClient.cpp" line="598"/>
         <source>No clipboard target device was selected.</source>
-        <translation type="unfinished"></translation>
+        <translation>Aucun appareil cible du presse-papiers n’a été sélectionné.</translation>
     </message>
     <message>
         <location filename="../../src/core/account/AccountClient.cpp" line="612"/>
@@ -235,7 +235,7 @@
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="199"/>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="214"/>
         <source>Enter a valid email address.</source>
-        <translation type="unfinished"></translation>
+        <translation>Saisissez une adresse e-mail valide.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="207"/>
@@ -499,37 +499,37 @@ L&apos;extraire aussi ?</translation>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="315"/>
         <source>The selected clipboard device is unavailable.</source>
-        <translation type="unfinished"></translation>
+        <translation>L’appareil de presse-papiers sélectionné est indisponible.</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="372"/>
         <source>Automatically queueing %1 of %2...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mise en file d’attente automatique de %1 sur %2...</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="373"/>
         <source>Sending %1 of %2...</source>
-        <translation type="unfinished"></translation>
+        <translation>Envoi de %1 sur %2...</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="403"/>
         <source>Automatic clipboard send failed: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Échec de l’envoi automatique du presse-papiers : %1</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="410"/>
         <source>Queued %1 of %2 records; %3 failed.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 enregistrement(s) sur %2 mis en file d’attente ; %3 échec(s).</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="412"/>
         <source>Queued %1 records; %2 had no recipients.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 enregistrement(s) mis en file d’attente ; %2 sans destinataire.</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="413"/>
         <source>Queued %1 selected records.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 enregistrement(s) sélectionné(s) mis en file d’attente.</translation>
     </message>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="570"/>
@@ -3100,7 +3100,11 @@ Pour modifier un fichier sur cette connexion, celle-ci doit être montée via GV
 %2
 
 Update page: %3</source>
-        <translation type="unfinished"></translation>
+        <translation>La version %1 est disponible.
+
+%2
+
+Page de mise à jour : %3</translation>
     </message>
     <message>
         <location filename="../../src/ui/MainWindow.cpp" line="2729"/>
@@ -3426,33 +3430,33 @@ Cette action est définitive et NE passera PAS par la corbeille.</translation>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="135"/>
         <source>Auto Send</source>
-        <translation type="unfinished"></translation>
+        <translation>Envoi automatique</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="264"/>
         <location filename="../../src/ui/NotepadPanel.cpp" line="265"/>
         <source>All devices</source>
-        <translation type="unfinished"></translation>
+        <translation>Tous les appareils</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="272"/>
         <source>Online</source>
-        <translation type="unfinished"></translation>
+        <translation>En ligne</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="272"/>
         <source>Offline</source>
-        <translation type="unfinished"></translation>
+        <translation>Hors ligne</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="273"/>
         <source>%1 — %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 — %2</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="279"/>
         <source>Unavailable device</source>
-        <translation type="unfinished"></translation>
+        <translation>Appareil indisponible</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="291"/>
@@ -3462,12 +3466,12 @@ Cette action est définitive et NE passera PAS par la corbeille.</translation>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="332"/>
         <source>Image, %1, %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Image, %1, %2</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="333"/>
         <source>%1, %2, %3</source>
-        <translation type="unfinished"></translation>
+        <translation>%1, %2, %3</translation>
     </message>
     <message>
         <location filename="../../src/ui/NotepadPanel.cpp" line="449"/>
@@ -4258,7 +4262,7 @@ Destination : %4 (%5)</translation>
     <message>
         <location filename="../../src/ui/CloudClipboardController.cpp" line="23"/>
         <source>No other devices registered</source>
-        <translation type="unfinished"></translation>
+        <translation>Aucun autre appareil enregistré.</translation>
     </message>
 </context>
 <context>
