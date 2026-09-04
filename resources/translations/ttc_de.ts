@@ -3785,6 +3785,21 @@ Ziel: %4 (%5 Byte)</translation>
         <translation>Typ:</translation>
     </message>
     <message>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="218"/>
+        <source>Removable device</source>
+        <translation>Wechseldatenträger</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="219"/>
+        <source>Total capacity:</source>
+        <translation>Gesamtkapazität:</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="221"/>
+        <source>Available space:</source>
+        <translation>Verfügbarer Speicherplatz:</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="229"/>
         <source>Target:</source>
         <translation>Ziel:</translation>

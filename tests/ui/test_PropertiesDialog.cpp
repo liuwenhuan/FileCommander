@@ -29,6 +29,7 @@
 #include "FileInfo.h"
 #include "dialogs/DirectoryStatisticsTask.h"
 #include "dialogs/PropertiesDialog.h"
+#include "TranslationManager.h"
 
 namespace {
 
@@ -321,6 +322,69 @@ TEST(PropertiesDialogTest, LocalFileShowsImmediateSizeAndPlatformMetadata) {
     EXPECT_NE(valueLabel(dlg, "propertiesOwnerValue"), nullptr);
     EXPECT_NE(valueLabel(dlg, "propertiesGroupValue"), nullptr);
 #endif
+}
+
+TEST(PropertiesDialogTest, RemovableDeviceShowsNameAndStorageMetrics) {
+    RemovableDevice device;
+    device.name = QStringLiteral("Backup USB");
+    device.mountPoint = QStringLiteral("E:\\");
+    device.devNode = QStringLiteral("\\\\.\\E:");
+    device.bytesTotal = 64LL * 1024 * 1024 * 1024;
+    device.bytesAvailable = 12LL * 1024 * 1024 * 1024;
+
+    PropertiesDialog dlg(device);
+
+    ASSERT_NE(valueLabel(dlg, "propertiesNameValue"), nullptr);
+    ASSERT_NE(valueLabel(dlg, "propertiesCapacityValue"), nullptr);
+    ASSERT_NE(valueLabel(dlg, "propertiesAvailableValue"), nullptr);
+    EXPECT_EQ(valueLabel(dlg, "propertiesNameValue")->text(), QStringLiteral("Backup USB"));
+    EXPECT_TRUE(valueLabel(dlg, "propertiesCapacityValue")->text().contains("64.0 GB"));
+    EXPECT_TRUE(valueLabel(dlg, "propertiesAvailableValue")->text().contains("12.0 GB"));
+    EXPECT_EQ(dlg.findChild<QGroupBox *>(QStringLiteral("propertiesPermissionsGroup")), nullptr);
+}
+
+TEST(PropertiesDialogTest, RemovableDeviceMetadataLabelsAreLocalized) {
+    TranslationManager::switchTo(*qApp, QStringLiteral("zh_CN"));
+
+    RemovableDevice device;
+    device.name = QStringLiteral("Backup USB");
+    device.mountPoint = QStringLiteral("E:\\");
+    device.bytesTotal = 64LL * 1024 * 1024 * 1024;
+    device.bytesAvailable = 12LL * 1024 * 1024 * 1024;
+    PropertiesDialog dlg(device);
+
+    EXPECT_TRUE(showsText(dlg, QStringLiteral("可移动设备")));
+    EXPECT_TRUE(showsText(dlg, QStringLiteral("总容量：")));
+    EXPECT_TRUE(showsText(dlg, QStringLiteral("可用空间：")));
+    EXPECT_FALSE(showsText(dlg, QStringLiteral("Removable device")));
+    EXPECT_FALSE(showsText(dlg, QStringLiteral("Total capacity:")));
+    EXPECT_FALSE(showsText(dlg, QStringLiteral("Available space:")));
+
+    TranslationManager::switchTo(*qApp, QStringLiteral("en"));
+}
+
+TEST(PropertiesDialogTest, RemovableDeviceShowsUnavailableStorageMetricsExplicitly) {
+    RemovableDevice device;
+    device.mountPoint = QStringLiteral("E:\\");
+
+    PropertiesDialog dlg(device);
+
+    EXPECT_EQ(valueLabel(dlg, "propertiesNameValue")->text(), QStringLiteral("Unavailable"));
+    EXPECT_EQ(valueLabel(dlg, "propertiesCapacityValue")->text(), QStringLiteral("Unavailable"));
+    EXPECT_EQ(valueLabel(dlg, "propertiesAvailableValue")->text(), QStringLiteral("Unavailable"));
+}
+
+TEST(PropertiesDialogTest, RemovableDeviceAcceptsWithoutPermissionControls) {
+    RemovableDevice device;
+    device.name = QStringLiteral("Backup USB");
+
+    PropertiesDialog dlg(device);
+    auto *buttons = dlg.findChild<QDialogButtonBox *>();
+    ASSERT_NE(buttons, nullptr);
+
+    buttons->button(QDialogButtonBox::Ok)->click();
+
+    EXPECT_EQ(dlg.result(), QDialog::Accepted);
 }
 
 // --- Permission tri-state --------------------------------------------------

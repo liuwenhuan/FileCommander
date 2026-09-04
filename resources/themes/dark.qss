@@ -338,6 +338,29 @@ QPushButton:pressed {
     background-color: #2f2f2f;
 }
 
+/* The default action must be visible before keyboard focus moves. */
+QPushButton:default {
+    background-color: #313b4d;
+    border: 2px solid #3d7deb;
+    padding: 4px 9px;
+}
+
+QPushButton:default:hover {
+    background-color: #454f63;
+    border: 2px solid #73a4ff;
+}
+
+QPushButton[ttcDefaultButton="true"] {
+    background-color: #313b4d;
+    border: 2px solid #3d7deb;
+    padding: 4px 9px;
+}
+
+QPushButton[ttcDefaultButton="true"]:hover {
+    background-color: #454f63;
+    border: 2px solid #73a4ff;
+}
+
 QTableWidget#ShortcutTable QKeySequenceEdit,
 QTableWidget#ShortcutTable QKeySequenceEdit QLineEdit {
     background: transparent;

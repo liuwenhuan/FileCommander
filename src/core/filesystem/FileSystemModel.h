@@ -5,6 +5,7 @@
 #include <QHash>
 #include <QSet>
 #include <QStringList>
+#include <QTimer>
 #include <QVector>
 
 #include <functional>
@@ -14,6 +15,7 @@
 
 class FileProvider;
 class NetworkSession;
+class DirectoryChangeMonitor;
 
 // Flat listing of a single directory's contents (not a recursive tree) --
 // this backs one FilePanel's file list. Loads asynchronously so opening a
@@ -59,8 +61,21 @@ public:
     ~FileSystemModel() override;
 
     void setRootPath(const QString &path);
+    // Re-lists the current directory asynchronously. This is intentionally the
+    // same path used for F5 so provider metadata and sorting stay consistent.
+    void refresh();
     QString rootPath() const { return m_rootPath; }
     quint64 loadGeneration() const { return m_loadGeneration; }
+    // True when an external event was observed but has not yet been reconciled.
+    bool needsExternalRefresh() const;
+    // Requests a debounced background reconciliation. Safe to call before an
+    // operation; it never blocks waiting for the listing.
+    void refreshForExternalChange();
+    // Refreshes remote sessions or a local listing whose native watch failed.
+    void refreshForActivation();
+    // Cheap operation preflight: only consumes an already-pending external
+    // refresh. The worker remains authoritative for the real operation result.
+    void refreshBeforeOperation();
 
     // Network connection lifecycle. Wraps `provider` in a NetworkSession running
     // on its own worker thread and starts an asynchronous connect via the
@@ -202,6 +217,9 @@ public:
 signals:
     void loadStarted();
     void loadFinished(int count, quint64 generation);
+    // Emitted immediately before a model-triggered external reload. FilePanel
+    // uses it to preserve the current row/selection across the reset.
+    void externalRefreshStarted();
     void renameFailed(const QString &message);
     void renamed(const QString &oldPath, const QString &newPath);
     // An inline rename on a REMOTE tab: the actual provider->rename() is a
@@ -241,6 +259,9 @@ private slots:
     void onSessionAuthRequired(const QString &error);
     void onSessionFailed(const QString &error);
     void onSessionStateChanged(int state, int attempt);
+    void onExternalChangesDetected();
+    void onExternalReconciliationRequired();
+    void onExternalRefreshTimeout();
 
 private:
     struct LocalScanResult {
@@ -261,6 +282,7 @@ private:
     // Decides whether a listing at `path` gets a ".." row and, if so, builds it
     // through the active provider. Call wherever the listing is replaced.
     void setParentEntryFor(const QString &path);
+    void scheduleExternalRefresh();
     // Formats a timestamp as "yyyy-MM-dd HH:mm", memoised by epoch-minute.
     QString cachedDateStr(const QDateTime &dt) const;
 
@@ -291,6 +313,10 @@ private:
     // freeze the window on a wedged autofs/NFS mount.
     FileInfo m_parentEntry;
     QFutureWatcher<LocalScanResult> m_watcher;
+    DirectoryChangeMonitor *m_directoryMonitor = nullptr;
+    QTimer m_externalRefreshTimer;
+    bool m_externalRefreshPending = false;
+    bool m_startingDirectoryWatch = false;
     int m_sortColumn = NameColumn;
     Qt::SortOrder m_sortOrder = Qt::AscendingOrder;
     quint64 m_loadGeneration = 0;

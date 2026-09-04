@@ -9,6 +9,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'windows-hash.ps1')
 $stageRoot = (Resolve-Path -LiteralPath $Stage).Path.TrimEnd('\')
 $profile = Get-Content -LiteralPath $ProfilePath -Raw | ConvertFrom-Json
 $groupNames = @('application', 'qt', 'platformPlugins', 'imagePlugins', 'network', 'pdf', 'media', 'office', 'msvcRuntime')
@@ -82,7 +83,7 @@ $files = @(
             [pscustomobject][ordered]@{
                 path = $relativePath
                 bytes = [int64]$_.Length
-                sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToUpperInvariant()
+                sha256 = (Get-Sha256Hash -LiteralPath $_.FullName).ToUpperInvariant()
                 provenance = $provenanceByPath[$relativePath]
                 version = $version
             }

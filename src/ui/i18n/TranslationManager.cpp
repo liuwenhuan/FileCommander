@@ -21,20 +21,26 @@ namespace {
 // the same process can never remove or delete a dangling translator.
 QPointer<QCoreApplication> g_owner;
 QPointer<QTranslator> g_appTranslator;
+QPointer<QTranslator> g_externalAppTranslator;
 QPointer<QTranslator> g_qtTranslator;
 
 void removeTrackedTranslators() {
     if (g_owner) {
         if (g_appTranslator)
             g_owner->removeTranslator(g_appTranslator);
+        if (g_externalAppTranslator)
+            g_owner->removeTranslator(g_externalAppTranslator);
         if (g_qtTranslator)
             g_owner->removeTranslator(g_qtTranslator);
     }
     if (g_appTranslator)
         delete g_appTranslator.data();
+    if (g_externalAppTranslator)
+        delete g_externalAppTranslator.data();
     if (g_qtTranslator)
         delete g_qtTranslator.data();
     g_appTranslator.clear();
+    g_externalAppTranslator.clear();
     g_qtTranslator.clear();
     g_owner.clear();
 }
@@ -88,12 +94,13 @@ void notifyHiddenTopLevelWidgets(QCoreApplication &app) {
 
 } // namespace
 
-bool TranslationManager::loadCatalog(QTranslator *t, const QString &code) {
-    // External dir wins, so a hand-supplied catalog overrides the bundled one.
-    const QString external = externalDir() + QStringLiteral("/ttc_%1.qm").arg(code);
-    if (QFileInfo::exists(external) && t->load(external))
-        return true;
+bool TranslationManager::loadBundledCatalog(QTranslator *t, const QString &code) {
     return t->load(QStringLiteral(":/translations/ttc_%1.qm").arg(code));
+}
+
+bool TranslationManager::loadExternalCatalog(QTranslator *t, const QString &code) {
+    const QString external = externalDir() + QStringLiteral("/ttc_%1.qm").arg(code);
+    return QFileInfo::exists(external) && t->load(external);
 }
 
 bool TranslationManager::loadQtCatalog(QTranslator *t, const QString &code) {
@@ -118,6 +125,7 @@ void TranslationManager::switchTo(QCoreApplication &app, const QString &language
         removeTrackedTranslators();
     } else {
         g_appTranslator.clear();
+        g_externalAppTranslator.clear();
         g_qtTranslator.clear();
         g_owner.clear();
     }
@@ -153,7 +161,7 @@ void TranslationManager::switchTo(QCoreApplication &app, const QString &language
 
     auto *appTranslator = new QTranslator(&app);
     for (const QString &code : candidatesFor(language)) {
-        if (loadCatalog(appTranslator, code)) {
+        if (loadBundledCatalog(appTranslator, code)) {
             app.installTranslator(appTranslator);
             g_owner = &app;
             g_appTranslator = appTranslator;
@@ -162,6 +170,21 @@ void TranslationManager::switchTo(QCoreApplication &app, const QString &language
         }
     }
     delete appTranslator;
+
+    // Install the user's catalog after the bundled one. Qt searches the most
+    // recently installed translator first, then falls through to the bundled
+    // catalog for entries the overlay does not contain.
+    auto *externalTranslator = new QTranslator(&app);
+    for (const QString &code : candidatesFor(language)) {
+        if (loadExternalCatalog(externalTranslator, code)) {
+            app.installTranslator(externalTranslator);
+            g_owner = &app;
+            g_externalAppTranslator = externalTranslator;
+            externalTranslator = nullptr;
+            break;
+        }
+    }
+    delete externalTranslator;
     notifyHiddenTopLevelWidgets(app);
 }
 

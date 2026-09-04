@@ -5,6 +5,7 @@
 #include <QSet>
 #include <QString>
 #include <QStringList>
+#include <QTranslator>
 #include <QXmlStreamReader>
 
 namespace {
@@ -150,5 +151,49 @@ TEST(TranslationCatalogsTest, EveryBundledCatalogHasACompiledCounterpart) {
         // is what actually reaches users.
         EXPECT_TRUE(QFile::exists(catalogPath(language, QStringLiteral(".qm"))))
             << language.toStdString() << " has no compiled catalog";
+    }
+}
+
+TEST(TranslationCatalogsTest, ChineseRemovableDeviceMenuIsCompiled) {
+    QTranslator translator;
+    ASSERT_TRUE(translator.load(QStringLiteral(":/translations/ttc_zh_CN.qm")));
+
+    const QPair<const char *, const char *> expected[] = {
+        {"Open", "打开"},
+        {"Open With", "打开方式"},
+        {"View", "查看"},
+        {"Edit", "编辑"},
+        {"Copy", "复制"},
+        {"Cut", "剪切"},
+        {"Move", "移动"},
+        {"Rename", "重命名"},
+        {"Delete", "删除"},
+        {"Compress", "压缩"},
+        {"Extract To", "解压到"},
+        {"Extract Here", "解压到当前目录"},
+        {"Extract to Folder...", "解压到指定目录"},
+        {"Send To", "发送到"},
+        {"Send to Device", "发送到设备"},
+        {"No other device", "没有其他设备"},
+        {"Calculate Folder Size", "计算文件夹大小"},
+        {"Copy Path", "复制路径"},
+        {"Properties", "属性"},
+    };
+    for (const auto &entry : expected) {
+        EXPECT_EQ(translator.translate("MainWindow", entry.first),
+                  QString::fromUtf8(entry.second))
+            << entry.first;
+    }
+}
+
+TEST(TranslationCatalogsTest, ThemesExposeAVisibleDefaultButtonState) {
+    for (const QString &theme : {QStringLiteral("dark"), QStringLiteral("light"),
+                                 QStringLiteral("green")}) {
+        QFile file(QStringLiteral(TTC_SOURCE_DIR "/resources/themes/") + theme +
+                   QStringLiteral(".qss"));
+        ASSERT_TRUE(file.open(QIODevice::ReadOnly)) << theme.toStdString();
+        const QString stylesheet = QString::fromUtf8(file.readAll());
+        EXPECT_NE(stylesheet.indexOf(QStringLiteral("QPushButton:default")), -1)
+            << theme.toStdString();
     }
 }

@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QFile>
 #include <QTemporaryDir>
+#include <QThread>
 #include <QtTest/QSignalSpy>
 
 #include "FileOperations.h"
@@ -264,6 +265,36 @@ TEST(FileOperationsTest, CopyReportsByteProgressToCompletion) {
     EXPECT_EQ(last.at(1).toLongLong(), 1);    // totalItems
     EXPECT_EQ(last.at(2).toLongLong(), 4096); // doneBytes
     EXPECT_EQ(last.at(3).toLongLong(), 4096); // totalBytes
+}
+
+TEST(FileOperationsTest, CopyReportsIncrementalByteProgressBeforeCompletion) {
+    QTemporaryDir srcDir, dstDir;
+    ASSERT_TRUE(srcDir.isValid() && dstDir.isValid());
+
+    const QString source = QDir(srcDir.path()).filePath("large.bin");
+    QFile input(source);
+    ASSERT_TRUE(input.open(QIODevice::WriteOnly));
+    constexpr qint64 totalBytes = 8 * 1024 * 1024;
+    ASSERT_TRUE(input.resize(totalBytes));
+    input.close();
+
+    FileOperations ops;
+    ops.setCopyChunkHookForTesting([](qint64, qint64) { QThread::msleep(1); });
+    QSignalSpy spy(&ops, &FileOperations::progress);
+    QString err;
+    ASSERT_TRUE(ops.copyPaths({source}, dstDir.path(), nullptr, &err)) << err.toStdString();
+
+    bool sawIntermediateProgress = false;
+    for (const QList<QVariant> &record : spy) {
+        const qint64 doneBytes = record.at(2).toLongLong();
+        if (doneBytes > 0 && doneBytes < totalBytes) {
+            sawIntermediateProgress = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(sawIntermediateProgress);
+    ASSERT_FALSE(spy.isEmpty());
+    EXPECT_EQ(spy.takeLast().at(2).toLongLong(), totalBytes);
 }
 
 TEST(FileOperationsTest, RequestCancelStopsRemainingEntries) {

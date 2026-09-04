@@ -101,6 +101,16 @@ QString windowsError(DWORD code) {
     return result;
 }
 
+void fillStorageMetrics(RemovableDevice *device, const QStorageInfo &storage) {
+    if (!storage.isValid() || !storage.isReady())
+        return;
+
+    if (storage.bytesTotal() >= 0)
+        device->bytesTotal = storage.bytesTotal();
+    if (storage.bytesAvailable() >= 0)
+        device->bytesAvailable = storage.bytesAvailable();
+}
+
 } // namespace
 
 RemovableDeviceMonitor::RemovableDeviceMonitor(QObject *parent) : QObject(parent) {
@@ -134,7 +144,10 @@ QVector<RemovableDevice> RemovableDeviceMonitor::enumerate() const {
         dev.devNode = QString::fromLocal8Bit(volume.device());
         dev.name = volume.displayName();
         if (dev.name.isEmpty())
+            dev.name = volume.name();
+        if (dev.name.isEmpty())
             dev.name = dev.mountPoint;
+        fillStorageMetrics(&dev, volume);
         dev.iconName = QStringLiteral("dev-drive");
         dev.isMounted = true;
         result.append(dev);
@@ -162,7 +175,10 @@ void RemovableDeviceMonitor::refresh() {
     for (int i = 0; !changed && i < fresh.size(); ++i)
         changed = fresh.at(i).id.compare(m_devices.at(i).id, Qt::CaseInsensitive) != 0 ||
                   fresh.at(i).mountPoint.compare(m_devices.at(i).mountPoint,
-                                                 Qt::CaseInsensitive) != 0;
+                                                 Qt::CaseInsensitive) != 0 ||
+                  fresh.at(i).name != m_devices.at(i).name ||
+                  fresh.at(i).bytesTotal != m_devices.at(i).bytesTotal ||
+                  fresh.at(i).bytesAvailable != m_devices.at(i).bytesAvailable;
     if (changed) {
         m_devices = fresh;
         emit devicesChanged();

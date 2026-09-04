@@ -125,6 +125,12 @@ public:
     // Re-lists while restoring the current selection when those paths still
     // appear in the new listing. Used after a failed network operation.
     void refreshPreservingSelection();
+    // Reconciles a remote or invalidated local listing when the application is
+    // activated. Healthy native local watches remain event-driven.
+    void refreshOnActivation();
+    // Starts a cheap asynchronous reconciliation when an external change is
+    // already pending before a file operation is queued.
+    void refreshBeforeOperation();
 
     // Path under the keyboard cursor (not necessarily selected) -- used by
     // F3/F4 to know which single file to open.
@@ -616,6 +622,7 @@ private:
     // stored connScheme, so a tab keeps its icon regardless of what backend is
     // momentarily active or what a sibling tab is doing.
     void refreshTabIcons();
+    void rememberSelectionForReload();
     // Records the active tab's connection identity (scheme + "user@host") from the
     // live backend into its TabState, so its icon/label survive tab switches.
     void stampActiveConnection();

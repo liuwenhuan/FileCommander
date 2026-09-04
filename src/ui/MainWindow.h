@@ -151,7 +151,8 @@ private:
     // Resolves the entry under the cursor to a local path that can be EDITED --
     // a gvfs mount, never a downloaded copy -- and runs `then` on it. Explains
     // the refusal to the user and does not call `then` when there is none.
-    void resolveEditableCurrent(std::function<void(const QString &)> then);
+    void resolveEditableCurrent(std::function<void(const QString &)> then,
+                                std::function<bool()> stillCurrent = {});
 
 private slots:
 
@@ -496,6 +497,7 @@ private:
     // request id discards a stale download when the cursor has moved on. The temp
     // dir is created lazily and auto-cleaned on exit.
     quint64 m_previewReqId = 0;
+    quint64 m_quickEditReqId = 0;
     bool m_previewRunning = false;                       // a remote fetch is in flight
     QString m_previewName;                               // current file's name (for messages)
     QString m_previewEncodingIdentity;                   // source before temp download

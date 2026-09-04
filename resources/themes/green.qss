@@ -412,6 +412,29 @@ QPushButton:pressed {
     color: #04140a;
 }
 
+/* The default action must be visible before keyboard focus moves. */
+QPushButton:default {
+    background-color: #12602f;
+    border: 2px solid #33ff88;
+    padding: 4px 9px;
+}
+
+QPushButton:default:hover {
+    background-color: #16843e;
+    border: 2px solid #8affb5;
+}
+
+QPushButton[ttcDefaultButton="true"] {
+    background-color: #12602f;
+    border: 2px solid #33ff88;
+    padding: 4px 9px;
+}
+
+QPushButton[ttcDefaultButton="true"]:hover {
+    background-color: #16843e;
+    border: 2px solid #8affb5;
+}
+
 QPushButton:disabled {
     color: #12602f;
     border: 1px solid #12602f;

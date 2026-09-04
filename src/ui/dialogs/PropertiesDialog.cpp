@@ -56,6 +56,10 @@ QString humanSize(qint64 bytes) {
         .arg(QLocale().toString(bytes));
 }
 
+QString storageSize(qint64 bytes) {
+    return bytes >= 0 ? humanSize(bytes) : PropertiesDialog::tr("Unavailable");
+}
+
 QString fileCountText(qint64 count) {
     return count == 1 ? PropertiesDialog::tr("1 file")
                       : PropertiesDialog::tr("%1 files").arg(count);
@@ -176,6 +180,14 @@ PropertiesDialog::PropertiesDialog(const QVector<FileInfo> &infos, QWidget *pare
     buildUi();
 }
 
+PropertiesDialog::PropertiesDialog(const RemovableDevice &device, QWidget *parent)
+    : FramelessDialog(parent), m_device(device), m_deviceBacked(true) {
+    if (!device.mountPoint.isEmpty())
+        m_paths.append(device.mountPoint);
+    setModal(true);
+    buildUi();
+}
+
 void PropertiesDialog::buildUi() {
     const bool single = m_paths.size() == 1;
     auto *form = new QFormLayout;
@@ -195,7 +207,20 @@ void PropertiesDialog::buildUi() {
         return label;
     };
 
-    if (single && m_providerBacked) {
+    if (m_deviceBacked) {
+        addRow(tr("Name:"), m_device.name.isEmpty() ? tr("Unavailable") : m_device.name,
+               "propertiesNameValue");
+        const QString location = !m_device.mountPoint.isEmpty()
+                                     ? m_device.mountPoint
+                                     : m_device.devNode;
+        addRow(tr("Location:"), location.isEmpty() ? tr("Unavailable") : location,
+               "propertiesLocationValue");
+        addRow(tr("Type:"), tr("Removable device"), "propertiesTypeValue");
+        addRow(tr("Total capacity:"), storageSize(m_device.bytesTotal),
+               "propertiesCapacityValue");
+        addRow(tr("Available space:"), storageSize(m_device.bytesAvailable),
+               "propertiesAvailableValue");
+    } else if (single && m_providerBacked) {
         const FileInfo &entry = m_infos.first();
         addRow(tr("Name:"), entry.name(), "propertiesNameValue");
         addRow(tr("Location:"), QFileInfo(entry.path()).path(), "propertiesLocationValue");
@@ -334,6 +359,8 @@ void PropertiesDialog::startLocalStatistics(const QStringList &paths) {
 }
 
 void PropertiesDialog::addPermissionSection(QVBoxLayout *layout) {
+    if (m_deviceBacked)
+        return;
 #ifdef Q_OS_WIN
     // Local Windows entries expose native attributes instead of Unix mode bits.
     // Provider metadata remains visible, read-only, because it describes the
@@ -408,7 +435,7 @@ void PropertiesDialog::updateOctalLabel() {
 }
 
 void PropertiesDialog::apply() {
-    if (m_providerBacked) {
+    if (m_providerBacked || m_deviceBacked) {
         accept();
         return;
     }

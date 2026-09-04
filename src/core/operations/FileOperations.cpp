@@ -283,6 +283,8 @@ QString FileOperations::uniqueDestination(const QString &destDir, const QString 
 bool FileOperations::copyInterrupted(qint64 copiedBytes, qint64 totalBytes) {
     if (m_copyChunkHookForTesting)
         m_copyChunkHookForTesting(copiedBytes, totalBytes);
+    if (!m_activeLocalCopyFile.isEmpty())
+        emitProgress(m_activeLocalCopyFile, m_activeLocalCopyBaseBytes + copiedBytes);
     return m_cancelled.load();
 }
 
@@ -356,6 +358,7 @@ bool FileOperations::copyFileChunked(const QString &source, const QString &targe
             return fail(errno ? errno : EIO);
         }
         copied += read;
+        emitProgress(source, m_doneBytes + copied);
     }
     if (!out.flush()) {
         out.close();
@@ -383,9 +386,15 @@ bool FileOperations::copyFilePreservingTime(const QString &source, const QString
 #ifdef Q_OS_WIN
     // CopyFileExW rather than CopyFileW purely for the progress routine: it is
     // the only way to make a single large copy give up before it finishes.
-    if (!CopyFileExW(reinterpret_cast<LPCWSTR>(source.utf16()),
-                     reinterpret_cast<LPCWSTR>(copyTarget.utf16()), &abortableCopyProgress,
-                     this, nullptr, COPY_FILE_FAIL_IF_EXISTS)) {
+    m_activeLocalCopyFile = source;
+    m_activeLocalCopyBaseBytes = m_doneBytes;
+    const bool copied = CopyFileExW(reinterpret_cast<LPCWSTR>(source.utf16()),
+                                    reinterpret_cast<LPCWSTR>(copyTarget.utf16()),
+                                    &abortableCopyProgress, this, nullptr,
+                                    COPY_FILE_FAIL_IF_EXISTS) != 0;
+    m_activeLocalCopyFile.clear();
+    m_activeLocalCopyBaseBytes = 0;
+    if (!copied) {
         const DWORD error = GetLastError();
         if (nativeCode)
             *nativeCode = static_cast<qint64>(error);

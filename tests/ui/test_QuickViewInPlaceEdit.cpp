@@ -168,6 +168,39 @@ TEST(QuickViewInPlaceEdit, AnUnsavedBufferSurvivesTheFileCursorMovingOn) {
     EXPECT_TRUE(view.isEditing()) << "the unsaved buffer was thrown away";
 }
 
+TEST(QuickViewInPlaceEdit, SwitchingEditingFileSavesAndKeepsTheEditorPage) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString first = dir.filePath(QStringLiteral("first.txt"));
+    const QString second = dir.filePath(QStringLiteral("second.txt"));
+    for (const auto &entry : {qMakePair(first, QByteArray("first\n")),
+                              qMakePair(second, QByteArray("second\n"))}) {
+        QFile file(entry.first);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Text));
+        ASSERT_EQ(file.write(entry.second), entry.second.size());
+    }
+
+    Settings settings(dir.filePath(QStringLiteral("settings.ini")));
+    QuickView view(settings, QuickView::Context::Embedded);
+    ASSERT_TRUE(view.beginEditing(first));
+    TextEditor *editor = view.findChild<TextEditor *>();
+    ASSERT_NE(editor, nullptr);
+    editor->codeEditor()->moveCursor(QTextCursor::End);
+    editor->codeEditor()->insertPlainText(QStringLiteral("saved before switch\n"));
+    ASSERT_TRUE(editor->isDocumentModified());
+
+    ASSERT_TRUE(view.switchEditingFile(second));
+    EXPECT_TRUE(view.isEditing());
+    EXPECT_EQ(view.findChild<TextEditor *>(), editor);
+    EXPECT_EQ(editor->filePath(), second);
+    EXPECT_FALSE(editor->isDocumentModified());
+
+    QFile saved(first);
+    ASSERT_TRUE(saved.open(QIODevice::ReadOnly));
+    EXPECT_TRUE(saved.readAll().contains("saved before switch"));
+    EXPECT_TRUE(editor->codeEditor()->toPlainText().contains(QStringLiteral("second")));
+}
+
 TEST(QuickViewInPlaceEdit, SameFilePreviewFlushesPendingAutosaveBeforeLeavingEditor) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());

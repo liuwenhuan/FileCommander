@@ -8,6 +8,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'windows-hash.ps1')
 $repo = Split-Path -Parent $PSScriptRoot
 $portableBuilder = Join-Path $PSScriptRoot 'build-windows.ps1'
 
@@ -84,7 +85,7 @@ if ($Smoke) {
             if (-not (Test-Path -LiteralPath $installedPath -PathType Leaf)) {
                 throw "Installer smoke install is missing: $($file.path)"
             }
-            $hash = (Get-FileHash -LiteralPath $installedPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            $hash = (Get-Sha256Hash -LiteralPath $installedPath).ToLowerInvariant()
             if ($hash -ne ([string]$file.sha256).ToLowerInvariant()) {
                 throw "Installer smoke hash mismatch: $($file.path)"
             }

@@ -8,10 +8,10 @@ class QCoreApplication;
 
 // Loads and (live-)switches the UI translation.
 //
-// Catalogs are looked up first in the user's external translations directory
-// (~/.config/FileCommander/translations/ttc_<code>.qm) and then in the bundled
-// resources (:/translations/...). The external dir lets translators drop in a
-// new/updated .qm without recompiling — see resources/translations/README.
+// The bundled catalog is always installed first. A catalog in the user's
+// external translations directory (~/.config/FileCommander/translations/
+// ttc_<code>.qm) is installed as an overlay, so it can override known strings
+// without making newer bundled strings fall back to English.
 class TranslationManager {
 public:
     // Startup install for the saved language ("auto"/"en"/locale like "zh_CN").
@@ -28,8 +28,11 @@ public:
     static QVector<std::pair<QString, QString>> available();
 
 private:
-    // Loads ttc_<code>.qm into `t` (external dir first, then resources).
-    static bool loadCatalog(class QTranslator *t, const QString &code);
+    // Loads ttc_<code>.qm from the bundled resources.
+    static bool loadBundledCatalog(class QTranslator *t, const QString &code);
+
+    // Loads ttc_<code>.qm from the user's optional override directory.
+    static bool loadExternalCatalog(class QTranslator *t, const QString &code);
 
     // Loads Qt's qtbase_<code>.qm from Qt's installed translations directory.
     static bool loadQtCatalog(class QTranslator *t, const QString &code);

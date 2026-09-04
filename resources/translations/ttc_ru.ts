@@ -3789,6 +3789,21 @@ Destination: %4 (%5 bytes)</source>
         <translation>Тип:</translation>
     </message>
     <message>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="218"/>
+        <source>Removable device</source>
+        <translation>Съёмное устройство</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="219"/>
+        <source>Total capacity:</source>
+        <translation>Общая ёмкость:</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="221"/>
+        <source>Available space:</source>
+        <translation>Доступное пространство:</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="229"/>
         <source>Target:</source>
         <translation>Цель:</translation>

@@ -22,6 +22,8 @@ struct RemovableDevice {
                          // "dev-sdcard" (memory card) or "dev-drive" (generic);
                          // maps to :/icons/<iconName>.svg
     QString driveId;     // UDisks2 Drive object path, for safe-remove PowerOff
+    qint64 bytesTotal = -1;     // total capacity, or -1 when unavailable
+    qint64 bytesAvailable = -1; // free space, or -1 when unavailable
     bool isMounted = false;
 };
 

@@ -3,6 +3,8 @@ set(CORE_SOURCES
     diagnostics/RuntimeCounters.cpp
     filesystem/FileInfo.h
     filesystem/FileInfo.cpp
+    filesystem/DirectoryChangeMonitor.h
+    filesystem/DirectoryChangeMonitor.cpp
     filesystem/FileSystemModel.h
     filesystem/FileSystemModel.cpp
     filesystem/DirectorySizeTask.h
@@ -135,6 +137,7 @@ endif()
 
 if(WIN32)
     list(APPEND CORE_SOURCES
+        filesystem/DirectoryChangeMonitor_windows.cpp
         devices/RemovableDeviceMonitor.h
         devices/RemovableDeviceMonitor_windows.cpp
         devices/WindowsRemovableStorage.h
@@ -148,6 +151,10 @@ if(WIN32)
             network/WindowsSmbProvider.cpp
         )
     endif()
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    list(APPEND CORE_SOURCES filesystem/DirectoryChangeMonitor_linux.cpp)
+else()
+    list(APPEND CORE_SOURCES filesystem/DirectoryChangeMonitor_stub.cpp)
 endif()
 
 add_library(core STATIC ${CORE_SOURCES})

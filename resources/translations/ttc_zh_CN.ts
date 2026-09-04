@@ -3843,6 +3843,21 @@ Destination: %4 (%5 bytes)</source>
         <translation>类型：</translation>
     </message>
     <message>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="218"/>
+        <source>Removable device</source>
+        <translation>可移动设备</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="219"/>
+        <source>Total capacity:</source>
+        <translation>总容量：</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="221"/>
+        <source>Available space:</source>
+        <translation>可用空间：</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="229"/>
         <source>Target:</source>
         <translation>目标：</translation>

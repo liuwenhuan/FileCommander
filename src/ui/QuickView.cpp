@@ -1070,6 +1070,30 @@ bool QuickView::beginEditing(const QString &path, const QString &encodingIdentit
     return true;
 }
 
+bool QuickView::switchEditingFile(const QString &path, const QString &encodingIdentity) {
+    if (!isEditing() || path.isEmpty())
+        return false;
+
+    QString resolvedIdentity = encodingIdentity;
+    if (resolvedIdentity.isEmpty())
+        resolvedIdentity = fc::TextEncodingIdentity::localPath(path);
+    if (path == m_editor->filePath())
+        return true;
+    if (!m_editor->promptSaveIfModified())
+        return false;
+
+    // Invalidate every preview parser before reusing the editor page. A result
+    // from the previous selection must never reveal a page over the editor.
+    cancelPendingPreviewWork();
+    ++m_textLoadGeneration;
+    m_textLoadPending = false;
+    if (!m_editor->loadFile(path, resolvedIdentity))
+        return false;
+    m_editor->setTextWrapEnabled(m_textWrapAction && m_textWrapAction->isChecked());
+    m_editor->setFocus();
+    return true;
+}
+
 bool QuickView::confirmDiscardEdits() {
     return !isEditing() || m_editor->promptSaveIfModified();
 }

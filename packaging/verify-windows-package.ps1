@@ -11,6 +11,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'windows-hash.ps1')
 $resolved = (Resolve-Path -LiteralPath $Stage).Path
 $repo = Split-Path -Parent $PSScriptRoot
 $pendingBaselinePath = $null
@@ -213,7 +214,7 @@ if ($hasReleaseManifest) {
             throw "Package file size differs from release manifest: $relativePath"
         }
         if ([string]$recorded.sha256 -notmatch '^[0-9A-Fa-f]{64}$' -or
-            (Get-FileHash -LiteralPath $actual.FullName -Algorithm SHA256).Hash -ne [string]$recorded.sha256) {
+            (Get-Sha256Hash -LiteralPath $actual.FullName) -ne [string]$recorded.sha256) {
             throw "Package file hash differs from release manifest: $relativePath"
         }
     }

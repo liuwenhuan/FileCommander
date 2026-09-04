@@ -7,6 +7,7 @@
 #include <QDBusObjectPath>
 #include <QDBusReply>
 #include <QHash>
+#include <QStorageInfo>
 #include <QTimer>
 #include <QVariantMap>
 
@@ -112,6 +113,16 @@ QString firstMountPoint(const QVariant &value) {
     return QString();
 }
 
+void fillStorageMetrics(RemovableDevice *device, const QStorageInfo &storage) {
+    if (!storage.isValid() || !storage.isReady())
+        return;
+
+    if (storage.bytesTotal() >= 0)
+        device->bytesTotal = storage.bytesTotal();
+    if (storage.bytesAvailable() >= 0)
+        device->bytesAvailable = storage.bytesAvailable();
+}
+
 } // namespace
 
 Q_DECLARE_METATYPE(InterfaceProperties)
@@ -196,7 +207,9 @@ void RemovableDeviceMonitor::refresh() {
             changed = true;
         } else if (previous->isMounted != cur.isMounted ||
                    previous->mountPoint != cur.mountPoint ||
-                   previous->name != cur.name) {
+                   previous->name != cur.name ||
+                   previous->bytesTotal != cur.bytesTotal ||
+                   previous->bytesAvailable != cur.bytesAvailable) {
             changed = true;
         }
     }
@@ -381,6 +394,8 @@ QVector<RemovableDevice> RemovableDeviceMonitor::enumerate() const {
         const QVariantMap filesystem = ifaces.value(QString::fromUtf8(kFilesystemIface));
         dev.mountPoint = firstMountPoint(filesystem.value(QStringLiteral("MountPoints")));
         dev.isMounted = !dev.mountPoint.isEmpty();
+        if (dev.isMounted)
+            fillStorageMetrics(&dev, QStorageInfo(dev.mountPoint));
 
         dev.iconName = iconForDrive(drive);
 

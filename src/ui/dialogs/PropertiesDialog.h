@@ -2,6 +2,7 @@
 
 #include "FramelessDialog.h"
 #include "FileInfo.h"
+#include "devices/RemovableDeviceMonitor.h"
 #include <QFile>
 #include <QStringList>
 #include <QVector>
@@ -38,6 +39,9 @@ public:
     // and total size) is computed from the cached listing rather than from a
     // local stat that would report zero for every one of them.
     explicit PropertiesDialog(const QVector<FileInfo> &infos, QWidget *parent = nullptr);
+    // Device metadata comes from RemovableDeviceMonitor rather than QFileInfo,
+    // because the computer view identifies a removable volume by monitor id.
+    explicit PropertiesDialog(const RemovableDevice &device, QWidget *parent = nullptr);
 
     // Pure conversions between Qt's permission flags and a Unix octal triad
     // (e.g. 0755). Exposed static for unit testing.
@@ -69,8 +73,10 @@ private:
 
     QStringList m_paths;
     QVector<FileInfo> m_infos; // non-empty <-> provider-backed (see class note)
+    RemovableDevice m_device;
     // true -> metadata comes from m_infos and the permission grid is read-only.
     bool m_providerBacked = false;
+    bool m_deviceBacked = false;
     QCheckBox *m_bits[9] = {}; // owner rwx, group rwx, other rwx (row-major)
     QLabel *m_octalLabel = nullptr;
     QLabel *m_sizeLabel = nullptr;

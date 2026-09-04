@@ -3785,6 +3785,21 @@ Destino: %4 (%5 bytes)</translation>
         <translation>Tipo:</translation>
     </message>
     <message>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="218"/>
+        <source>Removable device</source>
+        <translation>Dispositivo removível</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="219"/>
+        <source>Total capacity:</source>
+        <translation>Capacidade total:</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="221"/>
+        <source>Available space:</source>
+        <translation>Espaço disponível:</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="229"/>
         <source>Target:</source>
         <translation>Destino:</translation>

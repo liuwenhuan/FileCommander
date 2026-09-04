@@ -181,6 +181,9 @@ public:
     // loaded, leaving the current page alone.
     bool beginEditing(const QString &path);
     bool beginEditing(const QString &path, const QString &encodingIdentity);
+    // Replaces the file in the existing embedded editor without leaving the
+    // editor page. The current buffer is flushed before the replacement.
+    bool switchEditingFile(const QString &path, const QString &encodingIdentity = QString());
     bool isEditing() const;
     // Flushes pending edits on behalf of the editor page, which -- being a child
     // widget rather than a window -- never receives a close event. Returns false

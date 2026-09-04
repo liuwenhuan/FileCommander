@@ -93,6 +93,9 @@ DeleteConfirmDialog::DeleteConfirmDialog(const QStringList &paths,
     QPushButton *no = buttons->button(QDialogButtonBox::No);
     connect(yes, &QPushButton::clicked, this, &QDialog::accept);
     connect(no, &QPushButton::clicked, this, &QDialog::reject);
+    // Keep the intended action visually identifiable even on Windows styles
+    // that do not paint QPushButton::default reliably.
+    yes->setProperty("ttcDefaultButton", true);
     yes->setDefault(true);
     yes->setFocus(Qt::OtherFocusReason);
     layout->addWidget(buttons);

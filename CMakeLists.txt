@@ -189,4 +189,12 @@ if(LUPDATE_CMD AND LRELEASE_CMD)
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         COMMENT "lrelease: compiling .ts files into .qm"
         VERBATIM)
+
+    # The .qm files are embedded by resources.qrc. Make every shipped target
+    # refresh them first, so a package cannot contain a catalog older than the
+    # source strings it is supposed to translate.
+    add_dependencies(FileCommander release-translations)
+    if(TARGET ui_tests)
+        add_dependencies(ui_tests release-translations)
+    endif()
 endif()

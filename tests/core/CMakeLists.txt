@@ -2,6 +2,8 @@ set(CORE_TEST_SOURCES
     test_main.cpp
     test_Phosphor.cpp
     filesystem/test_FileInfo.cpp
+    filesystem/test_DirectoryChangeMonitor.cpp
+    filesystem/test_FileSystemModelExternalRefresh.cpp
     filesystem/test_FileSystemModel.cpp
     filesystem/test_DirectorySizeTask.cpp
     filesystem/test_IconCache.cpp

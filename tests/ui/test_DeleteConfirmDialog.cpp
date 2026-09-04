@@ -156,6 +156,12 @@ TEST(DeleteConfirmDialogTest, IsAnswerableBeforeTheMeasurementFinishes) {
     EXPECT_TRUE(buttons->button(QDialogButtonBox::No)->isEnabled());
     EXPECT_TRUE(buttons->button(QDialogButtonBox::Yes)->isDefault());
     EXPECT_FALSE(buttons->button(QDialogButtonBox::No)->isDefault());
+    EXPECT_TRUE(buttons->button(QDialogButtonBox::Yes)
+                    ->property("ttcDefaultButton")
+                    .toBool());
+    EXPECT_FALSE(buttons->button(QDialogButtonBox::No)
+                     ->property("ttcDefaultButton")
+                     .toBool());
     EXPECT_EQ(dialog.focusWidget(), buttons->button(QDialogButtonBox::Yes))
         << "Return should activate Yes without requiring a mouse click";
     QSignalSpy accepted(&dialog, &QDialog::accepted);

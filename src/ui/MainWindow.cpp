@@ -104,6 +104,7 @@
 #include "FileSystemModel.h"
 #include "ExternalPaths.h"
 #include "filesystem/ComputerCatalog.h"
+#include "filesystem/ComputerProvider.h"
 #include "LocalFileProvider.h"
 #include "FunctionKeyBar.h"
 #include "ImageFormats.h"
@@ -762,7 +763,8 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
             configureIconView(iconView);
         connect(panel->view()->selectionModel(), &QItemSelectionModel::currentRowChanged, this,
                 [this]() {
-                    if (m_quickViewActive && !quickViewEditorActive())
+                    ++m_quickEditReqId;
+                    if (m_quickViewActive)
                         m_quickViewDebounce->start(); // coalesce rapid cursor moves
                 });
         connect(panel->model(), &FileSystemModel::renameFailed, this, [this](const QString &msg) {
@@ -1598,6 +1600,17 @@ void MainWindow::runPackageSmoke(const QString &directory) {
 }
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
+    if (watched == qApp && event->type() == QEvent::ApplicationActivate) {
+        // Native local watchers normally keep listings current. Remote tabs and
+        // any watcher that reported overflow/invalidation need one deferred
+        // reconciliation after the window is usable again.
+        QTimer::singleShot(0, this, [this] {
+            if (m_leftPanel)
+                m_leftPanel->refreshOnActivation();
+            if (m_rightPanel)
+                m_rightPanel->refreshOnActivation();
+        });
+    }
     // The resize band owns the window cursor, but mouse input delivered to a
     // child bypasses MainWindow::event(). Clear that inherited override as
     // soon as normal child chrome receives a hover or click.
@@ -3021,6 +3034,29 @@ void MainWindow::setupShortcuts() {
 void MainWindow::showProperties() {
     if (!m_activePanel)
         return;
+
+    // Computer-view rows are synthetic places, so selectedPaths() deliberately
+    // returns empty for them. A removable volume still has useful properties;
+    // resolve it through the computer provider and live device monitor instead
+    // of passing a `computer://` identifier to QFileInfo.
+    if (m_activePanel->isComputerView()) {
+        const FileInfo current = m_activePanel->currentEntryInfo();
+        FileProvider *provider = m_activePanel->model()->provider();
+        auto *computer = dynamic_cast<ComputerProvider *>(provider);
+        if (computer && current.isValid() && !current.isParentEntry()) {
+            const ComputerEntry entry = computer->entryFor(current.path());
+            if (entry.kind == ComputerEntry::Kind::RemovableDevice && m_deviceMonitor) {
+                for (const RemovableDevice &device : m_deviceMonitor->devices()) {
+                    if (device.id.compare(entry.target, Qt::CaseInsensitive) == 0) {
+                        PropertiesDialog dlg(device, this);
+                        dlg.exec();
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
     const QStringList paths = m_activePanel->selectedPaths();
     if (paths.isEmpty())
         return;
@@ -3737,10 +3773,19 @@ void MainWindow::quickEditCurrent() {
     if (!m_quickViewActive || !m_quickView)
         return;
 
+    QPointer<FilePanel> panel(m_activePanel);
+    const QString path = m_activePanel->currentEntryPath();
     const QString encodingIdentity = m_activePanel->currentTextEncodingIdentity();
-    resolveEditableCurrent([this, encodingIdentity](const QString &real) {
+    const quint64 reqId = ++m_quickEditReqId;
+    resolveEditableCurrent([this, panel, path, encodingIdentity, reqId](const QString &real) {
+        if (reqId != m_quickEditReqId || !panel || panel != m_activePanel ||
+            panel->currentEntryPath() != path)
+            return;
         if (m_quickView && m_quickViewActive && !m_quickView->isEditing())
             m_quickView->beginEditing(real, encodingIdentity);
+    }, [this, panel, path, reqId] {
+        return reqId == m_quickEditReqId && panel && panel == m_activePanel &&
+               panel->currentEntryPath() == path;
     });
 }
 
@@ -3807,8 +3852,47 @@ QString MainWindow::ensurePreviewTempDir() {
 }
 
 void MainWindow::updateQuickView() {
-    if (!m_quickViewActive || !m_activePanel || quickViewEditorActive())
+    if (!m_quickViewActive || !m_activePanel)
         return;
+    if (quickViewEditorActive()) {
+        const QString entry = m_activePanel->currentEntryPath();
+        if (entry.isEmpty())
+            return;
+
+        // Selection changes are also navigation away from the file being edited.
+        // Flush the embedded editor before deciding whether the new entry can be
+        // edited, so an image, directory, archive, or failed remote resolve never
+        // leaves the previous file's changes only in the old editor buffer.
+        if (!m_quickView->confirmDiscardEdits())
+            return;
+        if (currentEntryIsDir()) {
+            ttc::information(this, tr("Edit"), tr("This file cannot be edited."));
+            return;
+        }
+
+        const quint64 reqId = ++m_quickEditReqId;
+        QPointer<FilePanel> panel(m_activePanel);
+        const QString encodingIdentity = m_activePanel->currentTextEncodingIdentity();
+        const auto stillCurrent = [this, reqId, panel, entry] {
+            return reqId == m_quickEditReqId && panel && panel == m_activePanel &&
+                   panel->currentEntryPath() == entry && quickViewEditorActive();
+        };
+        resolveEditableCurrent(
+            [this, reqId, panel, entry, encodingIdentity](const QString &real) {
+                if (reqId != m_quickEditReqId || !panel || panel != m_activePanel ||
+                    panel->currentEntryPath() != entry || !quickViewEditorActive())
+                    return;
+                if (real.isEmpty())
+                    return; // the resolver already explained why this entry is refused
+                if (!m_quickView->switchEditingFile(real, encodingIdentity)) {
+                    ttc::warning(this, tr("Edit"),
+                                 tr("Could not open %1 for editing.")
+                                     .arg(QFileInfo(entry).fileName()));
+                }
+            },
+            stillCurrent);
+        return;
+    }
     // An archive under the cursor previews from its raw path (a header scan),
     // which only works when that path is one this machine can open -- on a
     // network tab it scanned nothing, or a same-named local archive. Everywhere
@@ -5264,6 +5348,9 @@ void MainWindow::handleFilesDropped(const QStringList &sources, const QString &d
         m_pendingDestPanel = destPanel;
         m_pendingDestPaths = destPathsFor(sources, destDir);
     }
+    for (FilePanel *panel : {m_leftPanel, m_rightPanel})
+        if (panel)
+            panel->refreshBeforeOperation();
 
     // Detect whether either end is a remote provider (SFTP/FTP/WebDAV/SMB). If so
     // the transfer must stream through the provider engine, exactly as F5
@@ -5425,6 +5512,7 @@ void MainWindow::pasteFromClipboard() {
         return;
 
     const QString destDir = m_activePanel->currentPath();
+    m_activePanel->refreshBeforeOperation();
 
     // Refresh only the affected panels afterwards (like copy/move/drop), never a
     // blanket rescan of both: select the arriving file(s) in the destination,
@@ -6104,7 +6192,8 @@ void MainWindow::extractArchiveToDir() {
     });
 }
 
-void MainWindow::resolveEditableCurrent(std::function<void(const QString &)> then) {
+void MainWindow::resolveEditableCurrent(std::function<void(const QString &)> then,
+                                        std::function<bool()> stillCurrent) {
     if (!m_activePanel)
         return;
     const QString path = m_activePanel->currentEntryPath();
@@ -6112,8 +6201,9 @@ void MainWindow::resolveEditableCurrent(std::function<void(const QString &)> the
         return;
 
     if (fc::isImage(path)) {
-        ttc::information(this, tr("Edit"),
-                                  tr("Image files can't be edited; use F3 to view."));
+        if (!stillCurrent || stillCurrent())
+            ttc::information(this, tr("Edit"),
+                             tr("Image files can't be edited; use F3 to view."));
         return;
     }
 
@@ -6129,7 +6219,9 @@ void MainWindow::resolveEditableCurrent(std::function<void(const QString &)> the
     // which QFile could not open, and the failure below then swallowed it -- so
     // on a network tab F4 did nothing at all, with no message.
     const QString name = QFileInfo(path).fileName();
-    resolveRealPath(m_activePanel, path, [this, name, then](const QString &real) {
+    resolveRealPath(m_activePanel, path, [this, name, then, stillCurrent](const QString &real) {
+        if (stillCurrent && !stillCurrent())
+            return;
         if (real.isEmpty()) {
             // Deliberately NOT a downloaded copy. The copy is read-only, and
             // even if it were not, Save would write to a temp file the user
@@ -6157,11 +6249,17 @@ void MainWindow::resolveEditableCurrent(std::function<void(const QString &)> the
 }
 
 void MainWindow::editCurrent() {
+    QPointer<FilePanel> panel(m_activePanel);
+    const QString path = m_activePanel ? m_activePanel->currentEntryPath() : QString();
     const QString encodingIdentity = m_activePanel
                                          ? m_activePanel->currentTextEncodingIdentity()
                                          : QString();
-    resolveEditableCurrent([this, encodingIdentity](const QString &real) {
+    resolveEditableCurrent([this, panel, path, encodingIdentity](const QString &real) {
+        if (!panel || panel != m_activePanel || panel->currentEntryPath() != path)
+            return;
         openViewerWindow(real, true, true, encodingIdentity);
+    }, [this, panel, path] {
+        return panel && panel == m_activePanel && panel->currentEntryPath() == path;
     });
 }
 
@@ -6194,6 +6292,9 @@ void MainWindow::copySelected() {
     if (sources.isEmpty())
         return;
     FilePanel *dest = otherPanel(m_activePanel);
+    m_activePanel->refreshBeforeOperation();
+    if (dest)
+        dest->refreshBeforeOperation();
     // Copying OUT of an archive is fine; copying INTO one is not (read-only).
     if (blockArchiveWrite(dest))
         return;
@@ -6250,6 +6351,9 @@ void MainWindow::moveSelected() {
     if (sources.isEmpty())
         return;
     FilePanel *dest = otherPanel(m_activePanel);
+    m_activePanel->refreshBeforeOperation();
+    if (dest)
+        dest->refreshBeforeOperation();
     const QString destDir = dest->currentPath();
 
     // Remove the moved rows from the source panel in place (like a delete) and
@@ -6285,6 +6389,7 @@ void MainWindow::makeDirectory() {
         ttc::getText(this, tr("New Folder"), tr("Folder name:"), QLineEdit::Normal,
                                QString(), &ok);
     if (ok && !name.isEmpty()) {
+        m_activePanel->refreshBeforeOperation();
         // Refresh this panel afterwards and select the freshly-created folder
         // (same select-after-reload mechanism used by copy/move).
         m_pendingDestPanel = m_activePanel;
@@ -6309,6 +6414,7 @@ void MainWindow::deleteSelected(bool permanent) {
     const QStringList paths = m_activePanel->selectedPaths();
     if (paths.isEmpty())
         return;
+    m_activePanel->refreshBeforeOperation();
 
     // On a network tab, delete goes through the provider (recursively) on the
     // remote host. There is no trash remotely, so it is always permanent.

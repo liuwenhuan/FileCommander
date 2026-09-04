@@ -82,9 +82,9 @@ public:
     void setTransferRateLimit(qint64 bytesPerSecond);
 
     // The interruption checkpoint reached from inside one file's copy: fires the
-    // test hook and answers whether the copy should give up now. Public only
-    // because the Win32 progress routine that consults it has to be a plain
-    // function; nothing outside the copy primitives should call it.
+    // test hook, publishes incremental local-copy progress, and answers whether
+    // the copy should give up now. Public only because the Win32 progress routine
+    // that consults it has to be a plain function.
     bool copyInterrupted(qint64 copiedBytes, qint64 totalBytes);
 
     // Optional callback consulted when an entry fails to copy/delete. Without
@@ -253,6 +253,8 @@ private:
     std::function<qint64(OperationType, const QString &, const QString &, qint64)>
         m_nativeErrorOverrideForTesting;
     std::function<void(qint64, qint64)> m_copyChunkHookForTesting;
+    QString m_activeLocalCopyFile;
+    qint64 m_activeLocalCopyBaseBytes = 0;
     ErrorAction m_errorBatch = ErrorAction::Retry; // sentinel: ask each time
     qint64 m_totalItems = 0;
     qint64 m_doneItems = 0;

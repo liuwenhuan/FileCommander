@@ -14,6 +14,7 @@
 #include "FileProvider.h"
 #include "IconCache.h"
 #include "LocalFileProvider.h"
+#include "DirectoryChangeMonitor.h"
 #include "network/NetworkSession.h"
 
 QString FileSystemModel::formatSize(qint64 bytes) {
@@ -39,6 +40,15 @@ std::shared_ptr<FileProvider> localProviderPtr() {
 
 FileSystemModel::FileSystemModel(QObject *parent) : QAbstractTableModel(parent) {
     installProvider(localProviderPtr());
+    m_directoryMonitor = new DirectoryChangeMonitor(this);
+    m_externalRefreshTimer.setSingleShot(true);
+    m_externalRefreshTimer.setInterval(200);
+    connect(&m_externalRefreshTimer, &QTimer::timeout, this,
+            &FileSystemModel::onExternalRefreshTimeout);
+    connect(m_directoryMonitor, &DirectoryChangeMonitor::changesDetected, this,
+            &FileSystemModel::onExternalChangesDetected);
+    connect(m_directoryMonitor, &DirectoryChangeMonitor::reconciliationRequired, this,
+            &FileSystemModel::onExternalReconciliationRequired);
     connect(&m_watcher, &QFutureWatcher<LocalScanResult>::finished, this,
             &FileSystemModel::onScanFinished);
 }
@@ -47,6 +57,10 @@ FileSystemModel::~FileSystemModel() = default; // out-of-line: completes shared_
 
 void FileSystemModel::setProvider(std::shared_ptr<FileProvider> provider) {
     // Switching to a different (or local) provider abandons any network session.
+    if (m_directoryMonitor)
+        m_directoryMonitor->stopWatching();
+    m_externalRefreshTimer.stop();
+    m_externalRefreshPending = false;
     if (m_session && (!provider || provider.get() != m_session->provider()))
         teardownSession();
     installProvider(provider ? std::move(provider) : localProviderPtr());
@@ -70,6 +84,10 @@ void FileSystemModel::teardownSession() {
 void FileSystemModel::connectNetwork(std::shared_ptr<FileProvider> provider,
                                      std::function<bool(QString *)> connectFn,
                                      const QString &initialPath) {
+    if (m_directoryMonitor)
+        m_directoryMonitor->stopWatching();
+    m_externalRefreshTimer.stop();
+    m_externalRefreshPending = false;
     teardownSession();
     installProvider(provider); // network provider becomes the backend
     // Custom deleter: the last owner drop tears the session down asynchronously
@@ -153,6 +171,10 @@ void FileSystemModel::wireSessionSignals() {
 }
 
 void FileSystemModel::attachConnection(NetworkConn conn) {
+    if (m_directoryMonitor)
+        m_directoryMonitor->stopWatching();
+    m_externalRefreshTimer.stop();
+    m_externalRefreshPending = false;
     if (conn.session) {
         installProvider(conn.provider);
         m_session = conn.session;
@@ -217,6 +239,10 @@ void FileSystemModel::retryNetwork() {
 }
 
 void FileSystemModel::setRootPath(const QString &path) {
+    if (m_directoryMonitor)
+        m_directoryMonitor->stopWatching();
+    m_externalRefreshTimer.stop();
+    m_externalRefreshPending = false;
     ++m_loadGeneration;
     m_flatMode = false;       // leaving any flat search-results listing
     m_rootPath = path;
@@ -226,6 +252,16 @@ void FileSystemModel::setRootPath(const QString &path) {
     m_compareStatus.clear();  // comparison highlights are stale after a rescan
     m_dateStrCache.clear();   // bound the memo; new listing, new timestamps
     emit loadStarted();
+
+    // Only a real local directory has a native change stream. Archive and
+    // synthetic providers deliberately fall through to their existing listing
+    // path; remote tabs are reconciled by activation instead.
+    if (m_directoryMonitor && m_provider && m_provider->isLocalFilesystem() &&
+        !m_virtualListing && !path.isEmpty()) {
+        m_startingDirectoryWatch = true;
+        m_directoryMonitor->startWatching(path);
+        m_startingDirectoryWatch = false;
+    }
 
     // Network tab: route the listing through the session's worker thread. Once
     // connected, the current view is left intact until the result arrives so a
@@ -257,6 +293,65 @@ void FileSystemModel::setRootPath(const QString &path) {
         return LocalScanResult{generation, path, provider->list(path, showHidden)};
     });
     m_watcher.setFuture(future);
+}
+
+void FileSystemModel::refresh() {
+    if (!m_rootPath.isEmpty() && !m_flatMode)
+        setRootPath(m_rootPath);
+}
+
+bool FileSystemModel::needsExternalRefresh() const {
+    return m_externalRefreshPending ||
+           (m_directoryMonitor && m_directoryMonitor->needsReconciliation());
+}
+
+void FileSystemModel::refreshForExternalChange() {
+    if (m_rootPath.isEmpty() || m_flatMode)
+        return;
+    scheduleExternalRefresh();
+}
+
+void FileSystemModel::refreshForActivation() {
+    if (m_rootPath.isEmpty() || m_flatMode || m_virtualListing)
+        return;
+    if (m_session || needsExternalRefresh())
+        scheduleExternalRefresh();
+}
+
+void FileSystemModel::refreshBeforeOperation() {
+    if (needsExternalRefresh())
+        scheduleExternalRefresh();
+}
+
+void FileSystemModel::onExternalChangesDetected() {
+    scheduleExternalRefresh();
+}
+
+void FileSystemModel::onExternalReconciliationRequired() {
+    if (m_startingDirectoryWatch)
+        return;
+    scheduleExternalRefresh();
+}
+
+void FileSystemModel::scheduleExternalRefresh() {
+    if (m_rootPath.isEmpty() || m_flatMode || m_virtualListing)
+        return;
+    m_externalRefreshPending = true;
+    // A scan already in flight will consume the pending flag in
+    // onScanFinished(), so no second concurrent local list is started here.
+    if (!m_watcher.isRunning() && !m_externalRefreshTimer.isActive())
+        m_externalRefreshTimer.start();
+}
+
+void FileSystemModel::onExternalRefreshTimeout() {
+    if (!m_externalRefreshPending || m_rootPath.isEmpty() || m_flatMode ||
+        m_virtualListing)
+        return;
+    if (m_watcher.isRunning())
+        return;
+    m_externalRefreshPending = false;
+    emit externalRefreshStarted();
+    refresh();
 }
 
 void FileSystemModel::onSessionStateChanged(int state, int attempt) {
@@ -338,6 +433,10 @@ void FileSystemModel::setShowHiddenFiles(bool show) {
 }
 
 void FileSystemModel::setFlatEntries(const QStringList &paths) {
+    if (m_directoryMonitor)
+        m_directoryMonitor->stopWatching();
+    m_externalRefreshTimer.stop();
+    m_externalRefreshPending = false;
     ++m_loadGeneration;
     emit loadStarted();
     beginResetModel();
@@ -379,6 +478,8 @@ void FileSystemModel::onScanFinished() {
     sortEntries(); // sorts m_allEntries and rebuilds the visible m_entries
     endResetModel();
     emit loadFinished(m_entries.size(), result.generation);
+    if (m_externalRefreshPending && !m_externalRefreshTimer.isActive())
+        m_externalRefreshTimer.start();
 }
 
 bool FileSystemModel::matchesFilter(const QString &name, const QString &filter) {

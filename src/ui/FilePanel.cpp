@@ -528,6 +528,8 @@ FilePanel::FilePanel(const QFont &initialListFont, QWidget *parent) : QWidget(pa
 
     connect(m_view, &QAbstractItemView::activated, this, &FilePanel::onActivated);
     connect(m_addressBar, &BreadcrumbBar::pathActivated, this, &FilePanel::onAddressBarEntered);
+    connect(m_model, &FileSystemModel::externalRefreshStarted, this,
+            &FilePanel::rememberSelectionForReload);
     connect(m_model, &FileSystemModel::loadFinished, this, [this](int) {
         // In flat (search-results) mode there is no single directory: skip the
         // breadcrumb/tree/disk-usage sync, which all key off rootPath().
@@ -1389,15 +1391,35 @@ void FilePanel::refresh() {
 }
 
 void FilePanel::refreshPreservingSelection() {
+    rememberSelectionForReload();
+    refresh();
+}
+
+void FilePanel::rememberSelectionForReload() {
     QStringList paths = selectedPaths();
     if (paths.isEmpty()) {
         const QModelIndex current = activeView()->currentIndex();
         if (current.isValid() && !m_model->isParentEntry(current.row()))
             paths.append(m_model->fileInfoAt(current.row()).path());
     }
-    for (const QString &path : paths)
-        selectPathAfterReload(path);
-    refresh();
+    m_pendingSelection = paths;
+}
+
+void FilePanel::refreshOnActivation() {
+    if (m_computerProvider || m_model->isFlatMode())
+        return;
+    if (!m_model->hasNetworkSession() && !m_model->needsExternalRefresh())
+        return;
+    rememberSelectionForReload();
+    m_model->refreshForActivation();
+}
+
+void FilePanel::refreshBeforeOperation() {
+    if (m_computerProvider || m_model->isFlatMode() ||
+        !m_model->needsExternalRefresh())
+        return;
+    rememberSelectionForReload();
+    m_model->refreshBeforeOperation();
 }
 
 void FilePanel::exchangeLocationWith(FilePanel *other) {
