@@ -17,6 +17,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  checks: write
+
 jobs:
   debug-and-release:
     # A ceiling, not an estimate: GitHub's default is 360 minutes, and a step
@@ -34,7 +38,9 @@ jobs:
       - name: Prepare XDG trash for file-operation tests
         run: |
           export XDG_DATA_HOME="$GITHUB_WORKSPACE/build/xdg-data"
-          export TMPDIR="$GITHUB_WORKSPACE/build/tmp"
+          # QLocalServer appends a ~55-byte UUID name. A workspace-local TMPDIR
+          # exceeds Linux's 108-byte Unix-socket path limit on GitHub runners.
+          export TMPDIR="$RUNNER_TEMP/fc"
           mkdir -p "$XDG_DATA_HOME/Trash/files" "$XDG_DATA_HOME/Trash/info" "$TMPDIR"
           chmod 700 "$XDG_DATA_HOME/Trash" "$XDG_DATA_HOME/Trash/files" "$XDG_DATA_HOME/Trash/info" "$TMPDIR"
           echo "XDG_DATA_HOME=$XDG_DATA_HOME" >> "$GITHUB_ENV"
@@ -126,7 +132,10 @@ jobs:
         run: |
           cmake -S . -B build/linux-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DTTC_BUILD_TESTS=ON -DTTC_BUILD_BENCH=OFF
           cmake --build build/linux-release --parallel
+          dbus-run-session -- bash -eu -o pipefail <<'EOF'
+          gio list --hidden --print-uris trash:/// >/dev/null
           ctest --test-dir build/linux-release --output-on-failure
+          EOF
           ./packaging/build-deb.sh
       - name: Validate source boundaries
         run: |
