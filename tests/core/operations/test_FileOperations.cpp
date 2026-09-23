@@ -13,6 +13,7 @@
 #include <windows.h>
 #else
 #include <cerrno>
+#include <sys/stat.h>
 #endif
 
 namespace {
@@ -24,6 +25,32 @@ QString writeFile(const QString &dir, const QString &name, const QByteArray &con
     file.write(content);
     file.close();
     return path;
+}
+
+QByteArray fileIdentity(const QString &path) {
+#ifdef Q_OS_WIN
+    HANDLE handle = CreateFileW(reinterpret_cast<LPCWSTR>(path.utf16()), 0,
+                                 FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                 nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    if (handle == INVALID_HANDLE_VALUE)
+        return {};
+    BY_HANDLE_FILE_INFORMATION info{};
+    const bool ok = GetFileInformationByHandle(handle, &info) != FALSE;
+    CloseHandle(handle);
+    if (!ok)
+        return {};
+    return QByteArray::number(static_cast<qulonglong>(info.dwVolumeSerialNumber)) +
+           QByteArrayLiteral(":") +
+           QByteArray::number(static_cast<qulonglong>(info.nFileIndexHigh)) +
+           QByteArrayLiteral(":") +
+           QByteArray::number(static_cast<qulonglong>(info.nFileIndexLow));
+#else
+    struct stat info {};
+    if (::stat(path.toLocal8Bit().constData(), &info) != 0)
+        return {};
+    return QByteArray::number(static_cast<qulonglong>(info.st_dev)) + ':' +
+           QByteArray::number(static_cast<qulonglong>(info.st_ino));
+#endif
 }
 
 } // namespace
@@ -52,6 +79,31 @@ TEST(FileOperationsTest, MovePathsRemovesSource) {
 
     EXPECT_FALSE(QFile::exists(source));
     EXPECT_TRUE(QFile::exists(QDir(dstDir.path()).filePath("b.txt")));
+}
+
+TEST(FileOperationsTest, MoveDirectoryWithinOneVolumePreservesFilesystemIdentity) {
+    QTemporaryDir root;
+    ASSERT_TRUE(root.isValid());
+    const QString source = root.filePath(QStringLiteral("source"));
+    const QString destinationDir = root.filePath(QStringLiteral("destination"));
+    ASSERT_TRUE(QDir().mkpath(QDir(source).filePath(QStringLiteral("nested"))));
+    ASSERT_TRUE(QDir().mkpath(destinationDir));
+    ASSERT_FALSE(writeFile(QDir(source).filePath(QStringLiteral("nested")),
+                           QStringLiteral("payload.txt"), QByteArray("payload"))
+                     .isEmpty());
+
+    const QByteArray identityBefore = fileIdentity(source);
+    ASSERT_FALSE(identityBefore.isEmpty());
+
+    FileOperations ops;
+    QString error;
+    ASSERT_TRUE(ops.movePaths({source}, destinationDir, nullptr, &error))
+        << error.toStdString();
+
+    const QString moved = QDir(destinationDir).filePath(QStringLiteral("source"));
+    EXPECT_FALSE(QFileInfo::exists(source));
+    EXPECT_EQ(fileIdentity(moved), identityBefore);
+    EXPECT_TRUE(QFileInfo::exists(QDir(moved).filePath(QStringLiteral("nested/payload.txt"))));
 }
 
 TEST(FileOperationsTest, FailedEmptyDirectoryMoveKeepsSource) {

@@ -4,6 +4,7 @@
 
 #include <QApplication>
 #include <QByteArray>
+#include <QClipboard>
 #include <QElapsedTimer>
 #include <QKeyEvent>
 #include <QPixmap>
@@ -200,6 +201,16 @@ TEST_F(HexEditorTest, SelectionExposesTheSelectedBytes) {
     EXPECT_EQ(editor->selectionStart(), 3);
     EXPECT_EQ(editor->selectionLength(), 4);
     EXPECT_EQ(editor->selectedBytes(), QByteArrayLiteral("DEFG"));
+}
+
+TEST_F(HexEditorTest, CopyUsesThePreviewsLowercaseHexBytes) {
+    const QString previousClipboard = QApplication::clipboard()->text();
+    ASSERT_TRUE(editor->setContents(QByteArray::fromHex("704f01")));
+    editor->selectRange(0, 3);
+    editor->setActiveColumn(HexEditor::Column::Hex);
+    editor->copy();
+    EXPECT_EQ(QApplication::clipboard()->text(), QStringLiteral("70 4f 01"));
+    QApplication::clipboard()->setText(previousClipboard);
 }
 
 TEST_F(HexEditorTest, TheEditorNeverWritesToDisk) {

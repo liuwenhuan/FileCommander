@@ -89,6 +89,7 @@
 #include "MotionPolicy.h"
 #include "SeekSlider.h"
 #include "SlideSceneBuilder.h"
+#include "HexEditor.h"
 #include "TextEditor.h"
 #include "text/TextEncodingIdentity.h"
 #include "TextEncodingDetector.h"
@@ -152,7 +153,7 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent,
     setObjectName(QStringLiteral("QuickViewSurface"));
     // Both contexts read up to 5 MiB and show the same toolbar, so the embedded
     // Ctrl+Q pane and the F3 window preview text files identically.
-    Q_UNUSED(context);
+    // Keep the context: embedded and top-level editing have different focus ownership.
     m_textCap = kTextWindowBytes;
 
     m_info = new QLabel(tr("Select a file to preview"), this);
@@ -618,6 +619,10 @@ void QuickView::setContentFontSize(int pt) {
         QFont f = m_text->font(); // keep the monospace family, change only size
         f.setPointSize(pt);
         m_text->setFont(f);
+        if (m_editor)
+            m_editor->codeEditor()->setFont(f);
+        if (m_editor && m_editor->isHexMode() && m_editor->hexEditor())
+            m_editor->hexEditor()->setFont(f);
     }
     if (m_csvTable) {
         QFont f = m_csvTable->font();
@@ -1050,6 +1055,9 @@ bool QuickView::beginEditing(const QString &path, const QString &encodingIdentit
     m_textLoadPending = false;
     if (!m_editor->loadFile(path, resolvedIdentity))
         return false;
+    if (m_editor->isHexMode() && m_editor->hexEditor())
+        m_editor->hexEditor()->setFont(m_text->font());
+    m_editor->codeEditor()->setFont(m_text->font());
     m_editor->setTextWrapEnabled(m_textWrapAction && m_textWrapAction->isChecked());
 
     // The editor and preview can have different widths (the editor has a gutter),
@@ -1065,7 +1073,12 @@ bool QuickView::beginEditing(const QString &path, const QString &encodingIdentit
                 restoreTextViewportPosition(editor->codeEditor(), position);
         });
     }
-    m_editor->setFocus();
+    // F3 owns a top-level viewer, so its editor should receive focus. The
+    // embedded Ctrl+E surface replaces the inactive panel while the active
+    // file list remains the navigation control; stealing focus here makes
+    // Up/Down edit the document instead of changing the selected file.
+    if (m_context == Context::Window)
+        m_editor->setFocus();
     emit editingChanged(true);
     return true;
 }
@@ -1089,9 +1102,27 @@ bool QuickView::switchEditingFile(const QString &path, const QString &encodingId
     m_textLoadPending = false;
     if (!m_editor->loadFile(path, resolvedIdentity))
         return false;
+    if (m_editor->isHexMode() && m_editor->hexEditor())
+        m_editor->hexEditor()->setFont(m_text->font());
+    m_editor->codeEditor()->setFont(m_text->font());
     m_editor->setTextWrapEnabled(m_textWrapAction && m_textWrapAction->isChecked());
-    m_editor->setFocus();
+    if (m_context == Context::Window)
+        m_editor->setFocus();
     return true;
+}
+
+void QuickView::showEditError(const QString &message) {
+    cancelPendingPreviewWork();
+    ++m_textLoadGeneration;
+    m_textLoadPending = false;
+    if (isEditing()) {
+        m_stack->setCurrentWidget(m_info);
+        emit editingChanged(false);
+    }
+    m_info->setTextFormat(Qt::PlainText);
+    m_info->setOpenExternalLinks(false);
+    m_info->setText(message);
+    revealStaticPage(m_info);
 }
 
 bool QuickView::confirmDiscardEdits() {

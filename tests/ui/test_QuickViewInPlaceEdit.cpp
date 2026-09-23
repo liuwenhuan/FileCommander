@@ -2,6 +2,8 @@
 
 #include <QAction>
 #include <QFile>
+#include <QLabel>
+#include <QLineEdit>
 #include <QPlainTextEdit>
 #include <QScrollBar>
 #include <QSignalSpy>
@@ -9,8 +11,11 @@
 #include <QTextBlock>
 #include <QTextStream>
 #include <QTextCursor>
+#include <QVBoxLayout>
+#include <QWidget>
 
 #include "QuickView.h"
+#include "HexEditor.h"
 #include "TextEditor.h"
 #include "TryUntil.h"
 #include "config/Settings.h"
@@ -199,6 +204,103 @@ TEST(QuickViewInPlaceEdit, SwitchingEditingFileSavesAndKeepsTheEditorPage) {
     ASSERT_TRUE(saved.open(QIODevice::ReadOnly));
     EXPECT_TRUE(saved.readAll().contains("saved before switch"));
     EXPECT_TRUE(editor->codeEditor()->toPlainText().contains(QStringLiteral("second")));
+}
+
+TEST(QuickViewInPlaceEdit, EmbeddedHexEditorUsesPreviewFontAcrossFilesAndSizeChanges) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString first = dir.filePath(QStringLiteral("first.bin"));
+    const QString second = dir.filePath(QStringLiteral("second.bin"));
+    for (const QString &path : {first, second}) {
+        QFile file(path);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+        ASSERT_EQ(file.write(QByteArray("\0\x01\x02", 3)), 3);
+    }
+
+    Settings settings(dir.filePath(QStringLiteral("settings.ini")));
+    QuickView view(settings, QuickView::Context::Embedded);
+    view.setContentFontSize(17);
+    QPlainTextEdit *preview = textView(view);
+    ASSERT_NE(preview, nullptr);
+
+    ASSERT_TRUE(view.beginEditing(first));
+    TextEditor *editor = view.findChild<TextEditor *>();
+    ASSERT_NE(editor, nullptr);
+    ASSERT_TRUE(editor->isHexMode());
+    HexEditor *hex = editor->hexEditor();
+    ASSERT_NE(hex, nullptr);
+    EXPECT_EQ(hex->font(), preview->font());
+
+    view.setContentFontSize(19);
+    EXPECT_EQ(hex->font(), preview->font());
+    ASSERT_TRUE(view.switchEditingFile(second));
+    EXPECT_EQ(editor->hexEditor()->font(), preview->font());
+}
+
+TEST(QuickViewInPlaceEdit, EmbeddedTextEditorUsesPreviewFontAfterSizeChanges) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString path = writeNumberedLines(dir, 3);
+    ASSERT_FALSE(path.isEmpty());
+
+    Settings settings(dir.filePath(QStringLiteral("settings.ini")));
+    QuickView view(settings, QuickView::Context::Embedded);
+    view.setContentFontSize(17);
+    QPlainTextEdit *preview = textView(view);
+    ASSERT_NE(preview, nullptr);
+    ASSERT_TRUE(view.beginEditing(path));
+    TextEditor *editor = view.findChild<TextEditor *>();
+    ASSERT_NE(editor, nullptr);
+    ASSERT_FALSE(editor->isHexMode());
+    EXPECT_EQ(editor->codeEditor()->font(), preview->font());
+
+    view.setContentFontSize(19);
+    EXPECT_EQ(editor->codeEditor()->font(), preview->font());
+}
+
+TEST(QuickViewInPlaceEdit, EmbeddedEditingKeepsFocusOnTheFileListOwner) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString path = writeNumberedLines(dir, 20);
+    ASSERT_FALSE(path.isEmpty());
+
+    Settings settings(dir.filePath(QStringLiteral("settings.ini")));
+    QWidget host;
+    auto *layout = new QVBoxLayout(&host);
+    auto *fileListFocus = new QLineEdit(&host);
+    auto *view = new QuickView(settings, QuickView::Context::Embedded, &host);
+    layout->addWidget(fileListFocus);
+    layout->addWidget(view);
+    host.show();
+    host.activateWindow();
+    host.raise();
+    qApp->processEvents();
+    fileListFocus->setFocus();
+    qApp->processEvents();
+    ASSERT_EQ(QApplication::focusWidget(), fileListFocus);
+
+    ASSERT_TRUE(view->beginEditing(path));
+    EXPECT_EQ(QApplication::focusWidget(), fileListFocus)
+        << "embedded Ctrl+E must leave cursor navigation with the file list";
+}
+
+TEST(QuickViewInPlaceEdit, EditRefusalReplacesTheEditorWithAnInlineMessage) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString path = writeNumberedLines(dir, 20);
+    ASSERT_FALSE(path.isEmpty());
+
+    Settings settings(dir.filePath(QStringLiteral("settings.ini")));
+    QuickView view(settings, QuickView::Context::Embedded);
+    ASSERT_TRUE(view.beginEditing(path));
+    ASSERT_TRUE(view.isEditing());
+
+    view.showEditError(QStringLiteral("This file cannot be edited."));
+
+    EXPECT_FALSE(view.isEditing());
+    auto *info = view.findChild<QLabel *>(QStringLiteral("previewInfoLabel"));
+    ASSERT_NE(info, nullptr);
+    EXPECT_EQ(info->text(), QStringLiteral("This file cannot be edited."));
 }
 
 TEST(QuickViewInPlaceEdit, SameFilePreviewFlushesPendingAutosaveBeforeLeavingEditor) {

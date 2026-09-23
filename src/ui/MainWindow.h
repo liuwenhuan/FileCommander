@@ -152,7 +152,8 @@ private:
     // a gvfs mount, never a downloaded copy -- and runs `then` on it. Explains
     // the refusal to the user and does not call `then` when there is none.
     void resolveEditableCurrent(std::function<void(const QString &)> then,
-                                std::function<bool()> stillCurrent = {});
+                                std::function<bool()> stillCurrent = {},
+                                std::function<void(const QString &)> onRefusal = {});
 
 private slots:
 
@@ -492,6 +493,7 @@ private:
     FilePanel *m_quickViewPanel = nullptr; // panel replaced by the preview
     int m_quickViewIndex = -1;
     bool m_quickViewActive = false;
+    bool m_quickEditMode = false;
     // Network preview: a remote file must be downloaded to a real local temp file
     // before the viewers can open it. The download runs on a worker thread; the
     // request id discards a stale download when the cursor has moved on. The temp

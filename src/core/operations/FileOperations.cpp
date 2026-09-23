@@ -7,6 +7,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QProcess>
+#include <QVector>
 #include <QThread>
 #include <QUuid>
 #include <cstring>
@@ -746,7 +747,18 @@ bool FileOperations::movePaths(const QStringList &sources, const QString &destDi
                                 const ConflictResolver &resolver, QString *errorMessage) {
     m_cancelled = false;
     m_totalItems = sources.size();
-    m_totalBytes = countBytes(sources);
+    // Calculate each source once. The fast rename path does not move bytes,
+    // but the progress dialog still needs a total for the instant completion
+    // update. Re-counting a large directory after the rename attempt made a
+    // same-volume move look like a copy was underway.
+    QVector<qint64> sourceBytes;
+    sourceBytes.reserve(sources.size());
+    m_totalBytes = 0;
+    for (const QString &source : sources) {
+        const qint64 bytes = countBytes({source});
+        sourceBytes.append(bytes);
+        m_totalBytes += bytes;
+    }
     m_doneItems = 0;
     m_doneBytes = 0;
     m_errorBatch = ErrorAction::Retry;
@@ -754,7 +766,8 @@ bool FileOperations::movePaths(const QStringList &sources, const QString &destDi
     QDir().mkpath(destDir);
     bool allOk = true;
 
-    for (const QString &source : sources) {
+    for (int sourceIndex = 0; sourceIndex < sources.size(); ++sourceIndex) {
+        const QString &source = sources.at(sourceIndex);
         waitIfPaused();
         if (m_cancelled)
             return false;
@@ -766,8 +779,9 @@ bool FileOperations::movePaths(const QStringList &sources, const QString &destDi
         // the whole entry's bytes at once (computed before the rename, since
         // the source disappears) so the byte bar still reaches 100%.
         if (!QFileInfo::exists(destPath) && QDir::cleanPath(destPath) != QDir::cleanPath(source)) {
-            const qint64 bytes = srcInfo.isDir() ? countBytes({source}) : srcInfo.size();
-            if (QDir().rename(source, destPath)) {
+            qint64 nativeCode = 0;
+            if (renameLocalPath(source, destPath, &nativeCode)) {
+                const qint64 bytes = sourceBytes.at(sourceIndex);
                 m_doneBytes += bytes;
                 ++m_doneItems;
                 emitProgress(source);

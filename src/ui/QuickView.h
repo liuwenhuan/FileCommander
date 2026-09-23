@@ -185,6 +185,9 @@ public:
     // editor page. The current buffer is flushed before the replacement.
     bool switchEditingFile(const QString &path, const QString &encodingIdentity = QString());
     bool isEditing() const;
+    // Leaves the editor page and shows an edit refusal in this same surface.
+    // Embedded Ctrl+E uses this instead of placing a modal dialog over the list.
+    void showEditError(const QString &message);
     // Flushes pending edits on behalf of the editor page, which -- being a child
     // widget rather than a window -- never receives a close event. Returns false
     // when the write fails so the host keeps the editor and its buffer alive.

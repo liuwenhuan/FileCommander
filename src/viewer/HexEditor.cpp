@@ -53,7 +53,7 @@ int hexValue(QChar character) {
 }
 
 QString hexByte(char byte) {
-    static const char digits[] = "0123456789ABCDEF";
+    static const char digits[] = "0123456789abcdef";
     const uchar value = static_cast<uchar>(byte);
     QString text(2, QLatin1Char(' '));
     text[0] = QLatin1Char(digits[value >> 4]);
@@ -284,13 +284,9 @@ int HexEditor::bytesPerLine() const {
 }
 
 void HexEditor::setBytesPerLine(int count) {
-    // An explicit choice wins permanently: the caller means this number, not
-    // "start here and let the window change it".
-    m_autoBytesPerLine = false;
     if (count <= 0 || count == m_bytesPerLine)
         return;
     m_bytesPerLine = count;
-    m_groupSize = count >= 8 ? 8 : count;
     recomputeMetrics();
     updateScrollBars();
     viewport()->update();
@@ -306,22 +302,6 @@ QColor HexEditor::resolved(const QColor &explicitColor, const QColor &fallback) 
     return explicitColor.isValid() ? explicitColor : fallback;
 }
 
-// A fraction of `towards` mixed into `base`.
-//
-// The address column's fallback used to be QPalette::AlternateBase, and no
-// theme in this app sets that role -- it stayed at the platform default and
-// painted a white strip down the left of a dark window. Exactly the bug the
-// text editor's line-number gutter had. Base and Text are roles the themes DO
-// set, so deriving from them cannot come out white on a dark background even if
-// a theme names no colour of its own.
-QColor HexEditor::mixed(const QColor &base, const QColor &towards, double amount) {
-    const double keep = 1.0 - amount;
-    return QColor::fromRgbF(base.redF() * keep + towards.redF() * amount,
-                            base.greenF() * keep + towards.greenF() * amount,
-                            base.blueF() * keep + towards.blueF() * amount,
-                            base.alphaF());
-}
-
 #define HEX_EDITOR_COLOR(Getter, Setter, Member)                                                  \
     QColor HexEditor::Getter() const { return Member; }                                           \
     void HexEditor::Setter(const QColor &color) {                                                 \
@@ -331,14 +311,10 @@ QColor HexEditor::mixed(const QColor &base, const QColor &towards, double amount
 
 HEX_EDITOR_COLOR(backgroundColor, setBackgroundColor, m_backgroundColor)
 HEX_EDITOR_COLOR(textColor, setTextColor, m_textColor)
-HEX_EDITOR_COLOR(addressColor, setAddressColor, m_addressColor)
-HEX_EDITOR_COLOR(addressBackgroundColor, setAddressBackgroundColor, m_addressBackgroundColor)
-HEX_EDITOR_COLOR(separatorColor, setSeparatorColor, m_separatorColor)
 HEX_EDITOR_COLOR(selectionColor, setSelectionColor, m_selectionColor)
 HEX_EDITOR_COLOR(selectionTextColor, setSelectionTextColor, m_selectionTextColor)
 HEX_EDITOR_COLOR(cursorColor, setCursorColor, m_cursorColor)
 HEX_EDITOR_COLOR(modifiedColor, setModifiedColor, m_modifiedColor)
-HEX_EDITOR_COLOR(nonPrintableColor, setNonPrintableColor, m_nonPrintableColor)
 
 #undef HEX_EDITOR_COLOR
 
@@ -349,7 +325,7 @@ void HexEditor::recomputeMetrics() {
     m_charWidth = qMax(1, metrics.horizontalAdvance(QLatin1Char('0')));
     m_rowHeight = metrics.height() + 2;
     m_ascent = metrics.ascent() + 1;
-    m_margin = m_charWidth;
+    m_margin = 4;
 
     qint64 highest = qMax<qint64>(m_data.size(), 1);
     int digits = 0;
@@ -358,16 +334,12 @@ void HexEditor::recomputeMetrics() {
         highest >>= 4;
     }
     m_addressChars = qMax(8, digits);
-    m_addressWidth = m_addressChars * m_charWidth + 2 * m_margin;
-    m_hexOriginX = m_addressWidth + m_margin;
-
-    const int lastCell = m_bytesPerLine > 0 ? m_bytesPerLine - 1 : 0;
-    const int hexChars = 3 * lastCell + lastCell / m_groupSize + 2;
-    m_asciiOriginX = m_hexOriginX + hexChars * m_charWidth + 2 * m_charWidth;
+    m_hexOriginX = m_margin + (m_addressChars + 2) * m_charWidth;
+    m_asciiOriginX = m_hexOriginX + (3 * m_bytesPerLine + 1) * m_charWidth;
 }
 
 int HexEditor::hexCellX(int index) const {
-    return m_hexOriginX + (3 * index + index / m_groupSize) * m_charWidth;
+    return m_hexOriginX + 3 * index * m_charWidth;
 }
 
 int HexEditor::asciiCellX(int index) const {
@@ -432,26 +404,15 @@ void HexEditor::paintEvent(QPaintEvent *event) {
     const QPalette &colors = palette();
     const QColor background = resolved(m_backgroundColor, colors.color(QPalette::Base));
     const QColor text = resolved(m_textColor, colors.color(QPalette::Text));
-    const QColor addressBackground =
-        resolved(m_addressBackgroundColor,
-                 mixed(colors.color(QPalette::Base), colors.color(QPalette::Text), 0.10));
-    const QColor address = resolved(m_addressColor, colors.color(QPalette::Mid));
-    const QColor separator = resolved(m_separatorColor, colors.color(QPalette::Mid));
     const QColor selection = resolved(m_selectionColor, colors.color(QPalette::Highlight));
     const QColor selectionText =
         resolved(m_selectionTextColor, colors.color(QPalette::HighlightedText));
     const QColor caret = resolved(m_cursorColor, colors.color(QPalette::Highlight));
     const QColor modified = resolved(m_modifiedColor, colors.color(QPalette::Link));
-    const QColor nonPrintable = resolved(m_nonPrintableColor, colors.color(QPalette::Mid));
 
     painter.fillRect(event->rect(), background);
 
     const int dx = -horizontalScrollBar()->value();
-    painter.fillRect(QRect(dx, 0, m_addressWidth, viewport()->height()), addressBackground);
-    painter.setPen(separator);
-    painter.drawLine(dx + m_addressWidth, 0, dx + m_addressWidth, viewport()->height());
-    painter.drawLine(dx + m_asciiOriginX - m_charWidth, 0, dx + m_asciiOriginX - m_charWidth,
-                     viewport()->height());
 
     const qint64 selectionFrom = selectionStart();
     const qint64 selectionTo = selectionFrom + selectionLength();
@@ -472,10 +433,10 @@ void HexEditor::paintEvent(QPaintEvent *event) {
         const int y = screenRow * m_rowHeight;
         const int baseline = y + m_ascent;
 
-        painter.setPen(address);
+        painter.setPen(text);
         painter.drawText(dx + m_margin, baseline,
                          QStringLiteral("%1").arg(rowOffset, m_addressChars, 16,
-                                                  QLatin1Char('0')).toUpper());
+                                                  QLatin1Char('0')));
 
         for (int i = 0; i < m_bytesPerLine; ++i) {
             const qint64 offset = rowOffset + i;
@@ -498,7 +459,7 @@ void HexEditor::paintEvent(QPaintEvent *event) {
             if (isPrintableAscii(byte)) {
                 painter.drawText(asciiCell.left(), baseline, QString(QChar::fromLatin1(byte)));
             } else {
-                painter.setPen(selected ? selectionText : nonPrintable);
+                painter.setPen(selected ? selectionText : text);
                 painter.drawText(asciiCell.left(), baseline, QStringLiteral("."));
             }
         }
@@ -524,32 +485,7 @@ void HexEditor::paintEvent(QPaintEvent *event) {
 
 void HexEditor::resizeEvent(QResizeEvent *event) {
     QAbstractScrollArea::resizeEvent(event);
-    fitBytesPerLineToWidth();
     updateScrollBars();
-}
-
-// A hex dump is conventionally sixteen bytes wide, and in a window this size
-// that left the right half of it empty. The row grows to whatever the window
-// can show instead, in groups of eight -- so the grouping stays readable and an
-// offset is still easy to work out by eye.
-void HexEditor::fitBytesPerLineToWidth() {
-    if (!m_autoBytesPerLine || m_charWidth <= 0)
-        return;
-    // Mirrors recomputeMetrics(): everything left of the hex block is fixed,
-    // then each group of eight costs 8 hex cells (three characters each), one
-    // character of group spacing, and 8 characters of ASCII.
-    const int perGroup = (8 * 3 + 1 + 8) * m_charWidth;
-    const int gap = 2 * m_charWidth; // between the hex block and the ASCII column
-    const int available = viewport()->width() - m_hexOriginX - gap - m_margin;
-    if (available <= 0)
-        return;
-    const int groups = qBound(1, available / qMax(1, perGroup), 8);
-    const int wanted = groups * 8;
-    if (wanted == m_bytesPerLine)
-        return;
-    m_bytesPerLine = wanted;
-    m_groupSize = 8;
-    recomputeMetrics();
 }
 
 void HexEditor::changeEvent(QEvent *event) {

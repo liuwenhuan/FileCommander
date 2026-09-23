@@ -42,86 +42,86 @@
 <context>
     <name>AccountClient</name>
     <message>
-        <location filename="../../src/core/account/AccountClient.cpp" line="235"/>
-        <location filename="../../src/core/account/AccountClient.cpp" line="552"/>
-        <location filename="../../src/core/account/AccountClient.cpp" line="572"/>
-        <location filename="../../src/core/account/AccountClient.cpp" line="654"/>
-        <location filename="../../src/core/account/AccountClient.cpp" line="793"/>
-        <location filename="../../src/core/account/AccountClient.cpp" line="832"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="236"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="556"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="576"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="658"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="797"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="836"/>
         <source>Session expired, please sign in again.</source>
         <translation>Session expirée, veuillez vous reconnecter.</translation>
     </message>
     <message>
-        <location filename="../../src/core/account/AccountClient.cpp" line="251"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="252"/>
         <source>The account server did not respond.</source>
         <translation>Le serveur de comptes n&apos;a pas répondu.</translation>
     </message>
     <message>
-        <location filename="../../src/core/account/AccountClient.cpp" line="254"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="255"/>
         <source>The account server returned an unexpected reply.</source>
         <translation>Le serveur de comptes a renvoyé une réponse inattendue.</translation>
     </message>
     <message>
-        <location filename="../../src/core/account/AccountClient.cpp" line="282"/>
-        <location filename="../../src/core/account/AccountClient.cpp" line="308"/>
-        <location filename="../../src/core/account/AccountClient.cpp" line="346"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="283"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="309"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="347"/>
         <source>Enter a valid email address.</source>
         <translation>Enter a valid email address.</translation>
     </message>
     <message>
-        <location filename="../../src/core/account/AccountClient.cpp" line="286"/>
-        <location filename="../../src/core/account/AccountClient.cpp" line="312"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="287"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="313"/>
         <source>No account server is configured for this build.</source>
         <translation>Aucun serveur de comptes n&apos;est configuré pour cette version.</translation>
     </message>
     <message>
-        <location filename="../../src/core/account/AccountClient.cpp" line="352"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="353"/>
         <source>No saved sign-in for this device.</source>
         <translation>Aucune connexion enregistrée pour cet appareil.</translation>
     </message>
     <message>
-        <location filename="../../src/core/account/AccountClient.cpp" line="402"/>
-        <location filename="../../src/core/account/AccountClient.cpp" line="472"/>
-        <location filename="../../src/core/account/AccountClient.cpp" line="497"/>
-        <location filename="../../src/core/account/AccountClient.cpp" line="544"/>
-        <location filename="../../src/core/account/AccountClient.cpp" line="558"/>
-        <location filename="../../src/core/account/AccountClient.cpp" line="579"/>
-        <location filename="../../src/core/account/AccountClient.cpp" line="592"/>
-        <location filename="../../src/core/account/AccountClient.cpp" line="665"/>
-        <location filename="../../src/core/account/AccountClient.cpp" line="691"/>
-        <location filename="../../src/core/account/AccountClient.cpp" line="813"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="403"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="476"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="501"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="548"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="562"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="583"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="596"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="669"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="695"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="817"/>
         <source>Not signed in.</source>
         <translation>Non connecté.</translation>
     </message>
     <message>
-        <location filename="../../src/core/account/AccountClient.cpp" line="564"/>
-        <location filename="../../src/core/account/AccountClient.cpp" line="598"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="568"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="602"/>
         <source>No clipboard target device was selected.</source>
         <translation>No clipboard target device was selected.</translation>
     </message>
     <message>
-        <location filename="../../src/core/account/AccountClient.cpp" line="612"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="616"/>
         <source>Could not open the clipboard image.</source>
         <translation>Impossible d’ouvrir l’image du presse-papiers.</translation>
     </message>
     <message>
-        <location filename="../../src/core/account/AccountClient.cpp" line="699"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="703"/>
         <source>Invalid clipboard delivery.</source>
         <translation>Livraison du presse-papiers non valide.</translation>
     </message>
     <message>
-        <location filename="../../src/core/account/AccountClient.cpp" line="714"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="718"/>
         <source>Could not create the clipboard download file.</source>
         <translation>Impossible de créer le fichier de téléchargement du presse-papiers.</translation>
     </message>
     <message>
-        <location filename="../../src/core/account/AccountClient.cpp" line="768"/>
-        <location filename="../../src/core/account/AccountClient.cpp" line="803"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="772"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="807"/>
         <source>Could not save the clipboard download.</source>
         <translation>Impossible d’enregistrer le téléchargement du presse-papiers.</translation>
     </message>
     <message>
-        <location filename="../../src/core/account/AccountClient.cpp" line="801"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="805"/>
         <source>Clipboard delivery integrity validation failed.</source>
         <translation>Échec de la validation de l’intégrité de la livraison du presse-papiers.</translation>
     </message>
@@ -839,22 +839,22 @@ L&apos;extraire aussi ?</translation>
         <translation>Cette action est définitive : les éléments n&apos;iront PAS à la corbeille.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/DeleteConfirmDialog.cpp" line="127"/>
+        <location filename="../../src/ui/dialogs/DeleteConfirmDialog.cpp" line="130"/>
         <source>Size: %1 (%2 bytes)</source>
         <translation>Taille : %1 (%2 octets)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/DeleteConfirmDialog.cpp" line="132"/>
+        <location filename="../../src/ui/dialogs/DeleteConfirmDialog.cpp" line="135"/>
         <source>Size: %1 so far — measuring the selected folders…</source>
         <translation>%1 pour l&apos;instant – mesure des dossiers sélectionnés…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/DeleteConfirmDialog.cpp" line="135"/>
+        <location filename="../../src/ui/dialogs/DeleteConfirmDialog.cpp" line="138"/>
         <source>Size: %1 — selected files only, folder contents are not counted here</source>
         <translation>Taille : %1 – fichiers sélectionnés uniquement, le contenu des dossiers n&apos;est pas compté ici</translation>
     </message>
     <message numerus="yes">
-        <location filename="../../src/ui/dialogs/DeleteConfirmDialog.cpp" line="145"/>
+        <location filename="../../src/ui/dialogs/DeleteConfirmDialog.cpp" line="148"/>
         <source>Delete %n file(s)?</source>
         <translation>
             <numerusform>Supprimer %n fichier ?</numerusform>
@@ -862,7 +862,7 @@ L&apos;extraire aussi ?</translation>
         </translation>
     </message>
     <message numerus="yes">
-        <location filename="../../src/ui/dialogs/DeleteConfirmDialog.cpp" line="147"/>
+        <location filename="../../src/ui/dialogs/DeleteConfirmDialog.cpp" line="150"/>
         <source>Delete %n folder(s) and everything in them?</source>
         <translation>
             <numerusform>Supprimer %n dossier et tout son contenu ?</numerusform>
@@ -870,12 +870,12 @@ L&apos;extraire aussi ?</translation>
         </translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/DeleteConfirmDialog.cpp" line="149"/>
+        <location filename="../../src/ui/dialogs/DeleteConfirmDialog.cpp" line="152"/>
         <source>Delete %1 items — %2 and %3, including everything in the folders?</source>
         <translation>Supprimer %1 éléments – %2 et %3, y compris tout le contenu des dossiers ?</translation>
     </message>
     <message numerus="yes">
-        <location filename="../../src/ui/dialogs/DeleteConfirmDialog.cpp" line="151"/>
+        <location filename="../../src/ui/dialogs/DeleteConfirmDialog.cpp" line="154"/>
         <source>%n file(s)</source>
         <translation>
             <numerusform>%n fichier</numerusform>
@@ -883,7 +883,7 @@ L&apos;extraire aussi ?</translation>
         </translation>
     </message>
     <message numerus="yes">
-        <location filename="../../src/ui/dialogs/DeleteConfirmDialog.cpp" line="152"/>
+        <location filename="../../src/ui/dialogs/DeleteConfirmDialog.cpp" line="155"/>
         <source>%n folder(s)</source>
         <translation>
             <numerusform>%n dossier</numerusform>
@@ -1040,164 +1040,164 @@ L&apos;extraire aussi ?</translation>
 <context>
     <name>FileOperations</name>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="570"/>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="712"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="580"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="722"/>
         <source>Failed to copy %1 to %2</source>
         <translation>Échec de la copie de %1 vers %2</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="610"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="620"/>
         <source>Failed to remove the source after copying %1</source>
         <translation>Impossible de supprimer la source après la copie de %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="815"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="838"/>
         <source>%1
 Deleting as administrator bypasses the Recycle Bin and cannot be undone.</source>
         <translation>%1
 La suppression en tant qu&apos;administrateur contourne la corbeille et est irréversible.</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="858"/>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1035"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="881"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1058"/>
         <source>Failed to delete %1</source>
         <translation>Échec de la suppression de %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="920"/>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="961"/>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1000"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="943"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="984"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1023"/>
         <source>%1 already exists</source>
         <translation>%1 existe déjà</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="931"/>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1007"/>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1610"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="954"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1030"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1633"/>
         <source>Failed to create directory %1</source>
         <translation>Échec de la création du dossier %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="971"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="994"/>
         <source>Failed to rename %1</source>
         <translation>Échec du renommage de %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1098"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1121"/>
         <source>Failed to create link for %1</source>
         <translation>Échec de la création du lien pour %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1302"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1325"/>
         <source>The destination has no space for %1</source>
         <translation>La destination ne dispose pas d&apos;assez d&apos;espace pour %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1304"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1327"/>
         <source>You do not have permission to write %1</source>
         <translation>Vous n&apos;avez pas la permission d&apos;écrire %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1306"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1329"/>
         <source>Connection to the server was lost while transferring %1</source>
         <translation>La connexion au serveur a été perdue pendant le transfert de %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1308"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1331"/>
         <source>Another transfer is still writing to %1</source>
         <translation>Un autre transfert est toujours en cours d&apos;écriture vers %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1311"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1334"/>
         <source>Upload of %1 did not complete: %2</source>
         <translation>L&apos;envoi de %1 ne s&apos;est pas terminé : %2</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1312"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1335"/>
         <source>Write error on %1: %2</source>
         <translation>Erreur d&apos;écriture sur %1 : %2</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1324"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1347"/>
         <source>Failed to open %1 for reading</source>
         <translation>Échec de l&apos;ouverture de %1 en lecture</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1330"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1353"/>
         <source>Failed to open %1 for writing</source>
         <translation>Échec de l&apos;ouverture de %1 en écriture</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1351"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1374"/>
         <source>Source shrank before resuming transfer of %1</source>
         <translation>La source a rétréci avant la reprise du transfert de %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1360"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1383"/>
         <source>Failed to resume transfer of %1</source>
         <translation>Échec de la reprise du transfert de %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1391"/>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1403"/>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1443"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1414"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1426"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1466"/>
         <source>Read error on %1</source>
         <translation>Erreur de lecture sur %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1397"/>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1436"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1420"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1459"/>
         <source>Unexpected end of %1</source>
         <translation>Fin inattendue de %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1712"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1735"/>
         <source>Not enough space on the destination</source>
         <translation>Pas assez d&apos;espace sur la destination</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1319"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1342"/>
         <source>Write error on %1</source>
         <translation>Erreur d&apos;écriture sur %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1446"/>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1453"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1469"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1476"/>
         <source>Source changed during transfer of %1</source>
         <translation>La source a été modifiée pendant le transfert de %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1318"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1341"/>
         <source>Upload of %1 did not complete</source>
         <translation>L&apos;envoi de %1 ne s&apos;est pas terminé</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="264"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="265"/>
         <source>The administrator operation did not complete.</source>
         <translation>L&apos;opération en tant qu&apos;administrateur ne s&apos;est pas terminée.</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1600"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1623"/>
         <source>Skipped symbolic link %1</source>
         <translation>Lien symbolique %1 ignoré</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1636"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1659"/>
         <source>Moved contents but could not remove source %1</source>
         <translation>Contenu déplacé, mais impossible de supprimer la source %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1649"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1672"/>
         <source>Skipped non-regular file %1</source>
         <translation>Fichier non régulier %1 ignoré</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1659"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1682"/>
         <source>Copied but could not remove source %1</source>
         <translation>Copie effectuée, mais impossible de supprimer la source %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="1699"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="1722"/>
         <source>This transfer is not supported by the backend</source>
         <translation>Ce transfert n&apos;est pas pris en charge par le backend</translation>
     </message>
@@ -1206,8 +1206,8 @@ La suppression en tant qu&apos;administrateur contourne la corbeille et est irr�
     <name>FilePanel</name>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="341"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="605"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="2782"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="607"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2841"/>
         <source>New Tab</source>
         <translation>Nouvel onglet</translation>
     </message>
@@ -1237,12 +1237,12 @@ La suppression en tant qu&apos;administrateur contourne la corbeille et est irr�
     </message>
     <message>
         <location filename="../../src/ui/FilePanel.cpp" line="407"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="539"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="2040"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="2054"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="3026"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="3108"/>
-        <location filename="../../src/ui/FilePanel.cpp" line="3272"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="541"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2078"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2092"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="3085"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="3167"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="3331"/>
         <source>Computer</source>
         <translation>Ordinateur</translation>
     </message>
@@ -1284,92 +1284,92 @@ La suppression en tant qu&apos;administrateur contourne la corbeille et est irr�
         <translation type="vanished">Authentification requise</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1087"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1089"/>
         <source>Waiting for the connection…</source>
         <translation>En attente de la connexion…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1092"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1094"/>
         <source>Disconnected, reconnecting (%1/%2)…</source>
         <translation>Déconnecté, reconnexion (%1/%2)…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1099"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1101"/>
         <source>Reconnecting failed repeatedly</source>
         <translation>Échecs répétés de la reconnexion</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1099"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1101"/>
         <source>Connection failed: %1</source>
         <translation>Échec de la connexion : %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1122"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1124"/>
         <source>Reusing the existing session</source>
         <translation>Réutilisation de la session existante</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1123"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1125"/>
         <source>Reusing the existing session (user: %1)</source>
         <translation>Réutilisation de la session existante (utilisateur : %1)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1141"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1143"/>
         <source>Cannot list the directory: %1</source>
         <translation>Impossible de lister le répertoire : %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1186"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1188"/>
         <source>Sign-in required</source>
         <translation>Connexion requise</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1211"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1213"/>
         <source>Search results</source>
         <translation>Résultats de la recherche</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1896"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1934"/>
         <source>Opening archive…</source>
         <translation>Ouverture de l&apos;archive…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1915"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1953"/>
         <source>Open archive</source>
         <translation>Ouvrir l’archive</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1916"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1954"/>
         <source>“%1” uses an encryption this build cannot read.</source>
         <translation>« %1 » utilise un chiffrement que cette version ne peut pas lire.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1931"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1969"/>
         <source>Password required</source>
         <translation>Mot de passe requis</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1932"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1970"/>
         <source>Incorrect password. Try again for “%1”:</source>
         <translation>Mot de passe incorrect. Réessayez pour « %1 » :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="1933"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="1971"/>
         <source>“%1” is encrypted. Enter its password:</source>
         <translation>« %1 » est chiffré. Saisissez son mot de passe :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="2538"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2597"/>
         <source>Select by Pattern</source>
         <translation>Sélectionner par motif</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="2538"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2597"/>
         <source>Unselect by Pattern</source>
         <translation>Désélectionner par motif</translation>
     </message>
     <message>
-        <location filename="../../src/ui/FilePanel.cpp" line="2539"/>
+        <location filename="../../src/ui/FilePanel.cpp" line="2598"/>
         <source>Wildcard mask (e.g. *.txt):</source>
         <translation>Masque générique (ex. *.txt) :</translation>
     </message>
@@ -1377,12 +1377,12 @@ La suppression en tant qu&apos;administrateur contourne la corbeille et est irr�
 <context>
     <name>FileSystemModel</name>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="924"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="1018"/>
         <source>%1 already exists</source>
         <translation>%1 existe déjà</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="931"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="1025"/>
         <source>Failed to rename %1</source>
         <translation>Échec du renommage de %1</translation>
     </message>
@@ -1514,28 +1514,28 @@ La suppression en tant qu&apos;administrateur contourne la corbeille et est irr�
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5581"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5728"/>
         <source>New Markdown File</source>
         <translation>Nouveau fichier Markdown</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5580"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5727"/>
         <source>Markdown Document (.md)</source>
         <translation>Document Markdown (.md)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5577"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5724"/>
         <source>Text Document (.txt)</source>
         <translation>Document texte (.txt)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5576"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5723"/>
         <source>New File</source>
         <translation>Nouveau fichier</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="353"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4591"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="354"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4704"/>
         <source>FileCommander</source>
         <translation>FileCommander</translation>
     </message>
@@ -1588,15 +1588,15 @@ La suppression en tant qu&apos;administrateur contourne la corbeille et est irr�
         <translation type="vanished">Désélectionner par motif</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2872"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5349"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5571"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2896"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5495"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5718"/>
         <source>Paste</source>
         <translation>Coller</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2868"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5463"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2892"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5610"/>
         <source>Cut</source>
         <translation>Couper</translation>
     </message>
@@ -1605,74 +1605,74 @@ La suppression en tant qu&apos;administrateur contourne la corbeille et est irr�
         <translation type="vanished">Taille de police des menus :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1195"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2730"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3047"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1206"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2754"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3104"/>
         <source>Choose Font</source>
         <translation>Choisir la police</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2870"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2894"/>
         <source>Copy to Clipboard</source>
         <translation>Copier dans le presse-papiers</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2893"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2917"/>
         <source>Swap Panels</source>
         <translation>Permuter les panneaux</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2897"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2921"/>
         <source>Quick View</source>
         <translation>Aperçu rapide</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2878"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2902"/>
         <source>Quick Filter</source>
         <translation>Filtre rapide</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2895"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3242"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2919"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3299"/>
         <source>Same Directory in Other Panel</source>
         <translation>Même dossier dans l&apos;autre panneau</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2685"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2891"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5558"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2709"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2915"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5705"/>
         <source>Calculate Folder Size</source>
         <translation>Calculer la taille du dossier</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2901"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2935"/>
         <source>Undo Last Operation</source>
         <translation>Annuler la dernière opération</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2874"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2898"/>
         <source>Multi-Rename Tool</source>
         <translation>Outil de renommage multiple</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2876"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2900"/>
         <source>Directory Hotlist</source>
         <translation>Liste des dossiers favoris</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2882"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5564"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2906"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5711"/>
         <source>Properties</source>
         <translation>Propriétés</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2689"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2884"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2713"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2908"/>
         <source>Show Hidden Files</source>
         <translation>Afficher les fichiers cachés</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2070"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2092"/>
         <source>Change F%1 Function</source>
         <translation>Modifier la fonction F%1</translation>
     </message>
@@ -1681,13 +1681,13 @@ La suppression en tant qu&apos;administrateur contourne la corbeille et est irr�
         <translation type="vanished">Choisissez la fonction de la touche F%1 :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="584"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="585"/>
         <source>Operation Error</source>
         <translation>Erreur d&apos;opération</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2703"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5457"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2727"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5604"/>
         <source>View</source>
         <translation>Afficher</translation>
     </message>
@@ -1728,42 +1728,42 @@ La suppression en tant qu&apos;administrateur contourne la corbeille et est irr�
         <translation type="vanished">&amp;Affichage</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="992"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1003"/>
         <source>&amp;Theme</source>
         <translation>&amp;Thème</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1051"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1062"/>
         <source>&amp;Language</source>
         <translation>&amp;Langue</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1001"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1012"/>
         <source>Auto</source>
         <translation>Auto</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="920"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2711"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2712"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="931"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2735"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2736"/>
         <source>Cloud Clipboard</source>
         <translation>Presse-papiers cloud</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="921"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2714"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="932"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2738"/>
         <source>Calculate Checksums</source>
         <translation>Calculer les sommes de contrôle</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="923"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2718"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="934"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2742"/>
         <source>Compare Files</source>
         <translation>Comparer les fichiers</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="934"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2720"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="945"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2744"/>
         <source>Keyboard Shortcuts</source>
         <translation>Raccourcis clavier</translation>
     </message>
@@ -1780,27 +1780,27 @@ La suppression en tant qu&apos;administrateur contourne la corbeille et est irr�
         <translation type="vanished">Vérification automatique des mises à jour</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="912"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="923"/>
         <source>&amp;Actions</source>
         <translation>&amp;Actions</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="984"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="995"/>
         <source>&amp;Interface</source>
         <translation>&amp;Interface</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1002"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1013"/>
         <source>Light</source>
         <translation>Clair</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1003"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1014"/>
         <source>Dark</source>
         <translation>Sombre</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1004"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1015"/>
         <source>Green CRT</source>
         <translation>Écran CRT vert</translation>
     </message>
@@ -1833,55 +1833,55 @@ La suppression en tant qu&apos;administrateur contourne la corbeille et est irr�
         <translation type="vanished">↻</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2704"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2899"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5459"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="6046"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="6068"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="6081"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2728"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2933"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5606"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6231"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6271"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6285"/>
         <source>Edit</source>
         <translation>Éditer</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2705"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5462"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="6156"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2729"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5609"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6368"/>
         <source>Copy</source>
         <translation>Copier</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2706"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5464"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2730"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5611"/>
         <source>Move</source>
         <translation>Déplacer</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2707"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5573"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="6212"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="6216"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2731"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5720"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6427"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6431"/>
         <source>New Folder</source>
         <translation>Nouveau dossier</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2708"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2732"/>
         <source>Delete (to trash)</source>
         <translation>Supprimer (corbeille)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2805"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2829"/>
         <source>Delete Permanently</source>
         <translation>Supprimer définitivement</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2807"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2831"/>
         <source>Delete (Del key)</source>
         <translation>Supprimer (touche Suppr)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="769"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2809"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5465"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="771"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2833"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5612"/>
         <source>Rename</source>
         <translation>Renommer</translation>
     </message>
@@ -1910,7 +1910,7 @@ La suppression en tant qu&apos;administrateur contourne la corbeille et est irr�
         <translation type="vanished">Annuler</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="583"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="584"/>
         <source>
 ... and %1 more.</source>
         <translation>
@@ -2017,113 +2017,113 @@ La suppression en tant qu&apos;administrateur contourne la corbeille et est irr�
         <translation type="vanished">Passer en vue vignettes</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2811"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2835"/>
         <source>New Tab</source>
         <translation>Nouvel onglet</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2815"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2839"/>
         <source>Close Tab</source>
         <translation>Fermer l&apos;onglet</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2819"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2843"/>
         <source>Next Tab</source>
         <translation>Onglet suivant</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2823"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2847"/>
         <source>Previous Tab</source>
         <translation>Onglet précédent</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2829"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2853"/>
         <source>Search Files</source>
         <translation>Rechercher des fichiers</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2840"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2864"/>
         <source>Command Line</source>
         <translation>Ligne de commande</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2854"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2878"/>
         <source>Compress Selected</source>
         <translation>Compresser la sélection</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2864"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5585"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2888"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5732"/>
         <source>Refresh</source>
         <translation>Actualiser</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2866"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2890"/>
         <source>Exit</source>
         <translation>Quitter</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3130"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3134"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3151"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3187"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3191"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3208"/>
         <source>Checksums</source>
         <translation>Sommes de contrôle</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3130"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3152"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3187"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3209"/>
         <source>Select one or more files first.</source>
         <translation>Sélectionnez d&apos;abord un ou plusieurs fichiers.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="922"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2716"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3199"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3223"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="933"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2740"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3256"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3280"/>
         <source>Secure Wipe</source>
         <translation>Effacement sécurisé</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="958"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2785"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="969"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2809"/>
         <source>Skip Trash Delete Confirmation</source>
         <translation>Ignorer la confirmation de mise à la corbeille</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="963"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="974"/>
         <source>Skip confirmation only when deleting local files to the trash. Shift+Delete and remote deletes always require confirmation.</source>
         <translation>Ignore la confirmation uniquement pour la mise à la corbeille de fichiers locaux. Maj+Suppr et les suppressions distantes nécessitent toujours une confirmation.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="968"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2789"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="979"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2813"/>
         <source>Show System Partitions</source>
         <translation>Afficher les partitions système</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="973"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="984"/>
         <source>List the operating system&apos;s own mount points (/boot, /var, ...) in the Computer view, and every mount point of a disk rather than one row per disk.</source>
         <translation>Affiche dans la vue Ordinateur les points de montage propres au système d&apos;exploitation (/boot, /var, ...) ainsi que chaque point de montage d&apos;un disque au lieu d&apos;une ligne par disque.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1030"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1041"/>
         <source>Recolour the file list&apos;s icons and thumbnails to the theme&apos;s hue. The preview pane is not affected.</source>
         <translation>Recolore les icônes et miniatures de la liste dans la teinte du thème. Le volet d’aperçu n’est pas affecté.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1043"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1054"/>
         <source>Recolour images, video and documents shown in the preview pane to the theme&apos;s hue.</source>
         <translation>Recolore les images, vidéos et documents du volet d’aperçu dans la teinte du thème.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1033"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="1046"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1044"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1057"/>
         <source>The light theme leaves content in its own colours, so this has no effect there.</source>
         <translation>Le thème clair conserve les couleurs d’origine du contenu ; cette option n’y a donc aucun effet.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1199"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2755"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1210"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2779"/>
         <source>Show Function Key Bar</source>
         <translation>Afficher la barre des touches de fonction</translation>
     </message>
@@ -2132,83 +2132,83 @@ La suppression en tant qu&apos;administrateur contourne la corbeille et est irr�
         <translation type="vanished">Taille de police de la liste de fichiers :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1088"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1099"/>
         <source>Type a size, or use − / + (8-16)</source>
         <translation>Saisissez une taille, ou utilisez − / + (8-16)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1146"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1157"/>
         <source>Type a size, or use - / + (8-16)</source>
         <translation>Saisissez une taille, ou utilisez - / + (8-16)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1208"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2761"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1219"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2785"/>
         <source>Show Command Bar</source>
         <translation>Afficher la barre de commande</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1217"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2767"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1228"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2791"/>
         <source>Show File Tab Bar</source>
         <translation>Afficher la barre d&apos;onglets</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1227"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2774"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1238"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2798"/>
         <source>Display Shortcut Labels</source>
         <translation>Afficher les libellés des raccourcis</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2057"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2079"/>
         <source>Choose a function:</source>
         <translation>Choisissez une fonction :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2081"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2103"/>
         <source>Change Leading Button Function</source>
         <translation>Modifier la fonction du bouton de gauche</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2081"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2103"/>
         <source>Change Trailing Button Function</source>
         <translation>Modifier la fonction du bouton de droite</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2250"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4879"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5018"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5077"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2272"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5022"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5161"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5220"/>
         <source>Connection Failed</source>
         <translation>Échec de la connexion</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2250"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4499"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2272"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4612"/>
         <source>Unsupported connection type.</source>
         <translation>Type de connexion non pris en charge.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2241"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2277"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2318"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2263"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2299"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2340"/>
         <source>External Connections</source>
         <translation>Connexions externes</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="936"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2726"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="947"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2750"/>
         <source>Manage Network Connections</source>
         <translation>Gérer les connexions réseau</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="948"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2778"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="959"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2802"/>
         <source>Open Archives as Folders</source>
         <translation>Ouvrir les archives comme des dossiers</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1025"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1036"/>
         <source>Image Colours Follow Theme</source>
         <translation>Couleurs des images selon le thème</translation>
     </message>
@@ -2217,7 +2217,7 @@ La suppression en tant qu&apos;administrateur contourne la corbeille et est irr�
         <translation type="vanished">Recolore les icônes et miniatures de la liste dans la teinte du thème. Le volet d’aperçu n’est pas affecté. S’applique uniquement au thème CRT vert.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1038"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1049"/>
         <source>Preview Colours Follow Theme</source>
         <translation>Couleurs de l’aperçu selon le thème</translation>
     </message>
@@ -2226,29 +2226,29 @@ La suppression en tant qu&apos;administrateur contourne la corbeille et est irr�
         <translation type="vanished">Recolore les images, vidéos et documents du volet d’aperçu dans la teinte du thème. S’applique uniquement au thème CRT vert.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1076"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1087"/>
         <source>File List Font Size</source>
         <translation>Taille de police de la liste</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="1135"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="1146"/>
         <source>Menu Font Size</source>
         <translation>Taille de police des menus</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2242"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2278"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2319"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2264"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2300"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2341"/>
         <source>Network and removable-device connections are not enabled in this build.</source>
         <translation>Les connexions réseau et aux périphériques amovibles ne sont pas activées dans cette version.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2482"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2506"/>
         <source>Mount Failed</source>
         <translation>Échec du montage</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2483"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2507"/>
         <source>Could not mount the device.
 
 %1</source>
@@ -2257,19 +2257,19 @@ La suppression en tant qu&apos;administrateur contourne la corbeille et est irr�
 %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="937"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2614"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2620"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="948"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2638"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2644"/>
         <source>Check for Updates</source>
         <translation>Rechercher des mises à jour</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2615"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2639"/>
         <source>You are running the latest version.</source>
         <translation>Vous utilisez déjà la dernière version.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2621"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2645"/>
         <source>Could not check for updates.
 
 %1</source>
@@ -2278,7 +2278,7 @@ La suppression en tant qu&apos;administrateur contourne la corbeille et est irr�
 %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2636"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2660"/>
         <source>Update Available</source>
         <translation>Mise à jour disponible</translation>
     </message>
@@ -2295,182 +2295,182 @@ Download: %3</source>
 Téléchargement : %3</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2684"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2708"/>
         <source>Open Quick Preview</source>
         <translation>Ouvrir l&apos;aperçu rapide</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2687"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2711"/>
         <source>Switch to List View</source>
         <translation>Basculer en vue liste</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2688"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2712"/>
         <source>Switch to Thumbnail View</source>
         <translation>Basculer en vue vignettes</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2690"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2796"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2714"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2820"/>
         <source>Synchronize Directories</source>
         <translation>Synchroniser les dossiers</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2691"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2798"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2715"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2822"/>
         <source>Compare Directories</source>
         <translation>Comparer les dossiers</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2692"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2716"/>
         <source>Find Files</source>
         <translation>Rechercher des fichiers</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2693"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2717"/>
         <source>Filter Files</source>
         <translation>Filtrer les fichiers</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2694"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2800"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2718"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2824"/>
         <source>Select by Pattern</source>
         <translation>Sélectionner par motif</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2695"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2802"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2719"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2826"/>
         <source>Invert Selection</source>
         <translation>Inverser la sélection</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2696"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2720"/>
         <source>Undo Previous Operation</source>
         <translation>Annuler l&apos;opération précédente</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2709"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2733"/>
         <source>Connect External / Devices</source>
         <translation>Connexions externes / périphériques</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2732"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2756"/>
         <source>Increase Font Size</source>
         <translation>Augmenter la taille de police</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2741"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2765"/>
         <source>Decrease Font Size</source>
         <translation>Réduire la taille de police</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2750"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2774"/>
         <source>Cycle Theme</source>
         <translation>Changer de thème</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2906"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2940"/>
         <source>List / Thumbnail View</source>
         <translation>Vue liste / vignettes</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2919"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2953"/>
         <source>Parent Directory</source>
         <translation>Dossier parent</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2924"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2958"/>
         <source>Open Directory or Archive</source>
         <translation>Ouvrir le dossier ou l&apos;archive</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2929"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2963"/>
         <source>Properties (Alt+Enter)</source>
         <translation>Propriétés (Alt+Entrée)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2931"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2965"/>
         <source>Find Files (Alt+F7)</source>
         <translation>Rechercher des fichiers (Alt+F7)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2933"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2967"/>
         <source>Calculate Occupied Space</source>
         <translation>Calculer l&apos;espace occupé</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2935"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2969"/>
         <source>Rename (Shift+F6)</source>
         <translation>Renommer (Maj+F6)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2952"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2986"/>
         <source>Sort by Name</source>
         <translation>Trier par nom</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2952"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2986"/>
         <source>Sort by Extension</source>
         <translation>Trier par extension</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2953"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2987"/>
         <source>Sort by Date</source>
         <translation>Trier par date</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2953"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2987"/>
         <source>Sort by Size</source>
         <translation>Trier par taille</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2962"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2996"/>
         <source>Go to Root Directory</source>
         <translation>Aller à la racine</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2964"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3262"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2998"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3319"/>
         <source>Go to Other Panel&apos;s Directory</source>
         <translation>Aller au dossier de l&apos;autre panneau</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2966"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3000"/>
         <source>Open Directory in New Tab</source>
         <translation>Ouvrir le dossier dans un nouvel onglet</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2968"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3002"/>
         <source>Show Context Menu</source>
         <translation>Afficher le menu contextuel</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2970"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3004"/>
         <source>Copy Path to Command Line</source>
         <translation>Copier le chemin dans la ligne de commande</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2972"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3324"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5578"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3006"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3381"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5725"/>
         <source>New Text File</source>
         <translation>Nouveau fichier texte</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2974"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3368"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3373"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3381"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3008"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3425"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3430"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3438"/>
         <source>Copy in Same Directory</source>
         <translation>Copier dans le même dossier</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3135"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3192"/>
         <source>This connection cannot read file contents, so checksums cannot be computed for these files.</source>
         <translation>Cette connexion ne permet pas de lire le contenu des fichiers ; les sommes de contrôle ne peuvent donc pas être calculées pour ces fichiers.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3186"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3243"/>
         <source>These items are on %1.
 The server owns their disk blocks, so overwriting them
 from here cannot guarantee the originals are gone.
@@ -2481,7 +2481,7 @@ depuis ici ne garantit pas la disparition des originaux.
 Supprimez-les plutôt directement sur le serveur.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3192"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3249"/>
         <source>These items are entries inside an archive,
 not files on this disk.
 To destroy them, wipe the archive file itself
@@ -2492,14 +2492,14 @@ Pour les détruire, effacez le fichier d&apos;archive lui-même
 depuis le dossier qui le contient.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3197"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3254"/>
         <source>This tab is not the local filesystem,
 so there are no on-disk bytes here to overwrite.</source>
         <translation>Cet onglet ne correspond pas au système de fichiers local :
 il n&apos;y a donc ici aucun octet sur disque à écraser.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3200"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3257"/>
         <source>Secure wipe is only available on local files.
 
 %1</source>
@@ -2516,31 +2516,31 @@ Their contents will be overwritten on disk and then deleted. This is IRREVERSIBL
 Leur contenu sera écrasé sur le disque puis supprimé. Cette action est IRRÉVERSIBLE : les fichiers NE passent PAS par la corbeille et ne peuvent pas être récupérés.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3224"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3281"/>
         <source>Secure wipe is not available on this platform.</source>
         <translation>L&apos;effacement sécurisé n&apos;est pas disponible sur cette plateforme.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3243"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3300"/>
         <source>The two panels are on different connections, so this directory has no meaning in the other one. Use Swap Panels (Ctrl+U) to move this connection across instead.</source>
         <translation>Les deux panneaux utilisent des connexions différentes : ce dossier n&apos;a donc aucun sens dans l&apos;autre. Utilisez plutôt Permuter les panneaux (Ctrl+U) pour y transférer cette connexion.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3445"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3452"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3502"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3509"/>
         <source>Open Terminal</source>
         <translation>Ouvrir un terminal</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3452"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3509"/>
         <source>No terminal emulator found.</source>
         <translation>Aucun émulateur de terminal trouvé.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3504"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="3511"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5444"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5449"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3561"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3568"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5591"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5596"/>
         <source>Open With</source>
         <translation>Ouvrir avec</translation>
     </message>
@@ -2593,47 +2593,47 @@ Leur contenu sera écrasé sur le disque puis supprimé. Cette action est IRRÉV
         <translation type="vanished">Échec de l&apos;exécution : %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4405"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4518"/>
         <source>Compare by Content</source>
         <translation>Comparer par contenu</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4406"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4519"/>
         <source>Select two files to compare: either two in one panel, or one in each panel.</source>
         <translation>Sélectionnez deux fichiers à comparer : soit deux dans un panneau, soit un dans chaque panneau.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4437"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4550"/>
         <source>Remove this directory from favorites</source>
         <translation>Retirer ce dossier des favoris</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4440"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4553"/>
         <source>Bookmark this directory</source>
         <translation>Ajouter ce dossier aux favoris</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4449"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4562"/>
         <source>(No favorites yet)</source>
         <translation>(Aucun favori pour l&apos;instant)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4096"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4125"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4134"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4148"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4156"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4168"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4182"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4203"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4255"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5442"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4209"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4238"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4247"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4261"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4269"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4281"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4295"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4316"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4368"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5589"/>
         <source>Open</source>
         <translation>Ouvrir</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4097"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4125"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4210"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4238"/>
         <source>No application is associated with %1</source>
         <translation>Aucune application n&apos;est associée à %1</translation>
     </message>
@@ -2654,7 +2654,7 @@ Leur contenu sera écrasé sur le disque puis supprimé. Cette action est IRRÉV
         <translation type="vanished">&amp;Effacer les fichiers (effacement sécurisé)...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="926"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="937"/>
         <source>Con&amp;fig</source>
         <translation>&amp;Configuration</translation>
     </message>
@@ -2683,7 +2683,7 @@ Leur contenu sera écrasé sur le disque puis supprimé. Cette action est IRRÉV
         <translation type="vanished">Ouvrir avec...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5466"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5613"/>
         <source>Delete</source>
         <translation>Supprimer</translation>
     </message>
@@ -2692,7 +2692,7 @@ Leur contenu sera écrasé sur le disque puis supprimé. Cette action est IRRÉV
         <translation type="vanished">Compresser la sélection...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5483"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5630"/>
         <source>Extract Here</source>
         <translation>Extraire ici</translation>
     </message>
@@ -2701,8 +2701,8 @@ Leur contenu sera écrasé sur le disque puis supprimé. Cette action est IRRÉV
         <translation type="vanished">Extraire vers...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2856"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5559"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2880"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5706"/>
         <source>Copy Path</source>
         <translation>Copier le chemin</translation>
     </message>
@@ -2711,84 +2711,90 @@ Leur contenu sera écrasé sur le disque puis supprimé. Cette action est IRRÉV
         <translation type="vanished">Propriétés...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2697"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="2794"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5584"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2721"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2818"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5731"/>
         <source>Open Terminal Here</source>
         <translation>Ouvrir un terminal ici</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3263"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3320"/>
         <source>The two panels are on different connections, so that directory has no meaning in this one. Use Swap Panels (Ctrl+U) to move the connection across instead.</source>
         <translation>Les deux panneaux utilisent des connexions différentes : ce dossier n&apos;a donc aucun sens dans celui-ci. Utilisez plutôt Permuter les panneaux (Ctrl+U) pour y transférer la connexion.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3335"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3392"/>
         <source>New files can only be created on a local tab.</source>
         <translation>Les nouveaux fichiers ne peuvent être créés que dans un onglet local.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3341"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3398"/>
         <source>File name:</source>
         <translation>Nom du fichier :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3347"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3404"/>
         <source>%1 already exists.</source>
         <translation>%1 existe déjà.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3352"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3409"/>
         <source>Could not create %1: %2</source>
         <translation>Impossible de créer %1 : %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3369"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3426"/>
         <source>Select exactly one item to copy under a new name.</source>
         <translation>Sélectionnez exactement un élément à copier sous un nouveau nom.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3374"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3431"/>
         <source>This is only available on a local tab.</source>
         <translation>Cette fonction n&apos;est disponible que dans un onglet local.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3446"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3503"/>
         <source>This tab is not showing local files, so there is no directory on this computer for a terminal to start in.</source>
         <translation>Cet onglet n&apos;affiche pas de fichiers locaux : il n&apos;y a donc aucun dossier sur cet ordinateur dans lequel ouvrir un terminal.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3478"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3535"/>
         <source>Programs (*.exe *.bat *.cmd *.com);;All files (*)</source>
         <translation>Programmes (*.exe *.bat *.cmd *.com);;Tous les fichiers (*)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3480"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3537"/>
         <source>All files (*)</source>
         <translation>Tous les fichiers (*)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3483"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3540"/>
         <source>Choose an application to open %1</source>
         <translation>Choisissez une application pour ouvrir %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3505"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3562"/>
         <source>%1 could not be started.</source>
         <translation>Impossible de démarrer %1.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3569"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3626"/>
         <source>Other Applications</source>
         <translation>Autres applications</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3578"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3635"/>
         <source>Choose Another Application…</source>
         <translation>Choisir une autre application…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4135"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3800"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3904"/>
+        <source>Could not open %1 for editing.</source>
+        <translation>Impossible d'ouvrir %1 pour modification.</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="4248"/>
         <source>%1 was downloaded to a read-only local copy, which is what the application opened.
 
 Changes made to it are not saved back to the server.</source>
@@ -2797,28 +2803,28 @@ Changes made to it are not saved back to the server.</source>
 Les modifications qui y sont apportées ne sont pas renvoyées au serveur.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4149"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4262"/>
         <source>This connection cannot download files, so %1 cannot be opened with a local application.</source>
         <translation>Cette connexion ne permet pas de télécharger des fichiers : %1 ne peut donc pas être ouvert avec une application locale.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4157"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4169"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4270"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4282"/>
         <source>Could not create a temporary folder to download %1.</source>
         <translation>Impossible de créer un dossier temporaire pour télécharger %1.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4183"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4296"/>
         <source>There is not enough free space in %1 to download %2.</source>
         <translation>Il n&apos;y a pas assez d&apos;espace libre dans %1 pour télécharger %2.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4205"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4318"/>
         <source>Downloading %1...</source>
         <translation>Téléchargement de %1...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4256"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4369"/>
         <source>Could not download %1 from the server.</source>
         <translation>Impossible de télécharger %1 depuis le serveur.</translation>
     </message>
@@ -2835,15 +2841,15 @@ Les modifications qui y sont apportées ne sont pas renvoyées au serveur.</tran
         <translation type="vanished">Type de connexion non pris en charge.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4480"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4499"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4509"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4593"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4612"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4622"/>
         <source>Reconnect</source>
         <translation>Se reconnecter</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4510"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5149"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4623"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5292"/>
         <source>Network connections are not enabled in this build.</source>
         <translation>Les connexions réseau ne sont pas activées dans cette version.</translation>
     </message>
@@ -2868,7 +2874,7 @@ Les modifications qui y sont apportées ne sont pas renvoyées au serveur.</tran
         <translation type="vanished">Mot de passe :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5148"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5291"/>
         <source>Server Connection</source>
         <translation>Connexion au serveur</translation>
     </message>
@@ -2889,90 +2895,90 @@ Les modifications qui y sont apportées ne sont pas renvoyées au serveur.</tran
         <translation type="vanished">La connexion source (%1) est fermée ; impossible de coller depuis le serveur distant.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5481"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5628"/>
         <source>Extract To</source>
         <translation>Extraire vers</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5486"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5633"/>
         <source>Extract to Folder...</source>
         <translation>Extraire vers un dossier…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5495"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5934"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5944"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5949"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5953"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5642"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6109"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6119"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6124"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6128"/>
         <source>Send To</source>
         <translation>Envoyer vers</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5500"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5647"/>
         <source>Shortcut to Desktop</source>
         <translation>Raccourci sur le bureau</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5505"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5652"/>
         <source>Shortcut to Applications Menu</source>
         <translation>Raccourci dans le menu des applications</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5509"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5656"/>
         <source>Run at Startup</source>
         <translation>Lancer au démarrage</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5535"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5682"/>
         <source>%1 (offline)</source>
         <translation>%1 (hors ligne)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5547"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5694"/>
         <source>Queued for %1; it will be sent when that device is online.</source>
         <translation>Mis en file pour %1 ; sera envoyé quand cet appareil sera en ligne.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5551"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5698"/>
         <source>No other device</source>
         <translation>Aucun autre appareil</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5687"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5834"/>
         <source>Extracting %1...</source>
         <translation>Extraction de %1...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5762"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5931"/>
         <source>Password required</source>
         <translation>Mot de passe requis</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5763"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5932"/>
         <source>Incorrect password. Try again for “%1”:</source>
         <translation>Mot de passe incorrect. Réessayez pour « %1 » :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5764"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5933"/>
         <source>“%1” is encrypted. Enter its password:</source>
         <translation>« %1 » est chiffré. Saisissez son mot de passe :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5670"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5789"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5803"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5844"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="6008"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5817"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5958"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5972"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6018"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6183"/>
         <source>Extract</source>
         <translation>Extraire</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5783"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5952"/>
         <source>“%1” uses an encryption this build cannot read.</source>
         <translation>« %1 » utilise un chiffrement que cette version ne peut pas lire.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5787"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5956"/>
         <source>Extraction failed: %1</source>
         <translation>Échec de l&apos;extraction : %1</translation>
     </message>
@@ -2991,17 +2997,17 @@ Extract it too?</source>
 L&apos;extraire aussi ?</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5847"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6021"/>
         <source>Extracted archive to %1</source>
         <translation>Archive extraite vers %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5935"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6110"/>
         <source>Could not create the shortcut: %1</source>
         <translation>Impossible de créer le raccourci : %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5945"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6120"/>
         <source>“%1” will start at sign-in.
 Remove it from:
 %2</source>
@@ -3010,23 +3016,23 @@ Remove it from:
 %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5950"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6125"/>
         <source>“%1” was added to the applications menu.</source>
         <translation>« %1 » a été ajouté au menu des applications.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5953"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6128"/>
         <source>Shortcut created on the desktop.</source>
         <translation>Raccourci créé sur le bureau.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5970"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5980"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6145"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6155"/>
         <source>Not executable</source>
         <translation>Non exécutable</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5971"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6146"/>
         <source>“%1” is an AppImage but is not marked executable, so it cannot run.
 
 Add the execute permission now?</source>
@@ -3035,12 +3041,12 @@ Add the execute permission now?</source>
 Ajouter le droit d&apos;exécution maintenant ?</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5981"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6156"/>
         <source>Could not add the execute permission: %1</source>
         <translation>Impossible d&apos;ajouter le droit d&apos;exécution : %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6009"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6184"/>
         <source>“%1” cannot be unpacked where it is.
 
 Use “Extract to Folder...” to unpack it into a folder on this computer.</source>
@@ -3049,17 +3055,22 @@ Use “Extract to Folder...” to unpack it into a folder on this computer.</sou
 Utilisez « Extraire vers un dossier… » pour l’extraire dans un dossier de cet ordinateur.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6027"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6202"/>
         <source>Extract to</source>
         <translation>Extraire vers</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6047"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6221"/>
+        <source>This file cannot be edited.</source>
+        <translation>Ce fichier ne peut pas être modifié.</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="6227"/>
         <source>Image files can&apos;t be edited; use F3 to view.</source>
         <translation>Les images ne peuvent pas être éditées ; utilisez F3 pour les afficher.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6069"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6264"/>
         <source>%1 cannot be edited in place.
 
 Editing a file on this connection needs it mounted through GVfs (the gvfs-backends package). Copy the file to a local folder to edit it.</source>
@@ -3068,33 +3079,35 @@ Editing a file on this connection needs it mounted through GVfs (the gvfs-backen
 Pour modifier un fichier sur cette connexion, celle-ci doit être montée via GVfs (paquet gvfs-backends). Copiez le fichier dans un dossier local pour le modifier.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6082"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6281"/>
         <source>Could not open %1 for editing: %2</source>
         <translation>Impossible d&apos;ouvrir %1 pour l&apos;édition : %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6106"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6315"/>
         <source>This tab lists results from several directories, so there is no single folder to create it in. Open one of the results&apos; folders first.</source>
         <translation>Cet onglet répertorie des résultats provenant de plusieurs dossiers ; il n’y a donc pas de dossier unique où le créer. Ouvrez d’abord le dossier de l’un des résultats.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6115"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6245"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6324"/>
         <source>Read-only</source>
         <translation>Lecture seule</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6116"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6241"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6325"/>
         <source>This archive is read-only. Copy files out to a folder to modify them.</source>
         <translation>Cette archive est en lecture seule. Copiez les fichiers dans un dossier pour les modifier.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="3381"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="6156"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="3438"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6368"/>
         <source>Copy to:</source>
         <translation>Copier vers :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2637"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2661"/>
         <source>Version %1 is available.
 
 %2
@@ -3107,62 +3120,83 @@ Update page: %3</source>
 Update page: %3</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="2729"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4695"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="4848"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5046"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5546"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2532"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2753"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4808"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4991"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5189"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5693"/>
         <source>FileCommander Account</source>
         <translation>Compte FileCommander</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4483"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="2426"/>
+        <source>%1 (%2)</source>
+        <translation>%1 (%2)</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2427"/>
+        <source>Online</source>
+        <translation>En ligne</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2427"/>
+        <source>Offline</source>
+        <translation>Hors ligne</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="2532"/>
+        <source>This computer is offline.</source>
+        <translation>Cet ordinateur est hors ligne.</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/MainWindow.cpp" line="4596"/>
         <source>Disconnect</source>
         <translation>Se déconnecter</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4617"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4730"/>
         <source>Password Required</source>
         <translation>Mot de passe requis</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4620"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4733"/>
         <source>This connection requires a user name and password.</source>
         <translation>Cette connexion nécessite un nom d&apos;utilisateur et un mot de passe.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4621"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4734"/>
         <source>Connecting to &quot;%1&quot; requires a user name and password.</source>
         <translation>La connexion à « %1 » nécessite un nom d&apos;utilisateur et un mot de passe.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4636"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4749"/>
         <source>User name:</source>
         <translation>Nom d&apos;utilisateur :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4637"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4750"/>
         <source>Password:</source>
         <translation>Mot de passe :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4696"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4809"/>
         <source>%1 unfinished transfer(s). Send the same files to the same device to resume.</source>
         <translation>%1 transfert(s) inachevé(s). Renvoyez les mêmes fichiers au même appareil pour reprendre.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4778"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4891"/>
         <source>File received</source>
         <translation>Fichier reçu</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4779"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4892"/>
         <source>%1 arrived from another device.</source>
         <translation>%1 est arrivé depuis un autre appareil.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="4848"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5046"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="4991"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5189"/>
         <source>Not signed in.</source>
         <translation>Non connecté.</translation>
     </message>
@@ -3171,33 +3205,33 @@ Update page: %3</translation>
         <translation type="vanished">L’image du presse-papiers cloud n’est plus disponible.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5019"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="5079"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5162"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5222"/>
         <source>%1 cannot be reached on this network.</source>
         <translation>%1 est injoignable sur ce réseau.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5067"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5210"/>
         <source>Connecting to %1…</source>
         <translation>Connexion à %1…</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5274"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5420"/>
         <source>Create Link</source>
         <translation>Créer un lien</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5275"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5421"/>
         <source>Cannot create a symbolic link for a network location.</source>
         <translation>Impossible de créer un lien symbolique pour un emplacement réseau.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5350"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5496"/>
         <source>The source connection (%1) is closed, so nothing can be pasted from the remote side.</source>
         <translation>La connexion source (%1) est fermée, rien ne peut être collé depuis le côté distant.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5521"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5668"/>
         <source>Send to Device</source>
         <translation>Envoyer vers un appareil</translation>
     </message>
@@ -3206,17 +3240,17 @@ Update page: %3</translation>
         <translation type="vanished">Aucun autre appareil n&apos;est en ligne</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5804"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5973"/>
         <source>Stopped after %1 nested archives; the innermost one was left packed.</source>
         <translation>Arrêt après %1 archives imbriquées ; la plus interne est restée compressée.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5846"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6020"/>
         <source>Extracted %1 nested archives to %2</source>
         <translation>%1 archives imbriquées extraites vers %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6216"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6431"/>
         <source>Folder name:</source>
         <translation>Nom du dossier :</translation>
     </message>
@@ -3235,25 +3269,25 @@ This is permanent and will NOT go to the trash.</source>
 Cette action est définitive et NE passera PAS par la corbeille.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="5467"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="6294"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="6309"/>
-        <location filename="../../src/ui/MainWindow.cpp" line="6362"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="5614"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6511"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6526"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6593"/>
         <source>Compress</source>
         <translation>Compresser</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6295"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6512"/>
         <source>Compressing needs both the files and the destination folder to be on this computer. Copy them to a local folder first.</source>
         <translation>La compression nécessite que les fichiers et le dossier de destination se trouvent sur cet ordinateur. Copiez-les d’abord dans un dossier local.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6310"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6527"/>
         <source>Compressing %1...</source>
         <translation>Compression de %1...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/MainWindow.cpp" line="6362"/>
+        <location filename="../../src/ui/MainWindow.cpp" line="6593"/>
         <source>Compression failed: %1</source>
         <translation>Échec de la compression : %1</translation>
     </message>
@@ -3749,38 +3783,41 @@ Destination : %4 (%5 octets)</translation>
         <translation type="vanished">Propriétés — %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="200"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="222"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="211"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="225"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="247"/>
         <source>Name:</source>
         <translation>Nom :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="201"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="223"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="216"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="226"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="248"/>
         <source>Location:</source>
         <translation>Emplacement :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="202"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="224"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="227"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="249"/>
         <source>Symbolic link</source>
         <translation>Lien symbolique</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="203"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="225"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="228"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="250"/>
         <source>Folder</source>
         <translation>Dossier</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="204"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="226"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="229"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="251"/>
         <source>File</source>
         <translation>Fichier</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="205"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="227"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="218"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="230"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="252"/>
         <source>Type:</source>
         <translation>Type :</translation>
     </message>
@@ -3800,67 +3837,70 @@ Destination : %4 (%5 octets)</translation>
         <translation>Espace disponible :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="229"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="254"/>
         <source>Target:</source>
         <translation>Cible :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="207"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="211"/>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="232"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="237"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="236"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="257"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="262"/>
         <source>Size:</source>
         <translation>Taille :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="60"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="64"/>
         <source>1 file</source>
         <translation>1 fichier</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="61"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="65"/>
         <source>%1 files</source>
         <translation>%1 fichiers</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="66"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="92"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="207"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="209"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="262"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="267"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="60"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="70"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="96"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="211"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="216"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="232"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="234"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="287"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="292"/>
         <source>Unavailable</source>
         <translation>Indisponible</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="109"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="113"/>
         <source>Normal</source>
         <translation>Normal</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="209"/>
         <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="234"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="267"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="282"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="259"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="292"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="307"/>
         <source>Contains:</source>
         <translation>Contient :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="214"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="242"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="247"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="239"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="267"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="272"/>
         <source>Modified:</source>
         <translation>Modifié :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="215"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="248"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="240"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="273"/>
         <source>Owner:</source>
         <translation>Propriétaire :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="217"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="250"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="242"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="275"/>
         <source>Group:</source>
         <translation>Groupe :</translation>
     </message>
@@ -3869,113 +3909,113 @@ Destination : %4 (%5 octets)</translation>
         <translation type="vanished">Propriétés — %1 éléments</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="254"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="279"/>
         <source>Selection:</source>
         <translation>Sélection :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="254"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="279"/>
         <source>%1 items</source>
         <translation>%1 éléments</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="261"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="280"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="285"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="286"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="305"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="310"/>
         <source>Total size:</source>
         <translation>Taille totale :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="303"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="328"/>
         <source>All Properties</source>
         <translation>Toutes les propriétés</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="308"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="333"/>
         <source>Available for one local file or folder.</source>
         <translation>Disponible pour un seul fichier ou dossier local.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="356"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="383"/>
         <source>Permissions</source>
         <translation>Permissions</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="359"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="386"/>
         <source>Owner</source>
         <translation>Propriétaire</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="359"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="386"/>
         <source>Group</source>
         <translation>Groupe</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="359"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="386"/>
         <source>Others</source>
         <translation>Autres</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="360"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="387"/>
         <source>Read</source>
         <translation>Lecture</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="360"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="387"/>
         <source>Write</source>
         <translation>Écriture</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="360"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="387"/>
         <source>Execute</source>
         <translation>Exécution</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="379"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="406"/>
         <source>Shown as reported by the source. These entries are not on this computer&apos;s filesystem, so their permissions cannot be changed here.</source>
         <translation>Affiché tel que rapporté par la source. Ces éléments ne se trouvent pas sur le système de fichiers de cet ordinateur ; leurs permissions ne peuvent donc pas être modifiées ici.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="406"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="433"/>
         <source>Octal: (mixed)</source>
         <translation>Octal : (mixte)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="407"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="434"/>
         <source>Octal: %1</source>
         <translation>Octal : %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="185"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="434"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="197"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="461"/>
         <source>Properties</source>
         <translation>Propriétés</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="232"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="234"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="280"/>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="282"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="257"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="259"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="305"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="307"/>
         <source>Calculating...</source>
         <translation>Calcul en cours...</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="241"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="266"/>
         <source>Created:</source>
         <translation>Créé le :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="243"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="268"/>
         <source>Accessed:</source>
         <translation>Dernier accès :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="244"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="269"/>
         <source>Attributes:</source>
         <translation>Attributs :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="435"/>
+        <location filename="../../src/ui/dialogs/PropertiesDialog.cpp" line="462"/>
         <source>Failed to change permissions for:
 %1</source>
         <translation>Échec de la modification des permissions pour :
@@ -3991,44 +4031,44 @@ Destination : %4 (%5 octets)</translation>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="167"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="704"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="805"/>
         <source>Name</source>
         <translation>Nom</translation>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="169"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="708"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="809"/>
         <source>Size</source>
         <translation>Taille</translation>
     </message>
     <message>
         <location filename="../../src/archive/ArchiveModel.cpp" line="171"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="710"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="811"/>
         <source>Modified</source>
         <translation>Modifié</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="706"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="807"/>
         <source>Ext</source>
         <translation>Ext</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="716"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="817"/>
         <source>Permissions</source>
         <translation>Permissions</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="714"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="815"/>
         <source>Type</source>
         <translation>Type</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="650"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="751"/>
         <source>calculating</source>
         <translation>calcul en cours</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="712"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="813"/>
         <source>Created</source>
         <translation>Créé</translation>
     </message>
@@ -4040,7 +4080,7 @@ Destination : %4 (%5 octets)</translation>
     <message>
         <location filename="../../src/core/filesystem/ComputerProvider.cpp" line="67"/>
         <location filename="../../src/core/filesystem/ComputerProvider.cpp" line="76"/>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="724"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="825"/>
         <source>Folder</source>
         <translation>Dossier</translation>
     </message>
@@ -4064,32 +4104,32 @@ Destination : %4 (%5 octets)</translation>
         <translation type="vanished">%1 sur %2 utilisés</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="727"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="828"/>
         <source>File</source>
         <translation>Fichier</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="739"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="840"/>
         <source>Image</source>
         <translation>Image</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="741"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="842"/>
         <source>Video</source>
         <translation>Vidéo</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="743"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="844"/>
         <source>Audio</source>
         <translation>Audio</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="745"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="846"/>
         <source>Archive</source>
         <translation>Archive</translation>
     </message>
     <message>
-        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="747"/>
+        <location filename="../../src/core/filesystem/FileSystemModel.cpp" line="848"/>
         <source>Document</source>
         <translation>Document</translation>
     </message>
@@ -4125,7 +4165,7 @@ Destination : %4 (%5 octets)</translation>
         <translation type="vanished">Identique</translation>
     </message>
     <message>
-        <location filename="../../src/ui/i18n/TranslationManager.cpp" line="170"/>
+        <location filename="../../src/ui/i18n/TranslationManager.cpp" line="193"/>
         <source>Auto</source>
         <translation>Auto</translation>
     </message>
@@ -4196,12 +4236,12 @@ Destination : %4 (%5)</translation>
         <translation>Ceci est une archive découpée. Sa lecture nécessite 7-Zip (ou unrar), introuvable sur cet ordinateur.</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="507"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="517"/>
         <source>%1 cannot be moved into itself.</source>
         <translation>%1 ne peut pas être déplacé dans lui-même.</translation>
     </message>
     <message>
-        <location filename="../../src/core/operations/FileOperations.cpp" line="508"/>
+        <location filename="../../src/core/operations/FileOperations.cpp" line="518"/>
         <source>%1 cannot be copied into itself.</source>
         <translation>%1 ne peut pas être copié dans lui-même.</translation>
     </message>
@@ -4241,7 +4281,7 @@ Destination : %4 (%5)</translation>
         <translation>Image · %1 · %2</translation>
     </message>
     <message>
-        <location filename="../../src/core/account/AccountClient.cpp" line="749"/>
+        <location filename="../../src/core/account/AccountClient.cpp" line="753"/>
         <source>Clipboard delivery integrity validation failed.</source>
         <translation>Échec de la validation de l’intégrité de la livraison du presse-papiers.</translation>
     </message>
@@ -4283,39 +4323,39 @@ Destination : %4 (%5)</translation>
 <context>
     <name>QuickView</name>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="158"/>
-        <location filename="../../src/ui/QuickView.cpp" line="3689"/>
+        <location filename="../../src/ui/QuickView.cpp" line="159"/>
+        <location filename="../../src/ui/QuickView.cpp" line="3876"/>
         <source>Select a file to preview</source>
         <translation>Sélectionnez un fichier à prévisualiser</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="725"/>
-        <location filename="../../src/ui/QuickView.cpp" line="2827"/>
-        <location filename="../../src/ui/QuickView.cpp" line="3160"/>
+        <location filename="../../src/ui/QuickView.cpp" line="738"/>
+        <location filename="../../src/ui/QuickView.cpp" line="3013"/>
+        <location filename="../../src/ui/QuickView.cpp" line="3346"/>
         <source>Zoom In</source>
         <translation>Zoom avant</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="726"/>
-        <location filename="../../src/ui/QuickView.cpp" line="2834"/>
-        <location filename="../../src/ui/QuickView.cpp" line="3166"/>
+        <location filename="../../src/ui/QuickView.cpp" line="739"/>
+        <location filename="../../src/ui/QuickView.cpp" line="3020"/>
+        <location filename="../../src/ui/QuickView.cpp" line="3352"/>
         <source>Zoom Out</source>
         <translation>Zoom arrière</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="727"/>
+        <location filename="../../src/ui/QuickView.cpp" line="740"/>
         <source>Fit</source>
         <translation>Ajuster</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="737"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1419"/>
+        <location filename="../../src/ui/QuickView.cpp" line="750"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1605"/>
         <source>Rotate Left</source>
         <translation>Pivoter à gauche</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="738"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1420"/>
+        <location filename="../../src/ui/QuickView.cpp" line="751"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1606"/>
         <source>Rotate Right</source>
         <translation>Pivoter à droite</translation>
     </message>
@@ -4328,23 +4368,23 @@ Destination : %4 (%5)</translation>
         <translation type="vanished">Suiv. &gt;</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="752"/>
+        <location filename="../../src/ui/QuickView.cpp" line="765"/>
         <source>Lock Zoom</source>
         <translation>Verrouiller le zoom</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="753"/>
+        <location filename="../../src/ui/QuickView.cpp" line="766"/>
         <source>Keep the current zoom ratio for the next images</source>
         <translation>Conserver le ratio de zoom actuel pour les images suivantes</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="756"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1425"/>
+        <location filename="../../src/ui/QuickView.cpp" line="769"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1611"/>
         <source>Show info</source>
         <translation>Afficher les infos</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="757"/>
+        <location filename="../../src/ui/QuickView.cpp" line="770"/>
         <source>Overlay basic image information</source>
         <translation>Superposer les informations de base de l&apos;image</translation>
     </message>
@@ -4353,23 +4393,23 @@ Destination : %4 (%5)</translation>
         <translation type="vanished">Pivotée à l&apos;écran uniquement — impossible d&apos;enregistrer sur le disque.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="941"/>
+        <location filename="../../src/ui/QuickView.cpp" line="954"/>
         <source>Wrap</source>
         <translation>Retour à la ligne</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="946"/>
+        <location filename="../../src/ui/QuickView.cpp" line="959"/>
         <source>Hex</source>
         <translation>Hex</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="956"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1987"/>
+        <location filename="../../src/ui/QuickView.cpp" line="969"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2173"/>
         <source>Find… (Enter / F3)</source>
         <translation>Rechercher… (Enter / F3)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1120"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1194"/>
         <source>
 
 [... truncated ...]</source>
@@ -4382,17 +4422,17 @@ Destination : %4 (%5)</translation>
         <translation type="vanished">Auto : binaire (hex.)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="304"/>
+        <location filename="../../src/ui/QuickView.cpp" line="305"/>
         <source>Rotated on screen only - could not save to disk.</source>
         <translation>Rotation appliquée à l&apos;écran uniquement - impossible d&apos;enregistrer sur le disque.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="565"/>
+        <location filename="../../src/ui/QuickView.cpp" line="566"/>
         <source>Unknown media backend initialization error.</source>
         <translation>Erreur inconnue lors de l&apos;initialisation du moteur multimédia.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="580"/>
+        <location filename="../../src/ui/QuickView.cpp" line="581"/>
         <source>Media preview could not start.
 
 %1
@@ -4421,88 +4461,88 @@ Redémarrez File Commander pour réessayer. Si le problème persiste, vérifiez 
         <translation type="vanished">Manuel : %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="550"/>
-        <location filename="../../src/ui/QuickView.cpp" line="744"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1318"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1326"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1334"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1461"/>
+        <location filename="../../src/ui/QuickView.cpp" line="551"/>
+        <location filename="../../src/ui/QuickView.cpp" line="757"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1504"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1512"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1520"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1647"/>
         <source>Play</source>
         <translation>Lecture</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="740"/>
-        <location filename="../../src/ui/QuickView.cpp" line="744"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1326"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1335"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1462"/>
-        <location filename="../../src/ui/QuickView.cpp" line="3633"/>
-        <location filename="../../src/ui/QuickView.cpp" line="3747"/>
+        <location filename="../../src/ui/QuickView.cpp" line="753"/>
+        <location filename="../../src/ui/QuickView.cpp" line="757"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1512"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1521"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1648"/>
+        <location filename="../../src/ui/QuickView.cpp" line="3819"/>
+        <location filename="../../src/ui/QuickView.cpp" line="3934"/>
         <source>Pause</source>
         <translation>Pause</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1347"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1533"/>
         <source>1x</source>
         <translation>1x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1348"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1534"/>
         <source>1.5x</source>
         <translation>1.5x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1349"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1535"/>
         <source>2x</source>
         <translation>2x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1350"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1536"/>
         <source>3x</source>
         <translation>3x</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1364"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1737"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1550"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1923"/>
         <source>Seek</source>
         <translation>Position</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1376"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1750"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1562"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1936"/>
         <source>Mute / unmute</source>
         <translation>Couper / rétablir le son</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1390"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1762"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1576"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1948"/>
         <source>Vol</source>
         <translation>Vol</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1401"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1768"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1587"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1954"/>
         <source>Volume</source>
         <translation>Volume</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1426"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1612"/>
         <source>Overlay basic video information</source>
         <translation>Superposer les informations de base de la vidéo</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1627"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1813"/>
         <source>&lt;b&gt;Duration:&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;Resolution:&lt;/b&gt; %2 &amp;times; %3&lt;br&gt;&lt;b&gt;Codec:&lt;/b&gt; %4</source>
         <translation>&lt;b&gt;Durée :&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;Résolution :&lt;/b&gt; %2 &amp;times; %3&lt;br&gt;&lt;b&gt;Codec :&lt;/b&gt; %4</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1629"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1630"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1815"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1816"/>
         <source>?</source>
         <translation>?</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1631"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1817"/>
         <source>unknown</source>
         <translation>inconnu</translation>
     </message>
@@ -4553,12 +4593,12 @@ pip install --user msoffcrypto-tool</translation>
         <translation type="vanished">Échec du rendu de la page %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="3065"/>
+        <location filename="../../src/ui/QuickView.cpp" line="3251"/>
         <source>Page %1 / %2</source>
         <translation>Page %1 / %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="3797"/>
+        <location filename="../../src/ui/QuickView.cpp" line="3984"/>
         <source>Cannot open PDF: %1</source>
         <translation>Impossible d&apos;ouvrir le PDF : %1</translation>
     </message>
@@ -4571,162 +4611,167 @@ pip install --user msoffcrypto-tool</translation>
         <translation type="vanished">« %1 » est chiffré et ne peut pas être prévisualisé.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2487"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2673"/>
         <source>Cannot preview %1:
 %2</source>
         <translation>Impossible de prévisualiser %1 :
 %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="882"/>
+        <location filename="../../src/ui/QuickView.cpp" line="895"/>
         <source>&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;%2 &amp;times; %3&lt;br&gt;%4&lt;br&gt;%5 bpp</source>
         <translation>&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;%2 &amp;times; %3&lt;br&gt;%4&lt;br&gt;%5 bpp</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="516"/>
+        <location filename="../../src/ui/QuickView.cpp" line="517"/>
         <source>Download a decoder</source>
         <translation>Télécharger un décodeur</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="538"/>
+        <location filename="../../src/ui/QuickView.cpp" line="539"/>
         <source>Nothing could be read at that point in the file — it may be incomplete or damaged. Playback restarted from the beginning.</source>
         <translation>Rien n&apos;a pu être lu à cet endroit du fichier — il est peut-être incomplet ou endommagé. La lecture a repris depuis le début.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="551"/>
+        <location filename="../../src/ui/QuickView.cpp" line="552"/>
         <source>This file is incomplete — the rest of it was never written — so it cannot play through.</source>
         <translation>Ce fichier est incomplet — le reste n&apos;a jamais été écrit — il ne peut donc pas être lu jusqu&apos;au bout.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="881"/>
+        <location filename="../../src/ui/QuickView.cpp" line="894"/>
         <source>Unknown format</source>
         <translation>Format inconnu</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="967"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1995"/>
+        <location filename="../../src/ui/QuickView.cpp" line="980"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2181"/>
         <source>Edit</source>
         <translation>Éditer</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="968"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1996"/>
+        <location filename="../../src/ui/QuickView.cpp" line="981"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2182"/>
         <source>Open this file in the editor</source>
         <translation>Ouvrir ce fichier dans l&apos;éditeur</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1098"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1168"/>
         <source>Auto (Binary)</source>
         <translation>Auto (binaire)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1102"/>
-        <location filename="../../src/ui/QuickView.cpp" line="2099"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1172"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2285"/>
         <source>Auto (%1, ambiguous)</source>
         <translation>Auto (%1, ambigu)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1103"/>
-        <location filename="../../src/ui/QuickView.cpp" line="2100"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1173"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2286"/>
         <source>Auto (%1)</source>
         <translation>Auto (%1)</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1600"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1299"/>
+        <source>[... truncated ...]</source>
+        <translation>[... tronqué ...]</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/QuickView.cpp" line="1786"/>
         <source>This file does not say how long it is, so it cannot be seeked.</source>
         <translation>Ce fichier n&apos;indique pas sa durée, la recherche est donc impossible.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1601"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1787"/>
         <source>This file does not record its own length, so the position bar and seeking are unavailable. Playback is unaffected.</source>
         <translation>Ce fichier n&apos;enregistre pas sa propre durée : la barre de position et la recherche sont indisponibles. La lecture n&apos;est pas affectée.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1697"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1883"/>
         <source>No embedded lyrics.</source>
         <translation>Aucune parole intégrée.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1716"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1902"/>
         <source>Previous track</source>
         <translation>Piste précédente</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1721"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1907"/>
         <source>Play / pause</source>
         <translation>Lecture / pause</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1728"/>
+        <location filename="../../src/ui/QuickView.cpp" line="1914"/>
         <source>Next track</source>
         <translation>Piste suivante</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1870"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1933"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2056"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2119"/>
         <source>Artist</source>
         <translation>Artiste</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1871"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1934"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2057"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2120"/>
         <source>Album</source>
         <translation>Album</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1872"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1935"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2058"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2121"/>
         <source>Album Artist</source>
         <translation>Artiste de l&apos;album</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1873"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1936"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2059"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2122"/>
         <source>Year</source>
         <translation>Année</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1874"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1937"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2060"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2123"/>
         <source>Genre</source>
         <translation>Genre</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1875"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1938"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2061"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2124"/>
         <source>Track</source>
         <translation>Piste</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="1876"/>
-        <location filename="../../src/ui/QuickView.cpp" line="1939"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2062"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2125"/>
         <source>Composer</source>
         <translation>Compositeur</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2225"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2411"/>
         <source>Password</source>
         <translation>Mot de passe</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2232"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2418"/>
         <source>Unlock</source>
         <translation>Déverrouiller</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2269"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2455"/>
         <source>Stop Download</source>
         <translation>Arrêter le téléchargement</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2283"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2469"/>
         <source>Downloading a local copy for preview…
 %1</source>
         <translation>Téléchargement d&apos;une copie locale pour l&apos;aperçu…
 %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2315"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2501"/>
         <source>Preview cancelled: the download for this file was stopped.
 %1</source>
         <translation>Aperçu annulé : le téléchargement de ce fichier a été arrêté.
@@ -4743,7 +4788,7 @@ pip install --user msoffcrypto-tool</translation>
 %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2293"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2479"/>
         <source>Preparing preview…
 %1</source>
         <translation>Préparation de l’aperçu…
@@ -4756,29 +4801,29 @@ pip install --user msoffcrypto-tool</translation>
 %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2327"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2513"/>
         <source>Enter a password.</source>
         <translation>Saisissez un mot de passe.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2453"/>
-        <location filename="../../src/ui/QuickView.cpp" line="2623"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2639"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2809"/>
         <source>“%1” is encrypted. Enter the password to preview it:</source>
         <translation>« %1 » est chiffré. Saisissez le mot de passe pour le prévisualiser :</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2466"/>
-        <location filename="../../src/ui/QuickView.cpp" line="2636"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2652"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2822"/>
         <source>Incorrect password. Try again.</source>
         <translation>Mot de passe incorrect. Réessayez.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2476"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2662"/>
         <source>“%1” is encrypted in a format that can&apos;t be previewed.</source>
         <translation>« %1 » est chiffré dans un format qui ne peut pas être prévisualisé.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2497"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2683"/>
         <source>Up</source>
         <translation>Remonter</translation>
     </message>
@@ -4791,65 +4836,65 @@ pip install --user msoffcrypto-tool</translation>
         <translation type="vanished">« %1 » est chiffré dans un format qui ne peut pas être prévisualisé (le chiffrement 7z n&apos;est pas pris en charge).</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2644"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2830"/>
         <source>“%1” uses an encryption that can&apos;t be previewed.</source>
         <translation>« %1 » utilise un chiffrement qui ne peut pas être prévisualisé.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2648"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2834"/>
         <source>Cannot open archive: %1</source>
         <translation>Impossible d&apos;ouvrir l&apos;archive : %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2658"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2844"/>
         <source>Could not create a temporary directory.</source>
         <translation>Impossible de créer un répertoire temporaire.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2669"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2855"/>
         <source>Could not extract %1: %2</source>
         <translation>Impossible d&apos;extraire %1 : %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2675"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2861"/>
         <source>Could not read the nested archive %1.</source>
         <translation>Impossible de lire l&apos;archive imbriquée %1.</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2812"/>
+        <location filename="../../src/ui/QuickView.cpp" line="2998"/>
         <source>Sheet %1</source>
         <translation>Feuille %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2842"/>
+        <location filename="../../src/ui/QuickView.cpp" line="3028"/>
         <source>Copy Page</source>
         <translation>Copier la page</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="2844"/>
-        <location filename="../../src/ui/QuickView.cpp" line="3175"/>
+        <location filename="../../src/ui/QuickView.cpp" line="3030"/>
+        <location filename="../../src/ui/QuickView.cpp" line="3361"/>
         <source>Copy All</source>
         <translation>Tout copier</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="3173"/>
+        <location filename="../../src/ui/QuickView.cpp" line="3359"/>
         <source>Copy Slide</source>
         <translation>Copier la diapositive</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="3428"/>
+        <location filename="../../src/ui/QuickView.cpp" line="3614"/>
         <source>Slide %1 / %2</source>
         <translation>Diapositive %1 / %2</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="3819"/>
+        <location filename="../../src/ui/QuickView.cpp" line="4006"/>
         <source>PDF preview is not enabled in this build: %1</source>
         <translation>L&apos;aperçu PDF n&apos;est pas activé dans cette version : %1</translation>
     </message>
     <message>
-        <location filename="../../src/ui/QuickView.cpp" line="242"/>
-        <location filename="../../src/ui/QuickView.cpp" line="3918"/>
-        <location filename="../../src/ui/QuickView.cpp" line="3966"/>
+        <location filename="../../src/ui/QuickView.cpp" line="243"/>
+        <location filename="../../src/ui/QuickView.cpp" line="4106"/>
+        <location filename="../../src/ui/QuickView.cpp" line="4162"/>
         <source>No preview available for %1</source>
         <translation>Aucun aperçu disponible pour %1</translation>
     </message>
@@ -4857,20 +4902,20 @@ pip install --user msoffcrypto-tool</translation>
 <context>
     <name>RemovableDeviceMonitor</name>
     <message>
-        <location filename="../../src/core/devices/RemovableDeviceMonitor.cpp" line="219"/>
-        <location filename="../../src/core/devices/RemovableDeviceMonitor.cpp" line="259"/>
+        <location filename="../../src/core/devices/RemovableDeviceMonitor.cpp" line="232"/>
+        <location filename="../../src/core/devices/RemovableDeviceMonitor.cpp" line="272"/>
         <source>System D-Bus is not available</source>
         <translation>Le bus D-Bus système n&apos;est pas disponible</translation>
     </message>
     <message>
-        <location filename="../../src/core/devices/RemovableDeviceMonitor.cpp" line="226"/>
-        <location filename="../../src/core/devices/RemovableDeviceMonitor.cpp" line="269"/>
+        <location filename="../../src/core/devices/RemovableDeviceMonitor.cpp" line="239"/>
+        <location filename="../../src/core/devices/RemovableDeviceMonitor.cpp" line="282"/>
         <source>Device is not a mountable filesystem</source>
         <translation>Le périphérique n&apos;est pas un système de fichiers montable</translation>
     </message>
     <message>
-        <location filename="../../src/core/devices/RemovableDeviceMonitor_windows.cpp" line="177"/>
-        <location filename="../../src/core/devices/RemovableDeviceMonitor_windows.cpp" line="185"/>
+        <location filename="../../src/core/devices/RemovableDeviceMonitor_windows.cpp" line="193"/>
+        <location filename="../../src/core/devices/RemovableDeviceMonitor_windows.cpp" line="201"/>
         <source>The volume is no longer available.</source>
         <translation>Le volume n&apos;est plus disponible.</translation>
     </message>

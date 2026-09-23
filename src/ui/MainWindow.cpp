@@ -1857,7 +1857,7 @@ QuickView *MainWindow::ensureQuickView() {
 }
 
 bool MainWindow::quickViewEditorActive() const {
-    return m_quickViewActive && m_quickView && m_quickView->isEditing();
+    return m_quickViewActive && m_quickView && m_quickEditMode;
 }
 
 TransferProgressDialog *MainWindow::ensureTransferProgressDialog() {
@@ -2919,7 +2919,17 @@ void MainWindow::setupShortcuts() {
     bindShortcut("syncOther", tr("Same Directory in Other Panel"),
                  QKeySequence(Qt::CTRL | Qt::Key_Right), [this] { syncOtherPanelToActive(); });
     bindShortcut("quickView", tr("Quick View"), QKeySequence(Qt::CTRL | Qt::Key_Q),
-                 [this] { toggleQuickView(); });
+                 [this] {
+                     if (quickViewEditorActive()) {
+                         if (!m_quickView->confirmDiscardEdits())
+                             return;
+                         m_quickEditMode = false;
+                         ++m_quickEditReqId;
+                         updateQuickView();
+                     } else {
+                         toggleQuickView();
+                     }
+                 });
     bindShortcut("quickEdit", tr("Edit"), QKeySequence(Qt::CTRL | Qt::Key_E),
                  [this] { quickEditCurrent(); });
     bindShortcut("undo", tr("Undo Last Operation"), QKeySequence(Qt::CTRL | Qt::Key_Z),
@@ -3742,6 +3752,8 @@ void MainWindow::toggleQuickView() {
         m_quickView->setParent(this);
         m_quickView->hide();
         m_quickViewActive = false;
+        m_quickEditMode = false;
+        ++m_quickEditReqId;
         m_quickViewPanel = nullptr;
         m_panelSplitter->setSizes(sizes);
         if (m_activePanel)
@@ -3764,7 +3776,7 @@ void MainWindow::toggleQuickView() {
 void MainWindow::quickEditCurrent() {
     if (!m_activePanel)
         return;
-    if (m_quickViewActive && m_quickView && m_quickView->isEditing()) {
+    if (quickViewEditorActive()) {
         toggleQuickView();
         return;
     }
@@ -3773,6 +3785,7 @@ void MainWindow::quickEditCurrent() {
     if (!m_quickViewActive || !m_quickView)
         return;
 
+    m_quickEditMode = true;
     QPointer<FilePanel> panel(m_activePanel);
     const QString path = m_activePanel->currentEntryPath();
     const QString encodingIdentity = m_activePanel->currentTextEncodingIdentity();
@@ -3781,11 +3794,16 @@ void MainWindow::quickEditCurrent() {
         if (reqId != m_quickEditReqId || !panel || panel != m_activePanel ||
             panel->currentEntryPath() != path)
             return;
-        if (m_quickView && m_quickViewActive && !m_quickView->isEditing())
-            m_quickView->beginEditing(real, encodingIdentity);
+        if (m_quickView && m_quickViewActive && !m_quickView->isEditing() &&
+            !m_quickView->beginEditing(real, encodingIdentity))
+            m_quickView->showEditError(
+                tr("Could not open %1 for editing.").arg(QFileInfo(path).fileName()));
     }, [this, panel, path, reqId] {
         return reqId == m_quickEditReqId && panel && panel == m_activePanel &&
                panel->currentEntryPath() == path;
+    }, [this](const QString &message) {
+        if (m_quickViewActive && m_quickView)
+            m_quickView->showEditError(message);
     });
 }
 
@@ -3856,19 +3874,13 @@ void MainWindow::updateQuickView() {
         return;
     if (quickViewEditorActive()) {
         const QString entry = m_activePanel->currentEntryPath();
-        if (entry.isEmpty())
-            return;
 
         // Selection changes are also navigation away from the file being edited.
         // Flush the embedded editor before deciding whether the new entry can be
         // edited, so an image, directory, archive, or failed remote resolve never
         // leaves the previous file's changes only in the old editor buffer.
-        if (!m_quickView->confirmDiscardEdits())
+        if (m_quickView->isEditing() && !m_quickView->confirmDiscardEdits())
             return;
-        if (currentEntryIsDir()) {
-            ttc::information(this, tr("Edit"), tr("This file cannot be edited."));
-            return;
-        }
 
         const quint64 reqId = ++m_quickEditReqId;
         QPointer<FilePanel> panel(m_activePanel);
@@ -3884,13 +3896,19 @@ void MainWindow::updateQuickView() {
                     return;
                 if (real.isEmpty())
                     return; // the resolver already explained why this entry is refused
-                if (!m_quickView->switchEditingFile(real, encodingIdentity)) {
-                    ttc::warning(this, tr("Edit"),
-                                 tr("Could not open %1 for editing.")
-                                     .arg(QFileInfo(entry).fileName()));
+                const bool opened = m_quickView->isEditing()
+                                        ? m_quickView->switchEditingFile(real, encodingIdentity)
+                                        : m_quickView->beginEditing(real, encodingIdentity);
+                if (!opened) {
+                    m_quickView->showEditError(
+                        tr("Could not open %1 for editing.").arg(QFileInfo(entry).fileName()));
                 }
             },
-            stillCurrent);
+            stillCurrent,
+            [this](const QString &message) {
+                if (m_quickViewActive && m_quickView)
+                    m_quickView->showEditError(message);
+            });
         return;
     }
     // An archive under the cursor previews from its raw path (a header scan),
@@ -6193,25 +6211,40 @@ void MainWindow::extractArchiveToDir() {
 }
 
 void MainWindow::resolveEditableCurrent(std::function<void(const QString &)> then,
-                                        std::function<bool()> stillCurrent) {
+                                        std::function<bool()> stillCurrent,
+                                        std::function<void(const QString &)> onRefusal) {
     if (!m_activePanel)
         return;
     const QString path = m_activePanel->currentEntryPath();
-    if (path.isEmpty() || currentEntryIsDir())
+    if (path.isEmpty() || currentEntryIsDir()) {
+        if (onRefusal)
+            onRefusal(tr("This file cannot be edited."));
         return;
+    }
 
     if (fc::isImage(path)) {
-        if (!stillCurrent || stillCurrent())
-            ttc::information(this, tr("Edit"),
-                             tr("Image files can't be edited; use F3 to view."));
+        if (!stillCurrent || stillCurrent()) {
+            const QString message = tr("Image files can't be edited; use F3 to view.");
+            if (onRefusal)
+                onRefusal(message);
+            else
+                ttc::information(this, tr("Edit"), message);
+        }
         return;
     }
 
     // Inside an archive there is nothing to edit in place and no mount that
     // would change that, so say the thing that is actually true there ("copy it
     // out") rather than the connection advice below.
-    if (blockArchiveWrite(m_activePanel))
+    if (m_activePanel->isArchive()) {
+        const QString message =
+            tr("This archive is read-only. Copy files out to a folder to modify them.");
+        if (onRefusal)
+            onRefusal(message);
+        else
+            ttc::information(this, tr("Read-only"), message);
         return;
+    }
 
     // Editing needs a path that is not only readable but WRITABLE, and that is
     // exactly what a gvfs mount provides and a downloaded copy does not: Save
@@ -6219,18 +6252,23 @@ void MainWindow::resolveEditableCurrent(std::function<void(const QString &)> the
     // which QFile could not open, and the failure below then swallowed it -- so
     // on a network tab F4 did nothing at all, with no message.
     const QString name = QFileInfo(path).fileName();
-    resolveRealPath(m_activePanel, path, [this, name, then, stillCurrent](const QString &real) {
+    resolveRealPath(m_activePanel, path,
+                    [this, name, then, stillCurrent, onRefusal](const QString &real) {
         if (stillCurrent && !stillCurrent())
             return;
         if (real.isEmpty()) {
             // Deliberately NOT a downloaded copy. The copy is read-only, and
             // even if it were not, Save would write to a temp file the user
             // never sees again -- losing the edit while looking like it worked.
-            ttc::warning(this, tr("Edit"),
-                         tr("%1 cannot be edited in place.\n\nEditing a file on this "
-                            "connection needs it mounted through GVfs (the gvfs-backends "
-                            "package). Copy the file to a local folder to edit it.")
-                             .arg(name));
+            const QString message =
+                tr("%1 cannot be edited in place.\n\nEditing a file on this connection "
+                   "needs it mounted through GVfs (the gvfs-backends package). Copy the "
+                   "file to a local folder to edit it.")
+                    .arg(name);
+            if (onRefusal)
+                onRefusal(message);
+            else
+                ttc::warning(this, tr("Edit"), message);
             return;
         }
         // Probe first: loadFile() announces the one refusal it knows about (the
@@ -6239,8 +6277,12 @@ void MainWindow::resolveEditableCurrent(std::function<void(const QString &)> the
         // one. A mount that died since it was resolved lands here.
         QFile probe(real);
         if (!probe.open(QIODevice::ReadOnly)) {
-            ttc::warning(this, tr("Edit"),
-                         tr("Could not open %1 for editing: %2").arg(name, probe.errorString()));
+            const QString message =
+                tr("Could not open %1 for editing: %2").arg(name, probe.errorString());
+            if (onRefusal)
+                onRefusal(message);
+            else
+                ttc::warning(this, tr("Edit"), message);
             return;
         }
         probe.close();

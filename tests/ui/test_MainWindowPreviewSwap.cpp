@@ -2,19 +2,19 @@
 
 #include "TryUntil.h"
 
-#include <QAbstractButton>
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QImage>
 #include <QItemSelectionModel>
 #include <QLabel>
-#include <QMessageBox>
+#include <QPlainTextEdit>
 #include <QScrollBar>
 #include <QSignalBlocker>
 #include <QSignalSpy>
 #include <QShortcut>
 #include <QSplitter>
+#include <QStackedWidget>
 #include <QStyle>
 #include <QStyleOptionSlider>
 #include <QTemporaryDir>
@@ -497,6 +497,74 @@ TEST(MainWindowPreviewSwapTest, CtrlEOpensTheEmbeddedQuickViewEditorWithoutViewe
     EXPECT_GE(panelSplitter(window)->indexOf(panel), 0);
 }
 
+TEST(MainWindowPreviewSwapTest, CtrlQSwitchesEmbeddedEditorToPreviewWithoutClosingPane) {
+    ThemeStateGuard themeState;
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("editable.txt"));
+    QFile file(path);
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Text));
+    ASSERT_EQ(file.write("editable\n"), 9);
+    file.close();
+
+    MainWindow window(nullptr, 10000, true);
+    FilePanel *panel = window.findChildren<FilePanel *>().value(0);
+    ASSERT_NE(panel, nullptr);
+    window.setActivePanel(panel);
+    panel->navigateTo(dir.path());
+    int row = -1;
+    ASSERT_TRUE(QTest::qWaitFor([panel, &row] {
+        for (int r = 0; r < panel->model()->rowCount(); ++r) {
+            if (!panel->model()->isParentEntry(r) &&
+                panel->model()->fileInfoAt(r).name() == QStringLiteral("editable.txt")) {
+                row = r;
+                return true;
+            }
+        }
+        return false;
+    }, 5000));
+    panel->view()->setCurrentIndex(panel->model()->index(row, 0));
+
+    QShortcut *ctrlE = nullptr;
+    QShortcut *ctrlQ = nullptr;
+    for (QShortcut *shortcut : window.findChildren<QShortcut *>()) {
+        if (shortcut->key() == QKeySequence(Qt::CTRL | Qt::Key_E))
+            ctrlE = shortcut;
+        else if (shortcut->key() == QKeySequence(Qt::CTRL | Qt::Key_Q))
+            ctrlQ = shortcut;
+    }
+    ASSERT_NE(ctrlE, nullptr);
+    ASSERT_NE(ctrlQ, nullptr);
+    ASSERT_TRUE(QMetaObject::invokeMethod(ctrlE, "activated", Qt::DirectConnection));
+
+    QuickView *quickView = window.findChild<QuickView *>();
+    ASSERT_NE(quickView, nullptr);
+    FC_TRY_VERIFY_WITH_TIMEOUT(quickView->isEditing(), 5000);
+    QSplitter *splitter = panelSplitter(window);
+    ASSERT_NE(splitter, nullptr);
+    const int paneIndex = splitter->indexOf(quickView);
+    ASSERT_GE(paneIndex, 0);
+    TextEditor *editor = quickView->findChild<TextEditor *>();
+    ASSERT_NE(editor, nullptr);
+    editor->codeEditor()->moveCursor(QTextCursor::End);
+    editor->codeEditor()->insertPlainText(QStringLiteral("saved on preview\n"));
+    ASSERT_TRUE(editor->isDocumentModified());
+
+    ASSERT_TRUE(QMetaObject::invokeMethod(ctrlQ, "activated", Qt::DirectConnection));
+    FC_TRY_VERIFY_WITH_TIMEOUT(!quickView->isEditing(), 5000);
+    EXPECT_EQ(splitter->indexOf(quickView), paneIndex);
+    auto *preview = quickView->findChild<QPlainTextEdit *>(QStringLiteral("quickViewTextView"));
+    ASSERT_NE(preview, nullptr);
+    FC_TRY_VERIFY_WITH_TIMEOUT(preview->toPlainText().contains(QStringLiteral("saved on preview")),
+                               5000);
+    QFile saved(path);
+    ASSERT_TRUE(saved.open(QIODevice::ReadOnly));
+    EXPECT_TRUE(saved.readAll().contains("saved on preview"));
+
+    ASSERT_TRUE(QMetaObject::invokeMethod(ctrlQ, "activated", Qt::DirectConnection));
+    EXPECT_EQ(splitter->indexOf(quickView), -1);
+}
+
 TEST(MainWindowPreviewSwapTest, EmbeddedEditorFollowsSelectionAndSavesBeforeLoadingNextFile) {
     ThemeStateGuard themeState;
     QTemporaryDir dir;
@@ -562,20 +630,21 @@ TEST(MainWindowPreviewSwapTest, EmbeddedEditorFollowsSelectionAndSavesBeforeLoad
     EXPECT_TRUE(editor->codeEditor()->toPlainText().contains(QStringLiteral("second")));
 }
 
-TEST(MainWindowPreviewSwapTest, UneditableSelectionKeepsEditorAndShowsLocalizedNotice) {
+TEST(MainWindowPreviewSwapTest, EmbeddedEditRefusalsStayInlineAndRecoverOnNextFile) {
     ThemeStateGuard themeState;
-#ifdef Q_OS_WIN
-    if (QGuiApplication::platformName() == QStringLiteral("offscreen"))
-        GTEST_SKIP() << "Windows offscreen Qt cannot show a QMessageBox safely";
-#endif
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
     const QString editable = dir.filePath(QStringLiteral("editable.txt"));
+    const QString nextEditable = dir.filePath(QStringLiteral("next.txt"));
     const QString imagePath = dir.filePath(QStringLiteral("picture.png"));
     QFile file(editable);
     ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Text));
     ASSERT_EQ(file.write("editable\n"), 9);
     file.close();
+    QFile nextFile(nextEditable);
+    ASSERT_TRUE(nextFile.open(QIODevice::WriteOnly | QIODevice::Text));
+    ASSERT_EQ(nextFile.write("next\n"), 5);
+    nextFile.close();
     QImage image(2, 2, QImage::Format_RGB32);
     image.fill(Qt::red);
     ASSERT_TRUE(image.save(imagePath));
@@ -588,7 +657,8 @@ TEST(MainWindowPreviewSwapTest, UneditableSelectionKeepsEditorAndShowsLocalizedN
 
     int editableRow = -1;
     int imageRow = -1;
-    ASSERT_TRUE(QTest::qWaitFor([panel, &editableRow, &imageRow] {
+    int nextRow = -1;
+    ASSERT_TRUE(QTest::qWaitFor([panel, &editableRow, &imageRow, &nextRow] {
         for (int row = 0; row < panel->model()->rowCount(); ++row) {
             if (panel->model()->isParentEntry(row))
                 continue;
@@ -597,8 +667,10 @@ TEST(MainWindowPreviewSwapTest, UneditableSelectionKeepsEditorAndShowsLocalizedN
                 editableRow = row;
             else if (name == QStringLiteral("picture.png"))
                 imageRow = row;
+            else if (name == QStringLiteral("next.txt"))
+                nextRow = row;
         }
-        return editableRow >= 0 && imageRow >= 0;
+        return editableRow >= 0 && imageRow >= 0 && nextRow >= 0;
     }, 5000));
     panel->view()->setCurrentIndex(panel->model()->index(editableRow, 0));
 
@@ -621,40 +693,84 @@ TEST(MainWindowPreviewSwapTest, UneditableSelectionKeepsEditorAndShowsLocalizedN
     editor->codeEditor()->insertPlainText(QStringLiteral("saved before unavailable switch\n"));
     ASSERT_TRUE(editor->isDocumentModified());
 
-    bool noticed = false;
+    bool modalAppeared = false;
     QTimer dismisser;
     dismisser.setInterval(10);
     QObject::connect(&dismisser, &QTimer::timeout, [&] {
         QWidget *modal = QApplication::activeModalWidget();
-        if (!modal)
-            return;
-        const auto labels = modal->findChildren<QLabel *>();
-        for (QLabel *label : labels) {
-            if (label->text().contains(QStringLiteral("can't be edited")) ||
-                label->text().contains(QStringLiteral("cannot be edited"))) {
-                noticed = true;
-                if (QMessageBox *box = modal->findChild<QMessageBox *>()) {
-                    if (QAbstractButton *ok = box->button(QMessageBox::Ok))
-                        ok->click();
-                    else
-                        box->accept();
-                }
-                else
-                    modal->close();
-                return;
-            }
+        if (modal) {
+            modalAppeared = true;
+            modal->close();
         }
     });
     dismisser.start();
-    panel->view()->setCurrentIndex(panel->model()->index(imageRow, 0));
+    QLabel *info = quickView->findChild<QLabel *>(QStringLiteral("previewInfoLabel"));
+    ASSERT_NE(info, nullptr);
+    QStackedWidget *pages = quickView->findChild<QStackedWidget *>(
+        QStringLiteral("QuickViewStack"));
+    ASSERT_NE(pages, nullptr);
 
-    FC_TRY_VERIFY_WITH_TIMEOUT(noticed && quickView->isEditing(), 5000);
-    EXPECT_EQ(editor->filePath(), editable);
+    panel->view()->setCurrentIndex(panel->model()->index(0, 0));
+    FC_TRY_VERIFY_WITH_TIMEOUT(pages->currentWidget() == info &&
+                                   info->text().contains(QStringLiteral("cannot be edited")),
+                               5000);
+    EXPECT_FALSE(modalAppeared);
+    EXPECT_FALSE(quickView->isEditing());
+
+    int currentImageRow = -1;
+    for (int row = 0; row < panel->model()->rowCount(); ++row) {
+        if (panel->model()->fileInfoAt(row).name() == QStringLiteral("picture.png")) {
+            currentImageRow = row;
+            break;
+        }
+    }
+    ASSERT_GE(currentImageRow, 0);
+    panel->view()->setCurrentIndex(panel->model()->index(currentImageRow, 0));
+    FC_TRY_VERIFY_WITH_TIMEOUT(pages->currentWidget() == info &&
+                                   info->text().contains(QStringLiteral("can't be edited")),
+                               5000);
+    EXPECT_FALSE(modalAppeared);
+
+    const auto currentRowFor = [panel](const QString &name) {
+        for (int row = 0; row < panel->model()->rowCount(); ++row) {
+            if (panel->model()->fileInfoAt(row).name() == name)
+                return row;
+        }
+        return -1;
+    };
+    const int currentNextRow = currentRowFor(QStringLiteral("next.txt"));
+    ASSERT_GE(currentNextRow, 0);
+    panel->view()->setCurrentIndex(panel->model()->index(currentNextRow, 0));
+    const bool recovered = QTest::qWaitFor(
+        [quickView, editor, &nextEditable] {
+            return quickView->isEditing() && editor->filePath() == nextEditable;
+        }, 5000);
+    EXPECT_TRUE(recovered) << "selected=" << qPrintable(panel->currentEntryPath())
+                           << " editor=" << qPrintable(editor->filePath())
+                           << " notice=" << qPrintable(info->text())
+                           << " modal=" << modalAppeared;
+    EXPECT_FALSE(modalAppeared);
     EXPECT_TRUE(window.findChildren<ViewerWindow *>().isEmpty());
 
     QFile saved(editable);
     ASSERT_TRUE(saved.open(QIODevice::ReadOnly));
     EXPECT_TRUE(saved.readAll().contains("saved before unavailable switch"));
+
+    ASSERT_TRUE(QMetaObject::invokeMethod(ctrlE, "activated", Qt::DirectConnection));
+    EXPECT_EQ(panelSplitter(window)->indexOf(quickView), -1);
+
+    panel->view()->setCurrentIndex(panel->model()->index(0, 0));
+    ASSERT_TRUE(QMetaObject::invokeMethod(ctrlE, "activated", Qt::DirectConnection));
+    FC_TRY_VERIFY_WITH_TIMEOUT(panelSplitter(window)->indexOf(quickView) >= 0 &&
+                                   pages->currentWidget() == info &&
+                                   info->text().contains(QStringLiteral("cannot be edited")),
+                               5000);
+    EXPECT_FALSE(modalAppeared);
+    const int reopenedNextRow = currentRowFor(QStringLiteral("next.txt"));
+    ASSERT_GE(reopenedNextRow, 0);
+    panel->view()->setCurrentIndex(panel->model()->index(reopenedNextRow, 0));
+    FC_TRY_VERIFY_WITH_TIMEOUT(quickView->isEditing() && editor->filePath() == nextEditable,
+                               5000);
 }
 
 TEST(MainWindowPreviewSwapTest, AuxiliaryPopupsDoNotReplaceEmbeddedQuickViewEditor) {

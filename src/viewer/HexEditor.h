@@ -24,21 +24,14 @@ class QUndoStack;
 class HexEditor : public QAbstractScrollArea {
     Q_OBJECT
 
-    // Theming hooks. Every one of these defaults to an invalid QColor, which
-    // means "derive it from the palette", so the widget is already correct in
-    // all three themes without a single .qss rule. A theme that wants a
-    // different accent overrides it as `HexEditor { qproperty-<name>: #rgb; }`.
+    // Theming hooks default to palette colours. The green theme sets the
+    // preview's background and text explicitly so both surfaces match.
     Q_PROPERTY(QColor backgroundColor READ backgroundColor WRITE setBackgroundColor)
     Q_PROPERTY(QColor textColor READ textColor WRITE setTextColor)
-    Q_PROPERTY(QColor addressColor READ addressColor WRITE setAddressColor)
-    Q_PROPERTY(QColor addressBackgroundColor READ addressBackgroundColor
-                   WRITE setAddressBackgroundColor)
-    Q_PROPERTY(QColor separatorColor READ separatorColor WRITE setSeparatorColor)
     Q_PROPERTY(QColor selectionColor READ selectionColor WRITE setSelectionColor)
     Q_PROPERTY(QColor selectionTextColor READ selectionTextColor WRITE setSelectionTextColor)
     Q_PROPERTY(QColor cursorColor READ cursorColor WRITE setCursorColor)
     Q_PROPERTY(QColor modifiedColor READ modifiedColor WRITE setModifiedColor)
-    Q_PROPERTY(QColor nonPrintableColor READ nonPrintableColor WRITE setNonPrintableColor)
 
 public:
     enum class Column { Hex, Ascii };
@@ -105,12 +98,6 @@ public:
     void setBackgroundColor(const QColor &color);
     QColor textColor() const;
     void setTextColor(const QColor &color);
-    QColor addressColor() const;
-    void setAddressColor(const QColor &color);
-    QColor addressBackgroundColor() const;
-    void setAddressBackgroundColor(const QColor &color);
-    QColor separatorColor() const;
-    void setSeparatorColor(const QColor &color);
     QColor selectionColor() const;
     void setSelectionColor(const QColor &color);
     QColor selectionTextColor() const;
@@ -119,8 +106,6 @@ public:
     void setCursorColor(const QColor &color);
     QColor modifiedColor() const;
     void setModifiedColor(const QColor &color);
-    QColor nonPrintableColor() const;
-    void setNonPrintableColor(const QColor &color);
 
 public slots:
     void undo();
@@ -169,10 +154,6 @@ private:
     int totalWidth() const;
     qint64 offsetAt(const QPoint &viewportPoint, Column *column) const;
     QColor resolved(const QColor &override, const QColor &fallback) const;
-    static QColor mixed(const QColor &base, const QColor &towards, double amount);
-    // Widens the row to fill the window, in groups of eight. See the definition.
-    void fitBytesPerLineToWidth();
-
     QByteArray m_data;
     // Snapshot of the loaded bytes, kept only so edited bytes can be tinted.
     // Implicitly shared with m_data until the first edit, and left empty
@@ -189,27 +170,18 @@ private:
     bool m_selecting = false;
 
     int m_bytesPerLine = 16;
-    // Off once setBytesPerLine() has been called: an explicit width is a
-    // decision, not a starting point.
-    bool m_autoBytesPerLine = true;
-    int m_groupSize = 8;
     int m_charWidth = 8;
     int m_rowHeight = 16;
     int m_ascent = 12;
     int m_addressChars = 8;
-    int m_addressWidth = 80;
     int m_hexOriginX = 80;
     int m_asciiOriginX = 400;
     int m_margin = 6;
 
     QColor m_backgroundColor;
     QColor m_textColor;
-    QColor m_addressColor;
-    QColor m_addressBackgroundColor;
-    QColor m_separatorColor;
     QColor m_selectionColor;
     QColor m_selectionTextColor;
     QColor m_cursorColor;
     QColor m_modifiedColor;
-    QColor m_nonPrintableColor;
 };

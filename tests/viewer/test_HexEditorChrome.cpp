@@ -4,6 +4,7 @@
 #include <QFile>
 #include <QFontDatabase>
 #include <QImage>
+#include <QPlainTextEdit>
 
 #include "HexEditor.h"
 
@@ -38,14 +39,8 @@ QColor addressStripColour(HexEditor &editor) {
 
 } // namespace
 
-// A hex dump of a binary file showed a white strip down its left edge in the
-// dark and green themes. The address column's default came from
-// QPalette::AlternateBase -- a role no theme in this app sets, so it stayed at
-// the platform default. The text editor's line-number gutter had exactly this
-// bug; this is the same one, one widget over.
-//
-// Two separate things have to hold, and testing only the first would pass with
-// the fallback still broken -- the stylesheet rule hides it.
+// The address area shares the preview's background, including in themes whose
+// base colour differs from the platform default.
 TEST(HexEditorChrome, TheAddressColumnIsNeverAWhiteStrip) {
     for (const char *theme : {"green", "dark", "light"}) {
         const QString sheet = themeSheet(theme);
@@ -72,9 +67,7 @@ TEST(HexEditorChrome, TheAddressColumnIsNeverAWhiteStrip) {
     qApp->setStyleSheet(QString());
 }
 
-// The fallback, with NO stylesheet at all: a theme that names no colour of its
-// own must still not get a white column on a dark window. This is the half the
-// stylesheet rules above would otherwise hide.
+// With no stylesheet, the whole dump must still follow a dark widget palette.
 TEST(HexEditorChrome, TheAddressColumnFallbackFollowsTheWidgetsOwnPalette) {
     qApp->setStyleSheet(QString());
 
@@ -130,9 +123,9 @@ TEST(HexEditorChrome, APixelSizedConfigurationIsCarriedOverToo) {
     EXPECT_EQ(result.pixelSize(), 24);
 }
 
-// Sixteen bytes a row left the right-hand half of the window empty. The row
-// grows to what the window can show, in multiples of eight.
-TEST(HexEditorChrome, TheRowGrowsToUseTheWindowWidth) {
+// The preview dump uses sixteen bytes per row at every width. Editing the
+// same byte sequence must keep those offsets in the same rows.
+TEST(HexEditorChrome, RowsMatchTheFixedWidthPreviewDump) {
     HexEditor editor;
     editor.setContents(QByteArray(4096, '\x00'));
 
@@ -145,9 +138,43 @@ TEST(HexEditorChrome, TheRowGrowsToUseTheWindowWidth) {
     qApp->processEvents();
     const int wide = editor.bytesPerLine();
 
-    EXPECT_GT(wide, narrow) << "a wider window shows no more bytes per row";
-    EXPECT_EQ(wide % 8, 0) << "rows should stay in groups of eight";
-    EXPECT_GE(narrow, 8) << "a narrow window must still show a usable row";
+    EXPECT_EQ(narrow, 16);
+    EXPECT_EQ(wide, 16);
+}
+
+TEST(HexEditorChrome, AddressAndBytesShareThePreviewBackground) {
+    HexEditor editor;
+    editor.resize(700, 300);
+    editor.show();
+    qApp->processEvents();
+
+    const QImage image = editor.grab().toImage();
+    ASSERT_GT(image.width(), 250);
+    ASSERT_GT(image.height(), 200);
+    EXPECT_EQ(image.pixelColor(8, 200), image.pixelColor(240, 200));
+}
+
+TEST(HexEditorChrome, BackgroundMatchesTheTextPreviewInEveryTheme) {
+    for (const char *theme : {"green", "dark", "light"}) {
+        const QString sheet = themeSheet(theme);
+        ASSERT_FALSE(sheet.isEmpty());
+        qApp->setStyleSheet(sheet);
+
+        QPlainTextEdit preview;
+        preview.setReadOnly(true);
+        preview.resize(700, 300);
+        preview.show();
+
+        HexEditor editor;
+        editor.resize(700, 300);
+        editor.show();
+        qApp->processEvents();
+
+        const QColor previewBackground = preview.viewport()->grab().toImage().pixelColor(240, 200);
+        const QColor editorBackground = editor.viewport()->grab().toImage().pixelColor(240, 200);
+        EXPECT_EQ(editorBackground, previewBackground) << theme;
+    }
+    qApp->setStyleSheet(QString());
 }
 
 // ...unless the caller said what it wanted, which is a decision and not a
