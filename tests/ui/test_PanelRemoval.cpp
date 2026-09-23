@@ -9,6 +9,7 @@
 #include <memory>
 
 #include "FilePanel.h"
+#include "FileListView.h"
 #include "FileProvider.h"
 #include "FileSystemModel.h"
 #include "TabBar.h"
@@ -218,6 +219,34 @@ TEST(PanelRemovalTest, RemoteRefreshPreservesTheCurrentEntryWhenItStillExists) {
     settle(panel);
 
     EXPECT_EQ(currentEntryName(panel), QStringLiteral("middle.txt"));
+}
+
+TEST(PanelRemovalTest, RefreshKeepsASelectionChangedWhileTheScanIsRunning) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    touch(dir.filePath(QStringLiteral("alpha.txt")));
+    touch(dir.filePath(QStringLiteral("beta.txt")));
+
+    FilePanel panel;
+    panel.navigateTo(dir.path());
+    settle(panel);
+    const auto rowFor = [&panel](const QString &name) {
+        for (int row = 0; row < panel.model()->rowCount(); ++row) {
+            if (panel.model()->fileInfoAt(row).name() == name)
+                return row;
+        }
+        return -1;
+    };
+    ASSERT_GE(rowFor(QStringLiteral("alpha.txt")), 0);
+    ASSERT_GE(rowFor(QStringLiteral("beta.txt")), 0);
+    panel.view()->setCurrentIndex(panel.model()->index(rowFor(QStringLiteral("alpha.txt")), 0));
+
+    QSignalSpy finished(panel.model(), &FileSystemModel::loadFinished);
+    panel.refreshPreservingSelection();
+    panel.view()->setCurrentIndex(panel.model()->index(rowFor(QStringLiteral("beta.txt")), 0));
+    ASSERT_EQ(currentEntryName(panel), QStringLiteral("beta.txt"));
+    ASSERT_TRUE(finished.wait(4000));
+    EXPECT_EQ(currentEntryName(panel), QStringLiteral("beta.txt"));
 }
 
 TEST(PanelRemovalTest, ClosingAnInactiveRemoteTabLeavesTheActiveTabLocal) {

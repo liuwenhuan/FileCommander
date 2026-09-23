@@ -9,6 +9,7 @@
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPushButton>
+#include <QSignalSpy>
 #include <QShortcut>
 #include <QStringList>
 #include <QTemporaryDir>
@@ -18,6 +19,7 @@
 #include <QWidgetAction>
 
 #include <clocale>
+#include <memory>
 
 #include "ArchiveHandler.h"
 #include "FilePanel.h"
@@ -618,15 +620,8 @@ TEST(MainWindowActionsTest, ExtractingAnArchiveDoesNotRunOnTheGuiThread) {
         << createError.toStdString();
     ASSERT_TRUE(QFile::remove(payload)); // so its reappearance means the extraction ran
 
-#ifdef Q_OS_WIN
-    // The Windows Debug CRT can assert while this async window tears down; keep
-    // it off the top-level list until the runner's process exit.
-    auto *windowHost = new QWidget;
-    auto *window = new MainWindow(windowHost);
-#else
-    MainWindow windowStorage;
-    auto *window = &windowStorage;
-#endif
+    auto windowHost = std::make_unique<QWidget>();
+    auto *window = new MainWindow(windowHost.get());
     FilePanel *panel = window->findChildren<FilePanel *>().value(0);
     ASSERT_NE(panel, nullptr);
     window->setActivePanel(panel);
@@ -654,6 +649,7 @@ TEST(MainWindowActionsTest, ExtractingAnArchiveDoesNotRunOnTheGuiThread) {
     });
     dismisser.start(100);
 
+    QSignalSpy finished(window, &MainWindow::archiveJobFinished);
     ASSERT_TRUE(QMetaObject::invokeMethod(window, "extractArchiveHere", Qt::DirectConnection));
     // The whole point: the handler returned with the work still outstanding.
     const QString extracted =
@@ -678,4 +674,5 @@ TEST(MainWindowActionsTest, ExtractingAnArchiveDoesNotRunOnTheGuiThread) {
         }
         return false;
     }, 10000)) << "the panel never picked up the extracted files";
+    ASSERT_TRUE(!finished.isEmpty() || finished.wait(10000));
 }

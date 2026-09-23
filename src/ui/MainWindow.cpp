@@ -6004,6 +6004,7 @@ void MainWindow::finishExtractJob(quint64 reqId, bool announce) {
     // the comparison above cannot match (a network tab unpacking via a mount).
     if (job.refreshPanel && job.refreshPanel->currentPath() != job.destDir)
         job.refreshPanel->refresh();
+    emit archiveJobFinished();
     // Cancelled at the very first password prompt: nothing was written, so
     // saying where it landed would be a lie.
     if (!announce || job.finalDir.isEmpty())

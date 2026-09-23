@@ -7,6 +7,8 @@
 #include <QFileInfo>
 #include <QProcess>
 #include <QSignalSpy>
+#include <QSslCertificate>
+#include <QSslKey>
 #include <QSslSocket>
 #include <QTemporaryDir>
 #include <QThread>
@@ -835,6 +837,13 @@ TEST_F(FileShareServerTest, AWrongPinGetsNothing) {
     // And the right pin still works against the same server, so the failure
     // above was the pin and not something else about this connection.
     EXPECT_TRUE(connectWith(QString::fromLatin1(kTicket)));
+}
+
+TEST(ShareIdentityTest, GeneratedIdentityCanBeLoadedByQtTls) {
+    const ShareIdentity::Identity identity = ShareIdentity::generate();
+    ASSERT_TRUE(identity.isValid());
+    EXPECT_FALSE(QSslCertificate::fromData(identity.certPem, QSsl::Pem).isEmpty());
+    EXPECT_FALSE(QSslKey(identity.keyPem, QSsl::Ec, QSsl::Pem).isNull());
 }
 
 // The pin is only a shared secret if both sides derive it the same way. curl's

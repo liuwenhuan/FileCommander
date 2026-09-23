@@ -701,6 +701,7 @@ private:
     int m_pendingNetworkAttempt = 0;
     bool m_networkStatusVisible = false;
     QStringList m_pendingSelection;
+    QString m_pendingCurrentPath;
 
     // Non-null while this panel is browsing inside an archive (read-only). Held
     // so the ArchiveProvider outlives the model's use of it; cleared on exit.

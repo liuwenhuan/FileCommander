@@ -24,6 +24,19 @@ if(WIN32)
         list(APPEND _fc_test_runtime_dirs
             "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin")
     endif()
+    if(DEFINED ENV{FILECOMMANDER_OPENSSL111_ROOT} AND
+       NOT "$ENV{FILECOMMANDER_OPENSSL111_ROOT}" STREQUAL "")
+        set(_fc_openssl111_root "$ENV{FILECOMMANDER_OPENSSL111_ROOT}")
+    elseif(DEFINED VCPKG_INSTALLED_DIR)
+        get_filename_component(_fc_vcpkg_root "${VCPKG_INSTALLED_DIR}" DIRECTORY)
+        get_filename_component(_fc_sdk_root "${_fc_vcpkg_root}" DIRECTORY)
+        set(_fc_openssl111_root "${_fc_sdk_root}/openssl-1.1.1")
+    endif()
+    if(DEFINED _fc_openssl111_root AND
+       EXISTS "${_fc_openssl111_root}/bin/libssl-1_1-x64.dll" AND
+       EXISTS "${_fc_openssl111_root}/bin/libcrypto-1_1-x64.dll")
+        list(APPEND _fc_test_runtime_dirs "${_fc_openssl111_root}/bin")
+    endif()
     list(JOIN _fc_test_runtime_dirs "\\;" FILECOMMANDER_WINDOWS_TEST_RUNTIME_PATH)
 
     # The host PATH's own separators have to be escaped too, and were not.

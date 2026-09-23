@@ -491,7 +491,9 @@ FilePanel::FilePanel(const QFont &initialListFont, QWidget *parent) : QWidget(pa
     // cursor without altering the selection. Guarded on the view so a normal
     // directory does not pay a QStorageInfo call on every keystroke.
     connect(m_view->selectionModel(), &QItemSelectionModel::currentChanged, this,
-            [this] {
+            [this](const QModelIndex &current) {
+                if (!m_pendingCurrentPath.isEmpty() && current.isValid())
+                    m_pendingCurrentPath = m_model->fileInfoAt(current.row()).path();
                 if (m_computerProvider)
                     updateDiskInfo();
             });
@@ -544,25 +546,30 @@ FilePanel::FilePanel(const QFont &initialListFont, QWidget *parent) : QWidget(pa
             if (!flat)
                 syncTreeToPath(m_model->rootPath());
         }
-        if (!m_pendingSelection.isEmpty()) {
+        if (!m_pendingSelection.isEmpty() || !m_pendingCurrentPath.isEmpty()) {
             QItemSelectionModel *sel = m_view->selectionModel();
             QModelIndex first;
+            QModelIndex current;
             for (int row = 0; row < m_model->rowCount(); ++row) {
-                if (m_pendingSelection.contains(m_model->fileInfoAt(row).path())) {
-                    const QModelIndex idx = m_model->index(row, 0);
+                const QString path = m_model->fileInfoAt(row).path();
+                const QModelIndex idx = m_model->index(row, 0);
+                if (path == m_pendingCurrentPath)
+                    current = idx;
+                if (m_pendingSelection.contains(path)) {
                     sel->select(idx, QItemSelectionModel::Select | QItemSelectionModel::Rows);
                     if (!first.isValid())
                         first = idx;
                 }
             }
-            // Keep focus on (and scroll to) the first restored row -- e.g. the
-            // file just renamed -- rather than letting the reload jump to the
-            // top. NoUpdate leaves the selection above intact.
-            if (first.isValid()) {
-                sel->setCurrentIndex(first, QItemSelectionModel::NoUpdate);
-                activeView()->scrollTo(first, QAbstractItemView::EnsureVisible);
+            // A cursor move during the scan wins over the pre-scan cursor.
+            // NoUpdate leaves the restored multi-selection intact.
+            const QModelIndex focus = current.isValid() ? current : first;
+            if (focus.isValid()) {
+                sel->setCurrentIndex(focus, QItemSelectionModel::NoUpdate);
+                activeView()->scrollTo(focus, QAbstractItemView::EnsureVisible);
             }
             m_pendingSelection.clear();
+            m_pendingCurrentPath.clear();
         }
         if (m_view->model()->rowCount() > 0 && !m_view->currentIndex().isValid())
             m_view->setCurrentIndex(m_view->model()->index(0, 0));
@@ -1403,6 +1410,9 @@ void FilePanel::rememberSelectionForReload() {
             paths.append(m_model->fileInfoAt(current.row()).path());
     }
     m_pendingSelection = paths;
+    const QModelIndex current = activeView()->currentIndex();
+    m_pendingCurrentPath = current.isValid() ? m_model->fileInfoAt(current.row()).path()
+                                              : QString();
 }
 
 void FilePanel::refreshOnActivation() {

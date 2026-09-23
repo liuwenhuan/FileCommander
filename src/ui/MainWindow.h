@@ -100,6 +100,7 @@ public:
 
 signals:
     void startupReady();
+    void archiveJobFinished();
 
 protected:
     void closeEvent(QCloseEvent *event) override;
