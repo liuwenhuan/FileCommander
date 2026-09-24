@@ -3330,8 +3330,8 @@ void MainWindow::navigateToRoot() {
         return;
     // Pure string work, deliberately: on a network or archive tab this path
     // belongs to that backend, and asking QDir/QFileInfo about it would probe
-    // THIS machine's filesystem instead (see the path-is-not-a-local-path note
-    // in CLAUDE.md). Both shapes that can occur are handled directly.
+    // THIS machine's filesystem instead (see the filesystem boundary in
+    // docs/development-history.md). Both shapes are handled directly.
     const QString path = QDir::fromNativeSeparators(m_activePanel->currentPath());
     QString root;
     if (path.size() >= 2 && path.at(1) == QLatin1Char(':'))
