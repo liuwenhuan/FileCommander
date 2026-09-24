@@ -129,6 +129,16 @@
 <context>
     <name>AccountDialog</name>
     <message>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="86"/>
+        <source>Official</source>
+        <translation>公式</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="89"/>
+        <source>Custom</source>
+        <translation>カスタム</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="44"/>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="178"/>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="189"/>
@@ -162,14 +172,19 @@
         <translation>メール:</translation>
     </message>
     <message>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="137"/>
+        <source>Username</source>
+        <translation>ユーザー名</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="93"/>
         <source>Password:</source>
         <translation>パスワード：</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="94"/>
-        <source>This device:</source>
-        <translation>このデバイス:</translation>
+        <source>Device name</source>
+        <translation>デバイス名</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="96"/>
@@ -179,7 +194,7 @@
     <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="98"/>
         <source>Create Account</source>
-        <translation>アカウントを作成</translation>
+        <translation>新規登録</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="111"/>

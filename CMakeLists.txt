@@ -113,6 +113,39 @@ target_compile_definitions(FileCommander PRIVATE
     FILECOMMANDER_MEDIA_BACKEND_WINDOWSMF=${FILECOMMANDER_MEDIA_BACKEND_WINDOWSMF}
 )
 
+if(WIN32 AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+    get_filename_component(_qt_bin "${Qt5_DIR}/../../../bin" ABSOLUTE)
+    set(_windeployqt "${_qt_bin}/windeployqt.exe")
+    if(NOT EXISTS "${_windeployqt}")
+        message(FATAL_ERROR "Qt deployment tool not found: ${_windeployqt}")
+    endif()
+
+    add_custom_command(TARGET FileCommander POST_BUILD
+        COMMAND "${_windeployqt}" --debug --no-translations --no-compiler-runtime
+                "$<TARGET_FILE:FileCommander>"
+        COMMENT "Deploying Qt debug DLLs and plugins beside FileCommander.exe"
+        VERBATIM)
+
+    if(FILECOMMANDER_ENABLE_NETWORK)
+        if(DEFINED ENV{FILECOMMANDER_OPENSSL111_ROOT})
+            set(_openssl111_root "$ENV{FILECOMMANDER_OPENSSL111_ROOT}")
+        elseif(VCPKG_INSTALLED_DIR)
+            get_filename_component(_sdk_root "${VCPKG_INSTALLED_DIR}/../.." ABSOLUTE)
+            set(_openssl111_root "${_sdk_root}/openssl-1.1.1")
+        endif()
+        foreach(_openssl_dll libcrypto-1_1-x64.dll libssl-1_1-x64.dll)
+            set(_openssl_source "${_openssl111_root}/bin/${_openssl_dll}")
+            if(NOT EXISTS "${_openssl_source}")
+                message(FATAL_ERROR "Qt network runtime not found: ${_openssl_source}")
+            endif()
+            add_custom_command(TARGET FileCommander POST_BUILD
+                COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                        "${_openssl_source}" "$<TARGET_FILE_DIR:FileCommander>"
+                VERBATIM)
+        endforeach()
+    endif()
+endif()
+
 if(TTC_BUILD_TESTS)
     find_package(Qt5 REQUIRED COMPONENTS Test)
     enable_testing()
@@ -184,11 +217,18 @@ if(LUPDATE_CMD AND LRELEASE_CMD)
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         COMMENT "lupdate: extracting translatable strings into .ts files"
         VERBATIM)
-    add_custom_target(release-translations
-        COMMAND ${LRELEASE_CMD} ${TS_FILES}
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        COMMENT "lrelease: compiling .ts files into .qm"
-        VERBATIM)
+    set(QM_FILES)
+    foreach(TS_FILE IN LISTS TS_FILES)
+        get_filename_component(TS_NAME "${TS_FILE}" NAME_WE)
+        set(QM_FILE "${CMAKE_SOURCE_DIR}/resources/translations/${TS_NAME}.qm")
+        add_custom_command(OUTPUT "${QM_FILE}"
+            COMMAND ${LRELEASE_CMD} "${TS_FILE}" -qm "${QM_FILE}"
+            DEPENDS "${TS_FILE}"
+            COMMENT "lrelease: compiling ${TS_NAME}.ts"
+            VERBATIM)
+        list(APPEND QM_FILES "${QM_FILE}")
+    endforeach()
+    add_custom_target(release-translations DEPENDS ${QM_FILES})
 
     # The .qm files are embedded by resources.qrc. Make every shipped target
     # refresh them first, so a package cannot contain a catalog older than the

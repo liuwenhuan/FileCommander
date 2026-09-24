@@ -129,6 +129,16 @@
 <context>
     <name>AccountDialog</name>
     <message>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="86"/>
+        <source>Official</source>
+        <translation>Oficial</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="89"/>
+        <source>Custom</source>
+        <translation>Personalizado</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="44"/>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="178"/>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="189"/>
@@ -144,7 +154,7 @@
     <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="59"/>
         <source>Custom server</source>
-        <translation>Servidor personalizado</translation>
+        <translation>Servidor próprio</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="63"/>
@@ -162,14 +172,19 @@
         <translation>E-mail:</translation>
     </message>
     <message>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="137"/>
+        <source>Username</source>
+        <translation>Nome de usuário</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="93"/>
         <source>Password:</source>
         <translation>Senha:</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="94"/>
-        <source>This device:</source>
-        <translation>Este dispositivo:</translation>
+        <source>Device name</source>
+        <translation>Nome do dispositivo</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="96"/>

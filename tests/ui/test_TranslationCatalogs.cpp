@@ -154,6 +154,21 @@ TEST(TranslationCatalogsTest, EveryBundledCatalogHasACompiledCounterpart) {
     }
 }
 
+TEST(TranslationCatalogsTest, AccountServerChoicesAreCompiledInEveryLanguage) {
+    for (const QString &language : bundledLanguages()) {
+        QTranslator translator;
+        ASSERT_TRUE(translator.load(QStringLiteral(":/translations/ttc_%1.qm").arg(language)));
+        EXPECT_NE(translator.translate("AccountDialog", "Official server"), QStringLiteral("Official server"))
+            << language.toStdString();
+        EXPECT_NE(translator.translate("AccountDialog", "Custom server"), QStringLiteral("Custom server"))
+            << language.toStdString();
+        const QString deviceName = translator.translate("AccountDialog", "Device name");
+        EXPECT_FALSE(deviceName.isEmpty()) << language.toStdString();
+        EXPECT_NE(deviceName, QStringLiteral("Device name"))
+            << language.toStdString();
+    }
+}
+
 TEST(TranslationCatalogsTest, ChineseRemovableDeviceMenuIsCompiled) {
     QTranslator translator;
     ASSERT_TRUE(translator.load(QStringLiteral(":/translations/ttc_zh_CN.qm")));

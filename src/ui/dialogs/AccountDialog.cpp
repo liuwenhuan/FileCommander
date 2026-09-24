@@ -1,9 +1,7 @@
 #include "AccountDialog.h"
 
 #include <QCheckBox>
-#include <QDialogButtonBox>
 #include <QFileDialog>
-#include <QFormLayout>
 #include <QHBoxLayout>
 #include <QHostInfo>
 #include <QLabel>
@@ -12,7 +10,10 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QScrollArea>
+#include <QSizePolicy>
 #include <QStackedWidget>
+#include <QTimer>
 #include <QUrl>
 #include <QVBoxLayout>
 
@@ -21,6 +22,26 @@
 #include "config/Settings.h"
 
 namespace {
+
+constexpr int kDialogWidth = 500;
+constexpr int kSignedOutHeight = 350;
+constexpr int kSignedInHeight = 430;
+
+class CurrentPageStack final : public QStackedWidget {
+public:
+    explicit CurrentPageStack(QWidget *parent) : QStackedWidget(parent) {
+        connect(this, &QStackedWidget::currentChanged, this, [this] { updateGeometry(); });
+    }
+
+    QSize sizeHint() const override {
+        return currentWidget() ? currentWidget()->sizeHint() : QStackedWidget::sizeHint();
+    }
+
+    QSize minimumSizeHint() const override {
+        return currentWidget() ? currentWidget()->minimumSizeHint()
+                               : QStackedWidget::minimumSizeHint();
+    }
+};
 
 QString normalizedServerUrl(QString value) {
     value = value.trimmed();
@@ -43,43 +64,65 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
     : FramelessDialog(parent), m_client(client), m_settings(settings) {
     setWindowTitle(tr("FileCommander Account"));
     setModal(true);
-    resize(500, 430);
+    resize(kDialogWidth, kSignedOutHeight);
 
-    m_pages = new QStackedWidget(this);
+    m_pages = new CurrentPageStack(this);
+    m_pages->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
 
     // Page 0: signed out.
-    auto *form = new QWidget(m_pages);
-    auto *fields = new QFormLayout(form);
+    auto *scroll = new QScrollArea(m_pages);
+    m_loginScroll = scroll;
+    scroll->setObjectName(QStringLiteral("AccountLoginScroll"));
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setWidgetResizable(true);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    auto *form = new QWidget(scroll);
+    auto *formLayout = new QVBoxLayout(form);
+    formLayout->setContentsMargins(16, 0, 16, 0);
+    formLayout->setSpacing(0);
 
-    auto *serverChoices = new QWidget(form);
-    auto *serverLayout = new QVBoxLayout(serverChoices);
-    serverLayout->setContentsMargins(0, 0, 0, 0);
-    m_officialServer = new QRadioButton(tr("Official server"), serverChoices);
+    auto *serverChoices = new QVBoxLayout;
+    serverChoices->setSpacing(0);
+    auto *customServerRow = new QHBoxLayout;
+    customServerRow->setSpacing(4);
+    m_officialServer = new QRadioButton(tr("Official server"), form);
     m_officialServer->setObjectName(QStringLiteral("OfficialServerRadio"));
-    m_customServer = new QRadioButton(tr("Custom server"), serverChoices);
+    m_officialServer->setToolTip(tr("Official server"));
+    m_customServer = new QRadioButton(tr("Custom server"), form);
     m_customServer->setObjectName(QStringLiteral("CustomServerRadio"));
-    m_customServerUrl = new QLineEdit(serverChoices);
+    m_customServer->setToolTip(tr("Custom server"));
+    m_customServer->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    m_customServerUrl = new QLineEdit(form);
     m_customServerUrl->setObjectName(QStringLiteral("CustomServerUrl"));
     m_customServerUrl->setPlaceholderText(tr("Server URL"));
     m_customServerUrl->setText(m_settings.accountCustomServerUrl());
-    auto *customRow = new QHBoxLayout;
-    customRow->setContentsMargins(0, 0, 0, 0);
-    customRow->addWidget(m_customServer);
-    customRow->addWidget(m_customServerUrl, 1);
-    serverLayout->addWidget(m_officialServer);
-    serverLayout->addLayout(customRow);
+    serverChoices->addWidget(m_officialServer);
+    customServerRow->addWidget(m_customServer);
+    customServerRow->addWidget(m_customServerUrl, 1);
+    serverChoices->addLayout(customServerRow);
     const bool official = m_settings.accountUsesOfficialServer();
     m_officialServer->setChecked(official);
     m_customServer->setChecked(!official);
 
     m_email = new QLineEdit(form);
     m_email->setObjectName(QStringLiteral("AccountEmail"));
+    m_email->setAccessibleName(tr("Username"));
+    m_email->setPlaceholderText(tr("Email:"));
+    m_email->setMinimumWidth(0);
+    m_email->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
     m_email->setText(m_settings.accountEmail());
     m_password = new QLineEdit(form);
     m_password->setObjectName(QStringLiteral("AccountPassword"));
+    m_password->setAccessibleName(tr("Password:"));
+    m_password->setPlaceholderText(tr("Password:"));
+    m_password->setMinimumWidth(0);
+    m_password->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
     m_password->setEchoMode(QLineEdit::Password);
     m_deviceName = new QLineEdit(form);
     m_deviceName->setObjectName(QStringLiteral("AccountDeviceName"));
+    m_deviceName->setAccessibleName(tr("Device name"));
+    m_deviceName->setMinimumWidth(0);
+    m_deviceName->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
     // Pre-fill the name the user chose last time rather than the hostname: the
     // device name is this install's identity on the account, and silently
     // snapping it back to the machine's hostname on every sign-in would change
@@ -87,27 +130,67 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
     m_deviceName->setText(m_settings.accountDeviceName().isEmpty()
                               ? QHostInfo::localHostName()
                               : m_settings.accountDeviceName());
+    m_customServerUrl->setMinimumWidth(100);
+    QSizePolicy customUrlPolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    customUrlPolicy.setRetainSizeWhenHidden(true);
+    m_customServerUrl->setSizePolicy(customUrlPolicy);
 
-    fields->addRow(tr("Server:"), serverChoices);
-    fields->addRow(tr("Email:"), m_email);
-    fields->addRow(tr("Password:"), m_password);
-    fields->addRow(tr("This device:"), m_deviceName);
+    auto *usernameLabel = new QLabel(tr("Username"), form);
+    usernameLabel->setObjectName(QStringLiteral("AccountUsernameLabel"));
+    usernameLabel->setBuddy(m_email);
+    usernameLabel->setMinimumWidth(0);
+    usernameLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+    auto *passwordLabel = new QLabel(tr("Password:"), form);
+    passwordLabel->setObjectName(QStringLiteral("AccountPasswordLabel"));
+    passwordLabel->setBuddy(m_password);
+    passwordLabel->setMinimumWidth(0);
+    passwordLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+    auto *credentialsLabels = new QHBoxLayout;
+    credentialsLabels->setSpacing(5);
+    credentialsLabels->addWidget(usernameLabel, 1);
+    credentialsLabels->addWidget(passwordLabel, 1);
+    auto *credentialsRow = new QHBoxLayout;
+    credentialsRow->setSpacing(5);
+    credentialsRow->addWidget(m_email, 1);
+    credentialsRow->addWidget(m_password, 1);
+
+    auto *deviceRow = new QHBoxLayout;
+    deviceRow->setSpacing(3);
+    auto *deviceLabel = new QLabel(tr("Device name"), form);
+    deviceLabel->setObjectName(QStringLiteral("AccountDeviceLabel"));
+    deviceRow->addWidget(deviceLabel);
+    deviceRow->addWidget(m_deviceName, 1);
 
     m_signIn = new QPushButton(tr("Sign In"), form);
     m_signIn->setDefault(true);
     m_registerButton = new QPushButton(tr("Create Account"), form);
-    auto *formButtons = new QHBoxLayout;
-    formButtons->addStretch();
-    formButtons->addWidget(m_registerButton);
-    formButtons->addWidget(m_signIn);
-    fields->addRow(formButtons);
-    m_pages->addWidget(form);
+    auto *actionsRow = new QHBoxLayout;
+    actionsRow->setSpacing(5);
+    actionsRow->addStretch(1);
+    actionsRow->addWidget(m_registerButton);
+    actionsRow->addWidget(m_signIn);
+    m_status = new QLabel(form);
+    m_status->setObjectName(QStringLiteral("AccountStatus"));
+    m_status->setWordWrap(true);
+    formLayout->addLayout(serverChoices);
+    formLayout->addLayout(credentialsLabels);
+    formLayout->addLayout(credentialsRow);
+    formLayout->addLayout(deviceRow);
+    formLayout->addLayout(actionsRow);
+    formLayout->addWidget(m_status);
+    m_status->hide();
+    scroll->setWidget(form);
+    m_pages->addWidget(scroll);
 
     // Page 1: signed in.
     auto *account = new QWidget(m_pages);
     auto *accountLayout = new QVBoxLayout(account);
+    accountLayout->setContentsMargins(9, 6, 9, 6);
+    accountLayout->setSpacing(4);
     m_accountLabel = new QLabel(account);
+    m_accountLabel->setWordWrap(true);
     m_devices = new QListWidget(account);
+    m_devices->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Expanding);
     m_devices->setToolTip(tr("Double-click a device to browse its shared folders."));
 
     // Serving half: off by default, so an account with sharing untouched never
@@ -115,6 +198,7 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
     m_shareEnabled = new QCheckBox(tr("Share these folders with my other devices"), account);
     m_shareEnabled->setChecked(m_settings.deviceSharingEnabled());
     m_sharedFolders = new QListWidget(account);
+    m_sharedFolders->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Expanding);
     m_sharedFolders->addItems(m_settings.sharedFolders());
     auto *addFolder = new QPushButton(tr("Add Folder…"), account);
     auto *removeFolder = new QPushButton(tr("Remove"), account);
@@ -135,20 +219,18 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
     accountLayout->addWidget(m_shareEnabled);
     accountLayout->addWidget(m_sharedFolders, 1);
     accountLayout->addLayout(shareButtons);
+    m_accountStatus = new QLabel(account);
+    m_accountStatus->setObjectName(QStringLiteral("AccountSignedInStatus"));
+    m_accountStatus->setWordWrap(true);
+    m_accountStatus->hide();
+    accountLayout->addWidget(m_accountStatus);
     accountLayout->addLayout(accountButtons);
     m_pages->addWidget(account);
 
-    m_status = new QLabel(this);
-    m_status->setObjectName(QStringLiteral("AccountStatus"));
-    m_status->setWordWrap(true);
-    auto *closeBox = new QDialogButtonBox(QDialogButtonBox::Close, this);
-
     auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(m_pages, 1);
-    layout->addWidget(m_status);
-    layout->addWidget(closeBox);
 
-    connect(closeBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(m_customServer, &QRadioButton::toggled, this,
             [this] { updateServerControls(); });
     connect(m_shareEnabled, &QCheckBox::toggled, this,
@@ -196,7 +278,7 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
     connect(m_signIn, &QPushButton::clicked, this, [this] {
         const auto email = AccountEmail::canonicalize(m_email->text());
         if (!email) {
-            m_status->setText(tr("Enter a valid email address."));
+            setSignedOutStatus(tr("Enter a valid email address."));
             m_email->setFocus();
             return;
         }
@@ -204,14 +286,14 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
         if (!applyServerSelection())
             return;
         setBusy(true);
-        m_status->setText(tr("Signing in…"));
+        setSignedOutStatus(tr("Signing in…"));
         m_client.login(*email, m_password->text(), m_deviceName->text().trimmed(),
                        m_settings.accountDeviceId());
     });
     connect(m_registerButton, &QPushButton::clicked, this, [this] {
         const auto email = AccountEmail::canonicalize(m_email->text());
         if (!email) {
-            m_status->setText(tr("Enter a valid email address."));
+            setSignedOutStatus(tr("Enter a valid email address."));
             m_email->setFocus();
             return;
         }
@@ -219,7 +301,7 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
         if (!applyServerSelection())
             return;
         setBusy(true);
-        m_status->setText(tr("Creating account…"));
+        setSignedOutStatus(tr("Creating account…"));
         m_client.registerAccount(*email, m_password->text());
     });
     connect(signOut, &QPushButton::clicked, this, [this] { m_client.logout(); });
@@ -228,7 +310,7 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
         // Registration does not sign in: go straight on to it, so creating an
         // account is one click rather than two.
         setBusy(true);
-        m_status->setText(tr("Account created, signing in…"));
+        setSignedOutStatus(tr("Account created, signing in…"));
         m_settings.setAccountEmail(email);
         m_client.login(email, m_password->text(), m_deviceName->text().trimmed(),
                        m_settings.accountDeviceId());
@@ -241,7 +323,9 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
         // re-registration after a sign-out) offers that name, not the hostname.
         m_settings.setAccountDeviceName(m_deviceName->text().trimmed());
         setBusy(false);
-        m_status->clear();
+        setSignedOutStatus(QString());
+        m_accountStatus->clear();
+        m_accountStatus->hide();
         showCurrentState();
     });
     connect(&m_client, &AccountClient::loggedOut, this, [this] {
@@ -249,7 +333,9 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
         // a credential, and reusing it keeps a later sign-in from adding a
         // second row for the same machine.
         setBusy(false);
-        m_status->clear();
+        setSignedOutStatus(QString());
+        m_accountStatus->clear();
+        m_accountStatus->hide();
         showCurrentState();
     });
     connect(&m_client, &AccountClient::requestFailed, this, &AccountDialog::reportError);
@@ -258,7 +344,9 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
     // update and there is nothing the user can type to get past it.
     connect(&m_client, &AccountClient::updateRequired, this, [this](const QString &detail) {
         setBusy(false);
-        m_status->clear();
+        setSignedOutStatus(QString());
+        m_accountStatus->clear();
+        m_accountStatus->hide();
         QMessageBox::warning(this, tr("FileCommander Account"),
                              detail.isEmpty()
                                  ? tr("This version of FileCommander can no longer be used. "
@@ -296,6 +384,9 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
 void AccountDialog::showCurrentState() {
     const bool in = m_client.isLoggedIn();
     m_pages->setCurrentIndex(in ? 1 : 0);
+    layout()->invalidate();
+    layout()->activate();
+    updateWindowSize();
     if (!in)
         return;
     m_accountLabel->setText(tr("Signed in as %1").arg(m_client.account().email));
@@ -304,17 +395,42 @@ void AccountDialog::showCurrentState() {
     m_client.fetchDevices();
 }
 
+QSize AccountDialog::sizeHint() const {
+    if (!m_pages)
+        return FramelessDialog::sizeHint();
+    if (m_pages->currentIndex() == 1)
+        return QSize(kDialogWidth, kSignedInHeight);
+    return QSize(kDialogWidth, kSignedOutHeight);
+}
+
+void AccountDialog::updateWindowSize() {
+    const QPoint center = geometry().center();
+    const QSize targetSize = sizeHint();
+    const QSize oldSize = size();
+    if (m_pages->currentIndex() == 0) {
+        setFixedSize(targetSize);
+    } else {
+        setMinimumSize(0, 0);
+        setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+    }
+    if (size() != targetSize)
+        resize(targetSize);
+    if (isVisible() && size() != oldSize)
+        move(center - QPoint((width() - 1) / 2, (height() - 1) / 2));
+}
+
 void AccountDialog::updateServerControls() {
     const bool custom = m_customServer->isChecked();
     m_customServerUrl->setVisible(custom);
     m_customServerUrl->setEnabled(custom && m_signIn->isEnabled());
+    updateWindowSize();
 }
 
 bool AccountDialog::applyServerSelection() {
     const bool official = m_officialServer->isChecked();
     const QString customUrl = normalizedServerUrl(m_customServerUrl->text());
     if (!official && !isValidCustomServerUrl(customUrl)) {
-        m_status->setText(tr("Enter a valid server URL."));
+        setSignedOutStatus(tr("Enter a valid server URL."));
         m_customServerUrl->setFocus();
         return false;
     }
@@ -358,7 +474,22 @@ void AccountDialog::setBusy(bool busy) {
     updateServerControls();
 }
 
+void AccountDialog::setSignedOutStatus(const QString &message) {
+    m_status->setText(message);
+    m_status->setVisible(!message.isEmpty());
+    updateWindowSize();
+    QTimer::singleShot(0, this, [this] {
+        if (!m_status->isHidden() && m_pages->currentIndex() == 0)
+            m_loginScroll->ensureWidgetVisible(m_status);
+    });
+}
+
 void AccountDialog::reportError(const QString &error) {
     setBusy(false);
-    m_status->setText(error);
+    if (m_pages->currentIndex() == 0) {
+        setSignedOutStatus(error);
+    } else {
+        m_accountStatus->setText(error);
+        m_accountStatus->show();
+    }
 }

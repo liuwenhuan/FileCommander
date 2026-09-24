@@ -129,6 +129,16 @@
 <context>
     <name>AccountDialog</name>
     <message>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="86"/>
+        <source>Official</source>
+        <translation>Офиц.</translation>
+    </message>
+    <message>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="89"/>
+        <source>Custom</source>
+        <translation>Свой</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="44"/>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="178"/>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="189"/>
@@ -139,12 +149,12 @@
     <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="57"/>
         <source>Official server</source>
-        <translation>Официальный сервер</translation>
+        <translation>Сервер FC</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="59"/>
         <source>Custom server</source>
-        <translation>Пользовательский сервер</translation>
+        <translation>Свой серв.</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="63"/>
@@ -162,14 +172,19 @@
         <translation>Эл. почта:</translation>
     </message>
     <message>
+        <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="137"/>
+        <source>Username</source>
+        <translation>Имя пользователя</translation>
+    </message>
+    <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="93"/>
         <source>Password:</source>
         <translation>Пароль:</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="94"/>
-        <source>This device:</source>
-        <translation>Это устройство:</translation>
+        <source>Device name</source>
+        <translation>Имя устройства</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="96"/>
@@ -179,7 +194,7 @@
     <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="98"/>
         <source>Create Account</source>
-        <translation>Создать учётную запись</translation>
+        <translation>Создать</translation>
     </message>
     <message>
         <location filename="../../src/ui/dialogs/AccountDialog.cpp" line="111"/>
