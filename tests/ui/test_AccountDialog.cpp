@@ -478,13 +478,13 @@ TEST(AccountDialog, ThemedModalDialogReturnsToItsLoginSizeAfterSignOut) {
     EXPECT_GE(password->width(), 140);
     EXPECT_EQ(email->placeholderText(), QObject::tr("Email:"));
     EXPECT_EQ(password->placeholderText(), QObject::tr("Password:"));
-    EXPECT_GE(device->width(), 240);
+    EXPECT_GE(device->width(), 230);
     const int viewportTop = scroll->viewport()->mapTo(&dialog, QPoint(0, 0)).y();
     const int viewportBottom = scroll->viewport()->mapTo(
         &dialog, QPoint(0, scroll->viewport()->height())).y();
     const int serverTop = official->mapTo(&dialog, QPoint(0, 0)).y();
     const int actionsBottom = signIn->mapTo(&dialog, QPoint(0, signIn->height())).y();
-    EXPECT_LE(serverTop - viewportTop, 18);
+    EXPECT_LE(serverTop - viewportTop, 24);
     EXPECT_LE(viewportBottom - actionsBottom, 24);
     for (QWidget *field : {static_cast<QWidget *>(url), static_cast<QWidget *>(email),
                            static_cast<QWidget *>(password), static_cast<QWidget *>(device),

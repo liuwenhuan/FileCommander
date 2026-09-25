@@ -263,9 +263,9 @@ jobs:
           test "$(find release-portable -maxdepth 1 -type f -name '*.zip' | wc -l)" = 1
           previous="$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || :)"
           if [[ -n "$previous" ]]; then
-            git log --format='%h %s%n%n%b' "$previous..$TAG" > release-notes.md
+            git log --no-merges -n 20 --format='- %s' "$previous..$TAG" > release-notes.md
           else
-            git log --format='%h %s%n%n%b' "$TAG" > release-notes.md
+            git log --no-merges -n 20 --format='- %s' "$TAG" > release-notes.md
           fi
           if [[ ! -s release-notes.md ]]; then
             printf 'FileCommander %s\n' "$VERSION" > release-notes.md
