@@ -57,6 +57,11 @@ StatusBarWidget::StatusBarWidget(QWidget *parent) : QWidget(parent) {
     layout->addWidget(m_zoomInButton);
 }
 
+void StatusBarWidget::retranslate() {
+    m_zoomOutButton->setToolTip(tr("Smaller"));
+    m_zoomInButton->setToolTip(tr("Larger"));
+}
+
 void StatusBarWidget::setConnectionStatus(const QString &text, int level) {
     if (text.isEmpty() || level == ConnNone) {
         m_connLabel->clear();

@@ -165,6 +165,7 @@ public:
     // embedded editor never gets a close event of its own: the host window has
     // to require a successful write before it leaves the editor page.
     bool promptSaveIfModified();
+    void retranslate();
 
     // Test/seam accessors for the toolbar's own controls.
     QAction *saveAction() const { return m_saveAction; }
@@ -190,6 +191,7 @@ public slots:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    void changeEvent(QEvent *event) override;
 
 private slots:
     void onModificationChanged(bool modified);

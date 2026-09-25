@@ -47,7 +47,8 @@ public:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    void changeEvent(QEvent *event) override;
 
 private:
-    QuickView *m_preview;
+    QuickView *m_preview = nullptr;
 };

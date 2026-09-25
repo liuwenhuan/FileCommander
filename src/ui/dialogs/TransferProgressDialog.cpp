@@ -176,6 +176,17 @@ void TransferProgressDialog::changeEvent(QEvent *event) {
     FramelessDialog::changeEvent(event);
     if (!m_errorLabel)
         return;
+    if (event->type() == QEvent::LanguageChange) {
+        setWindowTitle(tr("Transfers"));
+        m_pauseButton->setText(m_paused ? tr("Resume") : tr("Pause"));
+        m_abortButton->setText(tr("Abort"));
+        if (auto *buttons = findChild<QDialogButtonBox *>())
+            ttc::localizeStandardButtons(buttons);
+        onQueueChanged(m_pendingJobs);
+        if (m_hasProgress && m_shown)
+            onProgress(m_doneItems, m_totalItems, m_doneBytes, m_totalBytes,
+                       m_fileLabel->text());
+    }
     if (event->type() == QEvent::FontChange || event->type() == QEvent::ApplicationFontChange ||
         event->type() == QEvent::StyleChange) {
         QTimer::singleShot(0, this, [this] { fitWrappedText(); });
@@ -322,6 +333,7 @@ void TransferProgressDialog::suppressAutoShow(bool suppressed) {
 }
 
 void TransferProgressDialog::onStarted(const QString &description) {
+    m_hasProgress = false;
     m_descriptionLabel->setText(description);
     m_bytesLabel->clear();
     m_speedLabel->clear();
@@ -350,6 +362,11 @@ void TransferProgressDialog::onStarted(const QString &description) {
 
 void TransferProgressDialog::onProgress(qint64 doneItems, qint64 totalItems, qint64 doneBytes,
                                         qint64 totalBytes, const QString &currentFile) {
+    m_hasProgress = true;
+    m_doneItems = doneItems;
+    m_totalItems = totalItems;
+    m_doneBytes = doneBytes;
+    m_totalBytes = totalBytes;
     // Reveal immediately for an obviously large operation, before the 1s delay,
     // so a big copy/move gives instant feedback (the user-chosen policy).
     if (!m_shown && (totalBytes > kBigBytes || totalItems > kBigItems))

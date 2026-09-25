@@ -1,7 +1,9 @@
 #include "CommandOutputDialog.h"
 #include "ThemedDialogs.h"
 
+#include <QAbstractButton>
 #include <QDialogButtonBox>
+#include <QEvent>
 #include <QFontDatabase>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -75,4 +77,17 @@ void CommandOutputDialog::reveal() {
 
 void CommandOutputDialog::retranslate() {
     setWindowTitle(tr("Command Output"));
+    if (auto *buttons = findChild<QDialogButtonBox *>()) {
+        for (QAbstractButton *button : buttons->buttons()) {
+            if (buttons->buttonRole(button) == QDialogButtonBox::ResetRole)
+                button->setText(tr("Clear"));
+        }
+        ttc::localizeStandardButtons(buttons);
+    }
+}
+
+void CommandOutputDialog::changeEvent(QEvent *event) {
+    FramelessDialog::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange && m_output)
+        retranslate();
 }

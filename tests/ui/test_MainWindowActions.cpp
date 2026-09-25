@@ -6,6 +6,7 @@
 #include <QDir>
 #include <QFile>
 #include <QKeySequence>
+#include <QLabel>
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPushButton>
@@ -26,6 +27,14 @@
 #include "FileSystemModel.h"
 #include "FunctionKeyBar.h"
 #include "MainWindow.h"
+#include "QuickView.h"
+#include "TabBar.h"
+#include "TextEditor.h"
+#include "ViewerWindow.h"
+#include "FindBar.h"
+#include "dialogs/OperationProgressDialog.h"
+#include "dialogs/TransferProgressDialog.h"
+#include "dialogs/CommandOutputDialog.h"
 #include "Settings.h"
 #include "ThemeManager.h"
 #include "TitleBar.h"
@@ -675,4 +684,166 @@ TEST(MainWindowActionsTest, ExtractingAnArchiveDoesNotRunOnTheGuiThread) {
         return false;
     }, 10000)) << "the panel never picked up the extracted files";
     ASSERT_TRUE(!finished.isEmpty() || finished.wait(10000));
+}
+
+TEST(MainWindowActionsTest, LiveLanguageSwitchRetranslatesExistingPreviewAndPanelChrome) {
+    ThemeStateGuard themeState;
+    ScopedUiLanguage language(QStringLiteral("en"));
+    MainWindow window;
+    window.show();
+    qApp->processEvents();
+    ASSERT_TRUE(QMetaObject::invokeMethod(&window, "toggleQuickView"));
+    qApp->processEvents();
+
+    auto *preview = window.findChild<QuickView *>();
+    ASSERT_NE(preview, nullptr);
+    auto *empty = preview->findChild<QLabel *>(QStringLiteral("previewInfoLabel"));
+    ASSERT_NE(empty, nullptr);
+    auto *addTab = window.findChild<QToolButton *>(QStringLiteral("PanelAddTabButton"));
+    ASSERT_NE(addTab, nullptr);
+    auto *tabs = window.findChild<TabBar *>();
+    ASSERT_NE(tabs, nullptr);
+    auto *closeTab = tabs->tabButton(0, QTabBar::RightSide);
+    ASSERT_NE(closeTab, nullptr);
+    QAction *wrap = nullptr;
+    QAction *zoomIn = nullptr;
+    for (QAction *action : preview->findChildren<QAction *>()) {
+        if (action->text() == QStringLiteral("Wrap"))
+            wrap = action;
+        if (action->text() == QStringLiteral("Zoom In"))
+            zoomIn = action;
+    }
+    ASSERT_NE(wrap, nullptr);
+    ASSERT_NE(zoomIn, nullptr);
+    QPushButton *stopDownload = nullptr;
+    for (QPushButton *button : preview->findChildren<QPushButton *>()) {
+        if (button->text() == QStringLiteral("Stop Download"))
+            stopDownload = button;
+    }
+    ASSERT_NE(stopDownload, nullptr);
+    EXPECT_EQ(empty->text(), QStringLiteral("Select a file to preview"));
+    EXPECT_EQ(addTab->toolTip(), QStringLiteral("New Tab"));
+    EXPECT_EQ(closeTab->toolTip(), QStringLiteral("Close Tab"));
+
+    TranslationManager::switchTo(*qApp, QStringLiteral("zh_CN"));
+    qApp->processEvents();
+    EXPECT_EQ(empty->text(), QStringLiteral("选择要预览的文件"));
+    EXPECT_EQ(addTab->toolTip(), QCoreApplication::translate("FilePanel", "New Tab"));
+    EXPECT_EQ(closeTab->toolTip(), QCoreApplication::translate("TabBar", "Close Tab"));
+    EXPECT_EQ(wrap->text(), QCoreApplication::translate("QuickView", "Wrap"));
+    EXPECT_EQ(zoomIn->text(), QCoreApplication::translate("QuickView", "Zoom In"));
+    EXPECT_EQ(stopDownload->text(), QCoreApplication::translate("QuickView", "Stop Download"));
+
+    TranslationManager::switchTo(*qApp, QStringLiteral("en"));
+    qApp->processEvents();
+    EXPECT_EQ(empty->text(), QStringLiteral("Select a file to preview"));
+    EXPECT_EQ(addTab->toolTip(), QStringLiteral("New Tab"));
+    EXPECT_EQ(closeTab->toolTip(), QStringLiteral("Close Tab"));
+    EXPECT_EQ(wrap->text(), QStringLiteral("Wrap"));
+    EXPECT_EQ(zoomIn->text(), QStringLiteral("Zoom In"));
+    EXPECT_EQ(stopDownload->text(), QStringLiteral("Stop Download"));
+
+    preview->showPreparing(QStringLiteral("sample.zip"));
+    QLabel *downloadStatus = nullptr;
+    for (QLabel *label : preview->findChildren<QLabel *>()) {
+        if (label->text().startsWith(QStringLiteral("Preparing preview"))) {
+            downloadStatus = label;
+            break;
+        }
+    }
+    ASSERT_NE(downloadStatus, nullptr);
+    TranslationManager::switchTo(*qApp, QStringLiteral("zh_CN"));
+    qApp->processEvents();
+    EXPECT_EQ(downloadStatus->text(),
+              QCoreApplication::translate("QuickView", "Preparing preview…\n%1")
+                  .arg(QStringLiteral("sample.zip")));
+}
+
+TEST(MainWindowActionsTest, LiveLanguageSwitchRetranslatesOpenViewerAndEditor) {
+    ScopedUiLanguage language(QStringLiteral("en"));
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("sample.txt"));
+    QFile file(path);
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    ASSERT_EQ(file.write("sample text\n"), 12);
+    file.close();
+
+    Settings settings(dir.filePath(QStringLiteral("settings.ini")));
+    ViewerWindow viewer(settings, path);
+    viewer.setAttribute(Qt::WA_DeleteOnClose, false);
+    viewer.show();
+    auto *preview = viewer.findChild<QuickView *>();
+    ASSERT_NE(preview, nullptr);
+    auto *info = preview->findChild<QLabel *>(QStringLiteral("previewInfoLabel"));
+    ASSERT_NE(info, nullptr);
+    preview->showFile(QString());
+    ASSERT_EQ(info->text(), QStringLiteral("Select a file to preview"));
+
+    ASSERT_TRUE(viewer.beginEditing(path));
+    auto *editor = viewer.findChild<TextEditor *>();
+    ASSERT_NE(editor, nullptr);
+    editor->showFindBar();
+    auto *find = editor->findBar();
+    ASSERT_NE(find, nullptr);
+    auto *findInput = find->findChild<QLineEdit *>(QStringLiteral("FindBarInput"));
+    ASSERT_NE(findInput, nullptr);
+    ASSERT_EQ(editor->saveAction()->text(), QStringLiteral("Save"));
+    ASSERT_EQ(findInput->placeholderText(), QStringLiteral("Find…"));
+    find->showMatch(3, -1);
+    auto *findStatus = find->findChild<QLabel *>(QStringLiteral("FindBarStatus"));
+    ASSERT_NE(findStatus, nullptr);
+
+    TranslationManager::switchTo(*qApp, QStringLiteral("zh_CN"));
+    qApp->processEvents();
+    EXPECT_EQ(info->text(), QStringLiteral("选择要预览的文件"));
+    EXPECT_EQ(editor->saveAction()->text(),
+              QCoreApplication::translate("TextEditor", "Save"));
+    EXPECT_EQ(findInput->placeholderText(),
+              QCoreApplication::translate("FindBar", "Find…"));
+    EXPECT_EQ(findStatus->text(), QCoreApplication::translate("FindBar", "Match %1").arg(3));
+}
+
+TEST(MainWindowActionsTest, LiveLanguageSwitchRetranslatesProgressDialogs) {
+    ScopedUiLanguage language(QStringLiteral("en"));
+    OperationProgressDialog operation;
+    TransferProgressDialog transfer(nullptr);
+    operation.setQueuedCount(2);
+    ASSERT_TRUE(QMetaObject::invokeMethod(&transfer, "onQueueChanged", Q_ARG(int, 2)));
+    auto findButton = [](QWidget &dialog, const QString &text) {
+        for (QPushButton *button : dialog.findChildren<QPushButton *>()) {
+            if (button->text() == text)
+                return button;
+        }
+        return static_cast<QPushButton *>(nullptr);
+    };
+    auto *operationPause = findButton(operation, QStringLiteral("Pause"));
+    auto *transferAbort = findButton(transfer, QStringLiteral("Abort"));
+    ASSERT_NE(operationPause, nullptr);
+    ASSERT_NE(transferAbort, nullptr);
+
+    TranslationManager::switchTo(*qApp, QStringLiteral("zh_CN"));
+    qApp->processEvents();
+    EXPECT_EQ(operation.windowTitle(),
+              QCoreApplication::translate("OperationProgressDialog", "File Operation"));
+    EXPECT_EQ(operationPause->text(),
+              QCoreApplication::translate("OperationProgressDialog", "Pause"));
+    EXPECT_EQ(transferAbort->text(),
+              QCoreApplication::translate("TransferProgressDialog", "Abort"));
+    EXPECT_EQ(transfer.windowTitle(),
+              QCoreApplication::translate("TransferProgressDialog", "Transfers"));
+}
+
+TEST(MainWindowActionsTest, LiveLanguageSwitchRetranslatesCommandOutput) {
+    ScopedUiLanguage language(QStringLiteral("en"));
+    CommandOutputDialog output;
+    auto *clear = output.findChild<QPushButton *>();
+    ASSERT_NE(clear, nullptr);
+    ASSERT_EQ(clear->text(), QStringLiteral("Clear"));
+
+    TranslationManager::switchTo(*qApp, QStringLiteral("zh_CN"));
+    qApp->processEvents();
+    EXPECT_EQ(output.windowTitle(),
+              QCoreApplication::translate("CommandOutputDialog", "Command Output"));
+    EXPECT_EQ(clear->text(), QCoreApplication::translate("CommandOutputDialog", "Clear"));
 }

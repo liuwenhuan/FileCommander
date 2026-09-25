@@ -3,6 +3,7 @@
 #include <QApplication>
 #include <QEvent>
 #include <QFontDatabase>
+#include <QLocale>
 #include <QMenu>
 #include <QPointer>
 #include <QTimer>
@@ -123,6 +124,27 @@ bool isInstalledFamily(const QString &family) {
     return false;
 }
 
+QString englishUiFamily() {
+    // chromeFont is used repeatedly as windows and menus are refreshed.
+    static const QString family = [] {
+        QStringList preferred = {QStringLiteral("Arial")};
+#ifdef Q_OS_WIN
+        preferred << QStringLiteral("Segoe UI");
+#elif defined(Q_OS_LINUX)
+        preferred << QStringLiteral("Noto Sans") << QStringLiteral("Cantarell")
+                  << QStringLiteral("Ubuntu") << QStringLiteral("DejaVu Sans")
+                  << QStringLiteral("Liberation Sans");
+#endif
+        const QStringList installed = QFontDatabase().families();
+        for (const QString &candidate : preferred) {
+            if (installed.contains(candidate, Qt::CaseInsensitive))
+                return candidate;
+        }
+        return QString();
+    }();
+    return family;
+}
+
 } // namespace
 
 void Typography::initializeSystemFont() {
@@ -142,6 +164,16 @@ QFont Typography::chromeFont(const Settings &settings) {
     const QString family = settings.globalFontFamily();
     if (!family.isEmpty() && isInstalledFamily(family))
         font.setFamily(family);
+    else if (family.isEmpty()) {
+        QString language = settings.language();
+        if (language.isEmpty() || language == QStringLiteral("auto"))
+            language = QLocale::system().name();
+        if (language.startsWith(QStringLiteral("en"), Qt::CaseInsensitive)) {
+            const QString englishFamily = englishUiFamily();
+            if (!englishFamily.isEmpty())
+                font.setFamily(englishFamily);
+        }
+    }
     font.setPointSize(settings.menuFontSize());
     return font;
 }

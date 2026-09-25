@@ -292,6 +292,13 @@ void TabBar::refreshCloseButtons() {
     }
 }
 
+void TabBar::retranslate() {
+    for (int index = 0; index < count(); ++index) {
+        if (QWidget *button = tabButton(index, QTabBar::RightSide))
+            button->setToolTip(tr("Close Tab"));
+    }
+}
+
 void TabBar::arrangeScrollButtons() {
     QToolButton *left = nullptr;
     QToolButton *right = nullptr;

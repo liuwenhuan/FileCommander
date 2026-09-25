@@ -33,6 +33,7 @@
 #include "CloudClipboardController.h"
 #include "CloudClipboardRowDelegate.h"
 #include "NotepadPanel.h"
+#include "TranslationManager.h"
 #include "account/AccountClient.h"
 #include "account/ClipboardHistoryStore.h"
 #include "account/DeviceAgent.h"
@@ -95,6 +96,53 @@ void serveDeliveryContent(MockHttpServer &server, const QString &id, const QByte
 }
 
 } // namespace
+
+TEST(NotepadPanelTest, ExistingControlsRetranslateWithoutRecreatingThePopup) {
+    TranslationManager::switchTo(*qApp, QStringLiteral("en"));
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    Settings settings(directory.filePath(QStringLiteral("settings.ini")));
+    NotepadPanel panel(settings);
+    auto *search = panel.findChild<QLineEdit *>(QStringLiteral("CloudClipboardSearch"));
+    auto *copy = panel.findChild<QPushButton *>(QStringLiteral("CloudClipboardCopyButton"));
+    auto *target = panel.findChild<QComboBox *>(QStringLiteral("CloudClipboardTargetDeviceCombo"));
+    ASSERT_NE(search, nullptr);
+    ASSERT_NE(copy, nullptr);
+    ASSERT_NE(target, nullptr);
+
+    TranslationManager::switchTo(*qApp, QStringLiteral("zh_CN"));
+    qApp->processEvents();
+    EXPECT_EQ(search->placeholderText(),
+              QCoreApplication::translate("NotepadPanel", "Search Cloud Clipboard..."));
+    EXPECT_EQ(copy->text(), QCoreApplication::translate("NotepadPanel", "Copy"));
+    EXPECT_EQ(target->itemText(0),
+              QCoreApplication::translate("NotepadPanel", "All devices"));
+
+    TranslationManager::switchTo(*qApp, QStringLiteral("en"));
+    qApp->processEvents();
+    EXPECT_EQ(search->placeholderText(), QStringLiteral("Search Cloud Clipboard..."));
+    EXPECT_EQ(copy->text(), QStringLiteral("Copy"));
+    EXPECT_EQ(target->itemText(0), QStringLiteral("All devices"));
+}
+
+TEST(CloudClipboardControllerTest, DeviceFallbackNamesFollowLanguageSwitch) {
+    TranslationManager::switchTo(*qApp, QStringLiteral("en"));
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    ClipboardHistoryStore store(directory.path());
+    CloudClipboardController controller(store, nullptr);
+    controller.setDevices({{QStringLiteral("self"), QString(), {}, true, true},
+                           {QStringLiteral("other"), QString(), {}, true, false}});
+    EXPECT_EQ(controller.deviceName(QStringLiteral("self")), QStringLiteral("This device"));
+    EXPECT_EQ(controller.deviceName(QStringLiteral("other")), QStringLiteral("Other device"));
+
+    TranslationManager::switchTo(*qApp, QStringLiteral("zh_CN"));
+    EXPECT_EQ(controller.deviceName(QStringLiteral("self")),
+              QCoreApplication::translate("CloudClipboardController", "This device"));
+    EXPECT_EQ(controller.deviceName(QStringLiteral("other")),
+              QCoreApplication::translate("CloudClipboardController", "Other device"));
+    TranslationManager::switchTo(*qApp, QStringLiteral("en"));
+}
 
 TEST(CloudClipboardControllerTest, RejectsFileUrlsAndOversizedText) {
     QMimeData urls;

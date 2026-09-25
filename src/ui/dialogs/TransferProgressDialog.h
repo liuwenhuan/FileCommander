@@ -127,4 +127,9 @@ private:
     bool m_hasError = false; // keep the dialog up after finish if an error showed
     int m_activeJobs = 0;
     int m_pendingJobs = 0;
+    bool m_hasProgress = false;
+    qint64 m_doneItems = 0;
+    qint64 m_totalItems = 0;
+    qint64 m_doneBytes = 0;
+    qint64 m_totalBytes = 0;
 };

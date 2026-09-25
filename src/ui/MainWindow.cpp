@@ -3099,24 +3099,37 @@ void MainWindow::calculateSizes() {
 }
 
 void MainWindow::chooseGlobalFont() {
-    QFont initial = Typography::chromeFont(m_settings);
+    const QFont initial = Typography::chromeFont(m_settings);
+    auto applyFamily = [this, &initial](const QString &family) {
+        QFont chrome = initial;
+        chrome.setFamily(family);
+        applyInterfaceTypography(chrome);
+        for (FilePanel *panel : {m_leftPanel, m_rightPanel})
+            panel->setListTypography(family, m_settings.listFontSize());
+        if (m_quickView) {
+            m_quickView->setContentFontFamily(family);
+            m_quickView->setContentFontSize(m_settings.listFontSize());
+        }
+    };
     bool accepted = false;
-    const QFont selected = ttc::getFont(&accepted, initial, this, tr("Choose Font"));
-    if (!accepted)
-        return;
-    m_settings.setGlobalFontFamily(selected.family());
-    applyInterfaceTypography();
-    for (FilePanel *panel : {m_leftPanel, m_rightPanel})
-        panel->setListTypography(selected.family(), m_settings.listFontSize());
-    if (m_quickView) {
-        m_quickView->setContentFontFamily(selected.family());
-        m_quickView->setContentFontSize(m_settings.listFontSize());
+    const QFont selected = ttc::getFont(&accepted, initial, this, tr("Choose Font"), {},
+                                        [&applyFamily](const QFont &font) {
+                                            applyFamily(font.family());
+                                        });
+    if (accepted) {
+        m_settings.setGlobalFontFamily(selected.family());
+        applyFamily(selected.family());
+        QTimer::singleShot(0, this, &MainWindow::buildTitleBarMenus);
+    } else {
+        applyFamily(initial.family());
     }
-    QTimer::singleShot(0, this, &MainWindow::buildTitleBarMenus);
 }
 
 void MainWindow::applyInterfaceTypography() {
-    const QFont chrome = Typography::chromeFont(m_settings);
+    applyInterfaceTypography(Typography::chromeFont(m_settings));
+}
+
+void MainWindow::applyInterfaceTypography(const QFont &chrome) {
     Typography::applyApplicationFont(chrome);
     Typography::applyChromeFont(this, chrome);
     Typography::applyChromeFont(m_leftPanel, chrome);
@@ -4694,6 +4707,14 @@ void MainWindow::setLanguage(const QString &language) {
     // Swap the catalog live; Qt posts QEvent::LanguageChange to this window,
     // which retranslates the UI in changeEvent(). No restart needed.
     TranslationManager::switchTo(*qApp, language);
+    if (m_settings.globalFontFamily().isEmpty()) {
+        applyInterfaceTypography();
+        const QString family = Typography::chromeFont(m_settings).family();
+        for (FilePanel *panel : {m_leftPanel, m_rightPanel})
+            panel->setListTypography(family, m_settings.listFontSize());
+        if (m_quickView)
+            m_quickView->setContentFontFamily(family);
+    }
 }
 
 void MainWindow::retranslateUi() {
@@ -4701,9 +4722,12 @@ void MainWindow::retranslateUi() {
     setupShortcuts();       // re-run is label-only now (shortcuts already built)
     buildTitleBarMenus();   // rebuilds Commands/View + the title bar app name
     updateFunctionKeyLabels();
+    updateExtraKeyButtons();
     setWindowTitle(tr("FileCommander"));
     if (m_commandBar)
         m_commandBar->retranslate();
+    if (m_quickView)
+        m_quickView->retranslate();
 
     // Column headers (and any tr()'d cell text like the type column) come from
     // the models; ask each panel to re-emit headers/cells and refresh its

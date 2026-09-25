@@ -89,6 +89,7 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
     m_delete = new QPushButton(tr("Delete"), this);
     m_delete->setObjectName(QStringLiteral("CloudClipboardDeleteButton"));
     auto *clear = new QPushButton(tr("Clear"), this);
+    m_clear = clear;
     clear->setObjectName(QStringLiteral("CloudClipboardClearButton"));
     for (QPushButton *button : {m_delete, clear})
         button->setFocusPolicy(Qt::NoFocus);
@@ -242,6 +243,19 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
     QWidget::setTabOrder(m_copy, m_autoSend);
     QWidget::setTabOrder(m_autoSend, m_targetDevice);
     QWidget::setTabOrder(m_targetDevice, m_send);
+    rebuild();
+}
+
+void NotepadPanel::changeEvent(QEvent *event) {
+    QWidget::changeEvent(event);
+    if (event->type() != QEvent::LanguageChange || !m_controller)
+        return;
+    m_copy->setText(tr("Copy"));
+    m_delete->setText(tr("Delete"));
+    m_clear->setText(tr("Clear"));
+    m_autoSend->setText(tr("Auto Send"));
+    m_send->setText(tr("Send"));
+    rebuildTargetDevices();
     rebuild();
 }
 

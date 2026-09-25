@@ -12,6 +12,8 @@ class StatusBarWidget : public QWidget {
 public:
     explicit StatusBarWidget(QWidget *parent = nullptr);
 
+    void retranslate();
+
     void setSelectionInfo(int selectedCount, qint64 selectedBytes, int totalCount);
     void setDiskInfo(qint64 freeBytes, qint64 totalBytes);
 

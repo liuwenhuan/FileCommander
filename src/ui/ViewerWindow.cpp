@@ -1,6 +1,7 @@
 #include "ViewerWindow.h"
 
 #include <QCloseEvent>
+#include <QEvent>
 #include <QFileInfo>
 #include <QKeySequence>
 #include <QShortcut>
@@ -68,6 +69,12 @@ void ViewerWindow::closeEvent(QCloseEvent *event) {
         event->ignore();
     else
         FramelessWindow::closeEvent(event);
+}
+
+void ViewerWindow::changeEvent(QEvent *event) {
+    FramelessWindow::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange && m_preview)
+        m_preview->retranslate();
 }
 
 void ViewerWindow::setEditingEnabled(bool enabled) {

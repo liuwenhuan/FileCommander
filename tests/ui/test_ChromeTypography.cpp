@@ -3,6 +3,8 @@
 #include <QAbstractButton>
 #include <QApplication>
 #include <QFont>
+#include <QFontDatabase>
+#include <QFontDialog>
 #include <QEvent>
 #include <QFile>
 #include <QHBoxLayout>
@@ -12,6 +14,7 @@
 #include <QSet>
 #include <QTemporaryDir>
 #include <QToolButton>
+#include <QTimer>
 #include <QWidget>
 #include <QWidgetAction>
 
@@ -23,14 +26,17 @@
 #include "CommandBar.h"
 #include "DialogTitleBar.h"
 #include "FramelessDialog.h"
+#include "FileListView.h"
+#include "FilePanel.h"
 #include "FunctionKeyBar.h"
 #include "MainWindow.h"
 #include "QuickView.h"
 #include "Settings.h"
 #include "StatusBarWidget.h"
 #include "TabBar.h"
-#include "Typography.h"
 #include "ThemeStateGuard.h"
+#include "TranslationManager.h"
+#include "Typography.h"
 
 namespace {
 
@@ -49,16 +55,34 @@ protected:
 class ApplicationAppearanceGuard final {
 public:
     ApplicationAppearanceGuard()
-        : m_font(QApplication::font()), m_styleSheet(qApp->styleSheet()) {}
+        : m_font(QApplication::font()), m_menuFont(QApplication::font("QMenu")),
+          m_styleSheet(qApp->styleSheet()) {}
 
     ~ApplicationAppearanceGuard() {
-        QApplication::setFont(m_font);
         qApp->setStyleSheet(m_styleSheet);
+        QApplication::setFont(m_font);
+        QApplication::setFont(m_menuFont, "QMenu");
     }
 
 private:
     QFont m_font;
+    QFont m_menuFont;
     QString m_styleSheet;
+};
+
+class LanguageStateGuard final {
+public:
+    LanguageStateGuard() : m_language(qApp->property("ttc.uiLanguage").toString()) {}
+
+    ~LanguageStateGuard() {
+        TranslationManager::switchTo(*qApp,
+                                     m_language.isEmpty() ? QStringLiteral("en") : m_language);
+        if (m_language.isEmpty())
+            qApp->setProperty("ttc.uiLanguage", QVariant());
+    }
+
+private:
+    QString m_language;
 };
 
 class EnvironmentGuard final {
@@ -104,6 +128,23 @@ QWidget *fontRow(QMenu *menu, const QString &captionText) {
     return nullptr;
 }
 
+QString installedEnglishUiFamily() {
+    QStringList preferred = {QStringLiteral("Arial")};
+#ifdef Q_OS_WIN
+    preferred << QStringLiteral("Segoe UI");
+#elif defined(Q_OS_LINUX)
+    preferred << QStringLiteral("Noto Sans") << QStringLiteral("Cantarell")
+              << QStringLiteral("Ubuntu") << QStringLiteral("DejaVu Sans")
+              << QStringLiteral("Liberation Sans");
+#endif
+    const QStringList installed = QFontDatabase().families();
+    for (const QString &family : preferred) {
+        if (installed.contains(family, Qt::CaseInsensitive))
+            return family;
+    }
+    return {};
+}
+
 TEST(ChromeTypographyTest, DefaultMenuFontUsesTwelvePoints) {
     ThemeStateGuard themeState;
     QTemporaryDir temporaryDir;
@@ -111,6 +152,168 @@ TEST(ChromeTypographyTest, DefaultMenuFontUsesTwelvePoints) {
     Settings settings(temporaryDir.filePath(QStringLiteral("settings.ini")));
 
     EXPECT_EQ(Typography::chromeFont(settings).pointSize(), 12);
+}
+
+TEST(ChromeTypographyTest, EnglishDefaultPrefersArialWhenInstalled) {
+    if (!QFontDatabase().families().contains(QStringLiteral("Arial"), Qt::CaseInsensitive))
+        GTEST_SKIP() << "Arial is not installed";
+
+    QTemporaryDir temporaryDir;
+    ASSERT_TRUE(temporaryDir.isValid());
+    Settings settings(temporaryDir.filePath(QStringLiteral("settings.ini")));
+    settings.setLanguage(QStringLiteral("en"));
+
+    EXPECT_EQ(Typography::chromeFont(settings).family(), QStringLiteral("Arial"));
+}
+
+TEST(ChromeTypographyTest, EnglishDefaultUsesInstalledPlatformUiFont) {
+    ThemeStateGuard themeState;
+    QTemporaryDir temporaryDir;
+    ASSERT_TRUE(temporaryDir.isValid());
+    Settings settings(temporaryDir.filePath(QStringLiteral("settings.ini")));
+    settings.setLanguage(QStringLiteral("en"));
+
+    const QString expected = installedEnglishUiFamily();
+    if (expected.isEmpty())
+        GTEST_SKIP() << "No preferred UI font is installed";
+    EXPECT_EQ(Typography::chromeFont(settings).family(), expected)
+        << "Qt default: " << Typography::systemFont().family().toStdString();
+
+    settings.setGlobalFontFamily(Typography::systemFont().family());
+    EXPECT_EQ(Typography::chromeFont(settings).family(), Typography::systemFont().family());
+    settings.setGlobalFontFamily(QString());
+    settings.setLanguage(QStringLiteral("zh_CN"));
+    EXPECT_EQ(Typography::chromeFont(settings).family(), Typography::systemFont().family());
+}
+
+TEST(ChromeTypographyTest, SwitchingToEnglishUpdatesExistingChromeAndFileLists) {
+    ThemeStateGuard themeState;
+    ApplicationAppearanceGuard appearanceGuard;
+    LanguageStateGuard languageGuard;
+    QTemporaryDir configHome;
+    ASSERT_TRUE(configHome.isValid());
+    EnvironmentGuard configGuard("FILECOMMANDER_CONFIG_HOME", configHome.path().toUtf8());
+    {
+        Settings settings;
+        settings.setLanguage(QStringLiteral("zh_CN"));
+    }
+
+    const QString preferred = installedEnglishUiFamily();
+    if (preferred.isEmpty())
+        GTEST_SKIP() << "No preferred UI font is installed";
+
+    MainWindow window;
+    window.show();
+    QApplication::processEvents();
+    QMenu *menu = interfaceMenu(window);
+    ASSERT_NE(menu, nullptr);
+    ASSERT_TRUE(QMetaObject::invokeMethod(menu, "aboutToShow", Qt::DirectConnection));
+    QAction *english = nullptr;
+    for (QAction *action : window.findChildren<QAction *>()) {
+        if (action->text() == QStringLiteral("English") && action->isCheckable()) {
+            english = action;
+            break;
+        }
+    }
+    ASSERT_NE(english, nullptr);
+    english->trigger();
+    QApplication::processEvents();
+
+    EXPECT_EQ(QApplication::font().family(), preferred);
+    for (FilePanel *panel : window.findChildren<FilePanel *>()) {
+        EXPECT_EQ(panel->view()->font().family(), preferred);
+        EXPECT_EQ(panel->view()->font().pointSize(), Settings().listFontSize());
+    }
+}
+
+TEST(ChromeTypographyTest, FontPickerPreviewsWithoutSavingAndRestoresOnCancel) {
+    ThemeStateGuard themeState;
+    ApplicationAppearanceGuard appearanceGuard;
+    QTemporaryDir configHome;
+    ASSERT_TRUE(configHome.isValid());
+    EnvironmentGuard configGuard("FILECOMMANDER_CONFIG_HOME", configHome.path().toUtf8());
+
+    const QStringList families = QFontDatabase().families();
+    ASSERT_GE(families.size(), 2);
+    Settings settings;
+    settings.setGlobalFontFamily(families.first());
+    MainWindow window;
+    window.show();
+    QApplication::processEvents();
+    const QString original = QApplication::font().family();
+    const QString candidate = families.first() == original ? families.last() : families.first();
+
+    QMenu *menu = interfaceMenu(window);
+    ASSERT_NE(menu, nullptr);
+    ASSERT_TRUE(QMetaObject::invokeMethod(menu, "aboutToShow", Qt::DirectConnection));
+    QAction *chooseFont = nullptr;
+    for (QAction *action : menu->actions()) {
+        if (action->text().contains(QStringLiteral("Choose Font"))) {
+            chooseFont = action;
+            break;
+        }
+    }
+    ASSERT_NE(chooseFont, nullptr);
+
+    bool previewed = false;
+    bool untouchedSettings = false;
+    QTimer driver;
+    driver.setInterval(10);
+    QObject::connect(&driver, &QTimer::timeout, &driver, [&] {
+        auto *modal = qApp->activeModalWidget();
+        auto *picker = modal ? modal->findChild<QFontDialog *>(QStringLiteral("ThemedFontDialog"))
+                             : nullptr;
+        if (!picker)
+            return;
+        driver.stop();
+        picker->setCurrentFont(QFont(candidate, 18));
+        previewed = QApplication::font().family() == candidate;
+        for (FilePanel *panel : window.findChildren<FilePanel *>())
+            previewed &= panel->view()->font().family() == candidate;
+        untouchedSettings = Settings().globalFontFamily() == original;
+        picker->reject();
+    });
+    driver.start();
+    QTimer::singleShot(3000, &window, [&] {
+        if (driver.isActive() && qApp->activeModalWidget())
+            qApp->activeModalWidget()->close();
+    });
+    chooseFont->trigger();
+    driver.stop();
+
+    EXPECT_TRUE(previewed);
+    EXPECT_TRUE(untouchedSettings);
+    EXPECT_EQ(QApplication::font().family(), original);
+    EXPECT_EQ(Settings().globalFontFamily(), original);
+    for (FilePanel *panel : window.findChildren<FilePanel *>())
+        EXPECT_EQ(panel->view()->font().family(), original);
+
+    QObject::disconnect(&driver, nullptr, &driver, nullptr);
+    bool previewedBeforeAccept = false;
+    QObject::connect(&driver, &QTimer::timeout, &driver, [&] {
+        auto *modal = qApp->activeModalWidget();
+        auto *picker = modal ? modal->findChild<QFontDialog *>(QStringLiteral("ThemedFontDialog"))
+                             : nullptr;
+        if (!picker)
+            return;
+        driver.stop();
+        picker->setCurrentFont(QFont(candidate, 18));
+        previewedBeforeAccept = QApplication::font().family() == candidate &&
+                                Settings().globalFontFamily() == original;
+        QMetaObject::invokeMethod(picker, "accepted", Qt::DirectConnection);
+    });
+    driver.start();
+    chooseFont->trigger();
+    driver.stop();
+
+    EXPECT_TRUE(previewedBeforeAccept);
+    EXPECT_EQ(Settings().globalFontFamily(), candidate);
+    EXPECT_EQ(QApplication::font().family(), candidate);
+    EXPECT_EQ(QApplication::font().pointSize(), settings.menuFontSize());
+    for (FilePanel *panel : window.findChildren<FilePanel *>()) {
+        EXPECT_EQ(panel->view()->font().family(), candidate);
+        EXPECT_EQ(panel->view()->font().pointSize(), settings.listFontSize());
+    }
 }
 
 TEST(ChromeTypographyTest, MenuFontSizeAppliesToCompositeChromeWidgets) {
@@ -201,8 +404,9 @@ TEST(ChromeTypographyTest, FramelessDialogChromeTracksRuntimeApplicationFontChan
     ASSERT_NE(titleBar, nullptr);
     QAbstractButton *closeButton = titleBar->findChild<QAbstractButton *>();
     ASSERT_NE(closeButton, nullptr);
-    EXPECT_EQ(titleBar->height(), 30);
-    EXPECT_EQ(closeButton->height(), 30);
+    const int initialTitleHeight = qMax(30, titleBar->fontMetrics().height() + 8);
+    EXPECT_EQ(titleBar->height(), initialTitleHeight);
+    EXPECT_EQ(closeButton->height(), initialTitleHeight);
     EXPECT_EQ(dialog.contentsMargins().top(), 16 + titleBar->height());
 
     QFont large = initial;
@@ -211,7 +415,7 @@ TEST(ChromeTypographyTest, FramelessDialogChromeTracksRuntimeApplicationFontChan
     QApplication::processEvents();
     QApplication::processEvents();
 
-    EXPECT_GT(titleBar->height(), 30);
+    EXPECT_GT(titleBar->height(), initialTitleHeight);
     EXPECT_GE(titleBar->height(), titleBar->fontMetrics().height());
     EXPECT_EQ(closeButton->height(), titleBar->height());
     EXPECT_EQ(dialog.contentsMargins().top(), 16 + titleBar->height());

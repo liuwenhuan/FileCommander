@@ -133,6 +133,7 @@ int getInt(QWidget *parent, const QString &title, const QString &label, int valu
 
 QFont getFont(bool *ok, const QFont &initial, QWidget *parent = nullptr,
               const QString &title = QString(),
-              QFontDialog::FontDialogOptions options = QFontDialog::FontDialogOptions());
+              QFontDialog::FontDialogOptions options = QFontDialog::FontDialogOptions(),
+              std::function<void(const QFont &)> preview = {});
 
 } // namespace ttc

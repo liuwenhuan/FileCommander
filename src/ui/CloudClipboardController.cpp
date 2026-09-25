@@ -154,11 +154,8 @@ void CloudClipboardController::setAgent(DeviceAgent *agent) {
 void CloudClipboardController::setDevices(const QVector<AccountDeviceInfo> &devices) {
     m_devices = devices;
     m_deviceNames.clear();
-    for (const AccountDeviceInfo &device : devices) {
-        m_deviceNames.insert(device.id, device.self ? tr("This device")
-                                                     : (device.name.isEmpty() ? tr("Other device")
-                                                                              : device.name));
-    }
+    for (const AccountDeviceInfo &device : devices)
+        m_deviceNames.insert(device.id, device.name);
     emit devicesChanged();
     emit changed();
 }
@@ -223,7 +220,12 @@ QString CloudClipboardController::deviceName(const QString &deviceId) const {
         return tr("This device");
     if (deviceId == (m_client ? m_client->account().deviceId : QString()))
         return tr("This device");
-    return m_deviceNames.value(deviceId, tr("Other device"));
+    for (const AccountDeviceInfo &device : m_devices) {
+        if (device.id == deviceId && device.self)
+            return tr("This device");
+    }
+    const QString name = m_deviceNames.value(deviceId);
+    return name.isEmpty() ? tr("Other device") : name;
 }
 
 void CloudClipboardController::setState(State state, const QString &error) {

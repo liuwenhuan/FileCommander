@@ -44,6 +44,7 @@ public:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    void changeEvent(QEvent *event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private slots:
@@ -78,6 +79,7 @@ private:
     QLabel *m_status = nullptr;
     QProgressBar *m_progress = nullptr;
     QPushButton *m_copy = nullptr;
+    QPushButton *m_clear = nullptr;
     QPushButton *m_delete = nullptr;
     QCheckBox *m_autoSend = nullptr;
     QComboBox *m_targetDevice = nullptr;

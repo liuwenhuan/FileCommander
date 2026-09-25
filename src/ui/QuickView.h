@@ -210,6 +210,8 @@ public:
     // font pass here would overwrite it.
     void applyChromeFont(const QFont &font);
 
+    void retranslate();
+
     // Moves keyboard focus into the preview's current page (its primary
     // interactive widget). Used when the user Tabs from the file list into the
     // embedded preview pane, so the pane — not the panel it covers — takes focus.

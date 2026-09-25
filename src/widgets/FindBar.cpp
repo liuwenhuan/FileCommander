@@ -87,6 +87,31 @@ FindBar::FindBar(QWidget *parent) : QWidget(parent) {
     recompile();
 }
 
+void FindBar::retranslate() {
+    m_input->setPlaceholderText(tr("Find…"));
+    m_hexToggle->setText(tr("Hex"));
+    m_hexToggle->setToolTip(tr("Search a byte sequence instead of text, e.g. 4D 5A"));
+    m_caseToggle->setText(tr("Aa"));
+    m_caseToggle->setToolTip(tr("Ignore case (ASCII letters only)"));
+    m_prevButton->setText(tr("Previous"));
+    m_prevButton->setToolTip(tr("Previous match (Shift+Enter)"));
+    m_nextButton->setText(tr("Next"));
+    m_nextButton->setToolTip(tr("Next match (Enter)"));
+    m_closeButton->setText(tr("Close"));
+    m_closeButton->setToolTip(tr("Close the find bar (Esc)"));
+    if (m_resultIsFailure)
+        m_resultText = tr("No matches");
+    else if (m_resultOrdinal >= 0)
+        m_resultText = tr("Match %1").arg(m_resultOrdinal);
+    updateStatus();
+}
+
+void FindBar::changeEvent(QEvent *event) {
+    QWidget::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange && m_input)
+        retranslate();
+}
+
 void FindBar::setEncoding(const QByteArray &codecName) {
     if (m_codecName == codecName)
         return;
@@ -120,6 +145,7 @@ void FindBar::setQuery(const QString &text) {
 
 void FindBar::showMatch(int ordinal, int total) {
     m_resultIsFailure = false;
+    m_resultOrdinal = total >= 0 ? -1 : ordinal;
     // Pure punctuation, so it stays out of the catalogs; "Match %1" is a real
     // sentence and does not.
     m_resultText = total >= 0 ? QStringLiteral("%1 / %2").arg(ordinal).arg(total)
@@ -129,12 +155,14 @@ void FindBar::showMatch(int ordinal, int total) {
 
 void FindBar::showNoMatch() {
     m_resultIsFailure = true;
+    m_resultOrdinal = -1;
     m_resultText = tr("No matches");
     updateStatus();
 }
 
 void FindBar::clearResult() {
     m_resultIsFailure = false;
+    m_resultOrdinal = -1;
     m_resultText.clear();
     updateStatus();
 }
@@ -189,6 +217,7 @@ void FindBar::recompile() {
     // no readout at all.
     m_resultText.clear();
     m_resultIsFailure = false;
+    m_resultOrdinal = -1;
     updateStatus();
     emit queryChanged(m_needle);
 }

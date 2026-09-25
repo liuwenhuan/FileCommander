@@ -384,7 +384,7 @@ public:
 
     // Re-applies translated text (the status-bar object/selection counts) after a
     // live UI-language change.
-    void retranslate() { updateStatus(); }
+    void retranslate();
 
     // Injects the shared device/connection sources the folder tree organises
     // itself around (both owned by MainWindow). Without them the tree still

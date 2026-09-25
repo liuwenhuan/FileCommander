@@ -2310,6 +2310,21 @@ void FilePanel::setListFontFamily(const QString &family) {
     setListTypography(family, m_view->font().pointSize());
 }
 
+void FilePanel::retranslate() {
+    m_tabBar->retranslate();
+    for (int index = 0; index < qMin(m_tabBar->count(), m_tabManager->count()); ++index)
+        m_tabBar->setTabText(index, tabLabelFor(m_tabManager->tabAt(index)));
+    m_addTabButton->setToolTip(tr("New Tab"));
+    m_treeButton->setToolTip(tr("Folder tree"));
+    m_backButton->setToolTip(tr("Back"));
+    m_forwardButton->setToolTip(tr("Forward"));
+    m_starButton->setToolTip(tr("Commands / shortcuts"));
+    m_computerButton->setToolTip(tr("Computer"));
+    m_filterBar->setPlaceholderText(tr("Filter: type to narrow the list, Esc to clear"));
+    m_statusBar->retranslate();
+    updateStatus();
+}
+
 void FilePanel::applyChromeFont(const QFont &font) {
     auto apply = [&font](QWidget *widget) {
         if (!widget)

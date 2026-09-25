@@ -297,6 +297,39 @@ void TextEditor::buildToolBar() {
     m_previewAction->setToolTip(tr("Go back to the preview"));
 }
 
+void TextEditor::retranslate() {
+    m_saveAction->setText(tr("Save"));
+    m_saveAction->setToolTip(tr("Write the buffer to disk (Ctrl+S)"));
+    m_wrapAction->setText(tr("Wrap"));
+    m_encodingCombo->setToolTip(tr("Re-read the file on disk in this encoding"));
+    if (m_hexMode) {
+        m_encodingCombo->setItemText(kAutoEncodingIndex, tr("Binary (hex)"));
+    } else if (m_path.isEmpty()) {
+        m_encodingCombo->setItemText(kAutoEncodingIndex, tr("Auto"));
+    } else {
+        QString autoLabel = tr("Auto (%1)").arg(m_detected.label);
+        if (m_detected.binary)
+            autoLabel = tr("Auto (Binary)");
+        else if (m_detected.ambiguous)
+            autoLabel = tr("Auto (%1, ambiguous)").arg(m_detected.label);
+        m_encodingCombo->setItemText(kAutoEncodingIndex, autoLabel);
+    }
+    m_loadRemainderAction->setText(tr("Load remainder"));
+    m_loadRemainderAction->setToolTip(tr("Load the rest of this file"));
+    m_previewAction->setText(tr("Preview"));
+    m_previewAction->setToolTip(tr("Go back to the preview"));
+    updatePartialIndicator();
+    updateModifiedIndicator();
+    if (m_findBar)
+        m_findBar->retranslate();
+}
+
+void TextEditor::changeEvent(QEvent *event) {
+    FramelessWindow::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange && m_toolBar)
+        retranslate();
+}
+
 bool TextEditor::textWrapEnabled() const {
     return m_wrapAction && m_wrapAction->isChecked();
 }

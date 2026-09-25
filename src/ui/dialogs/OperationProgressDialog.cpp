@@ -2,6 +2,7 @@
 #include "ThemedDialogs.h"
 
 #include <QDialogButtonBox>
+#include <QEvent>
 #include <QGraphicsOpacityEffect>
 #include <QLabel>
 #include <QPropertyAnimation>
@@ -89,6 +90,19 @@ void OperationProgressDialog::showEvent(QShowEvent *event) {
     startRevealAnimation();
 }
 
+void OperationProgressDialog::changeEvent(QEvent *event) {
+    FramelessDialog::changeEvent(event);
+    if (event->type() != QEvent::LanguageChange || !m_pauseButton)
+        return;
+    setWindowTitle(tr("File Operation"));
+    m_pauseButton->setText(m_paused ? tr("Resume") : tr("Pause"));
+    if (auto *buttons = findChild<QDialogButtonBox *>())
+        ttc::localizeStandardButtons(buttons);
+    setQueuedCount(m_pendingCount);
+    if (m_hasProgress)
+        setProgress(m_doneItems, m_totalItems, m_doneBytes, m_totalBytes, m_fileLabel->text());
+}
+
 void OperationProgressDialog::startRevealAnimation() {
     m_revealAnimation->stop();
     if (MotionPolicy::reduced()) {
@@ -109,6 +123,7 @@ void OperationProgressDialog::setPauseVisible(bool visible) {
 }
 
 void OperationProgressDialog::setQueuedCount(int pending) {
+    m_pendingCount = pending;
     m_queueLabel->setText(pending > 0 ? tr("%1 operation(s) queued").arg(pending) : QString());
 }
 
@@ -119,11 +134,17 @@ void OperationProgressDialog::setDescription(const QString &description) {
     m_paused = false;
     m_pauseButton->setText(tr("Pause"));
     m_progressBar->setRange(0, 0);
+    m_hasProgress = false;
     m_timer.start(); // reset the clock for throughput/ETA of this job
 }
 
 void OperationProgressDialog::setProgress(qint64 doneItems, qint64 totalItems, qint64 doneBytes,
                                           qint64 totalBytes, const QString &currentFile) {
+    m_hasProgress = true;
+    m_doneItems = doneItems;
+    m_totalItems = totalItems;
+    m_doneBytes = doneBytes;
+    m_totalBytes = totalBytes;
     // Prefer the byte-based bar (smooth for large files); fall back to item
     // counts for byte-less operations like delete and symlink.
     if (totalBytes > 0) {

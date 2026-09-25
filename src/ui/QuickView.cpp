@@ -5,6 +5,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QListView>
 #include <QDir>
 #include <QElapsedTimer>
@@ -133,6 +134,21 @@ constexpr double kMaxScale = 20.0;
 constexpr double kPdfBaseDpi = 72.0;
 constexpr double kPdfMinZoom = 0.25;
 constexpr double kPdfMaxZoom = 6.0;
+QAction *rememberAction(QAction *action, const char *source) {
+    action->setProperty("translationSource", QByteArray(source));
+    return action;
+}
+
+void setTranslatedLabel(QLabel *label, const char *source,
+                        const QStringList &arguments = {}) {
+    label->setProperty("translationSource", QByteArray(source));
+    label->setProperty("translationArguments", arguments);
+    label->setTextFormat(Qt::PlainText);
+    QString text = QCoreApplication::translate("QuickView", source);
+    for (const QString &argument : arguments)
+        text = text.arg(argument);
+    label->setText(text);
+}
 // Side gutter reserved so a fitted page never triggers a horizontal scrollbar.
 constexpr int kPdfSideMargin = 24;
 // Vertical gap (device px) between stacked PDF page bitmaps in the scene.
@@ -156,7 +172,8 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent,
     // Keep the context: embedded and top-level editing have different focus ownership.
     m_textCap = kTextWindowBytes;
 
-    m_info = new QLabel(tr("Select a file to preview"), this);
+    m_info = new QLabel(this);
+    setTranslatedLabel(m_info, QT_TR_NOOP("Select a file to preview"));
     m_info->setObjectName(QStringLiteral("previewInfoLabel"));
     m_info->setAlignment(Qt::AlignCenter);
     m_info->setWordWrap(true);
@@ -240,8 +257,8 @@ QuickView::QuickView(Settings &settings, Context context, QWidget *parent,
                     m_imageLabel->clear();
                     clearImageTransitionSnapshot();
                     m_infoOverlay->hide();
-                    m_info->setText(tr("No preview available for %1")
-                                        .arg(QFileInfo(m_pendingImagePath).fileName()));
+                    setTranslatedLabel(m_info, QT_TR_NOOP("No preview available for %1"),
+                                       {QFileInfo(m_pendingImagePath).fileName()});
                     m_imageRevealPending = false;
                     revealStaticPage(m_info);
                     return;
@@ -502,6 +519,7 @@ void QuickView::warmMediaEngine() {
                 if (m_audioTimer)
                     m_audioTimer->stop();
                 const QString help = m_mediaEngine->lastErrorHelpUrl();
+                m_info->setProperty("translationSource", QVariant());
                 if (help.isEmpty()) {
                     m_info->setTextFormat(Qt::PlainText);
                     m_info->setText(message);
@@ -577,11 +595,12 @@ void QuickView::showMediaEngineFailure() {
         m_videoTimer->stop();
     if (m_audioTimer)
         m_audioTimer->stop();
-    m_info->setText(
-        tr("Media preview could not start.\n\n%1\n\n"
-           "Restart File Commander to retry. If the problem continues, "
-           "verify that the mpv media backend is installed correctly.")
-            .arg(m_mediaEngineFailureMessage));
+    setTranslatedLabel(
+        m_info,
+        QT_TR_NOOP("Media preview could not start.\n\n%1\n\n"
+                   "Restart File Commander to retry. If the problem continues, "
+                   "verify that the mpv media backend is installed correctly."),
+        {m_mediaEngineFailureMessage});
     revealStaticPage(m_info);
 }
 
@@ -735,20 +754,24 @@ QWidget *QuickView::buildImagePage() {
     m_imagePage = new QWidget(this);
 
     auto *toolbar = new QToolBar(m_imagePage);
-    toolbar->addAction(tr("Zoom In"), this, [this]() { zoomImageBy(kZoomStep); });
-    toolbar->addAction(tr("Zoom Out"), this, [this]() { zoomImageBy(1.0 / kZoomStep); });
-    toolbar->addAction(tr("Fit"), this, [this]() {
+    rememberAction(toolbar->addAction(tr("Zoom In"), this,
+                                      [this]() { zoomImageBy(kZoomStep); }), "Zoom In");
+    rememberAction(toolbar->addAction(tr("Zoom Out"), this,
+                                      [this]() { zoomImageBy(1.0 / kZoomStep); }), "Zoom Out");
+    rememberAction(toolbar->addAction(tr("Fit"), this, [this]() {
         m_imageFitMode = true;
         m_imageScale = fitScale();
         applyImageScale();
-    });
+    }), "Fit");
     // Rotation and playback occupy the same place, because no file wants both:
     // a still cannot be paused and an animation cannot be rotated (its frames
     // arrive continuously, and turning each one is work with no way to save the
     // result). showImageControlsFor() swaps them per file.
     m_imageRotateActions = {
-        toolbar->addAction(tr("Rotate Left"), this, [this]() { rotateCurrentImage(-90); }),
-        toolbar->addAction(tr("Rotate Right"), this, [this]() { rotateCurrentImage(90); }),
+        rememberAction(toolbar->addAction(tr("Rotate Left"), this,
+                                          [this]() { rotateCurrentImage(-90); }), "Rotate Left"),
+        rememberAction(toolbar->addAction(tr("Rotate Right"), this,
+                                          [this]() { rotateCurrentImage(90); }), "Rotate Right"),
     };
     m_imagePlayAction = toolbar->addAction(tr("Pause"), this, [this]() {
         if (!m_animation)
@@ -952,11 +975,13 @@ QWidget *QuickView::buildTextPage() {
             });
 
     m_textWrapAction = m_textToolbar->addAction(tr("Wrap"));
+    rememberAction(m_textWrapAction, "Wrap");
     m_textWrapAction->setCheckable(true);
     connect(m_textWrapAction, &QAction::toggled, this,
             [this](bool enabled) { setTextWrapEnabled(enabled); });
 
     m_textHexAction = m_textToolbar->addAction(tr("Hex"));
+    rememberAction(m_textHexAction, "Hex");
     m_textHexAction->setCheckable(true);
     connect(m_textHexAction, &QAction::toggled, this, [this](bool on) {
         m_textHex = on;
@@ -978,6 +1003,7 @@ QWidget *QuickView::buildTextPage() {
     rightSpacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     m_textToolbar->addWidget(rightSpacer);
     m_textEditAction = m_textToolbar->addAction(tr("Edit"));
+    rememberAction(m_textEditAction, "Edit");
     m_textEditAction->setToolTip(tr("Open this file in the editor"));
     connect(m_textEditAction, &QAction::triggered, this, [this]() {
         if (!m_textPath.isEmpty())
@@ -1083,6 +1109,91 @@ bool QuickView::beginEditing(const QString &path, const QString &encodingIdentit
     return true;
 }
 
+void QuickView::retranslate() {
+    if (m_editor)
+        m_editor->retranslate();
+    for (QAction *action : findChildren<QAction *>()) {
+        const QByteArray source = action->property("translationSource").toByteArray();
+        if (!source.isEmpty())
+            action->setText(tr(source.constData()));
+    }
+    for (QLabel *label : findChildren<QLabel *>()) {
+        const QByteArray source = label->property("translationSource").toByteArray();
+        if (!source.isEmpty() && !label->text().isEmpty())
+            setTranslatedLabel(label, source.constData(),
+                               label->property("translationArguments").toStringList());
+    }
+    if (m_downloadStopButton)
+        m_downloadStopButton->setText(tr("Stop Download"));
+    if (m_lockZoomCheck) {
+        m_lockZoomCheck->setText(tr("Lock Zoom"));
+        m_lockZoomCheck->setToolTip(tr("Keep the current zoom ratio for the next images"));
+    }
+    if (m_infoCheck) {
+        m_infoCheck->setText(tr("Show info"));
+        m_infoCheck->setToolTip(tr("Overlay basic image information"));
+    }
+    if (m_imagePlayAction)
+        m_imagePlayAction->setText(m_animation->isPaused() ? tr("Play") : tr("Pause"));
+    if (m_textFind)
+        m_textFind->setPlaceholderText(tr("Find… (Enter / F3)"));
+    if (m_textEditAction)
+        m_textEditAction->setToolTip(tr("Open this file in the editor"));
+    if (m_markdownFind)
+        m_markdownFind->setPlaceholderText(tr("Find… (Enter / F3)"));
+    if (m_markdownEditAction)
+        m_markdownEditAction->setToolTip(tr("Open this file in the editor"));
+    if (m_passwordEdit)
+        m_passwordEdit->setPlaceholderText(tr("Password"));
+    if (m_unlockButton)
+        m_unlockButton->setText(tr("Unlock"));
+    if (m_playButton) {
+        const QFontMetrics metrics(m_playButton->font());
+        m_playButton->setFixedWidth(qMax(metrics.horizontalAdvance(tr("Play")),
+                                         metrics.horizontalAdvance(tr("Pause"))) + 24);
+        m_playButton->setText(m_mediaEngine && !m_mediaEngine->paused() &&
+                                      !m_mediaEngine->ended() ? tr("Pause") : tr("Play"));
+    }
+    if (m_videoInfoCheck) {
+        m_videoInfoCheck->setText(tr("Show info"));
+        m_videoInfoCheck->setToolTip(tr("Overlay basic video information"));
+    }
+    if (m_progressSlider)
+        m_progressSlider->setToolTip(tr("Seek"));
+    if (m_muteButton)
+        m_muteButton->setToolTip(tr("Mute / unmute"));
+    if (m_volumeSlider)
+        m_volumeSlider->setToolTip(tr("Volume"));
+    if (m_audioLyrics)
+        m_audioLyrics->setPlaceholderText(tr("No embedded lyrics."));
+    if (m_audioPrevButton)
+        m_audioPrevButton->setToolTip(tr("Previous track"));
+    if (m_audioPlayButton)
+        m_audioPlayButton->setToolTip(tr("Play / pause"));
+    if (m_audioNextButton)
+        m_audioNextButton->setToolTip(tr("Next track"));
+    if (m_audioSeek)
+        m_audioSeek->setToolTip(tr("Seek"));
+    if (m_audioMuteButton)
+        m_audioMuteButton->setToolTip(tr("Mute / unmute"));
+    if (m_audioVolumeSlider)
+        m_audioVolumeSlider->setToolTip(tr("Volume"));
+    for (QLabel *label : findChildren<QLabel *>(QStringLiteral("quickViewVolumeLabel")))
+        label->setText(tr("Vol"));
+    if (m_infoOverlay && !m_originalImage.isNull())
+        updateImageInfoOverlay();
+    if (m_csvNotice && m_csvNotice->isVisible())
+        m_csvNotice->setText(tr("[... truncated ...]"));
+    if (m_pdfPageInfo && !m_pdfBgItems.isEmpty())
+        m_pdfPageInfo->setText(tr("Page %1 / %2")
+                                   .arg(qMax(0, currentPdfPage()) + 1)
+                                   .arg(m_pdfBgItems.size()));
+    if (m_slidesInfo && !m_slidePageTop.isEmpty())
+        m_slidesInfo->setText(tr("Slide %1 / %2")
+                                  .arg(qMax(0, currentSlide()) + 1)
+                                  .arg(m_slidePageTop.size()));
+}
+
 bool QuickView::switchEditingFile(const QString &path, const QString &encodingIdentity) {
     if (!isEditing() || path.isEmpty())
         return false;
@@ -1121,6 +1232,7 @@ void QuickView::showEditError(const QString &message) {
     }
     m_info->setTextFormat(Qt::PlainText);
     m_info->setOpenExternalLinks(false);
+    m_info->setProperty("translationSource", QVariant());
     m_info->setText(message);
     revealStaticPage(m_info);
 }
@@ -1574,6 +1686,7 @@ QWidget *QuickView::buildVideoPage() {
     });
 
     auto *volumeLabel = new QLabel(tr("Vol"), m_videoPage);
+    volumeLabel->setObjectName(QStringLiteral("quickViewVolumeLabel"));
     m_volumeSlider = new QSlider(Qt::Horizontal, m_videoPage);
     m_volumeSlider->setObjectName(QStringLiteral("quickViewVideoVolume"));
     m_volumeSlider->setRange(0, 100);
@@ -1602,8 +1715,10 @@ QWidget *QuickView::buildVideoPage() {
     // out sideways often enough that this is the one image-page tool a video
     // genuinely wants -- zoom is not offered, since without panning a zoomed
     // video is half a control.
-    videoToolbar->addAction(tr("Rotate Left"), this, [this]() { rotateVideoBy(-90); });
-    videoToolbar->addAction(tr("Rotate Right"), this, [this]() { rotateVideoBy(90); });
+    rememberAction(videoToolbar->addAction(tr("Rotate Left"), this,
+                                           [this]() { rotateVideoBy(-90); }), "Rotate Left");
+    rememberAction(videoToolbar->addAction(tr("Rotate Right"), this,
+                                           [this]() { rotateVideoBy(90); }), "Rotate Right");
     auto *videoSpacer = new QWidget(videoToolbar);
     videoSpacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     videoToolbar->addWidget(videoSpacer);
@@ -1946,6 +2061,7 @@ QWidget *QuickView::buildAudioPage() {
             });
 
     auto *audioVolumeLabel = new QLabel(tr("Vol"), m_audioPage);
+    audioVolumeLabel->setObjectName(QStringLiteral("quickViewVolumeLabel"));
     m_audioVolumeSlider = new QSlider(Qt::Horizontal, m_audioPage);
     m_audioVolumeSlider->setObjectName(QStringLiteral("quickViewAudioVolume"));
     m_audioVolumeSlider->setRange(0, 100);
@@ -2179,6 +2295,7 @@ QWidget *QuickView::buildMarkdownPage() {
     rightSpacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     m_markdownToolbar->addWidget(rightSpacer);
     m_markdownEditAction = m_markdownToolbar->addAction(tr("Edit"));
+    rememberAction(m_markdownEditAction, "Edit");
     m_markdownEditAction->setToolTip(tr("Open this file in the editor"));
     connect(m_markdownEditAction, &QAction::triggered, this, [this]() {
         if (!m_markdownPath.isEmpty())
@@ -2466,7 +2583,8 @@ QWidget *QuickView::buildDownloadPage() {
 
 void QuickView::showDownloading(const QString &name) {
     cancelPendingPreviewWork();
-    m_downloadLabel->setText(tr("Downloading a local copy for preview…\n%1").arg(name));
+    setTranslatedLabel(m_downloadLabel,
+                       QT_TR_NOOP("Downloading a local copy for preview…\n%1"), {name});
     m_downloadProgress->setRange(0, 0); // reset to indeterminate
     m_downloadProgress->setVisible(true);
     m_downloadStopButton->setVisible(true);
@@ -2476,7 +2594,7 @@ void QuickView::showDownloading(const QString &name) {
 
 void QuickView::showPreparing(const QString &name) {
     cancelPendingPreviewWork();
-    m_downloadLabel->setText(tr("Preparing preview…\n%1").arg(name));
+    setTranslatedLabel(m_downloadLabel, QT_TR_NOOP("Preparing preview…\n%1"), {name});
     m_downloadProgress->setRange(0, 0); // indeterminate: an extract has no progress
     m_downloadProgress->setVisible(true);
     m_downloadStopButton->setVisible(false);
@@ -2498,7 +2616,9 @@ void QuickView::setDownloadProgress(qint64 done, qint64 total) {
 
 void QuickView::showDownloadCancelled(const QString &name) {
     cancelPendingPreviewWork();
-    m_downloadLabel->setText(tr("Preview cancelled: the download for this file was stopped.\n%1").arg(name));
+    setTranslatedLabel(m_downloadLabel,
+                       QT_TR_NOOP("Preview cancelled: the download for this file was stopped.\n%1"),
+                       {name});
     m_downloadProgress->setVisible(false);
     m_downloadStopButton->setVisible(false);
     m_stack->setCurrentWidget(m_downloadPage);
@@ -2510,7 +2630,7 @@ void QuickView::tryUnlock() {
         return;
     const QString password = m_passwordEdit->text();
     if (password.isEmpty()) {
-        m_encryptedFeedback->setText(tr("Enter a password."));
+        setTranslatedLabel(m_encryptedFeedback, QT_TR_NOOP("Enter a password."));
         return;
     }
     if (m_encryptedKind == EncryptedKind::Office) {
@@ -2635,8 +2755,9 @@ void QuickView::handleOfficeResult(const OfficeConverter::Result &r, const QStri
         // held focus so Tab in the field can return there.
         m_encryptedKind = EncryptedKind::Office;
         m_encryptedPath = path;
-        m_encryptedLabel->setText(
-            tr("“%1” is encrypted. Enter the password to preview it:").arg(info.fileName()));
+        setTranslatedLabel(m_encryptedLabel,
+                           QT_TR_NOOP("“%1” is encrypted. Enter the password to preview it:"),
+                           {info.fileName()});
         m_encryptedFeedback->clear();
         m_passwordEdit->clear();
         m_passwordEdit->show();
@@ -2649,7 +2770,7 @@ void QuickView::handleOfficeResult(const OfficeConverter::Result &r, const QStri
         // Stay on the page and report in place; let the user retype.
         m_encryptedKind = EncryptedKind::Office;
         m_encryptedPath = path;
-        m_encryptedFeedback->setText(tr("Incorrect password. Try again."));
+        setTranslatedLabel(m_encryptedFeedback, QT_TR_NOOP("Incorrect password. Try again."));
         m_passwordEdit->selectAll();
         m_passwordEdit->setFocus();
         m_stack->setCurrentWidget(m_encryptedPage);
@@ -2658,8 +2779,9 @@ void QuickView::handleOfficeResult(const OfficeConverter::Result &r, const QStri
     case OfficeConverter::Encryption::Unsupported:
         // No password can help (legacy .xls/.ppt): note it, hide the field.
         m_encryptedPath.clear();
-        m_encryptedLabel->setText(
-            tr("“%1” is encrypted in a format that can't be previewed.").arg(info.fileName()));
+        setTranslatedLabel(m_encryptedLabel,
+                           QT_TR_NOOP("“%1” is encrypted in a format that can't be previewed."),
+                           {info.fileName()});
         m_encryptedFeedback->clear();
         m_passwordEdit->hide();
         m_unlockButton->hide();
@@ -2670,7 +2792,8 @@ void QuickView::handleOfficeResult(const OfficeConverter::Result &r, const QStri
         break;
     }
 
-    m_info->setText(tr("Cannot preview %1:\n%2").arg(info.fileName(), r.error));
+    setTranslatedLabel(m_info, QT_TR_NOOP("Cannot preview %1:\n%2"),
+                       {info.fileName(), r.error});
     revealStaticPage(m_info);
 }
 
@@ -2680,7 +2803,7 @@ QWidget *QuickView::buildArchivePage() {
     m_archiveModel = new ArchiveModel(this);
 
     auto *toolbar = new QToolBar(m_archivePage);
-    toolbar->addAction(tr("Up"), this, &QuickView::navigateArchiveUp);
+    rememberAction(toolbar->addAction(tr("Up"), this, &QuickView::navigateArchiveUp), "Up");
     m_archivePathLabel = new QLabel(m_archivePage);
     m_archivePathLabel->setContentsMargins(8, 0, 8, 0);
     toolbar->addWidget(m_archivePathLabel);
@@ -2805,8 +2928,9 @@ void QuickView::handleArchiveLoad(const ArchiveLoadResult &r, const QString &pat
         // Don't steal focus: the page can appear just from cursor movement.
         m_encryptedKind = EncryptedKind::Archive;
         m_encryptedPath = path;
-        m_encryptedLabel->setText(
-            tr("“%1” is encrypted. Enter the password to preview it:").arg(name));
+        setTranslatedLabel(m_encryptedLabel,
+                           QT_TR_NOOP("“%1” is encrypted. Enter the password to preview it:"),
+                           {name});
         m_encryptedFeedback->clear();
         m_passwordEdit->clear();
         m_passwordEdit->show();
@@ -2819,19 +2943,20 @@ void QuickView::handleArchiveLoad(const ArchiveLoadResult &r, const QString &pat
     case ArchiveHandler::Status::WrongPassword:
         m_encryptedKind = EncryptedKind::Archive;
         m_encryptedPath = path;
-        m_encryptedFeedback->setText(tr("Incorrect password. Try again."));
+        setTranslatedLabel(m_encryptedFeedback, QT_TR_NOOP("Incorrect password. Try again."));
         m_passwordEdit->selectAll();
         m_passwordEdit->setFocus();
         m_stack->setCurrentWidget(m_encryptedPage);
         releaseHiddenDocumentPages(m_encryptedPage);
         break;
     case ArchiveHandler::Status::EncryptedUnsupported:
-        m_info->setText(
-            tr("“%1” uses an encryption that can't be previewed.").arg(name));
+        setTranslatedLabel(m_info,
+                           QT_TR_NOOP("“%1” uses an encryption that can't be previewed."),
+                           {name});
         revealStaticPage(m_info);
         break;
     default:
-        m_info->setText(tr("Cannot open archive: %1").arg(name));
+        setTranslatedLabel(m_info, QT_TR_NOOP("Cannot open archive: %1"), {name});
         revealStaticPage(m_info);
         break;
     }
@@ -2841,7 +2966,7 @@ void QuickView::descendIntoNestedArchive(const QString &entryFullPath, const QSt
     if (!m_nestedDir)
         m_nestedDir = std::make_unique<QTemporaryDir>();
     if (!m_nestedDir->isValid()) {
-        m_info->setText(tr("Could not create a temporary directory."));
+        setTranslatedLabel(m_info, QT_TR_NOOP("Could not create a temporary directory."));
         revealStaticPage(m_info);
         return;
     }
@@ -2852,13 +2977,14 @@ void QuickView::descendIntoNestedArchive(const QString &entryFullPath, const QSt
     QString err;
     if (!ArchiveHandler::extract(m_archivePaths.last(), {entryFullPath}, sub,
                                  m_archivePasswords.last(), &err)) {
-        m_info->setText(tr("Could not extract %1: %2").arg(entryName, err));
+        setTranslatedLabel(m_info, QT_TR_NOOP("Could not extract %1: %2"), {entryName, err});
         revealStaticPage(m_info);
         return;
     }
     const QString nested = QDir(sub).filePath(entryFullPath);
     if (!QFileInfo::exists(nested)) {
-        m_info->setText(tr("Could not read the nested archive %1.").arg(entryName));
+        setTranslatedLabel(m_info, QT_TR_NOOP("Could not read the nested archive %1."),
+                           {entryName});
         revealStaticPage(m_info);
         return;
     }
@@ -3010,24 +3136,25 @@ QWidget *QuickView::buildPdfPage() {
     // A slim toolbar: zoom (fit-to-width is the implicit default), the copy-text
     // fallbacks, and the "page N / M" readout driven by scroll position.
     auto *toolbar = new QToolBar(m_pdfPage);
-    toolbar->addAction(tr("Zoom In"), this, [this]() {
+    rememberAction(toolbar->addAction(tr("Zoom In"), this, [this]() {
         if (!m_pdfDoc)
             return;
         m_pdfZoom = qBound(kPdfMinZoom, m_pdfZoom * kZoomStep, kPdfMaxZoom);
         relayoutPdfPages();
         renderVisiblePdfPages();
-    });
-    toolbar->addAction(tr("Zoom Out"), this, [this]() {
+    }), "Zoom In");
+    rememberAction(toolbar->addAction(tr("Zoom Out"), this, [this]() {
         if (!m_pdfDoc)
             return;
         m_pdfZoom = qBound(kPdfMinZoom, m_pdfZoom / kZoomStep, kPdfMaxZoom);
         relayoutPdfPages();
         renderVisiblePdfPages();
-    });
+    }), "Zoom Out");
     toolbar->addSeparator();
-    toolbar->addAction(tr("Copy Page"), this,
-                       [this]() { copyPdfText(CopyScope::CurrentPage); });
-    toolbar->addAction(tr("Copy All"), this, [this]() { copyPdfText(CopyScope::All); });
+    rememberAction(toolbar->addAction(tr("Copy Page"), this,
+                                      [this]() { copyPdfText(CopyScope::CurrentPage); }), "Copy Page");
+    rememberAction(toolbar->addAction(tr("Copy All"), this,
+                                      [this]() { copyPdfText(CopyScope::All); }), "Copy All");
 
     auto *spacer = new QWidget(toolbar);
     spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -3343,23 +3470,23 @@ QWidget *QuickView::buildSlidesPage() {
     // A slim toolbar: zoom (fit-to-width is the implicit default), copy-text
     // fallbacks, and the "Slide N / M" readout driven by scroll position.
     auto *toolbar = new QToolBar(m_slidesPage);
-    toolbar->addAction(tr("Zoom In"), this, [this]() {
+    rememberAction(toolbar->addAction(tr("Zoom In"), this, [this]() {
         if (m_slidePageTop.isEmpty())
             return;
         m_slidesZoom = qBound(kPdfMinZoom, m_slidesZoom * kZoomStep, kPdfMaxZoom);
         relayoutSlides();
-    });
-    toolbar->addAction(tr("Zoom Out"), this, [this]() {
+    }), "Zoom In");
+    rememberAction(toolbar->addAction(tr("Zoom Out"), this, [this]() {
         if (m_slidePageTop.isEmpty())
             return;
         m_slidesZoom = qBound(kPdfMinZoom, m_slidesZoom / kZoomStep, kPdfMaxZoom);
         relayoutSlides();
-    });
+    }), "Zoom Out");
     toolbar->addSeparator();
-    toolbar->addAction(tr("Copy Slide"), this,
-                       [this]() { copySlidesText(CopyScope::CurrentPage); });
-    toolbar->addAction(tr("Copy All"), this,
-                       [this]() { copySlidesText(CopyScope::All); });
+    rememberAction(toolbar->addAction(tr("Copy Slide"), this,
+                                      [this]() { copySlidesText(CopyScope::CurrentPage); }), "Copy Slide");
+    rememberAction(toolbar->addAction(tr("Copy All"), this,
+                                      [this]() { copySlidesText(CopyScope::All); }), "Copy All");
 
     auto *spacer = new QWidget(toolbar);
     spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -3873,7 +4000,7 @@ void QuickView::showFile(const QString &path, const QString &encodingIdentity) {
         stopVideo();
         stopAudio();
         m_infoOverlay->hide();
-        m_info->setText(tr("Select a file to preview"));
+        setTranslatedLabel(m_info, QT_TR_NOOP("Select a file to preview"));
         revealStaticPage(m_info);
         return;
     }
@@ -3980,8 +4107,8 @@ void QuickView::showFile(const QString &path, const QString &encodingIdentity) {
                     if (gen != m_pdfGen)
                         return;
                     if (!doc || doc->isLocked()) {
-                        m_info->setText(
-                            tr("Cannot open PDF: %1").arg(QFileInfo(path).fileName()));
+                        setTranslatedLabel(m_info, QT_TR_NOOP("Cannot open PDF: %1"),
+                                           {QFileInfo(path).fileName()});
                         revealStaticPage(m_info);
                         return;
                     }
@@ -4003,7 +4130,9 @@ void QuickView::showFile(const QString &path, const QString &encodingIdentity) {
         }));
         return;
 #else
-        m_info->setText(tr("PDF preview is not enabled in this build: %1").arg(info.fileName()));
+        setTranslatedLabel(m_info,
+                           QT_TR_NOOP("PDF preview is not enabled in this build: %1"),
+                           {info.fileName()});
         revealStaticPage(m_info);
         return;
 #endif
@@ -4103,7 +4232,8 @@ void QuickView::showFile(const QString &path, const QString &encodingIdentity) {
                         return; // the cursor moved on while this was reading
                     m_textLoadPending = false;
                     if (!probe.opened) {
-                        m_info->setText(tr("No preview available for %1").arg(info.fileName()));
+                        setTranslatedLabel(m_info, QT_TR_NOOP("No preview available for %1"),
+                                           {info.fileName()});
                         revealStaticPage(m_info);
                         return;
                     }
@@ -4159,6 +4289,7 @@ void QuickView::showFile(const QString &path, const QString &encodingIdentity) {
         return;
     }
 
-    m_info->setText(tr("No preview available for %1").arg(info.fileName()));
+    setTranslatedLabel(m_info, QT_TR_NOOP("No preview available for %1"),
+                       {info.fileName()});
     revealStaticPage(m_info);
 }

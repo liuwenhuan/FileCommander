@@ -317,6 +317,7 @@ private:
     void fillShortcutMenu(QMenu *menu, FilePanel *panel);
     QString commandText(const QString &id, const QString &label) const;
     void applyInterfaceTypography();
+    void applyInterfaceTypography(const QFont &chrome);
     // Re-applies every translatable string in the persistent UI after a live
     // language switch (menus, title bar, function keys, column headers, ...).
     void retranslateUi();

@@ -28,6 +28,7 @@ public:
     // Runs the current-tab visual transition after a caller intentionally
     // suppressed currentChanged while installing consistent tab state.
     void animateCurrentTabActivation();
+    void retranslate();
 
 signals:
     void closeTabRequested(int index);

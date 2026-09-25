@@ -43,6 +43,7 @@ class FindBar : public QWidget {
     Q_OBJECT
 public:
     explicit FindBar(QWidget *parent = nullptr);
+    void retranslate();
 
     // Codec the host is reading the document as. A TEXT needle is encoded with
     // it, so getting this wrong is the difference between finding everything
@@ -85,6 +86,7 @@ signals:
 
 protected:
     void keyPressEvent(QKeyEvent *event) override;
+    void changeEvent(QEvent *event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
@@ -106,4 +108,5 @@ private:
     ByteSearch::Needle m_needle;
     QString m_resultText;
     bool m_resultIsFailure = false;
+    int m_resultOrdinal = -1;
 };

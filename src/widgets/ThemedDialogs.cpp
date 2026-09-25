@@ -674,7 +674,8 @@ int getInt(QWidget *parent, const QString &title, const QString &label, int valu
 }
 
 QFont getFont(bool *ok, const QFont &initial, QWidget *parent, const QString &title,
-              QFontDialog::FontDialogOptions options) {
+              QFontDialog::FontDialogOptions options,
+              std::function<void(const QFont &)> preview) {
     FramelessDialog dlg(parent);
     dlg.setWindowTitle(title);
 
@@ -687,7 +688,11 @@ QFont getFont(bool *ok, const QFont &initial, QWidget *parent, const QString &ti
     bool accepted = false;
     QFont selectedFont = initial;
     QObject::connect(input, &QFontDialog::currentFontChanged, &dlg,
-                     [&selectedFont](const QFont &font) { selectedFont = font; });
+                     [&selectedFont, &preview](const QFont &font) {
+                         selectedFont = font;
+                         if (preview)
+                             preview(font);
+                     });
     QObject::connect(input, &QFontDialog::accepted, &dlg, [&] {
         accepted = true;
         dlg.accept();

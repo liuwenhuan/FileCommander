@@ -3,6 +3,7 @@
 #include "FramelessDialog.h"
 
 class QPlainTextEdit;
+class QEvent;
 
 // Non-modal console that shows the output of commands run from the command bar
 // ("run a command in the current directory"). Previously commands were launched
@@ -29,8 +30,11 @@ public:
 
     void retranslate();
 
+protected:
+    void changeEvent(QEvent *event) override;
+
 private:
     void reveal(); // show + raise without stealing the whole app's activation
 
-    QPlainTextEdit *m_output;
+    QPlainTextEdit *m_output = nullptr;
 };
