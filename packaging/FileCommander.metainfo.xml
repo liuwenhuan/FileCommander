@@ -33,7 +33,7 @@
   </provides>
 
   <releases>
-    <release version="0.1.0"/>
+    <release version="0.2.0"/>
   </releases>
 
   <content_rating type="oars-1.1"/>
