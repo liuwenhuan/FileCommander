@@ -234,7 +234,9 @@ TEST(ChromeTypographyTest, FontPickerPreviewsWithoutSavingAndRestoresOnCancel) {
     EnvironmentGuard configGuard("FILECOMMANDER_CONFIG_HOME", configHome.path().toUtf8());
 
     const QStringList families = QFontDatabase().families();
-    ASSERT_GE(families.size(), 2);
+    if (families.size() < 2)
+        GTEST_SKIP() << "Font preview needs two font families; this Qt platform exposes "
+                     << families.size();
     Settings settings;
     settings.setGlobalFontFamily(families.first());
     MainWindow window;
