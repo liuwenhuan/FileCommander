@@ -79,7 +79,7 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
     auto *form = new QWidget(scroll);
     auto *formLayout = new QVBoxLayout(form);
     formLayout->setContentsMargins(16, 0, 16, 0);
-    formLayout->setSpacing(0);
+    formLayout->setSpacing(1);
 
     auto *serverChoices = new QVBoxLayout;
     serverChoices->setSpacing(0);
@@ -379,6 +379,28 @@ AccountDialog::AccountDialog(AccountClient &client, Settings &settings, QWidget 
 
     updateServerControls();
     showCurrentState();
+
+    // Long translations must not make the fixed-width login form wider than
+    // its scroll viewport (whose horizontal scrollbar is intentionally hidden).
+    const int rowWidth = m_loginScroll->viewport()->width() - 32;
+    const auto fitRow = [rowWidth](QWidget *first, QWidget *second, int gap,
+                                   int secondWidth = -1) {
+        if (rowWidth <= 0)
+            return;
+        QFont font = first->font();
+        while (font.pointSizeF() > 9.0 &&
+               first->sizeHint().width() + gap +
+                   (secondWidth < 0 ? second->sizeHint().width() : secondWidth) > rowWidth) {
+            font.setPointSizeF(qMax(9.0, font.pointSizeF() - 0.5));
+            first->setFont(font);
+            if (secondWidth < 0)
+                second->setFont(font);
+        }
+    };
+    fitRow(m_customServer, m_customServerUrl, 4, m_customServerUrl->minimumWidth());
+    fitRow(m_registerButton, m_signIn, 5);
+    formLayout->invalidate();
+    formLayout->activate();
 }
 
 void AccountDialog::showCurrentState() {
