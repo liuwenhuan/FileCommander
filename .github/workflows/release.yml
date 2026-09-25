@@ -258,7 +258,7 @@ jobs:
           cp artefacts/linux-packages/*.AppImage release-input/
           cp artefacts/rpm-package/*.rpm release-input/
           cp artefacts/windows-package/*.zip release-portable/
-          (cd release-portable && sha256sum *.zip > SHA256SUMS.txt)
+          (cd release-portable && sha256sum *.zip > SHA256SUMS-portable.txt)
           test "$(find release-input -maxdepth 1 -type f | wc -l)" = 4
           test "$(find release-portable -maxdepth 1 -type f -name '*.zip' | wc -l)" = 1
           previous="$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || :)"
@@ -282,7 +282,33 @@ jobs:
             release-input/*
             release-portable/*
             update-site/SHA256SUMS.txt
+      - name: Check update-site deployment configuration
+        id: deploy-config
+        env:
+          UPDATE_DEPLOY_KEY: ${{ secrets.UPDATE_DEPLOY_KEY }}
+          UPDATE_DEPLOY_KNOWN_HOSTS: ${{ secrets.UPDATE_DEPLOY_KNOWN_HOSTS }}
+          UPDATE_DEPLOY_HOST: ${{ secrets.UPDATE_DEPLOY_HOST }}
+          UPDATE_DEPLOY_USER: ${{ secrets.UPDATE_DEPLOY_USER }}
+          UPDATE_DEPLOY_ROOT: ${{ secrets.UPDATE_DEPLOY_ROOT }}
+        run: |
+          set -euo pipefail
+          configured=0
+          for value in "$UPDATE_DEPLOY_KEY" "$UPDATE_DEPLOY_KNOWN_HOSTS" "$UPDATE_DEPLOY_HOST" "$UPDATE_DEPLOY_USER" "$UPDATE_DEPLOY_ROOT"; do
+            if [[ -n "$value" ]]; then
+              configured=$((configured + 1))
+            fi
+          done
+          if [[ "$configured" == 0 ]]; then
+            echo '::notice::Update-site deployment skipped: no deployment secrets configured.'
+            echo 'enabled=false' >> "$GITHUB_OUTPUT"
+          elif [[ "$configured" == 5 ]]; then
+            echo 'enabled=true' >> "$GITHUB_OUTPUT"
+          else
+            echo '::error::Update-site deployment secrets are incomplete.'
+            exit 1
+          fi
       - name: Configure restricted deploy SSH
+        if: steps.deploy-config.outputs.enabled == 'true'
         env:
           UPDATE_DEPLOY_KEY: ${{ secrets.UPDATE_DEPLOY_KEY }}
           UPDATE_DEPLOY_KNOWN_HOSTS: ${{ secrets.UPDATE_DEPLOY_KNOWN_HOSTS }}
@@ -293,6 +319,7 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           printf '%s\n' "$UPDATE_DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
       - name: Atomically deploy update site
+        if: steps.deploy-config.outputs.enabled == 'true'
         env:
           UPDATE_DEPLOY_HOST: ${{ secrets.UPDATE_DEPLOY_HOST }}
           UPDATE_DEPLOY_USER: ${{ secrets.UPDATE_DEPLOY_USER }}
