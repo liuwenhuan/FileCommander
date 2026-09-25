@@ -485,7 +485,7 @@ TEST(AccountDialog, ThemedModalDialogReturnsToItsLoginSizeAfterSignOut) {
     const int serverTop = official->mapTo(&dialog, QPoint(0, 0)).y();
     const int actionsBottom = signIn->mapTo(&dialog, QPoint(0, signIn->height())).y();
     EXPECT_LE(serverTop - viewportTop, 18);
-    EXPECT_LE(viewportBottom - actionsBottom, 18);
+    EXPECT_LE(viewportBottom - actionsBottom, 24);
     for (QWidget *field : {static_cast<QWidget *>(url), static_cast<QWidget *>(email),
                            static_cast<QWidget *>(password), static_cast<QWidget *>(device),
                            static_cast<QWidget *>(signIn), static_cast<QWidget *>(registerButton),

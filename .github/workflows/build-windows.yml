@@ -46,6 +46,10 @@ jobs:
     # for. The Qt package itself is msvc2019_64, so 2022 is already the newer
     # side of that pairing.
     runs-on: windows-2022
+    env:
+      # Strawberry Perl adds MinGW to PATH; CMake must still select MSVC.
+      CC: cl
+      CXX: cl
     steps:
       - uses: actions/checkout@v4
       - uses: ilammy/msvc-dev-cmd@v1
@@ -197,6 +201,9 @@ jobs:
     # side of that pairing.
     runs-on: windows-2022
     env:
+      # Strawberry Perl adds MinGW to PATH; CMake must still select MSVC.
+      CC: cl
+      CXX: cl
       POPPLER_VERSION: 26.04.0
       QT_VERSION: 5.15.2
     steps:
