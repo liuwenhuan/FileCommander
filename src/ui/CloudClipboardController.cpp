@@ -506,6 +506,8 @@ void CloudClipboardController::onClipboardChanged() {
         m_ignoredClipboardFingerprint.clear();
         return;
     }
+    // A different clipboard value makes any pending self-write suppression obsolete.
+    m_ignoredClipboardFingerprint.clear();
     captureClipboard();
 }
 
