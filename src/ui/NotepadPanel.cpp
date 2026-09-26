@@ -22,6 +22,9 @@
 #include <QScreen>
 #include <QScrollBar>
 #include <QSet>
+#include <QSizePolicy>
+#include <QStyle>
+#include <QStyleOptionComboBox>
 #include <QStyleOptionViewItem>
 #include <QItemSelectionModel>
 #include <QSignalBlocker>
@@ -140,7 +143,7 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
     m_targetDevice->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
     m_targetDevice->setMinimumContentsLength(10);
     m_targetDevice->setMinimumWidth(120);
-    m_targetDevice->setMaximumWidth(180);
+    m_targetDevice->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     m_send = new QPushButton(tr("Send"), this);
     m_send->setObjectName(QStringLiteral("CloudClipboardSendButton"));
     m_send->setFocusPolicy(Qt::StrongFocus);
@@ -148,9 +151,8 @@ void NotepadPanel::initialize(AccountClient *client, DeviceAgent *agent,
     auto *previewTools = new QHBoxLayout;
     previewTools->setContentsMargins(0, 0, 0, 0);
     previewTools->addWidget(m_copy);
-    previewTools->addStretch();
     previewTools->addWidget(m_autoSend);
-    previewTools->addWidget(m_targetDevice);
+    previewTools->addWidget(m_targetDevice, 1);
     previewTools->addWidget(m_send);
     auto *previewPane = new QWidget;
     auto *previewLayout = new QVBoxLayout(previewPane);
@@ -297,6 +299,7 @@ void NotepadPanel::rebuildTargetDevices() {
 
     const int index = m_targetDevice->findData(targetId);
     m_targetDevice->setCurrentIndex(index >= 0 ? index : 0);
+    applyDynamicSize();
 }
 
 void NotepadPanel::rebuild() {
@@ -576,10 +579,25 @@ void NotepadPanel::applyDynamicSize() {
     const int listHeight = qMax(28, splitHeight - preview);
     m_splitter->setSizes({listHeight, qMax(kPreviewMinimumHeight, splitHeight - listHeight)});
 
-    int x = m_appContentRect.right() - kPanelWidth + 1;
-    if (QScreen *screen = QGuiApplication::screenAt(m_anchorRect.center())) {
+    QStyleOptionComboBox option;
+    option.initFrom(m_targetDevice);
+    const QRect textRect = m_targetDevice->style()->subControlRect(
+        QStyle::CC_ComboBox, &option, QStyle::SC_ComboBoxEditField, m_targetDevice);
+    const int comboChrome = qMax(0, m_targetDevice->width() - textRect.width());
+    const int selectedTextWidth = m_targetDevice->fontMetrics().horizontalAdvance(
+        m_targetDevice->currentText());
+    const int footerWidth = selectedTextWidth + comboChrome + m_copy->sizeHint().width() +
+                            m_autoSend->sizeHint().width() + m_send->sizeHint().width() +
+                            34 + contentsMargins().left() + contentsMargins().right();
+    int availableWidth = m_appContentRect.width();
+    QScreen *screen = QGuiApplication::screenAt(m_anchorRect.center());
+    if (screen)
+        availableWidth = qMin(availableWidth, screen->availableGeometry().width());
+    const int panelWidth = qMin(qMax(kPanelWidth, footerWidth), availableWidth);
+    int x = m_appContentRect.right() - panelWidth + 1;
+    if (screen) {
         const QRect available = screen->availableGeometry();
-        x = qBound(available.left(), x, available.right() - kPanelWidth + 1);
+        x = qBound(available.left(), x, available.right() - panelWidth + 1);
     }
-    setGeometry(x, m_appContentRect.top(), kPanelWidth, popupHeight);
+    setGeometry(x, m_appContentRect.top(), panelWidth, popupHeight);
 }

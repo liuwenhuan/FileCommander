@@ -21,6 +21,8 @@
 #include <QScreen>
 #include <QSignalSpy>
 #include <QStackedWidget>
+#include <QStyle>
+#include <QStyleOptionComboBox>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QUuid>
@@ -1075,6 +1077,76 @@ TEST(CloudClipboardPanelTest, SelectionPreviewsTextAndFooterActionsTrackSelectio
     EXPECT_EQ(preview->toPlainText(), incoming.text);
     EXPECT_TRUE(send->isVisible());
     EXPECT_FALSE(send->isEnabled());
+}
+
+TEST(CloudClipboardPanelTest, SelectedDeviceNameFitsInFooterAtLargeFontSize) {
+    QTemporaryDir temporaryDir;
+    ASSERT_TRUE(temporaryDir.isValid());
+    Settings settings(temporaryDir.filePath(QStringLiteral("settings.ini")));
+    CloudClipboardController controller(settings, nullptr);
+    controller.setDevices({{QStringLiteral("device-2"), QStringLiteral("deepin-LGPC"), {}, false, false}});
+    controller.setSelectedTargetDeviceId(QStringLiteral("device-2"));
+    NotepadPanel panel(settings, &controller);
+    QFont font = panel.font();
+    font.setPointSize(16);
+    panel.setFont(font);
+    QFile theme(QStringLiteral(TTC_SOURCE_DIR "/resources/themes/green.qss"));
+    ASSERT_TRUE(theme.open(QIODevice::ReadOnly));
+    panel.setStyleSheet(QString::fromUtf8(theme.readAll()));
+
+    const QRect appContent(100, 100, 1000, 700);
+    panel.popUpAbove(QRect(1000, 760, 40, 30), appContent);
+    QCoreApplication::processEvents();
+
+    auto *target = panel.findChild<QComboBox *>(QStringLiteral("CloudClipboardTargetDeviceCombo"));
+    auto *send = panel.findChild<QPushButton *>(QStringLiteral("CloudClipboardSendButton"));
+    auto *copy = panel.findChild<QPushButton *>(QStringLiteral("CloudClipboardCopyButton"));
+    auto *autoSend = panel.findChild<QCheckBox *>(QStringLiteral("CloudClipboardAutoSend"));
+    ASSERT_NE(target, nullptr);
+    ASSERT_NE(send, nullptr);
+    ASSERT_NE(copy, nullptr);
+    ASSERT_NE(autoSend, nullptr);
+    QStyleOptionComboBox option;
+    option.initFrom(target);
+    option.currentText = target->currentText();
+    const QRect textRect = target->style()->subControlRect(
+        QStyle::CC_ComboBox, &option, QStyle::SC_ComboBoxEditField, target);
+    EXPECT_GE(textRect.width(), target->fontMetrics().horizontalAdvance(target->currentText()));
+    EXPECT_GT(target->width(), 180);
+    EXPECT_EQ(copy->mapTo(&panel, copy->rect().center()).y(),
+              target->mapTo(&panel, target->rect().center()).y());
+    EXPECT_EQ(autoSend->mapTo(&panel, autoSend->rect().center()).y(),
+              target->mapTo(&panel, target->rect().center()).y());
+    EXPECT_EQ(send->mapTo(&panel, send->rect().center()).y(),
+              target->mapTo(&panel, target->rect().center()).y());
+    EXPECT_LE(target->mapTo(&panel, target->rect().topRight()).x(), panel.width());
+    EXPECT_LE(send->mapTo(&panel, send->rect().topRight()).x(), panel.width());
+}
+
+TEST(CloudClipboardPanelTest, DevicePickerTakesRemainingSpaceInSingleFooterRow) {
+    QTemporaryDir temporaryDir;
+    ASSERT_TRUE(temporaryDir.isValid());
+    Settings settings(temporaryDir.filePath(QStringLiteral("settings.ini")));
+    NotepadPanel panel(settings);
+    panel.popUpAbove(QRect(700, 760, 40, 30), QRect(100, 100, 700, 700));
+    QCoreApplication::processEvents();
+
+    auto *target = panel.findChild<QComboBox *>(QStringLiteral("CloudClipboardTargetDeviceCombo"));
+    auto *send = panel.findChild<QPushButton *>(QStringLiteral("CloudClipboardSendButton"));
+    auto *copy = panel.findChild<QPushButton *>(QStringLiteral("CloudClipboardCopyButton"));
+    auto *autoSend = panel.findChild<QCheckBox *>(QStringLiteral("CloudClipboardAutoSend"));
+    ASSERT_NE(target, nullptr);
+    ASSERT_NE(send, nullptr);
+    ASSERT_NE(copy, nullptr);
+    ASSERT_NE(autoSend, nullptr);
+    EXPECT_LE(panel.width(), 700);
+    EXPECT_GT(target->width(), 180);
+    EXPECT_EQ(copy->mapTo(&panel, copy->rect().center()).y(),
+              target->mapTo(&panel, target->rect().center()).y());
+    EXPECT_EQ(autoSend->mapTo(&panel, autoSend->rect().center()).y(),
+              target->mapTo(&panel, target->rect().center()).y());
+    EXPECT_EQ(send->mapTo(&panel, send->rect().center()).y(),
+              target->mapTo(&panel, target->rect().center()).y());
 }
 
 TEST(CloudClipboardPanelTest, UnavailableTargetNeverFallsBackToAllDevices) {
