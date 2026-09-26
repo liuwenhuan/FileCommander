@@ -6,6 +6,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+. (Join-Path $repo 'packaging/windows-hash.ps1')
 $verifier = Join-Path $repo 'packaging/verify-windows-package.ps1'
 $guiVerifier = Join-Path $repo 'tests/packaging/test-windows-gui-subsystem.ps1'
 $profiles = Join-Path $repo 'packaging/profiles'
@@ -84,7 +85,7 @@ function Write-LegacyManifest {
     [ordered]@{
         product = 'FileCommander'
         platform = 'windows-x64'
-        officePreview = $false
+        officePreview = $true
         pdfPreview = $true
         mediaPreview = $true
         mediaBackend = 'windowsmf'
@@ -114,7 +115,7 @@ function Write-ReleaseManifest {
                 [ordered]@{
                     path = $relativePath
                     bytes = [int64]$_.Length
-                    sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToUpperInvariant()
+                    sha256 = (Get-Sha256Hash -LiteralPath $_.FullName).ToUpperInvariant()
                     provenance = $Provenance[$relativePath]
                     version = ''
                 }
@@ -140,6 +141,8 @@ function New-ValidStage {
     New-Item -ItemType Directory -Force -Path $stage | Out-Null
     $provenance = @{}
     Add-File -Stage $stage -RelativePath 'FileCommander.exe' -Provenance $provenance -Group 'application' -Subsystem 2
+    Add-File -Stage $stage -RelativePath 'LICENSE' -Provenance $provenance -Group 'application'
+    Add-File -Stage $stage -RelativePath 'office-oxide.exe' -Provenance $provenance -Group 'office'
     Add-File -Stage $stage -RelativePath 'Qt5Core.dll' -Provenance $provenance -Group 'qt'
     Add-File -Stage $stage -RelativePath 'Qt5Gui.dll' -Provenance $provenance -Group 'qt'
     Add-File -Stage $stage -RelativePath 'Qt5Widgets.dll' -Provenance $provenance -Group 'qt'
@@ -261,6 +264,12 @@ try {
     $fixture.Provenance.Remove('Qt5Xml.dll')
     Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-portable' -Provenance $fixture.Provenance
     Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $windowsProfile -Pattern 'Qt5Xml\.dll'
+
+    $fixture = New-ValidStage -Name 'missing-office-converter'
+    Remove-Item -LiteralPath (Join-Path $fixture.Stage 'office-oxide.exe')
+    $fixture.Provenance.Remove('office-oxide.exe')
+    Write-ReleaseManifest -Stage $fixture.Stage -Profile 'windows-portable' -Provenance $fixture.Provenance
+    Invoke-ExpectedRejection -Stage $fixture.Stage -Profile $windowsProfile -Pattern 'office-oxide\.exe'
 
     $fixture = New-ValidStage -Name 'forbidden-profile-file'
     Add-File -Stage $fixture.Stage -RelativePath 'libmpv-2.dll' -Provenance $fixture.Provenance -Group 'media'

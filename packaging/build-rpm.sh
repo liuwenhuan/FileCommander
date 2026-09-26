@@ -46,7 +46,7 @@ strip --strip-unneeded "$STAGE_DIR/usr/bin/FileCommander-smb-helper"
 install -d "$STAGE_DIR/usr/share/doc/filecommander"
 install -m 0644 "$REPO_ROOT/LICENSE" "$STAGE_DIR/usr/share/doc/filecommander/LICENSE"
 
-# Keep Office preview optional, exactly as the other package formats do.
+# Office preview is part of the release payload, not an optional host tool.
 OXIDE=""
 for candidate in office_oxide office-oxide oxide; do
     OXIDE="$(command -v "$candidate" 2>/dev/null || true)"
@@ -58,12 +58,9 @@ for candidate in office_oxide office-oxide oxide; do
         fi
     done
 done
-if [[ -n "$OXIDE" ]]; then
-    install -m 0755 "$(readlink -f "$OXIDE")" "$STAGE_DIR/usr/bin/office-oxide"
-    strip --strip-unneeded "$STAGE_DIR/usr/bin/office-oxide" 2>/dev/null || true
-else
-    echo "warning: office-oxide not found; Office preview is not included" >&2
-fi
+[[ -n "$OXIDE" ]] || { echo "error: office-oxide is required for the RPM package" >&2; exit 1; }
+install -m 0755 "$(readlink -f "$OXIDE")" "$STAGE_DIR/usr/bin/office-oxide"
+strip --strip-unneeded "$STAGE_DIR/usr/bin/office-oxide" 2>/dev/null || true
 
 RELEASE_MANIFEST="$BUILD_DIR/FileCommander-${VERSION}-${RELEASE}.${ARCH}.manifest.json"
 bash "$REPO_ROOT/packaging/write-linux-manifest.sh" "$STAGE_DIR" rpm "$RELEASE_MANIFEST"
@@ -116,16 +113,12 @@ fi
 %files
 /usr/bin/FileCommander
 /usr/bin/FileCommander-smb-helper
+/usr/bin/office-oxide
 /usr/share/applications/*
 /usr/share/icons/hicolor/*
 /usr/share/metainfo/*
 /usr/share/doc/filecommander/LICENSE
 EOF
-
-# Add an optional Office sidecar to the file list only when it was staged.
-if [[ -x "$STAGE_DIR/usr/bin/office-oxide" ]]; then
-    printf '%s\n' '/usr/bin/office-oxide' >> "$RPM_TOPDIR/SPECS/filecommander.spec"
-fi
 
 rpmbuild -bb "$RPM_TOPDIR/SPECS/filecommander.spec" --define "_topdir $RPM_TOPDIR"
 RPM_FILE="$(find "$RPM_TOPDIR/RPMS/$ARCH" -maxdepth 1 -name 'filecommander-*.rpm' -print -quit)"
@@ -137,6 +130,7 @@ install -m 0644 "$RELEASE_MANIFEST" "$OUT_DIR/$PKG_NAME.manifest.json"
 rpm -K "$OUT_DIR/$PKG_NAME"
 rpm -qlp "$OUT_DIR/$PKG_NAME" | grep -qx '/usr/bin/FileCommander'
 rpm -qlp "$OUT_DIR/$PKG_NAME" | grep -qx '/usr/bin/FileCommander-smb-helper'
+rpm -qlp "$OUT_DIR/$PKG_NAME" | grep -qx '/usr/bin/office-oxide'
 rpm -qip "$OUT_DIR/$PKG_NAME" | grep -q "Architecture.*$ARCH"
 
 echo "==> $OUT_DIR/$PKG_NAME"

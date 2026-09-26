@@ -11,6 +11,10 @@ make_root() {
         "$root/usr/share/icons/hicolor/scalable/apps"
     printf '#!/bin/sh\nexit 0\n' > "$root/usr/bin/FileCommander"
     chmod +x "$root/usr/bin/FileCommander"
+    printf '#!/bin/sh\nexit 0\n' > "$root/usr/bin/FileCommander-smb-helper"
+    chmod +x "$root/usr/bin/FileCommander-smb-helper"
+    printf '#!/bin/sh\nexit 0\n' > "$root/usr/bin/office-oxide"
+    chmod +x "$root/usr/bin/office-oxide"
     printf '[Desktop Entry]\nName=FileCommander\n' > "$root/usr/share/applications/FileCommander.desktop"
     printf '<svg/>\n' > "$root/usr/share/icons/hicolor/scalable/apps/FileCommander.svg"
     printf 'library\n' > "$root/usr/lib/libsample.so"
@@ -44,6 +48,15 @@ bash "$REPO_ROOT/packaging/write-linux-manifest.sh" "$root_a" appimage "$TMP/a.j
 bash "$REPO_ROOT/packaging/write-linux-manifest.sh" "$root_b" appimage "$TMP/b.json"
 cmp "$TMP/a.json" "$TMP/b.json"
 bash "$REPO_ROOT/packaging/verify-linux-package.sh" "$root_a" "$TMP/a.json" x86_64
+
+for required in usr/bin/FileCommander-smb-helper usr/bin/office-oxide; do
+    incomplete="$TMP/missing-${required##*/}"
+    cp -a "$root_a" "$incomplete"
+    rm "$incomplete/$required"
+    bash "$REPO_ROOT/packaging/write-linux-manifest.sh" "$incomplete" appimage "$TMP/incomplete.json"
+    assert_fails_with "$required" \
+        bash "$REPO_ROOT/packaging/verify-linux-package.sh" "$incomplete" "$TMP/incomplete.json" x86_64
+done
 
 cp -a "$root_a" "$TMP/unknown"
 bash "$REPO_ROOT/packaging/write-linux-manifest.sh" "$TMP/unknown" appimage "$TMP/unknown.json"

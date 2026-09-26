@@ -370,9 +370,15 @@ $executableSubsystem = Get-PeSubsystem -Path $executablePath -DisplayPath 'FileC
 if ($executableSubsystem -ne 2) {
     throw "FileCommander.exe must use the Windows GUI subsystem; found subsystem value $executableSubsystem."
 }
-if ($legacyManifest.officePreview -and
-    -not (Test-Path -LiteralPath (Join-Path $resolved 'office-oxide.exe'))) {
-    throw 'Office preview is enabled but office-oxide.exe is missing.'
+if (-not $legacyManifest.officePreview) {
+    throw 'Office preview must be enabled in every Windows package.'
+}
+$officeExecutable = Join-Path $resolved 'office-oxide.exe'
+if (-not (Test-Path -LiteralPath $officeExecutable -PathType Leaf)) {
+    throw 'Windows package is missing office-oxide.exe.'
+}
+if ((Get-PeArchitecture -Path $officeExecutable -DisplayPath 'office-oxide.exe') -ne $Architecture) {
+    throw "office-oxide.exe architecture does not match $Architecture."
 }
 if ($legacyManifest.pdfPreview) {
     foreach ($required in @('Qt5Xml.dll', 'poppler-qt5.dll', 'poppler.dll', 'freetype.dll',

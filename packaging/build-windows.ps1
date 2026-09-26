@@ -57,6 +57,10 @@ if (-not $OpenSsl111Root) {
 $triplet = "$Architecture-windows"
 $build = Join-Path $repo "build/windows-msvc-release-$Architecture"
 $stage = Join-Path $repo "dist/FileCommander-windows-$Architecture"
+$officeBinary = Join-Path $repo 'build/office-oxide/office-oxide.exe'
+if (-not (Test-Path -LiteralPath $officeBinary -PathType Leaf)) {
+    throw "office-oxide.exe is required for Windows packages: $officeBinary"
+}
 $pdfPreviewOption = if ($pdfPreview) { 'ON' } else { 'OFF' }
 $mediaPreviewOption = if ($mediaPreview) { 'ON' } else { 'OFF' }
 $provenanceEntries = [System.Collections.Generic.List[object]]::new()
@@ -244,10 +248,7 @@ if (Test-Path -LiteralPath (Join-Path $OpenSsl111Root 'bin')) {
     }
 }
 
-$officeBinary = Join-Path $repo 'build/office-oxide/office-oxide.exe'
-if (Test-Path -LiteralPath $officeBinary) {
-    Copy-StageFile -Source $officeBinary -Destination $stage -Group 'office'
-}
+Copy-StageFile -Source $officeBinary -Destination $stage -Group 'office'
 $runtime = & (Join-Path $PSScriptRoot 'collect-msvc-runtime.ps1') `
     -Stage $stage -Architecture $Architecture -Mode Portable
 if (-not $runtime.CopiedCrtDllPaths) { throw 'MSVC runtime collection did not copy any CRT DLLs.' }
@@ -265,7 +266,7 @@ $manifest = [ordered]@{
     version = $script:ProductVersion
     platform = "windows-$Architecture"
     networkProtocols = @('sftp', 'smb', 'ftp', 'webdav', 'webdavs')
-    officePreview = Test-Path -LiteralPath (Join-Path $stage 'office-oxide.exe')
+    officePreview = $true
     pdfPreview = $pdfPreview
     mediaPreview = $mediaPreview
     mediaBackend = $mediaBackend

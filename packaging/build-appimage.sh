@@ -139,13 +139,10 @@ for candidate in office_oxide office-oxide oxide; do
     done
 done
 
-if [[ -n "$OXIDE" ]]; then
-    cp "$(readlink -f "$OXIDE")" "$APPDIR/usr/bin/office-oxide"
-    chmod +x "$APPDIR/usr/bin/office-oxide"
-    echo "==> Bundled office-oxide from $OXIDE"
-else
-    echo "warning: office-oxide not found; Office document preview will not work" >&2
-fi
+[[ -n "$OXIDE" ]] || { echo "error: office-oxide is required for the AppImage" >&2; exit 1; }
+cp "$(readlink -f "$OXIDE")" "$APPDIR/usr/bin/office-oxide"
+chmod +x "$APPDIR/usr/bin/office-oxide"
+echo "==> Bundled office-oxide from $OXIDE"
 
 # --- Runtime hook -----------------------------------------------------------
 # AppRun sources every apprun-hooks/*.sh before exec'ing the app. Ours drops
@@ -195,7 +192,8 @@ if (cd "$EXTRACT_DIR" && "$FINAL" --appimage-extract >/dev/null 2>&1); then
     bash "$REPO_ROOT/packaging/verify-linux-package.sh" "$EXTRACT_DIR/squashfs-root" \
         "$FINAL.manifest.json" x86_64
 else
-    echo "warning: could not extract AppImage for second-pass manifest verification" >&2
+    echo "error: could not extract AppImage for second-pass manifest verification" >&2
+    exit 1
 fi
 
 echo

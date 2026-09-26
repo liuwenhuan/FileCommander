@@ -326,14 +326,8 @@ jobs:
           path: build/poppler-qt5
           key: ${{ steps.poppler-cache.outputs.cache-primary-key }}
 
-      # office-oxide renders docx/pptx/xlsx for the preview pane. It lives in a
-      # separate repository, so CI can only bundle it when told where to get it:
-      # set the OFFICE_OXIDE_REPO variable (and OFFICE_OXIDE_REF to pin it) on
-      # this repository. Without it the package is built anyway and Office
-      # preview silently does nothing -- which is exactly what the packaging
-      # scripts already do on a machine that lacks it, so the behaviour is not
-      # new. The warning below is here so a package missing it cannot be
-      # mistaken for a complete one.
+      # Release packages require office-oxide; stop before packaging if its
+      # source repository is not configured.
       # Cloned before the cache is consulted so the key can name the exact commit
       # that was fetched. Cloning is seconds; compiling is minutes, and a branch
       # name would go stale silently the moment the branch moved.
@@ -348,11 +342,11 @@ jobs:
           git clone --depth 1 $(if ($env:OFFICE_OXIDE_REF) { "--branch=$env:OFFICE_OXIDE_REF" }) $env:OFFICE_OXIDE_REPO build/office-oxide-src
           "sha=$(git -C build/office-oxide-src rev-parse HEAD)" >> $env:GITHUB_OUTPUT
 
-      - name: Warn when office-oxide is not configured
+      - name: Require office-oxide source
         if: vars.OFFICE_OXIDE_REPO == ''
         shell: pwsh
         run: |
-          Write-Warning 'OFFICE_OXIDE_REPO is not set: this package will have no Office document preview.'
+          throw 'OFFICE_OXIDE_REPO is required for Windows packages.'
 
       # Only the 3 MB binary is cached, not Cargo's target directory: the source
       # is pinned by commit, so a hit means the exact same binary would have come

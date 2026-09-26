@@ -91,20 +91,27 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build pkg-config libarchive-dev libssh2-1-dev libsecret-1-dev libcurl4-openssl-dev libssl-dev libsmbclient-dev libmpv-dev libpoppler-qt5-dev libqt5x11extras5-dev libqt5websockets5-dev qtbase5-dev qttools5-dev-tools zlib1g-dev libxcb1-dev p7zip-full squashfs-tools
-      - name: Build optional office converter
+      - name: Build required office converter
         env:
           OFFICE_OXIDE_REPO: ${{ vars.OFFICE_OXIDE_REPO }}
           OFFICE_OXIDE_REF: ${{ vars.OFFICE_OXIDE_REF }}
         run: |
           if [ -z "$OFFICE_OXIDE_REPO" ]; then
-            echo '::warning::Office preview sidecar is not configured.'
-            exit 0
+            echo '::error::OFFICE_OXIDE_REPO is required for every release package.'
+            exit 1
           fi
           git clone --depth 1 ${OFFICE_OXIDE_REF:+--branch "$OFFICE_OXIDE_REF"} "$OFFICE_OXIDE_REPO" build/office-oxide-src
           cargo build --release --manifest-path build/office-oxide-src/Cargo.toml -p office_oxide_cli
+          install -d build/office-oxide
+          install -m 0755 build/office-oxide-src/target/release/office-oxide build/office-oxide/office-oxide
           install -d "$HOME/.local/bin"
-          install -m 0755 build/office-oxide-src/target/release/office-oxide "$HOME/.local/bin/office-oxide"
+          install -m 0755 build/office-oxide/office-oxide "$HOME/.local/bin/office-oxide"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: office-oxide-linux-x64
+          path: build/office-oxide/office-oxide
+          if-no-files-found: error
       - name: Debian package
         run: ./packaging/build-deb.sh
       - name: AppImage
@@ -118,7 +125,7 @@ jobs:
 
   rpm:
     timeout-minutes: 60
-    needs: version-check
+    needs: [version-check, linux]
     runs-on: ubuntu-22.04
     container:
       # fedora:40 multi-architecture manifest list, resolved 2026-08-24.
@@ -130,6 +137,14 @@ jobs:
       - name: Install Fedora build dependencies
         run: |
           dnf -y install cmake ninja-build gcc-c++ make rpm-build rpm-sign binutils tar findutils which pkgconf-pkg-config qt5-qtbase-devel qt5-qtx11extras-devel qt5-qttools-devel qt5-qtwebsockets-devel libarchive-devel libssh2-devel libsecret-devel libcurl-devel openssl-devel libsmbclient-devel mpv-devel poppler-qt5-devel zlib-devel libxcb-devel squashfs-tools desktop-file-utils gtk3
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: office-oxide-linux-x64
+          path: build/office-oxide
+      - name: Install required office converter
+        run: |
+          install -m 0755 build/office-oxide/office-oxide /usr/local/bin/office-oxide
+          office-oxide --help >/dev/null
       - name: Build and validate RPM
         run: bash ./packaging/build-rpm.sh
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -202,13 +217,13 @@ jobs:
         with:
           path: build/poppler-qt5
           key: ${{ steps.poppler-cache.outputs.cache-primary-key }}
-      - name: Build optional office converter
+      - name: Build required office converter
         shell: pwsh
         env:
           OFFICE_OXIDE_REPO: ${{ vars.OFFICE_OXIDE_REPO }}
           OFFICE_OXIDE_REF: ${{ vars.OFFICE_OXIDE_REF }}
         run: |
-          if (-not $env:OFFICE_OXIDE_REPO) { Write-Warning 'Office preview sidecar is not configured.'; exit 0 }
+          if (-not $env:OFFICE_OXIDE_REPO) { throw 'OFFICE_OXIDE_REPO is required for every release package.' }
           git clone --depth 1 $(if ($env:OFFICE_OXIDE_REF) { "--branch=$env:OFFICE_OXIDE_REF" }) $env:OFFICE_OXIDE_REPO build/office-oxide-src
           cargo build --release --manifest-path build/office-oxide-src/Cargo.toml -p office_oxide_cli
           New-Item -ItemType Directory -Force -Path build/office-oxide | Out-Null

@@ -46,6 +46,13 @@ if [[ -n "$missing" ]]; then
     exit 1
 fi
 
+for required in usr/bin/FileCommander usr/bin/FileCommander-smb-helper usr/bin/office-oxide; do
+    if [[ ! -x "$ROOT/$required" ]]; then
+        echo "error: package is missing required executable: $required" >&2
+        exit 1
+    fi
+done
+
 while IFS=$'\t' read -r rel expected_sha; do
     [[ -n "$rel" ]] || continue
     actual_sha="$(sha256sum "$ROOT/$rel" | awk '{print toupper($1)}')"

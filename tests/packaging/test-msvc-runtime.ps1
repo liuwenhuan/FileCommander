@@ -58,7 +58,7 @@ function Write-TestManifest {
     [ordered]@{
         product = 'FileCommander'
         platform = 'windows-x64'
-        officePreview = $false
+        officePreview = $true
         pdfPreview = $false
         mediaPreview = $false
         runtime = [ordered]@{
@@ -75,6 +75,7 @@ function Add-RequiredRuntimeFiles {
 
     $requiredRuntimeNames = @('vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll')
     New-PeFile -Path (Join-Path $Stage 'FileCommander.exe') -Machine $Machine
+    New-PeFile -Path (Join-Path $Stage 'office-oxide.exe') -Machine $Machine
     foreach ($runtimeName in $requiredRuntimeNames) {
         New-PeFile -Path (Join-Path $Stage $runtimeName) -Machine $Machine
     }

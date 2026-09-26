@@ -56,7 +56,9 @@
       ]
     },
     "office": {
-      "required": [],
+      "required": [
+        "office-oxide.exe"
+      ],
       "forbidden": []
     },
     "msvcRuntime": {

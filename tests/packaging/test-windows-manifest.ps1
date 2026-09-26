@@ -28,6 +28,8 @@ function New-Stage {
     New-Item -ItemType Directory -Force -Path (Join-Path $Stage 'platforms') | Out-Null
     $contents = [ordered]@{
         'FileCommander.exe' = 'filecommander'
+        'LICENSE' = 'license'
+        'office-oxide.exe' = 'office-oxide'
         'Qt5Core.dll' = 'qt-core'
         'Qt5Gui.dll' = 'qt-gui'
         'Qt5Widgets.dll' = 'qt-widgets'
@@ -51,6 +53,8 @@ function New-Stage {
 function New-ProvenanceEntries {
     return @(
         [pscustomobject]@{ path = 'FileCommander.exe'; provenance = 'application' }
+        [pscustomobject]@{ path = 'LICENSE'; provenance = 'application' }
+        [pscustomobject]@{ path = 'office-oxide.exe'; provenance = 'office' }
         [pscustomobject]@{ path = 'Qt5Core.dll'; provenance = 'qt' }
         [pscustomobject]@{ path = 'Qt5Gui.dll'; provenance = 'qt' }
         [pscustomobject]@{ path = 'Qt5Widgets.dll'; provenance = 'qt' }
@@ -119,6 +123,8 @@ try {
             -Message "$($profile.profile) must require Poppler."
         Assert-True -Condition ((Get-ProfileGroup $profile 'qt').required -contains 'Qt5Xml.dll') `
             -Message "$($profile.profile) must require Qt5Xml."
+        Assert-True -Condition ((Get-ProfileGroup $profile 'office').required -contains 'office-oxide.exe') `
+            -Message "$($profile.profile) must require office-oxide.exe."
         $applicationExecutables = @((Get-ProfileGroup $profile 'application').required |
             Where-Object { $_ -match '(?i)\.exe$' })
         Assert-True -Condition ($applicationExecutables.Count -eq 1 -and

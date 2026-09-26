@@ -67,13 +67,8 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           working-directory: server
-      # office-oxide renders docx/pptx/xlsx for the preview pane. It lives in a
-      # separate repository, and build-deb.sh / build-appimage.sh look for it on
-      # PATH exactly the way the application does at runtime -- so putting it
-      # there is all that is needed. Without OFFICE_OXIDE_REPO set on this
-      # repository the packages are still produced, silently without Office
-      # preview, which is what those scripts already do on a machine that lacks
-      # it. The warning is so that cannot be mistaken for a complete package.
+      # Release packages require office-oxide; stop before packaging if its
+      # source repository is not configured.
       # Cloned before the cache is consulted so the key can name the exact commit
       # that was fetched: cloning is seconds, compiling is minutes, and a branch
       # name would go stale silently the moment the branch moved.
@@ -87,10 +82,11 @@ jobs:
           git clone --depth 1 ${OFFICE_OXIDE_REF:+--branch "$OFFICE_OXIDE_REF"} "$OFFICE_OXIDE_REPO" build/office-oxide-src
           echo "sha=$(git -C build/office-oxide-src rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Warn when office-oxide is not configured
+      - name: Require office-oxide source
         if: vars.OFFICE_OXIDE_REPO == ''
         run: |
-          echo "::warning::OFFICE_OXIDE_REPO is not set: these packages will have no Office document preview."
+          echo "::error::OFFICE_OXIDE_REPO is required for Linux packages."
+          exit 1
 
       # Only the binary is cached, not Cargo's target directory: the source is
       # pinned by commit, so a hit means the same binary would have come out.

@@ -56,11 +56,7 @@ install -d "$STAGE_DIR/usr/share/doc/filecommander"
 # packaging niceness -- a condition of the licence the program is under.
 install -m 0644 "$REPO_ROOT/LICENSE" "$STAGE_DIR/usr/share/doc/filecommander/copyright"
 
-# office-oxide renders Office documents for the preview pane. It is a separate
-# project with no distro package, so it ships here rather than as a dependency;
-# without it, Office preview silently shows nothing. Found the same way the app
-# looks for it at runtime (see OfficeConverter::resolveBinary), so whatever the
-# build host uses is what gets packaged.
+# office-oxide has no distro package and must travel with every release build.
 OXIDE=""
 for candidate in office_oxide office-oxide oxide; do
     OXIDE="$(command -v "$candidate" 2>/dev/null || true)"
@@ -73,13 +69,10 @@ for candidate in office_oxide office-oxide oxide; do
     done
 done
 
-if [[ -n "$OXIDE" ]]; then
-    install -m 0755 "$(readlink -f "$OXIDE")" "$STAGE_DIR/usr/bin/office-oxide"
-    strip --strip-unneeded "$STAGE_DIR/usr/bin/office-oxide" 2>/dev/null || true
-    echo "==> Bundled office-oxide from $OXIDE"
-else
-    echo "warning: office-oxide not found; Office document preview will not work" >&2
-fi
+[[ -n "$OXIDE" ]] || { echo "error: office-oxide is required for the Debian package" >&2; exit 1; }
+install -m 0755 "$(readlink -f "$OXIDE")" "$STAGE_DIR/usr/bin/office-oxide"
+strip --strip-unneeded "$STAGE_DIR/usr/bin/office-oxide" 2>/dev/null || true
+echo "==> Bundled office-oxide from $OXIDE"
 
 # --- Dependencies -----------------------------------------------------------
 # Prefer dpkg-shlibdeps: it reads the actual ELF and resolves each SONAME to the
