@@ -161,16 +161,18 @@
 #include "network/CurlWebDavProvider.h"
 #include "network/ConnectionStore.h"
 #include "network/SftpProvider.h"
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_MACOS)
+#include "network/SmbProvider.h"
+#endif
 #if defined(Q_OS_WIN)
 #include "network/WindowsSmbProvider.h"
 #endif
 #endif
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN) || defined(Q_OS_MACOS)
 #include "devices/RemovableDeviceMonitor.h"
 #endif
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_MACOS)
 #include "network/GvfsMounter.h"
-#include "network/SmbProvider.h"
 #endif
 #if FILECOMMANDER_HAS_LINUX_INTEGRATION || (defined(Q_OS_WIN) && FILECOMMANDER_HAS_NETWORK)
 #include "network/SmbHostBrowser.h"
@@ -1482,7 +1484,7 @@ void MainWindow::setupFeatureBatch() {
         return;
     m_featureBatchStarted = true;
 
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN) || defined(Q_OS_MACOS)
     // Removable-device hot-plug: when a new USB stick / phone / drive appears and
     // the preference is on, mount it and open it in a fresh, activated tab.
     m_deviceMonitor = new RemovableDeviceMonitor(this);
@@ -1499,7 +1501,7 @@ void MainWindow::setupFeatureBatch() {
     m_rightPanel->setTreeSources(m_deviceMonitor, m_connRegistry);
 #endif
 
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN) || defined(Q_OS_MACOS)
     connect(m_deviceMonitor, &RemovableDeviceMonitor::deviceAdded, this,
             [this](const RemovableDevice &dev) {
                 if (!m_settings.autoOpenNewDevice() || !m_activePanel)
@@ -2215,13 +2217,14 @@ SavedNativeProvider providerForSaved(const SavedConnection &c) {
                 factory};
     }
     case ConnectionProtocol::Smb: {
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_MACOS)
         auto p = std::make_shared<SmbProvider>();
 #elif defined(Q_OS_WIN)
         auto p = std::make_shared<WindowsSmbProvider>();
 #else
         return {};
 #endif
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN) || defined(Q_OS_MACOS)
         auto factory = [p, c](const QString &u, const QString &pw) {
             return std::function<bool(QString *)>([p, c, u, pw](QString *e) {
                 return p->connectToHost(c.host, u, pw, QString(), /*anonymous=*/false, e);
@@ -2232,6 +2235,9 @@ SavedNativeProvider providerForSaved(const SavedConnection &c) {
                     return p->connectToHost(c.host, c.user, password, QString(), c.anonymous, e);
                 },
                 factory};
+#else
+        return {};
+#endif
     }
     default:
         return {};
@@ -2405,7 +2411,7 @@ QVector<ComputerEntry> MainWindow::computerEntries() {
     // a stale copy of it from another.
     QVector<ComputerEntry> removable;
     QSet<QString> removableRoots;
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN) || defined(Q_OS_MACOS)
     if (m_deviceMonitor) {
         for (const RemovableDevice &device : m_deviceMonitor->devices()) {
             ComputerEntry entry;
@@ -2468,7 +2474,7 @@ void MainWindow::showComputerView(FilePanel *panel) {
     if (!panel)
         return;
 
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN) || defined(Q_OS_MACOS)
     // Only once the window is up. During construction this would pull the
     // device monitor in ahead of the first paint, which the startup path exists
     // to avoid; setupFeatureBatch refreshes the view itself when it later runs.
@@ -2510,7 +2516,7 @@ void MainWindow::openComputerEntry(FilePanel *panel, const ComputerEntry &entry)
         panel->navigateTo(entry.target, FilePanel::ParkedConnection::Drop);
         break;
     case ComputerEntry::Kind::RemovableDevice: {
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN) || defined(Q_OS_MACOS)
         if (!m_deviceMonitor)
             return;
         QString mountPoint;

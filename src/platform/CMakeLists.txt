@@ -31,6 +31,14 @@ if(WIN32)
         windows/WindowsPrivilegeBroker.cpp
         windows/WindowsShellShortcuts.cpp
     )
+elseif(APPLE)
+    list(APPEND PLATFORM_SOURCES
+        macos/MacOpenWithHandlers.mm
+        macos/MacTrashService.mm
+        macos/MacCredentialStore.cpp
+        macos/MacPrivilegeBroker.cpp
+        macos/MacShellShortcuts.cpp
+    )
 else()
     list(APPEND PLATFORM_SOURCES
         linux/LinuxOpenWithHandlers.cpp
@@ -46,8 +54,17 @@ target_include_directories(platform PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(platform PUBLIC Qt5::Core Qt5::Network)
 if(WIN32)
     target_link_libraries(platform PRIVATE shell32 ole32 Advapi32)
-else()
+elseif(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(LIBSECRET REQUIRED IMPORTED_TARGET GLOBAL libsecret-1)
     target_link_libraries(platform PRIVATE PkgConfig::LIBSECRET)
+endif()
+
+if(APPLE)
+    target_link_libraries(platform PRIVATE
+        "-framework AppKit"
+        "-framework CoreServices"
+        "-framework Security"
+        "-framework UniformTypeIdentifiers"
+    )
 endif()

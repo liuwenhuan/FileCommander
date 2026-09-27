@@ -73,14 +73,12 @@ set(UI_TEST_SOURCES
     test_MainWindowPreviewSwap.cpp
     test_DeleteConfirmDialog.cpp
     test_MainWindowActions.cpp
-    test_UpdateUi.cpp
     test_WindowActivation.cpp
     test_FilePanelTheme.cpp
     test_TabMotion.cpp
     test_FileListViewLayout.cpp
     test_ChecksumDialog.cpp
     test_NotepadPanel.cpp
-    test_ExternalConnectDialog.cpp
     test_AccountDialog.cpp
     test_PendingSendQueue.cpp
     test_ShortcutsDialog.cpp
@@ -98,6 +96,15 @@ set(UI_TEST_SOURCES
     ../archive/test_CompressDialog.cpp
     ../../resources/resources.qrc
 )
+
+if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION OR WIN32)
+    list(APPEND UI_TEST_SOURCES test_UpdateUi.cpp)
+endif()
+
+if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION OR
+   (WIN32 AND FILECOMMANDER_ENABLE_NETWORK))
+    list(APPEND UI_TEST_SOURCES test_ExternalConnectDialog.cpp)
+endif()
 
 if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION OR WIN32)
     list(APPEND UI_TEST_SOURCES test_SecureWipeConfirmationDialog.cpp)

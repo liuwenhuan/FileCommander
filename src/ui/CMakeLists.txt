@@ -58,7 +58,6 @@ set(UI_SOURCES
     DragPixmap.h
     DragPixmap.cpp
     DesktopNotify.h
-    DesktopNotify.cpp
     PendingSendQueue.h
     PendingSendQueue.cpp
     CloudClipboardController.h
@@ -121,6 +120,12 @@ set(UI_SOURCES
     dialogs/AboutDialog.h
     dialogs/AboutDialog.cpp
 )
+
+if(APPLE)
+    list(APPEND UI_SOURCES DesktopNotify_macos.mm)
+else()
+    list(APPEND UI_SOURCES DesktopNotify.cpp)
+endif()
 
 if(WIN32)
     list(APPEND UI_SOURCES
@@ -230,6 +235,37 @@ if(FILECOMMANDER_PREVIEW_PDF)
             INTERFACE_INCLUDE_DIRECTORIES
                 "${FILECOMMANDER_POPPLER_QT5_ROOT}/include/poppler/qt5"
         )
+    elseif(APPLE)
+        set(FILECOMMANDER_POPPLER_QT5_ROOT
+            "$ENV{FILECOMMANDER_POPPLER_QT5_ROOT}" CACHE PATH
+            "Poppler Qt5 installation built against the selected Qt 5 SDK")
+        if(NOT FILECOMMANDER_POPPLER_QT5_ROOT)
+            set(FILECOMMANDER_POPPLER_QT5_ROOT
+                "${CMAKE_SOURCE_DIR}/.deps/macos/poppler-qt5-x64"
+                CACHE PATH
+                "Poppler Qt5 installation built against the selected Qt 5 SDK")
+        endif()
+        if(NOT EXISTS
+               "${FILECOMMANDER_POPPLER_QT5_ROOT}/include/poppler/qt5/poppler-qt5.h")
+            message(FATAL_ERROR
+                "FILECOMMANDER_PREVIEW_PDF requires "
+                "FILECOMMANDER_POPPLER_QT5_ROOT to point to a Poppler Qt5 "
+                "build made against this Qt 5 SDK.")
+        endif()
+        find_library(_fc_poppler_qt5
+            NAMES poppler-qt5
+            PATHS "${FILECOMMANDER_POPPLER_QT5_ROOT}/lib"
+            NO_DEFAULT_PATH)
+        if(NOT _fc_poppler_qt5)
+            message(FATAL_ERROR
+                "Poppler Qt5 library was not found below "
+                "${FILECOMMANDER_POPPLER_QT5_ROOT}/lib.")
+        endif()
+        add_library(FileCommander::PopplerQt5 SHARED IMPORTED GLOBAL)
+        set_target_properties(FileCommander::PopplerQt5 PROPERTIES
+            IMPORTED_LOCATION "${_fc_poppler_qt5}"
+            INTERFACE_INCLUDE_DIRECTORIES
+                "${FILECOMMANDER_POPPLER_QT5_ROOT}/include/poppler/qt5")
     else()
         find_package(PkgConfig REQUIRED)
         pkg_check_modules(POPPLER_QT5 REQUIRED IMPORTED_TARGET GLOBAL poppler-qt5)
@@ -292,4 +328,9 @@ if(FILECOMMANDER_PREVIEW_PDF)
 endif()
 if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
     target_link_libraries(ui PRIVATE Qt5::X11Extras PkgConfig::XCB Qt5::DBus)
+endif()
+if(APPLE)
+    target_link_libraries(ui PRIVATE
+        "-framework UserNotifications"
+    )
 endif()

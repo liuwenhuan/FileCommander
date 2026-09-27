@@ -1,10 +1,12 @@
 #include "SmbHelperClient.h"
 
 #include <QCoreApplication>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QMutexLocker>
 #include <QStandardPaths>
+#include <QStringList>
 
 #include "SmbHelperProtocol.h"
 
@@ -12,6 +14,7 @@
 #include <csignal>
 #include <cstring>
 
+#include <fcntl.h>
 #include <poll.h>
 #include <spawn.h>
 #include <sys/socket.h>
@@ -99,11 +102,18 @@ QString SmbHelperClient::helperPath() {
         // Next to the running binary first, so a development build and an
         // uninstalled AppImage layout both find their own helper rather than a
         // stale system-wide one.
-        const QString beside =
-            QCoreApplication::applicationDirPath() + QLatin1Char('/') +
-            QLatin1String(kHelperName);
-        if (QFileInfo(beside).isExecutable())
-            return beside;
+        const QString appDir = QCoreApplication::applicationDirPath();
+        const QStringList candidates = {
+            appDir + QLatin1Char('/') + QLatin1String(kHelperName),
+#if defined(Q_OS_MACOS)
+            QDir::cleanPath(appDir + QStringLiteral("/../Helpers/") +
+                            QLatin1String(kHelperName)),
+#endif
+        };
+        for (const QString &candidate : candidates) {
+            if (QFileInfo(candidate).isExecutable())
+                return candidate;
+        }
         return QStandardPaths::findExecutable(QLatin1String(kHelperName));
     }();
     return path;
@@ -374,8 +384,16 @@ SmbHelperClient::Channel *SmbHelperClient::spawn() {
     // parent cannot deadlock by draining the wrong one, and the helper's stderr
     // stays inherited for diagnostics.
     int sv[2];
-    if (::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sv) != 0)
+    if (::socketpair(AF_UNIX, SOCK_STREAM, 0, sv) != 0)
         return nullptr;
+    for (const int fd : sv) {
+        const int flags = ::fcntl(fd, F_GETFD);
+        if (flags < 0 || ::fcntl(fd, F_SETFD, flags | FD_CLOEXEC) != 0) {
+            ::close(sv[0]);
+            ::close(sv[1]);
+            return nullptr;
+        }
+    }
 
     posix_spawn_file_actions_t actions;
     if (posix_spawn_file_actions_init(&actions) != 0) {

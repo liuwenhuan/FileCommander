@@ -39,6 +39,7 @@ class RemovableDeviceMonitor : public QObject {
     Q_OBJECT
 public:
     explicit RemovableDeviceMonitor(QObject *parent = nullptr);
+    ~RemovableDeviceMonitor() override;
 
     // Current snapshot of removable devices.
     QVector<RemovableDevice> devices() const;
@@ -75,4 +76,5 @@ private:
 
     QVector<RemovableDevice> m_devices;
     QTimer *m_refreshDebounce = nullptr; // coalesces D-Bus signal bursts
+    void *m_nativeState = nullptr;        // macOS workspace observer state
 };

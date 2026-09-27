@@ -1,0 +1,40 @@
+diff --git a/scripts/cmake/vcpkg_configure_qmake.cmake b/scripts/cmake/vcpkg_configure_qmake.cmake
+index 9340fefb6..9a3fd21c0 100644
+--- a/scripts/cmake/vcpkg_configure_qmake.cmake
++++ b/scripts/cmake/vcpkg_configure_qmake.cmake
+@@ -6,8 +6,18 @@ function(vcpkg_configure_qmake)
+         "OPTIONS;OPTIONS_RELEASE;OPTIONS_DEBUG;BUILD_OPTIONS;BUILD_OPTIONS_RELEASE;BUILD_OPTIONS_DEBUG"
+     )
+ 
+-    # Find qmake executable
+-    find_program(qmake_executable NAMES qmake PATHS "${CURRENT_HOST_INSTALLED_DIR}/tools/qt5/bin" NO_DEFAULT_PATH)
++    # Find qmake executable. Cross builds may provide a host qmake outside
++    # the vcpkg host triplet, for example a prepared Qt toolchain on macOS.
++    if(DEFINED ENV{FILECOMMANDER_QT_HOST_TOOLS_ROOT})
++        find_program(
++            qmake_executable
++            NAMES qmake
++            PATHS "$ENV{FILECOMMANDER_QT_HOST_TOOLS_ROOT}/bin"
++            NO_DEFAULT_PATH
++        )
++    else()
++        find_program(qmake_executable NAMES qmake PATHS "${CURRENT_HOST_INSTALLED_DIR}/tools/qt5/bin" NO_DEFAULT_PATH)
++    endif()
+ 
+     if(NOT qmake_executable)
+         message(FATAL_ERROR "vcpkg_configure_qmake: unable to find qmake.")
+@@ -54,6 +64,14 @@ function(vcpkg_configure_qmake)
+     set(qmake_comp_flags "")
+     macro(qmake_add_flags qmake_var operation flags)
+         string(STRIP "${flags}" striped_flags)
++        if(VCPKG_TARGET_IS_OSX AND VCPKG_TARGET_ARCHITECTURE STREQUAL "arm64" AND
++           "${qmake_var}" MATCHES "^QMAKE_LFLAGS")
++            # QMAKE_LFLAGS is global and leaks into Qt host_build subprojects
++            # such as qmltyperegistrar. The target qmodule.pri supplies the
++            # arm64 linker flag only for target builds.
++            string(REGEX REPLACE "-arch[ \t]+arm64" "" striped_flags "${striped_flags}")
++            string(STRIP "${striped_flags}" striped_flags)
++        endif()
+         if(striped_flags)
+             vcpkg_list(APPEND qmake_comp_flags "${qmake_var}${operation}${striped_flags}")
+         endif()

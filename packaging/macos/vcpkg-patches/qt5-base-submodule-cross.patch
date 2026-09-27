@@ -1,0 +1,50 @@
+diff --git a/ports/qt5-base/cmake/qt_build_submodule.cmake b/ports/qt5-base/cmake/qt_build_submodule.cmake
+index 6c59090f4..79a5fd6b8 100644
+--- a/ports/qt5-base/cmake/qt_build_submodule.cmake
++++ b/ports/qt5-base/cmake/qt_build_submodule.cmake
+@@ -10,6 +10,24 @@ function(qt_build_submodule SOURCE_PATH)
+ 
+     vcpkg_build_qmake(SKIP_MAKEFILES)
+ 
++    # Cross builds must make host tools available before target modules run
++    # their build-time generators.
++    if(DEFINED ENV{FILECOMMANDER_QT_HOST_TOOLS_ROOT} AND
++       PORT STREQUAL "qt5-declarative")
++        set(_qt_submodule_build_dir
++            "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel")
++        set(_qt_host_tool_dir
++            "${_qt_submodule_build_dir}/src/qmltyperegistrar")
++        if(EXISTS "${_qt_host_tool_dir}/Makefile")
++            find_program(_qt_make_program NAMES make REQUIRED)
++            vcpkg_execute_build_process(
++                COMMAND "${_qt_make_program}" -C "${_qt_host_tool_dir}" install
++                WORKING_DIRECTORY "${_qt_submodule_build_dir}"
++                LOGNAME "host-tools-${TARGET_TRIPLET}-rel"
++            )
++        endif()
++    endif()
++
+     #Fix the installation location within the makefiles
+     qt_fix_makefile_install("${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-dbg/")
+     qt_fix_makefile_install("${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel/")
+@@ -136,8 +154,16 @@ function(qt_build_submodule SOURCE_PATH)
+     endif()
+ 
+     # Remove duplicate flags from qmodule.pri issue -> https://github.com/microsoft/vcpkg/issues/28835
+-    file(READ "${CURRENT_INSTALLED_DIR}/tools/qt5/mkspecs/qmodule.pri" QMODULE_PRI_CONTENT)
+-    string(REGEX REPLACE "QMAKE_CXXFLAGS_RELEASE\\+=[^\n]*\n" "QMAKE_CXXFLAGS_RELEASE=\n" QMODULE_PRI_CONTENT ${QMODULE_PRI_CONTENT})
+-    file(WRITE "${CURRENT_INSTALLED_DIR}/tools/qt5/mkspecs/qmodule.pri" "${QMODULE_PRI_CONTENT}")
++    # Cross builds keep this file with the external host tools because the
++    # target Qt installation does not contain host mkspecs.
++    set(_qt_qmodule_pri "${CURRENT_INSTALLED_DIR}/tools/qt5/mkspecs/qmodule.pri")
++    if(NOT EXISTS "${_qt_qmodule_pri}" AND DEFINED ENV{FILECOMMANDER_QT_HOST_TOOLS_ROOT})
++        set(_qt_qmodule_pri "$ENV{FILECOMMANDER_QT_HOST_TOOLS_ROOT}/mkspecs/qmodule.pri")
++    endif()
++    if(EXISTS "${_qt_qmodule_pri}")
++        file(READ "${_qt_qmodule_pri}" QMODULE_PRI_CONTENT)
++        string(REGEX REPLACE "QMAKE_CXXFLAGS_RELEASE\\+=[^\n]*\n" "QMAKE_CXXFLAGS_RELEASE=\n" QMODULE_PRI_CONTENT ${QMODULE_PRI_CONTENT})
++        file(WRITE "${_qt_qmodule_pri}" "${QMODULE_PRI_CONTENT}")
++    endif()
+ 
+ endfunction()
+\ No newline at end of file

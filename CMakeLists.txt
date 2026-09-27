@@ -7,7 +7,19 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+if(APPLE)
+    enable_language(OBJCXX)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "12.0" CACHE STRING
+        "Minimum macOS version supported by FileCommander")
+endif()
+
 include(cmake/FileCommanderOptions.cmake)
+
+if(FILECOMMANDER_DEPS_ROOT)
+    get_filename_component(_fc_deps_root
+        "${FILECOMMANDER_DEPS_ROOT}" ABSOLUTE BASE_DIR "${CMAKE_SOURCE_DIR}")
+    list(PREPEND CMAKE_PREFIX_PATH "${_fc_deps_root}")
+endif()
 
 # Tests and benchmarks default ON (the normal development build is unchanged),
 # but a packaging build turns them off: they roughly triple build time, and
@@ -33,6 +45,9 @@ add_compile_definitions(
     FILECOMMANDER_MEDIA_BACKEND_MPV=${FILECOMMANDER_MEDIA_BACKEND_MPV}
     FILECOMMANDER_MEDIA_BACKEND_WINDOWSMF=${FILECOMMANDER_MEDIA_BACKEND_WINDOWSMF}
 )
+if(FILECOMMANDER_USE_VCPKG)
+    add_compile_definitions(FILECOMMANDER_USE_VCPKG=1)
+endif()
 if(MSVC)
     add_compile_options(/utf-8)
 endif()
@@ -50,6 +65,31 @@ endif()
 # directly. Only the network build has either.
 if(FILECOMMANDER_ENABLE_NETWORK)
     find_package(Qt5 REQUIRED COMPONENTS WebSockets)
+endif()
+
+if(APPLE AND CMAKE_OSX_ARCHITECTURES MATCHES "arm64" AND
+   CMAKE_OSX_ARCHITECTURES MATCHES "x86_64")
+    get_target_property(_fc_qt_core_location Qt5::Core IMPORTED_LOCATION_RELEASE)
+    if(NOT _fc_qt_core_location)
+        get_target_property(_fc_qt_core_location Qt5::Core IMPORTED_LOCATION)
+    endif()
+    if(_fc_qt_core_location AND EXISTS "${_fc_qt_core_location}")
+        execute_process(
+            COMMAND /usr/bin/lipo -info "${_fc_qt_core_location}"
+            OUTPUT_VARIABLE _fc_qt_architectures
+            ERROR_VARIABLE _fc_qt_architecture_error
+            RESULT_VARIABLE _fc_qt_lipo_result
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+        if(NOT _fc_qt_lipo_result EQUAL 0 OR
+           NOT _fc_qt_architectures MATCHES "x86_64" OR
+           NOT _fc_qt_architectures MATCHES "arm64")
+            message(FATAL_ERROR
+                "Universal2 macOS builds require a universal Qt5::Core framework. "
+                "The selected Qt installation is not universal: "
+                "${_fc_qt_core_location}")
+        endif()
+    endif()
 endif()
 find_package(LibArchive)
 
@@ -87,20 +127,40 @@ add_subdirectory(src/ui)
 add_subdirectory(src/viewer)
 add_subdirectory(src/archive)
 add_subdirectory(src/search)
-if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION AND FILECOMMANDER_ENABLE_NETWORK)
+if(FILECOMMANDER_ENABLE_NETWORK AND
+   (FILECOMMANDER_ENABLE_LINUX_INTEGRATION OR APPLE))
     add_subdirectory(src/smbhelper)
 endif()
 
-add_executable(FileCommander
+set(FILECOMMANDER_APP_SOURCES
     src/main.cpp
     resources/resources.qrc
 )
+if(APPLE)
+    set(FILECOMMANDER_MACOS_ICON
+        "${CMAKE_SOURCE_DIR}/resources/macos/FileCommander.icns")
+    set_source_files_properties("${FILECOMMANDER_MACOS_ICON}"
+        PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+    list(APPEND FILECOMMANDER_APP_SOURCES "${FILECOMMANDER_MACOS_ICON}")
+endif()
+
+add_executable(FileCommander ${FILECOMMANDER_APP_SOURCES})
 if(WIN32)
     enable_language(RC)
     target_sources(FileCommander PRIVATE resources/icons/FileCommander.rc)
     target_include_directories(FileCommander PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons")
     set_target_properties(FileCommander PROPERTIES WIN32_EXECUTABLE TRUE)
+elseif(APPLE)
+    set_target_properties(FileCommander PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.aigutta.FileCommander"
+        MACOSX_BUNDLE_BUNDLE_NAME "FileCommander"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_LONG_VERSION_STRING "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_ICON_FILE "FileCommander.icns"
+    )
 endif()
 
 target_link_libraries(FileCommander PRIVATE
@@ -116,6 +176,27 @@ target_compile_definitions(FileCommander PRIVATE
     FILECOMMANDER_MEDIA_BACKEND_MPV=${FILECOMMANDER_MEDIA_BACKEND_MPV}
     FILECOMMANDER_MEDIA_BACKEND_WINDOWSMF=${FILECOMMANDER_MEDIA_BACKEND_WINDOWSMF}
 )
+
+if(APPLE)
+    # Keep the bundle self-contained during development. The helper is copied
+    # into the conventional LaunchServices location by the helper target below.
+    add_executable(FileCommanderPrivilegedHelper
+        src/platform/macos/FileCommanderPrivilegedHelper.cpp
+    )
+    set_target_properties(FileCommanderPrivilegedHelper PROPERTIES
+        OUTPUT_NAME "com.aigutta.FileCommander.privileged-helper"
+        RUNTIME_OUTPUT_DIRECTORY
+            "${CMAKE_BINARY_DIR}/FileCommander.app/Contents/Library/LaunchServices"
+    )
+    target_link_libraries(FileCommanderPrivilegedHelper PRIVATE
+        platform
+        Qt5::Core
+    )
+    add_dependencies(FileCommander FileCommanderPrivilegedHelper)
+endif()
+if(TARGET FileCommander-smb-helper)
+    add_dependencies(FileCommander FileCommander-smb-helper)
+endif()
 
 if(WIN32 AND CMAKE_BUILD_TYPE STREQUAL "Debug")
     get_filename_component(_qt_bin "${Qt5_DIR}/../../../bin" ABSOLUTE)
@@ -169,7 +250,13 @@ endif()
 # which is how the window manager ties running windows back to the launcher entry.
 include(GNUInstallDirs)
 
-install(TARGETS FileCommander RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+if(APPLE)
+    install(TARGETS FileCommander BUNDLE DESTINATION .)
+    install(TARGETS FileCommanderPrivilegedHelper
+            RUNTIME DESTINATION FileCommander.app/Contents/Library/LaunchServices)
+else()
+    install(TARGETS FileCommander RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()
 if(UNIX AND NOT APPLE)
     install(FILES packaging/FileCommander.desktop
             DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/applications)

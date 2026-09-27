@@ -98,14 +98,20 @@ if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
     list(APPEND CORE_SOURCES
         network/GvfsMounter.h
         network/GvfsMounter.cpp
+        devices/RemovableDeviceMonitor.h
+        devices/RemovableDeviceMonitor.cpp
+    )
+endif()
+
+if(FILECOMMANDER_ENABLE_NETWORK AND
+   (FILECOMMANDER_ENABLE_LINUX_INTEGRATION OR APPLE))
+    list(APPEND CORE_SOURCES
         network/SmbClientGate.h
         network/SmbProvider.h
         network/SmbProvider.cpp
         network/SmbHelperProtocol.h
         network/SmbHelperClient.h
         network/SmbHelperClient.cpp
-        devices/RemovableDeviceMonitor.h
-        devices/RemovableDeviceMonitor.cpp
     )
 endif()
 
@@ -154,6 +160,12 @@ if(WIN32)
     endif()
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     list(APPEND CORE_SOURCES filesystem/DirectoryChangeMonitor_linux.cpp)
+elseif(APPLE)
+    list(APPEND CORE_SOURCES
+        filesystem/DirectoryChangeMonitor_macos.cpp
+        devices/RemovableDeviceMonitor.h
+        devices/RemovableDeviceMonitor_macos.mm
+    )
 else()
     list(APPEND CORE_SOURCES filesystem/DirectoryChangeMonitor_stub.cpp)
 endif()
@@ -161,7 +173,7 @@ endif()
 add_library(core STATIC ${CORE_SOURCES})
 
 if(FILECOMMANDER_ENABLE_NETWORK)
-    if(WIN32)
+    if(WIN32 OR FILECOMMANDER_USE_VCPKG)
         find_package(libssh2 CONFIG REQUIRED)
         find_package(CURL CONFIG REQUIRED)
     else()
@@ -178,7 +190,8 @@ if(FILECOMMANDER_ENABLE_NETWORK)
     find_package(OpenSSL REQUIRED)
 endif()
 
-if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
+if(FILECOMMANDER_ENABLE_NETWORK AND
+   (FILECOMMANDER_ENABLE_LINUX_INTEGRATION OR APPLE))
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(SMBCLIENT REQUIRED IMPORTED_TARGET smbclient)
 endif()
@@ -212,20 +225,38 @@ if(WIN32)
     target_link_libraries(core PUBLIC Advapi32 Shell32)
 endif()
 
+if(APPLE)
+    target_link_libraries(core PUBLIC
+        "-framework DiskArbitration"
+        "-framework Foundation"
+        "-framework IOKit"
+    )
+endif()
+
 if(FILECOMMANDER_ENABLE_NETWORK)
     target_link_libraries(core PUBLIC Qt5::WebSockets)
     # Crypto only: the TLS itself is Qt's and curl's, we just make the key.
     target_link_libraries(core PUBLIC OpenSSL::Crypto)
     if(WIN32)
-        target_link_libraries(core PUBLIC libssh2::libssh2 CURL::libcurl ws2_32 Mpr Netapi32)
+        target_link_libraries(core PUBLIC
+            libssh2::libssh2
+            CURL::libcurl
+            ws2_32
+            Mpr
+            Netapi32
+        )
+    elseif(FILECOMMANDER_USE_VCPKG)
+        target_link_libraries(core PUBLIC libssh2::libssh2 CURL::libcurl)
     else()
         target_link_libraries(core PUBLIC PkgConfig::LIBSSH2 PkgConfig::CURL)
     endif()
 endif()
 
 if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
-    target_link_libraries(core PUBLIC
-        Qt5::DBus
-        PkgConfig::SMBCLIENT
-    )
+    target_link_libraries(core PUBLIC Qt5::DBus)
+endif()
+
+if(FILECOMMANDER_ENABLE_NETWORK AND
+   (FILECOMMANDER_ENABLE_LINUX_INTEGRATION OR APPLE))
+    target_link_libraries(core PUBLIC PkgConfig::SMBCLIENT)
 endif()
