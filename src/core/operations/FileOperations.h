@@ -119,6 +119,7 @@ signals:
     // where bytes are not meaningful (delete, symlink).
     void progress(qint64 doneItems, qint64 totalItems, qint64 doneBytes, qint64 totalBytes,
                    const QString &currentFile);
+    void deviceTransferProgress(qint64 sentBytes, qint64 receivedBytes, bool confirmed);
     void errorOccurred(const QString &message);
 
 private:

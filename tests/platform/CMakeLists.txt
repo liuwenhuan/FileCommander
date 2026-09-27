@@ -27,6 +27,18 @@ add_test(NAME linux_privilege_broker_tests COMMAND linux_privilege_broker_tests)
 filecommander_set_test_runtime(linux_privilege_broker_tests)
 
 if(WIN32)
+    add_executable(windows_executable_icon_tests
+        test_WindowsExecutableIcon.cpp
+    )
+    target_link_libraries(windows_executable_icon_tests PRIVATE
+        GTest::gtest_main
+    )
+    target_compile_definitions(windows_executable_icon_tests PRIVATE
+        FILECOMMANDER_TEST_EXECUTABLE_PATH="$<TARGET_FILE:FileCommander>")
+    add_dependencies(windows_executable_icon_tests FileCommander)
+    add_test(NAME windows_executable_icon_tests COMMAND windows_executable_icon_tests)
+    filecommander_set_test_runtime(windows_executable_icon_tests)
+
     add_executable(windows_privilege_broker_tests
         test_WindowsPrivilegeBroker.cpp
     )

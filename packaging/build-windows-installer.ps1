@@ -63,7 +63,8 @@ if (-not $makensis) {
 
 $output = Join-Path $repo "dist/FileCommander-$version-windows-$Architecture-setup.exe"
 $definition = Join-Path $PSScriptRoot 'FileCommander.nsi'
-& $makensis "/DPRODUCT_VERSION=$version" "/DSTAGE_DIR=$stage" "/DOUTFILE=$output" $definition
+$icon = Join-Path $repo 'resources/icons/FileCommander.ico'
+& $makensis "/DPRODUCT_VERSION=$version" "/DSTAGE_DIR=$stage" "/DOUTFILE=$output" "/DICON_FILE=$icon" $definition
 if ($LASTEXITCODE) { throw 'NSIS installer build failed.' }
 if (-not (Test-Path -LiteralPath $output -PathType Leaf)) {
     throw "NSIS did not create the installer: $output"

@@ -247,6 +247,7 @@ TEST(WebDavChunkedUploadTest, ContinueThenCloseIsReportedAsFailure) {
     QThread *put = QThread::create([&]() {
         FileHandle *h = dav.openWrite(QStringLiteral("/big.bin"), true);
         ASSERT_NE(h, nullptr);
+        EXPECT_FALSE(h->receiverProgressSupported());
         dav.write(h, payload.constData(), payload.size());
         committed = dav.closeHandleStatus(h);
     });

@@ -218,7 +218,25 @@ public:
     int closeReadCalls() const { return m_closeReadCalls; }
     int zeroWriteCalls() const { return m_zeroWriteCalls; }
 
+    bool canUploadLocalFileParallel() const override { return m_parallelEnabled; }
+    CloseHandleResult uploadLocalFileParallel(
+        const QString &source, const QString &destination,
+        const std::function<bool(qint64, qint64)> &onProgress,
+        const std::function<bool()> &checkpoint, QString *) override {
+        ++m_parallelCalls;
+        if (!checkpoint())
+            return {false, FileHandle::StreamError::Other, QStringLiteral("cancelled")};
+        const QByteArray data = readFile(source);
+        m_files[destination] = data;
+        onProgress(data.size(), data.size());
+        return {};
+    }
+    void enableParallelUpload() { m_parallelEnabled = true; }
+    int parallelCalls() const { return m_parallelCalls; }
+
 private:
+    bool m_parallelEnabled = false;
+    int m_parallelCalls = 0;
     QHash<QString, QByteArray> m_files;
     QHash<QString, qint64> m_reportedSizes;
     QHash<QString, QVector<qint64>> m_reportedSizeSequences;
@@ -262,6 +280,56 @@ TEST(ProviderTransferTest, CopiesSingleFileByteForByte) {
 
     EXPECT_TRUE(QFile::exists(source)); // copy leaves the source in place
     EXPECT_EQ(readFile(QDir(dstDir.path()).filePath("file.bin")), payload);
+}
+
+TEST(ProviderTransferTest, ParallelLocalUploadOnlyAboveTwentyMiB) {
+    QTemporaryDir sourceDir;
+    ASSERT_TRUE(sourceDir.isValid());
+    const QString source = QDir(sourceDir.path()).filePath(QStringLiteral("large.bin"));
+    QFile file(source);
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    ASSERT_TRUE(file.resize(20 * 1024 * 1024));
+    file.close();
+
+    InMemoryProvider destination;
+    destination.enableParallelUpload();
+    FileOperations operations;
+    QString error;
+    ASSERT_TRUE(operations.copyAcrossProviders(LocalFileProvider::instance(), {source},
+                                               &destination, QStringLiteral("/destination"),
+                                               false, nullptr, &error)) << error.toStdString();
+    EXPECT_EQ(destination.parallelCalls(), 0);
+
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    ASSERT_TRUE(file.resize(20 * 1024 * 1024 + 1));
+    file.close();
+    ASSERT_TRUE(operations.copyAcrossProviders(LocalFileProvider::instance(), {source},
+                                               &destination, QStringLiteral("/other"),
+                                               false, nullptr, &error)) << error.toStdString();
+    EXPECT_EQ(destination.parallelCalls(), 1);
+}
+
+TEST(ProviderTransferTest, ExistingSingleStreamPartialKeepsItsResumePath) {
+    QTemporaryDir sourceDir;
+    ASSERT_TRUE(sourceDir.isValid());
+    const QString source = QDir(sourceDir.path()).filePath(QStringLiteral("resume.bin"));
+    QFile file(source);
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    ASSERT_TRUE(file.resize(20 * 1024 * 1024 + 1));
+    file.close();
+
+    InMemoryProvider destination;
+    destination.enableParallelUpload();
+    destination.addFile(QStringLiteral("/destination/resume.bin"),
+                        QByteArray(1024 * 1024, '\0'));
+    FileOperations operations;
+    QString error;
+    ASSERT_TRUE(operations.copyAcrossProviders(LocalFileProvider::instance(), {source},
+                                               &destination, QStringLiteral("/destination"),
+                                               false, nullptr, &error)) << error.toStdString();
+    EXPECT_EQ(destination.parallelCalls(), 0);
+    EXPECT_EQ(destination.file(QStringLiteral("/destination/resume.bin")).size(),
+              20 * 1024 * 1024 + 1);
 }
 
 TEST(ProviderTransferTest, CopiesDirectoryRecursively) {

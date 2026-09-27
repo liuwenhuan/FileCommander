@@ -35,6 +35,7 @@ set(UI_TEST_SOURCES
     test_ThumbnailRenameEditor.cpp
     test_IconTinting.cpp
     test_TransferProgressLayout.cpp
+    test_IncomingTransferWindow.cpp
     test_QuickViewControls.cpp
     test_ArchivePreviewAsync.cpp
     test_SeekWatchdog.cpp

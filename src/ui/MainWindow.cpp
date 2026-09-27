@@ -17,6 +17,7 @@
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QElapsedTimer>
 #include <QFormLayout>
 #include <QDir>
 #include <QFile>
@@ -135,6 +136,7 @@
 #include "dialogs/MultiRenameDialog.h"
 #include "dialogs/OperationProgressDialog.h"
 #include "dialogs/TransferProgressDialog.h"
+#include "dialogs/IncomingTransferWindow.h"
 #include "dialogs/OverwriteConfirmDialog.h"
 #include "dialogs/OperationErrorDialog.h"
 #include "privilege/PrivilegeBroker.h"
@@ -179,6 +181,7 @@
 
 #include <QApplication>
 #include <QDate>
+#include <QDateTime>
 #include <memory>
 
 namespace {
@@ -189,6 +192,27 @@ constexpr bool kAutomaticMediaWarmEnabled = false;
 constexpr int kStartupFeatureDelayMs = 5000;
 std::shared_ptr<FileProvider> localProviderPtr() {
     return std::shared_ptr<FileProvider>(LocalFileProvider::instance(), [](FileProvider *) {});
+}
+
+void appendBackgroundSendLog(QString message) {
+    message.replace(QLatin1Char('\r'), QLatin1Char(' '));
+    message.replace(QLatin1Char('\n'), QLatin1Char(' '));
+    QString path = qEnvironmentVariable("FILECOMMANDER_BACKGROUND_SEND_LOG");
+    if (path.isEmpty())
+        path = QDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation))
+                   .filePath(QStringLiteral("background-transfers.log"));
+    if (!QDir().mkpath(QFileInfo(path).absolutePath())) {
+        qWarning() << "Cannot create background transfer log directory:" << path;
+        return;
+    }
+    QFile log(path);
+    if (!log.open(QIODevice::WriteOnly | QIODevice::Append)) {
+        qWarning() << "Cannot open background transfer log:" << path << log.errorString();
+        return;
+    }
+    const QByteArray line = (QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs) +
+                             QLatin1Char(' ') + message + QLatin1Char('\n')).toUtf8();
+    log.write(line);
 }
 
 // A splitter whose handle paints its own grey line across the full panel
@@ -4915,6 +4939,30 @@ void MainWindow::updateDeviceSharing() {
             ttc::notify(tr("File received"),
                         tr("%1 arrived from another device.").arg(QFileInfo(fileName).fileName()));
         });
+        connect(m_shareServer, &FileShareServer::uploadProgress, this,
+                [this](const QString &id, const QString &fileName, qint64 written,
+                       qint64 total, const QString &state) {
+                    // A CLI background send keeps MainWindow hidden; receiving
+                    // progress must not surface that hidden application window.
+                    if (!isVisible())
+                        return;
+                    IncomingTransferWindow *window = m_incomingTransferWindows.value(id);
+                    if (!window && state == QLatin1String("receiving")) {
+                        window = new IncomingTransferWindow(this);
+                        m_incomingTransferWindows.insert(id, window);
+                    }
+                    if (!window)
+                        return;
+                    window->updateTransfer(id, fileName, written, total, state);
+                    if (state != QLatin1String("receiving")) {
+                        QTimer::singleShot(20000, this, [this, id] {
+                            if (IncomingTransferWindow *finished = m_incomingTransferWindows.take(id)) {
+                                finished->close();
+                                finished->deleteLater();
+                            }
+                        });
+                    }
+                });
         // The first device list is fetched the moment the account signs in, but
         // the agent socket has not finished its hello by then, so this device
         // shows as offline until something re-fetches. "announced" is that
@@ -4976,8 +5024,10 @@ void MainWindow::updateDeviceSharing() {
                     if (sessionId.isEmpty() || m_incomingTunnels.contains(sessionId))
                         return;
                     auto *tunnel = new RelayTunnel(this);
+                    // A multipart upload uses three data connections plus a
+                    // status query; two channels remain for control traffic.
                     tunnel->serveLocal(m_accountClient->relaySocketUrl(sessionId), ticket,
-                                       m_shareServer->port());
+                                       m_shareServer->port(), 6);
                     m_incomingTunnels.insert(sessionId, tunnel);
                     QTimer::singleShot(qMax(1, expiresIn + 5) * 1000, this,
                                        [this, sessionId, tunnel] {
@@ -5052,12 +5102,12 @@ void MainWindow::withDeviceSession(const QString &deviceId,
 #endif
 }
 
-MainWindow::DeviceLink MainWindow::deviceLink(const AccountSession &session) {
+MainWindow::DeviceLink MainWindow::deviceLink(const AccountSession &session, bool relayOnly) {
 #if FILECOMMANDER_HAS_NETWORK
     // A machine on two networks reports both of its addresses and only one of
     // them is reachable from here, so they are all candidates.
     QVector<QPair<QString, quint16>> targets;
-    if (session.peerPort != 0) {
+    if (!relayOnly && session.peerPort != 0) {
         for (const QString &host : session.peerLanAddresses)
             targets.append({host, session.peerPort});
     }
@@ -5099,6 +5149,7 @@ MainWindow::DeviceLink MainWindow::deviceLink(const AccountSession &session) {
         // The peer serves a self-signed certificate, so the pin the account
         // server relayed is the whole identity check.
         provider->setPinnedPublicKey(session.peerPin);
+        provider->setRelayDeviceRoute(relay);
         provider->setTimeoutMs(relay ? 12000 : 1000);
         providers.append(provider);
     }
@@ -5165,6 +5216,7 @@ MainWindow::DeviceLink MainWindow::deviceLink(const AccountSession &session) {
     return link;
 #else
     Q_UNUSED(session);
+    Q_UNUSED(relayOnly);
     return {};
 #endif
 }
@@ -5200,6 +5252,228 @@ void MainWindow::openDeviceSession(const AccountSession &session, const QString 
 #else
     Q_UNUSED(session);
     Q_UNUSED(name);
+#endif
+}
+
+void MainWindow::finishBackgroundSend(QObject *request, bool ok, const QString &message) {
+    if (!request || m_backgroundSendRequest != request)
+        return;
+    appendBackgroundSendLog(request->property("backgroundDescription").toString() +
+                            (ok ? QStringLiteral(" complete: ") : QStringLiteral(" failed: ")) +
+                            message);
+    m_backgroundSendRequest = nullptr;
+    request->deleteLater();
+    emit backgroundSendFinished(ok);
+}
+
+void MainWindow::sendFileToDeviceInBackground(const QString &deviceName,
+                                               const QString &sourcePath) {
+    const QString description = QStringLiteral("device=%1 source=%2")
+                                    .arg(deviceName, sourcePath);
+    appendBackgroundSendLog(description + QStringLiteral(" requested"));
+    if (m_backgroundSendRequest) {
+        appendBackgroundSendLog(description + QStringLiteral(" failed: another send is active"));
+        return;
+    }
+    const QFileInfo source(sourcePath);
+    if (deviceName.trimmed().isEmpty() || !source.isAbsolute() || !source.isFile() ||
+        !source.isReadable()) {
+        appendBackgroundSendLog(description + QStringLiteral(" failed: source is not a readable file"));
+        emit backgroundSendFinished(false);
+        return;
+    }
+#if FILECOMMANDER_HAS_NETWORK
+    auto *request = new QObject(this);
+    request->setProperty("backgroundDescription", description);
+    m_backgroundSendRequest = request;
+    auto *timeout = new QTimer(request);
+    timeout->setObjectName(QStringLiteral("BackgroundSendSetupTimeout"));
+    timeout->setSingleShot(true);
+    connect(timeout, &QTimer::timeout, request, [this, request] {
+        finishBackgroundSend(request, false, QStringLiteral("connection setup timed out"));
+    });
+    timeout->start(90000);
+
+    if (m_settings.accountEmail().isEmpty() || m_settings.accountDeviceId().isEmpty()) {
+        finishBackgroundSend(request, false, QStringLiteral("no saved account sign-in"));
+        return;
+    }
+    ensureAccountClient();
+    const QString localSource = source.canonicalFilePath();
+    if (m_accountClient->isLoggedIn()) {
+        backgroundSendFetchDevice(request, deviceName, localSource);
+        return;
+    }
+    auto *stage = new QObject(request);
+    connect(m_accountClient, &AccountClient::loggedIn, stage,
+            [this, request, stage, deviceName, localSource] {
+                stage->disconnect();
+                stage->deleteLater();
+                if (m_backgroundSendRequest == request)
+                    backgroundSendFetchDevice(request, deviceName, localSource);
+            });
+    connect(m_accountClient, &AccountClient::requestFailed, stage,
+            [this, request](const QString &error) {
+                finishBackgroundSend(request, false, QStringLiteral("sign-in: ") + error);
+            });
+#else
+    appendBackgroundSendLog(description + QStringLiteral(" failed: network support unavailable"));
+    emit backgroundSendFinished(false);
+#endif
+}
+
+void MainWindow::backgroundSendFetchDevice(QObject *request, const QString &deviceName,
+                                            const QString &sourcePath) {
+#if FILECOMMANDER_HAS_NETWORK
+    auto *stage = new QObject(request);
+    connect(m_accountClient, &AccountClient::devicesReady, stage,
+            [this, request, stage, deviceName, sourcePath](const QVector<AccountDeviceInfo> &devices) {
+                stage->disconnect();
+                stage->deleteLater();
+                if (m_backgroundSendRequest != request)
+                    return;
+                const AccountDeviceInfo *match = nullptr;
+                for (const AccountDeviceInfo &device : devices) {
+                    if (device.self || device.name != deviceName)
+                        continue;
+                    if (match) {
+                        finishBackgroundSend(request, false,
+                                             QStringLiteral("device name is ambiguous"));
+                        return;
+                    }
+                    match = &device;
+                }
+                if (!match || !match->online) {
+                    finishBackgroundSend(request, false,
+                                         QStringLiteral("target device is missing or offline"));
+                    return;
+                }
+                backgroundSendOpenSession(request, match->id, deviceName, sourcePath);
+            });
+    connect(m_accountClient, &AccountClient::requestFailed, stage,
+            [this, request](const QString &error) {
+                finishBackgroundSend(request, false, QStringLiteral("device lookup: ") + error);
+            });
+    m_accountClient->fetchDevices();
+#else
+    Q_UNUSED(request);
+    Q_UNUSED(deviceName);
+    Q_UNUSED(sourcePath);
+#endif
+}
+
+void MainWindow::backgroundSendOpenSession(QObject *request, const QString &deviceId,
+                                            const QString &deviceName, const QString &sourcePath) {
+#if FILECOMMANDER_HAS_NETWORK
+    auto *stage = new QObject(request);
+    connect(m_accountClient, &AccountClient::sessionReadyForDevice, stage,
+            [this, request, stage, deviceId, deviceName, sourcePath](
+                const QString &requestedDevice, const AccountSession &session) {
+                if (requestedDevice != deviceId || m_backgroundSendRequest != request)
+                    return;
+                stage->disconnect();
+                stage->deleteLater();
+                backgroundSendStartTransfer(request, session, deviceId, deviceName, sourcePath);
+            });
+    connect(m_accountClient, &AccountClient::requestFailed, stage,
+            [this, request](const QString &error) {
+                finishBackgroundSend(request, false, QStringLiteral("session: ") + error);
+            });
+    m_accountClient->openSession(deviceId);
+#else
+    Q_UNUSED(request);
+    Q_UNUSED(deviceId);
+    Q_UNUSED(deviceName);
+    Q_UNUSED(sourcePath);
+#endif
+}
+
+void MainWindow::backgroundSendStartTransfer(QObject *request, const AccountSession &session,
+                                              const QString &deviceId, const QString &deviceName,
+                                              const QString &sourcePath) {
+#if FILECOMMANDER_HAS_NETWORK
+    DeviceLink link = deviceLink(session, true);
+    auto connectError = std::make_shared<QString>();
+    auto *watcher = new QFutureWatcher<std::shared_ptr<FileProvider>>(request);
+    connect(watcher, &QFutureWatcher<std::shared_ptr<FileProvider>>::finished, request,
+            [this, request, watcher, connectError, deviceId, deviceName, sourcePath] {
+                const std::shared_ptr<FileProvider> provider = watcher->result();
+                watcher->deleteLater();
+                if (m_backgroundSendRequest != request)
+                    return;
+                if (!provider) {
+                    finishBackgroundSend(request, false,
+                                         QStringLiteral("relay connection: ") + *connectError);
+                    return;
+                }
+                if (auto *timer = request->findChild<QTimer *>(
+                        QStringLiteral("BackgroundSendSetupTimeout")))
+                    timer->stop();
+                appendBackgroundSendLog(request->property("backgroundDescription").toString() +
+                                        QStringLiteral(" connected via relay"));
+                const auto *dav = dynamic_cast<CurlWebDavProvider *>(provider.get());
+                const bool parallel = dav && dav->canUploadLocalFileParallel() &&
+                    QFileInfo(sourcePath).size() > 20LL * 1024 * 1024;
+                appendBackgroundSendLog(request->property("backgroundDescription").toString() +
+                    (parallel ? QStringLiteral(" selected=three-way")
+                              : QStringLiteral(" selected=single")));
+                auto *queue = new OperationQueue(request);
+                queue->setConflictHandler([request](const FileConflict &conflict) {
+                    appendBackgroundSendLog(request->property("backgroundDescription").toString() +
+                                            QStringLiteral(" conflict at ") + conflict.destPath);
+                    return ErrorAction::Abort;
+                });
+                queue->setErrorHandler([request](const OperationError &error) {
+                    appendBackgroundSendLog(request->property("backgroundDescription").toString() +
+                                            QStringLiteral(" error: ") + error.message);
+                    return ErrorAction::Abort;
+                });
+                auto lastMiB = std::make_shared<qint64>(-1);
+                auto confirmedBytes = std::make_shared<qint64>(0);
+                auto elapsed = std::make_shared<QElapsedTimer>();
+                connect(queue, &OperationQueue::deviceTransferProgress, request,
+                        [confirmedBytes](qint64, qint64 received, bool confirmed) {
+                    if (confirmed)
+                        *confirmedBytes = qMax(*confirmedBytes, received);
+                });
+                connect(queue, &OperationQueue::progress, request,
+                        [request, lastMiB](qint64, qint64, qint64 doneBytes, qint64 totalBytes,
+                                           const QString &) {
+                    const qint64 miB = doneBytes / (1024 * 1024);
+                    if (miB <= *lastMiB && doneBytes != totalBytes)
+                        return;
+                    *lastMiB = miB;
+                    appendBackgroundSendLog(request->property("backgroundDescription").toString() +
+                                            QStringLiteral(" progress=%1/%2")
+                                                .arg(doneBytes).arg(totalBytes));
+                });
+                connect(queue, &OperationQueue::finished, request,
+                        [this, request, deviceId, sourcePath, confirmedBytes, elapsed](bool ok) {
+                    appendBackgroundSendLog(request->property("backgroundDescription").toString() +
+                        QStringLiteral(" elapsed_ms=%1 receiver_confirmed=%2")
+                            .arg(elapsed->elapsed()).arg(*confirmedBytes));
+                    if (ok)
+                        m_pendingTransfers.remove(deviceId, {sourcePath});
+                    finishBackgroundSend(request, ok,
+                                         ok ? QStringLiteral("upload committed")
+                                            : QStringLiteral("upload did not complete"));
+                });
+                m_pendingTransfers.add(deviceId, deviceName, {sourcePath});
+                const QString destDir = QLatin1Char('/') +
+                    QFileInfo(ComputerCatalog::receivedFilesPath()).fileName();
+                elapsed->start();
+                queue->enqueueProviderCopy(localProviderPtr(), {sourcePath}, provider, destDir);
+            });
+    const auto connectFn = link.connect;
+    watcher->setFuture(QtConcurrent::run([connectFn, connectError] {
+        return connectFn(connectError.get());
+    }));
+#else
+    Q_UNUSED(request);
+    Q_UNUSED(session);
+    Q_UNUSED(deviceId);
+    Q_UNUSED(deviceName);
+    Q_UNUSED(sourcePath);
 #endif
 }
 

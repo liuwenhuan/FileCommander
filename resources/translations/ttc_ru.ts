@@ -5536,6 +5536,11 @@ Save first if you want to keep them.</source>
         <source>Save changes to %1?</source>
         <translation type="vanished">Сохранить изменения в %1?</translation>
     </message>
+<message>
+        <location filename="../../src/viewer/TextEditor.cpp" line="308"/>
+        <source>Auto</source>
+        <translation>Авто</translation>
+    </message>
 </context>
 <context>
     <name>TextViewer</name>
@@ -5634,6 +5639,29 @@ Save first if you want to keep them.</source>
         <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="402"/>
         <source>%1 operation(s) queued</source>
         <translation>В очереди операций: %1</translation>
+    </message>
+<message>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="150"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="151"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="230"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="231"/>
+        <source>Minimize</source>
+        <translation>Свернуть</translation>
+    </message>
+<message>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="594"/>
+        <source>Sending: %1/s</source>
+        <translation>Отправка: %1/s</translation>
+    </message>
+<message>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="596"/>
+        <source>Receiving: %1/s</source>
+        <translation>Приём: %1/s</translation>
+    </message>
+<message>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="597"/>
+        <source>Receiving: unavailable</source>
+        <translation>Приём: недоступен</translation>
     </message>
 </context>
 <context>
@@ -5966,6 +5994,49 @@ Save first if you want to keep them.</source>
         <location filename="../../src/ui/dialogs/SecureWipeDialog.cpp" line="215"/>
         <source>Failed</source>
         <translation>Ошибка</translation>
+    </message>
+</context>
+<context>
+    <name>IncomingTransferWindow</name>
+    <message>
+        <location filename="../../src/ui/dialogs/IncomingTransferWindow.cpp" line="26"/>
+        <source>Receiving file</source>
+        <translation>Получение файла</translation>
+    </message>
+<message>
+        <location filename="../../src/ui/dialogs/IncomingTransferWindow.cpp" line="112"/>
+        <source>Complete</source>
+        <translation>Завершено</translation>
+    </message>
+<message>
+        <location filename="../../src/ui/dialogs/IncomingTransferWindow.cpp" line="114"/>
+        <source>Failed</source>
+        <translation>Ошибка</translation>
+    </message>
+<message>
+        <location filename="../../src/ui/dialogs/IncomingTransferWindow.cpp" line="116"/>
+        <source>Interrupted</source>
+        <translation>Прервано</translation>
+    </message>
+<message>
+        <location filename="../../src/ui/dialogs/IncomingTransferWindow.cpp" line="118"/>
+        <source>Receiving</source>
+        <translation>Получение</translation>
+    </message>
+<message>
+        <location filename="../../src/ui/dialogs/IncomingTransferWindow.cpp" line="126"/>
+        <source>Received: %1 / %2</source>
+        <translation>Получено: %1 / %2</translation>
+    </message>
+<message>
+        <location filename="../../src/ui/dialogs/IncomingTransferWindow.cpp" line="130"/>
+        <source>Received: %1</source>
+        <translation>Получено: %1</translation>
+    </message>
+<message>
+        <location filename="../../src/ui/dialogs/IncomingTransferWindow.cpp" line="141"/>
+        <source>Receiving: %1/s</source>
+        <translation>Приём: %1/s</translation>
     </message>
 </context>
 </TS>

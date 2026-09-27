@@ -1,6 +1,10 @@
 #include "TransferProgressDialog.h"
+#include "DialogTitleBar.h"
 #include "ThemedDialogs.h"
+#include "TitleButton.h"
 
+#include <climits>
+#include <QBoxLayout>
 #include <QDialogButtonBox>
 #include <QEvent>
 #include <QGraphicsOpacityEffect>
@@ -46,12 +50,19 @@ TransferProgressDialog::TransferProgressDialog(OperationQueue *queue, QWidget *p
     : FramelessDialog(parent), m_queue(queue) {
     setWindowTitle(tr("Transfers"));
     setModal(false);
+    m_genericWindowFlags = windowFlags();
     resize(460, 180);
 
     m_descriptionLabel = new QLabel(this);
     m_fileLabel = new QLabel(this);
     m_bytesLabel = new QLabel(this);
     m_speedLabel = new QLabel(this);
+    m_sendingRateLabel = new QLabel(this);
+    m_sendingRateLabel->setObjectName(QStringLiteral("TransferSendingRate"));
+    m_sendingRateLabel->hide();
+    m_receivingRateLabel = new QLabel(this);
+    m_receivingRateLabel->setObjectName(QStringLiteral("TransferReceivingRate"));
+    m_receivingRateLabel->hide();
     m_etaLabel = new QLabel(this);
     m_queueLabel = new QLabel(this);
     m_errorLabel = new QLabel(this);
@@ -96,6 +107,8 @@ TransferProgressDialog::TransferProgressDialog(OperationQueue *queue, QWidget *p
     layout->addWidget(m_progressBar);
     layout->addWidget(m_bytesLabel);
     layout->addWidget(m_speedLabel);
+    layout->addWidget(m_sendingRateLabel);
+    layout->addWidget(m_receivingRateLabel);
     layout->addWidget(m_etaLabel);
     layout->addWidget(m_fileLabel);
     layout->addWidget(m_queueLabel);
@@ -124,9 +137,34 @@ TransferProgressDialog::TransferProgressDialog(OperationQueue *queue, QWidget *p
         }
     });
 
+    m_rateTimer = new QTimer(this);
+    m_rateTimer->setInterval(250);
+    connect(m_rateTimer, &QTimer::timeout, this, &TransferProgressDialog::refreshDeviceRates);
+
+    // Only device sending enables this control. The existing dialog chrome has
+    // a close button but no minimize button, and the sender must remain usable
+    // from the taskbar while its parent window is elsewhere.
+    if (auto *titleBar = findChild<DialogTitleBar *>(QString(), Qt::FindDirectChildrenOnly)) {
+        if (auto *titleLayout = qobject_cast<QBoxLayout *>(titleBar->layout())) {
+            auto *minimize = new TitleButton(TitleButton::Minimize, titleBar);
+            minimize->setObjectName(QStringLiteral("TransferMinimizeButton"));
+            minimize->setToolTip(tr("Minimize"));
+            minimize->setAccessibleName(tr("Minimize"));
+            minimize->setFixedSize(46, titleBar->height());
+            minimize->hide();
+            titleLayout->insertWidget(titleLayout->count() - 1, minimize);
+            connect(titleBar, &DialogTitleBar::heightChanged, minimize,
+                    [minimize](int height) { minimize->setFixedHeight(height); });
+            connect(minimize, &QAbstractButton::clicked, this, &QWidget::showMinimized);
+            m_minimizeButton = minimize;
+        }
+    }
+
     if (m_queue) {
         connect(m_queue, &OperationQueue::started, this, &TransferProgressDialog::onStarted);
         connect(m_queue, &OperationQueue::progress, this, &TransferProgressDialog::onProgress);
+        connect(m_queue, &OperationQueue::deviceTransferProgress, this,
+                &TransferProgressDialog::onDeviceTransferProgress);
         connect(m_queue, &OperationQueue::queueChanged, this,
                 &TransferProgressDialog::onQueueChanged);
         connect(m_queue, &OperationQueue::finished, this, &TransferProgressDialog::onFinished);
@@ -147,6 +185,8 @@ void TransferProgressDialog::showEvent(QShowEvent *event) {
 
 void TransferProgressDialog::hideEvent(QHideEvent *event) {
     FramelessDialog::hideEvent(event);
+    if (isMinimized())
+        return;
     // m_shown is "this window is currently on screen for the running batch", and
     // it gates every path that would show it again. Closing the window by its
     // own title-bar button (or Escape) goes nowhere near dismissAfterAbort(), so
@@ -158,6 +198,10 @@ void TransferProgressDialog::hideEvent(QHideEvent *event) {
 void TransferProgressDialog::dismissAfterAbort() {
     m_showTimer->stop();
     m_terminalHideTimer->stop();
+    m_rateTimer->stop();
+    m_rateSamples.clear();
+    m_rateClock.invalidate();
+    m_hasDeviceRates = false;
     m_revealAnimation->stop();
     m_outcomeColorAnimation->stop();
     m_activeJobs = 0;
@@ -170,6 +214,9 @@ void TransferProgressDialog::dismissAfterAbort() {
     m_queueLabel->clear();
     m_errorLabel->clear();
     hide();
+    m_senderConnecting = false;
+    if (m_senderMode)
+        restoreGenericWindow();
 }
 
 void TransferProgressDialog::changeEvent(QEvent *event) {
@@ -180,12 +227,18 @@ void TransferProgressDialog::changeEvent(QEvent *event) {
         setWindowTitle(tr("Transfers"));
         m_pauseButton->setText(m_paused ? tr("Resume") : tr("Pause"));
         m_abortButton->setText(tr("Abort"));
+        if (m_minimizeButton) {
+            m_minimizeButton->setToolTip(tr("Minimize"));
+            m_minimizeButton->setAccessibleName(tr("Minimize"));
+        }
         if (auto *buttons = findChild<QDialogButtonBox *>())
             ttc::localizeStandardButtons(buttons);
         onQueueChanged(m_pendingJobs);
         if (m_hasProgress && m_shown)
             onProgress(m_doneItems, m_totalItems, m_doneBytes, m_totalBytes,
                        m_fileLabel->text());
+        if (m_hasDeviceRates)
+            refreshDeviceRates();
     }
     if (event->type() == QEvent::FontChange || event->type() == QEvent::ApplicationFontChange ||
         event->type() == QEvent::StyleChange) {
@@ -293,7 +346,7 @@ void TransferProgressDialog::onPauseClicked() {
 }
 
 void TransferProgressDialog::showIfHidden() {
-    if (m_shown)
+    if (m_shown || isMinimized())
         return;
     if (m_showSuppressed) {
         m_wantsShowWhileSuppressed = true;
@@ -301,21 +354,52 @@ void TransferProgressDialog::showIfHidden() {
     }
     m_shown = true;
     show();
-    raise();
+    if (!m_senderMode)
+        raise();
 }
 
 void TransferProgressDialog::showConnecting(const QString &description) {
+    m_senderConnecting = true;
+    if (!m_senderMode) {
+        m_senderMode = true;
+        setWindowFlags((windowFlags() & ~Qt::WindowType_Mask) | Qt::Window |
+                       Qt::FramelessWindowHint | Qt::WindowSystemMenuHint |
+                       Qt::WindowMinimizeButtonHint | Qt::WindowCloseButtonHint);
+        setAttribute(Qt::WA_ShowWithoutActivating);
+        if (m_minimizeButton)
+            m_minimizeButton->show();
+    }
     m_descriptionLabel->setText(description);
     m_progressBar->setRange(0, 0); // indeterminate until the real job starts
     m_fileLabel->clear();
     m_bytesLabel->clear();
     m_speedLabel->clear();
+    m_sendingRateLabel->hide();
+    m_receivingRateLabel->hide();
+    m_rateTimer->stop();
+    m_rateSamples.clear();
+    m_rateClock.invalidate();
+    m_sentBytes = 0;
+    m_receivedBytes = -1;
+    m_receiverConfirmed = false;
+    m_hasDeviceRates = false;
     m_etaLabel->clear();
     m_errorLabel->clear();
     m_queueLabel->clear();
     m_shown = true;
-    show();
-    raise();
+    if (!isMinimized() && !isVisible())
+        show();
+}
+
+void TransferProgressDialog::restoreGenericWindow() {
+    hide();
+    m_shown = false;
+    setWindowFlags(m_genericWindowFlags);
+    setWindowState(Qt::WindowNoState);
+    setAttribute(Qt::WA_ShowWithoutActivating, false);
+    if (m_minimizeButton)
+        m_minimizeButton->hide();
+    m_senderMode = false;
 }
 
 void TransferProgressDialog::suppressAutoShow(bool suppressed) {
@@ -333,10 +417,22 @@ void TransferProgressDialog::suppressAutoShow(bool suppressed) {
 }
 
 void TransferProgressDialog::onStarted(const QString &description) {
+    if (m_senderMode && !m_senderConnecting && !m_batchActive)
+        restoreGenericWindow();
+    m_senderConnecting = false;
     m_hasProgress = false;
     m_descriptionLabel->setText(description);
     m_bytesLabel->clear();
     m_speedLabel->clear();
+    m_sendingRateLabel->hide();
+    m_receivingRateLabel->hide();
+    m_rateTimer->stop();
+    m_rateSamples.clear();
+    m_rateClock.invalidate();
+    m_sentBytes = 0;
+    m_receivedBytes = -1;
+    m_receiverConfirmed = false;
+    m_hasDeviceRates = false;
     m_etaLabel->clear();
     m_fileLabel->clear();
     m_progressBar->setRange(0, 0);
@@ -376,8 +472,11 @@ void TransferProgressDialog::onProgress(qint64 doneItems, qint64 totalItems, qin
     // item counts for byte-less operations.
     if (totalBytes > 0) {
         // Scale to KiB so the int range holds multi-GB transfers.
-        m_progressBar->setRange(0, static_cast<int>(totalBytes / 1024 + 1));
-        m_progressBar->setValue(static_cast<int>(doneBytes / 1024));
+        const int maximum = static_cast<int>(qMin<qint64>(INT_MAX,
+                                                          1 + (totalBytes - 1) / 1024));
+        m_progressBar->setRange(0, maximum);
+        m_progressBar->setValue(static_cast<int>(qMin<qint64>(maximum - 1,
+                                                              qMax<qint64>(0, doneBytes / 1024))));
     } else if (totalItems > 0) {
         m_progressBar->setRange(0, static_cast<int>(totalItems));
         m_progressBar->setValue(static_cast<int>(doneItems));
@@ -392,7 +491,9 @@ void TransferProgressDialog::onProgress(qint64 doneItems, qint64 totalItems, qin
                                     .arg(totalItems)
                               : tr("%1 of %2 items").arg(doneItems).arg(totalItems));
 
-    if (totalBytes > 0 && elapsedSec > 0.2 && doneBytes > 0) {
+    if (m_hasDeviceRates) {
+        m_speedLabel->clear();
+    } else if (totalBytes > 0 && elapsedSec > 0.2 && doneBytes > 0) {
         const double bytesPerSec = doneBytes / elapsedSec;
         m_speedLabel->setText(tr("Speed: %1/s").arg(humanBytes(static_cast<qint64>(bytesPerSec))));
         const qint64 remaining = totalBytes - doneBytes;
@@ -431,6 +532,9 @@ void TransferProgressDialog::onFinished(bool ok) {
         return;
 
     m_batchActive = false;
+    if (m_batchOk && m_progressBar->maximum() > 0)
+        m_progressBar->setValue(m_progressBar->maximum());
+    m_rateTimer->stop();
     m_showTimer->stop();
     animateOutcomeColor(m_batchOk ? QColor(0x2c, 0xa0, 0x44)
                                   : QColor(0xe0, 0x4a, 0x4a));
@@ -443,6 +547,60 @@ void TransferProgressDialog::onFinished(bool ok) {
     // empty message and no way to know it was finished.
     if (m_shown && !m_hasError)
         m_terminalHideTimer->start();
+}
+
+void TransferProgressDialog::onDeviceTransferProgress(qint64 sentBytes,
+                                                      qint64 receivedBytes, bool confirmed) {
+    if (!m_senderMode)
+        return;
+    sentBytes = qMax<qint64>(0, sentBytes);
+    confirmed = confirmed && receivedBytes >= 0;
+    if (!m_rateClock.isValid() || sentBytes < m_sentBytes ||
+        (confirmed && receivedBytes < m_receivedBytes) ||
+        confirmed != m_receiverConfirmed) {
+        m_rateClock.start();
+        m_rateSamples.clear();
+    }
+    m_sentBytes = sentBytes;
+    m_receivedBytes = confirmed ? receivedBytes : -1;
+    m_receiverConfirmed = confirmed;
+    m_hasDeviceRates = true;
+    m_speedLabel->clear();
+    m_etaLabel->clear();
+    m_sendingRateLabel->show();
+    m_receivingRateLabel->show();
+    m_rateSamples.enqueue({m_rateClock.elapsed(), m_sentBytes, m_receivedBytes});
+    refreshDeviceRates();
+    if (!m_rateTimer->isActive())
+        m_rateTimer->start();
+}
+
+void TransferProgressDialog::refreshDeviceRates() {
+    if (!m_hasDeviceRates)
+        return;
+    const qint64 now = m_rateClock.elapsed();
+    m_rateSamples.enqueue({now, m_sentBytes, m_receivedBytes});
+    while (m_rateSamples.size() > 1 &&
+           m_rateSamples.head().milliseconds < now - kRateWindowMs)
+        m_rateSamples.dequeue();
+
+    qint64 sendingRate = 0;
+    qint64 receivingRate = 0;
+    if (m_rateSamples.size() > 1) {
+        const RateSample &first = m_rateSamples.head();
+        const RateSample &last = m_rateSamples.last();
+        const qint64 elapsed = last.milliseconds - first.milliseconds;
+        if (elapsed > 0) {
+            sendingRate = qMax<qint64>(0, last.sentBytes - first.sentBytes) * 1000 / elapsed;
+            if (m_receiverConfirmed && first.receivedBytes >= 0)
+                receivingRate = qMax<qint64>(0, last.receivedBytes - first.receivedBytes) *
+                                1000 / elapsed;
+        }
+    }
+    m_sendingRateLabel->setText(tr("Sending: %1/s").arg(humanBytes(sendingRate)));
+    m_receivingRateLabel->setText(m_receiverConfirmed
+                                      ? tr("Receiving: %1/s").arg(humanBytes(receivingRate))
+                                      : tr("Receiving: unavailable"));
 }
 
 void TransferProgressDialog::onErrorOccurred(const QString &message) {

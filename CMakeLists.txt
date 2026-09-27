@@ -96,6 +96,10 @@ add_executable(FileCommander
     resources/resources.qrc
 )
 if(WIN32)
+    enable_language(RC)
+    target_sources(FileCommander PRIVATE resources/icons/FileCommander.rc)
+    target_include_directories(FileCommander PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons")
     set_target_properties(FileCommander PROPERTIES WIN32_EXECUTABLE TRUE)
 endif()
 

@@ -61,6 +61,7 @@ public:
     // upload's size; pass 0 to keep a default. Mostly a test hook, but a
     // deployment that wants tighter bounds can set them without a rebuild.
     void setLimits(int maxConnections, qint64 maxUploadBytes);
+    void setCommitDelayMsForTesting(int delayMs);
 
     // Starts listening on all interfaces. Port 0 picks a free one, which is the
     // normal case -- the port is reported to the account server, so it never
@@ -82,6 +83,8 @@ signals:
     // user can be told something arrived without polling the folder. `fileName`
     // is the local absolute path that just landed.
     void received(const QString &fileName);
+    void uploadProgress(const QString &id, const QString &fileName,
+                        qint64 written, qint64 total, const QString &state);
 
 private slots:
     // The worker owns the listener, so the port is only knowable once it is

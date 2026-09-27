@@ -50,16 +50,18 @@ InstanceCoordinator::~InstanceCoordinator() {
     }
 }
 
-InstanceCoordinator::StartResult InstanceCoordinator::startOrActivate(const QStringList &arguments) {
+InstanceCoordinator::StartResult InstanceCoordinator::startOrActivate(const QStringList &arguments,
+                                                                     bool allowForeground) {
     m_lock = std::make_unique<QLockFile>(lockFilePath());
     if (!m_lock->tryLock(0)) {
         // The primary may still be setting up its event loop. It already owns
         // the process role, so never turn this late activation into a second
         // window merely because its message cannot be delivered immediately.
-        allowPrimaryToSetForeground(m_lock.get());
-        forwardToPrimary(arguments);
+        if (allowForeground)
+            allowPrimaryToSetForeground(m_lock.get());
+        const bool forwarded = forwardToPrimary(arguments);
         m_lock.reset();
-        return StartResult::Forwarded;
+        return forwarded ? StartResult::Forwarded : StartResult::Failed;
     }
 
     m_server = new QLocalServer(this);

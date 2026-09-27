@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <optional>
 
 #include "AppIcon.h"
 #include "FolderArguments.h"
@@ -20,6 +21,22 @@
 #include "TranslationManager.h"
 #include "WindowActivation.h"
 #include "diagnostics/RuntimeCounters.h"
+
+namespace {
+struct BackgroundSendRequest {
+    QString deviceName;
+    QString sourcePath;
+};
+
+std::optional<BackgroundSendRequest> backgroundSendRequest(const QStringList &arguments) {
+    if (arguments.size() != 4 ||
+        arguments.at(1) != QLatin1String("--background-send-to-device") ||
+        arguments.at(2).trimmed().isEmpty() || arguments.at(3).trimmed().isEmpty())
+        return std::nullopt;
+    return BackgroundSendRequest{arguments.at(2), arguments.at(3)};
+}
+} // namespace
+
 int main(int argc, char *argv[]) {
     QElapsedTimer startupElapsed;
     startupElapsed.start();
@@ -57,6 +74,15 @@ int main(int argc, char *argv[]) {
 
     QApplication app(argc, argv);
     const QStringList arguments = app.arguments();
+    const bool backgroundRequested =
+        arguments.contains(QStringLiteral("--background-send-to-device"));
+    const std::optional<BackgroundSendRequest> backgroundSend =
+        backgroundSendRequest(arguments);
+    if (backgroundRequested && !backgroundSend) {
+        std::fprintf(stderr,
+                     "Usage: FileCommander --background-send-to-device <device-name> <absolute-file-path>\n");
+        return 2;
+    }
     const qint64 qApplicationConstructedMs =
         startupProbeRequested ? startupElapsed.elapsed() : -1;
     Typography::initializeSystemFont();
@@ -85,9 +111,12 @@ int main(int argc, char *argv[]) {
                                                          : QString();
     InstanceCoordinator instance;
     if (startupProbeOutput.isEmpty()) {
-        const InstanceCoordinator::StartResult instanceResult = instance.startOrActivate(arguments);
+        const InstanceCoordinator::StartResult instanceResult =
+            instance.startOrActivate(arguments, !backgroundRequested);
         if (instanceResult == InstanceCoordinator::StartResult::Forwarded)
             return 0;
+        if (instanceResult == InstanceCoordinator::StartResult::Failed)
+            return 3;
     }
 
     Settings settings;
@@ -162,13 +191,26 @@ int main(int argc, char *argv[]) {
         if (!startupProbeOutput.isEmpty())
             startupPhases.insert(QStringLiteral("folderArgumentsProcessedMs"),
                                  startupElapsed.elapsed());
-        window.show();
-        if (!startupProbeOutput.isEmpty())
-            startupPhases.insert(QStringLiteral("showReturnedMs"), startupElapsed.elapsed());
-        ttc::requestWindowForeground(&window);
+        if (!backgroundRequested) {
+            window.show();
+            if (!startupProbeOutput.isEmpty())
+                startupPhases.insert(QStringLiteral("showReturnedMs"), startupElapsed.elapsed());
+            ttc::requestWindowForeground(&window);
+        } else {
+            QObject::connect(&window, &MainWindow::backgroundSendFinished, &app,
+                             [&app](bool ok) { app.exit(ok ? 0 : 1); });
+            QTimer::singleShot(0, &window, [&window, backgroundSend] {
+                window.sendFileToDeviceInBackground(backgroundSend->deviceName,
+                                                    backgroundSend->sourcePath);
+            });
+        }
         if (startupProbeOutput.isEmpty()) {
             QObject::connect(&instance, &InstanceCoordinator::activationRequested, &window,
                              [&window](const QStringList &activationArguments) {
+                    if (const auto send = backgroundSendRequest(activationArguments)) {
+                        window.sendFileToDeviceInBackground(send->deviceName, send->sourcePath);
+                        return;
+                    }
                     const QStringList folders = FolderArguments::folders(activationArguments);
                     if (!folders.isEmpty())
                         window.openFolders(folders);

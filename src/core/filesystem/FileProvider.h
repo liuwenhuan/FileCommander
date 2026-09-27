@@ -3,6 +3,7 @@
 #include <QDateTime>
 #include <QString>
 #include <QVector>
+#include <functional>
 
 #include "FileInfo.h"
 
@@ -30,6 +31,11 @@ public:
     // backends that buffer (WebDAV's curl pipe) report this from their transfer
     // engine's own progress, so the UI tracks the wire rather than the buffer.
     virtual qint64 bytesSent() const { return -1; }
+    virtual bool isDeviceTransfer() const { return false; }
+    virtual bool receiverProgressSupported() const { return false; }
+    // Confirmed bytes persisted by the receiving peer. -1 means the status
+    // endpoint is temporarily unavailable; callers keep the last confirmation.
+    virtual qint64 receiverConfirmedBytes() { return -1; }
 
     // Asks an in-flight streaming transfer to stop now rather than at its next
     // natural boundary. Backends that buffer (WebDAV's curl pipe) override it
@@ -91,6 +97,18 @@ public:
     enum class RenameResult { Ok, AlreadyExists, Failed, Unsupported };
 
     virtual ~FileProvider() = default;
+
+    // Optional accelerated path for a large local file sent to a device over
+    // its relay. The provider owns the protocol; generic providers keep the
+    // normal streamed copy. onProgress runs on the operation worker, while
+    // checkpoint may run on transport threads and must be thread-safe.
+    virtual bool canUploadLocalFileParallel() const { return false; }
+    virtual CloseHandleResult uploadLocalFileParallel(
+        const QString & /*source*/, const QString & /*destination*/,
+        const std::function<bool(qint64, qint64)> & /*onProgress*/,
+        const std::function<bool()> & /*checkpoint*/, QString * /*error*/) {
+        return {false, FileHandle::StreamError::Other, QStringLiteral("Unsupported")};
+    }
 
     // How the most recent list() call ended. list() returns a plain vector, and
     // an empty one is indistinguishable from a directory that really is empty --
@@ -357,6 +375,15 @@ public:
     // final commit time. The default preserves the existing boolean contract.
     virtual CloseHandleResult closeHandleResult(FileHandle *handle) {
         return {closeHandleStatus(handle)};
+    }
+    // Streaming backends can report progress while waiting for final commit.
+    // A final nullptr callback relinquishes external cancel access before the
+    // handle is destroyed.
+    virtual CloseHandleResult closeHandleResultWithProgress(
+        FileHandle *handle, const std::function<void(FileHandle *)> &onWait) {
+        if (onWait)
+            onWait(nullptr);
+        return closeHandleResult(handle);
     }
 
     // Capability probe: whether this provider supports the streaming I/O above.

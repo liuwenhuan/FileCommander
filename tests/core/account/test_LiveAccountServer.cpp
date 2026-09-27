@@ -318,6 +318,22 @@ TEST_F(LiveAccountServerTest, AFileTravelsOverTheRelayWhenTheLanIsNotUsed) {
     expectRoundTrip(blob(256 * 1024, 9), QStringLiteral("over-relay.bin"));
 }
 
+TEST_F(LiveAccountServerTest, A15MiBFileTravelsOverTheRelay) {
+    ASSERT_FALSE(waitForPeerOnline().id.isEmpty());
+    const AccountSession session = openSession();
+    ASSERT_FALSE(session.ticket.isEmpty());
+
+    m_tunnel = new RelayTunnel;
+    const quint16 local =
+        m_tunnel->listenLocal(m_a.relaySocketUrl(session.sessionId), session.ticket);
+    ASSERT_NE(local, 0);
+    spin(3000);
+
+    m_provider = dial(QStringLiteral("127.0.0.1"), local, session.ticket, session.peerPin);
+    ASSERT_NE(m_provider, nullptr);
+    expectRoundTrip(blob(15 * 1024 * 1024, 11), QStringLiteral("large-over-relay.bin"));
+}
+
 // What "Send to Device" does: the same session and the same provider a device
 // tab uses, writing into the share named after the peer's received-files
 // folder -- the destination MainWindow::sendToDevice() builds.

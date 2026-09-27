@@ -1342,6 +1342,39 @@ bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileP
                            : tr("Write error on %1").arg(path);
     };
 
+    const qint64 localSize = src->isLocalFilesystem() ? QFileInfo(srcPath).size() : -1;
+    if (startOffset == 0 && m_rateLimitBps == 0 &&
+        localSize > 20LL * 1024 * 1024 && dst->canUploadLocalFileParallel()) {
+        const CloseHandleResult result = dst->uploadLocalFileParallel(
+            srcPath, destPath,
+            [&](qint64 sent, qint64 received) {
+                const qint64 confirmed = qBound<qint64>(0, received, localSize);
+                emitProgress(srcPath, doneBytesAtStart + confirmed);
+                emit deviceTransferProgress(qMax(sent, confirmed), confirmed, true);
+                return !m_cancelled.load();
+            },
+            [&] {
+                waitIfPaused();
+                return !m_cancelled.load();
+            },
+            failMsg);
+        if (closeError)
+            *closeError = result.error;
+        if (!result.committed) {
+            if (failMsg->isEmpty())
+                *failMsg = writeFailureMessage(result.error, result.detail, destPath, true);
+            return false;
+        }
+        m_doneBytes += localSize;
+        emitProgress(srcPath, m_doneBytes);
+        emit deviceTransferProgress(localSize, localSize, true);
+        const QDateTime stamp =
+            sourceTime.isValid() ? sourceTime : providerFileModified(src, srcPath);
+        if (stamp.isValid())
+            dst->setModifiedTime(destPath, stamp);
+        return true;
+    }
+
     FileHandle *in = src->openRead(srcPath);
     if (!in) {
         *failMsg = tr("Failed to open %1 for reading").arg(srcPath);
@@ -1394,6 +1427,30 @@ bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileP
     // if any). The progress shown is this plus the backend's actual send count,
     // so a buffered upload does not race ahead of what the peer has received.
     const qint64 progressBase = m_doneBytes;
+    const bool receiverConfirmed = out->receiverProgressSupported();
+    const bool deviceTransfer = out->isDeviceTransfer();
+    qint64 lastReceived = startOffset;
+    bool hasReceiverSample = false;
+    const auto reportDelivery = [&]() {
+        const qint64 sent = out->bytesSent();
+        if (receiverConfirmed) {
+            const qint64 confirmed = out->receiverConfirmedBytes();
+            if (confirmed >= 0) {
+                lastReceived = qMax(lastReceived, confirmed);
+                hasReceiverSample = true;
+            }
+            emitProgress(srcPath, progressBase - startOffset + lastReceived);
+            if (deviceTransfer)
+                emit deviceTransferProgress(qMax(startOffset + qMax<qint64>(0, sent),
+                                                 lastReceived),
+                                            hasReceiverSample ? lastReceived : -1,
+                                            hasReceiverSample);
+        } else {
+            emitProgress(srcPath, sent >= 0 ? progressBase + sent : -1);
+            if (sent >= 0 && deviceTransfer)
+                emit deviceTransferProgress(startOffset + sent, -1, false);
+        }
+    };
     while (ok) {
         // Pause/cancel are honoured mid-file (not just per file) so a large
         // remote transfer can be interrupted promptly.
@@ -1444,8 +1501,7 @@ bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileP
         if (remainingBytes > 0)
             remainingBytes -= got;
         m_doneBytes += got;
-        const qint64 sent = out->bytesSent();
-        emitProgress(srcPath, sent >= 0 ? progressBase + sent : -1);
+        reportDelivery();
         m_rateBytes += got;
         paceTransfer();
     }
@@ -1478,15 +1534,23 @@ bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileP
     }
 
     src->closeHandle(in);
-    {
-        QMutexLocker lock(&m_handleMutex);
-        m_activeWriteHandle = nullptr;
-    }
     // A streamed upload (FTP/WebDAV) only learns the real server-side result
     // when its transfer thread finishes here, at close time -- so even after a
     // clean read/write loop the commit can still fail (disk full, dropped link,
     // permission). Treat that as a failed transfer rather than a false success.
-    const CloseHandleResult closeResult = dst->closeHandleResult(out);
+    const CloseHandleResult closeResult = dst->closeHandleResultWithProgress(
+        out, [&](FileHandle *liveHandle) {
+            if (liveHandle) {
+                reportDelivery();
+            } else {
+                QMutexLocker lock(&m_handleMutex);
+                m_activeWriteHandle = nullptr;
+            }
+        });
+    {
+        QMutexLocker lock(&m_handleMutex);
+        m_activeWriteHandle = nullptr;
+    }
     if (ok && !closeResult.committed) {
         ok = false;
         *failMsg = writeFailureMessage(closeResult.error, closeResult.detail, destPath, true);
@@ -1496,6 +1560,12 @@ bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileP
     if (!ok) {
         m_doneBytes = doneBytesAtStart;
         return false;
+    }
+    if (receiverConfirmed) {
+        emitProgress(srcPath, m_doneBytes);
+        if (deviceTransfer)
+            emit deviceTransferProgress(startOffset + qMax<qint64>(0, expectedBytes),
+                                        startOffset + qMax<qint64>(0, expectedBytes), true);
     }
 
     // Carry the source's modification time onto the copy, so a transferred file

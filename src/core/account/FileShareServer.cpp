@@ -1,17 +1,23 @@
 #include "FileShareServer.h"
+#include "UploadWrite.h"
 
 #include "AccountClient.h"
 
 #include <QDateTime>
+#include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QHash>
 #include <QHostAddress>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QLocale>
 #include <QMap>
 #include <QNetworkProxy>
 #include <QSet>
+#include <QSaveFile>
 #include <QSslCertificate>
 #include <QSslKey>
 #include <QSslSocket>
@@ -20,6 +26,9 @@
 #include <QThread>
 #include <QTimer>
 #include <QUrl>
+#include <QUuid>
+
+#include <cmath>
 
 #include "ShareIdentity.h"
 
@@ -47,6 +56,20 @@ constexpr int kMaxPipelinedBytes = 64 * 1024;
 // machine that merely guessed the port cannot brute-force tickets at wire speed.
 constexpr int kAuthWindowSeconds = 60;
 constexpr int kAuthMaxFailures = 20;
+constexpr int kMaxProgressRecords = 256;
+constexpr int kProgressRecordSeconds = 120;
+constexpr int kMaxMultipartSessions = 256;
+
+bool validTransferId(const QString &id) {
+    if (id.size() != 32)
+        return false;
+    for (const QChar ch : id) {
+        if ((ch < QLatin1Char('0') || ch > QLatin1Char('9')) &&
+            (ch < QLatin1Char('a') || ch > QLatin1Char('f')))
+            return false;
+    }
+    return true;
+}
 
 QByteArray statusText(int code) {
     switch (code) {
@@ -68,6 +91,7 @@ QByteArray statusText(int code) {
     case 423: return "Locked";
     case 429: return "Too Many Requests";
     case 500: return "Internal Server Error";
+    case 507: return "Insufficient Storage";
     default: return "Error";
     }
 }
@@ -117,6 +141,33 @@ QString partialFor(const QString &final) {
     const QFileInfo info(final);
     return info.absolutePath() + QLatin1String("/.") + info.fileName() +
            QLatin1String(".filecommander-part");
+}
+
+QString multipartBaseFor(const QString &final) {
+    const QFileInfo info(final);
+    return info.absolutePath() + QLatin1String("/.") + info.fileName() +
+           QLatin1String(".filecommander-multipart");
+}
+
+qint64 multipartStart(qint64 size, int index) {
+    return (size / 3) * index + qMin<qint64>(index, size % 3);
+}
+
+bool isSha256SourceId(const QString &sourceId) {
+    if (sourceId.size() != 64)
+        return false;
+    for (const QChar c : sourceId) {
+        if ((c < QLatin1Char('0') || c > QLatin1Char('9')) &&
+            (c < QLatin1Char('a') || c > QLatin1Char('f')))
+            return false;
+    }
+    return true;
+}
+
+bool isMultipartArtifact(const QString &path) {
+    const QString name = QFileInfo(path).fileName();
+    return name.startsWith(QLatin1Char('.')) &&
+           name.contains(QStringLiteral(".filecommander-multipart."));
 }
 
 // Best-effort mtime stamp, the same mechanism LocalFileProvider uses. A false
@@ -203,6 +254,7 @@ public:
     Q_INVOKABLE void addTicket(const QString &ticket, int ttlSeconds);
     Q_INVOKABLE void removeTicket(const QString &ticket);
     Q_INVOKABLE void setRequestTimeoutMs(int timeoutMs);
+    Q_INVOKABLE void setCommitDelayMsForTesting(int delayMs) { m_commitDelayMs = qMax(0, delayMs); }
     // Overrides the compile-time ceilings; 0 keeps the default. Exposed so a
     // test can lower them instead of uploading 4 GiB to prove the bound exists.
     Q_INVOKABLE void setLimits(int maxConnections, qint64 maxUploadBytes);
@@ -210,6 +262,29 @@ public:
     qint64 maxUploadBytes() const { return m_maxUploadBytes; }
 
     bool ticketValid(const QString &ticket);
+    bool startUpload(const QString &id, const QString &ticket, const QString &fileName,
+                     qint64 written, qint64 total);
+    void updateUpload(const QString &id, qint64 written, const QString &state);
+    QByteArray uploadStatus(const QString &id, const QString &ticket);
+    int startMultipart(const QString &davPath, qint64 size, const QString &sourceId,
+                       const QString &ticket, QByteArray *response);
+    QByteArray multipartStatus(const QString &id, const QString &ticket);
+    int beginMultipartPart(const QString &id, const QString &ticket, int index,
+                           qint64 offset, qint64 length, QString *partPath);
+    void updateMultipartPart(const QString &id, int index, qint64 written,
+                             const QString &state);
+    void endMultipartPart(const QString &id, int index);
+    int commitMultipart(const QString &id, const QString &ticket);
+    bool multipartTargetBusy(const QString &target) const {
+        return m_multipartTargets.contains(target);
+    }
+    bool multipartPathBusy(const QString &path) const {
+        for (auto it = m_multipartTargets.cbegin(); it != m_multipartTargets.cend(); ++it) {
+            if (it.key() == path || it.key().startsWith(path + QLatin1Char('/')))
+                return true;
+        }
+        return false;
+    }
     QStringList shareNames() const { return m_shares.keys(); }
     bool isShareRoot(const QString &canonical) const { return m_shares.values().contains(canonical); }
     int requestTimeoutMs() const { return m_requestTimeoutMs; }
@@ -225,7 +300,7 @@ public:
     // different share names is still one lock. Only the server thread calls
     // these, so a plain set needs no mutex.
     bool tryLockUpload(const QString &canonical) {
-        if (m_uploading.contains(canonical))
+        if (m_uploading.contains(canonical) || m_multipartTargets.contains(canonical))
             return false;
         m_uploading.insert(canonical);
         return true;
@@ -249,6 +324,8 @@ signals:
     void failed(const QString &error);
     void closed();
     void received(const QString &fileName);
+    void uploadProgress(const QString &id, const QString &fileName,
+                        qint64 written, qint64 total, const QString &state);
 
 private:
     void onNewConnection();
@@ -256,16 +333,38 @@ private:
     struct Ticket {
         QDateTime expiresAt;
     };
+    struct UploadRecord {
+        QString ticket;
+        QString fileName;
+        qint64 written = 0;
+        qint64 total = 0;
+        QString state;
+        QDateTime updatedAt;
+    };
+    struct MultipartRecord {
+        QString ticket;
+        QString target;
+        QString sourceId;
+        qint64 size = 0;
+        qint64 offsets[3] = {0, 0, 0};
+        bool writing[3] = {false, false, false};
+        QString state = QStringLiteral("receiving");
+        QDateTime updatedAt;
+    };
 
     TlsShareServer *m_server = nullptr;
     QMap<QString, QString> m_shares;      // share name -> absolute local path
     QHash<QString, Ticket> m_tickets;
+    QHash<QString, UploadRecord> m_uploadRecords;
+    QHash<QString, MultipartRecord> m_multipartRecords;
+    QHash<QString, QString> m_multipartTargets;
     QSet<QString> m_uploading;            // canonical paths with an in-flight PUT
     QHash<QString, AuthBudget> m_authFailures;        // address -> failed-auth budget
     int m_connections = 0;                 // live connections, bounded by m_maxConnections
     int m_maxConnections = kMaxConnections;
     qint64 m_maxUploadBytes = kMaxUploadBytes;
     int m_requestTimeoutMs = kRequestIdleMs;
+    int m_commitDelayMs = 0;
 };
 
 // One client connection: an HTTP/1.1 state machine that never blocks. Bodies
@@ -298,9 +397,12 @@ public:
             // and immediately re-sends to hit 423 on a lock the dead connection
             // still holds.
             if (!m_uploadLockedPath.isEmpty()) {
+                m_worker->updateUpload(m_uploadId, m_uploadOffset + m_uploadBytes,
+                                       QStringLiteral("interrupted"));
                 m_worker->unlockUpload(m_uploadLockedPath);
                 m_uploadLockedPath.clear();
             }
+            releaseMultipartWriter();
             m_socket->deleteLater();
         });
     }
@@ -309,9 +411,12 @@ public:
         // A connection that dies mid-upload must release the path lock it took,
         // or a second peer would be refused forever.
         if (!m_uploadLockedPath.isEmpty()) {
+            m_worker->updateUpload(m_uploadId, m_uploadOffset + m_uploadBytes,
+                                   QStringLiteral("interrupted"));
             m_worker->unlockUpload(m_uploadLockedPath);
             m_uploadLockedPath.clear();
         }
+        releaseMultipartWriter();
         // An upload torn down mid-body leaves its staged partial in place: that
         // partial is the resume point, and it is hidden under the staging name
         // rather than the final one, so it never reads as a completed file.
@@ -321,6 +426,18 @@ public:
 
 private:
     enum class Phase { Head, Body, Sending };
+
+    void releaseMultipartWriter() {
+        if (m_multipartIndex < 0)
+            return;
+        delete m_upload;
+        m_upload = nullptr;
+        m_worker->endMultipartPart(m_multipartId, m_multipartIndex);
+        m_worker->updateMultipartPart(m_multipartId, m_multipartIndex,
+            QFileInfo(m_multipartPartPath).size(),
+            m_multipartWriteFailed ? QStringLiteral("failed") : QStringLiteral("interrupted"));
+        m_multipartIndex = -1;
+    }
 
     void resetIdleTimer() {
         if (m_idleTimer && m_idleTimer->interval() > 0)
@@ -446,8 +563,53 @@ private:
             m_socket->write("HTTP/1.1 100 Continue\r\n\r\n");
 
         if (m_method == "PUT") {
+            const QString requestPath = cleanDavPath(QString::fromUtf8(m_target));
+            const QString multipartPrefix = QStringLiteral("/.filecommander/multipart/");
+            if (requestPath.startsWith(multipartPrefix)) {
+                const QStringList segments = requestPath.mid(multipartPrefix.size()).split('/');
+                qint64 index = -1;
+                qint64 offset = -1;
+                if (segments.size() != 2 || !validTransferId(segments.at(0)) ||
+                    !parseNonNegativeInt64(segments.at(1).toLatin1(), &index) || index > 2 ||
+                    m_chunked || contentLength.isEmpty() ||
+                    !parseNonNegativeInt64(m_headers.value("x-filecommander-part-offset"), &offset)) {
+                    m_keepAlive = false;
+                    respond(400);
+                    return false;
+                }
+                QString partPath;
+                const int status = m_worker->beginMultipartPart(segments.at(0), requestTicket(),
+                    int(index), offset, m_bodyRemaining, &partPath);
+                if (status != 200) {
+                    m_keepAlive = false;
+                    respond(status);
+                    return false;
+                }
+                m_upload = new QFile(partPath);
+                if (!m_upload->open(QIODevice::ReadWrite) || !m_upload->seek(offset)) {
+                    delete m_upload;
+                    m_upload = nullptr;
+                    m_worker->endMultipartPart(segments.at(0), int(index));
+                    m_keepAlive = false;
+                    respond(507);
+                    return false;
+                }
+                m_multipartId = segments.at(0);
+                m_multipartIndex = int(index);
+                m_multipartWriteFailed = false;
+                m_multipartPartPath = partPath;
+                m_uploadOffset = offset;
+                m_phase = Phase::Body;
+                return true;
+            }
+            m_uploadId = QString::fromLatin1(m_headers.value("x-filecommander-transfer-id"));
+            if (!m_uploadId.isEmpty() && !validTransferId(m_uploadId)) {
+                m_keepAlive = false;
+                respond(400);
+                return false;
+            }
             const QString target = m_worker->resolve(cleanDavPath(QString::fromUtf8(m_target)));
-            if (target.isEmpty() || m_worker->isShareRoot(target)) {
+            if (target.isEmpty() || m_worker->isShareRoot(target) || isMultipartArtifact(target)) {
                 m_keepAlive = false;
                 respond(403);
                 return false;
@@ -483,9 +645,8 @@ private:
                 }
             }
             // Bound one upload so a hostile peer cannot fill the disk.
-            if (m_bodyRemaining > 0 &&
-                (at > m_worker->maxUploadBytes() ||
-                 m_bodyRemaining > m_worker->maxUploadBytes() - at)) {
+            if (at > m_worker->maxUploadBytes() ||
+                (m_bodyRemaining > 0 && m_bodyRemaining > m_worker->maxUploadBytes() - at)) {
                 m_keepAlive = false;
                 m_worker->unlockUpload(target);
                 respond(413);
@@ -493,6 +654,16 @@ private:
             }
             m_uploadTarget = target;
             m_uploadStaging = staging;
+            m_uploadOffset = at;
+            if (!m_uploadId.isEmpty()) {
+                const qint64 total = m_chunked ? -1 : at + m_bodyRemaining;
+                if (!m_worker->startUpload(m_uploadId, requestTicket(), target, at, total)) {
+                    m_worker->unlockUpload(target);
+                    m_keepAlive = false;
+                    respond(409);
+                    return false;
+                }
+            }
             m_upload = new QFile(staging);
             // ReadWrite, not WriteOnly: WriteOnly on its own truncates the file
             // as it opens it, which is precisely what a resume must not do.
@@ -501,6 +672,7 @@ private:
             // resize() drops any stale tail beyond the resume point, so the
             // result is the same whether or not the last attempt overshot.
             if (!m_upload->open(mode) || (at > 0 && (!m_upload->resize(at) || !m_upload->seek(at)))) {
+                m_worker->updateUpload(m_uploadId, at, QStringLiteral("failed"));
                 delete m_upload;
                 m_upload = nullptr;
                 m_keepAlive = false;
@@ -529,8 +701,7 @@ private:
 
     void sinkWrite(const QByteArray &data) {
         if (m_upload) {
-            m_uploadBytes += data.size();
-            if (m_uploadBytes > m_worker->maxUploadBytes()) {
+            if (data.size() > m_worker->maxUploadBytes() - m_uploadOffset - m_uploadBytes) {
                 // Same bound as the Content-Length path, for the chunked PUT a
                 // client sends when it could not declare a size up front.
                 m_keepAlive = false;
@@ -538,7 +709,23 @@ private:
                 respond(413);
                 return;
             }
-            m_upload->write(data);
+            if (!fc::writeUploadChunk(*m_upload, data)) {
+                if (m_multipartIndex >= 0)
+                    m_multipartWriteFailed = true;
+                else
+                    m_worker->updateUpload(m_uploadId, m_upload->pos(),
+                                           QStringLiteral("failed"));
+                m_keepAlive = false;
+                respond(m_upload->error() == QFileDevice::ResourceError ? 507 : 500);
+                return;
+            }
+            m_uploadBytes += data.size();
+            if (m_multipartIndex >= 0)
+                m_worker->updateMultipartPart(m_multipartId, m_multipartIndex,
+                    m_uploadOffset + m_uploadBytes, QStringLiteral("receiving"));
+            else
+                m_worker->updateUpload(m_uploadId, m_uploadOffset + m_uploadBytes,
+                                       QStringLiteral("receiving"));
         } else {
             m_bodyBuffer += data;
         }
@@ -556,6 +743,8 @@ private:
                     const qint64 take = qMin<qint64>(m_chunkRemaining, m_buffer.size());
                     if (take > 0) {
                         sinkWrite(m_buffer.left(static_cast<int>(take)));
+                        if (m_dead)
+                            return false;
                         m_buffer.remove(0, static_cast<int>(take));
                         m_chunkRemaining -= take;
                     }
@@ -606,7 +795,8 @@ private:
                 }
                 if (m_upload) {
                     const qint64 maximum = m_worker->maxUploadBytes();
-                    if (m_uploadBytes > maximum || size > maximum - m_uploadBytes) {
+                    if (m_uploadOffset + m_uploadBytes > maximum ||
+                        size > maximum - m_uploadOffset - m_uploadBytes) {
                         m_keepAlive = false;
                         respond(413);
                         return false;
@@ -626,6 +816,8 @@ private:
             const qint64 take = qMin<qint64>(m_bodyRemaining, m_buffer.size());
             if (take > 0) {
                 sinkWrite(m_buffer.left(static_cast<int>(take)));
+                if (m_dead)
+                    return false;
                 m_buffer.remove(0, static_cast<int>(take));
                 m_bodyRemaining -= take;
             }
@@ -639,7 +831,18 @@ private:
             m_upload->close();
             delete m_upload;
             m_upload = nullptr;
+            if (m_multipartIndex >= 0) {
+                const qint64 have = QFileInfo(m_multipartPartPath).size();
+                m_worker->updateMultipartPart(m_multipartId, m_multipartIndex, have,
+                    ok ? QStringLiteral("receiving") : QStringLiteral("failed"));
+                m_worker->endMultipartPart(m_multipartId, m_multipartIndex);
+                m_multipartIndex = -1;
+                respond(ok ? 204 : 507);
+                return;
+            }
             if (!ok) {
+                m_worker->updateUpload(m_uploadId, m_uploadOffset + m_uploadBytes,
+                                       QStringLiteral("failed"));
                 if (!m_uploadLockedPath.isEmpty()) {
                     m_worker->unlockUpload(m_uploadLockedPath);
                     m_uploadLockedPath.clear();
@@ -652,6 +855,8 @@ private:
             // partial stays where it is -- it is the resume point, and a retry
             // continues from it rather than starting over.
             if (m_uploadExisted && !QFile::remove(m_uploadTarget)) {
+                m_worker->updateUpload(m_uploadId, m_uploadOffset + m_uploadBytes,
+                                       QStringLiteral("failed"));
                 if (!m_uploadLockedPath.isEmpty()) {
                     m_worker->unlockUpload(m_uploadLockedPath);
                     m_uploadLockedPath.clear();
@@ -660,6 +865,8 @@ private:
                 return;
             }
             if (!QFile::rename(m_uploadStaging, m_uploadTarget)) {
+                m_worker->updateUpload(m_uploadId, m_uploadOffset + m_uploadBytes,
+                                       QStringLiteral("failed"));
                 if (!m_uploadLockedPath.isEmpty()) {
                     m_worker->unlockUpload(m_uploadLockedPath);
                     m_uploadLockedPath.clear();
@@ -672,28 +879,87 @@ private:
                 m_uploadLockedPath.clear();
             }
             m_worker->received(m_uploadTarget);
+            m_worker->updateUpload(m_uploadId, m_uploadOffset + m_uploadBytes,
+                                   QStringLiteral("complete"));
             respond(m_uploadExisted ? 204 : 201);
             return;
         }
         dispatch();
     }
 
-    bool authorised() {
+    QString requestTicket() const {
         const QByteArray auth = m_headers.value("authorization");
         if (!auth.startsWith("Basic "))
-            return false;
+            return {};
         const QByteArray decoded = QByteArray::fromBase64(auth.mid(6).trimmed());
         const int colon = decoded.indexOf(':');
         if (colon < 0)
-            return false;
-        return m_worker->ticketValid(QString::fromUtf8(decoded.mid(colon + 1)));
+            return {};
+        return QString::fromUtf8(decoded.mid(colon + 1));
+    }
+
+    bool authorised() {
+        return m_worker->ticketValid(requestTicket());
     }
 
     void dispatch() {
         const QString path = cleanDavPath(QString::fromUtf8(m_target));
+        const QString multipart = QStringLiteral("/.filecommander/multipart");
+        if (path == multipart && m_method == "POST") {
+            QJsonParseError error;
+            const QJsonDocument document = QJsonDocument::fromJson(m_bodyBuffer, &error);
+            const QJsonObject object = document.object();
+            const double sizeNumber = object.value(QStringLiteral("size")).toDouble(-1);
+            if (error.error != QJsonParseError::NoError || !document.isObject() ||
+                !object.value(QStringLiteral("path")).isString() ||
+                !object.value(QStringLiteral("sourceId")).isString() ||
+                !std::isfinite(sizeNumber) || sizeNumber < 0 ||
+                std::floor(sizeNumber) != sizeNumber ||
+                sizeNumber > double(m_worker->maxUploadBytes())) {
+                respond(400);
+                return;
+            }
+            QByteArray body;
+            const int status = m_worker->startMultipart(object.value(QStringLiteral("path")).toString(),
+                qint64(sizeNumber), object.value(QStringLiteral("sourceId")).toString(),
+                requestTicket(), &body);
+            respond(status, body, "application/json");
+            return;
+        }
+        if (path.startsWith(multipart + QLatin1Char('/'))) {
+            const QStringList segments = path.mid(multipart.size() + 1).split('/');
+            if (segments.isEmpty() || !validTransferId(segments.at(0))) {
+                respond(404);
+                return;
+            }
+            if (segments.size() == 1 && m_method == "GET") {
+                const QByteArray body = m_worker->multipartStatus(segments.at(0), requestTicket());
+                respond(body.isEmpty() ? 404 : 200, body, "application/json");
+            } else if (segments.size() == 2 && segments.at(1) == QLatin1String("commit") &&
+                       m_method == "POST") {
+                respond(m_worker->commitMultipart(segments.at(0), requestTicket()));
+            } else {
+                respond(405);
+            }
+            return;
+        }
+        const QString prefix = QStringLiteral("/.filecommander/upload-progress/");
+        if (path.startsWith(prefix)) {
+            if (m_method != "GET") {
+                respond(405);
+                return;
+            }
+            const QByteArray body = m_worker->uploadStatus(path.mid(prefix.size()), requestTicket());
+            if (body.isEmpty())
+                respond(404);
+            else
+                respond(200, body, "application/json");
+            return;
+        }
         if (m_method == "OPTIONS") {
             respond(200, QByteArray(), "text/plain",
-                    "DAV: 1,2\r\nAllow: OPTIONS, PROPFIND, GET, HEAD, PUT, MKCOL, DELETE, MOVE, PROPPATCH\r\n");
+                    "DAV: 1,2\r\nAllow: OPTIONS, PROPFIND, GET, HEAD, PUT, POST, MKCOL, DELETE, MOVE, PROPPATCH\r\n"
+                    "X-FileCommander-Multipart: v1\r\n");
         } else if (m_method == "PROPFIND") {
             doPropfind(path);
         } else if (m_method == "PROPPATCH") {
@@ -749,7 +1015,7 @@ private:
         } else {
             const QString local = m_worker->resolveRead(path);
             const QFileInfo info(local);
-            if (local.isEmpty() || !info.exists()) {
+            if (local.isEmpty() || isMultipartArtifact(local) || !info.exists()) {
                 respond(404);
                 return;
             }
@@ -762,8 +1028,9 @@ private:
                 const QFileInfoList children = QDir(local).entryInfoList(
                     QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System);
                 for (const QFileInfo &child : children)
-                    body += propEntry(path + QLatin1Char('/') + child.fileName(),
-                                      child.fileName(), child, child.isDir());
+                    if (!isMultipartArtifact(child.absoluteFilePath()))
+                        body += propEntry(path + QLatin1Char('/') + child.fileName(),
+                                          child.fileName(), child, child.isDir());
             } else {
                 body += propEntry(path, info.fileName(), info, false);
             }
@@ -775,7 +1042,7 @@ private:
     void doProppatch(const QString &path) {
         const QString local = m_worker->resolve(path);
         const QFileInfo info(local);
-        if (local.isEmpty() || !info.exists()) {
+        if (local.isEmpty() || isMultipartArtifact(local) || !info.exists()) {
             respond(404);
             return;
         }
@@ -801,7 +1068,7 @@ private:
         const QString local = m_worker->resolveRead(path);
         const QByteArray mimeType = "application/octet-stream";
         const QFileInfo info(local);
-        if (local.isEmpty() || !info.exists()) {
+        if (local.isEmpty() || isMultipartArtifact(local) || !info.exists()) {
             respond(404);
             return;
         }
@@ -905,7 +1172,7 @@ private:
 
     void doMkcol(const QString &path) {
         const QString local = m_worker->resolve(path);
-        if (local.isEmpty()) {
+        if (local.isEmpty() || isMultipartArtifact(local)) {
             respond(403);
             return;
         }
@@ -928,11 +1195,11 @@ private:
     void doDelete(const QString &path) {
         const QString local = m_worker->resolve(path);
         const QFileInfo info(local);
-        if (local.isEmpty() || !info.exists()) {
+        if (local.isEmpty() || isMultipartArtifact(local) || !info.exists()) {
             respond(404);
             return;
         }
-        if (m_worker->isShareRoot(local)) {
+        if (m_worker->isShareRoot(local) || m_worker->multipartPathBusy(local)) {
             respond(403);
             return;
         }
@@ -942,17 +1209,18 @@ private:
 
     void doMove(const QString &path) {
         const QString from = m_worker->resolve(path);
-        if (from.isEmpty() || !QFileInfo::exists(from)) {
+        if (from.isEmpty() || isMultipartArtifact(from) || !QFileInfo::exists(from)) {
             respond(404);
             return;
         }
-        if (m_worker->isShareRoot(from)) {
+        if (m_worker->isShareRoot(from) || m_worker->multipartPathBusy(from)) {
             respond(403);
             return;
         }
         const QUrl destination(QString::fromUtf8(m_headers.value("destination")));
         const QString to = m_worker->resolve(cleanDavPath(destination.path()));
-        if (to.isEmpty() || m_worker->isShareRoot(to)) {
+        if (to.isEmpty() || m_worker->isShareRoot(to) || isMultipartArtifact(to) ||
+            m_worker->multipartPathBusy(to)) {
             respond(403);
             return;
         }
@@ -984,7 +1252,8 @@ private:
         // not simply assume it: a server that ignored Content-Range would store
         // the tail as the whole file. Say so explicitly, on every response, and
         // the peer's provider can turn resume on for this link only.
-        head += "Accept-Ranges: bytes\r\nX-FileCommander-Put-Range: bytes\r\n";
+        head += "Accept-Ranges: bytes\r\nX-FileCommander-Put-Range: bytes\r\n"
+                "X-FileCommander-Upload-Progress: v1\r\n";
         if (contentLength >= 0) {
             head += "Content-Length: " + QByteArray::number(contentLength) + "\r\n";
             if (contentLength > 0)
@@ -1042,6 +1311,12 @@ private:
     QString m_uploadStaging; // where the PUT is being written before rename
     QString m_uploadTarget;  // the final path the staging renames into
     qint64 m_uploadBytes = 0; // bytes written, to bound chunked uploads
+    qint64 m_uploadOffset = 0;
+    QString m_uploadId;
+    QString m_multipartId;
+    QString m_multipartPartPath;
+    int m_multipartIndex = -1;
+    bool m_multipartWriteFailed = false;
     QFile *m_download = nullptr;
     qint64 m_sendRemaining = 0;
 };
@@ -1081,6 +1356,9 @@ void ShareWorker::stopListening() {
     delete m_server; // closes the listener and every connection parented to it
     m_server = nullptr;
     m_tickets.clear();
+    m_uploadRecords.clear();
+    m_multipartRecords.clear();
+    m_multipartTargets.clear();
     emit closed();
 }
 
@@ -1119,8 +1397,307 @@ void ShareWorker::addTicket(const QString &ticket, int ttlSeconds) {
 }
 
 void ShareWorker::removeTicket(const QString &ticket) {
-    if (!ticket.isEmpty())
+    if (!ticket.isEmpty()) {
         m_tickets.remove(ticket);
+        for (auto it = m_uploadRecords.begin(); it != m_uploadRecords.end();) {
+            if (it->ticket == ticket)
+                it = m_uploadRecords.erase(it);
+            else
+                ++it;
+        }
+        for (auto it = m_multipartRecords.begin(); it != m_multipartRecords.end();) {
+            if (it->ticket == ticket && !it->writing[0] && !it->writing[1] && !it->writing[2]) {
+                if (m_multipartTargets.value(it->target) == it.key())
+                    m_multipartTargets.remove(it->target);
+                it = m_multipartRecords.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+}
+
+int ShareWorker::startMultipart(const QString &davPath, qint64 size,
+                                const QString &sourceId, const QString &ticket,
+                                QByteArray *response) {
+    if (ticket.isEmpty() || !isSha256SourceId(sourceId) || size < 3 || size > m_maxUploadBytes ||
+        !davPath.startsWith(QLatin1Char('/')) || davPath.startsWith(QStringLiteral("/.filecommander/")))
+        return 400;
+    const QString target = resolve(cleanDavPath(davPath));
+    if (target.isEmpty() || isShareRoot(target) || m_uploading.contains(target) ||
+        QFileInfo(target).isDir() || !QFileInfo(QFileInfo(target).absolutePath()).isDir() ||
+        QFileInfo(partialFor(target)).exists())
+        return 409;
+    const QString base = multipartBaseFor(target);
+    const QString metadataPath = base + QStringLiteral(".json");
+    if (QFileInfo(metadataPath).isSymLink())
+        return 403;
+    for (int i = 0; i < 3; ++i) {
+        if (QFileInfo(base + QLatin1Char('.') + QString::number(i)).isSymLink())
+            return 403;
+    }
+
+    const QString oldId = m_multipartTargets.value(target);
+    if (!oldId.isEmpty()) {
+        const MultipartRecord &old = m_multipartRecords[oldId];
+        if (old.writing[0] || old.writing[1] || old.writing[2])
+            return 423;
+        m_multipartRecords.remove(oldId);
+        m_multipartTargets.remove(target);
+    }
+
+    bool resumed = false;
+    if (QFileInfo(metadataPath).exists()) {
+        QFile metadata(metadataPath);
+        if (!metadata.open(QIODevice::ReadOnly))
+            return 403;
+        const QJsonObject saved = QJsonDocument::fromJson(metadata.readAll()).object();
+        if (saved.value(QStringLiteral("version")).toInt() != 1 ||
+            !saved.value(QStringLiteral("sourceId")).isString() ||
+            !saved.value(QStringLiteral("size")).isDouble())
+            return 409;
+        const QString previousSource = saved.value(QStringLiteral("sourceId")).toString();
+        const qint64 previousSize = qint64(saved.value(QStringLiteral("size")).toDouble(-1));
+        resumed = previousSource == sourceId && previousSize == size;
+    }
+    if (!resumed) {
+        for (int i = 0; i < 3; ++i) {
+            const QString part = base + QLatin1Char('.') + QString::number(i);
+            if (QFileInfo::exists(part) && !QFile::remove(part))
+                return 403;
+        }
+        QSaveFile metadata(metadataPath);
+        if (!metadata.open(QIODevice::WriteOnly))
+            return 507;
+        const QByteArray bytes = QJsonDocument(QJsonObject{
+            {QStringLiteral("version"), 1}, {QStringLiteral("size"), double(size)},
+            {QStringLiteral("sourceId"), sourceId}}).toJson(QJsonDocument::Compact);
+        if (!fc::writeUploadChunk(metadata, bytes) || !metadata.commit())
+            return 507;
+    }
+
+    MultipartRecord record;
+    record.ticket = ticket;
+    record.target = target;
+    record.sourceId = sourceId;
+    record.size = size;
+    record.updatedAt = QDateTime::currentDateTimeUtc();
+    QJsonArray offsets;
+    qint64 written = 0;
+    for (int i = 0; i < 3; ++i) {
+        const QString partPath = base + QLatin1Char('.') + QString::number(i);
+        QFileInfo part(partPath);
+        if (!part.exists()) {
+            QFile empty(partPath);
+            if (!empty.open(QIODevice::WriteOnly))
+                return 507;
+            empty.close();
+            part.setFile(partPath);
+        }
+        const qint64 maximum = multipartStart(size, i + 1) - multipartStart(size, i);
+        if (part.exists() && (!part.isFile() || part.size() > maximum))
+            return 409;
+        record.offsets[i] = part.exists() ? part.size() : 0;
+        offsets.append(double(record.offsets[i]));
+        written += record.offsets[i];
+    }
+    if (m_multipartRecords.size() >= kMaxMultipartSessions) {
+        for (auto it = m_multipartRecords.begin(); it != m_multipartRecords.end();) {
+            if (it->state == QLatin1String("complete") ||
+                (!it->writing[0] && !it->writing[1] && !it->writing[2] &&
+                 it->updatedAt.secsTo(QDateTime::currentDateTimeUtc()) > kProgressRecordSeconds)) {
+                if (m_multipartTargets.value(it->target) == it.key())
+                    m_multipartTargets.remove(it->target);
+                it = m_multipartRecords.erase(it);
+            } else {
+                ++it;
+            }
+        }
+        if (m_multipartRecords.size() >= kMaxMultipartSessions)
+            return 429;
+    }
+    QString id;
+    do {
+        id = QUuid::createUuid().toString(QUuid::WithoutBraces).remove(QLatin1Char('-'));
+    } while (m_multipartRecords.contains(id) || m_uploadRecords.contains(id));
+    m_multipartRecords.insert(id, record);
+    m_multipartTargets.insert(target, id);
+    *response = QJsonDocument(QJsonObject{{QStringLiteral("id"), id},
+                                     {QStringLiteral("offsets"), offsets}}).toJson(QJsonDocument::Compact);
+    emit uploadProgress(id, target, written, size, QStringLiteral("receiving"));
+    return resumed ? 200 : 201;
+}
+
+QByteArray ShareWorker::multipartStatus(const QString &id, const QString &ticket) {
+    const auto it = m_multipartRecords.constFind(id);
+    if (it == m_multipartRecords.cend() || it->ticket != ticket)
+        return {};
+    QJsonArray offsets;
+    for (qint64 offset : it->offsets)
+        offsets.append(double(offset));
+    return QJsonDocument(QJsonObject{{QStringLiteral("state"), it->state},
+                                     {QStringLiteral("offsets"), offsets},
+                                     {QStringLiteral("total"), double(it->size)}}).toJson(QJsonDocument::Compact);
+}
+
+int ShareWorker::beginMultipartPart(const QString &id, const QString &ticket, int index,
+                                     qint64 offset, qint64 length, QString *partPath) {
+    auto it = m_multipartRecords.find(id);
+    if (it == m_multipartRecords.end() || it->ticket != ticket)
+        return 404;
+    if (index < 0 || index >= 3 || it->state == QLatin1String("complete"))
+        return 409;
+    if (it->writing[index])
+        return 423;
+    const qint64 maximum = multipartStart(it->size, index + 1) - multipartStart(it->size, index);
+    const QString part = multipartBaseFor(it->target) + QLatin1Char('.') + QString::number(index);
+    const QFileInfo info(part);
+    if (info.isSymLink() || (info.exists() && !info.isFile()))
+        return 403;
+    const qint64 persisted = info.exists() ? info.size() : 0;
+    if (persisted > maximum || offset != persisted || length != maximum - persisted || length <= 0)
+        return 409;
+    it->offsets[index] = persisted;
+    it->writing[index] = true;
+    it->state = QStringLiteral("receiving");
+    it->updatedAt = QDateTime::currentDateTimeUtc();
+    *partPath = part;
+    return 200;
+}
+
+void ShareWorker::updateMultipartPart(const QString &id, int index, qint64 written,
+                                      const QString &state) {
+    auto it = m_multipartRecords.find(id);
+    if (it == m_multipartRecords.end() || index < 0 || index >= 3 ||
+        it->state == QLatin1String("complete"))
+        return;
+    const qint64 maximum = multipartStart(it->size, index + 1) - multipartStart(it->size, index);
+    it->offsets[index] = qBound<qint64>(0, written, maximum);
+    const bool otherPartActive = it->writing[0] || it->writing[1] || it->writing[2];
+    it->state = otherPartActive ? QStringLiteral("receiving") : state;
+    it->updatedAt = QDateTime::currentDateTimeUtc();
+    const qint64 totalWritten = it->offsets[0] + it->offsets[1] + it->offsets[2];
+    emit uploadProgress(id, it->target, totalWritten, it->size, it->state);
+}
+
+void ShareWorker::endMultipartPart(const QString &id, int index) {
+    auto it = m_multipartRecords.find(id);
+    if (it != m_multipartRecords.end() && index >= 0 && index < 3)
+        it->writing[index] = false;
+}
+
+int ShareWorker::commitMultipart(const QString &id, const QString &ticket) {
+    auto it = m_multipartRecords.find(id);
+    if (it == m_multipartRecords.end() || it->ticket != ticket)
+        return 404;
+    if (it->state == QLatin1String("complete"))
+        return 200;
+    const QString base = multipartBaseFor(it->target);
+    for (int i = 0; i < 3; ++i) {
+        const QFileInfo part(base + QLatin1Char('.') + QString::number(i));
+        if (it->writing[i] || part.isSymLink() || !part.isFile() ||
+            part.size() != multipartStart(it->size, i + 1) - multipartStart(it->size, i))
+            return 409;
+    }
+    if (m_commitDelayMs > 0)
+        QThread::msleep(static_cast<unsigned long>(m_commitDelayMs));
+    const bool existed = QFileInfo(it->target).exists();
+    QSaveFile output(it->target);
+    if (!output.open(QIODevice::WriteOnly))
+        return 507;
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    for (int i = 0; i < 3; ++i) {
+        QFile part(base + QLatin1Char('.') + QString::number(i));
+        if (!part.open(QIODevice::ReadOnly))
+            return 403;
+        while (!part.atEnd()) {
+            const QByteArray chunk = part.read(kSendChunk);
+            if (chunk.isEmpty() || !fc::writeUploadChunk(output, chunk))
+                return 507;
+            hash.addData(chunk);
+        }
+    }
+    const QString digest = QString::fromLatin1(hash.result().toHex());
+    if (it->sourceId != digest) {
+        // The staged bytes cannot be trusted for a same-source retry.
+        for (int i = 0; i < 3; ++i) {
+            QFile::remove(base + QLatin1Char('.') + QString::number(i));
+            it->offsets[i] = 0;
+        }
+        QFile::remove(base + QStringLiteral(".json"));
+        it->state = QStringLiteral("failed");
+        it->updatedAt = QDateTime::currentDateTimeUtc();
+        m_multipartTargets.remove(it->target);
+        emit uploadProgress(id, it->target, 0, it->size, it->state);
+        return 409;
+    }
+    if (output.size() != it->size || !output.commit())
+        return 507;
+    for (int i = 0; i < 3; ++i)
+        QFile::remove(base + QLatin1Char('.') + QString::number(i));
+    QFile::remove(base + QStringLiteral(".json"));
+    it->state = QStringLiteral("complete");
+    it->updatedAt = QDateTime::currentDateTimeUtc();
+    m_multipartTargets.remove(it->target);
+    emit received(it->target);
+    emit uploadProgress(id, it->target, it->size, it->size, QStringLiteral("complete"));
+    return existed ? 204 : 201;
+}
+
+bool ShareWorker::startUpload(const QString &id, const QString &ticket,
+                              const QString &fileName, qint64 written, qint64 total) {
+    if (!validTransferId(id) || ticket.isEmpty())
+        return false;
+    const QDateTime now = QDateTime::currentDateTimeUtc();
+    for (auto it = m_uploadRecords.begin(); it != m_uploadRecords.end();) {
+        if (it->updatedAt.secsTo(now) > kProgressRecordSeconds)
+            it = m_uploadRecords.erase(it);
+        else
+            ++it;
+    }
+    if (m_uploadRecords.contains(id))
+        return false;
+    while (m_uploadRecords.size() >= kMaxProgressRecords) {
+        auto oldest = m_uploadRecords.end();
+        for (auto it = m_uploadRecords.begin(); it != m_uploadRecords.end(); ++it) {
+            if (it->state == QLatin1String("receiving"))
+                continue;
+            if (oldest == m_uploadRecords.end() || it->updatedAt < oldest->updatedAt)
+                oldest = it;
+        }
+        if (oldest == m_uploadRecords.end())
+            return false;
+        m_uploadRecords.erase(oldest);
+    }
+    m_uploadRecords.insert(id, {ticket, fileName, written, total,
+                                QStringLiteral("receiving"), now});
+    emit uploadProgress(id, fileName, written, total, QStringLiteral("receiving"));
+    return true;
+}
+
+void ShareWorker::updateUpload(const QString &id, qint64 written, const QString &state) {
+    auto it = m_uploadRecords.find(id);
+    if (it == m_uploadRecords.end())
+        return;
+    if (it->state == QLatin1String("complete") || it->state == QLatin1String("failed") ||
+        it->state == QLatin1String("interrupted"))
+        return;
+    it->written = qMax(it->written, written);
+    if (state == QLatin1String("complete") && it->total < 0)
+        it->total = it->written;
+    it->state = state;
+    it->updatedAt = QDateTime::currentDateTimeUtc();
+    emit uploadProgress(id, it->fileName, written, it->total, state);
+}
+
+QByteArray ShareWorker::uploadStatus(const QString &id, const QString &ticket) {
+    const auto it = m_uploadRecords.constFind(id);
+    if (it == m_uploadRecords.cend() || it->ticket != ticket ||
+        it->updatedAt.secsTo(QDateTime::currentDateTimeUtc()) > kProgressRecordSeconds)
+        return {};
+    return QJsonDocument(QJsonObject{{QStringLiteral("written"), double(it->written)},
+                                     {QStringLiteral("total"), double(it->total)},
+                                     {QStringLiteral("state"), it->state}}).toJson(QJsonDocument::Compact);
 }
 
 void ShareWorker::setRequestTimeoutMs(int timeoutMs) {
@@ -1234,6 +1811,8 @@ FileShareServer::FileShareServer(AccountClient *client, QObject *parent)
     connect(m_worker, SIGNAL(failed(QString)), this, SIGNAL(failed(QString)));
     connect(m_worker, SIGNAL(closed()), this, SIGNAL(stopped()));
     connect(m_worker, SIGNAL(received(QString)), this, SIGNAL(received(QString)));
+    connect(m_worker, SIGNAL(uploadProgress(QString,QString,qint64,qint64,QString)),
+            this, SIGNAL(uploadProgress(QString,QString,qint64,qint64,QString)));
     connect(m_worker, SIGNAL(listening(quint16)), this, SLOT(rememberPort(quint16)));
     connect(m_worker, SIGNAL(closed()), this, SLOT(forgetPort()));
     m_thread->start();
@@ -1279,6 +1858,11 @@ void FileShareServer::removeTicket(const QString &ticket) {
 void FileShareServer::setRequestTimeoutMs(int timeoutMs) {
     QMetaObject::invokeMethod(m_worker, "setRequestTimeoutMs", Qt::QueuedConnection,
                               Q_ARG(int, timeoutMs));
+}
+
+void FileShareServer::setCommitDelayMsForTesting(int delayMs) {
+    QMetaObject::invokeMethod(m_worker, "setCommitDelayMsForTesting", Qt::QueuedConnection,
+                              Q_ARG(int, delayMs));
 }
 
 void FileShareServer::setLimits(int maxConnections, qint64 maxUploadBytes) {

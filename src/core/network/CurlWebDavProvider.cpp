@@ -5,12 +5,17 @@
 #include <curl/curl.h>
 
 #include <cstring>
+#include <limits>
 #include <thread>
 
 #include <QDateTime>
 #include <QDebug>
+#include <QElapsedTimer>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLocale>
 #include <QMutexLocker>
+#include <QUuid>
 #include <QUrl>
 #include <QWaitCondition>
 #include <QXmlStreamReader>
@@ -41,12 +46,22 @@ size_t discardCallback(char * /*ptr*/, size_t size, size_t nmemb, void * /*userd
 
 // Watches the connect handshake's response headers for the one marker that says
 // this server continues a PUT from an offset instead of replacing the resource.
-size_t putRangeProbeCallback(char *ptr, size_t size, size_t nmemb, void *userdata) {
+struct PeerCapabilities {
+    bool putRange = false;
+    bool uploadProgress = false;
+    bool multipart = false;
+};
+
+size_t peerCapabilityCallback(char *ptr, size_t size, size_t nmemb, void *userdata) {
     const size_t bytes = size * nmemb;
-    if (QByteArray::fromRawData(ptr, static_cast<int>(bytes))
-            .toLower()
-            .startsWith("x-filecommander-put-range:"))
-        *static_cast<bool *>(userdata) = true;
+    const QByteArray line = QByteArray::fromRawData(ptr, static_cast<int>(bytes)).toLower();
+    auto *caps = static_cast<PeerCapabilities *>(userdata);
+    if (line.startsWith("x-filecommander-put-range:"))
+        caps->putRange = true;
+    if (line.startsWith("x-filecommander-upload-progress:") && line.contains("v1"))
+        caps->uploadProgress = true;
+    if (line.startsWith("x-filecommander-multipart:") && line.contains("v1"))
+        caps->multipart = true;
     return bytes;
 }
 
@@ -182,6 +197,12 @@ struct WebDavHandle : public FileHandle {
     // Whether this server advertised that it honours Content-Range on a PUT.
     // Off for every server that did not say so, which is all of them but ours.
     bool putRange = false;
+    bool uploadProgress = false;
+    QString transferId;
+    qint64 confirmedBytes = -1;
+    QElapsedTimer statusClock;
+    int statusRetryMs = 250;
+    CURL *statusCurl = nullptr;
     qint64 uploadSize = -1; // total PUT body length, or -1 when the caller didn't say
     bool started = false;
     qint64 cachedSize = -1;
@@ -195,6 +216,56 @@ struct WebDavHandle : public FileHandle {
     qint64 bytesSent() const override {
         QMutexLocker locker(&state->mutex);
         return static_cast<qint64>(state->uploadedBytes);
+    }
+
+    bool isDeviceTransfer() const override {
+        return mode == Mode::Write && !pinnedKey.isEmpty();
+    }
+
+    bool receiverProgressSupported() const override {
+        return mode == Mode::Write && uploadProgress;
+    }
+
+    qint64 receiverConfirmedBytes() override {
+        if (!receiverProgressSupported() || !started)
+            return -1;
+        if (statusClock.isValid() && statusClock.elapsed() < statusRetryMs)
+            return confirmedBytes;
+        if (!statusCurl) {
+            statusCurl = curl_easy_init();
+            if (!statusCurl)
+                return confirmedBytes;
+            const QString statusPath = QStringLiteral("/.filecommander/upload-progress/") + transferId;
+            const QByteArray url = davUrl(host, port, useHttps, statusPath, false).toUtf8();
+            const QByteArray userUtf8 = user.toUtf8();
+            const QByteArray passUtf8 = password.toUtf8();
+            curl_easy_setopt(statusCurl, CURLOPT_URL, url.constData());
+            curl_easy_setopt(statusCurl, CURLOPT_NOSIGNAL, 1L);
+            curl_easy_setopt(statusCurl, CURLOPT_HTTPAUTH, static_cast<long>(CURLAUTH_BASIC));
+            curl_easy_setopt(statusCurl, CURLOPT_USERNAME, userUtf8.constData());
+            curl_easy_setopt(statusCurl, CURLOPT_PASSWORD, passUtf8.constData());
+            curl_easy_setopt(statusCurl, CURLOPT_CONNECTTIMEOUT_MS, 1000L);
+            curl_easy_setopt(statusCurl, CURLOPT_TIMEOUT_MS, 1500L);
+            curl_easy_setopt(statusCurl, CURLOPT_WRITEFUNCTION, appendCallback);
+            curl_easy_setopt(statusCurl, CURLOPT_FOLLOWLOCATION, 0L);
+            applyPinnedKey(statusCurl, pinnedKey);
+            if (!pinnedKey.isEmpty())
+                curl_easy_setopt(statusCurl, CURLOPT_PROXY, "");
+        }
+        QByteArray response;
+        curl_easy_setopt(statusCurl, CURLOPT_WRITEDATA, &response);
+        const CURLcode rc = curl_easy_perform(statusCurl);
+        long code = 0;
+        curl_easy_getinfo(statusCurl, CURLINFO_RESPONSE_CODE, &code);
+        statusClock.restart();
+        statusRetryMs = (rc == CURLE_OK && (code == 200 || code == 404)) ? 250 : 5000;
+        if (rc == CURLE_OK && code == 200) {
+            const QJsonObject json = QJsonDocument::fromJson(response).object();
+            const double value = json.value(QStringLiteral("written")).toDouble(-1);
+            if (value >= 0 && value <= double(std::numeric_limits<qint64>::max()))
+                confirmedBytes = qMax(confirmedBytes, static_cast<qint64>(value));
+        }
+        return confirmedBytes;
     }
 
     // Stop a transfer from the outside (the GUI thread's cancel) instead of
@@ -257,6 +328,8 @@ struct WebDavHandle : public FileHandle {
         }
         if (curl)
             curl_easy_cleanup(curl);
+        if (statusCurl)
+            curl_easy_cleanup(statusCurl);
         if (requestHeaders)
             curl_slist_free_all(requestHeaders);
     }
@@ -375,8 +448,15 @@ void startWebDavTransfer(WebDavHandle *h) {
                                       QByteArray::number(end) + "/" +
                                       QByteArray::number(end + 1);
             h->requestHeaders = curl_slist_append(h->requestHeaders, header.constData());
-            curl_easy_setopt(h->curl, CURLOPT_HTTPHEADER, h->requestHeaders);
         }
+        if (h->uploadProgress) {
+            h->transferId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+            h->transferId.remove(QLatin1Char('-'));
+            const QByteArray header = "X-FileCommander-Transfer-Id: " + h->transferId.toLatin1();
+            h->requestHeaders = curl_slist_append(h->requestHeaders, header.constData());
+        }
+        if (h->requestHeaders)
+            curl_easy_setopt(h->curl, CURLOPT_HTTPHEADER, h->requestHeaders);
     }
 
     CURL *curl = h->curl;
@@ -454,7 +534,9 @@ bool CurlWebDavProvider::connectToHost(const QString &host, int port, const QStr
     }
 
     struct curl_slist *headers = nullptr;
-    bool putRange = false;
+    PeerCapabilities caps;
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, peerCapabilityCallback);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &caps);
     if (scopedProbe) {
         curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
     } else {
@@ -467,8 +549,6 @@ bool CurlWebDavProvider::connectToHost(const QString &host, int port, const QStr
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(std::strlen(body)));
-        curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, putRangeProbeCallback);
-        curl_easy_setopt(curl, CURLOPT_HEADERDATA, &putRange);
     }
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discardCallback);
 
@@ -505,10 +585,35 @@ bool CurlWebDavProvider::connectToHost(const QString &host, int port, const QStr
         return false;
     }
 
+    // The multipart marker is advertised on OPTIONS rather than PROPFIND.
+    // Failure leaves the ordinary single-stream connection usable.
+    if (m_relayDeviceRoute && !m_pinnedKey.isEmpty() && useHttps && !scopedProbe) {
+        PeerCapabilities options;
+        const QByteArray rootUrl = davUrl(host, port, useHttps, QStringLiteral("/"), true).toUtf8();
+        curl_easy_setopt(curl, CURLOPT_URL, rootUrl.constData());
+        curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "OPTIONS");
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discardCallback);
+        curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, peerCapabilityCallback);
+        curl_easy_setopt(curl, CURLOPT_HEADERDATA, &options);
+        const CURLcode optionsResult = curl_easy_perform(curl);
+        long optionsCode = 0;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &optionsCode);
+        m_serverMultipart = optionsResult == CURLE_OK && optionsCode == 200 && options.multipart;
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, nullptr);
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+        curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, nullptr);
+        curl_easy_setopt(curl, CURLOPT_HEADERDATA, nullptr);
+    } else {
+        m_serverMultipart = false;
+    }
+
     m_curl = curl;
     m_user = user;
     m_password = password;
-    m_serverPutRange = putRange;
+    m_serverPutRange = caps.putRange;
+    m_serverUploadProgress = caps.uploadProgress;
     m_connected = true;
     return true;
 }
@@ -545,6 +650,8 @@ void CurlWebDavProvider::disconnect() {
     }
     m_connected = false;
     m_serverPutRange = false;
+    m_serverUploadProgress = false;
+    m_serverMultipart = false;
     m_host.clear();
     m_user.clear();
     m_password.clear();
@@ -1103,6 +1210,10 @@ FileHandle *CurlWebDavProvider::openWrite(const QString &path, bool /*truncate*/
     // the one case where it must not -- continuing a partial file -- is driven
     // by seek() plus Content-Range, not by this flag.
     handle->putRange = putRange;
+    {
+        QMutexLocker locker(&m_mutex);
+        handle->uploadProgress = m_serverUploadProgress;
+    }
     return handle;
 }
 
@@ -1208,6 +1319,24 @@ bool CurlWebDavProvider::closeHandleStatus(FileHandle *handle) {
 }
 
 CloseHandleResult CurlWebDavProvider::closeHandleResult(FileHandle *handle) {
+    return closeHandleResultWithProgress(handle, {});
+}
+
+void CurlWebDavProvider::setRelayDeviceRoute(bool relay) {
+    QMutexLocker locker(&m_mutex);
+    m_relayDeviceRoute = relay;
+    if (!relay)
+        m_serverMultipart = false;
+}
+
+bool CurlWebDavProvider::canUploadLocalFileParallel() const {
+    QMutexLocker locker(&m_mutex);
+    return m_connected && m_relayDeviceRoute && m_useHttps && !m_pinnedKey.isEmpty() &&
+           m_serverMultipart && qEnvironmentVariableIntValue("FILECOMMANDER_BENCH_SINGLE_STREAM") != 1;
+}
+
+CloseHandleResult CurlWebDavProvider::closeHandleResultWithProgress(
+    FileHandle *handle, const std::function<void(FileHandle *)> &onWait) {
     auto *h = static_cast<WebDavHandle *>(handle);
     if (!h)
         return {};
@@ -1223,6 +1352,18 @@ CloseHandleResult CurlWebDavProvider::closeHandleResult(FileHandle *handle) {
                 state.aborted = true;
             state.cond.wakeAll();
         }
+        if (h->mode == WebDavHandle::Mode::Write && onWait) {
+            for (;;) {
+                {
+                    QMutexLocker locker(&state.mutex);
+                    if (state.curlFinished)
+                        break;
+                    state.cond.wait(&state.mutex, 250);
+                }
+                onWait(h);
+            }
+            onWait(h);
+        }
         if (h->worker.joinable())
             h->worker.join();
         if (h->mode == WebDavHandle::Mode::Write) {
@@ -1231,6 +1372,8 @@ CloseHandleResult CurlWebDavProvider::closeHandleResult(FileHandle *handle) {
             result.committed = (result.error == FileHandle::StreamError::None);
         }
     }
+    if (onWait)
+        onWait(nullptr);
     delete h;
     return result;
 }

@@ -1,7 +1,10 @@
 #include <gtest/gtest.h>
 
+#include <QAbstractButton>
+#include <QApplication>
 #include <QDialogButtonBox>
 #include <QLabel>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QTest>
 
@@ -147,4 +150,100 @@ TEST(TransferProgressLayout, TheOperationDialogGivesItsPathRoomToo) {
         << "label is " << path->height() << "px for "
         << path->heightForWidth(path->width()) << "px of text";
     EXPECT_LE(path->geometry().bottom(), dialog.height());
+}
+
+TEST(TransferProgressLayout, SenderWindowCanMinimizeWithoutProgressRestoringIt) {
+    TransferProgressDialog dialog(nullptr);
+    dialog.showConnecting(QStringLiteral("Connecting"));
+    qApp->processEvents();
+
+    EXPECT_FALSE(dialog.isModal());
+    EXPECT_EQ(dialog.windowFlags() & Qt::WindowType_Mask, Qt::Window);
+    EXPECT_TRUE(dialog.windowFlags().testFlag(Qt::WindowMinimizeButtonHint));
+    EXPECT_TRUE(dialog.testAttribute(Qt::WA_ShowWithoutActivating));
+    auto *minimize = dialog.findChild<QAbstractButton *>(
+        QStringLiteral("TransferMinimizeButton"));
+    ASSERT_NE(minimize, nullptr);
+    minimize->click();
+    qApp->processEvents();
+    ASSERT_TRUE(dialog.isMinimized());
+
+    QMetaObject::invokeMethod(&dialog, "onStarted", Qt::DirectConnection,
+                              Q_ARG(QString, QStringLiteral("Sending")));
+    QMetaObject::invokeMethod(&dialog, "onProgress", Qt::DirectConnection,
+                              Q_ARG(qint64, 0), Q_ARG(qint64, 1), Q_ARG(qint64, 0),
+                              Q_ARG(qint64, 512LL * 1024 * 1024),
+                              Q_ARG(QString, QStringLiteral("big.bin")));
+    dialog.showConnecting(QStringLiteral("Connecting again"));
+    qApp->processEvents();
+    EXPECT_TRUE(dialog.isMinimized());
+}
+
+TEST(TransferProgressLayout, SenderRatesDecayAndUnavailableReceiverIsExplicit) {
+    OperationQueue queue;
+    TransferProgressDialog dialog(&queue);
+    dialog.showConnecting(QStringLiteral("Connecting"));
+    QMetaObject::invokeMethod(&dialog, "onStarted", Qt::DirectConnection,
+                              Q_ARG(QString, QStringLiteral("Sending")));
+
+    auto metrics = [&queue](qint64 sent, qint64 received, bool confirmed) {
+        queue.deviceTransferProgress(sent, received, confirmed);
+    };
+    metrics(0, 0, true);
+    QTest::qWait(300);
+    metrics(4096, 2048, true);
+
+    QLabel *sending = dialog.findChild<QLabel *>(QStringLiteral("TransferSendingRate"));
+    QLabel *receiving = dialog.findChild<QLabel *>(QStringLiteral("TransferReceivingRate"));
+    ASSERT_NE(sending, nullptr);
+    ASSERT_NE(receiving, nullptr);
+    EXPECT_TRUE(sending->text().contains(QStringLiteral("Sending:")));
+    EXPECT_FALSE(sending->text().contains(QStringLiteral("0 B/s")));
+    EXPECT_TRUE(receiving->text().contains(QStringLiteral("Receiving:")));
+    EXPECT_FALSE(receiving->text().contains(QStringLiteral("0 B/s")));
+
+    QTest::qWait(1800);
+    EXPECT_TRUE(sending->text().contains(QStringLiteral("0 B/s")));
+    EXPECT_TRUE(receiving->text().contains(QStringLiteral("0 B/s")));
+
+    metrics(8192, -1, false);
+    EXPECT_TRUE(receiving->text().contains(QStringLiteral("unavailable")));
+}
+
+TEST(TransferProgressLayout, GenericBatchAfterSendingKeepsItsOriginalChromeAndSpeed) {
+    TransferProgressDialog dialog(nullptr);
+    dialog.showConnecting(QStringLiteral("Connecting"));
+    QMetaObject::invokeMethod(&dialog, "onStarted", Qt::DirectConnection,
+                              Q_ARG(QString, QStringLiteral("Sending")));
+    QMetaObject::invokeMethod(&dialog, "onFinished", Qt::DirectConnection,
+                              Q_ARG(bool, true));
+    ASSERT_TRUE(QTest::qWaitFor([&dialog] { return !dialog.isVisible(); }, 2000));
+
+    QMetaObject::invokeMethod(&dialog, "onStarted", Qt::DirectConnection,
+                              Q_ARG(QString, QStringLiteral("Copying")));
+    QTest::qWait(300);
+    QMetaObject::invokeMethod(&dialog, "onProgress", Qt::DirectConnection,
+                              Q_ARG(qint64, 0), Q_ARG(qint64, 1), Q_ARG(qint64, 4096),
+                              Q_ARG(qint64, 8192), Q_ARG(QString, QStringLiteral("file.bin")));
+    EXPECT_EQ(dialog.windowFlags() & Qt::WindowType_Mask, Qt::Dialog);
+    auto *minimize = dialog.findChild<QAbstractButton *>(
+        QStringLiteral("TransferMinimizeButton"));
+    ASSERT_NE(minimize, nullptr);
+    EXPECT_TRUE(minimize->isHidden());
+    EXPECT_NE(labelShowing(dialog, QStringLiteral("Speed:")), nullptr);
+}
+
+TEST(TransferProgressLayout, FullBarWaitsForCommittedFinish) {
+    TransferProgressDialog dialog(nullptr);
+    dialog.showConnecting(QStringLiteral("Connecting"));
+    QMetaObject::invokeMethod(&dialog, "onStarted", Qt::DirectConnection,
+                              Q_ARG(QString, QStringLiteral("Sending")));
+    QMetaObject::invokeMethod(&dialog, "onProgress", Qt::DirectConnection,
+                              Q_ARG(qint64, 0), Q_ARG(qint64, 1), Q_ARG(qint64, 1024),
+                              Q_ARG(qint64, 1024), Q_ARG(QString, QStringLiteral("file.bin")));
+    auto *bar = dialog.findChild<QProgressBar *>();
+    ASSERT_NE(bar, nullptr);
+    EXPECT_LT(bar->value(), bar->maximum());
+    QMetaObject::invokeMethod(&dialog, "onFinished", Qt::DirectConnection, Q_ARG(bool, true));
+    EXPECT_EQ(bar->value(), bar->maximum());
 }

@@ -1,10 +1,14 @@
 #include <gtest/gtest.h>
 
 #include <QDir>
+#include <QCryptographicHash>
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QProcess>
 #include <QSignalSpy>
 #include <QSslCertificate>
@@ -18,7 +22,45 @@
 #include "OperationQueue.h"
 #include "account/FileShareServer.h"
 #include "account/ShareIdentity.h"
+#include "account/UploadWrite.h"
 #include "network/CurlWebDavProvider.h"
+
+namespace {
+class ShortWriteDevice final : public QIODevice {
+public:
+    explicit ShortWriteDevice(qint64 failAfter = -1) : m_failAfter(failAfter) {
+        open(QIODevice::WriteOnly);
+    }
+
+    QByteArray bytes() const { return m_bytes; }
+
+protected:
+    qint64 readData(char *, qint64) override { return -1; }
+    qint64 writeData(const char *data, qint64 size) override {
+        if (m_failAfter >= 0 && m_bytes.size() >= m_failAfter)
+            return -1;
+        const qint64 written = qMin<qint64>(size, 2);
+        m_bytes.append(data, int(written));
+        return written;
+    }
+
+private:
+    qint64 m_failAfter;
+    QByteArray m_bytes;
+};
+} // namespace
+
+TEST(FileShareServerWriteTest, ContinuesAfterShortWrites) {
+    ShortWriteDevice device;
+    EXPECT_TRUE(fc::writeUploadChunk(device, QByteArray("abcdef")));
+    EXPECT_EQ(device.bytes(), QByteArray("abcdef"));
+}
+
+TEST(FileShareServerWriteTest, ReportsFailedWrite) {
+    ShortWriteDevice device(4);
+    EXPECT_FALSE(fc::writeUploadChunk(device, QByteArray("abcdef")));
+    EXPECT_EQ(device.bytes(), QByteArray("abcd"));
+}
 
 // The point of this file, and of the whole "serve WebDAV" decision: the
 // accessing side is CurlWebDavProvider unchanged. So the assertions here are
@@ -63,6 +105,18 @@ QByteArray rawRequest(quint16 port, const QString &ticket, const QByteArray &met
 
 int responseStatus(const QByteArray &response) {
     return response.left(response.indexOf("\r\n")).split(' ').value(1).toInt();
+}
+
+QJsonObject responseJson(const QByteArray &response) {
+    return QJsonDocument::fromJson(response.mid(response.indexOf("\r\n\r\n") + 4)).object();
+}
+
+QByteArray jsonRequest(quint16 port, const QString &ticket, const QString &path,
+                       const QJsonObject &body) {
+    const QByteArray payload = QJsonDocument(body).toJson(QJsonDocument::Compact);
+    return rawRequest(port, ticket, "POST", path,
+                      "Content-Type: application/json\r\nContent-Length: " +
+                          QByteArray::number(payload.size()) + "\r\n", payload);
 }
 
 QByteArray blob(int size, char seed) {
@@ -192,6 +246,276 @@ protected:
     quint16 m_port = 0;
 };
 
+TEST_F(FileShareServerTest, MultipartAdvertisesAndCommitsOnlyAfterThreeParts) {
+    const QByteArray options = rawRequest(m_port, QString::fromLatin1(kTicket), "OPTIONS", "/");
+    EXPECT_NE(options.indexOf("X-FileCommander-Multipart: v1"), -1);
+    const QByteArray payload = blob(100, 17);
+    const QString target = m_share + QStringLiteral("/three.bin");
+    ASSERT_TRUE(writeFile(target, "old"));
+    const QString digest = QString::fromLatin1(
+        QCryptographicHash::hash(payload, QCryptographicHash::Sha256).toHex());
+    const QByteArray start = jsonRequest(m_port, QString::fromLatin1(kTicket),
+        QStringLiteral("/.filecommander/multipart"),
+        {{QStringLiteral("path"), QStringLiteral("/share/three.bin")},
+         {QStringLiteral("size"), payload.size()}, {QStringLiteral("sourceId"), digest}});
+    ASSERT_EQ(responseStatus(start), 201) << start.toStdString();
+    const QJsonObject session = responseJson(start);
+    const QString id = session.value(QStringLiteral("id")).toString();
+    ASSERT_EQ(id.size(), 32);
+    EXPECT_EQ(session.value(QStringLiteral("offsets")).toArray().size(), 3);
+    const int bounds[4] = {0, 34, 67, 100};
+    for (int i = 0; i < 3; ++i) {
+        const QByteArray part = payload.mid(bounds[i], bounds[i + 1] - bounds[i]);
+        const QByteArray result = rawRequest(m_port, QString::fromLatin1(kTicket), "PUT",
+            QStringLiteral("/.filecommander/multipart/%1/%2").arg(id).arg(i),
+            "X-FileCommander-Part-Offset: 0\r\nContent-Length: " +
+                QByteArray::number(part.size()) + "\r\n", part);
+        EXPECT_EQ(responseStatus(result), 204) << result.toStdString();
+        EXPECT_EQ(readFile(target), QByteArray("old"));
+    }
+    const QByteArray status = rawRequest(m_port, QString::fromLatin1(kTicket), "GET",
+        QStringLiteral("/.filecommander/multipart/") + id);
+    EXPECT_EQ(responseStatus(status), 200);
+    EXPECT_EQ(responseJson(status).value(QStringLiteral("total")).toInt(), 100);
+    EXPECT_EQ(responseJson(status).value(QStringLiteral("offsets")).toArray().at(1).toInt(), 33);
+    const QByteArray commit = rawRequest(m_port, QString::fromLatin1(kTicket), "POST",
+        QStringLiteral("/.filecommander/multipart/") + id + QStringLiteral("/commit"));
+    EXPECT_EQ(responseStatus(commit), 204) << commit.toStdString();
+    EXPECT_EQ(readFile(target), payload);
+    EXPECT_EQ(responseJson(rawRequest(m_port, QString::fromLatin1(kTicket), "GET",
+        QStringLiteral("/.filecommander/multipart/") + id)).value(QStringLiteral("state")).toString(),
+        QStringLiteral("complete"));
+}
+
+TEST_F(FileShareServerTest, MultipartResumesWithNewTicketAndRejectsOldTicket) {
+    const QByteArray payload = blob(90, 4);
+    const QString digest = QString::fromLatin1(
+        QCryptographicHash::hash(payload, QCryptographicHash::Sha256).toHex());
+    const QJsonObject request{{QStringLiteral("path"), QStringLiteral("/share/resume-three.bin")},
+                              {QStringLiteral("size"), payload.size()},
+                              {QStringLiteral("sourceId"), digest}};
+    const QString id = responseJson(jsonRequest(m_port, QString::fromLatin1(kTicket),
+        QStringLiteral("/.filecommander/multipart"), request)).value(QStringLiteral("id")).toString();
+    ASSERT_FALSE(id.isEmpty());
+    const QString path = QStringLiteral("/.filecommander/multipart/%1/0").arg(id);
+    const QByteArray wrong = rawRequest(m_port, QString::fromLatin1(kTicket), "PUT", path,
+        "X-FileCommander-Part-Offset: 1\r\nContent-Length: 30\r\n", payload.left(30));
+    EXPECT_EQ(responseStatus(wrong), 409);
+    const QByteArray shortBody = rawRequest(m_port, QString::fromLatin1(kTicket), "PUT", path,
+        "X-FileCommander-Part-Offset: 0\r\nContent-Length: 30\r\n", payload.left(11));
+    EXPECT_TRUE(shortBody.isEmpty() || responseStatus(shortBody) != 204);
+    ASSERT_GT(settledSize(m_share + QStringLiteral("/.resume-three.bin.filecommander-multipart.0")), 0);
+    QString interruptedState;
+    QElapsedTimer stateClock;
+    stateClock.start();
+    while (stateClock.elapsed() < 2000) {
+        interruptedState = responseJson(rawRequest(m_port, QString::fromLatin1(kTicket), "GET",
+            QStringLiteral("/.filecommander/multipart/") + id)).value(QStringLiteral("state")).toString();
+        if (interruptedState == QLatin1String("interrupted"))
+            break;
+        QThread::msleep(20);
+    }
+    EXPECT_EQ(interruptedState, QStringLiteral("interrupted"));
+    m_server->addTicket(QStringLiteral("fresh-ticket"), 300);
+    const QByteArray resumed = jsonRequest(m_port, QStringLiteral("fresh-ticket"),
+        QStringLiteral("/.filecommander/multipart"), request);
+    ASSERT_EQ(responseStatus(resumed), 200) << resumed.toStdString();
+    const QJsonObject resumedSession = responseJson(resumed);
+    const QString newId = resumedSession.value(QStringLiteral("id")).toString();
+    const int have = resumedSession.value(QStringLiteral("offsets")).toArray().at(0).toInt();
+    EXPECT_GT(have, 0);
+    EXPECT_LT(have, 30);
+    EXPECT_EQ(responseStatus(rawRequest(m_port, QString::fromLatin1(kTicket), "GET",
+        QStringLiteral("/.filecommander/multipart/") + newId)), 404);
+    EXPECT_EQ(responseStatus(rawRequest(m_port, QStringLiteral("fresh-ticket"), "PUT",
+        QStringLiteral("/.filecommander/multipart/%1/0").arg(newId),
+        "X-FileCommander-Part-Offset: " + QByteArray::number(have) +
+            "\r\nContent-Length: " + QByteArray::number(30 - have) + "\r\n",
+        payload.mid(have, 30 - have))), 204);
+    for (int i = 1; i < 3; ++i)
+        EXPECT_EQ(responseStatus(rawRequest(m_port, QStringLiteral("fresh-ticket"), "PUT",
+            QStringLiteral("/.filecommander/multipart/%1/%2").arg(newId).arg(i),
+            "X-FileCommander-Part-Offset: 0\r\nContent-Length: 30\r\n",
+            payload.mid(i * 30, 30))), 204);
+    EXPECT_EQ(responseStatus(rawRequest(m_port, QStringLiteral("fresh-ticket"), "POST",
+        QStringLiteral("/.filecommander/multipart/") + newId + QStringLiteral("/commit"))), 201);
+    EXPECT_EQ(readFile(m_share + QStringLiteral("/resume-three.bin")), payload);
+}
+
+TEST_F(FileShareServerTest, MultipartRejectsTamperedDataWithoutReplacingTarget) {
+    const QByteArray payload = blob(99, 8);
+    const QString target = m_share + QStringLiteral("/guarded.bin");
+    ASSERT_TRUE(writeFile(target, "original"));
+    const QString hash = QString::fromLatin1(
+        QCryptographicHash::hash(payload, QCryptographicHash::Sha256).toHex());
+    const QString id = responseJson(jsonRequest(m_port, QString::fromLatin1(kTicket),
+        QStringLiteral("/.filecommander/multipart"),
+        {{QStringLiteral("path"), QStringLiteral("/share/guarded.bin")},
+         {QStringLiteral("size"), payload.size()}, {QStringLiteral("sourceId"), hash}}))
+        .value(QStringLiteral("id")).toString();
+    ASSERT_FALSE(id.isEmpty());
+    QByteArray modified = payload;
+    modified[7] = char(modified.at(7) ^ 1);
+    for (int i = 0; i < 3; ++i) {
+        const QByteArray part = modified.mid(i * 33, 33);
+        ASSERT_EQ(responseStatus(rawRequest(m_port, QString::fromLatin1(kTicket), "PUT",
+            QStringLiteral("/.filecommander/multipart/%1/%2").arg(id).arg(i),
+            "X-FileCommander-Part-Offset: 0\r\nContent-Length: 33\r\n", part)), 204);
+    }
+    EXPECT_EQ(responseStatus(rawRequest(m_port, QString::fromLatin1(kTicket), "POST",
+        QStringLiteral("/.filecommander/multipart/") + id + QStringLiteral("/commit"))), 409);
+    EXPECT_EQ(readFile(target), QByteArray("original"));
+    const auto retry = jsonRequest(m_port, QString::fromLatin1(kTicket),
+        QStringLiteral("/.filecommander/multipart"),
+        {{QStringLiteral("path"), QStringLiteral("/share/guarded.bin")},
+         {QStringLiteral("size"), payload.size()}, {QStringLiteral("sourceId"), hash}});
+    const QString retryId = responseJson(retry).value(QStringLiteral("id")).toString();
+    ASSERT_FALSE(retryId.isEmpty());
+    for (int i = 0; i < 3; ++i) {
+        ASSERT_EQ(responseStatus(rawRequest(m_port, QString::fromLatin1(kTicket), "PUT",
+            QStringLiteral("/.filecommander/multipart/%1/%2").arg(retryId).arg(i),
+            "X-FileCommander-Part-Offset: 0\r\nContent-Length: 33\r\n",
+            payload.mid(i * 33, 33))), 204);
+    }
+    EXPECT_EQ(responseStatus(rawRequest(m_port, QString::fromLatin1(kTicket), "POST",
+        QStringLiteral("/.filecommander/multipart/") + retryId + QStringLiteral("/commit"))), 204);
+    EXPECT_EQ(readFile(target), payload);
+}
+
+TEST_F(FileShareServerTest, MultipartNewSourceResetsPartsAndRejectsEscapingPath) {
+    const QString first = QString::fromLatin1(
+        QCryptographicHash::hash("012345678901234567890123456789", QCryptographicHash::Sha256).toHex());
+    const QString second = QString::fromLatin1(
+        QCryptographicHash::hash("different-source-data", QCryptographicHash::Sha256).toHex());
+    const QJsonObject request{{QStringLiteral("path"), QStringLiteral("/share/new-source.bin")},
+                              {QStringLiteral("size"), 30},
+                              {QStringLiteral("sourceId"), first}};
+    const QString id = responseJson(jsonRequest(m_port, QString::fromLatin1(kTicket),
+        QStringLiteral("/.filecommander/multipart"), request))
+        .value(QStringLiteral("id")).toString();
+    ASSERT_FALSE(id.isEmpty());
+    EXPECT_EQ(responseStatus(rawRequest(m_port, QString::fromLatin1(kTicket), "PUT",
+        QStringLiteral("/.filecommander/multipart/%1/0").arg(id),
+        "X-FileCommander-Part-Offset: 0\r\nContent-Length: 10\r\n", "0123456789")), 204);
+    QJsonObject changed = request;
+    changed.insert(QStringLiteral("sourceId"), second);
+    const QByteArray reset = jsonRequest(m_port, QString::fromLatin1(kTicket),
+        QStringLiteral("/.filecommander/multipart"), changed);
+    EXPECT_EQ(responseStatus(reset), 201);
+    EXPECT_EQ(responseJson(reset).value(QStringLiteral("offsets")).toArray().at(0).toInt(), 0);
+    EXPECT_EQ(responseStatus(rawRequest(m_port, QString::fromLatin1(kTicket), "GET",
+        QStringLiteral("/.filecommander/multipart/") + id)), 404);
+    QJsonObject escaping = request;
+    escaping.insert(QStringLiteral("path"), QStringLiteral("/share/../secret.txt"));
+    EXPECT_NE(responseStatus(jsonRequest(m_port, QString::fromLatin1(kTicket),
+        QStringLiteral("/.filecommander/multipart"), escaping)), 201);
+}
+
+TEST_F(FileShareServerTest, MultipartKeepsReceivingWhileAnotherPartIsActive) {
+    const QByteArray payload = blob(90, 11);
+    const QString digest = QString::fromLatin1(
+        QCryptographicHash::hash(payload, QCryptographicHash::Sha256).toHex());
+    const QString id = responseJson(jsonRequest(m_port, QString::fromLatin1(kTicket),
+        QStringLiteral("/.filecommander/multipart"),
+        {{QStringLiteral("path"), QStringLiteral("/share/concurrent.bin")},
+         {QStringLiteral("size"), payload.size()}, {QStringLiteral("sourceId"), digest}}))
+        .value(QStringLiteral("id")).toString();
+    ASSERT_FALSE(id.isEmpty());
+
+    QSslSocket first, second;
+    first.setPeerVerifyMode(QSslSocket::VerifyNone);
+    second.setPeerVerifyMode(QSslSocket::VerifyNone);
+    const QByteArray auth = (QByteArray("device:") + kTicket).toBase64();
+    auto startPart = [&](QSslSocket *socket, int index) {
+        socket->connectToHostEncrypted(QStringLiteral("127.0.0.1"), m_port);
+        if (!socket->waitForEncrypted(5000))
+            return false;
+        const QByteArray head = "PUT /.filecommander/multipart/" + id.toLatin1() +
+            "/" + QByteArray::number(index) + " HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+            "Authorization: Basic " + auth + "\r\nContent-Length: 30\r\n"
+            "X-FileCommander-Part-Offset: 0\r\n\r\n";
+        return socket->write(head + payload.mid(index * 30, 5)) > 0 &&
+               socket->waitForBytesWritten(5000);
+    };
+    ASSERT_TRUE(startPart(&first, 0));
+    ASSERT_TRUE(startPart(&second, 1));
+    const QString statusPath = QStringLiteral("/.filecommander/multipart/") + id;
+    auto status = [&] { return responseJson(rawRequest(m_port, QString::fromLatin1(kTicket),
+        "GET", statusPath)); };
+    EXPECT_GE(status().value(QStringLiteral("offsets")).toArray().at(1).toInt(), 5);
+    first.abort();
+    for (int i = 0; i < 20; ++i) {
+        if (status().value(QStringLiteral("offsets")).toArray().at(0).toInt() >= 5)
+            break;
+        QThread::msleep(10);
+    }
+    EXPECT_EQ(status().value(QStringLiteral("state")).toString(), QStringLiteral("receiving"));
+    second.abort();
+    for (int i = 0; i < 20; ++i) {
+        if (status().value(QStringLiteral("state")).toString() == QLatin1String("interrupted"))
+            break;
+        QThread::msleep(10);
+    }
+    EXPECT_EQ(status().value(QStringLiteral("state")).toString(), QStringLiteral("interrupted"));
+}
+
+TEST_F(FileShareServerTest, MultipartRestoresPersistedPartsAfterServerRestart) {
+    const QByteArray payload = blob(96, 23);
+    const QString digest = QString::fromLatin1(
+        QCryptographicHash::hash(payload, QCryptographicHash::Sha256).toHex());
+    const QJsonObject request{{QStringLiteral("path"), QStringLiteral("/share/restarted.bin")},
+                              {QStringLiteral("size"), payload.size()},
+                              {QStringLiteral("sourceId"), digest}};
+    const QString firstId = responseJson(jsonRequest(m_port, QString::fromLatin1(kTicket),
+        QStringLiteral("/.filecommander/multipart"), request))
+        .value(QStringLiteral("id")).toString();
+    ASSERT_FALSE(firstId.isEmpty());
+    EXPECT_EQ(responseStatus(rawRequest(m_port, QString::fromLatin1(kTicket), "PUT",
+        QStringLiteral("/.filecommander/multipart/%1/0").arg(firstId),
+        "X-FileCommander-Part-Offset: 0\r\nContent-Length: 32\r\n", payload.left(32))), 204);
+
+    delete m_server;
+    m_server = new FileShareServer(nullptr);
+    m_server->setSharedFolders({m_share});
+    m_server->addTicket(QStringLiteral("restart-ticket"), 300);
+    QSignalSpy started(m_server, &FileShareServer::started);
+    m_server->start();
+    ASSERT_TRUE(started.wait(5000));
+    m_port = started.first().first().toUInt();
+    const QByteArray resumed = jsonRequest(m_port, QStringLiteral("restart-ticket"),
+        QStringLiteral("/.filecommander/multipart"), request);
+    ASSERT_EQ(responseStatus(resumed), 200) << resumed.toStdString();
+    const QJsonObject session = responseJson(resumed);
+    EXPECT_EQ(session.value(QStringLiteral("offsets")).toArray().at(0).toInt(), 32);
+    const QString id = session.value(QStringLiteral("id")).toString();
+    for (int i = 1; i < 3; ++i)
+        EXPECT_EQ(responseStatus(rawRequest(m_port, QStringLiteral("restart-ticket"), "PUT",
+            QStringLiteral("/.filecommander/multipart/%1/%2").arg(id).arg(i),
+            "X-FileCommander-Part-Offset: 0\r\nContent-Length: 32\r\n",
+            payload.mid(i * 32, 32))), 204);
+    EXPECT_EQ(responseStatus(rawRequest(m_port, QStringLiteral("restart-ticket"), "POST",
+        QStringLiteral("/.filecommander/multipart/") + id + QStringLiteral("/commit"))), 201);
+    EXPECT_EQ(readFile(m_share + QStringLiteral("/restarted.bin")), payload);
+}
+
+TEST_F(FileShareServerTest, MultipartRequiresSha256AndRejectsConcurrentSinglePut) {
+    const QByteArray invalid = jsonRequest(m_port, QString::fromLatin1(kTicket),
+        QStringLiteral("/.filecommander/multipart"),
+        {{QStringLiteral("path"), QStringLiteral("/share/locked.bin")},
+         {QStringLiteral("size"), 30}, {QStringLiteral("sourceId"), QStringLiteral("not-a-hash")}});
+    EXPECT_EQ(responseStatus(invalid), 400);
+    const QString digest(64, QLatin1Char('a'));
+    const QByteArray start = jsonRequest(m_port, QString::fromLatin1(kTicket),
+        QStringLiteral("/.filecommander/multipart"),
+        {{QStringLiteral("path"), QStringLiteral("/share/locked.bin")},
+         {QStringLiteral("size"), 30}, {QStringLiteral("sourceId"), digest}});
+    ASSERT_EQ(responseStatus(start), 201);
+    EXPECT_EQ(responseStatus(rawRequest(m_port, QString::fromLatin1(kTicket), "PUT",
+        QStringLiteral("/share/locked.bin"), "Content-Length: 1\r\n", "x")), 423);
+    EXPECT_EQ(responseStatus(rawRequest(m_port, QString::fromLatin1(kTicket), "GET",
+        QStringLiteral("/share/.locked.bin.filecommander-multipart.json"))), 404);
+}
+
 TEST_F(FileShareServerTest, TheRootListsOneEntryPerSharedFolder) {
     connectOk();
     const QVector<FileInfo> root = m_provider->list(QStringLiteral("/"), true);
@@ -279,6 +603,165 @@ TEST_F(FileShareServerTest, AnUploadLandsInTheSharedFolder) {
     }
     EXPECT_TRUE(m_provider->closeHandleStatus(h));
     EXPECT_EQ(readFile(m_share + QStringLiteral("/up.bin")), payload);
+}
+
+TEST_F(FileShareServerTest, UploadStatusReportsCommittedBytesOnlyToItsTicket) {
+    const QByteArray id = "0123456789abcdef0123456789abcdef";
+    const QString path = QStringLiteral("/share/confirmed.bin");
+    ASSERT_TRUE(writeFile(m_share + QStringLiteral("/confirmed.bin"), "old content"));
+
+    const QByteArray put = rawRequest(
+        m_port, QString::fromLatin1(kTicket), "PUT", path,
+        "Content-Length: 6\r\nX-FileCommander-Transfer-Id: " + id + "\r\n", "abcdef");
+    ASSERT_EQ(responseStatus(put), 204);
+    EXPECT_EQ(readFile(m_share + QStringLiteral("/confirmed.bin")), QByteArray("abcdef"));
+
+    const QString statusPath = QStringLiteral("/.filecommander/upload-progress/") +
+                               QString::fromLatin1(id);
+    const QByteArray status = rawRequest(m_port, QString::fromLatin1(kTicket), "GET", statusPath);
+    ASSERT_EQ(responseStatus(status), 200);
+    const QJsonObject json = QJsonDocument::fromJson(status.mid(status.indexOf("\r\n\r\n") + 4))
+                                 .object();
+    EXPECT_EQ(json.value(QStringLiteral("written")).toInt(), 6);
+    EXPECT_EQ(json.value(QStringLiteral("total")).toInt(), 6);
+    EXPECT_EQ(json.value(QStringLiteral("state")).toString(), QStringLiteral("complete"));
+
+    const QByteArray denied = rawRequest(m_port, QStringLiteral("wrong-ticket"), "GET", statusPath);
+    EXPECT_EQ(responseStatus(denied), 401);
+    m_server->addTicket(QStringLiteral("other-valid-ticket"), 300);
+    const QByteArray isolated = rawRequest(m_port, QStringLiteral("other-valid-ticket"),
+                                           "GET", statusPath);
+    EXPECT_EQ(responseStatus(isolated), 404);
+}
+
+TEST_F(FileShareServerTest, UploadStatusTracksOnlyWrittenBytesBeforeCommit) {
+    const QByteArray id = "fedcba9876543210fedcba9876543210";
+    QSignalSpy progress(m_server, &FileShareServer::uploadProgress);
+    QSslSocket socket;
+    socket.setPeerVerifyMode(QSslSocket::VerifyNone);
+    socket.connectToHostEncrypted(QStringLiteral("127.0.0.1"), m_port);
+    ASSERT_TRUE(socket.waitForEncrypted(5000));
+    const QByteArray auth = QByteArray("device:") + kTicket;
+    const QByteArray head =
+        "PUT /share/partial-progress.bin HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+        "Authorization: Basic " + auth.toBase64() +
+        "\r\nConnection: close\r\nContent-Length: 12\r\n"
+        "X-FileCommander-Transfer-Id: " + id + "\r\n\r\n";
+    ASSERT_EQ(socket.write(head + "abcdef"), head.size() + 6);
+    ASSERT_TRUE(socket.waitForBytesWritten(5000));
+    QElapsedTimer timer;
+    timer.start();
+    while (progress.size() < 2 && timer.elapsed() < 5000)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+    ASSERT_GE(progress.size(), 2);
+    EXPECT_FALSE(QFileInfo(m_share + QStringLiteral("/partial-progress.bin")).exists());
+    const QString statusPath = QStringLiteral("/.filecommander/upload-progress/") +
+                               QString::fromLatin1(id);
+    const QByteArray status = rawRequest(m_port, QString::fromLatin1(kTicket), "GET", statusPath);
+    ASSERT_EQ(responseStatus(status), 200);
+    const QJsonObject json = QJsonDocument::fromJson(status.mid(status.indexOf("\r\n\r\n") + 4))
+                                 .object();
+    EXPECT_EQ(json.value(QStringLiteral("written")).toInt(), 6);
+    EXPECT_EQ(json.value(QStringLiteral("total")).toInt(), 12);
+    EXPECT_EQ(json.value(QStringLiteral("state")).toString(), QStringLiteral("receiving"));
+    ASSERT_EQ(socket.write("ghijkl"), 6);
+    ASSERT_TRUE(socket.waitForBytesWritten(5000));
+    QByteArray response;
+    while (socket.waitForReadyRead(1000))
+        response += socket.readAll();
+    response += socket.readAll();
+    EXPECT_EQ(responseStatus(response), 201);
+    EXPECT_EQ(readFile(m_share + QStringLiteral("/partial-progress.bin")), QByteArray("abcdefghijkl"));
+}
+
+TEST_F(FileShareServerTest, DuplicateTransferIdDoesNotTruncateAResumablePartial) {
+    const QByteArray id = "00112233445566778899aabbccddeeff";
+    const QByteArray extra = "Content-Length: 2\r\nX-FileCommander-Transfer-Id: " + id + "\r\n";
+    EXPECT_EQ(responseStatus(rawRequest(m_port, QString::fromLatin1(kTicket), "PUT",
+                                        QStringLiteral("/share/first.bin"), extra, "ab")), 201);
+    const QString staged = partialPath(m_share + QStringLiteral("/second.bin"));
+    ASSERT_TRUE(writeFile(staged, "resume me"));
+    EXPECT_EQ(responseStatus(rawRequest(m_port, QString::fromLatin1(kTicket), "PUT",
+                                        QStringLiteral("/share/second.bin"), extra, "cd")), 409);
+    EXPECT_EQ(readFile(staged), QByteArray("resume me"));
+}
+
+TEST_F(FileShareServerTest, CompletedProgressRecordsDoNotBlockLargeBatches) {
+    for (int i = 0; i <= 256; ++i) {
+        const QByteArray id = QString::number(i, 16).rightJustified(32, QLatin1Char('0')).toLatin1();
+        const QByteArray extra = "Content-Length: 0\r\nX-FileCommander-Transfer-Id: " + id + "\r\n";
+        const QByteArray response = rawRequest(m_port, QString::fromLatin1(kTicket), "PUT",
+                                               QStringLiteral("/share/many-%1.bin").arg(i), extra);
+        ASSERT_EQ(responseStatus(response), 201) << "file index " << i;
+    }
+}
+
+TEST_F(FileShareServerTest, WebDavProviderReadsLiveReceiverConfirmation) {
+    connectOk();
+    QSignalSpy progress(m_server, &FileShareServer::uploadProgress);
+    FileHandle *handle = m_provider->openWrite(QStringLiteral("/share/provider-progress.bin"), true);
+    ASSERT_NE(handle, nullptr);
+    ASSERT_TRUE(handle->receiverProgressSupported());
+    const QByteArray body = blob(512 * 1024, 7);
+    m_provider->setExpectedWriteSize(handle, body.size());
+    ASSERT_EQ(m_provider->write(handle, body.constData(), body.size()), body.size());
+    QElapsedTimer timer;
+    timer.start();
+    qint64 confirmed = -1;
+    while (timer.elapsed() < 5000) {
+        confirmed = handle->receiverConfirmedBytes();
+        if (confirmed == body.size())
+            break;
+        QThread::msleep(20);
+    }
+    EXPECT_EQ(confirmed, body.size())
+        << "receiver events=" << progress.size()
+        << " staged size=" << QFileInfo(partialPath(m_share + QStringLiteral("/provider-progress.bin"))).size();
+    const CloseHandleResult result = m_provider->closeHandleResult(handle);
+    EXPECT_TRUE(result.committed) << result.detail.toStdString();
+    EXPECT_EQ(readFile(m_share + QStringLiteral("/provider-progress.bin")), body);
+}
+
+TEST_F(FileShareServerTest, TransferQueueDisplaysReceiverConfirmedProgress) {
+    connectOk();
+    const QByteArray body = blob(768 * 1024, 11);
+    const QString source = m_dir.path() + QStringLiteral("/acknowledged.bin");
+    ASSERT_TRUE(writeFile(source, body));
+
+    auto local = std::make_shared<LocalFileProvider>();
+    OperationQueue queue;
+    queue.setMaxConcurrentTransfers(1);
+    queue.setTransferRateLimit(128 * 1024);
+    qint64 displayed = 0;
+    qint64 lastConfirmed = 0;
+    bool sawPartialConfirmation = false;
+    bool confirmationLedDisplay = false;
+    QObject::connect(&queue, &OperationQueue::progress, &queue,
+                     [&](qint64, qint64, qint64 done, qint64, const QString &) {
+                         displayed = done;
+                     });
+    QObject::connect(&queue, &OperationQueue::deviceTransferProgress, &queue,
+                     [&](qint64 sent, qint64 received, bool confirmed) {
+                         if (!confirmed) {
+                             EXPECT_EQ(received, -1);
+                             return;
+                         }
+                         EXPECT_GE(received, lastConfirmed);
+                         EXPECT_LE(received, sent);
+                         if (displayed > received)
+                             confirmationLedDisplay = true;
+                         if (received > 0 && received < body.size())
+                             sawPartialConfirmation = true;
+                         lastConfirmed = received;
+                     });
+    QSignalSpy done(&queue, &OperationQueue::finished);
+    queue.enqueueProviderCopy(local, {source}, m_provider, QStringLiteral("/share"));
+    ASSERT_TRUE(done.count() || done.wait(15000));
+    EXPECT_TRUE(done.takeFirst().at(0).toBool());
+    EXPECT_TRUE(sawPartialConfirmation);
+    EXPECT_FALSE(confirmationLedDisplay);
+    EXPECT_EQ(lastConfirmed, body.size());
+    EXPECT_EQ(readFile(m_share + QStringLiteral("/acknowledged.bin")), body);
 }
 
 TEST_F(FileShareServerTest, AnUploadSignalsThatAFileWasReceived) {
@@ -643,6 +1126,7 @@ TEST_F(FileShareServerTest, TheTransferQueueResumesAnInterruptedCopy) {
     auto local = std::make_shared<LocalFileProvider>();
     OperationQueue queue;
     queue.setMaxConcurrentTransfers(1);
+    queue.setTransferRateLimit(2 * 1024 * 1024);
     // A prompt here would mean the transfer took the conflict branch instead of
     // resuming, so record it rather than answering it.
     bool conflictAsked = false;
@@ -728,6 +1212,7 @@ TEST_F(FileShareServerTest, TheModifiedTimeSurvivesTheRoundTrip) {
 // lives only under the hidden staging name, which is the resume point.
 TEST_F(FileShareServerTest, AnAbortedUploadLeavesNoPartialAtTheFinalName) {
     connectOk();
+    QSignalSpy progress(m_server, &FileShareServer::uploadProgress);
     const QByteArray payload = blob(2 * 1024 * 1024, 13);
     const QString dav = QStringLiteral("/share/aborted.bin");
     const QString local = m_share + QStringLiteral("/aborted.bin");
@@ -746,6 +1231,13 @@ TEST_F(FileShareServerTest, AnAbortedUploadLeavesNoPartialAtTheFinalName) {
 
     EXPECT_FALSE(QFileInfo(local).exists()) << "a truncated file showed up under the real name";
     EXPECT_GT(settledSize(partialPath(local)), 0) << "the resume partial was not kept";
+    QElapsedTimer timer;
+    timer.start();
+    while (timer.elapsed() < 5000 &&
+           (progress.isEmpty() || progress.last().at(4).toString() != QStringLiteral("interrupted")))
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+    ASSERT_FALSE(progress.isEmpty());
+    EXPECT_EQ(progress.last().at(4).toString(), QStringLiteral("interrupted"));
 }
 
 // The overwrite case: the peer already has a file under the target name, the

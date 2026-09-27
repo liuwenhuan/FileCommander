@@ -47,6 +47,7 @@ class ViewerWindow;
 class OperationProgressDialog;
 class OperationQueue;
 class TransferProgressDialog;
+class IncomingTransferWindow;
 class ThemeManager;
 class QShortcut;
 class QSplitter;
@@ -93,6 +94,8 @@ public:
     // Whether the silent update check should run now: automatic checking is on
     // and today's check has not been made yet.
     bool updateCheckIsDue() const;
+    Q_INVOKABLE void sendFileToDeviceInBackground(const QString &deviceName,
+                                                  const QString &sourcePath);
     // How often the scheduled check wakes up to ask that question. Far shorter
     // than the once-a-day policy it enforces, because the policy is written in
     // calendar dates and the machine may have been asleep.
@@ -101,6 +104,7 @@ public:
 signals:
     void startupReady();
     void archiveJobFinished();
+    void backgroundSendFinished(bool ok);
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -279,6 +283,14 @@ private slots:
     // over the same session and the same provider a device tab would use. The
     // peer needs no prompt: it is another device of the same account.
     void sendToDevice(const QString &deviceId, const QString &name, const QStringList &sources);
+    void backgroundSendFetchDevice(QObject *request, const QString &deviceName,
+                                   const QString &sourcePath);
+    void backgroundSendOpenSession(QObject *request, const QString &deviceId,
+                                   const QString &deviceName, const QString &sourcePath);
+    void backgroundSendStartTransfer(QObject *request, const AccountSession &session,
+                                     const QString &deviceId, const QString &deviceName,
+                                     const QString &sourcePath);
+    void finishBackgroundSend(QObject *request, bool ok, const QString &message);
 
     // Starts or stops the serving half: on whenever an account is signed in,
     // because receiving is what "Send to Device" needs and it is always the
@@ -664,7 +676,7 @@ private:
     struct DeviceLink {
         std::function<std::shared_ptr<FileProvider>(QString *)> connect;
     };
-    DeviceLink deviceLink(const AccountSession &session);
+    DeviceLink deviceLink(const AccountSession &session, bool relayOnly = false);
 
     AccountClient *m_accountClient = nullptr;
     CloudClipboardController *m_cloudClipboard = nullptr;
@@ -673,11 +685,13 @@ private:
     // submenu has to be populated the instant the menu opens; opening it also
     // asks for a fresh list, for the next time.
     QVector<AccountDeviceInfo> m_accountDevices;
+    QPointer<QObject> m_backgroundSendRequest;
     // The serving half, alive only while sharing is on: the agent keeps the
     // account server posted on this machine and hands over the tickets the
     // share server will accept.
     DeviceAgent *m_deviceAgent = nullptr;
     FileShareServer *m_shareServer = nullptr;
+    QHash<QString, QPointer<IncomingTransferWindow>> m_incomingTransferWindows;
     // Sends queued while the target device was offline, drained when it next
     // shows as online. Session-only, see PendingSendQueue.
     PendingSendQueue *m_pendingSends = nullptr;

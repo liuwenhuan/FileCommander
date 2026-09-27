@@ -5522,6 +5522,11 @@ Save first if you want to keep them.</source>
         <source>Save changes to %1?</source>
         <translation type="vanished">%1 의 변경 사항을 저장할까요?</translation>
     </message>
+<message>
+        <location filename="../../src/viewer/TextEditor.cpp" line="308"/>
+        <source>Auto</source>
+        <translation>자동</translation>
+    </message>
 </context>
 <context>
     <name>TextViewer</name>
@@ -5620,6 +5625,29 @@ Save first if you want to keep them.</source>
         <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="402"/>
         <source>%1 operation(s) queued</source>
         <translation>%1 개 작업 대기 중</translation>
+    </message>
+<message>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="150"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="151"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="230"/>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="231"/>
+        <source>Minimize</source>
+        <translation>최소화</translation>
+    </message>
+<message>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="594"/>
+        <source>Sending: %1/s</source>
+        <translation>보내는 속도: %1/s</translation>
+    </message>
+<message>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="596"/>
+        <source>Receiving: %1/s</source>
+        <translation>받는 속도: %1/s</translation>
+    </message>
+<message>
+        <location filename="../../src/ui/dialogs/TransferProgressDialog.cpp" line="597"/>
+        <source>Receiving: unavailable</source>
+        <translation>받는 속도: 확인 불가</translation>
     </message>
 </context>
 <context>
@@ -5952,6 +5980,49 @@ Save first if you want to keep them.</source>
         <location filename="../../src/ui/dialogs/SecureWipeDialog.cpp" line="215"/>
         <source>Failed</source>
         <translation>실패</translation>
+    </message>
+</context>
+<context>
+    <name>IncomingTransferWindow</name>
+    <message>
+        <location filename="../../src/ui/dialogs/IncomingTransferWindow.cpp" line="26"/>
+        <source>Receiving file</source>
+        <translation>파일 받는 중</translation>
+    </message>
+<message>
+        <location filename="../../src/ui/dialogs/IncomingTransferWindow.cpp" line="112"/>
+        <source>Complete</source>
+        <translation>완료</translation>
+    </message>
+<message>
+        <location filename="../../src/ui/dialogs/IncomingTransferWindow.cpp" line="114"/>
+        <source>Failed</source>
+        <translation>실패</translation>
+    </message>
+<message>
+        <location filename="../../src/ui/dialogs/IncomingTransferWindow.cpp" line="116"/>
+        <source>Interrupted</source>
+        <translation>중단됨</translation>
+    </message>
+<message>
+        <location filename="../../src/ui/dialogs/IncomingTransferWindow.cpp" line="118"/>
+        <source>Receiving</source>
+        <translation>받는 중</translation>
+    </message>
+<message>
+        <location filename="../../src/ui/dialogs/IncomingTransferWindow.cpp" line="126"/>
+        <source>Received: %1 / %2</source>
+        <translation>받음: %1 / %2</translation>
+    </message>
+<message>
+        <location filename="../../src/ui/dialogs/IncomingTransferWindow.cpp" line="130"/>
+        <source>Received: %1</source>
+        <translation>받음: %1</translation>
+    </message>
+<message>
+        <location filename="../../src/ui/dialogs/IncomingTransferWindow.cpp" line="141"/>
+        <source>Receiving: %1/s</source>
+        <translation>받는 속도: %1/s</translation>
     </message>
 </context>
 </TS>

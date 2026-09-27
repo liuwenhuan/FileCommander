@@ -125,6 +125,7 @@ signals:
     void queueChanged(int pendingCount); // pending jobs not yet started, local + transfers
     void progress(qint64 doneItems, qint64 totalItems, qint64 doneBytes, qint64 totalBytes,
                    const QString &currentFile);
+    void deviceTransferProgress(qint64 sentBytes, qint64 receivedBytes, bool confirmed);
     void errorOccurred(const QString &message);
     void finished(bool ok);
     // Emitted before finished() when a successful local trash delete can be restored.

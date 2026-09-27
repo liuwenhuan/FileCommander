@@ -72,6 +72,7 @@ if(FILECOMMANDER_ENABLE_NETWORK)
         network/CurlFtpProvider.cpp
         network/CurlWebDavProvider.h
         network/CurlWebDavProvider.cpp
+        network/CurlWebDavMultipart.cpp
         network/TransferErrorMapping.h
         network/TransferErrorMapping.cpp
         network/ConnectionStore.h

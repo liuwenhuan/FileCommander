@@ -1,7 +1,11 @@
 #include <gtest/gtest.h>
 
 #include <QDir>
+#include <QCryptographicHash>
+#include <QDebug>
+#include <QElapsedTimer>
 #include <QFile>
+#include <QFileInfo>
 #include <QHash>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -14,6 +18,8 @@
 #include "account/RelayTunnel.h"
 #include "account/ShareIdentity.h"
 #include "network/CurlWebDavProvider.h"
+#include "operations/FileOperations.h"
+#include "filesystem/LocalFileProvider.h"
 
 // The relay half of device transfer, end to end and in one process: a stand-in
 // for the account server's /v1/relay, both halves of RelayTunnel, and a real
@@ -162,10 +168,10 @@ protected:
         const quint16 sharePort = quint16(up.first().first().toUInt());
 
         m_serving = new RelayTunnel;
-        m_serving->serveLocal(m_relayUrl, QString::fromLatin1(kTicket), sharePort, 2);
+        m_serving->serveLocal(m_relayUrl, QString::fromLatin1(kTicket), sharePort, 6);
         // The accessing side must find a socket already parked; otherwise the
         // first request races the pool coming up.
-        ASSERT_TRUE(waitForParked(2));
+        ASSERT_TRUE(waitForParked(6));
 
         m_accessing = new RelayTunnel;
         m_localPort = m_accessing->listenLocal(m_relayUrl, QString::fromLatin1(kTicket));
@@ -194,13 +200,14 @@ protected:
         return false;
     }
 
-    bool connectProvider() {
+    bool connectProvider(bool relayDeviceRoute = false) {
         m_provider = std::make_shared<CurlWebDavProvider>();
         m_provider->setTimeoutMs(15000);
         // The relay is a raw byte pipe, so the TLS session runs end to end
         // between this provider and the share server on the far side -- which
         // is the point: whoever runs the relay sees ciphertext.
         m_provider->setPinnedPublicKey(ShareIdentity::local().pin);
+        m_provider->setRelayDeviceRoute(relayDeviceRoute);
         return m_provider->connectToHost(QStringLiteral("127.0.0.1"), int(m_localPort),
                                          QStringLiteral("device"),
                                          QString::fromLatin1(kTicket),
@@ -234,13 +241,26 @@ TEST_F(RelayTunnelTest, AFileRoundTripsThroughTheRelay) {
     const QByteArray payload = blob(2 * 1024 * 1024 + 123, 5);
     FileHandle *out = m_provider->openWrite(QStringLiteral("/share/up.bin"), true);
     ASSERT_NE(out, nullptr);
+    ASSERT_TRUE(out->receiverProgressSupported());
     m_provider->setExpectedWriteSize(out, payload.size());
     qint64 sent = 0;
+    bool checkedConfirmation = false;
     while (sent < payload.size()) {
         const qint64 n = m_provider->write(out, payload.constData() + sent,
                                            qMin<qint64>(32 * 1024, payload.size() - sent));
         ASSERT_GT(n, 0);
         sent += n;
+        if (!checkedConfirmation && sent >= 1024 * 1024) {
+            qint64 confirmed = -1;
+            for (int attempt = 0; attempt < 20 && confirmed <= 0; ++attempt) {
+                confirmed = out->receiverConfirmedBytes();
+                if (confirmed <= 0)
+                    QThread::msleep(50);
+            }
+            EXPECT_GT(confirmed, 0);
+            EXPECT_LT(confirmed, payload.size());
+            checkedConfirmation = true;
+        }
     }
     ASSERT_TRUE(m_provider->closeHandleStatus(out));
 
@@ -262,6 +282,53 @@ TEST_F(RelayTunnelTest, AFileRoundTripsThroughTheRelay) {
     }
     EXPECT_TRUE(m_provider->closeHandleStatus(in));
     EXPECT_EQ(got, payload);
+}
+
+TEST_F(RelayTunnelTest, BenchmarkInstallerSingleAndThreeWayOverRelay) {
+    const QString input = QString::fromLocal8Bit(qgetenv("FC_BENCH_FILE"));
+    if (input.isEmpty())
+        GTEST_SKIP() << "Set FC_BENCH_FILE to run the opt-in real-file benchmark";
+    const QFileInfo original(input);
+    ASSERT_TRUE(original.isFile());
+    ASSERT_GT(original.size(), 20LL * 1024 * 1024);
+
+    auto digest = [](const QString &path) {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly))
+            return QByteArray();
+        QCryptographicHash hash(QCryptographicHash::Sha256);
+        while (!file.atEnd())
+            hash.addData(file.read(1024 * 1024));
+        return hash.result();
+    };
+    const QByteArray expectedHash = digest(input);
+    ASSERT_FALSE(expectedHash.isEmpty());
+
+    for (const bool parallel : {false, true}) {
+        const QString label = parallel ? QStringLiteral("three-way")
+                                       : QStringLiteral("single");
+        const QString source = m_dir.filePath(label + QStringLiteral("-pixeloffice.exe"));
+        ASSERT_TRUE(QFile::copy(input, source));
+        ASSERT_TRUE(connectProvider(parallel)) << m_error.toStdString();
+        ASSERT_EQ(m_provider->canUploadLocalFileParallel(), parallel);
+
+        FileOperations operations;
+        QString error;
+        QElapsedTimer clock;
+        clock.start();
+        ASSERT_TRUE(operations.copyAcrossProviders(LocalFileProvider::instance(), {source},
+                                                   m_provider.get(), QStringLiteral("/share"),
+                                                   false, nullptr, &error))
+            << error.toStdString();
+        const qint64 elapsedMs = clock.elapsed();
+        const QString received = m_share + QLatin1Char('/') + QFileInfo(source).fileName();
+        EXPECT_EQ(digest(received), expectedHash);
+        qInfo().noquote() << "relay benchmark" << label << original.size() << "bytes"
+                          << elapsedMs << "ms"
+                          << double(original.size()) * 1000.0 / (1024 * 1024 * elapsedMs)
+                          << "MiB/s";
+        m_provider.reset();
+    }
 }
 
 } // namespace

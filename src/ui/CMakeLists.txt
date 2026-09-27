@@ -116,6 +116,8 @@ set(UI_SOURCES
     dialogs/ChecksumDialog.cpp
     dialogs/TransferProgressDialog.h
     dialogs/TransferProgressDialog.cpp
+    dialogs/IncomingTransferWindow.h
+    dialogs/IncomingTransferWindow.cpp
     dialogs/AboutDialog.h
     dialogs/AboutDialog.cpp
 )

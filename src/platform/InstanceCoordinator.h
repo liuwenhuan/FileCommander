@@ -20,7 +20,7 @@ public:
     explicit InstanceCoordinator(QString serverName = {}, QObject *parent = nullptr);
     ~InstanceCoordinator() override;
 
-    StartResult startOrActivate(const QStringList &arguments);
+    StartResult startOrActivate(const QStringList &arguments, bool allowForeground = true);
     bool isPrimary() const;
 
 signals:

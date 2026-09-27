@@ -78,6 +78,9 @@ public:
     // Must be set before connectToHost(); it applies to the control-plane
     // handle and to every streaming transfer handle.
     void setPinnedPublicKey(const QString &pin);
+    // Only the explicitly selected relay path may use three-part uploads.
+    // Set before connectToHost(); LAN and ordinary WebDAV remain single-stream.
+    void setRelayDeviceRoute(bool relay);
     // A scoped read-only endpoint can be probed with HEAD instead of the normal
     // WebDAV PROPFIND / handshake (used by clipboard-image capability tickets).
     void setConnectProbePath(const QString &path) { m_connectProbePath = path; }
@@ -113,6 +116,13 @@ public:
     void closeHandle(FileHandle *handle) override;
     bool closeHandleStatus(FileHandle *handle) override;
     CloseHandleResult closeHandleResult(FileHandle *handle) override;
+    CloseHandleResult closeHandleResultWithProgress(
+        FileHandle *handle, const std::function<void(FileHandle *)> &onWait) override;
+    bool canUploadLocalFileParallel() const override;
+    CloseHandleResult uploadLocalFileParallel(
+        const QString &source, const QString &destination,
+        const std::function<bool(qint64, qint64)> &onProgress,
+        const std::function<bool()> &checkpoint, QString *error) override;
     bool canStream() const override { return true; }
 
     // WebDAV is HTTP, so reads genuinely run side by side: openRead() takes the
@@ -171,4 +181,7 @@ private:
     // Set by the connect handshake when the server advertised that it continues
     // a PUT from a Content-Range offset; gates supportsWriteResume().
     bool m_serverPutRange = false;
+    bool m_serverUploadProgress = false;
+    bool m_relayDeviceRoute = false;
+    bool m_serverMultipart = false;
 };

@@ -311,6 +311,8 @@ void OperationQueue::ensureLocalWorkerStarted() {
     m_ops->moveToThread(&m_workerThread);
     connect(&m_workerThread, &QThread::finished, m_ops, &QObject::deleteLater);
     connect(m_ops, &FileOperations::progress, this, &OperationQueue::progress);
+    connect(m_ops, &FileOperations::deviceTransferProgress,
+            this, &OperationQueue::deviceTransferProgress);
     connect(m_ops, &FileOperations::errorOccurred, this, &OperationQueue::errorOccurred);
     m_ops->setErrorResolver([this](const OperationError &error) { return askError(error); });
     m_workerThread.start();
@@ -365,6 +367,8 @@ void OperationQueue::addTransferWorker() {
     worker->ops->moveToThread(worker->thread);
     connect(worker->thread, &QThread::finished, worker->ops, &QObject::deleteLater);
     connect(worker->ops, &FileOperations::progress, this, &OperationQueue::progress);
+    connect(worker->ops, &FileOperations::deviceTransferProgress,
+            this, &OperationQueue::deviceTransferProgress);
     connect(worker->ops, &FileOperations::errorOccurred, this, &OperationQueue::errorOccurred);
     worker->ops->setErrorResolver(
         [this](const OperationError &error) { return askError(error); });

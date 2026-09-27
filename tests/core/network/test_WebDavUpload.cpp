@@ -125,6 +125,11 @@ TEST(WebDavUploadTest, UploadedBytesActuallyLandOnTheServer) {
     ASSERT_TRUE(dav.connectToHost("127.0.0.1", server.port(), "u", "p", false, &err))
         << err.toStdString();
 
+    FileHandle *probe = dav.openWrite("/legacy-probe.bin", true);
+    ASSERT_NE(probe, nullptr);
+    EXPECT_FALSE(probe->receiverProgressSupported());
+    dav.closeHandle(probe);
+
     const QByteArray payload = patterned(4096);
     ASSERT_TRUE(upload(dav, "/landed.bin", payload));
 

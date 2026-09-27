@@ -2,6 +2,7 @@
 
 #include "FramelessDialog.h"
 #include <QElapsedTimer>
+#include <QQueue>
 
 class QLabel;
 class QProgressBar;
@@ -14,6 +15,7 @@ class QShowEvent;
 class QHideEvent;
 class QEvent;
 class QColor;
+class QAbstractButton;
 class OperationQueue;
 
 // Modeless progress display for OperationQueue's concurrent provider
@@ -73,6 +75,7 @@ private slots:
     void onFinished(bool ok);
     void onErrorOccurred(const QString &message);
     void onPauseClicked();
+    void onDeviceTransferProgress(qint64 sentBytes, qint64 receivedBytes, bool confirmed);
     // 中止: stop the whole batch now and take this window away. See the
     // implementation for what "now" can and cannot promise.
     void onAbortClicked();
@@ -91,25 +94,38 @@ private:
     // Grows the dialog so the wrapping labels (the file path, the error line)
     // are fully visible instead of being clipped by the starting height.
     void fitWrappedText();
+    void refreshDeviceRates();
+    void restoreGenericWindow();
 
     // Visibility policy thresholds.
     static constexpr int kShowDelayMs = 1000;                    // deferred-show delay
     static constexpr int kOutcomeDurationMs = 180;               // terminal-state lifetime
     static constexpr qint64 kBigBytes = 100LL * 1024 * 1024;     // >100 MiB shows at once
     static constexpr qint64 kBigItems = 200;                     // >200 items shows at once
+    static constexpr qint64 kRateWindowMs = 1000;
+
+    struct RateSample {
+        qint64 milliseconds;
+        qint64 sentBytes;
+        qint64 receivedBytes;
+    };
 
     OperationQueue *m_queue = nullptr;
+    Qt::WindowFlags m_genericWindowFlags;
 
     QLabel *m_descriptionLabel = nullptr;
     QLabel *m_fileLabel = nullptr;
     QLabel *m_bytesLabel = nullptr;
     QLabel *m_speedLabel = nullptr;
+    QLabel *m_sendingRateLabel = nullptr;
+    QLabel *m_receivingRateLabel = nullptr;
     QLabel *m_etaLabel = nullptr;
     QLabel *m_queueLabel = nullptr;
     QLabel *m_errorLabel = nullptr;
     QProgressBar *m_progressBar = nullptr;
     QPushButton *m_pauseButton = nullptr;
     QPushButton *m_abortButton = nullptr;
+    QAbstractButton *m_minimizeButton = nullptr;
     QGraphicsOpacityEffect *m_revealEffect = nullptr;
     QPropertyAnimation *m_revealAnimation = nullptr;
     QVariantAnimation *m_outcomeColorAnimation = nullptr;
@@ -118,6 +134,15 @@ private:
     QElapsedTimer m_timer;
     QTimer *m_showTimer = nullptr;    // single-shot deferred-show timer (kShowDelayMs)
     QTimer *m_terminalHideTimer = nullptr; // owns the shared successful-outcome window
+    QTimer *m_rateTimer = nullptr;
+    QElapsedTimer m_rateClock;
+    QQueue<RateSample> m_rateSamples;
+    qint64 m_sentBytes = 0;
+    qint64 m_receivedBytes = -1;
+    bool m_receiverConfirmed = false;
+    bool m_hasDeviceRates = false;
+    bool m_senderMode = false;
+    bool m_senderConnecting = false;
     bool m_paused = false;
     bool m_showSuppressed = false;          // an OperationErrorDialog is currently open
     bool m_wantsShowWhileSuppressed = false; // showIfHidden() was called during suppression

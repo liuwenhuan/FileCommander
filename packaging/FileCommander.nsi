@@ -9,6 +9,9 @@ Unicode true
 !ifndef OUTFILE
   !error "OUTFILE is required"
 !endif
+!ifndef ICON_FILE
+  !error "ICON_FILE is required"
+!endif
 
 Name "FileCommander"
 Caption "FileCommander ${PRODUCT_VERSION} Setup"
@@ -19,6 +22,8 @@ RequestExecutionLevel admin
 ShowInstDetails show
 ShowUninstDetails show
 
+!define MUI_ICON "${ICON_FILE}"
+!define MUI_UNICON "${ICON_FILE}"
 !include "MUI2.nsh"
 !define MUI_ABORTWARNING
 !define MUI_WELCOMEPAGE_TITLE "Welcome to FileCommander Setup"
@@ -56,6 +61,7 @@ Section "FileCommander" SecMain
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\FileCommander" "DisplayVersion" "${PRODUCT_VERSION}"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\FileCommander" "Publisher" "FileCommander"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\FileCommander" "InstallLocation" "$INSTDIR"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\FileCommander" "DisplayIcon" "$INSTDIR\FileCommander.exe"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\FileCommander" "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""
   WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\FileCommander" "NoModify" 1
   WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\FileCommander" "NoRepair" 1

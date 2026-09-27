@@ -847,3 +847,22 @@ TEST(MainWindowActionsTest, LiveLanguageSwitchRetranslatesCommandOutput) {
               QCoreApplication::translate("CommandOutputDialog", "Command Output"));
     EXPECT_EQ(clear->text(), QCoreApplication::translate("CommandOutputDialog", "Clear"));
 }
+
+TEST(MainWindowActionsTest, BackgroundSendRejectsMissingSourceWithoutOpeningUi) {
+    ThemeStateGuard themeState;
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString logPath = dir.filePath(QStringLiteral("background-send.log"));
+    EnvironmentGuard logOverride("FILECOMMANDER_BACKGROUND_SEND_LOG", logPath.toUtf8());
+    MainWindow window;
+
+    EXPECT_TRUE(QMetaObject::invokeMethod(
+        &window, "sendFileToDeviceInBackground", Q_ARG(QString, QStringLiteral("deepin-LGPC")),
+        Q_ARG(QString, dir.filePath(QStringLiteral("missing.bin")))));
+    EXPECT_FALSE(window.isVisible());
+    EXPECT_EQ(QApplication::activeModalWidget(), nullptr);
+
+    QFile log(logPath);
+    ASSERT_TRUE(log.open(QIODevice::ReadOnly));
+    EXPECT_TRUE(log.readAll().contains("missing.bin"));
+}
