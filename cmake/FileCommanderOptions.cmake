@@ -2,11 +2,15 @@ option(FILECOMMANDER_ENABLE_NETWORK "Build network providers" ON)
 option(FILECOMMANDER_PREVIEW_PDF "Build Poppler PDF preview" ON)
 option(FILECOMMANDER_PREVIEW_MEDIA "Build media preview" ON)
 option(FILECOMMANDER_PREVIEW_OFFICE "Build office-oxide integration" ON)
+option(FILECOMMANDER_USE_VCPKG
+       "Resolve third-party libraries through vcpkg CMake package configs" OFF)
+set(FILECOMMANDER_DEPS_ROOT "" CACHE PATH
+    "Prefix containing the third-party dependencies used by this build")
 set(FILECOMMANDER_MEDIA_BACKEND "auto" CACHE STRING
     "Media backend: auto, mpv, windowsmf, or none")
 set_property(CACHE FILECOMMANDER_MEDIA_BACKEND PROPERTY STRINGS auto mpv windowsmf none)
 
-if(WIN32)
+if(WIN32 OR APPLE)
     option(FILECOMMANDER_ENABLE_LINUX_INTEGRATION
            "Build Linux-only DBus, GVFS, X11, libsecret and libsmbclient integration" OFF)
 else()

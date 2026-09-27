@@ -4,7 +4,7 @@
 #include "network/CurlWebDavProvider.h"
 #include "network/GvfsMounter.h"
 #include "network/SftpProvider.h"
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_MACOS)
 #include "network/SmbProvider.h"
 using NativeSmbProvider = SmbProvider;
 #elif defined(Q_OS_WIN)
@@ -43,7 +43,7 @@ struct ProtocolChoice {
 
 const ProtocolChoice kProtocols[] = {
     {"SFTP (SSH)", GvfsMounter::Protocol::Sftp},
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN) || defined(Q_OS_MACOS)
     {"SMB / Windows share", GvfsMounter::Protocol::Smb},
 #endif
     {"WebDAV (HTTP)", GvfsMounter::Protocol::WebDav},
@@ -132,7 +132,7 @@ ConnectDialog::ConnectDialog(QWidget *parent) : FramelessDialog(parent) {
     auto *layout = new QVBoxLayout(this);
     layout->addWidget(savedBox);
     layout->addLayout(form);
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN) || defined(Q_OS_MACOS)
     const QString hintText =
         tr("SFTP, FTP, WebDAV and SMB all connect through a built-in client.");
 #else
@@ -397,7 +397,7 @@ void ConnectDialog::accept() {
     }
 
     // SMB/CIFS (libsmbclient / SmbProvider). "/" lists the shares.
-#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN)
+#if FILECOMMANDER_HAS_LINUX_INTEGRATION || defined(Q_OS_WIN) || defined(Q_OS_MACOS)
     if (protocol == GvfsMounter::Protocol::Smb) {
         auto provider = std::make_shared<NativeSmbProvider>();
         m_remoteProvider = provider;

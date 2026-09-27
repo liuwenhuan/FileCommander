@@ -72,6 +72,9 @@ TEST(ShellShortcutsTest, SupportedDestinationsMatchThePlatform) {
 #ifdef Q_OS_WIN
     EXPECT_TRUE(fc::ShellShortcuts::supports(Destination::Startup));
     EXPECT_FALSE(fc::ShellShortcuts::supports(Destination::Applications));
+#elif defined(Q_OS_MACOS)
+    EXPECT_FALSE(fc::ShellShortcuts::supports(Destination::Startup));
+    EXPECT_FALSE(fc::ShellShortcuts::supports(Destination::Applications));
 #else
     EXPECT_TRUE(fc::ShellShortcuts::supports(Destination::Applications));
     EXPECT_FALSE(fc::ShellShortcuts::supports(Destination::Startup));
@@ -79,6 +82,8 @@ TEST(ShellShortcutsTest, SupportedDestinationsMatchThePlatform) {
     // An unsupported destination must refuse rather than write somewhere odd.
     const Destination absent =
 #ifdef Q_OS_WIN
+        Destination::Applications;
+#elif defined(Q_OS_MACOS)
         Destination::Applications;
 #else
         Destination::Startup;
@@ -151,6 +156,54 @@ TEST(ShellShortcutsTest, TheStartupFolderResolvesAndIsNotTheDesktop) {
     EXPECT_TRUE(QFileInfo(startup).isDir()) << qPrintable(startup);
     EXPECT_NE(startup, desktop);
 }
+#elif defined(Q_OS_MACOS)
+
+TEST(ShellShortcutsTest, MacOSOffersDesktopAliasesOnly) {
+    using Destination = fc::ShellShortcuts::Destination;
+    EXPECT_TRUE(fc::ShellShortcuts::isSupported());
+    EXPECT_TRUE(fc::ShellShortcuts::supports(Destination::Desktop));
+    EXPECT_FALSE(fc::ShellShortcuts::supports(Destination::Applications));
+    EXPECT_FALSE(fc::ShellShortcuts::supports(Destination::Startup));
+    EXPECT_TRUE(fc::ShellShortcuts::locationFor(Destination::Applications).isEmpty());
+    EXPECT_TRUE(fc::ShellShortcuts::locationFor(Destination::Startup).isEmpty());
+}
+
+TEST(ShellShortcutsTest, MacOSRecognizesExecutableFilesAndAppBundles) {
+    QTemporaryDir work;
+    ASSERT_TRUE(work.isValid());
+
+    const QString executable = QDir(work.path()).filePath(QStringLiteral("tool"));
+    QFile file(executable);
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    file.write("#!/bin/sh\n");
+    file.close();
+    ASSERT_TRUE(QFile::setPermissions(executable,
+                                      QFileDevice::ReadOwner | QFileDevice::WriteOwner |
+                                          QFileDevice::ExeOwner));
+    EXPECT_TRUE(fc::ShellShortcuts::isLaunchable(executable));
+
+    const QString app = QDir(work.path()).filePath(QStringLiteral("Probe.app"));
+    ASSERT_TRUE(QDir().mkpath(app));
+    EXPECT_TRUE(fc::ShellShortcuts::isLaunchable(app));
+
+    const QString text = QDir(work.path()).filePath(QStringLiteral("notes.txt"));
+    QFile plain(text);
+    ASSERT_TRUE(plain.open(QIODevice::WriteOnly));
+    plain.write("text");
+    plain.close();
+    EXPECT_FALSE(fc::ShellShortcuts::isLaunchable(text));
+}
+
+TEST(ShellShortcutsTest, MacOSRejectsMissingDesktopAliasTarget) {
+    QTemporaryDir work;
+    ASSERT_TRUE(work.isValid());
+    const QString absent = QDir(work.path()).filePath(QStringLiteral("gone.app"));
+    const PlatformResult result =
+        fc::ShellShortcuts::create(absent, fc::ShellShortcuts::Destination::Desktop);
+    EXPECT_FALSE(result.ok);
+    EXPECT_EQ(result.code, PlatformError::NotFound);
+}
+
 #else // Linux
 
 namespace {

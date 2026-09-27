@@ -20,6 +20,16 @@ QVector<TerminalCandidate> terminalCandidates(const QString &workingDirectory) {
         // cannot come up empty on a working system.
         {QStringLiteral("cmd.exe"), {}},
     };
+#elif defined(Q_OS_MACOS)
+    // Launch Services opens the installed terminal application and receives
+    // the directory as an explicit document. This does not depend on a shell
+    // executable being present on PATH.
+    return {
+        {QStringLiteral("/usr/bin/open"),
+         {QStringLiteral("-a"), QStringLiteral("Terminal"), workingDirectory}},
+        {QStringLiteral("/usr/bin/open"),
+         {QStringLiteral("-a"), QStringLiteral("iTerm"), workingDirectory}},
+    };
 #else
     Q_UNUSED(workingDirectory);
     QVector<TerminalCandidate> candidates = {

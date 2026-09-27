@@ -7,10 +7,26 @@ commit="$(sed -n 's/^commit=//p' "$pin_file")"
 package="$(sed -n 's/^package=//p' "$pin_file")"
 output="${1:-$repo_root/build/office-oxide}"
 source_dir="$output/source"
+cargo_home="${FILECOMMANDER_CARGO_HOME:-$output/cargo-home}"
+cargo_workdir="${FILECOMMANDER_CARGO_WORKDIR:-/tmp}"
 if [[ ! -d "$source_dir/.git" ]]; then git clone "$url" "$source_dir"; fi
 git -C "$source_dir" fetch origin "$commit" --depth 1
 git -C "$source_dir" checkout --detach "$commit"
 test "$(git -C "$source_dir" rev-parse HEAD)" = "$commit"
-cargo build --manifest-path "$source_dir/Cargo.toml" --release -p "$package"
+mkdir -p "$cargo_home"
+if [[ -z "${FILECOMMANDER_CARGO_HOME:-}" || ! -f "$cargo_home/config.toml" ]]; then
+    cat > "$cargo_home/config.toml" <<'EOF'
+# Keep the pinned macOS helper build independent of a user's global Cargo
+# source replacement. The default crates.io endpoint is the portable fallback
+# when a machine-local mirror is stale or unavailable.
+[registries.crates-io]
+protocol = "sparse"
+EOF
+fi
+(cd "$cargo_workdir" &&
+    CARGO_HOME="$cargo_home" cargo build \
+        --manifest-path "$source_dir/Cargo.toml" \
+        --release \
+        -p "$package")
 mkdir -p "$output"
 cp "$source_dir/target/release/office-oxide" "$output/office-oxide"

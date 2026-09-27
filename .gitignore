@@ -15,6 +15,7 @@ Makefile
 DartConfiguration.tcl
 compile_commands.json
 _deps/
+.deps/
 
 # Qt meta-object / resource / uic output
 *_autogen/
@@ -51,6 +52,7 @@ packaging/.tools/
 # Editor / tooling
 .claude/
 .worktrees/
+__pycache__/
 
 # CTest output
 Testing/

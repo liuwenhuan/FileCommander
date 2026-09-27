@@ -1,0 +1,23 @@
+diff --git a/ports/qt5-base/portfile.cmake b/ports/qt5-base/portfile.cmake
+index 55117abcb..97995daa5 100644
+--- a/ports/qt5-base/portfile.cmake
++++ b/ports/qt5-base/portfile.cmake
+@@ -69,6 +69,9 @@ set(PATCHES
+     patches/mingw9.patch               # Fix compile with MinGW-W64 9.0.0: Redefinition of 'struct _FILE_ID_INFO'
+     patches/qmake-arm64.patch          # Fix by Oliver Wolff to support ARM64 hosts on Windows
+ )
++if(VCPKG_TARGET_ARCHITECTURE STREQUAL "arm64" AND DEFINED ENV{FILECOMMANDER_QMAKE_AUX_PATCH})
++    list(APPEND PATCHES "$ENV{FILECOMMANDER_QMAKE_AUX_PATCH}")
++endif()
+ if(VCPKG_TARGET_IS_OSX)
+     execute_process(COMMAND xcrun --sdk macosx --show-sdk-version
+             OUTPUT_VARIABLE OSX_SDK_VERSION
+@@ -82,7 +85,7 @@ endif()
+ qt_download_submodule(OUT_SOURCE_PATH SOURCE_PATH PATCHES ${PATCHES})
+ 
+ # Remove vendored dependencies to ensure they are not picked up by the build
+-foreach(DEPENDENCY IN ITEMS double-conversion freetype harfbuzz-ng libjpeg libpng md4c pcre2 sqlite zlib)
++foreach(DEPENDENCY IN ITEMS double-conversion freetype harfbuzz-ng libjpeg libpng md4c pcre2 sqlite)
+     file(REMOVE_RECURSE "${SOURCE_PATH}/src/3rdparty/${DEPENDENCY}")
+ endforeach()
+ 

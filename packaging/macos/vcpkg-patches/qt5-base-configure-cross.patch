@@ -1,0 +1,43 @@
+--- a/ports/qt5-base/cmake/configure_qt.cmake
++++ b/ports/qt5-base/cmake/configure_qt.cmake
+@@ -147,6 +147,11 @@
+ 
+         # These paths get hardcoded into qmake. So point them into the CURRENT_INSTALLED_DIR instead of CURRENT_PACKAGES_DIR
+         # makefiles will be fixed to install into CURRENT_PACKAGES_DIR in install_qt
++        set(QT_TARGET_PLATFORM_OPTION -platform)
++        if(DEFINED _csc_HOST_PLATFORM)
++            set(QT_TARGET_PLATFORM_OPTION -xplatform)
++        endif()
++
+         set(BUILD_OPTIONS ${_csc_OPTIONS} ${_csc_OPTIONS_${_buildname}}
+                 -prefix ${CURRENT_INSTALLED_DIR}
+                 #-extprefix ${CURRENT_INSTALLED_DIR}
+@@ -170,7 +175,11 @@
+                 -I ${CURRENT_INSTALLED_DIR}/include/qt5
+                 -L ${CURRENT_INSTALLED_DIR}${_path_suffix_${_buildname}}/lib 
+                 -L ${CURRENT_INSTALLED_DIR}${_path_suffix_${_buildname}}/lib/manual-link
+-                -platform ${_csc_TARGET_PLATFORM}
++                # When a prepared host toolchain is supplied, Qt must receive
++                # the target mkspec as -xplatform. Passing it as a second
++                # -platform makes the target qmake build host tools with the
++                # target architecture.
++                ${QT_TARGET_PLATFORM_OPTION} ${_csc_TARGET_PLATFORM}
+             )
+ 
+         if(DEFINED _csc_HOST_TOOLS_ROOT) #use qmake
+@@ -182,6 +191,15 @@
+                 WORKING_DIRECTORY ${_build_dir}
+                 LOGNAME config-${_build_triplet}
+             )
++            if(EXISTS "${_build_dir}/mkspecs/qmodule.pri")
++                file(COPY
++                    "${_build_dir}/mkspecs/qmodule.pri"
++                    DESTINATION "${_csc_HOST_TOOLS_ROOT}/mkspecs"
++                )
++            else()
++                message(FATAL_ERROR
++                    "Qt target qmodule.pri was not generated in ${_build_dir}/mkspecs")
++            endif()
+         else()# call configure (builds qmake for triplet and calls it like above)
+             vcpkg_execute_required_process(
+                 COMMAND "${INVOKE}" ${BUILD_OPTIONS} ${qmake_build_tools} ${qmake_comp_flags}

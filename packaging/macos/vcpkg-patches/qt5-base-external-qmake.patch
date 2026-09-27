@@ -1,0 +1,16 @@
+diff --git a/qmake/qmake-aux.pro b/qmake/qmake-aux.pro
+--- a/qmake/qmake-aux.pro
++++ b/qmake/qmake-aux.pro
+@@ -9,7 +9,11 @@
+ 
+ !build_pass {
+     qmake_exe.target = $$OUT_PWD/qmake$$EXTENSION
+-    qmake_exe.commands = $(MAKE) binary
++    !isEmpty(HOST_QT_TOOLS) {
++        qmake_exe.commands = $$QMAKE_COPY_FILE $$shell_path($$HOST_QT_TOOLS/qmake$$EXTENSION) $$shell_path($$OUT_PWD/qmake$$EXTENSION)
++    } else {
++        qmake_exe.commands = $(MAKE) binary
++    }
+     qmake_exe.CONFIG = phony
+     QMAKE_EXTRA_TARGETS += qmake_exe
+ 

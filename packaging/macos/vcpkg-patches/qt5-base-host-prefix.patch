@@ -1,0 +1,20 @@
+diff --git a/ports/qt5-base/cmake/configure_qt.cmake b/ports/qt5-base/cmake/configure_qt.cmake
+index 7951086bb..1856f79d6 100644
+--- a/ports/qt5-base/cmake/configure_qt.cmake
++++ b/ports/qt5-base/cmake/configure_qt.cmake
+@@ -199,6 +199,15 @@ function(configure_qt)
+         file(READ "${CURRENT_BUILDTREES_DIR}/${_build_triplet}/bin/qt.conf" _contents)
+         string(REPLACE "${CMAKE_CURRENT_PACKAGES_DIR_PATH}" "\${CURRENT_INSTALLED_DIR}" _contents ${_contents})
+         string(REPLACE "${CMAKE_CURRENT_INSTALLED_DIR_PATH}" "\${CURRENT_INSTALLED_DIR}" _contents ${_contents})
++        if(DEFINED _csc_HOST_TOOLS_ROOT)
++            file(TO_CMAKE_PATH "${_csc_HOST_TOOLS_ROOT}" _host_tools_root_path)
++            string(REGEX REPLACE
++                "HostPrefix=[^\r\n]+"
++                "HostPrefix=${_host_tools_root_path}"
++                _contents
++                "${_contents}"
++            )
++        endif()
+         #string(REPLACE "HostPrefix=\${CURRENT_PACKAGES_DIR}" "HostPrefix=\${CURRENT_INSTALLED_DIR}" _contents ${_contents})
+         string(REPLACE "[EffectivePaths]\nPrefix=..\n" "" _contents ${_contents})
+         string(REGEX REPLACE "\\[EffectiveSourcePaths\\]\r?\nPrefix=[^\r\n]+\r?\n" "" _contents ${_contents})
