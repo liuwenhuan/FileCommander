@@ -71,6 +71,8 @@ if(WIN32)
         devices/test_WindowsRemovableStorage.cpp
         platform/test_TrashService.cpp
     )
+elseif(APPLE)
+    list(APPEND CORE_TEST_SOURCES platform/test_TrashService.cpp)
 endif()
 if(FILECOMMANDER_ENABLE_LINUX_INTEGRATION)
     list(APPEND CORE_TEST_SOURCES

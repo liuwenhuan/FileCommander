@@ -6,7 +6,7 @@
 # its variables in the calling directory's scope, which does not reach sibling
 # subdirectories.
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(SMBCLIENT REQUIRED smbclient)
+pkg_check_modules(SMBCLIENT REQUIRED IMPORTED_TARGET GLOBAL smbclient)
 
 include(GNUInstallDirs)
 
@@ -14,10 +14,9 @@ add_executable(FileCommander-smb-helper main.cpp)
 
 target_include_directories(FileCommander-smb-helper PRIVATE
     ${CMAKE_SOURCE_DIR}/src/core/network   # SmbHelperProtocol.h (Qt-free by design)
-    ${SMBCLIENT_INCLUDE_DIRS}
 )
 
-target_link_libraries(FileCommander-smb-helper PRIVATE ${SMBCLIENT_LIBRARIES})
+target_link_libraries(FileCommander-smb-helper PRIVATE PkgConfig::SMBCLIENT)
 
 # Land beside the FileCommander binary in the build tree, because SmbHelperClient looks
 # for the helper next to the running executable first -- so a development build
@@ -25,7 +24,19 @@ target_link_libraries(FileCommander-smb-helper PRIVATE ${SMBCLIENT_LIBRARIES})
 # AUTOMOC is on project-wide; this target has no Qt at all, so turn it off
 # rather than run moc over a translation unit that can never need it.
 set_target_properties(FileCommander-smb-helper PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
     AUTOMOC OFF)
+if(APPLE)
+    set_target_properties(FileCommander-smb-helper PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY
+            "${CMAKE_BINARY_DIR}/FileCommander.app/Contents/Helpers")
+else()
+    set_target_properties(FileCommander-smb-helper PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+endif()
 
-install(TARGETS FileCommander-smb-helper RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+if(APPLE)
+    install(TARGETS FileCommander-smb-helper
+            RUNTIME DESTINATION FileCommander.app/Contents/Helpers)
+else()
+    install(TARGETS FileCommander-smb-helper RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()

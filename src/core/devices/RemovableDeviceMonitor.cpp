@@ -166,6 +166,8 @@ RemovableDeviceMonitor::RemovableDeviceMonitor(QObject *parent) : QObject(parent
     m_devices = enumerate();
 }
 
+RemovableDeviceMonitor::~RemovableDeviceMonitor() = default;
+
 QVector<RemovableDevice> RemovableDeviceMonitor::devices() const {
     return m_devices;
 }

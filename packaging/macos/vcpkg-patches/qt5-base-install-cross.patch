@@ -1,0 +1,56 @@
+diff --git a/ports/qt5-base/cmake/install_qt.cmake b/ports/qt5-base/cmake/install_qt.cmake
+index 86202ab56..483d65354 100644
+--- a/ports/qt5-base/cmake/install_qt.cmake
++++ b/ports/qt5-base/cmake/install_qt.cmake
+@@ -83,21 +83,45 @@ function(install_qt)
+         endif()
+ 
+         message(STATUS "Building ${_build_triplet}")
++        if(DEFINED ENV{QMAKEMODULES})
++            set(_qmake_modules_was_defined TRUE)
++            set(_qmake_modules_backup "$ENV{QMAKEMODULES}")
++        else()
++            set(_qmake_modules_was_defined FALSE)
++        endif()
++        # Qt generates target module metadata while individual modules build.
++        # Make every nested qmake invocation see the target directory.
++        set(ENV{QMAKEMODULES} "${CURRENT_BUILDTREES_DIR}/${_build_triplet}/mkspecs/modules")
+         vcpkg_execute_build_process(
+             COMMAND ${INVOKE}
+             NO_PARALLEL_COMMAND ${INVOKE_SINGLE}
+             WORKING_DIRECTORY ${CURRENT_BUILDTREES_DIR}/${_build_triplet}
+             LOGNAME build-${_build_triplet}
+         )
++        if(_qmake_modules_was_defined)
++            set(ENV{QMAKEMODULES} "${_qmake_modules_backup}")
++        else()
++            unset(ENV{QMAKEMODULES})
++        endif()
+ 
+         if(VCPKG_TARGET_IS_OSX)
+            # For some reason there will be an error on MacOSX without this clean!
+-            message(STATUS "Cleaning after build before install ${_build_triplet}")
+-            vcpkg_execute_required_process(
+-                COMMAND ${INVOKE_SINGLE} clean
+-                WORKING_DIRECTORY ${CURRENT_BUILDTREES_DIR}/${_build_triplet}/qmake
+-                LOGNAME cleaning-after-build-${_build_triplet}
+-            )
++            set(_qmake_build_dir "${CURRENT_BUILDTREES_DIR}/${_build_triplet}/qmake")
++            if(EXISTS "${_qmake_build_dir}/Makefile")
++                set(_qmake_makefile "Makefile")
++            elseif(EXISTS "${_qmake_build_dir}/Makefile.qmake-aux")
++                set(_qmake_makefile "Makefile.qmake-aux")
++            else()
++                set(_qmake_makefile "")
++            endif()
++            if(NOT _qmake_makefile STREQUAL "")
++                message(STATUS "Cleaning after build before install ${_build_triplet}")
++                vcpkg_execute_required_process(
++                    COMMAND ${INVOKE_SINGLE} -f ${_qmake_makefile} clean
++                    WORKING_DIRECTORY ${_qmake_build_dir}
++                    LOGNAME cleaning-after-build-${_build_triplet}
++                )
++            endif()
+         endif()
+ 
+         message(STATUS "Fixing makefile installation path ${_build_triplet}")

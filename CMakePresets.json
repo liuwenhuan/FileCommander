@@ -69,6 +69,86 @@
         "TTC_BUILD_TESTS": "OFF",
         "TTC_BUILD_BENCH": "OFF"
       }
+    },
+    {
+      "name": "macos-universal2-debug",
+      "displayName": "macOS Universal2 Debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/macos-universal2-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_OSX_ARCHITECTURES": "x86_64;arm64",
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "12.0",
+        "CMAKE_PREFIX_PATH": "$env{FILECOMMANDER_QT_ROOT}",
+        "TTC_BUILD_TESTS": "ON",
+        "TTC_BUILD_BENCH": "OFF",
+        "FILECOMMANDER_ENABLE_NETWORK": "ON",
+        "FILECOMMANDER_ENABLE_LINUX_INTEGRATION": "OFF",
+        "FILECOMMANDER_PREVIEW_PDF": "OFF",
+        "FILECOMMANDER_PREVIEW_MEDIA": "OFF",
+        "FILECOMMANDER_PREVIEW_OFFICE": "ON"
+      }
+    },
+    {
+      "name": "macos-x86_64-release",
+      "displayName": "macOS Intel Release",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/macos-x86_64-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_OSX_ARCHITECTURES": "x86_64",
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "12.0",
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/.deps/macos/vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "filecommander-x64-osx-release",
+        "VCPKG_HOST_TRIPLET": "filecommander-x64-osx-release",
+        "VCPKG_INSTALLED_DIR": "${sourceDir}/.deps/macos/vcpkg/installed",
+        "FILECOMMANDER_DEPS_ROOT": "${sourceDir}/.deps/macos/vcpkg/installed/filecommander-x64-osx-release",
+        "FILECOMMANDER_POPPLER_QT5_ROOT": "${sourceDir}/.deps/macos/poppler-qt5-x64",
+        "FILECOMMANDER_USE_VCPKG": "ON",
+        "TTC_BUILD_TESTS": "OFF",
+        "TTC_BUILD_BENCH": "OFF",
+        "FILECOMMANDER_ENABLE_NETWORK": "ON",
+        "FILECOMMANDER_ENABLE_LINUX_INTEGRATION": "OFF",
+        "FILECOMMANDER_PREVIEW_PDF": "ON",
+        "FILECOMMANDER_PREVIEW_MEDIA": "ON",
+        "FILECOMMANDER_MEDIA_BACKEND": "mpv",
+        "FILECOMMANDER_PREVIEW_OFFICE": "ON"
+      }
+    },
+    {
+      "name": "macos-arm64-release",
+      "displayName": "macOS Apple Silicon Release",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/macos-arm64-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "12.0",
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/.deps/macos/vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "filecommander-arm64-osx-release",
+        "VCPKG_HOST_TRIPLET": "filecommander-x64-osx-release",
+        "VCPKG_INSTALLED_DIR": "${sourceDir}/.deps/macos/vcpkg/installed",
+        "FILECOMMANDER_DEPS_ROOT": "${sourceDir}/.deps/macos/vcpkg/installed/filecommander-arm64-osx-release",
+        "FILECOMMANDER_USE_VCPKG": "ON",
+        "TTC_BUILD_TESTS": "OFF",
+        "TTC_BUILD_BENCH": "OFF",
+        "FILECOMMANDER_ENABLE_NETWORK": "ON",
+        "FILECOMMANDER_ENABLE_LINUX_INTEGRATION": "OFF",
+        "FILECOMMANDER_PREVIEW_PDF": "OFF",
+        "FILECOMMANDER_PREVIEW_MEDIA": "OFF",
+        "FILECOMMANDER_PREVIEW_OFFICE": "ON"
+      }
+    },
+    {
+      "name": "macos-universal2-release",
+      "inherits": "macos-universal2-debug",
+      "displayName": "macOS Universal2 Release",
+      "binaryDir": "${sourceDir}/build/macos-universal2-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "TTC_BUILD_TESTS": "OFF",
+        "TTC_BUILD_BENCH": "OFF"
+      }
     }
   ],
   "buildPresets": [
@@ -77,7 +157,23 @@
     { "name": "windows-msvc-x86-debug", "configurePreset": "windows-msvc-x86-debug" },
     { "name": "windows-msvc-arm64-debug", "configurePreset": "windows-msvc-arm64-debug" },
     { "name": "linux-debug", "configurePreset": "linux-debug" },
-    { "name": "linux-release", "configurePreset": "linux-release" }
+    { "name": "linux-release", "configurePreset": "linux-release" },
+    {
+      "name": "macos-universal2-debug",
+      "configurePreset": "macos-universal2-debug"
+    },
+    {
+      "name": "macos-universal2-release",
+      "configurePreset": "macos-universal2-release"
+    },
+    {
+      "name": "macos-x86_64-release",
+      "configurePreset": "macos-x86_64-release"
+    },
+    {
+      "name": "macos-arm64-release",
+      "configurePreset": "macos-arm64-release"
+    }
   ],
   "testPresets": [
     {
@@ -88,6 +184,11 @@
     {
       "name": "linux-debug",
       "configurePreset": "linux-debug",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "macos-universal2-debug",
+      "configurePreset": "macos-universal2-debug",
       "output": { "outputOnFailure": true }
     }
   ]

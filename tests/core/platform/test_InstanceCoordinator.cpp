@@ -15,7 +15,10 @@
 TEST(InstanceCoordinatorTest, SecondLaunchForwardsArgumentsToPrimaryInstance) {
     QTemporaryDir temp;
     ASSERT_TRUE(temp.isValid());
-    const QString serverName = QStringLiteral("FileCommander-test-") +
+    // macOS stores QLocalServer sockets below a long per-user temporary
+    // directory. Keep this unique name short enough for sockaddr_un's path
+    // limit on machines whose temp directory prefix is especially long.
+    const QString serverName = QStringLiteral("FC-") +
                                QUuid::createUuid().toString(QUuid::WithoutBraces);
     const QStringList arguments{QStringLiteral("FileCommander"), temp.path()};
 

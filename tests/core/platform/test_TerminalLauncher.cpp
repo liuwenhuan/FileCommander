@@ -93,6 +93,21 @@ TEST(TerminalLauncherTest, ConsoleHostsAreLaunchedWithNoArgumentsAtAll) {
         EXPECT_TRUE(candidate.arguments.isEmpty());
     }
 }
+#elif defined(Q_OS_MACOS)
+
+TEST(TerminalLauncherTest, MacOSUsesLaunchServicesForTerminalApplications) {
+    const QVector<fc::TerminalCandidate> candidates =
+        fc::terminalCandidates(QStringLiteral("/tmp"));
+    ASSERT_EQ(candidates.size(), 2);
+    EXPECT_EQ(candidates.at(0).program, QStringLiteral("/usr/bin/open"));
+    EXPECT_EQ(candidates.at(0).arguments,
+              (QStringList{QStringLiteral("-a"), QStringLiteral("Terminal"),
+                           QStringLiteral("/tmp")}));
+    EXPECT_EQ(candidates.at(1).arguments,
+              (QStringList{QStringLiteral("-a"), QStringLiteral("iTerm"),
+                           QStringLiteral("/tmp")}));
+}
+
 #else
 // "Open Terminal Here" always opened deepin-terminal no matter what the user
 // had configured, because the list named terminals ahead of the Debian
