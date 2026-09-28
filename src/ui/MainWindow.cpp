@@ -5030,10 +5030,9 @@ void MainWindow::updateDeviceSharing() {
                     if (sessionId.isEmpty() || m_incomingTunnels.contains(sessionId))
                         return;
                     auto *tunnel = new RelayTunnel(this);
-                    // A multipart upload uses three data connections plus a
-                    // status query; two channels remain for control traffic.
+                    // Keep room for the upload and its receiver-progress query.
                     tunnel->serveLocal(m_accountClient->relaySocketUrl(sessionId), ticket,
-                                       m_shareServer->port(), 6);
+                                       m_shareServer->port(), 4);
                     m_incomingTunnels.insert(sessionId, tunnel);
                     QTimer::singleShot(qMax(1, expiresIn + 5) * 1000, this,
                                        [this, sessionId, tunnel] {
@@ -5155,7 +5154,6 @@ MainWindow::DeviceLink MainWindow::deviceLink(const AccountSession &session, boo
         // The peer serves a self-signed certificate, so the pin the account
         // server relayed is the whole identity check.
         provider->setPinnedPublicKey(session.peerPin);
-        provider->setRelayDeviceRoute(relay);
         provider->setTimeoutMs(relay ? 12000 : 1000);
         providers.append(provider);
     }
@@ -5339,8 +5337,17 @@ void MainWindow::backgroundSendFetchDevice(QObject *request, const QString &devi
                 if (m_backgroundSendRequest != request)
                     return;
                 const AccountDeviceInfo *match = nullptr;
+                QStringList available;
                 for (const AccountDeviceInfo &device : devices) {
-                    if (device.self || device.name != deviceName)
+                    if (device.self)
+                        continue;
+                    available << QStringLiteral("%1 (%2, last seen %3)")
+                                     .arg(device.name,
+                                          device.online ? QStringLiteral("online")
+                                                        : QStringLiteral("offline"),
+                                          device.lastSeen.isEmpty()
+                                              ? QStringLiteral("never") : device.lastSeen);
+                    if (device.name != deviceName)
                         continue;
                     if (match) {
                         finishBackgroundSend(request, false,
@@ -5349,9 +5356,18 @@ void MainWindow::backgroundSendFetchDevice(QObject *request, const QString &devi
                     }
                     match = &device;
                 }
-                if (!match || !match->online) {
+                appendBackgroundSendLog(QStringLiteral("available devices: %1")
+                                            .arg(available.isEmpty()
+                                                     ? QStringLiteral("(none)")
+                                                     : available.join(QStringLiteral(", "))));
+                if (!match) {
                     finishBackgroundSend(request, false,
-                                         QStringLiteral("target device is missing or offline"));
+                                         QStringLiteral("target device name was not found"));
+                    return;
+                }
+                if (!match->online) {
+                    finishBackgroundSend(request, false,
+                                         QStringLiteral("target device is offline"));
                     return;
                 }
                 backgroundSendOpenSession(request, match->id, deviceName, sourcePath);
@@ -5417,12 +5433,8 @@ void MainWindow::backgroundSendStartTransfer(QObject *request, const AccountSess
                     timer->stop();
                 appendBackgroundSendLog(request->property("backgroundDescription").toString() +
                                         QStringLiteral(" connected via relay"));
-                const auto *dav = dynamic_cast<CurlWebDavProvider *>(provider.get());
-                const bool parallel = dav && dav->canUploadLocalFileParallel() &&
-                    QFileInfo(sourcePath).size() > 20LL * 1024 * 1024;
                 appendBackgroundSendLog(request->property("backgroundDescription").toString() +
-                    (parallel ? QStringLiteral(" selected=three-way")
-                              : QStringLiteral(" selected=single")));
+                                        QStringLiteral(" selected=single"));
                 auto *queue = new OperationQueue(request);
                 queue->setConflictHandler([request](const FileConflict &conflict) {
                     appendBackgroundSendLog(request->property("backgroundDescription").toString() +

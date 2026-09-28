@@ -2,6 +2,7 @@
 
 #include <QHostAddress>
 #include <QNetworkProxy>
+#include <QPointer>
 #include <QNetworkRequest>
 #include <QSslSocket>
 #include <QTcpServer>
@@ -44,6 +45,8 @@ public:
         : QObject(parent), m_ws(ws), m_tcp(tcp) {
         ws->setParent(this);
         tcp->setParent(this);
+        connect(ws, &QObject::destroyed, this, &QObject::deleteLater);
+        connect(tcp, &QObject::destroyed, this, &QObject::deleteLater);
         // Bound the loopback socket's own read buffer. Without this the socket
         // keeps draining curl's send into an unbounded internal buffer even
         // while the pipe is not forwarding, so TCP flow control never reaches
@@ -56,12 +59,15 @@ public:
             m_pendingToTcp.append(bytes);
             pumpToTcp();
         });
-        connect(ws, &QWebSocket::connected, this, [this] { pumpToWebSocket(); });
-        connect(ws, &QWebSocket::bytesWritten, this, [this](qint64) {
-            pumpToWebSocket();
-            sendEndIfDrained();
-            startEndFallbackIfDrained();
+        connect(ws, &QWebSocket::connected, this, [this] {
+            if (auto *ssl = m_ws->findChild<QSslSocket *>(QString(), Qt::FindDirectChildrenOnly)) {
+                connect(ssl, &QSslSocket::encryptedBytesWritten, this,
+                        [this](qint64) { onWriteProgress(); });
+            }
+            onWriteProgress();
         });
+        connect(ws, &QWebSocket::bytesWritten, this,
+                [this](qint64) { onWriteProgress(); });
         connect(ws, &QWebSocket::disconnected, this, &Pipe::finish);
         // String-based, because the typed overload of error() is deprecated in
         // favour of a signal that does not exist in older Qt 5.
@@ -82,6 +88,10 @@ private slots:
         if (m_done)
             return;
         m_done = true;
+        if (!m_ws || !m_tcp) {
+            deleteLater();
+            return;
+        }
 
         if (sender() == m_tcp) {
             // RemoteHostClosedError can arrive while the socket still has the
@@ -120,7 +130,19 @@ private slots:
     }
 
 private:
+    void onWriteProgress() {
+        if (!m_ws || !m_tcp) {
+            deleteLater();
+            return;
+        }
+        pumpToWebSocket();
+        sendEndIfDrained();
+        startEndFallbackIfDrained();
+    }
+
     qint64 webSocketBytesToWrite() const {
+        if (!m_ws)
+            return 0;
         qint64 bytes = m_ws->bytesToWrite();
         // For WSS, QWebSocket::bytesToWrite() is QSslSocket's unencrypted
         // queue. Ciphertext waiting on the TCP socket is a separate public
@@ -131,7 +153,9 @@ private:
     }
 
     void sendEndIfDrained() {
-        if (!m_sendEndWhenDrained || webSocketBytesToWrite() > 0)
+        if (!m_ws || !m_tcp || !m_sendEndWhenDrained || !m_toWs.isEmpty() ||
+            m_tcp->bytesAvailable() > 0 ||
+            webSocketBytesToWrite() > 0)
             return;
         m_sendEndWhenDrained = false;
         m_waitEndWrite = true;
@@ -141,7 +165,7 @@ private:
     }
 
     void startEndFallbackIfDrained() {
-        if (!m_waitEndWrite || webSocketBytesToWrite() > 0)
+        if (!m_ws || !m_waitEndWrite || webSocketBytesToWrite() > 0)
             return;
         m_waitEndWrite = false;
         // EOF itself is now out of Qt's plaintext and TLS ciphertext queues.
@@ -154,7 +178,7 @@ private:
     }
 
     void disconnectTcpIfDrained() {
-        if (!m_disconnectTcpWhenDrained || !m_pendingToTcp.isEmpty() ||
+        if (!m_tcp || !m_disconnectTcpWhenDrained || !m_pendingToTcp.isEmpty() ||
             m_tcp->bytesToWrite() > 0)
             return;
         m_disconnectTcpWhenDrained = false;
@@ -170,13 +194,18 @@ private:
     // the unread bytes stay in the local socket's receive buffer, which is what
     // pushes TCP flow control back onto curl.
     void pumpToWebSocket() {
+        if (!m_ws || !m_tcp)
+            return;
         if (m_ws->state() != QAbstractSocket::ConnectedState) {
-            m_toWs.append(m_tcp->readAll());
+            const qint64 room = kHighWaterBytes - m_toWs.size();
+            if (room > 0)
+                m_toWs.append(m_tcp->read(room));
             return;
         }
-        if (!m_toWs.isEmpty()) {
-            m_ws->sendBinaryMessage(m_toWs);
-            m_toWs.clear();
+        while (!m_toWs.isEmpty() && webSocketBytesToWrite() < kHighWaterBytes) {
+            const int n = qMin<qint64>(m_toWs.size(), kChunkBytes);
+            m_ws->sendBinaryMessage(m_toWs.left(n));
+            m_toWs.remove(0, n);
         }
         // Bound both QSslSocket queues. This covers plaintext waiting for TLS
         // and ciphertext waiting for TCP, so a slow relay applies real flow
@@ -193,6 +222,8 @@ private:
     // Relay -> local socket, the mirror image: frames are written as the local
     // socket drains, never dropped, and paused while its write queue is full.
     void pumpToTcp() {
+        if (!m_tcp)
+            return;
         if (m_tcp->state() != QAbstractSocket::ConnectedState)
             return;
         while (!m_pendingToTcp.isEmpty() && m_tcp->bytesToWrite() < kHighWaterBytes) {
@@ -207,8 +238,8 @@ private:
         }
     }
 
-    QWebSocket *m_ws;
-    QTcpSocket *m_tcp;
+    QPointer<QWebSocket> m_ws;
+    QPointer<QTcpSocket> m_tcp;
     QByteArray m_toWs;                  // bytes waiting for the relay socket to come up
     QList<QByteArray> m_pendingToTcp;   // frames waiting for room in the local socket
     bool m_sendEndWhenDrained = false;

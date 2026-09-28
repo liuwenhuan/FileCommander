@@ -46,7 +46,6 @@ if(FILECOMMANDER_ENABLE_NETWORK)
         network/test_TransferErrorMapping.cpp
         network/test_WebDavUpload.cpp
         network/test_WebDavChunkedUpload.cpp
-        network/test_WebDavMultipartUpload.cpp
         network/test_NetworkSession.cpp
         network/test_SmbListingErrors.cpp
         account/test_EmailAddress.cpp

@@ -49,7 +49,6 @@ size_t discardCallback(char * /*ptr*/, size_t size, size_t nmemb, void * /*userd
 struct PeerCapabilities {
     bool putRange = false;
     bool uploadProgress = false;
-    bool multipart = false;
 };
 
 size_t peerCapabilityCallback(char *ptr, size_t size, size_t nmemb, void *userdata) {
@@ -60,8 +59,6 @@ size_t peerCapabilityCallback(char *ptr, size_t size, size_t nmemb, void *userda
         caps->putRange = true;
     if (line.startsWith("x-filecommander-upload-progress:") && line.contains("v1"))
         caps->uploadProgress = true;
-    if (line.startsWith("x-filecommander-multipart:") && line.contains("v1"))
-        caps->multipart = true;
     return bytes;
 }
 
@@ -244,8 +241,10 @@ struct WebDavHandle : public FileHandle {
             curl_easy_setopt(statusCurl, CURLOPT_HTTPAUTH, static_cast<long>(CURLAUTH_BASIC));
             curl_easy_setopt(statusCurl, CURLOPT_USERNAME, userUtf8.constData());
             curl_easy_setopt(statusCurl, CURLOPT_PASSWORD, passUtf8.constData());
-            curl_easy_setopt(statusCurl, CURLOPT_CONNECTTIMEOUT_MS, 1000L);
-            curl_easy_setopt(statusCurl, CURLOPT_TIMEOUT_MS, 1500L);
+            curl_easy_setopt(statusCurl, CURLOPT_CONNECTTIMEOUT_MS,
+                             static_cast<long>(timeoutMs));
+            curl_easy_setopt(statusCurl, CURLOPT_TIMEOUT_MS,
+                             static_cast<long>(timeoutMs));
             curl_easy_setopt(statusCurl, CURLOPT_WRITEFUNCTION, appendCallback);
             curl_easy_setopt(statusCurl, CURLOPT_FOLLOWLOCATION, 0L);
             applyPinnedKey(statusCurl, pinnedKey);
@@ -585,30 +584,6 @@ bool CurlWebDavProvider::connectToHost(const QString &host, int port, const QStr
         return false;
     }
 
-    // The multipart marker is advertised on OPTIONS rather than PROPFIND.
-    // Failure leaves the ordinary single-stream connection usable.
-    if (m_relayDeviceRoute && !m_pinnedKey.isEmpty() && useHttps && !scopedProbe) {
-        PeerCapabilities options;
-        const QByteArray rootUrl = davUrl(host, port, useHttps, QStringLiteral("/"), true).toUtf8();
-        curl_easy_setopt(curl, CURLOPT_URL, rootUrl.constData());
-        curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
-        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "OPTIONS");
-        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discardCallback);
-        curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, peerCapabilityCallback);
-        curl_easy_setopt(curl, CURLOPT_HEADERDATA, &options);
-        const CURLcode optionsResult = curl_easy_perform(curl);
-        long optionsCode = 0;
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &optionsCode);
-        m_serverMultipart = optionsResult == CURLE_OK && optionsCode == 200 && options.multipart;
-        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, nullptr);
-        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-        curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, nullptr);
-        curl_easy_setopt(curl, CURLOPT_HEADERDATA, nullptr);
-    } else {
-        m_serverMultipart = false;
-    }
-
     m_curl = curl;
     m_user = user;
     m_password = password;
@@ -651,7 +626,6 @@ void CurlWebDavProvider::disconnect() {
     m_connected = false;
     m_serverPutRange = false;
     m_serverUploadProgress = false;
-    m_serverMultipart = false;
     m_host.clear();
     m_user.clear();
     m_password.clear();
@@ -1320,19 +1294,6 @@ bool CurlWebDavProvider::closeHandleStatus(FileHandle *handle) {
 
 CloseHandleResult CurlWebDavProvider::closeHandleResult(FileHandle *handle) {
     return closeHandleResultWithProgress(handle, {});
-}
-
-void CurlWebDavProvider::setRelayDeviceRoute(bool relay) {
-    QMutexLocker locker(&m_mutex);
-    m_relayDeviceRoute = relay;
-    if (!relay)
-        m_serverMultipart = false;
-}
-
-bool CurlWebDavProvider::canUploadLocalFileParallel() const {
-    QMutexLocker locker(&m_mutex);
-    return m_connected && m_relayDeviceRoute && m_useHttps && !m_pinnedKey.isEmpty() &&
-           m_serverMultipart && qEnvironmentVariableIntValue("FILECOMMANDER_BENCH_SINGLE_STREAM") != 1;
 }
 
 CloseHandleResult CurlWebDavProvider::closeHandleResultWithProgress(

@@ -7,7 +7,14 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QHash>
+#include <QNetworkProxy>
 #include <QSignalSpy>
+#include <QSslCertificate>
+#include <QSslConfiguration>
+#include <QSslKey>
+#include <QSslSocket>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include <QTemporaryDir>
 #include <QThread>
 #include <QTimer>
@@ -53,7 +60,40 @@ public slots:
         return m_server->serverPort();
     }
 
+    int startSecure(const QByteArray &certPem, const QByteArray &keyPem) {
+        m_server = new QWebSocketServer(QStringLiteral("relay"),
+                                        QWebSocketServer::SecureMode, this);
+        QSslConfiguration config = QSslConfiguration::defaultConfiguration();
+        config.setLocalCertificate(QSslCertificate(certPem, QSsl::Pem));
+        config.setPrivateKey(QSslKey(keyPem, QSsl::Ec, QSsl::Pem));
+        m_server->setSslConfiguration(config);
+        if (!m_server->listen(QHostAddress::LocalHost, 0))
+            return 0;
+        connect(m_server, &QWebSocketServer::newConnection, this, &FakeRelay::onConnection);
+        return m_server->serverPort();
+    }
+
     int parked() const { return m_parked.size(); }
+
+    int startRawSink() {
+        m_rawSink = new QTcpServer(this);
+        if (!m_rawSink->listen(QHostAddress::LocalHost, 0))
+            return 0;
+        connect(m_rawSink, &QTcpServer::newConnection, this, [this] {
+            while (QTcpSocket *socket = m_rawSink->nextPendingConnection()) {
+                socket->setParent(this);
+                connect(socket, &QTcpSocket::readyRead, this, [this, socket] {
+                    m_rawReceived.append(socket->readAll());
+                });
+                connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+            }
+        });
+        return m_rawSink->serverPort();
+    }
+
+    qint64 rawReceivedSize() const { return m_rawReceived.size(); }
+    QByteArray rawReceived() const { return m_rawReceived; }
+    void setForwardDelayMs(int delay) { m_forwardDelayMs = delay; }
 
 private:
     void onConnection() {
@@ -61,6 +101,8 @@ private:
         socket->setParent(this);
         connect(socket, &QWebSocket::binaryMessageReceived, this,
                 [this, socket](const QByteArray &bytes) {
+                    if (m_forwardDelayMs > 0)
+                        QThread::msleep(static_cast<unsigned long>(m_forwardDelayMs));
                     if (QWebSocket *peer = m_peers.value(socket))
                         peer->sendBinaryMessage(bytes);
                     else
@@ -130,6 +172,9 @@ private:
     QVector<QWebSocket *> m_waiting;
     QHash<QWebSocket *, QWebSocket *> m_peers;
     QHash<QWebSocket *, QByteArray> m_pending;
+    QTcpServer *m_rawSink = nullptr;
+    QByteArray m_rawReceived;
+    int m_forwardDelayMs = 0;
 };
 
 // Everything runs on its own thread for the same reason the production code
@@ -168,10 +213,10 @@ protected:
         const quint16 sharePort = quint16(up.first().first().toUInt());
 
         m_serving = new RelayTunnel;
-        m_serving->serveLocal(m_relayUrl, QString::fromLatin1(kTicket), sharePort, 6);
+        m_serving->serveLocal(m_relayUrl, QString::fromLatin1(kTicket), sharePort, 4);
         // The accessing side must find a socket already parked; otherwise the
         // first request races the pool coming up.
-        ASSERT_TRUE(waitForParked(6));
+        ASSERT_TRUE(waitForParked(4));
 
         m_accessing = new RelayTunnel;
         m_localPort = m_accessing->listenLocal(m_relayUrl, QString::fromLatin1(kTicket));
@@ -200,14 +245,13 @@ protected:
         return false;
     }
 
-    bool connectProvider(bool relayDeviceRoute = false) {
+    bool connectProvider() {
         m_provider = std::make_shared<CurlWebDavProvider>();
         m_provider->setTimeoutMs(15000);
         // The relay is a raw byte pipe, so the TLS session runs end to end
         // between this provider and the share server on the far side -- which
         // is the point: whoever runs the relay sees ciphertext.
         m_provider->setPinnedPublicKey(ShareIdentity::local().pin);
-        m_provider->setRelayDeviceRoute(relayDeviceRoute);
         return m_provider->connectToHost(QStringLiteral("127.0.0.1"), int(m_localPort),
                                          QStringLiteral("device"),
                                          QString::fromLatin1(kTicket),
@@ -284,7 +328,71 @@ TEST_F(RelayTunnelTest, AFileRoundTripsThroughTheRelay) {
     EXPECT_EQ(got, payload);
 }
 
-TEST_F(RelayTunnelTest, BenchmarkInstallerSingleAndThreeWayOverRelay) {
+TEST(RelayTunnelFlowControlTest, ASlowRelayEventuallyDrainsLargeUpload) {
+    const ShareIdentity::Identity identity = ShareIdentity::generate();
+    ASSERT_TRUE(identity.isValid());
+    const QSslConfiguration oldSsl = QSslConfiguration::defaultConfiguration();
+    QSslConfiguration trustedSsl = oldSsl;
+    trustedSsl.setCaCertificates(QSslCertificate::fromData(identity.certPem, QSsl::Pem));
+    trustedSsl.setPeerVerifyMode(QSslSocket::VerifyNone);
+    QSslConfiguration::setDefaultConfiguration(trustedSsl);
+    struct RestoreSsl {
+        QSslConfiguration value;
+        ~RestoreSsl() { QSslConfiguration::setDefaultConfiguration(value); }
+    } restoreSsl{oldSsl};
+
+    QThread relayThread;
+    relayThread.start();
+    struct StopThread {
+        QThread &thread;
+        ~StopThread() { thread.quit(); thread.wait(); }
+    } stopThread{relayThread};
+    auto *relay = new FakeRelay;
+    relay->moveToThread(&relayThread);
+    QObject::connect(&relayThread, &QThread::finished, relay, &QObject::deleteLater);
+    int relayPort = 0;
+    int sinkPort = 0;
+    QMetaObject::invokeMethod(relay, "startSecure", Qt::BlockingQueuedConnection,
+                              Q_RETURN_ARG(int, relayPort), Q_ARG(QByteArray, identity.certPem),
+                              Q_ARG(QByteArray, identity.keyPem));
+    QMetaObject::invokeMethod(relay, "startRawSink", Qt::BlockingQueuedConnection,
+                              Q_RETURN_ARG(int, sinkPort));
+    ASSERT_NE(relayPort, 0);
+    ASSERT_NE(sinkPort, 0);
+    QMetaObject::invokeMethod(relay, "setForwardDelayMs", Qt::BlockingQueuedConnection,
+                              Q_ARG(int, 10));
+
+    const QString url = QStringLiteral("wss://127.0.0.1:%1/v1/relay/session").arg(relayPort);
+    RelayTunnel serving;
+    serving.serveLocal(url, QString::fromLatin1(kTicket), quint16(sinkPort), 1);
+    RelayTunnel accessing;
+    const quint16 localPort = accessing.listenLocal(url, QString::fromLatin1(kTicket));
+    ASSERT_NE(localPort, 0);
+
+    QTcpSocket sender;
+    sender.setProxy(QNetworkProxy::NoProxy);
+    sender.connectToHost(QHostAddress::LocalHost, localPort);
+    ASSERT_TRUE(sender.waitForConnected(5000));
+    const QByteArray payload = blob(64 * 1024 * 1024, 19);
+    ASSERT_EQ(sender.write(payload), payload.size());
+    QElapsedTimer clock;
+    clock.start();
+    qint64 receivedSize = 0;
+    while (clock.elapsed() < 60000) {
+        QMetaObject::invokeMethod(relay, "rawReceivedSize", Qt::BlockingQueuedConnection,
+                                  Q_RETURN_ARG(qint64, receivedSize));
+        if (receivedSize == payload.size())
+            break;
+        sender.waitForBytesWritten(100);
+    }
+    QByteArray received;
+    QMetaObject::invokeMethod(relay, "rawReceived", Qt::BlockingQueuedConnection,
+                              Q_RETURN_ARG(QByteArray, received));
+    EXPECT_EQ(received, payload);
+    sender.disconnectFromHost();
+}
+
+TEST_F(RelayTunnelTest, BenchmarkInstallerSingleStreamOverRelay) {
     const QString input = QString::fromLocal8Bit(qgetenv("FC_BENCH_FILE"));
     if (input.isEmpty())
         GTEST_SKIP() << "Set FC_BENCH_FILE to run the opt-in real-file benchmark";
@@ -304,31 +412,26 @@ TEST_F(RelayTunnelTest, BenchmarkInstallerSingleAndThreeWayOverRelay) {
     const QByteArray expectedHash = digest(input);
     ASSERT_FALSE(expectedHash.isEmpty());
 
-    for (const bool parallel : {false, true}) {
-        const QString label = parallel ? QStringLiteral("three-way")
-                                       : QStringLiteral("single");
-        const QString source = m_dir.filePath(label + QStringLiteral("-pixeloffice.exe"));
-        ASSERT_TRUE(QFile::copy(input, source));
-        ASSERT_TRUE(connectProvider(parallel)) << m_error.toStdString();
-        ASSERT_EQ(m_provider->canUploadLocalFileParallel(), parallel);
+    const QString source = m_dir.filePath(QStringLiteral("single-pixeloffice.exe"));
+    ASSERT_TRUE(QFile::copy(input, source));
+    ASSERT_TRUE(connectProvider()) << m_error.toStdString();
 
-        FileOperations operations;
-        QString error;
-        QElapsedTimer clock;
-        clock.start();
-        ASSERT_TRUE(operations.copyAcrossProviders(LocalFileProvider::instance(), {source},
-                                                   m_provider.get(), QStringLiteral("/share"),
-                                                   false, nullptr, &error))
-            << error.toStdString();
-        const qint64 elapsedMs = clock.elapsed();
-        const QString received = m_share + QLatin1Char('/') + QFileInfo(source).fileName();
-        EXPECT_EQ(digest(received), expectedHash);
-        qInfo().noquote() << "relay benchmark" << label << original.size() << "bytes"
-                          << elapsedMs << "ms"
-                          << double(original.size()) * 1000.0 / (1024 * 1024 * elapsedMs)
-                          << "MiB/s";
-        m_provider.reset();
-    }
+    FileOperations operations;
+    QString error;
+    QElapsedTimer clock;
+    clock.start();
+    ASSERT_TRUE(operations.copyAcrossProviders(LocalFileProvider::instance(), {source},
+                                               m_provider.get(), QStringLiteral("/share"),
+                                               false, nullptr, &error))
+        << error.toStdString();
+    const qint64 elapsedMs = clock.elapsed();
+    const QString received = m_share + QLatin1Char('/') + QFileInfo(source).fileName();
+    EXPECT_EQ(digest(received), expectedHash);
+    qInfo().noquote() << "relay benchmark single" << original.size() << "bytes"
+                      << elapsedMs << "ms"
+                      << double(original.size()) * 1000.0 / (1024 * 1024 * elapsedMs)
+                      << "MiB/s";
+    m_provider.reset();
 }
 
 } // namespace

@@ -30,12 +30,23 @@ DeviceAgent::DeviceAgent(AccountClient *client, QObject *parent)
     m_reconnect->setSingleShot(true);
 
     connect(m_heartbeat, &QTimer::timeout, this, [this] {
+        if (m_awaitingPong) {
+            // A half-open TCP connection can stay "connected" locally long
+            // after the server has stopped seeing this device's heartbeats.
+            m_heartbeat->stop();
+            m_socket->abort();
+            scheduleReconnect();
+            return;
+        }
+        m_awaitingPong = true;
         m_socket->sendTextMessage(encode({{"type", "ping"}}));
     });
     connect(m_reconnect, &QTimer::timeout, this, [this] { openSocket(); });
 
     connect(m_socket, &QWebSocket::connected, this, [this] {
         m_attempt = 0;
+        m_reconnect->stop();
+        m_awaitingPong = false;
         m_heartbeat->start();
         emit connected();
         // The server sends "welcome" first; sendHello() waits for it so the
@@ -44,6 +55,7 @@ DeviceAgent::DeviceAgent(AccountClient *client, QObject *parent)
     });
     connect(m_socket, &QWebSocket::disconnected, this, [this] {
         m_heartbeat->stop();
+        m_awaitingPong = false;
         emit disconnected();
         scheduleReconnect();
     });
@@ -53,6 +65,7 @@ DeviceAgent::DeviceAgent(AccountClient *client, QObject *parent)
                 // all, so the retry is armed from here too; scheduleReconnect()
                 // is idempotent because the timer is single-shot.
                 m_heartbeat->stop();
+                m_awaitingPong = false;
                 scheduleReconnect();
             });
     connect(m_socket, &QWebSocket::textMessageReceived, this, &DeviceAgent::onTextMessage);
@@ -80,6 +93,7 @@ void DeviceAgent::stop() {
     m_attempt = 0;
     m_reconnect->stop();
     m_heartbeat->stop();
+    m_awaitingPong = false;
     m_socket->close();
 }
 
@@ -112,6 +126,10 @@ void DeviceAgent::openSocket() {
         // without anyone calling start() a second time.
         scheduleReconnect();
         return;
+    }
+    if (m_socket->state() != QAbstractSocket::UnconnectedState) {
+        m_socket->abort();
+        m_reconnect->stop();
     }
     m_socket->open(request);
 }
@@ -155,6 +173,8 @@ void DeviceAgent::onTextMessage(const QString &text) {
         // hello, so a device list fetched from here on shows this device online
         // -- which the caller uses to stop the fresh sign-in looking offline.
         emit announced();
+    } else if (type == QLatin1String("pong")) {
+        m_awaitingPong = false;
     } else if (type == QLatin1String("incoming")) {
         const QString ticket = message.value(QStringLiteral("ticket")).toString();
         if (!ticket.isEmpty())

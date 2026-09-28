@@ -98,18 +98,6 @@ public:
 
     virtual ~FileProvider() = default;
 
-    // Optional accelerated path for a large local file sent to a device over
-    // its relay. The provider owns the protocol; generic providers keep the
-    // normal streamed copy. onProgress runs on the operation worker, while
-    // checkpoint may run on transport threads and must be thread-safe.
-    virtual bool canUploadLocalFileParallel() const { return false; }
-    virtual CloseHandleResult uploadLocalFileParallel(
-        const QString & /*source*/, const QString & /*destination*/,
-        const std::function<bool(qint64, qint64)> & /*onProgress*/,
-        const std::function<bool()> & /*checkpoint*/, QString * /*error*/) {
-        return {false, FileHandle::StreamError::Other, QStringLiteral("Unsupported")};
-    }
-
     // How the most recent list() call ended. list() returns a plain vector, and
     // an empty one is indistinguishable from a directory that really is empty --
     // which is how a share the server refused to enumerate came to be shown as

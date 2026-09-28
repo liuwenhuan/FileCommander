@@ -1342,39 +1342,6 @@ bool FileOperations::streamCopy(FileProvider *src, const QString &srcPath, FileP
                            : tr("Write error on %1").arg(path);
     };
 
-    const qint64 localSize = src->isLocalFilesystem() ? QFileInfo(srcPath).size() : -1;
-    if (startOffset == 0 && m_rateLimitBps == 0 &&
-        localSize > 20LL * 1024 * 1024 && dst->canUploadLocalFileParallel()) {
-        const CloseHandleResult result = dst->uploadLocalFileParallel(
-            srcPath, destPath,
-            [&](qint64 sent, qint64 received) {
-                const qint64 confirmed = qBound<qint64>(0, received, localSize);
-                emitProgress(srcPath, doneBytesAtStart + confirmed);
-                emit deviceTransferProgress(qMax(sent, confirmed), confirmed, true);
-                return !m_cancelled.load();
-            },
-            [&] {
-                waitIfPaused();
-                return !m_cancelled.load();
-            },
-            failMsg);
-        if (closeError)
-            *closeError = result.error;
-        if (!result.committed) {
-            if (failMsg->isEmpty())
-                *failMsg = writeFailureMessage(result.error, result.detail, destPath, true);
-            return false;
-        }
-        m_doneBytes += localSize;
-        emitProgress(srcPath, m_doneBytes);
-        emit deviceTransferProgress(localSize, localSize, true);
-        const QDateTime stamp =
-            sourceTime.isValid() ? sourceTime : providerFileModified(src, srcPath);
-        if (stamp.isValid())
-            dst->setModifiedTime(destPath, stamp);
-        return true;
-    }
-
     FileHandle *in = src->openRead(srcPath);
     if (!in) {
         *failMsg = tr("Failed to open %1 for reading").arg(srcPath);

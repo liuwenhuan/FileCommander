@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
 #include <QCoreApplication>
+#include <QCryptographicHash>
+#include <QDebug>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
@@ -18,6 +20,8 @@
 #include "account/RelayTunnel.h"
 #include "filesystem/ComputerCatalog.h"
 #include "network/CurlWebDavProvider.h"
+#include "operations/FileOperations.h"
+#include "filesystem/LocalFileProvider.h"
 
 // The whole device-transfer stack against a real, deployed account server:
 // register, sign two devices in, let one publish a folder, and have the other
@@ -149,7 +153,7 @@ protected:
                              if (!m_serving)
                                  m_serving = new RelayTunnel;
                              m_serving->serveLocal(m_b.relaySocketUrl(sessionId), ticket,
-                                                   m_sharePort, 2);
+                             m_sharePort, 4);
                          });
         QSignalSpy connected(m_agent, &DeviceAgent::connected);
         m_agent->start();
@@ -332,6 +336,71 @@ TEST_F(LiveAccountServerTest, A15MiBFileTravelsOverTheRelay) {
     m_provider = dial(QStringLiteral("127.0.0.1"), local, session.ticket, session.peerPin);
     ASSERT_NE(m_provider, nullptr);
     expectRoundTrip(blob(15 * 1024 * 1024, 11), QStringLiteral("large-over-relay.bin"));
+}
+
+TEST_F(LiveAccountServerTest, ALargeSyntheticFileTravelsOverRelaySingleStream) {
+    qInfo() << "public relay benchmark: preparing payload";
+    const QString input = m_dir.filePath(QStringLiteral("synthetic-relay-payload.bin"));
+    QFile originalFile(input);
+    ASSERT_TRUE(originalFile.open(QIODevice::WriteOnly));
+    const QByteArray payload = blob(42 * 1024 * 1024, 23);
+    ASSERT_EQ(originalFile.write(payload), payload.size());
+    originalFile.close();
+    const QFileInfo original(input);
+    ASSERT_TRUE(original.isFile());
+    ASSERT_GT(original.size(), 20LL * 1024 * 1024);
+    ASSERT_FALSE(waitForPeerOnline().id.isEmpty());
+    qInfo() << "public relay benchmark: peer online";
+    const AccountSession session = openSession();
+    ASSERT_FALSE(session.ticket.isEmpty());
+    qInfo() << "public relay benchmark: session open";
+
+    m_tunnel = new RelayTunnel;
+    const quint16 local =
+        m_tunnel->listenLocal(m_a.relaySocketUrl(session.sessionId), session.ticket);
+    ASSERT_NE(local, 0);
+    spin(3000);
+    qInfo() << "public relay benchmark: tunnel listening";
+
+    auto digest = [](const QString &path) {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly))
+            return QByteArray();
+        QCryptographicHash hash(QCryptographicHash::Sha256);
+        while (!file.atEnd())
+            hash.addData(file.read(1024 * 1024));
+        return hash.result();
+    };
+    const QByteArray expected = digest(input);
+    ASSERT_FALSE(expected.isEmpty());
+    const QString source = m_dir.filePath(QStringLiteral("single-synthetic.bin"));
+    ASSERT_TRUE(QFile::copy(input, source));
+    m_provider = dial(QStringLiteral("127.0.0.1"), local, session.ticket, session.peerPin);
+    ASSERT_NE(m_provider, nullptr);
+    qInfo() << "public relay benchmark: provider connected";
+
+    FileOperations operations;
+    qint64 lastLoggedMiB = -1;
+    QObject::connect(&operations, &FileOperations::progress, &operations,
+                     [&lastLoggedMiB](int, int, qint64 done, qint64, const QString &) {
+                         const qint64 miB = done / (1024 * 1024);
+                         if (miB / 5 > lastLoggedMiB / 5) {
+                             lastLoggedMiB = miB;
+                             qInfo() << "public relay benchmark: progress single" << miB;
+                         }
+                     });
+    QString error;
+    QElapsedTimer clock;
+    clock.start();
+    ASSERT_TRUE(operations.copyAcrossProviders(LocalFileProvider::instance(), {source},
+                                               m_provider.get(), QStringLiteral("/share"),
+                                               false, nullptr, &error))
+        << error.toStdString();
+    const QString received = m_share + QLatin1Char('/') + QFileInfo(source).fileName();
+    EXPECT_EQ(digest(received), expected);
+    qInfo().noquote() << "public relay benchmark single" << original.size() << "bytes"
+                      << clock.elapsed() << "ms";
+    m_provider.reset();
 }
 
 // What "Send to Device" does: the same session and the same provider a device

@@ -89,4 +89,5 @@ private:
     QStringList m_shareNames;
     int m_attempt = 0;
     bool m_wanted = false; // start() called and stop() not
+    bool m_awaitingPong = false;
 };

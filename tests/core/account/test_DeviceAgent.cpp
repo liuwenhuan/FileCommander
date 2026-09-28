@@ -52,15 +52,18 @@ public:
             QWebSocket *socket = m_server->nextPendingConnection();
             if (!socket)
                 return;
+            ++m_connections;
             m_live.append(socket);
             connect(socket, &QWebSocket::disconnected, this, [this, socket] {
                 m_live.removeAll(socket);
                 socket->deleteLater();
             });
             connect(socket, &QWebSocket::textMessageReceived, this,
-                    [this](const QString &text) {
+                    [this, socket](const QString &text) {
                         if (text.contains(QStringLiteral("\"hello\"")))
                             m_gotHello = true;
+                        if (m_autoPong && text.contains(QStringLiteral("\"ping\"")))
+                            socket->sendTextMessage(QStringLiteral("{\"type\":\"pong\"}"));
                     });
             socket->sendTextMessage(QStringLiteral("{\"type\":\"welcome\"}"));
         });
@@ -71,6 +74,8 @@ public:
         return QStringLiteral("http://127.0.0.1:%1").arg(m_server->serverPort());
     }
     bool gotHello() const { return m_gotHello; }
+    int connections() const { return m_connections; }
+    void setAutoPong(bool value) { m_autoPong = value; }
     void sendReady() {
         for (QWebSocket *socket : m_live)
             socket->sendTextMessage(QStringLiteral("{\"type\":\"ready\"}"));
@@ -118,6 +123,8 @@ private:
     QWebSocketServer *m_server = nullptr;
     QVector<QWebSocket *> m_live;
     bool m_gotHello = false;
+    int m_connections = 0;
+    bool m_autoPong = false;
 };
 
 // Signs `client` in against `server`; the access token is what makes
@@ -155,6 +162,44 @@ TEST(DeviceAgent, AnnouncedFiresOnReadyNotOnConnect) {
 
     peer.sendReady();
     FC_TRY_COMPARE_WITH_TIMEOUT(announced.count(), 1, 5000);
+}
+
+TEST(DeviceAgent, ReconnectsWhenHeartbeatsGoUnanswered) {
+    MockHttpServer http;
+    AccountClient client;
+    client.setApiUrl(http.url(QString()));
+    ASSERT_TRUE(signIn(client, http));
+
+    AgentPeer peer;
+    client.setApiUrl(peer.apiUrl());
+    DeviceAgent agent(&client);
+    for (QTimer *timer : agent.findChildren<QTimer *>())
+        if (!timer->isSingleShot())
+            timer->setInterval(50);
+    agent.start();
+    FC_TRY_VERIFY_WITH_TIMEOUT(peer.gotHello(), 5000);
+    FC_TRY_VERIFY_WITH_TIMEOUT(peer.connections() >= 2, 4000);
+}
+
+TEST(DeviceAgent, AnsweredHeartbeatsKeepTheConnection) {
+    MockHttpServer http;
+    AccountClient client;
+    client.setApiUrl(http.url(QString()));
+    ASSERT_TRUE(signIn(client, http));
+
+    AgentPeer peer;
+    peer.setAutoPong(true);
+    client.setApiUrl(peer.apiUrl());
+    DeviceAgent agent(&client);
+    for (QTimer *timer : agent.findChildren<QTimer *>())
+        if (!timer->isSingleShot())
+            timer->setInterval(50);
+    agent.start();
+    FC_TRY_VERIFY_WITH_TIMEOUT(peer.gotHello(), 5000);
+    QEventLoop loop;
+    QTimer::singleShot(250, &loop, &QEventLoop::quit);
+    loop.exec();
+    EXPECT_EQ(peer.connections(), 1);
 }
 
 TEST(DeviceAgent, APresenceFrameEmitsPresenceChanged) {
