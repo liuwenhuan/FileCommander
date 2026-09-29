@@ -14,7 +14,6 @@ Unicode true
 !endif
 
 Name "FileCommander"
-Caption "FileCommander ${PRODUCT_VERSION} Setup"
 OutFile "${OUTFILE}"
 InstallDir "$PROGRAMFILES64\FileCommander"
 InstallDirRegKey HKLM "Software\FileCommander" "InstallDir"
@@ -26,18 +25,22 @@ ShowUninstDetails show
 !define MUI_UNICON "${ICON_FILE}"
 !include "MUI2.nsh"
 !define MUI_ABORTWARNING
-!define MUI_WELCOMEPAGE_TITLE "Welcome to FileCommander Setup"
-!define MUI_WELCOMEPAGE_TEXT "FileCommander is a dual-pane file manager for local files, archives, network shares, and document previews.$\r$\n$\r$\nThis wizard will install FileCommander for all users of this computer."
-!define MUI_DIRECTORYPAGE_TEXT_TOP "Choose the folder where FileCommander will be installed."
-!define MUI_DIRECTORYPAGE_TEXT_DESTINATION "Install FileCommander to:"
 !define MUI_FINISHPAGE_RUN "$INSTDIR\FileCommander.exe"
-!define MUI_FINISHPAGE_RUN_TEXT "Launch FileCommander"
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "${STAGE_DIR}\LICENSE"
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 !insertmacro MUI_LANGUAGE "English"
+!insertmacro MUI_LANGUAGE "SimpChinese"
+!insertmacro MUI_LANGUAGE "TradChinese"
+!insertmacro MUI_LANGUAGE "German"
+!insertmacro MUI_LANGUAGE "Spanish"
+!insertmacro MUI_LANGUAGE "French"
+!insertmacro MUI_LANGUAGE "Japanese"
+!insertmacro MUI_LANGUAGE "Korean"
+!insertmacro MUI_LANGUAGE "PortugueseBR"
+!insertmacro MUI_LANGUAGE "Russian"
 
 VIProductVersion "${PRODUCT_VERSION}.0"
 VIAddVersionKey "ProductName" "FileCommander"
