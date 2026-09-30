@@ -1075,8 +1075,8 @@ bool QuickView::beginEditing(const QString &path, const QString &encodingIdentit
         connect(m_editor, &TextEditor::textWrapChanged, this,
                 [this](bool enabled) { setTextWrapEnabled(enabled); });
     }
-    // A probe already in flight would land on the text page and reveal it,
-    // pulling the user straight back out of the editor.
+    // A preview already in flight must not replace the editor when it finishes.
+    cancelPendingPreviewWork();
     ++m_textLoadGeneration;
     m_textLoadPending = false;
     if (!m_editor->loadFile(path, resolvedIdentity))

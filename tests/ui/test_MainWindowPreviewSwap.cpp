@@ -497,6 +497,60 @@ TEST(MainWindowPreviewSwapTest, CtrlEOpensTheEmbeddedQuickViewEditorWithoutViewe
     EXPECT_GE(panelSplitter(window)->indexOf(panel), 0);
 }
 
+TEST(MainWindowPreviewSwapTest, CtrlEDirectlyEditsEmptyAndTinyFilesAfterPreviewSettles) {
+    ThemeStateGuard themeState;
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QStringList names = {QStringLiteral("empty.txt"), QStringLiteral("empty.md"),
+                               QStringLiteral("tiny.md")};
+    for (const QString &name : names) {
+        QFile file(dir.filePath(name));
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+        if (name == QStringLiteral("tiny.md"))
+            ASSERT_EQ(file.write("1\n"), 2);
+    }
+
+    for (const QString &name : names) {
+        MainWindow window(nullptr, 10000, true);
+        FilePanel *panel = window.findChildren<FilePanel *>().value(0);
+        ASSERT_NE(panel, nullptr);
+        window.setActivePanel(panel);
+        panel->navigateTo(dir.path());
+
+        int row = -1;
+        ASSERT_TRUE(QTest::qWaitFor([panel, &row, &name] {
+            for (int r = 0; r < panel->model()->rowCount(); ++r) {
+                if (!panel->model()->isParentEntry(r) &&
+                    panel->model()->fileInfoAt(r).name() == name) {
+                    row = r;
+                    return true;
+                }
+            }
+            return false;
+        }, 5000));
+        panel->view()->setCurrentIndex(panel->model()->index(row, 0));
+
+        QShortcut *ctrlE = nullptr;
+        for (QShortcut *shortcut : window.findChildren<QShortcut *>()) {
+            if (shortcut->key() == QKeySequence(Qt::CTRL | Qt::Key_E)) {
+                ctrlE = shortcut;
+                break;
+            }
+        }
+        ASSERT_NE(ctrlE, nullptr);
+        ASSERT_TRUE(QMetaObject::invokeMethod(ctrlE, "activated", Qt::DirectConnection));
+
+        QuickView *quickView = window.findChild<QuickView *>();
+        ASSERT_NE(quickView, nullptr);
+        FC_TRY_VERIFY_WITH_TIMEOUT(quickView->isEditing(), 5000);
+        QTest::qWait(500);
+        EXPECT_TRUE(quickView->isEditing()) << qPrintable(name);
+        TextEditor *editor = quickView->findChild<TextEditor *>();
+        ASSERT_NE(editor, nullptr);
+        EXPECT_EQ(editor->filePath(), dir.filePath(name));
+    }
+}
+
 TEST(MainWindowPreviewSwapTest, CtrlQSwitchesEmbeddedEditorToPreviewWithoutClosingPane) {
     ThemeStateGuard themeState;
     QTemporaryDir dir;
