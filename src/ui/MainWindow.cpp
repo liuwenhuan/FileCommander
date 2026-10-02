@@ -827,7 +827,8 @@ MainWindow::MainWindow(QWidget *parent, qint64 startupElapsedMs, bool collectSta
                         showBlankContextMenu(panel, pos);
                 });
         connect(panel, &FilePanel::openRequested, this, [this, panel](const QString &path) {
-            // Double-click opens with the system's MIME-associated application.
+            // Double-click runs local ELF programs and otherwise opens with the
+            // system's MIME-associated application.
             // (Directories and local archives are handled earlier in
             // FilePanel::onActivated and never reach here; F3 is the in-app
             // viewer.) The emitting panel decides how to reach the file: on a
@@ -4247,7 +4248,21 @@ void MainWindow::openWithAssociatedApp(FilePanel *panel, const QString &path) {
         // said "no" asked for.
         if (fc::ShellShortcuts::needsExecutableBit(path) && !offerExecutableBit(path))
             return;
-        // Local tab: `path` already is a filesystem path -- unchanged behaviour.
+#ifdef Q_OS_LINUX
+        // Desktop MIME associations may offer a package installer for ELF files.
+        // An executable selected in the local panel is meant to run directly.
+        if (fc::ShellShortcuts::isLaunchable(path)) {
+            const QFileInfo executable(path);
+            if (!executable.isExecutable()) {
+                ttc::warning(this, tr("Not executable"),
+                             tr("%1 is not marked executable.").arg(path));
+            } else if (!QProcess::startDetached(path, {}, executable.absolutePath())) {
+                ttc::warning(this, tr("Open"), tr("Could not start %1").arg(path));
+            }
+            return;
+        }
+#endif
+        // Other local files keep the desktop's MIME association.
         if (!QDesktopServices::openUrl(QUrl::fromLocalFile(path)))
             ttc::warning(this, tr("Open"),
                                  tr("No application is associated with %1").arg(path));

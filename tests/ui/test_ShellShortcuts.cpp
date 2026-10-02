@@ -254,6 +254,16 @@ TEST(ShellShortcutsTest, LaunchableIsDecidedByContentNotExtension) {
     EXPECT_FALSE(fc::ShellShortcuts::isLaunchable(work.path())) << "a directory is not launchable";
 }
 
+TEST(ShellShortcutsTest, SharedLibrariesAreNotLaunchablePrograms) {
+    QTemporaryDir work;
+    ASSERT_TRUE(work.isValid());
+    const QString library = writeElf(work.path(), QStringLiteral("libprobe.so"), false);
+    ASSERT_FALSE(library.isEmpty());
+    ASSERT_TRUE(QFile::setPermissions(library, QFileDevice::ReadOwner | QFileDevice::ExeOwner));
+
+    EXPECT_FALSE(fc::ShellShortcuts::isLaunchable(library));
+}
+
 // The download-then-nothing-happens case: an AppImage with no execute bit.
 TEST(ShellShortcutsTest, ANonExecutableAppImageIsDetectedAndCanBeFixed) {
     QTemporaryDir work;

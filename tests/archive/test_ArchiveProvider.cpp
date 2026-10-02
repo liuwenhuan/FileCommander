@@ -9,6 +9,7 @@
 #include "ArchiveLayout.h"
 #include "ArchiveProvider.h"
 #include "FileInfo.h"
+#include "SquashfsReader.h"
 
 namespace {
 
@@ -161,6 +162,26 @@ TEST(ArchiveProviderTest, IsArchivePathRecognizesSuffixes) {
     EXPECT_TRUE(ArchiveProvider::isArchivePath("FOO.7Z"));
     EXPECT_TRUE(ArchiveProvider::isArchivePath("foo.rar"));
     EXPECT_FALSE(ArchiveProvider::isArchivePath("foo.txt"));
+}
+
+TEST(ArchiveProviderTest, AppImageIsOpenedAsAnApplication) {
+    QTemporaryDir workDir;
+    ASSERT_TRUE(workDir.isValid());
+    QByteArray image(64, '\0');
+    image.replace(0, 4, "\x7f" "ELF", 4);
+    image[4] = 2;  // ELFCLASS64
+    image[5] = 1;  // little endian
+    image[8] = 'A';
+    image[9] = 'I';
+    image[10] = 2; // Type-2 AppImage marker
+    image.append("hsqs", 4);
+    const QString path = writeFile(workDir.path(), "probe.AppImage", image);
+
+    ASSERT_TRUE(SquashfsReader::isAppImage(path));
+    EXPECT_FALSE(ArchiveProvider::isArchivePath(path));
+    const QString extensionless = writeFile(workDir.path(), "probe", image);
+    ASSERT_TRUE(SquashfsReader::isAppImage(extensionless));
+    EXPECT_FALSE(ArchiveProvider::isArchivePath(extensionless));
 }
 
 TEST(ArchiveProviderTest, IsReadOnly) {

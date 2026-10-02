@@ -4,6 +4,7 @@
 #include <QFile>
 #include <QFileDevice>
 #include <QFileInfo>
+#include <QMimeDatabase>
 #include <QProcess>
 #include <QStandardPaths>
 #include <QTextStream>
@@ -106,7 +107,12 @@ bool isLaunchable(const QString &path) {
         return false;
     // By content, not by name: a Linux executable usually has no suffix, and an
     // AppImage that has lost its .AppImage suffix is still one.
-    return hasElfMagic(path);
+    if (!hasElfMagic(path))
+        return false;
+    // Shared libraries are ELF files too, and often carry execute permission.
+    // They are not applications to run or offer as shortcut targets.
+    static QMimeDatabase mimeDatabase;
+    return mimeDatabase.mimeTypeForFile(path).name() != QStringLiteral("application/x-sharedlib");
 }
 
 bool needsExecutableBit(const QString &path) {

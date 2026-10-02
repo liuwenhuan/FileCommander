@@ -606,8 +606,8 @@ private:
     // window. `then` is dropped if the panel goes away first.
     void resolveRealPath(FilePanel *panel, const QString &path,
                          std::function<void(const QString &)> then);
-    // Opens `path` (as listed by `panel`) with the desktop's MIME-associated
-    // application: through the gvfs mount when there is one, otherwise falling
+    // Runs local ELF programs directly. Other files use the desktop's MIME
+    // association: through the gvfs mount when there is one, otherwise falling
     // back to fetching a read-only local copy.
     void openWithAssociatedApp(FilePanel *panel, const QString &path);
     // Launches the desktop's handler on an already-downloaded copy, warning if

@@ -143,8 +143,9 @@ bool ArchiveProvider::isArchivePath(const QString &path) {
     // the only member of its set that can actually be opened.
     if (fc::isVolumeMember(path))
         return true;
-    // AppImages are recognised by magic bytes, not suffix (many have none).
-    return SquashfsReader::available() && SquashfsReader::isAppImage(path);
+    // AppImages are applications on activation, even though their appended
+    // squashfs can still be handled explicitly by the archive tools.
+    return false;
 }
 
 void ArchiveProvider::setProgressCallback(std::function<void(qint64, qint64)> cb) {

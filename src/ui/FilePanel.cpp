@@ -1896,10 +1896,8 @@ void FilePanel::onActivated(const QModelIndex &index) {
     // as folder" preference is off -- archives then open as plain files.
     if (m_archiveAsFolder && !m_archiveProvider) {
         const bool network = m_model->hasNetworkSession();
-        // On a network tab only the suffix can decide: isArchivePath() also
-        // sniffs magic bytes for extension-less AppImages, and it reads them
-        // through the LOCAL filesystem, where a server path names nothing. (An
-        // AppImage on a share therefore opens as a plain file, as before.)
+        // On a network tab only the suffix can decide: a server path does not
+        // name a file that the local archive detector can inspect.
         const bool isArchive = network ? ArchiveLayout::hasArchiveSuffix(info.path())
                                        : ArchiveProvider::isArchivePath(info.path());
         if (isArchive) {
@@ -1936,7 +1934,7 @@ bool FilePanel::enterArchive(const QString &localArchivePath, const QString &sou
     const NavEntry from = currentLocation();
 
     // Constructing the provider SCANS THE ARCHIVE -- every header, and for a
-    // 7z/UDF/AppImage it shells out and waits. On a multi-gigabyte archive that
+    // 7z/UDF it shells out and waits. On a multi-gigabyte archive that
     // is seconds, and it used to be seconds of frozen window with nothing to
     // say why. Off-thread, with the status line saying what is happening.
     m_archiveOpenPending = true;
